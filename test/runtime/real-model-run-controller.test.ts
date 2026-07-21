@@ -18,6 +18,13 @@ describe("real-model run controller safety", () => {
 		);
 		expect(checked).toContain("kind=eval");
 		expect(checked).toContain("fleet=[ternary-bonsai-27b-mlx]");
+		const cacheChecked = execFileSync(
+			"bash",
+			[SCRIPT, "--cache-probe", "--worker", "qwen/qwen2.5-coder-14b", "--check-config"],
+			{ encoding: "utf8" },
+		);
+		expect(cacheChecked).toContain("kind=cache");
+		expect(cacheChecked).toContain("fleet=[qwen/qwen2.5-coder-14b]");
 	});
 
 	it("routes every fleet admission through the guarded retained-set command", () => {
@@ -28,10 +35,14 @@ describe("real-model run controller safety", () => {
 		expect(source).not.toContain("google/gemma-4-31b-qat");
 	});
 
-	it("keeps teardown warm by default and exposes the monitored role-eval path", () => {
+	it("keeps teardown warm by default and exposes monitored eval and cache paths", () => {
 		const source = readFileSync(SCRIPT, "utf8");
 		expect(source).toContain('if [ "$UNLOAD" = 1 ]');
 		expect(source).toContain("--eval-harness");
 		expect(source).toContain("npx tsx scripts/eval-harness.mts");
+		expect(source).toContain("--cache-probe");
+		expect(source).toContain("npx tsx scripts/verify-cache-health-live.mts");
+		expect(source).toContain('if [ "$RUN_KIND" = eval ]; then');
+		expect(source).toContain('elif [ "$RUN_KIND" = cache ]; then');
 	});
 });

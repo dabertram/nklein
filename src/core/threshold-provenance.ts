@@ -100,16 +100,16 @@ export function assessThreshold(declaration: ThresholdDeclaration): ProvenanceAs
 /**
  * The thresholds this project ships, with their real provenance.
  *
- * Every entry here was previously a bare constant. Writing them down was itself the finding: **none of them is
- * `measured`.** That is not a criticism of the numbers — it is the accurate current state, and stating it is what
- * stops the next reader treating them as results.
+ * Every entry here was previously a bare constant. The first genuine measurement landed for the compaction trigger
+ * on 2026-07-22; the remaining entries stay explicitly operational or downgraded until their own evidence exists.
  */
 export const SHIPPED_THRESHOLDS: readonly ThresholdDeclaration[] = [
 	{
 		id: "compaction.context_utilisation",
 		value: 0.75,
-		provenance: "operational",
-		basis: "no published source gives an empirical compaction threshold; the widely-repeated 0.5 is folklore and Anthropic's own guidance gives no number. 0.75 leaves working room without compacting early. To be replaced by a measured value from the nightly + eval harness on OUR workload (P18.5).",
+		provenance: "measured",
+		basis: "pre-registered paired context-integrity eval, 2026-07-22: Qwen2.5-Coder-14B recovered all three task-specific contract facts on 20/20 distinct coding-context tasks at measured 50.02%, 75.00%, and 90.14% prompt utilisation, with zero infrastructure errors. This validates 0.75 as a conservative safe trigger on the measured lane; it does not claim that 0.75 is an optimal fleet-wide degradation knee (none appeared through 90.14%).",
+		sampleSize: 20,
 	},
 	{
 		id: "codeact.fitness_bar",

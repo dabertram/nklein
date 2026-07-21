@@ -573,7 +573,8 @@ source repo went private — so if it vanishes the buildable source still lives 
   `board.json`, the runtime log, the dev-log stream) — NEVER polling the inference endpoint** → **REACT to
   stall/crash/floor-refusal** (snapshot + abort) → report every log into `.real-runs/<stamp>/` → always teardown
   (fleet kept resident unless `--unload`). Usage: `scripts/real-model-run.sh [preset] [--plan|--act] [--worker <id>]
-  [--max-min N] [--unload]`, or `--eval-harness --worker <id>` for the shared deterministic role corpus; `--help` and
+  [--max-min N] [--unload]`, `--eval-harness --worker <id>` for the shared deterministic role corpus, or
+  `--cache-probe --worker <id>` for the repeated-prefix TTFT assertion; `--help` and
   `--check-config` are side-effect-free. The inferred dev fleet contains only models the selected run can use (normally
   Qwen3.6 35B A3B + Qwen2.5 Coder 14B for planning, one forced worker for act/eval), never the stale four-model roster.
   `NKLEIN_FLEET` can override it only within `NKLEIN_LOAD_MAX_RESIDENTS` (m5max hard ceiling 3); `NKLEIN_RETAIN_MODELS`
@@ -584,6 +585,11 @@ source repo went private — so if it vanishes the buildable source still lives 
   end-to-end through this harness BEFORE trusting any drain/eval result. (Live 2026-07-22: a loaded 40k Bonsai target
   reconciled m5max from four to three by evicting only idle Phi; 95% free pressure and 0 MiB swap growth; linked m4mini
   and legion5pro residents remained untouched.)
+  - **NEVER MODIFY A RUNNING SHELL CONTROLLER'S SOURCE (incident 2026-07-22).** Bash reads a script incrementally;
+    editing `real-model-run.sh` while an instance was already executing changed later byte/line offsets and made that
+    otherwise-valid instance fail at report time with a syntax error. Stop/finish the controller, verify its lock is
+    free, then edit and start a fresh instance. Long evals checkpoint every cell, and `NKLEIN_EVAL_RESUME_PATH` resumes
+    from either the JSON checkpoint or an earlier human-readable `eval.log`, so there is no reason to patch in flight.
   - **BONSAI 27B MLX / LM STUDIO TOOL-GRAMMAR INCOMPATIBILITY (live + researched 2026-07-22):** 40k is safe and well
     inside the checkpoint's advertised 262k context; a fresh tool-free run scored context worker 1.000 at 2k/8k/24k
     and reviewer 0.722. Tool-bearing architect/worker requests fail before the first call in LM Studio MLX runtime
@@ -7358,74 +7364,6 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   routine path, and it is not a wire — it is a dependency on SDK capability.**
   **Do not close this by wiring `decideOffTrackRemedy` somewhere harmless and calling it done** — that would
   produce a green item, a tested core, and a system that still launders drift.
-- [~] **P18.5 — Instrument our OWN effective-context threshold; do not import one.** **No published source gives
-  an empirical compaction threshold** — the widely-repeated "compact at 50% of the window" is FOLKLORE. Anthropic's
-  own context-engineering guidance says only to compact when "nearing the context window limit", with no number.
-  Any threshold !Klein ships must be labelled an operational default and instrumented, not presented as measured.
-  Phase 13 nightly + the eval harness are where the real number gets produced for OUR workload.
-  **PROVENANCE CORE SHIPPED 2026-07-20: `threshold-provenance.ts`, 10 tests.**
-  **THE FAILURE THIS PREVENTS IS NOT "WE PICKED A BAD NUMBER" — it is "nobody can tell which numbers were
-  measured."** `COMPACTION_THRESHOLD = 0.5` looks identical whether it came from an experiment on this workload,
-  a blog post, or an intuition on a Tuesday. Once shipped all three are equally authoritative to the next reader,
-  and **the intuition is the one most likely to be defended, because nobody remembers it was an intuition.**
-  So `provenance` and `basis` are REQUIRED fields — an unlabelled threshold is unconstructible. Four kinds:
-  `measured` (this workload, with sample size), `operational` (a deliberate default nobody has measured),
-  `borrowed` (a published result on a DIFFERENT workload), `folklore` (widely repeated, no traceable source).
-  **ONLY `measured` IS POLICED, and that asymmetry is the design.** The other three are already admitting they are
-  not evidence, so there is nothing to check. A `measured` claim with a thin or missing sample is DOWNGRADED with
-  *"treat as an operational default until the sample supports the claim"* — **only one label can flatter a number,
-  so only one needs enforcement.** Folklore is explicitly NOT banned: refusing to ship unmeasured numbers would
-  stop the project. What is banned is folklore being CITED as measured.
-  **📋 WRITING THE TABLE DOWN WAS ITSELF THE FINDING: NOTHING THIS PROJECT SHIPS IS CITABLE AS MEASURED TODAY.**
-  Five thresholds catalogued (compaction utilisation, CodeAct bar, residency bar, cold-load seconds, regression
-  ratio) and every one is an operational default. That is not a criticism of the numbers — it is the accurate
-  state, and stating it is what stops the next reader treating them as results. Pinned by test.
-  🐛 **And it caught an over-claim in its OWN table:** `cold_load.seconds = 65` was labelled `measured` on the
-  strength of a 40–90s field range with no recorded sample. The assessor downgrades it. **Kept as-is rather than
-  quietly relabelled — the mechanism catching its author is the demonstration that it works.**
-  **🔗 THE TABLE IS BOUND TO THE LIVE CONSTANTS, not a copy of them.** A test asserts each catalogued value equals
-  the constant actually in force (`COMPACTION_UTILISATION`, `CODEACT_FITNESS_BAR`, `RESIDENCY_FITNESS_BAR`,
-  `COLD_LOAD_SECONDS`, `REGRESSION_RATIO`). Without it the table is documentation duplicating a constant, and
-  **documentation that duplicates a constant drifts from it** — at which point the provenance labels describe
-  numbers the system no longer uses. That is WORSE than no table: a confident, wrong account of where our
-  thresholds came from. Verified by changing a catalogued value: the test named the id and failed; restoring it
-  went green.
-  REMAINING (P18.5b): produce a REAL measurement for at least one entry and flip it to `measured` with a genuine
-  sample. Needs nightly/eval-harness runs — and per P20.6's arithmetic, enough TASKS rather than enough repeats.
-- [~] **P18.6 — Unsettling result worth testing before trusting our compaction FORMAT.** Chroma found **all 18
-  models performed BETTER on shuffled haystacks than on logically coherent ones.** If coherent structure is a
-  liability for retrieval, then a well-written narrative summary — the standard compaction artifact, and what
-  !Klein produces — is not self-evidently the right format. Nobody has measured this. Cheap to A/B in the eval
-  harness (narrative summary vs. bullet-list of facts vs. shuffled fact list) and potentially a free win.
-  **FORMAT CORE SHIPPED 2026-07-20: `compaction-format.ts`, 10 tests.** Renders one fact set three ways —
-  `narrative` (today's default, and the one under suspicion), `fact_list`, `shuffled_facts` (the Chroma
-  condition) — so the A/B is cheap rather than hypothetical.
-  **EVERY ARM PRESENTS THE SAME FACTS; ONLY ARRANGEMENT DIFFERS.** An arm that dropped or added a fact would
-  measure summarisation QUALITY while claiming to measure STRUCTURE — the one confound that would invalidate the
-  whole experiment. Pinned by test across all three arms.
-  **THE SHUFFLE IS SEEDED, AND THAT IS NOT A DETAIL.** An unseeded shuffle makes every run a different treatment,
-  so a difference between runs could not be attributed to the FORMAT rather than to the draw — **the comparison
-  would produce numbers and no knowledge.** Seeded, `shuffled_facts` is one stable condition that can be re-run,
-  and arms can be compared PAIRED (P20.6: ~5× sample-size saving, free). A separate test asserts the shuffle
-  actually de-coheres: a "shuffle" returning source order would silently make the Chroma arm a duplicate of
-  `fact_list`, and the A/B would report no difference for the most boring possible reason.
-  **IT SHIPS NO DEFAULT PREFERENCE, deliberately.** The entire content of this item is that **nobody has measured
-  this**, so a module quietly recommending `fact_list` on the strength of one surprising paper would be doing
-  what the item warns against, with an extra step. The arms are equals until the harness says otherwise — and
-  whatever it says is subject to P18.5's provenance rules.
-  The narrative arm is deliberately PLAIN prose: an elaborately-written arm would confound "coherent structure"
-  with "better writing", and the hypothesis under test is about the former.
-  **✅ DE-ORPHANED 2026-07-20 via `dev compaction-format` — the arms are inspectable before any model time.**
-  The format core had NO consumer (the built-but-unwired shape this session drained). The A/B needs the harness
-  to pick a WINNER, but the arms are deterministic, so a `dev` command renders all three from a `{id,text}` JSONL
-  fact set and — crucially — **checks the load-bearing invariant at runtime**: every arm carries the identical
-  fact-id SET, so a broken renderer surfaces as a failed invariant rather than as a silently invalid experiment.
-  Live-exercised: three arms rendered, the shuffle genuinely de-cohered (a fact moved to last), invariant green.
-  A test pins the check CAN fail on a hand-built mismatch — an invariant that cannot fail proves nothing. The
-  command ships NO preferred arm, matching the item: nobody has measured this, and a `dev` tool that named a
-  winner would be doing exactly what P18.6 warns against.
-  REMAINING (P18.6b): run the A/B in the eval harness for a WINNER. Needs model time; the arms and their
-  comparability check are now built and exercised, so the harness wires a ready experiment.
 
 ### Phase 19 — Prompt-cache discipline (prefill is the hidden cost on consumer hardware)
 
@@ -7516,49 +7454,6 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   ~113k-token ones, and that **even ONE distractor degrades performance**. Pruning stale failed attempts before
   compressing volume is worth more than any rearrangement of what compaction rewrites — and unlike cache
   placement, it improves quality as well as cost. Closed here so the effort lands there instead.
-- [~] **P19.4 — Verify prompt caching EMPIRICALLY per runtime build, not by flag.** llama.cpp issue #15082 is an
-  **unresolved regression** where `--cache-reuse` stopped caching prefixes (identical first ~1000 chars fully
-  reprocessed; bisected to a first-bad commit; an attempted fix did not resolve it). **Do not assume caching works
-  because the flag is set.** Verify via `prompt eval time = … / N tokens` in logs or `/slots` with
-  `LLAMA_SERVER_SLOTS_DEBUG=1`. Belongs with P17.1's second runtime adapter.
-  **DETECTOR SHIPPED 2026-07-20: `prompt-cache-verification.ts`, 11 tests.** `parsePromptEvalTiming` reads
-  llama.cpp's own `prompt eval time = … ms / N tokens` line; `assessCacheEffectiveness` compares a cold and warm
-  prefill over an IDENTICAL prefix and returns `working` / `not_working` / `indeterminate`. **No instrumentation
-  of the model server is needed — the runtime already reports what is required.**
-  **WHY THIS MATTERS MORE HERE THAN ELSEWHERE:** prefill is 24–36× generation cost on Apple Silicon, so
-  silently-absent caching **breaks nothing** — it just makes every turn several times more expensive,
-  indefinitely, while the configuration looks correct. That is a failure with no symptom other than the bill.
-  **`indeterminate` IS THE COMMON ANSWER AND IS NEVER A PASS.** A missing timing, a prefix below ~256 tokens, a
-  non-positive duration, or two runs that did NOT share a prefix all return "we could not tell". Reporting any of
-  them as "caching works" would **recreate #15082 exactly: a system that believes it is caching because nothing
-  contradicted it.** A parse failure returns `null` rather than a zero-filled record, because a parse failure and
-  a genuine zero must not look alike — the first is a harness problem, the second a finding.
-  Two calibration choices, both deliberate: a ZERO warm prefill is the strongest possible hit rather than a
-  division error; and a MARGINAL speed-up reports `not_working` rather than `working` — being wrong about a broken
-  cache costs prefill time, while being wrong about a working one costs an investigation that finds nothing.
-  Per P18.5 the 2× bar and the 256-token floor are **OPERATIONAL DEFAULTS, not measurements**, and are labelled
-  as such in the source.
-  **✅ DE-ORPHANED 2026-07-20 via `dev cache-check` — the detector no longer sits idle.** `--cold <log> --warm
-  <log>` reads llama.cpp output (the logs a run already produces — no live endpoint), takes the LAST prompt-eval
-  line in each, and prints the verdict. Live-exercised across all three: a 35.7× warm speed-up → **WORKING**; a
-  flag-set-but-1.04× case → **NOT_WORKING** (exit 1); a missing warm timing → **INDETERMINATE** (exit 0). **The
-  exit codes encode P19.4's whole principle: `not_working` fails a script, `indeterminate` does NOT** — a harness
-  gap must never fail a check that would then "fix" a cache never shown broken, which is #15082 in reverse. 4
-  wire tests pin the last-line reading and that a missing timing stays `indeterminate`.
-  **✅ P19.4b PROBED LIVE 2026-07-20 (fleet access) — caching WORKS on our fleet, including the growing-prefix
-  reuse agent turns depend on.** Loaded `qwen/qwen3-8b` (unloaded after) and issued identical + prefix-extended
-  requests with `max_tokens=1` so wall-clock ≈ prefill:
-  - COLD prefill of a 5423-token prompt: **5.00s**. WARM (byte-identical) repeat: **0.15s / 0.14s** — a **97% drop**,
-    so the endpoint reuses the KV cache for an identical prefix across separate API calls.
-  - GROWING PREFIX (the real agent pattern — same prefix + a new tail, 5439 tokens): **0.26s** vs 5.00s cold, so
-    only the appended tail was re-prefilled; the shared history prefix was reused.
-  This is the empirical confirmation the item demanded, on the runtime we actually ship (LM Studio + MLX): the
-  llama.cpp #15082 silent-cache-absence regression does NOT affect us, and the cost model's load-bearing assumption
-  — that after the first turn an agent pays prefill only for the new tokens — HOLDS on measured evidence, not a
-  flag. (Measured via the OpenAI API latency, not llama.cpp's `prompt eval time` log line, because MLX models do
-  not emit that line; the `prompt-cache-verification.ts` detector still serves the GGUF/llama.cpp endpoints.)
-  REMAINING (low value): wire this two-request latency probe as a repeatable startup/`dev` assertion per endpoint —
-  belt-and-braces, since the danger is now measured absent on the fleet.
 - [x] **P19.5 — Correct two pieces of folklore in our own notes/docs.** Verified against the current llama.cpp
   server README + manpage: **`--context-shift` defaults to DISABLED** (commonly mis-stated as on), and
   **`--slot-prompt-similarity` defaults to 0.10, not 0.5** (the "50% match" figure comes from a stale discussion

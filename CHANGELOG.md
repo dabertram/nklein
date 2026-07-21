@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The current compaction trigger now has measured provenance instead of folklore.** A pre-registered paired
+  20-task coding-context run recovered every contract fact at measured 50.02%, 75.00%, and 90.14% utilisation on
+  Qwen2.5-Coder-14B with zero infrastructure failures, validating 75% as a conservative safe trigger without
+  pretending it is an optimal fleet-wide knee. The same run found no quality difference among narrative, ordered
+  fact-list, and seeded-shuffle compactions; a 0.6B sensitivity lane hit a format-independent capability floor, so
+  !Klein retains the current narrative format rather than manufacturing a winner.
+
 - **Real-model runs now preserve warm prompt caches without risking host overcommit.** The mandatory controller strictly
   validates its CLI before creating run state, admits only the models the chosen run can use through the guarded loader,
   caps m5max at three residents, and reconciles already-loaded targets by evicting only cold idle models. It keeps the
@@ -9,7 +16,9 @@
   setup calls, leaves linked hosts untouched, and can run the shared per-role evaluation corpus under the same monitored
   lifecycle. It now stops immediately when its worker disappears or LM Studio reports a fatal backend crash, and the
   evaluator preserves complete HTTP/backend diagnostics instead of collapsing incompatible serving behavior into a
-  misleading “no answer.” A live Bonsai 27B MLX evaluation separated strong tool-free context/review performance from
+  misleading “no answer.” A repeatable cache assertion measured a 27.79× cold-to-warm TTFT improvement on the 14B coder
+  and fails closed when prefix reuse is unhealthy or unmeasurable. A live Bonsai 27B MLX evaluation separated strong
+  tool-free context/review performance from
   an LM Studio constrained-tool-grammar incompatibility and records that boundary in the model catalog.
 
 - **The inherent card timeline now has complete checked coverage.** Every completed provider request records its own

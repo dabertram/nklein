@@ -2397,3 +2397,28 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   the actual SDK hook and product-action seams. The checked coverage contract is now **14/14 tracked**; request,
   turn, session, and attempt usage grains coexist without pretending one is another, and the four operator
   intervention severities have distinct, observable meanings.
+
+## 2026-07-22 measured context and cache experiments
+
+- [x] **P18.5 — Instrument our OWN effective-context threshold.** The provenance core and live-constant binding
+  shipped earlier; the remaining measurement is now complete. `context-integrity-experiment.ts` generates 20
+  distinct coding-context tasks in balanced, paired 50%/75%/90% utilisation arms, pre-registers a 25pp effect
+  threshold and achievable ~19.81pp MDE, and checkpoints every cell for resumable real runs. Qwen2.5-Coder-14B
+  scored 20/20 at measured mean utilisations 50.02%, 75.00%, and 90.14%, with zero infrastructure failures
+  (`.real-runs/20260722-012621`). This validates the live 0.75 compaction trigger as a conservative measured-safe
+  threshold for this workload/model; it does **not** claim an optimal fleet-wide knee, because none appeared
+  through 90.14%. `compaction.context_utilisation` is therefore the first honestly `measured` catalog entry
+  (sample size 20); the other thresholds retain their non-measured provenance.
+- [x] **P18.6 — Test compaction format instead of assuming coherent narrative wins.** The same experiment presents
+  identical 60-fact sets as narrative, fact list, and seeded shuffled facts. On 20 paired Qwen2.5-Coder-14B tasks,
+  all three arms scored 20/20 with zero infrastructure failures; a format-only 0.6B run scored 0/20 in all three
+  arms (`.real-runs/20260722-014153`), establishing a capability floor rather than a format effect. No arm met the
+  pre-registered 25pp superiority threshold, so the result is honestly **no detectable winner**. Narrative remains
+  the status quo, not a measured winner; manufacturing a winner from tied data would violate this item's purpose.
+- [x] **P19.4 — Verify prompt caching empirically per runtime build.** The existing pure detector, log CLI, and
+  one-off live proof are now backed by a repeatable effectful assertion: `verify-cache-health-live.mts` sends a
+  unique long prefix cold and twice warm, exits non-zero for unhealthy or unmeasurable results, and is routed
+  through `real-model-run.sh --cache-probe` so admission, monitoring, evidence, and safe warm teardown are mandatory.
+  Live Qwen2.5-Coder-14B evidence (`.real-runs/20260722-014836`) measured 4,724 ms cold versus 170 ms warm —
+  **27.79× faster**, verdict HEALTHY, no abort, exit 0. The complete five-model fleet remained resident across
+  m5max, m4mini, and legion5pro.

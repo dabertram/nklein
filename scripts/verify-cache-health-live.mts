@@ -7,8 +7,8 @@
  * format, e.g. MLX GPT-OSS-20B / #1697) the two TTFTs are ~equal. This MEASURES the actual effect — the most trustworthy
  * signal (LM Studio's `cached_tokens` is unreliable, #778).
  *
- * It reports a VERDICT (healthy/unhealthy) — both are valid findings; it exits non-zero only if the timings were
- * UNMEASURABLE (e.g. a too-slow model timed out before the first token). Empirically (2026-06-30) qwen3.5-MLX caches
+ * It reports a VERDICT (healthy/unhealthy) and exits non-zero for unhealthy or unmeasurable results, so the probe is
+ * a repeatable assertion rather than a report a caller can accidentally ignore. Empirically (2026-06-30) qwen3.5-MLX caches
  * fine (71.7×) despite the arch pre-filter flagging it — so this probe is the authority, not the static arch guess.
  *
  * Run:  tsx scripts/verify-cache-health-live.mts
@@ -104,7 +104,7 @@ async function main(): Promise<void> {
 		log("\nUNMEASURABLE — the cold/warm TTFTs were not both positive+finite (model too slow? endpoint down?).");
 		process.exit(1);
 	}
-	process.exit(0);
+	process.exit(verdict.healthy ? 0 : 3);
 }
 
 main().catch((error) => {

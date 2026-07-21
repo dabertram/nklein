@@ -69,20 +69,21 @@ describe("SHIPPED_THRESHOLDS", () => {
 		}
 	});
 
-	it("catches an over-claim in OUR OWN table — cold_load is labelled measured with no sample", () => {
+	it("keeps the historical cold-load over-claim downgraded", () => {
 		// Writing the table down was itself the finding. The cold-load figure comes from a field range, not from a
 		// recorded experiment on this fleet, so the assessor downgrades it. Pinned rather than quietly relabelled:
 		// the mechanism catching its author's over-claim is the demonstration that it works.
 		const coldLoad = SHIPPED_THRESHOLDS.find((t) => t.id === "cold_load.seconds");
 		expect(coldLoad?.provenance).toBe("measured");
-		expect(assessThreshold(coldLoad!).citableAsMeasured).toBe(false);
+		if (!coldLoad) throw new Error("missing cold-load threshold fixture");
+		expect(assessThreshold(coldLoad).citableAsMeasured).toBe(false);
 	});
 
-	it("NOTHING this project ships is citable as measured today", () => {
-		// The accurate current state. Not a criticism of the numbers — stating it is what stops the next reader
-		// treating operational defaults as results.
+	it("cites only the context threshold backed by the 20-task paired measurement", () => {
 		const citable = SHIPPED_THRESHOLDS.filter((t) => assessThreshold(t).citableAsMeasured);
-		expect(citable).toEqual([]);
+		expect(citable.map((threshold) => threshold.id)).toEqual(["compaction.context_utilisation"]);
+		expect(citable[0]?.sampleSize).toBe(20);
+		expect(citable[0]?.basis).toContain("does not claim");
 	});
 });
 

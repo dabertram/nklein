@@ -12,6 +12,7 @@
 #
 # Usage:  scripts/real-model-run.sh [preset] [--plan|--act] [--worker <modelId>] [--unload] [--max-min N]
 #         scripts/real-model-run.sh --eval-harness --worker <modelId> [--unload] [--max-min N]
+#         scripts/real-model-run.sh --cache-probe --worker <modelId> [--unload] [--max-min N]
 # Env:    NKLEIN_RUN_HOME, NKLEIN_RUNTIME_PORT (3484), NKLEIN_STALL_SECS (180),
 #         NKLEIN_ACTIVE_STALL_SECS (900), NKLEIN_POLL_SECS (15)
 set -uo pipefail
@@ -21,11 +22,13 @@ usage(){
 Usage:
   scripts/real-model-run.sh [preset] [--plan|--act] [--worker <modelId>] [--max-min N] [--unload]
   scripts/real-model-run.sh --eval-harness --worker <modelId> [--max-min N] [--unload]
+  scripts/real-model-run.sh --cache-probe --worker <modelId> [--max-min N] [--unload]
 
 Options:
   --plan            Run the planning/decomposition drain (default is --act).
   --act             Run the direct-action drain.
   --eval-harness    Run the deterministic per-role model evaluation without starting the !Klein runtime.
+  --cache-probe     Assert repeated-prefix cache reuse through measured cold/warm time-to-first-token.
   --worker ID       Model identifier to run and safely admit to the retained set.
   --max-min N       Hard wall-clock bound in whole minutes (default: 20).
   --unload          Unload all models during teardown (default: keep the safe retained set warm).
@@ -58,6 +61,7 @@ while [ "$#" -gt 0 ]; do
     --plan) MODE=""; MODE_SET=1; shift;;
     --act) MODE="--no-plan"; MODE_SET=1; shift;;
     --eval-harness) RUN_KIND="eval"; shift;;
+    --cache-probe) RUN_KIND="cache"; shift;;
     --unload) UNLOAD=1; shift;;
     --check-config) CHECK_ONLY=1; shift;;
     --worker)
@@ -78,8 +82,8 @@ case "$CTX" in ''|*[!0-9]*) printf 'error: NKLEIN_CONTEXT_LENGTH must be an inte
 [ "$CTX" -ge 32000 ] || { printf 'error: NKLEIN_CONTEXT_LENGTH=%s violates the 32000-token floor\n' "$CTX" >&2; exit 64; }
 case "$MAX_RESIDENTS" in ''|*[!0-9]*|0) printf 'error: NKLEIN_LOAD_MAX_RESIDENTS must be a positive integer\n' >&2; exit 64;; esac
 [ "$MAX_RESIDENTS" -le 3 ] || { printf 'error: m5max retained-set safety ceiling is 3 models\n' >&2; exit 64; }
-if [ "$RUN_KIND" = eval ] && { [ "$PRESET_SET" = 1 ] || [ "$MODE_SET" = 1 ]; }; then
-  printf 'error: presets and --plan/--act do not apply to --eval-harness\n' >&2; exit 64
+if [ "$RUN_KIND" != dev-test ] && { [ "$PRESET_SET" = 1 ] || [ "$MODE_SET" = 1 ]; }; then
+  printf 'error: presets and --plan/--act do not apply to eval/cache probes\n' >&2; exit 64
 fi
 
 WORKER="${WORKER:-qwen/qwen3.6-35b-a3b}"
@@ -99,7 +103,7 @@ append_unique(){
 if [ -n "${NKLEIN_FLEET:-}" ]; then
   read -r -a REQUESTED_FLEET <<< "$NKLEIN_FLEET"
   for model_id in "${REQUESTED_FLEET[@]}"; do append_unique "$model_id"; done
-elif [ "$RUN_KIND" = eval ]; then
+elif [ "$RUN_KIND" != dev-test ]; then
   append_unique "$WORKER"
 elif [ -n "$MODE" ]; then
   append_unique "$WORKER"
@@ -262,7 +266,7 @@ done
 PS_JSON=$(HOME="$REAL_HOME" lms ps --json 2>/dev/null || true)
 RESIDENT=$(printf '%s' "$PS_JSON" | jq '[.[] | select(.type == "llm")] | length' 2>/dev/null || echo 0)
 LOCAL_RESIDENT=$(printf '%s' "$PS_JSON" | jq '[.[] | select(.type == "llm" and .deviceIdentifier == null)] | length' 2>/dev/null || echo 0)
-log "resident models across LM Link: $RESIDENT (local $LOAD_DEVICE: $LOCAL_RESIDENT)"
+log "resident models across LM Link: $RESIDENT (local m5max: $LOCAL_RESIDENT)"
 [ "$RESIDENT" -lt 1 ] && { log "FATAL: no models resident"; exit 3; }
 
 log "starting LM Studio dev-log stream → $(basename "$DEVLOG")"
@@ -285,7 +289,14 @@ if [ "$RUN_KIND" = eval ]; then
   log "launching role eval: worker=$WORKER max=${MAX_MIN}m"
   ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_VERIFY_MODEL="$WORKER" \
       NKLEIN_VERIFY_BASE_URL="http://127.0.0.1:1234/v1" \
+      NKLEIN_EVAL_CHECKPOINT_PATH="$RUN_DIR/eval-checkpoint.json" \
       npx tsx scripts/eval-harness.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
+elif [ "$RUN_KIND" = cache ]; then
+  DRAIN_JSON="$RUN_DIR/cache-probe.log"; DRAIN_ERR="$RUN_DIR/cache-probe.err"
+  log "launching cache-health probe: worker=$WORKER max=${MAX_MIN}m"
+  ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_VERIFY_MODEL="$WORKER" \
+      NKLEIN_VERIFY_BASE_URL="http://127.0.0.1:1234/v1" \
+      npx tsx scripts/verify-cache-health-live.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
 else
   log "launching drain: preset=$PRESET mode=${MODE:-plan} worker=$WORKER max=${MAX_MIN}m"
   ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
@@ -404,14 +415,16 @@ wait "$DRAIN_PID" 2>/dev/null; DRAIN_STATUS=$?; DRAIN_END=$(date +%s)
 log "=== RESULT (real wall time $((DRAIN_END-DRAIN_START))s) ==="
 snapshot_session_transcripts
 DRAIN_OUTCOME="unclassified"; DRAIN_SUCCESS=false
-if [ "$RUN_KIND" = eval ]; then
-  case "$DRAIN_STATUS" in
-    0) DRAIN_OUTCOME="passed"; DRAIN_SUCCESS=true;;
-    3) DRAIN_OUTCOME="partial";;
-    *) DRAIN_OUTCOME="failed";;
-  esac
-  EVAL_RESULT=$(grep '^result:' "$DRAIN_JSON" 2>/dev/null | tail -1)
-  log "eval outcome: $DRAIN_OUTCOME | ${EVAL_RESULT:-no result line; see eval.log/eval.err}"
+if [ "$RUN_KIND" = eval ] || [ "$RUN_KIND" = cache ]; then
+  if [ "$DRAIN_STATUS" -eq 0 ]; then
+    DRAIN_OUTCOME="passed"; DRAIN_SUCCESS=true
+  elif [ "$RUN_KIND" = eval ] && [ "$DRAIN_STATUS" -eq 3 ]; then
+    DRAIN_OUTCOME="partial"
+  else
+    DRAIN_OUTCOME="failed"
+  fi
+  EVAL_RESULT=$(grep -E '^(result:|verdict:)' "$DRAIN_JSON" 2>/dev/null | tail -1)
+  log "$RUN_KIND outcome: $DRAIN_OUTCOME | ${EVAL_RESULT:-no result line; see run logs}"
 elif jq -e '.classification' "$DRAIN_JSON" >/dev/null 2>&1; then
   DRAIN_OUTCOME=$(jq -r '.classification.outcome // "unclassified"' "$DRAIN_JSON")
   DRAIN_SUCCESS=$(jq -r '.classification.success // false' "$DRAIN_JSON")
@@ -442,10 +455,12 @@ if [ "$RUN_KIND" = dev-test ]; then
     log "⚠ evidence collection reported errors (exit $EVIDENCE_STATUS); see evidence/summary.json + evidence-collector.err"
   fi
   log "logs: runtime.log, lmstudio-devlog.txt, snapshots.log, drain.json, controller-result.json, evidence/ in $RUN_DIR"
-else
+elif [ "$RUN_KIND" = eval ]; then
   log "logs: eval.log, eval.err, lmstudio-devlog.txt, snapshots.log, controller-result.json in $RUN_DIR"
+else
+  log "logs: cache-probe.log, cache-probe.err, lmstudio-devlog.txt, snapshots.log, controller-result.json in $RUN_DIR"
 fi
-if [ "$RUN_KIND" = eval ]; then
+if [ "$RUN_KIND" = eval ] || [ "$RUN_KIND" = cache ]; then
   FINAL_STATUS="$DRAIN_STATUS"
   [ -n "$ABORT_REASON" ] && FINAL_STATUS=1
 else
