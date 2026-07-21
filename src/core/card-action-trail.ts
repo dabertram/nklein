@@ -98,6 +98,17 @@ export function buildCardActionTrail(events: readonly AgentLedgerEvent[], taskId
 		if (event.taskId !== taskId) {
 			continue;
 		}
+		if (event.kind === "research_freshness") {
+			trail.push({
+				at: event.recordedAt,
+				kind: "retrieval",
+				text: `Freshness preflight ${event.searchAttempted ? (event.searchSucceeded ? "searched online" : "attempted online retrieval without usable evidence") : "skipped online retrieval"} — ${event.verdict}: ${event.reason}`,
+				files: event.citations,
+				reversibility: "read_only",
+				hypothesis: null,
+			});
+			continue;
+		}
 		if (event.kind === "retrieval") {
 			trail.push({
 				at: event.recordedAt,

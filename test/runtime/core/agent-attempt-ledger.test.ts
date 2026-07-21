@@ -3,6 +3,7 @@ import {
 	type AgentLedgerEvent,
 	agentLedgerEventSchema,
 	buildAttemptEvent,
+	buildResearchFreshnessEvent,
 	buildRetryStrategyEvent,
 	buildSchedulerEvent,
 	buildTransitionEvent,
@@ -126,6 +127,56 @@ describe("buildRetryStrategyEvent", () => {
 		});
 		expect(agentLedgerEventSchema.safeParse(event).success).toBe(true);
 		expect(agentLedgerEventSchema.safeParse({ ...event, recovered: false }).success).toBe(false);
+	});
+});
+
+describe("buildResearchFreshnessEvent", () => {
+	it("accepts cited search evidence and cited cache reuse", () => {
+		const searched = buildResearchFreshnessEvent({
+			...base,
+			topicKey: "topic",
+			query: "latest API",
+			action: "retrieve_online",
+			verdict: "stale",
+			reason: "cached evidence is stale",
+			evidenceAt: 200,
+			searchAttempted: true,
+			searchSucceeded: true,
+			citations: ["https://example.test/release"],
+		});
+		const cached = buildResearchFreshnessEvent({
+			...base,
+			topicKey: "topic",
+			query: "latest API",
+			action: "use_local",
+			verdict: "current",
+			reason: "cited evidence is current",
+			evidenceAt: 200,
+			searchAttempted: false,
+			searchSucceeded: false,
+			citations: ["https://example.test/release"],
+		});
+
+		expect(agentLedgerEventSchema.safeParse(searched).success).toBe(true);
+		expect(agentLedgerEventSchema.safeParse(cached).success).toBe(true);
+	});
+
+	it("rejects inconsistent search claims and uncited dated evidence", () => {
+		const failedSearch = buildResearchFreshnessEvent({
+			...base,
+			topicKey: "topic",
+			query: "latest API",
+			action: "retrieve_online",
+			verdict: "stale",
+			reason: "refresh failed",
+			searchAttempted: true,
+			searchSucceeded: false,
+		});
+
+		expect(agentLedgerEventSchema.safeParse(failedSearch).success).toBe(true);
+		expect(agentLedgerEventSchema.safeParse({ ...failedSearch, searchAttempted: false }).success).toBe(false);
+		expect(agentLedgerEventSchema.safeParse({ ...failedSearch, searchSucceeded: true }).success).toBe(false);
+		expect(agentLedgerEventSchema.safeParse({ ...failedSearch, evidenceAt: 200 }).success).toBe(false);
 	});
 });
 

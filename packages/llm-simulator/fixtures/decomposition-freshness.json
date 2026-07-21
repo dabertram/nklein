@@ -1,0 +1,20 @@
+[
+	{
+		"name": "stale fast-moving knowledge searches",
+		"taskText": "Decompose a migration to the latest release of Qwen and its current tool-calling format.",
+		"priorEvidenceAgeDays": 46,
+		"priorCitation": "https://example.test/qwen/old-release",
+		"refreshedCitation": "https://docs.example.test/qwen/current-api",
+		"expectedSearch": true,
+		"expectedVerdict": "stale"
+	},
+	{
+		"name": "fresh fast-moving knowledge skips",
+		"taskText": "Decompose a migration to the latest release of Qwen and its current tool-calling format.",
+		"priorEvidenceAgeDays": 0.25,
+		"priorCitation": "https://docs.example.test/qwen/current-api",
+		"refreshedCitation": "https://docs.example.test/qwen/unused",
+		"expectedSearch": false,
+		"expectedVerdict": "current"
+	}
+]

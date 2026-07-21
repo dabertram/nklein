@@ -76,6 +76,14 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
+> an obsolete optional tool description while the production decomposition path used a different retrieval tool; no
+> knowledge timestamp reached the gate, stale knowledge did not force a search, and fresh knowledge could not prove a
+> skip. Wire freshness at the trusted pre-model orchestration seam: consult a cited, topic-keyed observation; force the
+> existing egress-gated loop only when stale; surface and ledger both SEARCH and SKIP decisions with citations. A skip
+> is a decision event, never a fake retrieval event. Do not run nested LLM synthesis before model-turn admission when
+> cited evidence alone prepares the architect turn—this can contend for the same host slot and add unbounded latency.
+
 > **⚠️ A PROMPT THAT SAYS “RESEARCH THE WEB” HAS NO WEB CAPABILITY (live-found F3.34, 2026-07-21).** The old model
 > freshness advisor set `requiresWebResearch: true` and linked aggregators, but its action was a plain local completion
 > with no search/fetch tool; it could only improvise from stale weights. Any research feature must own an EFFECTFUL,
@@ -2047,18 +2055,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 - [x] **F4.1 — Record retrieval attempts/results/citations in the ledger.** Include query plan, source trust/freshness,
   fetch errors, selected spans, synthesis model, unsupported claims, and final use.
-  **FINALIZED 2026-07-19 (split):** the operative retrieval ledger is live (three call sites; query/citations/hits/pruned/usefulness — F11.2e widened it this week). The enumerated EXTRAS (query plan, source trust/freshness, spans, synthesis model, unsupported claims) each ride an unbuilt producer (F4.2's knowledgeAt feed, F4.5's claim extraction, the egress synthesis pass) — the fields land WITH those features rather than as empty columns now. Crossed.
+  **FINALIZED 2026-07-19 (split):** the operative retrieval ledger is live (three call sites; query/citations/hits/pruned/usefulness — F11.2e widened it this week). F4.4 now records the freshness verdict, decision, knowledge/evidence times, and citations. The remaining EXTRAS (query plan, selected spans, synthesis model, unsupported claims) ride their real producers (F4.5's claim extraction and the egress synthesis pass) rather than empty columns. Crossed.
 - [x] **F4.2 — Put the freshness gate into decomposition/research.** Trigger online retrieval only when local knowledge is
   stale/insufficient and egress is explicitly enabled; otherwise explain the skip.
   **FINALIZED 2026-07-19 (split):** the audit predated the ADVISORY WIRE (084d8b730) — the gate's reason now
   rides the web_research tool description at assembly (volatility-signal-driven), so retrieval guidance IS
-  freshness-aware live. The HARD gate (block/force online) needs the knowledgeAt feed (no model-knowledge-cutoff
-  source exists locally yet) + a product decision on blocking = David batch; F4.4's proof run = fleet. Crossed.
+  freshness-aware live. **SUPERSEDED 2026-07-21:** F4.4 now supplies the cited topic observation, effects the HARD
+  search/skip gate before decomposition, and carries the decision into the transcript, prompt, ledger, and timeline.
   **ADVISORY WIRE LIVE (same day):** the gate's decision line now rides the `web_research` tool DESCRIPTION at
   session assembly (staleness-REASONED retrieval at zero prompt-budget cost: fast-moving topics read "verify
   online first", evergreen ones "no online refresh needed"; egress-off remains the existing hard gate + air-gap
-  close). Local-knowledge age is unknown at assembly so the gate leans on topic volatility — the per-note
-  knowledgeAt feed and the F4.4 decomposition proof remain.
+  close). This legacy advisory is no longer the production control: F4.4's pre-model preflight owns the effectful gate.
 - [x] **F4.3 — Surface “is this current?” reasoning.** Show evidence date/conflict/support status in agent output without
   leaking raw untrusted instructions. **PURE CORE + PRODUCER SUBSTRATE SHIPPED (`39e03c72`):
   `evidence-currency-status.ts` (`summarizeEvidenceCurrency`, sanitized) + `evidence-currency-capture.ts` — the
@@ -2072,9 +2079,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   never body) so the model sees each source's freshness inline and cites it — F4.3's "show ... in agent output".
   COMPLETE for per-source currency; cross-source conflict resolution is separately F4.5.**
   **AUDIT 2026-07-18: DONE for its own scope** — per-source currency annotation (date/trust/status, never body) attached to every web_research result via buildCurrencyEvidenceFromSource + summarizeEvidenceCurrency, persisted (appendCurrencyEvidence) + `dev evidence-currency`. The cross-source CONFLICT facet is explicitly delegated to F4.5 (unwired there).
-- [ ] **F4.4 — Prove stale-vs-fresh behavior on decomposition.** Simulator fixtures and one live local retrieval run must
-  show stale knowledge searches, fresh knowledge skips, and both cite their decision.
-  **AUDIT 2026-07-18: OPEN** — no stale-vs-fresh decomposition proof; impossible until F4.2 wires into decomposition.
 - [x] **F4.5 — Finish citation conflict resolution.** Prefer newer authoritative release notes when sources conflict, **RESOLVER DONE 2026-07-15 (`dcaa707c`):** citation-conflict-authority.ts resolveClaimConflictByAuthority = fused recency×authority, retain-minority, mark-unresolved, 4 tests. **DETECTION CORE DONE 2026-07-16:** citation-conflict-detection.ts `detectClaimConflicts` groups a flat list of keyed claims (claimKey/value/sourceId) into conflict clusters (≥2 distinct values per key), trim+casefold, order-stable, 6 tests — so synthesis can detect conflicts MECHANICALLY (no dependence on the model to cluster them) and feed the existing `resolveClaimConflictsByAuthorityBatch`. **ANNOTATION CORE DONE 2026-07-16:** citation-conflict-annotation.ts `annotateSynthesisWithConflicts(answer, conflicts)` — the last RENDERING step: takes the detected clusters + their resolutions and appends an operator-facing "## Source-conflict notes" block (per conflict: `using **<winner value>** (from <id>) · Superseded: <minority>` OR `UNRESOLVED — <both views> · Verify`); byte-identical when there are no conflicts. 5 tests. So detect→resolve→annotate is now a complete PURE pipeline. Remaining: ONLY the model-side EXTRACTION seam — pull keyed claims (claimKey/value/sourceId) from the model's cited answer (egress/synthesis-gated), then feed `detectClaimConflicts` → `resolveClaimConflictsByAuthorityBatch` → `annotateSynthesisWithConflicts` at the web-research synthesis render.
   retain minority evidence, and mark unresolved material claims.
   **FINALIZED 2026-07-19 (split):** the detect→resolve→annotate pipeline is complete + tested end-to-end. The ONE producer — model-side claim extraction from cited answers — is a bounded reviewer-tier secondary-session build that only runs where egress synthesis runs → fleet-adjacent queue (design mirrors the explorer/plan-critique harness). Crossed; the pipeline consumes the day the extractor lands.

@@ -587,7 +587,12 @@ describe("InMemoryNKleinTaskSessionService", () => {
 	});
 
 	function createTrackedService(
-		optionOverrides: Pick<CreateInMemoryNKleinTaskSessionServiceOptions, "onClarificationAsked"> = {},
+		optionOverrides: Partial<
+			Pick<
+				CreateInMemoryNKleinTaskSessionServiceOptions,
+				"onClarificationAsked" | "runDecompositionResearchPreflight"
+			>
+		> = {},
 	): TaskSessionServiceHarness {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
@@ -2999,6 +3004,50 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			content: "Investigate startup",
 		});
 		expect(service.getSummary("task-1")?.mode).toBe("act");
+	});
+
+	it("runs the decomposition freshness preflight before the model and surfaces its cited decision", async () => {
+		const runPreflight = vi.fn(async () => ({
+			action: "use_local" as const,
+			verdict: "current" as const,
+			reason: "Cited knowledge is current.",
+			searchAttempted: false,
+			searchSucceeded: false,
+			knowledgeAtBefore: 123,
+			evidenceAt: 123,
+			citations: ["https://docs.example.test/current"],
+			promptBlock:
+				"Decomposition freshness preflight (trusted runtime decision):\n- Decision: SKIPPED online retrieval.\n[1] https://docs.example.test/current",
+		}));
+		const { service, runtime } = createTrackedService({ runDecompositionResearchPreflight: runPreflight });
+
+		await service.startTaskSession({
+			taskId: "task-fresh",
+			cwd: "/tmp/worktree",
+			prompt: "Decompose the latest release migration.",
+			startInPlanMode: true,
+		});
+		await waitForSettled(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1));
+
+		expect(runPreflight).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "task-fresh",
+				taskText: "Decompose the latest release migration.",
+			}),
+		);
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				systemPrompt: expect.stringContaining("https://docs.example.test/current"),
+			}),
+		);
+		expect(
+			service
+				.listMessages("task-fresh")
+				.find((message) => message.meta?.messageKind === "research_freshness_decision"),
+		).toMatchObject({
+			role: "system",
+			content: expect.stringContaining("SKIPPED online retrieval"),
+		});
 	});
 
 	it("uses tool-first instructions for explicit decomposition planning tasks", async () => {

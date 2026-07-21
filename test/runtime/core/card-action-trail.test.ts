@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AgentLedgerEvent } from "../../../src/core/agent-attempt-ledger";
+import { type AgentLedgerEvent, buildResearchFreshnessEvent } from "../../../src/core/agent-attempt-ledger";
 import { buildCardActionTrail, classifyToolReversibility } from "../../../src/core/card-action-trail";
 
 const AT = 1_800_000_000_000;
@@ -131,5 +131,28 @@ describe("buildCardActionTrail (F12.55)", () => {
 			"`refresh token` — 5 hit(s) considered, 1 citation(s) kept, 2 distractor(s) pruned",
 		);
 		expect(trail[0]?.files).toEqual(["src/auth.ts"]);
+	});
+
+	it("renders freshness skips with their cited evidence without calling them searches", () => {
+		const freshness = buildResearchFreshnessEvent({
+			workflowId: "t1",
+			taskId: "t1",
+			workspacePathHash: "hash",
+			topicKey: "topic",
+			query: "latest release",
+			action: "use_local",
+			verdict: "current",
+			reason: "Cited evidence is current.",
+			knowledgeAtBefore: AT - 100,
+			evidenceAt: AT - 100,
+			searchAttempted: false,
+			searchSucceeded: false,
+			citations: ["https://docs.example.test/current"],
+			recordedAt: AT,
+		});
+		const trail = buildCardActionTrail([freshness], "t1");
+		expect(trail[0]?.text).toContain("skipped online retrieval — current");
+		expect(trail[0]?.text).not.toContain("searched online");
+		expect(trail[0]?.files).toEqual(["https://docs.example.test/current"]);
 	});
 });

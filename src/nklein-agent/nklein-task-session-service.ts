@@ -49,6 +49,11 @@ import type {
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import { derivePromptSessionKind, type PromptWarmthLedgerEntry } from "../core/cache-warmth";
 import { ATTEMPT_STARTED_CATEGORY } from "../core/card-tracking-coverage";
+import {
+	type DecompositionResearchPreflightInput,
+	type DecompositionResearchPreflightResult,
+	runDecompositionResearchPreflight,
+} from "../core/decomposition-research-preflight";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { currentFocusChainStep, type FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
@@ -509,6 +514,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly agentSandboxManager: AgentSandboxManager | null;
 	private readonly pauseController: NKleinPauseController;
 	private readonly onDecompositionApplied: NKleinDecompositionAppliedHandler | undefined;
+	private readonly runDecompositionResearchPreflight: (
+		input: DecompositionResearchPreflightInput,
+	) => Promise<DecompositionResearchPreflightResult>;
 	private readonly onCardPromoted: NKleinCardPromotedHandler | undefined;
 	private readonly onFocusChainUpdated: ((taskId: string, chain: FocusChain) => void | Promise<void>) | undefined;
 	/** F1.5 — loads the card's persisted focus chain so the live store rehydrates on session start/rebind. */
@@ -627,6 +635,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.messageRepository = createMessageRepository();
 		this.agentSandboxManager = options.agentSandboxManager ?? null;
 		this.pauseController = options.pauseController ?? new NKleinPauseController();
+		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
 		this.onDecompositionApplied = options.onDecompositionApplied;
 		this.onCardPromoted = options.onCardPromoted;
 		this.onFocusChainUpdated = options.onFocusChainUpdated;
@@ -642,7 +651,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.agentWebResearchAllowed = options.agentWebResearchAllowed ?? true;
 		this.agentMcpAccess = options.agentMcpAccess ?? "on";
 		this.modelTurnAdmissionGate = options.modelTurnAdmissionGate ?? null;
-		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
+		this.runDecompositionResearchPreflight =
+			options.runDecompositionResearchPreflight ??
+			((input) =>
+				runDecompositionResearchPreflight(input, {
+					now: () => new Date(),
+					readLedger: (workspacePathHash) =>
+						readAgentLedger({ workspacePathHash, rootDir: this.diagnosticStoreRoot }),
+					appendLedger: (event) => appendAgentLedgerEvent(event, { rootDir: this.diagnosticStoreRoot }),
+					runResearch: (taskId, question) =>
+						this.retrievalToolsBuilder.run(taskId, { question, synthesize: false }),
+				}));
 		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
 		this.repeatedToolCallGuard = new RepeatedToolCallGuard(this.buildGuardCallbacks());
 		this.autonomyBudgetWatchdog = new AutonomyBudgetWatchdog(this.buildWatchdogCallbacks());
@@ -1938,14 +1957,45 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			try {
 				const runtimeSetup = await this.runtimeSetupLeaseCache.ensure(request.cwd);
 				const runtimePrompt = runtimeSetup.resolvePrompt(startPromptParts.userPrompt);
+				let decompositionFreshnessPrompt: string | null = null;
+				if (request.startInPlanMode) {
+					const workspacePathHash = hashWorkspacePathForLedger(request.workspaceRoot ?? request.cwd);
+					try {
+						const freshness = await this.runDecompositionResearchPreflight({
+							taskId: request.taskId,
+							workspacePathHash,
+							taskText: request.prompt,
+							egressAvailable: this.retrievalToolsBuilder.isAvailable(request.taskId),
+						});
+						decompositionFreshnessPrompt = freshness.promptBlock;
+					} catch (error) {
+						decompositionFreshnessPrompt = [
+							"Decomposition freshness preflight (trusted runtime decision):",
+							`- The preflight failed (${error instanceof Error ? error.message : String(error)}).`,
+							"- No online freshness claim was established. Proceed from local evidence and state that limitation explicitly.",
+						].join("\n");
+					}
+					const freshnessMessage = createMessageWithMeta(request.taskId, "system", decompositionFreshnessPrompt, {
+						hookEventName: "research_freshness_decision",
+						messageKind: "research_freshness_decision",
+						displayRole: "Freshness preflight",
+					});
+					entry.messages.push(freshnessMessage);
+					this.emitMessage(request.taskId, freshnessMessage);
+				}
 				const planningWorkflowPrompt = startPromptParts.systemWorkflowCommand
 					? runtimeSetup.resolvePrompt(startPromptParts.systemWorkflowCommand)
 					: null;
-				const planningSystemPrompt = startPromptParts.systemPrompt
+				let planningSystemPrompt = startPromptParts.systemPrompt
 					? planningWorkflowPrompt
 						? appendSystemPrompt(planningWorkflowPrompt, startPromptParts.systemPrompt)
 						: startPromptParts.systemPrompt
 					: null;
+				if (decompositionFreshnessPrompt) {
+					planningSystemPrompt = planningSystemPrompt
+						? appendSystemPrompt(planningSystemPrompt, decompositionFreshnessPrompt)
+						: decompositionFreshnessPrompt;
+				}
 				const customSystemPrompt = request.systemPrompt?.trim() || null;
 				const sdkPromptParts = customSystemPrompt
 					? null

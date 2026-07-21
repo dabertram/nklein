@@ -79,6 +79,7 @@
     "test:precommit": "npm run test:fast",
     "test:watch": "vitest",
     "verify:long-memory": "tsx scripts/verify-long-memory-eval.mts",
+    "verify:decomposition-freshness": "tsx scripts/verify-decomposition-freshness.mts",
     "prepare": "husky",
     "prepublishOnly": "npm run build && npm run check"
   },

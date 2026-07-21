@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Decomposition now checks whether its current knowledge actually needs an online refresh.** For fast-moving topics,
+  stale cited evidence triggers the configured local retrieval path before planning; a recent cited observation skips
+  the duplicate search. Both outcomes show their reason and sources in the transcript and card timeline, while failed
+  refreshes remain stale instead of being treated as success. Retrieval remains explicitly opt-in and fail-closed.
+
 - **Unknown or failing local models can now be researched from Settings without changing the fleet.** The action only
   runs when retrieval egress is explicitly enabled and configured, searches current publisher documentation for API,
   tool-calling, reasoning, context/quant, and fit details, and shows a cited provisional catalog draft for review.

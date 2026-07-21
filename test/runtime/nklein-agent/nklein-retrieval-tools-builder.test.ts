@@ -45,4 +45,10 @@ describe("createRetrievalToolsBuilder (§5.U extraction)", () => {
 		config.egressEnabled = false; // operator flips egress off mid-session
 		expect(builder.build("t1")).toEqual([]); // next build fails closed against the LIVE config
 	});
+
+	it("applies the same fail-closed gate to trusted direct preflight runs", async () => {
+		const builder = createRetrievalToolsBuilder(deps({ ...ON, egressEnabled: false }));
+		expect(builder.isAvailable("t1")).toBe(false);
+		await expect(builder.run("t1", { question: "latest release" })).rejects.toThrow("not available");
+	});
 });

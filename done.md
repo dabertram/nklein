@@ -2089,3 +2089,16 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   no apply/download/load/delete/settings action in the API or UI. Focused backend/runtime/UI tests and both TypeScript
   checks pass; the full repository gate passes 1,264 files/1 skipped and 12,350 tests/1 skipped. F3.34 is
   element-tracked across its effectful gate, primary-source filter, and citation validator.
+
+- [x] **F4.4 — stale-vs-fresh decomposition retrieval proof** *(delivered 2026-07-21).* Decomposition now runs a
+  trusted freshness preflight before the architect model turn. It reads the latest cited, exact-topic observation from
+  the per-workspace Agent Attempt Ledger, applies the shared volatility/TTL gate, forces the existing egress-gated
+  retrieval loop when knowledge is stale, and skips retrieval when that observation is current. Both branches append a
+  distinct `research_freshness` event with verdict, reason, observation time, and citations; a skip never inflates
+  retrieval-call metrics. The cited decision is visible in the transcript, appended to the decomposition system
+  prompt, and rendered in the product card timeline. Failed/empty refreshes remain stale. Simulator fixtures prove a
+  46-day fast-topic observation SEARCHES and a six-hour observation SKIPS, both cited. The permanent live verifier ran
+  the production SearXNG + SSRF-guarded fetch path against official Node.js sources: stale SEARCHED, the immediate
+  repeat SKIPPED, and both cited three nodejs.org pages. The preflight intentionally omits nested synthesis before model
+  admission; the architect receives the bounded evidence directly. Focused service/core tests pass 179/179, TypeScript
+  passes, and requirement coverage reports all three F4.4 elements live.

@@ -104,6 +104,28 @@ export const TRACKED_REQUIREMENTS: readonly RequirementSpec[] = [
 		],
 	},
 	{
+		// F4.4 — stale-vs-fresh decomposition behavior is an EFFECT, not an advisory sentence: the shared gate must
+		// drive a production preflight, and both the searched and skipped branches must persist cited decisions.
+		id: "F4.4",
+		elements: [
+			{
+				element: "topic_aware_freshness_decision",
+				providedBy: { module: "research-freshness-gate.ts", symbol: "decideResearchFreshnessGate" },
+			},
+			{
+				element: "effectful_decomposition_preflight",
+				providedBy: {
+					module: "decomposition-research-preflight.ts",
+					symbol: "runDecompositionResearchPreflight",
+				},
+			},
+			{
+				element: "cited_search_or_skip_ledger",
+				providedBy: { module: "agent-attempt-ledger.ts", symbol: "buildResearchFreshnessEvent" },
+			},
+		],
+	},
+	{
 		// P20.5 — metric discipline. The formatting half is wired into the fitness table; the naming guard is
 		// enforced as a repo ratchet rather than a caller, so it has no symbol-level consumer by design.
 		id: "P20.5",

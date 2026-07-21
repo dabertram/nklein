@@ -227,6 +227,27 @@ const retrievalEventSchema = z.object({
 	signal: retrievalSignalSchema,
 });
 
+/**
+ * kind="research_freshness" — the decomposition preflight's explicit stale-vs-fresh decision. This is deliberately
+ * separate from `retrieval`: a fresh cache hit SKIPS network retrieval and must never inflate retrieval-call metrics.
+ * `evidenceAt` is the time cited online evidence was last observed (null when no usable evidence exists); citations
+ * make both the search and skip branches independently auditable.
+ */
+const researchFreshnessEventSchema = z.object({
+	...ledgerEnvelopeShape,
+	kind: z.literal("research_freshness"),
+	topicKey: z.string(),
+	query: z.string(),
+	action: z.enum(["retrieve_online", "use_local"]),
+	verdict: z.enum(["current", "recent", "possibly_stale", "stale", "unknown"]),
+	reason: z.string(),
+	knowledgeAtBefore: z.number().nullable(),
+	evidenceAt: z.number().nullable(),
+	searchAttempted: z.boolean(),
+	searchSucceeded: z.boolean(),
+	citations: z.array(z.string()),
+});
+
 /** kind="retry" — one resolved adaptive remedy rung, including the failure that selected it and its measured cost. */
 const retryStrategyEventSchema = z.object({
 	...ledgerEnvelopeShape,
@@ -252,6 +273,7 @@ export const agentLedgerEventSchema = z
 		transitionEventSchema,
 		schedulerEventSchema,
 		retrievalEventSchema,
+		researchFreshnessEventSchema,
 		retryStrategyEventSchema,
 	])
 	.superRefine((event, context) => {
@@ -262,12 +284,37 @@ export const agentLedgerEventSchema = z
 				message: "retry recovered must equal (resultOutcome === success)",
 			});
 		}
+		if (event.kind === "research_freshness") {
+			const retrievalRequired = event.action === "retrieve_online";
+			if (event.searchAttempted !== retrievalRequired) {
+				context.addIssue({
+					code: "custom",
+					path: ["searchAttempted"],
+					message: "research freshness searchAttempted must equal (action === retrieve_online)",
+				});
+			}
+			if (event.searchSucceeded && (event.evidenceAt === null || event.citations.length === 0)) {
+				context.addIssue({
+					code: "custom",
+					path: ["searchSucceeded"],
+					message: "successful research freshness search requires dated, cited evidence",
+				});
+			}
+			if (event.evidenceAt !== null && event.citations.length === 0) {
+				context.addIssue({
+					code: "custom",
+					path: ["citations"],
+					message: "dated research freshness evidence requires at least one citation",
+				});
+			}
+		}
 	});
 export type AgentLedgerEvent = z.infer<typeof agentLedgerEventSchema>;
 export type AgentAttemptEvent = z.infer<typeof attemptEventSchema>;
 export type AgentTransitionEvent = z.infer<typeof transitionEventSchema>;
 export type AgentSchedulerEvent = z.infer<typeof schedulerEventSchema>;
 export type AgentRetrievalEvent = z.infer<typeof retrievalEventSchema>;
+export type AgentResearchFreshnessEvent = z.infer<typeof researchFreshnessEventSchema>;
 export type AgentRetryStrategyEvent = z.infer<typeof retryStrategyEventSchema>;
 
 /** Shared envelope inputs (the builder fills `schemaVersion`/`eventId`/`recordedAt` if not given). */
@@ -461,6 +508,37 @@ export function buildRetrievalEvent(input: BuildRetrievalEventInput): AgentRetri
 		distractorsPruned,
 		citations,
 		signal: input.signal ?? "unknown",
+	};
+}
+
+export interface BuildResearchFreshnessEventInput extends LedgerEnvelopeInput {
+	topicKey: string;
+	query: string;
+	action: AgentResearchFreshnessEvent["action"];
+	verdict: AgentResearchFreshnessEvent["verdict"];
+	reason: string;
+	knowledgeAtBefore?: number | null;
+	evidenceAt?: number | null;
+	searchAttempted: boolean;
+	searchSucceeded: boolean;
+	citations?: readonly string[];
+}
+
+/** Build one validated decomposition freshness decision without pretending that a skipped refresh was retrieval. */
+export function buildResearchFreshnessEvent(input: BuildResearchFreshnessEventInput): AgentResearchFreshnessEvent {
+	return {
+		...buildEnvelope(input),
+		kind: "research_freshness",
+		topicKey: input.topicKey.trim(),
+		query: input.query.trim(),
+		action: input.action,
+		verdict: input.verdict,
+		reason: input.reason.trim(),
+		knowledgeAtBefore: input.knowledgeAtBefore ?? null,
+		evidenceAt: input.evidenceAt ?? null,
+		searchAttempted: input.searchAttempted,
+		searchSucceeded: input.searchSucceeded,
+		citations: [...new Set((input.citations ?? []).map((citation) => citation.trim()).filter(Boolean))],
 	};
 }
 

@@ -1,7 +1,7 @@
 import { buildSsrfGuardedPageFetcher } from "../chat/chat-browser-tool";
 import { DEFAULT_LOCAL_CHAT_BASE_URL } from "../chat/local-chat-model";
 import { browserFetchAdapter } from "../core/retrieval-fetch-adapter";
-import { runRetrievalLoop } from "../core/retrieval-loop-driver";
+import { type RetrievalLoopResult, runRetrievalLoop } from "../core/retrieval-loop-driver";
 import { searchHitsAdapter } from "../core/retrieval-search-adapter";
 import { citedSynthesisAdapter } from "../core/retrieval-synthesis-adapter";
 import { createSearxngWebSearchClient } from "../server/web-search-searxng";
@@ -31,6 +31,12 @@ export interface RetrievalToolsBuilderDeps {
 
 export interface RetrievalToolsBuilder {
 	build(taskId: string): AgentTool[];
+	/** Run the same gated loop directly for a trusted control-plane preflight (never bypasses the attach gate). */
+	run(
+		taskId: string,
+		input: { question: string; knowledgeDebt?: readonly string[]; synthesize?: boolean },
+	): Promise<RetrievalLoopResult>;
+	isAvailable(taskId: string): boolean;
 }
 
 /**
@@ -41,47 +47,51 @@ export interface RetrievalToolsBuilder {
  * the very next call, and `browse`/`fetch` enforce the SSRF floor unconditionally.
  */
 export function createRetrievalToolsBuilder(deps: RetrievalToolsBuilderDeps): RetrievalToolsBuilder {
-	function build(taskId: string): AgentTool[] {
+	function isAvailable(taskId: string): boolean {
 		// §5.U: the fail-closed attach decision (synthetic ⇒ no egress; egress literally true; §5.L role gate; a search
 		// backend is configured) is the pure `shouldAttachRetrievalTools` (unit-tested). Read the LIVE service fields so a
 		// config-off mid-session fails closed on the very next call. The egress itself lives entirely in the injected
 		// adapters (SearXNG search + SSRF-guarded browse fetch) constructed below.
 		const config = deps.getRetrievalConfig();
-		if (
-			!shouldAttachRetrievalTools({
-				taskId,
-				egressEnabled: config.egressEnabled,
-				agentWebResearchAllowed: config.agentWebResearchAllowed,
-				searchBackendUrl: config.searchBackendUrl,
-			})
-		) {
-			return [];
+		return shouldAttachRetrievalTools({
+			taskId,
+			egressEnabled: config.egressEnabled,
+			agentWebResearchAllowed: config.agentWebResearchAllowed,
+			searchBackendUrl: config.searchBackendUrl,
+		});
+	}
+
+	async function run(
+		taskId: string,
+		input: { question: string; knowledgeDebt?: readonly string[]; synthesize?: boolean },
+	): Promise<RetrievalLoopResult> {
+		if (!isAvailable(taskId)) {
+			throw new Error("Online retrieval is not available for this task.");
 		}
-		return [
-			createNKleinResearchTool({
-				runLoop: (input) =>
-					runRetrievalLoop(
-						input.question,
-						{
-							// §5.AC: enable lexical query-relevance ranking in the live loop — hits that actually match the
-							// query terms are folded above ones that are merely fresh/authoritative.
-							search: searchHitsAdapter(
-								(query) =>
-									createSearxngWebSearchClient({
-										backendBaseUrl: deps.getRetrievalConfig().searchBackendUrl,
-										egressEnabled: deps.getRetrievalConfig().egressEnabled,
-									}).search(query),
-								{ rerankByRelevance: true },
-							),
-							// PRIME DIRECTIVE #1: the retrieval loop fetches untrusted, backend/SEO-controllable result URLs,
-							// so the egress MUST be SSRF-guarded. buildSsrfGuardedPageFetcher enforces the same floor as
-							// browse_url (http/https only + pre-fetch DNS-resolve-all-IPs private/reserved refusal +
-							// post-redirect re-check); a blocked URL throws and the driver skips that hit (fail-closed).
-							fetch: browserFetchAdapter(buildSsrfGuardedPageFetcher()),
-							// §5.AC: synthesize the gathered evidence into a CITED answer via the task's own local model
-							// (validated 2026-07-04: a capable local model reliably emits the {claim,cite[]} contract). The
-							// model call is fail-soft — any error / no model ⇒ "" ⇒ the loop returns evidence only (its prior
-							// behavior), so enabling synthesis never degrades the result below evidence-only.
+		return await runRetrievalLoop(
+			input.question,
+			{
+				// §5.AC: enable lexical query-relevance ranking in the live loop — hits that actually match the
+				// query terms are folded above ones that are merely fresh/authoritative.
+				search: searchHitsAdapter(
+					(query) =>
+						createSearxngWebSearchClient({
+							backendBaseUrl: deps.getRetrievalConfig().searchBackendUrl,
+							egressEnabled: deps.getRetrievalConfig().egressEnabled,
+						}).search(query),
+					{ rerankByRelevance: true },
+				),
+				// PRIME DIRECTIVE #1: the retrieval loop fetches untrusted, backend/SEO-controllable result URLs,
+				// so the egress MUST be SSRF-guarded. buildSsrfGuardedPageFetcher enforces the same floor as
+				// browse_url (http/https only + pre-fetch DNS-resolve-all-IPs private/reserved refusal +
+				// post-redirect re-check); a blocked URL throws and the driver skips that hit (fail-closed).
+				fetch: browserFetchAdapter(buildSsrfGuardedPageFetcher()),
+				// The agent-facing tool synthesizes through the task's local model. The trusted decomposition preflight
+				// passes `synthesize:false`: it needs cited evidence, not a second model turn before admission (which could
+				// contend with the very architect turn it is preparing).
+				...(input.synthesize === false
+					? {}
+					: {
 							synthesize: citedSynthesisAdapter(async (prompt) => {
 								const modelId = deps.getModelId(taskId);
 								if (!modelId) {
@@ -102,13 +112,23 @@ export function createRetrievalToolsBuilder(deps: RetrievalToolsBuilderDeps): Re
 									return ""; // fail-soft → evidence-only (unchanged from before synthesis was wired)
 								}
 							}),
-							now: () => Date.now(),
-						},
-						{ ...(input.knowledgeDebt ? { knowledgeDebt: [...input.knowledgeDebt] } : {}) },
-					),
+						}),
+				now: () => Date.now(),
+			},
+			{ ...(input.knowledgeDebt ? { knowledgeDebt: [...input.knowledgeDebt] } : {}) },
+		);
+	}
+
+	function build(taskId: string): AgentTool[] {
+		if (!isAvailable(taskId)) {
+			return [];
+		}
+		return [
+			createNKleinResearchTool({
+				runLoop: (input) => run(taskId, input),
 			}),
 		];
 	}
 
-	return { build };
+	return { build, run, isAvailable };
 }

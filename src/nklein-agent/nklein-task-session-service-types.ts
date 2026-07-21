@@ -12,6 +12,10 @@ import type {
 } from "../core/api-contract";
 import type { AutoDecompositionDepthDecision } from "../core/auto-decomposition-depth";
 import type { PromptWarmthLedgerEntry } from "../core/cache-warmth";
+import type {
+	DecompositionResearchPreflightInput,
+	DecompositionResearchPreflightResult,
+} from "../core/decomposition-research-preflight";
 import type { FocusChain } from "../core/focus-chain";
 import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import type { SkillDynamicsLevel } from "../core/skill-resolver";
@@ -350,6 +354,10 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	 * Defaults to the real `~/.nklein` runtime home; tests inject a temp dir so they don't pollute it.
 	 */
 	diagnosticStoreRoot?: string;
+	/** Test/eval seam for F4.4; production uses the ledger-backed, egress-gated decomposition preflight. */
+	runDecompositionResearchPreflight?: (
+		input: DecompositionResearchPreflightInput,
+	) => Promise<DecompositionResearchPreflightResult>;
 }
 
 export type CreateInMemoryNKleinTaskSessionServiceOptions =
