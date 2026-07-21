@@ -207,10 +207,10 @@ export class DecompositionStallNudger {
 	 *
 	 * This is the hook-end stall path (distinct from the mid-stream timer path above).
 	 */
-	maybeContinueStalledDecomposition(taskId: string): void {
+	maybeContinueStalledDecomposition(taskId: string): boolean {
 		const summary = this.callbacks.getTaskSummary(taskId);
 		if (!summary) {
-			return;
+			return false;
 		}
 		const activity = summary.latestHookActivity;
 		const finalText = (activity?.finalMessage ?? activity?.activityText ?? "").trim();
@@ -226,7 +226,7 @@ export class DecompositionStallNudger {
 			nudgeLimit: DECOMPOSITION_CHAT_NUDGE_LIMIT,
 		});
 		if (recovery.action === "none") {
-			return;
+			return false;
 		}
 		this.nudgeCountsByTaskId.set(taskId, nudgeCount + 1);
 		const workspacePath = this.callbacks.resolveWorkspacePath(taskId);
@@ -257,7 +257,7 @@ export class DecompositionStallNudger {
 					"act",
 				)
 				.catch(() => undefined);
-			return;
+			return true;
 		}
 		// action === "decompose"
 		// #30 (run31): the highest-value variant — the model already WROTE the full decomposition, but as final
@@ -295,6 +295,7 @@ export class DecompositionStallNudger {
 				"act",
 			)
 			.catch(() => undefined);
+		return true;
 	}
 
 	// ---------------------------------------------------------------------------

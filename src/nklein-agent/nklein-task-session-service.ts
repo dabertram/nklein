@@ -3694,25 +3694,31 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		} else if (shouldCaptureReviewCheckpoint(previousSummary, latestSummary)) {
 			this.captureReviewCheckpoint(taskId, latestSummary);
 		}
-		// §12 turn-loop ladder: with the turn's text settled (no active assistant stream), scan the trailing
-		// completed turns for a re-raised question/proposal loop. Cheap no-op mid-stream and below the window.
-		this.turnLoopGuard.check(taskId);
 		const hookEventName = entry.summary.latestHookActivity?.hookEventName;
+		let decompositionRecoveryScheduled = false;
 		if (entry.summary.state !== "running") {
 			this.clearTaskTimeout(taskId, "stream");
 			this.clearTaskTimeout(taskId, "tool");
 			this.clearTaskTimeout(taskId, "conversation");
 			this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 			this.activeToolTaskIds.delete(taskId);
-			this.decompositionStallNudger.maybeContinueStalledDecomposition(taskId);
-		} else if (hookEventName === "tool_call" && !this.activeToolTaskIds.has(taskId)) {
+			// An explicit planning turn that cleanly ended without applying a graph gets first claim on recovery.
+			// The generic loop guard can otherwise park it as attention before this targeted bounded nudge sees `exit`.
+			decompositionRecoveryScheduled = this.decompositionStallNudger.maybeContinueStalledDecomposition(taskId);
+		}
+		// §12 turn-loop ladder: with the turn's text settled (no active assistant stream), scan the trailing
+		// completed turns for a re-raised question/proposal loop. Do not race a more-specific decomposition recovery.
+		if (!decompositionRecoveryScheduled) {
+			this.turnLoopGuard.check(taskId);
+		}
+		if (entry.summary.state === "running" && hookEventName === "tool_call" && !this.activeToolTaskIds.has(taskId)) {
 			if (isDecompositionProgressTool(entry.summary.latestHookActivity?.toolName)) {
 				this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 			}
 			this.activeToolTaskIds.add(taskId);
 			this.clearTaskTimeout(taskId, "stream");
 			this.timeoutController.scheduleToolTimeout(taskId);
-		} else if (hookEventName === "tool_result") {
+		} else if (entry.summary.state === "running" && hookEventName === "tool_result") {
 			if (isDecompositionProgressTool(entry.summary.latestHookActivity?.toolName)) {
 				this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 			}

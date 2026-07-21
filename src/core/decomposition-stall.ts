@@ -34,7 +34,7 @@ export interface DecompositionStallInputs {
 	isDecompositionTask: boolean;
 	/** Runtime summary state at the stop. */
 	state: string;
-	/** Why the turn entered review. Only a clean model-stop (`"hook"`) is re-promptable here. */
+	/** Why the turn entered review. Clean model stops arrive as `"hook"` or SDK `"exit"`. */
 	reviewReason: string | null;
 	/** The turn already applied a decomposition (`decompose_project` succeeded). */
 	decomposed: boolean;
@@ -67,9 +67,10 @@ export function decideDecompositionStallRecovery(input: DecompositionStallInputs
 	if (!input.isDecompositionTask) {
 		return { action: "none", reason: "Not an explicit decomposition turn." };
 	}
-	// Only a clean model-stop end (awaiting_review/"hook") is re-promptable: the session is still live and can be
-	// re-prompted with sendTaskSessionInput. An aborted/torn-down (interrupted) or errored turn is left for restart.
-	if (input.state !== "awaiting_review" || input.reviewReason !== "hook") {
+	// Clean model-stop ends are re-promptable through sendTaskSessionInput. Native hook completion uses `hook`; the
+	// SDK `ended` event uses `exit`. Excluding `exit` made the live turn-end recovery unreachable on local models.
+	// An aborted/torn-down (`interrupted`) or errored turn is left for restart/failover.
+	if (input.state !== "awaiting_review" || (input.reviewReason !== "hook" && input.reviewReason !== "exit")) {
 		return { action: "none", reason: "Not a clean, still-live model-stop end." };
 	}
 	if (input.decomposed) {

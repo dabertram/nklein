@@ -425,7 +425,10 @@ source repo went private — so if it vanishes the buildable source still lives 
     the last-resort fallback. **After an actual `revise`, the no-critic waiver no longer applies:** the fresh verdict is
     mandatory. Critic feedback, stable slug, and candidate number live at service scope and are appended as trusted
     continuation context when a local model ends its turn at the rejection tool error; a dead-card restart must never
-    silently relaunch from only the original prompt or reset candidate 2 to candidate 1.
+    silently relaunch from only the original prompt or reset candidate 2 to candidate 1. A clean local-SDK turn end is
+    `awaiting_review/exit` (not only `hook`): when no graph was applied, the bounded decomposition nudger must claim
+    that stop before the generic turn-loop guard can park it as `attention`, then re-prompt the missing/invalid
+    `decompose_project` call.
   - **EVERY AWAITED MODEL CHILD NEEDS THE SAME CAP-ONE HANDOFF:** the reservation handoff is not specific to planning.
     Plan critique, exploration, execution second-opinion review, reviewer nudges, and any later parent-awaits-child turn
     must pass the parent task id through admission. Otherwise a cap-one host deadlocks while the parent waits for a child

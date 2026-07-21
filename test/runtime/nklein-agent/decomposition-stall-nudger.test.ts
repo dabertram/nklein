@@ -104,7 +104,7 @@ describe("isChatOnlyDecompositionActivity", () => {
 });
 
 describe("DecompositionStallNudger.maybeContinueStalledDecomposition (#30 turn-end path)", () => {
-	function makeNudger(over: { finalMessage: string; toolName: string | null }) {
+	function makeNudger(over: { finalMessage: string; toolName: string | null; reviewReason?: "hook" | "exit" }) {
 		const sent: string[] = [];
 		const observed: Array<Record<string, string | null>> = [];
 		const stalledSummary: RuntimeTaskSessionSummary = {
@@ -116,7 +116,7 @@ describe("DecompositionStallNudger.maybeContinueStalledDecomposition (#30 turn-e
 				}),
 			),
 			state: "awaiting_review",
-			reviewReason: "hook",
+			reviewReason: over.reviewReason ?? "hook",
 		};
 		const nudger = new DecompositionStallNudger({
 			isExplicitDecompositionTask: () => true,
@@ -156,5 +156,17 @@ describe("DecompositionStallNudger.maybeContinueStalledDecomposition (#30 turn-e
 		expect(sent).toHaveLength(1);
 		expect(sent[0]).toContain("decompose_project");
 		expect(sent[0]).not.toContain("exactly that JSON");
+	});
+
+	it("claims an SDK exit for targeted recovery before the generic loop guard can park it", async () => {
+		const { nudger, sent } = makeNudger({
+			finalMessage: "The tool arguments were incomplete.",
+			toolName: "decompose_project",
+			reviewReason: "exit",
+		});
+		expect(nudger.maybeContinueStalledDecomposition("t1")).toBe(true);
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(sent).toHaveLength(1);
+		expect(sent[0]).toContain("decompose_project");
 	});
 });

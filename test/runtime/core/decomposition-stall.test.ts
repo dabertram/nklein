@@ -37,6 +37,10 @@ describe("decideDecompositionStallRecovery", () => {
 		expect(decideDecompositionStallRecovery(CLEAN_STALL).action).toBe("decompose");
 	});
 
+	it("re-prompts an SDK clean exit as well as a native hook stop", () => {
+		expect(decideDecompositionStallRecovery({ ...CLEAN_STALL, reviewReason: "exit" }).action).toBe("decompose");
+	});
+
 	it("continues the read when the turn stalled right after read_large_file (the evidence-bundle case)", () => {
 		// Regression: the model narrated the next read_large_file call as text in its reasoning channel, so the turn
 		// ended mid-document with read_large_file as the last (preserved) tool. This must recover, not be exempted.
@@ -68,7 +72,7 @@ describe("decideDecompositionStallRecovery", () => {
 		expect(decideDecompositionStallRecovery({ ...CLEAN_STALL, isDecompositionTask: false }).action).toBe("none");
 	});
 
-	it("does nothing unless the turn ended on a clean model-stop hook", () => {
+	it("does nothing unless the turn ended on a clean model stop", () => {
 		expect(decideDecompositionStallRecovery({ ...CLEAN_STALL, state: "running" }).action).toBe("none");
 		expect(decideDecompositionStallRecovery({ ...CLEAN_STALL, reviewReason: "interrupted" }).action).toBe("none");
 		expect(decideDecompositionStallRecovery({ ...CLEAN_STALL, reviewReason: "error" }).action).toBe("none");
