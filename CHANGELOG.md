@@ -62,6 +62,11 @@
   handle. The model can page exact slices through a stable `resolve_result` tool when needed. Failure bodies and
   control-plane results remain verbatim, preserving the evidence needed to diagnose errors and planning decisions.
 
+- **Opt-in long-task re-anchors now preserve canonical contract vocabulary.** The compact tail reminder labels
+  acceptance criteria explicitly instead of renaming the field to “done means,” which caused a 0.6B local model to
+  recover a superseded acceptance value. A paired ~30k-token fleet check found no quality regression after the fix,
+  but also no improvement over the already-correct baseline, so the feature deliberately remains opt-in.
+
 - **Decomposition now checks whether its current knowledge actually needs an online refresh.** For fast-moving topics,
   stale cited evidence triggers the configured local retrieval path before planning; a recent cited observation skips
   the duplicate search. Both outcomes show their reason and sources in the transcript and card timeline, while failed

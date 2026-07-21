@@ -7,6 +7,8 @@ describe("buildContextReanchor", () => {
 			goal: "Implement feature X",
 			currentStep: "Write the failing test first",
 			cardTitle: "Feature X card",
+			constraints: "Keep the public API stable",
+			acceptanceCriteria: "All regression tests pass",
 			recentToolNames: ["read_file", "edit_file", "run_tests"],
 		});
 		expect(block).toBe(
@@ -15,6 +17,8 @@ describe("buildContextReanchor", () => {
 				"GOAL: Implement feature X",
 				"CARD: Feature X card",
 				"CURRENT STEP: Write the failing test first",
+				"CONSTRAINTS: Keep the public API stable",
+				"ACCEPTANCE CRITERIA: All regression tests pass",
 				"RECENT TOOLS: read_file, edit_file, run_tests",
 				"</reanchor>",
 			].join("\n"),

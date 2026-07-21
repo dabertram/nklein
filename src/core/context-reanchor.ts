@@ -79,7 +79,9 @@ export function buildContextReanchor(input: ContextReanchorInput): string {
 
 	const acceptanceCriteria = input.acceptanceCriteria?.trim();
 	if (acceptanceCriteria) {
-		lines.push(`DONE MEANS: ${acceptanceCriteria}`);
+		// Preserve the canonical contract vocabulary. Weak local models can treat a friendly synonym such as
+		// "DONE MEANS" as a different field and then recover an older literal "acceptance" value from context.
+		lines.push(`ACCEPTANCE CRITERIA: ${acceptanceCriteria}`);
 	}
 
 	const recentTools = input.recentToolNames?.filter((t) => t.trim().length > 0);

@@ -76,6 +76,21 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ RE-ANCHORS MUST PRESERVE CANONICAL CONTRACT LABELS, AND THEIR A/B MUST NOT GRADE OUTPUT TRUNCATION
+> (live-found F4.8, 2026-07-21).** A 0.6B model retained `objective`, `current_focus`, and `constraint` but copied the
+> decoy acceptance value when the tail block renamed `acceptanceCriteria` to the friendly synonym `DONE MEANS`.
+> Render the canonical `ACCEPTANCE CRITERIA` label: weak models do not reliably infer that two labels denote the same
+> control-plane field. The first A/B harness also capped completions at 300 tokens, so a reasoning model's truncated
+> JSON looked like context loss. Record final content, reasoning, token usage, and `finish_reason` separately, and keep
+> enough bounded answer headroom inside the 32k total before attributing a miss to context policy.
+
+> **⚠️ LIVE MODEL RESIDENCY IS CAPACITY-BASED, NOT UNCONDITIONAL EVICTION OR UNBOUNDED PRELOAD (David, 2026-07-21).**
+> Retain warm models and prompt caches when headroom permits. On m5max, two or three 32k/parallel-1 models may coexist;
+> use LM Studio's per-model total-memory estimate, an LRU plan, a hard count cap, a large host reserve, and pre/post
+> memory-pressure plus swap-growth checks. Smaller linked hosts retain a single hardware-fit model. Evict only the
+> cold residents needed to admit the next model, never active work or unrelated hosts. The unsafe state was four
+> unbudgeted 32k residents (~74.5 GB weights before KV/runtime memory), not residency itself.
+
 > **⚠️ A BOUNDED GUARDRAIL IS NOT AN AUTONOMOUS RECOVERY UNLESS ITS TERMINAL STATE ROUTES TO THE NEXT MODEL
 > (live-found 2026-07-21).** The decomposition loop guard correctly stopped Qwopus after four failed submissions,
 > but parked the planning card at `awaiting_review/attention` even though two independent critique rounds had isolated
@@ -2292,64 +2307,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   4 focused tests plus a full runtime wiring test. **REMAINING:** decide the unique fragment-level salience case
   for `context-smart-zone.ts` during the late maturity/deletion pass (David: do not eagerly delete now); do not disturb
   the live cache-stable ordering merely to manufacture a consumer.
-- [x] **F4.8a — The re-anchor verification *(split from F4.8 2026-07-20)*.**
-  **SHIPPED: `reanchor-coverage.ts`, 12 tests.** Assesses a re-anchor against F4.8's four named elements AND the
-  "without duplicating large context" clause — **the two are not traded off.** A re-anchor that carries everything
-  by pasting the context back in has solved nothing; one that is admirably small while dropping the acceptance
-  criteria has solved nothing either. Both are pinned by test (a 12k block over 40k context fails at full coverage;
-  a 40-char block fails at partial coverage).
-  **Coverage is read from the STRUCTURED SOURCE, never by string-matching the rendered block.** A test drives the
-  LIVE `buildContextReanchor` with a goal whose text says *"Satisfy the acceptance criteria and constraints listed
-  in the card"* — the rendered block therefore CONTAINS the phrase "acceptance criteria" while carrying none. A
-  string-matching checker would call that covered and **report the gap below as satisfied**, turning this module
-  into the thing it exists to detect.
-  **🔴 F4.8 IS ENTIRELY UNMET, NOT PARTLY MET — corrected 2026-07-20, and the correction is the finding.**
-  The re-anchor injection site is guarded by `isTruthyEnv(process.env.NKLEIN_GOAL_REANCHOR)` and is **DEFAULT
-  OFF** (`nklein-context-focus-extension.ts`: *"default OFF = byte-identical"*). So in the shipped configuration
-  **no re-anchor block reaches any prompt at all** — the audit had been reporting `objective, current_focus` as
-  live purely because the IMPORT CHAIN was complete.
-  ⚠️ **AND I NEARLY MADE IT WORSE IN THE MOST DANGEROUS WAY.** I extended `buildContextReanchor` to carry
-  `constraints` + `acceptanceCriteria` and threaded them through the adapter and the session store — which, with
-  the path still marked `wired: true`, would have flipped the gate to **COMPLETE while nothing whatsoever ran by
-  default.** An audit certifying a requirement as satisfied by code that does not execute is worse than an audit
-  that says nothing. **"Imported" and "reaches a live prompt" are different claims, and tracing an import chain
-  only ever proves the weaker one.** Pinned by a test asserting the path is NOT counted as live while env-gated.
-  DONE: the block now carries all four elements when it fires, the card contract is PUSHED per session (never
-  looked up — `beforeModel` is the model hot path and board I/O there is invisible in tests and expensive in a
-  long run), and the current step is passed at last (it was already available and simply never handed over).
-  REMAINING (F4.8b): **a decision, not code** — whether `NKLEIN_GOAL_REANCHOR` should default ON. That is a
-  live-behaviour change to every session's prompt, so it wants a measured A/B rather than a flipped constant.
-- [ ] **F4.8 — Verify end-of-context re-anchors.** Long simulator/live tasks must retain objective, current focus,
-  constraints, and acceptance criteria without duplicating large context.
-  **⚠️ F4.8a RAN THE VERIFICATION AND IT FAILS TODAY — precisely, and the reason is a wiring gap, not a bug.**
-  Two re-anchor cores exist and they SPLIT F4.8's requirement between them:
-  - `context-reanchor.ts` (§5.AD/§5.N) is **WIRED** — traced core → `task-reanchor-before-model` →
-    `nklein-context-focus-extension` → `nklein-session-runtime:546`. It carries goal, current step, card title and
-    recent tools: **objective ✓, current focus ✓.**
-  - `instruction-reanchor.ts` (F12.21) carries the **acceptance criteria** + plan step as a tail message on the
-    F12.56 steer channel — and has **ZERO importers outside its own test.**
-  So **the elements the live path is missing are exactly the ones only the unwired core provides.** F4.8 does not
-  fail because the mechanism is broken; it fails because **half of it was never connected**, and nothing surfaced
-  that because each core passes its own tests in isolation. That is the P15.1 orphan pattern reappearing inside a
-  requirement rather than inside a module list.
-  `auditReanchorPaths` keeps `availableButUnwired` SEPARATE from `missingFromLive` on purpose: "never built" and
-  "built and never connected" are different problems with different fixes, and merging them sends someone to
-  rebuild a core that already exists — the exact duplication P15.6's capability index was added to prevent.
-  **THE WORK — and ⚠️ CORRECTING AN OVERCLAIM MADE EARLIER IN THIS SAME ENTRY: this is NOT "just a wire".**
-  Reading `task-reanchor-before-model.ts` after writing that: the adapter is **deliberately state-free** — *"Pure
-  over its inputs (no I/O, no model, no session state)"* — and derives the goal from the FIRST USER MESSAGE of the
-  request. It has no access to card state, so **acceptance criteria are not reachable at that seam at all.**
-  That leaves a genuine design choice, and it is a DAVID-BATCH question rather than an agent's to settle:
-  - **(a) Accept that acceptance criteria ride inside the goal text.** If the card prompt already states them, the
-    first-user-message echo carries them implicitly — but only up to `GOAL_REANCHOR_MAX_CHARS` (2,000), and
-    *implicitly* means unverifiable: `auditReanchorPaths` cannot distinguish "carried inside the goal" from "not
-    carried", which is exactly the string-matching weakness F4.8a refused to accept.
-  - **(b) Wire F12.21 on its own channel** (the F12.56 steer channel it was designed for), leaving the state-free
-    adapter untouched. Costs a second injection point; keeps both modules honest.
-  - **(c) Plumb card state into the adapter** — simplest to read, but it **destroys the property that makes the
-    adapter testable**, and that property is why this seam has never been a source of bugs.
-  **(2) `constraints` is carried by NEITHER core** and needs building regardless of which option wins.
-  `auditReanchorPaths(OBSERVED_REANCHOR_PATHS)` is the executable gate; its test pins `passed: false` today.
 - [x] **F4.9 —  *(finalized 2026-07-19: projection + CLI live over real data; the Settings-panel surface = product placement -> DAVID BATCH.)* Produce observation-driven context recommendations.** Detect slow prefill/quality decline and suggest a **ACTIVATED 2026-07-15 (`ac379f4c`):** context-timing-projection.ts (ledger→ContextTimingObservation per model) + `dev context-recommendations` CLI runs recommendContextCap over real data (verified live). Settings-panel surface = remaining.
   smaller effective context/model setting with evidence.
 - [x] **F4.10 — Consume learned quality-effective budgets in prompt assembly.** Compact to the learned knee rather than **ACTIVATED 2026-07-15:** answer-budget-projection.ts + `dev answer-budgets` runs learnAnswerBudget over real model-perf observations (verified live). **AUDIT 2026-07-19: THE CAP WIRE IS LIVE (W2.3a)** — `resolveKnownContextWindowForTask` derates the effective window by `learnedQualityEffectiveBudget` (0.9× below the first observed degradation, ≥32k floor) and feeds ALL seven session-start/restart consumers in the service, so compaction budgets, fragment budgets, and the pre-send guard all derive from the learned knee, never the advertised window. Item complete.

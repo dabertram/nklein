@@ -2113,3 +2113,23 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   regressions while reducing aggregate prompt tokens by 89% (9,781→1,099 per three-case model run). The verifier never
   loads, unloads, or downloads models. Production reachability is element-tracked across live trim/citation synthesis
   and exact-path saving; the paired answer/citation run remains the explicit acceptance proof.
+
+- [x] **F4.8/F4.8a — verify end-of-context task retention and decide the re-anchor default** *(delivered
+  2026-07-21).* The structured coverage gate proves the compact block carries objective, current focus, constraints,
+  and acceptance criteria without duplicating the surrounding context. A permanent paired live harness then placed the
+  authoritative contract before roughly 30k prompt tokens of explicit superseded-contract noise and compared the same
+  model with and without the production tail re-anchor, alternating arm order and scoring opaque contract values.
+  Five post-fix pairs spanning m5max (Qwen3.6-35B-A3B, Gemma-4-31B, Qwen2.5-Coder-14B), legion5pro
+  (Qwopus3.5-9B-Coder-MTP), and m4mini (Qwen3-0.6B) all scored baseline 1.0 / anchored 1.0 with no failure or regression.
+  The evidence is therefore deliberately **inconclusive for a default flip**: `NKLEIN_GOAL_REANCHOR` remains opt-in;
+  the already-retaining default is not changed merely because an extra prompt block appears harmless.
+  The live sweep found and fixed two real confounders first. A 300-token completion cap made reasoning-output
+  truncation look like context loss, so the harness now records final content, reasoning, usage, and `finish_reason`
+  separately with bounded answer headroom. More importantly, the production block renamed `acceptanceCriteria` to
+  `DONE MEANS`; the 0.6B model mapped that synonym to the decoy while retaining the other canonical fields. The block
+  now emits `ACCEPTANCE CRITERIA`, pinned by regression coverage, and the exact anchored-first reproduction passes.
+  Live-run residency is budgeted rather than churned: warm models remain loaded, the existing LRU residency planner
+  admits up to three local models under an 84 GiB estimated-memory ceiling and large host reserve, linked hosts retain
+  one hardware-fit model, and local loads fail closed on low memory pressure or swap growth. This was proven with two
+  then three requested m5max residents while m4mini and legion5pro stayed warm; LM Studio retained the safe set, system
+  memory remained 82–94% free, and swap use did not grow. Focused tests (13) and TypeScript pass.
