@@ -950,7 +950,11 @@ describe("nklein decomposition tools", () => {
 
 	it("W4.3: a proceed verdict (or a null/absent critic) never blocks the decomposition", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-critique-ok-"));
-		const requestPlanCritique = vi.fn().mockResolvedValue({ verdict: "proceed", summary: "Sound.", feedback: null });
+		const requestPlanCritique = vi.fn(async (request: { slug: string }) => {
+			// Candidate-only until the independent verdict: no plan artifacts (and therefore no live cards) may exist yet.
+			await expect(readNKleinPlanArtifacts(workspacePath, request.slug)).rejects.toThrow();
+			return { verdict: "proceed" as const, summary: "Sound.", feedback: null };
+		});
 		const tool = createNKleinDecompositionTools({ workspacePath, requestPlanCritique }).find(
 			(candidate) => candidate.name === "decompose_project",
 		);
@@ -976,7 +980,7 @@ describe("nklein decomposition tools", () => {
 		expect(result.ok).toBe(true);
 		expect(requestPlanCritique).toHaveBeenCalledTimes(1);
 
-		// A small flat plan never deliberates at all (low stakes).
+		// A small flat plan still needs semantic sign-off: structural simplicity cannot catch omitted/invented scope.
 		const small = (await tool.execute(
 			{
 				slug: "small-plan",
@@ -993,7 +997,7 @@ describe("nklein decomposition tools", () => {
 			undefined as never,
 		)) as { ok: boolean };
 		expect(small.ok).toBe(true);
-		expect(requestPlanCritique).toHaveBeenCalledTimes(1);
+		expect(requestPlanCritique).toHaveBeenCalledTimes(2);
 	});
 
 	it("writes validated plan artifacts from decompose_project", async () => {

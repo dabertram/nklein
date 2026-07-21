@@ -376,7 +376,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
 	});
-	/** §5.U auxiliary secondary-session runner: the W4.3 plan-critique session (owns its per-run critique budget). */
+	/** §5.U auxiliary secondary-session runner: the W4.3 pre-application plan-critique session. */
 	private readonly planCritiqueRunner = createPlanCritiqueRunner({
 		getAgentSandboxManager: () => this.agentSandboxManager,
 		getLaunchConfig: (taskId) => this.launchConfigByTaskId.get(taskId) ?? null,
@@ -390,7 +390,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.sendAuxiliaryTaskSessionInput(taskId, prompt, admissionParentTaskId),
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
-		runBudget: 2,
 	});
 	/** F11.2j auxiliary secondary-session runner: the bounded read-only `::explore` subagent (per-run query budget). */
 	private readonly explorerRunner = createExplorerRunner({

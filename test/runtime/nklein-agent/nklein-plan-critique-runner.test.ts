@@ -58,7 +58,6 @@ function deps(over: Partial<PlanCritiqueRunnerDeps> = {}): PlanCritiqueRunnerDep
 		sendTaskSessionInput: vi.fn(async () => {}),
 		defaultTimeoutMs: 600_000,
 		maxNudges: 2,
-		runBudget: 2,
 		...over,
 	};
 }
@@ -143,14 +142,14 @@ describe("createPlanCritiqueRunner — buildRequestHandler", () => {
 		);
 	});
 
-	it("enforces the per-run budget: the 3rd request (budget 2) is a no-op", async () => {
-		const d = deps({ runBudget: 2 });
+	it("lets loaded-model availability and admission define capacity instead of a service-lifetime count", async () => {
+		const d = deps();
 		const runner = createPlanCritiqueRunner(d);
 		const handler = runner.buildRequestHandler("t1", "/repo");
 		await handler?.({ slug: "a" } as never);
 		await handler?.({ slug: "b" } as never);
-		(d.pickEscalationModel as ReturnType<typeof vi.fn>).mockClear();
-		expect(await handler?.({ slug: "c" } as never)).toBeNull();
-		expect(d.pickEscalationModel).not.toHaveBeenCalled(); // budget exhausted → probe never runs
+		await handler?.({ slug: "c" } as never);
+		expect(d.pickEscalationModel).toHaveBeenCalledTimes(3);
+		expect(d.startRuntimeSession).toHaveBeenCalledTimes(3);
 	});
 });

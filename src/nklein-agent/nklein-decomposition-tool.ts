@@ -492,8 +492,9 @@ function createDecomposeProjectTool(
 					},
 				});
 			}
-			// W4.3 decompose-critique (§5.AW): a HIGH-STAKES plan (big or coupled) whose structural quality is not
-			// clean gets ONE lineage-diverse critic round BEFORE the cascade builds on it. "revise" rides the same
+			// W4.3 decompose-critique (§5.AW): every validated candidate graph gets ONE lineage-diverse critic round
+			// BEFORE artifacts or live board cards are materialized. Structural cleanliness does not prove semantic
+			// coverage: a small graph can still invent scope or omit a requirement. "revise" rides the same
 			// recoverable-bounce muscle as a quality violation — the architect's session applies the feedback and
 			// calls decompose_project again (same slug ⇒ never re-critiqued ⇒ no loop). A critique can only ever
 			// ADD one revision round; it never blocks (handler errors/null degrade to proceed).

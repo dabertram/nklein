@@ -412,6 +412,12 @@ source repo went private — so if it vanishes the buildable source still lives 
     critic `revise` clears the incremental graph so stable IDs can be rebuilt instead of resubmitting stale state.
     Isolated live proof: Qwen yielded cap 1 to Gemma, rebuilt after a real critic rejection, materialized five cards,
     auto-started roots, and completed four cards before the controller's 20-minute deadline.
+  - **CRITIQUE THE CANDIDATE GRAPH BEFORE MATERIALIZATION:** every structurally valid decomposition gets one
+    lineage-diverse semantic critique before plan artifacts or live cards are written. Small/flat and warning-free
+    graphs are not exempt: structural validation cannot catch invented scope or omitted requirements. A `revise`
+    verdict discards the candidate construction and rebuilds the same stable ids; only `proceed` (or a surfaced lack
+    of any diverse loaded critic) permits application. Critique capacity follows loaded-model availability and the
+    admission gate, not a fixed service-lifetime count; human review remains the last-resort fallback.
   - **EVERY AWAITED MODEL CHILD NEEDS THE SAME CAP-ONE HANDOFF:** the reservation handoff is not specific to planning.
     Plan critique, exploration, execution second-opinion review, reviewer nudges, and any later parent-awaits-child turn
     must pass the parent task id through admission. Otherwise a cap-one host deadlocks while the parent waits for a child

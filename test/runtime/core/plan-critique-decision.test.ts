@@ -16,17 +16,14 @@ describe("decidePlanCritique (W4.3)", () => {
 		expect(decision.deliberate).toBe(true);
 	});
 
-	it("never critiques a small flat plan (cheap to fix after the fact)", () => {
+	it("critiques a small flat plan because structural simplicity does not prove semantic coverage", () => {
 		const decision = decidePlanCritique({ ...base, taskCount: 2, dependencyCount: 1 });
-		expect(decision.deliberate).toBe(false);
-		if (!decision.deliberate) {
-			expect(decision.reason).toContain("Stakes");
-		}
+		expect(decision.deliberate).toBe(true);
 	});
 
-	it("skips a warning-free graph — a confident decomposition needs no debate", () => {
+	it("critiques a warning-free graph because structural checks cannot catch invented or omitted scope", () => {
 		const decision = decidePlanCritique({ ...base, qualityWarningCount: 0 });
-		expect(decision.deliberate).toBe(false);
+		expect(decision.deliberate).toBe(true);
 	});
 
 	it("surfaces the diversity waiver instead of faking a same-family debate", () => {
@@ -50,7 +47,7 @@ describe("decidePlanCritique (W4.3)", () => {
 		expect(decision.deliberate).toBe(false);
 	});
 
-	it("dependency-heavy but small plans still count as high-stakes (coupling is the risk)", () => {
+	it("dependency-heavy plans also receive the mandatory pre-apply critique", () => {
 		const decision = decidePlanCritique({ ...base, taskCount: 3, dependencyCount: 3 });
 		expect(decision.deliberate).toBe(true);
 	});

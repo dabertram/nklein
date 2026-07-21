@@ -1,16 +1,14 @@
 import { type DeliberationTriggerDecision, shouldDeliberate } from "./deliberation-trigger";
 
 /**
- * W4.3 — the decompose-specific adapter over the §5.AW deliberation trigger: should THIS validated plan get one
- * diverse-critic round before the cascade starts? Maps plan shape onto the trigger's stakes/confidence axes:
+ * W4.3 — the decompose-specific adapter over the §5.AW deliberation trigger: every validated candidate plan gets one
+ * lineage-diverse critic round before artifacts or board cards are materialized. A small or structurally warning-free
+ * graph can still omit requirements or invent scope; structural validation is not semantic confidence. Because the
+ * whole execution cascade inherits the graph, every decomposition is high-stakes and medium-confidence until that
+ * independent sign-off.
  *
- *  - STAKES: a plan the whole cascade builds on is high-stakes when it is BIG (≥4 tasks) or heavily COUPLED
- *    (≥3 dependency edges) — a wrong small/flat plan is cheap to fix after the fact, so it never deliberates.
- *  - CONFIDENCE: the structural quality assessment is the decider's own confidence signal — a warning-free graph
- *    is a confident decomposition (no debate), quality warnings mean medium confidence (worth one critique).
- *
- * One critique per plan slug (the caller tracks `alreadyCritiqued`), a per-run count budget, and the diverse-critic
- * requirement all ride the shared trigger (waivers surfaced, never silent).
+ * One critique per plan slug (the caller tracks `alreadyCritiqued`) and the diverse-critic requirement ride the
+ * shared trigger (waivers surfaced, never silent). Loaded-model availability and admission define capacity.
  */
 export interface PlanCritiqueDecisionInput {
 	taskCount: number;
@@ -30,10 +28,9 @@ export function decidePlanCritique(input: PlanCritiqueDecisionInput): Deliberati
 			diversityWaived: false,
 		};
 	}
-	const highStakes = input.taskCount >= 4 || input.dependencyCount >= 3;
 	return shouldDeliberate({
-		stakes: highStakes ? "high" : "low",
-		confidence: input.qualityWarningCount === 0 ? "high" : "medium",
+		stakes: "high",
+		confidence: "medium",
 		diverseCriticAvailable: input.diverseCriticAvailable,
 		budgetRemaining: input.critiqueBudgetRemaining,
 	});

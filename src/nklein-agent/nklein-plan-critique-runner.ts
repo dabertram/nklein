@@ -38,8 +38,6 @@ export interface PlanCritiqueRunnerDeps {
 	sendTaskSessionInput(taskId: string, prompt: string, admissionParentTaskId: string): Promise<unknown>;
 	defaultTimeoutMs: number;
 	maxNudges: number;
-	/** W4.3 per-run critique budget (deliberation is rare by design). */
-	runBudget: number;
 }
 
 export interface PlanCritiqueRunner {
@@ -67,12 +65,10 @@ const CLARIFY_TURN_RUN_BUDGET = 6;
 /**
  * §5.U: the W4.3 plan-critique session, extracted verbatim from InMemoryNKleinTaskSessionService as a standalone
  * harness-based runner (the sibling of the second-opinion review runner). One bounded DIVERSE-CRITIC turn over a
- * validated decomposition plan BEFORE the cascade starts; owns the per-run critique-count budget. A critique never
- * blocks a decomposition — every degraded path resolves to null (proceed).
+ * validated decomposition plan BEFORE the cascade starts. Loaded-model availability + admission define capacity;
+ * a critique never blocks a decomposition — every degraded path resolves to null (proceed).
  */
 export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCritiqueRunner {
-	/** W4.3 per-run critique budget: deliberation is rare by design (high-stakes × unclean quality only). */
-	let planCritiqueRunsUsed = 0;
 	/** F1.3e per-run clarify-turn budget: each auto-clarify round costs 1-2 bounded sessions; cap the total. */
 	let clarifyTurnsUsed = 0;
 
@@ -81,15 +77,12 @@ export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCrit
 			return undefined;
 		}
 		return async (request) => {
-			if (planCritiqueRunsUsed >= deps.runBudget) {
-				return null;
-			}
 			if (!deps.getAgentSandboxManager()) {
 				return null;
 			}
-			// Adversarial-review fix (2026-07-02): probe for the diverse critic BEFORE spending budget — degraded
-			// no-op attempts (single-model fleets) were burning the whole budget without ever running a session,
-			// permanently self-disabling deliberation for the service lifetime. And the waiver is SURFACED here
+			// Probe for the diverse critic before starting the bracketed session. Availability + the shared admission gate
+			// define review capacity; a fixed service-lifetime count silently disabled critique after unrelated plans.
+			// The waiver is SURFACED here
 			// (the shared trigger's waiver path is unreachable from the tool seam, which only knows an executor
 			// exists — see the decompose tool's gate comment).
 			const critic = await deps.pickEscalationModel(taskId).catch(() => null);
@@ -103,7 +96,6 @@ export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCrit
 				});
 				return null;
 			}
-			planCritiqueRunsUsed += 1;
 			return await runPlanCritiqueSession({
 				taskId,
 				projectRepoPath,
