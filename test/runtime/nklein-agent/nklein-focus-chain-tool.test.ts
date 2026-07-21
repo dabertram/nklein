@@ -86,4 +86,16 @@ describe("update_focus_chain tool", () => {
 		expect(output).toMatchObject({ ok: true });
 		expect((output as { instruction: string }).instruction).toContain("done or skipped");
 	});
+
+	it("rejects an identical bookkeeping replay so it cannot masquerade as task progress", async () => {
+		const tool = createNKleinFocusChainTool({});
+		const input = {
+			steps: [
+				{ text: "Read the spec", status: "done" },
+				{ text: "Submit the graph", status: "pending" },
+			],
+		};
+		await expect(tool.execute(input, undefined as never)).resolves.toMatchObject({ ok: true });
+		await expect(tool.execute(input, undefined as never)).rejects.toThrow("made no change");
+	});
 });

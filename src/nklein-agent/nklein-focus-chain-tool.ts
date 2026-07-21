@@ -69,6 +69,7 @@ export const nkleinFocusChainSubmissionSchema = z.object({
 export type NKleinFocusChainSubmittedHandler = (chain: FocusChain) => void | Promise<void>;
 
 export function createNKleinFocusChainTool(options: { onUpdated?: NKleinFocusChainSubmittedHandler }): AgentTool {
+	let lastRecordedChain: string | null = null;
 	return {
 		name: "update_focus_chain",
 		description:
@@ -118,7 +119,14 @@ export function createNKleinFocusChainTool(options: { onUpdated?: NKleinFocusCha
 					instruction: "Provide at least one non-empty step in `steps`.",
 				};
 			}
+			const serializedChain = JSON.stringify(chain.steps);
+			if (serializedChain === lastRecordedChain) {
+				throw new Error(
+					"update_focus_chain made no change. Do not call it again; continue with the current in-progress step using the task's implementation or completion tools.",
+				);
+			}
 			await options.onUpdated?.(chain);
+			lastRecordedChain = serializedChain;
 			const summary = summarizeFocusChain(chain);
 			return {
 				ok: true,

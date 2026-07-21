@@ -103,6 +103,11 @@ gap remains.
 > accumulated graph is still ephemeral:
 > full validation and independent critique happen before materialization.
 
+> **⚠️ BOOKKEEPING SUCCESS IS NOT TASK PROGRESS (live-found run `20260721-143921`).** Qwopus emitted six byte-identical
+> `update_focus_chain` calls while the graph still had zero cards. Every result said `ok:true`, so call counts and
+> success counts both lied. Stateful bookkeeping tools must reject an unchanged replay with a compact error and direct
+> the model to the current task step; only a changed chain is a successful update.
+
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
 > an obsolete optional tool description while the production decomposition path used a different retrieval tool; no
 > knowledge timestamp reached the gate, stale knowledge did not force a search, and fresh knowledge could not prove a
