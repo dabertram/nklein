@@ -48,11 +48,15 @@ function evidenceExcerpt(text: string, queryTerms: readonly string[]): string {
  * answer using ONLY the evidence and to cite the id(s) each claim relies on as a JSON array of `{claim, cite}`.
  * Deterministic (pure) so it is unit-testable without a model. Long evidence is narrowed to query-relevant spans.
  */
-export function buildSynthesisPrompt(task: string, evidence: readonly RetrievalEvidence[]): string {
+function buildSynthesisPromptFromEvidence(
+	task: string,
+	evidence: readonly RetrievalEvidence[],
+	excerpt: (text: string, queryTerms: readonly string[]) => string,
+): string {
 	const queryTerms = tokenizeQuery(task);
 	const blocks = evidence.map((item) => {
-		const excerpt = evidenceExcerpt(item.text, queryTerms);
-		return `[${item.id}]${item.url ? ` (${item.url})` : ""}\n${excerpt}`;
+		const text = excerpt(item.text, queryTerms);
+		return `[${item.id}]${item.url ? ` (${item.url})` : ""}\n${text}`;
 	});
 	return [
 		"Answer the QUESTION using ONLY the EVIDENCE below. Do not use outside knowledge.",
@@ -65,6 +69,20 @@ export function buildSynthesisPrompt(task: string, evidence: readonly RetrievalE
 		"EVIDENCE:",
 		blocks.join("\n\n"),
 	].join("\n");
+}
+
+export function buildSynthesisPrompt(task: string, evidence: readonly RetrievalEvidence[]): string {
+	return buildSynthesisPromptFromEvidence(task, evidence, evidenceExcerpt);
+}
+
+/**
+ * Build the byte-equivalent synthesis contract with FULL evidence text. This is an EVAL CONTROL, not a production
+ * prompt path: F4.6's paired quality proof needs to vary only extraction while holding the question, instructions,
+ * ids, and model constant. Keeping the control beside the production builder prevents a benchmark-only prompt from
+ * drifting into an easier task than the real synthesis call.
+ */
+export function buildUntrimmedSynthesisPrompt(task: string, evidence: readonly RetrievalEvidence[]): string {
+	return buildSynthesisPromptFromEvidence(task, evidence, (text) => text);
 }
 
 /**

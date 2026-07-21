@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Online evidence synthesis now keeps the answer while using much less context.** Long sources are narrowed before
+  the local model call without losing stable citation ids. A paired live-fleet check held the task, instructions,
+  model, and evidence constant: all four resident models retained every expected fact and citation across 12/12
+  comparisons, with zero regressions and an 89% aggregate prompt-token reduction.
+
 - **Decomposition now checks whether its current knowledge actually needs an online refresh.** For fast-moving topics,
   stale cited evidence triggers the configured local retrieval path before planning; a recent cited observation skips
   the duplicate search. Both outcomes show their reason and sources in the transcript and card timeline, while failed

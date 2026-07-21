@@ -2102,3 +2102,14 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   repeat SKIPPED, and both cited three nodejs.org pages. The preflight intentionally omits nested synthesis before model
   admission; the architect receives the bounded evidence directly. Focused service/core tests pass 179/179, TypeScript
   passes, and requirement coverage reports all three F4.4 elements live.
+
+- [x] **F4.6 — trim synthesis evidence without answer-quality loss** *(delivered 2026-07-21).* The existing production
+  path already applied `extractRelevantSpans` before the synthesis model call and retained stable evidence ids; the
+  earlier saving probe measured that exact excerpt path rather than a parallel approximation. The missing quality half
+  is now a permanent paired evaluator: each case sends an otherwise-identical full-evidence control and production-
+  trimmed prompt to the same model, alternates arm order, and deterministically scores required facts plus citations.
+  Standalone model incapacity is reported separately from a causal extraction regression. All four resident LM Studio
+  models passed every full and trimmed case (12/12 each), retained every stable citation, and showed zero paired
+  regressions while reducing aggregate prompt tokens by 89% (9,781→1,099 per three-case model run). The verifier never
+  loads, unloads, or downloads models. Production reachability is element-tracked across live trim/citation synthesis
+  and exact-path saving; the paired answer/citation run remains the explicit acceptance proof.

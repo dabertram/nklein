@@ -126,6 +126,22 @@ export const TRACKED_REQUIREMENTS: readonly RequirementSpec[] = [
 		],
 	},
 	{
+		// F4.6 — production must both trim and preserve citation addressability, and saving must be measured over that
+		// exact path. The paired answer-quality proof is an acceptance verifier, not a production consumer, so it does
+		// not belong in this production-reachability audit.
+		id: "F4.6",
+		elements: [
+			{
+				element: "production_trim_and_citation",
+				providedBy: { module: "retrieval-synthesis-adapter.ts", symbol: "citedSynthesisAdapter" },
+			},
+			{
+				element: "production_path_token_saving",
+				providedBy: { module: "retrieval-synthesis-adapter.ts", symbol: "measureSynthesisEvidenceSaving" },
+			},
+		],
+	},
+	{
 		// P20.5 — metric discipline. The formatting half is wired into the fitness table; the naming guard is
 		// enforced as a repo ratchet rather than a caller, so it has no symbol-level consumer by design.
 		id: "P20.5",

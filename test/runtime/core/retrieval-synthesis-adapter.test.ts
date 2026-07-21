@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RetrievalEvidence } from "../../../src/core/retrieval-loop-driver";
 import {
 	buildSynthesisPrompt,
+	buildUntrimmedSynthesisPrompt,
 	citedSynthesisAdapter,
 	parseSynthesisClaims,
 } from "../../../src/core/retrieval-synthesis-adapter";
@@ -35,6 +36,14 @@ describe("buildSynthesisPrompt (§5.AC)", () => {
 		// The window around the matched terms is kept; the long padding head is dropped (extraction, not head-truncation).
 		expect(prompt).toContain("Environment API is the headline change");
 		expect(prompt).not.toContain("PADDING ".repeat(50));
+	});
+
+	it("keeps an untrimmed, otherwise-identical control for paired quality evaluation", () => {
+		const text = `needle ${"padding ".repeat(300)}`;
+		const trimmed = buildSynthesisPrompt("needle", [{ id: "e1", text }]);
+		const full = buildUntrimmedSynthesisPrompt("needle", [{ id: "e1", text }]);
+		expect(full.length).toBeGreaterThan(trimmed.length);
+		expect(full.replace(text, "<evidence>")).toBe(trimmed.replace(/needle padding[\s\S]*$/u, "<evidence>"));
 	});
 });
 
