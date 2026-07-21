@@ -57,6 +57,13 @@
   model, and evidence constant: all four resident models retained every expected fact and citation across 12/12
   comparisons, with zero regressions and an 89% aggregate prompt-token reduction.
 
+- **Small local workers now start generated leaf cards with a focused code span when measurement says it helps.** A
+  bounded AST-aware top-1 span is selected only from the card's declared likely files, confined to the real workspace,
+  and attached for unknown/default or lower-capability routes; stronger routes retain pull-on-demand to save context.
+  A pre-registered 140-pair run across five resident models and all three hosts improved exact localization from 61.4%
+  to 77.1% (+15.7 points, McNemar p=0.00068) with zero infrastructure failures. Stale, unsafe, binary, oversized, or
+  irrelevant candidates fail soft to the existing structural retrieval ladder.
+
 - **Unexpectedly large tool results no longer flood a small model's next turn.** Successful read, search, and command
   outputs above a context-scaled threshold now leave a bounded head-and-tail preview plus a session-local `result://`
   handle. The model can page exact slices through a stable `resolve_result` tool when needed. Failure bodies and

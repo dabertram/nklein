@@ -7,6 +7,7 @@ import type {
 	RuntimeNKleinPlanArtifactRejectResponse,
 } from "../../core/api-contract";
 import { resolveAutonomousTimeoutPowerMultiplier } from "../../core/autonomous-timeout-defaults";
+import { buildPlanTaskFocusedSpans } from "../../nklein-agent/decomposition/plan-task-focused-spans";
 import { applyNKleinPlanTaskGraphToBoard } from "../../nklein-agent/nklein-decomposition-tool";
 import {
 	readNKleinPlanArtifactsByArtifactId,
@@ -41,6 +42,10 @@ export async function handleApplyNKleinPlanArtifact(
 	}
 	const runtimeConfig = await deps.loadScopedRuntimeConfig(workspaceScope).catch(() => null);
 	const powerMultiplier = await resolveAutonomousTimeoutPowerMultiplier();
+	const focusedSpansByTaskId = await buildPlanTaskFocusedSpans({
+		workspacePath: workspaceScope.workspacePath,
+		tasks: artifacts.taskGraph.tasks,
+	}).catch(() => ({}));
 	const mutation = await mutateWorkspaceState(workspaceScope.workspacePath, (state) => {
 		const cards = state.board.columns.flatMap((column) => column.cards);
 		const baseRef =
@@ -61,6 +66,7 @@ export async function handleApplyNKleinPlanArtifact(
 			sourceTaskId: artifacts.metadata.sourceTaskId,
 			modelRoleSettings: runtimeConfig?.effectiveModelRoles,
 			powerMultiplier,
+			focusedSpansByTaskId,
 			sharedContext: {
 				spec: artifacts.spec,
 				decisionsMarkdown: artifacts.decisionsMarkdown,

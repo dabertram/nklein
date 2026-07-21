@@ -2185,3 +2185,17 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   findings reject. Nine real-filesystem integration cases prove clean mapping, grant narrowing, executable no-run,
   hostile-source retention, typed parse failures, traversal/symlink confinement, resource caps, and unexpected-root
   screening; the composed 140-test safety suite and TypeScript pass.
+
+- [x] **F11.2d — coarse-to-fine hierarchical localizer in decompose** *(delivered 2026-07-21).* Generated leaf cards
+  now receive one bounded automatic top-1 code span when their selected local route is unknown/default or at/below the
+  measured capability-90 tier. Selection is deterministic over at most eight declared likely files, uses AST-aware
+  48-line chunks (fixed-line fallback for other languages), rejects paths outside the real workspace, skips binary,
+  stale, non-file, and >256 KiB inputs, and abstains without weakening the existing repo_map → ego_graph → ast_search →
+  focused-read pull ladder. Stronger routes keep pull-on-demand instead of paying context cost.
+  The permanent paired fleet harness pre-registered a 15-point minimum detectable effect, preflighted every model/API
+  channel, ran 28 real-symbol localization tasks across five resident models and all three hosts with per-device cap 1
+  and ABBA ordering, and recorded zero infrastructure failures. Automatic lexical top-1 push scored 108/140 (77.1%)
+  versus pull-on-demand 86/140 (61.4%): +15.7 points, 31 better/9 worse, exact McNemar p=0.00068. The gain concentrated
+  in Phi-4 Mini and the two weaker 9B routes; Qwen3.6-35B-A3B was 28/28 pull and 27/28 push, establishing the adaptive
+  capability ceiling. The evidence artifact records raw outcomes, tokens, latency, response channel, confidence
+  intervals, harness card, and pre-registration. Focused implementation/eval tests (67) and TypeScript pass.

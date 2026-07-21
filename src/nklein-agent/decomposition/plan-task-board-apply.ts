@@ -17,6 +17,7 @@ import { nkleinPlanTaskGraphSchema, nkleinPlanTaskSchema } from "../nklein-plan-
 import type { NKleinTaskRoutingCandidate } from "../nklein-task-router";
 import { breakDependencyCycles } from "./plan-task-cycle-break";
 import { expandDecomposeProjectTasks, getReplacementBoundaryTaskIds } from "./plan-task-expansion";
+import { shouldAttachPlanTaskFocusedSpan } from "./plan-task-focused-spans";
 import { slugifyTaskId } from "./plan-task-input-parse";
 import { buildTaskPrompt } from "./plan-task-prompt";
 import {
@@ -176,12 +177,17 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 			taskIdByPlanTaskId[task.id] = existingGeneratedCard.id;
 			continue;
 		}
+		const availableFocusedCodeSpan = input.focusedSpansByTaskId?.[task.id];
 		const taskPromptForRouting = buildTaskPrompt(task, input.sharedContext);
 		const selectedRoutingCandidate = selectTaskRoutingCandidate(task, taskPromptForRouting, input.routingCandidates);
+		const focusedCodeSpan = shouldAttachPlanTaskFocusedSpan(selectedRoutingCandidate)
+			? availableFocusedCodeSpan
+			: undefined;
 		const taskPrompt = buildTaskPrompt(
 			task,
 			input.sharedContext,
 			formatTaskModelFitEvidence(selectedRoutingCandidate),
+			focusedCodeSpan,
 		);
 		const selectedRole =
 			selectedRoutingCandidate === undefined ? undefined : (selectedRoutingCandidate?.role ?? null);

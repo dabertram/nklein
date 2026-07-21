@@ -185,6 +185,36 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 		expect(result.createdTasks.every((task) => task.streamId === "stream-habit-tracker")).toBe(true);
 	});
 
+	it("F11.2d attaches the precomputed focused span only to its generated leaf card", () => {
+		const result = applyNKleinPlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			focusedSpansByTaskId: {
+				storage:
+					"Focused code span (automatic top-1 localization):\nPath: src/storage.ts:12\n```\nloadStorage();\n```",
+			},
+			now: 100,
+		});
+
+		expect(result.createdTasks[0]?.prompt).toContain("Path: src/storage.ts:12");
+		expect(result.createdTasks[1]?.prompt).not.toContain("Focused code span");
+
+		const ceilingResult = applyNKleinPlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			focusedSpansByTaskId: { storage: "Focused code span:\nexpensive context" },
+			routingCandidates: [
+				createRoutingCandidate({ key: "ceiling-model", role: "worker", capability: 95, contextWindow: 32_768 }),
+			],
+			now: 100,
+		});
+		expect(ceilingResult.createdTasks[0]?.prompt).not.toContain("expensive context");
+	});
+
 	it("F1.9: copies the plan task's work-package bounds (writeScope/forbiddenPaths) onto the generated card", () => {
 		const taskGraph = createTaskGraph();
 		const first = taskGraph.tasks[0];

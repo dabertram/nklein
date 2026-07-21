@@ -76,6 +76,7 @@ describe("buildTaskPrompt", () => {
 			}),
 			{ spec: "shared spec", decisionsMarkdown: null },
 			"strong on TS",
+			"Focused code span:\nsrc/a.ts:10\nconst answer = 42;",
 		);
 		expect(full).toContain("Likely files:\n- src/a.ts");
 		expect(full).toContain("Acceptance check: npm test");
@@ -84,6 +85,7 @@ describe("buildTaskPrompt", () => {
 		expect(full).toContain("Knowledge debt");
 		expect(full).toContain("Suggested role: worker");
 		expect(full).toContain("Model fit: strong on TS");
+		expect(full).toContain("Focused code span:\nsrc/a.ts:10");
 		expect(full).toContain("Shared spec:\nshared spec");
 
 		const minimal = buildTaskPrompt(task());

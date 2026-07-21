@@ -96,6 +96,8 @@ export interface ApplyNKleinPlanTaskGraphInput {
 	modelRoleSettings?: Record<string, RuntimeTaskNKleinSettings>;
 	routingCandidates?: readonly NKleinTaskRoutingCandidate[];
 	sharedContext?: NKleinPlanTaskSharedContext;
+	/** F11.2d bounded top-1 spans, precomputed outside the pure board mutation. */
+	focusedSpansByTaskId?: Readonly<Record<string, string>>;
 	/** OS power-mode multiplier for the autonomous timeout defaults (≥1; Low Power ≈ 2). Defaults to 1 (no scaling). */
 	powerMultiplier?: number;
 	now?: number;

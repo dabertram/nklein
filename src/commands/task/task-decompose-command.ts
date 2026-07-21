@@ -2,6 +2,7 @@ import { loadRuntimeConfig } from "../../config/runtime-config";
 import type { RuntimeWorkspaceStateResponse } from "../../core/api-contract";
 import { resolveAutonomousTimeoutPowerMultiplier } from "../../core/autonomous-timeout-defaults";
 import { buildDecompositionRoutingCandidates } from "../../nklein-agent/decomposition/build-decomposition-routing-candidates.js";
+import { buildPlanTaskFocusedSpans } from "../../nklein-agent/decomposition/plan-task-focused-spans.js";
 import { applyNKleinPlanTaskGraphToBoard } from "../../nklein-agent/nklein-decomposition-tool";
 import {
 	readNKleinPlanArtifacts,
@@ -78,6 +79,10 @@ export async function decomposeTaskGraph(input: {
 	const runtimeConfig = await loadRuntimeConfig(workspaceRepoPath);
 	const routingCandidates = await buildDecompositionRoutingCandidates(runtimeConfig);
 	const powerMultiplier = await resolveAutonomousTimeoutPowerMultiplier();
+	const focusedSpansByTaskId = await buildPlanTaskFocusedSpans({
+		workspacePath: workspaceRepoPath,
+		tasks: artifacts.taskGraph.tasks,
+	}).catch(() => ({}));
 	let applied: {
 		createdTasks: JsonRecord[];
 		createdDependencies: JsonRecord[];
@@ -98,6 +103,7 @@ export async function decomposeTaskGraph(input: {
 				modelRoleSettings: runtimeConfig.effectiveModelRoles,
 				powerMultiplier,
 				routingCandidates,
+				focusedSpansByTaskId,
 				sharedContext: {
 					spec: artifacts.spec,
 					decisionsMarkdown: artifacts.decisionsMarkdown,

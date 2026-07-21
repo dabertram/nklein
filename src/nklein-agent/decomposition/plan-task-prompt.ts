@@ -35,6 +35,7 @@ export function buildTaskPrompt(
 	task: NKleinPlanTask,
 	sharedContext?: NKleinPlanTaskSharedContext,
 	modelFitEvidence?: string | null,
+	focusedCodeSpan?: string | null,
 ): string {
 	const sections = [task.prompt.trim()];
 	sections.push(
@@ -63,6 +64,9 @@ export function buildTaskPrompt(
 	}
 	if (task.filesLikelyTouched.length > 0) {
 		sections.push(["Likely files:", ...task.filesLikelyTouched.map((path) => `- ${path}`)].join("\n"));
+	}
+	if (focusedCodeSpan?.trim()) {
+		sections.push(focusedCodeSpan.trim());
 	}
 	if (task.acceptanceCommand) {
 		sections.push(`Acceptance check: ${task.acceptanceCommand}`);

@@ -19,6 +19,7 @@ import {
 import type { NKleinTaskRoutingCandidate } from "../nklein-task-router";
 import { buildDecompositionRoutingCandidates } from "./build-decomposition-routing-candidates";
 import { applyNKleinPlanTaskGraphToBoard, replaceNKleinPlanTaskInGraph } from "./plan-task-board-apply";
+import { buildPlanTaskFocusedSpans } from "./plan-task-focused-spans";
 import { previewNKleinPlanTaskGraphWithFallback } from "./plan-task-routing";
 
 export { replaceNKleinPlanTaskInGraph };
@@ -101,6 +102,10 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 			preview: fallbackPreview,
 		};
 	}
+	const focusedSpansByTaskId = await buildPlanTaskFocusedSpans({
+		workspacePath: input.workspacePath,
+		tasks: input.taskGraph.tasks,
+	}).catch(() => ({}));
 	try {
 		const result = await mutateWorkspaceState<ApplyDecomposeProjectArtifactsResult>(input.workspacePath, (state) => {
 			const baseRef = state.git.currentBranch ?? state.git.defaultBranch;
@@ -129,6 +134,7 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 				modelRoleSettings: runtimeConfig?.effectiveModelRoles,
 				powerMultiplier,
 				sharedContext: input.sharedContext,
+				focusedSpansByTaskId,
 			};
 			let applied: ReturnType<typeof applyNKleinPlanTaskGraphToBoard>;
 			try {
