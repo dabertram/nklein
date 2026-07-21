@@ -441,6 +441,17 @@ async function runMainCommand(options: CliOptions, shouldAutoOpenBrowser: boolea
 		console.log(`HTTPS enabled on ${getKanbanRuntimeOrigin()}`);
 	}
 
+	// A launch invocation is also the "focus the already-running board" command. Probe that exact endpoint before
+	// constructing the full runtime: initialization can take tens of seconds, and waiting until listen() finally raises
+	// EADDRINUSE makes a healthy existing runtime look like a hung CLI. `auto` deliberately skips this because its
+	// contract is to find another free port. Keep the catch below for the startup race after this probe.
+	if (
+		options.port?.mode !== "auto" &&
+		(await tryOpenExistingServer({ noOpen: options.noOpen, shouldAutoOpenBrowser }))
+	) {
+		return;
+	}
+
 	// Handle remote-mode transport/auth policy + passcode generation — deferred
 	// until after TLS validation so that an invalid --cert/--key fails before any
 	// passcode is printed (a passcode for a server that never starts is confusing).

@@ -2,6 +2,22 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Planning and execution questions now stay attached to the exact work they block.** Risky decomposition choices
+  are sent through a bounded architect/reviewer clarification loop instead of silently adopting a working default,
+  while a worker's native follow-up question is persisted on its originating plan with the precise blocked card id.
+  Resolved questions resume that card; questions the available local models cannot settle remain visible as the
+  last-resort human fallback.
+
+- **Model-turn replacement and real-run diagnostics are reliable under constrained local capacity.** Awaited review
+  children cooperatively receive the parent's host slot, replaced sessions cannot emit stale lifecycle events into the
+  new round, and model-switch redrives abort abandoned provider requests. The real-model controller preserves final
+  auxiliary transcripts before deletion and reports complete tool results, errors, pending calls, logs, board state,
+  and transitions.
+
+- **Launching !Klein now focuses an existing local runtime immediately.** Bare and fixed-port launches probe the
+  configured board before doing expensive server construction, avoiding minute-long waits before the eventual
+  address-in-use fallback; automatic-port launches still start a separate runtime as requested.
+
 - **Image chat now works out of the box with LM Studio (and other picky servers).** Screenshots are usually WebP,
   which LM Studio's vision endpoint rejects — a known bug that breaks many tools. !Klein now transcodes every attached
   image to PNG in the browser before sending, so WebP/GIF screenshots just work. As a backstop, if a format a known

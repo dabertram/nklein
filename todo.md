@@ -352,6 +352,16 @@ source repo went private — so if it vanishes the buildable source still lives 
     events, runtime signals, runtime log, and `lms log stream`. A reactive abort kills the drain immediately; JSON mode
     stays machine-parseable; controller success follows the drain classification and returns non-zero otherwise. Never
     call a run "progressing" from tool-call counts without reading the corresponding results.
+  - **CONTROLLER OWNERSHIP PRECEDES CLEANUP:** reject a busy port and acquire the repo-wide controller lock BEFORE
+    arming any EXIT/signal teardown. A rejected second launcher once ran its trap and deleted the active controller's
+    sandbox. Lifecycle cleanup is authorized only after exclusive ownership; stale locks are recovered only after the
+    recorded owner PID is absent. Signal aborts stop the drain immediately, then collect evidence — never wait for the
+    timed drain after deciding to abort.
+  - **PRESERVE FINAL AUXILIARY RESULTS BEFORE SESSION DELETION:** bounded critic/clarification sessions are deleted
+    immediately after their turn, so a periodic controller snapshot can miss the final `tool_use`/`tool_result` pair.
+    When run evidence is enabled, the runtime writes the final persisted messages immediately before deletion; the
+    collector then merges live and final snapshots by session id. A run is not healthy until every completed result's
+    `is_error` and body have been inspected, and any genuinely pending use remains explicit.
   - **ISOLATED HOME ONBOARDING:** `modelRoles` alone does not configure cascade children. Auto-start first resolves the
     global native-provider selection, then applies the role/model override. Every fresh run HOME therefore needs
     `.nklein/nklein/nklein-provider-selection.json` with `{"providerId":"lmstudio"}` as well as global `config.json`;
@@ -365,6 +375,18 @@ source repo went private — so if it vanishes the buildable source still lives 
     critic `revise` clears the incremental graph so stable IDs can be rebuilt instead of resubmitting stale state.
     Isolated live proof: Qwen yielded cap 1 to Gemma, rebuilt after a real critic rejection, materialized five cards,
     auto-started roots, and completed four cards before the controller's 20-minute deadline.
+  - **EVERY AWAITED MODEL CHILD NEEDS THE SAME CAP-ONE HANDOFF:** the reservation handoff is not specific to planning.
+    Plan critique, exploration, execution second-opinion review, reviewer nudges, and any later parent-awaits-child turn
+    must pass the parent task id through admission. Otherwise a cap-one host deadlocks while the parent waits for a child
+    that can never acquire its retained slot. Unrelated work remains capped; only the explicit parent/child bracket yields.
+  - **REPLACEMENT STOPS MUST SILENCE THE ABANDONED SESSION:** an SDK host may synchronously emit `ended`/`exit` from a
+    graceful stop. Before a restart/reload/review redrive, remove the old session-to-task event route so that stale exit
+    cannot mark the replacement round awaiting review and spawn duplicate workers. A model-switch redrive must also
+    abort the provider request; stopping only the SDK record can leave LM Studio processing the abandoned turn past cap 1.
+  - **HIGH-STAKES CLARIFICATION USES STABLE IDS AND SEMANTIC VERDICTS:** classify from the question id as well as mutable
+    prose, because a model may shorten away words such as `auth` or `migration`. A `proceed` enum cannot overrule a
+    summary that says an external fact is absent or the question must remain open. Safety-critical loop exhaustion keeps
+    the question open; it never silently promotes the working assumption to an answer.
   - **DIVERSITY WAIVER MUST NOT BECOME SELF-REVIEW (live-found/fixed 2026-07-21):** with the four-model resident fleet,
     reviewer ranking preferred Qwen 3.6; Gemma was lineage-diverse but 21 fit points lower, outside the 15-point margin.
     The selector correctly waived diversity but incorrectly returned `null`, so the caller fell back to the original
@@ -531,6 +553,11 @@ source repo went private — so if it vanishes the buildable source still lives 
   infinite re-drive loop.
 - Legacy host task worktrees (when they exist) intentionally preserve agent progress. External project-folder changes are copied only onto paths still owned by the project sync state; overlapping agent edits must remain isolated + produce a warning. Removing an entire project ≠ trashing a task: await all worktree cleanup and delete saved task patches so re-adding the folder can't restore stale content.
 - !Klein is launched from the user's shell and inherits its environment. For agent detection + task-agent startup, prefer direct PATH checks and direct process launches over spawning an interactive shell. Avoid `zsh -i`, shell fallback command discovery, or "launch shell then type command into it" on hot paths — heavy shell init (`conda`/`nvm`) per task can freeze the runtime. Interactive shells are fine for explicit shell terminals, not for normal agent session work.
+- **ROOT LAUNCH PROBES THE EXISTING RUNTIME BEFORE CONSTRUCTION:** bare `nklein` and fixed `--port` invocations are
+  also the "focus the already-running board" path. Probe the configured endpoint before building the full runtime;
+  waiting for late `listen()`/`EADDRINUSE` can take over a minute as startup grows and makes a healthy runtime look like
+  a hung CLI. `--port auto` intentionally skips this probe because its contract is to find another free port; retain the
+  post-construction `EADDRINUSE` probe for the race where the port becomes occupied after the early check.
 - **Model-role pinning contract (David, 2026-07-09):** automatic skill-set + task-difficulty/complexity based model
   selection is the default and must not create implicit pins. A role/"thing" is hard-pinned only when the user explicitly
   sets `modelSelectionMode:"pinned"` with a concrete primary model id; provider-only role settings and unpinned model
@@ -851,19 +878,22 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 1A. Planning, decomposition, and work-package construction *(legacy §5.B, §5.S, §5.N, §5.AV, §5.AK)*
 
-- [ ] **F1.3 — Complete automatic clarification after decomposition** *(split into leaves 2026-07-13; the §5.S cores
-  — clarification-need, auto-clarify loop, option-set, answer projection, count — are built + tested but unwired).*
+- [x] **F1.3 — Complete automatic clarification after decomposition.** *(Completed 2026-07-21.)*
   Run the question-quality/reviewer pass wherever decomposition or execution raises questions, persist answers into
   plan revisions, and resume the exact blocked card.
-  - [ ] **F1.3e — residuals: live validation + the execution-side block setter.** The model-backed loop is
+  - [x] **F1.3e — live validation + the execution-side block setter.** The model-backed loop is
     IMPLEMENTED and wired (2026-07-13): `buildClarifyTurnHandler` on the plan-critique runner (own 6-turn budget;
     propose = architect's model, review = lineage-diverse §5.K pick, both via the existing bounded critique
     session — a proposal critique IS a critique), `runModelBackedClarifyLoop` (2-round budget, token-Jaccard
     no-progress similarity, every degraded path keeps the question open), run inside `decompose_project` after the
-    deterministic pass. REMAINING: (1) validate the propose/review turns against a REAL local model (working-loop
-    rule 3 — read the LM Studio dev logs); (2) the `blockedTaskId` SETTER — decompose-time keep-open questions
-    block no running card by design, so the setter belongs to the execution-side ask (a worker's question parks
-    ITS card and sets the id); ship it with the native ask tool / F1.10 stuck-signal work.
+    deterministic pass. The native execution ask now durably attaches or creates the plan question with the exact
+    `blockedTaskId`; resolution clears that binding and the existing answer route resumes that card. Durable dedupe is
+    earned only after both question and revision writes succeed.
+    **LIVE PROOF:** `.real-runs/20260721-042944` used Qwen 3.6 as architect and Gemma 4 as lineage-diverse reviewer.
+    Four `submit_plan_critique` calls returned complete non-error results; round 2 identified the deployment context as
+    explicitly undetermined, and the persisted `questions.md` remained `Status: open` with only a named working
+    assumption. `decompose_project` returned successfully with no pending calls. The one later worker error was an
+    unrelated `/src/index.ts` containment rejection, correctly surfaced with its full body.
 #### 1B. Ledger, scheduler, replay, manifests, and dispatchability *(legacy §5.AF, §5.AK)*
 
 - [x] **F1.27b — Migrate adapter call sites onto the workflow command queue (interface LANDED 2026-07-13).** The
@@ -3290,6 +3320,9 @@ output and NOT acted on. Captured as F12.12.)
   Devstral-Small-24B (purpose-built for agentic tool-calling + multi-file — matches our live-validation pick), DeepSeek
   V3.2/V4 (long-horizon + tool-call reliability), Kimi K2.6. Confirm which are in the fitness store, pull the notable
   missing ones, and re-run the §5.AB sweep so routing uses current evidence. (promptquorum, mindstudio, tembo.io 2026 roundups)
+  **INVENTORY GATE (David 2026-07-21): do not download or replace models now.** First measure and harden !Klein against
+  every already-available local model. If current evidence later identifies a specifically better/interesting candidate,
+  ask David with the exact model, expected gain, fit, and replacement cost; inventory changes are case-by-case decisions.
 
 **Scaffolding & failure guards (feeds H7.2 + F11.3):**
 - [x] **F12.14 — Minimal-scaffold baseline + inverse-scaling discipline.** mini-swe-agent (~100 lines, bash-only, no native
@@ -6698,6 +6731,9 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   build-ahead-of-wire PACE — which the charter accepts and Phase 15 tracks — not a pile of dead code.
   **SPLIT MATERIALIZED 2026-07-20 — the remainder is a DECISION, not code.**
 - [?] **P15.4b — Walk the untracked orphans and mark keep/delete *(split 2026-07-20; DAVID-GATED)*.**
+  **TIMING DECISION (David 2026-07-21): defer deletion batches until one of the final passes before the first maturity
+  level.** Keep measuring reachability and classifying keep/delete candidates meanwhile, but do not eagerly remove code;
+  late cleanup gets the benefit of the intervening wires and avoids deleting a core shortly before its consumer lands.
   **📊 NUMBERS UPDATED 2026-07-20 BY P15.7c — the earlier figures were a one-level scan and UNDERSTATED the pile.**
   Dead modules **125 → 146** under transitive closure; **43 symbols** the one-level scan called wired are consumed
   only by dead code. **Walk the closure numbers, not the old ones.**
@@ -7143,7 +7179,8 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > charter's bet: the win comes from the HARNESS (small tasks, fresh context, recovery), not from a bigger model.
 > It also means throwing a frontier cloud model at the problem buys far less than intuition suggests.
 
-- [ ] **P18.1 — Re-read the 32k directive as CAPABILITY, not ALLOCATION (needs David's ruling on prime directive #3).**
+- [x] **P18.1 — Decide whether to re-read the 32k directive as CAPABILITY, not ALLOCATION.** *(David ruled
+  2026-07-21: keep LM Studio's runtime pre-allocation for now.)*
   Evidence: (a) **NoLiMa** (arXiv 2502.05167) — with lexical shortcuts removed, 128K-advertised models have
   **effective lengths of 2K–8K** (GPT-4o 8K, Claude 3.5 Sonnet 4K, Llama 3.3 70B 2K, Gemini 1.5 Pro 2K); agent
   traces are closer to the NoLiMa regime than the RULER regime because goal↔evidence lexical overlap is low and
@@ -7155,7 +7192,9 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **Proposal for David:** keep 32k as a REQUIRED CAPABILITY (a model that cannot reach it is unfit), but stop
   treating it as a per-slot allocation — allocate task-sized context, which frees the KV memory that F12.75 just
   proved is the binding constraint on Apple Silicon. **DAVID-DECIDES: this touches prime directive #3, so it is
-  not changed unilaterally.**
+  not changed unilaterally. DECISION: while LM Studio remains the active runtime adapter, keep the fleet resident
+  with its context pre-allocated at runtime (and never below the 32k floor). Revisit task-sized allocation only after
+  the runtime-adapter work can express and measure it honestly; no current load policy changes.**
 - [x] **P18.2 — Restate the task AFTER the payload (cheap, evidence-backed, probably the highest value/effort
   ratio in this phase).** "Lost in the Middle" (arXiv 2307.03172): with 20 documents, gold-doc-in-middle accuracy
   is **57.2% vs a 56.1% CLOSED-BOOK baseline** — i.e. a document buried mid-context contributes **almost nothing**.
@@ -8062,24 +8101,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   overrun answers to compaction, retrieval, or a larger-context model. A review-capacity overrun answers ONLY to
   making the task smaller. A bare "too big" would let someone reach for the wrong lever, and **the wrong lever
   here is the one that is always available.** Pinned: a 2M-token context does not rescue a 5,000-line diff.
-  **Review capacity is a property of the REVIEWER and is never derived from the model** — that substitution is
-  precisely what the invariant forbids, since a bigger model does not make a person able to read more code. This
-  is the half F12.110's depth-target work does not cover: every context-window increase loosens ceiling 1 and
-  **leaves ceiling 2 exactly where it was**, which is how a system ends up emitting 4,000-line changes nobody
-  reads, each individually justified.
+  **Review capacity is a property of the ACTUAL REVIEWER, not a fixed global line count.** During the current
+  full-autonomous build phase the reviewers are the available local models; capacity must come from measured review
+  success by model/role/diff-size class, not parameter count or context length. A larger context may loosen ceiling 1
+  while leaving that model's measured review ceiling unchanged. Human review is the last-resort fallback, not the
+  sizing baseline for autonomous work.
   An UNKNOWN ceiling reads as NO room, not infinite room; `requiredSplitCount` returns the honest minimum of 2
   rather than fabricating a precise-looking number from it, and never returns 0 (which would read as "do not do
   it" rather than "no split needed").
   The wire is P21.6b.
-- [?] **P21.6b — Enforce the sizing invariant at decompose time *(split from P21.6 2026-07-20; DAVID-GATED)*.**
-  Feed real diff-size estimates and a configured review capacity into `decideTaskSizing`, and split when it says
-  to. Composes with F12.110's depth-target work, supplying the ceiling that work does not model.
-  **GATED because it needs a REVIEW-CAPACITY SETTING, and that number is David's, not an agent's.** It is a claim
-  about how much code a specific person can read carefully in one sitting — inferring it from model capability is
-  the exact substitution P21.6 forbids, and inferring it from past PR sizes would just relearn whatever bad habit
-  produced them. **A wrong default here is worse than no default**: too high and the invariant silently permits
-  what it exists to prevent while appearing enforced; too low and every task splits until the enforcement gets
-  turned off. Ask for the number; do not derive it.
+- [ ] **P21.6b — Enforce the sizing invariant at decompose time.** *(Split from P21.6 2026-07-20; David resolved
+  the reviewer source 2026-07-21.)* Feed real diff-size estimates and a fleet-derived review capacity into
+  `decideTaskSizing`, and split when it says to. Composes with F12.110's depth-target work, supplying the ceiling
+  that work does not model.
+  **CURRENT POLICY:** derive the ceiling from what the AVAILABLE auto-review models have empirically reviewed
+  successfully at the relevant role/difficulty/diff-size depth. Do not substitute parameter count, advertised context,
+  or an invented universal default. Unknown evidence means no proven room and therefore a conservative split. Human
+  intervention remains the last-resort fallback. A future user may opt out of auto-review and configure a personal
+  review-size limit; that setting and UX are explicitly later scope, not a blocker for autonomous enforcement now.
  Backlog.md's framing is
   the sharpest in the field: *"AI agents can now produce more plausible code in an hour than you can carefully
   read in a day. The bottleneck is no longer writing code. It's your attention."* Their three checkpoints —
