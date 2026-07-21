@@ -76,6 +76,20 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ A ONE-SHOT RECOVERY BUDGET MUST EXCLUDE ITS TARGET FROM GENERIC DISCOVERY (live-found 2026-07-21).**
+> The dead-card path correctly remembered that a planning card had received its ONE fresh restart, but the ordinary
+> ready-card sweep rediscovered the same still-planning card after every replacement died. One promised retry became
+> three sessions in seven minutes. The triggering terminal card belongs exclusively to the bounded redrive branch;
+> remove it from the generic sweep before unioning rescue candidates. More generally, a narrow retry guard is useless
+> if a broader discovery path can enqueue the same identity.
+
+> **⚠️ WEAK NESTED-JSON MODELS NEED AN ACTUAL PROTOCOL SWITCH, NOT AN OPTIONAL HINT (live-found 2026-07-21).**
+> Qwopus repeatedly emitted malformed and empty `decompose_project` payloads while the prompt and recovery error kept
+> leading with another full nested call; mentioning `add_task` as an alternative did not change its behavior. Planning
+> now defaults to validated `add_task`/`add_dependency` operations and submits `decompose_project` without `tasks`.
+> After any empty/schema-invalid one-shot call, recovery must say STOP and route exclusively to the incremental path.
+> The accumulated graph is still ephemeral: full validation and independent critique happen before materialization.
+
 > **⚠️ A FRESHNESS ADVISORY IS NOT A FRESHNESS GATE (live-found F4.4, 2026-07-21).** F4.2 put a reason sentence on
 > an obsolete optional tool description while the production decomposition path used a different retrieval tool; no
 > knowledge timestamp reached the gate, stale knowledge did not force a search, and fresh knowledge could not prove a

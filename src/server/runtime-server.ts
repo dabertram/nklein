@@ -245,7 +245,11 @@ import {
 	evaluateRunningTaskRemediation,
 	evaluateRunningTaskTrouble,
 } from "./task-trouble-monitor";
-import { hasLiveSessionForTerminalRedrive, shouldRunTerminalRetrySweep } from "./terminal-retry-sweep-policy";
+import {
+	excludeTriggeringTerminalTask,
+	hasLiveSessionForTerminalRedrive,
+	shouldRunTerminalRetrySweep,
+} from "./terminal-retry-sweep-policy";
 import { applyTriggerCardToBoard, handleTriggerIntake, loadTriggerTemplateFile } from "./trigger-intake-handler";
 import { startExternalTriggerScheduler } from "./trigger-scheduler";
 import { readWorkspaceIdFromRequest } from "./workspace-id-from-request";
@@ -1241,7 +1245,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						.filter((summary) => hasLiveSessionForTerminalRedrive(summary.state))
 						.map((summary) => summary.taskId),
 				);
-				const sweepTaskIds = listStartableUnstartedTaskIds(state.board, activeSessionTaskIds);
+				// The triggering dead card is owned by the bounded redrive branch below. Leaving it in the generic ready
+				// sweep bypasses terminalRedriveAttemptedTaskKeys after the first attempt and turns "ONE restart" into an
+				// unbounded sequence of replacement sessions.
+				const sweepTaskIds = excludeTriggeringTerminalTask(
+					listStartableUnstartedTaskIds(state.board, activeSessionTaskIds),
+					terminalTaskId,
+				);
 				const deferredTaskIds = [...(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId) ?? [])];
 				const redriveTaskIds: string[] = [];
 				if (terminalTaskId && !activeSessionTaskIds.has(terminalTaskId)) {

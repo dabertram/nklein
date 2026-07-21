@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Small local models now build decomposition graphs without fragile nested JSON.** Planning defaults to adding one
+  validated card and dependency at a time, then submits the accumulated candidate for full validation and independent
+  critique before board materialization. A malformed or empty one-shot payload now switches to that incremental path
+  instead of inviting the same failure again. Dead planning cards also honor their promised single fresh restart;
+  the generic ready-card sweep can no longer bypass that budget and churn replacement architects indefinitely.
+
 - **Plan critique now audits executable card contracts, not just plausible titles.** The independent critic receives
   the authoritative originating task plus each card's objective, file/write bounds, test-first contract, acceptance,
   outputs, and dependencies before anything is materialized. Decomposition also rejects a test-first card whose scope

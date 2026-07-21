@@ -35,3 +35,15 @@ export function shouldRunTerminalRetrySweep(input: TerminalRetrySweepGateInput):
 export function hasLiveSessionForTerminalRedrive(state: string | null | undefined): boolean {
 	return state === "running" || state === "queued" || state === "paused" || state === "awaiting_review";
 }
+
+/**
+ * The task whose terminal event triggered a sweep is owned exclusively by the bounded redrive path. If it remains in
+ * Planning/In Progress, the ordinary ready-card sweep would otherwise rediscover it and bypass the one-shot guard on
+ * every later terminal event (live run 20260721-134004: one promised restart became three replacement sessions).
+ */
+export function excludeTriggeringTerminalTask(
+	taskIds: readonly string[],
+	terminalTaskId: string | undefined,
+): string[] {
+	return terminalTaskId ? taskIds.filter((taskId) => taskId !== terminalTaskId) : [...taskIds];
+}

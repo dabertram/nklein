@@ -193,8 +193,8 @@ export class DecompositionStallNudger {
 			taskId,
 			[
 				"The previous turn started writing a chat-only decomposition report. Do not continue that prose.",
-				'Your next assistant output must be the `decompose_project` tool call itself, with no preamble such as "let me call" or "I will".',
-				"Put the summary, assumptions, plan, task graph, `minimumTaskCount`, dependencies, knowledgeDebt, and acceptance command in the tool arguments.",
+				'Your next assistant output must be one `add_task` tool call, with no preamble such as "let me call" or "I will".',
+				"Build the graph one card at a time with `add_task`, add each edge with `add_dependency`, then call `decompose_project` WITHOUT tasks to submit it.",
 				"If a read/list/size request was blocked as duplicate or already available, do not retry it.",
 			].join(" "),
 			canceled.mode ?? "act",
@@ -288,9 +288,9 @@ export class DecompositionStallNudger {
 						].join(" ")
 					: [
 							"Your previous turn ended without calling a tool. Reasoning or thinking alone is not an answer and does not make progress.",
-							"Your next assistant output must be the `decompose_project` tool call itself — not prose, not a plan written as text, not more reasoning.",
-							"Put the slug, title, spec, plan, summary, task graph (with dependsOn, complexity, filesLikelyTouched, acceptanceCommand, knowledgeDebt), and minimumTaskCount in the tool arguments.",
-							"If the workspace has a specification file, it is authoritative — read only what you still need; otherwise plan from the task brief and existing code. Then call the tool now.",
+							"Your next assistant output must be one `add_task` tool call — not prose, not a plan written as text, not more reasoning.",
+							"Build the candidate one card at a time with `add_task`, then add every edge with `add_dependency`. Afterward call `decompose_project` WITHOUT tasks using slug, title, spec, plan, and summary.",
+							"If a previous full `decompose_project` call was malformed or empty, do not retry that nested payload. The incremental calls are the required recovery path.",
 						].join(" "),
 				"act",
 			)

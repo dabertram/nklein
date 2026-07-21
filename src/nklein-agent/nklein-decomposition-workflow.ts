@@ -14,13 +14,14 @@ Domain knowledge & scope pressure (mandatory for unfamiliar or domain-heavy work
 - Run a second "scope pressure" pass on your own graph: ask whether a serious implementation of this domain is under-decomposed by 10x or 100x. A broad domain rendered as a handful of tiny TypeScript cards is almost always a massive underestimate. Justify, in the \`plan\`, why the chosen granularity is sufficient, or split further.
 
 - Prepare a concise spec, implementation plan, and task graph in your reasoning.
-- Call the \`decompose_project\` tool with slug, spec, plan, title, tasks, and defaultAcceptanceCommand when useful. The tool wraps the tasks into the internal graph, validates dependencies/sizing, and persists the approved !Klein artifacts.
-- If any proposed leaf is too broad, include a recursive \`expansions\` map in the same \`decompose_project\` call instead of calling \`expand_task\` and then trying again. Keys are oversized task ids; values are smaller replacement tasks. !Klein expands them before validation and rewrites dependencies to the terminal replacement leaves.
+- Build the candidate graph with the incremental protocol by default: call \`add_task\` once per card, then call \`add_dependency\` for every edge. Each small call is validated immediately and avoids fragile nested JSON. After all cards and edges are accepted, call \`decompose_project\` WITHOUT \`tasks\`, passing slug, spec, plan, title, summary, questions, and defaultAcceptanceCommand when useful. The accumulated graph is then validated and sent to independent critique before any board graph is materialized.
+- Use a one-shot \`decompose_project\` call with a full \`tasks\` array only when you can reliably encode the complete nested JSON. If that call is malformed or empty, do not retry the full payload: switch immediately to \`add_task\`/\`add_dependency\`.
+- If any proposed leaf is too broad, split it into smaller cards before adding it. The one-shot fallback may instead include a recursive \`expansions\` map; !Klein expands it before validation and rewrites dependencies to terminal replacement leaves.
 - After the tool succeeds, apply the generated graph through the command it returns whenever the !Klein runtime can continue autonomously. Only tell the user the exact \`nklein task decompose --slug <slug> --project-path <workspace_path>\` command when automation is unavailable or the task has explicitly opted out of automatic review/continuation.
 
 Create reviewable !Klein tasks from the specification. For implementation leaves, use the workspace's provided acceptance command when one is available; pass it as defaultAcceptanceCommand and do not invent brittle per-card shell probes such as grep/tail wrappers around test output.
 
-Each task in the tool's \`tasks\` input must include:
+Each task passed to \`add_task\` (or to the one-shot \`tasks\` input) must include:
 - id, title, prompt.
 Add these fields when relevant:
 - dependsOn[], complexity, suggestedRole, filesLikelyTouched[], acceptanceCommand, testFirst, acceptanceTestPrompt, knowledgeDebt.

@@ -30,12 +30,10 @@ export function slugifyTaskId(input: string): string {
 const DECOMPOSE_PROJECT_REQUIRED_FIELDS = ["slug", "spec", "plan", "tasks"] as const;
 
 const DECOMPOSE_PROJECT_RECOVERY_HINT =
-	"Call decompose_project once with: slug (short string), spec (brief markdown), plan (brief markdown), " +
-	"and tasks (a JSON array of objects, each with id, title, prompt). title is optional — it defaults to the " +
-	"slug when omitted. Start small — 3 to 6 top-level tasks is fine and you can expand later; keep spec and " +
-	"plan to a few sentences (longer text is truncated). Do not resend an empty or partial call. " +
-	"Alternatively, build the graph first with add_task/add_dependency (validated step by step) and then call " +
-	"decompose_project without tasks.";
+	"STOP retrying the full nested decompose_project payload. Switch to the incremental protocol now: call " +
+	"add_task once per card with only id, title, and prompt (plus optional card fields); after all cards exist, call " +
+	"add_dependency once per edge; then call decompose_project WITHOUT tasks using only slug, spec, plan, and " +
+	"optional title/summary/questions/defaultAcceptanceCommand. The accumulated graph will be submitted automatically.";
 
 export function decomposeProjectFieldIsUsable(value: unknown): boolean {
 	if (typeof value === "string") {
@@ -177,14 +175,14 @@ export function normalizeDecomposeProjectToolInput(input: unknown): DecomposePro
 	if (!result.success) {
 		throw new Error(
 			`decompose_project input failed validation — ${formatCompactSchemaIssues(result.error)}. ` +
-				"Each task needs id, title, and prompt (strings); remove any other keys. Fix these and resubmit the whole call.",
+				"Do not resend the whole nested call. Switch to add_task/add_dependency, then submit decompose_project without tasks.",
 		);
 	}
 	const parsed = result.data;
 	const defaultAcceptanceCommand = parsed.defaultAcceptanceCommand?.trim() || null;
 	if (parsed.tasks.length === 0) {
 		throw new Error(
-			"decompose_project requires at least one task. Add 3 to 6 task objects (id, title, prompt) to tasks and resubmit.",
+			"decompose_project requires at least one task. Build 3 to 6 cards with add_task, add their edges with add_dependency, then call decompose_project without tasks.",
 		);
 	}
 	const questions = deriveOpenQuestionDefaults(parsed.questions ?? []);

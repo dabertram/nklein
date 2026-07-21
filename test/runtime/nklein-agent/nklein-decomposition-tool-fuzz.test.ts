@@ -167,8 +167,8 @@ describe("decompose_project malformed-call recovery", () => {
 		expect(message.length).toBeLessThan(600);
 	}
 
-	it("rejects an empty {} call by naming the required fields", async () => {
-		await expectShortRejection({}, /no arguments[\s\S]*slug[\s\S]*tasks/i);
+	it("rejects an empty {} call with a short mandatory incremental-protocol switch", async () => {
+		await expectShortRejection({}, /no arguments[\s\S]*STOP retrying[\s\S]*add_task[\s\S]*add_dependency/i);
 	});
 
 	it("rejects a call missing the tasks field", async () => {

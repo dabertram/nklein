@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	excludeTriggeringTerminalTask,
 	hasLiveSessionForTerminalRedrive,
 	shouldRunTerminalRetrySweep,
 } from "../../../src/server/terminal-retry-sweep-policy";
@@ -65,5 +66,15 @@ describe("hasLiveSessionForTerminalRedrive", () => {
 		for (const state of [undefined, null, "idle", "failed", "interrupted"]) {
 			expect(hasLiveSessionForTerminalRedrive(state)).toBe(false);
 		}
+	});
+});
+
+describe("excludeTriggeringTerminalTask", () => {
+	it("keeps the dead card out of the ordinary ready sweep so the one-shot redrive budget cannot be bypassed", () => {
+		expect(excludeTriggeringTerminalTask(["dead", "ready-a", "ready-b"], "dead")).toEqual(["ready-a", "ready-b"]);
+	});
+
+	it("preserves an ordinary timer/event sweep when there is no triggering terminal card", () => {
+		expect(excludeTriggeringTerminalTask(["ready-a", "ready-b"], undefined)).toEqual(["ready-a", "ready-b"]);
 	});
 });

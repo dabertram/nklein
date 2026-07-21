@@ -10,8 +10,12 @@ describe("!Klein decomposition workflow defaults", () => {
 	it("defines an overridable workflow with the built-in decomposition instructions", () => {
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain(`name: ${KANBAN_DECOMPOSE_WORKFLOW_NAME}`);
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain(KANBAN_DECOMPOSE_PROMPT.trimEnd());
-		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("Call the `decompose_project` tool");
-		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("title, tasks, and defaultAcceptanceCommand");
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain(
+			"Build the candidate graph with the incremental protocol by default",
+		);
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("call `add_task` once per card");
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("call `decompose_project` WITHOUT `tasks`");
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("sent to independent critique before any board graph");
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("apply the generated graph through the command it returns");
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("Only tell the user the exact `nklein task decompose");
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("id, title, prompt, dependsOn[], complexity");

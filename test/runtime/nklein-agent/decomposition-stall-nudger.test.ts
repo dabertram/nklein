@@ -154,7 +154,8 @@ describe("DecompositionStallNudger.maybeContinueStalledDecomposition (#30 turn-e
 		nudger.maybeContinueStalledDecomposition("t1");
 		await new Promise((resolve) => setImmediate(resolve));
 		expect(sent).toHaveLength(1);
-		expect(sent[0]).toContain("decompose_project");
+		expect(sent[0]).toContain("add_task");
+		expect(sent[0]).toContain("decompose_project` WITHOUT tasks");
 		expect(sent[0]).not.toContain("exactly that JSON");
 	});
 
@@ -167,6 +168,7 @@ describe("DecompositionStallNudger.maybeContinueStalledDecomposition (#30 turn-e
 		expect(nudger.maybeContinueStalledDecomposition("t1")).toBe(true);
 		await new Promise((resolve) => setImmediate(resolve));
 		expect(sent).toHaveLength(1);
-		expect(sent[0]).toContain("decompose_project");
+		expect(sent[0]).toContain("add_task");
+		expect(sent[0]).toContain("do not retry that nested payload");
 	});
 });

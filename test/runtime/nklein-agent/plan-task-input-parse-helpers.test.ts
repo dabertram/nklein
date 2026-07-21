@@ -47,7 +47,9 @@ describe("assertUsableDecomposeProjectInput", () => {
 	});
 
 	it("reports a NO-arguments call distinctly", () => {
-		expect(() => assertUsableDecomposeProjectInput({})).toThrow(/called with no arguments/);
+		expect(() => assertUsableDecomposeProjectInput({})).toThrow(
+			/called with no arguments.*STOP retrying.*add_task.*add_dependency/s,
+		);
 		expect(() => assertUsableDecomposeProjectInput(null)).toThrow(/called with no arguments/);
 	});
 
