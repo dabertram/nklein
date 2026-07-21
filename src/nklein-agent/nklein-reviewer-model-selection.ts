@@ -23,19 +23,19 @@ function describeDiversePickPurpose(sessionKind: PromptSessionKind): {
 			return {
 				label: "escalation worker",
 				category: "escalation_worker_auto_diverse",
-				waiverMessage: "the stuck card stays on its current worker lineage",
+				waiverMessage: "the best available non-worker model is used without lineage diversity",
 			};
 		case "plan-critique":
 			return {
 				label: "plan critic",
 				category: "plan_critic_auto_diverse",
-				waiverMessage: "the architect plan proceeds without a lineage-diverse critic",
+				waiverMessage: "the best available non-worker critic is used without lineage diversity",
 			};
 		case "review":
 			return {
 				label: "reviewer",
 				category: "reviewer_auto_diverse",
-				waiverMessage: "the worker model reviews its own work",
+				waiverMessage: "the best available non-worker reviewer is used instead of worker self-review",
 			};
 		default:
 			return {
@@ -50,9 +50,10 @@ function describeDiversePickPurpose(sessionKind: PromptSessionKind): {
  * W2.5a: pick a lineage-diverse LOADED model as the reviewer/escalation model. The worker's REAL model key
  * (descriptor.modelKey, not the per-machine alias) resolves its lineage; candidates are the other loaded
  * non-embedding models, preferred diverse-first via applyDiversityPreference, then §5.AQ(d) warmth-batched by
- * session kind within the diverse set. Null ⇒ caller falls back to the worker model, with the waiver surfaced as a
- * self-observation. Extracted verbatim from InMemoryNKleinTaskSessionService.pickDiverseReviewerModel (shared by the
- * second-opinion review runner and the escalation-model picker).
+ * session kind within the diverse set. When the fit-margin policy waives diversity, the best ranked non-worker
+ * candidate still wins; null is reserved for a failed/empty model probe or no other candidate. Extracted verbatim
+ * from InMemoryNKleinTaskSessionService.pickDiverseReviewerModel (shared by the second-opinion review runner and the
+ * escalation-model picker).
  */
 export async function pickDiverseReviewerModel(
 	workerLaunch: NKleinTaskRestartLaunchConfig,
@@ -79,7 +80,8 @@ export async function pickDiverseReviewerModel(
 		ranked: candidates,
 		avoidLineages: [resolveLineage(workerRealId)],
 	});
-	if (!preferred.diversityAchieved || !preferred.ranked[0]) {
+	const preferredPick = preferred.ranked[0];
+	if (!preferredPick) {
 		recordSelfObservation({
 			signal: "custom",
 			severity: "info",
@@ -88,6 +90,27 @@ export async function pickDiverseReviewerModel(
 			metadata: { category: `${purpose.category}_waived`, reason: preferred.diversityWaivedReason ?? null },
 		});
 		return null;
+	}
+	if (!preferred.diversityAchieved) {
+		// A diversity waiver means the strongest *other* loaded model is same-lineage or the diverse alternative is
+		// outside the capability margin. Returning null here used to make the caller fall all the way back to the
+		// original worker, silently turning review into self-review even though a stronger independent session was
+		// available. Preserve the capability decision and use the ranked non-worker candidate.
+		recordSelfObservation({
+			signal: "custom",
+			severity: "info",
+			message:
+				`${purpose.label} diversity waived for ${taskId}: ${preferred.diversityWaivedReason ?? "no fit-eligible diverse loaded model"} — ` +
+				`${purpose.waiverMessage}: ${preferredPick.modelKey}.`,
+			taskId,
+			metadata: {
+				category: `${purpose.category}_waived`,
+				reason: preferred.diversityWaivedReason ?? null,
+				reviewer: preferredPick.modelKey,
+				worker: workerRealId,
+			},
+		});
+		return { providerId: workerLaunch.providerId, modelId: preferredPick.modelKey };
 	}
 	// §5.AQ (d) session-KIND batching: among the candidates DIVERSITY allows (its result above is authoritative
 	// — never weakened here), prefer the one whose last prompt shell is the SAME KIND (review→review etc.), so
@@ -121,7 +144,7 @@ export async function pickDiverseReviewerModel(
 			metadata: { category: "reviewer_warmth_batched", reason: warmth.warmthReason },
 		});
 	}
-	const pick = warmthPick ?? preferred.ranked[0];
+	const pick = warmthPick ?? preferredPick;
 	recordSelfObservation({
 		signal: "custom",
 		severity: "info",

@@ -37,6 +37,53 @@ describe("pickDiverseReviewerModel", () => {
 		await expect(pickDiverseReviewerModel(workerLaunch, "t1", "review", deps)).resolves.toBeNull();
 	});
 
+	it("uses the strongest non-worker candidate when the capability margin waives lineage diversity", async () => {
+		mocks.fetchLoadedModelDescriptors.mockResolvedValueOnce([
+			{
+				runtimeId: "qwen/qwen2.5-coder-14b",
+				modelKey: "qwen/qwen2.5-coder-14b",
+				isEmbedding: false,
+				toolUse: false,
+				architecture: "qwen2",
+			},
+			{
+				runtimeId: "qwen/qwen3.6-35b-a3b",
+				modelKey: "qwen/qwen3.6-35b-a3b",
+				isEmbedding: false,
+				toolUse: true,
+				reasoning: true,
+				architecture: "qwen3_5_moe",
+			},
+			{
+				runtimeId: "google/gemma-4-31b-qat",
+				modelKey: "google/gemma-4-31b-qat",
+				isEmbedding: false,
+				toolUse: true,
+				reasoning: true,
+				architecture: "gemma4",
+			},
+		]);
+		const qwenWorker = {
+			providerId: "lmstudio",
+			modelId: "qwen/qwen2.5-coder-14b",
+			baseUrl: "http://127.0.0.1:1234/v1",
+		} as never;
+
+		const pick = await pickDiverseReviewerModel(qwenWorker, "t-margin", "review", deps);
+
+		expect(pick).toEqual({ providerId: "lmstudio", modelId: "qwen/qwen3.6-35b-a3b" });
+		expect(mocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				message: expect.stringContaining("instead of worker self-review"),
+				metadata: expect.objectContaining({
+					category: "reviewer_auto_diverse_waived",
+					reviewer: "qwen/qwen3.6-35b-a3b",
+					worker: "qwen/qwen2.5-coder-14b",
+				}),
+			}),
+		);
+	});
+
 	it("a WARM shallow diverse model does NOT displace a COLD deep diverse judge (warmth capability-margin-bounded)", async () => {
 		// Worker is qwen; two diverse candidates: a DEEP reasoning judge (cold) and a SHALLOW chat model (warm).
 		mocks.fetchLoadedModelDescriptors.mockResolvedValueOnce([
