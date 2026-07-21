@@ -3107,6 +3107,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.agentSandboxManager?.setSandboxEgressConfig(enabled, allowlist);
 	}
 
+	/** F2.3b control-plane access only; never exposes the manager to agent/model code. */
+	getAgentSandboxManagerForEgressControl(): AgentSandboxManager | null {
+		return this.agentSandboxManager;
+	}
+
 	async resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]> {
 		const resumed: RuntimeTaskSessionSummary[] = [];
 		for (const taskId of this.pauseController.listControllerPausedTaskIds()) {

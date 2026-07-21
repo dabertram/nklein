@@ -3,7 +3,9 @@ import { connect as netConnect } from "node:net";
 import type { Duplex } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { AGENT_RULESET_ROLES, type AgentCapabilityRulesetConfig, type AgentRulesetRole } from "../core/agent-rulesets";
+import { createEgressConfirmQueue, type EgressConfirmQueue } from "../core/egress-confirm-queue";
 import type { EgressProxyAuditRecord } from "../core/egress-proxy-audit";
+import { createEgressConfirmControlServer, type EgressConfirmControlServer } from "./egress-confirm-control-server";
 import { createEgressProxyDnsStub, type EgressProxyDnsSocketFactory } from "./egress-proxy-dns-stub";
 import {
 	allowlistForRoleFromScoped,
@@ -45,6 +47,12 @@ export const EGRESS_PROXY_DNS_STUB_PORT = 53;
  * (comma-separated hosts, applied to EVERY role in v1). Set by `startEgressProxyContainer`, read by `runEgressProxyMain`.
  */
 export const EGRESS_PROXY_ALLOWLIST_ENV = "NKLEIN_EGRESS_PROXY_ALLOWLIST";
+/** Opt-in comma-separated roles whose otherwise-allowed egress requires a one-shot confirmation. */
+export const EGRESS_CONFIRM_ROLES_ENV = "NKLEIN_EGRESS_CONFIRM_ROLES";
+/** Host-generated bearer token protecting the container control listener from self-approval by agent sandboxes. */
+export const EGRESS_CONFIRM_CONTROL_TOKEN_ENV = "NKLEIN_EGRESS_CONFIRM_CONTROL_TOKEN";
+/** Container-side control listener; Docker publishes it to a random HOST-loopback port. */
+export const EGRESS_CONFIRM_CONTROL_PORT = 3131;
 
 export interface EgressProxyRuntimeDeps {
 	/** Resolved capability ruleset (role → tier → networkPolicy). Absent ⇒ built-in default tier. */
@@ -53,6 +61,10 @@ export interface EgressProxyRuntimeDeps {
 	allowlistForRole?: (role: AgentRulesetRole) => readonly string[];
 	/** Injected per-role per-action-approval source (I3+/I5). */
 	requirePerActionApprovalForRole?: (role: AgentRulesetRole) => boolean;
+	/** F2.3b queue shared by the proxy waiter and the authenticated HTTP control leaf. */
+	confirmQueue?: EgressConfirmQueue;
+	/** F2.3b effectful control leaf; production constructs it only when at least one role opts into confirms. */
+	confirmControlServer?: EgressConfirmControlServer;
 	/** Root dir for the audit JSONL (RW mount). Default: the store's `~/.nklein/sandbox-audit`. */
 	auditRootDir?: string;
 	/** Host resolution seam. Default: `dns.lookup(host, { all: true })` → the resolved addresses. */
@@ -138,6 +150,7 @@ export function createEgressProxyRuntime(deps: EgressProxyRuntimeDeps = {}): Egr
 		scheduler: deps.scheduler,
 		netServerFactory: deps.netServerFactory,
 		listeners,
+		confirmQueue: deps.confirmQueue,
 	});
 
 	// The DNS stub answers NXDOMAIN to every query (§4 exfil-channel closure, risk Q1); query names surface on the
@@ -153,12 +166,33 @@ export function createEgressProxyRuntime(deps: EgressProxyRuntimeDeps = {}): Egr
 		async start(): Promise<void> {
 			await server.start();
 			await dnsStub.start(dnsStubPort);
+			await deps.confirmControlServer?.start();
 		},
 		async stop(): Promise<void> {
+			await deps.confirmControlServer?.stop();
 			await dnsStub.stop();
 			await server.stop();
 		},
 	};
+}
+
+/** Strict parser: a typo must fail the proxy closed instead of silently disabling a requested approval boundary. */
+export function parseEgressConfirmRoles(raw: string | undefined): ReadonlySet<AgentRulesetRole> {
+	const roles = new Set<AgentRulesetRole>();
+	for (const token of (raw ?? "")
+		.split(",")
+		.map((value) => value.trim().toLowerCase())
+		.filter(Boolean)) {
+		if (token === "all") {
+			for (const role of AGENT_RULESET_ROLES) roles.add(role);
+			continue;
+		}
+		if (!(AGENT_RULESET_ROLES as readonly string[]).includes(token)) {
+			throw new Error(`invalid egress-confirm role: ${token}`);
+		}
+		roles.add(token as AgentRulesetRole);
+	}
+	return roles;
 }
 
 /** Build the production runtime from process env + defaults and start it (the bundle entry calls this). */
@@ -172,9 +206,25 @@ export async function runEgressProxyMain(): Promise<EgressProxyRuntime> {
 	// can never use an architect-scoped host.
 	const scoped = parseRoleScopedEgressAllowlist(process.env[EGRESS_PROXY_ALLOWLIST_ENV]);
 	const hasEntries = scoped.global.length > 0 || Object.keys(scoped.byRole).length > 0;
+	const confirmRoles = parseEgressConfirmRoles(process.env[EGRESS_CONFIRM_ROLES_ENV]);
+	const controlToken = process.env[EGRESS_CONFIRM_CONTROL_TOKEN_ENV]?.trim() ?? "";
+	if (confirmRoles.size > 0 && controlToken.length < 32) {
+		throw new Error("egress-confirm roles require a host-generated control token");
+	}
+	const confirmQueue = confirmRoles.size > 0 ? createEgressConfirmQueue() : undefined;
+	const confirmControlServer = confirmQueue
+		? createEgressConfirmControlServer({
+				queue: confirmQueue,
+				token: controlToken,
+				port: EGRESS_CONFIRM_CONTROL_PORT,
+			})
+		: undefined;
 	const runtime = createEgressProxyRuntime({
 		auditRootDir: process.env.NKLEIN_EGRESS_PROXY_AUDIT_DIR?.trim() || undefined,
 		allowlistForRole: hasEntries ? allowlistForRoleFromScoped(scoped) : undefined,
+		requirePerActionApprovalForRole: confirmRoles.size > 0 ? (role) => confirmRoles.has(role) : undefined,
+		confirmQueue,
+		confirmControlServer,
 	});
 	await runtime.start();
 	return runtime;

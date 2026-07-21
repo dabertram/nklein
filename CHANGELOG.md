@@ -180,7 +180,10 @@
   egress, never full egress), resolving names host-side, blocking DNS exfiltration, and auditing every attempt. It
   stays OFF unless explicitly enabled and, until enabled, behavior is byte-identical to before. It's now enabled and
   its allowlist configured from Settings (Settings → Agents), and the proxy ships as a bundled artifact so no manual
-  setup is needed; per-role allowlists and per-task audit attribution are still to come.
+  setup is needed. Allowlists can be scoped by role, and an optional per-role one-shot confirmation mode now parks a
+  connection until the operator approves or denies its exact role and destination in the UI. That control channel is
+  host-loopback-only and independently token-authenticated, so a sandbox cannot approve its own request; no answer
+  times out to deny. Per-task audit attribution is still to come.
 
 - **`nklein dev capacity` now advises when a model's context window is wasting your time.** On a slow or low-power
   machine, re-reading a huge loaded context on every request (the "prefill") can dominate the wall-clock even when

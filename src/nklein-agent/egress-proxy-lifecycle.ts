@@ -1,9 +1,18 @@
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentRulesetRole } from "../core/agent-rulesets";
 import { isTruthyEnv } from "../core/env-flag";
-import { EGRESS_PROXY_ALLOWLIST_ENV, EGRESS_PROXY_ROLE_PORTS } from "./egress-proxy-entrypoint";
+import type { EgressConfirmControlEndpoint } from "./egress-confirm-control-client";
+import {
+	EGRESS_CONFIRM_CONTROL_PORT,
+	EGRESS_CONFIRM_CONTROL_TOKEN_ENV,
+	EGRESS_CONFIRM_ROLES_ENV,
+	EGRESS_PROXY_ALLOWLIST_ENV,
+	EGRESS_PROXY_ROLE_PORTS,
+	parseEgressConfirmRoles,
+} from "./egress-proxy-entrypoint";
 import { type AgentSandboxEgressWiring, resolveAgentSandboxImageName } from "./nklein-agent-sandbox-docker";
 
 /**
@@ -153,6 +162,8 @@ export interface StartEgressProxyContainerOptions {
 	cpus?: number;
 	/** Extra `-e KEY=VALUE` env for the proxy process (e.g. the audit-dir override, or the pre-I3 allowlist bootstrap). */
 	env?: Record<string, string>;
+	/** Publish the authenticated control listener to an ephemeral host-loopback port. */
+	publishConfirmControl?: boolean;
 }
 
 /**
@@ -189,6 +200,7 @@ export async function startEgressProxyContainer(
 		"--read-only",
 		"--tmpfs",
 		"/tmp:noexec,nosuid,size=64m",
+		...(options.publishConfirmControl ? ["--publish", `127.0.0.1::${EGRESS_CONFIRM_CONTROL_PORT}`] : []),
 		"--mount",
 		`type=bind,src=${options.bundleHostPath},dst=${EGRESS_PROXY_BUNDLE_CONTAINER_PATH},readonly`,
 		"--user",
@@ -262,24 +274,69 @@ export async function resolveEgressProxyInternalIp(
 }
 
 /**
- * F2.4: the allowlist env value the RUNNING proxy container was started with (null when unreadable/absent).
+ * F2.4: the allowlist env value the RUNNING proxy container was started with. `null` means confirmed absent;
+ * `undefined` means Docker would not reveal the config and callers must replace/fail closed rather than trust it.
  * Compared against the desired value so an allowlist CHANGE — especially a tightening — restarts the container
  * immediately instead of letting a stale wider policy keep serving.
  */
 export async function readRunningEgressProxyAllowlist(
 	runDocker: EgressProxyRunDocker,
 	containerName: string,
-): Promise<string | null> {
+): Promise<string | null | undefined> {
 	const format = `{{range .Config.Env}}{{println .}}{{end}}`;
 	const result = await runDocker(["inspect", "-f", format, containerName], { timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS });
 	if (result.exitCode !== 0) {
-		return null;
+		return undefined;
 	}
 	const prefix = `${EGRESS_PROXY_ALLOWLIST_ENV}=`;
 	for (const line of result.stdout.split("\n")) {
 		if (line.startsWith(prefix)) {
 			return line.slice(prefix.length).trim();
 		}
+	}
+	return null;
+}
+
+interface RunningEgressConfirmConfig {
+	roles: string | null;
+	token: string | null;
+}
+
+/** Read only the confirmation startup env needed for drift detection and host-client reconstruction. */
+async function readRunningEgressConfirmConfig(
+	runDocker: EgressProxyRunDocker,
+	containerName: string,
+): Promise<RunningEgressConfirmConfig | null> {
+	const result = await runDocker(["inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", containerName], {
+		timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS,
+	});
+	if (result.exitCode !== 0) return null;
+	let roles: string | null = null;
+	let token: string | null = null;
+	for (const line of result.stdout.split("\n")) {
+		if (line.startsWith(`${EGRESS_CONFIRM_ROLES_ENV}=`))
+			roles = line.slice(EGRESS_CONFIRM_ROLES_ENV.length + 1).trim();
+		if (line.startsWith(`${EGRESS_CONFIRM_CONTROL_TOKEN_ENV}=`)) {
+			token = line.slice(EGRESS_CONFIRM_CONTROL_TOKEN_ENV.length + 1).trim();
+		}
+	}
+	return { roles, token };
+}
+
+/** Resolve Docker's ephemeral host-loopback publish (`127.0.0.1::<containerPort>`). */
+export async function resolveEgressConfirmControlHostPort(
+	runDocker: EgressProxyRunDocker,
+	containerName: string,
+): Promise<number | null> {
+	const result = await runDocker(["port", containerName, `${EGRESS_CONFIRM_CONTROL_PORT}/tcp`], {
+		timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS,
+	});
+	if (result.exitCode !== 0) return null;
+	for (const line of result.stdout.split("\n")) {
+		const match = /^127\.0\.0\.1:(\d+)$/.exec(line.trim());
+		if (!match) continue;
+		const port = Number(match[1]);
+		if (Number.isInteger(port) && port > 0 && port <= 65_535) return port;
 	}
 	return null;
 }
@@ -306,6 +363,8 @@ export interface EgressProxyAvailability {
 	available: boolean;
 	networkName: string;
 	internalIp: string | null;
+	/** Present only for an opt-in, healthy, authenticated host-loopback confirmation channel. */
+	confirmControl?: EgressConfirmControlEndpoint;
 }
 
 export interface EnsureEgressProxyOptions {
@@ -325,6 +384,10 @@ export interface EnsureEgressProxyOptions {
 	 * source. v1 is ONE global allowlist for every role. Empty/absent ⇒ default-deny (fail-closed).
 	 */
 	allowlist?: readonly string[];
+	/** Explicit role set for per-action confirmation; absent derives from `NKLEIN_EGRESS_CONFIRM_ROLES`. */
+	confirmRoles?: readonly AgentRulesetRole[];
+	/** Test seam; production uses 32 random bytes rendered as hex. */
+	generateConfirmControlToken?: () => string;
 }
 
 /**
@@ -347,6 +410,13 @@ export async function ensureEgressProxyAvailable(
 		return { available: false, networkName, internalIp: null };
 	}
 	try {
+		const requestedConfirmRoles =
+			options.confirmRoles !== undefined
+				? new Set(options.confirmRoles)
+				: parseEgressConfirmRoles(options.env?.[EGRESS_CONFIRM_ROLES_ENV]);
+		const desiredConfirmRoles = [...requestedConfirmRoles].sort().join(",");
+		const confirmsEnabled = desiredConfirmRoles.length > 0;
+		let confirmControlToken: string | null = null;
 		await ensureEgressNetwork(runDocker, networkName);
 		// F2.4: apply allowlist changes IMMEDIATELY — if the running container was started with a different
 		// allowlist than the config now resolves (tightened OR loosened), replace it before proceeding. A brief
@@ -354,13 +424,34 @@ export async function ensureEgressProxyAvailable(
 		const desiredAllowlist = options.allowlist && options.allowlist.length > 0 ? options.allowlist.join(",") : null;
 		if (await isEgressProxyRunning(runDocker, containerName)) {
 			const runningAllowlist = await readRunningEgressProxyAllowlist(runDocker, containerName);
-			if ((runningAllowlist ?? null) !== desiredAllowlist) {
+			const runningConfirm = await readRunningEgressConfirmConfig(runDocker, containerName);
+			const confirmDrift =
+				runningConfirm === null ||
+				(runningConfirm.roles ?? "") !== desiredConfirmRoles ||
+				(confirmsEnabled && (runningConfirm?.token?.length ?? 0) < 32);
+			if (runningAllowlist === undefined || runningAllowlist !== desiredAllowlist || confirmDrift) {
 				await runDocker(["rm", "-f", containerName], { timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS }).catch(() => null);
+			} else if (confirmsEnabled) {
+				confirmControlToken = runningConfirm?.token ?? null;
 			}
 		}
 		if (!(await isEgressProxyRunning(runDocker, containerName))) {
 			// Clear any dead/exited leftover of the same name before a fresh start (idempotent restart).
 			await runDocker(["rm", "-f", containerName], { timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS }).catch(() => null);
+			confirmControlToken = confirmsEnabled
+				? (options.generateConfirmControlToken ?? (() => randomBytes(32).toString("hex")))()
+				: null;
+			if (confirmsEnabled && (confirmControlToken?.length ?? 0) < 32) {
+				throw new Error("egress-confirm control token generator returned an invalid token");
+			}
+			const containerEnv: Record<string, string> = {};
+			if (options.allowlist && options.allowlist.length > 0) {
+				containerEnv[EGRESS_PROXY_ALLOWLIST_ENV] = options.allowlist.join(",");
+			}
+			if (confirmsEnabled && confirmControlToken) {
+				containerEnv[EGRESS_CONFIRM_ROLES_ENV] = desiredConfirmRoles;
+				containerEnv[EGRESS_CONFIRM_CONTROL_TOKEN_ENV] = confirmControlToken;
+			}
 			await startEgressProxyContainer(runDocker, {
 				containerName,
 				networkName,
@@ -368,9 +459,8 @@ export async function ensureEgressProxyAvailable(
 				image: options.image,
 				// §6 I3: hand the resolved global allowlist to the in-container runtime via env (its `allowlistForRole`
 				// source). Only set when non-empty so an empty allowlist injects nothing (byte-identical container args).
-				...(options.allowlist && options.allowlist.length > 0
-					? { env: { [EGRESS_PROXY_ALLOWLIST_ENV]: options.allowlist.join(",") } }
-					: {}),
+				...(Object.keys(containerEnv).length > 0 ? { env: containerEnv } : {}),
+				publishConfirmControl: confirmsEnabled,
 			});
 		}
 		const healthy = await probeEgressProxyHealthy(runDocker, {
@@ -385,6 +475,19 @@ export async function ensureEgressProxyAvailable(
 		if (!internalIp) {
 			// FAIL CLOSED (R2): a healthy proxy we cannot address is not a usable route.
 			return { available: false, networkName, internalIp: null };
+		}
+		if (confirmsEnabled) {
+			const hostPort = await resolveEgressConfirmControlHostPort(runDocker, containerName);
+			if (!hostPort || !confirmControlToken) {
+				// A requested approval boundary with no reachable operator channel would only create opaque timeouts.
+				return { available: false, networkName, internalIp: null };
+			}
+			return {
+				available: true,
+				networkName,
+				internalIp,
+				confirmControl: { baseUrl: `http://127.0.0.1:${hostPort}`, token: confirmControlToken },
+			};
 		}
 		return { available: true, networkName, internalIp };
 	} catch {

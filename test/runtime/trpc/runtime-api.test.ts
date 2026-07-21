@@ -6602,4 +6602,62 @@ describe("createRuntimeApi host-local action guards (§5.Y #2 + #9)", () => {
 		);
 		expect(browserMocks.openInBrowser).not.toHaveBeenCalled();
 	});
+
+	it("bridges egress confirms through the loaded workspace service without exposing the control token", async () => {
+		const pending = {
+			attemptId: "a1",
+			host: "api.example.com",
+			port: 443,
+			role: "worker",
+			requestedAt: 1,
+			expiresAt: 2,
+		};
+		const listPendingEgressConfirms = vi.fn(async () => [pending]);
+		const resolvePendingEgressConfirm = vi.fn(async () => "applied" as const);
+		const api = createTestRuntimeApi(
+			makeBaseApiDeps({
+				getLoadedScopedNKleinTaskSessionService: () =>
+					({
+						getAgentSandboxManagerForEgressControl: () => ({
+							listPendingEgressConfirms,
+							resolvePendingEgressConfirm,
+						}),
+					}) as never,
+			}),
+		);
+
+		expect(await api.getPendingEgressConfirms(workspaceScope, {})).toEqual({ pending: [pending] });
+		expect(
+			await api.resolveEgressConfirm(workspaceScope, {
+				attemptId: pending.attemptId,
+				host: pending.host,
+				port: pending.port,
+				role: "worker",
+				approve: true,
+			}),
+		).toEqual({
+			outcome: "applied",
+		});
+		expect(resolvePendingEgressConfirm).toHaveBeenCalledWith({
+			attemptId: "a1",
+			host: "api.example.com",
+			port: 443,
+			role: "worker",
+			approve: true,
+		});
+	});
+
+	it("returns no egress confirms when no workspace proxy is loaded", async () => {
+		const api = createTestRuntimeApi(makeBaseApiDeps({ getLoadedScopedNKleinTaskSessionService: () => null }));
+		expect(await api.getPendingEgressConfirms(workspaceScope, {})).toEqual({ pending: [] });
+		expect(
+			await api.resolveEgressConfirm(workspaceScope, {
+				attemptId: "a1",
+				host: "api.example.com",
+				port: 443,
+				role: "worker",
+				approve: true,
+			}),
+		).toEqual({ outcome: "unknown" });
+	});
 });

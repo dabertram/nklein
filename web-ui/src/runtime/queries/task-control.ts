@@ -69,6 +69,22 @@ export async function resolveHostActionConfirm(
 	return (await trpcClient.runtime.resolveHostActionConfirm.mutate({ ...confirm, approve })).outcome;
 }
 
+/** F2.3b: pending sandbox egress confirms for the active workspace's live proxy. */
+export async function fetchPendingEgressConfirms(workspaceId: string) {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return (await trpcClient.runtime.getPendingEgressConfirms.query({})).pending;
+}
+
+/** F2.3b: approve/deny one CONNECT, bound to attempt + host + port + role. */
+export async function resolveEgressConfirm(
+	workspaceId: string,
+	confirm: { attemptId: string; host: string; port: number; role: "architect" | "worker" | "reviewer" },
+	approve: boolean,
+): Promise<string> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return (await trpcClient.runtime.resolveEgressConfirm.mutate({ ...confirm, approve })).outcome;
+}
+
 /** F2.2: the standing least-scope capability grants this chat session holds (active, expired-filtered, oldest first). */
 export async function fetchChatSessionCapabilityGrants(sessionId: string) {
 	const trpcClient = getRuntimeTrpcClient(null);

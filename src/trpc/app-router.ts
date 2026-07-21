@@ -39,6 +39,10 @@ import type {
 	RuntimeDevTestProjectResponse,
 	RuntimeDirectoryListRequest,
 	RuntimeDirectoryListResponse,
+	RuntimeEgressConfirmListRequest,
+	RuntimeEgressConfirmListResponse,
+	RuntimeEgressConfirmResolveRequest,
+	RuntimeEgressConfirmResolveResponse,
 	RuntimeEvaluateConnectedModelsResponse,
 	RuntimeExpandNKleinPlanTaskRequest,
 	RuntimeExpandNKleinPlanTaskResponse,
@@ -279,6 +283,16 @@ export interface RuntimeTrpcContext {
 		resolveHostActionConfirm: (
 			input: RuntimeHostActionConfirmResolveRequest,
 		) => Promise<RuntimeHostActionConfirmResolveResponse>;
+		/** F2.3b: pending sandbox egress confirmations for the requested workspace's live proxy. */
+		getPendingEgressConfirms: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeEgressConfirmListRequest,
+		) => Promise<RuntimeEgressConfirmListResponse>;
+		/** F2.3b: resolve one sandbox egress confirmation, bound to attempt+host+port+role. */
+		resolveEgressConfirm: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeEgressConfirmResolveRequest,
+		) => Promise<RuntimeEgressConfirmResolveResponse>;
 		/** F2.2: the standing least-scope capability grants a chat session holds (active, expired-filtered). */
 		getChatSessionCapabilityGrants: (
 			input: RuntimeCapabilityGrantListRequest,

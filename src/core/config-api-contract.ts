@@ -375,6 +375,36 @@ export const runtimeHostActionConfirmResolveResponseSchema = z.object({
 });
 export type RuntimeHostActionConfirmResolveResponse = z.infer<typeof runtimeHostActionConfirmResolveResponseSchema>;
 
+// F2.3b: a sandbox proxy CONNECT parked on its authenticated host-loopback confirmation channel. The decision is
+// bound to all four identity fields; requested/expires are display-only and never participate in resolution.
+export const runtimeEgressConfirmPendingSchema = z.object({
+	attemptId: z.string(),
+	host: z.string(),
+	port: z.number().int().min(1).max(65_535),
+	role: z.enum(["architect", "worker", "reviewer"]),
+	requestedAt: z.number(),
+	expiresAt: z.number(),
+});
+export type RuntimeEgressConfirmPending = z.infer<typeof runtimeEgressConfirmPendingSchema>;
+
+export const runtimeEgressConfirmListRequestSchema = z.object({});
+export type RuntimeEgressConfirmListRequest = z.infer<typeof runtimeEgressConfirmListRequestSchema>;
+export const runtimeEgressConfirmListResponseSchema = z.object({ pending: z.array(runtimeEgressConfirmPendingSchema) });
+export type RuntimeEgressConfirmListResponse = z.infer<typeof runtimeEgressConfirmListResponseSchema>;
+
+export const runtimeEgressConfirmResolveRequestSchema = z.object({
+	attemptId: z.string(),
+	host: z.string(),
+	port: z.number().int().min(1).max(65_535),
+	role: z.enum(["architect", "worker", "reviewer"]),
+	approve: z.boolean(),
+});
+export type RuntimeEgressConfirmResolveRequest = z.infer<typeof runtimeEgressConfirmResolveRequestSchema>;
+export const runtimeEgressConfirmResolveResponseSchema = z.object({
+	outcome: z.enum(["applied", "mismatch", "expired", "unknown", "already_resolved"]),
+});
+export type RuntimeEgressConfirmResolveResponse = z.infer<typeof runtimeEgressConfirmResolveResponseSchema>;
+
 // F2.2 capability-grant surfacing/revocation: when the broker is on, approving a confirm-tier action records a
 // least-scope grant (bounded TTL) that lets the SAME action re-run without re-prompting. This channel lets the
 // operator SEE those standing grants and revoke one before its TTL elapses — the missing "undo my approval".

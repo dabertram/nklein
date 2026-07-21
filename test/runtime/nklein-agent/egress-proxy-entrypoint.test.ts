@@ -4,6 +4,7 @@ import {
 	buildEgressProxyListeners,
 	createEgressProxyRuntime,
 	EGRESS_PROXY_ROLE_PORTS,
+	parseEgressConfirmRoles,
 } from "../../../src/nklein-agent/egress-proxy-entrypoint";
 import type { EgressProxyNetServer } from "../../../src/nklein-agent/egress-proxy-server";
 
@@ -121,5 +122,17 @@ describe("buildEgressProxyListeners", () => {
 			{ role: "worker", listenerPort: 3129 },
 			{ role: "reviewer", listenerPort: 3130 },
 		]);
+	});
+});
+
+describe("parseEgressConfirmRoles", () => {
+	it("is opt-in and accepts explicit roles or all", () => {
+		expect([...parseEgressConfirmRoles(undefined)]).toEqual([]);
+		expect([...parseEgressConfirmRoles("worker, reviewer")]).toEqual(["worker", "reviewer"]);
+		expect([...parseEgressConfirmRoles("all")]).toEqual(["architect", "worker", "reviewer"]);
+	});
+
+	it("fails closed on an unknown role instead of silently dropping the requested boundary", () => {
+		expect(() => parseEgressConfirmRoles("worker,admin")).toThrow(/invalid egress-confirm role: admin/);
 	});
 });

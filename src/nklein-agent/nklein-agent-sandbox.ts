@@ -11,10 +11,16 @@ import {
 	planBasicMemorySandboxWiring,
 	planBasicMemoryScoping,
 } from "../core/basic-memory-scoping";
+import type {
+	EgressConfirmRequest,
+	EgressConfirmResolveOutcome,
+	PendingEgressConfirm,
+} from "../core/egress-confirm-queue";
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { listPendingEgressConfirms, resolvePendingEgressConfirm } from "./egress-confirm-control-client";
 import {
 	buildEgressProxyExecEnvArgs,
 	type EgressProxyAvailability,
@@ -344,6 +350,8 @@ export class AgentSandboxManager {
 	// `null` ⇒ "not yet probed / re-probe on the next allowlist create". Reset on a switch TO `allowlist`
 	// (setNetworkPolicy) so a re-enabled tier re-probes, and on stopNow. Untouched for `none`/`full` or flag-off.
 	private egressEnsurePromise: Promise<EgressProxyAvailability> | null = null;
+	/** Last resolved endpoint stays queryable while a config change schedules a replacement, so pending asks stay visible. */
+	private lastEgressAvailability: EgressProxyAvailability | null = null;
 	// STICKY teardown guard, separate from the (resettable) memo: true once we may have created egress Docker
 	// resources (network + proxy container), so stopNow tears them down even after a memo reset left a prior proxy
 	// running (e.g. allowlist → none → allowlist). Never over-grants; only governs cleanup. Cleared after teardown.
@@ -389,6 +397,22 @@ export class AgentSandboxManager {
 		}
 		this.sandboxEgressProxyEnabled = enabled;
 		this.sandboxEgressAllowlist = allowlist;
+	}
+
+	/** F2.3b: pending confirms for this pool's already-started proxy; polling never starts Docker on its own. */
+	async listPendingEgressConfirms(): Promise<PendingEgressConfirm[]> {
+		const availability = this.egressEnsurePromise ? await this.egressEnsurePromise : this.lastEgressAvailability;
+		return availability?.confirmControl ? await listPendingEgressConfirms(availability.confirmControl) : [];
+	}
+
+	/** F2.3b: apply one bound decision through this pool's authenticated host-loopback control channel. */
+	async resolvePendingEgressConfirm(
+		decision: EgressConfirmRequest & { approve: boolean },
+	): Promise<EgressConfirmResolveOutcome> {
+		const availability = this.egressEnsurePromise ? await this.egressEnsurePromise : this.lastEgressAvailability;
+		return availability?.confirmControl
+			? await resolvePendingEgressConfirm(availability.confirmControl, decision)
+			: "unknown";
 	}
 
 	async updatePoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void> {
@@ -789,6 +813,8 @@ export class AgentSandboxManager {
 
 	/** Best-effort teardown of the pool's shared egress proxy + network (see stopNow). No-op if it was never ensured. */
 	private async teardownEgressProxyIfEnsured(): Promise<void> {
+		this.egressEnsurePromise = null;
+		this.lastEgressAvailability = null;
 		if (!this.egressProxyEnsured) {
 			return;
 		}
@@ -797,7 +823,6 @@ export class AgentSandboxManager {
 			networkName: egressNetworkName(this.poolConfig.namespace),
 		});
 		this.egressProxyEnsured = false;
-		this.egressEnsurePromise = null;
 	}
 
 	private registerProject(projectRepoPath: string): AgentSandboxProjectMount {
@@ -988,7 +1013,10 @@ export class AgentSandboxManager {
 	 */
 	private ensureEgressAvailability(): Promise<EgressProxyAvailability> {
 		if (!this.egressEnsurePromise) {
-			this.egressEnsurePromise = this.probeEgressAvailability();
+			this.egressEnsurePromise = this.probeEgressAvailability().then((availability) => {
+				this.lastEgressAvailability = availability;
+				return availability;
+			});
 		}
 		return this.egressEnsurePromise;
 	}

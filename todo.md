@@ -492,6 +492,14 @@ source repo went private — so if it vanishes the buildable source still lives 
   broken hook as working. A harness that cannot make the bug appear cannot detect its absence. Run the control
   first, confirm it is red, and only then trust the green. This is the browser-level twin of the audit rule
   above: **the first run that passes cleanly is evidence about the harness, not about the code.**
+- **HOST-LOOPBACK DOCKER PUBLISH DOES NOT MAKE THE CONTAINER LISTENER PRIVATE (live-proven 2026-07-21).**
+  `--publish 127.0.0.1::<container-port>` limits the HOST socket to loopback, but Docker still forwards it to a
+  container-interface listener that co-networked sandboxes can address directly. A security-sensitive control
+  endpoint inside a dual-homed proxy therefore needs independent authentication; host-loopback publish alone is not
+  an authorization boundary. F2.3b generates a per-container 256-bit bearer token, keeps it out of agent containers
+  and browser responses, validates it timing-safely in the proxy, and separately rejects any host-client endpoint
+  that is not HTTP loopback. The live Docker test proves the authenticated host release while unauthenticated calls
+  remain unable to mutate the queue.
 - **A programmatic `scrollTop` write does not reliably dispatch a `scroll` event** (measured in-browser 2026-07-20:
   zero fired). Anything that refreshes state on scroll — anchor selection, virtualisation windows, read receipts,
   lazy loading — silently keeps stale state after code moves the viewport. Refresh on the write itself; do not
@@ -1353,7 +1361,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   refused <tool> — <reason>` in both the needs-you message and structured metadata. Generic loop behavior stays
   byte-compatible when no hard denial exists. Focused broker/guard/service coverage: 167 tests; backend typecheck
   green.
-- [ ] **F2.3b — Mount the loopback control channel + confirm UI (queue + proxy wait SHIPPED 2026-07-13).**
+- [x] **F2.3b — Mount the loopback control channel + confirm UI (queue + proxy wait SHIPPED 2026-07-13).**
   `src/core/egress-confirm-queue.ts` is the I5 approval-channel state machine, fail-closed by construction:
   resolutions BOUND to attempt+target+role (any mismatch applies to NOTHING — the pending attempt keeps waiting
   and times out to deny), ONE-SHOT consumption (an approval can never replay), expiry-is-deny, subscriber hook
@@ -1365,10 +1373,21 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `src/core/egress-confirm-control.ts` `handleEgressConfirmControlRequest` — the pure routing/validation for the
   loopback surface (`GET /egress-confirms` → listPending; `POST /egress-confirms/resolve` → bound resolve; malformed
   body = 400 that NEVER approves; 404 otherwise). 5 unit tests. Kept pure because the proxy runs INSIDE the sandbox
-  container: the effectful b-leaf is a 127.0.0.1-bound HTTP server in the container entrypoint that wraps this + a
-  host-runtime client + the operator UI + `confirmQueue` construction in `egress-proxy-lifecycle` — all Docker/network
-  infra needing a live approved-CONNECT to validate (fleet-gated). REMAINING (fleet/Docker-gated): that HTTP-server
-  mount + port mapping + host client + operator UI + live CONNECT validation.
+  container: the effectful b-leaf is an HTTP server in the container entrypoint that wraps this + a host-runtime
+  client + the operator UI + `confirmQueue` construction in `egress-proxy-lifecycle` — all Docker/network infra
+  needing a live approved-CONNECT to validate (fleet-gated).
+  **✅ CONTROL CHANNEL + UI + LIVE CONNECT SHIPPED 2026-07-21.** `NKLEIN_EGRESS_CONFIRM_ROLES` is the explicit
+  per-role opt-in (`worker,reviewer` or `all`; unset = no prompts, preserving full-autonomous defaults). The lifecycle
+  generates a 256-bit per-container bearer token, publishes the control listener to an ephemeral HOST-loopback port,
+  reconstructs the endpoint across idempotent reuse, and fails the whole allowlist route closed if a requested
+  channel is unreadable or unreachable. The token is required because host-loopback Docker publish alone does not
+  stop a co-networked sandbox reaching the container port; it never enters agent env or the browser contract. The
+  host client accepts HTTP loopback only and strictly validates responses; task-pool/runtime/tRPC wiring sends the UI
+  only pending facts; `EgressConfirmDialog` shows exact role + host:port and applies one bound approve/deny. Stale
+  pending asks remain queryable while config replacement is scheduled. Also fixed adjacent drift: unreadable running
+  proxy env can no longer masquerade as an empty allowlist — it forces replacement. Deterministic server/client,
+  lifecycle, runtime bridge, and browser coverage green; live Docker proof parks a real sandbox CONNECT, releases it
+  after a bound host approval, keeps an unlisted host denied, and confirms direct egress still has no route.
 - [ ] **F2.4b — Settings UI hint + live validation (per-role allowlists SHIPPED 2026-07-13).** The SAME
   `sandboxEgressAllowlist` string now supports role-scoped entries (`worker:api.github.com` grants ONE role;
   plain entries stay global — every v1 string parses byte-identically; an unknown role prefix stays a plain

@@ -3,7 +3,7 @@
 > Maintained design/provenance reference, not a task list. Remaining implementation is tracked only in `todo.md`
 > F2.3–F2.5; I1–I4 history below describes the shipped baseline.
 >
-> **Status:** I1–I4 shipped; F2.3–F2.5 own the remaining confirm/per-role/per-task work. This document specifies the
+> **Status:** I1–I5 shipped; F2.4–F2.5 own the remaining live per-role/per-task work. This document specifies the
 > host-side egress proxy + sandbox network topology that makes the `allowlist` network tier REAL: DNS/SNI-level
 > enforcement that calls the existing pure [`decideEgressPolicy`](../../src/core/egress-policy-decision.ts) at connect
 > time, per-ROLE allowlists keyed to the capability tiers, a per-attempt audit trail, and (optionally) per-action
@@ -303,11 +303,15 @@ agent tool (git/curl/pip/...)                      egress-proxy (role listener :
 - Docs: this doc stamped SHIPPED-through-I4; the CHANGELOG `## [Upcoming]` egress bullet updated (Settings surface now
   shipped; per-role attribution remains the deferred follow-up).
 
-**I5 (optional) — confirm-flow wiring.**
-- `requirePerActionApproval` per role; proxy parks `confirm` attempts in a pending queue exposed on a control
-  endpoint published to host loopback only (`-p 127.0.0.1:<port>:<port>` on the proxy's bridge leg); UI approval
-  mirrors the chat `egress_read` confirmation gate; audit gains `confirmed`. Also: proxy-auth username for per-task
-  attribution.
+**I5 (optional) — confirm-flow wiring (SHIPPED 2026-07-21).**
+- `NKLEIN_EGRESS_CONFIRM_ROLES` opts roles into `requirePerActionApproval` (unset by default). The proxy parks a
+  final address-vetted `confirm` verdict on its queue; an authenticated HTTP leaf exposes list/resolve on container
+  port 3131, published to an ephemeral host-loopback port. The host runtime retains the random per-container bearer
+  token and bridges only typed pending facts/decisions to the globally-mounted UI. Authentication is load-bearing:
+  Docker's host-loopback publish still forwards to a container interface reachable from the internal agent network,
+  so publish topology alone would let a sandbox approve itself. Decisions remain attempt+host+port+role bound,
+  one-shot, and expiry-is-deny. Live Docker coverage proves approved CONNECT, deny, and no-route behavior. Proxy-auth
+  username/token for per-task attribution remains F2.5.
 
 ## 7. Risks + open questions (defaults proposed — veto, don't design)
 

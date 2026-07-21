@@ -264,6 +264,8 @@ export interface NKleinTaskSessionService {
 	setSandboxNetworkPolicy(policy: SandboxNetworkPolicy): Promise<void>;
 	/** §5.L egress proxy (§6 I3): live-apply the persisted proxy flag + host allowlist to the sandbox manager. */
 	setSandboxEgressConfig(enabled: boolean, allowlist: string): void;
+	/** F2.3b host-only control seam for listing/resolving this pool's pending egress confirms. */
+	getAgentSandboxManagerForEgressControl(): AgentSandboxManager | null;
 	setModelTurnAdmissionGate(gate: NKleinModelTurnAdmissionGate | null): void;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;

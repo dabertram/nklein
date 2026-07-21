@@ -1005,6 +1005,34 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			);
 			return { outcome };
 		},
+		// F2.3b: bridge the browser to the live task pool's authenticated HOST-loopback control client. The browser
+		// never receives the endpoint or bearer token; it only sees the bound pending facts and submits a decision.
+		getPendingEgressConfirms: async (scope, _input) => {
+			if (!scope) return { pending: [] };
+			const service = deps.getLoadedScopedNKleinTaskSessionService?.(scope);
+			const manager = service?.getAgentSandboxManagerForEgressControl() ?? null;
+			if (!manager) return { pending: [] };
+			const pending = await manager.listPendingEgressConfirms();
+			return {
+				pending: pending.flatMap((entry) =>
+					["architect", "worker", "reviewer"].includes(entry.role)
+						? [
+								{
+									...entry,
+									role: entry.role as "architect" | "worker" | "reviewer",
+								},
+							]
+						: [],
+				),
+			};
+		},
+		resolveEgressConfirm: async (scope, input) => {
+			if (!scope) return { outcome: "unknown" };
+			const service = deps.getLoadedScopedNKleinTaskSessionService?.(scope);
+			const manager = service?.getAgentSandboxManagerForEgressControl() ?? null;
+			if (!manager) return { outcome: "unknown" };
+			return { outcome: await manager.resolvePendingEgressConfirm(input) };
+		},
 		// F2.2: surface + revoke the least-scope capability grants a chat session holds (the standing approvals that
 		// let a confirmed action re-run without re-prompting). The store is a runtime singleton; list is now-filtered
 		// (expired grants never shown), and revoke removes EXACTLY one key so an operator can undo a single approval.

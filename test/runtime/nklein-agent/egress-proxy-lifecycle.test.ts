@@ -9,6 +9,7 @@ import {
 	ensureEgressNetwork,
 	ensureEgressProxyAvailable,
 	isEgressProxyEnabled,
+	resolveEgressConfirmControlHostPort,
 	resolveEgressProxyBundleHostPath,
 	resolveSandboxEgressWiring,
 	startEgressProxyContainer,
@@ -169,6 +170,38 @@ describe("ensureEgressProxyAvailable — healthy path", () => {
 		expect((runCall as string[]).some((a) => a.includes("nklein.kind=egress-proxy"))).toBe(true);
 		expect((runCall as string[]).some((a) => a.includes("readonly") && a.includes("egress-proxy.mjs"))).toBe(true);
 	});
+
+	it("opt-in confirms publish only to host loopback and return an authenticated control endpoint", async () => {
+		const docker = makeDocker((argv) => {
+			if (has(argv, "network", "inspect")) return FAIL;
+			if (has(argv, "inspect", "-f", "{{.State.Running}}")) return FAIL;
+			if (has(argv, "exec")) return OK;
+			if (argv[0] === "port") return { exitCode: 0, stdout: "127.0.0.1:49153\n", stderr: "" };
+			if (argv[0] === "inspect") return { exitCode: 0, stdout: "172.30.0.2\n", stderr: "" };
+			return OK;
+		});
+		const token = "a".repeat(64);
+		const availability = await ensureEgressProxyAvailable(docker.runDocker, {
+			env: { NKLEIN_SANDBOX_EGRESS_PROXY: "1" },
+			bundleHostPath: "/app/egress-proxy.mjs",
+			confirmRoles: ["worker"],
+			generateConfirmControlToken: () => token,
+		});
+		expect(availability.confirmControl).toEqual({ baseUrl: "http://127.0.0.1:49153", token });
+		const runCall = docker.calls.find((call) => call[0] === "run") ?? [];
+		expect(runCall).toContain("127.0.0.1::3131");
+		expect(runCall).toContain("NKLEIN_EGRESS_CONFIRM_ROLES=worker");
+		expect(runCall).toContain(`NKLEIN_EGRESS_CONFIRM_CONTROL_TOKEN=${token}`);
+	});
+});
+
+describe("resolveEgressConfirmControlHostPort", () => {
+	it("accepts only the host-loopback mapping Docker created", async () => {
+		const good = makeDocker(() => ({ exitCode: 0, stdout: "127.0.0.1:49153\n", stderr: "" }));
+		expect(await resolveEgressConfirmControlHostPort(good.runDocker, "proxy")).toBe(49_153);
+		const exposed = makeDocker(() => ({ exitCode: 0, stdout: "0.0.0.0:49153\n", stderr: "" }));
+		expect(await resolveEgressConfirmControlHostPort(exposed.runDocker, "proxy")).toBeNull();
+	});
 });
 
 describe("ensureEgressNetwork — idempotent", () => {
@@ -315,5 +348,23 @@ describe("F2.4 — allowlist changes apply immediately (restart on drift)", () =
 			allowlist: ["a.com", "worker:b.com"],
 		});
 		expect(docker.calls.some((argv) => has(argv, "rm", "-f"))).toBe(false);
+	});
+
+	it("an unreadable running config is replaced even when the desired allowlist is empty", async () => {
+		const docker = makeDocker((argv) => {
+			if (has(argv, "network", "inspect")) return OK;
+			if (has(argv, "inspect", "-f") && argv.some((arg) => arg.includes("State.Running"))) {
+				return { exitCode: 0, stdout: "true\n", stderr: "" };
+			}
+			if (has(argv, "inspect", "-f") && argv.some((arg) => arg.includes("Config.Env"))) return FAIL;
+			return undefined;
+		});
+		await ensureEgressProxyAvailable(docker.runDocker, {
+			namespace: "t",
+			bundleHostPath: "/tmp/bundle.js",
+			env: ENV_ON,
+			allowlist: [],
+		});
+		expect(docker.calls.some((argv) => has(argv, "rm", "-f"))).toBe(true);
 	});
 });

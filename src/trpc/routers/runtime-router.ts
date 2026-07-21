@@ -31,6 +31,10 @@ import {
 	runtimeConfigResponseSchema,
 	runtimeConfigSaveRequestSchema,
 	runtimeDebugResetAllStateResponseSchema,
+	runtimeEgressConfirmListRequestSchema,
+	runtimeEgressConfirmListResponseSchema,
+	runtimeEgressConfirmResolveRequestSchema,
+	runtimeEgressConfirmResolveResponseSchema,
 	runtimeEvaluateConnectedModelsResponseSchema,
 	runtimeExpandNKleinPlanTaskRequestSchema,
 	runtimeExpandNKleinPlanTaskResponseSchema,
@@ -244,6 +248,15 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.input(runtimeHostActionConfirmResolveRequestSchema)
 			.output(runtimeHostActionConfirmResolveResponseSchema)
 			.mutation(async ({ ctx, input }) => ctx.runtimeApi.resolveHostActionConfirm(input)),
+		// F2.3b: sandbox-egress confirm control channel (workspace-scoped; host loopback never reaches the browser).
+		getPendingEgressConfirms: workspaceProcedure
+			.input(runtimeEgressConfirmListRequestSchema)
+			.output(runtimeEgressConfirmListResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.getPendingEgressConfirms(ctx.workspaceScope, input)),
+		resolveEgressConfirm: workspaceProcedure
+			.input(runtimeEgressConfirmResolveRequestSchema)
+			.output(runtimeEgressConfirmResolveResponseSchema)
+			.mutation(async ({ ctx, input }) => ctx.runtimeApi.resolveEgressConfirm(ctx.workspaceScope, input)),
 		// F2.2: surface + revoke a chat session's standing capability grants.
 		getChatSessionCapabilityGrants: t.procedure
 			.input(runtimeCapabilityGrantListRequestSchema)

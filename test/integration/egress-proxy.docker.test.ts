@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,13 +6,22 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { EgressProxyAuditRecord } from "../../src/core/egress-proxy-audit";
 import { isTruthyEnv } from "../../src/core/env-flag";
-import { EGRESS_PROXY_ROLE_PORTS } from "../../src/nklein-agent/egress-proxy-entrypoint";
+import {
+	listPendingEgressConfirms,
+	resolvePendingEgressConfirm,
+} from "../../src/nklein-agent/egress-confirm-control-client";
+import {
+	EGRESS_CONFIRM_CONTROL_TOKEN_ENV,
+	EGRESS_CONFIRM_ROLES_ENV,
+	EGRESS_PROXY_ROLE_PORTS,
+} from "../../src/nklein-agent/egress-proxy-entrypoint";
 import {
 	type EgressProxyRunDocker,
 	egressNetworkName,
 	egressProxyContainerName,
 	ensureEgressNetwork,
 	probeEgressProxyHealthy,
+	resolveEgressConfirmControlHostPort,
 	resolveEgressProxyInternalIp,
 	startEgressProxyContainer,
 	teardownEgressProxy,
@@ -113,6 +122,61 @@ function httpGetInSandbox(networkName: string, url: string, proxyEnv: Record<str
 	return result.status ?? 1;
 }
 
+function httpGetInSandboxAsync(networkName: string, url: string, proxyEnv: Record<string, string>): Promise<number> {
+	const proxyUrl = proxyEnv.HTTPS_PROXY ?? "";
+	return new Promise((resolve) => {
+		const child = spawn(
+			"docker",
+			[
+				"run",
+				"--rm",
+				"--network",
+				networkName,
+				"--cap-drop",
+				"ALL",
+				"--entrypoint",
+				"python3",
+				resolveAgentSandboxImageName(),
+				"-c",
+				PY_HTTP_PROBE,
+				proxyUrl,
+				url,
+			],
+			{ stdio: "ignore", timeout: 60_000 },
+		);
+		child.once("error", () => resolve(1));
+		child.once("close", (code) => resolve(code ?? 1));
+	});
+}
+
+const PY_HTTP_STATUS_PROBE =
+	"import sys,urllib.request as u\n" +
+	"try:\n r=u.urlopen(sys.argv[1],timeout=5);print(r.status)\n" +
+	"except u.HTTPError as e:\n print(e.code)\n";
+
+function httpStatusInSandbox(networkName: string, url: string): number | null {
+	const result = spawnSync(
+		"docker",
+		[
+			"run",
+			"--rm",
+			"--network",
+			networkName,
+			"--cap-drop",
+			"ALL",
+			"--entrypoint",
+			"python3",
+			resolveAgentSandboxImageName(),
+			"-c",
+			PY_HTTP_STATUS_PROBE,
+			url,
+		],
+		{ encoding: "utf8", timeout: 30_000 },
+	);
+	const status = Number(result.stdout.trim());
+	return result.status === 0 && Number.isInteger(status) ? status : null;
+}
+
 function readProxyAudit(containerName: string): EgressProxyAuditRecord[] {
 	const result = spawnSync("docker", ["exec", containerName, "cat", `${AUDIT_DIR_IN_PROXY}/egress-attempts.jsonl`], {
 		encoding: "utf8",
@@ -127,6 +191,16 @@ function readProxyAudit(containerName: string): EgressProxyAuditRecord[] {
 		.map((line) => JSON.parse(line) as EgressProxyAuditRecord);
 }
 
+async function waitForProxyAudit(containerName: string, minimumRecords: number): Promise<EgressProxyAuditRecord[]> {
+	const deadline = Date.now() + 5_000;
+	let records = readProxyAudit(containerName);
+	while (records.length < minimumRecords && Date.now() < deadline) {
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		records = readProxyAudit(containerName);
+	}
+	return records;
+}
+
 const gate = probeEgressGate();
 
 if (gate.ready) {
@@ -134,8 +208,9 @@ if (gate.ready) {
 		const networkName = egressNetworkName(NAMESPACE);
 		const containerName = egressProxyContainerName(NAMESPACE);
 
-		it("allows a listed host, denies an unlisted one, and has no route without the proxy", async () => {
+		it("approves one listed CONNECT, denies an unlisted host, and has no route without the proxy", async () => {
 			try {
+				const controlToken = "d".repeat(64);
 				await teardownEgressProxy(runDocker, { containerName, networkName });
 				await ensureEgressNetwork(runDocker, networkName);
 				await startEgressProxyContainer(runDocker, {
@@ -145,7 +220,10 @@ if (gate.ready) {
 					env: {
 						NKLEIN_EGRESS_PROXY_ALLOWLIST: ALLOWED_HOST,
 						NKLEIN_EGRESS_PROXY_AUDIT_DIR: AUDIT_DIR_IN_PROXY,
+						[EGRESS_CONFIRM_ROLES_ENV]: "worker",
+						[EGRESS_CONFIRM_CONTROL_TOKEN_ENV]: controlToken,
 					},
+					publishConfirmControl: true,
 				});
 
 				expect(await probeEgressProxyHealthy(runDocker, { containerName, port: WORKER_PORT })).toBe(true);
@@ -157,15 +235,33 @@ if (gate.ready) {
 					NO_PROXY: "",
 				};
 
-				// Allowlisted host connects through the proxy.
-				expect(httpGetInSandbox(networkName, `https://${ALLOWED_HOST}`, proxyEnv)).toBe(0);
+				const controlPort = await resolveEgressConfirmControlHostPort(runDocker, containerName);
+				expect(controlPort).toBeTruthy();
+				const endpoint = { baseUrl: `http://127.0.0.1:${controlPort}`, token: controlToken };
+				expect((await fetch(`${endpoint.baseUrl}/egress-confirms`)).status).toBe(401);
+				// Host-loopback publishing is not container auth: the sandbox can address the listener, but lacks its token.
+				expect(httpStatusInSandbox(networkName, `http://${ip}:3131/egress-confirms`)).toBe(401);
+
+				// Allowlisted host parks, appears on the host-only control channel, and proceeds after one bound approval.
+				const allowedRequest = httpGetInSandboxAsync(networkName, `https://${ALLOWED_HOST}`, proxyEnv);
+				let pending = await listPendingEgressConfirms(endpoint);
+				const deadline = Date.now() + 15_000;
+				while (pending.length === 0 && Date.now() < deadline) {
+					await new Promise((resolve) => setTimeout(resolve, 100));
+					pending = await listPendingEgressConfirms(endpoint);
+				}
+				expect(pending).toHaveLength(1);
+				expect(pending[0]).toMatchObject({ host: ALLOWED_HOST, port: 443, role: "worker" });
+				expect(await resolvePendingEgressConfirm(endpoint, { ...pending[0], approve: true })).toBe("applied");
+				expect(await allowedRequest).toBe(0);
 				// Unlisted host is refused by the proxy (non-zero exit).
 				expect(httpGetInSandbox(networkName, `https://${DENIED_HOST}`, proxyEnv)).not.toBe(0);
 				// Without the proxy env, the `--internal` network gives no route (fail-closed backstop).
 				expect(httpGetInSandbox(networkName, `https://${ALLOWED_HOST}`, null)).not.toBe(0);
 
-				const audit = readProxyAudit(containerName);
-				const allowRecord = audit.find((r) => r.host === ALLOWED_HOST && r.decision === "allow");
+				// Audit is emitted when each tunnel closes; the sandbox process can exit just before the proxy's close event.
+				const audit = await waitForProxyAudit(containerName, 2);
+				const allowRecord = audit.find((r) => r.host === ALLOWED_HOST && r.decision === "confirm");
 				const denyRecord = audit.find((r) => r.host === DENIED_HOST && r.decision === "deny");
 				expect(allowRecord?.executed).toBe(true);
 				expect(denyRecord?.executed).toBe(false);

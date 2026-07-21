@@ -20,6 +20,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { DebugDialog } from "@/components/debug-dialog";
 import { type DependencyPickerCard, DependencyPickerDialog } from "@/components/dependency-picker-dialog";
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
+import { EgressConfirmDialog } from "@/components/egress-confirm-dialog";
 import { GitHistoryView } from "@/components/git-history-view";
 import { KanbanBoard } from "@/components/kanban-board";
 import { LeanBoardView } from "@/components/lean-board-view";
@@ -1572,6 +1573,8 @@ export default function App(): ReactElement {
 
 				{/* F2.2b/F2.12b: prompts the operator to approve/deny a chat's parked confirm-tier host action. */}
 				<HostActionConfirmDialog />
+				{/* F2.3b: the host runtime proxies decisions; the browser never receives the loopback token. */}
+				<EgressConfirmDialog workspaceId={currentProjectId} />
 
 				<AddProjectDialog
 					open={isAddProjectDialogOpen}
