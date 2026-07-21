@@ -1,9 +1,14 @@
 /**
- * Live F3.10 proof: force one no-call AgentModel baseline, then let the production swarm adaptive wrapper select a
- * reduced-tool retry against every resident LM Studio model. Never loads, unloads, or downloads models.
+ * Live F3.10/F3.11 proof: force no-call AgentModel baselines, then let the production swarm adaptive wrapper select
+ * both the curated reduced-tool retry and a history-promoted prompt variant against every resident LM Studio model;
+ * also verifies alternate-endpoint recovery. Never loads, unloads, or downloads models.
  */
 import type { AgentModel, AgentModelEvent, AgentModelRequest, AgentToolDefinition } from "@cline/shared";
 import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
+import {
+	emptyStrategyEffectivenessLedger,
+	recordStrategyOutcome,
+} from "../src/core/strategy-effectiveness-ledger";
 import { createAdaptiveSwarmRecoveryModel } from "../src/nklein-agent/adaptive-swarm-recovery-model";
 import { createLocalAlternateEndpointModel } from "../src/nklein-agent/local-alternate-endpoint-model";
 import { LocalLlmClient } from "../src/nklein-agent/nklein-local-llm-client";
@@ -51,35 +56,11 @@ function requestText(request: AgentModelRequest): string {
 		.join("\n");
 }
 
-async function verifyModel(modelId: string): Promise<void> {
-	await assertModelLoaded(BASE_URL, modelId);
-	const agentRequest: AgentModelRequest = {
-		systemPrompt: "You are an execution agent. Use the requested tool.",
-		messages: [
-			{
-				id: "user-1",
-				role: "user",
-				createdAt: 1,
-				content: [{ type: "text", text: "Call read_file with path NOTES.md now." }],
-			},
-		],
-		tools: TOOLS,
-		options: { maxTokens: 1_024, temperature: 0 },
-	};
-	const real = new LocalLlmClient({ providerId: "lmstudio", modelId, baseUrl: BASE_URL });
-	const offeredCounts: number[] = [];
-	let call = 0;
-	const controlled: AgentModel = {
+function realAgentModel(client: LocalLlmClient): AgentModel {
+	return {
 		stream(request): AsyncIterable<AgentModelEvent> {
 			return (async function* () {
-				offeredCounts.push(request.tools.length);
-				call += 1;
-				if (call === 1) {
-					yield { type: "text-delta", text: "I should use read_file." };
-					yield { type: "finish", reason: "stop" };
-					return;
-				}
-				const completion = await real.completeWithTools(
+				const completion = await client.completeWithTools(
 					{
 						messages: [
 							...(request.systemPrompt ? [{ role: "system" as const, content: request.systemPrompt }] : []),
@@ -118,8 +99,43 @@ async function verifyModel(modelId: string): Promise<void> {
 			})();
 		},
 	};
+}
+
+function forceFirstNoCall(delegate: AgentModel, offeredCounts: number[]): AgentModel {
+	let call = 0;
+	return {
+		stream(request): AsyncIterable<AgentModelEvent> {
+			offeredCounts.push(request.tools.length);
+			call += 1;
+			if (call > 1) return delegate.stream(request);
+			return (async function* () {
+				yield { type: "text-delta", text: "I should use read_file." };
+				yield { type: "finish", reason: "stop" };
+			})();
+		},
+	};
+}
+
+async function verifyModel(modelId: string): Promise<void> {
+	await assertModelLoaded(BASE_URL, modelId);
+	const agentRequest: AgentModelRequest = {
+		systemPrompt: "You are an execution agent. Use the requested tool.",
+		messages: [
+			{
+				id: "user-1",
+				role: "user",
+				createdAt: 1,
+				content: [{ type: "text", text: "Call read_file with path NOTES.md now." }],
+			},
+		],
+		tools: TOOLS,
+		options: { maxTokens: 1_024, temperature: 0 },
+	};
+	const real = new LocalLlmClient({ providerId: "lmstudio", modelId, baseUrl: BASE_URL });
+	const realModel = realAgentModel(real);
+	const offeredCounts: number[] = [];
 	let applied: string | null = null;
-	const model = createAdaptiveSwarmRecoveryModel(controlled, {
+	const model = createAdaptiveSwarmRecoveryModel(forceFirstNoCall(realModel, offeredCounts), {
 		modelId,
 		role: "worker",
 		baseMaxTokens: 1_024,
@@ -163,9 +179,41 @@ async function verifyModel(modelId: string): Promise<void> {
 		endpointApplied === "alternate_endpoint" &&
 		endpointCall?.type === "tool-call-delta" &&
 		endpointCall.toolName === "read_file";
-	const pass = reducedToolPass && alternateEndpointPass;
+
+	let learnedLedger = emptyStrategyEffectivenessLedger(modelId, 0, "worker");
+	for (let index = 0; index < 4; index += 1) {
+		learnedLedger = recordStrategyOutcome(learnedLedger, {
+			outcome: "no_tool_call",
+			strategy: "reduced_tool_set",
+			recovered: false,
+		});
+		learnedLedger = recordStrategyOutcome(learnedLedger, {
+			outcome: "no_tool_call",
+			strategy: "prompt_variant",
+			recovered: true,
+		});
+	}
+	const learnedOfferedCounts: number[] = [];
+	const learnedAttempts: Array<{ strategy: string | null; outcome: string }> = [];
+	const learnedRecovery = createAdaptiveSwarmRecoveryModel(forceFirstNoCall(realModel, learnedOfferedCounts), {
+		modelId,
+		role: "worker",
+		baseMaxTokens: 1_024,
+		minRetryBudget: 3,
+		strategyEffectivenessLedger: learnedLedger,
+		onAttempt: (attempt) => learnedAttempts.push({ strategy: attempt.strategy, outcome: attempt.outcome }),
+	});
+	const learnedEvents: AgentModelEvent[] = [];
+	for await (const event of await learnedRecovery.stream(agentRequest)) learnedEvents.push(event);
+	const learnedCall = learnedEvents.find((event) => event.type === "tool-call-delta");
+	const learnedOrderingPass =
+		learnedAttempts[1]?.strategy === "prompt_variant" &&
+		learnedOfferedCounts[1] === TOOLS.length &&
+		learnedCall?.type === "tool-call-delta" &&
+		learnedCall.toolName === "read_file";
+	const pass = reducedToolPass && alternateEndpointPass && learnedOrderingPass;
 	process.stdout.write(
-		`${JSON.stringify({ modelId, pass, reducedTool: { pass: reducedToolPass, offeredCounts, applied, toolCall: called ?? null }, alternateEndpoint: { pass: alternateEndpointPass, applied: endpointApplied, toolCall: endpointCall ?? null } })}\n`,
+		`${JSON.stringify({ modelId, pass, reducedTool: { pass: reducedToolPass, offeredCounts, applied, toolCall: called ?? null }, alternateEndpoint: { pass: alternateEndpointPass, applied: endpointApplied, toolCall: endpointCall ?? null }, learnedOrdering: { pass: learnedOrderingPass, offeredCounts: learnedOfferedCounts, attempts: learnedAttempts, toolCall: learnedCall ?? null } })}\n`,
 	);
 	if (!pass) throw new Error(`${modelId}: swarm retry-policy verification failed`);
 }

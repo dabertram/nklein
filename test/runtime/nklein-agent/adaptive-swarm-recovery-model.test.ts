@@ -102,6 +102,35 @@ describe("createAdaptiveSwarmRecoveryModel", () => {
 		expect(onStrategyApplied).toHaveBeenCalledWith("prompt_variant:explicit_format");
 	});
 
+	it("reports the exact trigger, result, and provider usage for each retry attempt", async () => {
+		const stoppedWithUsage: AgentModelEvent[] = [
+			{ type: "usage", usage: { inputTokens: 40, outputTokens: 5 } },
+			...stopped,
+		];
+		const calledWithUsage: AgentModelEvent[] = [
+			{ type: "usage", usage: { inputTokens: 30, outputTokens: 7 } },
+			...called,
+		];
+		const base = scriptedBase([stoppedWithUsage, calledWithUsage]);
+		const onAttempt = vi.fn();
+		const model = createAdaptiveSwarmRecoveryModel(base.model, {
+			modelId: "google/gemma-4-31b-qat",
+			role: "reviewer",
+			onAttempt,
+		});
+
+		expect(await collect(model, request())).toEqual(calledWithUsage);
+		expect(onAttempt).toHaveBeenCalledTimes(2);
+		expect(onAttempt.mock.calls[1]?.[0]).toMatchObject({
+			strategy: "reduced_tool_set",
+			triggerOutcome: "no_tool_call",
+			outcome: "success",
+			recovered: true,
+			inputTokens: 30,
+			outputTokens: 7,
+		});
+	});
+
 	it("raises maxTokens for a truncated turn and replaces the buffered partial", async () => {
 		const truncated: AgentModelEvent[] = [
 			{ type: "reasoning-delta", text: "discarded" },

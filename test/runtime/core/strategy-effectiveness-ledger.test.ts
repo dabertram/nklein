@@ -6,6 +6,7 @@ import {
 	orderLadderByEffectiveness,
 	recordStrategyOutcome,
 	type StrategyEffectivenessLedger,
+	strategyAverageCost,
 	strategyEffectiveness,
 	strategyObservationCount,
 } from "../../../src/core/strategy-effectiveness-ledger";
@@ -41,6 +42,10 @@ describe("strategy-effectiveness-ledger", () => {
 				strategy: "constrained_schema",
 				attempts: 1,
 				successes: 1,
+				durationSamples: 0,
+				totalDurationMs: 0,
+				tokenSamples: 0,
+				totalTokens: 0,
 			});
 		});
 
@@ -54,6 +59,32 @@ describe("strategy-effectiveness-ledger", () => {
 				strategy: "context_shrink",
 				attempts: 3,
 				successes: 2,
+				durationSamples: 0,
+				totalDurationMs: 0,
+				tokenSamples: 0,
+				totalTokens: 0,
+			});
+		});
+
+		it("accumulates wall and token cost only when those channels were observed", () => {
+			let ledger = emptyStrategyEffectivenessLedger("modelA");
+			ledger = recordStrategyOutcome(ledger, {
+				outcome: "loop",
+				strategy: "context_shrink",
+				recovered: true,
+				durationMs: 1_000,
+				totalTokens: 200,
+			});
+			ledger = recordStrategyOutcome(ledger, {
+				outcome: "loop",
+				strategy: "context_shrink",
+				recovered: false,
+				durationMs: 3_000,
+				totalTokens: null,
+			});
+			expect(strategyAverageCost(ledger, "loop", "context_shrink")).toEqual({
+				durationMs: 2_000,
+				totalTokens: 200,
 			});
 		});
 
@@ -71,15 +102,27 @@ describe("strategy-effectiveness-ledger", () => {
 			expect(ledger.cells["timeout::reduced_tool_set"]?.successes).toBe(0);
 		});
 
-		it("no-ops on a `park` rung and on a `success` outcome (neither is a learnable remedy)", () => {
+		it("ignores terminal/orchestration rungs and a success trigger", () => {
 			const base = emptyStrategyEffectivenessLedger("modelA");
 			const afterPark = recordStrategyOutcome(base, { outcome: "no_tool_call", strategy: "park", recovered: false });
+			const afterCarry = recordStrategyOutcome(base, {
+				outcome: "no_tool_call",
+				strategy: "cross_model_carry",
+				recovered: true,
+			});
+			const afterDecompose = recordStrategyOutcome(base, {
+				outcome: "timeout",
+				strategy: "decompose",
+				recovered: true,
+			});
 			const afterSuccess = recordStrategyOutcome(base, {
 				outcome: "success",
 				strategy: "constrained_schema",
 				recovered: true,
 			});
 			expect(afterPark.cells).toEqual({});
+			expect(afterCarry.cells).toEqual({});
+			expect(afterDecompose.cells).toEqual({});
 			expect(afterSuccess.cells).toEqual({});
 		});
 
@@ -167,6 +210,37 @@ describe("strategy-effectiveness-ledger", () => {
 		it("returns the curated order verbatim at cold-start (no evidence)", () => {
 			const empty = emptyStrategyEffectivenessLedger("modelA");
 			expect(orderLadderByEffectiveness(empty, "no_tool_call")).toEqual([...retryLadderForOutcome("no_tool_call")]);
+		});
+
+		it("does not lock onto a one-off win under the default multi-sample guard", () => {
+			const ledger = recordStrategyOutcome(emptyStrategyEffectivenessLedger("modelA"), {
+				outcome: "no_tool_call",
+				strategy: "prompt_variant",
+				recovered: true,
+			});
+			expect(orderLadderByEffectiveness(ledger, "no_tool_call")).toEqual([...retryLadderForOutcome("no_tool_call")]);
+		});
+
+		it("uses measured cost to break a trusted effectiveness tie", () => {
+			let ledger = emptyStrategyEffectivenessLedger("modelA");
+			for (let index = 0; index < 4; index += 1) {
+				ledger = recordStrategyOutcome(ledger, {
+					outcome: "no_tool_call",
+					strategy: "reduced_tool_set",
+					recovered: true,
+					durationMs: 4_000,
+					totalTokens: 400,
+				});
+				ledger = recordStrategyOutcome(ledger, {
+					outcome: "no_tool_call",
+					strategy: "prompt_variant",
+					recovered: true,
+					durationMs: 1_000,
+					totalTokens: 100,
+				});
+			}
+			const ordered = orderLadderByEffectiveness(ledger, "no_tool_call");
+			expect(ordered.indexOf("prompt_variant")).toBeLessThan(ordered.indexOf("reduced_tool_set"));
 		});
 
 		it("promotes a repeatedly-effective lower rung ahead of a repeatedly-failing higher rung", () => {

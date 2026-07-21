@@ -610,6 +610,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 						return createAdaptiveSwarmRecoveryModel(recoveryBase, {
 							modelId: request.modelId,
 							profile: request.behaviorProfile,
+							strategyEffectivenessLedger: request.strategyEffectivenessLedger,
 							role: request.role ?? "unknown",
 							baseMaxTokens: request.maxTokensPerTurn,
 							promptVariationEnabled: isEnabledByDefaultEnv(process.env.NKLEIN_SWARM_PROMPT_VARIATION),
@@ -618,6 +619,24 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 							onStrategyApplied: (strategy) => request.onPromptStrategyApplied?.(strategy),
 							onAttempt: (attempt) => {
 								if (attempt.strategy === null) return;
+								if (attempt.triggerOutcome !== null) {
+									try {
+										request.onRetryStrategyOutcome?.({
+											outcome: attempt.triggerOutcome,
+											strategy: attempt.strategy,
+											strategyLabel: attempt.strategyLabel,
+											resultOutcome: attempt.outcome,
+											recovered: attempt.recovered,
+											durationMs: attempt.durationMs,
+											totalTokens:
+												attempt.inputTokens !== null && attempt.outputTokens !== null
+													? attempt.inputTokens + attempt.outputTokens
+													: null,
+										});
+									} catch {
+										// Durable observation must never alter recovery semantics.
+									}
+								}
 								try {
 									recordSelfObservation({
 										signal: "custom",

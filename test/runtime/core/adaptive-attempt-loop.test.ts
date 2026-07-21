@@ -6,6 +6,10 @@ import {
 } from "../../../src/core/adaptive-attempt-loop";
 import { emptyModelBehaviorProfile, type ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
 import type { RetryStrategy } from "../../../src/core/retry-policy";
+import {
+	emptyStrategyEffectivenessLedger,
+	recordStrategyOutcome,
+} from "../../../src/core/strategy-effectiveness-ledger";
 
 describe("classifyTurnOutcome", () => {
 	it("is a success whenever a tool call was emitted, regardless of surrounding prose", () => {
@@ -127,6 +131,41 @@ describe("runAdaptiveAttemptLoop", () => {
 		expect(calls).toEqual([null, "prompt_variant"]);
 		expect(out.strategiesTried).toEqual(["prompt_variant"]);
 		expect(out.parkedReason).toMatch(/no untried/i);
+	});
+
+	it("uses durable effectiveness to reorder executable rungs and reports the triggering outcome", async () => {
+		let strategyLedger = emptyStrategyEffectivenessLedger("m", 0, "worker");
+		for (let index = 0; index < 4; index += 1) {
+			strategyLedger = recordStrategyOutcome(strategyLedger, {
+				outcome: "no_tool_call",
+				strategy: "reduced_tool_set",
+				recovered: false,
+			});
+			strategyLedger = recordStrategyOutcome(strategyLedger, {
+				outcome: "no_tool_call",
+				strategy: "prompt_variant",
+				recovered: true,
+			});
+		}
+		const calls: Array<{ strategy: RetryStrategy | null; trigger: ModelOutcomeKind | null }> = [];
+		const out = await runAdaptiveAttemptLoop({
+			profile: profile(),
+			strategyEffectivenessLedger: strategyLedger,
+			retryBudgetOptions: { minBudget: 3 },
+			runAttempt: async (strategy, _note, context) => {
+				calls.push({ strategy, trigger: context.triggerOutcome });
+				return {
+					result: strategy,
+					outcome: strategy === "prompt_variant" ? "success" : "no_tool_call",
+					availableStrategies: ["reduced_tool_set", "prompt_variant"],
+				};
+			},
+		});
+		expect(out.strategiesTried).toEqual(["prompt_variant"]);
+		expect(calls).toEqual([
+			{ strategy: null, trigger: null },
+			{ strategy: "prompt_variant", trigger: "no_tool_call" },
+		]);
 	});
 
 	it("respects the hard maxAttempts safety cap even with a generous budget", async () => {

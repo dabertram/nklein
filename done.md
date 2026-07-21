@@ -2062,3 +2062,18 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   reduced-tool and alternate-endpoint rungs on all four resident models without loading, unloading, or downloading.
   Focused tests pass 101/101, the full gate passes 1,264 files/1 skipped and 12,334 tests/1 skipped, and the simulator
   passes 65/65.
+
+- [x] **F3.11 — finish adaptive strategy-effectiveness learning** *(delivered 2026-07-21).* Every resolved in-turn
+  remedy now writes a fine-grained Agent Attempt Ledger event with canonical model identity, role/task kind, triggering
+  outcome, concrete strategy label, resulting outcome, recovery verdict, duration, and token cost. A durable projection
+  folds those events per model×role×failure×rung; the live swarm attempt loop orders executable remedies by its guarded
+  Beta posterior, then breaks trusted near-ties by measured wall time and tokens. The hand-authored ladder remains the
+  cold start and no rung is dropped; four samples are required before reordering, so one lucky result cannot lock in.
+  Cross-model carry and decomposition remain orchestration-level escalations and are deliberately excluded from
+  per-model learning. The service now reads behavior/effectiveness evidence through the same normalized
+  provider:model:endpoint key the terminal writer uses, repairing a silent identity mismatch that had made the earlier
+  model profile unreachable. The tracked requirement reports all three elements live. A permanent real-model proof
+  promoted `prompt_variant` from four historical wins and recovered `read_file` on all four resident LM Studio models
+  with the full tool menu, without loading/unloading anything. Focused tests pass 302/302, simulator 65/65, and the full
+  repository gate passes 1,264 files/1 skipped and 12,343 tests/1 skipped (the first saturated run exposed and fixed an
+  outer 60s integration-test budget that contradicted its own 90s server-start allowance).

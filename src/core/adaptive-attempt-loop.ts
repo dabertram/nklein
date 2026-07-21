@@ -12,6 +12,7 @@
 import { buildFailureCapsule, type FailureCapsule } from "./failure-capsule";
 import type { ModelBehaviorProfile, ModelOutcomeKind, RetryBudgetOptions } from "./model-behavior-profile";
 import { planNextAttempt, type RetryStrategy } from "./retry-policy";
+import { orderLadderByEffectiveness, type StrategyEffectivenessLedger } from "./strategy-effectiveness-ledger";
 
 /** The observable signals of ONE finished model turn — enough to classify it into a §5.AA `ModelOutcomeKind`. */
 export interface TurnOutcomeSignals {
@@ -91,11 +92,17 @@ export interface AdaptiveAttemptLoopInput<TResult> {
 	 * Run a single attempt. `strategy` is `null` for the FIRST (baseline) attempt, then the ladder rung the brain chose;
 	 * `doNotRepeatNote` is the accumulated "already tried — do not repeat" context to prepend (empty on the first attempt).
 	 */
-	runAttempt: (strategy: RetryStrategy | null, doNotRepeatNote: string) => Promise<AdaptiveAttemptResult<TResult>>;
+	runAttempt: (
+		strategy: RetryStrategy | null,
+		doNotRepeatNote: string,
+		context: { triggerOutcome: ModelOutcomeKind | null },
+	) => Promise<AdaptiveAttemptResult<TResult>>;
 	/** Tuning for the learned retry budget (passed through to `planNextAttempt`). */
 	retryBudgetOptions?: RetryBudgetOptions;
 	/** Whether the selected model has a verified soft switch for the `thinking_disable` rung. */
 	supportsThinkingControl?: boolean;
+	/** Durable per-model/task effectiveness snapshot; absent keeps the curated ladder byte-for-byte. */
+	strategyEffectivenessLedger?: StrategyEffectivenessLedger;
 	/** A hard safety cap on total attempts regardless of the learned budget (defaults to 8). */
 	maxAttempts?: number;
 }
@@ -128,7 +135,7 @@ export async function runAdaptiveAttemptLoop<TResult>(
 	const capsules: FailureCapsule[] = [];
 	const strategiesTried: RetryStrategy[] = [];
 
-	let current = await input.runAttempt(null, "");
+	let current = await input.runAttempt(null, "", { triggerOutcome: null });
 	let attemptsSoFar = 1;
 
 	while (current.outcome !== "success") {
@@ -140,6 +147,9 @@ export async function runAdaptiveAttemptLoop<TResult>(
 			capsules,
 			supportsThinkingControl: input.supportsThinkingControl,
 			availableStrategies: current.availableStrategies,
+			...(input.strategyEffectivenessLedger
+				? { orderedStrategies: orderLadderByEffectiveness(input.strategyEffectivenessLedger, current.outcome) }
+				: {}),
 			...(input.retryBudgetOptions ? { retryBudgetOptions: input.retryBudgetOptions } : {}),
 		});
 		if (plan.parked || attemptsSoFar >= maxAttempts) {
@@ -156,7 +166,7 @@ export async function runAdaptiveAttemptLoop<TResult>(
 			};
 		}
 		const strategy = plan.strategy;
-		const next = await input.runAttempt(strategy, plan.doNotRepeatNote);
+		const next = await input.runAttempt(strategy, plan.doNotRepeatNote, { triggerOutcome: current.outcome });
 		attemptsSoFar += 1;
 		strategiesTried.push(strategy);
 		if (next.outcome !== "success") {

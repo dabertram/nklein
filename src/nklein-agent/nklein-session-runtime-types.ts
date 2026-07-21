@@ -11,8 +11,9 @@ import type {
 	RuntimeTaskImage,
 	RuntimeTaskSessionMode,
 } from "../core/api-contract";
-import type { ModelBehaviorProfile } from "../core/model-behavior-profile";
+import type { ModelBehaviorProfile, ModelOutcomeKind } from "../core/model-behavior-profile";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
+import type { StrategyAttemptObservation, StrategyEffectivenessLedger } from "../core/strategy-effectiveness-ledger";
 import type { NKleinArchitectBriefSubmittedHandler } from "./nklein-architect-tool";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-tool";
@@ -101,6 +102,15 @@ export interface StartNKleinSessionRuntimeRequest {
 	onPromptStrategyApplied?: (strategy: string) => void;
 	/** F3.10: learned retry budget/profile snapshot used by the shared swarm adaptive loop. */
 	behaviorProfile?: ModelBehaviorProfile;
+	/** F3.11: role-scoped learned rung effectiveness/cost snapshot used to order retries. */
+	strategyEffectivenessLedger?: StrategyEffectivenessLedger;
+	/** F3.11: durable observation sink for every resolved retry rung. */
+	onRetryStrategyOutcome?: (
+		observation: StrategyAttemptObservation & {
+			strategyLabel: string | null;
+			resultOutcome: ModelOutcomeKind;
+		},
+	) => void;
 	mode?: RuntimeTaskSessionMode;
 	apiKey?: string | null;
 	baseUrl?: string | null;

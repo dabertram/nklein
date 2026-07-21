@@ -64,6 +64,26 @@ describe("decideNextRetryStrategy", () => {
 		expect(decision.strategy).toBe("reduced_tool_set");
 	});
 
+	it("accepts learned reordering but cannot inject or remove curated rungs", () => {
+		const learnedFirst = decideNextRetryStrategy({
+			lastOutcome: "no_tool_call",
+			attemptsSoFar: 0,
+			retryBudget: 5,
+			triedStrategies: [],
+			orderedStrategies: ["decompose", "prompt_variant"],
+		});
+		expect(learnedFirst.strategy).toBe("prompt_variant");
+
+		const nextCuratedOmission = decideNextRetryStrategy({
+			lastOutcome: "no_tool_call",
+			attemptsSoFar: 1,
+			retryBudget: 5,
+			triedStrategies: ["prompt_variant"],
+			orderedStrategies: ["decompose", "prompt_variant"],
+		});
+		expect(nextCuratedOmission.strategy).toBe("raise_token_budget");
+	});
+
 	it("dispatches available rungs in policy order without circles", () => {
 		const cursor = createRetryStrategyCursor({
 			outcome: "no_tool_call",

@@ -19,19 +19,21 @@ import {
 } from "./model-behavior-profile";
 
 /** One rung of the adaptive retry ladder (§5.AA). `park` = give up + surface for review/escalation. */
-export type RetryStrategy =
-	| "same_model_retry"
-	| "raise_token_budget"
-	| "thinking_disable"
-	| "reduced_tool_set"
-	| "constrained_schema"
-	| "alternate_endpoint"
-	| "prompt_variant"
-	| "context_shrink"
-	| "best_of_n"
-	| "cross_model_carry"
-	| "decompose"
-	| "park";
+export const RETRY_STRATEGIES = [
+	"same_model_retry",
+	"raise_token_budget",
+	"thinking_disable",
+	"reduced_tool_set",
+	"constrained_schema",
+	"alternate_endpoint",
+	"prompt_variant",
+	"context_shrink",
+	"best_of_n",
+	"cross_model_carry",
+	"decompose",
+	"park",
+] as const;
+export type RetryStrategy = (typeof RETRY_STRATEGIES)[number];
 
 /**
  * The rungs that plausibly help PER failure mode, in priority order (cheapest/most-targeted first). We only try a rung
@@ -89,6 +91,8 @@ export interface RetryDecisionInput {
 	supportsThinkingControl?: boolean;
 	/** Rungs this caller can actually execute for the current turn. Omitted means every relevant rung is available. */
 	availableStrategies?: readonly RetryStrategy[];
+	/** Learned priority order. Sanitized against the curated ladder so it can reorder but never add/drop a remedy. */
+	orderedStrategies?: readonly RetryStrategy[];
 }
 
 export interface RetryDecision {
@@ -114,7 +118,15 @@ export function decideNextRetryStrategy(input: RetryDecisionInput): RetryDecisio
 	}
 	const tried = new Set<RetryStrategy>(input.triedStrategies);
 	const available = input.availableStrategies ? new Set(input.availableStrategies) : null;
-	for (const strategy of RELEVANT_STRATEGIES_BY_OUTCOME[input.lastOutcome]) {
+	const curated = RELEVANT_STRATEGIES_BY_OUTCOME[input.lastOutcome];
+	const curatedSet = new Set(curated);
+	const ordered = input.orderedStrategies
+		? [
+				...input.orderedStrategies.filter((strategy) => curatedSet.has(strategy)),
+				...curated.filter((strategy) => !input.orderedStrategies?.includes(strategy)),
+			]
+		: curated;
+	for (const strategy of [...new Set(ordered)]) {
 		if (available && !available.has(strategy)) {
 			continue;
 		}
@@ -210,6 +222,7 @@ export function planNextAttempt(input: {
 	capsules: readonly FailureCapsule[];
 	supportsThinkingControl?: boolean;
 	availableStrategies?: readonly RetryStrategy[];
+	orderedStrategies?: readonly RetryStrategy[];
 	retryBudgetOptions?: RetryBudgetOptions;
 }): NextAttemptPlan {
 	const retryBudget = learnedRetryBudget(input.profile, input.retryBudgetOptions);
@@ -220,6 +233,7 @@ export function planNextAttempt(input: {
 		triedStrategies: input.capsules.map((capsule) => capsule.strategy),
 		supportsThinkingControl: input.supportsThinkingControl,
 		availableStrategies: input.availableStrategies,
+		orderedStrategies: input.orderedStrategies,
 	});
 	return {
 		strategy: decision.strategy,

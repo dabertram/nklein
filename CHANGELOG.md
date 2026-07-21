@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Swarm retries now learn which remedy works for each model and role.** Every retry records what failed, which
+  strategy ran, whether it recovered, and its measured time/token cost. After enough repeated evidence, !Klein moves
+  reliably effective remedies earlier and uses cost to break close ties; one-off wins cannot reorder the ladder, and
+  unknown remedies stay reachable when earlier choices fail. Learning uses one canonical model identity across writes
+  and reads, while cross-model/decomposition decisions remain orchestration policy rather than being miscredited to an
+  individual model.
+
 - **Swarm turns now recover through the same bounded policy as chat.** !Klein classifies truncation, stalls, provider
   failures, loops, and required-action no-calls, then tries only remedies the current turn can actually execute:
   more output room, optional thinking suppression, fewer tools, clearer phrasing, context compaction, or a compatible

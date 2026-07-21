@@ -56,6 +56,33 @@ export const TRACKED_REQUIREMENTS: readonly RequirementSpec[] = [
 		],
 	},
 	{
+		// F3.11 — adaptive strategy effectiveness is one end-to-end loop: emit every resolved rung into the durable
+		// evidence stream, project that stream by canonical model + role, then let the live attempt dispatcher consult
+		// guarded posterior/cost ordering. Keeping all three elements explicit prevents a pure ledger or a writer-only
+		// implementation from looking complete.
+		id: "F3.11",
+		elements: [
+			{
+				element: "retry_rung_evidence",
+				providedBy: { module: "agent-attempt-ledger.ts", symbol: "buildRetryStrategyEvent" },
+			},
+			{
+				element: "model_role_cost_projection",
+				providedBy: {
+					module: "agent-ledger-projections.ts",
+					symbol: "buildStrategyEffectivenessLedgersFromLedger",
+				},
+			},
+			{
+				element: "guarded_posterior_dispatch",
+				providedBy: {
+					module: "strategy-effectiveness-ledger.ts",
+					symbol: "orderLadderByEffectiveness",
+				},
+			},
+		],
+	},
+	{
 		// P20.5 — metric discipline. The formatting half is wired into the fitness table; the naming guard is
 		// enforced as a repo ratchet rather than a caller, so it has no symbol-level consumer by design.
 		id: "P20.5",

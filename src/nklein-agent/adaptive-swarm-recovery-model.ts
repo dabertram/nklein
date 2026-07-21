@@ -9,6 +9,7 @@ import {
 } from "../core/model-behavior-profile";
 import { applyThinkingDisable, supportsThinkingControl } from "../core/model-thinking-control";
 import { type RetryStrategy, raisedTokenBudget } from "../core/retry-policy";
+import type { StrategyEffectivenessLedger } from "../core/strategy-effectiveness-ledger";
 import { planSwarmPromptVariation, type SwarmPromptVariationRole } from "./prompt-variation-model";
 import { type BufferedRecoveryTurn, collectBufferedModelTurn, type RecoveryTurnSignal } from "./recovery-ladder-model";
 import { RunawayGenerationInterruptError } from "./runaway-interrupt-model";
@@ -19,6 +20,7 @@ const COMPACTED_BLOCK_CHARS = 1_200;
 
 export interface AdaptiveSwarmRecoveryAttempt {
 	strategy: RetryStrategy | null;
+	triggerOutcome: ModelOutcomeKind | null;
 	strategyLabel: string | null;
 	outcome: ModelOutcomeKind;
 	availableStrategies: readonly RetryStrategy[];
@@ -27,12 +29,16 @@ export interface AdaptiveSwarmRecoveryAttempt {
 	evidence: string;
 	promptFamily: string | null;
 	toolName: string | null;
+	durationMs: number;
+	inputTokens: number | null;
+	outputTokens: number | null;
 }
 
 export interface AdaptiveSwarmRecoveryModelOptions {
 	modelId: string;
 	role?: SwarmPromptVariationRole;
 	profile?: ModelBehaviorProfile;
+	strategyEffectivenessLedger?: StrategyEffectivenessLedger;
 	baseMaxTokens?: number | null;
 	minRetryBudget?: number;
 	maxRetryBudget?: number;
@@ -70,6 +76,24 @@ function errorText(error: unknown): string {
 
 function bufferedText(events: readonly AgentModelEvent[]): string {
 	return events.flatMap((event) => (event.type === "text-delta" ? [event.text] : [])).join("");
+}
+
+function bufferedUsage(events: readonly AgentModelEvent[]): {
+	inputTokens: number | null;
+	outputTokens: number | null;
+} {
+	let inputTokens: number | null = null;
+	let outputTokens: number | null = null;
+	for (const event of events) {
+		if (event.type !== "usage") continue;
+		if (typeof event.usage.inputTokens === "number" && Number.isFinite(event.usage.inputTokens)) {
+			inputTokens = Math.max(0, event.usage.inputTokens);
+		}
+		if (typeof event.usage.outputTokens === "number" && Number.isFinite(event.usage.outputTokens)) {
+			outputTokens = Math.max(0, event.usage.outputTokens);
+		}
+	}
+	return { inputTokens, outputTokens };
 }
 
 function endpointAndCarry(options: AdaptiveSwarmRecoveryModelOptions, request: AgentModelRequest): RetryStrategy[] {
@@ -345,12 +369,14 @@ export function createAdaptiveSwarmRecoveryModel(
 				const profile = options.profile ?? emptyModelBehaviorProfile(options.modelId, 0);
 				const outcome = await runAdaptiveAttemptLoop<AttemptPayload>({
 					profile,
+					strategyEffectivenessLedger: options.strategyEffectivenessLedger,
 					supportsThinkingControl: supportsThinkingControl(options.modelId),
 					retryBudgetOptions: {
 						minBudget: options.minRetryBudget ?? DEFAULT_MIN_RETRY_BUDGET,
 						maxBudget: options.maxRetryBudget ?? 6,
 					},
-					runAttempt: async (strategy, note) => {
+					runAttempt: async (strategy, note, attemptContext) => {
+						const startedAt = Date.now();
 						const promptPlan =
 							strategy === "prompt_variant"
 								? planSwarmPromptVariation(request, options.role ?? "unknown")
@@ -375,10 +401,13 @@ export function createAdaptiveSwarmRecoveryModel(
 							}
 						});
 						const classified = classifyTurn(buffered, planned.request, options);
+						const durationMs = Math.max(0, Date.now() - startedAt);
+						const usage = bufferedUsage(buffered.events);
 						const recovered = strategy !== null && classified.outcome === "success";
 						try {
 							options.onAttempt?.({
 								strategy,
+								triggerOutcome: attemptContext.triggerOutcome,
 								strategyLabel: strategy === null ? null : planned.label,
 								outcome: classified.outcome,
 								availableStrategies: classified.availableStrategies,
@@ -387,6 +416,9 @@ export function createAdaptiveSwarmRecoveryModel(
 								evidence: classified.evidence,
 								promptFamily: promptPlan?.family ?? null,
 								toolName: promptPlan?.toolName ?? null,
+								durationMs,
+								inputTokens: usage.inputTokens,
+								outputTokens: usage.outputTokens,
 							});
 						} catch {
 							// Observability must never alter recovery semantics.

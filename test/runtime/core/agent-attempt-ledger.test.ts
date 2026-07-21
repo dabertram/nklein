@@ -3,6 +3,7 @@ import {
 	type AgentLedgerEvent,
 	agentLedgerEventSchema,
 	buildAttemptEvent,
+	buildRetryStrategyEvent,
 	buildSchedulerEvent,
 	buildTransitionEvent,
 	latestRunState,
@@ -97,6 +98,34 @@ describe("buildTransitionEvent / buildSchedulerEvent", () => {
 		expect(event.kind).toBe("scheduler");
 		expect(event.event).toBe("lease_acquired");
 		expect(agentLedgerEventSchema.safeParse(event).success).toBe(true);
+	});
+});
+
+describe("buildRetryStrategyEvent", () => {
+	it("records the triggering failure, rung result, and measured cost as a valid ledger event", () => {
+		const event = buildRetryStrategyEvent({
+			...base,
+			modelId: "lmstudio:model:endpoint",
+			role: "reviewer",
+			triggerOutcome: "no_tool_call",
+			strategy: "prompt_variant",
+			strategyLabel: "prompt_variant:explicit_format",
+			resultOutcome: "success",
+			durationMs: 1_250,
+			totalTokens: 320,
+		});
+		expect(event).toMatchObject({
+			kind: "retry",
+			role: "reviewer",
+			triggerOutcome: "no_tool_call",
+			strategy: "prompt_variant",
+			resultOutcome: "success",
+			recovered: true,
+			durationMs: 1_250,
+			totalTokens: 320,
+		});
+		expect(agentLedgerEventSchema.safeParse(event).success).toBe(true);
+		expect(agentLedgerEventSchema.safeParse({ ...event, recovered: false }).success).toBe(false);
 	});
 });
 

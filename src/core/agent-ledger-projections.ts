@@ -12,6 +12,7 @@ import type { SelfObservationEventRecord } from "../telemetry/self-observation-s
 import {
 	type AgentAttemptEvent,
 	type AgentLedgerEvent,
+	type AgentRetryStrategyEvent,
 	type ModelContextUsageRollup,
 	type ModelEditReliabilityRollup,
 	type ModelOutcomeRollup,
@@ -51,6 +52,11 @@ import {
 	penalizeFitnessByRuntimeVerdict,
 	type RuntimeRunOutcome,
 } from "./runtime-model-verdict";
+import {
+	emptyStrategyEffectivenessLedger,
+	recordStrategyOutcome,
+	type StrategyEffectivenessLedger,
+} from "./strategy-effectiveness-ledger";
 import { isDerivedTaskSessionId } from "./synthetic-task-id";
 
 /**
@@ -81,6 +87,48 @@ export function buildModelBehaviorProfilesFromLedger(
 	}
 	return [...byModel.values()].sort(
 		(left, right) => right.samples - left.samples || left.modelId.localeCompare(right.modelId),
+	);
+}
+
+/**
+ * Fold durable retry-rung events into per-(model, role/task-kind) effectiveness ledgers. These events are finer-grained
+ * than terminal task attempts: each records the failure that selected a rung, the rung's own result, and its wall/token
+ * cost. Pure; the append-only Agent Attempt Ledger remains the only persistence layer.
+ */
+export function buildStrategyEffectivenessLedgersFromLedger(
+	events: readonly AgentLedgerEvent[],
+): StrategyEffectivenessLedger[] {
+	const retries = events
+		.filter((event): event is AgentRetryStrategyEvent => event.kind === "retry")
+		.sort((left, right) => left.recordedAt - right.recordedAt);
+	const byModelAndTask = new Map<string, StrategyEffectivenessLedger>();
+	for (const event of retries) {
+		const taskKind = event.role ?? "unknown";
+		const key = `${event.modelId}\u0000${taskKind}`;
+		const current =
+			byModelAndTask.get(key) ?? emptyStrategyEffectivenessLedger(event.modelId, event.recordedAt, taskKind);
+		byModelAndTask.set(
+			key,
+			recordStrategyOutcome(
+				current,
+				{
+					outcome: event.triggerOutcome,
+					strategy: event.strategy,
+					recovered: event.recovered,
+					durationMs: event.durationMs,
+					totalTokens: event.totalTokens,
+				},
+				{ now: () => event.recordedAt },
+			),
+		);
+	}
+	const samples = (ledger: StrategyEffectivenessLedger) =>
+		Object.values(ledger.cells).reduce((sum, cell) => sum + cell.attempts, 0);
+	return [...byModelAndTask.values()].sort(
+		(left, right) =>
+			samples(right) - samples(left) ||
+			left.modelId.localeCompare(right.modelId) ||
+			left.taskKind.localeCompare(right.taskKind),
 	);
 }
 

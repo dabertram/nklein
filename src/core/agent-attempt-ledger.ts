@@ -26,6 +26,7 @@ import { z } from "zod";
 import { selectAttempts } from "./agent-ledger-selectors";
 import type { ModelOutcomeKind } from "./model-behavior-profile";
 import { meanOrNull, medianOrNull } from "./number-stats";
+import { RETRY_STRATEGIES, type RetryStrategy } from "./retry-policy";
 
 // Re-export the pure ledger selectors (now in agent-ledger-selectors) so existing importers of this module
 // (agent-ledger-projections, agent-attempt-ledger-store, commands/dev) are unchanged.
@@ -45,6 +46,9 @@ const modelOutcomeKindSchema = z.enum([
 // Compile-time drift guard: if `ModelOutcomeKind` (§5.AA) changes, this assignment fails until the enum is updated.
 const _outcomeKindGuard: z.ZodType<ModelOutcomeKind> = modelOutcomeKindSchema;
 void _outcomeKindGuard;
+const retryStrategySchema = z.enum(RETRY_STRATEGIES);
+const _retryStrategyGuard: z.ZodType<RetryStrategy> = retryStrategySchema;
+void _retryStrategyGuard;
 
 /** The lifecycle/lease event families the durable scheduler (§5.AF) records (extensible). */
 export const SCHEDULER_EVENT_NAMES = [
@@ -223,18 +227,48 @@ const retrievalEventSchema = z.object({
 	signal: retrievalSignalSchema,
 });
 
+/** kind="retry" — one resolved adaptive remedy rung, including the failure that selected it and its measured cost. */
+const retryStrategyEventSchema = z.object({
+	...ledgerEnvelopeShape,
+	kind: z.literal("retry"),
+	/** Canonical provider:model:endpoint identity, aligned with terminal attempt events. */
+	modelId: z.string(),
+	/** Failure observed immediately before policy selected this rung. */
+	triggerOutcome: modelOutcomeKindSchema,
+	strategy: retryStrategySchema,
+	/** Concrete executor label (for example prompt_variant:explicit_format). */
+	strategyLabel: z.string().nullable(),
+	/** Outcome of the model turn the rung drove. */
+	resultOutcome: modelOutcomeKindSchema,
+	recovered: z.boolean(),
+	durationMs: z.number().nonnegative().nullable(),
+	totalTokens: z.number().nonnegative().nullable(),
+});
+
 /** The full ledger event — a discriminated union on `kind` (extensible: add an event-kind schema to the union). */
-export const agentLedgerEventSchema = z.discriminatedUnion("kind", [
-	attemptEventSchema,
-	transitionEventSchema,
-	schedulerEventSchema,
-	retrievalEventSchema,
-]);
+export const agentLedgerEventSchema = z
+	.discriminatedUnion("kind", [
+		attemptEventSchema,
+		transitionEventSchema,
+		schedulerEventSchema,
+		retrievalEventSchema,
+		retryStrategyEventSchema,
+	])
+	.superRefine((event, context) => {
+		if (event.kind === "retry" && event.recovered !== (event.resultOutcome === "success")) {
+			context.addIssue({
+				code: "custom",
+				path: ["recovered"],
+				message: "retry recovered must equal (resultOutcome === success)",
+			});
+		}
+	});
 export type AgentLedgerEvent = z.infer<typeof agentLedgerEventSchema>;
 export type AgentAttemptEvent = z.infer<typeof attemptEventSchema>;
 export type AgentTransitionEvent = z.infer<typeof transitionEventSchema>;
 export type AgentSchedulerEvent = z.infer<typeof schedulerEventSchema>;
 export type AgentRetrievalEvent = z.infer<typeof retrievalEventSchema>;
+export type AgentRetryStrategyEvent = z.infer<typeof retryStrategyEventSchema>;
 
 /** Shared envelope inputs (the builder fills `schemaVersion`/`eventId`/`recordedAt` if not given). */
 interface LedgerEnvelopeInput {
@@ -339,6 +373,32 @@ export interface BuildTransitionEventInput extends LedgerEnvelopeInput {
 	to: string;
 	reason?: string | null;
 	controllerDecision?: string | null;
+}
+
+export interface BuildRetryStrategyEventInput extends LedgerEnvelopeInput {
+	modelId: string;
+	triggerOutcome: ModelOutcomeKind;
+	strategy: RetryStrategy;
+	strategyLabel?: string | null;
+	resultOutcome: ModelOutcomeKind;
+	durationMs?: number | null;
+	totalTokens?: number | null;
+}
+
+/** Build one durable adaptive-rung resolution event. */
+export function buildRetryStrategyEvent(input: BuildRetryStrategyEventInput): AgentRetryStrategyEvent {
+	return {
+		...buildEnvelope(input),
+		kind: "retry",
+		modelId: input.modelId,
+		triggerOutcome: input.triggerOutcome,
+		strategy: input.strategy,
+		strategyLabel: input.strategyLabel ?? null,
+		resultOutcome: input.resultOutcome,
+		recovered: input.resultOutcome === "success",
+		durationMs: input.durationMs ?? null,
+		totalTokens: input.totalTokens ?? null,
+	};
 }
 
 /** Build a validated controller `transition` event. */

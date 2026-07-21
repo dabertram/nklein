@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildAttemptEvent, buildSchedulerEvent } from "../../../src/core/agent-attempt-ledger";
+import {
+	buildAttemptEvent,
+	buildRetryStrategyEvent,
+	buildSchedulerEvent,
+} from "../../../src/core/agent-attempt-ledger";
 import {
 	blendCapabilityWithLedgerEvidence,
 	buildAttemptRetryNoteFromLedger,
@@ -7,6 +11,7 @@ import {
 	buildModelBehaviorProfilesFromLedger,
 	buildModelFitnessFromLedger,
 	buildQuantErrorRates,
+	buildStrategyEffectivenessLedgersFromLedger,
 	rankModelsByLedgerFitness,
 	rankModelsByLedgerFitnessWithVerdict,
 	summarizeLedgerForDisplay,
@@ -75,6 +80,40 @@ describe("buildModelBehaviorProfilesFromLedger", () => {
 	it("carries retries into the avgRetries learning signal", () => {
 		const out = buildModelBehaviorProfilesFromLedger([attempt("m", "success", 1, 0), attempt("m", "success", 2, 4)]);
 		expect(out[0].avgRetries).toBeGreaterThan(0);
+	});
+});
+
+describe("buildStrategyEffectivenessLedgersFromLedger", () => {
+	it("derives role-scoped per-model rung success and cost from retry events", () => {
+		const retry = (role: string, recovered: boolean, recordedAt: number, durationMs: number) =>
+			buildRetryStrategyEvent({
+				...base,
+				modelId: "model-A",
+				role,
+				triggerOutcome: "no_tool_call",
+				strategy: "reduced_tool_set",
+				resultOutcome: recovered ? "success" : "no_tool_call",
+				durationMs,
+				totalTokens: durationMs / 10,
+				recordedAt,
+			});
+		const ledgers = buildStrategyEffectivenessLedgersFromLedger([
+			retry("worker", true, 2, 1_000),
+			retry("worker", false, 1, 3_000),
+			retry("reviewer", true, 3, 500),
+		]);
+		expect(ledgers.map((ledger) => `${ledger.modelId}/${ledger.taskKind}`)).toEqual([
+			"model-A/worker",
+			"model-A/reviewer",
+		]);
+		expect(ledgers[0]?.cells["no_tool_call::reduced_tool_set"]).toMatchObject({
+			attempts: 2,
+			successes: 1,
+			durationSamples: 2,
+			totalDurationMs: 4_000,
+			tokenSamples: 2,
+			totalTokens: 400,
+		});
 	});
 });
 

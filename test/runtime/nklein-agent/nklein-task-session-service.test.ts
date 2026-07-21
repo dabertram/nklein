@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/sdk";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import { buildAttemptEvent } from "../../../src/core/agent-attempt-ledger";
+import { buildAttemptEvent, buildRetryStrategyEvent } from "../../../src/core/agent-attempt-ledger";
 import {
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 	type RuntimeTaskImage,
@@ -13,6 +13,7 @@ import {
 import { buildPromptShellKey } from "../../../src/core/cache-warmth";
 import { AgentSandboxExecutionError, type AgentSandboxManager } from "../../../src/nklein-agent/nklein-agent-sandbox";
 import { buildKanbanEfficiencyRules } from "../../../src/nklein-agent/nklein-kanban-efficiency-rules";
+import { buildNKleinModelRegistryKey } from "../../../src/nklein-agent/nklein-model-registry";
 import type { NKleinRuntimeSetup } from "../../../src/nklein-agent/nklein-runtime-setup";
 import type {
 	CreateInMemoryNKleinSessionRuntimeOptions,
@@ -34,7 +35,7 @@ import {
 } from "../../../src/nklein-agent/nklein-task-session-service";
 import { createNKleinWatcherRegistry } from "../../../src/nklein-agent/nklein-watcher-registry";
 import type { NKleinSdkPersistedMessage } from "../../../src/nklein-agent/sdk-runtime-boundary";
-import { appendAgentLedgerEvent } from "../../../src/state/agent-attempt-ledger-store";
+import { appendAgentLedgerEvent, readAllAgentLedger } from "../../../src/state/agent-attempt-ledger-store";
 
 const originalArgv = [...process.argv];
 const originalExecArgv = [...process.execArgv];
@@ -2682,6 +2683,96 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(startRequest?.systemPrompt).toContain("reduced_tool_set");
 		expect(startRequest?.systemPrompt).toContain("no_tool_call");
 		expect(startRequest?.systemPrompt).not.toContain("loop");
+	});
+
+	it("hydrates canonical model learning and durably records each retry rung result", async () => {
+		const baseUrl = "http://127.0.0.1:1234/v1";
+		const ledgerModelId = buildNKleinModelRegistryKey({
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+			endpoint: baseUrl,
+		});
+		await appendAgentLedgerEvent(
+			buildAttemptEvent({
+				workflowId: "prior-task",
+				taskId: "prior-task",
+				workspacePathHash: "workspace",
+				role: "worker",
+				attemptId: "prior-task:a1",
+				modelId: ledgerModelId,
+				outcome: "success",
+				recordedAt: 1,
+			}),
+			{ rootDir: diagnosticStoreRoot },
+		);
+		for (let index = 0; index < 4; index += 1) {
+			await appendAgentLedgerEvent(
+				buildRetryStrategyEvent({
+					workflowId: `prior-task-${index}`,
+					taskId: `prior-task-${index}`,
+					workspacePathHash: "workspace",
+					role: "worker",
+					modelId: ledgerModelId,
+					triggerOutcome: "no_tool_call",
+					strategy: "prompt_variant",
+					strategyLabel: "prompt_variant:imperative",
+					resultOutcome: "success",
+					durationMs: 100 + index,
+					totalTokens: 20 + index,
+					recordedAt: 2 + index,
+				}),
+				{ rootDir: diagnosticStoreRoot },
+			);
+		}
+
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-learning",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate startup",
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+			baseUrl,
+		});
+		await waitForSettled(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1));
+
+		const startRequest = runtime.startTaskSessionMock.mock.calls[0]?.[0];
+		expect(startRequest?.behaviorProfile).toMatchObject({ modelId: ledgerModelId, samples: 1, successes: 1 });
+		expect(startRequest?.strategyEffectivenessLedger).toMatchObject({
+			modelId: ledgerModelId,
+			taskKind: "worker",
+			cells: {
+				"no_tool_call::prompt_variant": expect.objectContaining({ attempts: 4, successes: 4 }),
+			},
+		});
+		expect(startRequest?.onRetryStrategyOutcome).toBeTypeOf("function");
+
+		startRequest?.onRetryStrategyOutcome?.({
+			outcome: "no_tool_call",
+			strategy: "reduced_tool_set",
+			strategyLabel: "reduced_tool_set:read_file",
+			resultOutcome: "malformed",
+			recovered: false,
+			durationMs: 321,
+			totalTokens: 45,
+		});
+		await waitForSettled(async () => {
+			const events = await readAllAgentLedger({ rootDir: diagnosticStoreRoot });
+			expect(events).toContainEqual(
+				expect.objectContaining({
+					kind: "retry",
+					workflowId: "task-learning",
+					modelId: ledgerModelId,
+					role: "worker",
+					triggerOutcome: "no_tool_call",
+					strategy: "reduced_tool_set",
+					resultOutcome: "malformed",
+					recovered: false,
+					durationMs: 321,
+					totalTokens: 45,
+				}),
+			);
+		});
 	});
 
 	it("forwards task images into the NKlein runtime start request", async () => {

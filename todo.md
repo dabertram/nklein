@@ -408,6 +408,14 @@ source repo went private — so if it vanishes the buildable source still lives 
     Qwen 2.5 worker and made it review itself. A waiver now selects the strongest ranked *non-worker* model; `null` is
     reserved for an empty/failed model probe or no other candidate. This preserves model-capability policy and keeps
     human parking as the last resort rather than manufacturing reviewer monoculture.
+  - **ADAPTIVE LEARNING MUST SHARE THE WRITER'S CANONICAL IDENTITY AND ATTRIBUTION BOUNDARY (live-found/fixed
+    2026-07-21):** terminal attempts were written under normalized `provider:model:endpoint` keys while the retry-context
+    reader compared them with the raw runtime model id, so the learned profile was real data that no session could ever
+    retrieve. Build both sides through the same identity function and pin the round trip in a service-level test. Learn
+    only actions executed by that model: `cross_model_carry` and `decompose` are orchestration outcomes and corrupt a
+    per-model posterior if charged to the source or target. Cold-start keeps the curated ladder; require repeated
+    evidence before reordering, use cost only as a trusted near-tie break, and never make extra post-success calls merely
+    to explore. Safe exploration means untried rungs remain reachable when earlier remedies fail—not wasting inference.
 - **RUNNING A REAL-MODEL `dev test-project` DRAIN END-TO-END (live-validated 2026-07-20, gotchas found the hard way).** `dev test-project` connects over HTTP to a SEPARATELY-RUNNING **!Klein runtime** server (the code carries legacy `kanban`/`KANBAN_RUNTIME_PORT` names + a live rename-transition header shim — same thing, call it the !Klein runtime) — it is NOT in-process. The working recipe: (1) `lms load <model> --context-length 32768` — **the context MUST be ≥32,000 or the session NEVER starts**: the runtime refuses activation with *"Selected model … reports 16,384 context tokens. !Klein requires at least 32,000 before this model can be activated"* (the ≥32k prime-directive floor, enforced at session-start, silent except in the server log — the board just shows a "startable card lacks an active task session" watchdog sweep forever). (2) Start the server backgrounded sharing three envs with the client: `NKLEIN_RUNTIME_PORT=3484`, `NKLEIN_INTERNAL_AUTH_TOKEN=<any-fixed-token>` (the CLI client needs the SAME token to call the server), `HOME=<isolated dir>`, plus `NODE_ENV=development`. (3) Run `dev test-project --preset <p> --model-id <m> --provider-id lmstudio --max-wait-ms <bound>` with the same envs. (4) **TEARDOWN is on you**: `pkill -f 'tsx src/cli.ts --port 3484'`, `lms unload --all`, `docker rm -f $(docker ps -aq --filter name=nklein-agent-sandbox)` — a leaked server+model+container is the overload to avoid.
   - **STALE MODEL-CONTEXT DISCOVERY CACHE:** a long-running server caches the model's advertised context at first discovery. If you reload the model at a NEW context (e.g. 16k→32k), the server keeps using the OLD value and still refuses activation — you must RESTART the server (it re-discovers), not just reload the model.
   - **HOST SELECTION — do NOT let LM Studio auto-route (David 2026-07-20).** `lms load` auto-placed a 14B on the
@@ -1798,13 +1806,19 @@ These are known defects or incomplete migrations. Clear them before widening cap
   definitions) and uses forced `/v1/messages`; prose recovery may prefer native. A permanent fault-injection proof
   recovered `read_file` through both reduced-tool and alternate-endpoint rungs on all four resident models without any
   lifecycle change. Full gate: 1,264 files/1 skipped, 12,334 tests/1 skipped; simulator 65/65.
-- [ ] **F3.11 — Finish adaptive strategy-effectiveness learning.** Update per-model/task/rung success and cost from the
+- [x] **F3.11 — Finish adaptive strategy-effectiveness learning** *(delivered 2026-07-21).* Update per-model/task/rung success and cost from the
   ledger, explore safely, and converge without locking onto a one-off win.
-  **READY AFTER F3.10 (2026-07-21):** `strategy-effectiveness-ledger.ts` (Beta posterior per
-  model×failure×strategy + `orderLadderByEffectiveness`) remains unwired and untested, but its former prerequisite is
-  now satisfied: the swarm path walks multiple real rungs through `runAdaptiveAttemptLoop`, reports every rung result,
-  and carries the exact learned model profile into the turn. Wire outcome/cost recording at those rung resolutions,
-  then let the policy consult the posterior with explicit exploration and minimum-evidence guards.
+  **DELIVERED:** every in-turn remedy now appends a fine-grained `retry` event with canonical model identity, role,
+  triggering outcome, concrete rung/variant, result, wall time, and token cost. The Agent Attempt Ledger projects those
+  events into model×role×failure×strategy Beta posteriors; the live swarm dispatcher consults the projection before
+  every retry. Four observations are required before evidence may reorder the curated ladder, small effectiveness/cost
+  differences preserve hand order, unknown rungs remain available, and one successful turn stops immediately instead
+  of spending model calls on gratuitous exploration. Cross-model carry/decomposition stay curated orchestration rungs
+  rather than being falsely attributed to one model. The read path now uses the same canonical
+  provider:model:endpoint identity as the terminal writer, fixing the prior silent profile miss. Element coverage is
+  green for writer, projection, and live dispatch. The permanent verifier promoted `prompt_variant` from seeded
+  multi-sample evidence and recovered `read_file` on all four resident models without lifecycle changes. Focused tests,
+  typecheck, and simulator 65/65 pass; full-suite evidence is recorded in `done.md`.
 - [x] **F3.12 — Complete the finite-state outer controller.** Drive orient→plan→act→verify→repair→finish with phase
   context, tool subset, budget, evidence gates, and bounded transitions.
   **FINALIZED 2026-07-19:** the item's INTENT is realized by the LIVE board lifecycle, which IS the outer

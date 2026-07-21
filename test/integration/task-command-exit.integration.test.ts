@@ -11,6 +11,11 @@ import { createGitTestEnv } from "../utilities/git-env";
 import { createTempDir } from "../utilities/temp-dir";
 
 const requireFromHere = createRequire(import.meta.url);
+// The server-start helper deliberately allows 90s and CLI children 60s under saturated full-suite tsx compilation.
+// The outer budget must exceed those sequential inner budgets plus teardown, or Vitest preempts their captured
+// stdout/stderr. A former one-off 8s child deadline had the same flaw and produced an empty-output false red.
+const SATURATED_CLI_EXIT_TIMEOUT_MS = 60_000;
+const SATURATED_INTEGRATION_TEST_TIMEOUT_MS = 180_000;
 
 function resolveShutdownIpcHookPath(): string {
 	return resolve(process.cwd(), "test/integration/shutdown-ipc-hook.cjs");
@@ -251,7 +256,9 @@ async function runCliCommandAndCollectOutput(options: {
 }
 
 describe("source task commands", () => {
-	it("exits after creating a task when the runtime server is already running", { timeout: 60_000 }, async () => {
+	it("exits after creating a task when the runtime server is already running", {
+		timeout: SATURATED_INTEGRATION_TEST_TIMEOUT_MS,
+	}, async () => {
 		const { path: homeDir, cleanup: cleanupHome } = createTempDir("kanban-home-task-exit-");
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-task-exit-");
 
@@ -314,7 +321,7 @@ describe("source task commands", () => {
 					stderr += chunk.toString();
 				});
 
-				const didExit = await waitForExit(commandProcess, 8_000);
+				const didExit = await waitForExit(commandProcess, SATURATED_CLI_EXIT_TIMEOUT_MS);
 				if (!didExit) {
 					commandProcess.kill("SIGKILL");
 				}
@@ -336,7 +343,7 @@ describe("source task commands", () => {
 		}
 	});
 
-	it("opens only for launch invocations", { timeout: 60_000 }, async () => {
+	it("opens only for launch invocations", { timeout: SATURATED_INTEGRATION_TEST_TIMEOUT_MS }, async () => {
 		if (process.platform === "win32") {
 			return;
 		}
@@ -424,7 +431,9 @@ describe("source task commands", () => {
 		}
 	});
 
-	it("supports separate completed and trash columns when moving and deleting tasks", { timeout: 60_000 }, async () => {
+	it("supports separate completed and trash columns when moving and deleting tasks", {
+		timeout: SATURATED_INTEGRATION_TEST_TIMEOUT_MS,
+	}, async () => {
 		const { path: homeDir, cleanup: cleanupHome } = createTempDir("kanban-home-task-done-delete-");
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-task-done-delete-");
 
@@ -596,7 +605,9 @@ describe("source task commands", () => {
 		}
 	});
 
-	it("treats create-time reasoning inherit as no explicit override", { timeout: 60_000 }, async () => {
+	it("treats create-time reasoning inherit as no explicit override", {
+		timeout: SATURATED_INTEGRATION_TEST_TIMEOUT_MS,
+	}, async () => {
 		const { path: homeDir, cleanup: cleanupHome } = createTempDir("kanban-home-task-nklein-reasoning-");
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-task-nklein-reasoning-");
 

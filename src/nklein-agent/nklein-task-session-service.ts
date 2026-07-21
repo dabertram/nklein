@@ -29,10 +29,11 @@ import {
 	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
 	DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL,
 } from "../config/runtime-config-retrieval-resolver";
-import { buildTransitionEvent } from "../core/agent-attempt-ledger";
+import { buildRetryStrategyEvent, buildTransitionEvent } from "../core/agent-attempt-ledger";
 import {
 	buildAttemptRetryNoteFromLedger,
 	buildModelBehaviorProfilesFromLedger,
+	buildStrategyEffectivenessLedgersFromLedger,
 } from "../core/agent-ledger-projections";
 import type { McpAccess, SandboxNetworkPolicy } from "../core/agent-rulesets";
 import type {
@@ -51,10 +52,19 @@ import { ATTEMPT_STARTED_CATEGORY } from "../core/card-tracking-coverage";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { currentFocusChainStep, type FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
-import { emptyModelBehaviorProfile, type ModelBehaviorProfile } from "../core/model-behavior-profile";
+import {
+	emptyModelBehaviorProfile,
+	type ModelBehaviorProfile,
+	type ModelOutcomeKind,
+} from "../core/model-behavior-profile";
 import { applyThinkingDisable } from "../core/model-thinking-control";
 import { assessPredictedExecution } from "../core/predicted-execution-check";
 import type { PromptFragment } from "../core/prompt-fragment-assembly";
+import {
+	emptyStrategyEffectivenessLedger,
+	type StrategyAttemptObservation,
+	type StrategyEffectivenessLedger,
+} from "../core/strategy-effectiveness-ledger";
 import { didCreditLimitJustTrigger, shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
@@ -120,7 +130,7 @@ import {
 	type NKleinMessageRepository,
 } from "./nklein-message-repository";
 import { createModelFailoverController } from "./nklein-model-failover-controller";
-import { buildSharedLocalEndpointId } from "./nklein-model-registry";
+import { buildNKleinModelRegistryKey, buildSharedLocalEndpointId } from "./nklein-model-registry";
 import { createModelResidencyWatcher } from "./nklein-model-residency-watcher";
 import { createParkController } from "./nklein-park-controller";
 import { NKleinPauseController } from "./nklein-pause-controller";
@@ -1033,23 +1043,78 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	private async buildAttemptRetryContext(
 		taskId: string,
+		providerId: string,
 		modelId: string,
-	): Promise<{ note: string | null; profile: ModelBehaviorProfile }> {
+		endpoint: string | null,
+		taskKind: string,
+	): Promise<{
+		note: string | null;
+		profile: ModelBehaviorProfile;
+		strategyLedger: StrategyEffectivenessLedger;
+	}> {
+		const ledgerModelId = this.resolveLedgerModelId(providerId, modelId, endpoint);
+		const empty = () => ({
+			note: null,
+			profile: emptyModelBehaviorProfile(ledgerModelId, 0),
+			strategyLedger: emptyStrategyEffectivenessLedger(ledgerModelId, 0, taskKind),
+		});
 		if (this.diagnosticStoreRoot) {
 			try {
 				if (!readdirSync(this.diagnosticStoreRoot).some((file) => file.endsWith(".jsonl"))) {
-					return { note: null, profile: emptyModelBehaviorProfile(modelId, 0) };
+					return empty();
 				}
 			} catch {
-				return { note: null, profile: emptyModelBehaviorProfile(modelId, 0) };
+				return empty();
 			}
 		}
 		const events = await readAllAgentLedger({ rootDir: this.diagnosticStoreRoot }).catch(() => []);
 		const note = buildAttemptRetryNoteFromLedger(events, { workflowId: taskId }).trim();
 		const profile =
-			buildModelBehaviorProfilesFromLedger(events).find((candidate) => candidate.modelId === modelId) ??
-			emptyModelBehaviorProfile(modelId, 0);
-		return { note: note.length > 0 ? note : null, profile };
+			buildModelBehaviorProfilesFromLedger(events).find((candidate) => candidate.modelId === ledgerModelId) ??
+			emptyModelBehaviorProfile(ledgerModelId, 0);
+		const strategyLedger =
+			buildStrategyEffectivenessLedgersFromLedger(events).find(
+				(candidate) => candidate.modelId === ledgerModelId && candidate.taskKind === taskKind,
+			) ?? emptyStrategyEffectivenessLedger(ledgerModelId, 0, taskKind);
+		return { note: note.length > 0 ? note : null, profile, strategyLedger };
+	}
+
+	private resolveLedgerModelId(providerId: string, modelId: string, endpoint: string | null): string {
+		const stableModelId = isEnabledByDefaultEnv(process.env.NKLEIN_STABLE_ROUTING_KEY)
+			? resolveStableRoutingModelId(modelId)
+			: modelId;
+		return buildNKleinModelRegistryKey({ providerId, modelId: stableModelId, endpoint: endpoint ?? "" });
+	}
+
+	private recordRetryStrategyOutcome(input: {
+		taskId: string;
+		workspacePath: string | null;
+		providerId: string;
+		modelId: string;
+		endpoint: string | null;
+		role: string;
+		observation: StrategyAttemptObservation & { strategyLabel: string | null; resultOutcome: ModelOutcomeKind };
+	}): void {
+		try {
+			void appendAgentLedgerEvent(
+				buildRetryStrategyEvent({
+					workflowId: input.taskId,
+					taskId: input.taskId,
+					workspacePathHash: hashWorkspacePathForLedger(input.workspacePath),
+					role: input.role,
+					modelId: this.resolveLedgerModelId(input.providerId, input.modelId, input.endpoint),
+					triggerOutcome: input.observation.outcome,
+					strategy: input.observation.strategy,
+					strategyLabel: input.observation.strategyLabel,
+					resultOutcome: input.observation.resultOutcome,
+					durationMs: input.observation.durationMs,
+					totalTokens: input.observation.totalTokens,
+				}),
+				{ rootDir: this.diagnosticStoreRoot },
+			).catch(() => {});
+		} catch {
+			// Observational durability must never alter the model turn.
+		}
 	}
 
 	private async withModelTurnAdmission<T>(
@@ -1219,7 +1284,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// (the byte-stable, volatility-ordered fragment assembly lives in the pure `buildSessionSystemPrompt`). This
 		// restart seam also builds the SYNTHETIC sessions (`::review`/`::plan-critique`/`::merge` — kind derived from
 		// the task-id suffix) and bakes the lean/full efficiency-rules level; it carries no planning/skill fragments.
-		const attemptRetryContext = await this.buildAttemptRetryContext(input.taskId, launchConfig.modelId);
+		const role = resolveNKleinTaskRole(input.taskId, this.explicitDecompositionTaskIds.has(input.taskId));
+		const attemptRetryContext = await this.buildAttemptRetryContext(
+			input.taskId,
+			launchConfig.providerId,
+			launchConfig.modelId,
+			launchConfig.baseUrl ?? null,
+			role,
+		);
 		const attemptRetryNote = attemptRetryContext.note;
 		const systemPrompt = this.promptWarmthLedger.assembleAndRecord(
 			this.buildSessionSystemPromptInput({
@@ -1357,8 +1429,19 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				providerId: launchConfig.providerId,
 				modelId: launchConfig.modelId,
 				behaviorProfile: attemptRetryContext.profile,
-				role: resolveNKleinTaskRole(input.taskId, this.explicitDecompositionTaskIds.has(input.taskId)),
+				strategyEffectivenessLedger: attemptRetryContext.strategyLedger,
+				role,
 				onPromptStrategyApplied: (strategy) => this.noteNextAttemptStrategy(input.taskId, strategy),
+				onRetryStrategyOutcome: (observation) =>
+					this.recordRetryStrategyOutcome({
+						taskId: input.taskId,
+						workspacePath: hostWorkspaceRoot,
+						providerId: launchConfig.providerId,
+						modelId: launchConfig.modelId,
+						endpoint: launchConfig.baseUrl ?? null,
+						role,
+						observation,
+					}),
 				mode: input.mode,
 				apiKey: launchConfig.apiKey,
 				baseUrl: launchConfig.baseUrl,
@@ -1910,7 +1993,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				} else {
 					this.surfacedSkillIdsByTaskId.delete(request.taskId);
 				}
-				const attemptRetryContext = await this.buildAttemptRetryContext(request.taskId, modelId);
+				const role = resolveNKleinTaskRole(request.taskId, this.explicitDecompositionTaskIds.has(request.taskId));
+				const attemptRetryContext = await this.buildAttemptRetryContext(
+					request.taskId,
+					providerId,
+					modelId,
+					endpoint,
+					role,
+				);
 				const attemptRetryNote = attemptRetryContext.note;
 				const systemPrompt = this.promptWarmthLedger.assembleAndRecord(
 					this.buildSessionSystemPromptInput({
@@ -2033,8 +2123,19 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							providerId,
 							modelId,
 							behaviorProfile: attemptRetryContext.profile,
-							role: resolveNKleinTaskRole(request.taskId, this.explicitDecompositionTaskIds.has(request.taskId)),
+							strategyEffectivenessLedger: attemptRetryContext.strategyLedger,
+							role,
 							onPromptStrategyApplied: (strategy) => this.noteNextAttemptStrategy(request.taskId, strategy),
+							onRetryStrategyOutcome: (observation) =>
+								this.recordRetryStrategyOutcome({
+									taskId: request.taskId,
+									workspacePath: request.workspaceRoot ?? request.cwd,
+									providerId,
+									modelId,
+									endpoint,
+									role,
+									observation,
+								}),
 							mode: resolvedMode,
 							apiKey: request.apiKey,
 							baseUrl: request.baseUrl,

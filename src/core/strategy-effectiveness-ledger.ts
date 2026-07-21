@@ -13,9 +13,9 @@
  * entirely (an untried rung keeps its hand-authored priority — cold-start = the proven order).
  *
  * Deliberately PURE + deterministic (an online fold + a stable ordering over plain observations), persistence-free like
- * its `model-behavior-profile` sibling: a thin JSON store in the runtime home wraps it, and the §5.AF ledger's terminal
- * `attempt` events are the observation stream (rung tried → whether it succeeded). Composes with the existing
- * `RetryStrategy` + `ModelOutcomeKind` types (no edits to those files).
+ * its `model-behavior-profile` sibling: the §5.AF append-only Agent Attempt Ledger owns durability, and its fine-grained
+ * `retry` events are the observation stream (trigger → rung → result + cost). Composes with the shared `RetryStrategy`
+ * + `ModelOutcomeKind` vocabulary.
  */
 
 import type { ModelOutcomeKind } from "./model-behavior-profile";
@@ -34,11 +34,19 @@ export interface StrategyEffectivenessCell {
 	attempts: number;
 	/** How many of those attempts recovered the model (a subsequent success). */
 	successes: number;
+	/** Wall-time evidence for this rung; samples are separate because legacy/provider turns may omit cost. */
+	durationSamples: number;
+	totalDurationMs: number;
+	/** Token-cost evidence (input + output), likewise optional per observation. */
+	tokenSamples: number;
+	totalTokens: number;
 }
 
 /** A per-model, per-`(outcome, strategy)` effectiveness ledger. Keyed `"<outcome>::<strategy>"` for O(1) lookup. */
 export interface StrategyEffectivenessLedger {
 	modelId: string;
+	/** Role/task class whose retry behavior this ledger describes (worker/reviewer/architect/unknown). */
+	taskKind: string;
 	/** Sparse cells — only `(outcome, strategy)` pairs actually observed appear. */
 	cells: Record<string, StrategyEffectivenessCell>;
 	updatedAt: number;
@@ -50,19 +58,30 @@ export interface StrategyAttemptObservation {
 	strategy: RetryStrategy;
 	/** Whether the rung recovered the model (the attempt it drove ended in a success). */
 	recovered: boolean;
+	/** Measured wall time and token cost for the rung, when the provider exposed them. */
+	durationMs?: number | null;
+	totalTokens?: number | null;
 }
 
-/** `park` is a terminal give-up, never a remedy we could "learn works" — it is excluded from effectiveness learning. */
+/**
+ * Learn only remedies executed by the SAME model turn. `cross_model_carry` and `decompose` are orchestration-level
+ * escalations: charging their result to either the source or target model would corrupt a per-model estimate. `park` is
+ * terminal give-up, not a remedy. Those rungs stay in the curated ladder but cannot acquire bogus model-local evidence.
+ */
 function isLearnableStrategy(strategy: RetryStrategy): boolean {
-	return strategy !== "park";
+	return strategy !== "cross_model_carry" && strategy !== "decompose" && strategy !== "park";
 }
 
 function cellKey(outcome: ModelOutcomeKind, strategy: RetryStrategy): string {
 	return `${outcome}::${strategy}`;
 }
 
-export function emptyStrategyEffectivenessLedger(modelId: string, now = 0): StrategyEffectivenessLedger {
-	return { modelId, cells: {}, updatedAt: now };
+export function emptyStrategyEffectivenessLedger(
+	modelId: string,
+	now = 0,
+	taskKind = "unknown",
+): StrategyEffectivenessLedger {
+	return { modelId, taskKind, cells: {}, updatedAt: now };
 }
 
 export interface StrategyEffectivenessUpdateOptions {
@@ -71,8 +90,8 @@ export interface StrategyEffectivenessUpdateOptions {
 
 /**
  * Fold ONE observed remedy attempt into the ledger (pure — returns a new ledger, never mutates the input). Increments
- * the `(outcome, strategy)` cell's `attempts`, and its `successes` when the rung recovered the model. A `park`
- * observation (or a `success` "failure mode", which has no remedy) is a no-op — those aren't remedy rungs to learn.
+ * the `(outcome, strategy)` cell's `attempts`, and its `successes` when the rung recovered the model. An orchestration
+ * rung or a `success` "failure mode" is a no-op — those aren't same-model remedies to learn.
  */
 export function recordStrategyOutcome(
 	ledger: StrategyEffectivenessLedger,
@@ -81,7 +100,7 @@ export function recordStrategyOutcome(
 ): StrategyEffectivenessLedger {
 	const now = options.now?.() ?? ledger.updatedAt;
 	if (!isLearnableStrategy(observation.strategy) || observation.outcome === "success") {
-		return { modelId: ledger.modelId, cells: ledger.cells, updatedAt: now };
+		return { modelId: ledger.modelId, taskKind: ledger.taskKind, cells: ledger.cells, updatedAt: now };
 	}
 	const key = cellKey(observation.outcome, observation.strategy);
 	const prior = ledger.cells[key] ?? {
@@ -89,18 +108,33 @@ export function recordStrategyOutcome(
 		strategy: observation.strategy,
 		attempts: 0,
 		successes: 0,
+		durationSamples: 0,
+		totalDurationMs: 0,
+		tokenSamples: 0,
+		totalTokens: 0,
 	};
+	const durationMs = finiteNonNegative(observation.durationMs);
+	const totalTokens = finiteNonNegative(observation.totalTokens);
 	const nextCell: StrategyEffectivenessCell = {
 		outcome: observation.outcome,
 		strategy: observation.strategy,
 		attempts: prior.attempts + 1,
 		successes: prior.successes + (observation.recovered ? 1 : 0),
+		durationSamples: prior.durationSamples + (durationMs === null ? 0 : 1),
+		totalDurationMs: prior.totalDurationMs + (durationMs ?? 0),
+		tokenSamples: prior.tokenSamples + (totalTokens === null ? 0 : 1),
+		totalTokens: prior.totalTokens + (totalTokens ?? 0),
 	};
 	return {
 		modelId: ledger.modelId,
+		taskKind: ledger.taskKind,
 		cells: { ...ledger.cells, [key]: nextCell },
 		updatedAt: now,
 	};
+}
+
+function finiteNonNegative(value: number | null | undefined): number | null {
+	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
 export interface StrategyEffectivenessEstimateOptions {
@@ -147,6 +181,24 @@ export function strategyObservationCount(
 	return ledger.cells[cellKey(outcome, strategy)]?.attempts ?? 0;
 }
 
+export interface StrategyAverageCost {
+	durationMs: number | null;
+	totalTokens: number | null;
+}
+
+/** Mean observed wall/token cost for one rung; null means that cost channel has no evidence. */
+export function strategyAverageCost(
+	ledger: StrategyEffectivenessLedger,
+	outcome: ModelOutcomeKind,
+	strategy: RetryStrategy,
+): StrategyAverageCost {
+	const cell = ledger.cells[cellKey(outcome, strategy)];
+	return {
+		durationMs: cell && cell.durationSamples > 0 ? cell.totalDurationMs / cell.durationSamples : null,
+		totalTokens: cell && cell.tokenSamples > 0 ? cell.totalTokens / cell.tokenSamples : null,
+	};
+}
+
 export interface OrderLadderOptions extends StrategyEffectivenessEstimateOptions {
 	/**
 	 * The minimum posterior-mean effectiveness advantage a rung must have over another to jump ahead of it. Below this
@@ -156,9 +208,11 @@ export interface OrderLadderOptions extends StrategyEffectivenessEstimateOptions
 	reorderMargin?: number;
 	/**
 	 * Minimum observations a rung needs before its learned rate is trusted enough to reorder. A rung with fewer attempts
-	 * keeps its curated priority (cold-start safety — one observation shouldn't leapfrog a proven rung). Default 1.
+	 * keeps its curated priority (cold-start safety — one observation shouldn't leapfrog a proven rung). Default 4.
 	 */
 	minObservations?: number;
+	/** Minimum relative cost advantage needed to reorder equally-effective trusted rungs. Default 0.10 (10%). */
+	costReorderMarginFraction?: number;
 }
 
 /**
@@ -176,16 +230,19 @@ export function orderLadderByEffectiveness(
 	options: OrderLadderOptions = {},
 ): RetryStrategy[] {
 	const reorderMargin = Math.max(0, options.reorderMargin ?? 0.05);
-	const minObservations = Math.max(0, Math.trunc(options.minObservations ?? 1));
+	const minObservations = Math.max(1, Math.trunc(options.minObservations ?? 4));
+	const costMargin = Math.max(0, options.costReorderMarginFraction ?? 0.1);
 	const ladder = retryLadderForOutcome(outcome);
 
 	// Precompute each rung's curated index (the tie-break) + its trusted effectiveness (only if enough evidence backs it;
 	// otherwise it keeps the neutral prior so an unproven rung neither rises nor sinks relative to other unproven ones).
 	const curatedIndex = new Map<RetryStrategy, number>();
 	const effectiveness = new Map<RetryStrategy, number>();
+	const trusted = new Map<RetryStrategy, boolean>();
 	ladder.forEach((strategy, index) => {
 		curatedIndex.set(strategy, index);
 		const observed = strategyObservationCount(ledger, outcome, strategy) >= minObservations;
+		trusted.set(strategy, observed);
 		effectiveness.set(strategy, observed ? strategyEffectiveness(ledger, outcome, strategy, options) : 0.5);
 	});
 
@@ -207,8 +264,26 @@ export function orderLadderByEffectiveness(
 		if (bucketDelta !== 0) {
 			return bucketDelta;
 		}
+		// Success probability is primary. Cost only breaks an effectiveness tie when BOTH rungs have enough evidence;
+		// an unknown/one-off cost must never defeat the curated order. Wall time is the scarce local resource, tokens
+		// are the secondary tie-break, and a noise-level cost delta below the relative margin is ignored.
+		if (trusted.get(a) && trusted.get(b)) {
+			const aCost = strategyAverageCost(ledger, outcome, a);
+			const bCost = strategyAverageCost(ledger, outcome, b);
+			const durationOrder = compareCost(aCost.durationMs, bCost.durationMs, costMargin);
+			if (durationOrder !== 0) return durationOrder;
+			const tokenOrder = compareCost(aCost.totalTokens, bCost.totalTokens, costMargin);
+			if (tokenOrder !== 0) return tokenOrder;
+		}
 		return (curatedIndex.get(a) ?? 0) - (curatedIndex.get(b) ?? 0); // stable: preserve hand-authored priority
 	});
+}
+
+function compareCost(left: number | null, right: number | null, marginFraction: number): number {
+	if (left === null || right === null || left === right) return 0;
+	const relativeDifference = Math.abs(left - right) / Math.max(left, right, 1);
+	if (relativeDifference < marginFraction) return 0;
+	return left - right;
 }
 
 /**
