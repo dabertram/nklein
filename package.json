@@ -81,6 +81,8 @@
     "verify:long-memory": "tsx scripts/verify-long-memory-eval.mts",
     "verify:decomposition-freshness": "tsx scripts/verify-decomposition-freshness.mts",
     "verify:synthesis-evidence-quality": "tsx scripts/verify-synthesis-evidence-quality.mts",
+    "benchmark:setup": "sh scripts/setup-swebench-harness.sh",
+    "benchmark:fetch": "benchmark-harness/.venv/bin/python scripts/fetch-swebench-dataset.py",
     "prepare": "husky",
     "prepublishOnly": "npm run build && npm run check"
   },

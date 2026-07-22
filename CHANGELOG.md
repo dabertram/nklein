@@ -2,6 +2,14 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Repository benchmark runs now have a leakage-safe, native-ARM harness.** `nklein dev benchmark` prepares bounded
+  revision-pinned task slices, materializes sealed networkless workspaces from local mirrors, captures delivered diffs
+  in the official prediction schema, and delegates grading to a locked SWE-bench 4.1.0 environment. Gold patches must
+  pass repeated calibration before any candidate run; unstable/erroring cases are quarantined, infrastructure absence
+  is inconclusive, and regression gates compare resolved-set deltas rather than contaminated absolute scores. Agent
+  prompts cannot carry gold, hints, private test patches, or oracle test ids, and Apple Silicon forces native local
+  image builds while marking QEMU-tainted results non-comparable.
+
 - **Unfamiliar repositories now gain a durable local-model onboarding map.** The `repo_summary` tool summarizes
   function-like units into files, directories, and a project overview, then stores the result by content hash. An
   unchanged Merkle root needs no inference; an edit refreshes only the changed unit and its ancestors. Very wide files

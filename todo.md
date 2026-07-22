@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F11.2 closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F11.3 adapter closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 165-package remainder is **76 ready + 0 partial + 74 dependency-blocked + 8 external/
+  gate below is green. The current 158-package remainder is **69 ready + 0 partial + 74 dependency-blocked + 8 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -95,6 +95,14 @@ feature-completeness challenges, release checks, and required manual checks are 
 gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
+
+> **⚠️ REPOSITORY BENCHMARK TRUST HAS THREE SEPARATE BOUNDARIES (F11.3, 2026-07-22).** Acquisition is an explicit,
+> revision-pinned egress step; the agent sees a history-sealed, networkless workspace plus `problem_statement` only;
+> grading runs outside that workspace through the pinned official parser. Never put gold, hints, `test_patch`, or oracle
+> test ids in the task object, and never let an in-sandbox green certify itself. On Apple Silicon force native local
+> image builds and label architecture mismatch QEMU-tainted. Calibrate gold ≥2 times before candidate execution,
+> quarantine unresolved/flip/error/missing cases, and gate only calibrated resolved→unresolved deltas; infrastructure
+> absence is inconclusive. This is why a famous absolute benchmark score is weaker evidence than a clean paired delta.
 
 > **⚠️ CODE SEARCH MODALITIES ARE COMPLEMENTS, NOT FALLBACK QUALITY LEVELS (F11.2b, 2026-07-22).** Route exact
 > strings/errors/config keys to `search_code`; syntax shapes that must exclude comments and strings to tree-sitter
@@ -3638,53 +3646,32 @@ are the two biggest gaps between "works in a demo" and "works for real users on 
 first-class, plus a mandate to prove excellence against real benchmark codebases and to lean hard on aimock so testing
 stays fast + complete.
 
-- [ ] **F11.3 — Benchmark-driven validation on real challenging codebases (SWE-bench-style).** Fetch a spread of real
-  benchmark project codebases + tasks — SWE-bench / SWE-bench Verified (and similar: SWE-bench Lite, Multi-SWE, Commit0,
-  RepoBench, etc.) — spanning LOWEST → HIGHEST complexity/difficulty, and prove !Klein handles them all with ease and
-  excellence via F11.2. Build a repeatable harness (fetch task + repo at the base commit → run !Klein → check the task's
-  own acceptance/patch-eval) so it doubles as a regression gate. Start small (a few easy tasks, verify the loop end-to-end)
-  then widen the difficulty range; record per-task outcomes. Egress-gated fetch of the datasets is an operator step.
-  Composes with the §5.AB eval harness + the H7.2 failure catalog. (Note: SWE-bench tasks are Python-repo-heavy — confirm
-  the sandbox/toolchain handles their languages/build systems, extending F11.2 as needed.)
+- [ ] **F11.3 — Benchmark-driven validation on real challenging codebases (SWE-bench-style).** The source-agnostic,
+  leakage-safe adapter is shipped; the remaining outcome is a real calibrated tranche across the fit-for-fleet P20.9
+  suite: Aider polyglot daily paired A/B, Terminal-Bench harness checks, LiveCodeBench capability control, and
+  SWE-bench-Live Lite quarterly reality checks. Legacy SWE-bench Lite/Verified remain compatibility/A-B lanes, never
+  absolute evidence. Fetch a bounded revision-pinned slice, materialize its pre-fetched repos, run !Klein, grade outside
+  the agent sandbox, and record per-task outcomes from lowest through highest useful difficulty. Start small, verify the
+  full loop, then widen only while the local fleet retains a non-zero gradient. Dataset/repo egress remains an explicit
+  operator step. Composes with the §5.AB eval harness + H7.2 failure catalog.
   **RESEARCH-DERIVED HARNESS DESIGN (deep sweep 2026-07-17, ~46 lookups, sources inline). Task schema (SWE-bench/Lite/
   Verified identical): `instance_id`, `repo`, `base_commit`, `patch` (gold — NEVER shown), `test_patch` (harness applies,
   not the agent), `problem_statement` (the prompt), `hints_text` (WITHHOLD — leakage), `FAIL_TO_PASS`/`PASS_TO_PASS`.
   Resolve = 100% of FAIL_TO_PASS pass AND 100% of PASS_TO_PASS stay green. The harness only needs a git DIFF — !Klein
   already delivers reviewed diffs, so this is an ADAPTER around the `swebench` grading core, not a reimplementation.
-  Recommended start: Verified `"<15 min fix"` tier (194 instances) as smoke, Lite (300) as the gate.**
-  - [ ] **F11.3a — Vendor the `swebench` grading core (reuse `get_eval_report` + `MAP_REPO_TO_PARSER`).** Per-repo log
-    parsers are brittle with one-off hacks; a hand-rolled parser mis-grades. Depend on the swebench PyPI package for
-    GRADING only. (greynewell swe-bench-broken)
-  - [ ] **F11.3b — Instance fetcher + workspace builder + no-leakage prompt.** Load Verified/Lite from HuggingFace, check
-    out `repo@base_commit` into a Docker workspace, apply `test_patch`, hand !Klein ONLY `problem_statement` (withhold
-    `patch` + `hints_text` — ~32.7% of "solved" instances have the fix present in the issue/hints). (swebench datasets guide; contamination 2603.21454)
-  - [ ] **F11.3c — Prediction adapter.** Capture !Klein's delivered diff as `model_patch` → `{instance_id,
-    model_name_or_path, model_patch}` JSONL (mirrors mini-swe-agent's `preds.json`). One thin seam. (mini-swe-agent swebench)
-  - [ ] **F11.3d — Difficulty-tiered subset selector.** Filter the HF `difficulty` column (`<15 min fix` / `15min–1hr` /
-    `1–4hr` / `>4hr`); start on `<15 min` (194 Verified), promote to Lite; `--instance_ids` for pinned CI subsets. Small
-    models get ~0% on hard tasks — the easy tier is where they show signal. (jatinganhotra difficulty-analysis)
-  - [ ] **F11.3e — Apple-Silicon Docker strategy (CRITICAL — !Klein runs M-series).** DockerHub images are x86 → QEMU
-    emulation on ARM (~6× slower, some non-Python repos won't build). Default to `--namespace ''` (build locally) or pull
-    native arm64 image sets (Epoch `ghcr.io/epoch-research`; `greynewell/swe-bench-fast`); detect + flag QEMU fallbacks.
-    (greynewell arm64-native; swebench README reqs)
-  - [ ] **F11.3f — Gold-patch calibration + flaky quarantine (mandatory).** Even the GOLD patch is non-deterministic
-    (~14–15/500 Verified unresolved, varies run-to-run; ~11.3% of Lite flaky). Before trusting a run: evaluate `gold` on
-    the subset, drop instances where gold fails/flip-flops across 2–3 repeats, add retries + per-instance timeouts + low
-    `max_workers`. Without this the gate emits false regressions. (swebench gold-stability #294)
-  - [ ] **F11.3g — Repeatable CI regression gate (delta, not absolute).** Pin a fixed ~20–40-instance easy-Verified set,
-    snapshot the baseline RESOLVED-set + per-instance status, fail CI ONLY on a resolved→unresolved regression (not on
-    absolute score); run full-Lite nightly (~8s/instance on native images). (epoch swebench-docker)
+  Historical recommended start was Verified `"<15 min fix"`; after the 2026 evidence audit, start with a 20–40 task
+  fit-for-fleet slice and treat legacy scores only as paired comparisons.**
+  - [ ] **F11.3g — Pin and run the repeatable regression tranche (delta, not absolute).** Select a fixed ~20–40 task
+    fit-for-fleet set, complete ≥2 gold repeats, quarantine every unstable instance, snapshot the calibrated RESOLVED
+    set + per-instance status, and wire it into CI/nightly. Fail only a resolved→unresolved regression; infrastructure
+    absence stays inconclusive. Use Aider for daily paired A/B and native SWE-bench-Live Lite for the quarterly repo gate;
+    legacy easy-Verified may remain an explicitly contamination-limited compatibility lane.
   - [ ] **F11.3h — Contamination-aware fresh-set track.** Verified is >94% pre-model-cutoff + partly leaked (models recall
     file paths). Add a rolling SWE-bench-Live / SWE-rebench fresh-window gate (tasks post-dating cutoffs) as the HONEST
     "reasons vs recalls" measure; log leakage hits. (SWE-bench-Live; SWE-rebench 2505.20411)
   - [ ] **F11.3i — SWE-smith local task-minting (leak-free, in-domain, aligns with local-only).** Generate !Klein-owned
     SWE-bench-style instances from the USER's own target repos (break a test → task) for a private, contamination-free
     gate — directly serves "prove excellence on real repos" without egress. (SWE-smith)
-  - [ ] **F11.3j — Reference the mini-swe-agent adapter pattern + set small-model expectations.** mini-swe-agent (100 lines,
-    bash-only, litellm → LM Studio `openai/<name>` @ localhost:1234, >74% Verified on strong models) is the ideal local
-    reference; Agentless (localize→repair→validate, deterministic, $0.34/issue) is the non-agentic pipeline. Expect LOW
-    absolutes for a 4B–32B fleet (Qwen2.5-Coder-7B ~5.8% Verified) — the harness + measured DELTAS/pass@k are the F11.3
-    deliverable, not a headline score. (mini-swe-agent; Agentless; modal small-model-results)
 - [ ] **F11.4 — Make aimock a first-class accelerator for COMPLETE, fast testing.** aimock (the recorded/synthetic model
   responder) already backs the dev-test scenario suite; extend its use so testing stays fast + comprehensive as F11.1–F11.3
   land: (a) record real-model transcripts from the F11.3 benchmark runs into aimock fixtures so the full onboarding →

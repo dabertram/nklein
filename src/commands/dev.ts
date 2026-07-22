@@ -41,6 +41,7 @@ import { readModelPerformanceStats } from "../telemetry/model-performance-stats"
 import type { RuntimeAppRouter } from "../trpc/app-router";
 import { runDevAblationCommand } from "./dev-ablation-command";
 import { runDevAiBomCommand } from "./dev-ai-bom-command";
+import { runDevBenchmarkCommand } from "./dev-benchmark-command";
 import { runDevCacheCheckCommand } from "./dev-cache-check-command";
 import { runDevCapabilityIndexCommand } from "./dev-capability-index-command";
 import { runDevCardTimelineCommand } from "./dev-card-timeline-command";
@@ -1186,6 +1187,43 @@ export function registerDevCommand(program: Command): void {
 		.action(async (options: { json?: boolean }) => {
 			await runDevEvidenceCommand(options);
 		});
+	dev.command("benchmark")
+		.description("F11.3 repository-benchmark adapter: prepare, materialize, grade, calibrate, and delta-gate.")
+		.argument("<action>", "prepare|prediction|workspace|plan|calibrate|gate")
+		.option("--dataset <file>", "Local JSON/JSONL task dataset (fetching is a separate egress-gated operator step).")
+		.option("--dataset-name <name>", "Official grader dataset name/path.")
+		.option("--source <kind>", "swebench_legacy|swebench_live|local_minted.")
+		.option("--output <file>", "Output manifest or prediction JSONL.")
+		.option("--instance <id>", "One benchmark instance id.")
+		.option("--instance-ids <csv>", "Pinned instance ids.")
+		.option("--difficulty <csv>", "under_15m|15m_to_1h|1h_to_4h|over_4h|unknown.")
+		.option("--fresh-after <date>", "Only dated instances at/after this contamination cutoff.")
+		.option("--limit <n>", "Deterministic selection cap.")
+		.option("--repo-cache <dir>", "Pre-fetched local bare-mirror directory.")
+		.option("--workspace-parent <dir>", "Parent for sealed benchmark workspaces.")
+		.option("--image <name>", "Pinned !Klein sandbox image.")
+		.option("--model <name>", "Model/harness name for a prediction.")
+		.option("--patch <file>", "Delivered diff to adapt into prediction JSONL.")
+		.option("--predictions <file>", "Prediction JSONL path, or gold.")
+		.option("--run-id <id>", "Official grader run id.")
+		.option("--report-dir <dir>", "Official grader report directory.")
+		.option("--python <path>", "Pinned benchmark Python interpreter.")
+		.option("--max-workers <n>", "Low official-grader parallelism (1–4).")
+		.option("--timeout <seconds>", "Per-instance official-grader timeout.")
+		.option("--attempts <jsonl>", "Gold calibration attempts.")
+		.option("--reports <csv>", "Official schema-v2 gold reports (one per repeat).")
+		.option("--baseline <json>", "Baseline instance-status map.")
+		.option("--current <json>", "Current instance-status map.")
+		.option("--quarantine <json>", "Quarantined instance-id array.")
+		.option("--calibration <json>", "Gold calibration output required before candidate execution.")
+		.option("--replace", "Replace an existing prediction for the same instance.")
+		.option("--execute", "Deliberately execute the official grader after its pinned compatibility probe.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(
+			async (action: string, options: Omit<import("./dev-benchmark-command").DevBenchmarkOptions, "action">) => {
+				await runDevBenchmarkCommand({ ...options, action });
+			},
+		);
 	dev.command("requirement-coverage")
 		.description(
 			"P15.7b: do ALL elements of a tracked requirement reach production? (a FAIL here is compatible with a green suite).",

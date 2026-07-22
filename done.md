@@ -2802,3 +2802,46 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   ego-graph localization, AST-aware indexing, architecture-grounded decomposition, acceptance via repository-owned
   commands, few-shot conventions, explorer citations, monorepo scoping, and the incremental hierarchical onboarding
   artifact. F11.3 owns the remaining real-repository benchmark campaign; it is validation, not missing substrate.
+
+- [x] **F11.3a — pinned official SWE-bench grading core** *(delivered 2026-07-22).* A dedicated Python 3.12 environment
+  is fully locked through uv at SWE-bench 4.1.0 and kept outside the production Node runtime. Its fail-fast probe imports
+  the official `get_eval_report` and 64-entry `MAP_REPO_TO_PARSER`; the live setup completed successfully. Evaluation
+  plans invoke the official module, and schema-v2 run reports are converted to statuses without parsing test logs again.
+
+- [x] **F11.3b — bounded instance fetch, sealed workspace, and no-leak prompt** *(delivered 2026-07-22).* The explicit
+  egress command requires a Hugging Face commit SHA, caps retention, records selected ids plus SHA-256 provenance, mode-
+  protects oracle JSONL, and requires a contamination acknowledgment for legacy datasets. Runtime accepts only a local
+  pre-fetched bare mirror. Checkout, history removal, clean baseline initialization, test-patch application, and commits
+  all run as argv-only commands in the pinned sandbox image with network none, a read-only root, no capabilities,
+  no-new-privileges, and hard CPU/memory/PID bounds. Upstream history is replaced by a sealed baseline, temporary oracle
+  mounts are destroyed, failures remove only the exact newly owned workspace, and occupied paths are preserved. The
+  agent task object structurally contains only `problem_statement`, never gold, hints, test patches, or oracle test ids.
+
+- [x] **F11.3c — official prediction adapter** *(delivered 2026-07-22).* `nklein dev benchmark prediction` captures a
+  delivered diff as `{instance_id, model_name_or_path, model_patch}` JSONL, writes atomically, sorts deterministically,
+  refuses duplicate ids, and requires an explicit `--replace` for replacement.
+
+- [x] **F11.3d — deterministic difficulty/freshness/instance selector** *(delivered 2026-07-22).* Local JSON/JSONL
+  ingestion validates the official schema, normalizes the four legacy repair-time tiers, filters pinned ids and fresh
+  dates, applies a bounded deterministic limit, and fails if any requested id disappears through a filter. Modern Live
+  rows whose difficulty is structural rather than time-based remain honestly `unknown` instead of being guessed.
+
+- [x] **F11.3e — native Apple-Silicon grading strategy** *(delivered 2026-07-22).* Official evaluation plans detect host
+  and Docker architecture, pass `--namespace ''` on ARM to force local native image builds, label architecture mismatch
+  as QEMU-tainted/non-comparable, cap workers at four, and impose per-instance timeouts. A live plan on this M-series
+  host reported native `arm64`/`aarch64` with no warning.
+
+- [x] **F11.3f — mandatory gold calibration and flaky quarantine core** *(delivered 2026-07-22).* Two or more distinct
+  official gold reports classify every task as stable or quarantined; missing repeats, unresolved gold, flip-flops, and
+  infrastructure/grader errors all quarantine. Candidate execution refuses to start without a calibration file covering
+  every selected id. The delta gate treats infrastructure absence as inconclusive rather than a false pass/regression.
+
+- [x] **F11.3j — local-agent adapter expectations documented** *(delivered 2026-07-22).* The maintained repository-
+  benchmark guide records the source-agnostic flow and P20.9 benchmark mix, keeping SWE-bench as a compatibility grader
+  rather than the product's measurement strategy. It sets low local-model absolute expectations and mandates paired
+  deltas plus `pass^k`, never headline `pass@k`. F11.3g/h/i retain the real campaign, fresh-set and local-minting work.
+  Evidence across F11.3a–f/j: 21 focused TypeScript assertions, backend/web typechecks, fast 12,223/12,223, protected
+  142/142, lint with zero errors, Python compile/help checks, locked environment installation, official import probe,
+  CLI help, and a native ARM evaluation-plan smoke all pass. A real ten-step `--network none` Docker materialization
+  from a local bare mirror left a clean worktree with exactly the sealed baseline + harness-test commits and no retained
+  private patch mount.
