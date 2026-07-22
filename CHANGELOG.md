@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Architectural comparisons now publish complete harness cards and clear a cheap retry baseline first.** A paired
+  best-of-three evaluator gives fixed and temperature-ramped retries identical budgets, alternates arm order by task,
+  checkpoints every attempt, and separates provider failures from returned-but-unscorable model output. On the
+  Legion-hosted Qwopus 9B coder, fixed retries passed 12/12 role-eval tasks versus 11/12 for the 0→0.2→0.4 ramp; the
+  descriptive 12-task result makes no architectural superiority claim and prevents retries from becoming a silent
+  advantage in future comparisons.
+
 - **Sandbox memory limits now distinguish steady pressure from the OOM kill threshold.** Containers receive a soft
   reservation and a separate hard ceiling with operational 3× headroom; equal values are rejected, swap beyond the
   ceiling is disabled, and setup guidance publishes both numbers so eval infrastructure is reproducible.

@@ -2442,3 +2442,40 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   publish both values and label the 3× split operational, not measured. Live Docker inspection with a 32 MiB
   reservation / 96 MiB kill threshold reported exactly 33,554,432 / 100,663,296 bytes and MemorySwap 100,663,296;
   the exact test container and volume were removed afterward.
+
+- [x] **P20.8 — Harness Card + baseline discipline before claiming ANY architectural win.** arXiv 2605.23950
+  (3 models × 3 harness configs on SWE-bench Verified): **harness variance was 7.80× MODEL variance** (18.48 pp²
+  vs 2.37 pp²) and **model rankings REVERSED in 6 of 9 comparisons**; HAL reports up to **34 pp** cross-scaffold
+  spread for one model. Publish an ETCSOVG Harness Card (Execution, Tool, Context, Scheduling, Observability,
+  Verification, Governance) for every compared configuration. And run the trivial baselines first: "AI Agents That
+  Matter" (arXiv 2407.01502) found a plain retry-with-temperature-ramp baseline hitting **93.2% at $2.45** where
+  LATS got **88% at $134.50**. **Equalize retries before claiming a scaffold works — retries are the biggest
+  silent cheat.** Expect our harness/model variance ratio to be WORSE than 7.8× because small models sit near a
+  capability cliff that small scaffold changes push them across.
+  **CARD + COMPARABILITY CORE SHIPPED 2026-07-20: `harness-card.ts`, 11 tests.**
+  **THE UNCOMFORTABLE CONSEQUENCE, STATED PLAINLY: for most published agent results the HARNESS is the dominant
+  variable, and it is the one nobody describes.** With harness variance at 7.80× model variance and rankings
+  reversed in 6 of 9 comparisons, a claim of the form *"model X beats model Y"* is more often than not a claim
+  about two scaffolds that were never specified.
+  **UNEQUAL RETRY BUDGETS ARE `invalid`, NOT `confounded` — the one dimension promoted above the other seven.**
+  Retries buy score DIRECTLY and the purchase is invisible in the result: a plain retry-with-temperature-ramp
+  baseline reached **93.2% at $2.45** where LATS reached **88% at $134.50**. So `retryBudget` sits outside
+  `scheduling` as its own field, comparable at a glance rather than buried in prose, and a mismatch invalidates
+  the comparison even when every other dimension matches. Asserted to outrank other differences.
+  **THREE VERDICTS, NOT TWO. `confounded` is NOT a soft `invalid`** — a confounded comparison is worth running
+  when the differing dimension IS the thing being tested, provided it is REPORTED. **What is unacceptable is a
+  difference nobody names**, which is the state most published comparisons are in.
+  An empty dimension is a DEFECT, never "not applicable": *"we did not write it down"* and *"it does not apply"*
+  are different claims and **only the second is ever true** — every harness has an execution model and a
+  verification method whether or not anyone described them.
+  ⚠️ Expect this project's ratio to be WORSE than 7.8×: small models sit near a capability cliff, so the same
+  scaffold change that moves a frontier model two points can move a 14B model twenty.
+  **P20.8b COMPLETE 2026-07-22.** The earlier 60-pair few-shot comparison published complete cards for both
+  compared configurations. The reusable retry-baseline experiment now publishes two more complete cards, gives both
+  arms exactly two retries, alternates arm order per task, checkpoints every observation, and separates provider
+  failures from returned-but-unscorable model output. Live Legion/Qwopus evidence ran 72 attempts over 12 paired
+  role-eval tasks: fixed temperature passed 12/12, the 0→0.2→0.4 ramp passed 11/12, with zero infrastructure errors
+  and one returned-but-unscorable response. The result is explicitly `descriptive_baseline_only`: 12 tasks cannot
+  support an architectural win claim. Full cards, paired task results, and raw observations are published in
+  `docs/dev/p20.8-retry-baseline-2026-07-22.json`; controller runs `20260722-020938` and `20260722-022417` retained
+  the five-model fleet and exited with reconciled evidence 0.

@@ -93,6 +93,12 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ A NULL EVAL SCORE IS NOT AUTOMATICALLY AN INFRASTRUCTURE FAILURE (live-found P20.8, 2026-07-22).** A
+> request can complete successfully while the model returns output that the deterministic scorer cannot parse. Track
+> request/provider failure as `infra` and returned-but-unscorable output as model quality; collapsing both into infra
+> launders a weak format response out of the denominator and can fail an otherwise healthy experiment for the wrong
+> reason. The retry baseline records provenance per attempt and counts an unscorable response as score zero.
+
 > **⚠️ COMMUNITY SKILL LOADING IS A BOUNDED BYTE-READ BOUNDARY, NEVER AN EXECUTION OR ACTIVATION BOUNDARY (F4.20,
 > 2026-07-21).** Confine the requested skill directory lexically and by realpath, reject every symlink/special file,
 > enumerate every non-`SKILL.md` entry (including unexpected top-level files), and cap traversal count/depth, individual
@@ -7647,35 +7653,6 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Consumer status, stated plainly: the core has no caller yet. It belongs at the point a fleet A/B is DESIGNED,
   and no such surface exists — the sweeps are run by hand. That makes it `built_but_unwired`; it is queued for the
   P15.7b tracked-requirement map so `dev requirement-coverage` reports it rather than leaving it to be rediscovered.
-- [~] **P20.8 — Harness Card + baseline discipline before claiming ANY architectural win.** arXiv 2605.23950
-  (3 models × 3 harness configs on SWE-bench Verified): **harness variance was 7.80× MODEL variance** (18.48 pp²
-  vs 2.37 pp²) and **model rankings REVERSED in 6 of 9 comparisons**; HAL reports up to **34 pp** cross-scaffold
-  spread for one model. Publish an ETCSOVG Harness Card (Execution, Tool, Context, Scheduling, Observability,
-  Verification, Governance) for every compared configuration. And run the trivial baselines first: "AI Agents That
-  Matter" (arXiv 2407.01502) found a plain retry-with-temperature-ramp baseline hitting **93.2% at $2.45** where
-  LATS got **88% at $134.50**. **Equalize retries before claiming a scaffold works — retries are the biggest
-  silent cheat.** Expect our harness/model variance ratio to be WORSE than 7.8× because small models sit near a
-  capability cliff that small scaffold changes push them across.
-  **CARD + COMPARABILITY CORE SHIPPED 2026-07-20: `harness-card.ts`, 11 tests.**
-  **THE UNCOMFORTABLE CONSEQUENCE, STATED PLAINLY: for most published agent results the HARNESS is the dominant
-  variable, and it is the one nobody describes.** With harness variance at 7.80× model variance and rankings
-  reversed in 6 of 9 comparisons, a claim of the form *"model X beats model Y"* is more often than not a claim
-  about two scaffolds that were never specified.
-  **UNEQUAL RETRY BUDGETS ARE `invalid`, NOT `confounded` — the one dimension promoted above the other seven.**
-  Retries buy score DIRECTLY and the purchase is invisible in the result: a plain retry-with-temperature-ramp
-  baseline reached **93.2% at $2.45** where LATS reached **88% at $134.50**. So `retryBudget` sits outside
-  `scheduling` as its own field, comparable at a glance rather than buried in prose, and a mismatch invalidates
-  the comparison even when every other dimension matches. Asserted to outrank other differences.
-  **THREE VERDICTS, NOT TWO. `confounded` is NOT a soft `invalid`** — a confounded comparison is worth running
-  when the differing dimension IS the thing being tested, provided it is REPORTED. **What is unacceptable is a
-  difference nobody names**, which is the state most published comparisons are in.
-  An empty dimension is a DEFECT, never "not applicable": *"we did not write it down"* and *"it does not apply"*
-  are different claims and **only the second is ever true** — every harness has an execution model and a
-  verification method whether or not anyone described them.
-  ⚠️ Expect this project's ratio to be WORSE than 7.8×: small models sit near a capability cliff, so the same
-  scaffold change that moves a frontier model two points can move a 14B model twenty.
-  REMAINING (P20.8b): publish a filled card per compared configuration, and run the trivial retry baseline before
-  any scaffold claim. Both need real runs.
 - [x] **P20.9 — Benchmark selection for a local fleet (most of the field is unusable for us).** Two filters
   eliminate most candidates: **x86_64 Docker assumptions** (SWE-bench-family arm64 images are "best-effort,
   untested") and **no small-model signal** (SWE-bench Pro: Qwen-3 32B scores **3.4%** — a benchmark where our

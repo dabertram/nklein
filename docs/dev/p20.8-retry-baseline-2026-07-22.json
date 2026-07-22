@@ -1,0 +1,791 @@
+{
+  "experiment": "retry-baseline",
+  "model": "qwopus3.5-9b-coder-mtp",
+  "passBar": 0.6,
+  "fixedCard": {
+    "id": "retry-baseline/fixed_retry/qwopus3.5-9b-coder-mtp",
+    "execution": "LM Studio local OpenAI endpoint; temperature schedule [0, 0, 0]; max_tokens 512",
+    "tool": "the role-eval corpus's declared tool schema; no filesystem or network tools",
+    "context": "32768-token resident context; no compaction or retrieval; identical prompt bytes per pair",
+    "scheduling": "paired by task; three attempts per arm; arm order alternates by task index; one request at a time on one resident model",
+    "observability": "per-attempt task id, arm, attempt, temperature, deterministic score, latency, and infra failure",
+    "verification": "existing deterministic role-eval scorer; task passes when the best of three scores meets the declared bar",
+    "governance": "local-only; no egress; equal retry budgets; descriptive baseline only, never an architectural win claim",
+    "retryBudget": 2
+  },
+  "rampCard": {
+    "id": "retry-baseline/temperature_ramp/qwopus3.5-9b-coder-mtp",
+    "execution": "LM Studio local OpenAI endpoint; temperature schedule [0, 0.2, 0.4]; max_tokens 512",
+    "tool": "the role-eval corpus's declared tool schema; no filesystem or network tools",
+    "context": "32768-token resident context; no compaction or retrieval; identical prompt bytes per pair",
+    "scheduling": "paired by task; three attempts per arm; arm order alternates by task index; one request at a time on one resident model",
+    "observability": "per-attempt task id, arm, attempt, temperature, deterministic score, latency, and infra failure",
+    "verification": "existing deterministic role-eval scorer; task passes when the best of three scores meets the declared bar",
+    "governance": "local-only; no egress; equal retry budgets; descriptive baseline only, never an architectural win claim",
+    "retryBudget": 2
+  },
+  "summary": {
+    "taskCount": 12,
+    "expectedAttempts": 72,
+    "observationCount": 72,
+    "infraErrorCount": 0,
+    "unscorableCount": 1,
+    "fixedPassRate": 1,
+    "rampPassRate": 0.9166666666666666,
+    "pairedDelta": -0.08333333333333337,
+    "fixedOnlyPasses": 1,
+    "rampOnlyPasses": 0,
+    "comparison": {
+      "verdict": "confounded",
+      "differing": [
+        "execution"
+      ],
+      "reason": "1 dimension(s) differ: execution. CONFOUNDED, which is fine IF the difference is what is being tested and is reported — harness variance ran 7.80× model variance in the literature and reversed rankings in 6 of 9 comparisons, so an unreported difference here is more likely to explain the result than the models are."
+    },
+    "cardsComplete": true,
+    "claim": "descriptive_baseline_only",
+    "tasks": [
+      {
+        "taskId": "decompose-cli-version-flag",
+        "fixedBestScore": 1,
+        "rampBestScore": 1,
+        "fixedPassed": true,
+        "rampPassed": true
+      },
+      {
+        "taskId": "decompose-rest-pagination",
+        "fixedBestScore": 1,
+        "rampBestScore": 1,
+        "fixedPassed": true,
+        "rampPassed": true
+      },
+      {
+        "taskId": "decompose-streaming-pipeline-migration",
+        "fixedBestScore": 1,
+        "rampBestScore": 1,
+        "fixedPassed": true,
+        "rampPassed": true
+      },
+      {
+        "taskId": "review-off-by-one",
+        "fixedBestScore": 1,
+        "rampBestScore": 1,
+        "fixedPassed": true,
+        "rampPassed": true
+      },
+      {
+        "taskId": "review-null-and-unhandled-rejection",
+        "fixedBestScore": 1,
+        "rampBestScore": 0.5,
+        "fixedPassed": true,
+        "rampPassed": false
+      },
+      {
+        "taskId": "review-race-leak-injection",
+        "fixedBestScore": 1,
+        "rampBestScore": 1,
+        "fixedPassed": true,
+        "rampPassed": true
+      },
+      {
+        "taskId": "tooluse-simple-weather",
+        "fixedBestScore": 1,
+        "rampBestScore": 1,
+        "fixedPassed": true,
+        "rampPassed": true
+      },
+      {
+        "taskId": "tooluse-multi-select",
+        "fixedBestScore": 1,
+        "rampBestScore": 1,
+        "fixedPassed": true,
+        "rampPassed": true
+      },
+      {
+        "taskId": "tooluse-irrelevance",
+        "fixedBestScore": 1,
+        "rampBestScore": 1,
+        "fixedPassed": true,
+        "rampPassed": true
+      },
+      {
+        "taskId": "context-probe-2k",
+        "fixedBestScore": 1,
+        "rampBestScore": 1,
+        "fixedPassed": true,
+        "rampPassed": true
+      },
+      {
+        "taskId": "context-probe-8k",
+        "fixedBestScore": 1,
+        "rampBestScore": 1,
+        "fixedPassed": true,
+        "rampPassed": true
+      },
+      {
+        "taskId": "context-probe-24k",
+        "fixedBestScore": 1,
+        "rampBestScore": 1,
+        "fixedPassed": true,
+        "rampPassed": true
+      }
+    ]
+  },
+  "observations": [
+    {
+      "taskId": "decompose-cli-version-flag",
+      "arm": "fixed_retry",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 11684,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-cli-version-flag",
+      "arm": "fixed_retry",
+      "attempt": 2,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 8677,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-cli-version-flag",
+      "arm": "fixed_retry",
+      "attempt": 3,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 8658,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-cli-version-flag",
+      "arm": "temperature_ramp",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 8669,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-cli-version-flag",
+      "arm": "temperature_ramp",
+      "attempt": 2,
+      "temperature": 0.2,
+      "score": 1,
+      "latencyMs": 19977,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-cli-version-flag",
+      "arm": "temperature_ramp",
+      "attempt": 3,
+      "temperature": 0.4,
+      "score": 1,
+      "latencyMs": 20250,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-rest-pagination",
+      "arm": "temperature_ramp",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 21994,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-rest-pagination",
+      "arm": "temperature_ramp",
+      "attempt": 2,
+      "temperature": 0.2,
+      "score": 1,
+      "latencyMs": 19533,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-rest-pagination",
+      "arm": "temperature_ramp",
+      "attempt": 3,
+      "temperature": 0.4,
+      "score": 1,
+      "latencyMs": 19758,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-rest-pagination",
+      "arm": "fixed_retry",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 18334,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-rest-pagination",
+      "arm": "fixed_retry",
+      "attempt": 2,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 21899,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-rest-pagination",
+      "arm": "fixed_retry",
+      "attempt": 3,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 29597,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-streaming-pipeline-migration",
+      "arm": "fixed_retry",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 19129,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-streaming-pipeline-migration",
+      "arm": "fixed_retry",
+      "attempt": 2,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 36077,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-streaming-pipeline-migration",
+      "arm": "fixed_retry",
+      "attempt": 3,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 20868,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-streaming-pipeline-migration",
+      "arm": "temperature_ramp",
+      "attempt": 1,
+      "temperature": 0,
+      "score": null,
+      "latencyMs": 63197,
+      "failureKind": "unscorable"
+    },
+    {
+      "taskId": "decompose-streaming-pipeline-migration",
+      "arm": "temperature_ramp",
+      "attempt": 2,
+      "temperature": 0.2,
+      "score": 1,
+      "latencyMs": 26721,
+      "failureKind": null
+    },
+    {
+      "taskId": "decompose-streaming-pipeline-migration",
+      "arm": "temperature_ramp",
+      "attempt": 3,
+      "temperature": 0.4,
+      "score": 1,
+      "latencyMs": 25374,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-off-by-one",
+      "arm": "temperature_ramp",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 12268,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-off-by-one",
+      "arm": "temperature_ramp",
+      "attempt": 2,
+      "temperature": 0.2,
+      "score": 1,
+      "latencyMs": 12884,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-off-by-one",
+      "arm": "temperature_ramp",
+      "attempt": 3,
+      "temperature": 0.4,
+      "score": 1,
+      "latencyMs": 12044,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-off-by-one",
+      "arm": "fixed_retry",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 12279,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-off-by-one",
+      "arm": "fixed_retry",
+      "attempt": 2,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 12089,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-off-by-one",
+      "arm": "fixed_retry",
+      "attempt": 3,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 11928,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-null-and-unhandled-rejection",
+      "arm": "fixed_retry",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 13236,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-null-and-unhandled-rejection",
+      "arm": "fixed_retry",
+      "attempt": 2,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 13246,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-null-and-unhandled-rejection",
+      "arm": "fixed_retry",
+      "attempt": 3,
+      "temperature": 0,
+      "score": 0.5,
+      "latencyMs": 12894,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-null-and-unhandled-rejection",
+      "arm": "temperature_ramp",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 0.5,
+      "latencyMs": 13128,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-null-and-unhandled-rejection",
+      "arm": "temperature_ramp",
+      "attempt": 2,
+      "temperature": 0.2,
+      "score": 0.5,
+      "latencyMs": 12716,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-null-and-unhandled-rejection",
+      "arm": "temperature_ramp",
+      "attempt": 3,
+      "temperature": 0.4,
+      "score": 0,
+      "latencyMs": 13606,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-race-leak-injection",
+      "arm": "temperature_ramp",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 0.6666666666666666,
+      "latencyMs": 12841,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-race-leak-injection",
+      "arm": "temperature_ramp",
+      "attempt": 2,
+      "temperature": 0.2,
+      "score": 0,
+      "latencyMs": 12377,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-race-leak-injection",
+      "arm": "temperature_ramp",
+      "attempt": 3,
+      "temperature": 0.4,
+      "score": 1,
+      "latencyMs": 12287,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-race-leak-injection",
+      "arm": "fixed_retry",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 12719,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-race-leak-injection",
+      "arm": "fixed_retry",
+      "attempt": 2,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 12483,
+      "failureKind": null
+    },
+    {
+      "taskId": "review-race-leak-injection",
+      "arm": "fixed_retry",
+      "attempt": 3,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 12332,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-simple-weather",
+      "arm": "fixed_retry",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 2086,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-simple-weather",
+      "arm": "fixed_retry",
+      "attempt": 2,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 1738,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-simple-weather",
+      "arm": "fixed_retry",
+      "attempt": 3,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 1779,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-simple-weather",
+      "arm": "temperature_ramp",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 1708,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-simple-weather",
+      "arm": "temperature_ramp",
+      "attempt": 2,
+      "temperature": 0.2,
+      "score": 1,
+      "latencyMs": 1756,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-simple-weather",
+      "arm": "temperature_ramp",
+      "attempt": 3,
+      "temperature": 0.4,
+      "score": 1,
+      "latencyMs": 1637,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-multi-select",
+      "arm": "temperature_ramp",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 3469,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-multi-select",
+      "arm": "temperature_ramp",
+      "attempt": 2,
+      "temperature": 0.2,
+      "score": 1,
+      "latencyMs": 2987,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-multi-select",
+      "arm": "temperature_ramp",
+      "attempt": 3,
+      "temperature": 0.4,
+      "score": 1,
+      "latencyMs": 3225,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-multi-select",
+      "arm": "fixed_retry",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 3067,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-multi-select",
+      "arm": "fixed_retry",
+      "attempt": 2,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 3132,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-multi-select",
+      "arm": "fixed_retry",
+      "attempt": 3,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 3099,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-irrelevance",
+      "arm": "fixed_retry",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 7353,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-irrelevance",
+      "arm": "fixed_retry",
+      "attempt": 2,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 7988,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-irrelevance",
+      "arm": "fixed_retry",
+      "attempt": 3,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 7007,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-irrelevance",
+      "arm": "temperature_ramp",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 6889,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-irrelevance",
+      "arm": "temperature_ramp",
+      "attempt": 2,
+      "temperature": 0.2,
+      "score": 1,
+      "latencyMs": 12652,
+      "failureKind": null
+    },
+    {
+      "taskId": "tooluse-irrelevance",
+      "arm": "temperature_ramp",
+      "attempt": 3,
+      "temperature": 0.4,
+      "score": 1,
+      "latencyMs": 4591,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-2k",
+      "arm": "temperature_ramp",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 9754,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-2k",
+      "arm": "temperature_ramp",
+      "attempt": 2,
+      "temperature": 0.2,
+      "score": 1,
+      "latencyMs": 7345,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-2k",
+      "arm": "temperature_ramp",
+      "attempt": 3,
+      "temperature": 0.4,
+      "score": 1,
+      "latencyMs": 4760,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-2k",
+      "arm": "fixed_retry",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 8330,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-2k",
+      "arm": "fixed_retry",
+      "attempt": 2,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 8390,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-2k",
+      "arm": "fixed_retry",
+      "attempt": 3,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 8396,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-8k",
+      "arm": "fixed_retry",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 9609,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-8k",
+      "arm": "fixed_retry",
+      "attempt": 2,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 5003,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-8k",
+      "arm": "fixed_retry",
+      "attempt": 3,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 4999,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-8k",
+      "arm": "temperature_ramp",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 5023,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-8k",
+      "arm": "temperature_ramp",
+      "attempt": 2,
+      "temperature": 0.2,
+      "score": 1,
+      "latencyMs": 6233,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-8k",
+      "arm": "temperature_ramp",
+      "attempt": 3,
+      "temperature": 0.4,
+      "score": 1,
+      "latencyMs": 6982,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-24k",
+      "arm": "temperature_ramp",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 18880,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-24k",
+      "arm": "temperature_ramp",
+      "attempt": 2,
+      "temperature": 0.2,
+      "score": 1,
+      "latencyMs": 3011,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-24k",
+      "arm": "temperature_ramp",
+      "attempt": 3,
+      "temperature": 0.4,
+      "score": 1,
+      "latencyMs": 9828,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-24k",
+      "arm": "fixed_retry",
+      "attempt": 1,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 3821,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-24k",
+      "arm": "fixed_retry",
+      "attempt": 2,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 3773,
+      "failureKind": null
+    },
+    {
+      "taskId": "context-probe-24k",
+      "arm": "fixed_retry",
+      "attempt": 3,
+      "temperature": 0,
+      "score": 1,
+      "latencyMs": 3797,
+      "failureKind": null
+    }
+  ],
+  "evidence": {
+    "executionRun": ".real-runs/20260722-020938",
+    "reconciledRun": ".real-runs/20260722-022417",
+    "controllerExit": 0,
+    "note": "The execution run produced all 72 observations. The reconciled run reclassified one returned-but-unscorable answer separately from infrastructure and exited 0 without repeating completed cells."
+  }
+}
+

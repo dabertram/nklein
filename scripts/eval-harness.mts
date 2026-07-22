@@ -26,6 +26,14 @@ import {
 	summarizeContextIntegrityExperiment,
 	type ContextIntegrityObservation,
 } from "../src/core/context-integrity-experiment.js";
+import { EVAL_PROMPT_CORPUS } from "../src/core/eval-prompt-corpus.js";
+import {
+	buildRetryBaselineCard,
+	RETRY_BASELINE_TEMPERATURES,
+	summarizeRetryBaseline,
+	type RetryBaselineArm,
+	type RetryBaselineObservation,
+} from "../src/core/retry-baseline-experiment.js";
 import { recordTaskFitnessOutcome } from "../src/telemetry/fitness-table-store.js";
 
 /**
@@ -223,9 +231,119 @@ async function runContextIntegrity(): Promise<void> {
 	process.exit(summary.infraErrorRate === 0 && summary.preRegistration.verdict === "adequately_powered" ? 0 : 1);
 }
 
+async function runRetryBaseline(): Promise<void> {
+	const taskIds = (
+		PROMPT_IDS.length > 0
+			? PROMPT_IDS
+			: EVAL_PROMPT_CORPUS.filter((prompt) => prompt.family !== "implement").map((prompt) => prompt.id)
+	).filter((id, index, all) => all.indexOf(id) === index);
+	const contextTokens = Math.max(32_000, Math.trunc(Number(process.env.NKLEIN_CONTEXT_LENGTH ?? "32768")) || 32_768);
+	const fixedCard = buildRetryBaselineCard("fixed_retry", { modelId: MODEL, contextTokens, maxTokens: MAX_TOKENS });
+	const rampCard = buildRetryBaselineCard("temperature_ramp", { modelId: MODEL, contextTokens, maxTokens: MAX_TOKENS });
+	const observations: RetryBaselineObservation[] = [];
+	const resumePath = process.env.NKLEIN_EVAL_RESUME_PATH?.trim();
+	const checkpointPath = process.env.NKLEIN_EVAL_CHECKPOINT_PATH?.trim();
+	if (resumePath) {
+		const parsed = JSON.parse(await readFile(resumePath, "utf8")) as { observations?: RetryBaselineObservation[] };
+		observations.push(
+			...(parsed.observations ?? []).map((row) => ({
+				...row,
+				// Legacy checkpoints predate provenance. A null cell with no request-level marker was a returned but
+				// unscorable model answer; genuine request failures are marked explicitly by every new run below.
+				failureKind: row.failureKind ?? (row.score === null ? "unscorable" : null),
+			})),
+		);
+		console.log(`eval-harness: resumed ${observations.length} retry-baseline observation(s) from ${resumePath}`);
+	}
+	const isComplete = (taskId: string, arm: RetryBaselineArm): boolean =>
+		observations.filter((row) => row.taskId === taskId && row.arm === arm).length ===
+		RETRY_BASELINE_TEMPERATURES[arm].length;
+	for (const [taskIndex, taskId] of taskIds.entries()) {
+		const arms: RetryBaselineArm[] =
+			taskIndex % 2 === 0 ? ["fixed_retry", "temperature_ramp"] : ["temperature_ramp", "fixed_retry"];
+		for (const arm of arms) {
+			if (isComplete(taskId, arm)) continue;
+			const temperatures = RETRY_BASELINE_TEMPERATURES[arm];
+			let callIndex = 0;
+			const infraAttempts = new Set<number>();
+			const armChat: ModelEvalChat = async (messages, extra) => {
+				const attempt = callIndex + 1;
+				const temperature = temperatures[callIndex] ?? temperatures.at(-1) ?? 0;
+				callIndex += 1;
+				const completion = await requestCompletion(messages, { ...extra, temperature });
+				if (!completion) infraAttempts.add(attempt);
+				return completion?.choice ?? null;
+			};
+			const result = await runModelEval(
+				{
+					modelId: MODEL,
+					repeats: temperatures.length,
+					passBar: PASS_BAR,
+					maxTokens: MAX_TOKENS,
+					promptIds: [taskId],
+				},
+				{ chat: armChat },
+			);
+			for (const cell of result.cells) {
+				const temperature = temperatures[cell.attempt - 1] ?? temperatures.at(-1) ?? 0;
+				const observation: RetryBaselineObservation = {
+					taskId,
+					arm,
+					attempt: cell.attempt,
+					temperature,
+					score: cell.score,
+					latencyMs: cell.latencyMs,
+					failureKind: cell.score !== null ? null : infraAttempts.has(cell.attempt) ? "infra" : "unscorable",
+				};
+				observations.push(observation);
+				console.log(
+					`  [${observations.length}/${taskIds.length * 6}] ${taskId}/${arm}#${cell.attempt} temp=${temperature} score=${cell.score?.toFixed(3) ?? "NO ANSWER"} ms=${cell.latencyMs}`,
+				);
+			}
+			if (checkpointPath) {
+				await writeFile(
+					checkpointPath,
+					`${JSON.stringify({ experiment: "retry-baseline", model: MODEL, passBar: PASS_BAR, fixedCard, rampCard, observations }, null, 2)}\n`,
+					"utf8",
+				);
+			}
+		}
+	}
+	const summary = summarizeRetryBaseline(observations, { taskIds, passBar: PASS_BAR, fixedCard, rampCard });
+	if (checkpointPath) {
+		await writeFile(
+			checkpointPath,
+			`${JSON.stringify({ experiment: "retry-baseline", model: MODEL, passBar: PASS_BAR, fixedCard, rampCard, summary, observations }, null, 2)}\n`,
+			"utf8",
+		);
+	}
+	console.log(
+		JSON.stringify(
+			{ experiment: "retry-baseline", model: MODEL, passBar: PASS_BAR, fixedCard, rampCard, summary, observations },
+			null,
+			2,
+		),
+	);
+	console.log(
+		`result: retry-baseline tasks=${summary.taskCount} fixed=${summary.fixedPassRate.toFixed(3)} ramp=${summary.rampPassRate.toFixed(3)} delta=${summary.pairedDelta.toFixed(3)} infra=${summary.infraErrorCount}/${summary.expectedAttempts} unscorable=${summary.unscorableCount} claim=${summary.claim}`,
+	);
+	process.exit(
+		summary.cardsComplete &&
+			summary.comparison.verdict !== "invalid" &&
+			summary.observationCount === summary.expectedAttempts &&
+			summary.infraErrorCount === 0
+			? 0
+			: 1,
+	);
+}
+
 async function main(): Promise<void> {
 	if (EXPERIMENT === "context-integrity") {
 		await runContextIntegrity();
+		return;
+	}
+	if (EXPERIMENT === "retry-baseline") {
+		await runRetryBaseline();
 		return;
 	}
 	if (EXPERIMENT) {
