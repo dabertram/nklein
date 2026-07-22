@@ -3151,6 +3151,90 @@ hardware/user action. Promote a research item into an earlier concrete package o
   tray, autostart, updater, migration, LAN, and uninstall checks on native systems when available.
 - [?] **D10.14 — Docker Desktop memory-cap validation.** If the local VM remains below the required workload headroom,
   raise it under user control and rerun the affected multi-model/sandbox challenge; code must still fail clearly when low.
+- [-] **D10.15 — Parallel multi-agent development setup (Claude Code + Codex), with cross-family diversity leveraged as a
+  quality signal.** Deferred dev-workflow tooling, NOT a product feature: run two coding-agent sessions against this
+  backlog concurrently on one machine sharing the LM Studio fleet. Build only when parallel dev throughput is actually
+  wanted; the design was worked out 2026-07-22 and is recorded here so promotion is a split, not a redesign.
+  - **Isolation (constant collisions):** one `.claude/worktrees/*` checkout per session on its own branch, integrated to
+    the shared branch frequently. Give each session an isolated `$HOME` (throwaway runtime data dir + ledger +
+    auto-registered workspace — see the `.claude/worktrees/*` note in §4A); `HUSKY=0 npm install` at the worktree root +
+    `npm install --prefix web-ui` (fresh worktrees have no `node_modules`); runtime ports auto-negotiate via
+    `findAvailableRuntimePort`. Partition the backlog into disjoint **lanes** (e.g. A = `src/core`/`nklein-agent`/planning/
+    eval/security; B = `web-ui`/`packages/desktop`/observability/docs); each works top-down WITHIN its lane. Keep shared
+    magnet files single-owner or append-only (`todo.md` header + §1, `AGENTS.md`, `CHANGELOG.md`, and `done.md` moves) so
+    merges stay trivial.
+  - **Fleet serialization (host-fatal):** `scheduleNKleinEndpointStart`'s per-host/machine/model caps only see ONE runtime
+    instance, so two independent sessions can co-load models and swap-crash the host (the m5max incident). Fix one of two
+    ways: (a) both point live dev-tests at a single shared "fleet runtime" whose scheduler then serializes globally, or
+    (b) a machine-global lease built on `src/fs/locked-file-system.ts` (`proper-lockfile`, already a dep) around every raw
+    `lms`-driving script (`reanchor-ab.mts`, `model-lab.mts`, `eval-harness`) — HARD mutex: acquire → `lms unload --all` →
+    load one @32k/`--parallel 1` + TTL → run → unload → release. Most packages are simulator-first, so the sessions run in
+    parallel almost always and only block on the rare real-model run.
+  - **Leverage diversity (the actual benefit):** isolated lanes give throughput but ZERO diversity gain — the sessions
+    never see each other's work, and an agent reviewing its own output shares its own blind spots. A different-family
+    agent has decorrelated blind spots, so add explicit exchange points: (1) **cross-review at the merge gate** — the
+    other session reviews each package's diff, prompted to REFUTE it, before it integrates; alternate authorship (highest
+    value, ~free). (2) **dual-attempt + judge** on high-uncertainty / high-blast-radius packages (mark `[dual]`): both
+    attempt independently, then pick/graft the winner — reserve for keystone work (2× cost). (3) **disagreement = signal:**
+    concordance → proceed autonomously; discordance → escalate to David and log to a host-level disagreement log. (4)
+    **decorrelated sweeps** (security, completeness, coverage): run both and union the findings. (5) **make it
+    evidence-based:** extend `model-behavior-profile-store` / `nklein-llmfit-routing-prior` to track each agent's per-
+    package-type solo-pass and cross-catch rates, then route generator/reviewer roles by MEASURED strength — dogfooding
+    the same fitness infra the product uses for local models. This is the product's own worker/reviewer peer-fence thesis
+    applied to the build itself.
+  - **Encode in `AGENTS.md`** so BOTH harnesses obey (Claude via `CLAUDE.md`→`AGENTS.md`, Codex natively): the lane
+    assignment, the fleet-lease/shared-runtime rule, `[dual]` handling, disagreement→escalation, and "enforce house style
+    (§4A) in review." The lease wrapper is the mechanical enforcement; `AGENTS.md` is the human-readable contract.
+  - **Landmines:** `test/protected/**` stays human-gated (two agents = double the chance one edits it without approval);
+    pre-commit skips web-ui tsc, so Lane B must run `npm run web:typecheck` by hand; codebase-memory MCP OOMs under
+    concurrent load (rg fallback is sanctioned); `todo.md`/`done.md` conflicts are inherent to single-source-of-truth +
+    two writers (disjoint lanes + frequent integration + append-only `done.md` keep them small).
+  - **Promote-when** parallel dev is actually adopted. First split: (i) a `scripts/dev-worktree.mts` bootstrap (worktree +
+    deps + isolated-`$HOME` env), (ii) the `AGENTS.md` parallel-agent protocol + a concrete lane cut, (iii) the
+    cross-review merge gate; add the per-agent fitness tracker once a few packages' worth of data exists.
+- [-] **D10.16 — Integrate Claude Code + Codex into !Klein as first-class worker-agent backends (cloud) to drive the
+  backlog — and, as a sub-case, point that swarm at !Klein's OWN repo.** A future direction, HARD-GATED (David 2026-07-22):
+  extend !Klein's worker layer beyond local LM Studio models so a card can be executed by Claude Code or Codex as a
+  first-class AGENT backend. Then !Klein's own machinery — decompose → route → Docker sandbox → review panel → `nklein/
+  tasks/*` delivery — orchestrates Claude + Codex (alongside the local fleet) through the backlog, and the D10.15 diversity
+  benefit moves INSIDE the board: a Claude card and a Codex card, cross-reviewed by the review panel and routed by measured
+  fitness, instead of two hand-driven external worktrees. Using capable cloud agents also sidesteps the local-fleet
+  capability ceiling that would keep a local-only self-host a toy — at the cost of the cloud gate, spend, and the
+  local-only thesis. Deferred for two INDEPENDENT reasons:
+  - **Cloud gate (the hard one):** Claude + Codex are cloud, so this is a cloud mix — it INHERITS the Phase 14 hard gate
+    ("nothing starts until David's explicit go") and is incompatible with prime directive 1 (`CLOUD_ENABLED = false`)
+    until then. It is the D10.9 cloud-escalation decision made concrete for coding AGENTS (not just models). Nothing here
+    is startable in the local-only era, by directive.
+  - **Agent-backend interoperability:** driving a FOREIGN agent (the Claude Code / Codex CLIs, each with its own tool
+    loop, permission model, and fs/terminal-ownership assumptions) is a different seam from P17.1's model-runtime adapter
+    (LM Studio → llama.cpp/Ollama/vLLM) and from P17.2's !Klein-as-ACP-agent (which points the other way — !Klein exposed
+    to editors). This needs a "foreign-agent-as-worker" adapter: map a !Klein card → a Claude/Codex session, reconcile
+    THEIR sandbox/permission model with !Klein's Docker isolation + review gate + result-branch delivery, and capture
+    their output as a `nklein/tasks/*` branch like any worker. Build it THROUGH the interop boundary (cousin to P17.1),
+    not as a special case.
+  - **Self-hosting sub-case (target = !Klein's own repo):** when the swarm works !Klein's OWN backlog, self-modification
+    blast-radius guardrails apply, because the edited code includes the mechanisms that keep it safe (sandbox boundary,
+    egress fences, review/delivery gate, control plane, ledger) and the checker overlaps the changed code (a run that
+    quietly degrades its own reviewer defeats the gate meant to catch it). Guardrails: (1) **staged bootstrap** — a clean,
+    human-blessed instance is the builder; its output is reviewed + full-gate-tested + HUMAN-promoted before the improved
+    version becomes the next builder (compiler-bootstrap discipline). (2) **never hot-swap the running control plane** —
+    changes land on a `nklein/tasks/*` branch, are reviewed (ideally cross-family), pass the full gate + the human-gated
+    protected tests, then a human/clean instance promotes them. (3) **exclude critical surfaces** (control plane, sandbox
+    boundary, egress, delivery, ledger, protected tests) from autonomous self-edit. (4) **start narrow** — only leaf,
+    low-blast-radius, well-tested packages, expanding as evidence accrues.
+  - **Candidate backends to evaluate (later), beyond Claude + Codex:** **Kimi K3** (Moonshot) and **Qwen3.8** — both
+    explicitly ON the list (David 2026-07-22) — plus **DeepSeek** (note F0.NM already found DeepSeek-V4-flash-dq's ~96 GB
+    does not fit m5max at the 32k floor, and P22.5 generalizes it: a frontier open MoE is not a viable local agent backend
+    on consumer hardware — so a *capable* DeepSeek/Kimi worker is realistically cloud or a much smaller quant). **OpenRouter**
+    is a candidate PROVIDER GATEWAY (one API → many of these models) worth considering — details to research much, much
+    later. At research time, sort each candidate into either the LOCAL path (model sweep + catalog under prime directive 8 —
+    recommend, user controls inventory; Qwen3.8 is the likely local one) or the CLOUD path (Phase 14 hard gate; Kimi K3,
+    cloud DeepSeek, and any OpenRouter-brokered model live here). The routing-choice design means adding a backend should be
+    config + an eligibility/fitness entry, not new orchestration.
+  - **Prereqs / cross-refs:** Phase 14 (David's explicit cloud go) is the hard gate; the foreign-agent adapter cousins
+    P17.1/P17.2; the diversity mechanics come from D10.15; the cloud-escalation decision is D10.9. Promote into concrete
+    packages only after the cloud go, and design the adapter so a card's worker backend (local model | Claude | Codex) is
+    just a routing choice.
 
 - [x] **F0.NM — Sweep + catalog David's new fleet models (David 2026-07-17: "i added a handful new models .. make sure
   they are properly sweeped and included in the catalog").** Coverage check found 7/55 downloaded models uncataloged:
