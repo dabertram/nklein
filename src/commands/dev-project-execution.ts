@@ -1,5 +1,5 @@
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
-import type { RuntimeTaskNKleinSettings } from "../core/api-contract";
+import type { RuntimeTaskAutoReviewMode, RuntimeTaskNKleinSettings } from "../core/api-contract";
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import { addTaskToColumn } from "../core/task-board-mutations";
@@ -28,6 +28,19 @@ export function createDevRuntimeClient(workspaceId: string | null) {
 
 export type DevRuntimeClient = ReturnType<typeof createDevRuntimeClient>;
 
+interface DevScenarioBoardForActivity {
+	columns: ReadonlyArray<{
+		id: string;
+		cards: ReadonlyArray<{ autoReviewEnabled?: boolean; review?: unknown }>;
+	}>;
+}
+
+/** Auto-review is synthetic work and is not represented by the primary task-session count. */
+export function countPendingAutoReviews(board: DevScenarioBoardForActivity): number {
+	const review = board.columns.find((column) => column.id === "review");
+	return review?.cards.filter((card) => card.autoReviewEnabled === true && card.review === undefined).length ?? 0;
+}
+
 // Real-model runs have between-turn lulls that exceed the simulator's 30-second settle default. A live 2026-07-12
 // run looked stagnant at three minutes while the runtime continued to completion at eighteen. Preserve a bounded
 // four-minute no-progress tolerance; active sessions still suspend the counter and maxWaitMs remains the hard limit.
@@ -44,6 +57,8 @@ export interface ExecuteDevTestScenarioInput {
 	stablePollsUntilSettled?: number;
 	nkleinSettings?: RuntimeTaskNKleinSettings;
 	startInPlanMode?: boolean;
+	autoReviewEnabled?: boolean;
+	autoReviewMode?: RuntimeTaskAutoReviewMode;
 	nullAgent?: boolean;
 	/** Independent acceptance is intentionally optional; benchmark oracles must stay outside the agent workspace. */
 	runAcceptance?: () => Promise<boolean>;
@@ -69,9 +84,10 @@ export async function executeDevTestScenario(
 		readLiveBoard: async () => (await input.client.workspace.getState.query()).board,
 		readPersistedBoard: async () => await loadWorkspaceBoardById(input.workspaceId),
 		readActiveSessionCount: async () => {
-			const sessions = Object.values((await input.client.workspace.getState.query()).sessions ?? {});
+			const state = await input.client.workspace.getState.query();
+			const sessions = Object.values(state.sessions ?? {});
 			const counts = countActiveAgentSessions(sessions);
-			return counts.running + counts.queued;
+			return counts.running + counts.queued + countPendingAutoReviews(state.board);
 		},
 		readAttentionCardCount: async () => {
 			const sessions = Object.values((await input.client.workspace.getState.query()).sessions ?? {});
@@ -109,6 +125,10 @@ export async function executeDevTestScenario(
 								title: payload.taskTitle,
 								baseRef: payload.baseRef,
 								startInPlanMode: payload.startInPlanMode,
+								...(typeof input.autoReviewEnabled === "boolean"
+									? { autoReviewEnabled: input.autoReviewEnabled }
+									: {}),
+								...(input.autoReviewMode ? { autoReviewMode: input.autoReviewMode } : {}),
 								...(payload.nkleinSettings ? { nkleinSettings: payload.nkleinSettings } : {}),
 							},
 							() => crypto.randomUUID(),

@@ -33,14 +33,14 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F11.3 adapter closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, during F11.3 calibrated-tranche work):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 158-package remainder is **69 ready + 0 partial + 74 dependency-blocked + 8 external/
+  gate below is green. The current 158-package remainder is **68 ready + 1 partial + 74 dependency-blocked + 8 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
-gates immediately below; all seven `[?]` rows name the required operator decision, credential, machine, or live-fleet
-condition. There are no ambiguous partials: `[~]` is currently zero.
+gates immediately below; all eight `[?]` rows name the required operator decision, credential, machine, or live-fleet
+condition. The sole partial is F11.3 and names its remaining language/tranche/control work inline.
 
 Broad blocked phases inherit these named gates (an item's narrower inline gate is additional):
 
@@ -112,6 +112,12 @@ gap remains.
 > legacy runner. Live's published Linux images are x86_64-only, so Apple/QEMU runs may validate plumbing but cannot
 > calibrate a regression baseline. Calibration JSON and each grader report directory are immutable evidence, not
 > terminal output or a stale output tree to reconstruct/reuse later.
+> **A REVIEWED BENCHMARK ARTIFACT NEED NOT MOVE HOST HEAD:** benchmark prompts are tainted, so the delivery gate may
+> correctly refuse a host merge. Score the single durable `refs/nklein/evidence/<task>-*` review artifact and pin that
+> exact commit under a separate immutable benchmark ref; never bypass the taint gate or manually copy sandbox files.
+> Synthetic auto-review turns are not primary task sessions, so unattended monitors must count review cards without a
+> durable review result as active work. A parked operator-attention session is the opposite: terminal for an unattended
+> run, and must be captured promptly as a real failure rather than discarded or left waiting for four minutes.
 
 > **⚠️ CODE SEARCH MODALITIES ARE COMPLEMENTS, NOT FALLBACK QUALITY LEVELS (F11.2b, 2026-07-22).** Route exact
 > strings/errors/config keys to `search_code`; syntax shapes that must exclude comments and strings to tree-sitter
@@ -3655,7 +3661,7 @@ are the two biggest gaps between "works in a demo" and "works for real users on 
 first-class, plus a mandate to prove excellence against real benchmark codebases and to lean hard on aimock so testing
 stays fast + complete.
 
-- [ ] **F11.3 — Benchmark-driven validation on real challenging codebases (SWE-bench-style).** The source-agnostic,
+- [~] **F11.3 — Benchmark-driven validation on real challenging codebases (SWE-bench-style).** The source-agnostic,
   leakage-safe adapter is shipped; the remaining outcome is a real calibrated tranche across the fit-for-fleet P20.9
   suite: Aider polyglot daily paired A/B, Terminal-Bench harness checks, LiveCodeBench capability control, and
   SWE-bench-Live Lite quarterly reality checks. Legacy SWE-bench Lite/Verified remain compatibility/A-B lanes, never
@@ -3670,6 +3676,13 @@ stays fast + complete.
   already delivers reviewed diffs, so this is an ADAPTER around the `swebench` grading core, not a reimplementation.
   Historical recommended start was Verified `"<15 min fix"`; after the 2026 evidence audit, start with a 20–40 task
   fit-for-fleet slice and treat legacy scores only as paired comparisons.**
+  **2026-07-22 AIDER PARTIAL EVIDENCE + CONCRETE REMAINDER:** the pinned Aider corpus now materializes solution-only,
+  one-commit, networkless workspaces and grades Python outside the agent boundary with the full Exercism exercise. Gold
+  affine-cipher resolved twice. In a controlled Qwen3.6-35B-A3B + fleet-review pair, plan mode parked for attention and
+  graded unresolved while no-plan emitted a reviewed 4.6 KB patch and resolved. This one-task smoke proves non-zero
+  signal, not a default flip. **Remainder:** pin networkless C++/Go/Java/JavaScript/Rust grader toolchains; calibrate and
+  run the stratified 20–40-task repeated A/B tranche; add Terminal-Bench and LiveCodeBench controls; obtain a native
+  x86_64 Docker runner for the quarterly Live tranche; then wire the calibrated delta gate/nightly evidence.
   - [ ] **F11.3g — Pin and run the repeatable regression tranche (delta, not absolute).** Select a fixed ~20–40 task
     fit-for-fleet set, complete ≥2 gold repeats, quarantine every unstable instance, snapshot the calibrated RESOLVED
     set + per-instance status, and wire it into CI/nightly. Fail only a resolved→unresolved regression; infrastructure

@@ -205,6 +205,15 @@ describe("SWE-bench compatibility adapter", () => {
 				incomplete_ids: [],
 			}),
 		).toEqual({ pass: "resolved", fail: "unresolved", empty: "unresolved", broken: "error" });
+		expect(
+			parseOfficialSwebenchRunReport({
+				schema_version: "aider_polyglot_v1",
+				submitted_ids: ["pass", "fail"],
+				resolved_ids: ["pass"],
+				unresolved_ids: ["fail"],
+				error_ids: [],
+			}),
+		).toEqual({ pass: "resolved", fail: "unresolved" });
 		expect(() =>
 			parseOfficialSwebenchRunReport({
 				schema_version: 2,

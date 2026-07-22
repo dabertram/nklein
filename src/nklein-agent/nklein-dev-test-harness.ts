@@ -206,6 +206,14 @@ export async function runDevTestProject(
 		}
 		consecutiveUnreachable = 0;
 		lastReachableState = state;
+		// A session explicitly parked for the operator cannot make autonomous progress. This is a terminal result for an
+		// unattended dev-test/benchmark run, not ordinary board stagnation that benefits from the long real-model settle
+		// window. The count is only exposed after the session reaches awaiting_review+attention; an active sibling still
+		// keeps the run alive so another card can change the board first. Update lastReachableState before breaking so the
+		// classifier retains the attention evidence.
+		if ((state.attentionCardCount ?? 0) > 0 && !sessionActive && counts.inProgress === 0) {
+			break;
+		}
 		const key = countsKey(counts);
 		if (key === lastKey && !sessionActive) {
 			unchangedPolls += 1;

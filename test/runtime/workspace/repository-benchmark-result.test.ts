@@ -56,6 +56,26 @@ describe("repository benchmark result", () => {
 		);
 	});
 
+	it("captures a reviewed task evidence ref when the taint gate keeps sealed HEAD unchanged", async () => {
+		const repoPath = await makeBaseline();
+		const { baseCommit } = await verifySealedBenchmarkWorkspace({ repoPath });
+		await writeFile(join(repoPath, "answer.txt"), "reviewed\n");
+		git(repoPath, "add", "answer.txt");
+		git(repoPath, "commit", "--message", "reviewed task artifact");
+		const resultCommit = git(repoPath, "rev-parse", "HEAD");
+		git(repoPath, "update-ref", "refs/nklein/evidence/task-1-deadbeef", resultCommit);
+		git(repoPath, "checkout", "--detach", baseCommit);
+
+		const captured = await captureBenchmarkWorkspaceResult({
+			repoPath,
+			baseCommit,
+			runId: "task-1",
+			taskId: "task-1",
+		});
+		expect(captured.resultCommit).toBe(resultCommit);
+		expect(captured.patch).toContain("answer.txt");
+	});
+
 	it("refuses to score dirty or unrelated terminal state", async () => {
 		const repoPath = await makeBaseline();
 		const { baseCommit } = await verifySealedBenchmarkWorkspace({ repoPath });

@@ -25,7 +25,7 @@ describe("SWE-bench workspace Docker plan", () => {
 			gid: 20,
 		});
 		expect(plan.repositoryMirrorName).toBe("owner__repo.git");
-		expect(plan.steps).toHaveLength(6);
+		expect(plan.steps).toHaveLength(7);
 		for (const step of plan.steps) {
 			expect(step.slice(0, 5)).toEqual(["run", "--rm", "--network", "none", "--read-only"]);
 			expect(step).toContain("--memory-swap");
@@ -35,6 +35,7 @@ describe("SWE-bench workspace Docker plan", () => {
 		}
 		expect(plan.steps.flat().join("\n")).not.toContain("test.patch");
 		expect(plan.steps.flat().join("\n")).not.toContain(instance.testPatch);
+		expect(plan.steps.flat().join("\n")).toContain("$a.nklein/");
 	});
 
 	it("removes upstream history before creating the visible one-commit baseline", () => {

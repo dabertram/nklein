@@ -13,9 +13,15 @@
   explicitly barred from regression baselines.
   Private test patches remain exclusively in the external grader and are never mounted or committed into the
   agent-visible repository history.
-  The new `benchmark run` path exercises the real plan/decompose/review/delivery pipeline, requires terminal workflow
-  completion, pins the aggregate result commit, and emits a create-only evidence receipt plus official prediction.
+  The new `benchmark run` path exercises the real plan/decompose/review/delivery pipeline, preserves stalled and
+  needs-attention outcomes as scoreable failures, pins the exact reviewed artifact without bypassing the host-delivery
+  taint gate, and emits a create-only evidence receipt plus official prediction. Auto-review work remains visible to
+  the run monitor even though it uses synthetic reviewer sessions.
   Calibration can now write its own immutable JSON artifact instead of relying on shell redirection.
+  Aider's pinned polyglot corpus now has a solution-only workspace path and a separate trusted Exercism grader; tests,
+  examples, and metadata enter only after prediction capture. The first controlled Python smoke found a real signal:
+  the Qwen3.6-35B-A3B fleet arm resolved affine-cipher without plan mode while the otherwise identical plan arm parked
+  for attention and remained unresolved. This single pair validates the lane, not a default change.
 
 - **Unfamiliar repositories now gain a durable local-model onboarding map.** The `repo_summary` tool summarizes
   function-like units into files, directories, and a project overview, then stores the result by content hash. An

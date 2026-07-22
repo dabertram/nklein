@@ -98,6 +98,7 @@ export function buildSwebenchWorkspaceDockerPlan(input: {
 		[...common([workspaceMount]), "git", "-C", "/workspace", "checkout", "--detach", input.instance.baseCommit],
 		[...common([workspaceMount]), "rm", "-rf", "/workspace/.git"],
 		[...common([workspaceMount]), "git", "-C", "/workspace", "init", "--initial-branch=benchmark-baseline"],
+		[...common([workspaceMount]), "sed", "-i", "-e", "$a.nklein/", "/workspace/.git/info/exclude"],
 		[...common([workspaceMount]), "git", "-C", "/workspace", "add", "--all"],
 		[
 			...common([workspaceMount]),

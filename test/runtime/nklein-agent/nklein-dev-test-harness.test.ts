@@ -79,6 +79,21 @@ describe("runDevTestProject", () => {
 		);
 		expect(result.classification.outcome).toBe("needs_attention");
 		expect(result.classification.summary).toMatch(/Needs your attention/);
+		expect(result.polls).toBe(1);
+	});
+
+	it("keeps monitoring when one card needs attention but another session is still active", async () => {
+		const reads: DevTestStateRead[] = [
+			{ ...board({ planning: 1, in_progress: 1 }), activeSessionCount: 1, attentionCardCount: 1 },
+			{ ...board({ planning: 1 }), activeSessionCount: 0, attentionCardCount: 1 },
+		];
+		const deps = makeDeps(reads);
+		const result = await runDevTestProject(
+			{ scenario: SCENARIO, seedTaskId: "seed-1", baseRef: "main", stablePollsUntilSettled: 20 },
+			deps,
+		);
+		expect(result.polls).toBe(2);
+		expect(result.classification.outcome).toBe("needs_attention");
 	});
 
 	it("does NOT false-green when a decompose seed completes a beat before its child materializes", async () => {

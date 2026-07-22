@@ -55,11 +55,15 @@ Repository mirrors are also an explicit operator egress step. Store each bare mi
    `--network none`, hard resource limits and no shell. It removes upstream `.git` and creates one sealed baseline
    commit. The private test patch is never mounted, applied, committed, or exposed there; only the external official
    grader receives it.
-3. `nklein dev benchmark run` verifies that exact one-commit baseline, starts the normal !Klein plan/decompose/review/
-   delivery workflow, requires a terminal complete board, pins the aggregate terminal commit under a hidden evidence
-   ref, and diffs the two exact commits. It writes an exclusive run receipt before atomically updating official
-   prediction JSONL. `--no-plan` is available for an explicit single-card ablation; normal measurements retain the full
-   system. The private acceptance oracle is never run in the agent workspace.
+3. `nklein dev benchmark run` verifies that exact one-commit baseline, registers the workspace with the selected live
+   runtime, and starts the normal !Klein plan/decompose/review path. Completed, stalled, review-held, and
+   needs-attention outcomes are all captured honestly; only runtime/infrastructure loss is inconclusive. Benchmark
+   prompts remain tainted, so the host-delivery gate may correctly keep sealed HEAD unchanged. In that case capture
+   reads exactly one durable reviewed `refs/nklein/evidence/<task>-*` commit and pins it under a separate immutable
+   benchmark ref—there is no security bypass or manual sandbox copy. It writes an exclusive run receipt before
+   atomically updating official prediction JSONL. `--runtime-host`/`--runtime-port` select a dedicated server, and
+   `--no-plan` is available for an explicit single-card ablation. The private acceptance oracle is never run in the
+   agent workspace.
 4. Run the source-appropriate official grader with `predictions=gold` at least twice. Legacy runs use
    `--dataset-name` and the explicit `--split` recorded by acquisition. Live runs use `--source swebench_live`, the
    pinned local `--dataset`, and the native Live harness; do not route them through SWE-bench 4.x. Persist the result
@@ -75,6 +79,23 @@ Repository mirrors are also an explicit operator egress step. Store each bare mi
 
 Use `nklein dev benchmark --help` for exact arguments. Full external runs remain expensive and egress-bearing; the
 adapter, safety invariants, and report transforms are covered by the fast local test suite.
+
+## Aider daily paired lane
+
+Acquire `https://github.com/Aider-AI/polyglot-benchmark.git` explicitly and check out
+`7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f`. `benchmark prepare --source aider_polyglot --corpus <checkout>` refuses
+another origin, revision, or dirty tree. Its public manifest contains instructions and solution paths only. Workspace
+materialization copies only those solution files into a fresh one-commit repository; tests, examples, docs, and
+metadata never enter agent-visible storage or history. `benchmark grade --source aider_polyglot` reconstructs the full
+exercise in a separate networkless directory after capture, applies either the model patch or official example, and
+writes a create-only `aider_polyglot_v1` report.
+
+The first Python affine-cipher calibration resolved the official example twice. A controlled single-pair smoke using
+Qwen3.6-35B-A3B plus the same fleet review policy produced `unresolved` in plan mode (operator-attention park, empty
+artifact) and `resolved` in no-plan mode (reviewed 4.6 KB patch). This proves that the lane has non-zero discriminating
+signal and that failures survive capture. It is one task, so it cannot justify changing defaults. The current trusted
+grader image is configured for Python; C++, Go, Java, JavaScript, and Rust toolchain images plus the 20–40-task repeated
+tranche remain required before F11.3 closes.
 
 Example after materialization:
 

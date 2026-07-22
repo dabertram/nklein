@@ -14,7 +14,7 @@ export const MAX_BENCHMARK_DATASET_BYTES = 256 * 1024 * 1024;
 export const MAX_SWEBENCH_WORKERS = 4;
 
 export type SwebenchDifficulty = "under_15m" | "15m_to_1h" | "1h_to_4h" | "over_4h" | "unknown";
-export type RepositoryBenchmarkSource = "swebench_legacy" | "swebench_live" | "local_minted";
+export type RepositoryBenchmarkSource = "swebench_legacy" | "swebench_live" | "local_minted" | "aider_polyglot";
 
 export interface SwebenchInstance {
 	instanceId: string;
@@ -419,15 +419,19 @@ export function parseOfficialSwebenchRunReport(value: unknown): Readonly<Record<
 	const record = value as Record<string, unknown>;
 	const isLegacy = record.schema_version === 2;
 	const isLive = record.schema_version === undefined && Array.isArray(record.success_ids);
-	if (!isLegacy && !isLive) {
-		throw new Error("Official report must be SWE-bench schema-v2 or native SWE-bench-Live results JSON.");
+	const isAiderPolyglot = record.schema_version === "aider_polyglot_v1";
+	if (!isLegacy && !isLive && !isAiderPolyglot) {
+		throw new Error(
+			"Benchmark report must be SWE-bench schema-v2, native SWE-bench-Live results JSON, or Aider polyglot v1.",
+		);
 	}
+	const usesLegacyStatusKeys = isLegacy || isAiderPolyglot;
 	const groups: readonly [BenchmarkAttemptStatus, readonly string[]][] = [
-		["resolved", reportIdList(record, isLegacy ? "resolved_ids" : "success_ids")],
+		["resolved", reportIdList(record, usesLegacyStatusKeys ? "resolved_ids" : "success_ids")],
 		[
 			"unresolved",
 			[
-				...reportIdList(record, isLegacy ? "unresolved_ids" : "failure_ids"),
+				...reportIdList(record, usesLegacyStatusKeys ? "unresolved_ids" : "failure_ids"),
 				...reportIdList(record, "empty_patch_ids"),
 			],
 		],

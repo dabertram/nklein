@@ -102,15 +102,43 @@ export async function captureBenchmarkWorkspaceResult(input: {
 	repoPath: string;
 	baseCommit: string;
 	runId: string;
+	/** Runtime task id whose reviewed artifact may be pinned outside HEAD when the host-delivery taint gate holds. */
+	taskId?: string;
 	runGit?: RunGit;
 }): Promise<CapturedBenchmarkResult> {
 	const runGit = input.runGit ?? defaultRunGit;
-	const resultCommit = await requireGit({
+	const headCommit = await requireGit({
 		repoPath: input.repoPath,
 		args: ["rev-parse", "--verify", "HEAD^{commit}"],
 		runGit,
 		message: "Benchmark result has no HEAD commit",
 	});
+	let resultCommit = headCommit;
+	if (headCommit === input.baseCommit && input.taskId) {
+		if (!/^[A-Za-z0-9_.-]+$/u.test(input.taskId)) throw new Error("Benchmark task id is unsafe for ref lookup.");
+		const prefix = `refs/nklein/evidence/${input.taskId}-`;
+		const refs = (
+			await requireGit({
+				repoPath: input.repoPath,
+				args: ["for-each-ref", "--format=%(refname)", "refs/nklein/evidence"],
+				runGit,
+				message: "Could not enumerate reviewed benchmark task artifacts",
+			})
+		)
+			.split(/\r?\n/u)
+			.filter((ref) => ref.startsWith(prefix));
+		if (refs.length > 1) {
+			throw new Error(`Benchmark task ${input.taskId} has ${refs.length} reviewed artifacts; capture is ambiguous.`);
+		}
+		if (refs[0]) {
+			resultCommit = await requireGit({
+				repoPath: input.repoPath,
+				args: ["rev-parse", "--verify", `${refs[0]}^{commit}`],
+				runGit,
+				message: `Reviewed benchmark artifact ${refs[0]} is invalid`,
+			});
+		}
+	}
 	await requireGit({
 		repoPath: input.repoPath,
 		args: ["merge-base", "--is-ancestor", input.baseCommit, resultCommit],
