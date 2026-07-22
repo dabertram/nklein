@@ -3751,7 +3751,7 @@ stays fast + complete.
     receipt-less interruption, or evidence reuse and resumes completed arms by immutable receipt/report. The
     pre-registered live config assigns eight tasks each to m5max, m4mini, and Legion5pro workers while retaining Mistral
     as the diverse resident reviewer/mirror. The runner now also pins a clean full Git commit before the first workspace,
-    requires the selected runtime process to expose that same clean process-start commit, refuses cross-commit,
+    requires the selected runtime process to expose that same clean pre-initialization commit, refuses cross-commit,
     cross-runtime-process, dirty/unverifiable-runtime, or legacy-unprovenanced resume, and emits per-arm repeated-status snapshots. The daily gate fails
     only stable resolved→stable unresolved changes; mixed repeats are quarantined and missing/error evidence is
     inconclusive. Execution remains; the first live campaign predates the automatic commit baseline and is retained as

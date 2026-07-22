@@ -35,7 +35,7 @@ export type RuntimeBuildIdentityExec = (
 	options: { cwd: string; timeout: number },
 ) => Promise<RuntimeBuildIdentityExecResult>;
 
-/** Capture the runtime process's source identity once at startup; unavailable package installs remain explicit. */
+/** Capture source identity before runtime startup performs any checkout-adjacent initialization. */
 export async function resolveRuntimeBuildIdentity(options?: {
 	cwd?: string;
 	now?: () => Date;

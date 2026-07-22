@@ -3,7 +3,7 @@ import { type RuntimeBuildIdentityExec, resolveRuntimeBuildIdentity } from "../.
 import { type RuntimeTrpcContext, runtimeAppRouter } from "../../../src/trpc/app-router";
 
 describe("runtime build identity", () => {
-	it("captures one clean process-start commit and serves it through tRPC", async () => {
+	it("captures one clean pre-initialization commit and serves it through tRPC", async () => {
 		const exec = vi.fn<RuntimeBuildIdentityExec>(async (_file, args) => ({
 			stdout: args[0] === "rev-parse" ? `${"a".repeat(40)}\n` : "",
 		}));

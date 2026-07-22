@@ -20,6 +20,7 @@ import {
 	installGracefulShutdownHandlers,
 	shouldSuppressImmediateDuplicateShutdownSignals,
 } from "./core/graceful-shutdown";
+import { resolveRuntimeBuildIdentity } from "./core/runtime-build-identity";
 import {
 	buildKanbanRuntimeUrl,
 	clearKanbanRuntimeTls,
@@ -230,6 +231,8 @@ async function startServer(): Promise<{
 	close: () => Promise<void>;
 	shutdown: (options?: { skipSessionCleanup?: boolean }) => Promise<void>;
 }> {
+	// Capture source provenance before workspace-registry initialization or any other startup path can touch the checkout.
+	const buildIdentity = await resolveRuntimeBuildIdentity();
 	installKanbanFetchTimeoutPolicy();
 
 	/*
@@ -307,6 +310,7 @@ async function startServer(): Promise<{
 	};
 
 	const runtimeServer = await createRuntimeServer({
+		buildIdentity,
 		workspaceRegistry,
 		runtimeStateHub: runtimeHub,
 		warn: (message) => {

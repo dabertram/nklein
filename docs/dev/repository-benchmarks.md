@@ -127,7 +127,7 @@ baseline, reports, receipts, and summary are immutable. Infrastructure-tainted p
 McNemar/default-flip gate and remain visibly inconclusive.
 
 Before creating the first workspace it also requires a clean !Klein worktree and queries the selected runtime's
-process-start build identity. Runner and runtime must report the same clean full Git commit; an old, dirty, packaged,
+pre-initialization build identity. Runner and runtime must report the same clean full Git commit; an old, dirty, packaged,
 or unverifiable runtime fails closed. The resulting `harness-baseline.json` pins both identities, and a resume under
 different orchestration/runtime code or a different runtime process is refused. Completed campaigns emit immutable
 `regression-plan.json` and `regression-no-plan.json` snapshots that collapse both repeats per instance: mixed outcomes

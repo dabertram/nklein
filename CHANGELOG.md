@@ -34,7 +34,7 @@
   sequentially, resumes only immutable completed evidence, and stops on calibration, 32k-context, fleet-identity, or
   interrupted-workspace drift before that drift can contaminate a default-flip decision.
   New campaign roots now pin the clean full !Klein Git commit before creating any workspace, verify that the selected
-  runtime process started from that same clean commit, and refuse cross-commit, dirty/unverifiable-runtime, or
+  runtime process captured that same clean commit before startup initialization, and refuse cross-commit, dirty/unverifiable-runtime, or
   legacy-unprovenanced resume. Completed arms emit immutable repeated-status snapshots; the daily delta gate fails only
   stable resolved→stable unresolved changes while quarantining mixed repeats and keeping missing/error evidence
   inconclusive.
