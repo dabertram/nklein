@@ -699,6 +699,26 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 											// Telemetry must never alter endpoint recovery.
 										}
 									},
+									onNativeSessionObservation: (observation) => {
+										try {
+											recordSelfObservation({
+												signal: "custom",
+												severity: observation.type === "stateless_fallback" ? "warning" : "info",
+												message: `Native LM Studio session ${observation.type} for ${request.taskId}: ${observation.detail}`,
+												taskId: request.taskId,
+												providerId: request.providerId,
+												modelId: request.modelId,
+												workspacePath: agentPerceivedCwd,
+												metadata: {
+													category: "native_lmstudio_session",
+													type: observation.type,
+													detail: observation.detail,
+												},
+											});
+										} catch {
+											// Telemetry must never alter endpoint recovery.
+										}
+									},
 								})
 							: undefined;
 						const adaptiveModel = createAdaptiveSwarmRecoveryModel(guardedBase, {

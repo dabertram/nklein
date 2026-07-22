@@ -510,6 +510,15 @@ gap remains.
 > an existing tested orderer is not itself evidence that every prompt path should consume it.
 
 
+> **A PROVIDER SESSION ID IS A CACHE HANDLE, NOT CONVERSATION OWNERSHIP (F4.35, 2026-07-22).** The next SDK request
+> contains the provider's previous assistant answer, but a native stateful session already contains that answer. Before
+> sending a delta, prove byte-exact continuity from the prior caller-owned request through that exact assistant result,
+> skip the already-stored assistant turn, and send only the genuinely new tail. Compaction, replay edits, changed policy,
+> tool turns, or a stale handle fall back to the complete transcript. Never persist the provider handle as the ledger or
+> replay source. LM Studio-hosted MCP is a separate trust boundary: it executes outside !Klein's broker, so sandbox task
+> sessions do not enable it; any other caller needs a specific plugin/tool grant and replay-safe attestation.
+
+
 > **QUALITY A/Bs MUST EXERCISE THE PRODUCTION TRANSFORM, NOT A HAND-BUILT SHORT-PROMPT LOOKALIKE (F4.11,
 > 2026-07-21).** To test a learned context budget, start from ONE authoritative near-threshold transcript and derive
 > the treatment with the live `learnedQualityEffectiveBudget` → `planContextBudget` path. Hold the final request,
@@ -2737,8 +2746,17 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   fully parsed (both item types captured live; response_id = the F4.45 chainable id; defensive tool_call item
   acceptance for F4.34). Fixtures re-derived from real 200 bodies; consumer client updated
   (maxOutputTokens). 9 tests across shape+client.
-- [ ] **F4.35 — Add stateful native sessions and MCP composition.** Use response/session IDs to
+- [x] **F4.35 — Add stateful native sessions and MCP composition.** Use response/session IDs to
   avoid resending history, preserve replay/ledger ownership, and fall back to OpenAI-compatible stateless calls.
+  **SHIPPED 2026-07-22:** a session-scoped controller accepts a native response id only after a clean, usable terminal
+  result; the next turn must prove the unchanged system/policy, exact prior caller transcript, exact persisted assistant
+  result, and a non-empty new tail before it sends only that tail with `previous_response_id`. Any replay/compaction/tool
+  divergence uses the complete stateless transcript; a failed stateful call gets one full native replay before the
+  existing compatible endpoint ladder continues, while the SDK transcript and attempt ledger remain authoritative.
+  Native MCP composition is explicit plugin+tool allowlisting with replay-safe attestation. Its calls are server-executed
+  observations, never re-emitted as SDK tool calls; sandbox task sessions intentionally provide no grant and keep tools
+  on the brokered Messages path. Official current docs and live Qwen3 8B JSON+SSE chains verified changing response ids,
+  delta-only recall (`LARCH-731`), and `chat.end.result.response_id`. 27 focused assertions pass.
 - [x] **F4.36 — Finish native model-management and thinking controls.** Complete safe list/load/unload/status use,
   verify family-specific switches (never infer from architecture alone), and feed facts into load/routing policies.
 

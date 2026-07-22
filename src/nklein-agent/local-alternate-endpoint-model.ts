@@ -3,6 +3,24 @@ import type { AgentMessage, AgentModel, AgentModelEvent, AgentModelRequest } fro
 import { iterateEndpointStrategies } from "../core/endpoint-iteration-loop";
 import { callLocalAnthropicMessages, callLocalNativeChatStream } from "../core/local-endpoint-clients";
 import type { LocalModelEndpointKind } from "../core/local-model-endpoint-strategy";
+import { NativeChatSessionController, type NativeChatSessionPlan } from "../core/local-native-chat-session";
+import type { NativeChatPluginIntegration, ParsedNativeChatResponse } from "../core/local-native-chat-shape";
+
+/**
+ * Explicit grant for an LM Studio-hosted MCP plugin. LM Studio executes these tools itself, outside !Klein's broker,
+ * so task sessions pass none. A non-sandbox caller must attest that every allowed tool is replay-safe before enabling
+ * stateful fallback (a stale response id may require one stateless replay).
+ */
+export interface NativeMcpIntegrationGrant {
+	pluginId: string;
+	allowedTools: readonly string[];
+	replaySafe: true;
+}
+
+export interface NativeSessionObservation {
+	type: "session_started" | "stateful_delta" | "stateless_fallback" | "invalidated" | "mcp_tools_executed";
+	detail: string;
+}
 
 export interface LocalAlternateEndpointModelOptions {
 	baseUrl: string;
@@ -12,6 +30,8 @@ export interface LocalAlternateEndpointModelOptions {
 	headers?: Record<string, string>;
 	preferredKind?: LocalModelEndpointKind | null;
 	onWinningKind?: (kind: LocalModelEndpointKind) => void;
+	nativeMcpIntegrations?: readonly NativeMcpIntegrationGrant[];
+	onNativeSessionObservation?: (observation: NativeSessionObservation) => void;
 }
 
 function endpointUrls(baseUrl: string): { native: string; messages: string } {
@@ -49,14 +69,19 @@ export function agentMessageToEndpointText(message: AgentMessage): string {
 
 function neutralMessages(
 	request: AgentModelRequest,
+	messages: readonly AgentMessage[] = request.messages,
 ): Array<{ role: "system" | "user" | "assistant"; content: string }> {
 	return [
 		...(request.systemPrompt?.trim() ? [{ role: "system" as const, content: request.systemPrompt }] : []),
-		...request.messages.map((message) => ({
+		...messages.map((message) => ({
 			role: message.role === "assistant" ? ("assistant" as const) : ("user" as const),
 			content: agentMessageToEndpointText(message),
 		})),
 	];
+}
+
+function isAdaptiveRetryInstruction(message: AgentMessage): boolean {
+	return message.role === "user" && message.id.startsWith("nklein-retry-");
 }
 
 function maxTokens(request: AgentModelRequest, fallback: number | null | undefined): number {
@@ -65,17 +90,67 @@ function maxTokens(request: AgentModelRequest, fallback: number | null | undefin
 		: Math.max(1, Math.trunc(fallback ?? 1_024));
 }
 
+function nativeIntegrations(grants: readonly NativeMcpIntegrationGrant[] | undefined): NativeChatPluginIntegration[] {
+	if (!grants) return [];
+	const integrations: NativeChatPluginIntegration[] = [];
+	const seen = new Set<string>();
+	for (const grant of grants) {
+		const id = grant.pluginId.trim();
+		const allowedTools = [...new Set(grant.allowedTools.map((tool) => tool.trim()).filter(Boolean))].sort();
+		if (!id || allowedTools.length === 0 || grant.replaySafe !== true || seen.has(id)) continue;
+		seen.add(id);
+		integrations.push({ type: "plugin", id, allowed_tools: allowedTools });
+	}
+	return integrations.sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function observe(options: LocalAlternateEndpointModelOptions, observation: NativeSessionObservation): void {
+	try {
+		options.onNativeSessionObservation?.(observation);
+	} catch {
+		// Observability must never alter endpoint recovery.
+	}
+}
+
+function nativePolicyKey(
+	options: LocalAlternateEndpointModelOptions,
+	integrations: readonly NativeChatPluginIntegration[],
+): string {
+	return JSON.stringify({ model: options.modelId, integrations });
+}
+
+function nativeEvents(response: ParsedNativeChatResponse, usable: boolean, error: string): AgentModelEvent[] {
+	return [
+		...(response.reasoning ? [{ type: "reasoning-delta" as const, text: response.reasoning }] : []),
+		...(response.text ? [{ type: "text-delta" as const, text: response.text }] : []),
+		usable
+			? { type: "finish" as const, reason: "stop" as const }
+			: { type: "finish" as const, reason: "error" as const, error },
+	];
+}
+
 /**
- * Build a non-streaming local endpoint fallback. The endpoint sub-ladder is one `alternate_endpoint` policy rung;
- * native is tried before Messages, transient retries are disabled, and only a usable result wins.
+ * Build a buffered local endpoint fallback. The endpoint sub-ladder is one `alternate_endpoint` policy rung; native
+ * SSE is tried before Messages, transient retries are disabled, and only a complete usable result becomes visible.
  */
 export function createLocalAlternateEndpointModel(options: LocalAlternateEndpointModelOptions): AgentModel {
 	const urls = endpointUrls(options.baseUrl);
+	const session = new NativeChatSessionController();
+	const integrations = nativeIntegrations(options.nativeMcpIntegrations);
+	const policyKey = nativePolicyKey(options, integrations);
 	return {
 		stream(request): AsyncIterable<AgentModelEvent> {
 			return (async function* () {
 				let winningEvents: AgentModelEvent[] | null = null;
 				let lastEvents: AgentModelEvent[] = [];
+				if (request.tools.length > 0) {
+					if (session.invalidate()) {
+						observe(options, {
+							type: "invalidated",
+							detail: "SDK tools require the brokered Messages endpoint.",
+						});
+					}
+				}
 				const result = await iterateEndpointStrategies({
 					// Native chat can execute configured MCP integrations, but it still has no arbitrary custom-tool schema
 					// field. !Klein's SDK tools therefore stay on Messages for a tool-required recovery turn.
@@ -86,47 +161,83 @@ export function createLocalAlternateEndpointModel(options: LocalAlternateEndpoin
 						if (request.signal?.aborted) throw request.signal.reason ?? new Error("request aborted");
 						const messages = neutralMessages(request);
 						if (kind === "native_v1_chat") {
-							const streamed = await callLocalNativeChatStream({
-								url: urls.native,
-								model: options.modelId,
-								messages,
-								maxOutputTokens: maxTokens(request, options.baseMaxTokens),
-								store: false,
-								...(typeof request.options?.temperature === "number"
-									? { temperature: request.options.temperature }
-									: {}),
-								fetchImpl: options.fetchImpl,
-								maxRetries: 0,
-								signal: request.signal,
-								headers: options.headers,
-							});
-							const response = streamed.result;
-							const events: AgentModelEvent[] = [
-								...(response.reasoning ? [{ type: "reasoning-delta" as const, text: response.reasoning }] : []),
-								...(response.text ? [{ type: "text-delta" as const, text: response.text }] : []),
-								...response.toolCalls.map((call, index) => ({
-									type: "tool-call-delta" as const,
-									toolCallId: call.id || `native-${index + 1}`,
-									toolName: call.name,
-									inputText: JSON.stringify(call.args),
-								})),
-								streamed.termination !== "eof_without_chat_end" && streamed.errors.length === 0
-									? { type: "finish" as const, reason: response.toolCalls.length > 0 ? "tool-calls" : "stop" }
-									: {
-											type: "finish" as const,
-											reason: "error" as const,
-											error:
-												streamed.errors.map((error) => error.message).join("; ") ||
-												`Native stream ended as ${streamed.termination}.`,
-										},
-							];
-							lastEvents = events;
-							const usable =
-								streamed.termination !== "eof_without_chat_end" &&
-								streamed.errors.length === 0 &&
-								(request.tools.length > 0 ? response.toolCalls.length > 0 : response.text.trim().length > 0);
-							if (usable) winningEvents = events;
-							return usable;
+							const canonicalMessages = neutralMessages(
+								request,
+								request.messages.filter((message) => !isAdaptiveRetryInstruction(message)),
+							);
+							const attemptMessages = neutralMessages(
+								{ ...request, systemPrompt: undefined },
+								request.messages.filter(isAdaptiveRetryInstruction),
+							);
+							const execute = async (plan: NativeChatSessionPlan): Promise<boolean> => {
+								const streamed = await callLocalNativeChatStream({
+									url: urls.native,
+									model: options.modelId,
+									messages: plan.messages,
+									maxOutputTokens: maxTokens(request, options.baseMaxTokens),
+									store: true,
+									...(plan.previousResponseId ? { previousResponseId: plan.previousResponseId } : {}),
+									...(integrations.length > 0 ? { integrations } : {}),
+									...(typeof request.options?.temperature === "number"
+										? { temperature: request.options.temperature }
+										: {}),
+									fetchImpl: options.fetchImpl,
+									maxRetries: 0,
+									signal: request.signal,
+									headers: options.headers,
+								});
+								const response = streamed.result;
+								const usable =
+									streamed.termination !== "eof_without_chat_end" &&
+									streamed.errors.length === 0 &&
+									response.text.trim().length > 0;
+								const error =
+									streamed.errors.map((item) => item.message).join("; ") ||
+									`Native stream ended as ${streamed.termination}.`;
+								const events = nativeEvents(response, usable, error);
+								lastEvents = events;
+								if (response.toolCalls.length > 0) {
+									observe(options, {
+										type: "mcp_tools_executed",
+										detail: response.toolCalls.map((call) => call.name).join(", "),
+									});
+								}
+								if (usable) {
+									winningEvents = events;
+									const accepted = streamed.protocolErrors.length === 0 && session.accept(plan, response);
+									if (accepted) {
+										observe(options, {
+											type: plan.mode === "stateful_delta" ? "stateful_delta" : "session_started",
+											detail: plan.mode,
+										});
+									} else {
+										const invalidated = session.invalidate();
+										if (invalidated) {
+											observe(options, {
+												type: "invalidated",
+												detail: "Native response did not provide a clean chainable response id.",
+											});
+										}
+									}
+								}
+								return usable;
+							};
+							let plan = session.plan(canonicalMessages, policyKey, attemptMessages);
+							if (plan.mode === "stateful_delta") {
+								try {
+									if (await execute(plan)) return true;
+								} catch (error) {
+									if (request.signal?.aborted) throw error;
+								}
+								session.invalidate();
+								observe(options, {
+									type: "stateless_fallback",
+									detail:
+										"Stateful native continuation failed; replaying the caller-owned full transcript once.",
+								});
+								plan = session.plan(canonicalMessages, policyKey, attemptMessages);
+							}
+							return await execute(plan);
 						}
 						const response = await callLocalAnthropicMessages({
 							url: urls.messages,
@@ -163,6 +274,11 @@ export function createLocalAlternateEndpointModel(options: LocalAlternateEndpoin
 						const usable =
 							request.tools.length > 0 ? response.toolCalls.length > 0 : response.text.trim().length > 0;
 						if (usable) winningEvents = events;
+						if (usable) {
+							if (session.invalidate()) {
+								observe(options, { type: "invalidated", detail: "Messages endpoint won the recovery turn." });
+							}
+						}
 						return usable;
 					},
 				});

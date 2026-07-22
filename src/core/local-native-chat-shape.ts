@@ -20,6 +20,12 @@ export interface NativeChatMessage {
 	content: string;
 }
 
+export interface NativeChatPluginIntegration {
+	type: "plugin";
+	id: string;
+	allowed_tools?: readonly string[];
+}
+
 export interface NativeChatRequestInput {
 	model: string;
 	/** Native key `max_output_tokens` (the OpenAI `max_tokens` key is rejected by this surface). */
@@ -32,7 +38,7 @@ export interface NativeChatRequestInput {
 	store?: boolean;
 	previousResponseId?: string;
 	/** Preconfigured LM Studio MCP integrations only. Remote per-request MCPs are intentionally not exposed by !Klein. */
-	integrations?: readonly (string | { type: "plugin"; id: string; allowed_tools?: readonly string[] })[];
+	integrations?: readonly (string | NativeChatPluginIntegration)[];
 }
 
 export interface NativeChatRequestBody {

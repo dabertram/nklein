@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **LM Studio native recovery now reuses verified stateful sessions without surrendering transcript ownership.** !Klein
+  proves exact transcript continuity, sends only the new turn with `previous_response_id`, and replays the full
+  caller-owned transcript once when provider state is stale. Compaction, replay edits, tool turns, and endpoint changes
+  invalidate the optimization. Native MCP plugins require explicit replay-safe tool grants and remain disabled for
+  sandbox task sessions, whose tools continue through !Klein's approval broker.
+
 - **LM Studio native chat now speaks the current 0.4.x streaming contract.** !Klein sends the dedicated input/system
   fields, incrementally parses named reasoning, message, MCP-tool, usage, error, and termination events, and treats the
   final `chat.end` aggregate as authoritative. A dropped stream cannot masquerade as success, and prose-only endpoint
