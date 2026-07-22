@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+	buildAiderPolyglotExecutionPrompt,
+	buildAiderPolyglotPublicAcceptanceCommand,
 	buildAiderPolyglotTask,
 	PINNED_AIDER_POLYGLOT_COMMIT,
 	parseAiderPolyglotConfig,
@@ -28,6 +30,12 @@ describe("Aider polyglot benchmark adapter", () => {
 		});
 		expect(task.instanceId).toBe("aider-rust-decimal");
 		expect(task.prompt).toContain("src/lib.rs, Cargo.toml");
+		expect(buildAiderPolyglotPublicAcceptanceCommand(task)).toBe(
+			"git diff --check -- 'src/lib.rs' 'Cargo.toml' && test -s 'src/lib.rs' && test -s 'Cargo.toml'",
+		);
+		expect(buildAiderPolyglotExecutionPrompt(task)).toContain(
+			"Acceptance check: git diff --check -- 'src/lib.rs' 'Cargo.toml'",
+		);
 		expect(JSON.stringify(task)).not.toContain("private.rs");
 		expect(JSON.stringify(task)).not.toContain("example.rs");
 		expect(

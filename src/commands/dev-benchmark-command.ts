@@ -4,6 +4,8 @@ import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
 	AIDER_POLYGLOT_LANGUAGES,
+	buildAiderPolyglotExecutionPrompt,
+	buildAiderPolyglotPublicAcceptanceCommand,
 	buildAiderPolyglotTask,
 	PINNED_AIDER_POLYGLOT_COMMIT,
 	parseAiderPolyglotConfig,
@@ -99,6 +101,7 @@ export interface DevBenchmarkOptions {
 export interface BenchmarkTaskExecutionInput {
 	workspacePath: string;
 	task: LeakageSafeBenchmarkTask;
+	acceptanceCommand: string;
 	runId: string;
 	modelId?: string;
 	providerId?: string;
@@ -285,26 +288,32 @@ async function prepareAiderPolyglot(options: DevBenchmarkOptions) {
 	return { action: "prepare", source: "aider_polyglot", output, selected: selected.length };
 }
 
-async function loadExecutionTask(options: DevBenchmarkOptions): Promise<LeakageSafeBenchmarkTask> {
+async function loadExecutionTask(
+	options: DevBenchmarkOptions,
+): Promise<{ task: LeakageSafeBenchmarkTask; acceptanceCommand: string }> {
 	if (!options.instance) throw new Error("Benchmark execution requires --instance.");
 	if (parseSource(options.source) === "aider_polyglot") {
 		const manifest = await loadAiderPolyglotManifest(options);
 		const polyglot = manifest.tasks.find((task) => task.instanceId === options.instance);
 		if (!polyglot) throw new Error(`Benchmark instance ${options.instance} is not present in the local manifest.`);
+		const acceptanceCommand = buildAiderPolyglotPublicAcceptanceCommand(polyglot);
 		return {
-			instanceId: polyglot.instanceId,
-			repo: `Aider-AI/polyglot-benchmark/${polyglot.language}/${polyglot.exercise}`,
-			baseCommit: polyglot.corpusCommit,
-			prompt: polyglot.prompt,
-			source: "aider_polyglot",
-			difficulty: "unknown",
-			createdAt: null,
+			task: {
+				instanceId: polyglot.instanceId,
+				repo: `Aider-AI/polyglot-benchmark/${polyglot.language}/${polyglot.exercise}`,
+				baseCommit: polyglot.corpusCommit,
+				prompt: buildAiderPolyglotExecutionPrompt(polyglot),
+				source: "aider_polyglot",
+				difficulty: "unknown",
+				createdAt: null,
+			},
+			acceptanceCommand,
 		};
 	}
 	const instances = await loadDataset(options);
 	const instance = instances.find((entry) => entry.instanceId === options.instance);
 	if (!instance) throw new Error(`Benchmark instance ${options.instance} is not present in the local dataset.`);
-	return buildLeakageSafeBenchmarkTask(instance);
+	return { task: buildLeakageSafeBenchmarkTask(instance), acceptanceCommand: "" };
 }
 
 function selectionFromOptions(options: DevBenchmarkOptions) {
@@ -405,7 +414,7 @@ async function executeBenchmarkTask(input: BenchmarkTaskExecutionInput): Promise
 		prompt: input.task.prompt,
 		specification: input.task.prompt,
 		// Deliberately unused: the private benchmark oracle runs later in the official external grader.
-		acceptanceCommand: "",
+		acceptanceCommand: input.acceptanceCommand,
 	};
 	const execution = await executeDevTestScenario({
 		client: createDevRuntimeClient(runtimeWorkspaceId),
@@ -416,7 +425,6 @@ async function executeBenchmarkTask(input: BenchmarkTaskExecutionInput): Promise
 		startInPlanMode: input.startInPlanMode,
 		autoReviewEnabled: true,
 		autoReviewMode: "commit",
-		stablePollsUntilSettled: 3,
 		...(input.modelId
 			? { nkleinSettings: { providerId: input.providerId?.trim() || "lmstudio", modelId: input.modelId } }
 			: {}),
@@ -457,7 +465,7 @@ async function run(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) 
 			"benchmark run requires --dataset, --instance, --workspace-parent, --model, --output, --receipt, and --run-id.",
 		);
 	}
-	const task = await loadExecutionTask(options);
+	const { task, acceptanceCommand } = await loadExecutionTask(options);
 	if (!/^[A-Za-z0-9_.-]+$/u.test(options.runId)) {
 		throw new Error("--run-id must contain only letters, digits, dot, underscore, or hyphen.");
 	}
@@ -484,6 +492,7 @@ async function run(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) 
 	const execution = await executeTask({
 		workspacePath,
 		task,
+		acceptanceCommand,
 		runId: options.runId,
 		startInPlanMode: options.plan !== false,
 		...(options.modelId ? { modelId: options.modelId } : {}),

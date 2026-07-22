@@ -26,7 +26,10 @@
   Candidate patches are restricted to declared solution files before private tests enter scope. The first controlled
   Python smoke found a real signal: the Qwen3.6-35B-A3B fleet arm resolved affine-cipher without plan mode while the
   otherwise identical plan arm parked for attention and remained unresolved. This single pair validates the lane, not
-  a default change.
+  a default change. Candidate cards now also carry a leakage-safe public acceptance check through the same persisted
+  prompt convention as ordinary cards, while semantic grading stays private and external. Benchmark monitoring inherits
+  the production real-model settle window, so immutable receipts cannot capture an empty intermediate artifact while
+  watchdog review or correction is still progressing.
 
 - **Speculative best-of-N now yields to real reviews across workspaces.** A headless auto-review is real queued work
   before its reviewer session reaches model admission. The process-wide in-flight review signal now vetoes new mirrors

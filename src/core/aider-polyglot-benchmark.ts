@@ -3,6 +3,28 @@ export const PINNED_AIDER_POLYGLOT_COMMIT = "7e0611e77b54e2dea774cdc0aa00cf9f7ed
 export const AIDER_POLYGLOT_LANGUAGES = ["cpp", "go", "java", "javascript", "python", "rust"] as const;
 export type AiderPolyglotLanguage = (typeof AIDER_POLYGLOT_LANGUAGES)[number];
 
+function shellQuote(value: string): string {
+	return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+/**
+ * Build the strongest acceptance command that can safely run inside the generic agent sandbox.
+ *
+ * The private exercise tests must stay outside the agent boundary, and the generic sandbox intentionally does not
+ * contain every language toolchain. This check therefore verifies only public invariants: declared solution files stay
+ * present/non-empty and the authored diff has no whitespace errors. Semantic resolution remains the external grader's
+ * job; the command exists so production review does not reject benchmark cards merely because their oracle is private.
+ */
+export function buildAiderPolyglotPublicAcceptanceCommand(task: AiderPolyglotTask): string {
+	const files = task.solutionFiles.map(shellQuote);
+	return [`git diff --check -- ${files.join(" ")}`, ...files.map((path) => `test -s ${path}`)].join(" && ");
+}
+
+/** Carry the public benchmark contract through the same persisted prompt convention production review consumes. */
+export function buildAiderPolyglotExecutionPrompt(task: AiderPolyglotTask): string {
+	return `${task.prompt}\n\nAcceptance check: ${buildAiderPolyglotPublicAcceptanceCommand(task)}`;
+}
+
 export interface AiderPolyglotTask {
 	schemaVersion: 1;
 	source: "aider_polyglot";

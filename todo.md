@@ -130,6 +130,18 @@ gap remains.
 > speculative mirror could keep a reviewer endpoint while another workspace's headless review was in-flight but had not
 > yet admitted its reviewer session. The global auto-review-finalizer count now vetoes new mirrors and preempts live
 > ones. Real review work outranks speculation before model admission, not only after a waiting session exists.
+> **BENCHMARK CARD CONTRACTS MUST USE THE PRODUCTION CARD CONVENTION (Aider candidate pilot, 2026-07-22):** a dev
+> scenario's `acceptanceCommand` is only harness metadata; production acceptance/review reads the persisted card prompt's
+> `Acceptance check:` line. Omitting that line made every private-oracle benchmark look contract-free and invited a
+> mandatory review bounce. Keep the full semantic oracle outside the agent boundary, but embed a public, cross-toolchain
+> invariant (`git diff --check` plus non-empty declared solution files) through the normal card convention so review can
+> distinguish “private oracle” from “no completion contract.” A passed public check is not a resolve verdict; only the
+> external grader supplies that.
+> **A BENCHMARK RECEIPT MUST FOLLOW THE WHOLE RECOVERY/REVIEW MACHINE (Aider candidate pilot, 2026-07-22):** never shorten
+> the mature real-model settle window to a handful of campaign polls. A three-poll override captured `stagnant` + empty
+> patch during an ordinary between-turn lull while the watchdog continued review/correction after the immutable receipt
+> was written. Inherit the shared long settle policy, keep the active-session guard, and bound the run with its outer
+> deadline. Poll frequency controls observation latency; it does not define semantic terminality.
 > **SANDBOX LIFECYCLE SINGLE-FLIGHT MUST MATCH ITS NAME SCOPE (multi-workspace pilot, 2026-07-23):** the sandbox
 > manager's per-slot `starting` promise cannot serialize two different per-workspace managers. Giving both managers the
 > global `nklein-agent-sandbox-1` name creates a Docker race, and accepting the conflict would be unsafe because the
@@ -3702,7 +3714,12 @@ stays fast + complete.
   this caught and fixed Cargo's ordinary exit-101 failure being mislabeled as infrastructure error.
   Candidate patches can touch only declared solution paths after private tests are reconstructed. In a controlled
   Qwen3.6-35B-A3B + fleet-review pair, plan mode parked for attention and graded unresolved while no-plan emitted a
-  reviewed 4.6 KB patch and resolved. This one-task model smoke proves non-zero signal, not a default flip. **Remainder:**
+  reviewed 4.6 KB patch and resolved. This one-task model smoke proves non-zero signal, not a default flip. A later
+  low-power Qwen3-8B + Mistral mirror validation caught two adapter defects before widening: benchmark cards did not carry
+  their leakage-safe acceptance through the production prompt convention, and a three-poll settle override captured an
+  intermediate empty artifact while watchdog recovery continued. Both root causes are fixed. The repaired workflow
+  reached completion with a reviewed 1,067-byte patch; the private oracle honestly rejected it on one camel-case test
+  (9/10), proving public acceptance and external semantic grading remain separate. **Remainder:**
   A three-workspace candidate pilot was deliberately excluded from A/B evidence after it exposed cross-workspace
   speculative-mirror/reviewer contention; the root scheduler fix is landed and the matched campaign must run
   sequentially against a fixed resident set. Run the calibrated 24-task repeated A/B tranche; add Terminal-Bench and

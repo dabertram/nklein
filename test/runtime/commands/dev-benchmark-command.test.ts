@@ -141,6 +141,7 @@ describe("dev benchmark command", () => {
 					expect(JSON.stringify(input.task)).not.toContain("PRIVATE TEST");
 					expect(input.startInPlanMode).toBe(true);
 					expect(input.modelId).toBe("loaded-model");
+					expect(input.acceptanceCommand).toBe("");
 					return {
 						seedTaskId: input.runId,
 						durationMs: 123,
