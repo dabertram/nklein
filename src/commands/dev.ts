@@ -1023,8 +1023,9 @@ export function registerDevCommand(program: Command): void {
 		)
 		.requiredOption("--commit <sha>", "The commit whose authored lines are measured.")
 		.option("--ref <ref>", "The later ref to measure survival at (default HEAD).")
+		.option("--windows", "Measure retained git snapshots at the commit's real 24h and 7d deadlines.")
 		.option("--json", "Print machine-readable JSON.")
-		.action(async (options: { commit: string; ref?: string; json?: boolean }) => {
+		.action(async (options: { commit: string; ref?: string; windows?: boolean; json?: boolean }) => {
 			await runDevChurnCommand(options);
 		});
 	dev.command("interventions")

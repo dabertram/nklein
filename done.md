@@ -2479,3 +2479,70 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   support an architectural win claim. Full cards, paired task results, and raw observations are published in
   `docs/dev/p20.8-retry-baseline-2026-07-22.json`; controller runs `20260722-020938` and `20260722-022417` retained
   the five-model fleet and exited with reconciled evidence 0.
+
+- [x] **P20.10 — Intervention metrics designed to avoid the disengagement-report trap.** California DMV
+  disengagement data is the cautionary analogue — the DMV itself states it is not intended to compare companies,
+  because the operator chooses the denominator and defines the numerator with no severity weighting. Design ours
+  as a **severity taxonomy from day one**: `nudge` (typed guidance, no code) / `correction` (user edited output) /
+  `takeover` (user wrote the fix) / `abort`; human wall-clock logged BY THE HARNESS, not estimated;
+  **post-acceptance churn at 24h/7d** (fraction of agent-authored lines later deleted or rewritten); and
+  **autonomous streak length** (consecutive zero-intervention cards — a pass^k analogue for operator effort).
+  Feeds P16.5 directly.
+  **CHURN CORE SHIPPED 2026-07-20: `post-acceptance-churn.ts`, 12 tests.** The severity taxonomy and autonomous
+  streak already lived in `operator-intervention.ts` (shared with P16.5); this adds the missing half.
+  **WHY CHURN IS THE MOST VALUABLE METRIC IN THIS PHASE, even after P20.1 hardened the grader.** Every other
+  signal here measures a MOMENT — the review approved, acceptance exited zero, the card reached `completed`.
+  P20.1 now rejects board-only forgery with independent acceptance evidence, but acceptance still cannot say whether
+  maintainers keep the work. **Churn is longitudinal.** A card entirely rewritten within 24h was not durable whatever
+  its point-in-time checks recorded, and no state tampering changes what a human later deleted.
+  **JUDGED ON 24h, NOT 7d.** Seven-day churn conflates "this was wrong" with "the code evolved" — and a metric
+  that punishes evolution would push the harness toward **work nobody touches afterwards, which is not the same
+  thing as work that was right.** The GAP between the two windows is reported separately and is more informative
+  than either number: it separates *wrong on arrival* from *the thing moved*.
+  **SMALL DENOMINATORS ARE THE TRAP, and they are handled rather than mentioned.** A card authoring 4 lines with
+  3 later touched reports 75% churn — arithmetic, not signal, and it would **dominate any ranking sorted by
+  churn rate.** Below 20 authored lines the result is `indeterminate`, and `summariseChurn` excludes those from
+  the mean while REPORTING how many were excluded (averaging them lets tiny cards swing the mean; dropping them
+  silently hides that the sample covers fewer cards than it appears to — the same pair of errors P20.7's
+  infra-error rate avoids).
+  A 7d figure below the 24h one is clamped rather than producing a negative gap that would read as code being
+  un-churned. No judgeable card reports **"churn is UNMEASURED, which is not the same as low."**
+  **COLLECTOR SHIPPED 2026-07-20: `churn-collector.ts`, 13 tests, verified against REAL git history.**
+  Git is an injected PORT, so the arithmetic is testable without a repository and the same logic works against a
+  sandbox result branch or main. Live check: 16 of 206 attributed lines still belong to the last commit touching
+  `nightly-invariant-pack.ts` — which matches the size of that commit, so the counting is not merely self-consistent.
+  **IT USES BLAME, NOT DIFF, and that is the measurement decision.** Diffing a card's commit against a later ref
+  answers *"how much changed nearby"*, not *"how much of what this card wrote is still here"* — a later commit
+  touching adjacent lines inflates it and a rename destroys it. Blame asks the actual question: is each authored
+  line still attributed to the card's commit?
+  **AN UNREADABLE FILE COUNTS AS FULLY CHURNED *AND* IS NAMED.** Counting it as surviving would hide a DELETED
+  file — the strongest churn signal there is — behind a read error; counting it silently would make the
+  denominator lie. Survival above authorship is CLAMPED, because negative churn would read as *"the card added
+  lines after the fact"*, a nonsense a reader would rightly disbelieve.
+  ⚠️ **STATED IN THE SOURCE BECAUSE A CHURN NUMBER IMPLIES MORE PRECISION THAN IT HAS:** a MOVED line reads as
+  churn (blame does not follow content across a relocating refactor) and a REFORMAT reads as churn. **Both push
+  the number UP** — so a LOW churn figure is trustworthy while a HIGH one deserves a look before it is believed.
+  That asymmetry has to be known before anyone acts on a ranking.
+  `countAttributedLines("")` returns 0 rather than matching every line — a blank prefix would `startsWith`-match
+  everything and report total survival, a silent and flattering lie.
+  **WINDOWED COLLECTOR COMPLETE 2026-07-22.** A seven-day resident timer was the wrong mechanism: Git already
+  retains the required snapshots. `dev churn --windows` resolves the latest first-parent ref at or before each
+  elapsed deadline, rejects any candidate that does not contain the accepted commit, blames both snapshots, and
+  feeds their independent counts to `assessChurn`. Pending windows remain unestimated; runtime restarts and sleeping
+  machines cannot lose the measurement. Real seven-day history for commit `f60c1f5175704cd6c959c7417e174d6020d0d508`
+  resolved refs `fc7e9a4e3378` (24h) and `464caf08602c` (7d): 237/241 lines survived at both, 1.66% churn,
+  verdict healthy, iteration gap zero.
+  **WIRED SAME-SESSION: `dev churn --commit <sha> [--ref HEAD]`** — so the collector is not another core with no
+  consumer. It is useful IMMEDIATELY rather than only after a 24h window: *"how much of what this commit wrote is
+  still in the tree?"* is answerable against any later ref, and the scheduled sampling refines that question
+  rather than gating it.
+  **VALIDATED BY DISCRIMINATION, not just by running:**
+  - an untouched commit → **205/205 survive, 0% churn**
+  - the commit that created `nightly-pack-registry.ts` → **129/148 survive, 13% churned** — a file corrected TWICE
+  today (`done`→`completed`, then `parked`→`review`). Right magnitude, and it is churn I can independently
+  account for.
+  A tool that returned 0% for everything would have looked identical on the first test. **The second measurement is
+  the one that shows it measures anything.**
+  ⚠️ The default one-off command still passes the SAME figure for both windows and says so in its output: a single
+  current-ref read cannot separate *"wrong on arrival"* from *"changed later"*. Use `--windows` for the genuine
+  two-snapshot 24h/7d assessment; computing a gap from the one-off mode would manufacture a number never measured.

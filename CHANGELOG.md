@@ -9,6 +9,11 @@
   descriptive 12-task result makes no architectural superiority claim and prevents retries from becoming a silent
   advantage in future comparisons.
 
+- **Post-acceptance churn now measures genuine 24-hour and 7-day snapshots.** `dev churn --windows` resolves retained
+  first-parent Git refs at each elapsed deadline, verifies that each snapshot contains the accepted commit, and feeds
+  the two independent blame counts into the churn judge. It survives runtime restarts and sleeping machines, refuses
+  to estimate future windows, and keeps one-off current-ref inspection available for immediate forensics.
+
 - **Sandbox memory limits now distinguish steady pressure from the OOM kill threshold.** Containers receive a soft
   reservation and a separate hard ceiling with operational 3× headroom; equal values are rejected, swap beyond the
   ceiling is disabled, and setup guidance publishes both numbers so eval infrastructure is reproducible.

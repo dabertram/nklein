@@ -13,6 +13,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { buildBlameArgs, type ChurnGitPort, collectChurnForCard, countAttributedLines } from "../core/churn-collector";
+import { type ChurnWindowGitPort, collectWindowedChurn } from "../core/churn-window-collector";
 import { assessChurn } from "../core/post-acceptance-churn";
 
 const execFileAsync = promisify(execFile);
@@ -48,7 +49,41 @@ function createGitPort(): ChurnGitPort {
 	};
 }
 
-export async function runDevChurnCommand(options: { commit?: string; ref?: string; json?: boolean }): Promise<void> {
+async function resolveContainingRefAtOrBefore(input: {
+	commit: string;
+	laterRef: string;
+	dueAt: number;
+}): Promise<string | null> {
+	const { stdout } = await execFileAsync(
+		"git",
+		["rev-list", "--first-parent", `--before=${new Date(input.dueAt).toISOString()}`, input.laterRef],
+		{ maxBuffer: 32 * 1024 * 1024 },
+	).catch(() => ({ stdout: "" }));
+	for (const candidate of stdout.split("\n").filter(Boolean)) {
+		const ancestor = await execFileAsync("git", ["merge-base", "--is-ancestor", input.commit, candidate])
+			.then(() => true)
+			.catch(() => false);
+		if (ancestor) return candidate;
+	}
+	return null;
+}
+
+function createWindowGitPort(): ChurnWindowGitPort {
+	return { ...createGitPort(), resolveContainingRefAtOrBefore };
+}
+
+async function readCommitTimestamp(commit: string): Promise<number | null> {
+	const { stdout } = await execFileAsync("git", ["show", "-s", "--format=%ct", commit]).catch(() => ({ stdout: "" }));
+	const seconds = Number(stdout.trim());
+	return Number.isFinite(seconds) && seconds > 0 ? seconds * 1_000 : null;
+}
+
+export async function runDevChurnCommand(options: {
+	commit?: string;
+	ref?: string;
+	windows?: boolean;
+	json?: boolean;
+}): Promise<void> {
 	if (!options.commit) {
 		process.stdout.write("usage: dev churn --commit <sha> [--ref HEAD]\n");
 		process.exitCode = 2;
@@ -60,6 +95,37 @@ export async function runDevChurnCommand(options: { commit?: string; ref?: strin
 	if (files === null) {
 		process.stdout.write(`Could not read commit ${options.commit}.\n`);
 		process.exitCode = 1;
+		return;
+	}
+	if (options.windows) {
+		const acceptedAt = await readCommitTimestamp(options.commit);
+		if (acceptedAt === null) {
+			process.stdout.write(`Could not read acceptance time from commit ${options.commit}.\n`);
+			process.exitCode = 1;
+			return;
+		}
+		const result = await collectWindowedChurn({
+			cardId: options.commit,
+			commit: options.commit,
+			acceptedAt,
+			now: Date.now(),
+			laterRef: ref,
+			files,
+			git: createWindowGitPort(),
+		});
+		if (options.json) {
+			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+		} else {
+			process.stdout.write(`WINDOWED CHURN: ${result.status.toUpperCase()} — ${result.reason}\n`);
+			for (const window of result.windows) {
+				process.stdout.write(`  ${window.id}: ${window.state} at ${new Date(window.dueAt).toISOString()}\n`);
+			}
+			if (result.sample24h) process.stdout.write(`  24h: ${result.sample24h.summary}\n`);
+			if (result.sample7d) process.stdout.write(`  7d: ${result.sample7d.summary}\n`);
+			if (result.assessment)
+				process.stdout.write(`${result.assessment.verdict.toUpperCase()}: ${result.assessment.reason}\n`);
+		}
+		process.exitCode = result.status === "unresolvable" ? 1 : 0;
 		return;
 	}
 

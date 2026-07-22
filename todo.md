@@ -33,10 +33,10 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after N18):** `[ ]` means executable now, not merely “not started”; `[~]`
-means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited gate
-below is green. The current 197-package remainder is **102 ready + 7 partial + 77 dependency-blocked + 6 external/user-
-gated + 5 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
+**Live status clarification (2026-07-22, after P20 partial closure):** `[ ]` means executable now, not merely “not started”;
+`[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
+gate below is green. The current 190-package remainder is **102 ready + 0 partial + 77 dependency-blocked + 6 external/
+user-gated + 5 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 
 Broad blocked phases inherit these named gates (an item's narrower inline gate is additional):
@@ -98,6 +98,12 @@ gap remains.
 > request/provider failure as `infra` and returned-but-unscorable output as model quality; collapsing both into infra
 > launders a weak format response out of the denominator and can fail an otherwise healthy experiment for the wrong
 > reason. The retry baseline records provenance per attempt and counts an unscorable response as score zero.
+
+> **⚠️ GIT HISTORY IS THE DURABLE 24H/7D CHURN SCHEDULER (P20.10, 2026-07-22).** Do not keep a process or laptop
+> awake for seven days merely to take two blame samples. After a deadline elapses, resolve the latest first-parent ref
+> at or before that timestamp which actually contains the accepted commit, then blame the retained snapshot. This is
+> restart-safe and exact to repository history. Never use a ref that predates/non-contains the accepted commit, and
+> never estimate an unelapsed window.
 
 > **⚠️ COMMUNITY SKILL LOADING IS A BOUNDED BYTE-READ BOUNDARY, NEVER AN EXECUTION OR ACTIVATION BOUNDARY (F4.20,
 > 2026-07-21).** Confine the requested skill directory lexically and by realpath, reject every symlink/special file,
@@ -7686,69 +7692,6 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Per P18.5, `GRADIENT_FLOOR_PERCENT = 5` is an **OPERATIONAL DEFAULT**, chosen above SWE-bench Pro's 3.4% and
   below Aider's "low but rankable" ~8%. **The boundary between those two IS the judgement**, and it is labelled
   as a judgement rather than a finding.
-- [~] **P20.10 — Intervention metrics designed to avoid the disengagement-report trap.** California DMV
-  disengagement data is the cautionary analogue — the DMV itself states it is not intended to compare companies,
-  because the operator chooses the denominator and defines the numerator with no severity weighting. Design ours
-  as a **severity taxonomy from day one**: `nudge` (typed guidance, no code) / `correction` (user edited output) /
-  `takeover` (user wrote the fix) / `abort`; human wall-clock logged BY THE HARNESS, not estimated;
-  **post-acceptance churn at 24h/7d** (fraction of agent-authored lines later deleted or rewritten); and
-  **autonomous streak length** (consecutive zero-intervention cards — a pass^k analogue for operator effort).
-  Feeds P16.5 directly.
-  **CHURN CORE SHIPPED 2026-07-20: `post-acceptance-churn.ts`, 12 tests.** The severity taxonomy and autonomous
-  streak already lived in `operator-intervention.ts` (shared with P16.5); this adds the missing half.
-  **WHY CHURN IS THE MOST VALUABLE METRIC IN THIS PHASE, and it follows directly from P20.1's finding.** Every
-  other signal here measures a MOMENT — the review approved, acceptance exited zero, the card reached
-  `completed`. P20.1 established that our grader **cannot tell a real completion from a forged one**, because it
-  reads the board and the board is inside the trust boundary. **Churn is outside it.** A card whose code was
-  entirely rewritten within 24h was not a success whatever the board recorded, and **no amount of state tampering
-  changes what a human later deleted.**
-  **JUDGED ON 24h, NOT 7d.** Seven-day churn conflates "this was wrong" with "the code evolved" — and a metric
-  that punishes evolution would push the harness toward **work nobody touches afterwards, which is not the same
-  thing as work that was right.** The GAP between the two windows is reported separately and is more informative
-  than either number: it separates *wrong on arrival* from *the thing moved*.
-  **SMALL DENOMINATORS ARE THE TRAP, and they are handled rather than mentioned.** A card authoring 4 lines with
-  3 later touched reports 75% churn — arithmetic, not signal, and it would **dominate any ranking sorted by
-  churn rate.** Below 20 authored lines the result is `indeterminate`, and `summariseChurn` excludes those from
-  the mean while REPORTING how many were excluded (averaging them lets tiny cards swing the mean; dropping them
-  silently hides that the sample covers fewer cards than it appears to — the same pair of errors P20.7's
-  infra-error rate avoids).
-  A 7d figure below the 24h one is clamped rather than producing a negative gap that would read as code being
-  un-churned. No judgeable card reports **"churn is UNMEASURED, which is not the same as low."**
-  REMAINING (P20.10b): the collector — attribute accepted lines to a card and re-read them at 24h/7d via git.
-  Needs real history; the judging is done.
-  **COLLECTOR SHIPPED 2026-07-20: `churn-collector.ts`, 13 tests, verified against REAL git history.**
-  Git is an injected PORT, so the arithmetic is testable without a repository and the same logic works against a
-  sandbox result branch or main. Live check: 16 of 206 attributed lines still belong to the last commit touching
-  `nightly-invariant-pack.ts` — which matches the size of that commit, so the counting is not merely self-consistent.
-  **IT USES BLAME, NOT DIFF, and that is the measurement decision.** Diffing a card's commit against a later ref
-  answers *"how much changed nearby"*, not *"how much of what this card wrote is still here"* — a later commit
-  touching adjacent lines inflates it and a rename destroys it. Blame asks the actual question: is each authored
-  line still attributed to the card's commit?
-  **AN UNREADABLE FILE COUNTS AS FULLY CHURNED *AND* IS NAMED.** Counting it as surviving would hide a DELETED
-  file — the strongest churn signal there is — behind a read error; counting it silently would make the
-  denominator lie. Survival above authorship is CLAMPED, because negative churn would read as *"the card added
-  lines after the fact"*, a nonsense a reader would rightly disbelieve.
-  ⚠️ **STATED IN THE SOURCE BECAUSE A CHURN NUMBER IMPLIES MORE PRECISION THAN IT HAS:** a MOVED line reads as
-  churn (blame does not follow content across a relocating refactor) and a REFORMAT reads as churn. **Both push
-  the number UP** — so a LOW churn figure is trustworthy while a HIGH one deserves a look before it is believed.
-  That asymmetry has to be known before anyone acts on a ranking.
-  `countAttributedLines("")` returns 0 rather than matching every line — a blank prefix would `startsWith`-match
-  everything and report total survival, a silent and flattering lie.
-  REMAINING: the scheduler that samples at 24h/7d and feeds `assessChurn`. Needs elapsed time, not code.
-  **WIRED SAME-SESSION: `dev churn --commit <sha> [--ref HEAD]`** — so the collector is not another core with no
-  consumer. It is useful IMMEDIATELY rather than only after a 24h window: *"how much of what this commit wrote is
-  still in the tree?"* is answerable against any later ref, and the scheduled sampling refines that question
-  rather than gating it.
-  **VALIDATED BY DISCRIMINATION, not just by running:**
-  - an untouched commit → **205/205 survive, 0% churn**
-  - the commit that created `nightly-pack-registry.ts` → **129/148 survive, 13% churned** — a file corrected TWICE
-  today (`done`→`completed`, then `parked`→`review`). Right magnitude, and it is churn I can independently
-  account for.
-  A tool that returned 0% for everything would have looked identical on the first test. **The second measurement is
-  the one that shows it measures anything.**
-  ⚠️ The command passes the SAME figure for both windows and says so in its output: a single point-in-time read
-  cannot separate *"wrong on arrival"* from *"changed later"*. The 24h/7d split needs TWO samples, and computing
-  an iteration gap from one would **manufacture a number that was never measured.**
 - [ ] **P20.11 — ⚠️ DAVID, THIS ONE IS ABOUT YOUR OWN TESTING PLAN.** METR's randomized controlled trial
   (arXiv 2507.09089): 16 experienced open-source developers, 246 tasks, in repositories they had worked in for
   ~5 years. They were **19% SLOWER with AI while self-reporting a 20% SPEEDUP** — wrong by ~39 pp **and wrong in
