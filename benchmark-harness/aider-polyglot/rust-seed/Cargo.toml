@@ -1,0 +1,18 @@
+[package]
+name = "nklein-aider-polyglot-cache-seed"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "=1.0.98"
+counter = "=0.5.7"
+itertools = "=0.5.10"
+num-bigint = "=0.4.6"
+num-traits = "=0.2.19"
+permutohedron = "=0.2.4"
+rand03 = { package = "rand", version = "=0.3.23" }
+rand08 = { package = "rand", version = "=0.8.5" }
+regex = "=0.2.11"
+thiserror = "=1.0.69"
+time = "=0.3.36"
+

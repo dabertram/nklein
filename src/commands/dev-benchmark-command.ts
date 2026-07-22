@@ -9,7 +9,11 @@ import {
 	parseAiderPolyglotConfig,
 	parseAiderPolyglotManifest,
 } from "../core/aider-polyglot-benchmark";
-import { buildAiderPolyglotGradeDockerPlan } from "../core/aider-polyglot-grade-plan";
+import {
+	buildAiderPolyglotGradeDockerPlan,
+	resolveAiderPolyglotCompanionExamplePath,
+	resolveAiderPolyglotGraderImage,
+} from "../core/aider-polyglot-grade-plan";
 import { getKanbanRuntimeOrigin, setKanbanRuntimeHost, setKanbanRuntimePort } from "../core/runtime-endpoint";
 import {
 	assertCandidateCalibration,
@@ -586,6 +590,20 @@ async function gradeAiderPolyglot(options: DevBenchmarkOptions) {
 		throw new Error("Aider polyglot manifest solution files no longer match the pinned corpus config.");
 	}
 	const gold = options.predictions === "gold";
+	const goldExampleFiles = [...config.exampleFiles];
+	if (gold) {
+		for (const solutionFile of task.solutionFiles) {
+			const companion = resolveAiderPolyglotCompanionExamplePath(solutionFile);
+			if (goldExampleFiles.includes(companion)) continue;
+			const exists = await lstat(join(exerciseDir, companion))
+				.then((stat) => stat.isFile())
+				.catch((error: NodeJS.ErrnoException) => {
+					if (error.code === "ENOENT") return false;
+					throw error;
+				});
+			if (exists) goldExampleFiles.push(companion);
+		}
+	}
 	let modelNameOrPath = "gold";
 	let candidatePatch = "";
 	if (!gold) {
@@ -608,12 +626,13 @@ async function gradeAiderPolyglot(options: DevBenchmarkOptions) {
 		task,
 		corpusDir: corpus,
 		gradeDir,
-		image: options.image ?? resolveAgentSandboxImageName(),
+		image: resolveAiderPolyglotGraderImage(task.language, options.image),
 		uid: process.getuid?.() ?? 1000,
 		gid: process.getgid?.() ?? 1000,
 		mode: gold ? "gold" : "candidate",
 		...(candidatePatchPath ? { candidatePatchPath } : {}),
-		...(gold ? { exampleFiles: config.exampleFiles } : {}),
+		...(gold ? { exampleFiles: goldExampleFiles } : {}),
+		testFiles: config.testFiles,
 	});
 	let status: BenchmarkAttemptStatus = "error";
 	let log = "";

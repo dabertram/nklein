@@ -19,9 +19,12 @@
   the run monitor even though it uses synthetic reviewer sessions.
   Calibration can now write its own immutable JSON artifact instead of relying on shell redirection.
   Aider's pinned polyglot corpus now has a solution-only workspace path and a separate trusted Exercism grader; tests,
-  examples, and metadata enter only after prediction capture. The first controlled Python smoke found a real signal:
-  the Qwen3.6-35B-A3B fleet arm resolved affine-cipher without plan mode while the otherwise identical plan arm parked
-  for attention and remained unresolved. This single pair validates the lane, not a default change.
+  examples, and metadata enter only after prediction capture. Its networkless, dependency-preloaded grader now covers
+  C++, Go, Java, JavaScript, Python, and Rust; a stratified 24-task gold slice resolved twice without quarantine.
+  Candidate patches are restricted to declared solution files before private tests enter scope. The first controlled
+  Python smoke found a real signal: the Qwen3.6-35B-A3B fleet arm resolved affine-cipher without plan mode while the
+  otherwise identical plan arm parked for attention and remained unresolved. This single pair validates the lane, not
+  a default change.
 
 - **Unfamiliar repositories now gain a durable local-model onboarding map.** The `repo_summary` tool summarizes
   function-like units into files, directories, and a project overview, then stores the result by content hash. An

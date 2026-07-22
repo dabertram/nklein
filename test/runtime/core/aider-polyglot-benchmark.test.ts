@@ -5,7 +5,11 @@ import {
 	parseAiderPolyglotConfig,
 	parseAiderPolyglotManifest,
 } from "../../../src/core/aider-polyglot-benchmark";
-import { buildAiderPolyglotGradeDockerPlan } from "../../../src/core/aider-polyglot-grade-plan";
+import {
+	buildAiderPolyglotGradeDockerPlan,
+	resolveAiderPolyglotCompanionExamplePath,
+	resolveAiderPolyglotGraderImage,
+} from "../../../src/core/aider-polyglot-grade-plan";
 import { buildAiderPolyglotWorkspaceDockerPlan } from "../../../src/core/aider-polyglot-workspace-plan";
 
 const config = JSON.stringify({
@@ -104,6 +108,7 @@ describe("Aider polyglot benchmark adapter", () => {
 			gid: 20,
 		});
 		expect(candidate.setupSteps.flat().join("\n")).toContain("git\n-C\n/grade\napply");
+		expect(candidate.setupSteps.flat()).toContain("--include=pov.py");
 		expect(candidate.testStep.join("\n")).toContain("*_test.py");
 		expect(candidate.testStep).toContain("none");
 		const gold = buildAiderPolyglotGradeDockerPlan({
@@ -118,5 +123,128 @@ describe("Aider polyglot benchmark adapter", () => {
 		});
 		expect(gold.setupSteps.flat().join("\n")).toContain(".meta/example.py");
 		expect(gold.setupSteps.flat().join("\n")).toContain("/grade/pov.py");
+	});
+
+	it.each([
+		{
+			language: "cpp" as const,
+			solution: "answer.cpp",
+			test: "answer_test.cpp",
+			example: ".meta/example.cpp",
+			image: "nklein/aider-polyglot-cpp:1.0.0",
+			command: "/usr/local/bin/aider-polyglot-test",
+			setup: undefined,
+		},
+		{
+			language: "go" as const,
+			solution: "answer.go",
+			test: "answer_test.go",
+			example: ".meta/example.go",
+			image: "golang@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052",
+			command: "env\nGOTMPDIR=/grade/.go-tmp\ngo\ntest\n./...",
+			setup: undefined,
+		},
+		{
+			language: "java" as const,
+			solution: "src/main/java/Answer.java",
+			test: "src/test/java/AnswerTest.java",
+			example: ".meta/src/reference/java/Answer.java",
+			image: "nklein/aider-polyglot-java:1.0.0",
+			command: "gradle\n--offline\n--no-daemon",
+			setup: "s/@Disabled",
+		},
+		{
+			language: "javascript" as const,
+			solution: "answer.js",
+			test: "answer.spec.js",
+			example: ".meta/example.js",
+			image: "nklein/aider-polyglot-javascript:1.0.0",
+			command: "npm\nrun\ntest\n--\n--runInBand",
+			setup: "/opt/aider-polyglot/node_modules",
+		},
+		{
+			language: "python" as const,
+			solution: "answer.py",
+			test: "answer_test.py",
+			example: ".meta/example.py",
+			image: "nklein/agent-sandbox:0.0.1",
+			command: "python3\n-m\nunittest\ndiscover",
+			setup: undefined,
+		},
+		{
+			language: "rust" as const,
+			solution: "src/lib.rs",
+			test: "tests/answer.rs",
+			example: ".meta/example.rs",
+			image: "nklein/aider-polyglot-rust:1.0.0",
+			command: "CARGO_NET_OFFLINE=true\ncargo\ntest\n--\n--include-ignored",
+			setup: "/opt/cargo-cache/.",
+		},
+	])("builds a pinned, networkless $language grader", ({
+		language,
+		solution,
+		test,
+		example,
+		image,
+		command,
+		setup,
+	}) => {
+		const task = buildAiderPolyglotTask({
+			language,
+			exercise: "answer",
+			corpusCommit: PINNED_AIDER_POLYGLOT_COMMIT,
+			configText: JSON.stringify({ files: { solution: [solution], test: [test], example: [example] } }),
+			instructionParts: ["Implement it."],
+		});
+		const plan = buildAiderPolyglotGradeDockerPlan({
+			task,
+			corpusDir: "/corpus",
+			gradeDir: "/reports/gold",
+			exampleFiles: [example],
+			testFiles: [test],
+			mode: "gold",
+			uid: 501,
+			gid: 20,
+		});
+		expect(resolveAiderPolyglotGraderImage(language)).toBe(image);
+		expect(plan.testStep.join("\n")).toContain(command);
+		expect([...plan.setupSteps, plan.testStep].every((step) => step.includes("none"))).toBe(true);
+		expect([...plan.setupSteps, plan.testStep].every((step) => step.includes(image))).toBe(true);
+		expect(plan.testStep).toContain(language === "cpp" ? "2048" : "256");
+		if (setup) expect(plan.setupSteps.flat().join("\n")).toContain(setup);
+	});
+
+	it("maps a partial gold reference set by unique extension and leaves build metadata intact", () => {
+		const task = buildAiderPolyglotTask({
+			language: "rust",
+			exercise: "accumulate",
+			corpusCommit: PINNED_AIDER_POLYGLOT_COMMIT,
+			configText: JSON.stringify({
+				files: {
+					solution: ["src/lib.rs", "Cargo.toml"],
+					test: ["tests/accumulate.rs"],
+					example: [".meta/example.rs"],
+				},
+			}),
+			instructionParts: ["Implement it."],
+		});
+		const plan = buildAiderPolyglotGradeDockerPlan({
+			task,
+			corpusDir: "/corpus",
+			gradeDir: "/reports/gold",
+			exampleFiles: [".meta/example.rs"],
+			testFiles: ["tests/accumulate.rs"],
+			mode: "gold",
+			uid: 501,
+			gid: 20,
+		});
+		const setup = plan.setupSteps.flat().join("\n");
+		expect(setup).toContain("/grade/src/lib.rs");
+		expect(setup).not.toContain("/grade/Cargo.toml");
+		expect(resolveAiderPolyglotCompanionExamplePath("Cargo.toml")).toBe(".meta/Cargo-example.toml");
+	});
+
+	it("rejects floating grader image tags", () => {
+		expect(() => resolveAiderPolyglotGraderImage("python", "python:latest")).toThrow(/semantic-version tag/);
 	});
 });

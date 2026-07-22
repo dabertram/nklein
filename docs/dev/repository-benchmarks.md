@@ -88,14 +88,20 @@ another origin, revision, or dirty tree. Its public manifest contains instructio
 materialization copies only those solution files into a fresh one-commit repository; tests, examples, docs, and
 metadata never enter agent-visible storage or history. `benchmark grade --source aider_polyglot` reconstructs the full
 exercise in a separate networkless directory after capture, applies either the model patch or official example, and
-writes a create-only `aider_polyglot_v1` report.
+writes a create-only `aider_polyglot_v1` report. Build the versioned C++/Java/JavaScript dependency images explicitly
+with `npm run benchmark:aider-images`; Go uses a digest-pinned upstream toolchain, Rust uses a versioned image with a
+locked offline crate cache, and Python uses the versioned agent sandbox. Every grading container is read-only,
+networkless, capability-dropped, resource-bounded, and
+uses preloaded dependencies. Candidate patches are filtered to declared solution paths before they enter the trusted
+grader, so a model cannot replace a reconstructed private test.
 
 The first Python affine-cipher calibration resolved the official example twice. A controlled single-pair smoke using
 Qwen3.6-35B-A3B plus the same fleet review policy produced `unresolved` in plan mode (operator-attention park, empty
 artifact) and `resolved` in no-plan mode (reviewed 4.6 KB patch). This proves that the lane has non-zero discriminating
-signal and that failures survive capture. It is one task, so it cannot justify changing defaults. The current trusted
-grader image is configured for Python; C++, Go, Java, JavaScript, and Rust toolchain images plus the 20–40-task repeated
-tranche remain required before F11.3 closes.
+signal and that failures survive capture. It is one task, so it cannot justify changing defaults. The fixed stratified
+grader tranche now resolves two independent gold repeats for 24 tasks—four each in C++, Go, Java, JavaScript, Python,
+and Rust—with no quarantines. That calibrates the six offline toolchains and task set, not model quality; the repeated
+paired model runs remain required before F11.3 closes.
 
 Example after materialization:
 

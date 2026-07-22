@@ -1,8 +1,29 @@
-import type { AiderPolyglotTask } from "./aider-polyglot-benchmark";
+import type { AiderPolyglotLanguage, AiderPolyglotTask } from "./aider-polyglot-benchmark";
 
 export interface AiderPolyglotGradeDockerPlan {
 	setupSteps: readonly (readonly string[])[];
 	testStep: readonly string[];
+}
+
+const GRADER_IMAGES: Readonly<Record<AiderPolyglotLanguage, string>> = {
+	cpp: "nklein/aider-polyglot-cpp:1.0.0",
+	go: "golang@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052",
+	java: "nklein/aider-polyglot-java:1.0.0",
+	javascript: "nklein/aider-polyglot-javascript:1.0.0",
+	python: "nklein/agent-sandbox:0.0.1",
+	rust: "nklein/aider-polyglot-rust:1.0.0",
+};
+
+function validateImage(value: string): void {
+	if (!/(@sha256:[0-9a-f]{64}|:\d+\.\d+\.\d+)$/iu.test(value)) {
+		throw new Error("Aider polyglot grader image must use a semantic-version tag or immutable digest.");
+	}
+}
+
+export function resolveAiderPolyglotGraderImage(language: AiderPolyglotLanguage, override?: string): string {
+	const image = override ?? GRADER_IMAGES[language];
+	validateImage(image);
+	return image;
 }
 
 function validateAbsolutePath(value: string, name: string): void {
@@ -11,7 +32,35 @@ function validateAbsolutePath(value: string, name: string): void {
 	}
 }
 
-function containerBase(input: { image: string; uid: number; gid: number; mounts: readonly string[] }): string[] {
+function validateRelativePath(value: string, name: string): void {
+	if (
+		!value ||
+		value.startsWith("/") ||
+		value.includes("\\") ||
+		value.includes("\n") ||
+		value.includes("\0") ||
+		value.split("/").some((part) => !part || part === "." || part === "..")
+	) {
+		throw new Error(`${name} must be a safe relative path.`);
+	}
+}
+
+export function resolveAiderPolyglotCompanionExamplePath(solutionFile: string): string {
+	validateRelativePath(solutionFile, "solutionFile");
+	const filename = solutionFile.slice(solutionFile.lastIndexOf("/") + 1);
+	const dot = filename.lastIndexOf(".");
+	const stem = dot < 0 ? filename : filename.slice(0, dot);
+	const extension = dot < 0 ? "" : filename.slice(dot);
+	return `.meta/${stem}-example${extension}`;
+}
+
+function containerBase(input: {
+	image: string;
+	uid: number;
+	gid: number;
+	mounts: readonly string[];
+	pidsLimit: number;
+}): string[] {
 	return [
 		"run",
 		"--rm",
@@ -23,7 +72,7 @@ function containerBase(input: { image: string; uid: number; gid: number; mounts:
 		"--security-opt",
 		"no-new-privileges",
 		"--pids-limit",
-		"256",
+		String(input.pidsLimit),
 		"--memory",
 		"2g",
 		"--memory-swap",
@@ -36,54 +85,142 @@ function containerBase(input: { image: string; uid: number; gid: number; mounts:
 		`${input.uid}:${input.gid}`,
 		"--env",
 		"HOME=/tmp",
+		"--workdir",
+		"/grade",
 		...input.mounts.flatMap((mount) => ["--volume", mount]),
 		input.image,
 	];
 }
 
+function appendToolchainSetup(
+	setupSteps: string[][],
+	common: readonly string[],
+	language: AiderPolyglotLanguage,
+	exercise: string,
+	testFiles: readonly string[],
+): readonly string[] {
+	switch (language) {
+		case "cpp":
+			return [...common, "/usr/local/bin/aider-polyglot-test", exercise];
+		case "go":
+			setupSteps.push([...common, "mkdir", "-p", "/grade/.go-tmp"]);
+			return [...common, "env", "GOTMPDIR=/grade/.go-tmp", "go", "test", "./..."];
+		case "java":
+			setupSteps.push([...common, "mkdir", "-p", "/grade/.gradle"]);
+			setupSteps.push([...common, "cp", "-R", "/opt/gradle-cache/.", "/grade/.gradle"]);
+			for (const testFile of testFiles) {
+				setupSteps.push([...common, "sed", "-E", "-i", "-e", "s/@Disabled(\\([^)]*\\))?//g", `/grade/${testFile}`]);
+			}
+			return [...common, "gradle", "--offline", "--no-daemon", "--gradle-user-home", "/grade/.gradle", "test"];
+		case "javascript":
+			setupSteps.push([...common, "ln", "-s", "/opt/aider-polyglot/node_modules", "/grade/node_modules"]);
+			for (const testFile of testFiles) {
+				setupSteps.push([
+					...common,
+					"sed",
+					"-i",
+					"-e",
+					"s/xtest(/test(/g",
+					"-e",
+					"s/xit(/it(/g",
+					"-e",
+					"s/test\\.skip(/test(/g",
+					`/grade/${testFile}`,
+				]);
+			}
+			return [...common, "npm", "run", "test", "--", "--runInBand"];
+		case "python":
+			return [...common, "python3", "-m", "unittest", "discover", "-s", "/grade", "-p", "*_test.py"];
+		case "rust":
+			setupSteps.push([...common, "mkdir", "-p", "/grade/.cargo"]);
+			setupSteps.push([...common, "cp", "-R", "/opt/cargo-cache/.", "/grade/.cargo"]);
+			return [
+				...common,
+				"env",
+				"CARGO_HOME=/grade/.cargo",
+				"CARGO_NET_OFFLINE=true",
+				"cargo",
+				"test",
+				"--",
+				"--include-ignored",
+			];
+	}
+}
+
+function resolveGoldCopies(
+	solutionFiles: readonly string[],
+	exampleFiles: readonly string[],
+): readonly { example: string; solution: string }[] {
+	if (exampleFiles.length === 0) throw new Error("Gold grading requires at least one official example file.");
+	if (exampleFiles.length === solutionFiles.length) {
+		return exampleFiles.map((example, index) => ({ example, solution: solutionFiles[index] }));
+	}
+	const unmatched = new Set(solutionFiles);
+	return exampleFiles.map((example) => {
+		const dot = example.lastIndexOf(".");
+		const extension = dot < 0 ? "" : example.slice(dot);
+		const matches = [...unmatched].filter((solution) => extension && solution.endsWith(extension));
+		if (matches.length !== 1) {
+			throw new Error(`Cannot map official example ${example} to exactly one solution file.`);
+		}
+		unmatched.delete(matches[0]);
+		return { example, solution: matches[0] };
+	});
+}
+
 /**
  * Build a networkless trusted-grader plan. The full exercise (including tests/examples) enters only this post-capture
- * directory. Candidate mode applies the captured patch; gold mode substitutes official example files for solutions.
+ * directory. Candidate mode applies only solution-file hunks from the captured patch; gold mode substitutes official
+ * example files for solutions. Language dependencies are preloaded in pinned images, so grading cannot reach a registry.
  */
 export function buildAiderPolyglotGradeDockerPlan(input: {
 	task: AiderPolyglotTask;
 	corpusDir: string;
 	gradeDir: string;
-	image: string;
+	image?: string;
 	uid: number;
 	gid: number;
 	mode: "gold" | "candidate";
 	candidatePatchPath?: string;
 	exampleFiles?: readonly string[];
+	testFiles?: readonly string[];
 }): AiderPolyglotGradeDockerPlan {
 	validateAbsolutePath(input.corpusDir, "corpusDir");
 	validateAbsolutePath(input.gradeDir, "gradeDir");
-	if (!/(@sha256:[0-9a-f]{64}|:\d+\.\d+\.\d+)$/iu.test(input.image)) {
-		throw new Error("Aider polyglot grader image must use a semantic-version tag or immutable digest.");
-	}
-	if (input.task.language !== "python") {
-		throw new Error(`Aider polyglot grader image/toolchain is not yet configured for ${input.task.language}.`);
-	}
+	const image = resolveAiderPolyglotGraderImage(input.task.language, input.image);
 	const gold = input.mode === "gold";
 	const examples = input.exampleFiles ?? [];
-	if (gold && examples.length !== input.task.solutionFiles.length) {
-		throw new Error("Gold grading requires one official example file per solution file.");
-	}
+	const testFiles = input.testFiles ?? [];
+	for (const [index, path] of input.task.solutionFiles.entries())
+		validateRelativePath(path, `solutionFiles[${index}]`);
+	for (const [index, path] of examples.entries()) validateRelativePath(path, `exampleFiles[${index}]`);
+	for (const [index, path] of testFiles.entries()) validateRelativePath(path, `testFiles[${index}]`);
+	const goldCopies = gold ? resolveGoldCopies(input.task.solutionFiles, examples) : [];
 	if (!gold && input.candidatePatchPath) validateAbsolutePath(input.candidatePatchPath, "candidatePatchPath");
 	const exerciseDir = `${input.corpusDir}/${input.task.language}/exercises/practice/${input.task.exercise}`;
 	const mounts = [`${exerciseDir}:/source:ro`, `${input.gradeDir}:/grade:rw`];
 	if (input.candidatePatchPath) mounts.push(`${input.candidatePatchPath}:/prediction/model.patch:ro`);
-	const common = containerBase({ image: input.image, uid: input.uid, gid: input.gid, mounts });
+	// The upstream C++ bank-account oracle intentionally starts 1,000 threads. Keep the wider bound scoped to C++;
+	// every other grader retains the tighter process limit.
+	const pidsLimit = input.task.language === "cpp" ? 2_048 : 256;
+	const common = containerBase({ image, uid: input.uid, gid: input.gid, mounts, pidsLimit });
 	const setupSteps: string[][] = [[...common, "cp", "-R", "/source/.", "/grade"]];
 	if (gold) {
-		for (let index = 0; index < examples.length; index += 1) {
-			setupSteps.push([...common, "cp", `/source/${examples[index]}`, `/grade/${input.task.solutionFiles[index]}`]);
+		for (const copy of goldCopies) {
+			setupSteps.push([...common, "cp", `/source/${copy.example}`, `/grade/${copy.solution}`]);
 		}
 	} else if (input.candidatePatchPath) {
-		setupSteps.push([...common, "git", "-C", "/grade", "apply", "--whitespace=nowarn", "/prediction/model.patch"]);
+		setupSteps.push([
+			...common,
+			"git",
+			"-C",
+			"/grade",
+			"apply",
+			"--whitespace=nowarn",
+			...input.task.solutionFiles.map((path) => `--include=${path}`),
+			"/prediction/model.patch",
+		]);
 	}
-	return {
-		setupSteps,
-		testStep: [...common, "python3", "-m", "unittest", "discover", "-s", "/grade", "-p", "*_test.py"],
-	};
+	const testStep = appendToolchainSetup(setupSteps, common, input.task.language, input.task.exercise, testFiles);
+	return { setupSteps, testStep };
 }

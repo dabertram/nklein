@@ -3677,12 +3677,15 @@ stays fast + complete.
   Historical recommended start was Verified `"<15 min fix"`; after the 2026 evidence audit, start with a 20–40 task
   fit-for-fleet slice and treat legacy scores only as paired comparisons.**
   **2026-07-22 AIDER PARTIAL EVIDENCE + CONCRETE REMAINDER:** the pinned Aider corpus now materializes solution-only,
-  one-commit, networkless workspaces and grades Python outside the agent boundary with the full Exercism exercise. Gold
-  affine-cipher resolved twice. In a controlled Qwen3.6-35B-A3B + fleet-review pair, plan mode parked for attention and
-  graded unresolved while no-plan emitted a reviewed 4.6 KB patch and resolved. This one-task smoke proves non-zero
-  signal, not a default flip. **Remainder:** pin networkless C++/Go/Java/JavaScript/Rust grader toolchains; calibrate and
-  run the stratified 20–40-task repeated A/B tranche; add Terminal-Bench and LiveCodeBench controls; obtain a native
-  x86_64 Docker runner for the quarterly Live tranche; then wire the calibrated delta gate/nightly evidence.
+  one-commit, networkless workspaces and grades all six languages outside the agent boundary with the full Exercism
+  exercise. The C++/Go/Java/JavaScript/Python/Rust toolchains are version/digest pinned, registry dependencies are
+  preloaded, and a fixed 24-task tranche (four per language) resolved in two independent gold repeats with zero
+  quarantines.
+  Candidate patches can touch only declared solution paths after private tests are reconstructed. In a controlled
+  Qwen3.6-35B-A3B + fleet-review pair, plan mode parked for attention and graded unresolved while no-plan emitted a
+  reviewed 4.6 KB patch and resolved. This one-task model smoke proves non-zero signal, not a default flip. **Remainder:**
+  run the calibrated 24-task repeated A/B tranche; add Terminal-Bench and LiveCodeBench controls; obtain a native x86_64
+  Docker runner for the quarterly Live tranche; then wire the calibrated delta gate/nightly evidence.
   - [ ] **F11.3g — Pin and run the repeatable regression tranche (delta, not absolute).** Select a fixed ~20–40 task
     fit-for-fleet set, complete ≥2 gold repeats, quarantine every unstable instance, snapshot the calibrated RESOLVED
     set + per-instance status, and wire it into CI/nightly. Fail only a resolved→unresolved regression; infrastructure
@@ -3691,7 +3694,9 @@ stays fast + complete.
     **2026-07-22 calibration evidence:** the native Live harness is pinned and its full command/report path has run.
     `aws-cloudformation__cfn-lint-3767` failed its gold oracle identically in two ARM/QEMU repeats and is correctly
     quarantined; it is not model evidence. A native x86_64 Docker runner is required before any Live baseline can close
-    this package. Legion5pro is reachable through LM Link but does not currently expose SSH or a Docker API.
+    this package. Legion5pro is reachable through LM Link but does not currently expose SSH or a Docker API. The daily
+    Aider side now has a calibrated 24-task/six-language gold set (two repeats each, zero quarantine); candidate A/B
+    repeats and the delta/nightly wiring remain.
   - [ ] **F11.3h — Contamination-aware fresh-set track.** Verified is >94% pre-model-cutoff + partly leaked (models recall
     file paths). Add a rolling SWE-bench-Live / SWE-rebench fresh-window gate (tasks post-dating cutoffs) as the HONEST
     "reasons vs recalls" measure; log leakage hits. (SWE-bench-Live; SWE-rebench 2505.20411)
