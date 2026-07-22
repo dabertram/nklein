@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Managed model placement now refuses the fast-memory spill cliff before touching the warm set.** Per-device budgets
+  mean unified memory on Apple Silicon and dedicated VRAM on discrete-GPU hosts. !Klein combines model weights,
+  conservative KV geometry at the task-planned context, runtime overhead, and a 25% reserve; it may cap context only
+  while the raw task and 32k floor still fit, otherwise it leaves every resident untouched and recommends a smaller
+  model or larger host.
+
 - **Task-driven model admission now loads the context window it actually planned.** !Klein derives a bounded task need
   from the real title, prompt, and images, combines it with LM Studio's catalog maximum, and uses one deterministic
   context plan for both device-fit estimation and the guarded load. Small tasks land at the 32k floor, larger tasks

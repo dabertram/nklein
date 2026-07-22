@@ -6,6 +6,7 @@ import {
 	DEFAULT_OVERHEAD_BYTES,
 	decideFastMemoryFit,
 	kvCacheBudgetBytes,
+	planFastMemorySafeContext,
 } from "../../../src/core/fast-memory-fit";
 import type { KvCacheParams } from "../../../src/core/kv-cache-size";
 import { kvCacheBytes } from "../../../src/core/kv-cache-size";
@@ -201,5 +202,74 @@ describe("kvCacheBudgetBytes", () => {
 
 	it("returns 0 for unknown fast memory", () => {
 		expect(kvCacheBudgetBytes({ weightsBytes: 8 * GiB, fastMemoryBytes: 0 })).toBe(0);
+	});
+});
+
+describe("planFastMemorySafeContext", () => {
+	it("caps an oversized request when the task and 32k floor still fit", () => {
+		const plan = planFastMemorySafeContext({
+			weightsBytes: 8 * GiB,
+			kvCache: { ...LLAMA_31_8B, bytesPerParam: 2 },
+			fastMemoryBytes: 20 * GiB,
+			requestedContextLength: 65_536,
+			taskNeededTokens: 40_000,
+			minContextFloor: 32_000,
+		});
+		expect(plan).toMatchObject({
+			allow: true,
+			contextLength: 49_152,
+			maxSafeContextLength: 49_152,
+			capped: true,
+		});
+		expect(plan.reason).toMatch(/capped|reserve/i);
+	});
+
+	it("keeps a requested context unchanged when it fits", () => {
+		const plan = planFastMemorySafeContext({
+			weightsBytes: 8 * GiB,
+			kvCache: { ...LLAMA_31_8B, bytesPerParam: 2 },
+			fastMemoryBytes: 20 * GiB,
+			requestedContextLength: 40_000,
+			taskNeededTokens: 20_000,
+			minContextFloor: 32_000,
+		});
+		expect(plan).toMatchObject({ allow: true, contextLength: 40_000, capped: false });
+	});
+
+	it("refuses rather than cap below the task need or hard floor", () => {
+		const taskStarved = planFastMemorySafeContext({
+			weightsBytes: 8 * GiB,
+			kvCache: { ...LLAMA_31_8B, bytesPerParam: 2 },
+			fastMemoryBytes: 20 * GiB,
+			requestedContextLength: 100_352,
+			taskNeededTokens: 80_000,
+			minContextFloor: 32_000,
+		});
+		expect(taskStarved.allow).toBe(false);
+		expect(taskStarved.contextLength).toBeNull();
+		expect(taskStarved.reason).toMatch(/smaller model|more fast memory/i);
+
+		const floorStarved = planFastMemorySafeContext({
+			weightsBytes: 11 * GiB,
+			kvCache: { ...LLAMA_31_8B, bytesPerParam: 2 },
+			fastMemoryBytes: 20 * GiB,
+			requestedContextLength: 32_000,
+			taskNeededTokens: 1_000,
+			minContextFloor: 32_000,
+		});
+		expect(floorStarved.allow).toBe(false);
+	});
+
+	it("fails closed when fast-memory capacity or KV geometry is unknown", () => {
+		const base = {
+			weightsBytes: 8 * GiB,
+			kvCache: { ...LLAMA_31_8B, bytesPerParam: 2 },
+			fastMemoryBytes: 20 * GiB,
+			requestedContextLength: 32_000,
+			taskNeededTokens: 6_000,
+			minContextFloor: 32_000,
+		};
+		expect(planFastMemorySafeContext({ ...base, fastMemoryBytes: 0 }).allow).toBe(false);
+		expect(planFastMemorySafeContext({ ...base, kvCache: { ...base.kvCache, numLayers: 0 } }).allow).toBe(false);
 	});
 });

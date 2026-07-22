@@ -115,6 +115,45 @@ describe("loadModelExclusive", () => {
 		expect(load).not.toContain("262144");
 	});
 
+	it("F4.48 caps the planned context at the fast-memory limit when the task still fits", async () => {
+		const { run, calls } = fakeRunner([]);
+		const result = await loadModelExclusive(run, {
+			modelId: "qwen/qwen2.5-coder-14b-m5max",
+			totalRamBytes: 20 * GiB,
+			candidateSizeBytes: 15 * GiB,
+			taskNeededTokens: 40_000,
+			maxContextLength: 262_144,
+			fastMemoryGuard: {
+				weightsBytes: 8 * GiB,
+				fastMemoryBytes: 20 * GiB,
+				kvCache: { numLayers: 32, numKvHeads: 8, headDim: 128, bytesPerParam: 2 },
+			},
+		});
+		expect(result.loaded).toBe(true);
+		expect(result.reason).toMatch(/capped load context/i);
+		expect(calls.find((call) => call[0] === "load")).toContain("49152");
+	});
+
+	it("F4.48 refuses before eviction when the fast-memory cap would starve the task", async () => {
+		const { run, calls } = fakeRunner(["drop-me          m          IDLE      4 GB       40000      1    Local"]);
+		const result = await loadModelExclusive(run, {
+			modelId: "qwen/qwen2.5-coder-14b-m5max",
+			totalRamBytes: 20 * GiB,
+			candidateSizeBytes: 15 * GiB,
+			taskNeededTokens: 80_000,
+			maxContextLength: 262_144,
+			fastMemoryGuard: {
+				weightsBytes: 8 * GiB,
+				fastMemoryBytes: 20 * GiB,
+				kvCache: { numLayers: 32, numKvHeads: 8, headDim: 128, bytesPerParam: 2 },
+			},
+		});
+		expect(result.loaded).toBe(false);
+		expect(result.reason).toMatch(/smaller model|more fast memory/i);
+		expect(result.unloaded).toEqual([]);
+		expect(calls.some((call) => call[0] === "unload" || call[0] === "load")).toBe(false);
+	});
+
 	it("never unloads pinned identifiers", async () => {
 		const { run, calls } = fakeRunner([
 			"keep-me          m          IDLE      4 GB       40000      1    Local",
@@ -129,7 +168,7 @@ describe("loadModelExclusive", () => {
 		expect(calls).not.toContainEqual(["unload", "keep-me"]);
 	});
 
-	it("refuses (no load) when the headroom guard fails, after still clearing the others", async () => {
+	it("refuses without evicting residents when the headroom guard fails", async () => {
 		const { run, calls } = fakeRunner([
 			"big-pinned          m          IDLE      120 GB     40000      1    Local",
 			"drop-me             m          IDLE      4 GB       40000      1    Local",
@@ -142,7 +181,8 @@ describe("loadModelExclusive", () => {
 		});
 		expect(result.loaded).toBe(false);
 		expect(result.reason).toMatch(/reserve|freeze/i);
-		expect(result.unloaded).toEqual(["drop-me"]); // still cleared the unpinned one
+		expect(result.unloaded).toEqual([]);
+		expect(calls).not.toContainEqual(["unload", "drop-me"]);
 		expect(calls.find((c) => c[0] === "load")).toBeUndefined(); // never attempted the load
 	});
 

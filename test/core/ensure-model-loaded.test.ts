@@ -66,8 +66,37 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 		expect(req.contextLength).toBe(32_000);
 		expect(req.taskNeededTokens).toBe(6_000);
 		expect(req.maxContextLength).toBe(262_144);
+		expect(req.fastMemoryGuard).toMatchObject({
+			weightsBytes: gb(7.75),
+			fastMemoryBytes: gb(128),
+		});
 		// Effective size = weights + KV at the planned 32k, so well above the raw 7.75 GiB weights.
 		expect(req.candidateSizeBytes).toBeGreaterThan(gb(14));
+	});
+
+	it("caps the load context to the selected host's reserved fast-memory budget", async () => {
+		const rec = recDeps({ env: { NKLEIN_DEVICE_RAM_GB: "m5max:20" } });
+		const result = await ensureModelLoadedOnFittingDevice(
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 28_000 },
+			rec.deps,
+		);
+		expect(result.loaded).toBe(true);
+		expect(rec.loadCalls()[0]).toMatchObject({
+			contextLength: 33_792,
+			taskNeededTokens: 28_000,
+			fastMemoryGuard: { fastMemoryBytes: gb(20) },
+		});
+	});
+
+	it("refuses before loading when a fast-memory cap would starve the task", async () => {
+		const rec = recDeps({ env: { NKLEIN_DEVICE_RAM_GB: "m5max:20" } });
+		const result = await ensureModelLoadedOnFittingDevice(
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 40_000 },
+			rec.deps,
+		);
+		expect(result.loaded).toBe(false);
+		expect(result.reason).toMatch(/fast-memory gate|smaller model|more fast memory/i);
+		expect(rec.loadCalls()).toEqual([]);
 	});
 
 	it("sizes a large task up from the floor and passes the catalog maximum through to the guarded loader", async () => {
@@ -90,7 +119,7 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 				new Map([["qwen/qwen2.5-coder-14b", { sizeBytes: gb(7.75), maxContextLength: 65_536 }]]),
 		});
 		const result = await ensureModelLoadedOnFittingDevice(
-			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 80_000 },
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 60_000 },
 			rec.deps,
 		);
 		expect(result.loaded).toBe(true);

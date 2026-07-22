@@ -91,6 +91,18 @@ export interface FastMemoryFitDecision {
 	reason: string;
 }
 
+export interface FastMemoryContextPlan {
+	/** True only when the task and minimum context floor both fit in fast memory. */
+	allow: boolean;
+	/** Context to load when allowed; null on refusal. */
+	contextLength: number | null;
+	/** Largest rounded context the fast-memory budget can sustain. */
+	maxSafeContextLength: number;
+	/** Whether fast-memory pressure reduced the requested context. */
+	capped: boolean;
+	reason: string;
+}
+
 /**
  * Decide whether a load stays under the fast-memory cliff — the §5.AQ-G spillover guard.
  *
@@ -201,6 +213,69 @@ export function kvCacheBudgetBytes(input: {
 	const budget = nonNegative(input.fastMemoryBytes) * fraction;
 	const fixed = nonNegative(input.weightsBytes) + nonNegative(input.overheadBytes ?? DEFAULT_OVERHEAD_BYTES);
 	return Math.max(0, budget - fixed);
+}
+
+/**
+ * Cap a requested load context to the largest window that keeps weights + KV geometry + runtime overhead inside the
+ * reserved fast-memory budget. A cap is allowed only when it still covers both the task's raw need and !Klein's hard
+ * context floor; otherwise the load is refused rather than knowingly creating a starved session.
+ */
+export function planFastMemorySafeContext(input: {
+	weightsBytes: number;
+	kvCache: Omit<KvCacheParams, "contextLength">;
+	fastMemoryBytes: number;
+	requestedContextLength: number;
+	taskNeededTokens: number;
+	minContextFloor: number;
+	overheadBytes?: number;
+	fastMemoryFraction?: number;
+	roundTo?: number;
+}): FastMemoryContextPlan {
+	const configuredRoundTo = input.roundTo;
+	const roundTo =
+		configuredRoundTo !== undefined && Number.isFinite(configuredRoundTo) && configuredRoundTo > 0
+			? Math.floor(configuredRoundTo)
+			: 1024;
+	const requestedContextLength = nonNegative(input.requestedContextLength);
+	const requiredContextLength = Math.max(nonNegative(input.taskNeededTokens), nonNegative(input.minContextFloor));
+	const kvBytesPerToken = kvCacheBytes({ ...input.kvCache, contextLength: 1 });
+	if (!(input.weightsBytes > 0) || !(input.fastMemoryBytes > 0) || !(kvBytesPerToken > 0)) {
+		return {
+			allow: false,
+			contextLength: null,
+			maxSafeContextLength: 0,
+			capped: false,
+			reason: "Fast-memory capacity or KV geometry is unknown — refusing to guess a safe load context.",
+		};
+	}
+	const kvBudget = kvCacheBudgetBytes({
+		weightsBytes: input.weightsBytes,
+		fastMemoryBytes: input.fastMemoryBytes,
+		overheadBytes: input.overheadBytes,
+		fastMemoryFraction: input.fastMemoryFraction,
+	});
+	const rawMaxSafeContextLength = Math.floor(kvBudget / kvBytesPerToken);
+	const maxSafeContextLength = Math.floor(rawMaxSafeContextLength / roundTo) * roundTo;
+	if (maxSafeContextLength < requiredContextLength || requestedContextLength < requiredContextLength) {
+		return {
+			allow: false,
+			contextLength: null,
+			maxSafeContextLength,
+			capped: false,
+			reason: `Fast memory supports at most ${maxSafeContextLength.toLocaleString("en-US")} context tokens, below the ${Math.ceil(requiredContextLength).toLocaleString("en-US")} tokens required by the task/floor — use a smaller model or a host with more fast memory.`,
+		};
+	}
+	const contextLength = Math.min(requestedContextLength, maxSafeContextLength);
+	const capped = contextLength < requestedContextLength;
+	return {
+		allow: true,
+		contextLength,
+		maxSafeContextLength,
+		capped,
+		reason: capped
+			? `Capped load context from ${requestedContextLength.toLocaleString("en-US")} to ${contextLength.toLocaleString("en-US")} tokens to stay inside the fast-memory reserve.`
+			: `Requested ${contextLength.toLocaleString("en-US")} context tokens fit inside the fast-memory reserve.`,
+	};
 }
 
 /** Coerce a value to a finite non-negative number (NaN / negatives / -0 → 0). */

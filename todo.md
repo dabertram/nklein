@@ -1142,7 +1142,9 @@ source repo went private — so if it vanishes the buildable source still lives 
   model that fits its 8 GB VRAM; **(3)** m4mini retains one hardware-fit small model (the 0.6B is appropriate for cheap,
   bounded work, not quality-critical judgment); **(4)** preserve warm prompt caches and unload only the cold residents
   needed for admission; **(5)** context is always ≥32k (40k when the selected model/host budget safely supports it);
-  **(6)** verify memory pressure and swap growth before and after any load. Tooling: detect resident via `/api/v0/models` `state`
+  **(6)** verify memory pressure and swap growth before and after any load. `deviceRamGb` / `NKLEIN_DEVICE_RAM_GB` keeps
+  its legacy name but means the FAST-memory envelope: unified memory on Apple, dedicated VRAM on discrete-GPU hosts
+  (Legion5Pro = 8, never its 32 GB system RAM). Tooling: detect resident via `/api/v0/models` `state`
   ([lmstudio-loaded-models.ts](src/core/lmstudio-loaded-models.ts)); sizes via `lms ps`
   (`parseLmsPs` in [lms-model-control.ts](src/core/lms-model-control.ts)); guard via
   [model-load-headroom.ts](src/core/model-load-headroom.ts) `decideModelLoad`; plan+command via `planGuardedModelLoad` /
@@ -2853,8 +2855,17 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   40k or the advertised maximum. Focused regression coverage proves 6k→32k, 80k→100,352, model-max capping, missing-max
   refusal, and the existing CLI load argv path. Final gates: typecheck, 39 focused assertions, 12,126 fast
   runtime/utility assertions, and 142 protected assertions pass; lint has no errors (only pre-existing warnings).
-- [ ] **F4.48 — Wire fast-memory-fit checks.** Combine weights, KV geometry, host fast memory, and reserve policy to cap
+- [x] **F4.48 — Wire fast-memory-fit checks.** Combine weights, KV geometry, host fast memory, and reserve policy to cap
   context/refuse loads before spillover.
+  **COMPLETED 2026-07-22:** `planFastMemorySafeContext` turns the existing weights+KV+runtime-overhead budget into the
+  largest rounded safe context. The production fleet-admission path evaluates that plan per linked device before RAM
+  ranking, uses the device-specific capped footprint for placement, and passes the same guard to the sole effectful CLI
+  loader. A cap is legal only while both the task's raw need and the ≥32k per-slot floor remain intact; otherwise the
+  load refuses before preferred-device changes or resident eviction. The legacy `deviceRamGb` wire field is now
+  accurately presented as FAST memory: unified memory on Apple, dedicated VRAM on a discrete-GPU host (so Legion5Pro's
+  value is 8, not its system RAM). Exact model KV geometry can replace the conservative 48-layer/GQA fallback when a
+  runtime exposes it; the fallback is deliberately over-safe. Final gates: root + web typecheck, 105 focused,
+  12,132 fast runtime/utility, 1,135 web, and 142 protected assertions pass; lint has no errors (only existing warnings).
 - [ ] **F4.49 — Add Apple unified-memory safety.** Keep peak below the configured safe fraction, cap MLX KV growth, and
   surface a clear refusal/recommendation rather than risking a system freeze.
   **STANDING CONSTRAINT (David 2026-07-19, decided with F12.110):** production !Klein must NOT auto-load/unload

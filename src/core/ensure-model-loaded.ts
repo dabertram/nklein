@@ -20,10 +20,12 @@ import {
 	applyLocalDeviceAlias,
 	buildEffectiveCandidate,
 	buildLinkedDeviceList,
-	estimateEffectiveModelBytes,
+	CONSERVATIVE_KV_CACHE_GEOMETRY,
 	resolveDeviceRamBytes,
 	selectDeviceForModelLoad,
 } from "./device-load-routing";
+import { computeFastMemoryFootprint, planFastMemorySafeContext } from "./fast-memory-fit";
+import type { KvCacheParams } from "./kv-cache-size";
 import type { LmsLinkDevices } from "./lms-link-status";
 import { MIN_CONTEXT_WINDOW_TOKENS } from "./lms-model-control";
 import { planLoadContextLength } from "./load-context-plan";
@@ -43,6 +45,11 @@ export interface EnsureLoadRequest {
 	taskNeededTokens: number;
 	/** Catalog-advertised ceiling used to derive `contextLength`. */
 	maxContextLength: number;
+	fastMemoryGuard: {
+		weightsBytes: number;
+		fastMemoryBytes: number;
+		kvCache: Omit<KvCacheParams, "contextLength">;
+	};
 	targetDevice: string;
 	targetDeviceIdentifier: string;
 }
@@ -103,44 +110,83 @@ export async function ensureModelLoadedOnFittingDevice(
 		if (maxContextLength == null || !Number.isFinite(maxContextLength) || !(maxContextLength > 0)) {
 			return { loaded: false, reason: `Maximum context unknown for "${modelId}" — cannot plan a safe load.` };
 		}
-		const contextLength = planLoadContextLength({
+		const requestedContextLength = planLoadContextLength({
 			taskNeededTokens: input.taskNeededTokens,
 			maxContextLength,
 			minContextFloor: MIN_CONTEXT_WINDOW_TOKENS,
 		});
-		const candidateSizeBytes = estimateEffectiveModelBytes({
-			weightsBytes,
-			contextLength,
-			llmfitMemoryBytes: deps.llmfitMemoryBytes?.(modelId) ?? null,
-		});
+		const llmfitMemoryBytes = deps.llmfitMemoryBytes?.(modelId) ?? null;
 		// F12.75: probe the LOCAL device's GPU-wireable ceiling once. On Apple Silicon macOS caps GPU-wireable
 		// memory at ~75% of physical RAM, so the configured RAM map OVERSTATES what a model can occupy there (the
 		// m4mini swap-crash). Local-only by necessity — a remote node's sysctls are unreadable over LM-Link, and
 		// assuming they run the default cap would be right often and catastrophically wrong on a tuned node.
 		// A null probe (non-Mac, or any failure) leaves every candidate exactly as it was before this existed.
 		const localCeiling = await probeLocalGpuCeiling().catch(() => null);
-		// Target devices start empty for the fit check: loadModelExclusive clears the one-at-a-time resident first.
-		const candidates = buildLinkedDeviceList(link)
-			.map((device) =>
-				buildEffectiveCandidate(
-					device,
-					deviceRamBytes[device.deviceName],
-					0,
-					localCeiling !== null &&
-						device.deviceIdentifier !== undefined &&
-						device.deviceIdentifier === link.localDeviceIdentifier
-						? localCeiling.usableBytes
-						: undefined,
-				),
-			)
-			.filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
-		const decision = selectDeviceForModelLoad({ candidateSizeBytes, candidates });
+		// Each device gets its own fast-memory context cap before RAM-headroom ranking. That lets a smaller host admit a
+		// safely-capped window without letting an under-floor/task-starved window masquerade as a fit.
+		const candidates = [] as NonNullable<ReturnType<typeof buildEffectiveCandidate>>[];
+		const fastPlansByDevice = new Map<
+			string,
+			{ contextLength: number; candidateSizeBytes: number; fastMemoryBytes: number }
+		>();
+		const fastRefusals: string[] = [];
+		for (const device of buildLinkedDeviceList(link)) {
+			const fastMemoryBytes = deviceRamBytes[device.deviceName];
+			if (!(fastMemoryBytes > 0)) {
+				continue;
+			}
+			const fastPlan = planFastMemorySafeContext({
+				weightsBytes,
+				kvCache: CONSERVATIVE_KV_CACHE_GEOMETRY,
+				fastMemoryBytes,
+				requestedContextLength,
+				taskNeededTokens: input.taskNeededTokens,
+				minContextFloor: MIN_CONTEXT_WINDOW_TOKENS,
+			});
+			if (!fastPlan.allow || fastPlan.contextLength === null) {
+				fastRefusals.push(`${device.deviceName}: ${fastPlan.reason}`);
+				continue;
+			}
+			const geometryFootprintBytes = computeFastMemoryFootprint({
+				weightsBytes,
+				kvCache: { ...CONSERVATIVE_KV_CACHE_GEOMETRY, contextLength: fastPlan.contextLength },
+			}).totalBytes;
+			const candidateSizeBytes = Math.max(geometryFootprintBytes, llmfitMemoryBytes ?? 0);
+			const candidate = buildEffectiveCandidate(
+				device,
+				fastMemoryBytes,
+				0,
+				localCeiling !== null &&
+					device.deviceIdentifier !== undefined &&
+					device.deviceIdentifier === link.localDeviceIdentifier
+					? localCeiling.usableBytes
+					: undefined,
+				candidateSizeBytes,
+			);
+			if (candidate) {
+				candidates.push(candidate);
+				fastPlansByDevice.set(device.deviceName, {
+					contextLength: fastPlan.contextLength,
+					candidateSizeBytes,
+					fastMemoryBytes,
+				});
+			}
+		}
+		if (candidates.length === 0 && fastRefusals.length > 0) {
+			return { loaded: false, reason: `No linked device clears the fast-memory gate (${fastRefusals.join("; ")}).` };
+		}
+		const decision = selectDeviceForModelLoad({ candidateSizeBytes: 0, candidates });
 		if (!decision.fits) {
 			return { loaded: false, reason: decision.reason };
 		}
 		if (decision.deviceIdentifier === undefined) {
 			return { loaded: false, reason: `Best-fit device "${decision.deviceName}" has no LM-Link identifier.` };
 		}
+		const selectedFastPlan = fastPlansByDevice.get(decision.deviceName);
+		if (!selectedFastPlan) {
+			return { loaded: false, reason: `No fast-memory plan survived for "${decision.deviceName}".` };
+		}
+		const { contextLength, candidateSizeBytes, fastMemoryBytes } = selectedFastPlan;
 		const result = await deps.loadExclusive({
 			modelId,
 			candidateSizeBytes,
@@ -148,6 +194,11 @@ export async function ensureModelLoadedOnFittingDevice(
 			contextLength,
 			taskNeededTokens: input.taskNeededTokens,
 			maxContextLength,
+			fastMemoryGuard: {
+				weightsBytes,
+				fastMemoryBytes,
+				kvCache: CONSERVATIVE_KV_CACHE_GEOMETRY,
+			},
 			targetDevice: decision.deviceName,
 			targetDeviceIdentifier: decision.deviceIdentifier,
 		});

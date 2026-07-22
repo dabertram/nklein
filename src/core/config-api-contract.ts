@@ -52,7 +52,7 @@ export const runtimeConfigResponseSchema = z.object({
 	selectedShortcutLabel: z.string().nullable(),
 	// §5.W: user-configured base directory for workspaces !Klein creates; null → home default.
 	workspaceBaseDir: z.string().nullable(),
-	// §5.AB: machine-aware loader per-device RAM budget "name:GB,name:GB"; optional so older clients/fixtures omit it.
+	// §5.AB: machine-aware loader per-device fast-memory capacity; legacy wire key retained for compatibility.
 	deviceRamGb: z.string().nullable().optional(),
 	// §5.L egress proxy (§6 I3): persisted flag + host allowlist; both optional so older clients/fixtures omit them.
 	sandboxEgressProxyEnabled: z.boolean().optional(),

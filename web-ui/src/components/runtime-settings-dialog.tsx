@@ -2825,22 +2825,23 @@ export function RuntimeSettingsDialog({
 							</h6>
 							<div>
 								<label htmlFor={deviceRamGbId} className="block text-[13px] text-text-primary mb-1">
-									Per-device RAM budget
+									Per-device fast memory
 								</label>
 								<input
 									id={deviceRamGbId}
 									type="text"
 									value={deviceRamGb}
 									onChange={(event) => setDeviceRamGb(event.target.value)}
-									placeholder="m5max:128,m4mini:24,legion5pro:32"
+									placeholder="m5max:128,m4mini:24,legion5pro:8"
 									disabled={controlsDisabled}
 									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary disabled:opacity-40"
 								/>
 								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-									Total RAM (GB) per linked device, as <code>name:GB</code> pairs. When set, !Klein loads an
-									explicitly-requested model onto a device that FITS it (weights + KV cache) instead of an
-									undersized node that would swap. Leave blank to disable and keep LM Studio's default
-									placement. The <code>NKLEIN_DEVICE_RAM_GB</code> environment variable overrides this.
+									Fast memory (GB) per linked device, as <code>name:GB</code> pairs: unified memory on Apple
+									Silicon, dedicated VRAM on a discrete-GPU host. !Klein reserves 25%, accounts for weights, KV
+									geometry, and runtime overhead, and refuses a load that cannot retain the 32k/task floor.
+									Leave blank to disable managed placement. The legacy-named <code>NKLEIN_DEVICE_RAM_GB</code>
+									environment variable overrides this value.
 								</p>
 							</div>
 						</div>

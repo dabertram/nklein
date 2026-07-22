@@ -67,6 +67,20 @@ describe("selectDeviceForModelLoad", () => {
 		}
 	});
 
+	it("uses a device-specific footprint after fast-memory context capping", () => {
+		const cappedMini = { ...m4mini(), candidateSizeBytes: gb(10) };
+		const uncappedFarm = { ...m5max(), candidateSizeBytes: gb(40) };
+		const decision = selectDeviceForModelLoad({
+			candidateSizeBytes: gb(40),
+			candidates: [cappedMini, uncappedFarm],
+		});
+		expect(decision.fits).toBe(true);
+		if (decision.fits) {
+			expect(decision.deviceName).toBe("Local");
+			expect(decision.alternatives.map((candidate) => candidate.deviceName)).toEqual(["m4mini"]);
+		}
+	});
+
 	it("accounts for the resident set on each device (a busy farm can be beaten by an idle box)", () => {
 		// m5max already 120/128 GB resident ⇒ only ~8 GB free; legion idle ⇒ ~24 GB free. A 6 GB model:
 		// m5max free-after = 128-120-6 = 2 GB < 32 GB reserve ⇒ REJECTED; legion free-after = 18 GB > 6 GB reserve ⇒ fits.

@@ -137,8 +137,9 @@ export interface RuntimeConfigState {
 	/** §5.W: user-configured base directory under which !Klein creates workspaces; null → home default. */
 	workspaceBaseDir: string | null;
 	/**
-	 * §5.AB machine-aware loader: per-device RAM budget as `"name:GB,name:GB"` (e.g. `"m5max:128,m4mini:24"`);
-	 * null/empty → the autonomous fitting-device loader stays disabled. Env `NKLEIN_DEVICE_RAM_GB` overrides this.
+	 * §5.AB machine-aware loader: per-device fast-memory capacity as `"name:GB,name:GB"` (unified memory on Apple,
+	 * dedicated VRAM on discrete-GPU hosts; e.g. `"m5max:128,legion5pro:8"`). The wire key remains `deviceRamGb`
+	 * for compatibility; null/empty disables the fitting-device loader. Env `NKLEIN_DEVICE_RAM_GB` overrides this.
 	 */
 	deviceRamGb: string | null;
 	/**

@@ -8,6 +8,8 @@
  * Selection (which model / size cap) is the caller's (the model-lab sweep); this runner just makes the load SAFE.
  */
 
+import { planFastMemorySafeContext } from "./fast-memory-fit";
+import type { KvCacheParams } from "./kv-cache-size";
 import { fetchLmsLinkDevices } from "./lms-link-status";
 import {
 	buildLmsLoadArgs,
@@ -76,6 +78,17 @@ export interface LoadExclusiveInput {
 	concurrentSlots?: number;
 	/** Candidate on-disk size in bytes (from `lms ls`); a conservative default is used when omitted. */
 	candidateSizeBytes?: number;
+	/**
+	 * F4.48 spill-cliff guard. When present, the loader caps context only while the task + per-slot floor still fit;
+	 * otherwise it refuses before changing preferred devices or evicting residents.
+	 */
+	fastMemoryGuard?: {
+		weightsBytes: number;
+		fastMemoryBytes: number;
+		kvCache: Omit<KvCacheParams, "contextLength">;
+		fastMemoryFraction?: number;
+		overheadBytes?: number;
+	};
 	/** Identifiers to NEVER unload (the user's pinned set; embeddings are auto-kept regardless). */
 	pinnedIdentifiers?: readonly string[];
 	/** RAM fraction to keep free (default 0.25 — the freeze-avoidance reserve). */
@@ -156,6 +169,51 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 	const isTargetResident = (model: ResidentModel) =>
 		model.identifier === input.modelId && (input.targetDevice === undefined || model.device === input.targetDevice);
 	const targetAlreadyResident = resident.some(isTargetResident);
+	// Compute every admission verdict before changing LM Link preference or evicting a useful resident. A rejected load
+	// must be side-effect-free; otherwise a spill-risk candidate can destroy the warm set it never replaces.
+	const slotPlan =
+		input.taskNeededTokens !== undefined && input.maxContextLength !== undefined
+			? planSharedSlotLoadContextLength({
+					taskNeededTokens: input.taskNeededTokens,
+					maxContextLength: input.maxContextLength,
+					minContextFloor: MIN_CONTEXT_WINDOW_TOKENS,
+					concurrentSlots: input.concurrentSlots ?? 1,
+				})
+			: null;
+	let loadContextLength = slotPlan?.contextLength ?? input.contextLength ?? DEFAULT_CONTEXT_LENGTH;
+	const keptResidentBytes = resident
+		.filter((model) => pinned.has(model.identifier) || isEmbeddingModel(model.identifier))
+		.filter((model) => input.targetDevice === undefined || model.device === input.targetDevice)
+		.reduce((total, model) => total + (model.sizeBytes ?? 0), 0);
+	const decision = decideModelLoad({
+		candidateSizeBytes: input.candidateSizeBytes ?? DEFAULT_CANDIDATE_SIZE_BYTES,
+		residentSizeBytes: keptResidentBytes,
+		totalRamBytes: input.totalRamBytes,
+		userBudgetBytes: input.userBudgetBytes ?? resolveRamBudgetBytesFromEnv(),
+		reserveFraction: input.reserveFraction,
+	});
+	if (!targetAlreadyResident && !decision.allow) {
+		return { loaded: false, modelId: input.modelId, unloaded: [], reason: decision.reason, suitability };
+	}
+	let fastMemoryCaveat = "";
+	if (!targetAlreadyResident && input.fastMemoryGuard) {
+		const concurrentSlots = Math.max(1, Math.floor(input.concurrentSlots ?? 1));
+		const fastPlan = planFastMemorySafeContext({
+			weightsBytes: input.fastMemoryGuard.weightsBytes + keptResidentBytes,
+			kvCache: input.fastMemoryGuard.kvCache,
+			fastMemoryBytes: input.fastMemoryGuard.fastMemoryBytes,
+			requestedContextLength: loadContextLength,
+			taskNeededTokens: (input.taskNeededTokens ?? loadContextLength) * concurrentSlots,
+			minContextFloor: MIN_CONTEXT_WINDOW_TOKENS * concurrentSlots,
+			fastMemoryFraction: input.fastMemoryGuard.fastMemoryFraction,
+			overheadBytes: input.fastMemoryGuard.overheadBytes,
+		});
+		if (!fastPlan.allow || fastPlan.contextLength === null) {
+			return { loaded: false, modelId: input.modelId, unloaded: [], reason: fastPlan.reason, suitability };
+		}
+		loadContextLength = fastPlan.contextLength;
+		fastMemoryCaveat = fastPlan.capped ? ` [${fastPlan.reason}]` : "";
+	}
 	let preferredChanged = false;
 	let previousPreferredDeviceIdentifier: string | null = null;
 
@@ -202,38 +260,6 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 			};
 		}
 
-		// After unload, the only resident bytes left are the kept (pinned + embedding) models.
-		const keptResidentBytes = resident
-			.filter((model) => pinned.has(model.identifier) || isEmbeddingModel(model.identifier))
-			.filter((model) => input.targetDevice === undefined || model.device === input.targetDevice)
-			.reduce((total, model) => total + (model.sizeBytes ?? 0), 0);
-
-		const decision = decideModelLoad({
-			candidateSizeBytes: input.candidateSizeBytes ?? DEFAULT_CANDIDATE_SIZE_BYTES,
-			residentSizeBytes: keptResidentBytes,
-			totalRamBytes: input.totalRamBytes,
-			// Explicit budget wins; otherwise honor a power-user env cap (NKLEIN_MAX_RAM_BUDGET_GB) so "use ≤N GB" works today.
-			userBudgetBytes: input.userBudgetBytes ?? resolveRamBudgetBytesFromEnv(),
-			reserveFraction: input.reserveFraction,
-		});
-		if (!decision.allow) {
-			return { loaded: false, modelId: input.modelId, unloaded, reason: decision.reason, suitability };
-		}
-
-		// §5.AQ-G context right-sizing: opt-in (taskNeededTokens + maxContextLength) → fit the task within [floor, max];
-		// otherwise the existing fixed-context behavior. Inert by default (no existing caller passes taskNeededTokens).
-		// F12.68: the engine context is a SHARED budget across parallel slots — multiply the per-session plan by the
-		// concurrency this instance will serve, and surface the mis-fit when the model max can't cover slots × floor.
-		const slotPlan =
-			input.taskNeededTokens !== undefined && input.maxContextLength !== undefined
-				? planSharedSlotLoadContextLength({
-						taskNeededTokens: input.taskNeededTokens,
-						maxContextLength: input.maxContextLength,
-						minContextFloor: MIN_CONTEXT_WINDOW_TOKENS,
-						concurrentSlots: input.concurrentSlots ?? 1,
-					})
-				: null;
-		const loadContextLength = slotPlan?.contextLength ?? input.contextLength ?? DEFAULT_CONTEXT_LENGTH;
 		const argv = buildLmsLoadArgs(input.modelId, {
 			contextLength: loadContextLength,
 			maxContextLength: input.maxContextLength,
@@ -249,7 +275,8 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 				: "";
 		const caveat =
 			(suitability.severity === "ok" ? "" : ` [capability ${suitability.severity}: ${suitability.reason}]`) +
-			slotCaveat;
+			slotCaveat +
+			fastMemoryCaveat;
 		return {
 			loaded: exitCode === 0,
 			modelId: input.modelId,

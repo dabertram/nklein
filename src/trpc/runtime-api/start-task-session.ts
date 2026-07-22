@@ -394,6 +394,7 @@ export async function handleStartTaskSession(
 							contextLength: request.contextLength,
 							taskNeededTokens: request.taskNeededTokens,
 							maxContextLength: request.maxContextLength,
+							fastMemoryGuard: request.fastMemoryGuard,
 							targetDevice: request.targetDevice,
 							targetDeviceIdentifier: request.targetDeviceIdentifier,
 						});

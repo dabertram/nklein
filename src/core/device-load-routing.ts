@@ -31,9 +31,13 @@ const gib = (bytes: number): string => `${(bytes / GiB).toFixed(1)} GiB`;
  * never the reverse). Refine per-model via llmfit / registry arch params. At ctx 40000 this yields ~7.3 GiB of KV,
  * so a 14B's weights+KV base (~8.3 + ~7.3 ≈ 15.6 GiB) — before the runtime-overhead factor below lifts it to ~19 GiB.
  */
-const FALLBACK_KV_ARCH = { numLayers: 48, numKvHeads: 8, headDim: 128, bytesPerParam: 2 } as const;
+export const CONSERVATIVE_KV_CACHE_GEOMETRY = {
+	numLayers: 48,
+	numKvHeads: 8,
+	headDim: 128,
+	bytesPerParam: 2,
+} as const;
 
-/**
 /**
  * Runtime overhead multiplier applied to the fallback (weights + theoretical KV) estimate to account for what that
  * arithmetic misses: the LM Studio process, framework/activation buffers, and allocator fragmentation. CALIBRATED to a
@@ -49,7 +53,8 @@ const FALLBACK_RUNTIME_OVERHEAD_FACTOR = 1.25;
  * Estimate a model's EFFECTIVE resident footprint (weights + KV-cache at the load context + runtime overhead) in bytes
  * — the figure the device selector needs, because weights-alone under-counts and would clear a small node that then
  * swaps once the KV cache fills at context. Prefers llmfit's `memoryRequiredGb` (per-quant / MoE / KV-aware, the
- * accurate source); with no llmfit datum it adds a CONSERVATIVE KV estimate ({@link FALLBACK_KV_ARCH}) to the weights
+ * accurate source); with no llmfit datum it adds a conservative KV estimate
+ * ({@link CONSERVATIVE_KV_CACHE_GEOMETRY}) to the weights
  * and scales by {@link FALLBACK_RUNTIME_OVERHEAD_FACTOR} for the process/activation overhead the arithmetic misses. Pure.
  */
 export function estimateEffectiveModelBytes(input: {
@@ -65,14 +70,14 @@ export function estimateEffectiveModelBytes(input: {
 		// llmfit already folds weights + KV at context; never return LESS than the raw weights (defensive floor).
 		return Math.max(input.llmfitMemoryBytes, weights);
 	}
-	const kv = kvCacheBytes({ contextLength: input.contextLength, ...FALLBACK_KV_ARCH });
+	const kv = kvCacheBytes({ contextLength: input.contextLength, ...CONSERVATIVE_KV_CACHE_GEOMETRY });
 	return Math.round((weights + kv) * FALLBACK_RUNTIME_OVERHEAD_FACTOR);
 }
 
 /**
- * Parse a per-device RAM map (friendly LM-Link device name → bytes) from a raw `"name:GB,name:GB"` string.
- * Format: comma-separated `name:GB` pairs, e.g. `"Local:128,m4mini:16,legion5pro:24"`. Whitespace-tolerant; a malformed
- * or non-positive entry is SKIPPED (fail-open — a bad entry never fabricates a false RAM figure). Unset/empty ⇒ `{}`,
+ * Parse a per-device fast-memory map (friendly LM-Link device name → bytes) from a raw `"name:GB,name:GB"` string.
+ * Values mean unified memory on Apple Silicon and dedicated VRAM on discrete-GPU hosts. Format: comma-separated pairs,
+ * e.g. `"Local:128,m4mini:16,legion5pro:8"`. Whitespace-tolerant; a malformed or non-positive entry is skipped. Empty ⇒ `{}`,
  * which disengages the device selector so the runtime keeps its current LM-Link JIT placement (byte-identical). Pure.
  */
 export function parseDeviceRamGb(raw: string | null | undefined): Record<string, number> {
@@ -97,7 +102,7 @@ export function parseDeviceRamGb(raw: string | null | undefined): Record<string,
 }
 
 /**
- * Resolve the per-device RAM map from the `NKLEIN_DEVICE_RAM_GB` env var — a power-user fleet-tuning knob
+ * Resolve the per-device fast-memory map from the legacy-named `NKLEIN_DEVICE_RAM_GB` env var — a power-user knob
  * (mirrors {@link import("./model-load-headroom").resolveRamBudgetBytesFromEnv}). Pure over the injected env.
  */
 export function resolveDeviceRamBytesFromEnv(env: NodeJS.ProcessEnv = process.env): Record<string, number> {
@@ -105,7 +110,7 @@ export function resolveDeviceRamBytesFromEnv(env: NodeJS.ProcessEnv = process.en
 }
 
 /**
- * Resolve the per-device RAM map with the documented precedence: the `NKLEIN_DEVICE_RAM_GB` env var WINS when set
+ * Resolve the per-device fast-memory map with the documented precedence: `NKLEIN_DEVICE_RAM_GB` WINS when set
  * (matching cli.ts's "the real environment always wins"), else the persisted Settings value (`config.deviceRamGb`).
  * Unset/empty on both ⇒ `{}` ⇒ the autonomous fitting-device loader stays disengaged. Pure over its inputs.
  */
@@ -152,6 +157,8 @@ export interface DeviceLoadCandidate {
 	totalRamBytes: number;
 	/** Sum of currently-resident model bytes on THIS device (its own `lms ps`), in bytes. */
 	residentSizeBytes: number;
+	/** Optional per-device footprint after a device-specific context cap; overrides the routing-level common size. */
+	candidateSizeBytes?: number;
 	/**
 	 * F12.75 (OPTIONAL): bytes the GPU may actually WIRE on this device, from
 	 * {@link ../core/apple-silicon-vram.gpuUsableBytes}. On Apple Silicon, macOS caps GPU-wireable memory at ~75%
@@ -228,8 +235,9 @@ export function selectDeviceForModelLoad(input: DeviceLoadRoutingInput): DeviceL
 	const fitting: { candidate: DeviceLoadCandidate; freeBytesAfter: number; reason: string }[] = [];
 
 	for (const candidate of input.candidates) {
+		const candidateSizeBytes = candidate.candidateSizeBytes ?? input.candidateSizeBytes;
 		const decision = decideModelLoad({
-			candidateSizeBytes: input.candidateSizeBytes,
+			candidateSizeBytes,
 			residentSizeBytes: candidate.residentSizeBytes,
 			// F12.75: the GPU-wireable ceiling wins when known — see the field docs for why it REPLACES rather
 			// than scales the total.
@@ -249,7 +257,7 @@ export function selectDeviceForModelLoad(input: DeviceLoadRoutingInput): DeviceL
 			input.candidates.length === 0 ? "no candidate devices" : rejected.map((r) => r.deviceName).join(", ");
 		return {
 			fits: false,
-			reason: `No linked device can hold this ${gib(input.candidateSizeBytes)} model without overloading (${detail}).`,
+			reason: `No linked device can hold this load without overloading (${detail}).`,
 			rejected,
 		};
 	}
@@ -315,6 +323,7 @@ export function buildEffectiveCandidate(
 	 * it did before the field existed rather than assuming they run the default macOS cap.
 	 */
 	gpuUsableBytes?: number,
+	candidateSizeBytes?: number,
 ): DeviceLoadCandidate | null {
 	if (ramBytes === undefined || ramBytes <= 0) {
 		return null;
@@ -324,6 +333,7 @@ export function buildEffectiveCandidate(
 		...(device.deviceIdentifier !== undefined ? { deviceIdentifier: device.deviceIdentifier } : {}),
 		totalRamBytes: ramBytes,
 		...(gpuUsableBytes !== undefined && gpuUsableBytes > 0 ? { gpuUsableBytes } : {}),
+		...(candidateSizeBytes !== undefined && candidateSizeBytes > 0 ? { candidateSizeBytes } : {}),
 		residentSizeBytes: Math.max(0, residentSizeBytes),
 	};
 }
