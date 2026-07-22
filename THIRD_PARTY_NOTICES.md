@@ -31,6 +31,7 @@ How we adopt third-party work:
 | Roo Code (`RooCodeInc/Roo-Code`) | Apache-2.0 | Yes | Concepts |
 | Continue (`continuedev/continue`) | Apache-2.0 | Yes | Concepts |
 | OpenHands (`All-Hands-AI/OpenHands`) | MIT | Yes | Concepts |
+| ast-grep (`ast-grep/ast-grep`, `@ast-grep/napi`) | MIT | Yes | Yes — tree-sitter parsing/search runtime dependency |
 | Open Interpreter (`OpenInterpreter/open-interpreter`) | **AGPL-3.0** | **No** | **Concepts only — NO code copied** |
 
 ### aider — Apache-2.0
@@ -54,6 +55,11 @@ How we adopt third-party work:
 - **Adopted (concepts):** memory **condensation** to keep long runs within a small window (our opt-in
   selective compression, `nklein-prompt-compression.ts`); separating code-acceptance from workflow-completion
   outcomes (our `dev-test-outcome.ts`).
+
+### ast-grep — MIT
+- **Adopted (runtime dependency):** the cross-platform N-API tree-sitter parser behind precise TypeScript/JavaScript
+  repo-map symbol extraction and structural code search. Native bindings are selected for the installation platform;
+  the Docker sandbox installs its own pinned Linux binding rather than bundling a host binary.
 
 ### Open Interpreter — AGPL-3.0 (code excluded)
 - We reviewed it for ideas only (interactive local code execution UX). **No Open Interpreter code is present in

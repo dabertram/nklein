@@ -20,6 +20,7 @@ await esbuild.build({
 	platform: "node",
 	target: "node22",
 	packages: "bundle",
+	external: ["@ast-grep/napi"],
 	alias: clineSdkEsbuildAlias,
 	banner: {
 		js: 'const __nkleinImportMetaUrl = require("node:url").pathToFileURL(__filename).href;',

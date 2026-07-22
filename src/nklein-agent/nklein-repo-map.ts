@@ -8,7 +8,10 @@ import { SKIPPED_DIRS } from "./source-file-scan";
 
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_TOKEN_BUDGET = 1_200;
-const MAX_REFERENCE_RANK_SYMBOLS = 500;
+const MAX_DISCOVERED_SOURCE_FILES = 20_000;
+// Bound graph work only AFTER preserving task/file-personalized symbols. The previous implementation sliced the
+// path-sorted declaration list first, which made every symbol after position 500 permanently undiscoverable.
+const MAX_PAGERANK_SYMBOLS = 5_000;
 const TYPESCRIPT_AST_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const SOURCE_EXTENSIONS = new Set([
 	".ts",
@@ -68,7 +71,6 @@ export interface RepoMapFactsCacheEntry {
 
 interface SourceFile {
 	path: string;
-	content: string;
 	identifiers: string[];
 	imports: SourceImport[];
 	symbols: NKleinRepoMapSymbol[];
@@ -77,6 +79,7 @@ interface SourceFile {
 interface SourceImport {
 	modulePath: string;
 	importedNames: string[];
+	bindings?: Array<{ importedName: string; localName: string }>;
 }
 
 interface RepoMapPersonalization {
@@ -97,15 +100,36 @@ function shouldParseWithTypeScriptAst(path: string): boolean {
 	return TYPESCRIPT_AST_EXTENSIONS.has(getExtension(path));
 }
 
-async function listSourceFiles(rootPath: string, maxFiles: number): Promise<string[]> {
+function repoMapFilePriority(
+	rootPath: string,
+	filePath: string,
+	personalizationText: string,
+	seedPaths: ReadonlySet<string>,
+): number {
+	const relativePath = normalizeRepoMapPath(relative(rootPath, filePath));
+	if (seedPaths.has(relativePath) || personalizationText.includes(relativePath)) return 0;
+	return /(?:^|\/)(?:__tests__|examples?|fixtures?|scripts?|tests?|vendor)(?:\/|$)|\.(?:spec|test)\.[^.]+$/iu.test(
+		relativePath,
+	)
+		? 2
+		: 1;
+}
+
+async function listSourceFiles(
+	rootPath: string,
+	maxFiles: number,
+	personalizationText = "",
+	seedPaths: readonly string[] = [],
+): Promise<string[]> {
 	const results: string[] = [];
+	const discoveryLimit = Math.max(maxFiles, MAX_DISCOVERED_SOURCE_FILES);
 	async function visit(directoryPath: string): Promise<void> {
-		if (results.length >= maxFiles) {
+		if (results.length >= discoveryLimit) {
 			return;
 		}
 		const entries = await readdir(directoryPath, { withFileTypes: true });
 		for (const entry of entries) {
-			if (results.length >= maxFiles) {
+			if (results.length >= discoveryLimit) {
 				return;
 			}
 			const entryPath = join(directoryPath, entry.name);
@@ -125,7 +149,15 @@ async function listSourceFiles(rootPath: string, maxFiles: number): Promise<stri
 		}
 	}
 	await visit(rootPath);
-	return results;
+	const normalizedSeeds = new Set(seedPaths.map(normalizeRepoMapPath));
+	return results
+		.sort((left, right) => {
+			const priorityDelta =
+				repoMapFilePriority(rootPath, left, personalizationText, normalizedSeeds) -
+				repoMapFilePriority(rootPath, right, personalizationText, normalizedSeeds);
+			return priorityDelta || relative(rootPath, left).localeCompare(relative(rootPath, right));
+		})
+		.slice(0, maxFiles);
 }
 
 function extractRegexSymbolsFromContent(path: string, content: string): NKleinRepoMapSymbol[] {
@@ -164,10 +196,8 @@ function extractSourceFacts(path: string, content: string): Pick<SourceFile, "id
 	};
 }
 
-function countReferences(symbolName: string, files: readonly SourceFile[]): number {
-	const escaped = symbolName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	const pattern = new RegExp(`\\b${escaped}\\b`, "g");
-	return files.reduce((total, file) => total + Array.from(file.content.matchAll(pattern)).length, 0);
+function symbolKey(symbol: Pick<NKleinRepoMapSymbol, "line" | "name" | "path">): string {
+	return `${symbol.path}:${symbol.line}:${symbol.name}`;
 }
 
 function normalizeRelativeModulePath(fromPath: string, modulePath: string): string | null {
@@ -200,6 +230,45 @@ function resolveImportTargetPath(
 		`${normalized}/index.jsx`,
 	];
 	return candidates.find((candidate) => filePathSet.has(candidate)) ?? null;
+}
+
+function countReferencesBySymbol(files: readonly SourceFile[]): Map<string, number> {
+	const counts = new Map<string, number>();
+	const filePathSet = new Set(files.map((file) => file.path));
+	const symbolsByPath = new Map(files.map((file) => [file.path, file.symbols] as const));
+	const identifierCountsByPath = new Map<string, Map<string, number>>();
+	for (const file of files) {
+		const identifierCounts = new Map<string, number>();
+		for (const identifier of file.identifiers) {
+			identifierCounts.set(identifier, (identifierCounts.get(identifier) ?? 0) + 1);
+		}
+		identifierCountsByPath.set(file.path, identifierCounts);
+		for (const symbol of file.symbols) {
+			counts.set(symbolKey(symbol), identifierCounts.get(symbol.name) ?? 0);
+		}
+	}
+	// Import contributions are a second pass: otherwise a lexically later definition file overwrites references already
+	// added by an earlier importer, making counts depend on path order.
+	for (const file of files) {
+		const identifierCounts = identifierCountsByPath.get(file.path) ?? new Map<string, number>();
+		for (const importEntry of file.imports) {
+			const targetPath = resolveImportTargetPath(file.path, importEntry.modulePath, filePathSet);
+			if (!targetPath) continue;
+			const importedBindings = new Map(
+				(
+					importEntry.bindings ??
+					importEntry.importedNames.map((name) => ({ importedName: name, localName: name }))
+				).map((binding) => [binding.importedName, binding.localName]),
+			);
+			for (const target of symbolsByPath.get(targetPath) ?? []) {
+				const localName = importedBindings.get(target.name);
+				if (!localName) continue;
+				const importedReferences = identifierCounts.get(localName) ?? 0;
+				counts.set(symbolKey(target), (counts.get(symbolKey(target)) ?? 0) + importedReferences);
+			}
+		}
+	}
+	return counts;
 }
 
 function normalizeRepoMapPath(path: string): string {
@@ -242,25 +311,45 @@ function buildPersonalizationWeights(
 	personalization: RepoMapPersonalization,
 ): number[] {
 	return symbols.map((symbol) => {
-		const identifierBoost = (personalization.identifierCounts.get(symbol.name) ?? 0) * 10;
+		const identifierBoost = personalization.identifierCounts.has(symbol.name) ? 10 : 1;
 		const normalizedPath = normalizeRepoMapPath(symbol.path);
 		const fileBoost =
-			personalization.seedPaths.has(symbol.path) || personalization.seedPaths.has(normalizedPath) ? 50 : 0;
-		return 1 + identifierBoost + fileBoost;
+			personalization.seedPaths.has(symbol.path) || personalization.seedPaths.has(normalizedPath) ? 50 : 1;
+		return identifierBoost * fileBoost;
 	});
 }
 
+function selectPageRankCandidates(
+	symbols: readonly NKleinRepoMapSymbol[],
+	personalization: RepoMapPersonalization,
+): NKleinRepoMapSymbol[] {
+	return [...symbols]
+		.sort((left, right) => {
+			const leftPersonalized =
+				personalization.identifierCounts.has(left.name) ||
+				personalization.seedPaths.has(normalizeRepoMapPath(left.path));
+			const rightPersonalized =
+				personalization.identifierCounts.has(right.name) ||
+				personalization.seedPaths.has(normalizeRepoMapPath(right.path));
+			if (leftPersonalized !== rightPersonalized) return leftPersonalized ? -1 : 1;
+			const referenceDelta = Math.sqrt(right.referenceCount) - Math.sqrt(left.referenceCount);
+			if (Math.abs(referenceDelta) > Number.EPSILON) return referenceDelta > 0 ? 1 : -1;
+			return `${left.path}:${left.line}:${left.name}`.localeCompare(`${right.path}:${right.line}:${right.name}`);
+		})
+		.slice(0, MAX_PAGERANK_SYMBOLS);
+}
+
 function rankSymbols(files: readonly SourceFile[], personalization: RepoMapPersonalization): NKleinRepoMapSymbol[] {
-	const symbols = files
-		.flatMap((file) => file.symbols)
-		.sort((left, right) =>
-			`${left.path}:${left.line}:${left.name}`.localeCompare(`${right.path}:${right.line}:${right.name}`),
-		)
-		.slice(0, MAX_REFERENCE_RANK_SYMBOLS)
-		.map((symbol) => ({
-			...symbol,
-			referenceCount: countReferences(symbol.name, files),
-		}));
+	const referenceCounts = countReferencesBySymbol(files);
+	const symbols = selectPageRankCandidates(
+		files
+			.flatMap((file) => file.symbols)
+			.map((symbol) => ({
+				...symbol,
+				referenceCount: referenceCounts.get(symbolKey(symbol)) ?? 0,
+			})),
+		personalization,
+	);
 	const symbolIndexesByName = new Map<string, number[]>();
 	const symbolIndexesByPath = new Map<string, number[]>();
 	for (const [index, symbol] of symbols.entries()) {
@@ -283,7 +372,12 @@ function rankSymbols(files: readonly SourceFile[], personalization: RepoMapPerso
 			identifierCounts.set(identifier, (identifierCounts.get(identifier) ?? 0) + 1);
 		}
 		for (const [identifier, count] of identifierCounts) {
-			const targetIndexes = symbolIndexesByName.get(identifier) ?? [];
+			// Unqualified identifier text is meaningful only inside the same file. Cross-file edges come from resolved
+			// imports below; joining every same-spelled identifier repo-wide made generic names such as `result` and `push`
+			// look like the architecture's most important entry points.
+			const targetIndexes = (symbolIndexesByName.get(identifier) ?? []).filter(
+				(index) => symbols[index]?.path === file.path,
+			);
 			for (const sourceIndex of localSymbolIndexes) {
 				for (const targetIndex of targetIndexes) {
 					addWeightedEdge(edges, sourceIndex, targetIndex, count);
@@ -295,10 +389,15 @@ function rankSymbols(files: readonly SourceFile[], personalization: RepoMapPerso
 			if (!targetPath) {
 				continue;
 			}
-			const importedNameSet = new Set(importEntry.importedNames);
+			const importedNameSet = new Set(
+				(
+					importEntry.bindings ??
+					importEntry.importedNames.map((name) => ({ importedName: name, localName: name }))
+				).map((binding) => binding.importedName),
+			);
 			const importedSymbolIndexes = (symbolIndexesByPath.get(targetPath) ?? []).filter((index) => {
 				const symbol = symbols[index];
-				return symbol ? importedNameSet.size === 0 || importedNameSet.has(symbol.name) : false;
+				return symbol ? importedNameSet.has(symbol.name) : false;
 			});
 			for (const sourceIndex of localSymbolIndexes) {
 				for (const targetIndex of importedSymbolIndexes) {
@@ -312,7 +411,11 @@ function rankSymbols(files: readonly SourceFile[], personalization: RepoMapPerso
 	return symbols
 		.map((symbol, index) => ({
 			...symbol,
-			rankScore: (ranks[index] ?? 0) * (personalizationWeights[index] ?? 1),
+			// Aider-style reference weighting rewards well-connected definitions without letting raw reference volume
+			// overwhelm personalized PageRank. Retain the declared 10x task / 50x in-context-file priority after graph
+			// propagation as well, so a strongly connected generic symbol cannot displace the task's explicit seed.
+			rankScore:
+				(ranks[index] ?? 0) * Math.sqrt(Math.max(1, symbol.referenceCount)) * (personalizationWeights[index] ?? 1),
 		}))
 		.sort((left, right) => {
 			const rankDelta = right.rankScore - left.rankScore;
@@ -373,7 +476,12 @@ export async function buildNKleinRepoMap(options: BuildNKleinRepoMapOptions): Pr
 		typeof options.maxFiles === "number" && Number.isFinite(options.maxFiles) && options.maxFiles > 0
 			? Math.trunc(options.maxFiles)
 			: DEFAULT_MAX_FILES;
-	const filePaths = await listSourceFiles(options.workspacePath, maxFiles);
+	const filePaths = await listSourceFiles(
+		options.workspacePath,
+		maxFiles,
+		options.personalizationText,
+		options.seedPaths,
+	);
 	const files: SourceFile[] = [];
 	for (const filePath of filePaths) {
 		const sourcePath = relative(options.workspacePath, filePath);
@@ -388,7 +496,6 @@ export async function buildNKleinRepoMap(options: BuildNKleinRepoMapOptions): Pr
 		}
 		files.push({
 			path: sourcePath,
-			content,
 			...facts,
 		});
 	}

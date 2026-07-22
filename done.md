@@ -2738,3 +2738,18 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   implementation and verification cards must read the canonical brief first. Evidence: 21 focused core assertions,
   3 initializer component assertions, backend/web typechecks, full backend fast 12,183/12,183, full web 1,142/1,142,
   protected 142/142, production web build, and lint with zero errors (20 pre-existing warnings and one info).
+
+- [x] **F11.2a — PageRank-ranked repo map to a context budget** *(delivered 2026-07-22).* The live repo-map rail now
+  discovers broadly before spending its file cap, prioritizes explicit task/seed paths and production sources over
+  tests, fixtures, scripts, and vendor code, and preserves task-personalized symbols before the bounded 5,000-symbol
+  graph pass. Top-level declarations form the architecture table of contents while recursive identifiers remain
+  reference evidence; same-spelled identifiers no longer create false repo-wide edges, and cross-file edges/reference
+  counts come from resolved imports. Personalized PageRank applies the declared 10x task-identifier and 50x seed-file
+  boosts plus square-root reference weighting, then renders through the existing context-window/prefill-pressure-scaled
+  token budget. The JS/TS graph now comes from ast-grep's tree-sitter parser, with the N-API binding externalized so
+  each desktop platform and the Docker image loads its own native build; the sandbox image was rebuilt and a real
+  `--network none` `repo_map` call passed. A live 1,000-file self-probe that previously omitted
+  `renderProjectEarsCriteria` now placed it at rank 21 inside the 1,183-token rendered map in 1.90 seconds. Evidence:
+  25 focused rank/AST assertions, the 1,265-file/12,188-test backend fast suite, protected 142/142, backend/web
+  typechecks, lint with zero errors (20 pre-existing warnings and one info), the production Node bundles, a fresh
+  dependency-ordered vendored-SDK build, and a rebuilt Docker sandbox image all pass.

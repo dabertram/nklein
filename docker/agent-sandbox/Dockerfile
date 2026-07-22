@@ -11,6 +11,11 @@ RUN apt-get update \
 RUN npm install -g @modelcontextprotocol/server-sequential-thinking@2025.12.18 \
 	&& npm cache clean --force
 
+# The repo-map and structural-search tools use ast-grep's tree-sitter N-API binding. The tool runner leaves this native
+# dependency external so Docker resolves the Linux build here instead of bundling the host's Darwin/Windows binary.
+RUN npm install --prefix /opt/nklein @ast-grep/napi@0.44.1 \
+	&& npm cache clean --force
+
 # codebase-memory-mcp (§5.AR / §5.B) — DeusData code-graph MCP: exact STRUCTURAL queries (search_graph / trace_path /
 # get_code_snippet / get_architecture) + local semantic search via a compiled-in nomic-embed-code (int8) — no API key,
 # no runtime fetch. MIT. The npm launcher's postinstall (install.js) downloads the PINNED linux `-portable`

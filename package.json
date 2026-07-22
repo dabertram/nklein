@@ -114,6 +114,7 @@
     "@ai-sdk/openai": "^3.0.52",
     "@ai-sdk/openai-compatible": "^2.0.38",
     "@ai-sdk/provider": "^3.0.8",
+    "@ast-grep/napi": "^0.44.1",
     "@aws-sdk/credential-providers": "^3.922.0",
     "@langfuse/otel": "^4.0.0",
     "@modelcontextprotocol/sdk": "^1.27.1",

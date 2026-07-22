@@ -108,6 +108,81 @@ describe("nklein repo map", () => {
 		expect(renderScoreIndex).toBeLessThan(normalizeScoreIndex);
 	});
 
+	it("preserves task-mentioned symbols beyond the old path-sorted 500-symbol cutoff", async () => {
+		const workspacePath = await createRepo();
+		const bulkSymbols = Array.from(
+			{ length: 550 },
+			(_, index) => `export function generated${String(index).padStart(3, "0")}(): number { return ${index}; }`,
+		);
+		await writeFile(join(workspacePath, "src", "bulk.ts"), bulkSymbols.join("\n"), "utf8");
+
+		const repoMap = await buildNKleinRepoMap({
+			workspacePath,
+			tokenBudget: 500,
+			personalizationText: "Fix generated549 and verify its callers.",
+		});
+
+		expect(repoMap.symbols).toHaveLength(555);
+		expect(repoMap.symbols[0]?.name).toBe("generated549");
+	});
+
+	it("applies square-root reference weighting instead of letting raw occurrence volume dominate", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-repo-map-reference-weight-"));
+		const highReferences = Array.from({ length: 100 }, () => "highSignal();").join(" ");
+		const lowReferences = Array.from({ length: 4 }, () => "lowSignal();").join(" ");
+		await writeFile(
+			join(workspacePath, "signals.ts"),
+			[
+				"export function highSignal(): void {}",
+				"export function lowSignal(): void {}",
+				highReferences,
+				lowReferences,
+			].join("\n"),
+			"utf8",
+		);
+
+		const repoMap = await buildNKleinRepoMap({ workspacePath, tokenBudget: 500 });
+		const high = repoMap.symbols.find((symbol) => symbol.name === "highSignal");
+		const low = repoMap.symbols.find((symbol) => symbol.name === "lowSignal");
+		expect(high).toBeDefined();
+		expect(low).toBeDefined();
+		if (!high || !low) throw new Error("signal fixtures were not mapped");
+		expect(high.rankScore / low.rankScore).toBeCloseTo(Math.sqrt(high.referenceCount / low.referenceCount), 5);
+	});
+
+	it("attributes aliased import references to the exported symbol instead of the local spelling", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-repo-map-alias-reference-"));
+		await writeFile(join(workspacePath, "source.ts"), "export function originalName(): void {}", "utf8");
+		await writeFile(
+			join(workspacePath, "consumer.ts"),
+			"import { originalName as localName } from './source';\nexport function consume() { localName(); localName(); }",
+			"utf8",
+		);
+
+		const repoMap = await buildNKleinRepoMap({ workspacePath, tokenBudget: 500 });
+		const original = repoMap.symbols.find((symbol) => symbol.name === "originalName");
+		expect(original?.referenceCount).toBe(4);
+	});
+
+	it("spends a file cap on production architecture before tests, while honoring explicit seed files", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-repo-map-file-priority-"));
+		await mkdir(join(workspacePath, "aaa-tests"), { recursive: true });
+		await mkdir(join(workspacePath, "zzz-src"), { recursive: true });
+		await writeFile(join(workspacePath, "aaa-tests", "feature.test.ts"), "export function testOnly() {}", "utf8");
+		await writeFile(join(workspacePath, "zzz-src", "feature.ts"), "export function productionEntry() {}", "utf8");
+
+		const productionFirst = await buildNKleinRepoMap({ workspacePath, maxFiles: 1, tokenBudget: 100 });
+		expect(productionFirst.symbols.map((symbol) => symbol.name)).toEqual(["productionEntry"]);
+
+		const explicitlySeededTest = await buildNKleinRepoMap({
+			workspacePath,
+			maxFiles: 1,
+			seedPaths: ["aaa-tests/feature.test.ts"],
+			tokenBudget: 100,
+		});
+		expect(explicitlySeededTest.symbols.map((symbol) => symbol.name)).toEqual(["testOnly"]);
+	});
+
 	// F12.67: incremental parse — unchanged files reuse cached facts; edited files re-parse and refresh the entry.
 	it("reuses cached extraction facts for unchanged files and refreshes changed ones", async () => {
 		const workspacePath = await createRepo();

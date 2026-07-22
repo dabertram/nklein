@@ -10,7 +10,7 @@
 // tsconfig.build.json. Output goes to vendor/cline-sdk/packages/<pkg>/dist.
 import { build } from "esbuild";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,6 +20,18 @@ const TSC = join(ROOT, "node_modules/typescript/bin/tsc");
 // Dependency order: leaves first so each package's .d.ts can resolve already-built siblings.
 const PACKAGES = ["shared", "llms", "agents", "core", "sdk"];
 const CLINE_EXTERNAL = ["@cline/shared", "@cline/llms", "@cline/agents", "@cline/core"];
+const CLINE_LINK_ROOT = join(ROOT, "node_modules", "@cline");
+
+function linkBuiltPackage(pkg, dir) {
+	// These vendored packages intentionally are not npm dependencies. A normal `npm install` removes their development
+	// symlinks as extraneous, after which declaration builds cannot resolve the previously-built sibling and protected
+	// tests cannot import @cline/sdk. Recreate each link as soon as its package is green so clean installs build in
+	// dependency order; `junction` is the cross-platform directory-link mode.
+	mkdirSync(CLINE_LINK_ROOT, { recursive: true });
+	const linkPath = join(CLINE_LINK_ROOT, pkg);
+	rmSync(linkPath, { force: true, recursive: true });
+	symlinkSync(dir, linkPath, "junction");
+}
 
 function entrypointsFromExports(dir, manifest) {
 	const entries = [];
@@ -86,6 +98,7 @@ for (const pkg of PACKAGES) {
 			{ stdio: "inherit", cwd: dir },
 		);
 	}
+	linkBuiltPackage(pkg, dir);
 	console.log(`✓ built @cline/${pkg} (${entries.length} entrypoints)`);
 	total += entries.length;
 }

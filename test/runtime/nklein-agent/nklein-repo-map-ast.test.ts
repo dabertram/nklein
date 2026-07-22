@@ -47,7 +47,16 @@ describe("extractAstSourceFacts", () => {
 	});
 
 	it("collects imports with their original imported names", () => {
-		expect(facts.imports).toEqual([{ modulePath: "./mod", importedNames: ["foo", "bar"] }]);
+		expect(facts.imports).toEqual([
+			{
+				modulePath: "./mod",
+				importedNames: ["foo", "bar"],
+				bindings: [
+					{ importedName: "foo", localName: "foo" },
+					{ importedName: "bar", localName: "baz" },
+				],
+			},
+		]);
 	});
 
 	it("collects identifiers", () => {
@@ -59,5 +68,14 @@ describe("extractAstSourceFacts", () => {
 		const tsx = "export function View() { return <div>{label}</div>; }";
 		const tsxFacts = extractAstSourceFacts("view.tsx", tsx);
 		expect(tsxFacts.symbols.map((s) => s.name)).toContain("View");
+	});
+
+	it("keeps local implementation variables out of the architecture map", () => {
+		const facts = extractAstSourceFacts(
+			"locals.ts",
+			"export function run(input: string) { const length = input.length; return length; }\nconst topLevel = 1;",
+		);
+		expect(facts.symbols.map((symbol) => symbol.name)).toEqual(["run", "topLevel"]);
+		expect(facts.identifiers).toEqual(expect.arrayContaining(["input", "length"]));
 	});
 });

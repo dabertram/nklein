@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Existing-codebase orientation now reliably follows the task signal.** Its JavaScript/TypeScript graph now uses
+  ast-grep's tree-sitter parser. The compact repo map preserves task-mentioned
+  symbols and explicit seed files before its bounded personalized-PageRank pass, spends file caps on production code
+  before tests/vendor sources, excludes implementation-local variables, resolves cross-file edges through imports, and
+  applies square-root reference weighting. Model/context-pressure-aware token budgets remain enforced, so small local
+  models get the relevant architecture instead of generic high-frequency identifiers or the first paths alphabetically.
+
 - **New projects now start from a canonical, model-ready brief.** Add Project → New offers a short beginner walkthrough
   or professional batch intake for outcome, audience, stack, scope, domain rules, acceptance, constraints, uncertainty,
   references, effort, and checkpoint posture. Pasted and local-file references are screened and structurally fenced;

@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F5.3 closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F11.2a closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 171-package remainder is **81 ready + 0 partial + 75 dependency-blocked + 8 external/
+  gate below is green. The current 168-package remainder is **79 ready + 0 partial + 74 dependency-blocked + 8 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -95,6 +95,20 @@ feature-completeness challenges, release checks, and required manual checks are 
 gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
+
+> **⚠️ THE VENDORED CLINE PACKAGES ARE BUILD OUTPUTS, NOT NPM DEPENDENCIES (2026-07-22).** A normal root `npm install`
+> removes `node_modules/@cline/*` as extraneous. `scripts/build-cline-sdk.mjs` must recreate each package junction as
+> soon as that dependency-order build finishes, so the next sibling's declaration emit and the protected suites resolve
+> the vendored boundary from a clean install. Do not rely on stale developer-machine symlinks.
+
+> **⚠️ PERSONALIZE BEFORE CAPPING A REPO MAP, AND NEVER JOIN IDENTIFIERS GLOBALLY BY SPELLING (F11.2a,
+> 2026-07-22).** A path-ordered symbol/file cap silently erases exactly the distant task symbol personalization is
+> supposed to recover; discover broadly, prioritize explicit seed files and production sources, compute exact resolved-
+> import edges, preserve personalized candidates, and only then apply the bounded PageRank cap. Unqualified identifier
+> text is file-local evidence—not a repo-wide edge—otherwise generic locals such as `result` become false architecture
+> hubs. Architecture maps include top-level declarations, not recursive local variables. Apply task/file boosts both to
+> the PageRank personalization vector and final ordering, with square-root reference weighting so raw occurrence volume
+> cannot drown the task signal.
 
 > **⚠️ AN ASSET CHECKSUM IS ONLY AS TRUSTWORTHY AS THE MANIFEST THAT CARRIES IT (F5.7, 2026-07-22).** A SHA-256 in
 > mutable release metadata does not authenticate a download: an attacker who can replace the asset can replace the hash.
@@ -3614,10 +3628,6 @@ stays fast + complete.
   **RESEARCH-DERIVED BREAKDOWN (deep sweep 2026-07-17; sources inline; the enemy at a 32k floor is context DILUTION not raw
   capability — small models localize files ~86% at 14B+ but ~58% at 7B, so leverage is in the scaffolding around the model.
   ⚠ several cited 2026 arXiv IDs are very recent preprints — sanity-check exact numbers before relying on them):**
-  - [ ] **F11.2a — PageRank-ranked repo map to a context-budget.** Rank symbols/files over the tree-sitter symbol graph
-    with personalized PageRank (boost task-mentioned identifiers 10×, in-context files 50×, sqrt reference counts), emit to
-    a token budget scaled to the target model. Compact "table of contents" so a weak model self-selects files. Supersedes
-    the F12.3 note. (aider repomap)
   - [ ] **F11.2b — `search_ast` (ast-grep) + a 3-tool search router.** Add structural AST search beside lexical `search_code`
     + the graph, and teach routing: strings→ripgrep, code-shape→ast-grep, who-calls/conceptual→graph/repo-map. Structural
     search removes comment/string false positives that waste tiny context. Supersedes the F12.1 note. (zzet.org three-tools; ast-grep.github.io)

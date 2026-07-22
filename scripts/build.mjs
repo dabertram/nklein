@@ -8,9 +8,10 @@ import { clineSdkEsbuildAlias } from "./cline-sdk-alias.mjs";
  *   dependency that ships its own browser binaries and CJS bundles esbuild can't resolve/inline. Externalized like
  *   node-pty; it's a first-class `dependency`, so `require("playwright")` resolves at runtime.
  * - `fsevents`: a macOS-only native `.node` file-watcher, pulled in transitively; self-guards on non-macOS.
+ * - `@ast-grep/napi`: tree-sitter native bindings selected for the installation platform at runtime.
  * Everything else esbuild can inline.
  */
-const external = ["node-pty", "playwright", "playwright-core", "chromium-bidi", "fsevents"];
+const external = ["node-pty", "playwright", "playwright-core", "chromium-bidi", "fsevents", "@ast-grep/napi"];
 
 /** Bake OTEL telemetry env vars into the bundle at build time. */
 const define = {
