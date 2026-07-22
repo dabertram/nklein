@@ -37,6 +37,11 @@ import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { createAdaptiveSwarmRecoveryModel } from "./adaptive-swarm-recovery-model";
 import { createLocalAlternateEndpointModel } from "./local-alternate-endpoint-model";
+import {
+	createActionPlanExecutionTool,
+	createActionPlanProducerModel,
+	selectActionPlanTools,
+} from "./nklein-action-plan-mode";
 import { resolveNKleinAgentPerceivedCwd } from "./nklein-agent-sandbox";
 import { createNKleinArchitectBriefTool } from "./nklein-architect-tool";
 import { createNKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
@@ -239,6 +244,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			providerId: request.providerId,
 			modelId: request.modelId,
 			mode: resolvedMode,
+			executionMode: request.executionMode,
 			apiKey: request.apiKey,
 			baseUrl: request.baseUrl,
 			reasoningEffort: request.reasoningEffort,
@@ -473,6 +479,33 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			request.toolPolicies,
 		);
 		const toolExecutors = wrapSwarmToolExecutors(request.toolExecutors, swarmToolBrokerState, { mcpToolNames });
+		const actionPlanTools = selectActionPlanTools(extraTools, mcpToolNames);
+		const sessionExtraTools =
+			request.executionMode === "action_plan"
+				? [
+						createActionPlanExecutionTool({
+							tools: actionPlanTools,
+							requestToolApproval,
+							mcpToolNames,
+							onCheckpoint: ({ completedStepIds, latestStepId }) => {
+								recordSelfObservation({
+									signal: "custom",
+									severity: "info",
+									message: `ActionPlan checkpoint ${latestStepId} completed for ${request.taskId}.`,
+									taskId: request.taskId,
+									providerId: request.providerId,
+									modelId: request.modelId,
+									workspacePath: hostWorkspaceRoot,
+									metadata: {
+										category: "action_plan_checkpoint",
+										latestStepId,
+										completedStepIds,
+									},
+								});
+							},
+						}),
+					]
+				: extraTools;
 
 		const sessionHost = await this.ensureSessionHost();
 		const userImages = toSdkUserImages(request.images);
@@ -723,7 +756,27 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 						});
 						// Profile the BASELINE request outside recovery: every retry inherits it, while an explicit adaptive rung
 						// (notably thinking_disable) remains authoritative instead of being re-overridden by the profile decorator.
-						return createSkillApiProfileAgentModel(adaptiveModel, profileOptions);
+						const profiledModel = createSkillApiProfileAgentModel(adaptiveModel, profileOptions);
+						if (request.executionMode !== "action_plan") return profiledModel;
+						if (!directClient) {
+							throw new Error("ActionPlan mode requires a configured local OpenAI-compatible endpoint.");
+						}
+						return createActionPlanProducerModel(profiledModel, {
+							directClient,
+							tools: actionPlanTools,
+							onPlanProduced: ({ stepCount, toolNames }) => {
+								recordSelfObservation({
+									signal: "custom",
+									severity: "info",
+									message: `Bounded ActionPlan produced for ${request.taskId} (${stepCount} steps).`,
+									taskId: request.taskId,
+									providerId: request.providerId,
+									modelId: request.modelId,
+									workspacePath: hostWorkspaceRoot,
+									metadata: { category: "action_plan_produced", stepCount, toolNames },
+								});
+							},
+						});
 					},
 					extensions: [
 						createKanbanContextFocusExtension(
@@ -760,7 +813,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 						providerId: request.providerId,
 						modelId: request.modelId,
 					}),
-					extraTools,
+					extraTools: sessionExtraTools,
 				},
 				...(requestToolApproval || toolExecutors
 					? {

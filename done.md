@@ -2546,3 +2546,15 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   ⚠️ The default one-off command still passes the SAME figure for both windows and says so in its output: a single
   current-ref read cannot separate *"wrong on arrival"* from *"changed later"*. Use `--windows` for the genuine
   two-snapshot 24h/7d assessment; computing a gap from the one-off mode would manufacture a number never measured.
+
+- [x] **F3.T3b — ActionPlan producer seam** *(delivered 2026-07-22).* A guarded real-model run on m4mini proved
+  qwen3.5-9b-mlx at 40k context could emit valid bounded ActionPlans through LM Studio `response_format:json_schema`:
+  8/8 cases passed, with zero infrastructure or unscorable failures, clearing the pre-registered 75% opt-in gate.
+  The per-card `Execution: ActionPlan` mode now persists through board/session launch state and gives the SDK one
+  internal executor tool. Its constrained producer sees only manifest-backed worker tools; execution validates and
+  topologically dispatches through the same policy-filtered, approval-checked, swarm-brokered implementations used by
+  ordinary agent mode. Successful mutation tool+argument fingerprints survive replans so completed side effects are
+  not replayed, while reads rerun against current workspace state; a failed step returns to the SDK loop for bounded
+  correction. Decomposition seeds fail safe to normal
+  agent mode because trusted control-plane planning tools are deliberately outside the worker manifest. Evidence:
+  `docs/dev/f3.t3b-action-plan-producer-2026-07-22.json` and controller run `20260722-023227`.

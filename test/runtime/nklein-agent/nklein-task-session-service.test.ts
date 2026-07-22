@@ -875,6 +875,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			baseRef: "main",
 			prompt: "Investigate startup",
 			startInPlanMode: true,
+			executionMode: "action_plan",
 		});
 
 		await waitForSettled(() => {
@@ -899,6 +900,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				// The host workspace root must be forwarded distinctly from the container cwd so the trusted
 				// control-plane decomposition tools resolve board/plan artifacts to the host owning workspace.
 				workspaceRoot: "/tmp/project",
+				executionMode: "agent",
 				systemPrompt: expect.stringContaining("!Klein decomposition workflow rules are applied by the runtime"),
 				toolExecutors: expect.objectContaining({
 					bash: expect.any(Function),

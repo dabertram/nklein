@@ -1768,6 +1768,7 @@ export async function handleStartTaskSession(
 			baseUrl: nkleinLaunchConfig.baseUrl,
 			reasoningEffort: nkleinLaunchConfig.reasoningEffort,
 			contextScope: body.nkleinSettings?.contextScope,
+			executionMode: body.nkleinSettings?.executionMode,
 			// §5.AE forward the user's effective skill-dynamics level so the session-service's skill-fragment resolution
 			// honors the SAME setting as the affinity-tag resolveActiveSkills above (was defaulting to fully_dynamic).
 			skillDynamicsLevel: scopedRuntimeConfig.effectiveSkillDynamicsLevel,

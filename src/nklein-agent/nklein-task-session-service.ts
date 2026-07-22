@@ -1498,6 +1498,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						observation,
 					}),
 				mode: input.mode,
+				executionMode: input.executionMode ?? launchConfig.executionMode,
 				apiKey: launchConfig.apiKey,
 				baseUrl: launchConfig.baseUrl,
 				reasoningEffort: launchConfig.reasoningEffort,
@@ -1818,6 +1819,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			request.taskId,
 			request.contextWindow ?? null,
 		);
+		// ActionPlan mode is a worker execution strategy. Decomposition seeds need the trusted
+		// control-plane planning tools, which intentionally have no worker tool manifest and
+		// therefore cannot be represented inside an ActionPlan. Fail safe to the normal agent
+		// loop even if a persisted card setting asks for ActionPlan execution.
+		const executionMode = request.startInPlanMode ? "agent" : request.executionMode;
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		const endpoint = request.baseUrl?.trim() || null;
 		const sharedEndpointId = buildSharedLocalEndpointId({ providerId, modelId, endpoint });
@@ -1839,6 +1845,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			baseUrl: request.baseUrl,
 			reasoningEffort: request.reasoningEffort,
 			contextWindow: requestContextWindow,
+			executionMode,
 			maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
 			apiTimeoutMs: request.requestTimeoutMs,
 			turnTimeoutMs: request.turnTimeoutMs,
@@ -2233,6 +2240,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 									observation,
 								}),
 							mode: resolvedMode,
+							executionMode,
 							apiKey: request.apiKey,
 							baseUrl: request.baseUrl,
 							reasoningEffort: request.reasoningEffort,

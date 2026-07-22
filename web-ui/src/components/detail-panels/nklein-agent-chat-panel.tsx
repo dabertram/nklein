@@ -578,6 +578,7 @@ export interface NKleinAgentChatPanelProps {
 		modelId: string;
 		reasoningEffort: RuntimeNKleinReasoningEffort | "";
 		contextScope: "full" | "smart" | "minimal" | "custom";
+		executionMode: "agent" | "action_plan";
 		timeoutMode: "normal" | "long" | "extended" | "unlimited";
 	}) => void;
 	onSendMessage?: (
@@ -723,6 +724,9 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 		const [timestampsCollapsed, setTimestampsCollapsed] = useState(readChatTimestampsCollapsedDefault);
 		const [contextScope, setContextScope] = useState<"full" | "smart" | "minimal" | "custom">(
 			taskNKleinSettings?.contextScope ?? "smart",
+		);
+		const [executionMode, setExecutionMode] = useState<"agent" | "action_plan">(
+			taskNKleinSettings?.executionMode ?? "agent",
 		);
 		const [timeoutMode, setTimeoutMode] = useState<"normal" | "long" | "extended" | "unlimited">(
 			taskNKleinSettings?.timeoutMode ?? runtimeConfig?.agentTimeoutMode ?? "normal",
@@ -974,12 +978,14 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 			setMode(nextMode);
 			setDraftImages([]);
 			setContextScope(taskNKleinSettings?.contextScope ?? "smart");
+			setExecutionMode(taskNKleinSettings?.executionMode ?? "agent");
 			setTimeoutMode(taskNKleinSettings?.timeoutMode ?? runtimeConfig?.agentTimeoutMode ?? "normal");
 		}, [
 			defaultMode,
 			runtimeConfig?.agentTimeoutMode,
 			summary?.mode,
 			taskNKleinSettings?.contextScope,
+			taskNKleinSettings?.executionMode,
 			taskNKleinSettings?.timeoutMode,
 			taskId,
 		]);
@@ -996,6 +1002,7 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 			modelId?: string;
 			reasoningEffort?: RuntimeNKleinReasoningEffort | "";
 			contextScope?: "full" | "smart" | "minimal" | "custom";
+			executionMode?: "agent" | "action_plan";
 			timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 		};
 
@@ -1018,6 +1025,7 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 							? overrides.reasoningEffort || ""
 							: nkleinSettings.reasoningEffort;
 					const nextContextScope = overrides?.contextScope ?? contextScope;
+					const nextExecutionMode = overrides?.executionMode ?? executionMode;
 					const nextTimeoutMode = overrides?.timeoutMode ?? timeoutMode;
 					if (taskHasExplicitNKleinSettings) {
 						onTaskNKleinSettingsChanged?.({
@@ -1025,6 +1033,7 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 							modelId: nextModelId,
 							reasoningEffort: nextReasoningEffort,
 							contextScope: nextContextScope,
+							executionMode: nextExecutionMode,
 							timeoutMode: nextTimeoutMode,
 						});
 						return true;
@@ -1046,6 +1055,7 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 			[
 				nkleinSettings,
 				contextScope,
+				executionMode,
 				onNKleinSettingsSaved,
 				onTaskNKleinSettingsChanged,
 				taskHasExplicitNKleinSettings,
@@ -1285,6 +1295,21 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 								<option value="extended">Timeout: Extended</option>
 								<option value="unlimited">Timeout: Unlimited</option>
 							</NativeSelect>
+							{taskHasExplicitNKleinSettings ? (
+								<NativeSelect
+									value={executionMode}
+									onChange={(event) => {
+										const nextValue = event.target.value as "agent" | "action_plan";
+										setExecutionMode(nextValue);
+										void persistNKleinModelSettings({ executionMode: nextValue });
+									}}
+									disabled={isSavingModel || isClearingChat}
+									title="ActionPlan uses one constrained bounded plan and manifest-backed execution; ordinary Agent mode keeps the iterative tool loop."
+								>
+									<option value="agent">Execution: Agent</option>
+									<option value="action_plan">Execution: ActionPlan</option>
+								</NativeSelect>
+							) : null}
 							<Button
 								variant="ghost"
 								size="sm"

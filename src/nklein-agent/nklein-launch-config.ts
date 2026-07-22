@@ -16,6 +16,7 @@ export interface NKleinTaskLaunchConfigOverrides {
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeNKleinReasoningEffort | null;
 	contextWindow?: number | null;
+	executionMode?: "agent" | "action_plan";
 	apiTimeoutMs?: number | null;
 	turnTimeoutMs?: number | null;
 	/** W1.1: per-turn output-token budget override (the §5.AA budget-raise retry lever); absent ⇒ unchanged. */
@@ -48,6 +49,7 @@ export function normalizeLaunchConfig(launchConfig: NKleinTaskRestartLaunchConfi
 		...(Object.hasOwn(launchConfig, "baseUrl") ? { baseUrl: launchConfig.baseUrl?.trim() || null } : {}),
 		...(Object.hasOwn(launchConfig, "reasoningEffort") ? { reasoningEffort: launchConfig.reasoningEffort } : {}),
 		...(Object.hasOwn(launchConfig, "contextWindow") ? { contextWindow: launchConfig.contextWindow } : {}),
+		...(Object.hasOwn(launchConfig, "executionMode") ? { executionMode: launchConfig.executionMode } : {}),
 		...(Object.hasOwn(launchConfig, "maxAgentWritableFileLines")
 			? { maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines }
 			: {}),

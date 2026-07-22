@@ -33,6 +33,7 @@ export interface StartRuntimeTaskSessionFromLaunchConfigInput {
 	launchConfig: NKleinTaskRestartLaunchConfig;
 	systemPrompt?: string | null;
 	contextScope?: "full" | "smart" | "minimal" | "custom";
+	executionMode?: "agent" | "action_plan";
 	timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 	codeEmbeddingProvider?: NKleinCodeEmbeddingProvider;
 	onReviewSubmitted?: NKleinReviewSubmittedHandler;

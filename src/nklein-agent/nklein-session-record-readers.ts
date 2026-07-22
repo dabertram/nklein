@@ -36,6 +36,15 @@ export function readOptionalNumber(record: Record<string, unknown>, key: string)
 	return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : undefined;
 }
 
+export function readOptionalActionPlanExecutionMode(
+	record: Record<string, unknown>,
+	key: string,
+): "agent" | "action_plan" | undefined {
+	if (!Object.hasOwn(record, key)) return undefined;
+	const value = record[key];
+	return value === "agent" || value === "action_plan" ? value : undefined;
+}
+
 /** Like {@link readOptionalString}, but zod-validates the value as a reasoning-effort level. */
 export function readOptionalReasoningEffort(
 	record: Record<string, unknown>,

@@ -492,6 +492,7 @@ export function CardDetailView({
 		modelId: string;
 		reasoningEffort: RuntimeNKleinReasoningEffort | "";
 		contextScope: "full" | "smart" | "minimal" | "custom";
+		executionMode: "agent" | "action_plan";
 		timeoutMode: "normal" | "long" | "extended" | "unlimited";
 	}) => void;
 	onApprovePlanningCard?: (taskId: string) => void;

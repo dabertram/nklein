@@ -279,6 +279,8 @@ export const runtimeLlmfitCatalogUpdateModeSchema = z.enum(["off", "notify", "au
 export type RuntimeLlmfitCatalogUpdateMode = z.infer<typeof runtimeLlmfitCatalogUpdateModeSchema>;
 export const runtimeTaskNKleinContextScopeSchema = z.enum(["full", "smart", "minimal", "custom"]);
 export type RuntimeTaskNKleinContextScope = z.infer<typeof runtimeTaskNKleinContextScopeSchema>;
+export const runtimeTaskNKleinExecutionModeSchema = z.enum(["agent", "action_plan"]);
+export type RuntimeTaskNKleinExecutionMode = z.infer<typeof runtimeTaskNKleinExecutionModeSchema>;
 export const runtimeTaskNKleinTimeoutModeSchema = z.preprocess(
 	(value) => (value === "very_long" ? "extended" : value),
 	z.enum(["normal", "long", "extended", "unlimited"]),
@@ -290,6 +292,7 @@ export const runtimeTaskNKleinSettingsSchema = z.object({
 	modelId: z.string().optional(),
 	reasoningEffort: runtimeNKleinReasoningEffortSchema.optional(),
 	contextScope: runtimeTaskNKleinContextScopeSchema.optional(),
+	executionMode: runtimeTaskNKleinExecutionModeSchema.optional(),
 	timeoutMode: runtimeTaskNKleinTimeoutModeSchema.optional(),
 	requestTimeoutMs: runtimeTimeoutMsSchema.optional(),
 	streamTimeoutMs: runtimeTimeoutMsSchema.optional(),
@@ -312,8 +315,9 @@ export type RuntimeSpeedVsCapability = z.infer<typeof runtimeSpeedVsCapabilitySc
 /** Auto is the default. Pinned means the role's concrete primary model id is a hard user pin when loaded/class-eligible/feasible. */
 export const runtimeModelSelectionModeSchema = z.enum(["auto", "pinned"]);
 export type RuntimeModelSelectionMode = z.infer<typeof runtimeModelSelectionModeSchema>;
-export const runtimeRoleModelSettingsSchema = runtimeTaskNKleinSettingsSchema.extend({
-	additionalModels: z.array(runtimeTaskNKleinSettingsSchema).optional(),
+const runtimeRoleModelBaseSettingsSchema = runtimeTaskNKleinSettingsSchema.omit({ executionMode: true });
+export const runtimeRoleModelSettingsSchema = runtimeRoleModelBaseSettingsSchema.extend({
+	additionalModels: z.array(runtimeRoleModelBaseSettingsSchema).optional(),
 	modelClassCap: runtimeModelClassCapSchema.optional(),
 	/** Omitted ⇒ "capability" (today's behavior: most-capable-first; speed only as an implicit tiebreak). */
 	speedVsCapability: runtimeSpeedVsCapabilitySchema.optional(),

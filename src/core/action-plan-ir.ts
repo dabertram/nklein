@@ -22,6 +22,9 @@
 
 import { z } from "zod";
 
+export const MAX_ACTION_PLAN_STEPS = 6;
+export const MAX_ACTION_PLAN_DEPENDENCIES = MAX_ACTION_PLAN_STEPS - 1;
+
 // ---------------------------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------------------------
@@ -35,10 +38,10 @@ import { z } from "zod";
  * - `dependsOn` — ids of steps that must complete (succeed) before this step may run; defaults to `[]` (no deps).
  */
 export const actionPlanStepSchema = z.object({
-	id: z.string(),
-	tool: z.string(),
+	id: z.string().min(1).max(48),
+	tool: z.string().min(1),
 	args: z.record(z.string(), z.unknown()),
-	dependsOn: z.array(z.string()).default([]),
+	dependsOn: z.array(z.string().min(1).max(48)).max(MAX_ACTION_PLAN_DEPENDENCIES).default([]),
 });
 
 export type ActionPlanStep = z.infer<typeof actionPlanStepSchema>;
@@ -48,7 +51,7 @@ export type ActionPlanStep = z.infer<typeof actionPlanStepSchema>;
  * The ordering is informational; execution order is determined by `dependsOn` edges.
  */
 export const actionPlanSchema = z.object({
-	steps: z.array(actionPlanStepSchema),
+	steps: z.array(actionPlanStepSchema).max(MAX_ACTION_PLAN_STEPS),
 });
 
 export type ActionPlan = z.infer<typeof actionPlanSchema>;
@@ -77,6 +80,9 @@ export function validateActionPlan(plan: ActionPlan): { ok: boolean; errors: str
 		errors.push("plan must contain at least one step");
 		// With no steps there is nothing further to check.
 		return { ok: false, errors };
+	}
+	if (plan.steps.length > MAX_ACTION_PLAN_STEPS) {
+		errors.push(`plan must contain at most ${MAX_ACTION_PLAN_STEPS} steps`);
 	}
 
 	// Build an id → step index map and detect duplicates.

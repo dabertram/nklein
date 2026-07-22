@@ -4,7 +4,12 @@
 // live in sibling modules. The `StartNKleinSessionRuntimeRequest` import is TYPE-ONLY (erased at runtime), so there is
 // no runtime import cycle with the runtime module (runtime → this module only).
 import type { RuntimeNKleinReasoningEffort } from "../core/api-contract";
-import { readOptionalNumber, readOptionalReasoningEffort, readOptionalString } from "./nklein-session-record-readers";
+import {
+	readOptionalActionPlanExecutionMode,
+	readOptionalNumber,
+	readOptionalReasoningEffort,
+	readOptionalString,
+} from "./nklein-session-record-readers";
 import type { StartNKleinSessionRuntimeRequest } from "./nklein-session-runtime";
 import { asRecord } from "./nklein-value-guards";
 import type { NKleinSdkSessionRecord } from "./sdk-runtime-boundary";
@@ -18,6 +23,7 @@ export interface NKleinPersistedLaunchConfig {
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeNKleinReasoningEffort | null;
 	contextWindow?: number | null;
+	executionMode?: "agent" | "action_plan";
 	maxAgentWritableFileLines?: number | null;
 	apiTimeoutMs?: number | null;
 	turnTimeoutMs?: number | null;
@@ -52,6 +58,9 @@ export function readKanbanLaunchConfigFromSessionRecord(
 		...(readOptionalNumber(launchConfig, "contextWindow") !== undefined
 			? { contextWindow: readOptionalNumber(launchConfig, "contextWindow") }
 			: {}),
+		...(readOptionalActionPlanExecutionMode(launchConfig, "executionMode") !== undefined
+			? { executionMode: readOptionalActionPlanExecutionMode(launchConfig, "executionMode") }
+			: {}),
 		...(readOptionalNumber(launchConfig, "maxAgentWritableFileLines") !== undefined
 			? { maxAgentWritableFileLines: readOptionalNumber(launchConfig, "maxAgentWritableFileLines") }
 			: {}),
@@ -72,6 +81,7 @@ export function toPersistedLaunchConfig(request: StartNKleinSessionRuntimeReques
 		...(request.baseUrl !== undefined ? { baseUrl: request.baseUrl?.trim() || null } : {}),
 		...(request.reasoningEffort !== undefined ? { reasoningEffort: request.reasoningEffort } : {}),
 		...(request.contextWindow !== undefined ? { contextWindow: request.contextWindow } : {}),
+		...(request.executionMode !== undefined ? { executionMode: request.executionMode } : {}),
 		...(request.maxAgentWritableFileLines !== undefined
 			? { maxAgentWritableFileLines: request.maxAgentWritableFileLines }
 			: {}),

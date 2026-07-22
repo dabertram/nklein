@@ -13,9 +13,19 @@ function record(launchConfig: unknown): NKleinSdkSessionRecord {
 describe("readKanbanLaunchConfigFromSessionRecord (§5.U)", () => {
 	it("reads a launch config, lowercasing the provider and trimming the model", () => {
 		const config = readKanbanLaunchConfigFromSessionRecord(
-			record({ providerId: "LMStudio", modelId: "  qwen-coder  ", contextWindow: 32768 }),
+			record({
+				providerId: "LMStudio",
+				modelId: "  qwen-coder  ",
+				contextWindow: 32768,
+				executionMode: "action_plan",
+			}),
 		);
-		expect(config).toMatchObject({ providerId: "lmstudio", modelId: "qwen-coder", contextWindow: 32768 });
+		expect(config).toMatchObject({
+			providerId: "lmstudio",
+			modelId: "qwen-coder",
+			contextWindow: 32768,
+			executionMode: "action_plan",
+		});
 	});
 
 	it("returns null when the launch config is missing or lacks provider/model", () => {
@@ -45,5 +55,14 @@ describe("toPersistedLaunchConfig (§5.U)", () => {
 		} as StartNKleinSessionRuntimeRequest);
 		expect(persisted.workspaceRoot).toBeNull();
 		expect(persisted.baseUrl).toBeNull();
+	});
+
+	it("persists the explicit per-card execution mode across runtime restarts", () => {
+		const persisted = toPersistedLaunchConfig({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			executionMode: "action_plan",
+		} as StartNKleinSessionRuntimeRequest);
+		expect(persisted.executionMode).toBe("action_plan");
 	});
 });

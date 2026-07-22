@@ -83,6 +83,8 @@ export interface StartNKleinTaskSessionRequest {
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeNKleinReasoningEffort | null;
 	contextScope?: "full" | "smart" | "minimal" | "custom";
+	/** F3.T3b: explicit per-card opt-in; absent/agent keeps the ordinary iterative SDK loop. */
+	executionMode?: "agent" | "action_plan";
 	contextWindow?: number | null;
 	timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 	requestTimeoutMs?: number | null;

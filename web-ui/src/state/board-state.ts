@@ -135,6 +135,7 @@ function normalizeTaskNKleinSettings(input: {
 			modelId?: unknown;
 			reasoningEffort?: unknown;
 			contextScope?: unknown;
+			executionMode?: unknown;
 			timeoutMode?: unknown;
 			requestTimeoutMs?: unknown;
 			streamTimeoutMs?: unknown;
@@ -151,6 +152,10 @@ function normalizeTaskNKleinSettings(input: {
 			settings.contextScope === "minimal" ||
 			settings.contextScope === "custom"
 				? settings.contextScope
+				: undefined;
+		const executionMode =
+			settings.executionMode === "agent" || settings.executionMode === "action_plan"
+				? settings.executionMode
 				: undefined;
 		const timeoutMode =
 			settings.timeoutMode === "normal" ||
@@ -185,6 +190,7 @@ function normalizeTaskNKleinSettings(input: {
 			...(modelId ? { modelId } : {}),
 			...(reasoningEffort ? { reasoningEffort } : {}),
 			...(contextScope ? { contextScope } : {}),
+			...(executionMode ? { executionMode } : {}),
 			...(timeoutMode ? { timeoutMode } : {}),
 			...(requestTimeoutMs !== undefined ? { requestTimeoutMs } : {}),
 			...(streamTimeoutMs !== undefined ? { streamTimeoutMs } : {}),
@@ -877,6 +883,7 @@ export function applyTaskDetailNKleinSettingsChange(
 		modelId: string;
 		reasoningEffort: RuntimeNKleinReasoningEffort | "";
 		contextScope?: "full" | "smart" | "minimal" | "custom";
+		executionMode?: "agent" | "action_plan";
 		timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 		requestTimeoutMs?: number;
 		streamTimeoutMs?: number;
@@ -918,6 +925,9 @@ export function applyTaskDetailNKleinSettingsChange(
 	}
 	if (change.contextScope !== undefined) {
 		nextNKleinSettings.contextScope = change.contextScope;
+	}
+	if (change.executionMode !== undefined) {
+		nextNKleinSettings.executionMode = change.executionMode;
 	}
 	if (change.timeoutMode !== undefined) {
 		nextNKleinSettings.timeoutMode = change.timeoutMode;

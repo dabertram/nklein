@@ -38,6 +38,7 @@ export function cloneTaskNKleinSettings(
 		...(modelId ? { modelId } : {}),
 		...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
 		...(settings.contextScope ? { contextScope: settings.contextScope } : {}),
+		...(settings.executionMode ? { executionMode: settings.executionMode } : {}),
 		...(settings.timeoutMode ? { timeoutMode: settings.timeoutMode } : {}),
 		...(settings.requestTimeoutMs !== undefined ? { requestTimeoutMs: settings.requestTimeoutMs } : {}),
 		...(settings.streamTimeoutMs !== undefined ? { streamTimeoutMs: settings.streamTimeoutMs } : {}),

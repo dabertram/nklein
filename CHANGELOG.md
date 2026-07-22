@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Cards can opt into fleet-proven bounded ActionPlan execution.** A 9B local worker produced valid plans in all
+  eight held-out JSON-schema cases at 40k context. The production path exposes only manifest-backed worker tools,
+  validates and executes dependency order through existing policy/approval/swarm wrappers, checkpoints completed
+  mutations across replans without caching stale reads, and keeps trusted decomposition sessions on the ordinary
+  agent path.
+
 - **Architectural comparisons now publish complete harness cards and clear a cheap retry baseline first.** A paired
   best-of-three evaluator gives fixed and temperature-ramped retries identical budgets, alternates arm order by task,
   checkpoints every attempt, and separates provider failures from returned-but-unscorable model output. On the

@@ -1,0 +1,43 @@
+{
+  "harnessCard": {
+    "package": "F3.T3b",
+    "experiment": "action-plan-producer",
+    "question": "Can a weak local worker emit a bounded, structurally valid ActionPlan through LM Studio response_format json_schema often enough to justify an opt-in production path?",
+    "model": "qwen3.5-9b-mlx",
+    "host": "m4mini",
+    "contextWindow": 40000,
+    "temperature": 0,
+    "maxOutputTokens": 768,
+    "caseCount": 8,
+    "viabilityThreshold": 0.75,
+    "scoring": "One point only when JSON parses, the ActionPlan validates, every requested capability is represented, every tool is allowed, and the dependency graph is ordered and bounded.",
+    "runId": "20260722-023227",
+    "controllerOutcome": "passed",
+    "controllerExitCode": 0,
+    "fleetPolicy": "The controller admitted the already-loaded model under the one-resident m4mini cap and retained the safe warm fleet after the run."
+  },
+  "summary": {
+    "passCount": 8,
+    "passRate": 1,
+    "infraErrorCount": 0,
+    "unscorableCount": 0,
+    "verdict": "clears_opt_in_gate"
+  },
+  "observations": [
+    { "caseId": "inspect-edit-test", "score": 1, "latencyMs": 9451, "channel": "reasoning_content", "failureKind": null, "defects": [] },
+    { "caseId": "search-read-edit", "score": 1, "latencyMs": 12273, "channel": "reasoning_content", "failureKind": null, "defects": [] },
+    { "caseId": "inspect-two-write-test", "score": 1, "latencyMs": 12990, "channel": "reasoning_content", "failureKind": null, "defects": [] },
+    { "caseId": "search-test-only", "score": 1, "latencyMs": 12368, "channel": "reasoning_content", "failureKind": null, "defects": [] },
+    { "caseId": "read-large-summarize", "score": 1, "latencyMs": 16396, "channel": "reasoning_content", "failureKind": null, "defects": [] },
+    { "caseId": "discover-inspect-verify", "score": 1, "latencyMs": 12019, "channel": "reasoning_content", "failureKind": null, "defects": [] },
+    { "caseId": "inspect-patch-lint", "score": 1, "latencyMs": 12985, "channel": "reasoning_content", "failureKind": null, "defects": [] },
+    { "caseId": "query-read-no-write", "score": 1, "latencyMs": 6878, "channel": "reasoning_content", "failureKind": null, "defects": [] }
+  ],
+  "productionDecision": {
+    "mode": "opt_in_per_card",
+    "default": "agent",
+    "boundary": "Only manifest-backed worker tools are visible to the plan producer. The internal executor dispatches the already policy- and broker-wrapped tool implementations and invokes the existing approval callback for each step.",
+    "recovery": "A failed step returns a compact typed failure to the normal SDK loop. Successful mutation tool+argument fingerprints are checkpointed in the session so replanning cannot replay completed side effects; reads always run again so later plans observe fresh workspace state.",
+    "planningSessions": "Decomposition seeds always fall back to normal agent mode because their trusted control-plane tools intentionally are not worker ActionPlan tools."
+  }
+}

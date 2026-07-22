@@ -1496,6 +1496,54 @@ describe("NKleinAgentChatPanel", () => {
 		});
 	});
 
+	it("persists the per-card ActionPlan execution mode", async () => {
+		const onTaskNKleinSettingsChanged = vi.fn();
+
+		await act(async () => {
+			renderPanel(
+				root,
+				<NKleinAgentChatPanel
+					workspaceId="workspace-1"
+					taskId="task-1"
+					summary={createSummary("idle")}
+					taskNKleinSettings={{
+						providerId: "lmstudio",
+						modelId: "worker-model",
+						reasoningEffort: "medium",
+						executionMode: "agent",
+					}}
+					taskHasExplicitNKleinSettings
+					onTaskNKleinSettingsChanged={onTaskNKleinSettingsChanged}
+					onLoadMessages={async () => []}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const executionSelect = Array.from(container.querySelectorAll("select")).find((select) =>
+			select.textContent?.includes("Execution: ActionPlan"),
+		);
+		expect(executionSelect).toBeInstanceOf(HTMLSelectElement);
+		if (!(executionSelect instanceof HTMLSelectElement)) {
+			throw new Error("Expected execution mode select.");
+		}
+
+		await act(async () => {
+			executionSelect.value = "action_plan";
+			executionSelect.dispatchEvent(new Event("change", { bubbles: true }));
+			await Promise.resolve();
+		});
+
+		expect(onTaskNKleinSettingsChanged).toHaveBeenCalledWith({
+			providerId: "lmstudio",
+			modelId: "worker-model",
+			reasoningEffort: "medium",
+			contextScope: "smart",
+			executionMode: "action_plan",
+			timeoutMode: "normal",
+		});
+	});
+
 	it("extracts clarifying question options from assistant messages", () => {
 		const prompt = extractClarifyingQuestionPrompt([
 			{

@@ -120,6 +120,8 @@ export interface StartNKleinSessionRuntimeRequest {
 		},
 	) => void;
 	mode?: RuntimeTaskSessionMode;
+	/** F3.T3b: replace free-form iterative tool selection with bounded ActionPlan production/execution. */
+	executionMode?: "agent" | "action_plan";
 	apiKey?: string | null;
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeNKleinReasoningEffort | null;

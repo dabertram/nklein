@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after P20 partial closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F3.T3b closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-gate below is green. The current 190-package remainder is **102 ready + 0 partial + 77 dependency-blocked + 6 external/
+gate below is green. The current 189-package remainder is **101 ready + 0 partial + 77 dependency-blocked + 6 external/
 user-gated + 5 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 
@@ -92,6 +92,15 @@ feature-completeness challenges, release checks, and required manual checks are 
 gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
+
+> **⚠️ ACTIONPLAN EXECUTION MUST REUSE THE REAL TOOL SECURITY BOUNDARY (F3.T3b, 2026-07-22).** A model-produced
+> plan is orchestration data, not new authority. Offer only manifest-backed worker tools, dispatch the already
+> policy-filtered and broker-wrapped implementations, and invoke the same approval callback for each nested step.
+> Calling raw executors from an internal plan tool silently bypasses approval, scoped writes, audit, and swarm
+> serialization. Checkpoint successful mutation tool+argument fingerprints so a corrective replan cannot replay side
+> effects, but never cache reads whose observations can become stale after a write;
+> keep trusted decomposition/control-plane sessions on the normal agent path because those tools deliberately do not
+> belong in the worker manifest.
 
 > **⚠️ A NULL EVAL SCORE IS NOT AUTOMATICALLY AN INFRASTRUCTURE FAILURE (live-found P20.8, 2026-07-22).** A
 > request can complete successfully while the model returns output that the deterministic scorer cannot parse. Track
@@ -2209,10 +2218,6 @@ These are known defects or incomplete migrations. Clear them before widening cap
   draining), so wiring the executor there would duplicate it. The remaining idea — a model-side PRODUCER emitting
   per-card bounded tool plans — is split to F3.T3b below (fleet-eval-gated: json_schema plan emission by weak
   local models is unproven; GBNF is ignored by LM Studio).
-- [ ] **F3.T3b — ActionPlan producer seam** *(fleet is available; split from F3.T3 2026-07-19).* Evaluate whether a
-  weak local model can emit a valid bounded ActionPlan under response_format json_schema at plan time; if the eval
-  clears, wire the emission → validateActionPlan → executeActionPlan (dispatch through the tool manifest) as an
-  opt-in per-card execution mode.
 - [x] **F3.T4 — Consume per-provider schema profiles.** Offer the smallest safe tool/schema dialect per provider/model,
   route near-valid payloads through tolerant repair, and fall back without weakening semantic validation. **DOWNGRADE
   TRANSFORM SHIPPED 2026-07-17:** provider-schema-downgrade.ts `downgradeSchemaForProfile(schema, profile)` — the missing

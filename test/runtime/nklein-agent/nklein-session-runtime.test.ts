@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentModel, AgentModelEvent, AgentModelRequest } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { ACTION_PLAN_EXECUTION_TOOL_NAME } from "../../../src/nklein-agent/nklein-action-plan-mode";
 import type { NKleinMcpRuntimeService } from "../../../src/nklein-agent/nklein-mcp-runtime-service";
 import {
 	createInMemoryNKleinSessionRuntime,
@@ -167,6 +168,52 @@ function readInjectedRepoMapIndex(result: AgentBeforeModelResult | undefined): n
 }
 
 describe("InMemoryNKleinSessionRuntime", () => {
+	it("offers only the manifest-backed ActionPlan executor when a card explicitly opts in", async () => {
+		const fakeHost = {
+			start: vi.fn(async (input: NKleinSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-action-plan",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const runtime = createInMemoryNKleinSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+		const readTool: AgentTool = {
+			name: "read_files",
+			description: "Read files.",
+			inputSchema: { type: "object", properties: {} },
+			execute: async () => ({ ok: true }),
+		};
+
+		await runtime.startTaskSession({
+			taskId: "task-action-plan",
+			cwd: "/workspaces/task-action-plan",
+			prompt: "Inspect the implementation.",
+			providerId: "lmstudio",
+			modelId: "qwen3.5-9b",
+			baseUrl: "http://127.0.0.1:1234/v1",
+			systemPrompt: "You are a helpful coding assistant.",
+			executionMode: "action_plan",
+			extraTools: [readTool],
+		});
+
+		const startInput = fakeHost.start.mock.calls[0]?.[0];
+		const tools = startInput?.localRuntime?.extraTools ?? [];
+		expect(tools.map((tool) => tool.name)).toEqual([ACTION_PLAN_EXECUTION_TOOL_NAME]);
+		expect(JSON.stringify(tools[0]?.inputSchema)).toContain("read_files");
+		expect(startInput?.localRuntime?.modelWrapper).toBeTypeOf("function");
+	});
+
 	it("keeps native SDK team config disabled in local-only mode even when explicitly requested", async () => {
 		const previousFlag = process.env.KANBAN_ENABLE_NKLEIN_TEAMS;
 		process.env.KANBAN_ENABLE_NKLEIN_TEAMS = "1";

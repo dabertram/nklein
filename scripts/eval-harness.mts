@@ -26,6 +26,12 @@ import {
 	summarizeContextIntegrityExperiment,
 	type ContextIntegrityObservation,
 } from "../src/core/context-integrity-experiment.js";
+import {
+	ACTION_PLAN_PRODUCER_CASES,
+	buildActionPlanProducerPrompt,
+	buildActionPlanResponseSchema,
+	scoreActionPlanCandidate,
+} from "../src/core/action-plan-producer-eval.js";
 import { EVAL_PROMPT_CORPUS } from "../src/core/eval-prompt-corpus.js";
 import {
 	buildRetryBaselineCard,
@@ -337,6 +343,101 @@ async function runRetryBaseline(): Promise<void> {
 	);
 }
 
+async function runActionPlanProducer(): Promise<void> {
+	const requested = PROMPT_IDS.length > 0 ? new Set(PROMPT_IDS) : null;
+	const cases = ACTION_PLAN_PRODUCER_CASES.filter((case_) => !requested || requested.has(case_.id));
+	const checkpointPath = process.env.NKLEIN_EVAL_CHECKPOINT_PATH?.trim();
+	const observations: Array<{
+		caseId: string;
+		score: 0 | 1;
+		latencyMs: number;
+		channel: "content" | "reasoning_content" | null;
+		failureKind: "infra" | "unscorable" | null;
+		defects: readonly string[];
+		plan: unknown;
+	}> = [];
+	for (const [index, case_] of cases.entries()) {
+		const startedAt = Date.now();
+		const completion = await requestCompletion(
+			[
+				{ role: "system", content: "Return the requested ActionPlan as one JSON object matching the supplied schema." },
+				{ role: "user", content: buildActionPlanProducerPrompt(case_) },
+			],
+			{
+				temperature: 0,
+				max_tokens: Math.min(MAX_TOKENS, 768),
+				response_format: {
+					type: "json_schema",
+					json_schema: {
+						name: "action_plan",
+						strict: true,
+						schema: buildActionPlanResponseSchema(case_.allowedTools),
+					},
+				},
+			},
+		);
+		const channel = completion?.choice.message?.content?.trim()
+			? "content"
+			: completion?.choice.message?.reasoning_content?.trim()
+				? "reasoning_content"
+				: null;
+		const raw = channel ? completion?.choice.message?.[channel] : null;
+		let value: unknown = null;
+		let parseFailed = false;
+		if (raw) {
+			try {
+				value = JSON.parse(raw);
+			} catch {
+				parseFailed = true;
+			}
+		}
+		const scored = parseFailed || !raw ? { score: 0 as const, plan: null, defects: ["json_unscorable"] } : scoreActionPlanCandidate(case_, value);
+		const observation = {
+			caseId: case_.id,
+			score: scored.score,
+			latencyMs: Date.now() - startedAt,
+			channel,
+			failureKind: completion ? (raw ? null : ("unscorable" as const)) : ("infra" as const),
+			defects: scored.defects,
+			plan: scored.plan,
+		};
+		observations.push(observation);
+		console.log(
+			`  [${index + 1}/${cases.length}] ${case_.id} score=${observation.score} channel=${observation.channel ?? "none"} failure=${observation.failureKind ?? "none"} ms=${observation.latencyMs}${observation.defects.length ? ` defects=${observation.defects.join(",")}` : ""}`,
+		);
+		if (checkpointPath) {
+			await writeFile(
+				checkpointPath,
+				`${JSON.stringify({ experiment: "action-plan-producer", model: MODEL, observations }, null, 2)}\n`,
+				"utf8",
+			);
+		}
+	}
+	const passCount = observations.filter((row) => row.score === 1).length;
+	const infraErrorCount = observations.filter((row) => row.failureKind === "infra").length;
+	const passRate = observations.length === 0 ? 0 : passCount / observations.length;
+	const summary = {
+		caseCount: cases.length,
+		passCount,
+		passRate,
+		infraErrorCount,
+		viabilityThreshold: 0.75,
+		verdict: passRate >= 0.75 && infraErrorCount === 0 ? "clears_opt_in_gate" : "do_not_wire",
+	};
+	if (checkpointPath) {
+		await writeFile(
+			checkpointPath,
+			`${JSON.stringify({ experiment: "action-plan-producer", model: MODEL, summary, observations }, null, 2)}\n`,
+			"utf8",
+		);
+	}
+	console.log(JSON.stringify({ experiment: "action-plan-producer", model: MODEL, summary, observations }, null, 2));
+	console.log(
+		`result: action-plan-producer cases=${summary.caseCount} passed=${summary.passCount} rate=${summary.passRate.toFixed(3)} infra=${summary.infraErrorCount} verdict=${summary.verdict}`,
+	);
+	process.exit(summary.verdict === "clears_opt_in_gate" ? 0 : 1);
+}
+
 async function main(): Promise<void> {
 	if (EXPERIMENT === "context-integrity") {
 		await runContextIntegrity();
@@ -344,6 +445,10 @@ async function main(): Promise<void> {
 	}
 	if (EXPERIMENT === "retry-baseline") {
 		await runRetryBaseline();
+		return;
+	}
+	if (EXPERIMENT === "action-plan-producer") {
+		await runActionPlanProducer();
 		return;
 	}
 	if (EXPERIMENT) {

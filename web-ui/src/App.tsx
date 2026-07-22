@@ -884,12 +884,14 @@ export default function App(): ReactElement {
 			modelId,
 			reasoningEffort,
 			contextScope,
+			executionMode,
 			timeoutMode,
 		}: {
 			providerId: string;
 			modelId: string;
 			reasoningEffort: RuntimeNKleinReasoningEffort | "";
 			contextScope: "full" | "smart" | "minimal" | "custom";
+			executionMode: "agent" | "action_plan";
 			timeoutMode: "normal" | "long" | "extended" | "unlimited";
 		}) => {
 			if (!selectedCard) {
@@ -905,6 +907,7 @@ export default function App(): ReactElement {
 						modelId,
 						reasoningEffort,
 						contextScope,
+						executionMode,
 						timeoutMode,
 					},
 					{
