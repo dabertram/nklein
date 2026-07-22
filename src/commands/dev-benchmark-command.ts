@@ -466,6 +466,15 @@ async function run(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) 
 		);
 	}
 	const { task, acceptanceCommand } = await loadExecutionTask(options);
+	if (task.source === "aider_polyglot") {
+		if (!options.calibration) {
+			throw new Error("Aider candidate execution requires --calibration from at least two gold repeats.");
+		}
+		assertCandidateCalibration(
+			[task.instanceId],
+			JSON.parse(await readFile(resolve(options.calibration), "utf8")) as unknown,
+		);
+	}
 	if (!/^[A-Za-z0-9_.-]+$/u.test(options.runId)) {
 		throw new Error("--run-id must contain only letters, digits, dot, underscore, or hyphen.");
 	}

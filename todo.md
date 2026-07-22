@@ -142,6 +142,13 @@ gap remains.
 > patch during an ordinary between-turn lull while the watchdog continued review/correction after the immutable receipt
 > was written. Inherit the shared long settle policy, keep the active-session guard, and bound the run with its outer
 > deadline. Poll frequency controls observation latency; it does not define semantic terminality.
+> **PAIRED CAMPAIGNS ARE PRE-REGISTERED, RESUMABLE, AND FLEET-IMMUTABLE (Aider, 2026-07-22):** candidate execution
+> re-checks the gold calibration at the effectful `benchmark run` seam; a caller merely passing an unused path is not a
+> gate. The campaign planner rejects an underpowered claimed effect before generation (24 tasks × two repeats can detect
+> ~29.5 pp, so this tranche declares 30 pp), keeps each pair on one forced model, alternates arm order, and runs pairs
+> sequentially. Config, fleet identity, receipts, reports, and final summary are immutable. Resume only from receipts;
+> preserve a receipt-less interrupted workspace for diagnosis and start a new campaign id. Any model disappearing,
+> appearing, resizing, or falling below 32k stops the tranche and writes a fleet event instead of confounding it.
 > **SANDBOX LIFECYCLE SINGLE-FLIGHT MUST MATCH ITS NAME SCOPE (multi-workspace pilot, 2026-07-23):** the sandbox
 > manager's per-slot `starting` promise cannot serialize two different per-workspace managers. Giving both managers the
 > global `nklein-agent-sandbox-1` name creates a Docker race, and accepting the conflict would be unsafe because the
@@ -3719,7 +3726,10 @@ stays fast + complete.
   their leakage-safe acceptance through the production prompt convention, and a three-poll settle override captured an
   intermediate empty artifact while watchdog recovery continued. Both root causes are fixed. The repaired workflow
   reached completion with a reviewed 1,067-byte patch; the private oracle honestly rejected it on one camel-case test
-  (9/10), proving public acceptance and external semantic grading remain separate. **Remainder:**
+  (9/10), proving public acceptance and external semantic grading remain separate. A resumable 96-attempt campaign
+  runner now pre-registers the 24-task × two-repeat paired design at a 30-point detectable effect, alternates pair order,
+  pins the complete four-model resident set, and delegates its result to the existing McNemar default-flip gate.
+  **Remainder:**
   A three-workspace candidate pilot was deliberately excluded from A/B evidence after it exposed cross-workspace
   speculative-mirror/reviewer contention; the root scheduler fix is landed and the matched campaign must run
   sequentially against a fixed resident set. Run the calibrated 24-task repeated A/B tranche; add Terminal-Bench and
@@ -3734,8 +3744,11 @@ stays fast + complete.
     `aws-cloudformation__cfn-lint-3767` failed its gold oracle identically in two ARM/QEMU repeats and is correctly
     quarantined; it is not model evidence. A native x86_64 Docker runner is required before any Live baseline can close
     this package. Legion5pro is reachable through LM Link but does not currently expose SSH or a Docker API. The daily
-    Aider side now has a calibrated 24-task/six-language gold set (two repeats each, zero quarantine); candidate A/B
-    repeats and the delta/nightly wiring remain.
+    Aider side now has a calibrated 24-task/six-language gold set (two repeats each, zero quarantine).
+    `scripts/run-aider-campaign.mts` owns the candidate run: it fail-closes on uncalibrated tasks, fleet/context drift,
+    receipt-less interruption, or evidence reuse and resumes completed arms by immutable receipt/report. The
+    pre-registered live config assigns eight tasks each to m5max, m4mini, and Legion5pro workers while retaining Mistral
+    as the diverse resident reviewer/mirror; execution and the delta/nightly wiring remain.
   - [ ] **F11.3h — Contamination-aware fresh-set track.** Verified is >94% pre-model-cutoff + partly leaked (models recall
     file paths). Add a rolling SWE-bench-Live / SWE-rebench fresh-window gate (tasks post-dating cutoffs) as the HONEST
     "reasons vs recalls" measure; log leakage hits. (SWE-bench-Live; SWE-rebench 2505.20411)

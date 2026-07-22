@@ -95,6 +95,11 @@ networkless, capability-dropped, resource-bounded, and
 uses preloaded dependencies. Candidate patches are filtered to declared solution paths before they enter the trusted
 grader, so a model cannot replace a reconstructed private test.
 
+Candidate execution itself requires the immutable gold calibration (passing a path is not advisory). Each Aider card
+also carries a public `Acceptance check:` that runs `git diff --check` and verifies the declared solution files remain
+non-empty. This gives the normal production reviewer a machine-runnable contract without exposing the private oracle;
+passing it is never reported as semantic resolution. The external grader remains authoritative.
+
 The first Python affine-cipher calibration resolved the official example twice. A controlled single-pair smoke using
 Qwen3.6-35B-A3B plus the same fleet review policy produced `unresolved` in plan mode (operator-attention park, empty
 artifact) and `resolved` in no-plan mode (reviewed 4.6 KB patch). This proves that the lane has non-zero discriminating
@@ -102,6 +107,24 @@ signal and that failures survive capture. It is one task, so it cannot justify c
 grader tranche now resolves two independent gold repeats for 24 tasks—four each in C++, Go, Java, JavaScript, Python,
 and Rust—with no quarantines. That calibrates the six offline toolchains and task set, not model quality; the repeated
 paired model runs remain required before F11.3 closes.
+
+Run the repeated tranche with the resumable paired campaign runner:
+
+```sh
+npm run benchmark:aider-campaign -- .nklein/benchmarks/aider-campaign.json
+```
+
+The JSON file contains the core pre-registration fields (`schemaVersion: 1`, a filesystem-safe `campaignId`,
+`repeats >= 2`, `declaredMdePoints`, and one `{instanceId, modelId, modelNameOrPath}` assignment per task) plus
+`manifestPath`, `corpusPath`, `calibrationPath`, `outputRoot`, the complete `residentModelIds` set, and optional runtime/
+poll/deadline values. The current 24-task × two-repeat design can only detect about 29.5 percentage points, so its honest
+pre-registered threshold is at least 30 points; claiming a smaller effect fails before the first candidate call.
+
+Pairs run sequentially on the same forced model, while plan-first/no-plan-first order alternates across task and repeat.
+The runner refuses a model below 32k context, an added/disappeared/resized resident, a changed campaign file, or an
+interrupted workspace without a receipt. Completed receipts/reports resume without rerunning; final config, fleet
+baseline, reports, receipts, and summary are immutable. Infrastructure-tainted pairs are excluded from the delegated
+McNemar/default-flip gate and remain visibly inconclusive.
 
 Example after materialization:
 

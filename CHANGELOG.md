@@ -29,7 +29,10 @@
   a default change. Candidate cards now also carry a leakage-safe public acceptance check through the same persisted
   prompt convention as ordinary cards, while semantic grading stays private and external. Benchmark monitoring inherits
   the production real-model settle window, so immutable receipts cannot capture an empty intermediate artifact while
-  watchdog review or correction is still progressing.
+  watchdog review or correction is still progressing. A resumable Aider campaign runner pre-registers detectable
+  effect, fixed task-to-model assignments, alternating pair order, and the complete resident fleet; it runs matched arms
+  sequentially, resumes only immutable completed evidence, and stops on calibration, 32k-context, fleet-identity, or
+  interrupted-workspace drift before that drift can contaminate a default-flip decision.
 
 - **Speculative best-of-N now yields to real reviews across workspaces.** A headless auto-review is real queued work
   before its reviewer session reaches model admission. The process-wide in-flight review signal now vetoes new mirrors

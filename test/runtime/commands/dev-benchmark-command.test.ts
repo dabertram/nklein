@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runDevBenchmarkCommand } from "../../../src/commands/dev-benchmark-command";
+import { buildAiderPolyglotTask, PINNED_AIDER_POLYGLOT_COMMIT } from "../../../src/core/aider-polyglot-benchmark";
 
 const task = {
 	instance_id: "owner__repo-1",
@@ -177,5 +178,42 @@ describe("dev benchmark command", () => {
 				{ executeBenchmarkTask: async () => Promise.reject(new Error("must not execute")) },
 			),
 		).rejects.toThrow(/immutable receipt/);
+	});
+
+	it("refuses an Aider candidate before execution when calibrated gold evidence is absent", async () => {
+		const root = await mkdtemp(join(tmpdir(), "nklein-bench-aider-calibration-"));
+		const dataset = join(root, "manifest.json");
+		const polyglot = buildAiderPolyglotTask({
+			language: "python",
+			exercise: "acronym",
+			corpusCommit: PINNED_AIDER_POLYGLOT_COMMIT,
+			configText: JSON.stringify({ files: { solution: ["acronym.py"], test: ["acronym_test.py"] } }),
+			instructionParts: ["Implement acronym."],
+		});
+		await writeFile(
+			dataset,
+			JSON.stringify({
+				schemaVersion: 1,
+				corpusCommit: PINNED_AIDER_POLYGLOT_COMMIT,
+				tasks: [polyglot],
+			}),
+		);
+		await expect(
+			runDevBenchmarkCommand(
+				{
+					action: "run",
+					source: "aider_polyglot",
+					dataset,
+					instance: polyglot.instanceId,
+					workspaceParent: join(root, "workspace"),
+					model: "fixed-model",
+					output: join(root, "prediction.jsonl"),
+					receipt: join(root, "receipt.json"),
+					runId: "uncalibrated",
+					write: () => undefined,
+				},
+				{ executeBenchmarkTask: async () => Promise.reject(new Error("must not execute")) },
+			),
+		).rejects.toThrow(/requires --calibration/);
 	});
 });
