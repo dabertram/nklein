@@ -2654,3 +2654,19 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   another model is optional, not required for truth auditing. Evidence: focused audit/MCP/selection tests 64/64, the
   full backend precommit suite 12,100/12,100, protected 142/142, contract behavioral assertions 284/284 with the
   contended Low-Power timing file green 4/4 in isolation, plus the real 3-server Docker schema and restart proof.
+
+- [x] **F4.34 — Probe and implement native tools/reasoning/SSE events** *(delivered 2026-07-22).* Official LM Studio
+  0.4.x docs and the live gateway corrected the stale 0.3.x contract: native chat now takes `input:string` and a
+  dedicated `system_prompt`, and streams named SSE ending in authoritative `chat.end.result`. Live resident-model probes
+  captured prompt progress, reasoning deltas, message deltas, usage, a local-address MCP connection error, and a real
+  public-catalog MCP tool call with arguments/result/provider identity. The tool trace also exposed undocumented
+  `tool_call.name` plus an empty `tool_call.start`, so the incremental chunk-boundary-safe state machine retains unknown
+  events, parses both documented and observed variants, and reports EOF-before-`chat.end` as incomplete. The production
+  alternate-endpoint rail now consumes this stream but keeps arbitrary !Klein SDK tools on forced `/v1/messages`, since
+  native chat supports configured MCP integrations rather than custom tool schemas. Remote per-request MCP definitions
+  are intentionally absent from the production request type; only preconfigured plugin ids are representable. Evidence:
+  live production-parser `chat_end` with exact text, clean protocol/error channels and usage; live MCP success/error
+  traces; 17/17 focused shape/state-machine/client/consumer tests; full backend precommit 12,105/12,105, protected
+  142/142, backend typecheck, and focused Biome green. Sources:
+  [REST overview](https://lmstudio.ai/docs/developer/rest), [chat](https://lmstudio.ai/docs/developer/rest/chat),
+  [streaming events](https://lmstudio.ai/docs/developer/rest/streaming-events).

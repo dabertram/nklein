@@ -2,18 +2,21 @@ import { describe, expect, it } from "vitest";
 import { buildNativeChatRequest, parseNativeChatResponse } from "../../../src/core/local-native-chat-shape";
 
 /**
- * F4.33 — fixtures RE-DERIVED FROM LIVE 200s (2026-07-19, LM Studio 0.3.x /api/v1/chat, ministral-3-14b):
- * request {model,input:[{type:"text",content}],max_output_tokens}; response {model_instance_id,output[],
- * response_id,stats}. The multi-item alternation 500 is the live-probed reason the builder merges to ONE item.
+ * F4.33/F4.34 — contract refreshed from live LM Studio 0.4.x responses on 2026-07-22.
  */
 describe("native /api/v1/chat shape (F4.33 probed contract)", () => {
-	it("builds the single-merged-item request (each text item is its own user turn server-side)", () => {
+	it("builds the current input-string request with dedicated system/state/stream controls", () => {
 		const body = buildNativeChatRequest({
 			model: "mistralai/ministral-3-14b-reasoning",
 			maxOutputTokens: 200,
 			temperature: 0,
+			stream: true,
+			reasoning: "off",
+			contextLength: 32_768,
+			store: false,
 			messages: [
 				{ role: "system", content: "You are terse." },
+				{ role: "assistant", content: "Earlier answer" },
 				{ role: "user", content: "Say OK" },
 			],
 		});
@@ -21,7 +24,12 @@ describe("native /api/v1/chat shape (F4.33 probed contract)", () => {
 			model: "mistralai/ministral-3-14b-reasoning",
 			max_output_tokens: 200,
 			temperature: 0,
-			input: [{ type: "text", content: "[system]\nYou are terse.\n\nSay OK" }],
+			input: "[assistant]\nEarlier answer\n\nSay OK",
+			system_prompt: "You are terse.",
+			stream: true,
+			reasoning: "off",
+			context_length: 32_768,
+			store: false,
 		});
 	});
 
@@ -51,14 +59,30 @@ describe("native /api/v1/chat shape (F4.33 probed contract)", () => {
 		expect(parsed.toolCalls).toEqual([]);
 	});
 
-	it("accepts a defensive tool_call output item without guessing beyond name/arguments", () => {
+	it("parses the live MCP tool_call output, result, and provider identity", () => {
 		const parsed = parseNativeChatResponse({
 			model_instance_id: "m",
-			output: [{ type: "tool_call", id: "t1", name: "read_file", arguments: '{"path":"a.ts"}' }],
+			output: [
+				{
+					type: "tool_call",
+					tool: "read_file",
+					arguments: { path: "a.ts" },
+					output: "contents",
+					provider_info: { type: "plugin", plugin_id: "mcp/files" },
+				},
+			],
 			response_id: "resp_x",
 			stats: {},
 		});
-		expect(parsed.toolCalls).toEqual([{ id: "t1", name: "read_file", args: { path: "a.ts" } }]);
+		expect(parsed.toolCalls).toEqual([
+			{
+				id: "",
+				name: "read_file",
+				args: { path: "a.ts" },
+				output: "contents",
+				provider: { type: "plugin", pluginId: "mcp/files", serverLabel: null },
+			},
+		]);
 	});
 
 	it("parses an unrecognized body to empty channels, never throwing", () => {

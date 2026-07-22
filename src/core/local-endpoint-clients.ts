@@ -23,6 +23,11 @@ import {
 	type ParsedNativeChatResponse,
 	parseNativeChatResponse,
 } from "./local-native-chat-shape.js";
+import {
+	type NativeChatSseEvent,
+	NativeChatSseStateMachine,
+	type ParsedNativeChatStream,
+} from "./local-native-chat-sse.js";
 import { withTransientRetry } from "./transient-error.js";
 
 /** Raised when the endpoint is non-local (refused) or the server returns a non-2xx status. */
@@ -100,4 +105,71 @@ export async function callLocalNativeChat(input: LocalNativeChatCallInput): Prom
 	const body = buildNativeChatRequest(requestInput);
 	const json = await postLocalJson(url, body, fetchImpl ?? fetch, maxRetries, signal, headers);
 	return parseNativeChatResponse(json);
+}
+
+export interface LocalNativeChatStreamCallInput extends LocalNativeChatCallInput {
+	/** Optional observation hook for already-validated SSE events. Hook failures never alter generation. */
+	onEvent?: (event: NativeChatSseEvent) => void;
+}
+
+/**
+ * Stream a local native chat through the F4.34 SSE state machine. Only connection establishment is retryable; once a
+ * response stream exists, an EOF/protocol failure is returned explicitly instead of replaying a possibly-running turn.
+ */
+export async function callLocalNativeChatStream(
+	input: LocalNativeChatStreamCallInput,
+): Promise<ParsedNativeChatStream> {
+	const { url, fetchImpl = fetch, maxRetries = 2, signal, headers, onEvent, ...requestInput } = input;
+	if (!isLocalBaseUrl(url)) {
+		throw new LocalEndpointError(`Refusing to reach non-local endpoint: ${url} (local-only, prime directive #1).`);
+	}
+	const body = buildNativeChatRequest({ ...requestInput, stream: true });
+	const response = await withTransientRetry(
+		async () =>
+			await fetchImpl(url, {
+				method: "POST",
+				headers: { ...headers, accept: "text/event-stream", "content-type": "application/json" },
+				body: JSON.stringify(body),
+				signal,
+			}),
+		{ maxRetries },
+	);
+	if (!response.ok) {
+		throw new LocalEndpointError(`Endpoint ${url} returned HTTP ${response.status}.`, response.status);
+	}
+	if (response.headers?.get("content-type")?.toLowerCase().includes("application/json")) {
+		return {
+			result: parseNativeChatResponse(await response.json()),
+			errors: [],
+			termination: "json_response",
+			eventTypes: [],
+			protocolErrors: [],
+		};
+	}
+	if (!response.body) throw new LocalEndpointError(`Endpoint ${url} returned no SSE response body.`);
+	const state = new NativeChatSseStateMachine();
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+	while (true) {
+		const chunk = await reader.read();
+		if (chunk.done) break;
+		for (const event of state.push(decoder.decode(chunk.value, { stream: true }))) {
+			try {
+				onEvent?.(event);
+			} catch {
+				// Observation hooks cannot change the endpoint outcome.
+			}
+		}
+	}
+	const tail = decoder.decode();
+	if (tail) {
+		for (const event of state.push(tail)) {
+			try {
+				onEvent?.(event);
+			} catch {
+				// Observation hooks cannot change the endpoint outcome.
+			}
+		}
+	}
+	return state.finish();
 }

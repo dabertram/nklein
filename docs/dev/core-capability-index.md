@@ -309,6 +309,7 @@ indexing it recovers value.
 | `core/local-model-endpoint-strategy.ts` | §5.AB endpoint-iteration STRATEGY — the pure try-order decider behind "some local model servers speak OpenAI's | §5.AB |
 | `core/local-model-endpoint.ts` | The default local model-server endpoint (todo §5.U — consolidates a magic URL that was hardcoded ~8x across the | §5.U |
 | `core/local-native-chat-shape.ts` | §5.AB endpoint-iteration — the PURE wire-shape core for the `native_v1_chat` endpoint kind: LM Studio's native | F4.33 F4.34 F4.45 §5.AB |
+| `core/local-native-chat-sse.ts` | F4.34 incremental parser/state machine for LM Studio native chat named SSE, including reasoning, messages, MCP tools, errors, and fail-closed termination. | F4.34 §5.AN |
 | `core/localization-provider.ts` | §5.B localization port — the READ-ONLY fault-localization contract the repair kernel's `localize` step depends on. | §5.B |
 | `core/long-memory-eval.ts` | Internal LongMemEval-style fixture for deciding whether !Klein may broaden memory scope. | F2.10 |
 | `core/long-memory-live-eval.ts` | Pure parser/scorer for the effectful LongMemEval live verifier. | — |

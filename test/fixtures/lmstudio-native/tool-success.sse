@@ -1,0 +1,36 @@
+event: chat.start
+data: {"type":"chat.start","model_instance_id":"qwen/qwen3.6-35b-a3b"}
+
+event: prompt_processing.start
+data: {"type":"prompt_processing.start"}
+
+event: prompt_processing.end
+data: {"type":"prompt_processing.end"}
+
+event: tool_call.start
+data: {"type":"tool_call.start"}
+
+event: tool_call.name
+data: {"type":"tool_call.name","tool_name":"hub_repo_search","provider_info":{"type":"ephemeral_mcp","server_label":"huggingface"}}
+
+event: tool_call.arguments
+data: {"type":"tool_call.arguments","provider_info":{"type":"ephemeral_mcp","server_label":"huggingface"},"tool":"hub_repo_search","arguments":{"query":"qwen3","repo_types":["model"],"limit":1}}
+
+event: tool_call.success
+data: {"type":"tool_call.success","provider_info":{"type":"ephemeral_mcp","server_label":"huggingface"},"tool":"hub_repo_search","arguments":{"query":"qwen3","repo_types":["model"],"limit":1},"output":"[{\"type\":\"text\",\"text\":\"Found one public model\"}]"}
+
+event: message.start
+data: {"type":"message.start"}
+
+event: message.delta
+data: {"type":"message.delta","content":"The model"}
+
+event: message.delta
+data: {"type":"message.delta","content":" ID is demo/model"}
+
+event: message.end
+data: {"type":"message.end"}
+
+event: chat.end
+data: {"type":"chat.end","result":{"model_instance_id":"qwen/qwen3.6-35b-a3b","output":[{"type":"tool_call","tool":"hub_repo_search","arguments":{"query":"qwen3","repo_types":["model"],"limit":1},"output":"[{\"type\":\"text\",\"text\":\"Found one public model\"}]","provider_info":{"type":"ephemeral_mcp","server_label":"huggingface"}},{"type":"message","content":"The model ID is demo/model"}],"stats":{"input_tokens":631,"total_output_tokens":104,"reasoning_output_tokens":0,"tokens_per_second":52.58,"time_to_first_token_seconds":1.286}}}
+

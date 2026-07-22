@@ -2,17 +2,14 @@
  * §5.AB endpoint-iteration — the PURE wire-shape core for the `native_v1_chat` endpoint kind: LM Studio's native
  * `/api/v1/chat` "Responses"-style surface.
  *
- * ✅ LIVE-PROBED CONTRACT (2026-07-19, LM Studio 0.3.x, ministral-3-14b — F4.33 rewrite):
- *   - REQUEST: `{ model, input: [{ type: "text" | "image", content }], max_output_tokens, temperature? }`.
- *     The input discriminator accepts ONLY `text`/`image` (probed 400: "Expected 'text' | 'image'"); `messages`
- *     and `max_tokens` are rejected. EVERY `text` item becomes its own USER turn server-side — two text items
- *     500'd the Mistral Jinja template with the alternation error — so the builder MERGES all prompt text into
- *     ONE item (same rule as mergeConsecutiveSameRoleSdkMessages) and system framing rides inline.
+ * ✅ LIVE-PROBED CONTRACT (2026-07-22, LM Studio 0.4.x, qwen3.6-35b-a3b — F4.34 refresh):
+ *   - REQUEST: `{ model, input: string, system_prompt?, max_output_tokens, ... }`. Native chat does not accept prior
+ *     assistant messages as structured input, so callers still merge legacy history into one text input; system text
+ *     now uses the dedicated field. `stream:true` selects named SSE events.
  *   - RESPONSE (200): `{ model_instance_id, output: [{ type: "reasoning" | "message", content }], response_id,
  *     stats: { input_tokens, total_output_tokens, reasoning_output_tokens, tokens_per_second,
- *     time_to_first_token_seconds } }` — both output item types captured live; `response_id` is the chainable id
- *     the F4.45 gate verifies. Tool-call output items remain unobserved on this surface (F4.34 probes them);
- *     the parser accepts a `tool_call`-shaped item defensively without guessing beyond name/arguments.
+ *     time_to_first_token_seconds } }`. MCP-backed tool calls use `{type:"tool_call",tool,arguments,output,
+ *     provider_info}`. Arbitrary custom tool schemas remain unsupported; only configured MCP integrations belong here.
  *
  * Pure + total + defensive: an unrecognized body parses to empty channels, never throws.
  */
@@ -29,40 +26,92 @@ export interface NativeChatRequestInput {
 	maxOutputTokens: number;
 	messages: readonly NativeChatMessage[];
 	temperature?: number;
+	stream?: boolean;
+	reasoning?: "off" | "low" | "medium" | "high" | "on";
+	contextLength?: number;
+	store?: boolean;
+	previousResponseId?: string;
+	/** Preconfigured LM Studio MCP integrations only. Remote per-request MCPs are intentionally not exposed by !Klein. */
+	integrations?: readonly (string | { type: "plugin"; id: string; allowed_tools?: readonly string[] })[];
 }
 
 export interface NativeChatRequestBody {
 	model: string;
 	max_output_tokens: number;
-	input: Array<{ type: "text"; content: string }>;
+	input: string;
+	system_prompt?: string;
 	temperature?: number;
+	stream?: boolean;
+	reasoning?: "off" | "low" | "medium" | "high" | "on";
+	context_length?: number;
+	store?: boolean;
+	previous_response_id?: string;
+	integrations?: Array<string | { type: "plugin"; id: string; allowed_tools?: string[] }>;
 }
 
 /**
- * Build a native `/api/v1/chat` request. All messages MERGE into ONE `text` input item (each item is its own
- * user turn server-side; two items breaks Mistral-family alternation templates — live-probed 500). Non-user
- * roles are labeled inline so the model still sees the framing.
+ * Build a native `/api/v1/chat` request. System messages use `system_prompt`; every remaining turn is merged into the
+ * one native input string. Assistant history is explicitly labeled because this endpoint cannot take assistant items.
  */
 export function buildNativeChatRequest(input: NativeChatRequestInput): NativeChatRequestBody {
+	const systemPrompt = input.messages
+		.filter((message) => message.role === "system")
+		.map((message) => message.content)
+		.filter((text) => text.trim().length > 0)
+		.join("\n\n");
 	const merged = input.messages
-		.map((message) => (message.role === "user" ? message.content : `[${message.role}]\n${message.content}`))
+		.filter((message) => message.role !== "system")
+		.map((message) => (message.role === "user" ? message.content : `[assistant]\n${message.content}`))
 		.filter((text) => text.trim().length > 0)
 		.join("\n\n");
 	const body: NativeChatRequestBody = {
 		model: input.model,
 		max_output_tokens: input.maxOutputTokens,
-		input: [{ type: "text", content: merged }],
+		input: merged,
 	};
+	if (systemPrompt) body.system_prompt = systemPrompt;
 	if (typeof input.temperature === "number") {
 		body.temperature = input.temperature;
 	}
+	if (input.stream !== undefined) body.stream = input.stream;
+	if (input.reasoning !== undefined) body.reasoning = input.reasoning;
+	if (input.contextLength !== undefined) body.context_length = input.contextLength;
+	if (input.store !== undefined) body.store = input.store;
+	if (input.previousResponseId !== undefined) body.previous_response_id = input.previousResponseId;
+	if (input.integrations !== undefined) {
+		body.integrations = input.integrations.map((integration) =>
+			typeof integration === "string"
+				? integration
+				: {
+						type: "plugin" as const,
+						id: integration.id,
+						...(integration.allowed_tools ? { allowed_tools: [...integration.allowed_tools] } : {}),
+					},
+		);
+	}
 	return body;
+}
+
+export interface NativeToolProviderInfo {
+	type: "plugin" | "ephemeral_mcp" | "unknown";
+	pluginId: string | null;
+	serverLabel: string | null;
 }
 
 export interface ParsedNativeToolCall {
 	id: string;
 	name: string;
 	args: Record<string, unknown>;
+	output: string | null;
+	provider: NativeToolProviderInfo | null;
+}
+
+export interface ParsedNativeInvalidToolCall {
+	reason: string;
+	kind: "invalid_name" | "invalid_arguments" | "unknown";
+	toolName: string;
+	args: Record<string, unknown>;
+	provider: NativeToolProviderInfo | null;
 }
 
 export interface NativeChatStats {
@@ -71,6 +120,7 @@ export interface NativeChatStats {
 	reasoningOutputTokens: number | null;
 	tokensPerSecond: number | null;
 	timeToFirstTokenSeconds: number | null;
+	modelLoadTimeSeconds: number | null;
 }
 
 export interface ParsedNativeChatResponse {
@@ -78,8 +128,9 @@ export interface ParsedNativeChatResponse {
 	text: string;
 	/** The reasoning channel (`output[].type === "reasoning"` items, joined). */
 	reasoning: string;
-	/** Structured tool calls, when the surface emits them (unobserved so far — parsed defensively). */
+	/** MCP-backed tool calls, including arguments, result, and provider identity. */
 	toolCalls: ParsedNativeToolCall[];
+	invalidToolCalls: ParsedNativeInvalidToolCall[];
 	/** The chainable response id (`response_id`) — the F4.45 stateful-adoption key. */
 	responseId: string | null;
 	/** The serving instance (`model_instance_id`). */
@@ -117,6 +168,7 @@ export function parseNativeChatResponse(body: unknown): ParsedNativeChatResponse
 		text: "",
 		reasoning: "",
 		toolCalls: [],
+		invalidToolCalls: [],
 		responseId: null,
 		modelInstanceId: null,
 		stats: {
@@ -125,6 +177,7 @@ export function parseNativeChatResponse(body: unknown): ParsedNativeChatResponse
 			reasoningOutputTokens: null,
 			tokensPerSecond: null,
 			timeToFirstTokenSeconds: null,
+			modelLoadTimeSeconds: null,
 		},
 	};
 	const record = asRecord(body);
@@ -134,6 +187,7 @@ export function parseNativeChatResponse(body: unknown): ParsedNativeChatResponse
 	const textParts: string[] = [];
 	const reasoningParts: string[] = [];
 	const toolCalls: ParsedNativeToolCall[] = [];
+	const invalidToolCalls: ParsedNativeInvalidToolCall[] = [];
 	const output = Array.isArray(record.output) ? record.output : [];
 	for (const rawItem of output) {
 		const item = asRecord(rawItem);
@@ -144,8 +198,9 @@ export function parseNativeChatResponse(body: unknown): ParsedNativeChatResponse
 			textParts.push(item.content);
 		} else if (item.type === "reasoning" && typeof item.content === "string") {
 			reasoningParts.push(item.content);
-		} else if (item.type.includes("tool")) {
+		} else if (item.type === "tool_call") {
 			const name =
+				(typeof item.tool === "string" && item.tool) ||
 				(typeof item.name === "string" && item.name) ||
 				(typeof (asRecord(item.function)?.name as unknown) === "string" &&
 					(asRecord(item.function)?.name as string)) ||
@@ -155,8 +210,21 @@ export function parseNativeChatResponse(body: unknown): ParsedNativeChatResponse
 					id: typeof item.id === "string" ? item.id : "",
 					name,
 					args: coerceArgs(item.arguments ?? asRecord(item.function)?.arguments),
+					output: typeof item.output === "string" ? item.output : null,
+					provider: parseProviderInfo(item.provider_info),
 				});
 			}
+		} else if (item.type === "invalid_tool_call") {
+			const metadata = asRecord(item.metadata) ?? {};
+			const kind =
+				metadata.type === "invalid_name" || metadata.type === "invalid_arguments" ? metadata.type : "unknown";
+			invalidToolCalls.push({
+				reason: typeof item.reason === "string" ? item.reason : "",
+				kind,
+				toolName: typeof metadata.tool_name === "string" ? metadata.tool_name : "",
+				args: coerceArgs(metadata.arguments),
+				provider: parseProviderInfo(metadata.provider_info),
+			});
 		}
 	}
 	const stats = asRecord(record.stats) ?? {};
@@ -164,6 +232,7 @@ export function parseNativeChatResponse(body: unknown): ParsedNativeChatResponse
 		text: textParts.join("\n"),
 		reasoning: reasoningParts.join("\n"),
 		toolCalls,
+		invalidToolCalls,
 		responseId: typeof record.response_id === "string" ? record.response_id : null,
 		modelInstanceId: typeof record.model_instance_id === "string" ? record.model_instance_id : null,
 		stats: {
@@ -172,6 +241,17 @@ export function parseNativeChatResponse(body: unknown): ParsedNativeChatResponse
 			reasoningOutputTokens: numberOrNull(stats.reasoning_output_tokens),
 			tokensPerSecond: numberOrNull(stats.tokens_per_second),
 			timeToFirstTokenSeconds: numberOrNull(stats.time_to_first_token_seconds),
+			modelLoadTimeSeconds: numberOrNull(stats.model_load_time_seconds),
 		},
+	};
+}
+
+function parseProviderInfo(value: unknown): NativeToolProviderInfo | null {
+	const provider = asRecord(value);
+	if (!provider) return null;
+	return {
+		type: provider.type === "plugin" || provider.type === "ephemeral_mcp" ? provider.type : "unknown",
+		pluginId: typeof provider.plugin_id === "string" ? provider.plugin_id : null,
+		serverLabel: typeof provider.server_label === "string" ? provider.server_label : null,
 	};
 }

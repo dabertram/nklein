@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F4.32 closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F4.34 closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 182-package remainder is **92 ready + 0 partial + 76 dependency-blocked + 7 external/
+  gate below is green. The current 181-package remainder is **92 ready + 0 partial + 75 dependency-blocked + 7 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 
@@ -2737,10 +2737,7 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   fully parsed (both item types captured live; response_id = the F4.45 chainable id; defensive tool_call item
   acceptance for F4.34). Fixtures re-derived from real 200 bodies; consumer client updated
   (maxOutputTokens). 9 tests across shape+client.
-- [ ] **F4.34 — Probe and implement native tools/reasoning/SSE events.** Capture real tool call/result, reasoning text,
-  message, usage, error, and stream termination shapes; add fixtures and state-machine parsing.
-  **AUDIT 2026-07-18: OPEN** — no SSE/state-machine parsing, no re-derived fixtures, no native tool-call/reasoning event capture (file notes the variants still need probing).
-- [>] **F4.35 — Add stateful native sessions and MCP composition** *(after F4.33–F4.34).* Use response/session IDs to
+- [ ] **F4.35 — Add stateful native sessions and MCP composition.** Use response/session IDs to
   avoid resending history, preserve replay/ledger ownership, and fall back to OpenAI-compatible stateless calls.
 - [x] **F4.36 — Finish native model-management and thinking controls.** Complete safe list/load/unload/status use,
   verify family-specific switches (never infer from architecture alone), and feed facts into load/routing policies.

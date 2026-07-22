@@ -1,0 +1,27 @@
+event: chat.start
+data: {"type":"chat.start","model_instance_id":"qwen/qwen3.6-35b-a3b"}
+
+event: reasoning.start
+data: {"type":"reasoning.start"}
+
+event: reasoning.delta
+data: {"type":"reasoning.delta","content":"17 + 25"}
+
+event: reasoning.delta
+data: {"type":"reasoning.delta","content":" = 42"}
+
+event: reasoning.end
+data: {"type":"reasoning.end"}
+
+event: message.start
+data: {"type":"message.start"}
+
+event: message.delta
+data: {"type":"message.delta","content":"42"}
+
+event: message.end
+data: {"type":"message.end"}
+
+event: chat.end
+data: {"type":"chat.end","result":{"model_instance_id":"qwen/qwen3.6-35b-a3b","output":[{"type":"reasoning","content":"17 + 25 = 42"},{"type":"message","content":"42"}],"stats":{"input_tokens":29,"total_output_tokens":7,"reasoning_output_tokens":6,"tokens_per_second":31.75,"time_to_first_token_seconds":0.559},"response_id":"resp_fixture"}}
+

@@ -1,7 +1,7 @@
 /** F3.10 — local native/Messages endpoint fallback adapted to the shared swarm AgentModel seam. */
 import type { AgentMessage, AgentModel, AgentModelEvent, AgentModelRequest } from "@cline/shared";
 import { iterateEndpointStrategies } from "../core/endpoint-iteration-loop";
-import { callLocalAnthropicMessages, callLocalNativeChat } from "../core/local-endpoint-clients";
+import { callLocalAnthropicMessages, callLocalNativeChatStream } from "../core/local-endpoint-clients";
 import type { LocalModelEndpointKind } from "../core/local-model-endpoint-strategy";
 
 export interface LocalAlternateEndpointModelOptions {
@@ -77,8 +77,8 @@ export function createLocalAlternateEndpointModel(options: LocalAlternateEndpoin
 				let winningEvents: AgentModelEvent[] | null = null;
 				let lastEvents: AgentModelEvent[] = [];
 				const result = await iterateEndpointStrategies({
-					// LM Studio's currently verified native request shape has no tool-definition field. Do not spend a
-					// generation on an endpoint that cannot satisfy a tool-required recovery turn; Messages can force it.
+					// Native chat can execute configured MCP integrations, but it still has no arbitrary custom-tool schema
+					// field. !Klein's SDK tools therefore stay on Messages for a tool-required recovery turn.
 					availableKinds:
 						request.tools.length > 0 ? ["anthropic_messages"] : ["native_v1_chat", "anthropic_messages"],
 					preferredKind: options.preferredKind,
@@ -86,11 +86,12 @@ export function createLocalAlternateEndpointModel(options: LocalAlternateEndpoin
 						if (request.signal?.aborted) throw request.signal.reason ?? new Error("request aborted");
 						const messages = neutralMessages(request);
 						if (kind === "native_v1_chat") {
-							const response = await callLocalNativeChat({
+							const streamed = await callLocalNativeChatStream({
 								url: urls.native,
 								model: options.modelId,
 								messages,
 								maxOutputTokens: maxTokens(request, options.baseMaxTokens),
+								store: false,
 								...(typeof request.options?.temperature === "number"
 									? { temperature: request.options.temperature }
 									: {}),
@@ -99,6 +100,7 @@ export function createLocalAlternateEndpointModel(options: LocalAlternateEndpoin
 								signal: request.signal,
 								headers: options.headers,
 							});
+							const response = streamed.result;
 							const events: AgentModelEvent[] = [
 								...(response.reasoning ? [{ type: "reasoning-delta" as const, text: response.reasoning }] : []),
 								...(response.text ? [{ type: "text-delta" as const, text: response.text }] : []),
@@ -108,11 +110,21 @@ export function createLocalAlternateEndpointModel(options: LocalAlternateEndpoin
 									toolName: call.name,
 									inputText: JSON.stringify(call.args),
 								})),
-								{ type: "finish" as const, reason: response.toolCalls.length > 0 ? "tool-calls" : "stop" },
+								streamed.termination !== "eof_without_chat_end" && streamed.errors.length === 0
+									? { type: "finish" as const, reason: response.toolCalls.length > 0 ? "tool-calls" : "stop" }
+									: {
+											type: "finish" as const,
+											reason: "error" as const,
+											error:
+												streamed.errors.map((error) => error.message).join("; ") ||
+												`Native stream ended as ${streamed.termination}.`,
+										},
 							];
 							lastEvents = events;
 							const usable =
-								request.tools.length > 0 ? response.toolCalls.length > 0 : response.text.trim().length > 0;
+								streamed.termination !== "eof_without_chat_end" &&
+								streamed.errors.length === 0 &&
+								(request.tools.length > 0 ? response.toolCalls.length > 0 : response.text.trim().length > 0);
 							if (usable) winningEvents = events;
 							return usable;
 						}

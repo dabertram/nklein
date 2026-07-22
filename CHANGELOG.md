@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **LM Studio native chat now speaks the current 0.4.x streaming contract.** !Klein sends the dedicated input/system
+  fields, incrementally parses named reasoning, message, MCP-tool, usage, error, and termination events, and treats the
+  final `chat.end` aggregate as authoritative. A dropped stream cannot masquerade as success, and prose-only endpoint
+  recovery now consumes the real SSE path while arbitrary !Klein tools continue through the compatible Messages API.
+
 - **Authored Basic Memory now has a production truth-audit loop.** !Klein stamps trusted author provenance at write
   time, uses idle loaded non-author models to extract grounded claims, verifies them against the sandboxed code graph
   and typed attempt ledger, and persists content-versioned verdicts that automatically invalidate after edits. The

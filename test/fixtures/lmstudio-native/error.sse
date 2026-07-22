@@ -1,0 +1,9 @@
+event: chat.start
+data: {"type":"chat.start","model_instance_id":"qwen/qwen3.6-35b-a3b"}
+
+event: error
+data: {"type":"error","error":{"message":"Unable to connect to remote MCP server because the URL resolves to a non-public address.","type":"mcp_connection_error","param":"integrations"}}
+
+event: chat.end
+data: {"type":"chat.end","result":{"model_instance_id":"qwen/qwen3.6-35b-a3b","output":[],"stats":{"input_tokens":0,"total_output_tokens":0,"reasoning_output_tokens":0,"tokens_per_second":0,"time_to_first_token_seconds":0}}}
+

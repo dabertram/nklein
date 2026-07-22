@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	callLocalAnthropicMessages,
 	callLocalNativeChat,
+	callLocalNativeChatStream,
 	LocalEndpointError,
 } from "../../../src/core/local-endpoint-clients";
 
@@ -76,7 +77,7 @@ describe("local endpoint clients (§5.AB)", () => {
 	});
 
 	describe("callLocalNativeChat", () => {
-		it("posts the F4.33 probed request shape and parses the Responses-style body", async () => {
+		it("posts the current native request shape and parses the aggregate body", async () => {
 			const { impl, calls } = mockFetch({
 				model_instance_id: "native",
 				output: [
@@ -97,12 +98,47 @@ describe("local endpoint clients (§5.AB)", () => {
 			expect(sent).toEqual({
 				model: "native",
 				max_output_tokens: 128,
-				input: [{ type: "text", content: "test" }],
+				input: "test",
 			});
 			expect(result.text).toBe("ok");
 			expect(result.reasoning).toBe("think");
 			expect(result.responseId).toBe("resp_1");
 			expect(result.stats.inputTokens).toBe(10);
+		});
+
+		it("streams through the state machine and marks chat.end as authoritative", async () => {
+			const raw = [
+				'event: chat.start\ndata: {"type":"chat.start","model_instance_id":"native"}\n\n',
+				'event: message.delta\ndata: {"type":"message.delta","content":"o"}\n\n',
+				'event: message.delta\ndata: {"type":"message.delta","content":"k"}\n\n',
+				'event: chat.end\ndata: {"type":"chat.end","result":{"model_instance_id":"native","output":[{"type":"message","content":"ok"}],"stats":{"input_tokens":1,"total_output_tokens":1,"reasoning_output_tokens":0,"tokens_per_second":2,"time_to_first_token_seconds":0.1}}}\n\n',
+			];
+			const encoder = new TextEncoder();
+			const impl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+				const sent = JSON.parse(String(init?.body)) as { stream?: boolean };
+				expect(sent.stream).toBe(true);
+				return new Response(
+					new ReadableStream({
+						start(controller) {
+							for (const part of raw) controller.enqueue(encoder.encode(part));
+							controller.close();
+						},
+					}),
+					{ status: 200, headers: { "content-type": "text/event-stream" } },
+				);
+			}) as unknown as typeof fetch;
+			const events: string[] = [];
+			const parsed = await callLocalNativeChatStream({
+				url: LOCAL_NATIVE_URL,
+				model: "native",
+				maxOutputTokens: 8,
+				messages: [{ role: "user", content: "test" }],
+				fetchImpl: impl,
+				onEvent: (event) => events.push(event.type),
+			});
+			expect(parsed.termination).toBe("chat_end");
+			expect(parsed.result.text).toBe("ok");
+			expect(events).toEqual(["chat.start", "message.delta", "message.delta", "chat.end"]);
 		});
 
 		it("REFUSES a non-local native endpoint", async () => {
