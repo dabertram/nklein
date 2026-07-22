@@ -144,6 +144,17 @@ describe("createCommunitySkillExecutionService", () => {
 			activationIds: [ticket.activationId],
 			effectiveTools: ["read_files", "web_search", "write_file"],
 			networkPolicy: "allowlist",
+			skills: [
+				{
+					activationId: ticket.activationId,
+					snapshotId: imported.snapshotId,
+					contentHash: imported.contentHash,
+					source: "https://example.test/contained-fixture",
+					scanVerdicts: { bundle: "review", executable: "quarantine", injection: "review" },
+					importVerdict: "review",
+					policyHash: ticket.policyHash,
+				},
+			],
 		});
 		expect(admission?.fragments[0]?.text).toContain("Inspect the supplied workspace");
 		expect(admission?.fragments[0]?.text).toContain(ticket.contentHash);

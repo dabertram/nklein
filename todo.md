@@ -737,6 +737,12 @@ source repo went private — so if it vanishes the buildable source still lives 
 > original modes rather than trusting its metadata label. A changed hash—especially with the same version—is a new
 > review, not an update optimization. Import is not activation: reviewed text remains out of model prompts until the
 > separate execution-containment gate grants it.
+> **COMMUNITY-SKILL AUDIT RECORDS ARE BODY-FREE, EVIDENCE-LABELLED EVENTS (F4.27, 2026-07-22).** Record each successful
+> scan, import, execution review/approval, task admission, and acceptance signal in the shared append-only agent ledger.
+> Join the lifecycle by content hash/snapshot/activation/task; store only scrubbed source locators, categorical verdicts,
+> effective/denied tool names, network/credential posture, and exact relative path+digest approvals — never skill text,
+> executable bytes, URL credentials/query tokens, host paths, or credential values. An acceptance pass/fail may produce
+> a helped/hurt *signal*, but its `acceptance` evidence basis must stay explicit: correlation is not causal proof.
 
 ### Misc. tribal knowledge (engineering invariants & hard-won gotchas)
 > (WORKING MODE — autonomous, full capabilities — is the callout at the **top of this file**; don't re-litigate it. `/clear` at clean breakpoints once a milestone is committed and all durable state is in `todo.md`/`git`.)
@@ -2665,12 +2671,24 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   green. Contract behavior is 284/284; its two independent wall-clock checks
   remain power-gated while M5 Max is in Low Power mode (measured startup 21.96s vs 15s and warm P90 648ms vs 500ms;
   thresholds were not weakened).
-- [ ] **F4.27 — Record skill provenance and effectiveness in the ledger.** Content hash, source, scan/import/execution
+- [x] **F4.27 — Record skill provenance and effectiveness in the ledger.** Content hash, source, scan/import/execution
   verdicts, grants, approvals, and helped/hurt signals must be queryable.
+  **SHIPPED 2026-07-22:** added the append-only `community_skill` ledger family for scan → import → execution review →
+  explicit execution approval → verified task admission → effectiveness. Every record carries hash/source identity;
+  execution records carry the reloaded snapshot's scan/import verdicts, effective and denied grants, containment
+  network/credential posture, plus exact path+SHA-256 executable approvals. Source locators are credential/query/fragment
+  scrubbed (non-web locators become hashes), while skill bodies/bytes and secrets stay out of the ledger. Fresh sandbox
+  acceptance emits helped/hurt signals with an explicit `acceptance` basis (outcome evidence, not causal attribution),
+  and `runtime.getCommunitySkillProvenance` queries by skill/task/session with bounded history and signal counts. Backend
+  typecheck, runtime 12,076/12,076, protected 142/142, web typecheck, web 1,133/1,133, and focused ledger/containment/API
+  coverage are green. Contract behavior is 284/284; the same two wall-clock-only assertions remain power-gated while
+  M5 Max is in Low Power mode (startup 23.42s vs 15s, warm getState P90 564.7ms vs 500ms, max 673.5ms vs 1s); their
+  thresholds were not weakened.
 
 #### 4E. Curated sandbox MCP and authored memory *(legacy §5.AR)*
 
-  **AUDIT 2026-07-18: OPEN** — no skill-provenance ledger event at all (ProceduralSkillProvenance is F4.19's different store).
+  **AUDIT 2026-07-18: RESOLVED BY F4.27 (2026-07-22)** — community-skill provenance now has its own ledger event
+  family; F4.19's procedural-skill store remains a separate concern.
 - [ ] **F4.28 — Add per-project curated-MCP overrides.** Resolve project→global for enablement and optional per-server
   controls; apply the effective value at sandbox/tool-bundle creation.
   **AUDIT 2026-07-18: OPEN** — per-project/per-server controls entirely absent (flat global booleans; none of the …Override/effective… pattern).

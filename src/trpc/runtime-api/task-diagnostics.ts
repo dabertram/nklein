@@ -1,5 +1,8 @@
 import {
+	buildCommunitySkillLedgerReport,
 	buildTaskEscalationReport,
+	type CommunitySkillLedgerReport,
+	type CommunitySkillLedgerReportRequest,
 	type TaskEscalationReport,
 	type TaskEscalationReportRequest,
 } from "../../core/agent-attempt-ledger";
@@ -38,4 +41,11 @@ export async function handleGetTaskDiagnostics(
  */
 export async function handleGetTaskEscalation(input: TaskEscalationReportRequest): Promise<TaskEscalationReport> {
 	return buildTaskEscalationReport(await readAllAgentLedger(), input.taskId);
+}
+
+/** F4.27 read-only query over the global provenance stream (import events are intentionally workspace-neutral). */
+export async function handleGetCommunitySkillProvenance(
+	input: CommunitySkillLedgerReportRequest,
+): Promise<CommunitySkillLedgerReport> {
+	return buildCommunitySkillLedgerReport(await readAllAgentLedger(), input);
 }

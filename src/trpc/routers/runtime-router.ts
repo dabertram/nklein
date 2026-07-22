@@ -9,7 +9,12 @@ import {
 	runtimeAdwRunStatusRequestSchema,
 	runtimeAdwRunStatusResponseSchema,
 } from "../../core/adw-run-api-contract";
-import { taskEscalationReportRequestSchema, taskEscalationReportSchema } from "../../core/agent-attempt-ledger.js";
+import {
+	communitySkillLedgerReportRequestSchema,
+	communitySkillLedgerReportSchema,
+	taskEscalationReportRequestSchema,
+	taskEscalationReportSchema,
+} from "../../core/agent-attempt-ledger.js";
 import {
 	runtimeAnswerPlanQuestionRequestSchema,
 	runtimeAnswerPlanQuestionResponseSchema,
@@ -397,6 +402,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(taskEscalationReportSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.getTaskEscalation(ctx.workspaceScope, input);
+			}),
+		getCommunitySkillProvenance: workspaceProcedure
+			.input(communitySkillLedgerReportRequestSchema)
+			.output(communitySkillLedgerReportSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.getCommunitySkillProvenance(ctx.workspaceScope, input);
 			}),
 		listNKleinPlanArtifacts: workspaceProcedure
 			.input(runtimeNKleinPlanArtifactsRequestSchema)

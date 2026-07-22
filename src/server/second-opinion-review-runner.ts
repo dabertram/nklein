@@ -30,6 +30,7 @@ import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-con
 import { decideTestDrivenDelivery } from "../core/test-driven-delivery";
 import { decideVerificationFirst } from "../core/verification-first-gate";
 import { buildVerificationRubric, renderRubricLensStance } from "../core/verification-rubric";
+import { recordCommunitySkillEffectivenessForTask } from "../nklein-agent/community-skill-effectiveness-recorder";
 import {
 	getReusableAcceptanceEvidence,
 	storeAcceptanceEvidence,
@@ -537,6 +538,11 @@ export async function runSecondOpinionReviewForTask(
 	// procedure surfaced into this task's session (fire-and-forget; the recorder is best-effort by contract).
 	if (!reusedAcceptance && acceptance && typeof acceptance.passed === "boolean") {
 		void recordExecutionOutcomeForTaskSkills({
+			taskId: input.taskId,
+			workspacePath: input.workspacePath,
+			passed: acceptance.passed,
+		});
+		void recordCommunitySkillEffectivenessForTask({
 			taskId: input.taskId,
 			workspacePath: input.workspacePath,
 			passed: acceptance.passed,

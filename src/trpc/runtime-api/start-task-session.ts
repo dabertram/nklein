@@ -159,6 +159,7 @@ export type StartTaskSessionDeps = Pick<
 		config: RuntimeConfigState,
 		sessionId: string,
 		role: "architect" | "worker",
+		workspacePath: string,
 	) => Promise<CommunitySkillSessionAdmission | null>;
 	loadCommunitySkillSuggestions: (
 		sessionId: string,
@@ -1781,6 +1782,7 @@ export async function handleStartTaskSession(
 			scopedRuntimeConfig,
 			body.taskId,
 			cardRole,
+			workspaceScope.workspacePath,
 		);
 		const communitySkillSuggestionFragment =
 			cardRole === "architect"

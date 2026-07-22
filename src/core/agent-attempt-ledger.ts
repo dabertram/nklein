@@ -21,7 +21,7 @@
  * local-only (#1). It never holds secrets or host-absolute paths — callers pass a workspace-path HASH, not the path.
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { selectAttempts } from "./agent-ledger-selectors";
 import type { ModelOutcomeKind } from "./model-behavior-profile";
@@ -266,6 +266,46 @@ const retryStrategyEventSchema = z.object({
 	totalTokens: z.number().nonnegative().nullable(),
 });
 
+/** F4.27 — one immutable community-skill provenance/effectiveness lifecycle event. */
+export const communitySkillLedgerEventSchema = z.object({
+	...ledgerEnvelopeShape,
+	kind: z.literal("community_skill"),
+	stage: z.enum(["scan", "import", "execution_review", "execution_approval", "admission", "effectiveness"]),
+	skillId: z.string().min(1),
+	snapshotId: z.string().nullable(),
+	activationId: z.string().nullable(),
+	sessionId: z.string().nullable(),
+	contentHash: z.string().regex(/^[a-f0-9]{64}$/u),
+	version: z.string().nullable(),
+	/** Original user-reviewed source locator. Never a host path or skill body. */
+	source: z.string().min(1),
+	scanVerdicts: z
+		.object({
+			bundle: z.enum(["safe", "review", "reject"]),
+			executable: z.enum(["safe", "quarantine"]),
+			injection: z.enum(["safe", "review", "reject"]),
+		})
+		.strict()
+		.nullable(),
+	importVerdict: z.enum(["allow", "review", "reject", "unknown"]).nullable(),
+	executionVerdict: z.enum(["allow", "approval-required", "deny"]).nullable(),
+	grant: z
+		.object({
+			grantedTools: z.array(z.string()),
+			effectiveTools: z.array(z.string()),
+			deniedTools: z.array(z.string()),
+			networkPolicy: z.enum(["none", "allowlist"]).nullable(),
+			credentialMode: z.enum(["none", "task-scoped-egress-only"]).nullable(),
+		})
+		.strict()
+		.nullable(),
+	/** Exact path+digest approvals only. No executable bytes or credential values enter the ledger. */
+	approvals: z.array(z.object({ path: z.string(), sha256: z.string().regex(/^[a-f0-9]{64}$/u) }).strict()),
+	effectivenessSignal: retrievalSignalSchema,
+	effectivenessBasis: z.enum(["none", "acceptance", "operator", "paired_evaluation"]),
+	evidenceRef: z.string().nullable(),
+});
+
 /** The full ledger event — a discriminated union on `kind` (extensible: add an event-kind schema to the union). */
 export const agentLedgerEventSchema = z
 	.discriminatedUnion("kind", [
@@ -275,6 +315,7 @@ export const agentLedgerEventSchema = z
 		retrievalEventSchema,
 		researchFreshnessEventSchema,
 		retryStrategyEventSchema,
+		communitySkillLedgerEventSchema,
 	])
 	.superRefine((event, context) => {
 		if (event.kind === "retry" && event.recovered !== (event.resultOutcome === "success")) {
@@ -308,6 +349,38 @@ export const agentLedgerEventSchema = z
 				});
 			}
 		}
+		if (event.kind === "community_skill") {
+			if ((event.stage === "scan" || event.stage === "import") && (!event.scanVerdicts || !event.importVerdict)) {
+				context.addIssue({
+					code: "custom",
+					path: ["scanVerdicts"],
+					message: "community-skill scan/import events require scan and import verdicts",
+				});
+			}
+			if (
+				(event.stage === "execution_review" ||
+					event.stage === "execution_approval" ||
+					event.stage === "admission") &&
+				(!event.executionVerdict || !event.grant)
+			) {
+				context.addIssue({
+					code: "custom",
+					path: ["executionVerdict"],
+					message: "community-skill execution events require an execution verdict and effective grant",
+				});
+			}
+			const isEffectiveness = event.stage === "effectiveness";
+			const effectivenessFieldsValid = isEffectiveness
+				? event.effectivenessBasis !== "none" && event.effectivenessSignal !== "unknown"
+				: event.effectivenessBasis === "none" && event.effectivenessSignal === "unknown";
+			if (!effectivenessFieldsValid) {
+				context.addIssue({
+					code: "custom",
+					path: ["effectivenessSignal"],
+					message: "only effectiveness events may carry a known signal and evidence basis",
+				});
+			}
+		}
 	});
 export type AgentLedgerEvent = z.infer<typeof agentLedgerEventSchema>;
 export type AgentAttemptEvent = z.infer<typeof attemptEventSchema>;
@@ -316,6 +389,7 @@ export type AgentSchedulerEvent = z.infer<typeof schedulerEventSchema>;
 export type AgentRetrievalEvent = z.infer<typeof retrievalEventSchema>;
 export type AgentResearchFreshnessEvent = z.infer<typeof researchFreshnessEventSchema>;
 export type AgentRetryStrategyEvent = z.infer<typeof retryStrategyEventSchema>;
+export type AgentCommunitySkillEvent = z.infer<typeof communitySkillLedgerEventSchema>;
 
 /** Shared envelope inputs (the builder fills `schemaVersion`/`eventId`/`recordedAt` if not given). */
 interface LedgerEnvelopeInput {
@@ -540,6 +614,124 @@ export function buildResearchFreshnessEvent(input: BuildResearchFreshnessEventIn
 		searchSucceeded: input.searchSucceeded,
 		citations: [...new Set((input.citations ?? []).map((citation) => citation.trim()).filter(Boolean))],
 	};
+}
+
+export interface BuildCommunitySkillEventInput extends LedgerEnvelopeInput {
+	stage: AgentCommunitySkillEvent["stage"];
+	skillId: string;
+	snapshotId?: string | null;
+	activationId?: string | null;
+	sessionId?: string | null;
+	contentHash: string;
+	version?: string | null;
+	source: string;
+	scanVerdicts?: AgentCommunitySkillEvent["scanVerdicts"];
+	importVerdict?: AgentCommunitySkillEvent["importVerdict"];
+	executionVerdict?: AgentCommunitySkillEvent["executionVerdict"];
+	grant?: AgentCommunitySkillEvent["grant"];
+	approvals?: readonly { path: string; sha256: string }[];
+	effectivenessSignal?: RetrievalSignal;
+	effectivenessBasis?: AgentCommunitySkillEvent["effectivenessBasis"];
+	evidenceRef?: string | null;
+}
+
+function sortedUniqueStrings(values: readonly string[]): string[] {
+	return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort();
+}
+
+function safeCommunitySkillLedgerSource(value: string): string {
+	const trimmed = value.trim();
+	try {
+		const url = new URL(trimmed);
+		if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("unsupported source protocol");
+		url.username = "";
+		url.password = "";
+		url.search = "";
+		url.hash = "";
+		return url.toString();
+	} catch {
+		return `redacted-source-sha256:${createHash("sha256").update(trimmed).digest("hex")}`;
+	}
+}
+
+/** Build a bounded, body-free F4.27 provenance event and enforce its lifecycle-specific invariants. */
+export function buildCommunitySkillEvent(input: BuildCommunitySkillEventInput): AgentCommunitySkillEvent {
+	const grant = input.grant
+		? {
+				...input.grant,
+				grantedTools: sortedUniqueStrings(input.grant.grantedTools),
+				effectiveTools: sortedUniqueStrings(input.grant.effectiveTools),
+				deniedTools: sortedUniqueStrings(input.grant.deniedTools),
+			}
+		: null;
+	return agentLedgerEventSchema.parse({
+		...buildEnvelope(input),
+		kind: "community_skill",
+		stage: input.stage,
+		skillId: input.skillId.trim(),
+		snapshotId: input.snapshotId ?? null,
+		activationId: input.activationId ?? null,
+		sessionId: input.sessionId ?? null,
+		contentHash: input.contentHash,
+		version: input.version ?? null,
+		source: safeCommunitySkillLedgerSource(input.source),
+		scanVerdicts: input.scanVerdicts ?? null,
+		importVerdict: input.importVerdict ?? null,
+		executionVerdict: input.executionVerdict ?? null,
+		grant,
+		approvals: [...(input.approvals ?? [])]
+			.map((approval) => ({ path: approval.path.trim(), sha256: approval.sha256 }))
+			.sort((left, right) => left.path.localeCompare(right.path)),
+		effectivenessSignal: input.effectivenessSignal ?? "unknown",
+		effectivenessBasis: input.effectivenessBasis ?? "none",
+		evidenceRef: input.evidenceRef ?? null,
+	}) as AgentCommunitySkillEvent;
+}
+
+export const communitySkillLedgerReportRequestSchema = z
+	.object({
+		skillId: z.string().min(1).optional(),
+		taskId: z.string().min(1).optional(),
+		sessionId: z.string().min(1).optional(),
+		limit: z.number().int().positive().max(1_000).default(200),
+	})
+	.strict();
+export type CommunitySkillLedgerReportRequest = z.infer<typeof communitySkillLedgerReportRequestSchema>;
+
+export const communitySkillLedgerReportSchema = z
+	.object({
+		events: z.array(communitySkillLedgerEventSchema),
+		summary: z
+			.object({
+				total: z.number().int().nonnegative(),
+				helped: z.number().int().nonnegative(),
+				hurt: z.number().int().nonnegative(),
+				neutral: z.number().int().nonnegative(),
+				unknown: z.number().int().nonnegative(),
+			})
+			.strict(),
+	})
+	.strict();
+export type CommunitySkillLedgerReport = z.infer<typeof communitySkillLedgerReportSchema>;
+
+/** Query the provenance stream without exposing unrelated attempt or scheduler records. */
+export function buildCommunitySkillLedgerReport(
+	events: readonly AgentLedgerEvent[],
+	request: CommunitySkillLedgerReportRequest,
+): CommunitySkillLedgerReport {
+	const matching = events.filter(
+		(event): event is AgentCommunitySkillEvent =>
+			event.kind === "community_skill" &&
+			(!request.skillId || event.skillId === request.skillId) &&
+			(!request.taskId || event.taskId === request.taskId) &&
+			(!request.sessionId || event.sessionId === request.sessionId),
+	);
+	const eventsWithinLimit = matching.slice(Math.max(0, matching.length - request.limit));
+	const summary = { total: matching.length, helped: 0, hurt: 0, neutral: 0, unknown: 0 };
+	for (const event of matching) {
+		if (event.stage === "effectiveness") summary[event.effectivenessSignal] += 1;
+	}
+	return { events: eventsWithinLimit, summary };
 }
 
 // ─── Projections (the keystone value: the §5.AA profile / §5.AB fitness / §5.Z matrix become queries over this) ───

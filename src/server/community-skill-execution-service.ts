@@ -78,6 +78,23 @@ export interface CommunitySkillSessionAdmission {
 	/** Intersection across every approved skill: no active skill can borrow another skill's undeclared capability. */
 	effectiveTools: string[];
 	networkPolicy: "none" | "allowlist";
+	/** F4.27: body-free immutable provenance carried to the task-start ledger seam. */
+	skills: Array<{
+		activationId: string;
+		snapshotId: string;
+		skillId: string;
+		contentHash: string;
+		version: string | null;
+		source: string;
+		scanVerdicts: {
+			bundle: "safe" | "review" | "reject";
+			executable: "safe" | "quarantine";
+			injection: "safe" | "review" | "reject";
+		};
+		importVerdict: "allow" | "review" | "reject" | "unknown";
+		policyHash: string;
+		containment: CommunitySkillSessionContainmentResult;
+	}>;
 }
 
 export class CommunitySkillExecutionError extends Error {
@@ -244,6 +261,13 @@ function renderApprovedSkillPrompt(input: {
 	].join("\n");
 }
 
+function importedDecision(snapshot: VerifiedCommunitySkillSnapshot): "allow" | "review" | "reject" | "unknown" {
+	const decision = snapshot.metadata.decision;
+	if (!decision || typeof decision !== "object") return "unknown";
+	const verdict = (decision as Record<string, unknown>).decision;
+	return verdict === "allow" || verdict === "review" || verdict === "reject" ? verdict : "unknown";
+}
+
 export function createCommunitySkillExecutionService(options: CommunitySkillExecutionServiceOptions = {}) {
 	const rootDir = options.rootDir ?? defaultCommunitySkillRoot();
 	const now = options.now ?? Date.now;
@@ -384,6 +408,28 @@ export function createCommunitySkillExecutionService(options: CommunitySkillExec
 				fragments,
 				effectiveTools,
 				networkPolicy: tickets.some((ticket) => ticket.containment.networkPolicy === "none") ? "none" : "allowlist",
+				skills: tickets.map((ticket, index) => {
+					const snapshot = snapshots[index];
+					if (!snapshot) {
+						throw new CommunitySkillExecutionError("policy_changed", "Activation provenance is incomplete.");
+					}
+					return {
+						activationId: ticket.activationId,
+						snapshotId: ticket.snapshotId,
+						skillId: ticket.skillId,
+						contentHash: ticket.contentHash,
+						version: ticket.version,
+						source: snapshot.metadata.sourceUrl,
+						scanVerdicts: {
+							bundle: snapshot.loaded.bundledManifest.verdict,
+							executable: snapshot.loaded.executableScreen.verdict,
+							injection: snapshot.loaded.injectionScreen.verdict,
+						},
+						importVerdict: importedDecision(snapshot),
+						policyHash: ticket.policyHash,
+						containment: ticket.containment,
+					};
+				}),
 			};
 		},
 		approve: async (request: CommunitySkillExecutionApproveRequest): Promise<CommunitySkillActivationTicket> =>

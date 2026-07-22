@@ -3,6 +3,7 @@ import type { RuntimeTaskAcceptanceVerifyRequest, RuntimeTaskAcceptanceVerifyRes
 import { ACCEPTANCE_RUN_CATEGORY } from "../../core/card-tracking-coverage";
 import { cardVerificationFromAcceptance } from "../../core/delivery-evidence";
 import { findBoardCardWithColumn } from "../../core/task-board-mutations";
+import { recordCommunitySkillEffectivenessForTask } from "../../nklein-agent/community-skill-effectiveness-recorder";
 import type { NKleinTaskSessionService } from "../../nklein-agent/nklein-task-session-service";
 import { persistCardVerification } from "../../server/persist-card-verification";
 import { loadWorkspaceState } from "../../state/workspace-state";
@@ -40,6 +41,13 @@ export async function handleVerifyTaskAcceptance(
 		taskPrompt: taskRecord.card.prompt,
 		timeoutMs: input.timeoutMs,
 	});
+	if (typeof acceptance.passed === "boolean") {
+		void recordCommunitySkillEffectivenessForTask({
+			taskId: input.taskId,
+			workspacePath: workspaceScope.workspacePath,
+			passed: acceptance.passed,
+		});
+	}
 	// F12.53: persist the snapshot onto the card so the badge + merge-warn read the newest REAL run. AWAITED, then
 	// broadcast — fire-and-forget left the board (and the Commit/PR warn-gate reading it) permanently stale after
 	// an on-demand Verify, so a known-red artifact could commit without the confirm (review-found critical).

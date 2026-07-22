@@ -11,7 +11,12 @@ import type {
 	RuntimeAdwRunStatusRequest,
 	RuntimeAdwRunStatusResponse,
 } from "../core/adw-run-api-contract";
-import type { TaskEscalationReport, TaskEscalationReportRequest } from "../core/agent-attempt-ledger.js";
+import type {
+	CommunitySkillLedgerReport,
+	CommunitySkillLedgerReportRequest,
+	TaskEscalationReport,
+	TaskEscalationReportRequest,
+} from "../core/agent-attempt-ledger.js";
 import type {
 	RuntimeAnswerPlanQuestionRequest,
 	RuntimeAnswerPlanQuestionResponse,
@@ -393,6 +398,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: TaskEscalationReportRequest,
 		) => Promise<TaskEscalationReport>;
+		getCommunitySkillProvenance: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: CommunitySkillLedgerReportRequest,
+		) => Promise<CommunitySkillLedgerReport>;
 		listNKleinPlanArtifacts: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeNKleinPlanArtifactsRequest,

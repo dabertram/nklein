@@ -681,6 +681,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				activationIds: ["a".repeat(64)],
 				effectiveTools: ["read_files"],
 				networkPolicy: "none",
+				skills: [],
 				fragments: [
 					{
 						key: `community-skill:${"a".repeat(64)}`,

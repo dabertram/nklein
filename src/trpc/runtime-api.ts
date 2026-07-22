@@ -140,6 +140,12 @@ import { createCommunitySkillDiscoveryService } from "../server/community-skill-
 import { buildCommunitySkillExecutionEnvironment } from "../server/community-skill-execution-environment";
 import { createCommunitySkillExecutionService } from "../server/community-skill-execution-service";
 import { createCommunitySkillImportService } from "../server/community-skill-import-service";
+import {
+	buildCommunitySkillAdmissionLedgerEvents,
+	buildCommunitySkillExecutionLedgerEvent,
+	buildCommunitySkillImportLedgerEvent,
+} from "../server/community-skill-ledger-recording";
+import { readVerifiedCommunitySkillSnapshot } from "../server/community-skill-snapshot";
 import { createCommunitySkillSuggestionService } from "../server/community-skill-suggestion-service";
 import { createRailControlCoordinator, type RailControlCoordinator } from "../server/rail-control-service";
 import { createSearxngWebSearchClient } from "../server/web-search-searxng";
@@ -208,7 +214,11 @@ import {
 	handleReloadTaskChatSession,
 } from "./runtime-api/task-chat-session.js";
 import { handleAbortTaskChatTurn, handleCancelTaskChatTurn } from "./runtime-api/task-chat-turn-control.js";
-import { handleGetTaskDiagnostics, handleGetTaskEscalation } from "./runtime-api/task-diagnostics.js";
+import {
+	handleGetCommunitySkillProvenance,
+	handleGetTaskDiagnostics,
+	handleGetTaskEscalation,
+} from "./runtime-api/task-diagnostics.js";
 import { handleCollectTaskEvidence } from "./runtime-api/task-evidence.js";
 import { handlePauseTask, handleResumeTask } from "./runtime-api/task-pause-resume.js";
 import { handleSendTaskSessionInput, handleStopTaskSession } from "./runtime-api/task-session-io.js";
@@ -974,21 +984,61 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			return deps.withSearchBackend ? await deps.withSearchBackend(discoverAt) : await discoverAt(configured);
 		},
 		listCommunitySkillImports: async () => await communitySkillImportService.listCandidates(),
-		reviewCommunitySkillImport: async (input) => await communitySkillImportService.review(input),
-		approveCommunitySkillImport: async (input) => await communitySkillImportService.approve(input),
+		reviewCommunitySkillImport: async (input) => {
+			const review = await communitySkillImportService.review(input);
+			await appendAgentLedgerEvent(buildCommunitySkillImportLedgerEvent({ review, stage: "scan" }));
+			return review;
+		},
+		approveCommunitySkillImport: async (input) => {
+			const review = await communitySkillImportService.review(input);
+			const approved = await communitySkillImportService.approve(input);
+			await appendAgentLedgerEvent(
+				buildCommunitySkillImportLedgerEvent({ review, stage: "import", snapshotId: approved.snapshotId }),
+			);
+			return approved;
+		},
 		reviewCommunitySkillExecution: async (workspaceScope, input) => {
 			const config = await deps.loadScopedRuntimeConfig(workspaceScope);
-			return await communitySkillExecutionService.review({
+			const review = await communitySkillExecutionService.review({
 				...input,
 				environment: buildCommunitySkillExecutionEnvironment(config, input.role),
 			});
+			const snapshot = await readVerifiedCommunitySkillSnapshot({ snapshotId: input.snapshotId });
+			await appendAgentLedgerEvent(
+				buildCommunitySkillExecutionLedgerEvent({
+					review,
+					snapshot,
+					stage: "execution_review",
+					context: {
+						workspacePathHash: hashWorkspacePathForLedger(workspaceScope.workspacePath),
+						workflowId: input.sessionId,
+						taskId: input.sessionId,
+					},
+				}),
+			);
+			return review;
 		},
 		approveCommunitySkillExecution: async (workspaceScope, input) => {
 			const config = await deps.loadScopedRuntimeConfig(workspaceScope);
-			return await communitySkillExecutionService.approve({
+			const approved = await communitySkillExecutionService.approve({
 				...input,
 				environment: buildCommunitySkillExecutionEnvironment(config, input.role),
 			});
+			const snapshot = await readVerifiedCommunitySkillSnapshot({ snapshotId: input.snapshotId });
+			await appendAgentLedgerEvent(
+				buildCommunitySkillExecutionLedgerEvent({
+					review: { ...approved, active: false },
+					snapshot,
+					stage: "execution_approval",
+					activationId: approved.activationId,
+					context: {
+						workspacePathHash: hashWorkspacePathForLedger(workspaceScope.workspacePath),
+						workflowId: input.sessionId,
+						taskId: input.sessionId,
+					},
+				}),
+			);
+			return approved;
 		},
 		suggestCommunitySkills: async (_workspaceScope, input) => await communitySkillSuggestionService.suggest(input),
 		setManagedSearchControl: async (input) => {
@@ -1260,6 +1310,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			}),
 		getTaskDiagnostics: async (workspaceScope, input) => handleGetTaskDiagnostics(workspaceScope, input),
 		getTaskEscalation: async (_workspaceScope, input) => handleGetTaskEscalation(input),
+		getCommunitySkillProvenance: async (_workspaceScope, input) => handleGetCommunitySkillProvenance(input),
 		listNKleinPlanArtifacts: async (workspaceScope, input) => {
 			const artifacts = await listNKleinPlanArtifactsForSourceTask({
 				workspacePath: workspaceScope.workspacePath,
@@ -1331,12 +1382,27 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				broadcastTaskChatCleared: deps.broadcastTaskChatCleared,
 				taskStartQueue: deps.taskStartQueue,
 				nkleinProviderService,
-				loadCommunitySkillSessionAdmission: async (config, sessionId, role) =>
-					await communitySkillExecutionService.loadSessionAdmission({
+				loadCommunitySkillSessionAdmission: async (config, sessionId, role, workspacePath) => {
+					const admission = await communitySkillExecutionService.loadSessionAdmission({
 						sessionId,
 						role,
 						environment: buildCommunitySkillExecutionEnvironment(config, role),
-					}),
+					});
+					if (admission) {
+						for (const event of buildCommunitySkillAdmissionLedgerEvents({
+							admission,
+							role,
+							context: {
+								workspacePathHash: hashWorkspacePathForLedger(workspacePath),
+								workflowId: sessionId,
+								taskId: sessionId,
+							},
+						})) {
+							await appendAgentLedgerEvent(event);
+						}
+					}
+					return admission;
+				},
 				loadCommunitySkillSuggestions: async (sessionId, role, taskText) =>
 					await communitySkillSuggestionService.suggest({ sessionId, role, taskText }),
 			});

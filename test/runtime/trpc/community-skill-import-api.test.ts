@@ -123,4 +123,23 @@ describe("community-skill import tRPC routes", () => {
 			taskText: "Review repository changes",
 		});
 	});
+
+	it("exposes a workspace-gated provenance/effectiveness ledger query", async () => {
+		const getCommunitySkillProvenance = vi.fn(async () => ({
+			events: [],
+			summary: { total: 0, helped: 0, hurt: 0, neutral: 0, unknown: 0 },
+		}));
+		const workspaceScope = { workspaceId: "workspace-1", workspacePath: "/tmp/workspace" };
+		const caller = runtimeAppRouter.createCaller({
+			requestedWorkspaceId: "workspace-1",
+			workspaceScope,
+			runtimeApi: { getCommunitySkillProvenance },
+		} as unknown as RuntimeTrpcContext);
+
+		await expect(caller.runtime.getCommunitySkillProvenance({ taskId: "task-1" })).resolves.toEqual({
+			events: [],
+			summary: { total: 0, helped: 0, hurt: 0, neutral: 0, unknown: 0 },
+		});
+		expect(getCommunitySkillProvenance).toHaveBeenCalledWith(workspaceScope, { taskId: "task-1", limit: 200 });
+	});
 });
