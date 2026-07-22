@@ -19,6 +19,49 @@ const task = {
 };
 
 describe("dev benchmark command", () => {
+	it("exposes Terminal-Bench preflight as a fail-closed action", async () => {
+		await expect(runDevBenchmarkCommand({ action: "terminal-preflight", write: () => undefined })).rejects.toThrow(
+			/requires --report-dir, --storage-path, and --required-free-gb/,
+		);
+	});
+
+	it("measures the explicitly selected Docker-backing filesystem without pulling images", async () => {
+		let output = "";
+		let probeInput: { harborPath: string; storagePath: string } | undefined;
+		await runDevBenchmarkCommand(
+			{
+				action: "terminal-preflight",
+				reportDir: "/tmp/tbench-evidence",
+				storagePath: "/tmp",
+				requiredFreeGb: "40",
+				harborPath: "/opt/harbor",
+				write: (text) => {
+					output += text;
+				},
+			},
+			{
+				probeTerminalBenchHost: async (input) => {
+					probeInput = input;
+					return {
+						harborVersion: "0.5.0",
+						dockerReachable: true,
+						dockerArchitecture: "amd64",
+						availableBytes: 50 * 1024 ** 3,
+						reclaimableDockerBytes: 10 * 1024 ** 3,
+					};
+				},
+			},
+		);
+		expect(probeInput).toEqual({ harborPath: "/opt/harbor", storagePath: "/tmp" });
+		expect(JSON.parse(output)).toMatchObject({
+			action: "terminal-preflight",
+			ready: false,
+			storagePath: "/tmp",
+			host: { ready: true },
+			agentBoundary: { ready: false },
+		});
+	});
+
 	it("prepares a deterministic manifest with no oracle material", async () => {
 		const root = await mkdtemp(join(tmpdir(), "nklein-bench-prepare-"));
 		const dataset = join(root, "dataset.json");

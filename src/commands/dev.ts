@@ -1090,7 +1090,7 @@ export function registerDevCommand(program: Command): void {
 		});
 	dev.command("benchmark")
 		.description("F11.3 repository-benchmark adapter: prepare, materialize, run, grade, calibrate, and delta-gate.")
-		.argument("<action>", "prepare|prediction|workspace|run|grade|plan|calibrate|gate")
+		.argument("<action>", "prepare|prediction|workspace|run|grade|plan|calibrate|gate|terminal-preflight")
 		.option("--dataset <file>", "Local JSON/JSONL task dataset (fetching is a separate egress-gated operator step).")
 		.option("--dataset-name <name>", "Official grader dataset name/path.")
 		.option("--split <name>", "Dataset split for the official grader (for example lite).")
@@ -1113,6 +1113,9 @@ export function registerDevCommand(program: Command): void {
 		.option("--receipt <file>", "Exclusive immutable run receipt path.")
 		.option("--poll-interval-ms <n>", "Live !Klein workflow poll interval.")
 		.option("--max-wait-ms <n>", "Hard live !Klein workflow deadline.")
+		.option("--harbor-path <path>", "Harbor executable for Terminal-Bench preflight.")
+		.option("--storage-path <path>", "Existing host path on the filesystem backing Docker image storage.")
+		.option("--required-free-gb <n>", "Measured task-image disk headroom required for Terminal-Bench.")
 		.option("--runtime-host <host>", "Running !Klein control-plane host (default 127.0.0.1).")
 		.option("--runtime-port <port>", "Running !Klein control-plane port (default 3484).")
 		.option("--no-plan", "Run one ACT-mode card instead of the normal plan/decompose workflow.")

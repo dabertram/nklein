@@ -143,3 +143,26 @@ nklein dev benchmark run \
 The receipt contains the exact baseline/result commits, durable evidence ref, workflow outcome, card count, duration,
 and delivered patch. It is create-only: rerunning requires a new run id and fresh materialized workspace rather than
 silently replacing evidence.
+
+## Terminal-Bench 2.1 preflight
+
+Terminal-Bench uses Harbor's task container as the mutable work artifact; it is not a repository-patch dataset. Run the
+non-pulling compatibility check before installing or fetching task images:
+
+```sh
+nklein dev benchmark terminal-preflight \
+  --report-dir /absolute/evidence/terminal-bench-2-1 \
+  --storage-path /existing/docker-backing-filesystem \
+  --required-free-gb <measured-image-headroom> \
+  --limit 5 --json
+```
+
+The check pins Harbor 0.5.0 and the official `terminal-bench/terminal-bench-2-1` dataset, reports Docker architecture,
+measures the explicitly selected filesystem rather than guessing from the output directory, keeps reclaimable cache
+separate from actually-free bytes, and prints the bounded official oracle command without executing it. The headroom
+value must come from the selected task-image manifest; the adapter deliberately has no universal image-size guess.
+
+The !Klein agent path is ready only when its tool executor can run inside Harbor's already-owned container, mutate that
+container's root filesystem, exchange bounded artifacts, preserve state across turns, and leave verification with
+Harbor. The ordinary `AgentSandboxManager` does not meet that contract: it owns a different container with a read-only
+root and a writable repository mount. The preflight exposes those as blockers rather than returning a false green.

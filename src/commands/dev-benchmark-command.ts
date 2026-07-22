@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { link, lstat, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { link, lstat, mkdir, readdir, readFile, rename, rm, statfs, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
@@ -39,6 +39,12 @@ import {
 	serializeSwebenchPredictions,
 } from "../core/swebench-benchmark";
 import { resolveSwebenchWorkspaceName } from "../core/swebench-workspace-plan";
+import {
+	assessTerminalBenchAgentBoundary,
+	assessTerminalBenchHost,
+	PINNED_HARBOR_VERSION,
+	planTerminalBenchOracleSmoke,
+} from "../core/terminal-bench-harness";
 import { resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox-docker";
 import { materializeAiderPolyglotWorkspace } from "../nklein-agent/nklein-aider-polyglot-workspace";
 import { materializeSwebenchWorkspace } from "../nklein-agent/nklein-swebench-workspace";
@@ -89,6 +95,9 @@ export interface DevBenchmarkOptions {
 	providerId?: string;
 	pollIntervalMs?: string;
 	maxWaitMs?: string;
+	harborPath?: string;
+	requiredFreeGb?: string;
+	storagePath?: string;
 	runtimeHost?: string;
 	runtimePort?: string;
 	plan?: boolean;
@@ -123,6 +132,13 @@ export interface BenchmarkTaskExecutionResult {
 
 export interface DevBenchmarkCommandDeps {
 	executeBenchmarkTask?: (input: BenchmarkTaskExecutionInput) => Promise<BenchmarkTaskExecutionResult>;
+	probeTerminalBenchHost?: (input: { harborPath: string; storagePath: string }) => Promise<{
+		harborVersion: string | null;
+		dockerReachable: boolean;
+		dockerArchitecture: string | null;
+		availableBytes: number;
+		reclaimableDockerBytes: number;
+	}>;
 }
 
 function csv(value: string | undefined): string[] | undefined {
@@ -823,6 +839,84 @@ async function gate(options: DevBenchmarkOptions) {
 	};
 }
 
+function parseHumanBytes(value: string): number {
+	const match = /^([0-9]+(?:\.[0-9]+)?)\s*([kmgtp]?b)/iu.exec(value.trim());
+	if (!match) return 0;
+	const powers: Record<string, number> = { b: 0, kb: 1, mb: 2, gb: 3, tb: 4, pb: 5 };
+	return Math.trunc(Number(match[1]) * 1024 ** (powers[match[2].toLowerCase()] ?? 0));
+}
+
+async function probeTerminalBenchHost(input: { harborPath: string; storagePath: string }) {
+	const harborVersion = await execFile(input.harborPath, ["--version"], { timeout: 10_000 })
+		.then((result) => /(\d+\.\d+\.\d+)/u.exec(`${result.stdout}\n${result.stderr}`)?.[1] ?? null)
+		.catch(() => null);
+	const dockerInfo = await execFile("docker", ["info", "--format", "{{.Architecture}}"], { timeout: 10_000 })
+		.then((result) => ({ reachable: true, architecture: result.stdout.trim() || null }))
+		.catch(() => ({ reachable: false, architecture: null }));
+	const filesystem = await statfs(resolve(input.storagePath));
+	const reclaimableDockerBytes = await execFile("docker", ["system", "df", "--format", "{{json .}}"], {
+		timeout: 30_000,
+	})
+		.then((result) =>
+			result.stdout
+				.trim()
+				.split(/\r?\n/u)
+				.filter(Boolean)
+				.map((line) => JSON.parse(line) as Record<string, unknown>)
+				.reduce(
+					(total, row) => total + (typeof row.Reclaimable === "string" ? parseHumanBytes(row.Reclaimable) : 0),
+					0,
+				),
+		)
+		.catch(() => 0);
+	return {
+		harborVersion,
+		dockerReachable: dockerInfo.reachable,
+		dockerArchitecture: dockerInfo.architecture,
+		availableBytes: Number(filesystem.bavail) * Number(filesystem.bsize),
+		reclaimableDockerBytes,
+	};
+}
+
+async function terminalPreflight(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) {
+	if (!options.reportDir || !options.requiredFreeGb || !options.storagePath) {
+		throw new Error(
+			"terminal-preflight requires --report-dir, --storage-path, and --required-free-gb from the selected image manifest.",
+		);
+	}
+	const requiredFreeGb = integer(options.requiredFreeGb, "required-free-gb");
+	if (!requiredFreeGb || requiredFreeGb < 1) throw new Error("--required-free-gb must be at least 1.");
+	const harborPath = options.harborPath?.trim() || "harbor";
+	const storagePath = resolve(options.storagePath);
+	const probe = await (deps.probeTerminalBenchHost ?? probeTerminalBenchHost)({ harborPath, storagePath });
+	const host = assessTerminalBenchHost({
+		...probe,
+		requiredFreeBytes: requiredFreeGb * 1024 ** 3,
+	});
+	// Current AgentSandboxManager owns a separate, read-only-root container. It cannot be relabeled as Harbor's mutable
+	// task environment without breaking verifier authority and task semantics; keep this blocker executable and visible.
+	const agentBoundary = assessTerminalBenchAgentBoundary({
+		execInOwnedContainer: false,
+		mutableRootFilesystem: false,
+		copyFilesToAndFromContainer: false,
+		preserveContainerAcrossTurns: false,
+		harborOwnsVerification: true,
+	});
+	return {
+		action: "terminal-preflight",
+		ready: host.ready && agentBoundary.ready,
+		pinnedHarborVersion: PINNED_HARBOR_VERSION,
+		storagePath,
+		host,
+		agentBoundary,
+		oracleSmoke: planTerminalBenchOracleSmoke({
+			outputDir: resolve(options.reportDir),
+			limit: integer(options.limit, "limit") ?? 5,
+			harborPath,
+		}),
+	};
+}
+
 export async function runDevBenchmarkCommand(
 	options: DevBenchmarkOptions,
 	deps: DevBenchmarkCommandDeps = {},
@@ -837,10 +931,13 @@ export async function runDevBenchmarkCommand(
 		plan,
 		calibrate,
 		gate,
+		"terminal-preflight": (value) => terminalPreflight(value, deps),
 	};
 	const handler = handlers[options.action];
 	if (!handler)
-		throw new Error("benchmark action must be prepare, prediction, workspace, run, grade, plan, calibrate, or gate.");
+		throw new Error(
+			"benchmark action must be prepare, prediction, workspace, run, grade, plan, calibrate, gate, or terminal-preflight.",
+		);
 	const result = await handler(options);
 	write(`${JSON.stringify(result, null, options.json ? 2 : 2)}\n`);
 }

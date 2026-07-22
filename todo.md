@@ -4786,6 +4786,17 @@ output and NOT acted on. Captured as F12.12.)
   had only 28 GiB filesystem free during the re-scout, while Docker already held 20.2 GB of images and 11.4 GB of build
   cache. Do not pull five task images into that margin. Build the adapter/preflight now; run the image-bearing smoke
   after deliberate cache cleanup or added disk headroom, preserving the Aider grader images needed by F11.3.
+  **PREFLIGHT SHIPPED 2026-07-22; EARLIER “READY” CLAIM CORRECTED BY EXECUTABLE EVIDENCE.** `dev benchmark
+  terminal-preflight` pins Harbor 0.5.0 + `terminal-bench/terminal-bench-2-1`, measures real free bytes separately from
+  reclaimable Docker cache, retains architecture taint, and renders the bounded five-task oracle command without a pull.
+  The live root/Docker-backing filesystem has 30.2 GB free against the selected 40 GiB headroom; 15.0 GB reclaimable is
+  NOT free until David chooses cleanup. The deeper blocker is architectural: Harbor owns a stateful MUTABLE task
+  container/root filesystem and its verifier, while `AgentSandboxManager` owns a DIFFERENT read-only-root repository
+  container. A real custom agent needs an externally-owned-container execution boundary (exec + bounded file exchange
+  + multi-turn persistence while Harbor retains lifecycle/verifier authority). Reusing the repo sandbox would benchmark
+  the wrong environment. Build that boundary, install the pinned Harbor harness, then run oracle-5 and the matched
+  !Klein agent smoke; no image pull before
+  both the boundary and disk preflight are green.
 
 **Agent architecture deltas from the leading tools (Aider/Cline/Cursor/Claude-Code/Serena/RooCode):**
 - [x] **F12.62 — *(finalized 2026-07-19: mechanism proven end-to-end on the live rig — brief → EDITOR worker, 3/3 briefs round 4, solo baseline 0/3; the n≥5 board-reset A/B through the F12.41 gate + score-based auto-decision are FLEET queue.)*  Architect/Editor split per card (the biggest documented small-model win).** Split a card into two calls: an
