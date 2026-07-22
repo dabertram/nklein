@@ -3197,6 +3197,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return this.promptWarmthLedger.shellKeyByModelId;
 	}
 
+	getPromptCacheStats(): ReturnType<(typeof this.promptWarmthLedger)["getCacheStats"]> {
+		return this.promptWarmthLedger.getCacheStats();
+	}
+
 	listMessages(taskId: string): NKleinTaskMessage[] {
 		return this.messageRepository.listMessages(taskId);
 	}

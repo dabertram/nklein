@@ -32,6 +32,7 @@ import type { NKleinMessageRepository } from "./nklein-message-repository";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 import type { NKleinPlanCritiqueResult } from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
+import type { PromptCacheStats } from "./nklein-prompt-warmth-ledger";
 import type { NKleinReviewResult } from "./nklein-review-tool";
 import type { NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import type { CreateInMemoryNKleinSessionRuntimeOptions, NKleinSessionRuntime } from "./nklein-session-runtime";
@@ -187,6 +188,8 @@ export interface NKleinTaskSessionService {
 	 * the same way `listModelEndpointSessions` is, so the start-selection seam can consult live session state.
 	 */
 	getPromptWarmthLedger(): ReadonlyMap<string, PromptWarmthLedgerEntry>;
+	/** F4.53 in-memory prompt-prefix cache telemetry; querying never reads the observation ledger. */
+	getPromptCacheStats(): PromptCacheStats;
 	listMessages(taskId: string): NKleinTaskMessage[];
 	listSlashCommands(workspacePath: string): Promise<NKleinSdkSlashCommand[]>;
 	loadTaskSessionMessages(taskId: string): Promise<NKleinTaskMessage[]>;

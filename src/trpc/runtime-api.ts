@@ -58,7 +58,7 @@ import { createRailOutcomeLog, type RailStatusSnapshot } from "../core/backgroun
 import { toStreamOverviewRows } from "../core/board-streams-summary";
 import { computeFleetCapabilityUpgrades, type RoleQualityBar } from "../core/capability-ceiling-recommendation";
 import { SELECTABLE_CHAT_SKILL_IDS } from "../core/chat-session-skill-profile";
-import { parseDeviceRamGb, resolveDeviceRamBytesFromEnv } from "../core/device-load-routing";
+import { parseDeviceRamGb, resolveDeviceRamBytes, resolveDeviceRamBytesFromEnv } from "../core/device-load-routing";
 import { isTruthyEnv } from "../core/env-flag";
 import { buildFitnessTableView } from "../core/fitness-table-view";
 import {
@@ -74,6 +74,7 @@ import {
 	groupModelsByMachine,
 	LOCAL_MACHINE_ID,
 } from "../core/lms-ps-json";
+import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import {
@@ -99,6 +100,7 @@ import { parsePromptIntentMode } from "../core/prompt-intent-mode";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projection";
 import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
+import { createRuntimeResourceSampler } from "../core/runtime-resource-sampler";
 import { isBusySessionState } from "../core/session-state-predicates";
 import type { SkillId } from "../core/skill-registry";
 import { deriveStreams } from "../core/stream-derivation";
@@ -171,6 +173,7 @@ import { handleGetCardTimeline } from "./runtime-api/card-timeline.js";
 import { buildChatAgentToolDepsResolver } from "./runtime-api/chat-agent-tool-deps-resolver.js";
 import { handleGetNKleinCodeIntelligenceStatus } from "./runtime-api/code-intelligence-status.js";
 import { handleExpandNKleinPlanTask } from "./runtime-api/expand-plan-task.js";
+import { buildFleetResourceSnapshot } from "./runtime-api/fleet-resource-status";
 import { handleGetFleetStatus } from "./runtime-api/fleet-status";
 import { handleGetFocusChainHistory } from "./runtime-api/focus-chain-history.js";
 import { importGitHubIssueContext, importGitHubPrDiffContext } from "./runtime-api/github-context-import.js";
@@ -378,6 +381,8 @@ async function buildMachinePoolsView(): Promise<
 }
 
 export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrpcContext["runtimeApi"] {
+	// F4.53: process-local CPU delta state; no timer. It advances only while the fleet rail is open and polling.
+	const resourceSampler = createRuntimeResourceSampler();
 	const nkleinProviderService = createNKleinProviderService();
 	const communitySkillImportService = createCommunitySkillImportService();
 	const communitySkillExecutionService = createCommunitySkillExecutionService();
@@ -1087,6 +1092,26 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					buildLmStudioMachineByModelId(await fetchLmsPsModelsCached(createDefaultLmsRunner())),
 				getWarmthLedger: () =>
 					deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope)?.getPromptWarmthLedger() ?? null,
+				getResources: async () => {
+					const service = deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope) ?? null;
+					const baseUrl = nkleinProviderService.getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+					const [host, residentModels, loadedDescriptors, config] = await Promise.all([
+						resourceSampler.sample(workspaceScope.workspacePath),
+						fetchLmsPsModelsCached(createDefaultLmsRunner()),
+						fetchLoadedModelDescriptors(baseUrl),
+						deps.loadScopedRuntimeConfig(workspaceScope),
+					]);
+					return buildFleetResourceSnapshot({
+						host,
+						residentModels,
+						loadedDescriptors,
+						fastMemoryBytesByMachine: resolveDeviceRamBytes({
+							configuredDeviceRamGb: config.deviceRamGb,
+						}),
+						promptCache: service?.getPromptCacheStats() ?? null,
+						reservationHolds: deps.getDispatchReservationSnapshot?.() ?? [],
+					});
+				},
 			});
 		},
 		// F1.40: per-card + per-project time tracking. Projects the model-performance observations (per session run)

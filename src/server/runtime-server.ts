@@ -4261,6 +4261,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		getScopedNKleinTaskSessionService,
 		getLoadedScopedNKleinTaskSessionService: (workspaceScope) =>
 			nkleinTaskSessionServiceByWorkspaceId.get(workspaceScope.workspaceId) ?? null,
+		getDispatchReservationSnapshot: () => dispatchReservations.snapshot(),
 		getSandboxWorkspaceReadTools: async (session, workspacePath) => {
 			if (agentSandboxStatus.state !== "ready") {
 				return null;

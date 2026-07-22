@@ -11,8 +11,9 @@ import type { RuntimeFleetStatusResponse } from "../../core/config-api-contract.
 /** The warmth ledger surface this handler needs (the service's `getPromptWarmthLedger`). */
 export type WarmthLedgerSource = () => ReadonlyMap<string, { shellKey: string; at: number }> | null;
 
-/** The machine map surface (the cached `lms ps` feed): served model id → machine id. */
+/** Best-effort fleet surfaces: cached residency identity plus on-demand resource telemetry. */
 export type MachineMapSource = () => Promise<ReadonlyMap<string, string>>;
+export type FleetResourceSource = () => Promise<RuntimeFleetStatusResponse["resources"]>;
 
 /** Shell keys are `kind\u0000workspacePath\u0000modelId` (see buildPromptShellKey). */
 const SHELL_KEY_SEPARATOR = "\u0000";
@@ -25,6 +26,7 @@ export function parseShellKind(shellKey: string): string {
 export async function handleGetFleetStatus(sources: {
 	getMachineMap: MachineMapSource;
 	getWarmthLedger: WarmthLedgerSource;
+	getResources?: FleetResourceSource;
 }): Promise<RuntimeFleetStatusResponse> {
 	const machineByModelId: Record<string, string> = {};
 	try {
@@ -41,5 +43,11 @@ export async function handleGetFleetStatus(sources: {
 			warmthByModelId[modelId] = { kind: parseShellKind(entry.shellKey), at: entry.at };
 		}
 	}
-	return { machineByModelId, warmthByModelId };
+	let resources: RuntimeFleetStatusResponse["resources"] = null;
+	try {
+		resources = (await sources.getResources?.()) ?? null;
+	} catch {
+		// Best-effort: host probes and LM Studio descriptor reads must never break the fleet rail.
+	}
+	return { machineByModelId, warmthByModelId, resources };
 }

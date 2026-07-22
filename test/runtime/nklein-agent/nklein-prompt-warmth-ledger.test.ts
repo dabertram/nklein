@@ -66,6 +66,36 @@ describe("createPromptWarmthLedger", () => {
 		expect(h.recordSelfObservation).toHaveBeenCalledWith(
 			expect.objectContaining({ metadata: expect.objectContaining({ identical: true, reuseRatio: 1 }) }),
 		);
+		expect(ledger.getCacheStats()).toEqual({
+			comparisons: 1,
+			perfectHits: 1,
+			averageReuseRatio: 1,
+			latestReuseRatio: 1,
+			latestAt: 1_000,
+		});
+	});
+
+	it("keeps aggregate prefix reuse in memory without counting a model's first assembly", () => {
+		const ledger = createPromptWarmthLedger();
+		ledger.assembleAndRecord(input());
+		expect(ledger.getCacheStats()).toEqual({
+			comparisons: 0,
+			perfectHits: 0,
+			averageReuseRatio: null,
+			latestReuseRatio: null,
+			latestAt: null,
+		});
+		h.buildSessionSystemPrompt.mockReturnValue({ text: "PROMPT-v2", headPinnedVolatileKeys: [] });
+		ledger.assembleAndRecord(input());
+		h.buildSessionSystemPrompt.mockReturnValue({ text: "PROMPT-v3", headPinnedVolatileKeys: [] });
+		ledger.assembleAndRecord(input());
+		expect(ledger.getCacheStats()).toEqual({
+			comparisons: 2,
+			perfectHits: 0,
+			averageReuseRatio: 0.5,
+			latestReuseRatio: 0.5,
+			latestAt: 1_000,
+		});
 	});
 
 	it("normalizes a missing model id to the (unconfigured) key", () => {

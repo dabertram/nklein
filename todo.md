@@ -33,11 +33,14 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F4.34 closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F5.2b closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 181-package remainder is **92 ready + 0 partial + 75 dependency-blocked + 7 external/
+  gate below is green. The current 172-package remainder is **83 ready + 0 partial + 75 dependency-blocked + 7 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
+The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
+gates immediately below; all seven `[?]` rows name the required operator decision, credential, machine, or live-fleet
+condition. There are no ambiguous partials: `[~]` is currently zero.
 
 Broad blocked phases inherit these named gates (an item's narrower inline gate is additional):
 
@@ -92,6 +95,14 @@ feature-completeness challenges, release checks, and required manual checks are 
 gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
+
+> **⚠️ RESOURCE OBSERVABILITY MUST BE DEMAND-DRIVEN AND LABEL MEASURED VERSUS MODELLED VALUES (F4.53,
+> 2026-07-22).** A permanent CPU/GPU monitor spends resources while the operator is not looking, and remote LM-Link
+> hosts do not expose trustworthy live KV-cache or allocator usage. Sample host memory/disk on the existing
+> collapsed-by-default fleet cadence, derive CPU only from consecutive on-demand samples, and keep prompt-prefix stats
+> in the live workspace service instead of scanning telemetry files. Present configured fast-memory capacity, reported
+> model weights, and KV reservations as distinct facts; never subtract weights from capacity and call the result “free
+> VRAM.” Normalize machine aliases (notably `Local` versus `local`) before joining budgets to residency.
 
 > **⚠️ A STATUS QUERY MUST NOT BECOME THE SCHEDULER FOR THE WORK IT REPORTS (F5.2b, 2026-07-22).** Opening or
 > refreshing Settings is an operator read, not authority to scan a corpus or start background work. Run model-free
@@ -2912,9 +2923,6 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   assuming capacity was freed. Restart still forgets auto-ownership in the safe direction. Final gates: root typecheck,
   75 focused, 12,146 fast runtime/utility, and 142 protected assertions pass; lint has no errors (20 existing warnings
   and one existing info diagnostic).
-- [ ] **F4.53 — Add a resource panel.** Show process/system RAM, CPU, fast memory/VRAM, disk, model residency, cache hit,
-  and reservations with low idle overhead.
-
 ### Phase 5 — feature completion: product surfaces and desktop distribution
 
 #### 5A. Remaining functional UI *(legacy §5.W, §5.BB, §5.BC)*

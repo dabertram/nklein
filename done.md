@@ -2688,3 +2688,15 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   14 focused backend scheduler/retention tests, 99 focused UI/settings tests, 1,259-file/12,151-test backend fast suite,
   157-file/1,138-test full web suite, 16/16 Settings Playwright flows, protected 142/142, backend/web typechecks, and
   lint with zero errors (20 pre-existing warnings and one info).
+
+- [x] **F4.53 — Add a resource panel** *(delivered 2026-07-22).* The collapsed-by-default fleet rail now exposes an
+  on-demand 15-second resource snapshot: !Klein process RSS/heap and whole-host RAM, delta-derived process/system CPU,
+  workspace-volume disk, per-machine configured fast-memory/VRAM budgets, resident models/context and reported model
+  weights, in-memory prompt-prefix reuse/exact-hit counts, and cloned aggregate dispatch reservations. The first CPU
+  sample is deliberately unknown rather than a process-lifetime fiction; closing the fleet rail removes every poll.
+  Remote KV/allocator usage is not observable through LM Link, so the UI explicitly labels weights as modelled and
+  never claims they are measured free VRAM. `Local`/`local` capacity aliases join to one physical device. Host probes,
+  LM Studio reads, and unavailable session services fail soft without taking down fleet identity/warmth. Evidence:
+  18 focused pure/runtime tests, 17 focused fleet/board component tests, and a mocked-browser collapsed→expanded flow;
+  root typecheck, web typecheck, 1,261-file/12,158-test backend fast suite, 157-file/1,139-test full web suite,
+  protected 142/142, and lint with zero errors (20 pre-existing warnings and one info).

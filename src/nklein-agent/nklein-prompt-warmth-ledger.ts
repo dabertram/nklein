@@ -50,12 +50,22 @@ export interface PromptWarmthLedger {
 	 * ledger owns the writes; consumers only read it.
 	 */
 	readonly shellKeyByModelId: Map<string, PromptWarmthLedgerEntry>;
+	/** Aggregate byte-prefix reuse observed in this workspace process (no telemetry-file scan required). */
+	getCacheStats(): PromptCacheStats;
 	/**
 	 * Assemble the session system prompt (delegating byte-stable fragment ordering to the pure
 	 * `buildSessionSystemPrompt`) and record the warmth bookkeeping: the previous-prompt byte map (for the
 	 * prefix reuseRatio observation) and the shell-key ledger.
 	 */
 	assembleAndRecord(input: AssembleSessionSystemPromptInput): string;
+}
+
+export interface PromptCacheStats {
+	comparisons: number;
+	perfectHits: number;
+	averageReuseRatio: number | null;
+	latestReuseRatio: number | null;
+	latestAt: number | null;
 }
 
 /**
@@ -74,6 +84,11 @@ export function createPromptWarmthLedger(): PromptWarmthLedger {
 	 * we know every prompt we send, so no server probing is needed (see `src/core/cache-warmth.ts`).
 	 */
 	const shellKeyByModelId = new Map<string, PromptWarmthLedgerEntry>();
+	let cacheComparisons = 0;
+	let perfectCacheHits = 0;
+	let reuseRatioTotal = 0;
+	let latestReuseRatio: number | null = null;
+	let latestReuseAt: number | null = null;
 
 	function assembleAndRecord(input: AssembleSessionSystemPromptInput): string {
 		// §5.U: the byte-stability-critical fragment ordering + assembly is the pure `buildSessionSystemPrompt`
@@ -98,6 +113,11 @@ export function createPromptWarmthLedger(): PromptWarmthLedger {
 			// scoreboard. Log both cases with the same category so reuse is measurable per model/alias.
 			const identical = previous === assembled.text;
 			const reuseRatio = identical ? 1 : computeSharedPrefixRatio(previous, assembled.text);
+			cacheComparisons += 1;
+			perfectCacheHits += identical ? 1 : 0;
+			reuseRatioTotal += reuseRatio;
+			latestReuseRatio = reuseRatio;
+			latestReuseAt = now();
 			recordSelfObservation({
 				signal: "custom",
 				severity: "info",
@@ -136,5 +156,15 @@ export function createPromptWarmthLedger(): PromptWarmthLedger {
 		return assembled.text;
 	}
 
-	return { shellKeyByModelId, assembleAndRecord };
+	return {
+		shellKeyByModelId,
+		assembleAndRecord,
+		getCacheStats: () => ({
+			comparisons: cacheComparisons,
+			perfectHits: perfectCacheHits,
+			averageReuseRatio: cacheComparisons === 0 ? null : reuseRatioTotal / cacheComparisons,
+			latestReuseRatio,
+			latestAt: latestReuseAt,
+		}),
+	};
 }

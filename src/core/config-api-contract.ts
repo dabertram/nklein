@@ -277,6 +277,63 @@ export const runtimeFleetStatusResponseSchema = z.object({
 			at: z.number(),
 		}),
 	),
+	/**
+	 * F4.53 resource panel snapshot. This is sampled only while the fleet rail is open; null means the best-effort
+	 * sampler was unavailable. Fast-memory "residentBytes" is explicitly weights-only because LM Studio does not
+	 * expose remote KV/allocator usage through LM Link.
+	 */
+	resources: z
+		.object({
+			sampledAt: z.number().int().nonnegative(),
+			host: z.object({
+				logicalCpuCount: z.number().int().positive(),
+				processCpuPercent: z.number().min(0).max(100).nullable(),
+				systemCpuPercent: z.number().min(0).max(100).nullable(),
+				processRssBytes: z.number().nonnegative(),
+				processHeapUsedBytes: z.number().nonnegative(),
+				systemTotalBytes: z.number().positive(),
+				systemFreeBytes: z.number().nonnegative(),
+			}),
+			disk: z.object({
+				totalBytes: z.number().nonnegative().nullable(),
+				freeBytes: z.number().nonnegative().nullable(),
+			}),
+			devices: z.array(
+				z.object({
+					machineId: z.string(),
+					fastMemoryCapacityBytes: z.number().positive().nullable(),
+					residentBytes: z.number().nonnegative(),
+					residentBytesKnownCount: z.number().int().nonnegative(),
+					residents: z.array(
+						z.object({
+							identifier: z.string(),
+							modelKey: z.string(),
+							status: z.string().nullable(),
+							contextLength: z.number().int().positive().nullable(),
+							sizeBytes: z.number().positive().nullable(),
+						}),
+					),
+				}),
+			),
+			promptCache: z.object({
+				comparisons: z.number().int().nonnegative(),
+				perfectHits: z.number().int().nonnegative(),
+				averageReuseRatio: z.number().min(0).max(1).nullable(),
+				latestReuseRatio: z.number().min(0).max(1).nullable(),
+				latestAt: z.number().int().nonnegative().nullable(),
+			}),
+			reservations: z.object({
+				holderCount: z.number().int().nonnegative(),
+				totals: z.array(
+					z.object({
+						kind: z.enum(["endpoint_slot", "sandbox_slot", "kv_bytes", "disk_bytes"]),
+						key: z.string(),
+						amount: z.number().nonnegative(),
+					}),
+				),
+			}),
+		})
+		.nullable(),
 });
 export type RuntimeFleetStatusResponse = z.infer<typeof runtimeFleetStatusResponseSchema>;
 

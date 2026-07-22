@@ -4,6 +4,40 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { FleetStrip } from "@/components/fleet-strip";
 import type { FleetGroup } from "@/components/fleet-strip-model";
+import type { RuntimeFleetStatusResponse } from "@/runtime/types";
+
+const resources: NonNullable<RuntimeFleetStatusResponse["resources"]> = {
+	sampledAt: 1_000,
+	host: {
+		logicalCpuCount: 12,
+		processCpuPercent: 5,
+		systemCpuPercent: 25,
+		processRssBytes: 2 * 1024 ** 3,
+		processHeapUsedBytes: 512 * 1024 ** 2,
+		systemTotalBytes: 128 * 1024 ** 3,
+		systemFreeBytes: 32 * 1024 ** 3,
+	},
+	disk: { totalBytes: 2_000 * 1024 ** 3, freeBytes: 800 * 1024 ** 3 },
+	devices: [
+		{
+			machineId: "m5max",
+			fastMemoryCapacityBytes: 96 * 1024 ** 3,
+			residentBytes: 27 * 1024 ** 3,
+			residentBytesKnownCount: 1,
+			residents: [
+				{
+					identifier: "bonsai-27b",
+					modelKey: "prism/bonsai-27b",
+					status: "idle",
+					contextLength: 40_000,
+					sizeBytes: 27 * 1024 ** 3,
+				},
+			],
+		},
+	],
+	promptCache: { comparisons: 4, perfectHits: 2, averageReuseRatio: 0.8, latestReuseRatio: 1, latestAt: 900 },
+	reservations: { holderCount: 1, totals: [{ kind: "kv_bytes", key: "m5max", amount: 4 * 1024 ** 3 }] },
+};
 
 describe("FleetStrip", () => {
 	let container: HTMLDivElement;
@@ -147,6 +181,23 @@ describe("FleetStrip", () => {
 		});
 		expect(container.querySelector('[data-testid="fleet-strip-empty"]')).not.toBeNull();
 		expect(container.textContent ?? "").toContain("No models loaded.");
+	});
+
+	it("renders honest host, capacity, residency, cache, and reservation telemetry", () => {
+		act(() => {
+			root.render(<FleetStrip groups={[]} resources={resources} />);
+		});
+		const text = container.textContent ?? "";
+		expect(container.querySelector('[data-testid="fleet-resources"]')).not.toBeNull();
+		expect(text).toContain("!Klein host resources");
+		expect(text).toContain("96 GiB / 128 GiB");
+		expect(text).toContain("25% system");
+		expect(text).toContain("80% avg reuse");
+		expect(text).toContain("2/4 byte-identical hits");
+		expect(text).toContain("1 task hold");
+		expect(text).toContain("96 GiB fast memory / VRAM");
+		expect(text).toContain("bonsai-27b @40k");
+		expect(text).toContain("not presented as measured free VRAM");
 	});
 
 	it("shows the driver's live activity snippet on running rows (violet, latest step only)", async () => {

@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 
+import { FleetResourcePanel } from "@/components/fleet-resource-panel";
 import type { FleetGroup, FleetLineage, FleetRole, FleetRow } from "@/components/fleet-strip-model";
 import {
 	compactFleetActivityText,
@@ -15,6 +16,7 @@ import {
 	summarizeIdleFleetRows,
 } from "@/components/fleet-strip-model";
 import { cn } from "@/components/ui/cn";
+import type { RuntimeFleetStatusResponse } from "@/runtime/types";
 
 const ROLE_TAG_LABEL: Record<Exclude<FleetRole, null>, string> = {
 	architect: "arch",
@@ -180,19 +182,23 @@ function FleetGroupView({ group }: { group: FleetGroup }): React.ReactElement {
 	);
 }
 
-export function FleetStrip({ groups }: { groups: readonly FleetGroup[] }): React.ReactElement {
-	if (groups.length === 0) {
-		return (
-			<div className="px-4 py-2 text-xs italic text-text-tertiary" data-testid="fleet-strip-empty">
-				No models loaded.
-			</div>
-		);
-	}
+export function FleetStrip({
+	groups,
+	resources = null,
+}: {
+	groups: readonly FleetGroup[];
+	resources?: RuntimeFleetStatusResponse["resources"];
+}): React.ReactElement {
 	return (
 		<div className="max-h-[34vh] overflow-y-auto px-4 pt-0.5 pb-2.5" data-testid="fleet-strip">
-			{groups.map((group) => (
-				<FleetGroupView key={group.endpointLabel} group={group} />
-			))}
+			<FleetResourcePanel resources={resources} />
+			{groups.length === 0 ? (
+				<div className="px-2 py-2 text-xs italic text-text-tertiary" data-testid="fleet-strip-empty">
+					No models loaded.
+				</div>
+			) : (
+				groups.map((group) => <FleetGroupView key={group.endpointLabel} group={group} />)
+			)}
 		</div>
 	);
 }

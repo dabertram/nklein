@@ -56,6 +56,20 @@ describe("createDispatchReservationLedger", () => {
 			ok: true,
 		});
 	});
+
+	it("returns a defensive telemetry snapshot that cannot mutate live holds", () => {
+		const ledger = createDispatchReservationLedger();
+		ledger.tryReserve("t-1", [{ kind: "kv_bytes", key: "m5max", amount: 42 }]);
+		const snapshot = ledger.snapshot();
+		const clonedHold = snapshot[0];
+		const clonedRequest = clonedHold?.requests[0];
+		if (!clonedHold || !clonedRequest) throw new Error("expected cloned reservation hold");
+		clonedHold.requests.push({ kind: "disk_bytes", key: "local", amount: 99 });
+		clonedRequest.amount = 0;
+		expect(ledger.snapshot()).toEqual([
+			{ taskId: "t-1", requests: [{ kind: "kv_bytes", key: "m5max", amount: 42 }] },
+		]);
+	});
 });
 
 describe("reservationAwarePools", () => {

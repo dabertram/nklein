@@ -1160,6 +1160,7 @@ export function KanbanBoard({
 					<ElementTooltip id="board.fleet-strip" side="bottom">
 						<button
 							type="button"
+							data-testid="fleet-strip-toggle"
 							onClick={handleToggleFleetStrip}
 							aria-expanded={fleetStripExpanded}
 							className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2 text-xs text-text-tertiary hover:text-text-secondary"
@@ -1234,7 +1235,7 @@ export function KanbanBoard({
 			</div>
 			{fleetStripExpanded ? (
 				<div className="shrink-0 border-b border-border bg-surface-1">
-					<FleetStrip groups={fleetGroups} />
+					<FleetStrip groups={fleetGroups} resources={fleetStatus?.resources ?? null} />
 				</div>
 			) : null}
 			{currentProjectId && data.columns.every((column) => column.id === "trash" || column.cards.length === 0) ? (

@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The fleet rail now includes a low-overhead resource panel.** While expanded, it samples !Klein process and system
+  RAM/CPU, workspace disk, configured fast-memory/VRAM budgets, model residency and reported weights, prompt-prefix
+  reuse, and dispatch reservations every 15 seconds; closing the rail stops all sampling. Remote KV/allocator usage is
+  labelled unavailable rather than misrepresented as measured free VRAM.
+
 - **Basic Memory freshness audits now run as a durable, model-free idle rail.** The configured cadence is checked before
   reading project/global mounted notes, completed results and bounded findings survive restarts in the workspace ledger,
   and a wake cache avoids minute-level ledger or corpus churn. Settings shows enabled/paused state, last and next run,

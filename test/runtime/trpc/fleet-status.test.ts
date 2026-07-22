@@ -13,6 +13,7 @@ describe("handleGetFleetStatus (§5.AX)", () => {
 		});
 		expect(status.machineByModelId).toEqual({ "qwop4b-a": "Local", "coder-gpu": "davidlegion5pro" });
 		expect(status.warmthByModelId).toEqual({ "qwop4b-a": { kind: "worker", at: 1_000 } });
+		expect(status.resources).toBeNull();
 	});
 
 	it("fails soft to empty maps (no lms feed / no loaded service)", async () => {
@@ -22,7 +23,18 @@ describe("handleGetFleetStatus (§5.AX)", () => {
 			},
 			getWarmthLedger: () => null,
 		});
-		expect(status).toEqual({ machineByModelId: {}, warmthByModelId: {} });
+		expect(status).toEqual({ machineByModelId: {}, warmthByModelId: {}, resources: null });
+	});
+
+	it("fails only the resource branch when its best-effort sampler throws", async () => {
+		const status = await handleGetFleetStatus({
+			getMachineMap: async () => new Map([["model", "m5max"]]),
+			getWarmthLedger: () => null,
+			getResources: async () => {
+				throw new Error("statfs unavailable");
+			},
+		});
+		expect(status).toEqual({ machineByModelId: { model: "m5max" }, warmthByModelId: {}, resources: null });
 	});
 
 	it("parseShellKind splits on the NUL separator (and tolerates a bare kind)", () => {

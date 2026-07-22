@@ -8,6 +8,7 @@ import type {
 	RuntimeRunUpdateResponse,
 	RuntimeUpdateStatusResponse,
 } from "../core/api-contract";
+import type { ReservationRequest } from "../core/dispatch-reservations";
 import type { createNKleinMcpRuntimeService } from "../nklein-agent/nklein-mcp-runtime-service";
 import type { runNKleinModelResearch } from "../nklein-agent/nklein-model-research";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
@@ -29,6 +30,8 @@ export interface CreateRuntimeApiDependencies {
 	getScopedTerminalManager: (scope: RuntimeTrpcWorkspaceScope) => Promise<TerminalSessionManager>;
 	getScopedNKleinTaskSessionService: (scope: RuntimeTrpcWorkspaceScope) => Promise<NKleinTaskSessionService>;
 	getLoadedScopedNKleinTaskSessionService?: (scope: RuntimeTrpcWorkspaceScope) => NKleinTaskSessionService | null;
+	/** F4.53 read-only clone of in-flight dispatch holds for the fleet resource panel. */
+	getDispatchReservationSnapshot?: () => { taskId: string; requests: ReservationRequest[] }[];
 	/**
 	 * F12.53 fix (review-found): pushes the refreshed board state to connected clients after a mutation the
 	 * websocket hub doesn't observe itself — without it, an on-demand Verify run persisted `card.verification`

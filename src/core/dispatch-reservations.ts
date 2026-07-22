@@ -48,6 +48,8 @@ export interface DispatchReservationLedger {
 	reserved(kind: ReservationKind, key: string): number;
 	/** Task ids currently holding reservations. */
 	holders(): string[];
+	/** Read-only cloned holds for operator telemetry; callers cannot mutate live accounting. */
+	snapshot(): { taskId: string; requests: ReservationRequest[] }[];
 }
 
 export function createDispatchReservationLedger(
@@ -118,6 +120,12 @@ export function createDispatchReservationLedger(
 		},
 		holders() {
 			return [...holdsByTask.keys()];
+		},
+		snapshot() {
+			return [...holdsByTask.entries()].map(([taskId, requests]) => ({
+				taskId,
+				requests: requests.map((request) => ({ ...request })),
+			}));
 		},
 	};
 }
