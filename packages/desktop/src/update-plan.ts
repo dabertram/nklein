@@ -45,6 +45,13 @@ export interface DesktopReleaseManifest {
 	channel?: DesktopUpdateChannel;
 	projectMigration?: DesktopProjectMigrationSpec;
 	assets: DesktopReleaseAsset[];
+	releaseSignature?: DesktopReleaseManifestSignature;
+}
+
+export interface DesktopReleaseManifestSignature {
+	algorithm: "ed25519";
+	keyId: string;
+	value: string;
 }
 
 export interface DesktopUpdateTrustPolicy {

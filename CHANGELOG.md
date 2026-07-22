@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Desktop releases now have an authenticated cross-platform trust chain.** Stable/beta update feeds reject manifests
+  that are unsigned, tampered, or signed by an unknown Ed25519 key before trusting asset URLs/checksums. Release tooling
+  emits a signed manifest plus `SHA256SUMS`; protected macOS/Windows packaging fails closed without signing credentials,
+  macOS notarization is stapled, and a pinned tag-only workflow verifies native signatures and records GitHub provenance
+  before publication. Linux intentionally relies on the signed manifest + SHA-256. Credential activation remains gated
+  on the operator's Apple, Windows, and offline manifest-signing keys.
+
 - **Guided setup now covers the full local runtime posture in both UI and CLI.** Global and project plans walk through
   Docker isolation, model roles/fleet, per-machine fast-memory policy, Basic Memory/MCP, default-deny egress/retrieval,
   and desktop/LAN access before repo execution choices. `nklein setup` renders the same plan model as readable text or

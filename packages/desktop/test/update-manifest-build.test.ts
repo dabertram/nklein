@@ -50,7 +50,7 @@ describe("buildDesktopReleaseManifest", () => {
 		expect(plan.status).toBe("update_available");
 	});
 
-	it("carries signed/notarized through when signing is later integrated (no code change)", () => {
+	it("carries verified native-signing/notarization facts into the manifest before outer signing", () => {
 		const result = buildDesktopReleaseManifest({
 			version: "1.0.0",
 			channel: "stable",

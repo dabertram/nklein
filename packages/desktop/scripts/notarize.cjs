@@ -3,8 +3,11 @@
 // @ts-check
 "use strict";
 
+const { execFileSync } = require("node:child_process");
+
 /** @type {string[]} */
 const REQUIRED_ENV_VARS = ["APPLE_ID", "APPLE_ID_PASSWORD", "APPLE_TEAM_ID"];
+const { releaseChannel } = require("./release-policy.cjs");
 
 /**
  * Check whether all required environment variables are present.
@@ -43,6 +46,14 @@ function shouldNotarize(platformName, env) {
 
 	const check = checkEnvironment(env);
 	if (!check.ok) {
+		const channel = releaseChannel(env.NKLEIN_RELEASE_CHANNEL);
+		if (channel === "stable" || channel === "beta") {
+			return {
+				shouldNotarize: false,
+				reason: `Refusing ${channel} notarization fallback: missing env vars: ${check.missing.join(", ")}.`,
+				fatal: true,
+			};
+		}
 		return {
 			shouldNotarize: false,
 			reason: `Skipping notarization: missing env vars: ${check.missing.join(", ")}.`,
@@ -63,6 +74,9 @@ async function afterSign(context) {
 
 	const result = shouldNotarize(electronPlatformName, process.env);
 	if (!result.shouldNotarize) {
+		if (result.fatal) {
+			throw new Error(result.reason);
+		}
 		console.log(result.reason);
 		return;
 	}
@@ -79,8 +93,9 @@ async function afterSign(context) {
 		appleIdPassword: /** @type {string} */ (process.env.APPLE_ID_PASSWORD),
 		teamId: /** @type {string} */ (process.env.APPLE_TEAM_ID),
 	});
+	execFileSync("xcrun", ["stapler", "staple", appPath], { stdio: "inherit" });
 
-	console.log("Notarization complete.");
+	console.log("Notarization complete and ticket stapled.");
 }
 
 // Export for electron-builder (default export)

@@ -10,6 +10,11 @@ import {
 	type DesktopUpdatePlatform,
 	type DesktopUpdateTrustPolicy,
 } from "./update-plan.js";
+import { TRUSTED_DESKTOP_RELEASE_KEYS } from "./release-trust.js";
+import {
+	type TrustedDesktopReleaseKeys,
+	verifyDesktopReleaseManifestSignature,
+} from "./update-manifest-signature.js";
 
 interface FetchResponseLike {
 	ok: boolean;
@@ -25,6 +30,7 @@ export interface GitHubDesktopReleaseSource {
 	channel?: DesktopUpdateChannel;
 	tag?: string;
 	manifestAssetNames?: string[];
+	trustedManifestKeys?: TrustedDesktopReleaseKeys;
 }
 
 export interface CheckDesktopUpdateFromGitHubOptions extends GitHubDesktopReleaseSource {
@@ -41,7 +47,9 @@ export type DesktopUpdateFeedFailureReason =
 	| "release_not_found"
 	| "manifest_asset_missing"
 	| "manifest_fetch_failed"
-	| "manifest_invalid";
+	| "manifest_invalid"
+	| "manifest_signature_missing"
+	| "manifest_signature_invalid";
 
 export type DesktopUpdateFeedResult =
 	| {
@@ -206,11 +214,18 @@ export function parseDesktopReleaseManifest(value: unknown): DesktopReleaseManif
 	if (assets.length === 0) {
 		return null;
 	}
+	const rawReleaseSignature = isRecord(value.releaseSignature) ? value.releaseSignature : null;
+	const algorithm = rawReleaseSignature ? stringValue(rawReleaseSignature.algorithm) : null;
+	const keyId = rawReleaseSignature ? stringValue(rawReleaseSignature.keyId) : null;
+	const signatureValue = rawReleaseSignature ? stringValue(rawReleaseSignature.value) : null;
 	return {
 		version,
 		channel: stringValue(value.channel) as DesktopUpdateChannel | undefined,
 		projectMigration: parseMigration(value.projectMigration),
 		assets,
+		...(algorithm === "ed25519" && keyId && signatureValue
+			? { releaseSignature: { algorithm, keyId, value: signatureValue } }
+			: {}),
 	};
 }
 
@@ -257,6 +272,21 @@ export async function fetchDesktopReleaseManifestFromGitHub(
 			status: "error",
 			reason: "manifest_invalid",
 			message: `Desktop release manifest ${manifestAsset.name} is invalid.`,
+		};
+	}
+	const protectedChannel = channel === "stable" || channel === "beta";
+	const signature = verifyDesktopReleaseManifestSignature(
+		manifest,
+		options.trustedManifestKeys ?? TRUSTED_DESKTOP_RELEASE_KEYS,
+	);
+	if (!signature.ok && (protectedChannel || manifest.releaseSignature)) {
+		return {
+			status: "error",
+			reason: signature.reason === "missing_signature" ? "manifest_signature_missing" : "manifest_signature_invalid",
+			message:
+				signature.reason === "missing_signature"
+					? `Desktop release manifest ${manifestAsset.name} is unsigned.`
+					: `Desktop release manifest ${manifestAsset.name} failed signature verification (${signature.reason}).`,
 		};
 	}
 	return { status: "ok", manifest };

@@ -152,4 +152,13 @@ describe("shouldNotarize", () => {
 			expect(result.reason).toContain("APPLE_TEAM_ID");
 		}
 	});
+
+	it("marks missing notarization credentials fatal for stable/beta releases", () => {
+		const result = shouldNotarize("darwin", { NKLEIN_RELEASE_CHANNEL: "stable" });
+		expect(result.shouldNotarize).toBe(false);
+		if (!result.shouldNotarize) {
+			expect(result.reason).toContain("Refusing stable notarization fallback");
+			expect(result).toMatchObject({ fatal: true });
+		}
+	});
 });

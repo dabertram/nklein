@@ -69,6 +69,8 @@ On Windows, run `start.bat` from the repository root. It checks the required loc
 dependencies, and starts the same full development runtime.
 
 See [DEVELOPMENT.md](./DEVELOPMENT.md) and [docs/architecture.md](./docs/architecture.md) for the current engineering notes.
+The fail-closed packaged release/signing procedure is documented in
+[docs/desktop-releases.md](./docs/desktop-releases.md).
 
 ### License
 

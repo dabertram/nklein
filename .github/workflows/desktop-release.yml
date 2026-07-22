@@ -1,0 +1,169 @@
+name: Signed desktop release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: ${{ matrix.platform }}-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: darwin
+            arch: arm64
+            command: build:mac:arm64
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+            command: build:mac:x64
+          - os: windows-2025
+            platform: win32
+            arch: x64
+            command: build:win:x64
+          - os: windows-11-arm
+            platform: win32
+            arch: arm64
+            command: build:win:arm64
+          - os: ubuntu-24.04
+            platform: linux
+            arch: x64
+            command: build:linux:x64
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+            command: build:linux:arm64
+    runs-on: ${{ matrix.os }}
+    environment: desktop-release
+    env:
+      NKLEIN_RELEASE_CHANNEL: ${{ contains(github.ref_name, '-beta') && 'beta' || 'stable' }}
+      CSC_LINK: ${{ matrix.platform == 'darwin' && secrets.MAC_CSC_LINK || (matrix.platform == 'win32' && secrets.WIN_CSC_LINK || '') }}
+      CSC_KEY_PASSWORD: ${{ matrix.platform == 'darwin' && secrets.MAC_CSC_KEY_PASSWORD || (matrix.platform == 'win32' && secrets.WIN_CSC_KEY_PASSWORD || '') }}
+      APPLE_ID: ${{ matrix.platform == 'darwin' && secrets.APPLE_ID || '' }}
+      APPLE_ID_PASSWORD: ${{ matrix.platform == 'darwin' && secrets.APPLE_ID_PASSWORD || '' }}
+      APPLE_TEAM_ID: ${{ matrix.platform == 'darwin' && secrets.APPLE_TEAM_ID || '' }}
+    steps:
+      - name: Check out exact tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Use Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.17.1
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            packages/desktop/package-lock.json
+            vendor/cline-sdk/package-lock.json
+      - name: Verify tag matches package versions
+        shell: bash
+        run: |
+          node -e 'const fs=require("fs"); const ref=process.env.GITHUB_REF_NAME; if (!/^v\d+\.\d+\.\d+(?:-beta\.\d+)?$/.test(ref)) throw new Error(`Unsupported release tag ${ref}`); const tag=ref.replace(/^v/,"").replace(/-beta\.\d+$/,""); for (const file of ["package.json","packages/desktop/package.json"]) { const version=JSON.parse(fs.readFileSync(file,"utf8")).version; if (version !== tag) throw new Error(`${file} version ${version} does not match ${tag}`) }'
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix vendor/cline-sdk --no-audit --no-fund
+          npm ci --prefix web-ui --no-audit --no-fund
+          npm ci --prefix packages/desktop --no-audit --no-fund
+      - name: Build runtime and desktop package
+        shell: bash
+        run: |
+          npm run build
+          npm --prefix packages/desktop run ${{ matrix.command }}
+      - name: Verify macOS signature and stapled notarization ticket
+        if: matrix.platform == 'darwin'
+        shell: bash
+        run: |
+          app_path="$(find packages/desktop/out -type d -name 'nKlein.app' -print -quit)"
+          test -n "$app_path"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          xcrun stapler validate "$app_path"
+      - name: Verify Windows Authenticode signature
+        if: matrix.platform == 'win32'
+        shell: pwsh
+        run: |
+          $assets = Get-ChildItem packages/desktop/out -Filter *.exe
+          if ($assets.Count -eq 0) { throw "No Windows installer produced." }
+          foreach ($asset in $assets) {
+            $signature = Get-AuthenticodeSignature $asset.FullName
+            if ($signature.Status -ne "Valid") { throw "$($asset.Name) Authenticode status: $($signature.Status)" }
+          }
+      - name: Upload verified package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            packages/desktop/out/*.dmg
+            packages/desktop/out/*.exe
+            packages/desktop/out/*.AppImage
+            packages/desktop/out/*.deb
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Assemble signed manifest and publish
+    needs: package
+    runs-on: ubuntu-24.04
+    environment: desktop-release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NKLEIN_RELEASE_MANIFEST_KEY_ID: ${{ vars.NKLEIN_RELEASE_MANIFEST_KEY_ID }}
+      NKLEIN_RELEASE_MANIFEST_PRIVATE_KEY: ${{ secrets.NKLEIN_RELEASE_MANIFEST_PRIVATE_KEY }}
+    steps:
+      - name: Check out exact tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Use Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.17.1
+          cache: npm
+      - name: Install locked release tooling
+        run: npm ci --no-audit --no-fund
+      - name: Download all verified packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: desktop-*
+          path: release-assets
+          merge-multiple: true
+      - name: Build and sign release manifest
+        env:
+          RELEASE_CHANNEL: ${{ contains(github.ref_name, '-beta') && 'beta' || 'stable' }}
+        run: |
+          ./node_modules/.bin/tsx scripts/build-desktop-release-manifest.mts \
+            --asset-dir release-assets \
+            --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" \
+            --version "${GITHUB_REF_NAME#v}" \
+            --channel "$RELEASE_CHANNEL" \
+            --signed-platforms darwin,win32 \
+            --notarized-platforms darwin
+      - name: Attest release artifacts
+        uses: actions/attest@36051bcae73b7c2a8a6945a48cbf80953c6baa35 # v4
+        with:
+          subject-path: release-assets/*
+      - name: Publish release payload
+        env:
+          PRERELEASE_FLAG: ${{ contains(github.ref_name, '-beta') && '--prerelease' || '' }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release-assets/* \
+            --verify-tag \
+            --title "!Klein ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            $PRERELEASE_FLAG

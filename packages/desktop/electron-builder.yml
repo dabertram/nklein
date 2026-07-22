@@ -7,6 +7,7 @@ directories:
   buildResources: build
 
 afterSign: ./scripts/notarize.cjs
+beforePack: ./scripts/release-policy.cjs
 
 # `cli/**` is staged locally by the `stage:cli` npm script (electron-builder
 # rejects files outside the package root). The asarUnpack glob below matches
@@ -60,3 +61,31 @@ mac:
 
 dmg:
   artifactName: "${productName}-${version}-${arch}.${ext}"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+  artifactName: "${productName}-${version}-windows-${arch}-setup.${ext}"
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+
+linux:
+  category: Development
+  synopsis: Local-first multi-agent coding orchestration
+  target:
+    - target: AppImage
+      arch:
+        - x64
+        - arm64
+    - target: deb
+      arch:
+        - x64
+        - arm64
+  artifactName: "${productName}-${version}-linux-${arch}.${ext}"

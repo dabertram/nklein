@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-22, after F5.3 closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 171-package remainder is **82 ready + 0 partial + 75 dependency-blocked + 7 external/
+  gate below is green. The current 171-package remainder is **81 ready + 0 partial + 75 dependency-blocked + 8 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -95,6 +95,14 @@ feature-completeness challenges, release checks, and required manual checks are 
 gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
+
+> **⚠️ AN ASSET CHECKSUM IS ONLY AS TRUSTWORTHY AS THE MANIFEST THAT CARRIES IT (F5.7, 2026-07-22).** A SHA-256 in
+> mutable release metadata does not authenticate a download: an attacker who can replace the asset can replace the hash.
+> Stable/beta desktop manifests are therefore canonicalized and Ed25519-signed before clients trust their URLs or
+> checksums. Native signing is an additional platform gate (Developer ID + notarization + stapling on macOS,
+> Authenticode on Windows); Linux deliberately uses the signed manifest + SHA-256 instead of claiming a native signing
+> mechanism it does not have. Protected-channel packaging must fail closed on missing credentials, while dev/nightly may
+> remain explicitly unsigned. Never infer `signed` from an environment flag: verify platform output before manifest fan-in.
 
 > **⚠️ SETUP IS ONE FACT MODEL WITH MULTIPLE RENDERERS, AND INHERITANCE MUST BE HONEST (F5.3, 2026-07-22).** Browser
 > wizards and `nklein setup` render the same pure `buildGlobalSetupPlan` / `buildProjectSetupPlan` output; do not fork
@@ -2968,8 +2976,21 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   hand off to the platform installer, expose tray/UI progress/errors/retry, and never install an untrusted asset.
   **AUDIT 2026-07-18: PARTIAL** — every pure updater core exists + tested in packages/desktop (feed parse, channel/trust selection, sha256 download verify, installer handoff, tray show-update). MISSING: the effectful client loop — main.ts never invokes check→download→verify→handoff; no live tray/progress/retry surface.
 - [x] **F5.6 —  *(finalized 2026-07-19 (split): backup + rollback cores complete; the effectful runner split below.)*
-- [ ] **F5.7 — Integrate signed release assets and update policy.** macOS signing/notarization, Windows signing, Linux
+- [?] **F5.7 — Integrate signed release assets and update policy** *(external signing credentials + first release run
+  required; all credential-free engineering shipped 2026-07-22).* macOS signing/notarization, Windows signing, Linux
   checksum/signing decision, channel manifests, integrity tests, and reproducible electron-builder configuration.
+  **ENGINEERING COMPLETE:** stable/beta update feeds now fail closed until an Ed25519-signed canonical manifest verifies
+  against a public key embedded in the client; this authenticates the SHA-256/URL set on every platform. The release
+  writer emits that manifest plus deterministic `SHA256SUMS`, refuses unproven macOS/Windows trust labels, and proves the
+  private signing key matches the packaged public keyring. electron-builder now has explicit macOS DMG, Windows NSIS,
+  and Linux AppImage/deb x64+arm64 targets with deterministic names; protected macOS/Windows builds fail preflight when
+  credentials are absent; notarization is stapled. The tag-only GitHub workflow uses fixed runner/Node versions, pinned
+  action commits, locked installs, native signature verification before fan-in, GitHub provenance attestations, and one
+  signed-manifest release publication. Linux's explicit decision is signed manifest + SHA-256 (no invented native app
+  signature). Local dev/nightly packaging remains credential-free and checksum-only. **ONLY REMAINING (David/external):**
+  generate the offline Ed25519 keypair and embed its public half/key id; configure the protected GitHub environment with
+  the private half, Apple Developer ID/notary credentials, and a Windows Authenticode certificate; then run the first
+  tag release so Apple/Microsoft services and all six hosted-runner outputs can be verified with real credentials.
 
 ### Phase 6 — prove feature completeness before broad hardening
 
@@ -5550,9 +5571,11 @@ into the existing F12.31. Same verify-before-build caveat.**
   permissive) and a missing digest counts as not-byte-verifiable. 5 tests. `dev sbom [--lockfile|--json|--name|
   --version]` live-smoked on this repo: 527 components (329 runtime / 198 dev-only), 4 unknown licenses, 4
   without digests — real gaps, surfaced.
-  REMAINING: the SIGNING + SLSA-provenance + reproducible-build legs, which need release credentials and a
-  release pipeline — the same David-gated credential blocker as F5.7's signing activation, not code that can be
-  written headlessly.
+  **F5.7 PIPELINE UPDATE 2026-07-22:** the signed-manifest/native-signing pipeline and GitHub build-provenance
+  attestations are now configured with fixed runners, pinned actions, and locked inputs; the docs explicitly avoid a
+  false bit-for-bit reproducibility claim across timestamped Apple/Microsoft signatures. REMAINING: activate and prove
+  the pipeline with the same David-gated release credentials/public key as F5.7, and attach the existing CycloneDX SBOM
+  as an attested release subject/predicate in that real release run.
 - [x] **F12.103 — Compliance trust-center docs (EU AI Act / GDPR posture).** A maintained `docs/` trust-center: data-flow
   diagram, retention (none-by-default), egress inventory, model licenses, and the EU-AI-Act / GDPR posture. Rationale: enterprise
   adoption needs a defensible written posture; the architecture already supports the strongest claims — document them.

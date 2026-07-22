@@ -5,11 +5,10 @@
  * project-migration spec. Pure + deterministic — the caller supplies the already-computed sha256 (via
  * {@link computeSha256Hex} over the asset bytes), so no filesystem/crypto side effects live here.
  *
- * Credential-free by design (mirrors F5.5's unsigned-OK dev channel): `signature` defaults to `"unsigned"` and
- * `notarized` to false, so a dev/nightly release manifest is produced WITHOUT signing credentials. When signing is
- * later integrated, the caller passes `signature: "signed"` / `notarized: true` and the same generator emits a
- * release-channel manifest — no code change, just richer inputs. The output round-trips through
- * {@link parseDesktopReleaseManifest} by construction (see the integrity tests).
+ * Credential-free by design (mirrors F5.5's unsigned-OK dev channel): per-asset `signature` defaults to `"unsigned"`
+ * and `notarized` to false. The effectful release writer supplies only platform trust facts it already verified, then
+ * wraps stable/beta output with `signDesktopReleaseManifest`; the pure generator never guesses those facts from
+ * environment variables. The output round-trips through {@link parseDesktopReleaseManifest} by construction.
  */
 
 import { normalizeSha256 } from "./update-download.js";

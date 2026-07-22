@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { generateKeyPairSync } from "node:crypto";
 
 import {
 	buildGitHubReleaseApiUrl,
@@ -7,6 +8,21 @@ import {
 	parseDesktopReleaseManifest,
 	type DesktopUpdateFetch,
 } from "../src/update-feed.js";
+import { signDesktopReleaseManifest } from "../src/update-manifest-signature.js";
+import type { DesktopReleaseManifest } from "../src/update-plan.js";
+
+const RELEASE_KEYS = generateKeyPairSync("ed25519");
+const RELEASE_KEY_ID = "test-release-2026";
+const TRUSTED_MANIFEST_KEYS = {
+	[RELEASE_KEY_ID]: RELEASE_KEYS.publicKey.export({ type: "spki", format: "pem" }).toString(),
+};
+
+function signedManifest(manifest: DesktopReleaseManifest): DesktopReleaseManifest {
+	return signDesktopReleaseManifest(manifest, {
+		keyId: RELEASE_KEY_ID,
+		privateKeyPem: RELEASE_KEYS.privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+	});
+}
 
 function response(payload: unknown, ok = true, status = ok ? 200 : 500): Awaited<ReturnType<DesktopUpdateFetch>> {
 	return {
@@ -112,8 +128,9 @@ describe("fetchDesktopReleaseManifestFromGitHub", () => {
 					},
 				],
 			}),
-			response({
+			response(signedManifest({
 				version: "0.2.0",
+				channel: "stable",
 				assets: [
 					{
 						name: "nKlein-0.2.0-arm64.dmg",
@@ -123,10 +140,15 @@ describe("fetchDesktopReleaseManifestFromGitHub", () => {
 						notarized: true,
 					},
 				],
-			}),
+			})),
 		]);
 
-		const result = await fetchDesktopReleaseManifestFromGitHub({ owner: "dabertram", repo: "nklein", fetch });
+		const result = await fetchDesktopReleaseManifestFromGitHub({
+			owner: "dabertram",
+			repo: "nklein",
+			fetch,
+			trustedManifestKeys: TRUSTED_MANIFEST_KEYS,
+		});
 
 		expect(result.status).toBe("ok");
 		if (result.status !== "ok") {
@@ -149,7 +171,7 @@ describe("fetchDesktopReleaseManifestFromGitHub", () => {
 					assets: [{ name: "desktop-update.json", browser_download_url: "https://downloads.invalid/beta.json" }],
 				},
 			]),
-			response({
+			response(signedManifest({
 				version: "0.2.0-beta.1",
 				channel: "beta",
 				assets: [
@@ -159,7 +181,7 @@ describe("fetchDesktopReleaseManifestFromGitHub", () => {
 						sha256: "sum",
 					},
 				],
-			}),
+			})),
 		]);
 
 		const result = await fetchDesktopReleaseManifestFromGitHub({
@@ -167,6 +189,7 @@ describe("fetchDesktopReleaseManifestFromGitHub", () => {
 			repo: "nklein",
 			channel: "beta",
 			fetch,
+			trustedManifestKeys: TRUSTED_MANIFEST_KEYS,
 		});
 
 		expect(result.status).toBe("ok");
@@ -239,7 +262,7 @@ describe("checkDesktopUpdateFromGitHub", () => {
 					},
 				],
 			}),
-			response({
+			response(signedManifest({
 				version: "0.2.0",
 				channel: "stable",
 				assets: [
@@ -251,7 +274,7 @@ describe("checkDesktopUpdateFromGitHub", () => {
 						notarized: true,
 					},
 				],
-			}),
+			})),
 		]);
 
 		const plan = await checkDesktopUpdateFromGitHub({
@@ -261,6 +284,7 @@ describe("checkDesktopUpdateFromGitHub", () => {
 			platform: "darwin",
 			arch: "arm64",
 			fetch,
+			trustedManifestKeys: TRUSTED_MANIFEST_KEYS,
 		});
 
 		expect(plan.status).toBe("update_available");
@@ -269,5 +293,35 @@ describe("checkDesktopUpdateFromGitHub", () => {
 		}
 		expect(plan.latestVersion).toBe("0.2.0");
 		expect(plan.asset.name).toBe("nKlein-0.2.0-arm64.dmg");
+	});
+
+	it("rejects an unsigned stable manifest before trusting its asset checksums", async () => {
+		const { fetch } = fetchSequence([
+			response({
+				tag_name: "v0.2.0",
+				prerelease: false,
+				assets: [
+					{
+						name: "nklein-desktop-release.json",
+						browser_download_url: "https://downloads.invalid/nklein-desktop-release.json",
+					},
+				],
+			}),
+			response({
+				version: "0.2.0",
+				channel: "stable",
+				assets: [
+					{
+						name: "nKlein-0.2.0-linux-x64.AppImage",
+						url: "https://evil.invalid/app",
+						sha256: "a".repeat(64),
+					},
+				],
+			}),
+		]);
+
+		await expect(
+			fetchDesktopReleaseManifestFromGitHub({ owner: "dabertram", repo: "nklein", fetch }),
+		).resolves.toMatchObject({ status: "error", reason: "manifest_signature_missing" });
 	});
 });
