@@ -7,6 +7,7 @@ describe("normalizeAgentSandboxPoolConfig", () => {
 	it("fills every field with a sane default when the config is undefined", () => {
 		expect(defaults.maxContainers).toBeGreaterThan(0);
 		expect(defaults.memoryPerContainerMb).toBeGreaterThan(0);
+		expect(defaults.memoryReservationPerContainerMb * 3).toBeLessThanOrEqual(defaults.memoryPerContainerMb);
 		expect(defaults.cpusPerContainer).toBeGreaterThan(0);
 		expect(defaults.agentsPerContainer).toBeGreaterThanOrEqual(0);
 		expect(defaults.namespace).toBeUndefined();
@@ -17,6 +18,7 @@ describe("normalizeAgentSandboxPoolConfig", () => {
 			maxContainers: 5,
 			agentsPerContainer: 3,
 			memoryPerContainerMb: 4096,
+			memoryReservationPerContainerMb: 1024,
 			cpusPerContainer: 2.5,
 			maxConcurrentExec: 4,
 			namespace: "  test  ",
@@ -25,6 +27,7 @@ describe("normalizeAgentSandboxPoolConfig", () => {
 			maxContainers: 5,
 			agentsPerContainer: 3,
 			memoryPerContainerMb: 4096,
+			memoryReservationPerContainerMb: 1024,
 			cpusPerContainer: 2.5,
 			maxConcurrentExec: 4,
 			namespace: "test",
@@ -40,6 +43,15 @@ describe("normalizeAgentSandboxPoolConfig", () => {
 		expect(config.maxContainers).toBe(defaults.maxContainers);
 		expect(config.memoryPerContainerMb).toBe(defaults.memoryPerContainerMb);
 		expect(config.cpusPerContainer).toBe(defaults.cpusPerContainer);
+	});
+
+	it("re-derives headroom when reservation equals or exceeds the hard kill threshold", () => {
+		const config = normalizeAgentSandboxPoolConfig({
+			memoryPerContainerMb: 4096,
+			memoryReservationPerContainerMb: 4096,
+		});
+		expect(config.memoryReservationPerContainerMb).toBe(Math.floor(4096 / 3));
+		expect(config.memoryReservationPerContainerMb).toBeLessThan(config.memoryPerContainerMb);
 	});
 
 	it("treats a blank namespace as unset (undefined)", () => {

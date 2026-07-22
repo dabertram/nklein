@@ -26,7 +26,9 @@ describe("recommendSandboxPoolSizing (one shared container + exec spike guard)",
 		expect(r.maxContainers).toBe(1);
 		expect(r.agentsPerContainer).toBe(DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER); // 0
 		expect(r.maxConcurrentExec).toBeGreaterThanOrEqual(1);
+		expect(r.memoryReservationPerContainerMb * 3).toBeLessThanOrEqual(r.memoryPerContainerMb);
 		expect(r.rationale).toContain("shared container");
+		expect(r.rationale).toContain("hard kill threshold");
 	});
 
 	it("sizes the container + exec cap against the DOCKER VM, not host RAM", () => {

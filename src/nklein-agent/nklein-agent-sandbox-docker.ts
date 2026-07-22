@@ -26,6 +26,11 @@ export const DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MS = DEFAULT_AGENT_SANDBOX_IDLE_
 // per-command spike, NOT the agent count. These SHIPPED defaults stay conservative so they fit even a small (~7–8 GiB)
 // Docker VM; setup-detection recommends a larger container + higher exec cap once it sees the host + Docker VM memory.
 export const DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB = 4096;
+/** Operational headroom between steady reservation and the hard OOM threshold (P20.7), not a workload measurement. */
+export const AGENT_SANDBOX_MEMORY_KILL_HEADROOM_MULTIPLIER = 3;
+export const DEFAULT_AGENT_SANDBOX_MEMORY_RESERVATION_PER_CONTAINER_MB = Math.floor(
+	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB / AGENT_SANDBOX_MEMORY_KILL_HEADROOM_MULTIPLIER,
+);
 export const DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER = 4;
 export const DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS = 1;
 export const DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER = 0;
@@ -43,6 +48,8 @@ export interface AgentSandboxPoolConfig {
 	maxContainers: number;
 	agentsPerContainer: number;
 	memoryPerContainerMb: number;
+	/** Docker soft reservation; `memoryPerContainerMb` is the separate hard OOM kill threshold. */
+	memoryReservationPerContainerMb: number;
 	cpusPerContainer: number;
 	idleTimeoutMs: number;
 	/** Max concurrent in-container `docker exec` commands (spike guard). 0 = unbounded. See DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC. */
@@ -103,16 +110,23 @@ export interface AgentSandboxDockerRunOptions {
 export function normalizeAgentSandboxPoolConfig(
 	config: Partial<AgentSandboxPoolConfig> | undefined,
 ): AgentSandboxPoolConfig {
+	// A hard limit below 3 MB cannot express the required split and is not a usable agent container.
+	const memoryPerContainerMb = Math.max(
+		3,
+		normalizePositiveInteger(config?.memoryPerContainerMb, DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB),
+	);
+	const derivedReservation = deriveAgentSandboxMemoryReservationMb(memoryPerContainerMb);
+	const requestedReservation = normalizePositiveInteger(config?.memoryReservationPerContainerMb, derivedReservation);
 	return {
 		maxContainers: normalizePositiveInteger(config?.maxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
 		agentsPerContainer: normalizeNonNegativeInteger(
 			config?.agentsPerContainer,
 			DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 		),
-		memoryPerContainerMb: normalizePositiveInteger(
-			config?.memoryPerContainerMb,
-			DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-		),
+		memoryPerContainerMb,
+		// Equal values recreate the transient-spike OOM defect; fail back to calibrated headroom.
+		memoryReservationPerContainerMb:
+			requestedReservation < memoryPerContainerMb ? requestedReservation : derivedReservation,
 		cpusPerContainer: normalizePositiveNumber(config?.cpusPerContainer, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
 		idleTimeoutMs: normalizeNonNegativeInteger(config?.idleTimeoutMs, DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MS),
 		maxConcurrentExec: normalizeNonNegativeInteger(
@@ -121,6 +135,12 @@ export function normalizeAgentSandboxPoolConfig(
 		),
 		namespace: config?.namespace?.trim() ? config.namespace.trim() : undefined,
 	};
+}
+
+/** Derive the operational ~3× reservation→kill split for callers that expose only the hard ceiling. */
+export function deriveAgentSandboxMemoryReservationMb(memoryKillThresholdMb: number): number {
+	const hard = Math.max(3, Math.floor(memoryKillThresholdMb));
+	return Math.max(1, Math.floor(hard / AGENT_SANDBOX_MEMORY_KILL_HEADROOM_MULTIPLIER));
 }
 
 export function resolveAgentSandboxImageName(): string {
@@ -212,6 +232,11 @@ export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOpt
 		"--pids-limit",
 		String(pidsLimit),
 		"--memory",
+		`${options.config.memoryPerContainerMb}m`,
+		"--memory-reservation",
+		`${options.config.memoryReservationPerContainerMb}m`,
+		// Equal memory+swap values disable container swap, keeping the effective hard threshold host-independent.
+		"--memory-swap",
 		`${options.config.memoryPerContainerMb}m`,
 		"--cpus",
 		String(options.config.cpusPerContainer),

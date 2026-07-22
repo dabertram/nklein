@@ -17,6 +17,7 @@ import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+	deriveAgentSandboxMemoryReservationMb,
 } from "../nklein-agent/nklein-agent-sandbox-docker";
 
 // ---------------------------------------------------------------------------------------------------------
@@ -31,6 +32,8 @@ export interface SandboxPoolRecommendation {
 	agentsPerContainer: number;
 	/** The one container's memory, fitted inside the Docker VM (minus Docker's own overhead). */
 	memoryPerContainerMb: number;
+	/** Soft steady-state reservation, kept separate from the hard kill threshold above. */
+	memoryReservationPerContainerMb: number;
 	cpusPerContainer: number;
 	/** Concurrent in-container commands the container can hold at once — the spike guard. */
 	maxConcurrentExec: number;
@@ -102,6 +105,7 @@ export function recommendSandboxPoolSizing(input: {
 		execTarget,
 		Math.max(1, Math.floor((memoryPerContainerMb - SANDBOX_CONTAINER_BASELINE_MB) / SANDBOX_EXEC_SPIKE_BUDGET_MB)),
 	);
+	const memoryReservationPerContainerMb = deriveAgentSandboxMemoryReservationMb(memoryPerContainerMb);
 	const cpusPerContainer = Math.max(DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER, Math.min(12, availableCpus));
 
 	const warnings: string[] = [];
@@ -124,7 +128,9 @@ export function recommendSandboxPoolSizing(input: {
 		`One shared container hosts every agent; its memory ceiling is governed by how many in-container commands run at ` +
 		`once, not the agent count. Detected ${formatRamGb(totalRamMb)} host RAM, ${cpuCount} CPU${cpuCount === 1 ? "" : "s"}` +
 		`${dockerVmMemoryMb !== null ? `, Docker VM ${formatRamGb(dockerVmMemoryMb)}` : ", Docker VM size unknown"}. ` +
-		`Sized the container to ${formatRamGb(memoryPerContainerMb)} with up to ${maxConcurrentExec} concurrent command` +
+		`Set a ${formatRamGb(memoryReservationPerContainerMb)} soft reservation and a separate ` +
+		`${formatRamGb(memoryPerContainerMb)} hard kill threshold (~3× operational headroom, container swap disabled), ` +
+		`with up to ${maxConcurrentExec} concurrent command` +
 		`${maxConcurrentExec === 1 ? "" : "s"} (~${formatRamGb(SANDBOX_EXEC_SPIKE_BUDGET_MB)} each + ` +
 		`${formatRamGb(SANDBOX_CONTAINER_BASELINE_MB)} baseline).`;
 
@@ -132,6 +138,7 @@ export function recommendSandboxPoolSizing(input: {
 		maxContainers: 1,
 		agentsPerContainer: DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 		memoryPerContainerMb,
+		memoryReservationPerContainerMb,
 		cpusPerContainer,
 		maxConcurrentExec,
 		dockerVmMemoryMb,
@@ -431,7 +438,7 @@ export function buildGlobalSetupPlan(facts: GlobalSetupFacts): SetupPlanStep[] {
 		{
 			stepId: "sandbox",
 			title: "Docker sandbox",
-			recommendation: `One shared container @ ${sandbox.memoryPerContainerMb} MB / ${sandbox.cpusPerContainer} CPU, up to ${sandbox.maxConcurrentExec} concurrent command${sandbox.maxConcurrentExec === 1 ? "" : "s"}.`,
+			recommendation: `One shared container @ ${sandbox.memoryReservationPerContainerMb} MB reservation / ${sandbox.memoryPerContainerMb} MB hard limit / ${sandbox.cpusPerContainer} CPU, up to ${sandbox.maxConcurrentExec} concurrent command${sandbox.maxConcurrentExec === 1 ? "" : "s"}.`,
 			detail: [sandbox.rationale, dockerDetail, ...sandbox.warnings].join(" "),
 		},
 		{

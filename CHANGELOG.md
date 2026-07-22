@@ -2,6 +2,10 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Sandbox memory limits now distinguish steady pressure from the OOM kill threshold.** Containers receive a soft
+  reservation and a separate hard ceiling with operational 3× headroom; equal values are rejected, swap beyond the
+  ceiling is disabled, and setup guidance publishes both numbers so eval infrastructure is reproducible.
+
 - **Dev-test grading no longer trusts a completed-looking board by itself.** A successful run now requires a reachable
   runtime, at least one genuinely completed card, and a freshly executed passing scenario acceptance command. The
   null/random/forgery audit is sound across all five declared attacks, and a controller-backed null-agent mode verifies

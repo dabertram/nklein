@@ -27,6 +27,7 @@ describe("buildAgentSandboxPoolConfig", () => {
 			maxContainers: 2,
 			agentsPerContainer: 3,
 			memoryPerContainerMb: 1024,
+			memoryReservationPerContainerMb: 341,
 			cpusPerContainer: 2,
 			idleTimeoutMs: 5 * 60 * 1000,
 			// Spike guard — mapped one-to-one from the runtime-config field; namespace is undefined (env unset).

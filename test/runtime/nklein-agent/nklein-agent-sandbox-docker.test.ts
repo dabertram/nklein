@@ -5,6 +5,7 @@ import {
 	createAgentSandboxProjectKey,
 	createAgentSandboxTaskUid,
 	createAgentSandboxVolumeName,
+	deriveAgentSandboxMemoryReservationMb,
 	resolveAgentSandboxNetworkArgs,
 } from "../../../src/nklein-agent/nklein-agent-sandbox-docker";
 
@@ -70,7 +71,13 @@ describe("createAgentSandboxProjectKey / TaskUid", () => {
 describe("buildAgentSandboxDockerRunArgs (isolation invariants)", () => {
 	const options = {
 		slot: 4,
-		config: { namespace: undefined, agentsPerContainer: 2, memoryPerContainerMb: 2048, cpusPerContainer: 2 },
+		config: {
+			namespace: undefined,
+			agentsPerContainer: 2,
+			memoryPerContainerMb: 2048,
+			memoryReservationPerContainerMb: deriveAgentSandboxMemoryReservationMb(2048),
+			cpusPerContainer: 2,
+		},
 		networkPolicy: "none" as const,
 		projectMounts: [{ projectRepoPath: "/host/repo", projectKey: "deadbeef" }],
 		image: "nklein-sandbox:latest",
@@ -83,6 +90,9 @@ describe("buildAgentSandboxDockerRunArgs (isolation invariants)", () => {
 		expect(args).toContain("--read-only");
 		expect(hasAdjacent(args, "--tmpfs", "/tmp:noexec,nosuid,size=512m")).toBe(true);
 		expect(hasAdjacent(args, "--network", "none")).toBe(true); // default fail-closed network
+		expect(hasAdjacent(args, "--memory", "2048m")).toBe(true);
+		expect(hasAdjacent(args, "--memory-reservation", "682m")).toBe(true);
+		expect(hasAdjacent(args, "--memory-swap", "2048m")).toBe(true);
 	});
 
 	it("mounts project repos read-only", () => {

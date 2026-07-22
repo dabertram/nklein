@@ -2433,3 +2433,12 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   the actual scaffold/seed/settle/acceptance/collection pipeline without starting a session or model request. Live
   evidence (`.real-runs/20260722-015656`) recorded backlog=1, sessions=0, tool uses=0, collection errors=0,
   grader success=false, controller outcome `null_agent_rejected`, exit 0. The complete five-model fleet stayed warm.
+- [x] **P20.7 — Control infrastructure noise.** ABBA ordering, drift reporting, and infra-error-rate separation
+  shipped earlier. The remaining container defect is now closed at the Docker contract: `AgentSandboxPoolConfig`
+  carries a soft `memoryReservationPerContainerMb` separately from the hard `memoryPerContainerMb` kill threshold;
+  equal/inverted values fail back to the operational ~3× headroom split instead of turning transient spikes into
+  OOMs. `docker run` emits `--memory-reservation`, `--memory`, and `--memory-swap` equal to the hard limit, which
+  disables container swap beyond the ceiling and removes host-dependent effective limits. Setup recommendations
+  publish both values and label the 3× split operational, not measured. Live Docker inspection with a 32 MiB
+  reservation / 96 MiB kill threshold reported exactly 33,554,432 / 100,663,296 bytes and MemorySwap 100,663,296;
+  the exact test container and volume were removed afterward.
