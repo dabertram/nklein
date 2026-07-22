@@ -17,7 +17,12 @@
 import { execFile } from "node:child_process";
 import { totalmem } from "node:os";
 import { promisify } from "node:util";
-import { type GpuUsableResult, gpuUsableBytes } from "./apple-silicon-vram";
+import {
+	type GpuUsableResult,
+	gpuUsableBytes,
+	recommendWiredLimit,
+	type WiredLimitRecommendation,
+} from "./apple-silicon-vram";
 
 const execFileAsync = promisify(execFile);
 
@@ -43,6 +48,8 @@ export interface LocalGpuCeiling extends GpuUsableResult {
 	readonly totalRamBytes: number;
 	/** The raw `iogpu.wired_limit_mb` value, or null when unset/unreadable. */
 	readonly wiredLimitMb: number | null;
+	/** Advisory-only safe-limit recommendation; !Klein never executes its command. */
+	readonly recommendation: WiredLimitRecommendation;
 }
 
 /**
@@ -78,5 +85,6 @@ export async function probeLocalGpuCeiling(options?: {
 		...gpuUsableBytes({ totalRamBytes, wiredLimitMb, appleSilicon: true }),
 		totalRamBytes,
 		wiredLimitMb,
+		recommendation: recommendWiredLimit({ totalRamBytes, wiredLimitMb, appleSilicon: true }),
 	};
 }

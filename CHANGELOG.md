@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Apple unified-memory admission now intersects safety limits instead of multiplying them.** The configured physical
+  memory reserve and `iogpu.wired_limit_mb` are independent absolute ceilings, so a default 128 GiB Mac correctly has a
+  96 GiB model budget rather than an accidental 72 GiB one. The tighter ceiling caps MLX KV context at both placement
+  and final load boundaries; a task/floor-breaking load preserves warm residents and surfaces operator-safe advice.
+
 - **Managed model placement now refuses the fast-memory spill cliff before touching the warm set.** Per-device budgets
   mean unified memory on Apple Silicon and dedicated VRAM on discrete-GPU hosts. !Klein combines model weights,
   conservative KV geometry at the task-planned context, runtime overhead, and a 25% reserve; it may cap context only

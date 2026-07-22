@@ -24,6 +24,7 @@ describe("probeLocalGpuCeiling", () => {
 		});
 		expect(result?.usableBytes).toBe(Math.floor(128 * GB * 0.75));
 		expect(result?.raised).toBe(false);
+		expect(result?.recommendation.command).toBe("sudo sysctl iogpu.wired_limit_mb=114688");
 		// 0 is macOS's "use the default" sentinel — it must not be reported as an explicit configured 0.
 		expect(result?.wiredLimitMb).toBeNull();
 	});
@@ -36,6 +37,7 @@ describe("probeLocalGpuCeiling", () => {
 		});
 		expect(result?.usableBytes).toBe(112 * GB);
 		expect(result?.raised).toBe(true);
+		expect(result?.recommendation.command).toBeNull();
 	});
 
 	it("returns null off darwin without running any command", async () => {

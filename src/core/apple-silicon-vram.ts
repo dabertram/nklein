@@ -12,11 +12,10 @@
  * recommends, the operator decides.
  *
  * ── INTERACTION WARNING (the reason this is a separate core rather than a factor folded into the router) ──
- * `selectDeviceForModelLoad` already applies a `reserveFraction` (default 0.25) against TOTAL RAM. That number
- * numerically resembles the 75% GPU cap but means something entirely different: it is a swap-avoidance buffer
- * against the OS and other processes. Multiplying both — 0.75 × 0.75 ≈ 0.56 — would silently strand ~44% of a
- * Mac's memory and make big models look unplaceable. So {@link gpuUsableBytes} returns the CEILING, and a caller
- * that adopts it must treat it as the new denominator, not as an extra multiplier on top of the reserve.
+ * `selectDeviceForModelLoad` also applies a `reserveFraction` (default 0.25) against PHYSICAL RAM. That number
+ * numerically resembles the 75% GPU cap but means something different: it is a swap-avoidance budget. Multiplying
+ * both — 0.75 × 0.75 ≈ 0.56 — would silently strand ~44% of a Mac's memory. The two absolute limits must therefore
+ * intersect: `min(physical × safeFraction, GPU-wireable ceiling)`.
  */
 
 /** Fraction of physical RAM macOS lets the GPU wire by default on Apple Silicon. */

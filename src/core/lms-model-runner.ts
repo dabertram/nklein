@@ -85,6 +85,10 @@ export interface LoadExclusiveInput {
 	fastMemoryGuard?: {
 		weightsBytes: number;
 		fastMemoryBytes: number;
+		/** Absolute GPU/runtime ceiling intersected with the safety-fraction budget; never multiplied by it. */
+		fastMemoryCeilingBytes?: number;
+		/** Operator-facing advice appended only when this guard refuses. */
+		refusalRecommendation?: string;
 		kvCache: Omit<KvCacheParams, "contextLength">;
 		fastMemoryFraction?: number;
 		overheadBytes?: number;
@@ -202,6 +206,7 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 			weightsBytes: input.fastMemoryGuard.weightsBytes + keptResidentBytes,
 			kvCache: input.fastMemoryGuard.kvCache,
 			fastMemoryBytes: input.fastMemoryGuard.fastMemoryBytes,
+			fastMemoryCeilingBytes: input.fastMemoryGuard.fastMemoryCeilingBytes,
 			requestedContextLength: loadContextLength,
 			taskNeededTokens: (input.taskNeededTokens ?? loadContextLength) * concurrentSlots,
 			minContextFloor: MIN_CONTEXT_WINDOW_TOKENS * concurrentSlots,
@@ -209,7 +214,14 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 			overheadBytes: input.fastMemoryGuard.overheadBytes,
 		});
 		if (!fastPlan.allow || fastPlan.contextLength === null) {
-			return { loaded: false, modelId: input.modelId, unloaded: [], reason: fastPlan.reason, suitability };
+			const recommendation = input.fastMemoryGuard.refusalRecommendation;
+			return {
+				loaded: false,
+				modelId: input.modelId,
+				unloaded: [],
+				reason: `${fastPlan.reason}${recommendation ? ` ${recommendation}` : ""}`,
+				suitability,
+			};
 		}
 		loadContextLength = fastPlan.contextLength;
 		fastMemoryCaveat = fastPlan.capped ? ` [${fastPlan.reason}]` : "";
@@ -269,10 +281,9 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 			? await input.loadModel({ modelId: input.modelId, contextLength: loadContextLength })
 			: await run(argv);
 		// On a successful load, fold any warn/unknown caveat into the reason so the caller sees it without re-querying.
-		const slotCaveat =
-			slotPlan !== null && slotPlan.perSlotUnderFloor
-				? ` [context ${loadContextLength} shared across ${input.concurrentSlots} slot(s) = ${slotPlan.perSlotContextLength}/slot < the ${MIN_CONTEXT_WINDOW_TOKENS} floor — lower this model's concurrency cap to ≤${slotPlan.maxSlotsAtFloor}]`
-				: "";
+		const slotCaveat = slotPlan?.perSlotUnderFloor
+			? ` [context ${loadContextLength} shared across ${input.concurrentSlots} slot(s) = ${slotPlan.perSlotContextLength}/slot < the ${MIN_CONTEXT_WINDOW_TOKENS} floor — lower this model's concurrency cap to ≤${slotPlan.maxSlotsAtFloor}]`
+			: "";
 		const caveat =
 			(suitability.severity === "ok" ? "" : ` [capability ${suitability.severity}: ${suitability.reason}]`) +
 			slotCaveat +

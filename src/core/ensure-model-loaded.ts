@@ -24,7 +24,7 @@ import {
 	resolveDeviceRamBytes,
 	selectDeviceForModelLoad,
 } from "./device-load-routing";
-import { computeFastMemoryFootprint, planFastMemorySafeContext } from "./fast-memory-fit";
+import { computeFastMemoryFootprint, fastMemoryBudgetBytes, planFastMemorySafeContext } from "./fast-memory-fit";
 import type { KvCacheParams } from "./kv-cache-size";
 import type { LmsLinkDevices } from "./lms-link-status";
 import { MIN_CONTEXT_WINDOW_TOKENS } from "./lms-model-control";
@@ -48,6 +48,8 @@ export interface EnsureLoadRequest {
 	fastMemoryGuard: {
 		weightsBytes: number;
 		fastMemoryBytes: number;
+		fastMemoryCeilingBytes?: number;
+		refusalRecommendation?: string;
 		kvCache: Omit<KvCacheParams, "contextLength">;
 	};
 	targetDevice: string;
@@ -68,6 +70,8 @@ export interface EnsureModelLoadedDeps {
 	env?: NodeJS.ProcessEnv;
 	/** Persisted Settings value (`config.deviceRamGb`); used when the env var is unset (env wins). */
 	configuredDeviceRamGb?: string | null;
+	/** Injectable local Apple-Silicon ceiling probe; defaults to the read-only host probe. */
+	probeLocalGpuCeiling?: typeof probeLocalGpuCeiling;
 }
 
 export type EnsureModelLoadedResult =
@@ -121,13 +125,19 @@ export async function ensureModelLoadedOnFittingDevice(
 		// m4mini swap-crash). Local-only by necessity — a remote node's sysctls are unreadable over LM-Link, and
 		// assuming they run the default cap would be right often and catastrophically wrong on a tuned node.
 		// A null probe (non-Mac, or any failure) leaves every candidate exactly as it was before this existed.
-		const localCeiling = await probeLocalGpuCeiling().catch(() => null);
+		const localCeiling = await (deps.probeLocalGpuCeiling ?? probeLocalGpuCeiling)().catch(() => null);
 		// Each device gets its own fast-memory context cap before RAM-headroom ranking. That lets a smaller host admit a
 		// safely-capped window without letting an under-floor/task-starved window masquerade as a fit.
 		const candidates = [] as NonNullable<ReturnType<typeof buildEffectiveCandidate>>[];
 		const fastPlansByDevice = new Map<
 			string,
-			{ contextLength: number; candidateSizeBytes: number; fastMemoryBytes: number }
+			{
+				contextLength: number;
+				candidateSizeBytes: number;
+				fastMemoryBytes: number;
+				fastMemoryCeilingBytes?: number;
+				refusalRecommendation?: string;
+			}
 		>();
 		const fastRefusals: string[] = [];
 		for (const device of buildLinkedDeviceList(link)) {
@@ -135,16 +145,34 @@ export async function ensureModelLoadedOnFittingDevice(
 			if (!(fastMemoryBytes > 0)) {
 				continue;
 			}
+			const localDeviceCeiling =
+				localCeiling !== null &&
+				device.deviceIdentifier !== undefined &&
+				device.deviceIdentifier === link.localDeviceIdentifier
+					? localCeiling
+					: null;
+			const fastMemoryCeilingBytes = localDeviceCeiling?.usableBytes;
+			const ceilingBinds =
+				fastMemoryCeilingBytes !== undefined && fastMemoryCeilingBytes < fastMemoryBudgetBytes({ fastMemoryBytes });
+			const refusalRecommendation =
+				ceilingBinds && localDeviceCeiling
+					? localDeviceCeiling.recommendation.command
+						? `Apple GPU wiring is the binding limit. ${localDeviceCeiling.recommendation.reason} Operator command: ${localDeviceCeiling.recommendation.command}`
+						: `Apple GPU wiring is the binding limit. ${localDeviceCeiling.recommendation.reason}`
+					: undefined;
 			const fastPlan = planFastMemorySafeContext({
 				weightsBytes,
 				kvCache: CONSERVATIVE_KV_CACHE_GEOMETRY,
 				fastMemoryBytes,
+				fastMemoryCeilingBytes,
 				requestedContextLength,
 				taskNeededTokens: input.taskNeededTokens,
 				minContextFloor: MIN_CONTEXT_WINDOW_TOKENS,
 			});
 			if (!fastPlan.allow || fastPlan.contextLength === null) {
-				fastRefusals.push(`${device.deviceName}: ${fastPlan.reason}`);
+				fastRefusals.push(
+					`${device.deviceName}: ${fastPlan.reason}${refusalRecommendation ? ` ${refusalRecommendation}` : ""}`,
+				);
 				continue;
 			}
 			const geometryFootprintBytes = computeFastMemoryFootprint({
@@ -156,11 +184,7 @@ export async function ensureModelLoadedOnFittingDevice(
 				device,
 				fastMemoryBytes,
 				0,
-				localCeiling !== null &&
-					device.deviceIdentifier !== undefined &&
-					device.deviceIdentifier === link.localDeviceIdentifier
-					? localCeiling.usableBytes
-					: undefined,
+				fastMemoryCeilingBytes,
 				candidateSizeBytes,
 			);
 			if (candidate) {
@@ -169,6 +193,8 @@ export async function ensureModelLoadedOnFittingDevice(
 					contextLength: fastPlan.contextLength,
 					candidateSizeBytes,
 					fastMemoryBytes,
+					...(fastMemoryCeilingBytes !== undefined ? { fastMemoryCeilingBytes } : {}),
+					...(refusalRecommendation !== undefined ? { refusalRecommendation } : {}),
 				});
 			}
 		}
@@ -186,7 +212,8 @@ export async function ensureModelLoadedOnFittingDevice(
 		if (!selectedFastPlan) {
 			return { loaded: false, reason: `No fast-memory plan survived for "${decision.deviceName}".` };
 		}
-		const { contextLength, candidateSizeBytes, fastMemoryBytes } = selectedFastPlan;
+		const { contextLength, candidateSizeBytes, fastMemoryBytes, fastMemoryCeilingBytes, refusalRecommendation } =
+			selectedFastPlan;
 		const result = await deps.loadExclusive({
 			modelId,
 			candidateSizeBytes,
@@ -197,6 +224,8 @@ export async function ensureModelLoadedOnFittingDevice(
 			fastMemoryGuard: {
 				weightsBytes,
 				fastMemoryBytes,
+				...(fastMemoryCeilingBytes !== undefined ? { fastMemoryCeilingBytes } : {}),
+				...(refusalRecommendation !== undefined ? { refusalRecommendation } : {}),
 				kvCache: CONSERVATIVE_KV_CACHE_GEOMETRY,
 			},
 			targetDevice: decision.deviceName,

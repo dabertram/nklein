@@ -83,7 +83,7 @@ export interface FastMemoryFitDecision {
 	fits: boolean;
 	/** The load's total fast-memory footprint in bytes ({@link FastMemoryFootprint.totalBytes}). */
 	footprintBytes: number;
-	/** The usable fast-memory budget in bytes (`fastMemoryBytes × fastMemoryFraction`). */
+	/** The usable budget: fraction of physical fast memory intersected with any absolute ceiling. */
 	budgetBytes: number;
 	/** Budget minus footprint — the remaining slack (negative when it spills). */
 	marginBytes: number;
@@ -104,11 +104,34 @@ export interface FastMemoryContextPlan {
 }
 
 /**
+ * Resolve the one effective resident-memory budget from two independent limits:
+ *
+ * - the configured safety fraction of the physical fast-memory pool, and
+ * - an optional absolute hardware/runtime ceiling (for Apple Silicon, `iogpu.wired_limit_mb`).
+ *
+ * The limits are intersected with `min`, never multiplied. Multiplying a 75% Apple wire ceiling by a 75% safety
+ * fraction would incorrectly reduce a 128 GiB Mac to 72 GiB of usable model memory instead of the intended 96 GiB.
+ */
+export function fastMemoryBudgetBytes(input: {
+	fastMemoryBytes: number;
+	fastMemoryFraction?: number;
+	fastMemoryCeilingBytes?: number;
+}): number {
+	const fractionalBudget =
+		nonNegative(input.fastMemoryBytes) * clampFraction(input.fastMemoryFraction ?? DEFAULT_FAST_MEMORY_FRACTION);
+	if (input.fastMemoryCeilingBytes === undefined) {
+		return fractionalBudget;
+	}
+	return Math.min(fractionalBudget, nonNegative(input.fastMemoryCeilingBytes));
+}
+
+/**
  * Decide whether a load stays under the fast-memory cliff — the §5.AQ-G spillover guard.
  *
  * The footprint (weights + KV cache + overhead) must fit within a BUDGET of `fastMemoryBytes × fastMemoryFraction`
- * (default {@link DEFAULT_FAST_MEMORY_FRACTION}); the un-budgeted remainder is the OS/activation reserve that keeps the
- * box off the WIRED-memory paging cliff. Conservative by construction: a non-positive `fastMemoryBytes` (unknown fast
+ * (default {@link DEFAULT_FAST_MEMORY_FRACTION}), intersected with `fastMemoryCeilingBytes` when supplied. The
+ * un-budgeted remainder is the OS/activation reserve that keeps the box off the WIRED-memory paging cliff.
+ * Conservative by construction: a non-positive `fastMemoryBytes` (unknown fast
  * memory) or a non-positive footprint (nothing meaningful to place) both REFUSE — we never claim a fit we can't prove.
  * When it spills, the reason names the overshoot so the caller can shrink the context (right-size, §5.AQ-G), pick a
  * smaller quant, or route to a smaller model.
@@ -116,17 +139,25 @@ export interface FastMemoryContextPlan {
  * @param input.footprintBytes The load's total fast-memory footprint (from {@link computeFastMemoryFootprint}).
  * @param input.fastMemoryBytes Physical fast memory available (GPU VRAM, or the unified-RAM pool), in bytes.
  * @param input.fastMemoryFraction Share of fast memory a load may occupy (defaults to {@link DEFAULT_FAST_MEMORY_FRACTION}).
+ * @param input.fastMemoryCeilingBytes Optional absolute hardware/runtime ceiling, intersected rather than multiplied.
  */
 export function decideFastMemoryFit(input: {
 	footprintBytes: number;
 	fastMemoryBytes: number;
 	fastMemoryFraction?: number;
+	fastMemoryCeilingBytes?: number;
 }): FastMemoryFitDecision {
 	const fraction = clampFraction(input.fastMemoryFraction ?? DEFAULT_FAST_MEMORY_FRACTION);
-	const budgetBytes = nonNegative(input.fastMemoryBytes) * fraction;
+	const budgetBytes = fastMemoryBudgetBytes(input);
 	const footprintBytes = nonNegative(input.footprintBytes);
 	const marginBytes = budgetBytes - footprintBytes;
 	const pct = Math.round(fraction * 100);
+	const fractionalBudget = nonNegative(input.fastMemoryBytes) * fraction;
+	const ceilingBinds =
+		input.fastMemoryCeilingBytes !== undefined && nonNegative(input.fastMemoryCeilingBytes) < fractionalBudget;
+	const budgetLabel = ceilingBinds
+		? `${gib(budgetBytes)} absolute fast-memory ceiling (inside the ${pct}% physical-memory safety budget)`
+		: `${pct}% fast-memory budget (${gib(budgetBytes)})`;
 
 	if (!(input.fastMemoryBytes > 0)) {
 		return {
@@ -152,9 +183,7 @@ export function decideFastMemoryFit(input: {
 			footprintBytes,
 			budgetBytes,
 			marginBytes,
-			reason: `Load footprint ${gib(footprintBytes)} exceeds the ${pct}% fast-memory budget (${gib(
-				budgetBytes,
-			)}) by ${gib(-marginBytes)} — spill risk. Right-size the context, pick a smaller quant, or use a smaller model.`,
+			reason: `Load footprint ${gib(footprintBytes)} exceeds the ${budgetLabel} by ${gib(-marginBytes)} — spill risk. Right-size the context, pick a smaller quant, or use a smaller model.`,
 		};
 	}
 	return {
@@ -162,9 +191,7 @@ export function decideFastMemoryFit(input: {
 		footprintBytes,
 		budgetBytes,
 		marginBytes,
-		reason: `OK — footprint ${gib(footprintBytes)} fits within the ${pct}% fast-memory budget (${gib(
-			budgetBytes,
-		)}) with ${gib(marginBytes)} to spare.`,
+		reason: `OK — footprint ${gib(footprintBytes)} fits within the ${budgetLabel} with ${gib(marginBytes)} to spare.`,
 	};
 }
 
@@ -179,6 +206,7 @@ export function assessFastMemoryFit(input: {
 	fastMemoryBytes: number;
 	overheadBytes?: number;
 	fastMemoryFraction?: number;
+	fastMemoryCeilingBytes?: number;
 }): FastMemoryFitDecision {
 	const footprint = computeFastMemoryFootprint({
 		weightsBytes: input.weightsBytes,
@@ -189,6 +217,7 @@ export function assessFastMemoryFit(input: {
 		footprintBytes: footprint.totalBytes,
 		fastMemoryBytes: input.fastMemoryBytes,
 		fastMemoryFraction: input.fastMemoryFraction,
+		fastMemoryCeilingBytes: input.fastMemoryCeilingBytes,
 	});
 }
 
@@ -202,15 +231,16 @@ export function assessFastMemoryFit(input: {
  * @param input.fastMemoryBytes Physical fast memory available, in bytes.
  * @param input.overheadBytes Fixed activation/runtime overhead (defaults to {@link DEFAULT_OVERHEAD_BYTES}).
  * @param input.fastMemoryFraction Share of fast memory a load may occupy (defaults to {@link DEFAULT_FAST_MEMORY_FRACTION}).
+ * @param input.fastMemoryCeilingBytes Optional absolute hardware/runtime ceiling, intersected rather than multiplied.
  */
 export function kvCacheBudgetBytes(input: {
 	weightsBytes: number;
 	fastMemoryBytes: number;
 	overheadBytes?: number;
 	fastMemoryFraction?: number;
+	fastMemoryCeilingBytes?: number;
 }): number {
-	const fraction = clampFraction(input.fastMemoryFraction ?? DEFAULT_FAST_MEMORY_FRACTION);
-	const budget = nonNegative(input.fastMemoryBytes) * fraction;
+	const budget = fastMemoryBudgetBytes(input);
 	const fixed = nonNegative(input.weightsBytes) + nonNegative(input.overheadBytes ?? DEFAULT_OVERHEAD_BYTES);
 	return Math.max(0, budget - fixed);
 }
@@ -229,6 +259,7 @@ export function planFastMemorySafeContext(input: {
 	minContextFloor: number;
 	overheadBytes?: number;
 	fastMemoryFraction?: number;
+	fastMemoryCeilingBytes?: number;
 	roundTo?: number;
 }): FastMemoryContextPlan {
 	const configuredRoundTo = input.roundTo;
@@ -239,7 +270,12 @@ export function planFastMemorySafeContext(input: {
 	const requestedContextLength = nonNegative(input.requestedContextLength);
 	const requiredContextLength = Math.max(nonNegative(input.taskNeededTokens), nonNegative(input.minContextFloor));
 	const kvBytesPerToken = kvCacheBytes({ ...input.kvCache, contextLength: 1 });
-	if (!(input.weightsBytes > 0) || !(input.fastMemoryBytes > 0) || !(kvBytesPerToken > 0)) {
+	if (
+		!(input.weightsBytes > 0) ||
+		!(input.fastMemoryBytes > 0) ||
+		!(kvBytesPerToken > 0) ||
+		(input.fastMemoryCeilingBytes !== undefined && !(input.fastMemoryCeilingBytes > 0))
+	) {
 		return {
 			allow: false,
 			contextLength: null,
@@ -253,6 +289,7 @@ export function planFastMemorySafeContext(input: {
 		fastMemoryBytes: input.fastMemoryBytes,
 		overheadBytes: input.overheadBytes,
 		fastMemoryFraction: input.fastMemoryFraction,
+		fastMemoryCeilingBytes: input.fastMemoryCeilingBytes,
 	});
 	const rawMaxSafeContextLength = Math.floor(kvBudget / kvBytesPerToken);
 	const maxSafeContextLength = Math.floor(rawMaxSafeContextLength / roundTo) * roundTo;

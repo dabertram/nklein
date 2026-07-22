@@ -41,6 +41,7 @@ function recDeps(overrides: Partial<EnsureModelLoadedDeps> = {}): Rec {
 			loadCalls.push(request);
 			return { loaded: true, reason: "Loaded (OK)" };
 		},
+		probeLocalGpuCeiling: async () => null,
 		...overrides,
 	};
 	return { deps, loadCalls: () => loadCalls, linkFetches: () => linkFetches };
@@ -86,6 +87,53 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 			taskNeededTokens: 28_000,
 			fastMemoryGuard: { fastMemoryBytes: gb(20) },
 		});
+	});
+
+	it("intersects the local Apple wire ceiling with the physical reserve without double-reserving", async () => {
+		const rec = recDeps({
+			env: { NKLEIN_DEVICE_RAM_GB: "m5max:128" },
+			listModelFacts: async () => new Map([["large", { sizeBytes: gb(70), maxContextLength: 262_144 }]]),
+			probeLocalGpuCeiling: async () => ({
+				totalRamBytes: gb(128),
+				wiredLimitMb: null,
+				usableBytes: gb(96),
+				raised: false,
+				unreachableBytes: gb(32),
+				reason: "default macOS cap",
+				recommendation: { recommendedMb: 114_688, reclaimedBytes: gb(16), command: null, reason: "advisory" },
+			}),
+		});
+		const result = await ensureModelLoadedOnFittingDevice({ modelId: "large", taskNeededTokens: 6_000 }, rec.deps);
+		expect(result.loaded).toBe(true);
+		expect(rec.loadCalls()[0].candidateSizeBytes).toBeGreaterThan(gb(72));
+		expect(rec.loadCalls()[0].fastMemoryGuard.fastMemoryCeilingBytes).toBe(gb(96));
+	});
+
+	it("surfaces Apple ceiling remediation when the wire cap cannot preserve the context floor", async () => {
+		const rec = recDeps({
+			env: { NKLEIN_DEVICE_RAM_GB: "m5max:128" },
+			probeLocalGpuCeiling: async () => ({
+				totalRamBytes: gb(128),
+				wiredLimitMb: 14 * 1024,
+				usableBytes: gb(14),
+				raised: false,
+				unreachableBytes: gb(114),
+				reason: "explicit wire cap is below default",
+				recommendation: {
+					recommendedMb: 114_688,
+					reclaimedBytes: gb(98),
+					command: "sudo sysctl iogpu.wired_limit_mb=114688",
+					reason: "restore a safe 16 GiB OS reserve",
+				},
+			}),
+		});
+		const result = await ensureModelLoadedOnFittingDevice(
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 6_000 },
+			rec.deps,
+		);
+		expect(result.loaded).toBe(false);
+		expect(result.reason).toMatch(/Apple GPU wiring|sudo sysctl iogpu\.wired_limit_mb=114688/i);
+		expect(rec.loadCalls()).toEqual([]);
 	});
 
 	it("refuses before loading when a fast-memory cap would starve the task", async () => {

@@ -154,6 +154,28 @@ describe("loadModelExclusive", () => {
 		expect(calls.some((call) => call[0] === "unload" || call[0] === "load")).toBe(false);
 	});
 
+	it("F4.49 rechecks the Apple wire ceiling and preserves its operator recommendation on refusal", async () => {
+		const { run, calls } = fakeRunner(["drop-me          m          IDLE      4 GB       40000      1    Local"]);
+		const result = await loadModelExclusive(run, {
+			modelId: "qwen/qwen2.5-coder-14b-m5max",
+			totalRamBytes,
+			candidateSizeBytes: 15 * GiB,
+			taskNeededTokens: 6_000,
+			maxContextLength: 262_144,
+			fastMemoryGuard: {
+				weightsBytes: 8 * GiB,
+				fastMemoryBytes: 128 * GiB,
+				fastMemoryCeilingBytes: 12 * GiB,
+				refusalRecommendation: "Operator command: sudo sysctl iogpu.wired_limit_mb=114688",
+				kvCache: { numLayers: 32, numKvHeads: 8, headDim: 128, bytesPerParam: 2 },
+			},
+		});
+		expect(result.loaded).toBe(false);
+		expect(result.reason).toContain("sudo sysctl iogpu.wired_limit_mb=114688");
+		expect(result.unloaded).toEqual([]);
+		expect(calls.some((call) => call[0] === "unload" || call[0] === "load")).toBe(false);
+	});
+
 	it("never unloads pinned identifiers", async () => {
 		const { run, calls } = fakeRunner([
 			"keep-me          m          IDLE      4 GB       40000      1    Local",

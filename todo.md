@@ -1151,6 +1151,10 @@ source repo went private — so if it vanishes the buildable source still lives 
   `buildLmsLoadArgs`/`buildLmsUnloadArgs`; the effectful `lms` runner is the ONLY place a load happens and MUST consult
   the guard. Reason for the old rule (freeze risk) is now handled by the guard + the 1-at-a-time/size limits. `/v1/models`
   = available (downloaded), `/api/v0/models` = resident.
+  On Apple Silicon the admissible resident budget is the INTERSECTION
+  `min(physical unified memory × configured safe fraction, iogpu.wired_limit_mb ceiling)` — never multiply the two
+  75%-shaped limits. The read-only local probe may cap MLX KV growth; remote Apple ceilings remain unknown rather than
+  guessed. A binding ceiling refuses before cache-destructive eviction and shows operator-safe remediation.
 - **MODEL RESIDENCY IS NOT GUARANTEED STABLE + we are currently BLIND to why a model vanishes (investigation 2026-07-07,
   user flagged; supersedes my earlier casual "auto-unloaded (TTL)" claim, which was an UNVERIFIED guess).** Observed: a
   model resident + serving many requests (`qwen/qwen2.5-coder-14b` on the **m4mini** fleet node) DISAPPEARED between two
@@ -2866,12 +2870,19 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   value is 8, not its system RAM). Exact model KV geometry can replace the conservative 48-layer/GQA fallback when a
   runtime exposes it; the fallback is deliberately over-safe. Final gates: root + web typecheck, 105 focused,
   12,132 fast runtime/utility, 1,135 web, and 142 protected assertions pass; lint has no errors (only existing warnings).
-- [ ] **F4.49 — Add Apple unified-memory safety.** Keep peak below the configured safe fraction, cap MLX KV growth, and
+- [x] **F4.49 — Add Apple unified-memory safety.** Keep peak below the configured safe fraction, cap MLX KV growth, and
   surface a clear refusal/recommendation rather than risking a system freeze.
-  **STANDING CONSTRAINT (David 2026-07-19, decided with F12.110):** production !Klein must NOT auto-load/unload
-  models AT ALL — load churn thrashes prompt caches (MLX especially). The F4.47-50 loader/eviction machinery is
-  DEV-TIME tooling (rigs, sweeps, validation) and any production surface of it is opt-in-off recommendation-only
-  (advise the operator what to load; never act). Re-frame these four items through that lens when picking them up.
+  **COMPLETED 2026-07-22:** Apple admission now intersects the configured physical-memory safety budget with the
+  read-only `iogpu.wired_limit_mb` ceiling instead of applying the reserve to that already-capped value. This corrects
+  the latent 0.75×0.75 double reserve (128 GiB incorrectly became 72 GiB rather than 96 GiB), while a raised limit can
+  help when the configured OS reserve permits it. The same absolute ceiling feeds per-device KV-context capping and the
+  final effectful loader check; an under-floor/task-starved MLX load refuses before preferred-device changes or warm-set
+  eviction. The local probe now carries the advisory `recommendWiredLimit` result, and a genuinely binding misconfigured
+  ceiling surfaces its safe operator command; !Klein never executes sysctl. Production loading remains opt-in, and the
+  newer 2026-07-21 capacity policy preserves two/three safe m5max residents rather than churning prompt caches. Live
+  probe: m5max physical 128 GiB, applied wire ceiling 112 GiB, default safe budget 96 GiB (reserve remains binding).
+  Final gates: root typecheck, 97 focused, 12,136 fast runtime/utility, and 142 protected assertions pass; lint has no
+  errors (only existing warnings).
 - [ ] **F4.50 — Integrate idle TTL, auto-evict, and JIT load.** Reclaim whole-model memory when idle while respecting
   warm-value and queued-work reservations.
 - [ ] **F4.53 — Add a resource panel.** Show process/system RAM, CPU, fast memory/VRAM, disk, model residency, cache hit,
@@ -4913,11 +4924,13 @@ output and NOT acted on. Captured as F12.12.)
   the standing recommend-don't-act loader stance. Wired as an OPTIONAL `gpuUsableBytes` field on
   `DeviceLoadCandidate`; absent (the only possible value for a REMOTE device whose sysctl we cannot read) ⇒
   byte-identical routing. 15 tests; runtime suite green (10,956).
-  **INTERACTION BUG AVERTED — worth remembering (§4A-adjacent):** the router already applies `reserveFraction`
+  **INTERACTION BUG CORRECTED BY F4.49 (2026-07-22):** the router already applies `reserveFraction`
   (default 0.25) against total RAM. That 0.75 numerically resembles the macOS GPU cap but is a DIFFERENT quantity
   (swap-avoidance buffer vs. GPU-wireable ceiling). Multiplying them (0.75 × 0.75 ≈ 0.56) would silently strand
-  ~44% of a Mac and make big models look unplaceable. The ceiling therefore REPLACES the denominator; a regression
-  test pins that it is not stacked.
+  ~44% of a Mac and make big models look unplaceable. The original 2026-07-19 implementation nevertheless DID apply
+  the reserve to the ceiling, and its “not stacked” regression used a 70 GiB case that passed below the erroneous 72 GiB
+  budget, so it proved nothing. F4.49 now keeps physical RAM as the reserve denominator and intersects its absolute
+  budget with the GPU ceiling; 90/96 GiB and raised-ceiling boundary tests catch the former bug.
   Also encoded: `recommendWiredLimit` ABSTAINS on a 16 GB Mac, where an 8 GB OS reserve leaves 8 GB — BELOW the
   12 GB default cap, so "raising" the limit would LOWER the ceiling. Recommending it would be actively harmful.
   **PROBE + LOADER WIRE COMPLETE 2026-07-19 (same day):** `apple-silicon-probe.ts` reads `hw.optional.arm64` +

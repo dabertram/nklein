@@ -5,6 +5,7 @@ import {
 	DEFAULT_FAST_MEMORY_FRACTION,
 	DEFAULT_OVERHEAD_BYTES,
 	decideFastMemoryFit,
+	fastMemoryBudgetBytes,
 	kvCacheBudgetBytes,
 	planFastMemorySafeContext,
 } from "../../../src/core/fast-memory-fit";
@@ -136,6 +137,26 @@ describe("decideFastMemoryFit", () => {
 		const d = decideFastMemoryFit({ footprintBytes: 20 * GiB, fastMemoryBytes, fastMemoryFraction: 2 });
 		expect(d.budgetBytes).toBe(fastMemoryBytes); // clamped to 1.0
 	});
+
+	it("intersects an absolute GPU ceiling with the fractional budget instead of multiplying them", () => {
+		const physical = 128 * GiB;
+		const gpuCeiling = 96 * GiB;
+		expect(
+			fastMemoryBudgetBytes({
+				fastMemoryBytes: physical,
+				fastMemoryFraction: 0.75,
+				fastMemoryCeilingBytes: gpuCeiling,
+			}),
+		).toBe(96 * GiB);
+		const decision = decideFastMemoryFit({
+			footprintBytes: 90 * GiB,
+			fastMemoryBytes: physical,
+			fastMemoryFraction: 0.75,
+			fastMemoryCeilingBytes: gpuCeiling,
+		});
+		expect(decision.fits).toBe(true);
+		expect(decision.budgetBytes).toBe(96 * GiB);
+	});
 });
 
 describe("assessFastMemoryFit (geometry → verdict)", () => {
@@ -236,6 +257,20 @@ describe("planFastMemorySafeContext", () => {
 		expect(plan).toMatchObject({ allow: true, contextLength: 40_000, capped: false });
 	});
 
+	it("caps KV growth at an Apple GPU-wireable ceiling when that is the tighter limit", () => {
+		const plan = planFastMemorySafeContext({
+			weightsBytes: 8 * GiB,
+			kvCache: { ...LLAMA_31_8B, bytesPerParam: 2 },
+			fastMemoryBytes: 128 * GiB,
+			fastMemoryFraction: 0.9,
+			fastMemoryCeilingBytes: 18 * GiB,
+			requestedContextLength: 131_072,
+			taskNeededTokens: 32_000,
+			minContextFloor: 32_000,
+		});
+		expect(plan).toMatchObject({ allow: true, contextLength: 73_728, maxSafeContextLength: 73_728, capped: true });
+	});
+
 	it("refuses rather than cap below the task need or hard floor", () => {
 		const taskStarved = planFastMemorySafeContext({
 			weightsBytes: 8 * GiB,
@@ -271,5 +306,6 @@ describe("planFastMemorySafeContext", () => {
 		};
 		expect(planFastMemorySafeContext({ ...base, fastMemoryBytes: 0 }).allow).toBe(false);
 		expect(planFastMemorySafeContext({ ...base, kvCache: { ...base.kvCache, numLayers: 0 } }).allow).toBe(false);
+		expect(planFastMemorySafeContext({ ...base, fastMemoryCeilingBytes: 0 }).allow).toBe(false);
 	});
 });

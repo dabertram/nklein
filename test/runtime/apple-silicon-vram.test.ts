@@ -160,9 +160,10 @@ describe("F12.75 wire — device-load routing honours the GPU-wireable ceiling",
 	});
 
 	it("does NOT stack the ceiling with the reserve fraction", () => {
-		// 128 GB Mac, 96 GB wireable, 0.25 reserve => 72 GB spendable. Stacking would give ~54 GB and wrongly refuse.
+		// 128 GB Mac: both the 25% physical reserve and the default wire ceiling independently yield a 96 GB cap.
+		// Multiplying them would invent a 72 GB cap and wrongly refuse this safe 90 GB load.
 		const decision = selectDeviceForModelLoad({
-			candidateSizeBytes: 70 * GB,
+			candidateSizeBytes: 90 * GB,
 			candidates: [
 				{
 					deviceName: "mac",
@@ -172,6 +173,23 @@ describe("F12.75 wire — device-load routing honours the GPU-wireable ceiling",
 				},
 			],
 			reserveFraction: 0.25,
+		});
+		expect(decision.fits).toBe(true);
+	});
+
+	it("uses a raised wire limit when the configured physical reserve permits it", () => {
+		// 12.5% physical reserve => 112 GB; raised wire limit => 112 GB. Multiplying would invent a 98 GB cap.
+		const decision = selectDeviceForModelLoad({
+			candidateSizeBytes: 108 * GB,
+			candidates: [
+				{
+					deviceName: "mac",
+					totalRamBytes: 128 * GB,
+					residentSizeBytes: 0,
+					gpuUsableBytes: 112 * GB,
+				},
+			],
+			reserveFraction: 0.125,
 		});
 		expect(decision.fits).toBe(true);
 	});
