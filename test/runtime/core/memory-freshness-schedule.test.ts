@@ -63,7 +63,29 @@ describe("memory-freshness retention (build + read)", () => {
 			notesAudited: 1,
 			summary: { stale: 1, orphaned: 1, broken_link: 0, duplicate_title: 0 },
 			totalFindings: 2,
+			topFindings: [
+				{ kind: "stale", noteTitle: "A", detail: "not updated in 200d (threshold 90d)" },
+				{ kind: "orphaned", noteTitle: "A", detail: "no incoming or outgoing links" },
+			],
 		});
+	});
+
+	it("retains valid bounded JSON when finding text is pathological", () => {
+		const run = runFreshnessAuditIfDue({
+			config,
+			lastAuditAt: null,
+			notes: Array.from({ length: 20 }, (_, index) => ({
+				id: `note-${index}`,
+				title: `Very long note ${index} ${"x".repeat(200)}`,
+				updatedAt: 0,
+				links: [],
+			})),
+			now: 200 * DAY,
+		});
+		if (!run.ran) throw new Error("expected a run");
+		const event = buildMemoryFreshnessAuditRetentionEvent({ workspacePathHash: "ws", result: run.result });
+		expect(event.reason?.length).toBeLessThanOrEqual(900);
+		expect(readLatestMemoryFreshnessAudit([event])?.totalFindings).toBe(40);
 	});
 
 	it("returns the LATEST audit per workspace and ignores unrelated events", () => {

@@ -77,7 +77,7 @@ export async function fetchTrustPosture(workspaceId: string | null): Promise<Run
 	return await trpcClient.runtime.getTrustPosture.query();
 }
 
-/** F5.2 memory-corpus health: freshness audit over the on-disk basic-memory notes (read-only telemetry). */
+/** F5.2 memory-corpus health: retained idle-rail status; querying never scans the note tree. */
 export async function fetchMemoryAudit(workspaceId: string | null): Promise<RuntimeMemoryAuditResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getMemoryAudit.query();

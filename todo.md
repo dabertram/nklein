@@ -93,6 +93,15 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ A STATUS QUERY MUST NOT BECOME THE SCHEDULER FOR THE WORK IT REPORTS (F5.2b, 2026-07-22).** Opening or
+> refreshing Settings is an operator read, not authority to scan a corpus or start background work. Run model-free
+> Basic Memory hygiene from the idle rail only after the durable cadence is due, retain a bounded result in the
+> workspace ledger, and make UI/API reads project that snapshot. Basic Memory's mounted Markdown tree is the durable
+> source already consumed by the sandbox; do not launch a write-capable MCP server merely to enumerate it. Cache the
+> next due wake per workspace/config so a minute timer does not reread a weekly ledger, and invalidate that cache when
+> effective controls change. Preserve complete JSON rows when bounding retained evidence—never truncate serialized
+> JSON by substring.
+
 > **⚠️ SETTINGS STATUS MUST PROJECT THE SAME CURATED-MCP DECISION PIPELINE THE RUNTIME USES (F4.29, 2026-07-22).**
 > Do not duplicate availability, model-fit, memory-fit, or global/project-control rules in React. Build one shared pure
 > preview from the curated catalog and the existing decision helpers, export it through the API boundary, and render
@@ -2921,25 +2930,6 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   is NO genuine unexposed top-level non-experimental setting. REMAINING (largely already covered by F1.29a/b): confirm
   each control's global/project provenance + validation + reset + a test; do a Settings-dialog browser pass to spot any
   control that renders but lacks reset/provenance.
-- [x] **F5.2 —  *(finalized 2026-07-19: audit core + full config plumbing complete; the two finishing slices split to F5.2b below.)* Add Basic Memory audit-cadence controls.** (David 2026-07-14: BUILD a freshness/consistency audit.)
-  **AUDIT CORE SHIPPED (`8afd6d08`):** `src/core/memory-freshness-audit.ts` `auditMemoryFreshness` — cadence-gated,
-  model-free structural audit flagging stale/orphaned/broken_link/duplicate_title notes + `shouldRunFreshnessAudit`
-  cadence gate; 8 tests. Complementary to the model-driven TRUTH audit in `memory-audit.ts`. **REMAINING (b-leaf):**
-  `memoryFreshnessAudit` config object — DONE (`2f8295a8` contract + `29fe458a` full plumbing through
-  types/state-factory/save-payload/update-merge/change-detection/global-file-payload, 343 tests green, persists +
-  round-trips). **REMAINING (2 clean pickups): (1) Settings UI** — mirror the `swarmGuardrails` web-ui pattern:
-  `web-ui/src/features/settings/settings-draft.ts` (field + inputs converters), `settings-sections.ts`, `settings-save.ts`,
-  a `memory-audit-settings-panel.tsx` + a `runtime-settings-memory-audit.ts` converter, wired into `runtime-settings-dialog.tsx`;
-  browser-verify in the dev stack. **(2) Idle-rail wiring** — the runtime must READ basic-memory notes (an MCP query to
-  the basic-memory server — no existing note-read path in `src/`, only `basic-memory-provenance.ts`/`basic-memory-scoping.ts`;
-  needs an MCP list/search integration) → map to `AuditableMemoryNote` → run `auditMemoryFreshness` on the cadence via the
-  opportunistic-idle-work rail (gated by `shouldRunFreshnessAudit` + the `enabled`/`paused` config) → surface findings +
-  last/next-audit. Expose safe defaults, project override, last/next audit, and
-  pause behavior without turning idle evaluation into polling churn.
-- [ ] **F5.2b — Memory-audit Settings panel + idle-rail wiring** *(split from F5.2 2026-07-19; the two named
-  pickups).* (1) Settings UI per the swarmGuardrails pattern (browser-verify); (2) idle-rail wiring — an MCP
-  list/search read of basic-memory notes into AuditableMemoryNote, auditMemoryFreshness on the cadence via the
-  opportunistic rail, findings + last/next-audit surfaced.
 - [ ] **F5.3 — Complete guided setup for newly added capability groups.** First-run/project setup must cover isolation,
   models, memory/MCP, egress/retrieval, resource policy, and desktop access with safe defaults; add CLI rendering parity
   over the same setup-plan model.

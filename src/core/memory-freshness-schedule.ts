@@ -86,11 +86,20 @@ export interface RetainedMemoryFreshnessAudit {
 	readonly notesAudited: number;
 	readonly summary: Readonly<Record<MemoryFreshnessFindingKind, number>>;
 	readonly totalFindings: number;
+	/** Bounded operator-facing sample retained with the summary; note bodies never enter the ledger. */
+	readonly topFindings: readonly RetainedMemoryFreshnessFinding[];
+}
+
+export interface RetainedMemoryFreshnessFinding {
+	readonly kind: MemoryFreshnessFindingKind;
+	readonly noteTitle: string;
+	readonly detail: string;
 }
 
 interface RetentionReasonPayload {
 	readonly notesAudited: number;
 	readonly summary: Record<MemoryFreshnessFindingKind, number>;
+	readonly topFindings?: RetainedMemoryFreshnessFinding[];
 }
 
 /**
@@ -106,14 +115,26 @@ export function buildMemoryFreshnessAuditRetentionEvent(input: {
 	const payload: RetentionReasonPayload = {
 		notesAudited: input.result.notesAudited,
 		summary: { ...input.result.summary },
+		topFindings: input.result.findings.slice(0, 8).map((finding) => ({
+			kind: finding.kind,
+			noteTitle: finding.noteTitle.slice(0, 80),
+			detail: finding.detail.slice(0, 140),
+		})),
 	};
+	// Agent-transition reasons are intentionally compact. Remove whole sample rows until the JSON fits; never byte-slice
+	// JSON into an unreadable payload (the summary and run clock are always retained even for pathological titles).
+	let reason = JSON.stringify(payload);
+	while (reason.length > 900 && (payload.topFindings?.length ?? 0) > 0) {
+		payload.topFindings?.pop();
+		reason = JSON.stringify(payload);
+	}
 	return buildTransitionEvent({
 		workflowId: MEMORY_FRESHNESS_WORKFLOW_ID,
 		taskId: MEMORY_FRESHNESS_TASK_ID,
 		workspacePathHash: input.workspacePathHash,
 		from: "memory_evidence",
 		to: `memory_freshness_${input.result.findings.length}`,
-		reason: JSON.stringify(payload).slice(0, 900),
+		reason,
 		controllerDecision: MEMORY_FRESHNESS_AUDIT_DECISION,
 		// The audit's own clock IS the run clock — keep them identical so the next cadence gate is exact.
 		recordedAt: input.recordedAt ?? input.result.auditedAt,
@@ -134,7 +155,21 @@ function parseRetentionReason(reason: string | null): RetentionReasonPayload | n
 			const raw = (parsed.summary as Record<string, unknown>)[kind];
 			summary[kind] = typeof raw === "number" ? raw : 0;
 		}
-		return { notesAudited: parsed.notesAudited, summary };
+		const topFindings = Array.isArray(parsed.topFindings)
+			? parsed.topFindings.flatMap((finding) => {
+					if (
+						!finding ||
+						typeof finding !== "object" ||
+						!FINDING_KINDS.includes((finding as RetainedMemoryFreshnessFinding).kind) ||
+						typeof (finding as RetainedMemoryFreshnessFinding).noteTitle !== "string" ||
+						typeof (finding as RetainedMemoryFreshnessFinding).detail !== "string"
+					) {
+						return [];
+					}
+					return [finding as RetainedMemoryFreshnessFinding];
+				})
+			: [];
+		return { notesAudited: parsed.notesAudited, summary, topFindings };
 	} catch {
 		return null;
 	}
@@ -167,6 +202,7 @@ export function readLatestMemoryFreshnessAudit(
 		notesAudited: payload?.notesAudited ?? 0,
 		summary,
 		totalFindings,
+		topFindings: payload?.topFindings ?? [],
 	};
 }
 

@@ -55,7 +55,6 @@ import {
 	parseTaskContextImportRequest,
 } from "../core/api-validation";
 import { createRailOutcomeLog, type RailStatusSnapshot } from "../core/background-eval-controls";
-import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
 import { toStreamOverviewRows } from "../core/board-streams-summary";
 import { computeFleetCapabilityUpgrades, type RoleQualityBar } from "../core/capability-ceiling-recommendation";
 import { SELECTABLE_CHAT_SKILL_IDS } from "../core/chat-session-skill-profile";
@@ -84,7 +83,6 @@ import {
 	readLongMemoryEvalRetainedVerdict,
 } from "../core/long-memory-eval";
 import { mastRemedyHint, rollupMastDistribution } from "../core/mast-failure-modes";
-import { auditMemoryFreshness } from "../core/memory-freshness-audit";
 import { buildMemoryLayers, scopeMemoryLayerEvents } from "../core/memory-layers";
 import { stripAddressingHandle } from "../core/message-target-resolver";
 import {
@@ -147,9 +145,10 @@ import {
 } from "../server/community-skill-ledger-recording";
 import { readVerifiedCommunitySkillSnapshot } from "../server/community-skill-snapshot";
 import { createCommunitySkillSuggestionService } from "../server/community-skill-suggestion-service";
+import { memoryFreshnessRuntimeStatus } from "../server/memory-freshness-audit-runner";
 import { createRailControlCoordinator, type RailControlCoordinator } from "../server/rail-control-service";
 import { createSearxngWebSearchClient } from "../server/web-search-searxng";
-import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-mailbox-store";
 import { appendDistractorObservations } from "../state/distractor-observation-store";
 import { readMergeHistory } from "../state/merge-history-store";
@@ -934,27 +933,42 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				})(),
 			};
 		},
-		// F5.2 memory-corpus health: the freshness audit (behind `dev memory-audit`) over the on-disk basic-memory
-		// notes the knowledge tools read from. Only counts + bounded finding summaries cross the wire, never note
-		// bodies. Empty-safe: a missing/unreadable corpus reports available=false with zero findings.
-		getMemoryAudit: async () => {
-			const { homedir } = await import("node:os");
-			const { join } = await import("node:path");
-			const root = join(homedir(), "basic-memory");
-			const notes = await readBasicMemoryNotes(root, nodeBasicMemoryFsDeps()).catch(() => []);
-			const result = auditMemoryFreshness(
-				notes,
-				{ stalenessThresholdMs: 180 * 24 * 60 * 60 * 1000, cadenceMs: 0 },
-				Date.now(),
-			);
+		// F5.2b memory-corpus health: read only the cadence/config + bounded result retained by the idle rail. The
+		// Settings query must never rescan the corpus (opening or polling a dialog is not an audit trigger).
+		getMemoryAudit: async (scope) => {
+			const config = scope ? await deps.loadScopedRuntimeConfig(scope) : await loadGlobalRuntimeConfig();
+			const events = scope
+				? await readAgentLedger({ workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath) }).catch(
+						() => [],
+					)
+				: [];
+			const status = memoryFreshnessRuntimeStatus({ config: config.memoryFreshnessAudit, events });
+			const summary = status.audit?.summary ?? {
+				stale: 0,
+				orphaned: 0,
+				broken_link: 0,
+				duplicate_title: 0,
+			};
+			const state = !status.enabled
+				? ("disabled" as const)
+				: status.paused
+					? ("paused" as const)
+					: !status.audit
+						? ("never_run" as const)
+						: status.audit.totalFindings > 0
+							? ("findings" as const)
+							: ("clean" as const);
 			return {
 				generatedAt: Date.now(),
-				available: notes.length > 0,
-				notesAudited: result.notesAudited,
-				summary: result.summary,
-				topFindings: result.findings
-					.slice(0, 20)
-					.map((finding) => ({ kind: finding.kind, noteTitle: finding.noteTitle, detail: finding.detail })),
+				enabled: status.enabled,
+				paused: status.paused,
+				lastAuditAt: status.lastAuditAt,
+				nextAuditAt: status.nextAuditAt,
+				state,
+				available: (status.audit?.notesAudited ?? 0) > 0,
+				notesAudited: status.audit?.notesAudited ?? 0,
+				summary,
+				topFindings: [...(status.audit?.topFindings ?? [])],
 			};
 		},
 		// F1.35b: background-eval rail controls/status. Read-only snapshot + the two operator mutations, all over the

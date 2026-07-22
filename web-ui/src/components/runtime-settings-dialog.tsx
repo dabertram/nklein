@@ -2984,6 +2984,7 @@ export function RuntimeSettingsDialog({
 							<MemoryAuditSettingsPanel
 								value={memoryAuditInputs}
 								onChange={setMemoryAuditInputs}
+								workspaceId={workspaceId}
 								disabled={controlsDisabled}
 							/>
 						</div>

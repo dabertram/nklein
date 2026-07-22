@@ -277,8 +277,8 @@ export interface RuntimeTrpcContext {
 		/** Ledger analytics: retrieval-usefulness + knowledge-outcome lift + opportunistic-value, read-only telemetry. */
 		getLedgerAnalytics: () => Promise<RuntimeLedgerAnalyticsResponse>;
 		getTrustPosture: () => Promise<RuntimeTrustPostureResponse>;
-		/** F5.2 memory-corpus health: freshness audit over the on-disk basic-memory notes, read-only telemetry. */
-		getMemoryAudit: () => Promise<RuntimeMemoryAuditResponse>;
+		/** F5.2 memory-corpus health: retained cadence/status for this workspace's Basic Memory roots. */
+		getMemoryAudit: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeMemoryAuditResponse>;
 		/** F1.35b: the background-eval rail controls/status snapshot (read-only). */
 		getRailStatus: () => Promise<RuntimeRailStatusResponse>;
 		getManagedSearchStatus: () => Promise<RuntimeManagedSearchStatusResponse>;

@@ -37,6 +37,7 @@ import type {
 import { modelUseReservationId } from "../core/auto-loaded-model-registry";
 import { buildBackgroundEvalEvidenceByModel } from "../core/background-eval-evidence-feed";
 import { selectBackgroundEvalTarget } from "../core/background-eval-selection";
+import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
 import { readPausedTasks } from "../core/card-pause";
 import { resolveSessionConcurrencyCaps } from "../core/concurrency-config";
@@ -229,6 +230,7 @@ import {
 	withConfiguredSearchBackend,
 } from "./managed-search-backend";
 import { runIdleMemoryAudit } from "./memory-audit-runner";
+import { runScheduledMemoryFreshnessAudit } from "./memory-freshness-audit-runner";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import { resolveNetworkAccessInfo } from "./network-access-info";
 import { createPlanIntegrationGateRunner } from "./nklein-plan-integration-gate-runner";
@@ -622,6 +624,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// the highest-value available review, content-versioned memory audit, or thin-cell re-eval. Per-workspace sets make
 	// every producer idempotent while completed memory verdicts additionally survive restarts in note frontmatter.
 	const opportunisticIdleWorkTickByWorkspaceId = new Map<string, ReturnType<typeof setInterval>>();
+	// F5.2b structural Basic Memory audit: one process-wide filesystem pass at a time. Each workspace has its own
+	// durable cadence clock, but the shared global note root must not be rescanned concurrently by several idle timers.
+	let memoryFreshnessAuditInFlight = false;
+	const memoryFreshnessWakeByWorkspaceId = new Map<string, { configKey: string; nextAuditAt: number }>();
 	// F1.36: background-budget bookkeeping + realized-value retention for the idle sweep.
 	const opportunisticDispatchAtsByWorkspaceId = new Map<string, number[]>();
 	const opportunisticActiveCountByWorkspaceId = new Map<string, number>();
@@ -3587,6 +3593,96 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				setInterval(() => {
 					void (async () => {
 						try {
+							// F5.2b is a model-free idle rail with its own persisted config/cadence. It deliberately runs before
+							// the separate NKLEIN_OPPORTUNISTIC_IDLE_WORK feature flag: disabling speculative model work must not
+							// silently disable the read-only freshness setting shown as enabled in Settings.
+							if (!memoryFreshnessAuditInFlight) {
+								const freshnessSessions = trackedService.listModelEndpointSessions();
+								const freshnessHasRealWork =
+									taskStartQueue.size(scope.workspaceId) > 0 ||
+									(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) > 0 ||
+									freshnessSessions.some(
+										(session) =>
+											session.state === "running" &&
+											!isDerivedTaskSessionId(session.taskId) &&
+											!isHomeAgentSessionId(session.taskId),
+									);
+								if (!freshnessHasRealWork) {
+									const liveConfig = await loadRuntimeConfig(scope.workspacePath);
+									const freshnessConfig = liveConfig.memoryFreshnessAudit;
+									const configKey = `${freshnessConfig.enabled}:${freshnessConfig.paused}:${freshnessConfig.cadenceMs}:${freshnessConfig.stalenessThresholdMs}`;
+									const now = Date.now();
+									const wake = memoryFreshnessWakeByWorkspaceId.get(scope.workspaceId);
+									if (!(wake?.configKey === configKey && wake.nextAuditAt > now)) {
+										memoryFreshnessAuditInFlight = true;
+										try {
+											const workspacePathHash = hashWorkspacePathForLedger(scope.workspacePath);
+											const runtimeHome = resolveNkleinRuntimeHomePath(homedir());
+											const outcome = await runScheduledMemoryFreshnessAudit({
+												config: freshnessConfig,
+												workspacePathHash,
+												noteRoots: [
+													join(runtimeHome, "basic-memory", workspacePathHash, "notes"),
+													join(runtimeHome, "basic-memory", "global", "notes"),
+												],
+												now,
+												deps: {
+													readLedger: (hash) => readAgentLedger({ workspacePathHash: hash }),
+													readNotes: (root) => readBasicMemoryNotes(root, nodeBasicMemoryFsDeps()),
+													appendEvent: appendAgentLedgerEvent,
+												},
+											});
+											if (outcome.ran) {
+												memoryFreshnessWakeByWorkspaceId.set(scope.workspaceId, {
+													configKey,
+													nextAuditAt: outcome.audit.auditedAt + freshnessConfig.cadenceMs,
+												});
+												deps.warn(
+													`Basic Memory freshness audit: ${outcome.audit.notesAudited} note(s), ${outcome.audit.totalFindings} finding(s).`,
+												);
+												recordSelfObservation({
+													signal: "custom",
+													severity: outcome.audit.totalFindings > 0 ? "warning" : "info",
+													message: `Basic Memory freshness audit completed with ${outcome.audit.totalFindings} finding(s).`,
+													workspacePath: scope.workspacePath,
+													metadata: {
+														category: "memory_freshness_audit",
+														notesAudited: outcome.audit.notesAudited,
+														...outcome.audit.summary,
+													},
+												});
+											} else if (outcome.reason === "not_due") {
+												memoryFreshnessWakeByWorkspaceId.set(scope.workspaceId, {
+													configKey,
+													nextAuditAt: outcome.nextAuditAt,
+												});
+											} else {
+												// Disabled/paused states need no ledger reads; recheck only when the persisted config changes.
+												memoryFreshnessWakeByWorkspaceId.set(scope.workspaceId, {
+													configKey,
+													nextAuditAt: Number.POSITIVE_INFINITY,
+												});
+											}
+										} catch (error) {
+											const message = error instanceof Error ? error.message : String(error);
+											deps.warn(`Basic Memory freshness audit errored: ${message}`);
+											try {
+												recordSelfObservation({
+													signal: "custom",
+													severity: "warning",
+													message: `Basic Memory freshness audit failed: ${message}`,
+													workspacePath: scope.workspacePath,
+													metadata: { category: "memory_freshness_audit_error" },
+												});
+											} catch {
+												// Diagnostic telemetry cannot break the independent opportunistic-work rail below.
+											}
+										} finally {
+											memoryFreshnessAuditInFlight = false;
+										}
+									}
+								}
+							}
 							if (!isTruthyEnv(process.env.NKLEIN_OPPORTUNISTIC_IDLE_WORK)) {
 								return;
 							}
@@ -3983,6 +4079,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			clearInterval(idleWorkTick);
 			opportunisticIdleWorkTickByWorkspaceId.delete(workspaceId);
 		}
+		memoryFreshnessWakeByWorkspaceId.delete(workspaceId);
 		idleReviewDispatchedByWorkspaceId.delete(workspaceId);
 		idleMemoryAuditDispatchedByWorkspaceId.delete(workspaceId);
 		speculativeConfigByWorkspaceId.delete(workspaceId);
@@ -4735,6 +4832,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				clearInterval(timer);
 			}
 			opportunisticIdleWorkTickByWorkspaceId.clear();
+			memoryFreshnessWakeByWorkspaceId.clear();
 			for (const timer of deferredRetryTimerByWorkspaceId.values()) {
 				clearTimeout(timer);
 			}

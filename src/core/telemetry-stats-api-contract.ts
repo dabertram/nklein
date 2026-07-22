@@ -400,11 +400,10 @@ export const runtimeLedgerAnalyticsResponseSchema = z.object({
 export type RuntimeLedgerAnalyticsResponse = z.infer<typeof runtimeLedgerAnalyticsResponseSchema>;
 
 /**
- * Read-only memory-corpus health for the operator telemetry UI — the F5.2 freshness audit (behind the
- * `dev memory-audit` CLI) over the on-disk basic-memory notes the knowledge tools read from: stale / orphaned /
- * broken-link / duplicate-title counts + a bounded sample of findings (kind + note title + specifics only — never the
- * note body). Empty-safe: a missing/unreadable corpus yields zeros. `available` is false when no corpus was found so the
- * UI can distinguish "clean" from "not present".
+ * Read-only memory-corpus health for operator surfaces. The idle rail audits the mounted Basic Memory Markdown tree on
+ * its configured cadence and retains this bounded snapshot; API reads never rescan the corpus. It includes the durable
+ * last/next clock, stale/orphaned/broken-link/duplicate-title counts, and a sample of findings (never note bodies).
+ * Empty-safe: `available` is false when the completed audit found no notes, distinguishing that from a clean corpus.
  */
 export const runtimeMemoryAuditFindingSchema = z.object({
 	kind: z.enum(["stale", "orphaned", "broken_link", "duplicate_title"]),
@@ -414,6 +413,11 @@ export const runtimeMemoryAuditFindingSchema = z.object({
 
 export const runtimeMemoryAuditResponseSchema = z.object({
 	generatedAt: z.number().int().nonnegative(),
+	enabled: z.boolean(),
+	paused: z.boolean(),
+	lastAuditAt: z.number().int().nonnegative().nullable(),
+	nextAuditAt: z.number().int().nonnegative().nullable(),
+	state: z.enum(["disabled", "paused", "never_run", "clean", "findings"]),
 	available: z.boolean(),
 	notesAudited: z.number().int().nonnegative(),
 	summary: z.object({

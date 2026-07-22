@@ -167,10 +167,29 @@ const MOCK_CONFIG = {
 		maxRepeatedNoDiffCheckpoints: 4,
 		maxRepeatedToolCallsPerTask: 3,
 	},
+	memoryFreshnessAudit: {
+		enabled: true,
+		paused: false,
+		cadenceMs: 604800000,
+		stalenessThresholdMs: 7776000000,
+	},
 	commitPromptTemplate: "",
 	openPrPromptTemplate: "",
 	commitPromptTemplateDefault: "Commit message",
 	openPrPromptTemplateDefault: "PR description",
+};
+
+const MOCK_MEMORY_AUDIT = {
+	generatedAt: 1_700_000_000_000,
+	enabled: true,
+	paused: false,
+	lastAuditAt: 1_700_000_000_000,
+	nextAuditAt: 1_700_604_800_000,
+	state: "findings",
+	available: true,
+	notesAudited: 12,
+	summary: { stale: 2, orphaned: 1, broken_link: 3, duplicate_title: 0 },
+	topFindings: [{ kind: "broken_link", noteTitle: "Routing lesson", detail: "Missing target" }],
 };
 
 // ---------------------------------------------------------------------------
@@ -230,6 +249,14 @@ async function setupMocks(
 				}
 				if (proc === "runtime.getSwarmStop") {
 					return { result: { data: { ok: true, signal: null } } };
+				}
+				if (proc === "runtime.getMemoryAudit") {
+					return { result: { data: MOCK_MEMORY_AUDIT } };
+				}
+				if (proc === "runtime.listCommunitySkillImports") {
+					return {
+						result: { data: { inboxPath: "/tmp/community-skills/inbox", truncated: false, candidates: [] } },
+					};
 				}
 				// Return a minimal but stable provider catalog so the nklein controller
 				// does not detect phantom "unsaved changes" (it would if the catalog were null
@@ -311,6 +338,14 @@ async function setupMocks(
 				if (proc === "runtime.getConfig") {
 					return (trpcOk(MOCK_CONFIG) as unknown[])[0];
 				}
+				if (proc === "runtime.getMemoryAudit") {
+					return { result: { data: MOCK_MEMORY_AUDIT } };
+				}
+				if (proc === "runtime.listCommunitySkillImports") {
+					return {
+						result: { data: { inboxPath: "/tmp/community-skills/inbox", truncated: false, candidates: [] } },
+					};
+				}
 				if (proc === "workspace.getState") {
 					return { result: { data: WS_SNAPSHOT.workspaceState } };
 				}
@@ -391,6 +426,19 @@ test.describe("RuntimeSettingsDialog", () => {
 		await expect(turnsInput).toBeVisible({ timeout: 5_000 });
 		// MOCK_CONFIG has maxAutonomousTurnsPerTask: 12
 		await expect(turnsInput).toHaveValue("12");
+	});
+
+	test("F5.2b: shows retained Basic Memory audit cadence and findings without polling", async ({ page }) => {
+		await setupMocks(page);
+		await page.goto("/");
+		await openSettingsDialog(page);
+		await page.getByRole("button", { name: "Guardrails & Limits" }).click();
+
+		const status = page.getByTestId("memory-audit-status");
+		await expect(status).toContainText("Findings need review");
+		await expect(status).toContainText("12 note(s) audited");
+		await expect(status).toContainText("3 broken link(s)");
+		await expect(status).toContainText("Routing lesson");
 	});
 
 	test("changing Max concurrent tasks and saving fires runtime.saveConfig with the updated value", async ({

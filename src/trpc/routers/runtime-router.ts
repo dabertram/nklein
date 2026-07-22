@@ -215,10 +215,10 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		getLedgerAnalytics: t.procedure
 			.output(runtimeLedgerAnalyticsResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getLedgerAnalytics()),
-		// F5.2 memory-corpus health: freshness audit over on-disk basic-memory notes (global, read-only).
+		// F5.2 memory-corpus health: workspace-scoped retained idle-rail status (read-only).
 		getMemoryAudit: t.procedure
 			.output(runtimeMemoryAuditResponseSchema)
-			.query(async ({ ctx }) => ctx.runtimeApi.getMemoryAudit()),
+			.query(async ({ ctx }) => ctx.runtimeApi.getMemoryAudit(ctx.workspaceScope)),
 		// F1.35b: background-eval rail controls/status (read-only snapshot + two operator mutations).
 		getRailStatus: t.procedure
 			.output(runtimeRailStatusResponseSchema)

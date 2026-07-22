@@ -2670,3 +2670,21 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   142/142, backend typecheck, and focused Biome green. Sources:
   [REST overview](https://lmstudio.ai/docs/developer/rest), [chat](https://lmstudio.ai/docs/developer/rest/chat),
   [streaming events](https://lmstudio.ai/docs/developer/rest/streaming-events).
+
+- [x] **F5.2 — Add Basic Memory audit-cadence controls.** The model-free structural core flags stale, orphaned,
+  broken-link, and duplicate-title notes; its enable/pause/cadence/staleness controls persist globally and per project
+  through the complete runtime-config and Settings draft/save/reset pipeline. This complements the separate
+  model-driven truth audit rather than spending model capacity on structural hygiene.
+
+- [x] **F5.2b — Memory-audit Settings panel + idle-rail wiring** *(delivered 2026-07-22).* The production runtime now
+  checks enabled/pause and the workspace ledger's durable cadence before reading the runtime-mounted project and global
+  Basic Memory Markdown roots, runs the combined structural/lifecycle pass while real work is idle, and retains a
+  bounded, valid-JSON summary and finding sample. A config-keyed next-wake cache prevents the minute idle timer from
+  rereading a weekly ledger or corpus; config changes invalidate it, and audit failures are operator-visible without
+  blocking the independent model-work rail. The API reads only retained state, so opening/refreshing Settings never
+  triggers an audit. Settings surfaces saved state, last/next run, corpus size, all finding counts, and bounded details.
+  The earlier queue claim that an MCP list/search integration was required was stale: the mounted Markdown tree is the
+  durable Basic Memory source and the already-landed injected note reader is the least-authority read seam. Evidence:
+  14 focused backend scheduler/retention tests, 99 focused UI/settings tests, 1,259-file/12,151-test backend fast suite,
+  157-file/1,138-test full web suite, 16/16 Settings Playwright flows, protected 142/142, backend/web typechecks, and
+  lint with zero errors (20 pre-existing warnings and one info).

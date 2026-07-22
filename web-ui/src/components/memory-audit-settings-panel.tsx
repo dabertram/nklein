@@ -5,6 +5,7 @@
 // broken-link/duplicate notes, never deletes), so it's safe on by default.
 import { areRuntimeMemoryFreshnessAuditEqual, DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT } from "@runtime-contract";
 import { BookMarked } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
 	inputsToMemoryAudit,
@@ -13,6 +14,8 @@ import {
 	type MemoryAuditInputs,
 	memoryAuditToInputs,
 } from "@/components/runtime-settings-memory-audit";
+import { fetchMemoryAudit } from "@/runtime/runtime-config-query";
+import type { RuntimeMemoryAuditResponse } from "@/runtime/types";
 
 const cadenceInputId = "runtime-settings-memory-audit-cadence";
 const stalenessInputId = "runtime-settings-memory-audit-staleness";
@@ -20,10 +23,55 @@ const stalenessInputId = "runtime-settings-memory-audit-staleness";
 export interface MemoryAuditSettingsPanelProps {
 	value: MemoryAuditInputs;
 	onChange: (next: MemoryAuditInputs) => void;
+	workspaceId: string | null;
 	disabled?: boolean;
 }
 
-export function MemoryAuditSettingsPanel({ value, onChange, disabled = false }: MemoryAuditSettingsPanelProps) {
+const auditStateLabel: Readonly<Record<RuntimeMemoryAuditResponse["state"], string>> = {
+	disabled: "Disabled",
+	paused: "Paused",
+	never_run: "Waiting for the first idle audit",
+	clean: "Last audit clean",
+	findings: "Findings need review",
+};
+
+function formatAuditTime(value: number | null): string {
+	return value === null ? "Not yet" : new Date(value).toLocaleString();
+}
+
+export function MemoryAuditSettingsPanel({
+	value,
+	onChange,
+	workspaceId,
+	disabled = false,
+}: MemoryAuditSettingsPanelProps) {
+	const [status, setStatus] = useState<RuntimeMemoryAuditResponse | null>(null);
+	const [statusError, setStatusError] = useState<string | null>(null);
+	const [statusLoading, setStatusLoading] = useState(false);
+	const requestGeneration = useRef(0);
+	const refreshStatus = useCallback(async () => {
+		const generation = ++requestGeneration.current;
+		setStatusLoading(true);
+		setStatusError(null);
+		try {
+			const next = await fetchMemoryAudit(workspaceId);
+			if (requestGeneration.current === generation) setStatus(next);
+		} catch (cause) {
+			if (requestGeneration.current === generation) {
+				setStatusError(cause instanceof Error ? cause.message : String(cause));
+			}
+		} finally {
+			if (requestGeneration.current === generation) setStatusLoading(false);
+		}
+	}, [workspaceId]);
+
+	useEffect(() => {
+		void refreshStatus();
+		return () => {
+			requestGeneration.current += 1;
+		};
+	}, [refreshStatus]);
+
 	const isDefault = areRuntimeMemoryFreshnessAuditEqual(
 		inputsToMemoryAudit(value),
 		DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
@@ -119,6 +167,56 @@ export function MemoryAuditSettingsPanel({ value, onChange, disabled = false }: 
 						</div>
 					)}
 				</div>
+			</div>
+			<div
+				className="mt-3 rounded-md border border-border bg-surface-2 px-2.5 py-2"
+				data-testid="memory-audit-status"
+			>
+				<div className="flex items-center justify-between gap-2">
+					<div className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
+						Retained audit status
+					</div>
+					<button
+						type="button"
+						disabled={statusLoading}
+						onClick={() => void refreshStatus()}
+						className="rounded-sm border border-border bg-surface-1 px-2 py-0.5 text-[11px] text-text-secondary hover:bg-surface-3 disabled:opacity-40"
+					>
+						{statusLoading ? "Refreshing…" : "Refresh status"}
+					</button>
+				</div>
+				{statusError ? (
+					<div className="mt-1.5 text-[11px] text-status-red">Could not read audit status: {statusError}</div>
+				) : status ? (
+					<div className="mt-1.5 text-[11px] text-text-secondary">
+						<div className="font-medium text-text-primary">{auditStateLabel[status.state]}</div>
+						<div className="mt-0.5">
+							Last: {formatAuditTime(status.lastAuditAt)} · Next: {formatAuditTime(status.nextAuditAt)}
+						</div>
+						{status.lastAuditAt !== null ? (
+							<>
+								<div className="mt-1">
+									{status.notesAudited} note(s) audited{status.available ? "" : " — no mounted notes found"} ·{" "}
+									{status.summary.stale} stale · {status.summary.orphaned} orphaned ·{" "}
+									{status.summary.broken_link} broken link(s) · {status.summary.duplicate_title} duplicate
+									title(s)
+								</div>
+								{status.topFindings.length > 0 ? (
+									<ul className="mt-1.5 space-y-1 pl-4" data-testid="memory-audit-findings">
+										{status.topFindings.map((finding, index) => (
+											<li key={`${finding.kind}:${finding.noteTitle}:${index}`}>
+												<span className="font-medium text-text-primary">{finding.noteTitle}</span> —{" "}
+												{finding.detail}
+											</li>
+										))}
+									</ul>
+								) : null}
+							</>
+						) : null}
+					</div>
+				) : (
+					<div className="mt-1.5 text-[11px] text-text-tertiary">Loading retained audit status…</div>
+				)}
 			</div>
 		</div>
 	);

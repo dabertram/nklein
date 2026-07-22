@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Basic Memory freshness audits now run as a durable, model-free idle rail.** The configured cadence is checked before
+  reading project/global mounted notes, completed results and bounded findings survive restarts in the workspace ledger,
+  and a wake cache avoids minute-level ledger or corpus churn. Settings shows enabled/paused state, last and next run,
+  counts, and findings without triggering an audit merely by opening or refreshing the dialog.
+
 - **First-run onboarding no longer enters a React render loop.** The carousel's Done action now depends on the stable
   controller fields it consumes instead of the controller aggregate's per-render identity. Component and headless-browser
   regressions preserve the parent-registration feedback shape and require a clean first-run console.
