@@ -30,6 +30,8 @@ import type {
 	RuntimeChatHostActionAuditRequest,
 	RuntimeChatHostActionAuditResponse,
 	RuntimeCommandRunResponse,
+	RuntimeCommunitySkillDiscoveryRequest,
+	RuntimeCommunitySkillDiscoveryResponse,
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
 	RuntimeDebugResetAllStateResponse,
@@ -264,6 +266,9 @@ export interface RuntimeTrpcContext {
 		/** F1.35b: the background-eval rail controls/status snapshot (read-only). */
 		getRailStatus: () => Promise<RuntimeRailStatusResponse>;
 		getManagedSearchStatus: () => Promise<RuntimeManagedSearchStatusResponse>;
+		discoverCommunitySkills: (
+			input: RuntimeCommunitySkillDiscoveryRequest,
+		) => Promise<RuntimeCommunitySkillDiscoveryResponse>;
 		setManagedSearchControl: (
 			input: RuntimeManagedSearchControlRequest,
 		) => Promise<RuntimeManagedSearchStatusResponse>;

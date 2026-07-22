@@ -5,6 +5,8 @@ export * from "./board-api-contract.js";
 // Board-independent unified chat (todo §5.M) lives in its own contract module; re-exported here so the single
 // `@runtime-contract` alias (and `@/runtime/types` in the web-ui) surfaces the chat wire types too.
 export * from "./chat-api-contract.js";
+// F4.21 community-skill discovery is a display-only user-review channel, never an agent prompt surface.
+export * from "./community-skill-discovery-api-contract.js";
 // Runtime config + agents contract domain (agent definition + sandbox status, config response/save) (§5.X #2).
 export * from "./config-api-contract.js";
 // Git history contract domain (commit/ref shapes, git-log, commit-diff file/req/res, refs response) (§5.X #2).

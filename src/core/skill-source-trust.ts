@@ -23,13 +23,13 @@ export interface SkillSourceClassification {
 }
 
 /** github.com owner/repo pairs whose skills are trusted (compared case-insensitively). */
-const TRUSTED_GITHUB_REPOS: ReadonlyArray<readonly [owner: string, repo: string]> = [
+export const TRUSTED_SKILL_GITHUB_REPOS: ReadonlyArray<readonly [owner: string, repo: string]> = [
 	["anthropics", "skills"],
 	["tech-leads-club", "agent-skills"],
 ];
 
 /** Bare hosts (any path) whose skills are trusted. */
-const TRUSTED_HOSTS: readonly string[] = ["agentskills.io"];
+export const TRUSTED_SKILL_HOSTS: readonly string[] = ["agentskills.io"];
 
 /**
  * Classify a skill source URL as trusted or untrusted. Total + fail-safe: unparseable / non-web / unrecognized ⇒
@@ -43,8 +43,8 @@ export function classifySkillSourceTrust(sourceUrl: string): SkillSourceClassifi
 	} catch {
 		return { trust: "untrusted", origin: sourceUrl.trim() || "(empty)", reason: "unparseable source URL" };
 	}
-	if (url.protocol !== "https:" && url.protocol !== "http:") {
-		return { trust: "untrusted", origin: url.href, reason: `non-web protocol "${url.protocol}"` };
+	if (url.protocol !== "https:") {
+		return { trust: "untrusted", origin: url.href, reason: `non-HTTPS protocol "${url.protocol}"` };
 	}
 	const host = url.hostname.toLowerCase().replace(/^www\./, "");
 	if (host === "github.com" || host === "raw.githubusercontent.com") {
@@ -52,12 +52,12 @@ export function classifySkillSourceTrust(sourceUrl: string): SkillSourceClassifi
 		const owner = (segments[0] ?? "").toLowerCase();
 		const repo = (segments[1] ?? "").toLowerCase().replace(/\.git$/, "");
 		const origin = `github.com/${owner}/${repo}`;
-		const trusted = TRUSTED_GITHUB_REPOS.some(([o, r]) => o === owner && r === repo);
+		const trusted = TRUSTED_SKILL_GITHUB_REPOS.some(([o, r]) => o === owner && r === repo);
 		return trusted
 			? { trust: "trusted", origin, reason: "curated trusted skills repository" }
 			: { trust: "untrusted", origin, reason: "unrecognized code-host repository" };
 	}
-	if (TRUSTED_HOSTS.includes(host)) {
+	if (TRUSTED_SKILL_HOSTS.includes(host)) {
 		return { trust: "trusted", origin: host, reason: "curated trusted skills registry" };
 	}
 	return { trust: "untrusted", origin: host, reason: "unrecognized / discovery-only source" };

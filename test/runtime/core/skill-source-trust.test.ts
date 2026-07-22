@@ -36,6 +36,7 @@ describe("classifySkillSourceTrust", () => {
 		expect(classifySkillSourceTrust("").trust).toBe("untrusted");
 		expect(classifySkillSourceTrust("ftp://github.com/anthropics/skills").trust).toBe("untrusted");
 		expect(classifySkillSourceTrust("file:///etc/passwd").trust).toBe("untrusted");
+		expect(classifySkillSourceTrust("http://github.com/anthropics/skills").trust).toBe("untrusted");
 	});
 
 	it("carries a normalized origin + reason for display/provenance", () => {

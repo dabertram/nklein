@@ -2,6 +2,10 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Community-skill discovery now fails closed into a user-review-only channel.** Trusted origins are searched by
+  default; community indexes require explicit opt-in. Searches use the configured egress-gated backend, results are
+  re-confined to the requested origin, and snippets/bodies are discarded before they can reach any execution prompt.
+
 - **Learned procedures can now be found by natural-language meaning, not only exact tags.** Active procedures carry a
   durable description indexed through the configured local embedding provider. Exact lexical matches remain first,
   semantic matches fill spare slots, dependencies render before dependents, and unavailable/degraded embedders fall

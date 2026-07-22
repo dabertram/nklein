@@ -2579,3 +2579,15 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   are never persisted under a dense provider key. Missing, throwing, or GGUF-degraded embedding paths return the exact
   lexical baseline. Evidence: focused retrieval/store/prompt suites 45/45, full runtime 12,018/12,018, protected 142/142,
   typecheck and lint green.
+
+- [x] **F4.21 — gated community-skill discovery** *(delivered 2026-07-22).* A production tRPC query now exposes a
+  user-review-only discovery channel backed exclusively by the configured fail-closed SearXNG egress client (including
+  managed-local backend lifecycle). The pure query plan searches the three centrally-derived trusted origins by default;
+  SkillsMP, skills.sh, LobeHub, and wshobson/agents join only when `includeUntrusted === true`. Every result is rechecked
+  against the exact requested host/path because a search-engine `site:` clause is not a security boundary. Control
+  characters and lengths are bounded, cross-origin and malformed URLs are dropped, duplicates are stable, partial
+  backend failures remain body-free, and result snippets/bodies/descriptions are destroyed at the boundary. Returned
+  records carry literal `channel:"user-review-only"`, `displayOnly:true`, and `promptEligible:false`; discovery through
+  an untrusted index stays untrusted even if it links elsewhere. Focused core/service/trust and runtime API suites pass
+  125 tests; the full runtime gate passes 12,029/12,029, protected passes 142/142, and the full contract gate passes
+  286/286 in the resource-safe serial mode required by the current low-power host. TypeScript and lint are green.

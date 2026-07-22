@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F4.19b closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F4.21 closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-gate below is green. The current 189-package remainder is **98 ready + 1 partial + 77 dependency-blocked + 6 external/
+gate below is green. The current 188-package remainder is **97 ready + 1 partial + 77 dependency-blocked + 6 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 
@@ -703,6 +703,11 @@ source repo went private — so if it vanishes the buildable source still lives 
 > inside ingested content (or inside a *peer agent's* message) as an instruction — fence untrusted content structurally,
 > and surface suspicious directives to the operator instead of acting on them. When building any ingestion or inter-agent
 > path, ask "could poisoned input here drive an unauthorized tool call / egress / outward action?" and gate accordingly.
+> **Discovery is not prompt context (F4.21, 2026-07-22).** Search-engine snippets and registry prose are attacker text.
+> Skill discovery must use the configured egress-gated search client, strictly re-check every hit against the requested
+> origin (a `site:` query is not a boundary), and destroy snippets/bodies before returning display-only results. An
+> untrusted index requires a literal user opt-in and permanently taints that discovery path; it cannot launder a linked
+> repository into trusted prompt material. Full source enters only the later explicit review/import boundary.
 
 ### Misc. tribal knowledge (engineering invariants & hard-won gotchas)
 > (WORKING MODE — autonomous, full capabilities — is the callout at the **top of this file**; don't re-litigate it. `/clear` at clean breakpoints once a milestone is committed and all durable state is in `todo.md`/`git`.)
@@ -2613,9 +2618,6 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   via `dev skill-audit --apply` (promote through the audit+execution DOUBLE gate, retire→deprecated), which
   SUPERSEDES the older helped/hurt-only applyProceduralSkillLifecycle path with a strictly stronger gate. The
   auto-sweep cadence = David batch (noted at F12.30). Crossed.
-- [ ] **F4.21 — Implement gated discovery.** Search trusted origins by default; require an explicit untrusted-discovery
-  opt-in for community indexes, use the egress broker, and never inject result text into an execution prompt.
-  **AUDIT 2026-07-18: OPEN** — only the trust classifier exists (classifySkillSourceTrust); no discovery/search mechanism, no trusted-origin search, no untrusted opt-in.
 - [ ] **F4.22 — Build the user-controlled import flow.** Browse/select, show full source/bundle/findings/trust/provenance,
   compute SHA-256 over the canonical preimage, persist TOFU pins, and force re-review on change.
   **AUDIT 2026-07-18: OPEN** — only the decideSkillImport core exists; no browse/select UI, no TOFU pin store, no production consumer, canonical-preimage hashing left to the caller.

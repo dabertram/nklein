@@ -28,6 +28,8 @@ import {
 	runtimeChatHostActionAuditRequestSchema,
 	runtimeChatHostActionAuditResponseSchema,
 	runtimeCommandRunResponseSchema,
+	runtimeCommunitySkillDiscoveryRequestSchema,
+	runtimeCommunitySkillDiscoveryResponseSchema,
 	runtimeConfigResponseSchema,
 	runtimeConfigSaveRequestSchema,
 	runtimeDebugResetAllStateResponseSchema,
@@ -208,6 +210,11 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		getManagedSearchStatus: t.procedure
 			.output(runtimeManagedSearchStatusResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getManagedSearchStatus()),
+		// F4.21: user-review-only skill discovery. Community indexes require the request's explicit opt-in.
+		discoverCommunitySkills: t.procedure
+			.input(runtimeCommunitySkillDiscoveryRequestSchema)
+			.output(runtimeCommunitySkillDiscoveryResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.discoverCommunitySkills(input)),
 		setManagedSearchControl: t.procedure
 			.input(runtimeManagedSearchControlRequestSchema)
 			.output(runtimeManagedSearchStatusResponseSchema)

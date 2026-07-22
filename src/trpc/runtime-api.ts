@@ -136,6 +136,7 @@ import {
 import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
 import { buildSessionSkillFragments } from "../nklein-agent/nklein-session-skill-fragments";
 import { openInBrowser } from "../server/browser";
+import { createCommunitySkillDiscoveryService } from "../server/community-skill-discovery-service";
 import { createRailControlCoordinator, type RailControlCoordinator } from "../server/rail-control-service";
 import { createSearxngWebSearchClient } from "../server/web-search-searxng";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
@@ -952,6 +953,19 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				lastError: null,
 				lastStartedAt: null,
 			},
+		discoverCommunitySkills: async (input) => {
+			const config = await loadGlobalRuntimeConfig();
+			const discoverAt = async (backendBaseUrl: string | null) =>
+				await createCommunitySkillDiscoveryService({
+					backendBaseUrl,
+					egressEnabled: config.retrievalEgressEnabled,
+				}).discover(input);
+			const configured = effectiveRetrievalSearchBackendUrl({
+				providerMode: config.retrievalProviderMode,
+				searchBackendUrl: config.retrievalSearchBackendUrl,
+			});
+			return deps.withSearchBackend ? await deps.withSearchBackend(discoverAt) : await discoverAt(configured);
+		},
 		setManagedSearchControl: async (input) => {
 			if (!deps.managedSearchBackend) throw new Error("Managed local search is unavailable in this runtime.");
 			if (input.action === "start") await deps.managedSearchBackend.start();
