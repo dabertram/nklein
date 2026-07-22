@@ -101,6 +101,8 @@ export function trpcOk(data: unknown): unknown[] {
 export interface RuntimeMockOptions {
 	/** The board snapshot to inject (defaults to an empty board). */
 	snapshot?: Record<string, unknown>;
+	/** Default true. Set false only when the test intentionally exercises the first-run onboarding dialog. */
+	suppressOnboarding?: boolean;
 	/** tRPC QUERY procedure → returned `data` (merged over the always-needed defaults). */
 	queryStubs?: Record<string, unknown>;
 	/** tRPC MUTATION procedure → a handler returning the response body (use `trpcOk`); the request body is captured. */
@@ -137,13 +139,20 @@ export async function installRuntimeMock(page: Page, options: RuntimeMockOptions
 	const mutations = options.mutations ?? {};
 	const calls: Record<string, unknown[]> = {};
 
-	// Suppress the onboarding dialog so the board is reachable immediately, and pin zoom to Z3 (Expert — the kanban
-	// board): the §5.BB five-level ladder defaults NEW users to Z1 Overview (activity map, no columns), which strands
+	// Normally suppress onboarding so the board is immediately reachable; an explicit first-run test removes the marker.
+	// Pin zoom to Z3 (Expert — the kanban board): §5.BB defaults new users to Z1 Overview (no columns), which would strand
 	// every gotoBoard()-based spec on the map.
-	await page.addInitScript(() => {
-		window.localStorage.setItem("nklein.onboarding.dialog.shown", "true");
-		window.localStorage.setItem("nklein.ui-zoom-level.v2", "3");
-	});
+	if (options.suppressOnboarding ?? true) {
+		await page.addInitScript(() => {
+			window.localStorage.setItem("nklein.onboarding.dialog.shown", "true");
+			window.localStorage.setItem("nklein.ui-zoom-level.v2", "3");
+		});
+	} else {
+		await page.addInitScript(() => {
+			window.localStorage.removeItem("nklein.onboarding.dialog.shown");
+			window.localStorage.setItem("nklein.ui-zoom-level.v2", "3");
+		});
+	}
 
 	let currentWs: WebSocketRoute | null = null;
 	await page.routeWebSocket(/\/api\/runtime\/ws/, (ws) => {

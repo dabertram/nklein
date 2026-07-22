@@ -565,6 +565,17 @@ export function TaskStartAgentOnboardingCarousel({
 		(model) => model.id === nkleinSettings.modelId,
 	);
 	const selectedModelContextWindow = selectedNKleinProviderModel?.contextWindow ?? null;
+	// The controller result is intentionally a plain aggregate object and therefore has a new identity on every render.
+	// Depend on the stable/value fields the Done action actually consumes; depending on the aggregate creates a child
+	// effect -> parent action-state update -> child render feedback loop during first-run onboarding.
+	const {
+		hasUnsavedChanges,
+		saveProviderSettings,
+		providerId: nkleinProviderId,
+		modelId: nkleinModelId,
+		baseUrl: nkleinBaseUrl,
+		reasoningEffort: nkleinReasoningEffort,
+	} = nkleinSettings;
 
 	const handleAgentSelect = (agentId: RuntimeAgentId) => {
 		if (activeAgentId === agentId) {
@@ -617,11 +628,11 @@ export function TaskStartAgentOnboardingCarousel({
 		if (activeAgentId !== "nklein") {
 			return { ok: true };
 		}
-		if (!nkleinSettings.hasUnsavedChanges) {
+		if (!hasUnsavedChanges) {
 			return { ok: true };
 		}
 		setNKleinSetupError(null);
-		const saveResult = await nkleinSettings.saveProviderSettings();
+		const saveResult = await saveProviderSettings();
 		if (!saveResult.ok) {
 			const message = saveResult.message ?? "Could not save !Klein provider settings.";
 			setNKleinSetupError(message);
@@ -629,10 +640,10 @@ export function TaskStartAgentOnboardingCarousel({
 		}
 		const firstRunRoles = buildFirstRunLocalModelRoles({
 			existingRoles: runtimeConfig?.modelRoles,
-			providerId: nkleinSettings.providerId,
-			modelId: nkleinSettings.modelId,
-			baseUrl: nkleinSettings.baseUrl,
-			reasoningEffort: nkleinSettings.reasoningEffort,
+			providerId: nkleinProviderId,
+			modelId: nkleinModelId,
+			baseUrl: nkleinBaseUrl,
+			reasoningEffort: nkleinReasoningEffort,
 		});
 		const trimmedContextWindow = nkleinContextWindowInput.trim();
 		if (trimmedContextWindow) {
@@ -644,9 +655,9 @@ export function TaskStartAgentOnboardingCarousel({
 			}
 			try {
 				await saveNKleinModelContextWindowOverride(workspaceId, {
-					providerId: nkleinSettings.providerId,
-					modelId: nkleinSettings.modelId,
-					endpoint: nkleinSettings.baseUrl?.trim() || null,
+					providerId: nkleinProviderId,
+					modelId: nkleinModelId,
+					endpoint: nkleinBaseUrl?.trim() || null,
 					contextWindow,
 				});
 			} catch (error) {
@@ -668,10 +679,15 @@ export function TaskStartAgentOnboardingCarousel({
 		return { ok: true };
 	}, [
 		activeAgentId,
+		hasUnsavedChanges,
+		nkleinBaseUrl,
 		nkleinContextWindowInput,
-		nkleinSettings,
+		nkleinModelId,
+		nkleinProviderId,
+		nkleinReasoningEffort,
 		onNKleinSetupSaved,
 		runtimeConfig?.modelRoles,
+		saveProviderSettings,
 		workspaceId,
 	]);
 

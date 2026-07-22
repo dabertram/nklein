@@ -2945,10 +2945,19 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   over the same setup-plan model.
 - [x] **F5.4 —  *(finalized 2026-07-19: mechanism complete + mounted, CSP-self-only proven; only the media FILES remain = content decision, DAVID BATCH.)* Add first-party self-hosted onboarding media.** Keep CSP `self`-only, make media optional/lightweight, and
   provide accessible text fallback.
-- [ ] **F5.4a — Stop the startup onboarding carousel's render loop.** Reproduce the browser-observed React “Maximum
+- [x] **F5.4a — Stop the startup onboarding carousel's render loop.** Reproduce the browser-observed React “Maximum
   update depth exceeded” failure in `TaskStartAgentOnboardingCarousel`, identify the state/effect dependency feedback
   loop, and make initialization idempotent without suppressing React's warning. Add a component regression and verify a
   first-run startup in the browser with a clean console.
+  **COMPLETED 2026-07-22:** root cause was `handleDoneAction` depending on the whole
+  `useRuntimeSettingsNKleinController` result, a deliberately plain aggregate with a fresh object identity each render.
+  Its registration effect stored that new callback in `StartupOnboardingDialog`, causing parent render → fresh aggregate
+  → fresh callback → effect → parent state forever. The callback now depends only on the stable/value fields it consumes,
+  so the parent action registers once while still updating when actual provider state changes. A component regression
+  recreates the exact child-effect/parent-state feedback shape with a fresh controller aggregate every render. The shared
+  Playwright harness now supports an intentional first-run mode, and the browser test proves the dialog opens, Next is
+  enabled, and console/page errors stay empty. Gates: web typecheck; 3 focused component assertions; 156 web files / 1,136
+  assertions; one first-run browser flow; lint has no errors (20 existing warnings and one existing info diagnostic).
 
 #### 5B. Desktop updates, migrations, and packaged behavior *(legacy §10 desktop)*
 

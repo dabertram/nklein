@@ -2,6 +2,10 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **First-run onboarding no longer enters a React render loop.** The carousel's Done action now depends on the stable
+  controller fields it consumes instead of the controller aggregate's per-render identity. Component and headless-browser
+  regressions preserve the parent-registration feedback shape and require a clean first-run console.
+
 - **JIT model admission now preserves warm prompt caches.** Safe residents stay loaded—up to three LLMs on m5max and
   one on smaller hosts. Capacity admission may evict only the minimum coldest !Klein-loaded set after its idle TTL,
   while operator models, active task leases, and queued needs across workspaces remain protected. A timer no longer
