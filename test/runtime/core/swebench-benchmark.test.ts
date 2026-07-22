@@ -74,6 +74,9 @@ describe("SWE-bench compatibility adapter", () => {
 		});
 		expect(JSON.parse(serializeSwebenchPredictions([prediction]).trim())).toEqual(prediction);
 		expect(() => serializeSwebenchPredictions([prediction, prediction])).toThrow(/Duplicate prediction/);
+		expect(
+			buildSwebenchPrediction({ instanceId: row.instance_id, modelNameOrPath: "nklein/no-op", modelPatch: "" }),
+		).toMatchObject({ model_patch: "" });
 	});
 
 	it("plans the pinned official grader and forces native local builds on Apple Silicon", () => {

@@ -103,6 +103,9 @@ gap remains.
 > image builds and label architecture mismatch QEMU-tainted. Calibrate gold ≥2 times before candidate execution,
 > quarantine unresolved/flip/error/missing cases, and gate only calibrated resolved→unresolved deltas; infrastructure
 > absence is inconclusive. This is why a famous absolute benchmark score is weaker evidence than a clean paired delta.
+> **Git history is part of the agent-visible input:** deleting a temporary oracle mount is insufficient if `test_patch`
+> was ever applied or committed. The sealed workspace must expose exactly one upstream baseline commit; private tests
+> first enter only the separate official grader container after prediction capture.
 
 > **⚠️ CODE SEARCH MODALITIES ARE COMPLEMENTS, NOT FALLBACK QUALITY LEVELS (F11.2b, 2026-07-22).** Route exact
 > strings/errors/config keys to `search_code`; syntax shapes that must exclude comments and strings to tree-sitter

@@ -217,7 +217,6 @@ export function buildSwebenchPrediction(input: {
 }): SwebenchPrediction {
 	if (!input.instanceId.trim()) throw new Error("Prediction instanceId is required.");
 	if (!input.modelNameOrPath.trim()) throw new Error("Prediction modelNameOrPath is required.");
-	if (!input.modelPatch.trim()) throw new Error("Prediction modelPatch must contain a delivered diff.");
 	return {
 		instance_id: input.instanceId,
 		model_name_or_path: input.modelNameOrPath,

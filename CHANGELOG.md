@@ -9,6 +9,10 @@
   is inconclusive, and regression gates compare resolved-set deltas rather than contaminated absolute scores. Agent
   prompts cannot carry gold, hints, private test patches, or oracle test ids, and Apple Silicon forces native local
   image builds while marking QEMU-tainted results non-comparable.
+  Private test patches remain exclusively in the external grader and are never mounted or committed into the
+  agent-visible repository history.
+  The new `benchmark run` path exercises the real plan/decompose/review/delivery pipeline, requires terminal workflow
+  completion, pins the aggregate result commit, and emits a create-only evidence receipt plus official prediction.
 
 - **Unfamiliar repositories now gain a durable local-model onboarding map.** The `repo_summary` tool summarizes
   function-like units into files, directories, and a project overview, then stores the result by content hash. An

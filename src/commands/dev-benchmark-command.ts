@@ -1,6 +1,6 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { link, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
 	assertCandidateCalibration,
@@ -19,8 +19,15 @@ import {
 	selectSwebenchInstances,
 	serializeSwebenchPredictions,
 } from "../core/swebench-benchmark";
+import { resolveSwebenchWorkspaceName } from "../core/swebench-workspace-plan";
 import { resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox-docker";
 import { materializeSwebenchWorkspace } from "../nklein-agent/nklein-swebench-workspace";
+import { loadWorkspaceContext } from "../state/workspace-state";
+import {
+	captureBenchmarkWorkspaceResult,
+	verifySealedBenchmarkWorkspace,
+} from "../workspace/repository-benchmark-result";
+import { createDevRuntimeClient, executeDevTestScenario } from "./dev-project-execution";
 
 const execFile = promisify(execFileCallback);
 
@@ -52,10 +59,42 @@ export interface DevBenchmarkOptions {
 	current?: string;
 	quarantine?: string;
 	calibration?: string;
+	receipt?: string;
+	modelId?: string;
+	providerId?: string;
+	pollIntervalMs?: string;
+	maxWaitMs?: string;
+	plan?: boolean;
 	execute?: boolean;
 	replace?: boolean;
 	json?: boolean;
 	write?: (text: string) => void;
+}
+
+export interface BenchmarkTaskExecutionInput {
+	workspacePath: string;
+	task: ReturnType<typeof buildLeakageSafeBenchmarkTask>;
+	runId: string;
+	modelId?: string;
+	providerId?: string;
+	startInPlanMode: boolean;
+	pollIntervalMs?: number;
+	maxWaitMs?: number;
+}
+
+export interface BenchmarkTaskExecutionResult {
+	seedTaskId: string;
+	durationMs: number;
+	workflowOutcome: string;
+	completedCardCount: number;
+	baseCommit: string;
+	resultCommit: string;
+	evidenceRef: string;
+	patch: string;
+}
+
+export interface DevBenchmarkCommandDeps {
+	executeBenchmarkTask?: (input: BenchmarkTaskExecutionInput) => Promise<BenchmarkTaskExecutionResult>;
 }
 
 function csv(value: string | undefined): string[] | undefined {
@@ -96,6 +135,20 @@ async function atomicWrite(path: string, content: string): Promise<void> {
 	try {
 		await writeFile(temporary, content, { flag: "wx" });
 		await rename(temporary, path);
+	} finally {
+		await rm(temporary, { force: true });
+	}
+}
+
+async function atomicWriteNew(path: string, content: string): Promise<void> {
+	await mkdir(dirname(path), { recursive: true });
+	const temporary = `${path}.${process.pid}.${Date.now()}.tmp`;
+	try {
+		await writeFile(temporary, content, { flag: "wx" });
+		await link(temporary, path).catch((error: NodeJS.ErrnoException) => {
+			if (error.code === "EEXIST") throw new Error(`Refusing to replace existing immutable receipt: ${path}`);
+			throw error;
+		});
 	} finally {
 		await rm(temporary, { force: true });
 	}
@@ -147,9 +200,9 @@ function parsePredictions(text: string): SwebenchPrediction[] {
 		});
 }
 
-async function prediction(options: DevBenchmarkOptions) {
-	if (!options.instance || !options.model || !options.patch || !options.output) {
-		throw new Error("benchmark prediction requires --instance, --model, --patch <diff-file>, and --output <jsonl>.");
+async function storePrediction(options: DevBenchmarkOptions, modelPatch: string) {
+	if (!options.instance || !options.model || !options.output) {
+		throw new Error("A benchmark prediction requires --instance, --model, and --output <jsonl>.");
 	}
 	const output = resolve(options.output);
 	const existing: SwebenchPrediction[] = await readFile(output, "utf8")
@@ -161,7 +214,7 @@ async function prediction(options: DevBenchmarkOptions) {
 	const next = buildSwebenchPrediction({
 		instanceId: options.instance,
 		modelNameOrPath: options.model,
-		modelPatch: await readFile(resolve(options.patch), "utf8"),
+		modelPatch,
 	});
 	const duplicate = existing.findIndex((entry) => entry.instance_id === next.instance_id);
 	if (duplicate >= 0 && !options.replace)
@@ -170,7 +223,134 @@ async function prediction(options: DevBenchmarkOptions) {
 	else existing.push(next);
 	existing.sort((left, right) => left.instance_id.localeCompare(right.instance_id));
 	await atomicWrite(output, serializeSwebenchPredictions(existing));
-	return { action: "prediction", output, predictionCount: existing.length, instanceId: next.instance_id };
+	return { output, predictionCount: existing.length, instanceId: next.instance_id };
+}
+
+async function assertPredictionWritable(options: DevBenchmarkOptions): Promise<void> {
+	if (!options.instance || !options.output) return;
+	const existing = await readFile(resolve(options.output), "utf8")
+		.then(parsePredictions)
+		.catch((error: NodeJS.ErrnoException) => {
+			if (error.code === "ENOENT") return [];
+			throw error;
+		});
+	if (existing.some((entry) => entry.instance_id === options.instance) && !options.replace) {
+		throw new Error(`Prediction for ${options.instance} already exists; pass --replace deliberately.`);
+	}
+}
+
+async function prediction(options: DevBenchmarkOptions) {
+	if (!options.patch) {
+		throw new Error("benchmark prediction requires --patch <diff-file>.");
+	}
+	return { action: "prediction", ...(await storePrediction(options, await readFile(resolve(options.patch), "utf8"))) };
+}
+
+async function executeBenchmarkTask(input: BenchmarkTaskExecutionInput): Promise<BenchmarkTaskExecutionResult> {
+	const sealed = await verifySealedBenchmarkWorkspace({ repoPath: input.workspacePath });
+	const workspace = await loadWorkspaceContext(input.workspacePath, { autoCreateIfMissing: true });
+	const scenario = {
+		id: `benchmark-${input.task.instanceId}`,
+		title: `Repair ${input.task.repo} (${input.task.instanceId})`,
+		prompt: input.task.prompt,
+		specification: input.task.prompt,
+		// Deliberately unused: the private benchmark oracle runs later in the official external grader.
+		acceptanceCommand: "",
+	};
+	const execution = await executeDevTestScenario({
+		client: createDevRuntimeClient(workspace.workspaceId),
+		workspaceId: workspace.workspaceId,
+		scenario,
+		baseRef: "benchmark-baseline",
+		seedTaskId: input.runId,
+		startInPlanMode: input.startInPlanMode,
+		...(input.modelId
+			? { nkleinSettings: { providerId: input.providerId?.trim() || "lmstudio", modelId: input.modelId } }
+			: {}),
+		...(typeof input.pollIntervalMs === "number" ? { pollIntervalMs: input.pollIntervalMs } : {}),
+		...(typeof input.maxWaitMs === "number" ? { maxWaitMs: input.maxWaitMs } : {}),
+	});
+	if (!execution.result.started) {
+		throw new Error(`!Klein benchmark task did not start: ${execution.result.startMessage ?? "unknown error"}.`);
+	}
+	if (execution.result.classification.outcome !== "acceptance_not_run") {
+		throw new Error(`!Klein benchmark workflow did not complete: ${execution.result.classification.summary}`);
+	}
+	const captured = await captureBenchmarkWorkspaceResult({
+		repoPath: input.workspacePath,
+		baseCommit: sealed.baseCommit,
+		runId: input.runId,
+	});
+	return {
+		seedTaskId: execution.seedTaskId,
+		durationMs: execution.durationMs,
+		workflowOutcome: execution.result.classification.outcome,
+		completedCardCount: execution.result.finalCounts.completed,
+		...captured,
+	};
+}
+
+async function run(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) {
+	if (
+		!options.instance ||
+		!options.workspaceParent ||
+		!options.model ||
+		!options.output ||
+		!options.receipt ||
+		!options.runId
+	) {
+		throw new Error(
+			"benchmark run requires --dataset, --instance, --workspace-parent, --model, --output, --receipt, and --run-id.",
+		);
+	}
+	const instances = await loadDataset(options);
+	const instance = instances.find((entry) => entry.instanceId === options.instance);
+	if (!instance) throw new Error(`Benchmark instance ${options.instance} is not present in the local dataset.`);
+	const task = buildLeakageSafeBenchmarkTask(instance);
+	if (!/^[A-Za-z0-9_.-]+$/u.test(options.runId)) {
+		throw new Error("--run-id must contain only letters, digits, dot, underscore, or hyphen.");
+	}
+	const workspacePath = join(resolve(options.workspaceParent), resolveSwebenchWorkspaceName(instance.instanceId));
+	const receiptPath = resolve(options.receipt);
+	const receiptExists = await lstat(receiptPath)
+		.then(() => true)
+		.catch((error: NodeJS.ErrnoException) => {
+			if (error.code === "ENOENT") return false;
+			throw error;
+		});
+	if (receiptExists) throw new Error(`Refusing to replace existing immutable receipt: ${receiptPath}`);
+	await assertPredictionWritable(options);
+	const executeTask = deps.executeBenchmarkTask ?? executeBenchmarkTask;
+	const execution = await executeTask({
+		workspacePath,
+		task,
+		runId: options.runId,
+		startInPlanMode: options.plan !== false,
+		...(options.modelId ? { modelId: options.modelId } : {}),
+		...(options.providerId ? { providerId: options.providerId } : {}),
+		...(options.pollIntervalMs ? { pollIntervalMs: integer(options.pollIntervalMs, "poll-interval-ms") } : {}),
+		...(options.maxWaitMs ? { maxWaitMs: integer(options.maxWaitMs, "max-wait-ms") } : {}),
+	});
+	const { patch, ...executionEvidence } = execution;
+	const patchBytes = Buffer.byteLength(patch, "utf8");
+	const receipt = {
+		schemaVersion: 1,
+		runId: options.runId,
+		instanceId: task.instanceId,
+		source: task.source,
+		modelNameOrPath: options.model,
+		forcedModelId: options.modelId ?? null,
+		providerId: options.modelId ? options.providerId?.trim() || "lmstudio" : null,
+		startInPlanMode: options.plan !== false,
+		workspacePath,
+		predictionOutput: resolve(options.output),
+		patchBytes,
+		...executionEvidence,
+		patch,
+	};
+	await atomicWriteNew(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
+	const predictionResult = await storePrediction(options, patch);
+	return { action: "run", receipt: receiptPath, ...executionEvidence, patchBytes, ...predictionResult };
 }
 
 async function workspace(options: DevBenchmarkOptions) {
@@ -299,18 +479,23 @@ async function gate(options: DevBenchmarkOptions) {
 	};
 }
 
-export async function runDevBenchmarkCommand(options: DevBenchmarkOptions): Promise<void> {
+export async function runDevBenchmarkCommand(
+	options: DevBenchmarkOptions,
+	deps: DevBenchmarkCommandDeps = {},
+): Promise<void> {
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
 	const handlers: Record<string, (value: DevBenchmarkOptions) => Promise<unknown>> = {
 		prepare,
 		prediction,
 		workspace,
+		run: (value) => run(value, deps),
 		plan,
 		calibrate,
 		gate,
 	};
 	const handler = handlers[options.action];
-	if (!handler) throw new Error("benchmark action must be prepare, prediction, workspace, plan, calibrate, or gate.");
+	if (!handler)
+		throw new Error("benchmark action must be prepare, prediction, workspace, run, plan, calibrate, or gate.");
 	const result = await handler(options);
 	write(`${JSON.stringify(result, null, options.json ? 2 : 2)}\n`);
 }

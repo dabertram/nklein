@@ -96,4 +96,70 @@ describe("dev benchmark command", () => {
 		});
 		expect(JSON.parse(gate).verdict).toBe("regression");
 	});
+
+	it("runs the leakage-safe task through !Klein and records immutable aggregate evidence", async () => {
+		const root = await mkdtemp(join(tmpdir(), "nklein-bench-run-"));
+		const dataset = join(root, "dataset.json");
+		const output = join(root, "predictions.jsonl");
+		const receipt = join(root, "receipts", "run-1.json");
+		await writeFile(dataset, JSON.stringify([task]));
+		let printed = "";
+		await runDevBenchmarkCommand(
+			{
+				action: "run",
+				dataset,
+				instance: task.instance_id,
+				workspaceParent: join(root, "workspaces"),
+				model: "nklein/test-fleet",
+				modelId: "loaded-model",
+				providerId: "lmstudio",
+				output,
+				receipt,
+				runId: "run-1",
+				write: (text) => {
+					printed += text;
+				},
+			},
+			{
+				executeBenchmarkTask: async (input) => {
+					expect(JSON.stringify(input.task)).not.toContain("PRIVATE GOLD");
+					expect(JSON.stringify(input.task)).not.toContain("PRIVATE TEST");
+					expect(input.startInPlanMode).toBe(true);
+					expect(input.modelId).toBe("loaded-model");
+					return {
+						seedTaskId: input.runId,
+						durationMs: 123,
+						workflowOutcome: "acceptance_not_run",
+						completedCardCount: 3,
+						baseCommit: "a".repeat(40),
+						resultCommit: "b".repeat(40),
+						evidenceRef: "refs/nklein/benchmark-evidence/run-1",
+						patch: "diff --git a/a b/a\n-old\n+new\n",
+					};
+				},
+			},
+		);
+		const prediction = JSON.parse((await readFile(output, "utf8")).trim());
+		expect(prediction.model_patch).toContain("+new");
+		const evidence = JSON.parse(await readFile(receipt, "utf8"));
+		expect(evidence).toMatchObject({ runId: "run-1", startInPlanMode: true, completedCardCount: 3 });
+		expect(evidence.patch).toContain("+new");
+		expect(JSON.parse(printed)).not.toHaveProperty("patch");
+		await expect(
+			runDevBenchmarkCommand(
+				{
+					action: "run",
+					dataset,
+					instance: task.instance_id,
+					workspaceParent: join(root, "workspaces"),
+					model: "nklein/test-fleet",
+					output,
+					receipt,
+					runId: "run-1",
+					write: () => undefined,
+				},
+				{ executeBenchmarkTask: async () => Promise.reject(new Error("must not execute")) },
+			),
+		).rejects.toThrow(/immutable receipt/);
+	});
 });

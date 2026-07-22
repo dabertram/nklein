@@ -20,13 +20,12 @@ describe("SWE-bench workspace Docker plan", () => {
 			instance,
 			repoCacheDir: "/cache",
 			workspaceParentDir: "/workspaces",
-			patchDir: "/private-input",
 			image: "nklein/agent-sandbox:0.0.1",
 			uid: 501,
 			gid: 20,
 		});
 		expect(plan.repositoryMirrorName).toBe("owner__repo.git");
-		expect(plan.steps.length).toBeGreaterThan(8);
+		expect(plan.steps).toHaveLength(6);
 		for (const step of plan.steps) {
 			expect(step.slice(0, 5)).toEqual(["run", "--rm", "--network", "none", "--read-only"]);
 			expect(step).toContain("--memory-swap");
@@ -34,7 +33,8 @@ describe("SWE-bench workspace Docker plan", () => {
 			expect(step).not.toContain("sh");
 			expect(step).not.toContain("bash");
 		}
-		expect(plan.steps.flat()).toContain("/input/test.patch");
+		expect(plan.steps.flat().join("\n")).not.toContain("test.patch");
+		expect(plan.steps.flat().join("\n")).not.toContain(instance.testPatch);
 	});
 
 	it("removes upstream history before creating the visible one-commit baseline", () => {
@@ -42,7 +42,6 @@ describe("SWE-bench workspace Docker plan", () => {
 			instance: { ...instance, testPatch: "" },
 			repoCacheDir: "/cache",
 			workspaceParentDir: "/workspaces",
-			patchDir: "/private-input",
 			image: "nklein/agent-sandbox:0.0.1",
 			uid: 1,
 			gid: 1,
@@ -58,7 +57,6 @@ describe("SWE-bench workspace Docker plan", () => {
 			instance,
 			repoCacheDir: "/cache",
 			workspaceParentDir: "/workspaces",
-			patchDir: "/private-input",
 			image: "nklein/agent-sandbox:0.0.1",
 			uid: 1,
 			gid: 1,

@@ -1,4 +1,4 @@
-import { access, lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { SwebenchInstance } from "../core/swebench-benchmark";
 import { buildSwebenchWorkspaceDockerPlan } from "../core/swebench-workspace-plan";
@@ -35,15 +35,11 @@ export async function materializeSwebenchWorkspace(input: {
 			throw error;
 		});
 	if (existing) throw new Error(`Benchmark workspace already exists: ${workspacePath}`);
-	const patchDir = await mkdtemp(
-		join(input.workspaceParentDir, `.nklein-benchmark-input-${input.instance.instanceId}-`),
-	);
 	try {
 		const plan = buildSwebenchWorkspaceDockerPlan({
 			instance: input.instance,
 			repoCacheDir: input.repoCacheDir,
 			workspaceParentDir: input.workspaceParentDir,
-			patchDir,
 			image: input.image,
 			uid,
 			gid,
@@ -53,7 +49,6 @@ export async function materializeSwebenchWorkspace(input: {
 				`Local bare mirror ${plan.repositoryMirrorName} is missing. Fetching is an explicit egress-gated operator step.`,
 			);
 		});
-		await writeFile(join(patchDir, "test.patch"), input.instance.testPatch, { mode: 0o600, flag: "wx" });
 		for (let index = 0; index < plan.steps.length; index += 1) {
 			const result = await input.runDocker(plan.steps[index]);
 			if (result.exitCode !== 0) {
@@ -67,8 +62,5 @@ export async function materializeSwebenchWorkspace(input: {
 		// A half-built workspace is not a valid benchmark input. Remove only the exact instance path we derived and own.
 		await rm(workspacePath, { recursive: true, force: true });
 		throw error;
-	} finally {
-		// The test patch is an oracle artifact and must never persist beside the agent-visible workspace.
-		await rm(patchDir, { recursive: true, force: true });
 	}
 }

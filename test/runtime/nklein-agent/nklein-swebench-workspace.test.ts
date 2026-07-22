@@ -54,7 +54,7 @@ describe("materializeSwebenchWorkspace", () => {
 		expect(await readFile(occupied, "utf8")).toBe("user-owned");
 	});
 
-	it("cleans oracle input after a successful materialization", async () => {
+	it("never creates or mounts oracle input during successful materialization", async () => {
 		const root = await mkdtemp(join(tmpdir(), "nklein-swe-ok-"));
 		const cache = join(root, "cache");
 		const work = join(root, "work");
@@ -77,6 +77,8 @@ describe("materializeSwebenchWorkspace", () => {
 		});
 		expect(result.dockerStepCount).toBe(calls.length);
 		expect(calls.every((call) => call.includes("none"))).toBe(true);
+		expect(calls.flat().join("\n")).not.toContain("test.patch");
+		expect(calls.flat().join("\n")).not.toContain(instance.testPatch);
 		expect((await readdir(work)).some((entry) => entry.startsWith(".nklein-benchmark-input-"))).toBe(false);
 	});
 

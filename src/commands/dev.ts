@@ -2,12 +2,10 @@ import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import type { RuntimeTaskNKleinSettings } from "../core/api-contract";
-import { runtimeAgentIdSchema } from "../core/api-contract";
 import {
 	adviseContextSizes,
 	buildContextSizeObservations,
@@ -19,26 +17,19 @@ import { createDefaultLmsRunner, fetchLmsPsModels } from "../core/lms-ps-json";
 import { buildLmStudioCapacityReport, formatLmStudioCapacityReport } from "../core/lmstudio-capacity-report";
 import { parseLmStudioRequestStats, renderLmStudioRequestStats } from "../core/lmstudio-request-stats";
 import { checkRoleModelReadiness, type RoleModelRequirement } from "../core/role-model-readiness";
-import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
-import { addTaskToColumn } from "../core/task-board-mutations";
-import { countActiveAgentSessions, countAttentionParkedSessions } from "../core/task-session-api-contract";
-import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
-import { runDevTestProject } from "../nklein-agent/nklein-dev-test-harness";
 import {
 	type DevTestSelection,
 	resolveNKleinDevTestProjectScenario,
 	scaffoldNKleinDevTestProject,
 } from "../nklein-agent/nklein-dev-test-project";
-import { createDevTestStateReader } from "../nklein-agent/nklein-dev-test-runner";
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
 import { runAcceptanceCommand, runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
 import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
 import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-agent/nklein-model-research";
 import { resolveProjectInputPath } from "../projects/project-path";
-import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace-state";
+import { loadWorkspaceContext } from "../state/workspace-state";
 import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
-import type { RuntimeAppRouter } from "../trpc/app-router";
 import { runDevAblationCommand } from "./dev-ablation-command";
 import { runDevAiBomCommand } from "./dev-ai-bom-command";
 import { runDevBenchmarkCommand } from "./dev-benchmark-command";
@@ -61,6 +52,7 @@ import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command
 import { runDevNightlyCommand } from "./dev-nightly-command";
 import { runDevOffTrackCommand } from "./dev-off-track-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
+import { createDevRuntimeClient, executeDevTestScenario } from "./dev-project-execution";
 import { runDevRequirementCoverageCommand } from "./dev-requirement-coverage-command";
 import { runDevResidentSetCommand } from "./dev-resident-set-command";
 import { runDevRoundsBudgetCommand } from "./dev-rounds-budget-command";
@@ -313,21 +305,6 @@ interface DevTestProjectOptions {
 	write?: (text: string) => void;
 }
 
-function createDevRuntimeClient(workspaceId: string | null) {
-	return createTRPCProxyClient<RuntimeAppRouter>({
-		links: [
-			httpBatchLink({
-				url: buildKanbanRuntimeUrl("/api/trpc"),
-				headers: () => buildWorkspaceScopeHeaders(workspaceId),
-				fetch: async (url, options) => {
-					const runtimeFetch = await getRuntimeFetch();
-					return runtimeFetch(url, options);
-				},
-			}),
-		],
-	});
-}
-
 /**
  * Run one dev-test preset against an already-resolved runtime client + workspace, returning the raw run
  * result + wall time. Shared by the single-preset command and the sweep orchestrator (todo §5.O).
@@ -338,8 +315,6 @@ function createDevRuntimeClient(workspaceId: string | null) {
 // settled at 3m (completed=1) while the runtime kept going to completed=3 by 18m. Give real models a much longer
 // no-progress tolerance (~4 min); the overall run is still bounded by --max-wait-ms and the active-session guard
 // means this only accumulates during a genuine lull (no running/queued session). Callers may override per-run.
-const DEVTEST_REAL_MODEL_STABLE_POLLS = 48;
-
 async function executeDevTestPreset(input: {
 	client: ReturnType<typeof createDevRuntimeClient>;
 	workspaceId: string;
@@ -356,99 +331,25 @@ async function executeDevTestPreset(input: {
 	nullAgent?: boolean;
 }): Promise<{
 	scenario: ReturnType<typeof resolveNKleinDevTestProjectScenario>;
-	result: Awaited<ReturnType<typeof runDevTestProject>>;
+	result: Awaited<ReturnType<typeof executeDevTestScenario>>["result"];
 	durationMs: number;
 }> {
 	const scenario = resolveNKleinDevTestProjectScenario(input.preset);
-	const seedTaskId = `devtest-${scenario.id}-${Date.now()}`;
-	const readState = createDevTestStateReader({
-		readLiveBoard: async () => (await input.client.workspace.getState.query()).board,
-		readPersistedBoard: async () => await loadWorkspaceBoardById(input.workspaceId),
-		// Count in-flight sessions (running + queued) so the monitor doesn't settle "stagnant" while a slow model turn
-		// (e.g. a decompose under Low Power) keeps the board static for minutes (§5.AI).
-		readActiveSessionCount: async () => {
-			const sessions = Object.values((await input.client.workspace.getState.query()).sessions ?? {});
-			const counts = countActiveAgentSessions(sessions);
-			return counts.running + counts.queued;
-		},
-		// Sessions parked FOR THE OPERATOR (awaiting_review + attention): lets the monitor report "needs your
-		// attention: answer the question" instead of a generic stagnant (the §12 turn-loop park, live 2026-07-12).
-		readAttentionCardCount: async () => {
-			const sessions = Object.values((await input.client.workspace.getState.query()).sessions ?? {});
-			return countAttentionParkedSessions(sessions);
-		},
+	return await executeDevTestScenario({
+		client: input.client,
+		workspaceId: input.workspaceId,
+		scenario,
+		baseRef: input.baseRef,
+		...(input.nkleinSettings ? { nkleinSettings: input.nkleinSettings } : {}),
+		...(typeof input.startInPlanMode === "boolean" ? { startInPlanMode: input.startInPlanMode } : {}),
+		...(typeof input.pollIntervalMs === "number" ? { pollIntervalMs: input.pollIntervalMs } : {}),
+		...(typeof input.maxWaitMs === "number" ? { maxWaitMs: input.maxWaitMs } : {}),
+		...(typeof input.stablePollsUntilSettled === "number"
+			? { stablePollsUntilSettled: input.stablePollsUntilSettled }
+			: {}),
+		...(input.nullAgent ? { nullAgent: true } : {}),
+		runAcceptance: async () => (await runAcceptanceCommand(scenario.acceptanceCommand, input.projectPath)).passed,
 	});
-	const startedAt = Date.now();
-	const result = await runDevTestProject(
-		{
-			scenario,
-			seedTaskId,
-			baseRef: input.baseRef,
-			...(typeof input.startInPlanMode === "boolean" ? { startInPlanMode: input.startInPlanMode } : {}),
-			...(input.nkleinSettings ? { nkleinSettings: input.nkleinSettings } : {}),
-			...(typeof input.pollIntervalMs === "number" ? { pollIntervalMs: input.pollIntervalMs } : {}),
-			...(typeof input.maxWaitMs === "number" ? { maxWaitMs: input.maxWaitMs } : {}),
-			// Real models settle far slower than the simulator — tolerate long between-turn lulls (see the constant above).
-			stablePollsUntilSettled: input.nullAgent
-				? 2
-				: (input.stablePollsUntilSettled ?? DEVTEST_REAL_MODEL_STABLE_POLLS),
-		},
-		{
-			startSeedTask: async (payload) => {
-				// `startTaskSession` only RECONCILES an existing card's lane — it does not create the board card. The UI
-				// always creates the card first; the CLI dev-test previously skipped that, so on a CLEAN workspace no seed
-				// card ever appeared and the board stayed empty (§5.AI). Mirror the UI: create the backlog card, then start.
-				try {
-					const state = await input.client.workspace.getState.query();
-					const cardExists = state.board.columns.some((column) =>
-						column.cards.some((card) => card.id === payload.taskId),
-					);
-					if (!cardExists) {
-						const seeded = addTaskToColumn(
-							state.board,
-							"backlog",
-							{
-								taskId: payload.taskId,
-								prompt: payload.prompt,
-								title: payload.taskTitle,
-								baseRef: payload.baseRef,
-								startInPlanMode: payload.startInPlanMode,
-								...(payload.nkleinSettings ? { nkleinSettings: payload.nkleinSettings } : {}),
-							},
-							() => crypto.randomUUID(),
-						);
-						await input.client.workspace.saveState.mutate({
-							board: seeded.board,
-							expectedRevision: state.revision,
-						});
-					}
-				} catch (error) {
-					return {
-						ok: false,
-						message: `Failed to seed board card: ${error instanceof Error ? error.message : String(error)}`,
-					};
-				}
-				if (input.nullAgent) {
-					return { ok: true, message: "Null-agent baseline: seeded the board without starting a task session." };
-				}
-				const started = await input.client.runtime.startTaskSession.mutate({
-					taskId: payload.taskId,
-					prompt: payload.prompt,
-					taskTitle: payload.taskTitle,
-					startInPlanMode: payload.startInPlanMode,
-					baseRef: payload.baseRef,
-					agentId: runtimeAgentIdSchema.catch("nklein").parse(payload.agentId),
-					...(payload.nkleinSettings ? { nkleinSettings: payload.nkleinSettings } : {}),
-				});
-				return { ok: started.ok, ...(started.error ? { message: started.error } : {}) };
-			},
-			readState,
-			runAcceptance: async () => (await runAcceptanceCommand(scenario.acceptanceCommand, input.projectPath)).passed,
-			sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
-			now: () => Date.now(),
-		},
-	);
-	return { scenario, result, durationMs: Date.now() - startedAt };
 }
 
 export async function runDevTestProjectCommand(options: DevTestProjectOptions = {}): Promise<void> {
@@ -1188,8 +1089,8 @@ export function registerDevCommand(program: Command): void {
 			await runDevEvidenceCommand(options);
 		});
 	dev.command("benchmark")
-		.description("F11.3 repository-benchmark adapter: prepare, materialize, grade, calibrate, and delta-gate.")
-		.argument("<action>", "prepare|prediction|workspace|plan|calibrate|gate")
+		.description("F11.3 repository-benchmark adapter: prepare, materialize, run, grade, calibrate, and delta-gate.")
+		.argument("<action>", "prepare|prediction|workspace|run|plan|calibrate|gate")
 		.option("--dataset <file>", "Local JSON/JSONL task dataset (fetching is a separate egress-gated operator step).")
 		.option("--dataset-name <name>", "Official grader dataset name/path.")
 		.option("--source <kind>", "swebench_legacy|swebench_live|local_minted.")
@@ -1203,7 +1104,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--workspace-parent <dir>", "Parent for sealed benchmark workspaces.")
 		.option("--image <name>", "Pinned !Klein sandbox image.")
 		.option("--model <name>", "Model/harness name for a prediction.")
+		.option("--model-id <id>", "Force the benchmark seed onto this loaded local model.")
+		.option("--provider-id <id>", "Provider for --model-id (default lmstudio).")
 		.option("--patch <file>", "Delivered diff to adapt into prediction JSONL.")
+		.option("--receipt <file>", "Exclusive immutable run receipt path.")
+		.option("--poll-interval-ms <n>", "Live !Klein workflow poll interval.")
+		.option("--max-wait-ms <n>", "Hard live !Klein workflow deadline.")
+		.option("--no-plan", "Run one ACT-mode card instead of the normal plan/decompose workflow.")
 		.option("--predictions <file>", "Prediction JSONL path, or gold.")
 		.option("--run-id <id>", "Official grader run id.")
 		.option("--report-dir <dir>", "Official grader report directory.")

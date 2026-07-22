@@ -47,10 +47,14 @@ Repository mirrors are also an explicit operator egress step. Store each bare mi
 1. `nklein dev benchmark prepare` selects ids/difficulty/freshness and writes a manifest that structurally cannot carry
    gold patches, hints, test patches, or oracle test ids.
 2. `nklein dev benchmark workspace` checks out `base_commit` from the local mirror inside the pinned sandbox image with
-   `--network none`, hard resource limits and no shell. It removes upstream `.git`, creates one sealed baseline commit,
-   applies the private test patch, commits it, and destroys the temporary oracle mount.
-3. Run !Klein on the manifest prompt and workspace. `nklein dev benchmark prediction` atomically adapts the delivered
-   diff to official prediction JSONL.
+   `--network none`, hard resource limits and no shell. It removes upstream `.git` and creates one sealed baseline
+   commit. The private test patch is never mounted, applied, committed, or exposed there; only the external official
+   grader receives it.
+3. `nklein dev benchmark run` verifies that exact one-commit baseline, starts the normal !Klein plan/decompose/review/
+   delivery workflow, requires a terminal complete board, pins the aggregate terminal commit under a hidden evidence
+   ref, and diffs the two exact commits. It writes an exclusive run receipt before atomically updating official
+   prediction JSONL. `--no-plan` is available for an explicit single-card ablation; normal measurements retain the full
+   system. The private acceptance oracle is never run in the agent workspace.
 4. Run the official grader with `predictions=gold` at least twice. `benchmark calibrate --reports <r1>,<r2>` quarantines
    any failure, error, missing repeat or flip-flop.
 5. `benchmark plan --execute` refuses candidate work without a calibration file covering every selected instance. On
@@ -61,3 +65,21 @@ Repository mirrors are also an explicit operator egress step. Store each bare mi
 
 Use `nklein dev benchmark --help` for exact arguments. Full external runs remain expensive and egress-bearing; the
 adapter, safety invariants, and report transforms are covered by the fast local test suite.
+
+Example after materialization:
+
+```sh
+nklein dev benchmark run \
+  --dataset .nklein/benchmarks/live-lite.jsonl \
+  --source swebench_live \
+  --instance <instance-id> \
+  --workspace-parent .nklein/benchmarks/workspaces/run-01 \
+  --model nklein/fleet-profile-2026-07 \
+  --run-id live-01-<instance-id> \
+  --output .nklein/benchmarks/runs/live-01/predictions.jsonl \
+  --receipt .nklein/benchmarks/runs/live-01/receipts/<instance-id>.json
+```
+
+The receipt contains the exact baseline/result commits, durable evidence ref, workflow outcome, card count, duration,
+and delivered patch. It is create-only: rerunning requires a new run id and fresh materialized workspace rather than
+silently replacing evidence.
