@@ -6,6 +6,7 @@ import { setKanbanRuntimePort } from "../../../src/core/runtime-endpoint";
 import {
 	createNKleinMcpRuntimeService,
 	handleNKleinMcpOauthCallback,
+	listAllMcpTools,
 	startOauthCallbackListener,
 } from "../../../src/nklein-agent/nklein-mcp-runtime-service";
 import type {
@@ -81,6 +82,48 @@ class FakeMcpManager implements SdkMcpManager {
 		this.disposed = true;
 	}
 }
+
+describe("listAllMcpTools", () => {
+	it("follows every tools/list cursor and preserves the complete ordered tool surface", async () => {
+		const cursors: Array<string | undefined> = [];
+		const tools = await listAllMcpTools({
+			listTools: async (params) => {
+				cursors.push(params?.cursor);
+				if (params?.cursor === "page-2") {
+					return {
+						tools: [{ name: "list_projects", inputSchema: { type: "object" } }],
+					};
+				}
+				return {
+					tools: [{ name: "search_graph", description: "search", inputSchema: { type: "object" } }],
+					nextCursor: "page-2",
+				};
+			},
+		});
+
+		expect(cursors).toEqual([undefined, "page-2"]);
+		expect(tools.map((tool) => tool.name)).toEqual(["search_graph", "list_projects"]);
+	});
+
+	it("fails closed when a server repeats a pagination cursor", async () => {
+		await expect(
+			listAllMcpTools({
+				listTools: async () => ({ tools: [], nextCursor: "same-page" }),
+			}),
+		).rejects.toThrow(/repeated tools\/list cursor/i);
+	});
+
+	it("fails closed when pages repeat a tool name", async () => {
+		await expect(
+			listAllMcpTools({
+				listTools: async (params) =>
+					params?.cursor
+						? { tools: [{ name: "search_graph" }] }
+						: { tools: [{ name: "search_graph" }], nextCursor: "page-2" },
+			}),
+		).rejects.toThrow(/duplicate tool name/i);
+	});
+});
 
 describe("nklein-mcp-runtime-service OAuth callback handling", () => {
 	const originalRuntimePort = process.env.KANBAN_RUNTIME_PORT;

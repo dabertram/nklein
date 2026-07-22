@@ -33,10 +33,13 @@ import {
 	selectSandboxMcpServersForModel,
 } from "../src/core/sandbox-mcp-catalog";
 import { resolveAgentSandboxImageName } from "../src/nklein-agent/nklein-agent-sandbox-docker";
+import { listAllMcpTools } from "../src/nklein-agent/nklein-mcp-runtime-service";
 
 const exec = promisify(execFile);
 const CONTAINER = "nklein-verify-sandbox-mcp";
 const IMAGE = resolveAgentSandboxImageName();
+const EXPECTED_CODEBASE_MEMORY_VERSION = "codebase-memory-mcp 0.9.0";
+const EXPECTED_CODEBASE_MEMORY_BUDGET_MB = "2048";
 
 function log(message: string): void {
 	console.log(`[verify-sandbox-mcp] ${message}`);
@@ -49,7 +52,7 @@ async function listToolsOverDockerExec(argv: readonly string[], env?: Record<str
 	const transport = new StdioClientTransport({ command: "docker", args, stderr: "ignore" });
 	const client = new Client({ name: "klein-verify-sandbox-mcp", version: "0" }, { capabilities: {} });
 	await client.connect(transport);
-	const listed = (await client.listTools()).tools.map((t) => t.name);
+	const listed = (await listAllMcpTools(client)).map((tool) => tool.name);
 	await client.close();
 	return listed;
 }
@@ -179,6 +182,17 @@ async function main(): Promise<void> {
 	await exec("docker", ["rm", "-f", CONTAINER]).catch(() => {});
 	await exec("docker", ["run", "-d", "--network", "none", "--name", CONTAINER, IMAGE, "sleep", "infinity"]);
 	log(`started ${CONTAINER} from ${IMAGE} (--network none)`);
+	const cbmVersion = (await exec("docker", ["exec", CONTAINER, "codebase-memory-mcp", "--version"])).stdout.trim();
+	if (cbmVersion !== EXPECTED_CODEBASE_MEMORY_VERSION) {
+		throw new Error(`codebase-memory version drift: expected ${EXPECTED_CODEBASE_MEMORY_VERSION}, got ${cbmVersion}`);
+	}
+	const cbmBudget = (await exec("docker", ["exec", CONTAINER, "printenv", "CBM_MEM_BUDGET_MB"])).stdout.trim();
+	if (cbmBudget !== EXPECTED_CODEBASE_MEMORY_BUDGET_MB) {
+		throw new Error(
+			`codebase-memory memory-budget drift: expected ${EXPECTED_CODEBASE_MEMORY_BUDGET_MB} MB, got ${cbmBudget || "unset"}`,
+		);
+	}
+	log(`codebase-memory image contract => ${cbmVersion}; memory budget ${cbmBudget} MB`);
 	// A writable config/notes dir stands in for basic-memory's RW mounts in this transport-only smoke test.
 	await exec("docker", ["exec", CONTAINER, "mkdir", "-p", "/tmp/bm/config", "/tmp/bm/notes"]);
 
@@ -191,8 +205,10 @@ async function main(): Promise<void> {
 
 	const cbmTools = await listToolsOverDockerExec(["codebase-memory-mcp"]);
 	log(`codebase-memory (${cbmTools.length}) => [${cbmTools.slice(0, 10).join(", ")}…]`);
-	if (!cbmTools.includes("search_graph")) {
-		throw new Error(`codebase-memory search_graph not found in [${cbmTools.join(", ")}]`);
+	for (const requiredTool of ["search_graph", "list_projects", "manage_adr", "ingest_traces"]) {
+		if (!cbmTools.includes(requiredTool)) {
+			throw new Error(`codebase-memory ${requiredTool} not found in complete paginated tool list [${cbmTools.join(", ")}]`);
+		}
 	}
 	const cbmRepoPath = await copyFixtureRepoIntoContainer();
 	await callToolOverDockerExec(["codebase-memory-mcp"], "index_repository", {

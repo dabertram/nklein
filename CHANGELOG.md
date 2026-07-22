@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Sandboxed code-graph sessions now use `codebase-memory-mcp` v0.9.0.** The upgrade brings supervised watcher/index
+  workers and upstream memory-safety fixes. !Klein pins the service to a 2 GiB internal budget matching its admission
+  gate, exhausts the service's newly paginated tool catalog instead of silently losing later tools, and makes cursor
+  cycles/duplicate capabilities fail closed. Offline Docker verification now rejects binary-version or memory-budget
+  drift before validating the complete real graph schema.
+
 - **Approved community skills now activate through a session-specific containment review.** !Klein re-verifies the
   pinned bytes, derives least-privilege tools and egress from workspace policy, keeps credentials out of the sandbox,
   disables scripts by default, and requires exact per-file hash approval when execution is requested. Content and the

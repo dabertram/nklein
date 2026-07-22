@@ -44,7 +44,7 @@ export interface SandboxMcpServerDef {
 	memoryBudgetMb: number;
 	/**
 	 * Whether the server's binary is actually present in the current sandbox image. Both `sequential-thinking` (§5.AR
-	 * increment 1) and `codebase-memory` (`codebase-memory-mcp@0.8.1`, its static binary + compiled-in embeddings baked
+	 * increment 1) and `codebase-memory` (`codebase-memory-mcp@0.9.0`, its static binary + compiled-in embeddings baked
 	 * in via docker/agent-sandbox/Dockerfile) now ship in the image — {@link listAvailableSandboxMcpServers} filters on
 	 * this so we never try to exec a missing binary.
 	 */
@@ -68,12 +68,12 @@ export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 	{
 		id: "codebase-memory",
 		label: "Codebase Memory",
-		// The static binary is baked into the image (§5.AR — `codebase-memory-mcp@0.8.1`, see docker/agent-sandbox/
+		// The static binary is baked into the image (§5.AR — `codebase-memory-mcp@0.9.0`, see docker/agent-sandbox/
 		// Dockerfile). Bare invocation speaks stdio MCP (matches its published client config `args: []`).
 		inContainerArgv: ["codebase-memory-mcp"],
 		fit: CODEBASE_MEMORY_FIT,
-		// The heavy one: compiled-in embeddings + a code graph. It advertises `mem.init budget_mb=2048` on startup — this
-		// 2 GB is what OOM-kills the 4 GB default container under concurrent load, so the memory-fit gate keys on it.
+		// The heavy one: compiled-in embeddings + a code graph. The image pins `CBM_MEM_BUDGET_MB=2048`, matching this
+		// admission budget even though v0.9 can otherwise scale its default from the detected cgroup/host memory tier.
 		memoryBudgetMb: 2048,
 		available: true,
 	},

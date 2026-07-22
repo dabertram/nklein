@@ -59,6 +59,64 @@ const DEFAULT_AUTH_TIMEOUT_MS = 3 * 60 * 1000;
 const COMPLETED_CALLBACK_RETENTION_MS = 5 * 60 * 1000;
 const CODEBASE_MEMORY_SERVER_ID = "codebase-memory";
 const DEFAULT_CODEBASE_MEMORY_INDEX_MODE = "fast";
+const MAX_MCP_TOOL_LIST_PAGES = 128;
+
+interface McpToolListPage {
+	tools: readonly {
+		name: string;
+		description?: string;
+		inputSchema?: unknown;
+	}[];
+	nextCursor?: string;
+}
+
+interface PaginatedMcpToolClient {
+	listTools(params?: { cursor?: string }): Promise<McpToolListPage>;
+}
+
+/**
+ * Exhaust an MCP server's paginated `tools/list` response. MCP SDK clients return one page per call; treating the first
+ * page as the complete capability surface silently drops later tools (codebase-memory-mcp v0.9 is the first curated
+ * server to paginate). Cursor cycles, duplicate tool names, and an unbounded hostile server fail closed.
+ */
+export async function listAllMcpTools(
+	client: PaginatedMcpToolClient,
+): Promise<readonly { name: string; description?: string; inputSchema: Record<string, unknown> }[]> {
+	const tools: { name: string; description?: string; inputSchema: Record<string, unknown> }[] = [];
+	const seenCursors = new Set<string>();
+	const seenToolNames = new Set<string>();
+	let cursor: string | undefined;
+
+	for (let page = 0; page < MAX_MCP_TOOL_LIST_PAGES; page += 1) {
+		const result = await client.listTools(cursor ? { cursor } : undefined);
+		for (const tool of result.tools) {
+			if (seenToolNames.has(tool.name)) {
+				throw new Error(`MCP server returned duplicate tool name "${tool.name}" across tools/list pages.`);
+			}
+			seenToolNames.add(tool.name);
+			tools.push({
+				name: tool.name,
+				...(tool.description ? { description: tool.description } : {}),
+				inputSchema:
+					tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema)
+						? (tool.inputSchema as Record<string, unknown>)
+						: {},
+			});
+		}
+
+		const nextCursor = result.nextCursor?.trim();
+		if (!nextCursor) {
+			return tools;
+		}
+		if (seenCursors.has(nextCursor)) {
+			throw new Error(`MCP server repeated tools/list cursor "${nextCursor}".`);
+		}
+		seenCursors.add(nextCursor);
+		cursor = nextCursor;
+	}
+
+	throw new Error(`MCP server exceeded the ${MAX_MCP_TOOL_LIST_PAGES}-page tools/list safety limit.`);
+}
 
 const CALLBACK_RESPONSE_HTML = {
 	success:
@@ -498,15 +556,7 @@ class RuntimeMcpServerClient implements SdkMcpServerClient {
 		}
 
 		return await this.withErrorHandling(async () => {
-			const result = await client.listTools();
-			return result.tools.map((tool) => ({
-				name: tool.name,
-				description: tool.description,
-				inputSchema:
-					tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema)
-						? (tool.inputSchema as Record<string, unknown>)
-						: {},
-			}));
+			return await listAllMcpTools(client);
 		});
 	}
 

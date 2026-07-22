@@ -18,9 +18,10 @@ RUN npm install -g @modelcontextprotocol/server-sequential-thinking@2025.12.18 \
 # `bin/`; at runtime `bin.js` just execs it — NO network, so it works under `--network none`. install.js is NON-FATAL
 # on a failed download, so we ASSERT the binary materialized (`test -x`) and fail the build otherwise — never ship an
 # image that offers a missing binary. Stdio server: bare `codebase-memory-mcp` (matches the catalog's inContainerArgv).
-RUN npm install -g codebase-memory-mcp@0.8.1 \
+RUN npm install -g codebase-memory-mcp@0.9.0 \
 	&& npm cache clean --force \
-	&& test -x "$(npm root -g)/codebase-memory-mcp/bin/codebase-memory-mcp"
+	&& test -x "$(npm root -g)/codebase-memory-mcp/bin/codebase-memory-mcp" \
+	&& codebase-memory-mcp --version | grep -Fx 'codebase-memory-mcp 0.9.0'
 
 # codebase-memory needs a WRITABLE cache dir (its SQLite index + config). The sandbox runs the agent as an unprivileged
 # uid whose HOME may not be writable, so point the cache at a world-writable in-image path (like /workspaces) via
@@ -28,7 +29,10 @@ RUN npm install -g codebase-memory-mcp@0.8.1 \
 # results without the harness having to issue an explicit index_repository first). Each sandbox container is separate +
 # ephemeral, so a shared 1777 dir is safe. The `config set` is best-effort (guarded) so a CLI change never breaks the
 # build — without it the tool is still present and degrades gracefully (empty graph ⇒ the model falls back to grep).
-ENV CBM_CACHE_DIR=/opt/nklein/cbm
+# v0.9 sizes its default memory budget from the detected host/cgroup tier. Pin the same 2 GiB ceiling declared by the
+# curated catalog so custom larger containers cannot silently invalidate !Klein's admission calculation.
+ENV CBM_CACHE_DIR=/opt/nklein/cbm \
+	CBM_MEM_BUDGET_MB=2048
 RUN mkdir -m 1777 -p /opt/nklein/cbm \
 	&& (codebase-memory-mcp config set auto_index true || echo "codebase-memory: auto_index not set (non-fatal)")
 
