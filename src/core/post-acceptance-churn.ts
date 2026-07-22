@@ -5,10 +5,10 @@
  * exited zero, the card reached `completed`. Churn measures what happened afterwards — and it is the only one an
  * agent cannot influence, because it is written by the people who had to live with the result.
  *
- * That property matters more than it first appears. P20.1 established that our own grader **cannot distinguish a
- * real completion from a forged one**, because it reads the board and the board is inside the trust boundary.
- * Churn is outside it. A card whose code was entirely rewritten within 24 hours was not a success, whatever the
- * board recorded at the time, and no amount of state tampering changes what a human later deleted.
+ * That property matters more than it first appears. P20.1 hardened our grader against board-only state tampering,
+ * but even independent acceptance is a point-in-time check the agent can optimize against. Churn is longitudinal
+ * evidence outside that moment. A card whose code was entirely rewritten within 24 hours was not a durable success,
+ * whatever its board and acceptance command recorded at the time.
  *
  * ── THE DISTINCTION THAT MAKES THIS USABLE RATHER THAN JUST DISCOURAGING ──
  * Some churn is healthy. Code gets refactored, requirements move, a follow-up card touches the same file. Churn

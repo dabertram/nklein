@@ -53,7 +53,7 @@ function splitCommand(command: string): { binary: string; args: string[] } {
 	return { binary, args };
 }
 
-async function runAcceptanceCommand(
+export async function runAcceptanceCommand(
 	command: string,
 	cwd: string,
 ): Promise<{

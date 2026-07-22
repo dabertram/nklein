@@ -11,6 +11,7 @@
 #   teardown — always: kill the runtime + sandboxes; keep the fleet resident unless --unload
 #
 # Usage:  scripts/real-model-run.sh [preset] [--plan|--act] [--worker <modelId>] [--unload] [--max-min N]
+#         scripts/real-model-run.sh [preset] --null-agent [--worker <modelId>] [--max-min N]
 #         scripts/real-model-run.sh --eval-harness --worker <modelId> [--unload] [--max-min N]
 #         scripts/real-model-run.sh --cache-probe --worker <modelId> [--unload] [--max-min N]
 # Env:    NKLEIN_RUN_HOME, NKLEIN_RUNTIME_PORT (3484), NKLEIN_STALL_SECS (180),
@@ -21,6 +22,7 @@ usage(){
   cat <<'EOF'
 Usage:
   scripts/real-model-run.sh [preset] [--plan|--act] [--worker <modelId>] [--max-min N] [--unload]
+  scripts/real-model-run.sh [preset] --null-agent [--worker <modelId>] [--max-min N] [--unload]
   scripts/real-model-run.sh --eval-harness --worker <modelId> [--max-min N] [--unload]
   scripts/real-model-run.sh --cache-probe --worker <modelId> [--max-min N] [--unload]
 
@@ -29,6 +31,7 @@ Options:
   --act             Run the direct-action drain.
   --eval-harness    Run the deterministic per-role model evaluation without starting the !Klein runtime.
   --cache-probe     Assert repeated-prefix cache reuse through measured cold/warm time-to-first-token.
+  --null-agent      Seed and grade the real dev-test pipeline without starting an agent.
   --worker ID       Model identifier to run and safely admit to the retained set.
   --max-min N       Hard wall-clock bound in whole minutes (default: 20).
   --unload          Unload all models during teardown (default: keep the safe retained set warm).
@@ -54,7 +57,7 @@ LOAD_DEVICE="${NKLEIN_LOAD_DEVICE:-m5max}"
 MAX_RESIDENTS="${NKLEIN_LOAD_MAX_RESIDENTS:-3}"
 
 PRESET="mid_task"; PRESET_SET=0; MODE="--no-plan"; MODE_SET=0; RUN_KIND="dev-test"
-WORKER=""; UNLOAD=0; MAX_MIN=20; CHECK_ONLY=0
+WORKER=""; UNLOAD=0; MAX_MIN=20; CHECK_ONLY=0; NULL_AGENT=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -h|--help) usage; exit 0;;
@@ -62,6 +65,7 @@ while [ "$#" -gt 0 ]; do
     --act) MODE="--no-plan"; MODE_SET=1; shift;;
     --eval-harness) RUN_KIND="eval"; shift;;
     --cache-probe) RUN_KIND="cache"; shift;;
+    --null-agent) NULL_AGENT=1; shift;;
     --unload) UNLOAD=1; shift;;
     --check-config) CHECK_ONLY=1; shift;;
     --worker)
@@ -85,6 +89,9 @@ case "$MAX_RESIDENTS" in ''|*[!0-9]*|0) printf 'error: NKLEIN_LOAD_MAX_RESIDENTS
 if [ "$RUN_KIND" != dev-test ] && { [ "$PRESET_SET" = 1 ] || [ "$MODE_SET" = 1 ]; }; then
   printf 'error: presets and --plan/--act do not apply to eval/cache probes\n' >&2; exit 64
 fi
+[ "$RUN_KIND" = dev-test ] || [ "$NULL_AGENT" = 0 ] || {
+  printf 'error: --null-agent applies only to dev-test runs\n' >&2; exit 64
+}
 
 WORKER="${WORKER:-qwen/qwen3.6-35b-a3b}"
 ARCHITECT_MODEL="${NKLEIN_ARCHITECT_MODEL:-$WORKER}"
@@ -118,8 +125,8 @@ fi
   exit 64
 }
 if [ "$CHECK_ONLY" = 1 ]; then
-  printf 'kind=%s preset=%s mode=%s worker=%s device=%s context=%s cap=%s fleet=[%s]\n' \
-    "$RUN_KIND" "$PRESET" "${MODE:-plan}" "$WORKER" "$LOAD_DEVICE" "$CTX" "$MAX_RESIDENTS" "${FLEET[*]}"
+  printf 'kind=%s preset=%s mode=%s nullAgent=%s worker=%s device=%s context=%s cap=%s fleet=[%s]\n' \
+    "$RUN_KIND" "$PRESET" "${MODE:-plan}" "$NULL_AGENT" "$WORKER" "$LOAD_DEVICE" "$CTX" "$MAX_RESIDENTS" "${FLEET[*]}"
   exit 0
 fi
 
@@ -299,8 +306,10 @@ elif [ "$RUN_KIND" = cache ]; then
       npx tsx scripts/verify-cache-health-live.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
 else
   log "launching drain: preset=$PRESET mode=${MODE:-plan} worker=$WORKER max=${MAX_MIN}m"
+  NULL_AGENT_ARG=""
+  [ "$NULL_AGENT" = 1 ] && NULL_AGENT_ARG="--null-agent"
   ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
-      npx tsx src/cli.ts dev test-project --preset "$PRESET" $MODE \
+      npx tsx src/cli.ts dev test-project --preset "$PRESET" $MODE $NULL_AGENT_ARG \
         --model-id "$WORKER" --provider-id lmstudio \
         --max-wait-ms $((MAX_MIN*60000)) --poll-interval-ms 10000 --json \
         >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
@@ -426,9 +435,19 @@ if [ "$RUN_KIND" = eval ] || [ "$RUN_KIND" = cache ]; then
   EVAL_RESULT=$(grep -E '^(result:|verdict:)' "$DRAIN_JSON" 2>/dev/null | tail -1)
   log "$RUN_KIND outcome: $DRAIN_OUTCOME | ${EVAL_RESULT:-no result line; see run logs}"
 elif jq -e '.classification' "$DRAIN_JSON" >/dev/null 2>&1; then
-  DRAIN_OUTCOME=$(jq -r '.classification.outcome // "unclassified"' "$DRAIN_JSON")
-  DRAIN_SUCCESS=$(jq -r '.classification.success // false' "$DRAIN_JSON")
-  log "outcome: $DRAIN_OUTCOME | success: $DRAIN_SUCCESS | counts: $(jq -c '.finalCounts' "$DRAIN_JSON")"
+  RAW_DRAIN_OUTCOME=$(jq -r '.classification.outcome // "unclassified"' "$DRAIN_JSON")
+  RAW_DRAIN_SUCCESS=$(jq -r '.classification.success // false' "$DRAIN_JSON")
+  if [ "$NULL_AGENT" = 1 ]; then
+    if [ "$RAW_DRAIN_SUCCESS" = false ]; then
+      DRAIN_OUTCOME="null_agent_rejected"; DRAIN_SUCCESS=true
+    else
+      DRAIN_OUTCOME="null_agent_forged"; DRAIN_SUCCESS=false
+    fi
+    log "outcome: $DRAIN_OUTCOME | grader=$RAW_DRAIN_OUTCOME success=$RAW_DRAIN_SUCCESS | counts: $(jq -c '.finalCounts' "$DRAIN_JSON")"
+  else
+    DRAIN_OUTCOME="$RAW_DRAIN_OUTCOME"; DRAIN_SUCCESS="$RAW_DRAIN_SUCCESS"
+    log "outcome: $DRAIN_OUTCOME | success: $DRAIN_SUCCESS | counts: $(jq -c '.finalCounts' "$DRAIN_JSON")"
+  fi
 else
   log "no classification (see drain.json/err)"
   tail -3 "$DRAIN_JSON" 2>/dev/null

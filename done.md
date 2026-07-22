@@ -2422,3 +2422,14 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   Live Qwen2.5-Coder-14B evidence (`.real-runs/20260722-014836`) measured 4,724 ms cold versus 170 ms warm —
   **27.79× faster**, verdict HEALTHY, no abort, exit 0. The complete five-model fleet remained resident across
   m5max, m4mini, and legion5pro.
+- [x] **P20.1 — Null/random/forgery baseline against our own grader.** The original deterministic baseline found
+  board-only state tampering could forge `classifyDevTestRun`. The root cause was twofold: `completed` trusted
+  agent-writable board counts without acceptance evidence, and the live `executeDevTestPreset` caller never supplied
+  its scenario acceptance command. The grader now requires all three independent conditions—reachable runtime,
+  non-empty fully completed board, and a freshly executed passing acceptance command—and names a complete-looking
+  board with no acceptance `acceptance_not_run`. Runtime unreachability also outranks a complete-looking board.
+  `dev evidence` now reports **SOUND**: null 0, random 0, accepted-completion positive control 100, and all five
+  declared forgery vectors rejected, including state tampering. The new controller-backed `--null-agent` run exercises
+  the actual scaffold/seed/settle/acceptance/collection pipeline without starting a session or model request. Live
+  evidence (`.real-runs/20260722-015656`) recorded backlog=1, sessions=0, tool uses=0, collection errors=0,
+  grader success=false, controller outcome `null_agent_rejected`, exit 0. The complete five-model fleet stayed warm.

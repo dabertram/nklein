@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Dev-test grading no longer trusts a completed-looking board by itself.** A successful run now requires a reachable
+  runtime, at least one genuinely completed card, and a freshly executed passing scenario acceptance command. The
+  null/random/forgery audit is sound across all five declared attacks, and a controller-backed null-agent mode verifies
+  the full scaffold, settle, acceptance, and evidence pipeline without spending a model request.
+
 - **The current compaction trigger now has measured provenance instead of folklore.** A pre-registered paired
   20-task coding-context run recovered every contract fact at measured 50.02%, 75.00%, and 90.14% utilisation on
   Qwen2.5-Coder-14B with zero infrastructure failures, validating 75% as a conservative safe trigger without

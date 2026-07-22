@@ -585,6 +585,9 @@ source repo went private — so if it vanishes the buildable source still lives 
   end-to-end through this harness BEFORE trusting any drain/eval result. (Live 2026-07-22: a loaded 40k Bonsai target
   reconciled m5max from four to three by evicting only idle Phi; 95% free pressure and 0 MiB swap growth; linked m4mini
   and legion5pro residents remained untouched.)
+  - **NULL-AGENT ASSERTIONS INVERT PRODUCT SUCCESS (live-found 2026-07-22):** the product grader must return
+    `success:false`; that rejection is the experiment's success. `--null-agent` preserves the raw grader outcome but
+    maps it to controller outcome `null_agent_rejected`/success so automation fails only if the null agent forges a pass.
   - **NEVER MODIFY A RUNNING SHELL CONTROLLER'S SOURCE (incident 2026-07-22).** Bash reads a script incrementally;
     editing `real-model-run.sh` while an instance was already executing changed later byte/line offsets and made that
     otherwise-valid instance fail at report time with a syntax error. Stop/finish the controller, verify its lock is
@@ -7487,78 +7490,6 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > define an implementation-agnostic standard.** Plan accordingly — hand-authored tasks are a different quality
 > class, not a marginally better one.
 
-- [~] **P20.1 — NULL-AGENT BASELINE against our own eval harness (do this FIRST; one afternoon).** Run an agent
-  that does NOTHING against `dev-test`/the eval harness. **If it scores above zero, our grader is forgeable and
-  every other number is meaningless.** BenchJack (arXiv 2605.12673) achieved ~100% on Terminal-Bench, SWE-bench
-  Verified, SWE-bench Pro and WebArena **without solving any task** — e.g. a 10-line `conftest.py` pytest hook
-  forcing all outcomes to "passed", and one validator that checked only *that the last message came from the
-  assistant* (so `{}` scored perfectly on all 890 tasks). Also run random-agent and state-tampering agents.
-  **This gates every other item in Phase 20 and every claim in Phase 13.**
-  **GATE CORE SHIPPED 2026-07-20: `null-agent-baseline.ts`, 10 tests.**
-  **THE ASSERTION, AT FULL STRENGTH: if an agent that does NOTHING scores above zero, every other number that
-  grader produced is MEANINGLESS — including the good ones.** Not "suspect", not "worth a caveat". A forgeable
-  grader does not fail loudly; it emits plausible numbers that measure nothing, and those are indistinguishable
-  from real ones by inspection. `allNumbersVoid` is a separate field from the verdict precisely so a caller
-  cannot render the score alongside a soft warning.
-  **THE NULL CHECK RUNS FIRST AND RETURNS IMMEDIATELY.** Continuing would produce sub-verdicts about numbers
-  already known void — and **any real-looking analysis invites a reader past the headline.**
-  **A RANDOM AGENT IS RUN TOO, for the SUBTLER failure.** A null agent catches a grader that rewards *nothing*; a
-  random agent catches one that rewards *activity*. A grader can pass the first and fail the second, and the
-  second is worse to have: **the scores move, they look responsive, and they track EFFORT rather than
-  correctness.** `undiscriminating` also voids every number.
-  An UNRUN baseline voids the numbers as well — *"not because the grader is known to be broken, but because
-  nothing has checked."* That is the honest reading of P20.1 gating Phase 20: effort spent improving a score
-  before this passes may be improving a metric that was never measuring anything.
-  `FORGERY_VECTORS` lists the five specific attacks as DATA (BenchJack's conftest hook, trivial-validator
-  satisfaction, state tampering, random activity, empty output) because **"we thought about grader forgery" and
-  "we tested these five attacks" are different claims, and only the second is checkable.**
-  **🎯 FIRST REAL RESULT — the forgery vectors RUN against our own grader, `classifyDevTestRun`
-  (`null-agent-against-our-grader.test.ts`, 6 tests). It survives four of five.**
-  | vector | result |
-  |---|---|
-  | empty board (null agent) | **survives** — guarded; this was a real false green once, see the comment at `dev-test-outcome.ts:103` |
-  | everything trashed | **survives** — zero incomplete cards does not buy a pass |
-  | trivial validator satisfaction (acceptance green, no card done) | **survives** — reports `acceptance_green_workflow_incomplete`, not `completed` |
-  | runtime unreachable | **survives** — `runtime_down` |
-  | **STATE TAMPERING** | **⚠️ FORGES A PASS** |
-  **THE EXPOSURE, STATED PRECISELY: `classifyDevTestRun` reads the BOARD'S OWN COUNTS, so an agent that writes
-  `completed` into the board without doing any work scores a clean pass.** That is not a flaw in the function —
-  it has no other source of truth — but it means **the board sits INSIDE the trust boundary**, and P20.1's
-  state-tampering vector is live against us.
-  A second test pins the sharper form: **a real completion and a forged one are INDISTINGUISHABLE to this
-  grader.** The two calls differ only in whether work happened, and it cannot see that difference.
-  Both are asserted as CURRENT behaviour rather than filed as a warning, so the exposure is recorded instead of
-  assumed absent. **They should start failing the day acceptance evidence is required independently of the
-  board** — which is exactly what P20.3's no-op ablation would provide, and is now the concrete reason to build
-  it rather than a general good idea.
-  **✅ P20.1b RUN 2026-07-20 — the forgery baseline now drives the REAL grader, wired into `dev evidence`.**
-  `dev-test-grader-baseline.ts` (`runDevTestGraderBaseline`) constructs the board/acceptance state each of the five
-  `FORGERY_VECTORS` would leave and grades each through the SAME `classifyDevTestRun` a real dev-test uses, scoring
-  100 iff the grader calls it a pass. Result, printed by `dev evidence` (verified live): `empty_output`,
-  `random_activity`, `trivial_validator_satisfaction`, `test_hook_override` all **survive (0)**; **`state_tampering`
-  FORGES (100)** — because the board's own counts are the grader's only truth, so writing `completed` reads as a
-  completion. This is the SAME finding as `null-agent-against-our-grader.test.ts`, now a RUNNABLE operator surface
-  (one shared core, not a test proving something no one can re-run) feeding real null/random scores into
-  `assessGraderIntegrity` — which flips the evidence report from "not run → allNumbersVoid" to the honest
-  "null correct → not trivially forgeable; discrimination pending a real-agent score." A new `FORGERY_VECTORS`
-  entry with no mapped board state now throws (fails loud, not silently skipped). 6 tests; 11666 fast tests green.
-  **🧭 THE REAL-AGENT DRAIN WOULD NOT ANSWER THE INTEGRITY QUESTION — reasoned through 2026-07-20 before spending it.**
-  `assessGraderIntegrity` wants a real-agent score to check the real-vs-random gap (catching a grader that rewards
-  ACTIVITY over correctness). But that check already PASSES from the baseline without a live run: `random_activity`
-  (valid moves, no completion) scores 0, so the grader demonstrably does NOT reward activity. The only thing a live
-  real-agent completion adds is the positive control — a COMPLETED board — and the grader's response to a completed
-  board is already known and deterministic: 100 (that IS the `state_tampering` vector's board). So realAgent would
-  be 100, giving a "sound" verdict on the null/random/real gap — but that number measures agent CAPABILITY (can a
-  model complete a scenario), NOT grader INTEGRITY, which is what P20.1 gates. Worse, a "sound" headline would be
-  actively misleading here, because the SAME grader scores a real completion and a forged one identically (100 vs
-  100) — the exposure this item exists to surface. So the honest state is COMPLETE without the drain: the grader
-  discriminates completed-vs-not (100 vs 0) but is BLIND to real-vs-forged, and a capability drain cannot change
-  either fact. REMAINING (narrow, and NOT worth a heavy runtime drain): (1) a NULL-agent LIVE run would test the
-  end-to-end SETTLE/collection pipeline around the classifier — a real but small gap, worth doing only when a
-  runtime is already up for another reason (starting a background server just for it risks the leaked-process
-  overload the standing goal forbids); (2) the state-tampering vector should start FAILING the day the dev-test
-  board grader requires acceptance evidence independently of the board counts (P20.3 shipped that gate for CARD
-  acceptance; the dev-test board grader still trusts its own counts — that is the real fix, tracked, not a drain).
 - [ ] **P20.2 — VISIBLE/HELD-OUT suite split + report the gap as a first-class metric (highest leverage in this
   phase).** SpecBench (arXiv 2605.21384): give the agent a per-feature validation suite it MAY iterate against,
   and keep a **compositional** held-out suite it never sees. **The gap between them IS the reward-hacking

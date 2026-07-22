@@ -5,16 +5,15 @@ import { assessGraderIntegrity, FORGERY_VECTORS } from "../../../src/core/null-a
 /**
  * P20.1b — the forgery baseline, run end-to-end against the real grader. The load-bearing assertions: an agent that
  * does NOTHING (and one that does arbitrary non-completing work) scores ZERO — the grader is not trivially forgeable
- * — while STATE-TAMPERING scores 100, because the board's own counts are the grader's only truth. Both are pinned as
- * CURRENT behaviour: the tampering result should start failing the day acceptance evidence is required independently
- * of the board (P20.3), which is the concrete reason to keep that gate honest.
+ * — and state tampering also scores zero now that the live grader requires independently executed acceptance evidence.
  */
 
 describe("scoreDevTestGraderState", () => {
 	const zero = { completed: 0, review: 0, planning: 0, ready: 0, inProgress: 0, backlog: 0, failed: 0, trash: 0 };
 
 	it("scores a real completion 100 and everything else 0", () => {
-		expect(scoreDevTestGraderState({ ...zero, completed: 3 }, null)).toBe(100);
+		expect(scoreDevTestGraderState({ ...zero, completed: 3 }, true)).toBe(100);
+		expect(scoreDevTestGraderState({ ...zero, completed: 3 }, null)).toBe(0);
 		expect(scoreDevTestGraderState({ ...zero, backlog: 3 }, null)).toBe(0);
 		// The empty-board guard: zero incomplete AND zero completed is NOT a pass (the old false-green).
 		expect(scoreDevTestGraderState({ ...zero }, null)).toBe(0);
@@ -43,24 +42,23 @@ describe("runDevTestGraderBaseline", () => {
 		expect(result.vectors.find((v) => v.id === "test_hook_override")?.forged).toBe(false);
 	});
 
-	it("STATE-TAMPERING forges a pass (the board is inside the trust boundary) — pinned as current behaviour", () => {
+	it("rejects STATE-TAMPERING without independent acceptance evidence", () => {
 		const result = runDevTestGraderBaseline();
 		const tampering = result.vectors.find((v) => v.id === "state_tampering");
-		expect(tampering?.score).toBe(100);
-		expect(tampering?.forged).toBe(true);
-		expect(result.anyForged).toBe(true);
+		expect(tampering?.score).toBe(0);
+		expect(tampering?.forged).toBe(false);
+		expect(result.anyForged).toBe(false);
 	});
 
-	it("feeds assessGraderIntegrity a NON-void input: null correct, discrimination pending a real-agent run", () => {
+	it("feeds assessGraderIntegrity the accepted-completion positive control", () => {
 		const result = runDevTestGraderBaseline();
 		const verdict = assessGraderIntegrity({
 			nullAgent: result.nullAgentScore,
 			randomAgent: result.randomAgentScore,
-			realAgent: null,
+			realAgent: result.verifiedCompletionScore,
 		});
-		// The null agent scored 0, so the grader is NOT trivially forgeable via the null vector; without a real-agent
-		// score the discriminating gap is unmeasured, so `indeterminate` — but crucially not `allNumbersVoid`.
-		expect(verdict.verdict).toBe("indeterminate");
+		expect(result.verifiedCompletionScore).toBe(100);
+		expect(verdict.verdict).toBe("sound");
 		expect(verdict.allNumbersVoid).toBe(false);
 	});
 });

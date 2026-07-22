@@ -11,11 +11,9 @@
  * the SAME `classifyDevTestRun` a real dev-test uses. `score` is 100 when the grader calls it a success and 0
  * otherwise — so a forgery vector scoring above zero means the grader awarded a pass for no real work.
  *
- * The honest result this encodes (matching `null-agent-against-our-grader.test.ts`): four vectors survive, and
- * STATE-TAMPERING forges — because `classifyDevTestRun` reads the board's own counts, so writing `completed` into
- * the board without doing the work reads as a completion. That is not a defect in the function (it has no other
- * source of truth); it means the board sits inside the trust boundary, and the fix is independent acceptance
- * evidence (P20.3), not a smarter count.
+ * The original run found that state tampering forged a pass because board counts were the only source of truth.
+ * The live grader now requires independently executed acceptance evidence as well, so the same baseline is retained
+ * as a regression assertion: all five vectors must score zero.
  */
 
 import { classifyDevTestRun, type DevTestBoardCounts } from "./dev-test-outcome.js";
@@ -62,6 +60,8 @@ export interface DevTestGraderBaselineResult {
 	readonly nullAgentScore: number;
 	/** The random-activity score (valid but arbitrary moves, no completion) — the discrimination input. */
 	readonly randomAgentScore: number;
+	/** Positive control: a completed board with independently passing acceptance (grader integrity, not model capability). */
+	readonly verifiedCompletionScore: number;
 }
 
 /**
@@ -93,6 +93,7 @@ function stateForVector(
 			return { counts, acceptancePassed: true };
 		case "state_tampering":
 			// Writes the expected result directly into the state the grader reads: all cards forced to Completed.
+			// Independent acceptance was not run, so the hardened grader must refuse this board-only claim.
 			counts.completed = cardCount;
 			return { counts, acceptancePassed: null };
 		default:
@@ -120,5 +121,6 @@ export function runDevTestGraderBaseline(cardCount = 5): DevTestGraderBaselineRe
 		anyForged: vectors.some((vector) => vector.forged),
 		nullAgentScore: scoreOf("empty_output"),
 		randomAgentScore: scoreOf("random_activity"),
+		verifiedCompletionScore: scoreDevTestGraderState({ ...emptyCounts(), completed: n }, true),
 	};
 }

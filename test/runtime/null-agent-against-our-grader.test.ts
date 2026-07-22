@@ -57,25 +57,17 @@ describe("null agent vs classifyDevTestRun", () => {
 		expect(result.outcome).toBe("runtime_down");
 	});
 
-	it("⚠️ STATE TAMPERING DOES FORGE A PASS — the grader trusts the board", () => {
-		// THE FINDING. classifyDevTestRun reads the board's own counts, so an agent that writes `completed` into the
-		// board without doing any work scores a clean pass. That is not a flaw in this function — it has no other
-		// source of truth — but it means the BOARD is inside the trust boundary, and P20.1's state-tampering vector
-		// is live against us.
-		//
-		// This test asserts the CURRENT behaviour so the exposure is recorded rather than assumed absent. It should
-		// start failing the day acceptance evidence is required independently of the board (see P20.3's no-op
-		// ablation, which is the check that would close this).
+	it("STATE TAMPERING cannot forge a pass without independent acceptance evidence", () => {
 		const forged = classifyDevTestRun({
 			counts: counts({ completed: 30 }),
 			acceptancePassed: null,
 			runtimeReachable: true,
 		});
-		expect(forged.outcome).toBe("completed");
+		expect(forged.outcome).toBe("acceptance_not_run");
+		expect(forged.success).toBe(false);
 	});
 
-	it("a real completion and a forged one are INDISTINGUISHABLE to this grader", () => {
-		// The two calls differ only in whether work happened, and the grader cannot see that difference.
+	it("distinguishes an accepted completion from a board-only claim", () => {
 		const real = classifyDevTestRun({
 			counts: counts({ completed: 30 }),
 			acceptancePassed: true,
@@ -86,6 +78,7 @@ describe("null agent vs classifyDevTestRun", () => {
 			acceptancePassed: null,
 			runtimeReachable: true,
 		});
-		expect(forged.outcome).toBe(real.outcome);
+		expect(real.outcome).toBe("completed");
+		expect(forged.outcome).toBe("acceptance_not_run");
 	});
 });

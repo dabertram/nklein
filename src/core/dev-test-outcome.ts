@@ -10,8 +10,10 @@
  */
 
 export type DevTestRunOutcome =
-	/** Every non-trash card reached Completed. The only fully-successful outcome. */
+	/** Every non-trash card reached Completed and the independent acceptance command passed. */
 	| "completed"
+	/** The board looks complete, but the independent acceptance command was not run. */
+	| "acceptance_not_run"
 	/** The acceptance command passed, but cards remain unfinished — code is green, workflow is not. */
 	| "acceptance_green_workflow_incomplete"
 	/**
@@ -97,17 +99,20 @@ export function classifyDevTestRun(input: ClassifyDevTestRunInput): DevTestRunCl
 	const incompleteCardCount = countIncomplete(counts);
 
 	const outcome = ((): DevTestRunOutcome => {
-		// "Completed" requires at least one card to have actually reached Completed. An EMPTY board (or one where every
-		// card was discarded to trash) trivially has zero incomplete cards, but nothing ran — that must NOT read as a
-		// successful completion (it previously did, so a dev-test whose seed never materialized reported a false green).
-		if (incompleteCardCount === 0 && counts.completed > 0) {
-			return "completed";
-		}
 		if (!runtimeReachable) {
 			return "runtime_down";
 		}
 		if (counts.failed > 0 || acceptancePassed === false) {
 			return "failed";
+		}
+		// "Completed" requires at least one card to have actually reached Completed. An EMPTY board (or one where every
+		// card was discarded to trash) trivially has zero incomplete cards, but nothing ran. The board is also agent-
+		// writable, so completion requires independent acceptance evidence rather than trusting its counts alone.
+		if (incompleteCardCount === 0 && counts.completed > 0 && acceptancePassed === true) {
+			return "completed";
+		}
+		if (incompleteCardCount === 0 && counts.completed > 0) {
+			return "acceptance_not_run";
 		}
 		if (acceptancePassed === true) {
 			return "acceptance_green_workflow_incomplete";
@@ -148,6 +153,8 @@ function formatDevTestRunSummary(
 	switch (outcome) {
 		case "completed":
 			return `Run complete: every non-trash card reached Completed (${acceptanceText}).`;
+		case "acceptance_not_run":
+			return `Board complete but unverified: ${counts.completed} card(s) reached Completed, but independent acceptance was not run.`;
 		case "acceptance_green_workflow_incomplete":
 			return `Code acceptance green, workflow incomplete: ${incompleteCardCount} card(s) not Completed (${board}).`;
 		case "needs_attention":

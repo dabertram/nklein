@@ -1,10 +1,10 @@
 /**
  * P20.10b — the CHURN COLLECTOR: turn git history into the observations `post-acceptance-churn.ts` judges.
  *
- * P20.10 established WHY churn matters: every other quality signal measures a moment, and P20.1 showed our own
- * grader cannot distinguish a real completion from a forged one because the board is inside the trust boundary.
- * **Churn is outside it** — it is written by the people who had to live with the result, and no state tampering
- * changes what a human later deleted.
+ * P20.10 established WHY churn matters: every other quality signal measures a moment. P20.1 now rejects board-only
+ * state tampering with independent acceptance evidence, but that acceptance still cannot say whether the work
+ * survives contact with later use. **Churn is longitudinal** — it records what the people maintaining the result
+ * later kept, deleted, or rewrote.
  *
  * This is the gathering half. It is pure: git is an injected PORT, so the arithmetic is testable without a
  * repository, and the same logic works against a sandbox result branch or the main history.

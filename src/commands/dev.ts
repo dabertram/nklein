@@ -32,7 +32,7 @@ import {
 } from "../nklein-agent/nklein-dev-test-project";
 import { createDevTestStateReader } from "../nklein-agent/nklein-dev-test-runner";
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
-import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
+import { runAcceptanceCommand, runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
 import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
 import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-agent/nklein-model-research";
 import { resolveProjectInputPath } from "../projects/project-path";
@@ -305,6 +305,8 @@ interface DevTestProjectOptions {
 	providerId?: string;
 	/** Commander sets `plan: false` for `--no-plan` → start the seed in ACT mode (agent works directly). */
 	plan?: boolean;
+	/** Seed and grade the real pipeline without starting an agent (P20.1 null-agent baseline). */
+	nullAgent?: boolean;
 	json?: boolean;
 	cwd?: string;
 	write?: (text: string) => void;
@@ -340,6 +342,7 @@ const DEVTEST_REAL_MODEL_STABLE_POLLS = 48;
 async function executeDevTestPreset(input: {
 	client: ReturnType<typeof createDevRuntimeClient>;
 	workspaceId: string;
+	projectPath: string;
 	preset: DevTestSelection;
 	baseRef: string;
 	pollIntervalMs?: number;
@@ -349,6 +352,7 @@ async function executeDevTestPreset(input: {
 	nkleinSettings?: RuntimeTaskNKleinSettings;
 	/** When false, the seed card starts in ACT mode (the agent does the work directly) instead of plan/decompose. */
 	startInPlanMode?: boolean;
+	nullAgent?: boolean;
 }): Promise<{
 	scenario: ReturnType<typeof resolveNKleinDevTestProjectScenario>;
 	result: Awaited<ReturnType<typeof runDevTestProject>>;
@@ -384,7 +388,9 @@ async function executeDevTestPreset(input: {
 			...(typeof input.pollIntervalMs === "number" ? { pollIntervalMs: input.pollIntervalMs } : {}),
 			...(typeof input.maxWaitMs === "number" ? { maxWaitMs: input.maxWaitMs } : {}),
 			// Real models settle far slower than the simulator — tolerate long between-turn lulls (see the constant above).
-			stablePollsUntilSettled: input.stablePollsUntilSettled ?? DEVTEST_REAL_MODEL_STABLE_POLLS,
+			stablePollsUntilSettled: input.nullAgent
+				? 2
+				: (input.stablePollsUntilSettled ?? DEVTEST_REAL_MODEL_STABLE_POLLS),
 		},
 		{
 			startSeedTask: async (payload) => {
@@ -421,6 +427,9 @@ async function executeDevTestPreset(input: {
 						message: `Failed to seed board card: ${error instanceof Error ? error.message : String(error)}`,
 					};
 				}
+				if (input.nullAgent) {
+					return { ok: true, message: "Null-agent baseline: seeded the board without starting a task session." };
+				}
 				const started = await input.client.runtime.startTaskSession.mutate({
 					taskId: payload.taskId,
 					prompt: payload.prompt,
@@ -433,6 +442,7 @@ async function executeDevTestPreset(input: {
 				return { ok: started.ok, ...(started.error ? { message: started.error } : {}) };
 			},
 			readState,
+			runAcceptance: async () => (await runAcceptanceCommand(scenario.acceptanceCommand, input.projectPath)).passed,
 			sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
 			now: () => Date.now(),
 		},
@@ -478,10 +488,9 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 	// Preflight: child cards route by role, so a role whose model isn't loaded silently strands its cards (live-hit
 	// 2026-07-15: a review card stranded because the reviewer model was unloaded). Warn — but don't block — before
 	// seeding so the run isn't started into a guaranteed strand. Best-effort; never fails the run.
-	const [preflightConfig, preflightModels] = await Promise.all([
-		loadRuntimeConfig(cwd).catch(() => null),
-		fetchLmsPsModels(createDefaultLmsRunner()),
-	]);
+	const [preflightConfig, preflightModels] = options.nullAgent
+		? [null, []]
+		: await Promise.all([loadRuntimeConfig(cwd).catch(() => null), fetchLmsPsModels(createDefaultLmsRunner())]);
 	if (preflightConfig) {
 		const readiness = checkRoleModelReadiness({
 			requirements: Object.entries(preflightConfig.modelRoles ?? {}).map(([role, settings]) => ({
@@ -503,10 +512,12 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 	const { scenario, result } = await executeDevTestPreset({
 		client,
 		workspaceId: workspace.workspaceId,
+		projectPath,
 		preset,
 		baseRef: options.baseRef ?? scaffoldedBaseRef ?? "main",
 		...(nkleinSettings ? { nkleinSettings } : {}),
 		...(options.plan === false ? { startInPlanMode: false } : {}),
+		...(options.nullAgent ? { nullAgent: true } : {}),
 		...(typeof options.pollIntervalMs === "number" ? { pollIntervalMs: options.pollIntervalMs } : {}),
 		...(typeof options.maxWaitMs === "number" ? { maxWaitMs: options.maxWaitMs } : {}),
 	});
@@ -548,6 +559,7 @@ export async function runDevTestSweepCommand(options: DevTestSweepOptions = {}):
 		const { scenario, result, durationMs } = await executeDevTestPreset({
 			client,
 			workspaceId: workspace.workspaceId,
+			projectPath,
 			preset: parseDevTestPreset(preset),
 			baseRef,
 			...(typeof options.pollIntervalMs === "number" ? { pollIntervalMs: options.pollIntervalMs } : {}),
@@ -1591,6 +1603,7 @@ export function registerDevCommand(program: Command): void {
 		.option("--model-id <id>", "Force the seed card onto a specific (loaded) model, bypassing config roles.")
 		.option("--provider-id <id>", "Provider for --model-id (default lmstudio).")
 		.option("--no-plan", "Start the seed in ACT mode (agent works directly) instead of plan/decompose.")
+		.option("--null-agent", "Seed and grade the real pipeline without starting an agent (grader-integrity baseline).")
 		.option("--poll-interval-ms <ms>", "Board poll interval in milliseconds.", (value) => Number.parseInt(value, 10))
 		.option("--max-wait-ms <ms>", "Maximum monitor duration in milliseconds.", (value) => Number.parseInt(value, 10))
 		.option("--json", "Print machine-readable JSON.")

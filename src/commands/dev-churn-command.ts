@@ -1,9 +1,9 @@
 /**
  * `nklein dev churn --commit <sha>` — how much of a commit's work is still here?
  *
- * P20.10's argument, made runnable: every other quality signal measures a MOMENT, and P20.1 showed our own
- * grader cannot tell a real completion from a forged one because the board is inside the trust boundary. Churn
- * is outside it — **no state tampering changes what a human later deleted.**
+ * P20.10's argument, made runnable: every other quality signal measures a MOMENT. P20.1 now rejects board-only
+ * state tampering, but a green acceptance run still cannot tell whether maintainers keep the work. Churn measures
+ * that later reality — **what a human subsequently deleted or rewrote.**
  *
  * It is useful immediately rather than only after a 24h window: "how much of what this commit wrote is still in
  * the tree?" is answerable against any later ref, and the scheduled 24h/7d sampling is a refinement of the same

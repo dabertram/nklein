@@ -25,6 +25,11 @@ describe("real-model run controller safety", () => {
 		);
 		expect(cacheChecked).toContain("kind=cache");
 		expect(cacheChecked).toContain("fleet=[qwen/qwen2.5-coder-14b]");
+		const nullChecked = execFileSync("bash", [SCRIPT, "mid_task", "--null-agent", "--check-config"], {
+			encoding: "utf8",
+		});
+		expect(nullChecked).toContain("kind=dev-test");
+		expect(nullChecked).toContain("nullAgent=1");
 	});
 
 	it("routes every fleet admission through the guarded retained-set command", () => {
@@ -42,6 +47,9 @@ describe("real-model run controller safety", () => {
 		expect(source).toContain("npx tsx scripts/eval-harness.mts");
 		expect(source).toContain("--cache-probe");
 		expect(source).toContain("npx tsx scripts/verify-cache-health-live.mts");
+		expect(source).toContain("--null-agent");
+		expect(source).toContain('DRAIN_OUTCOME="null_agent_rejected"');
+		expect(source).toContain('DRAIN_OUTCOME="null_agent_forged"');
 		expect(source).toContain('if [ "$RUN_KIND" = eval ]; then');
 		expect(source).toContain('elif [ "$RUN_KIND" = cache ]; then');
 	});

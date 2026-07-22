@@ -54,10 +54,19 @@ describe("buildDevTestSeedStartPayload", () => {
 
 describe("runDevTestProject", () => {
 	it("returns completed when every non-trash card finishes", async () => {
-		const deps = makeDeps([board({ in_progress: 2 }), board({ completed: 2, trash: 1 })]);
+		const deps = makeDeps([board({ in_progress: 2 }), board({ completed: 2, trash: 1 })], {
+			runAcceptance: vi.fn(async () => true),
+		});
 		const result = await runDevTestProject({ scenario: SCENARIO, seedTaskId: "seed-1", baseRef: "main" }, deps);
 		expect(result.classification.outcome).toBe("completed");
 		expect(result.started).toBe(true);
+	});
+
+	it("does not trust a complete-looking board when no acceptance runner is configured", async () => {
+		const deps = makeDeps([board({ completed: 2 })]);
+		const result = await runDevTestProject({ scenario: SCENARIO, seedTaskId: "seed-1", baseRef: "main" }, deps);
+		expect(result.classification.outcome).toBe("acceptance_not_run");
+		expect(result.classification.success).toBe(false);
 	});
 
 	it("classifies an operator-parked card as needs_attention, not stagnant (the live §12 turn-loop park)", async () => {

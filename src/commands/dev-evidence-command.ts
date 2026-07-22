@@ -23,14 +23,14 @@ import { assessThreshold, SHIPPED_THRESHOLDS } from "../core/threshold-provenanc
 export async function runDevEvidenceCommand(options: { json?: boolean }): Promise<void> {
 	// P20.1b: the forgery baseline is now RUN, not passed as nulls — every vector is driven through the real
 	// `classifyDevTestRun` grader. The null and random scores feed the null/random/real gap check; the full vector
-	// sweep (which `assessGraderIntegrity` does not model) carries the honest result: state-tampering forges,
-	// because the board's own counts are the grader's only source of truth. realAgent stays null — the discriminating
-	// gap needs a real fleet run — so the verdict is legitimately `indeterminate` on discrimination, NOT void on null.
+	// sweep (which `assessGraderIntegrity` does not model) also pins the board-tampering regression. The real-agent
+	// input is the grader's accepted-completion positive control, not a model-capability run: P20.1 asks whether the
+	// grader discriminates correct state from null/random/forged state, and model capability cannot change that answer.
 	const baseline = runDevTestGraderBaseline();
 	const grader = assessGraderIntegrity({
 		nullAgent: baseline.nullAgentScore,
 		randomAgent: baseline.randomAgentScore,
-		realAgent: null,
+		realAgent: baseline.verifiedCompletionScore,
 	});
 	const thresholds = SHIPPED_THRESHOLDS.map(assessThreshold);
 	const benchmarks = BENCHMARK_CANDIDATES.map(assessBenchmarkFitness);
@@ -55,6 +55,8 @@ export async function runDevEvidenceCommand(options: { json?: boolean }): Promis
 				"     `completed` without doing the work reads as a completion. The board sits inside the trust\n" +
 				"     boundary — the fix is independent acceptance evidence (P20.3), not a smarter count.\n",
 		);
+	} else {
+		process.stdout.write("  ✓ All declared forgery vectors were rejected, including board-only state tampering.\n");
 	}
 	process.stdout.write("\n");
 

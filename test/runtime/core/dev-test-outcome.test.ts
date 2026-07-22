@@ -30,6 +30,17 @@ describe("classifyDevTestRun", () => {
 		expect(result.success).toBe(true);
 	});
 
+	it("refuses a complete-looking board when independent acceptance was not run", () => {
+		const result = classifyDevTestRun({
+			counts: counts({ completed: 8 }),
+			acceptancePassed: null,
+			runtimeReachable: true,
+		});
+		expect(result.outcome).toBe("acceptance_not_run");
+		expect(result.success).toBe(false);
+		expect(result.summary).toMatch(/complete but unverified/i);
+	});
+
 	it("an EMPTY board is NOT a successful completion (no card ran)", () => {
 		const result = classifyDevTestRun({ counts: counts(), acceptancePassed: null, runtimeReachable: true });
 		expect(result.outcome).not.toBe("completed");
@@ -65,6 +76,16 @@ describe("classifyDevTestRun", () => {
 			runtimeReachable: false,
 		});
 		expect(result.outcome).toBe("runtime_down");
+	});
+
+	it("does not let a complete-looking board outrank an unreachable runtime", () => {
+		const result = classifyDevTestRun({
+			counts: counts({ completed: 8 }),
+			acceptancePassed: true,
+			runtimeReachable: false,
+		});
+		expect(result.outcome).toBe("runtime_down");
+		expect(result.success).toBe(false);
 	});
 
 	it("reports blocked_by_review_cards when review cards sit with nothing in progress", () => {
@@ -134,7 +155,7 @@ describe("classifyDevTestRun", () => {
 		expect(withZero.outcome).toBe("stagnant");
 	});
 
-	it("failure and completed still dominate an attention park", () => {
+	it("failure and independently verified completion still dominate an attention park", () => {
 		expect(
 			classifyDevTestRun({
 				counts: counts({ failed: 1, planning: 1 }),
@@ -146,7 +167,7 @@ describe("classifyDevTestRun", () => {
 		expect(
 			classifyDevTestRun({
 				counts: counts({ completed: 2 }),
-				acceptancePassed: null,
+				acceptancePassed: true,
 				runtimeReachable: true,
 				attentionCardCount: 0,
 			}).outcome,
