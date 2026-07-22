@@ -8,6 +8,7 @@ import type { RuntimeAgentId } from "../core/api-contract";
 import { normalizeRuntimeMemoryFreshnessAudit, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import { normalizeConcurrencyOverride } from "../core/concurrency-config";
 import { normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
+import { normalizeSandboxMcpServerOverrides, resolveSandboxMcpControls } from "../core/sandbox-mcp-controls";
 import { resolveEffectiveTestDrivenMode } from "../core/test-driven-delivery";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { detectInstalledCommands } from "../terminal/agent-registry";
@@ -158,6 +159,15 @@ function toRuntimeConfigState({
 			DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 		),
 		basicMemoryEnabled: normalizeBoolean(globalConfig?.basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED),
+		...resolveSandboxMcpControls({
+			sandboxMcpServersEnabled: normalizeBoolean(
+				globalConfig?.sandboxMcpServersEnabled,
+				DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
+			),
+			sandboxMcpServersEnabledOverride: projectConfig?.sandboxMcpServersEnabledOverride,
+			basicMemoryEnabled: normalizeBoolean(globalConfig?.basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED),
+			sandboxMcpServerOverrides: projectConfig?.sandboxMcpServerOverrides,
+		}),
 		chatAdaptiveTruncationEnabled: normalizeBoolean(
 			globalConfig?.chatAdaptiveTruncationEnabled,
 			DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,
@@ -272,6 +282,8 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		projectSetupWizardCompletedAt: null,
 		knowsTodayEnabled: current.knowsTodayEnabled,
 		sandboxMcpServersEnabled: current.sandboxMcpServersEnabled,
+		sandboxMcpServersEnabledOverride: null,
+		sandboxMcpServerOverrides: null,
 		basicMemoryEnabled: current.basicMemoryEnabled,
 		chatAdaptiveTruncationEnabled: current.chatAdaptiveTruncationEnabled,
 		reasoningBudgetEnabled: current.reasoningBudgetEnabled,
@@ -441,6 +453,16 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				current.testDrivenModeOverride,
 				normalizeTestDrivenModeOverride,
 			),
+			sandboxMcpServersEnabledOverride: keepNormalizedValue(
+				updates.sandboxMcpServersEnabledOverride,
+				current.sandboxMcpServersEnabledOverride,
+				(value) => (value === true || value === false ? value : null),
+			),
+			sandboxMcpServerOverrides: keepNormalizedValue(
+				updates.sandboxMcpServerOverrides,
+				current.sandboxMcpServerOverrides,
+				normalizeSandboxMcpServerOverrides,
+			),
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,
 		};
 
@@ -483,6 +505,8 @@ export async function updateGlobalRuntimeConfig(
 				modelRolesOverride: null,
 				sandboxIsolationProfileOverride: null,
 				testDrivenModeOverride: null,
+				sandboxMcpServersEnabledOverride: null,
+				sandboxMcpServerOverrides: null,
 				shortcuts: current.shortcuts,
 			};
 

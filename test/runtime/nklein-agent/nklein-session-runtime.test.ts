@@ -208,6 +208,54 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		expect(runtime.getTaskTurnGeneration("task-1")).toBe(0);
 	});
 
+	it("F4.28 forwards the resolved curated-MCP controls to bundle creation", async () => {
+		const fakeHost = {
+			start: vi.fn(async (input: NKleinSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-mcp-controls",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const mcpRuntimeService = createNoopMcpRuntimeService();
+		const runtime = createInMemoryNKleinSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: () => mcpRuntimeService,
+		});
+		const controls = {
+			"sequential-thinking": false,
+			"codebase-memory": true,
+			"basic-memory": false,
+		} as const;
+
+		await runtime.startTaskSession({
+			taskId: "task-mcp-controls",
+			cwd: "/workspaces/task-mcp-controls",
+			prompt: "Inspect it",
+			providerId: "lmstudio",
+			modelId: "phi-4-mini-instruct",
+			systemPrompt: "system",
+			sandboxMcpExecTarget: {
+				containerName: "nklein-agent-sandbox-controls",
+				uid: 10009,
+				workdir: "/workspaces/task-mcp-controls",
+			},
+			sandboxMcpServerControls: controls,
+		});
+
+		expect(mcpRuntimeService.createToolBundle).toHaveBeenCalledWith(
+			expect.objectContaining({ sandboxMcpServerControls: controls }),
+		);
+		await runtime.dispose();
+	});
+
 	it("offers only the manifest-backed ActionPlan executor when a card explicitly opts in", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: NKleinSdkStartSessionInput) => ({

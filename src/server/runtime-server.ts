@@ -464,13 +464,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				poolConfig,
 				// Chat read tools need no network; keep the enforcement sandbox stricter than general task runs.
 				networkPolicy: "none",
-				basicMemoryEnabled: runtimeConfig.basicMemoryEnabled,
+				basicMemoryEnabled: runtimeConfig.effectiveSandboxMcpServerControls["basic-memory"],
 				writableMounts,
 			});
 			chatSandboxManagerByWorkspaceKey.set(key, manager);
 			return manager;
 		}
 		await manager.updatePoolConfig(poolConfig);
+		manager.setBasicMemoryEnabled(runtimeConfig.effectiveSandboxMcpServerControls["basic-memory"]);
 		return manager;
 	};
 	const stopChatSandboxManagersByPrefix = async (prefix: string): Promise<void> => {
@@ -2763,8 +2764,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				watcherRegistry: nkleinWatcherRegistry,
 				swarmGuardrails: effectiveSwarmGuardrails,
 				knowsTodayEnabled: runtimeConfig.knowsTodayEnabled,
-				sandboxMcpServersEnabled: runtimeConfig.sandboxMcpServersEnabled,
-				basicMemoryEnabled: runtimeConfig.basicMemoryEnabled,
+				sandboxMcpServersEnabled: runtimeConfig.effectiveSandboxMcpServersEnabled,
+				sandboxMcpServerControls: runtimeConfig.effectiveSandboxMcpServerControls,
+				basicMemoryEnabled: runtimeConfig.effectiveSandboxMcpServerControls["basic-memory"],
 				retrievalEgressEnabled: runtimeConfig.retrievalEgressEnabled,
 				modelStatsTrackingLevel: runtimeConfig.modelStatsTrackingLevel,
 				retrievalSearchBackendUrl: effectiveRetrievalSearchBackendUrl({
@@ -2781,7 +2783,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					// §5.L egress proxy (§6 I3): persisted flag + host allowlist (env still overrides the flag).
 					sandboxEgressProxyEnabled: runtimeConfig.sandboxEgressProxyEnabled,
 					sandboxEgressAllowlist: runtimeConfig.sandboxEgressAllowlist,
-					basicMemoryEnabled: runtimeConfig.basicMemoryEnabled,
+					basicMemoryEnabled: runtimeConfig.effectiveSandboxMcpServerControls["basic-memory"],
 					// Surface a stalled slot acquisition (the review-hang class) instead of a silent freeze.
 					warn: (message) => deps.warn(message),
 				}),
@@ -3858,9 +3860,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			);
 			service.setSwarmGuardrails(effectiveSwarmGuardrails);
 			service.setKnowsTodayEnabled(runtimeConfig.knowsTodayEnabled);
-			service.setSandboxMcpServersEnabled(runtimeConfig.sandboxMcpServersEnabled);
-			// §5.BB: re-apply the basic-memory switch (service bit + the sandbox manager's writable-store plan gate).
-			service.setBasicMemoryEnabled(runtimeConfig.basicMemoryEnabled);
+			service.setSandboxMcpServersEnabled(runtimeConfig.effectiveSandboxMcpServersEnabled);
+			// F4.28: re-apply the complete resolved map so cached services cannot retain a looser project policy.
+			service.setSandboxMcpServerControls(runtimeConfig.effectiveSandboxMcpServerControls);
 			service.setRetrievalConfig(
 				runtimeConfig.retrievalEgressEnabled,
 				effectiveRetrievalSearchBackendUrl({

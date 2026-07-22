@@ -19,6 +19,7 @@ import {
 	runtimeSwarmGuardrailsSchema,
 	runtimeTimeoutMsSchema,
 } from "./runtime-config-api-contract.js";
+import { sandboxMcpServerControlsSchema, sandboxMcpServerOverridesSchema } from "./sandbox-mcp-controls.js";
 
 // Runtime config + agents contract domain: the agent definition + sandbox status, and the full config
 // response / save request (selected agent, model roles, guardrails, timeouts, rulesets, provider settings,
@@ -111,6 +112,10 @@ export const runtimeConfigResponseSchema = z.object({
 	replayCardsEnabled: z.boolean().optional(),
 	knowsTodayEnabled: z.boolean().optional(),
 	sandboxMcpServersEnabled: z.boolean().optional(),
+	sandboxMcpServersEnabledOverride: z.boolean().nullable().optional(),
+	effectiveSandboxMcpServersEnabled: z.boolean().optional(),
+	sandboxMcpServerOverrides: sandboxMcpServerOverridesSchema.nullable().optional(),
+	effectiveSandboxMcpServerControls: sandboxMcpServerControlsSchema.optional(),
 	// §5.BB env-flag promotions — optional for backward compatibility with older runtimes/config files. Each still
 	// composes with its env override at the consuming seam (env keeps working for scripts/harnesses).
 	basicMemoryEnabled: z.boolean().optional(),
@@ -205,6 +210,8 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	hardTaskRoutingMode: z.enum(["wait_for_best", "attempt_with_available"]).optional(),
 	testDrivenModeEnabled: z.boolean().optional(),
 	testDrivenModeOverride: z.boolean().nullable().optional(),
+	sandboxMcpServersEnabledOverride: z.boolean().nullable().optional(),
+	sandboxMcpServerOverrides: sandboxMcpServerOverridesSchema.nullable().optional(),
 	secondOpinionReviewEnabled: z.boolean().optional(),
 	reviewMaxRounds: z.number().int().positive().optional(),
 	codeEmbeddingDefaults: runtimeCodeEmbeddingSettingsSchema.optional(),

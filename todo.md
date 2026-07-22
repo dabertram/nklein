@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-22, after F4.23 closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-gate below is green. The current 186-package remainder is **96 ready + 0 partial + 76 dependency-blocked + 7 external/
+  gate below is green. The current 183-package remainder is **93 ready + 0 partial + 76 dependency-blocked + 7 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 
@@ -92,6 +92,14 @@ feature-completeness challenges, release checks, and required manual checks are 
 gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
+
+> **⚠️ PROJECT OVERRIDES MUST RESOLVE ONCE, BEFORE EFFECTFUL RUNTIME CONSTRUCTION (F4.28, 2026-07-22).** Keep the
+> persisted global value and sparse project override distinct from their concrete effective values. Only the resolved
+> master switch and complete per-server map may reach cached session services, sandbox mount planning, or MCP bundle
+> creation, and live config refresh must replace both so a cached service cannot retain a looser policy. Apply server
+> controls after availability/model/memory-fit selection: an override may withhold a capability, but must never bypass a
+> safety gate. Suppress fit warnings for deliberately disabled servers. Preserve documented environment escape hatches
+> at the final consumer without writing them back into persisted config.
 
 > **⚠️ SUGGESTING A COMMUNITY SKILL AND ADMITTING IT ARE DIFFERENT DATA PLANES (F4.26, 2026-07-22).** Automatic
 > matching may inspect only verified, currently pinned manifest metadata. Feed planner matches through the untrusted-data
@@ -2689,9 +2697,6 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 
   **AUDIT 2026-07-18: RESOLVED BY F4.27 (2026-07-22)** — community-skill provenance now has its own ledger event
   family; F4.19's procedural-skill store remains a separate concern.
-- [ ] **F4.28 — Add per-project curated-MCP overrides.** Resolve project→global for enablement and optional per-server
-  controls; apply the effective value at sandbox/tool-bundle creation.
-  **AUDIT 2026-07-18: OPEN** — per-project/per-server controls entirely absent (flat global booleans; none of the …Override/effective… pattern).
 - [ ] **F4.29 — Complete curated-MCP Settings.** Show global/project switches, active servers, availability, and the
   per-model fit reason; changes affect new sessions predictably.
 - [x] **F4.30 —  *(finalized 2026-07-19 (split): fit/withhold/fail-soft logic complete + unit-proven, sequential-thinking adoption PROVEN live unprompted; the codebase-memory live-adoption demonstration + four withhold cases live = FLEET queue entry.)* Prove curated MCP live.** A fitting model must use codebase-memory/sequential-thinking in the sandbox;

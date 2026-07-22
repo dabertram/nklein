@@ -25,6 +25,7 @@ import type {
 import { normalizeRuntimeMemoryFreshnessAudit, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
 import { type ModelStatsTrackingLevel, normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
+import { resolveSandboxMcpControls, type SandboxMcpServerOverrides } from "../core/sandbox-mcp-controls";
 import { resolveEffectiveTestDrivenMode } from "../core/test-driven-delivery";
 import { deriveAgentIdFields } from "./runtime-config-agent-id-resolver";
 import { deriveConcurrencyFields } from "./runtime-config-concurrency-resolver";
@@ -87,6 +88,8 @@ export interface RuntimeConfigStateFromValuesInput {
 	projectSetupWizardCompletedAt: number | null;
 	knowsTodayEnabled: boolean;
 	sandboxMcpServersEnabled: boolean;
+	sandboxMcpServersEnabledOverride?: boolean | null;
+	sandboxMcpServerOverrides?: SandboxMcpServerOverrides | null;
 	/** §5.BB env-flag promotions — optional on INPUT (fixtures/legacy states omit them); the factory fills the defaults. */
 	basicMemoryEnabled?: boolean;
 	chatAdaptiveTruncationEnabled?: boolean;
@@ -180,6 +183,15 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		knowsTodayEnabled: normalizeBoolean(input.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
 		sandboxMcpServersEnabled: normalizeBoolean(input.sandboxMcpServersEnabled, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED),
 		basicMemoryEnabled: normalizeBoolean(input.basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED),
+		...resolveSandboxMcpControls({
+			sandboxMcpServersEnabled: normalizeBoolean(
+				input.sandboxMcpServersEnabled,
+				DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
+			),
+			sandboxMcpServersEnabledOverride: input.sandboxMcpServersEnabledOverride,
+			basicMemoryEnabled: normalizeBoolean(input.basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED),
+			sandboxMcpServerOverrides: input.sandboxMcpServerOverrides,
+		}),
 		chatAdaptiveTruncationEnabled: normalizeBoolean(
 			input.chatAdaptiveTruncationEnabled,
 			DEFAULT_CHAT_ADAPTIVE_TRUNCATION_ENABLED,

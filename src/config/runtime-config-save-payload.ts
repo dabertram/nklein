@@ -29,6 +29,7 @@ import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency
 import { DEFAULT_CONCURRENCY_CONFIG } from "../core/concurrency-config";
 import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import { normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
+import { normalizeSandboxMcpServerOverrides, type SandboxMcpServerOverrides } from "../core/sandbox-mcp-controls";
 
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
@@ -103,6 +104,8 @@ export interface SaveRuntimeConfigInput {
 	projectSetupWizardCompletedAt?: number | null;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
+	sandboxMcpServersEnabledOverride?: boolean | null;
+	sandboxMcpServerOverrides?: SandboxMcpServerOverrides | null;
 	basicMemoryEnabled?: boolean;
 	chatAdaptiveTruncationEnabled?: boolean;
 	reasoningBudgetEnabled?: boolean;
@@ -271,6 +274,11 @@ export function buildProjectConfigFilePayload(config: SaveRuntimeConfigInput) {
 		modelSuitabilityPolicyOverride: config.modelSuitabilityPolicyOverride,
 		skillDynamicsLevelOverride: config.skillDynamicsLevelOverride,
 		testDrivenModeOverride: config.testDrivenModeOverride ?? null,
+		sandboxMcpServersEnabledOverride:
+			config.sandboxMcpServersEnabledOverride === true || config.sandboxMcpServersEnabledOverride === false
+				? config.sandboxMcpServersEnabledOverride
+				: null,
+		sandboxMcpServerOverrides: normalizeSandboxMcpServerOverrides(config.sandboxMcpServerOverrides),
 		fileOverlapParallelismOverride: config.fileOverlapParallelismOverride,
 		maxConcurrentTasksOverride: config.maxConcurrentTasksOverride,
 		selectedAgentIdOverride: config.selectedAgentIdOverride,
@@ -298,6 +306,11 @@ export function buildSavedRuntimeConfigStateValues(config: SaveRuntimeConfigInpu
 		projectSetupWizardCompletedAt: normalizeSetupWizardCompletedAt(config.projectSetupWizardCompletedAt),
 		knowsTodayEnabled: normalizeBoolean(config.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
 		sandboxMcpServersEnabled: normalizeBoolean(config.sandboxMcpServersEnabled, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED),
+		sandboxMcpServersEnabledOverride:
+			config.sandboxMcpServersEnabledOverride === true || config.sandboxMcpServersEnabledOverride === false
+				? config.sandboxMcpServersEnabledOverride
+				: null,
+		sandboxMcpServerOverrides: normalizeSandboxMcpServerOverrides(config.sandboxMcpServerOverrides),
 		basicMemoryEnabled: normalizeBoolean(config.basicMemoryEnabled, DEFAULT_BASIC_MEMORY_ENABLED),
 		chatAdaptiveTruncationEnabled: normalizeBoolean(
 			config.chatAdaptiveTruncationEnabled,

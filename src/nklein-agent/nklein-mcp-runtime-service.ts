@@ -19,6 +19,7 @@ import {
 	type SandboxMcpServerDef,
 	selectSandboxMcpServersForModel,
 } from "../core/sandbox-mcp-catalog";
+import { filterSandboxMcpServersByControl, type SandboxMcpServerControls } from "../core/sandbox-mcp-controls";
 import { formatToolError, toolErrorFromThrown } from "../core/tool-error-contract";
 import { capToolResult } from "../core/tool-output-cap";
 import { getSkillPin, upsertSkillPin } from "../state/skill-pin-store";
@@ -128,6 +129,8 @@ export interface NKleinMcpToolBundleOptions {
 	 * basic-memory server is NOT offered even when baked + fitting.
 	 */
 	basicMemoryEnabled?: boolean;
+	/** F4.28 resolved project→global controls; false removes a server after fit/memory/availability selection. */
+	sandboxMcpServerControls?: SandboxMcpServerControls;
 }
 
 export type CodebaseMemoryLocalizationIndexMode = "fast" | "moderate" | "full";
@@ -712,20 +715,33 @@ export function createNKleinMcpRuntimeService(
 			// servers (basic-memory — write-capable authored memory) are additionally gated behind an explicit opt-in so
 			// they are NOT offered by default even once baked+fitting; the caller's `basicMemoryEnabled` runtime setting
 			// OR the NKLEIN_BASIC_MEMORY env override enables it (§5.BB — either enables).
+			const basicMemoryForceEnabled =
+				bundleOptions?.basicMemoryEnabled || isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY);
+			const controls: SandboxMcpServerControls = bundleOptions?.sandboxMcpServerControls ?? {
+				"sequential-thinking": true,
+				"codebase-memory": true,
+				"basic-memory": Boolean(basicMemoryForceEnabled),
+			};
+			const effectiveControls: SandboxMcpServerControls = basicMemoryForceEnabled
+				? { ...controls, "basic-memory": true }
+				: controls;
 			const enabledOptIns = new Set<string>();
-			if (bundleOptions?.basicMemoryEnabled || isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY)) {
+			if (effectiveControls["basic-memory"]) {
 				enabledOptIns.add("basic-memory");
 			}
 			const curatedServers =
 				bundleOptions?.sandboxExecTarget && bundleOptions.modelId
-					? filterEnabledSandboxServers(
-							// §5.AF: the exec target carries the container's memory limit, so a heavy server (codebase-memory) is
-							// withheld from a container too small to host it without OOM under concurrent load.
-							selectSandboxMcpServersForModel(
-								bundleOptions.modelId,
-								bundleOptions.sandboxExecTarget.memoryLimitMb,
+					? filterSandboxMcpServersByControl(
+							filterEnabledSandboxServers(
+								// §5.AF: the exec target carries the container's memory limit, so a heavy server (codebase-memory) is
+								// withheld from a container too small to host it without OOM under concurrent load.
+								selectSandboxMcpServersForModel(
+									bundleOptions.modelId,
+									bundleOptions.sandboxExecTarget.memoryLimitMb,
+								),
+								enabledOptIns,
 							),
-							enabledOptIns,
+							effectiveControls,
 						)
 					: [];
 
@@ -734,13 +750,15 @@ export function createNKleinMcpRuntimeService(
 			// restore it. Computed BEFORE the early return so the warning survives even when it was the only server.
 			const memoryWithheldWarnings: string[] =
 				bundleOptions?.sandboxExecTarget && bundleOptions.modelId
-					? listMemoryWithheldSandboxServers(
-							bundleOptions.modelId,
-							bundleOptions.sandboxExecTarget.memoryLimitMb,
-						).map(
-							(server) =>
-								`Sandbox MCP server "${server.label}" is OFF for this task: ${server.reason}. Raise the container memory (Settings → Agents → isolation pool, "memory per container") to enable it.`,
-						)
+					? listMemoryWithheldSandboxServers(bundleOptions.modelId, bundleOptions.sandboxExecTarget.memoryLimitMb)
+							.filter((server) => {
+								const id = server.id as keyof SandboxMcpServerControls;
+								return effectiveControls[id] === true;
+							})
+							.map(
+								(server) =>
+									`Sandbox MCP server "${server.label}" is OFF for this task: ${server.reason}. Raise the container memory (Settings → Agents → isolation pool, "memory per container") to enable it.`,
+							)
 					: [];
 
 			if (loadedSettings.servers.length === 0 && curatedServers.length === 0) {

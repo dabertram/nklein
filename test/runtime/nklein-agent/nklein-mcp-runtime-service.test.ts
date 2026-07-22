@@ -249,6 +249,43 @@ describe("createNKleinMcpRuntimeService", () => {
 		}
 	});
 
+	it("F4.28 applies concrete per-server controls after fit selection", async () => {
+		const previousEnv = process.env.NKLEIN_BASIC_MEMORY;
+		delete process.env.NKLEIN_BASIC_MEMORY;
+		try {
+			const managers: FakeMcpManager[] = [];
+			const service = createNKleinMcpRuntimeService({
+				createMcpManager: (options) => {
+					const manager = new FakeMcpManager(options);
+					managers.push(manager);
+					return manager;
+				},
+			});
+			const bundle = await service.createToolBundle({
+				modelId: "phi-4-mini-instruct",
+				sandboxExecTarget: {
+					containerName: "nklein-agent-sandbox-controls",
+					uid: 10009,
+					workdir: "/workspaces/task-controls",
+					memoryLimitMb: 8192,
+				},
+				basicMemoryEnabled: true,
+				sandboxMcpServerControls: {
+					"sequential-thinking": false,
+					"codebase-memory": false,
+					"basic-memory": true,
+				},
+			});
+
+			expect(managers[0]?.registrations.map((registration) => registration.name)).toEqual(["basic-memory"]);
+			expect(bundle.warnings).toEqual([]);
+			await bundle.dispose();
+		} finally {
+			if (previousEnv === undefined) delete process.env.NKLEIN_BASIC_MEMORY;
+			else process.env.NKLEIN_BASIC_MEMORY = previousEnv;
+		}
+	});
+
 	it("creates a codebase-memory localization provider over sandbox docker-exec and cold-indexes the repo", async () => {
 		const managers: FakeMcpManager[] = [];
 		const service = createNKleinMcpRuntimeService({

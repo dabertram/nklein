@@ -16,6 +16,7 @@ import type {
 	RuntimeSkillDynamicsLevel,
 } from "../core/api-contract";
 import { type ConcurrencyOverride, normalizeConcurrencyOverride } from "../core/concurrency-config";
+import { normalizeSandboxMcpServerOverrides, type SandboxMcpServerOverrides } from "../core/sandbox-mcp-controls";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import {
 	normalizeAgentRulesetsOverride,
@@ -100,6 +101,8 @@ export async function writeRuntimeProjectConfigFile(
 		modelRolesOverride?: RuntimeModelRoles | null;
 		sandboxIsolationProfileOverride?: RuntimeSandboxIsolationProfile | null;
 		testDrivenModeOverride?: boolean | null;
+		sandboxMcpServersEnabledOverride?: boolean | null;
+		sandboxMcpServerOverrides?: SandboxMcpServerOverrides | null;
 	},
 ): Promise<void> {
 	const normalizedShortcuts = normalizeShortcuts(config.shortcuts);
@@ -121,6 +124,11 @@ export async function writeRuntimeProjectConfigFile(
 		config.sandboxIsolationProfileOverride,
 	);
 	const testDrivenModeOverride = normalizeTestDrivenModeOverride(config.testDrivenModeOverride);
+	const sandboxMcpServersEnabledOverride =
+		config.sandboxMcpServersEnabledOverride === true || config.sandboxMcpServersEnabledOverride === false
+			? config.sandboxMcpServersEnabledOverride
+			: null;
+	const sandboxMcpServerOverrides = normalizeSandboxMcpServerOverrides(config.sandboxMcpServerOverrides);
 	if (!configPath) {
 		if (normalizedShortcuts.length > 0) {
 			throw new Error("Cannot save project shortcuts without a selected project.");
@@ -158,6 +166,9 @@ export async function writeRuntimeProjectConfigFile(
 		if (testDrivenModeOverride !== null) {
 			throw new Error("Cannot save project test-driven override without a selected project.");
 		}
+		if (sandboxMcpServersEnabledOverride !== null || sandboxMcpServerOverrides !== null) {
+			throw new Error("Cannot save project sandbox MCP overrides without a selected project.");
+		}
 		return;
 	}
 	if (
@@ -173,7 +184,9 @@ export async function writeRuntimeProjectConfigFile(
 		agentRulesetsOverride === null &&
 		modelRolesOverride === null &&
 		sandboxIsolationProfileOverride === null &&
-		testDrivenModeOverride === null
+		testDrivenModeOverride === null &&
+		sandboxMcpServersEnabledOverride === null &&
+		sandboxMcpServerOverrides === null
 	) {
 		await rm(configPath, { force: true });
 		try {
@@ -199,6 +212,8 @@ export async function writeRuntimeProjectConfigFile(
 			...(modelRolesOverride !== null ? { modelRolesOverride } : {}),
 			...(sandboxIsolationProfileOverride !== null ? { sandboxIsolationProfileOverride } : {}),
 			...(testDrivenModeOverride !== null ? { testDrivenModeOverride } : {}),
+			...(sandboxMcpServersEnabledOverride !== null ? { sandboxMcpServersEnabledOverride } : {}),
+			...(sandboxMcpServerOverrides !== null ? { sandboxMcpServerOverrides } : {}),
 		} satisfies RuntimeProjectConfigFileShape,
 		{
 			lock: null,

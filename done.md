@@ -2618,3 +2618,13 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   credential values. Deterministic byte screening now feeds the per-file execution gate during both import and activation.
   Evidence: focused containment/loader/import/service/environment/tRPC suites 52/52, full runtime 12,060/12,060,
   contract 286/286, protected 142/142, full web 1,133/1,133, server/web typechecks, and lint green.
+
+- [x] **F4.28 — per-project curated-MCP overrides** *(delivered 2026-07-22).* The global curated-MCP master now composes
+  with an explicit project true/false override, while a sparse project map independently controls sequential-thinking,
+  codebase-memory, and basic-memory over their global defaults. Config load, update, save, project-file cleanup, API
+  contracts, and runtime responses preserve both persisted and concrete effective values. Only the resolved master/map
+  reaches task-session creation, cached-service refresh, sandbox memory-mount planning, and MCP bundle construction;
+  per-server disables apply after availability/model/memory-fit safety gates and silence warnings for intentionally
+  disabled servers. Existing environment force-enables remain final-consumer escape hatches. Evidence: focused
+  resolver/config/bundle/session tests 104/104, full runtime fast suite, protected and contract suites, backend/web
+  typechecks, and the full web suite are green.

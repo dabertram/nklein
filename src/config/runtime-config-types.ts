@@ -21,6 +21,7 @@ import type {
 } from "../core/api-contract";
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
 import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
+import type { SandboxMcpServerControls, SandboxMcpServerOverrides } from "../core/sandbox-mcp-controls";
 import type { RuntimeRetrievalProviderMode } from "./runtime-config-retrieval-resolver";
 
 export interface RuntimeConfigState {
@@ -38,6 +39,12 @@ export interface RuntimeConfigState {
 	knowsTodayEnabled: boolean;
 	/** §5.AR curated sandbox-hosted MCP servers — ON BY DEFAULT; offered to fitting models, global/per-project opt-out. */
 	sandboxMcpServersEnabled: boolean;
+	/** F4.28 per-project master override; null inherits the global switch. */
+	sandboxMcpServersEnabledOverride: boolean | null;
+	effectiveSandboxMcpServersEnabled: boolean;
+	/** F4.28 sparse per-project server overrides plus the concrete resolved controls consumed by new sessions. */
+	sandboxMcpServerOverrides: SandboxMcpServerOverrides | null;
+	effectiveSandboxMcpServerControls: SandboxMcpServerControls;
 	/** §5.AR/§5.BB basic-memory MCP (write-capable authored memory) — OFF BY DEFAULT; `NKLEIN_BASIC_MEMORY` still force-enables. */
 	basicMemoryEnabled: boolean;
 	/** §5.AA/§5.BB chat adaptive truncation ladder — ON BY DEFAULT; `NKLEIN_CHAT_ADAPTIVE_TRUNCATION` is a two-way env escape hatch. */
@@ -155,6 +162,8 @@ export interface RuntimeConfigUpdateInput {
 	projectSetupWizardCompletedAt?: number | null;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
+	sandboxMcpServersEnabledOverride?: boolean | null;
+	sandboxMcpServerOverrides?: SandboxMcpServerOverrides | null;
 	basicMemoryEnabled?: boolean;
 	chatAdaptiveTruncationEnabled?: boolean;
 	reasoningBudgetEnabled?: boolean;
@@ -299,4 +308,6 @@ export interface RuntimeProjectConfigFileShape {
 	modelRolesOverride?: RuntimeModelRoles | null;
 	sandboxIsolationProfileOverride?: RuntimeSandboxIsolationProfile | null;
 	testDrivenModeOverride?: boolean | null;
+	sandboxMcpServersEnabledOverride?: boolean | null;
+	sandboxMcpServerOverrides?: SandboxMcpServerOverrides | null;
 }

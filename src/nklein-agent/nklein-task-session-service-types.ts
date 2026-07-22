@@ -19,6 +19,7 @@ import type {
 import type { FocusChain } from "../core/focus-chain";
 import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import type { PromptFragment } from "../core/prompt-fragment-assembly";
+import type { SandboxMcpServerControls } from "../core/sandbox-mcp-controls";
 import type { SkillDynamicsLevel } from "../core/skill-resolver";
 import type { CommunitySkillSessionAdmission } from "../server/community-skill-execution-service";
 import type { TaskRunTimeoutSource } from "../state/task-run-summary-store";
@@ -198,6 +199,8 @@ export interface NKleinTaskSessionService {
 	setKnowsTodayEnabled(enabled: boolean): void;
 	/** Apply the §5.AR curated sandbox-MCP-servers switch (on by default) when config changes. */
 	setSandboxMcpServersEnabled(enabled: boolean): void;
+	/** Apply F4.28's resolved per-server controls for subsequently assembled tool bundles. */
+	setSandboxMcpServerControls(controls: SandboxMcpServerControls): void;
 	/** Apply the §5.AR/§5.BB basic-memory switch (off by default) when config changes (also updates the sandbox manager). */
 	setBasicMemoryEnabled(enabled: boolean): void;
 	/** Apply the §5.AC egress-gated retrieval config (OFF by default, fail closed) when config changes. */
@@ -327,6 +330,7 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	 * independently. Live-updated when config changes (same seam as `swarmGuardrails`).
 	 */
 	sandboxMcpServersEnabled?: boolean;
+	sandboxMcpServerControls?: SandboxMcpServerControls;
 	/**
 	 * The §5.AR/§5.BB basic-memory switch — OFF BY DEFAULT. When true (or the `NKLEIN_BASIC_MEMORY` env override is
 	 * set), the default-off basic-memory curated MCP server is offered to fitting models and the sandbox manager mounts

@@ -1,5 +1,6 @@
 import { areRuntimeMemoryFreshnessAuditEqual, areRuntimeSwarmGuardrailsEqual } from "../core/api-contract";
 import { areConcurrencyConfigsEqual, areConcurrencyOverridesEqual } from "../core/concurrency-config";
+import { areSandboxMcpServerOverridesEqual } from "../core/sandbox-mcp-controls";
 import {
 	areAgentRulesetsEqual,
 	areCodeEmbeddingSettingsEqual,
@@ -28,6 +29,8 @@ export type RuntimeConfigChangeComparable = Omit<
 	| "effectiveSelectedAgentId"
 	| "effectiveModelRoles"
 	| "effectiveSandboxIsolationProfile"
+	| "effectiveSandboxMcpServersEnabled"
+	| "effectiveSandboxMcpServerControls"
 	| "commitPromptTemplateDefault"
 	| "openPrPromptTemplateDefault"
 >;
@@ -118,6 +121,8 @@ export const RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeF
 	runtimeConfigChangeField("modelSuitabilityPolicyOverride", areModelSuitabilityPoliciesEqual),
 	runtimeConfigChangeField("skillDynamicsLevelOverride", areSkillDynamicsLevelsEqual),
 	runtimeConfigChangeField("testDrivenModeOverride"),
+	runtimeConfigChangeField("sandboxMcpServersEnabledOverride"),
+	runtimeConfigChangeField("sandboxMcpServerOverrides", areSandboxMcpServerOverridesEqual),
 	runtimeConfigChangeField("fileOverlapParallelismOverride"),
 	runtimeConfigChangeField("concurrencyOverride", areConcurrencyOverridesEqual),
 	runtimeConfigChangeField("maxConcurrentTasksOverride"),
@@ -142,6 +147,8 @@ export const RUNTIME_CONFIG_DERIVED_FIELD_KEYS = [
 	"effectiveAgentRulesets",
 	"effectiveModelRoles",
 	"effectiveSandboxIsolationProfile",
+	"effectiveSandboxMcpServersEnabled",
+	"effectiveSandboxMcpServerControls",
 	"commitPromptTemplateDefault",
 	"openPrPromptTemplateDefault",
 ] as const satisfies readonly (keyof RuntimeConfigState)[];

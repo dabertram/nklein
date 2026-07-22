@@ -70,6 +70,7 @@ import {
 } from "../core/model-behavior-profile";
 import { assessPredictedExecution } from "../core/predicted-execution-check";
 import type { PromptFragment } from "../core/prompt-fragment-assembly";
+import type { SandboxMcpServerControls } from "../core/sandbox-mcp-controls";
 import {
 	emptyStrategyEffectivenessLedger,
 	type StrategyAttemptObservation,
@@ -553,6 +554,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private knowsTodayEnabled: boolean;
 	/** §5.AR curated sandbox-MCP switch (on by default); live-updated with config, OR-ed with the env override. */
 	private sandboxMcpServersEnabled: boolean;
+	/** F4.28 concrete project→global per-server controls; only this resolved map reaches bundle creation. */
+	private sandboxMcpServerControls: SandboxMcpServerControls;
 	/** §5.AR/§5.BB basic-memory switch (off by default); live-updated with config, OR-ed with the env override. */
 	private basicMemoryEnabled: boolean;
 	/** §5.AC retrieval egress switch (OFF by default, fail closed); live-updated with config. */
@@ -670,6 +673,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.knowsTodayEnabled = options.knowsTodayEnabled ?? DEFAULT_KNOWS_TODAY_ENABLED;
 		this.sandboxMcpServersEnabled = options.sandboxMcpServersEnabled ?? DEFAULT_SANDBOX_MCP_SERVERS_ENABLED;
 		this.basicMemoryEnabled = options.basicMemoryEnabled ?? DEFAULT_BASIC_MEMORY_ENABLED;
+		this.sandboxMcpServerControls = options.sandboxMcpServerControls ?? {
+			"sequential-thinking": true,
+			"codebase-memory": true,
+			"basic-memory": this.basicMemoryEnabled,
+		};
 		this.retrievalEgressEnabled = options.retrievalEgressEnabled ?? DEFAULT_RETRIEVAL_EGRESS_ENABLED;
 		this.modelStatsTrackingLevel = options.modelStatsTrackingLevel ?? DEFAULT_MODEL_STATS_TRACKING_LEVEL;
 		this.retrievalSearchBackendUrl = options.retrievalSearchBackendUrl ?? DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL;
@@ -1572,6 +1580,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							// §5.BB: the resolved basic-memory opt-in (setting OR env) rides along so the MCP bundle
 							// offers/withholds the default-off basic-memory server consistently with the mounts.
 							basicMemoryEnabled: this.isBasicMemoryEnabled(),
+							sandboxMcpServerControls: this.sandboxMcpServerControls,
 						}
 					: {}),
 				userInstructionService: runtimeSetup.userInstructionService,
@@ -1804,6 +1813,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					// same MCP bundle, so its enablement rides the SAME once-per-session record rather than adding a
 					// second. It is a distinct field, not a shared category count — the mistake caught on sandbox MCP.
 					basicMemoryEnabled: this.isBasicMemoryEnabled(),
+					sandboxMcpServerControls: this.sandboxMcpServerControls,
 				},
 			});
 		} catch {
@@ -2374,6 +2384,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 										basicMemoryExecEnv: sandboxWorkspace.manager.getBasicMemoryExecEnv?.(request.taskId),
 										// §5.BB: same resolved basic-memory opt-in as the main start path.
 										basicMemoryEnabled: this.isBasicMemoryEnabled(),
+										sandboxMcpServerControls: this.sandboxMcpServerControls,
 									}
 								: {}),
 							// Planning seeds: §5.B restriction; verdict-only sessions: judge narrowing (see resolveSessionToolPolicies).
@@ -3217,6 +3228,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.sandboxMcpServersEnabled = enabled;
 	}
 
+	setSandboxMcpServerControls(controls: SandboxMcpServerControls): void {
+		this.sandboxMcpServerControls = { ...controls };
+		this.basicMemoryEnabled = controls["basic-memory"];
+		this.agentSandboxManager?.setBasicMemoryEnabled(this.isBasicMemoryEnabled());
+	}
+
 	/**
 	 * §5.BB live-update the basic-memory switch when the runtime config changes (same seam as
 	 * `setSandboxMcpServersEnabled`), forwarding to the sandbox manager so the per-project writable-store plan follows
@@ -3224,6 +3241,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 */
 	setBasicMemoryEnabled(enabled: boolean): void {
 		this.basicMemoryEnabled = enabled;
+		this.sandboxMcpServerControls = { ...this.sandboxMcpServerControls, "basic-memory": enabled };
 		this.agentSandboxManager?.setBasicMemoryEnabled(enabled);
 	}
 

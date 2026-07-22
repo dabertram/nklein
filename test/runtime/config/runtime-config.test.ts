@@ -374,6 +374,64 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("F4.28: curated MCP master and sparse per-server overrides round-trip and resolve project over global", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-mcp-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-mcp-");
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const defaults = await loadRuntimeConfig(tempProject);
+				expect(defaults.sandboxMcpServersEnabled).toBe(true);
+				expect(defaults.sandboxMcpServersEnabledOverride).toBeNull();
+				expect(defaults.effectiveSandboxMcpServersEnabled).toBe(true);
+				expect(defaults.effectiveSandboxMcpServerControls).toEqual({
+					"sequential-thinking": true,
+					"codebase-memory": true,
+					"basic-memory": false,
+				});
+
+				await updateRuntimeConfig(tempProject, {
+					sandboxMcpServersEnabled: false,
+					sandboxMcpServersEnabledOverride: true,
+					basicMemoryEnabled: true,
+					sandboxMcpServerOverrides: {
+						"codebase-memory": false,
+						"basic-memory": false,
+					},
+				});
+				const projectOptIn = await loadRuntimeConfig(tempProject);
+				expect(projectOptIn.sandboxMcpServersEnabled).toBe(false);
+				expect(projectOptIn.sandboxMcpServersEnabledOverride).toBe(true);
+				expect(projectOptIn.effectiveSandboxMcpServersEnabled).toBe(true);
+				expect(projectOptIn.sandboxMcpServerOverrides).toEqual({
+					"codebase-memory": false,
+					"basic-memory": false,
+				});
+				expect(projectOptIn.effectiveSandboxMcpServerControls).toEqual({
+					"sequential-thinking": true,
+					"codebase-memory": false,
+					"basic-memory": false,
+				});
+
+				await updateRuntimeConfig(tempProject, {
+					sandboxMcpServersEnabled: true,
+					sandboxMcpServersEnabledOverride: false,
+					sandboxMcpServerOverrides: null,
+				});
+				const projectOptOut = await loadRuntimeConfig(tempProject);
+				expect(projectOptOut.effectiveSandboxMcpServersEnabled).toBe(false);
+				expect(projectOptOut.effectiveSandboxMcpServerControls["basic-memory"]).toBe(true);
+
+				await updateRuntimeConfig(tempProject, { sandboxMcpServersEnabledOverride: null });
+				const inherited = await loadRuntimeConfig(tempProject);
+				expect(inherited.sandboxMcpServersEnabledOverride).toBeNull();
+				expect(inherited.effectiveSandboxMcpServersEnabled).toBe(true);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("defaults empty concurrency config and round-trips the global default + per-project override (§5.W)", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-concurrency-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir(

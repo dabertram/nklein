@@ -13,6 +13,7 @@ import type {
 } from "../core/api-contract";
 import type { ModelBehaviorProfile, ModelOutcomeKind } from "../core/model-behavior-profile";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
+import type { SandboxMcpServerControls } from "../core/sandbox-mcp-controls";
 import type { SkillApiProfile } from "../core/skill-registry";
 import type { StrategyAttemptObservation, StrategyEffectivenessLedger } from "../core/strategy-effectiveness-ledger";
 import type { NKleinArchitectBriefSubmittedHandler } from "./nklein-architect-tool";
@@ -152,6 +153,8 @@ export interface StartNKleinSessionRuntimeRequest {
 	basicMemoryExecEnv?: Record<string, string>;
 	/** §5.BB: the resolved basic-memory opt-in (runtime setting OR env) — forwarded to createToolBundle. */
 	basicMemoryEnabled?: boolean;
+	/** F4.28: concrete project→global per-server controls; absent preserves the legacy curated-server defaults. */
+	sandboxMcpServerControls?: SandboxMcpServerControls;
 	onDecompositionApplied?: NKleinDecompositionAppliedHandler;
 	/** W4.3: executes one diverse-critic round for a high-stakes decomposition (see createNKleinDecompositionTools). */
 	requestPlanCritique?: NKleinPlanCritiqueRequestHandler;
