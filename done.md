@@ -2713,3 +2713,17 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   live browser verification walked all 12 global and 10 project steps with the three-host budget visible and a clean
   console; root typecheck, web typecheck, the 1,263-file/12,166-test backend fast suite, the 157-file/1,139-test web
   suite, and the protected 142/142 suite all pass. Lint reports zero errors (20 pre-existing warnings and one info).
+
+- [x] **F11.1 — Guided project-initializer workflow** *(delivered 2026-07-22).* Add Project → New now offers a six-step
+  beginner intake and a professional paste-at-once path over the same ten-topic fact model: outcome/audience,
+  stack/runtime, greenfield posture, executable/observable acceptance, in/out scope, domain rules, references,
+  constraints, uncertainty, effort, and autonomy checkpoints. The UI previews deterministic planning tracks before
+  creation and keeps the action disabled until the brief is ready. The runtime reads bounded regular-text file
+  references under remote-root confinement, screens and fences pasted/file/URL material under fixed trusted labels,
+  keeps URLs linked-only without retrieval authority, and records omissions as explicit `OPEN` clarifications. It writes
+  `PROJECT_BRIEF.md` before the initial commit and seeds a plan-mode, auto-reviewed architect card that treats it as
+  canonical. Folder, git, workspace state, task seed, registry, and activation are one rollback domain. Live browser QA
+  also found and fixed the isolated-instance WebSocket outage: development origins now derive the configured Vite port
+  while adjacent ports remain denied. Evidence: 102 focused backend assertions, 3 component assertions, full backend
+  fast 12,180/12,180, full web 1,142/1,142, protected 142/142, backend/web typechecks, lint with zero errors, and a real
+  Chrome walkthrough of beginner/pro surfaces and readiness gating.

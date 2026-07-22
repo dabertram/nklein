@@ -2,6 +2,13 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **New projects now start from a canonical, model-ready brief.** Add Project → New offers a short beginner walkthrough
+  or professional batch intake for outcome, audience, stack, scope, domain rules, acceptance, constraints, uncertainty,
+  references, effort, and checkpoint posture. Pasted and local-file references are screened and structurally fenced;
+  URLs remain linked-only until retrieval egress is explicitly allowed. !Klein versions `PROJECT_BRIEF.md` in the root
+  commit, previews initial planning tracks, and seeds a plan-mode architect card. Any intake, git, state, or activation
+  failure rolls the new project back instead of leaving a half-created workspace.
+
 - **Desktop releases now have an authenticated cross-platform trust chain.** Stable/beta update feeds reject manifests
   that are unsigned, tampered, or signed by an unknown Ed25519 key before trusting asset URLs/checksums. Release tooling
   emits a signed manifest plus `SHA256SUMS`; protected macOS/Windows packaging fails closed without signing credentials,

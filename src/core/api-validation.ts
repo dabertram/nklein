@@ -205,6 +205,7 @@ export function parseProjectAddRequest(value: unknown): RuntimeProjectAddRequest
 		initializeGit: parsed.initializeGit,
 		confirmSelfProject: parsed.confirmSelfProject,
 		allowTaskWorktreeProject: parsed.allowTaskWorktreeProject,
+		initializer: parsed.initializer,
 	};
 }
 

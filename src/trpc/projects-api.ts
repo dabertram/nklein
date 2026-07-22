@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { cp, mkdir, rm, stat } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeDevTestCleanupResponse,
@@ -21,6 +21,7 @@ import {
 	parseSelfImprovementProjectRequest,
 } from "../core/api-validation";
 import { resolveAutonomousTimeoutPowerMultiplier } from "../core/autonomous-timeout-defaults";
+import { buildProjectInitializerSeedPrompt, type ProjectInitializerBriefInput } from "../core/project-initializer";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { loadDevTestProjectScenario } from "../nklein-agent/dev-test-project-registry";
 import {
@@ -57,6 +58,10 @@ import { buildDevTestTaskId, createDevTestBoard } from "./dev-test-board";
 import { handleListDevTestProjects } from "./projects-api/dev-test-projects.js";
 import { handleListDirectoryContents, handlePickProjectDirectory } from "./projects-api/directory-browse.js";
 import {
+	resolveProjectInitializerBrief,
+	writeCanonicalProjectBrief,
+} from "./projects-api/project-initializer-files.js";
+import {
 	isMarkedDevTestWorkspaceEntry,
 	listPlanArtifactDirectoryNames,
 	pathExists,
@@ -92,6 +97,13 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 		},
 		addProject: async (preferredWorkspaceId, input) => {
 			const body = parseProjectAddRequest(input);
+			if (body.initializer && (!body.createDirectory || body.gitUrl || body.initializeGit !== true)) {
+				return {
+					ok: false,
+					project: null,
+					error: "The guided initializer is for a newly-created greenfield folder. Use Existing/Git Clone for an existing codebase.",
+				} satisfies RuntimeProjectAddResponse;
+			}
 
 			// Remote mode: reject project paths that fall outside every allowed root.
 			if (deps.isRemoteMode) {
@@ -133,9 +145,13 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				? await loadWorkspaceContextById(preferredWorkspaceId)
 				: null;
 			const resolveBasePath = preferredWorkspaceContext?.repoPath ?? deps.getActiveWorkspacePath() ?? process.cwd();
+			let createdProjectPath: string | null = null;
+			let initializedWorkspaceId: string | null = null;
 			try {
 				let projectPath: string;
 				let gitRepositoryCreatedByKanban = false;
+				let initializerBrief: ProjectInitializerBriefInput | null = null;
+				let briefPath: string | null = null;
 				if (body.gitUrl) {
 					// Clone from Git URL. If a custom path is provided alongside
 					// gitUrl, use it as the clone destination. Otherwise derive
@@ -178,9 +194,20 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 							} satisfies RuntimeProjectAddResponse;
 						}
 						await mkdir(projectPath, { recursive: false });
+						createdProjectPath = projectPath;
 					}
 				}
 				await deps.assertPathIsDirectory(projectPath);
+				if (body.initializer) {
+					const projectName = body.projectName?.trim() || basename(projectPath);
+					initializerBrief = await resolveProjectInitializerBrief({
+						brief: body.initializer,
+						referenceBasePath: resolveBasePath,
+						isRemoteMode: deps.isRemoteMode,
+						allowedBrowseRoots: deps.allowedBrowseRoots,
+					});
+					briefPath = await writeCanonicalProjectBrief({ projectPath, projectName, brief: initializerBrief });
+				}
 				if (!deps.hasGitRepository(projectPath)) {
 					if (!body.initializeGit) {
 						return {
@@ -192,6 +219,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					}
 					const initResult = await initializeGitRepository(projectPath);
 					if (!initResult.ok) {
+						if (initializerBrief) throw new Error(initResult.error ?? "Failed to initialize git repository.");
 						return {
 							ok: false,
 							project: null,
@@ -215,6 +243,9 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					isPathInsideTaskWorktreesHome(candidateRepoPath, await getCanonicalTaskWorktreesHomePath()) &&
 					body.allowTaskWorktreeProject !== true
 				) {
+					if (initializerBrief) {
+						throw new Error("A new guided project cannot be created inside !Klein's task-worktree storage.");
+					}
 					return {
 						ok: false,
 						project: null,
@@ -237,7 +268,33 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					selfProjectConfirmed: sourceRepoPath === candidateRepoPath && body.confirmSelfProject === true,
 					allowTaskWorktreeProject: body.allowTaskWorktreeProject === true,
 				});
-				deps.rememberWorkspace(context.workspaceId, context.repoPath);
+				initializedWorkspaceId = context.workspaceId;
+				let initialTask = null;
+				if (initializerBrief) {
+					const state = await loadWorkspaceState(context.repoPath);
+					const baseRef = context.git.currentBranch ?? context.git.defaultBranch ?? "HEAD";
+					const created = addTaskToColumn(
+						state.board,
+						"backlog",
+						{
+							title: `Plan ${body.projectName?.trim() || basename(context.repoPath)} from the project brief`,
+							prompt: buildProjectInitializerSeedPrompt(
+								body.projectName?.trim() || basename(context.repoPath),
+								initializerBrief,
+							),
+							startInPlanMode: true,
+							autoReviewEnabled: true,
+							agentId: "nklein",
+							filesLikelyTouched: ["PROJECT_BRIEF.md"],
+							baseRef,
+						},
+						randomUUID,
+						Date.now(),
+					);
+					await saveWorkspaceState(context.repoPath, { board: created.board, sessions: state.sessions });
+					initialTask = created.task;
+				}
+				const taskCounts = await deps.summarizeProjectTaskCounts(context.workspaceId, context.repoPath);
 				const projectsAfterAdd = await listWorkspaceIndexEntries();
 				const activeWorkspaceId = deps.getActiveWorkspaceId();
 				const hasActiveWorkspace = activeWorkspaceId
@@ -245,8 +302,12 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					: false;
 				if (!hasActiveWorkspace) {
 					await deps.setActiveWorkspace(context.workspaceId, context.repoPath);
+				} else {
+					deps.rememberWorkspace(context.workspaceId, context.repoPath);
 				}
-				const taskCounts = await deps.summarizeProjectTaskCounts(context.workspaceId, context.repoPath);
+				// The guided-new-project path remains rollback-safe until the project is durably registered and selectable.
+				createdProjectPath = null;
+				initializedWorkspaceId = null;
 				void deps.broadcastRuntimeProjectsUpdated(context.workspaceId);
 				return {
 					ok: true,
@@ -258,8 +319,18 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						displayName: context.displayName,
 						autoResumeEnabled: context.autoResumeEnabled === true,
 					}),
+					initialTask,
+					briefPath,
 				} satisfies RuntimeProjectAddResponse;
 			} catch (error) {
+				if (initializedWorkspaceId) {
+					deps.disposeWorkspace(initializedWorkspaceId);
+					await removeWorkspaceIndexEntry(initializedWorkspaceId).catch(() => false);
+					await removeWorkspaceStateFiles(initializedWorkspaceId).catch(() => undefined);
+				}
+				if (createdProjectPath) {
+					await rm(createdProjectPath, { recursive: true, force: true }).catch(() => undefined);
+				}
 				const message = error instanceof Error ? error.message : String(error);
 				return {
 					ok: false,

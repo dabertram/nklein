@@ -24,7 +24,12 @@ export interface CorsGateInput {
 	allowedOrigins: ReadonlySet<string>;
 }
 
-const isDev = process.env.NODE_ENV === "development";
+function getDevelopmentWebUiPort(): number | null {
+	if (process.env.NODE_ENV !== "development") return null;
+	const configured = process.env.NKLEIN_WEB_UI_PORT ?? process.env.KANBAN_WEB_UI_PORT ?? "4173";
+	const port = Number.parseInt(configured, 10);
+	return Number.isInteger(port) && port >= 1 && port <= 65_535 ? port : 4173;
+}
 
 export function evaluateCors(input: CorsGateInput): CorsDecision {
 	const origin = input.originHeader || null;
@@ -34,9 +39,7 @@ export function evaluateCors(input: CorsGateInput): CorsDecision {
 		return { kind: "allow", origin: null };
 	}
 
-	const isDevServer = isDev && (origin === "http://localhost:4173" || origin === "http://127.0.0.1:4173");
-
-	if (!input.allowedOrigins.has(origin) && !isDevServer) {
+	if (!input.allowedOrigins.has(origin)) {
 		return { kind: "reject", origin };
 	}
 
@@ -91,11 +94,6 @@ export function getAllowedHostHeaders(): ReadonlySet<string> {
 
 	addHostPort("localhost");
 	addHostPort("127.0.0.1");
-	if (isDev) {
-		// Vite's default dev server host:port
-		allowed.add("localhost:4173");
-		allowed.add("127.0.0.1:4173");
-	}
 	return allowed;
 }
 
@@ -110,6 +108,21 @@ export function getAllowedRuntimeOrigins(): ReadonlySet<string> {
 	const origins = new Set<string>();
 	for (const host of getAllowedHostHeaders()) {
 		origins.add(`${scheme}://${host}`);
+	}
+	const developmentWebUiPort = getDevelopmentWebUiPort();
+	if (developmentWebUiPort !== null) {
+		const addDevelopmentOrigin = (host: string) => {
+			const normalized = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+			// Vite serves plain HTTP by default even when a separately configured runtime uses TLS.
+			origins.add(`http://${normalized}:${developmentWebUiPort}`);
+		};
+		addDevelopmentOrigin("localhost");
+		addDevelopmentOrigin("127.0.0.1");
+		if (isKanbanRemoteHost()) {
+			addDevelopmentOrigin(getKanbanRuntimeHost().toLowerCase());
+			addDevelopmentOrigin(getKanbanRuntimeAdvertisedHost().toLowerCase());
+			addDevelopmentOrigin("::1");
+		}
 	}
 	return origins;
 }

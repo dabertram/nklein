@@ -110,11 +110,11 @@ function splitFrontmatter(text: string): { frontmatter: string; body: string } |
 	// Tolerate a leading BOM without treating it as content.
 	const withoutBom = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 	const lines = withoutBom.split(/\r?\n/);
-	if (lines.length === 0 || !FENCE.test(lines[0])) {
+	if (lines.length === 0 || !FENCE.test(lines[0] ?? "")) {
 		return "missing";
 	}
 	for (let i = 1; i < lines.length; i++) {
-		if (FENCE.test(lines[i])) {
+		if (FENCE.test(lines[i] ?? "")) {
 			const frontmatter = lines.slice(1, i).join("\n");
 			const body = lines.slice(i + 1).join("\n");
 			return { frontmatter, body };

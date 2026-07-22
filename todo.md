@@ -784,6 +784,13 @@ source repo went private — so if it vanishes the buildable source still lives 
 > inside ingested content (or inside a *peer agent's* message) as an instruction — fence untrusted content structurally,
 > and surface suspicious directives to the operator instead of acting on them. When building any ingestion or inter-agent
 > path, ask "could poisoned input here drive an unauthorized tool call / egress / outward action?" and gate accordingly.
+> **PROJECT INTAKE IS A VERSIONED DATA TRANSACTION (F11.1, 2026-07-22).** Keep operator-authored structured fields
+> separate from pasted/file/URL reference bytes. Screen and fence every reference under a fixed runtime-owned source
+> label—never echo untrusted text into a heading or fence label, because quarantine must withhold every copy of the raw
+> payload. Write the canonical editable brief before the initial git commit so workers share a durable authority; leave
+> professional-mode omissions as explicit `OPEN` clarifications rather than guessing. URLs stay linked-only until the
+> retrieval-egress boundary admits a fetch. Creating the folder, brief, git root, workspace state, seed card, and active
+> registration is one rollback domain: a failure at any stage removes both the new directory and runtime registration.
 > **Discovery is not prompt context (F4.21, 2026-07-22).** Search-engine snippets and registry prose are attacker text.
 > Skill discovery must use the configured egress-gated search client, strictly re-check every hit against the requested
 > origin (a `site:` query is not a boundary), and destroy snippets/bodies before returning display-only results. An
@@ -806,6 +813,11 @@ source repo went private — so if it vanishes the buildable source still lives 
 
 ### Misc. tribal knowledge (engineering invariants & hard-won gotchas)
 > (WORKING MODE — autonomous, full capabilities — is the callout at the **top of this file**; don't re-litigate it. `/clear` at clean breakpoints once a milestone is committed and all durable state is in `todo.md`/`git`.)
+
+- **Development-origin allowlists must derive the configured UI port, not the default (live-found F11.1,
+  2026-07-22).** Isolated `start.sh --test` runs Vite on 4273; a hard-coded 4173 CORS/WebSocket exception made HTTP
+  probes look healthy while every browser state stream was rejected. Keep runtime Host validation on the runtime port,
+  add only the exact configured Vite origins in development, and regression-test that neighboring ports stay denied.
 
 - **RULE (David 2026-07-21): EVERY real-model run goes through `scripts/real-model-run.sh`, never ad-hoc commands.**
   Sitting and hand-watching a run while a card silently stalls is unprofessional and wastes compute. The harness owns
@@ -3579,23 +3591,6 @@ are the two biggest gaps between "works in a demo" and "works for real users on 
 first-class, plus a mandate to prove excellence against real benchmark codebases and to lean hard on aimock so testing
 stays fast + complete.
 
-- [ ] **F11.1 — Guided project-initializer workflow (beginner-intuitive, professional-flexible).** A first-run/new-project
-  flow that asks *exactly the right questions* to fully specify a project so !Klein's decomposition + small local models
-  can execute it end-to-end without ambiguity — simple and to-the-point, never a bureaucratic wall. Beginner mode walks a
-  short guided path; pro mode lets you skip/batch and paste everything at once. **Must accept pasted OR linked spec files,
-  drafts, PRDs, design docs, issue links, and reference URLs** (ingested as untrusted content per Phase 7S — screened +
-  fenced). The elicited spec becomes the canonical project brief the decomposer + workers read. The question set (derive +
-  refine as design lands — this is the "ask the right things" core): (a) **outcome/vision** — what does "done" look like,
-  who is it for; (b) **stack/runtime** — language, framework, package manager, target platform, versions/constraints; (c)
-  **greenfield vs existing** — new project or an existing repo (hand off to F11.2); (d) **acceptance/definition-of-done** —
-  the command(s) that must pass (tests/build/lint), and concrete success criteria; (e) **scope boundaries** — explicitly
-  in-scope vs out-of-scope, so the decomposer doesn't sprawl; (f) **domain model / key concepts** — the nouns + rules a
-  small model won't infer; (g) **references** — the pasted/linked specs/drafts/examples above; (h) **constraints** —
-  perf/dependency/style/security limits, things NOT to do; (i) **risk/uncertainty** — the parts the user is unsure about,
-  so !Klein flags them for clarification instead of guessing; (j) **depth/effort** — rough size + how autonomous vs
-  checkpoint-heavy the user wants it. Produce a clean, editable brief + a preview of the initial decomposition before work
-  starts. Composes with the §5.S clarification cores + the F4.16 dynamics config. Surfaced in the web UI (Chat/Overview
-  onboarding) and offered on an empty board / a freshly-added project.
 - [ ] **F11.2 — First-class support for working in EXISTING codebases.** Today !Klein is strongest on greenfield; starting
   inside a real repo is not yet nicely covered. Make it excellent: on adding an existing project, !Klein should map the
   codebase (structure, entry points, test command, conventions — reuse codebase-memory/retrieval), let the user state a
@@ -3812,8 +3807,8 @@ output and NOT acted on. Captured as F12.12.)
   reuseRatio check needs per-request cache-hit telemetry LM Studio does not expose today → fleet-observation
   queue. Audit core + CI invariant + live-builder nets are the complete code scope. Crossed.
 
-**Onboarding & spec (feeds F11.1):**
-- [>] **F12.8 — EARS-notation acceptance criteria in the initializer** *(waits on F11.1's guided initializer surface).* Kiro/Spec-Kit converge on EARS ("WHEN <condition>
+**Onboarding & spec (extends the shipped F11.1 surface):**
+- [ ] **F12.8 — EARS-notation acceptance criteria in the initializer** *(unblocked 2026-07-22: F11.1's guided initializer surface is shipped).* Kiro/Spec-Kit converge on EARS ("WHEN <condition>
   THE SYSTEM SHALL <behavior>") to produce clear, TESTABLE acceptance criteria, and on 3–5 clarifying questions asked
   ONE-AT-A-TIME focused on what/why (problem, core actions, scope-NOT, success criteria) — not how. Fold both into F11.1:
   emit acceptance criteria in EARS, ask ≤5 gaps one at a time, and produce a versioned spec artifact the decomposer reads.
@@ -3837,9 +3832,9 @@ output and NOT acted on. Captured as F12.12.)
   (so the two cores cannot contradict each other), and `problem`/`core_actions`/`out_of_scope` are reported
   `undetermined`, NEVER guessed from keyword presence** — inferring them from the text would drop a real question,
   the confident-nonsense heuristic in miniature.
-  REMAINING (the initializer surface, unchanged): F11.1's guided flow is where these emit into a versioned spec
-  ARTIFACT; that surface is unbuilt and David-plan-coupled. The cores are now consumed and tested against real
-  input, so F11.1 wires an exercised pipeline rather than a cold one.
+  REMAINING: wire EARS rendering and the one-question-at-a-time sequencer into F11.1's versioned brief/UI. The shipped
+  initializer already calls the shared review pipeline and preserves gaps, but currently lists every clarification at
+  once and retains success criteria as prose rather than emitting mechanically testable EARS criteria.
   (martinfowler.com/articles/exploring-gen-ai/sdd-3-tools; addyosmani.com/blog/good-spec; chatprd.ai)
 - [x] **F12.9 — Spec contradiction/completeness check before decompose.** Kiro's 2026 requirements analysis uses formal
   logic to catch contradictions before code-gen; teams report ~an order-of-magnitude fewer "regenerate from scratch"

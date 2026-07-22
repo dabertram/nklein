@@ -14,6 +14,32 @@ export const runtimeProjectsResponseSchema = z.object({
 });
 export type RuntimeProjectsResponse = z.infer<typeof runtimeProjectsResponseSchema>;
 
+export const runtimeProjectInitializerReferenceSchema = z.object({
+	kind: z.enum(["pasted", "file", "url"]),
+	value: z.string().max(200_000),
+	label: z.string().max(200).optional(),
+});
+
+export const runtimeProjectInitializerBriefSchema = z.object({
+	mode: z.enum(["beginner", "pro"]),
+	projectKind: z.enum(["greenfield", "existing"]),
+	outcome: z.string().max(20_000),
+	audience: z.string().max(10_000),
+	stackRuntime: z.string().max(20_000),
+	acceptanceCommands: z.string().max(20_000),
+	successCriteria: z.string().max(30_000),
+	inScope: z.string().max(30_000),
+	outOfScope: z.string().max(30_000),
+	domainConcepts: z.string().max(40_000),
+	constraints: z.string().max(30_000),
+	uncertainties: z.string().max(30_000),
+	effort: z.enum(["small", "medium", "large"]),
+	autonomy: z.enum(["autonomous", "checkpoints", "collaborative"]),
+	batchBrief: z.string().max(200_000).optional(),
+	references: z.array(runtimeProjectInitializerReferenceSchema).max(20),
+});
+export type RuntimeProjectInitializerBrief = z.infer<typeof runtimeProjectInitializerBriefSchema>;
+
 export const runtimeProjectAddRequestSchema = z
 	.object({
 		path: z.string().optional(),
@@ -24,6 +50,7 @@ export const runtimeProjectAddRequestSchema = z
 		initializeGit: z.boolean().optional(),
 		confirmSelfProject: z.boolean().optional(),
 		allowTaskWorktreeProject: z.boolean().optional(),
+		initializer: runtimeProjectInitializerBriefSchema.optional(),
 	})
 	.refine((data) => data.path || data.gitUrl, { message: "Either path or gitUrl is required" });
 export type RuntimeProjectAddRequest = z.infer<typeof runtimeProjectAddRequestSchema>;
@@ -34,6 +61,8 @@ export const runtimeProjectAddResponseSchema = z.object({
 	requiresGitInitialization: z.boolean().optional(),
 	requiresSelfProjectConfirmation: z.boolean().optional(),
 	requiresTaskWorktreeProjectConfirmation: z.boolean().optional(),
+	initialTask: runtimeBoardCardSchema.nullable().optional(),
+	briefPath: z.string().nullable().optional(),
 	error: z.string().optional(),
 });
 export type RuntimeProjectAddResponse = z.infer<typeof runtimeProjectAddResponseSchema>;

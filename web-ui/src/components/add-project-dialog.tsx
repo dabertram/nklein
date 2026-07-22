@@ -1,8 +1,10 @@
+import { assessProjectInitializerBrief, type ProjectInitializerBriefInput } from "@runtime-project-initializer";
 import { FolderOpen, FolderPlus, GitBranch, Search } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useRef, useState } from "react";
 
 import { showAppToast } from "@/components/app-toaster";
 import { DirectoryAutocomplete } from "@/components/directory-autocomplete";
+import { EMPTY_PROJECT_INITIALIZER_BRIEF, ProjectInitializerForm } from "@/components/project-initializer-form";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import {
@@ -82,6 +84,10 @@ export function AddProjectDialog({
 	const [newFolderNameInput, setNewFolderNameInput] = useState("");
 	const [newFolderNameTouched, setNewFolderNameTouched] = useState(false);
 	const [isCreatingDirectory, setIsCreatingDirectory] = useState(false);
+	const [initializerBrief, setInitializerBrief] = useState<ProjectInitializerBriefInput>(() => ({
+		...EMPTY_PROJECT_INITIALIZER_BRIEF,
+		references: [],
+	}));
 	const [gitUrlInput, setGitUrlInput] = useState("");
 	const [cloneRefInput, setCloneRefInput] = useState("");
 	const [cloneDestInput, setCloneDestInput] = useState("");
@@ -117,6 +123,7 @@ export function AddProjectDialog({
 		setNewFolderNameInput("");
 		setNewFolderNameTouched(false);
 		setIsCreatingDirectory(false);
+		setInitializerBrief({ ...EMPTY_PROJECT_INITIALIZER_BRIEF, references: [] });
 
 		// Fetch the server root path to display at the top of the dialog
 		const fetchRoot = async () => {
@@ -302,6 +309,7 @@ export function AddProjectDialog({
 				projectName: newProjectNameInput.trim() || folderName,
 				createDirectory: true,
 				initializeGit: true,
+				initializer: initializerBrief,
 			});
 			if (!added.ok || !added.project) {
 				throw new Error(added.error ?? "Could not create project.");
@@ -316,6 +324,7 @@ export function AddProjectDialog({
 		}
 	}, [
 		currentProjectId,
+		initializerBrief,
 		newFolderNameInput,
 		newParentInput,
 		newProjectNameInput,
@@ -393,7 +402,8 @@ export function AddProjectDialog({
 	const canCreateNewProject =
 		newProjectNameInput.trim().length > 0 &&
 		resolvedNewFolderName.length > 0 &&
-		isSafeFolderName(resolvedNewFolderName);
+		isSafeFolderName(resolvedNewFolderName) &&
+		assessProjectInitializerBrief(initializerBrief).ready;
 
 	return (
 		<>
@@ -405,14 +415,14 @@ export function AddProjectDialog({
 					}
 					onOpenChange(isOpen);
 				}}
-				contentClassName="max-w-lg"
+				contentClassName={activeTab === "new" ? "max-w-3xl max-h-[90vh]" : "max-w-lg"}
 				contentAriaDescribedBy="add-project-dialog-description"
 				onEscapeKeyDown={handleDialogEscapeKeyDown}
 			>
 				<DialogHeader title="Add Project" icon={<FolderOpen size={16} />} />
 				{/* Plain div instead of DialogBody so the autocomplete dropdown
 				    isn't clipped by DialogBody's default overflow-y-auto */}
-				<div className="flex flex-col gap-4 p-4 bg-surface-1">
+				<div className={cn("flex flex-col gap-4 p-4 bg-surface-1", activeTab === "new" && "overflow-y-auto")}>
 					{/* Tab switcher */}
 					<div className="rounded-md bg-surface-2 p-1">
 						<div className="grid grid-cols-3 gap-1">
@@ -523,6 +533,8 @@ export function AddProjectDialog({
 								setNewFolderNameInput(sanitizeFolderName(value));
 							}}
 							isCreating={isCreatingDirectory}
+							initializerBrief={initializerBrief}
+							setInitializerBrief={setInitializerBrief}
 							onSubmitCreate={() => void handleCreateNewFolder()}
 							currentProjectId={currentProjectId}
 						/>
@@ -783,6 +795,8 @@ function NewFolderTabContent({
 	folderNameInput,
 	setFolderNameInput,
 	isCreating,
+	initializerBrief,
+	setInitializerBrief,
 	onSubmitCreate,
 	currentProjectId,
 }: {
@@ -793,6 +807,8 @@ function NewFolderTabContent({
 	folderNameInput: string;
 	setFolderNameInput: (value: string) => void;
 	isCreating: boolean;
+	initializerBrief: ProjectInitializerBriefInput;
+	setInitializerBrief: (value: ProjectInitializerBriefInput) => void;
 	onSubmitCreate: () => void;
 	currentProjectId: string | null;
 }): ReactElement {
@@ -846,6 +862,7 @@ function NewFolderTabContent({
 					Use lowercase letters, numbers, and hyphens. Spaces and punctuation are converted to hyphens.
 				</p>
 			</div>
+			<ProjectInitializerForm value={initializerBrief} onChange={setInitializerBrief} disabled={isCreating} />
 			{isCreating ? (
 				<div className="flex items-center gap-2 text-[13px] text-text-secondary">
 					<Spinner size={14} />

@@ -34,7 +34,8 @@
       "@runtime-eval-freshness": ["../src/core/eval-freshness-decay.ts"],
       "@runtime-escalation-suggestions": ["../src/core/escalation-suggestions.ts"],
       "@runtime-escalation-resume-action": ["../src/core/escalation-resume-action.ts"],
-      "@runtime-chat-execution-posture": ["../src/chat/chat-execution-posture.ts"]
+      "@runtime-chat-execution-posture": ["../src/chat/chat-execution-posture.ts"],
+      "@runtime-project-initializer": ["../src/core/project-initializer.ts"]
     },
     "types": ["vitest/globals"]
   },

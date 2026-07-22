@@ -452,7 +452,7 @@ export function prescreenSkillInjection(
 	const reason =
 		findings.length === 0
 			? "safe: no injection / exfiltration / obfuscation markers found (absence of evidence, not a trust assertion)"
-			: `${verdict}: ${findings.length} finding(s), worst = ${findings[0].code}`;
+			: `${verdict}: ${findings.length} finding(s), worst = ${findings[0]?.code ?? "unknown"}`;
 
 	return { verdict, findings, reason };
 }

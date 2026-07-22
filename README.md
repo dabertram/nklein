@@ -27,6 +27,10 @@ nklein
 ```
 
 Run `nklein` from a git repository to open that project, or launch it without a project and add one from the UI.
+For a greenfield project, **Add Project → New** provides a beginner walkthrough or a professional paste-at-once flow.
+It writes an editable, versioned `PROJECT_BRIEF.md`, previews the initial decomposition, and seeds a planning card only
+after the brief is complete. Pasted and local-file references are treated as untrusted data; linked URLs are not fetched
+unless retrieval egress is explicitly enabled.
 Run `nklein setup` for the same global + project recommendations in a terminal (`--scope global|project|all`, with
 `--json` for automation); it only inspects configuration and local readiness and does not mark setup complete.
 

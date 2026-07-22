@@ -34,6 +34,7 @@ export default defineConfig({
 			"@runtime-escalation-suggestions": resolve(__dirname, "../src/core/escalation-suggestions.ts"),
 			"@runtime-escalation-resume-action": resolve(__dirname, "../src/core/escalation-resume-action.ts"),
 			"@runtime-chat-execution-posture": resolve(__dirname, "../src/chat/chat-execution-posture.ts"),
+			"@runtime-project-initializer": resolve(__dirname, "../src/core/project-initializer.ts"),
 		},
 		conditions: ["import", "module", "browser", "default"],
 	},

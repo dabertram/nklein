@@ -13,11 +13,17 @@ import { evaluateHost, getAllowedHostHeaders, getAllowedRuntimeOrigins } from ".
 const originalRuntimeHost = getKanbanRuntimeHost();
 const originalRuntimePort = getKanbanRuntimePort();
 const originalPublicHost = process.env.NKLEIN_RUNTIME_PUBLIC_HOST;
+const originalNodeEnv = process.env.NODE_ENV;
+const originalWebUiPort = process.env.NKLEIN_WEB_UI_PORT;
 
 afterEach(() => {
 	setKanbanRuntimeHost(originalRuntimeHost);
 	setKanbanRuntimePort(originalRuntimePort);
 	setKanbanRuntimePublicHost(originalPublicHost ?? null);
+	if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+	else process.env.NODE_ENV = originalNodeEnv;
+	if (originalWebUiPort === undefined) delete process.env.NKLEIN_WEB_UI_PORT;
+	else process.env.NKLEIN_WEB_UI_PORT = originalWebUiPort;
 });
 
 describe("normalizeRequestPath (§5.V coverage)", () => {
@@ -98,5 +104,18 @@ describe("getAllowedRuntimeOrigins (§ desktop app #2 — LAN serving)", () => {
 		expect(origins.has("http://0.0.0.0:4567")).toBe(true);
 		expect(origins.has("http://192.168.1.25:4567")).toBe(true);
 		expect(origins.has("http://192.168.1.99:4567")).toBe(false);
+	});
+
+	it("allows the configured isolated Vite origin without admitting other development ports", () => {
+		process.env.NODE_ENV = "development";
+		process.env.NKLEIN_WEB_UI_PORT = "4273";
+		setKanbanRuntimeHost("127.0.0.1");
+		setKanbanRuntimePort(3586);
+
+		const origins = getAllowedRuntimeOrigins();
+		expect(origins.has("http://127.0.0.1:4273")).toBe(true);
+		expect(origins.has("http://localhost:4273")).toBe(true);
+		expect(origins.has("http://127.0.0.1:4173")).toBe(false);
+		expect(origins.has("http://127.0.0.1:9999")).toBe(false);
 	});
 });

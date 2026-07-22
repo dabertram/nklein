@@ -15,6 +15,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeProjectTaskCounts } from "../../../src/core/api-contract";
 import { AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS } from "../../../src/core/autonomous-timeout-defaults";
+import type { RuntimeProjectInitializerBrief } from "../../../src/core/projects-api-contract";
 import { resolveNKleinDevTestProjectScenario } from "../../../src/nklein-agent/nklein-dev-test-project";
 import { writeNKleinPlanArtifacts } from "../../../src/nklein-agent/nklein-plan-artifacts";
 import {
@@ -101,6 +102,40 @@ function getGitCurrentBranch(path: string): string {
 		throw new Error(`Failed to read git current branch at ${path}`);
 	}
 	return revParse.stdout.trim();
+}
+
+function getGitFile(path: string, revisionAndFile: string): string {
+	const show = spawnSync("git", ["show", revisionAndFile], {
+		cwd: path,
+		encoding: "utf8",
+		env: createGitTestEnv(),
+	});
+	if (show.status !== 0) throw new Error(`Failed to read ${revisionAndFile} at ${path}`);
+	return show.stdout;
+}
+
+function completeInitializerBrief(
+	overrides: Partial<RuntimeProjectInitializerBrief> = {},
+): RuntimeProjectInitializerBrief {
+	return {
+		mode: "beginner",
+		projectKind: "greenfield",
+		outcome: "Ship a local-first meal planner.",
+		audience: "Households.",
+		stackRuntime: "Node.js 22, TypeScript, React, npm.",
+		acceptanceCommands: "npm test && npm run build",
+		successCriteria: "A household can export a seven-day plan.",
+		inScope: "Meal entry, planning, and JSON export.",
+		outOfScope: "Accounts, payments, and cloud sync.",
+		domainConcepts: "A Plan has seven Days containing Meals.",
+		constraints: "Local-only storage. No hosted services.",
+		uncertainties: "none known",
+		effort: "medium",
+		autonomy: "checkpoints",
+		batchBrief: "",
+		references: [],
+		...overrides,
+	};
 }
 
 function getPatchRepoKey(repoPath: string): string {
@@ -277,7 +312,7 @@ describe("dev-test project creation", () => {
 
 				const result = await api.createDevTestProject(null, { preset: "mid_task" });
 
-				expect(result.ok).toBe(true);
+				expect(result.ok, result.error).toBe(true);
 				if (!result.workspacePath) {
 					throw new Error("Expected dev-test workspace path.");
 				}
@@ -444,6 +479,103 @@ describe("project add", () => {
 				expect(entries.find((entry) => entry.repoPath === realpathSync(projectPath))?.displayName).toBe(
 					"Psytrance Kick Bass",
 				);
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
+	});
+
+	it("creates, versions, and seeds a guided greenfield project from its canonical brief", async () => {
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				const projectPath = join(cleanupCwd, "guided-planner");
+				writeFileSync(join(cleanupCwd, "prd.md"), "The weekly plan always contains seven days.\n", "utf8");
+				const deps = createDefaultDeps(cleanupCwd);
+				deps.assertPathIsDirectory = vi.fn(async (path: string) => {
+					if (!existsSync(path)) throw new Error(`Missing directory: ${path}`);
+				});
+				deps.hasGitRepository = vi.fn((path: string) => existsSync(join(path, ".git")));
+				const api = createProjectsApi(deps);
+
+				const result = await api.addProject(null, {
+					path: projectPath,
+					projectName: "Guided Planner",
+					createDirectory: true,
+					initializeGit: true,
+					initializer: completeInitializerBrief({
+						references: [{ kind: "file", value: join(cleanupCwd, "prd.md") }],
+					}),
+				});
+
+				expect(result.ok, result.error).toBe(true);
+				expect(result.briefPath).toBe(join(projectPath, "PROJECT_BRIEF.md"));
+				expect(getGitFile(projectPath, "HEAD:PROJECT_BRIEF.md")).toContain(
+					"The weekly plan always contains seven days.",
+				);
+				expect(result.initialTask).toMatchObject({
+					title: "Plan Guided Planner from the project brief",
+					startInPlanMode: true,
+					autoReviewEnabled: true,
+					agentId: "nklein",
+					filesLikelyTouched: ["PROJECT_BRIEF.md"],
+				});
+				expect(result.initialTask?.prompt).toContain("Resolve every OPEN/BLOCKING/Clarify entry");
+				const state = await loadWorkspaceState(projectPath);
+				expect(state.board.columns.find((column) => column.id === "backlog")?.cards).toContainEqual(
+					expect.objectContaining({ id: result.initialTask?.id }),
+				);
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
+	});
+
+	it("rolls back a newly-created guided project when reference intake fails", async () => {
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				const projectPath = join(cleanupCwd, "bad-guided-project");
+				const api = createProjectsApi(createDefaultDeps(cleanupCwd));
+				const result = await api.addProject(null, {
+					path: projectPath,
+					createDirectory: true,
+					initializeGit: true,
+					initializer: completeInitializerBrief({ references: [{ kind: "file", value: "missing-prd.md" }] }),
+				});
+
+				expect(result.ok).toBe(false);
+				expect(result.error).toContain("missing-prd.md");
+				expect(existsSync(projectPath)).toBe(false);
+				expect(await listWorkspaceIndexEntries()).toHaveLength(0);
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
+	});
+
+	it("rolls back the project and runtime registration when activation fails", async () => {
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				const projectPath = join(cleanupCwd, "activation-failure");
+				const deps = createDefaultDeps(cleanupCwd);
+				deps.setActiveWorkspace = vi.fn(async () => {
+					throw new Error("activation failed");
+				});
+				const api = createProjectsApi(deps);
+
+				const result = await api.addProject(null, {
+					path: projectPath,
+					createDirectory: true,
+					initializeGit: true,
+					initializer: completeInitializerBrief(),
+				});
+
+				expect(result).toMatchObject({ ok: false, error: "activation failed" });
+				expect(deps.disposeWorkspace).toHaveBeenCalledTimes(1);
+				expect(existsSync(projectPath)).toBe(false);
+				expect(await listWorkspaceIndexEntries()).toHaveLength(0);
 			});
 		} finally {
 			rmSync(cleanupCwd, { recursive: true, force: true });
