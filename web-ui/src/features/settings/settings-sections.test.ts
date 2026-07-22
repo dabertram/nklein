@@ -166,6 +166,20 @@ describe("SETTINGS_NAV_FIELDS — the nav-aligned axis (F1.29b)", () => {
 		expect(reset.codeEmbeddingOverride).toEqual(base.codeEmbeddingOverride);
 	});
 
+	it("compares sparse curated-MCP overrides semantically instead of by object key order", () => {
+		const base = initSettingsDraftFromConfig(
+			{
+				sandboxMcpServerOverrides: { "codebase-memory": false, "sequential-thinking": true },
+			} as never,
+			{ cloudProviderSupportEnabled: false },
+		);
+		const reordered: SettingsDraft = {
+			...draftFrom(base),
+			sandboxMcpServerOverrides: { "sequential-thinking": true, "codebase-memory": false },
+		};
+		expect(isNavSectionDirty("project", reordered, base)).toBe(false);
+	});
+
 	it("a tab with no per-tab affordance is never dirty and resets to a no-op", () => {
 		const base = snapshot();
 		const edited: SettingsDraft = { ...draftFrom(base), requestTimeoutMs: "9000" };

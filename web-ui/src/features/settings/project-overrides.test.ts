@@ -25,8 +25,17 @@ describe("listActiveProjectOverrides (§10c#9 nav badge)", () => {
 			skillDynamicsLevelOverride: null,
 			modelRolesOverride: null,
 			agentRulesetsOverride: null,
+			sandboxMcpServersEnabledOverride: false,
+			sandboxMcpServerOverrides: { "codebase-memory": false },
 		});
-		expect(labels).toEqual(["Max concurrent tasks", "Sandbox isolation", "Concurrency caps", "Model suitability"]);
+		expect(labels).toEqual([
+			"Max concurrent tasks",
+			"Sandbox isolation",
+			"Concurrency caps",
+			"Model suitability",
+			"Curated MCP master",
+			"Curated MCP servers",
+		]);
 	});
 
 	it("counts every override kind when all are set", () => {
@@ -41,7 +50,9 @@ describe("listActiveProjectOverrides (§10c#9 nav badge)", () => {
 			fileOverlapParallelismOverride: "allow",
 			modelRolesOverride: {},
 			agentRulesetsOverride: {},
+			sandboxMcpServersEnabledOverride: true,
+			sandboxMcpServerOverrides: { "basic-memory": true },
 		});
-		expect(labels).toHaveLength(10);
+		expect(labels).toHaveLength(12);
 	});
 });

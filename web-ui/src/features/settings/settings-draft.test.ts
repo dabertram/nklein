@@ -62,6 +62,8 @@ const representativeConfig = {
 	retrievalSearchBackendUrl: "http://127.0.0.1:8080",
 	llmfitCatalogUpdateMode: "auto",
 	sandboxMcpServersEnabled: false,
+	sandboxMcpServersEnabledOverride: true,
+	sandboxMcpServerOverrides: { "codebase-memory": false },
 	capabilityBrokerEnabled: true,
 	basicMemoryEnabled: true,
 	chatAdaptiveTruncationEnabled: false,
@@ -149,6 +151,8 @@ describe("initSettingsDraftFromConfig", () => {
 		expect(snapshot.retrievalSearchBackendUrl).toBe("");
 		expect(snapshot.llmfitCatalogUpdateMode).toBe("notify");
 		expect(snapshot.sandboxMcpServersEnabled).toBe(true);
+		expect(snapshot.sandboxMcpServersEnabledOverride).toBeNull();
+		expect(snapshot.sandboxMcpServerOverrides).toBeNull();
 		expect(snapshot.capabilityBrokerEnabled).toBe(false);
 		expect(snapshot.basicMemoryEnabled).toBe(false);
 		expect(snapshot.chatAdaptiveTruncationEnabled).toBe(true);
@@ -309,6 +313,8 @@ describe("isSettingsDraftDirty", () => {
 			{ retrievalSearchBackendUrl: "http://other" },
 			{ llmfitCatalogUpdateMode: "notify" },
 			{ sandboxMcpServersEnabled: true },
+			{ sandboxMcpServersEnabledOverride: null },
+			{ sandboxMcpServerOverrides: null },
 			{ capabilityBrokerEnabled: false },
 			{ basicMemoryEnabled: false },
 			{ chatAdaptiveTruncationEnabled: true },

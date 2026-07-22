@@ -4,6 +4,7 @@
 import {
 	areRuntimeMemoryFreshnessAuditEqual,
 	areRuntimeSwarmGuardrailsEqual,
+	areSandboxMcpServerOverridesEqual,
 	DEFAULT_AGENT_RULESETS_CONFIG,
 	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
@@ -49,6 +50,7 @@ export type SettingsAgentTimeoutMode = "normal" | "long" | "extended" | "unlimit
 export type SettingsAgentTimeoutProfile = "cloud" | "local" | "custom";
 export type SettingsHardTaskRoutingMode = "wait_for_best" | "attempt_with_available";
 export type SettingsRetrievalProviderMode = "none" | "searxng_url" | "managed_local";
+export type SettingsSandboxMcpServerOverrides = NonNullable<RuntimeConfigResponse["sandboxMcpServerOverrides"]>;
 
 export interface SettingsConcurrencyDraft {
 	perProvider: ConcurrencyMap;
@@ -101,6 +103,8 @@ interface SettingsDraftCommonFields {
 	retrievalSearchBackendUrl: string;
 	llmfitCatalogUpdateMode: RuntimeLlmfitCatalogUpdateMode;
 	sandboxMcpServersEnabled: boolean;
+	sandboxMcpServersEnabledOverride: boolean | null;
+	sandboxMcpServerOverrides: SettingsSandboxMcpServerOverrides | null;
 	capabilityBrokerEnabled: boolean;
 	basicMemoryEnabled: boolean;
 	chatAdaptiveTruncationEnabled: boolean;
@@ -224,6 +228,8 @@ export function initSettingsDraftFromConfig(
 		retrievalSearchBackendUrl: config?.retrievalSearchBackendUrl ?? "",
 		llmfitCatalogUpdateMode: config?.llmfitCatalogUpdateMode ?? "notify",
 		sandboxMcpServersEnabled: config?.sandboxMcpServersEnabled ?? true,
+		sandboxMcpServersEnabledOverride: config?.sandboxMcpServersEnabledOverride ?? null,
+		sandboxMcpServerOverrides: config?.sandboxMcpServerOverrides ?? null,
 		capabilityBrokerEnabled: config?.capabilityBrokerEnabled ?? false,
 		basicMemoryEnabled: config?.basicMemoryEnabled ?? false,
 		chatAdaptiveTruncationEnabled: config?.chatAdaptiveTruncationEnabled ?? true,
@@ -427,6 +433,12 @@ export function isSettingsDraftDirty(args: SettingsDirtyArgs): boolean {
 		return true;
 	}
 	if (draft.sandboxMcpServersEnabled !== snapshot.sandboxMcpServersEnabled) {
+		return true;
+	}
+	if (draft.sandboxMcpServersEnabledOverride !== snapshot.sandboxMcpServersEnabledOverride) {
+		return true;
+	}
+	if (!areSandboxMcpServerOverridesEqual(draft.sandboxMcpServerOverrides, snapshot.sandboxMcpServerOverrides)) {
 		return true;
 	}
 	if (draft.capabilityBrokerEnabled !== snapshot.capabilityBrokerEnabled) {

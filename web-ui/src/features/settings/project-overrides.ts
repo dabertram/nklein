@@ -19,6 +19,8 @@ export interface ProjectOverrideFields {
 	fileOverlapParallelismOverride?: unknown;
 	modelRolesOverride?: unknown;
 	agentRulesetsOverride?: unknown;
+	sandboxMcpServersEnabledOverride?: unknown;
+	sandboxMcpServerOverrides?: unknown;
 }
 
 /** Human labels for each active per-project override, in a stable display order. Empty when nothing diverges. */
@@ -42,5 +44,7 @@ export function listActiveProjectOverrides(config: ProjectOverrideFields | null 
 	push(config.fileOverlapParallelismOverride, "File-overlap parallelism");
 	push(config.modelRolesOverride, "Model roles");
 	push(config.agentRulesetsOverride, "Agent rulesets");
+	push(config.sandboxMcpServersEnabledOverride, "Curated MCP master");
+	push(config.sandboxMcpServerOverrides, "Curated MCP servers");
 	return active;
 }

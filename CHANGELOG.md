@@ -8,6 +8,11 @@
   cycles/duplicate capabilities fail closed. Offline Docker verification now rejects binary-version or memory-budget
   drift before validating the complete real graph schema.
 
+- **Curated sandbox MCP policy is now fully visible and editable in Settings.** Global and project views expose the
+  master and per-server controls, sandbox-image availability, and a model-selectable preview of model fit, memory fit,
+  active/withheld state, and the exact reason. Project choices preserve inherited/on/off semantics, and all changes
+  apply predictably to new sessions through the same shared decision pipeline the runtime uses.
+
 - **Approved community skills now activate through a session-specific containment review.** !Klein re-verifies the
   pinned bytes, derives least-privilege tools and egress from workspace policy, keeps credentials out of the sandbox,
   disables scripts by default, and requires exact per-file hash approval when execution is requested. Content and the

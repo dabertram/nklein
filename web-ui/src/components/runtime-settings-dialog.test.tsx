@@ -835,9 +835,55 @@ describe("RuntimeSettingsDialog", () => {
 			);
 		});
 		expect(document.body.textContent).toContain("Curated sandbox MCP servers");
+		expect(document.body.textContent).toContain("Effective server preview");
+		expect(document.body.textContent).toContain("Availability: binary is baked into the available sandbox image");
+		expect(document.body.textContent).toContain("Model fit for claude-3-7-sonnet");
+		expect(document.body.textContent).toContain("Memory fit:");
 		expect(document.body.textContent).toContain("Prompt-injection capability broker");
 		expect(document.getElementById("runtime-settings-sandbox-mcp")).not.toBeNull();
 		expect(document.getElementById("runtime-settings-capability-broker")).not.toBeNull();
+	});
+
+	it("saves sparse project curated-MCP master and per-server overrides", async () => {
+		const projectConfig = {
+			...savedNKleinOauthConfig,
+			projectConfigPath: "/repo/.nklein/nklein/config.json",
+			sandboxMcpServersEnabled: true,
+			sandboxMcpServersEnabledOverride: false,
+			sandboxMcpServerOverrides: { "basic-memory": true },
+		} as RuntimeConfigResponse;
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId="workspace-1"
+					initialConfig={projectConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const master = findButtonByAriaLabel(document.body, "Project curated MCP master");
+		expect(master?.getAttribute("data-state")).toBe("unchecked");
+		const codebase = document.getElementById("runtime-settings-project-mcp-codebase-memory");
+		const basic = document.getElementById("runtime-settings-project-mcp-basic-memory");
+		expect(codebase).toBeInstanceOf(HTMLSelectElement);
+		expect(basic).toBeInstanceOf(HTMLSelectElement);
+		await act(async () => {
+			master?.click();
+			setSelectValue(codebase as HTMLSelectElement, "off");
+			setSelectValue(basic as HTMLSelectElement, "inherit");
+		});
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sandboxMcpServersEnabledOverride: true,
+				sandboxMcpServerOverrides: { "codebase-memory": false },
+			}),
+		);
 	});
 
 	it("surfaces the §5.BB promoted env-flag toggles (basic-memory, chat truncation, reasoning budget, review lenses)", async () => {

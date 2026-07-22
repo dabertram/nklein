@@ -8,6 +8,8 @@ import { getRuntimeLaunchSupportedAgentCatalog } from "@runtime-agent-catalog";
 import {
 	AGENT_CAPABILITY_TIER_INFO,
 	AGENT_DELIVERY_TIER_INFO,
+	buildGlobalSandboxMcpServerControls,
+	buildSandboxMcpSettingsPreview,
 	DEFAULT_AGENT_RULESETS_CONFIG,
 	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
@@ -43,6 +45,7 @@ import {
 } from "@/components/code-embedding-fields";
 import { CommunitySkillImportPanel } from "@/components/community-skill-import-panel";
 import { ConcurrencyEditor, type ConcurrencyMap } from "@/components/concurrency-editor";
+import { CuratedMcpStatusPanel } from "@/components/curated-mcp-status-panel";
 import { MemoryAuditSettingsPanel } from "@/components/memory-audit-settings-panel";
 import { ModelPerformanceStatsDialog } from "@/components/model-performance-stats-dialog";
 import { ModelRolesEditor } from "@/components/model-roles-editor";
@@ -66,6 +69,7 @@ import {
 	readTaskAutoReviewModeDefault,
 	type SettingsDraft,
 	type SettingsRetrievalProviderMode,
+	type SettingsSandboxMcpServerOverrides,
 	snapshotMemoryAuditInputs,
 	snapshotSwarmGuardrailInputs,
 } from "@/features/settings/settings-draft";
@@ -315,6 +319,11 @@ export function RuntimeSettingsDialog({
 	const [llmfitCatalogUpdateMode, setLlmfitCatalogUpdateMode] = useState<RuntimeLlmfitCatalogUpdateMode>("notify");
 	// §5.AR curated sandbox-MCP servers (ON by default) + §5.M capability broker (prompt-injection taint gate).
 	const [sandboxMcpServersEnabled, setSandboxMcpServersEnabled] = useState(true);
+	const [sandboxMcpServersEnabledOverride, setSandboxMcpServersEnabledOverride] = useState<boolean | null>(null);
+	const [sandboxMcpServerOverrides, setSandboxMcpServerOverrides] = useState<SettingsSandboxMcpServerOverrides | null>(
+		null,
+	);
+	const [sandboxMcpPreviewModelId, setSandboxMcpPreviewModelId] = useState("");
 	const [capabilityBrokerEnabled, setCapabilityBrokerEnabled] = useState(false);
 	// §5.BB env-flag promotions: basic-memory MCP (OFF), chat adaptive truncation (ON), reasoning budget (OFF),
 	// review-panel lenses (OFF). Each still honors its NKLEIN_* env override for scripts/harnesses.
@@ -777,6 +786,8 @@ export function RuntimeSettingsDialog({
 			retrievalSearchBackendUrl,
 			llmfitCatalogUpdateMode,
 			sandboxMcpServersEnabled,
+			sandboxMcpServersEnabledOverride,
+			sandboxMcpServerOverrides,
 			capabilityBrokerEnabled,
 			basicMemoryEnabled,
 			chatAdaptiveTruncationEnabled,
@@ -842,6 +853,8 @@ export function RuntimeSettingsDialog({
 			retrievalSearchBackendUrl,
 			llmfitCatalogUpdateMode,
 			sandboxMcpServersEnabled,
+			sandboxMcpServersEnabledOverride,
+			sandboxMcpServerOverrides,
 			capabilityBrokerEnabled,
 			basicMemoryEnabled,
 			chatAdaptiveTruncationEnabled,
@@ -962,6 +975,12 @@ export function RuntimeSettingsDialog({
 						break;
 					case "sandboxMcpServersEnabled":
 						setSandboxMcpServersEnabled(configSnapshot.sandboxMcpServersEnabled);
+						break;
+					case "sandboxMcpServersEnabledOverride":
+						setSandboxMcpServersEnabledOverride(configSnapshot.sandboxMcpServersEnabledOverride);
+						break;
+					case "sandboxMcpServerOverrides":
+						setSandboxMcpServerOverrides(configSnapshot.sandboxMcpServerOverrides);
 						break;
 					case "basicMemoryEnabled":
 						setBasicMemoryEnabled(configSnapshot.basicMemoryEnabled);
@@ -1199,6 +1218,8 @@ export function RuntimeSettingsDialog({
 		setRetrievalSearchBackendUrl(snapshot.retrievalSearchBackendUrl);
 		setLlmfitCatalogUpdateMode(snapshot.llmfitCatalogUpdateMode);
 		setSandboxMcpServersEnabled(snapshot.sandboxMcpServersEnabled);
+		setSandboxMcpServersEnabledOverride(snapshot.sandboxMcpServersEnabledOverride);
+		setSandboxMcpServerOverrides(snapshot.sandboxMcpServerOverrides);
 		setCapabilityBrokerEnabled(snapshot.capabilityBrokerEnabled);
 		setBasicMemoryEnabled(snapshot.basicMemoryEnabled);
 		setChatAdaptiveTruncationEnabled(snapshot.chatAdaptiveTruncationEnabled);
@@ -1265,6 +1286,8 @@ export function RuntimeSettingsDialog({
 		config?.retrievalSearchBackendUrl,
 		config?.llmfitCatalogUpdateMode,
 		config?.sandboxMcpServersEnabled,
+		config?.sandboxMcpServersEnabledOverride,
+		config?.sandboxMcpServerOverrides,
 		config?.capabilityBrokerEnabled,
 		config?.basicMemoryEnabled,
 		config?.chatAdaptiveTruncationEnabled,
@@ -1514,6 +1537,59 @@ export function RuntimeSettingsDialog({
 			getModelsForProvider: getModelRoleProviderModels,
 		}),
 		[modelRoles, nkleinProviderId, nkleinSettings.providerCatalog, getModelRoleProviderModels],
+	);
+	useEffect(() => {
+		if (open) setSandboxMcpPreviewModelId(nkleinSettings.modelId?.trim() ?? "");
+	}, [nkleinSettings.modelId, open]);
+	const sandboxMcpPreviewModelOptions = useMemo(() => {
+		const options = new Map<string, string>();
+		for (const model of nkleinSettings.providerModels) {
+			const id = model.id.trim();
+			if (id) options.set(id, model.name.trim() && model.name !== id ? `${model.name} (${id})` : id);
+		}
+		for (const role of Object.values(modelRoles)) {
+			const id = role?.modelId?.trim();
+			if (id && !options.has(id)) options.set(id, id);
+		}
+		const configured = nkleinSettings.modelId?.trim();
+		if (configured && !options.has(configured)) options.set(configured, configured);
+		return [...options].map(([id, label]) => ({ id, label }));
+	}, [modelRoles, nkleinSettings.modelId, nkleinSettings.providerModels]);
+	const sandboxMcpPreview = useMemo(() => {
+		const parsedMemory = Number(sandboxMemoryPerContainerMb.trim());
+		return buildSandboxMcpSettingsPreview({
+			modelId: sandboxMcpPreviewModelId || null,
+			containerMemoryLimitMb:
+				Number.isFinite(parsedMemory) && parsedMemory > 0 ? Math.trunc(parsedMemory) : undefined,
+			sandboxImageAvailable: config?.agentSandboxStatus.imageAvailable ?? null,
+			sandboxMcpServersEnabled,
+			sandboxMcpServersEnabledOverride,
+			basicMemoryEnabled,
+			sandboxMcpServerOverrides,
+		});
+	}, [
+		basicMemoryEnabled,
+		config?.agentSandboxStatus.imageAvailable,
+		sandboxMcpPreviewModelId,
+		sandboxMcpServerOverrides,
+		sandboxMcpServersEnabled,
+		sandboxMcpServersEnabledOverride,
+		sandboxMemoryPerContainerMb,
+	]);
+	const globalSandboxMcpServerControls = useMemo(
+		() => buildGlobalSandboxMcpServerControls(basicMemoryEnabled),
+		[basicMemoryEnabled],
+	);
+	const setSandboxMcpServerProjectOverride = useCallback(
+		(id: keyof SettingsSandboxMcpServerOverrides, value: boolean | null) => {
+			setSandboxMcpServerOverrides((current) => {
+				const next = { ...(current ?? {}) };
+				if (value === null) delete next[id];
+				else next[id] = value;
+				return Object.keys(next).length > 0 ? next : null;
+			});
+		},
+		[],
 	);
 
 	useEffect(() => {
@@ -2009,7 +2085,7 @@ export function RuntimeSettingsDialog({
 										<RadixSwitch.Root
 											id={basicMemoryCheckboxId}
 											checked={basicMemoryEnabled}
-											disabled={controlsDisabled || !sandboxMcpServersEnabled}
+											disabled={controlsDisabled}
 											onCheckedChange={setBasicMemoryEnabled}
 											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
 										>
@@ -2023,6 +2099,12 @@ export function RuntimeSettingsDialog({
 										otherwise read-only sandbox. Needs curated sandbox MCP servers on; applies to newly
 										started containers. The <code>NKLEIN_BASIC_MEMORY</code> env var also enables it.
 									</p>
+									<CuratedMcpStatusPanel
+										preview={sandboxMcpPreview}
+										modelOptions={sandboxMcpPreviewModelOptions}
+										previewModelId={sandboxMcpPreviewModelId}
+										onPreviewModelIdChange={setSandboxMcpPreviewModelId}
+									/>
 								</div>
 								<div className="border-t border-border pt-4">
 									<label
@@ -3513,6 +3595,78 @@ export function RuntimeSettingsDialog({
 											))}
 										</NativeSelect>
 									</OverrideRow>
+									<OverrideRow
+										label="Curated MCP master"
+										inheritLabel={sandboxMcpServersEnabled ? "On" : "Off"}
+										isOverridden={sandboxMcpServersEnabledOverride !== null}
+										onOverride={() => setSandboxMcpServersEnabledOverride(sandboxMcpServersEnabled)}
+										onRevert={() => setSandboxMcpServersEnabledOverride(null)}
+										disabled={controlsDisabled}
+									>
+										<label
+											htmlFor="runtime-settings-project-mcp-master"
+											className="flex items-center gap-2 text-[12px] text-text-primary"
+										>
+											<RadixSwitch.Root
+												id="runtime-settings-project-mcp-master"
+												aria-label="Project curated MCP master"
+												checked={sandboxMcpServersEnabledOverride === true}
+												disabled={controlsDisabled}
+												onCheckedChange={setSandboxMcpServersEnabledOverride}
+												className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+											>
+												<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+											</RadixSwitch.Root>
+											<span>
+												Effective for this project: {sandboxMcpServersEnabledOverride ? "On" : "Off"}
+											</span>
+										</label>
+									</OverrideRow>
+									<div className="grid gap-2">
+										<div>
+											<div className="text-[13px] text-text-primary">Curated MCP servers</div>
+											<p className="m-0 mt-0.5 text-[12px] text-text-secondary">
+												Each project control can inherit its global default or explicitly allow/withhold one
+												server.
+											</p>
+										</div>
+										{sandboxMcpPreview.servers.map((server) => {
+											const override = sandboxMcpServerOverrides?.[server.id];
+											return (
+												<div
+													key={server.id}
+													className="grid gap-1 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center"
+												>
+													<label
+														htmlFor={`runtime-settings-project-mcp-${server.id}`}
+														className="text-[12px] text-text-secondary"
+													>
+														{server.label} · global{" "}
+														{globalSandboxMcpServerControls[server.id] ? "on" : "off"}
+													</label>
+													<NativeSelect
+														id={`runtime-settings-project-mcp-${server.id}`}
+														aria-label={`Project ${server.label} control`}
+														value={override === undefined ? "inherit" : override ? "on" : "off"}
+														disabled={controlsDisabled}
+														onChange={(event) =>
+															setSandboxMcpServerProjectOverride(
+																server.id,
+																event.target.value === "inherit" ? null : event.target.value === "on",
+															)
+														}
+														fill
+													>
+														<option value="inherit">
+															Use global ({globalSandboxMcpServerControls[server.id] ? "on" : "off"})
+														</option>
+														<option value="on">On for project</option>
+														<option value="off">Off for project</option>
+													</NativeSelect>
+												</div>
+											);
+										})}
+									</div>
 									<OverrideRow
 										label="Model roles"
 										inheritLabel={

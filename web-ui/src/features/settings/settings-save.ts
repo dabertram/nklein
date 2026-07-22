@@ -297,6 +297,8 @@ export function buildRuntimeConfigSaveRequest(
 		retrievalSearchBackendUrl: draft.retrievalSearchBackendUrl.trim() || null,
 		llmfitCatalogUpdateMode: draft.llmfitCatalogUpdateMode,
 		sandboxMcpServersEnabled: draft.sandboxMcpServersEnabled,
+		sandboxMcpServersEnabledOverride: draft.sandboxMcpServersEnabledOverride,
+		sandboxMcpServerOverrides: draft.sandboxMcpServerOverrides,
 		capabilityBrokerEnabled: draft.capabilityBrokerEnabled,
 		basicMemoryEnabled: draft.basicMemoryEnabled,
 		chatAdaptiveTruncationEnabled: draft.chatAdaptiveTruncationEnabled,

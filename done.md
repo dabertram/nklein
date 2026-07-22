@@ -2628,3 +2628,14 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   disabled servers. Existing environment force-enables remain final-consumer escape hatches. Evidence: focused
   resolver/config/bundle/session tests 104/104, full runtime fast suite, protected and contract suites, backend/web
   typechecks, and the full web suite are green.
+
+- [x] **F4.29 — Complete curated-MCP Settings** *(delivered 2026-07-22).* Runtime Settings now exposes the global
+  curated-MCP master, the basic-memory global default, a model-selectable status preview, sandbox-image availability,
+  and each server's exact model-fit, memory-fit, active/withheld state, and reason. Project Settings adds an inherited/
+  on/off master plus inherited/on/off controls for sequential-thinking, codebase-memory, and basic-memory, with sparse
+  overrides preserved through draft/reset/save. The preview is a shared core projection over the real catalog and
+  decision helpers, so UI status cannot drift from runtime gates; it labels prospective new-session assumptions and
+  environment escape hatches. Browser QA covered both global and project layouts at desktop width. Evidence: focused
+  runtime/UI suites 121/121, backend full fast 12,088/12,088, protected 142/142, full web 1,135/1,135, backend/web
+  typechecks, and lint green. The full contract's 284 behavioral assertions passed under Low Power mode; its two
+  wall-clock assertions passed 4/4 when isolated and their thresholds were not weakened.

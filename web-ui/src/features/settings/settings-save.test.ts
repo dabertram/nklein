@@ -297,6 +297,8 @@ describe("buildRuntimeConfigSaveRequest", () => {
 			skillDynamicsLevelOverride: "fully_static",
 			maxConcurrentTasksOverride: 4,
 			selectedAgentIdOverride: "nklein",
+			sandboxMcpServersEnabledOverride: false,
+			sandboxMcpServerOverrides: { "sequential-thinking": false },
 			concurrencyDefaults: { perProvider: { lmstudio: 2 }, perModel: {}, perHost: {}, perEndpoint: {} },
 			concurrencyOverride: null,
 			commitPromptTemplate: "Commit body",
@@ -308,6 +310,8 @@ describe("buildRuntimeConfigSaveRequest", () => {
 		expect(payload.skillDynamicsLevelOverride).toBe("fully_static");
 		expect(payload.maxConcurrentTasksOverride).toBe(4);
 		expect(payload.selectedAgentIdOverride).toBe("nklein");
+		expect(payload.sandboxMcpServersEnabledOverride).toBe(false);
+		expect(payload.sandboxMcpServerOverrides).toEqual({ "sequential-thinking": false });
 		expect(payload.concurrencyDefaults).toEqual({
 			perProvider: { lmstudio: 2 },
 			perModel: {},

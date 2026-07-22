@@ -93,6 +93,14 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ SETTINGS STATUS MUST PROJECT THE SAME CURATED-MCP DECISION PIPELINE THE RUNTIME USES (F4.29, 2026-07-22).**
+> Do not duplicate availability, model-fit, memory-fit, or global/project-control rules in React. Build one shared pure
+> preview from the curated catalog and the existing decision helpers, export it through the API boundary, and render
+> its reasons verbatim. Keep persisted sparse overrides distinct from effective controls. “Active” in Settings is a
+> prospective new-session projection: label the assumed model/container/role inputs and documented environment escape
+> hatches rather than pretending it is live-session introspection. Image availability is separate from catalog intent;
+> a binary may be declared available yet withheld while the configured sandbox image is missing or still rebuilding.
+
 > **⚠️ PROJECT OVERRIDES MUST RESOLVE ONCE, BEFORE EFFECTFUL RUNTIME CONSTRUCTION (F4.28, 2026-07-22).** Keep the
 > persisted global value and sparse project override distinct from their concrete effective values. Only the resolved
 > master switch and complete per-server map may reach cached session services, sandbox mount planning, or MCP bundle
@@ -2697,8 +2705,6 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
 
   **AUDIT 2026-07-18: RESOLVED BY F4.27 (2026-07-22)** — community-skill provenance now has its own ledger event
   family; F4.19's procedural-skill store remains a separate concern.
-- [ ] **F4.29 — Complete curated-MCP Settings.** Show global/project switches, active servers, availability, and the
-  per-model fit reason; changes affect new sessions predictably.
 - [x] **F4.30 —  *(finalized 2026-07-19 (split): fit/withhold/fail-soft logic complete + unit-proven, sequential-thinking adoption PROVEN live unprompted; the codebase-memory live-adoption demonstration + four withhold cases live = FLEET queue entry.)* Prove curated MCP live.** A fitting model must use codebase-memory/sequential-thinking in the sandbox;
   a reasoner, opted-out project, unavailable binary, and failed server must be withheld/fail soft as designed.
   **AUDIT 2026-07-18: PARTIAL** — fit/withhold/fail-soft logic complete + unit-tested (selectSandboxMcpServersForModel + decideMcpServerModelFitById + memory-fit gate, wired at the tool-bundle seam; reasoner-withheld/uncatalogued-failsafe/opt-out proven). MISSING: the LIVE in-sandbox proof (a fitting model actually using codebase-memory/sequential-thinking + the four withhold cases demonstrated live).
@@ -2863,6 +2869,10 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   over the same setup-plan model.
 - [x] **F5.4 —  *(finalized 2026-07-19: mechanism complete + mounted, CSP-self-only proven; only the media FILES remain = content decision, DAVID BATCH.)* Add first-party self-hosted onboarding media.** Keep CSP `self`-only, make media optional/lightweight, and
   provide accessible text fallback.
+- [ ] **F5.4a — Stop the startup onboarding carousel's render loop.** Reproduce the browser-observed React “Maximum
+  update depth exceeded” failure in `TaskStartAgentOnboardingCarousel`, identify the state/effect dependency feedback
+  loop, and make initialization idempotent without suppressing React's warning. Add a component regression and verify a
+  first-run startup in the browser with a clean console.
 
 #### 5B. Desktop updates, migrations, and packaged behavior *(legacy §10 desktop)*
 

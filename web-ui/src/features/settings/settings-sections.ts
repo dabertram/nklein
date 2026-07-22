@@ -1,4 +1,8 @@
-import { areRuntimeMemoryFreshnessAuditEqual, areRuntimeSwarmGuardrailsEqual } from "@runtime-contract";
+import {
+	areRuntimeMemoryFreshnessAuditEqual,
+	areRuntimeSwarmGuardrailsEqual,
+	areSandboxMcpServerOverridesEqual,
+} from "@runtime-contract";
 import { areRuntimeProjectShortcutsEqual } from "@runtime-shortcuts";
 import { areCodeEmbeddingSettingsEqual } from "@/components/code-embedding-fields";
 import { inputsToMemoryAudit } from "@/components/runtime-settings-memory-audit";
@@ -49,6 +53,8 @@ export const SETTINGS_SECTION_FIELDS = {
 		"sandboxIdleTimeoutMinutes",
 		"sandboxIsolationProfileDefault",
 		"sandboxMcpServersEnabled",
+		"sandboxMcpServersEnabledOverride",
+		"sandboxMcpServerOverrides",
 	],
 	planning_review: [
 		"decompositionAutoApplyEnabled",
@@ -136,6 +142,9 @@ function fieldDirty(field: keyof SettingsDraft, draft: SettingsDraft, snapshot: 
 	}
 	if (field === "shortcuts") {
 		return !areRuntimeProjectShortcutsEqual(draft.shortcuts, snapshot.shortcuts);
+	}
+	if (field === "sandboxMcpServerOverrides") {
+		return !areSandboxMcpServerOverridesEqual(draft.sandboxMcpServerOverrides, snapshot.sandboxMcpServerOverrides);
 	}
 	// Model roles compare via serializeModelRoles (the whole-dialog's normalization) — a raw JSON compare would
 	// disagree with Save on key order / empty-role normalization.
@@ -281,6 +290,8 @@ export const SETTINGS_NAV_FIELDS: Partial<Record<SettingsNavId, readonly (keyof 
 		"agentRulesetsOverride",
 		"skillDynamicsLevelOverride",
 		"codeEmbeddingOverride",
+		"sandboxMcpServersEnabledOverride",
+		"sandboxMcpServerOverrides",
 		"shortcuts",
 	],
 	"git-prompts": ["commitPromptTemplate", "openPrPromptTemplate"],

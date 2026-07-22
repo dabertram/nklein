@@ -34,6 +34,8 @@ export type { PlanGapKind } from "./plan-gap-kind.js";
 export * from "./projects-api-contract.js";
 // Runtime/agent configuration primitives (core enums, NKlein/swarm settings, model-roles, agent rulesets) (§5.X #2).
 export * from "./runtime-config-api-contract.js";
+// Shared curated-MCP Settings projection; the UI executes the exact runtime catalog/model/memory gate logic.
+export * from "./sandbox-mcp-settings-preview.js";
 // Runtime state-stream domain (mcp-auth-status + team-progress event + all WS state-stream messages + union) (§5.X #2).
 export * from "./stream-events-api-contract.js";
 // Task-chat contract domain (chat message/list/send/reload/abort/cancel + protected-test approval) (§5.X #2).
