@@ -819,6 +819,14 @@ source repo went private — so if it vanishes the buildable source still lives 
 ### Misc. tribal knowledge (engineering invariants & hard-won gotchas)
 > (WORKING MODE — autonomous, full capabilities — is the callout at the **top of this file**; don't re-litigate it. `/clear` at clean breakpoints once a milestone is committed and all durable state is in `todo.md`/`git`.)
 
+- **An in-place stdio MCP update invalidates every already-running client transport (live-found with
+  `codebase-memory-mcp` 0.9.0, 2026-07-22).** The upstream updater replaces the binary and terminates stale server
+  processes. Codex keeps that task's now-closed stdio handle and does not respawn/re-initialize it, so subsequent tools
+  report `Transport closed` even though a fresh client works. Upgrade at a task boundary when possible; otherwise reopen
+  existing tasks afterward. Prove the new binary with a fresh SDK client, and explicitly `index_repository` before
+  trusting results—startup auto-index can skip an existing graph that predates the latest commit. This is distinct from
+  !Klein's sandbox integration, which runs a pinned binary in a fresh per-session Docker transport.
+
 - **Development-origin allowlists must derive the configured UI port, not the default (live-found F11.1,
   2026-07-22).** Isolated `start.sh --test` runs Vite on 4273; a hard-coded 4173 CORS/WebSocket exception made HTTP
   probes look healthy while every browser state stream was rejected. Keep runtime Host validation on the runtime port,
