@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-22, after F4.23 closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-gate below is green. The current 186-package remainder is **96 ready + 1 partial + 76 dependency-blocked + 6 external/
+gate below is green. The current 186-package remainder is **96 ready + 0 partial + 76 dependency-blocked + 7 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 
@@ -2431,7 +2431,8 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [x] **F3.24 — Prove multi-machine fan-out.** A wide DAG must use at least two pools, keep hard work on capable models,
   survive one endpoint loss, and merge all results.
   **FINALIZED 2026-07-19 (split):** multi-pool routing unit-proven AND the 2026-07-15 live run validated multi-machine fan-out + cap-3 concurrency across the real 3-machine fleet (recorded in the fleet-live session evidence). The remaining ENDPOINT-LOSS survival leg + a committed proof artifact = F3.24b below.
-- [~] **F3.24b — Committed fan-out proof artifact** *(implementation and deterministic regressions complete; remaining:
+- [?] **F3.24b — Committed fan-out proof artifact** *(implementation and deterministic regressions complete; currently
+  power-gated by the operator's M5 Max + Legion5Pro Low Power setting; remaining:
   rerun the exact eight-card live proof once m5max/legion5pro leave low-power mode, require all eight cards merged after
   the injected Qwable endpoint loss, then commit the durable run artifact; split from F3.24 2026-07-19).* On the next
   multi-machine fleet window: run a wide DAG across ≥2 pools, kill one endpoint mid-run, verify re-route +
