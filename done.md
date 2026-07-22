@@ -2771,3 +2771,34 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   network-none pattern search over the mounted repository. Evidence: 83 focused AST/retrieval/router/cache/runtime
   assertions, the 1,265-file/12,191-test backend fast suite, protected 142/142, backend/web typechecks, lint with zero
   errors (20 pre-existing warnings and one info), production Node bundles, and the rebuilt sandbox image pass.
+
+- [x] **F11.2c — k-hop ego-graph localization over codebase-memory facts** *(delivered 2026-07-17; archived with
+  F11.2 on 2026-07-22).* Task-mentioned symbols seed a bounded k≤3 neighborhood of declarations, references, and
+  resolved imports. Generic non-seed hubs spanning more than eight files are pruned and reported; the result returns
+  focused file:line read targets and routes exact locations to `search_ast`. Nine focused assertions and a live nKlein
+  self-probe passed.
+
+- [x] **F11.2i — AST-aware code-index chunking** *(delivered 2026-07-17; archived with F11.2 on 2026-07-22).*
+  JavaScript/TypeScript chunks split and greedily merge at declaration/member/body boundaries, retain enclosing-symbol
+  context, partition every source line exactly once, and use fixed windows only as the final fallback. The index schema
+  was invalidated deliberately; six chunker assertions plus the existing index/search suite passed.
+
+- [x] **F11.2l — local-model hierarchical repository summary** *(delivered 2026-07-22).* The explicit
+  `repo_summary` onboarding tool builds function→file→directory→project summaries bottom-up and atomically persists a
+  workspace-local artifact. Every node is keyed by SHA-256 content/child evidence; the existing Merkle file tree makes
+  an unchanged repository a zero-inference root hit, while one edit regenerates only its function and ancestors and
+  deletions prune stale nodes. Wide files/directories map-reduce through hidden hash-cached digests so all children
+  contribute within a 32k-friendly batch. JS/TS uses ast-grep callables; Python and keyword-function languages retain
+  function granularity, with an honest module-body unit fallback elsewhere. A cold full build is never hidden in
+  `beforeModel`; once the artifact exists, the context rail serves it project-first and refreshes changed branches.
+  Qwen reasoning models use a forced native structured tool call before the known `json_schema` fallback. Source-derived
+  summaries are explicitly fenced as untrusted data. Evidence: seven artifact/incremental/polyglot/wide-parent tests,
+  two model-adapter tests, cold-hot-path and live context-rail replacement regressions, 57 focused runtime tests,
+  backend fast 12,202/12,202, protected 142/142, backend/web typechecks, lint with zero errors (20 pre-existing warnings and one
+  info), production Node/web bundles, and a rebuilt Docker sandbox image all pass.
+
+- [x] **F11.2 — first-class existing-codebase support** *(closed 2026-07-22).* The complete F11.2 stack now supplies
+  verified repository onboarding, task-personalized PageRank orientation, literal/structural/graph retrieval routing,
+  ego-graph localization, AST-aware indexing, architecture-grounded decomposition, acceptance via repository-owned
+  commands, few-shot conventions, explorer citations, monorepo scoping, and the incremental hierarchical onboarding
+  artifact. F11.3 owns the remaining real-repository benchmark campaign; it is validation, not missing substrate.

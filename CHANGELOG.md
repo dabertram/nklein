@@ -2,6 +2,14 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Unfamiliar repositories now gain a durable local-model onboarding map.** The `repo_summary` tool summarizes
+  function-like units into files, directories, and a project overview, then stores the result by content hash. An
+  unchanged Merkle root needs no inference; an edit refreshes only the changed unit and its ancestors. Very wide files
+  and monorepo directories reduce through cached intermediate digests instead of overflowing a small context window.
+  Cold indexing is explicit rather than delaying the first agent turn, while warm artifacts are injected project-first
+  and kept current after edits. Source-derived summaries are marked untrusted, and reasoning models use their reliable
+  native structured-tool channel before constrained-output fallback.
+
 - **Existing-codebase orientation now reliably follows the task signal.** Its JavaScript/TypeScript graph now uses
   ast-grep's tree-sitter parser. The compact repo map preserves task-mentioned
   symbols and explicit seed files before its bounded personalized-PageRank pass, spends file caps on production code

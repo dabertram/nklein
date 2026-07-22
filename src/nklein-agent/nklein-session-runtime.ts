@@ -53,6 +53,7 @@ import { extractNKleinSessionId } from "./nklein-event-adapter";
 import { createNKleinExplorerCitationsTool, createNKleinExploreTool } from "./nklein-explorer-tool";
 import { createFileDiscoveryTools } from "./nklein-file-discovery-tools";
 import { createNKleinFocusChainTool } from "./nklein-focus-chain-tool";
+import { createHierarchicalRepoSummaryTool } from "./nklein-hierarchical-repo-summary";
 import {
 	createReadLargeFileTool,
 	getNKleinLargeFileWorkflow,
@@ -72,6 +73,7 @@ import { buildKanbanModelToolRoutingRules } from "./nklein-model-tool-routing";
 import { createNKleinPlanCritiqueTool } from "./nklein-plan-critique-tool";
 import { createPredictOutputTool } from "./nklein-predict-output-tool";
 import { createNKleinPromotionTool } from "./nklein-promotion-tool";
+import { createLocalRepoSummaryModelCaller } from "./nklein-repo-summary-model-caller";
 import { createRequestCompactionTool } from "./nklein-request-compaction-tool";
 import { createSessionResultHandles } from "./nklein-result-handle-tool";
 import { createLocalModelRetrievalDiscriminator } from "./nklein-retrieval-discriminator";
@@ -318,6 +320,18 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 						}),
 					)
 				: undefined;
+		const repoSummaryCaller =
+			request.baseUrl && request.modelId
+				? createLocalRepoSummaryModelCaller(
+						new LocalLlmClient({
+							providerId: process.env.NKLEIN_REPO_SUMMARY_PROVIDER_ID?.trim() || request.providerId,
+							modelId: process.env.NKLEIN_REPO_SUMMARY_MODEL_ID?.trim() || request.modelId,
+							baseUrl: process.env.NKLEIN_REPO_SUMMARY_BASE_URL?.trim() || request.baseUrl,
+							apiKey: request.apiKey,
+							...(request.apiTimeoutMs ? { timeoutMs: request.apiTimeoutMs } : {}),
+						}),
+					)
+				: undefined;
 		const workspaceExtraTools =
 			request.extraTools ??
 			([
@@ -409,6 +423,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			// later oversized read/search/command result does not churn the tool-prefix cache when the handle appears.
 			sessionResultHandles.tool,
 			// ---- CONDITIONAL TAIL (config/kind-divergent tools only, slowest-churning gate first) ----
+			...(repoSummaryCaller
+				? [createHierarchicalRepoSummaryTool({ workspacePath: hostWorkspaceRoot, summarize: repoSummaryCaller })]
+				: []),
 			...createWebResearchTool({
 				// F12.101: the enforcing air-gap switch hard-closes web research regardless of the enable flag.
 				enabled:
@@ -888,6 +905,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 							sessionResultHandles.store,
 							undefined,
 							{ providerId: request.providerId, modelId: request.modelId },
+							repoSummaryCaller,
 						),
 					],
 					...(request.userInstructionService ? { userInstructionService: request.userInstructionService } : {}),

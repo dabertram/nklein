@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F11.2b closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F11.2 closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 167-package remainder is **78 ready + 0 partial + 74 dependency-blocked + 8 external/
+  gate below is green. The current 165-package remainder is **76 ready + 0 partial + 74 dependency-blocked + 8 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -851,6 +851,15 @@ source repo went private — so if it vanishes the buildable source still lives 
   2026-07-22).** Isolated `start.sh --test` runs Vite on 4273; a hard-coded 4173 CORS/WebSocket exception made HTTP
   probes look healthy while every browser state stream was rejected. Keep runtime Host validation on the runtime port,
   add only the exact configured Vite origins in development, and regression-test that neighboring ports stay denied.
+
+- **A cold hierarchical repo summary is indexing work, not hidden prompt latency (F11.2l, 2026-07-22).** Never put a
+  full function→file→directory→project local-model build inside `beforeModel`: a large unfamiliar repository can require
+  many bounded inference batches and would make the first agent turn appear wedged. Cold build is the explicit
+  `repo_summary` onboarding tool while normal model-capacity admission is held. Once persisted, `beforeModel` may
+  root-check the Merkle hash and incrementally refresh only changed nodes/ancestors. Wide parents must map-reduce through
+  hash-cached hidden digest nodes; truncating a 500-function file's child summaries is not an acceptable context fix.
+  Prefer a forced native structured tool call for summary batches because Qwen reasoning variants dead-end
+  `response_format:json_schema`; constrained generation remains the fallback for generators without native tools.
 
 - **RULE (David 2026-07-21): EVERY real-model run goes through `scripts/real-model-run.sh`, never ad-hoc commands.**
   Sitting and hand-watching a run while a card silently stalls is unprofessional and wastes compute. The harness owns
@@ -3624,40 +3633,6 @@ are the two biggest gaps between "works in a demo" and "works for real users on 
 first-class, plus a mandate to prove excellence against real benchmark codebases and to lean hard on aimock so testing
 stays fast + complete.
 
-- [ ] **F11.2 — First-class support for working in EXISTING codebases.** Today !Klein is strongest on greenfield; starting
-  inside a real repo is not yet nicely covered. Make it excellent: on adding an existing project, !Klein should map the
-  codebase (structure, entry points, test command, conventions — reuse codebase-memory/retrieval), let the user state a
-  task against it (bug fix, feature, refactor), decompose *against the existing architecture* (not a from-scratch plan),
-  respect the repo's existing style/tests, and deliver reviewable diffs that fit in. Handle the hard realities: large
-  repos exceeding a small model's context (retrieval + file-scope narrowing), existing failing/flaky tests, unfamiliar
-  build systems, and monorepos. Acceptance runs the repo's OWN test/build command. This is the substrate F11.3 stress-tests.
-  **RESEARCH-DERIVED BREAKDOWN (deep sweep 2026-07-17; sources inline; the enemy at a 32k floor is context DILUTION not raw
-  capability — small models localize files ~86% at 14B+ but ~58% at 7B, so leverage is in the scaffolding around the model.
-  ⚠ several cited 2026 arXiv IDs are very recent preprints — sanity-check exact numbers before relying on them):**
-  - [x] **F11.2c — k-hop ego-graph localization action over codebase-memory.** Seed on task-mentioned symbols, return the
-    ranked k-hop neighborhood (callers/callees/imports/implements) as file:line targets. LocAgent/RepoGraph lift small
-    models to ~86–93% file localization + up to +32.8% resolve; !Klein already stores the graph — add the retrieval surface. (LocAgent 2503.09089; RepoGraph 2410.14684)
-    **SHIPPED 2026-07-17:** `ego-graph.ts` `buildSymbolEgoGraph` (pure BFS over per-file symbol/identifier/import
-    facts; hop-0 declaration lines, reference/import edges outward to k≤3; LocAgent-style HUB PRUNE — non-seed
-    names fanning past 8 files are dropped and REPORTED in `hubNamesPruned`, added after a live self-probe showed
-    generic locals like `lines` flooding the neighborhood) + `nklein-ego-graph-search.ts` (pure two-phase assembly
-    over `extractAstSourceFacts` with relative-import resolution incl. `.js`→`.ts` swaps) + the `ego_graph`
-    retrieval tool beside ast_search (escalation taught: repo_map orient → ego_graph localize → ast_search exact
-    lines → search_code text). 9 tests + live-proven on the nklein repo itself. Reference targets carry line:null
-    honestly (facts record identifier names, not positions — ast_search is the precision tier).
-  - [x] **F11.2i — AST-aware chunking for search_code / codebase-memory.** Chunk at function/class boundaries (tree-sitter
-    split-then-merge), attach signature+imports+scope, never split a function mid-body (cAST +4.3 Recall@5 / +2.67 Pass@1).
-    Denser chunks free the small window. (cAST 2506.15655; Repomix --compress)
-    **SHIPPED 2026-07-17:** `nklein-ast-chunking.ts` `computeAstChunkSpans` on the vendored TS AST (no tree-sitter
-    dep): top-level statements are atoms, oversize atoms split at child boundaries (class members / body
-    statements / object-literal props, 3 structural levels, fixed lines last-resort), small atoms greedy-merge to
-    the budget; spans PARTITION the file exactly. `chunkFile` uses it for TS/JS (fixed windows stay for other
-    files) and heads each chunk with `// path — in <enclosing>` so the embedding carries scope.
-    CODE_INDEX_SCHEMA_VERSION → 2 (chunk texts changed; hash-keyed cache made old vectors unreachable anyway).
-    6 chunker tests + the existing 27 index/search tests green. Embedding-recall A/B = fleet-gated.
-  - [ ] **F11.2l — Hierarchical repo-summary artifact (local-model, hash-cached, incremental).** Bottom-up summarize
-    function→file→dir→project with a small local model, cache keyed by content hash, refresh only changed nodes; serve
-    top-down as the onboarding map. Local-LLM-friendly; mirrors codebase-memory's auto-sync + Cursor's Merkle-diff. (ICCSA 2025 hierarchical-summarization)
 - [ ] **F11.3 — Benchmark-driven validation on real challenging codebases (SWE-bench-style).** Fetch a spread of real
   benchmark project codebases + tasks — SWE-bench / SWE-bench Verified (and similar: SWE-bench Lite, Multi-SWE, Commit0,
   RepoBench, etc.) — spanning LOWEST → HIGHEST complexity/difficulty, and prove !Klein handles them all with ease and
