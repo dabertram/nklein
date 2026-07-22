@@ -3,14 +3,21 @@ import { appendFile, link, lstat, mkdir, readFile, rename, rm, writeFile } from 
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { runDevBenchmarkCommand } from "../src/commands/dev-benchmark-command";
+import { createDevRuntimeClient } from "../src/commands/dev-project-execution";
 import { parseAiderPolyglotManifest } from "../src/core/aider-polyglot-benchmark";
 import {
+	assertAiderCampaignCodeIdentity,
+	assertAiderCampaignHarnessCommit,
+	buildAiderRegressionSnapshot,
 	parseAiderCampaignConfig,
+	parseAiderCampaignHarnessBaseline,
 	planAiderCampaign,
 	summarizeAiderCampaign,
 	type AiderCampaignAttempt,
 	type AiderCampaignAttemptResult,
 } from "../src/core/aider-polyglot-campaign";
+import { setKanbanRuntimeHost, setKanbanRuntimePort } from "../src/core/runtime-endpoint";
+import type { RuntimeBuildIdentity } from "../src/core/runtime-build-identity";
 import { assertCandidateCalibration, parseOfficialSwebenchRunReport } from "../src/core/swebench-benchmark";
 
 const execFile = promisify(execFileCallback);
@@ -132,6 +139,31 @@ async function readResidentModels(): Promise<ResidentModel[]> {
 	});
 }
 
+async function readCleanHarnessCommit(): Promise<string> {
+	const [commitResult, statusResult] = await Promise.all([
+		execFile("git", ["rev-parse", "HEAD"], { timeout: 10_000 }),
+		execFile("git", ["status", "--porcelain=v1", "--untracked-files=all"], { timeout: 10_000 }),
+	]);
+	const commit = commitResult.stdout.trim();
+	if (!/^[0-9a-f]{40}$/u.test(commit)) throw new Error("Could not resolve a full Git commit for the campaign harness.");
+	if (statusResult.stdout.trim()) {
+		throw new Error("Campaign harness worktree is dirty; commit or remove every change before generating evidence.");
+	}
+	return commit;
+}
+
+async function readRuntimeBuildIdentity(file: CampaignFile): Promise<RuntimeBuildIdentity> {
+	if (file.runtimeHost) setKanbanRuntimeHost(file.runtimeHost);
+	setKanbanRuntimePort(file.runtimePort ?? 3484);
+	try {
+		return await createDevRuntimeClient(null).runtime.getBuildIdentity.query();
+	} catch (error) {
+		throw new Error(
+			`Could not verify runtime build identity at ${file.runtimeHost ?? "127.0.0.1"}:${file.runtimePort ?? 3484}: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+}
+
 function fixedFleetSnapshot(models: readonly ResidentModel[], requiredIds: readonly string[]): ResidentModel[] {
 	const required = new Set(requiredIds);
 	const unexpected = models.map((model) => model.identifier).filter((identifier) => !required.has(identifier));
@@ -230,9 +262,39 @@ async function main(): Promise<void> {
 		);
 		return;
 	}
-	await mkdir(outputRoot, { recursive: true });
 	const pinnedConfigPath = join(outputRoot, "campaign.json");
-	if (await exists(pinnedConfigPath)) {
+	const pinnedConfigExists = await exists(pinnedConfigPath);
+	const harnessCommit = await readCleanHarnessCommit();
+	const runtimeBuildIdentity = await readRuntimeBuildIdentity(file);
+	assertAiderCampaignCodeIdentity(harnessCommit, runtimeBuildIdentity);
+	const harnessBaselinePath = join(outputRoot, "harness-baseline.json");
+	if (await exists(harnessBaselinePath)) {
+		const baseline = parseAiderCampaignHarnessBaseline(
+			JSON.parse(await readFile(harnessBaselinePath, "utf8")) as unknown,
+		);
+		assertAiderCampaignHarnessCommit(baseline, harnessCommit, runtimeBuildIdentity);
+	} else {
+		if (pinnedConfigExists) {
+			throw new Error(
+				"Existing campaign predates immutable harness provenance; preserve it for diagnosis and use a new campaign id/output root.",
+			);
+		}
+		await atomicWriteNew(
+			harnessBaselinePath,
+			`${JSON.stringify(
+				{
+					schemaVersion: 1,
+					runnerGitCommit: harnessCommit,
+					runtimeBuildIdentity,
+					runner: "scripts/run-aider-campaign.mts",
+					createdAt: new Date().toISOString(),
+				},
+				null,
+				2,
+			)}\n`,
+		);
+	}
+	if (pinnedConfigExists) {
 		if ((await readFile(pinnedConfigPath, "utf8")) !== configText) {
 			throw new Error("Campaign config changed after execution began; use a new campaign id/output root.");
 		}
@@ -329,6 +391,17 @@ async function main(): Promise<void> {
 		}
 	} else {
 		await atomicWriteNew(finalSummaryPath, summaryText);
+	}
+	for (const arm of ["plan", "no_plan"] as const) {
+		const snapshotText = `${JSON.stringify(buildAiderRegressionSnapshot(config, results, arm), null, 2)}\n`;
+		const snapshotPath = join(outputRoot, `regression-${arm.replace("_", "-")}.json`);
+		if (await exists(snapshotPath)) {
+			if ((await readFile(snapshotPath, "utf8")) !== snapshotText) {
+				throw new Error(`Completed ${arm} regression snapshot differs from its immutable prior result.`);
+			}
+		} else {
+			await atomicWriteNew(snapshotPath, snapshotText);
+		}
 	}
 	process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 }

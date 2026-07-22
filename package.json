@@ -85,6 +85,7 @@
     "benchmark:fetch": "benchmark-harness/.venv/bin/python scripts/fetch-swebench-dataset.py",
     "benchmark:aider-images": "benchmark-harness/aider-polyglot/build-images.sh",
     "benchmark:aider-campaign": "tsx scripts/run-aider-campaign.mts",
+    "benchmark:aider-regression-gate": "tsx scripts/gate-aider-regression.mts",
     "prepare": "husky",
     "prepublishOnly": "npm run build && npm run check"
   },

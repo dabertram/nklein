@@ -245,6 +245,7 @@ import type {
 	RuntimeMemoryDeleteControl,
 	RuntimeSessionMemoryResponse,
 } from "../core/chat-api-contract.js";
+import type { RuntimeBuildIdentity } from "../core/runtime-build-identity";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import { buildChatRouter } from "./routers/chat-router";
 import { buildProjectsRouter } from "./routers/projects-router";
@@ -259,6 +260,7 @@ export interface RuntimeTrpcWorkspaceScope {
 export interface RuntimeTrpcContext {
 	requestedWorkspaceId: string | null;
 	workspaceScope: RuntimeTrpcWorkspaceScope | null;
+	buildIdentity: RuntimeBuildIdentity;
 	runtimeApi: {
 		loadConfig: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeConfigResponse>;
 		saveConfig: (

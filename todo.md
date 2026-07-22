@@ -967,6 +967,8 @@ source repo went private — so if it vanishes the buildable source still lives 
     may opt it back in). Primary-source context nuance: Prism advertises 262K, but that full-window estimate assumes its
     4-bit KV-cache path (~12.8 GB peak); its uncompressed measurements are ~9.2 GB at 4K, ~9.6 GB at 10K, and ~15.5 GB at
     100K for MLX. A 40K load is therefore legitimate; it does not repair the independent parser incompatibility.
+    **RETENTION DECISION (David 2026-07-23):** keep the ~8.5 GB checkpoint as a watchlist model. A 27B model at this
+    footprint is worth re-testing until role performance—not the current serving bug—proves it insufficient.
     **The 1.95 GB Q4_1 GGUF is NOT a smaller target:** the official filename is
     `Ternary-Bonsai-27B-dspark-Q4_1.gguf`, the speculative DSpark drafter for the real ~7.17 GB Q2_0_g128 target. Reject
     it as a standalone role model; speculative decoding is outside the current layer.
@@ -3748,7 +3750,12 @@ stays fast + complete.
     `scripts/run-aider-campaign.mts` owns the candidate run: it fail-closes on uncalibrated tasks, fleet/context drift,
     receipt-less interruption, or evidence reuse and resumes completed arms by immutable receipt/report. The
     pre-registered live config assigns eight tasks each to m5max, m4mini, and Legion5pro workers while retaining Mistral
-    as the diverse resident reviewer/mirror; execution and the delta/nightly wiring remain.
+    as the diverse resident reviewer/mirror. The runner now also pins a clean full Git commit before the first workspace,
+    requires the selected runtime process to expose that same clean process-start commit, refuses cross-commit,
+    cross-runtime-process, dirty/unverifiable-runtime, or legacy-unprovenanced resume, and emits per-arm repeated-status snapshots. The daily gate fails
+    only stable resolved→stable unresolved changes; mixed repeats are quarantined and missing/error evidence is
+    inconclusive. Execution remains; the first live campaign predates the automatic commit baseline and is retained as
+    diagnostic evidence, not silently promoted into the stricter nightly baseline.
   - [ ] **F11.3h — Contamination-aware fresh-set track.** Verified is >94% pre-model-cutoff + partly leaked (models recall
     file paths). Add a rolling SWE-bench-Live / SWE-rebench fresh-window gate (tasks post-dating cutoffs) as the HONEST
     "reasons vs recalls" measure; log leakage hits. (SWE-bench-Live; SWE-rebench 2505.20411)

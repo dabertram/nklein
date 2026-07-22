@@ -126,6 +126,25 @@ interrupted workspace without a receipt. Completed receipts/reports resume witho
 baseline, reports, receipts, and summary are immutable. Infrastructure-tainted pairs are excluded from the delegated
 McNemar/default-flip gate and remain visibly inconclusive.
 
+Before creating the first workspace it also requires a clean !Klein worktree and queries the selected runtime's
+process-start build identity. Runner and runtime must report the same clean full Git commit; an old, dirty, packaged,
+or unverifiable runtime fails closed. The resulting `harness-baseline.json` pins both identities, and a resume under
+different orchestration/runtime code or a different runtime process is refused. Completed campaigns emit immutable
+`regression-plan.json` and `regression-no-plan.json` snapshots that collapse both repeats per instance: mixed outcomes
+are quarantined and missing/error attempts remain infrastructure-inconclusive.
+
+Wire the selected production arm into the daily delta gate with:
+
+```sh
+npm run benchmark:aider-regression-gate -- \
+  /absolute/baseline/regression-plan.json \
+  /absolute/current/regression-plan.json \
+  --output /absolute/evidence/aider-regression-gate.json
+```
+
+Only a stable resolved→stable unresolved transition exits non-zero. Missing, errored, or unstable current evidence is
+reported as inconclusive rather than being mislabeled as a product regression.
+
 Example after materialization:
 
 ```sh

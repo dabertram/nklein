@@ -33,6 +33,11 @@
   effect, fixed task-to-model assignments, alternating pair order, and the complete resident fleet; it runs matched arms
   sequentially, resumes only immutable completed evidence, and stops on calibration, 32k-context, fleet-identity, or
   interrupted-workspace drift before that drift can contaminate a default-flip decision.
+  New campaign roots now pin the clean full !Klein Git commit before creating any workspace, verify that the selected
+  runtime process started from that same clean commit, and refuse cross-commit, dirty/unverifiable-runtime, or
+  legacy-unprovenanced resume. Completed arms emit immutable repeated-status snapshots; the daily delta gate fails only
+  stable resolved→stable unresolved changes while quarantining mixed repeats and keeping missing/error evidence
+  inconclusive.
   Terminal-Bench 2.1 now has a non-pulling preflight that pins the official Harbor/dataset command, separates actual
   disk headroom from merely reclaimable Docker cache, preserves architecture warnings, and reports the still-missing
   externally-owned mutable-container agent boundary instead of treating !Klein's separate read-only repo sandbox as an

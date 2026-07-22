@@ -182,10 +182,12 @@ import {
 	runtimeTrustPostureResponseSchema,
 	runtimeUpdateStatusResponseSchema,
 } from "../../core/api-contract";
+import { runtimeBuildIdentitySchema } from "../../core/runtime-build-identity";
 import type { RuntimeTrpcBuilder, RuntimeWorkspaceProcedure } from "../app-router";
 
 export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: RuntimeWorkspaceProcedure) {
 	return t.router({
+		getBuildIdentity: t.procedure.output(runtimeBuildIdentitySchema).query(({ ctx }) => ctx.buildIdentity),
 		getConfig: t.procedure.output(runtimeConfigResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.loadConfig(ctx.workspaceScope);
 		}),

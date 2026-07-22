@@ -84,6 +84,7 @@ import {
 import { resolveRuntimeSwarmGuardrailsForModelRoles } from "../core/parallel-swarm-guardrails";
 import { detectSystemPowerMode } from "../core/power-aware-timeout";
 import { assessRewardHackSignals } from "../core/reward-hack-signals";
+import { resolveRuntimeBuildIdentity } from "../core/runtime-build-identity";
 import {
 	buildKanbanRuntimeUrl,
 	getKanbanRuntimeHost,
@@ -297,6 +298,7 @@ export interface RuntimeServer {
 const DURABLE_RUN_TICK_INTERVAL_MS = 15_000;
 
 export async function createRuntimeServer(deps: CreateRuntimeServerDependencies): Promise<RuntimeServer> {
+	const buildIdentity = await resolveRuntimeBuildIdentity();
 	// Silence the external `ai` package's per-call "system messages in the prompt" warning (we pass them by
 	// design) and log the rationale once, so it stops flooding the runtime log and burying the useful lines.
 	configureNKleinAiSdkWarnings(deps.warn);
@@ -4327,6 +4329,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		return {
 			requestedWorkspaceId: scope.requestedWorkspaceId,
 			workspaceScope: scope.workspaceScope,
+			buildIdentity,
 			runtimeApi,
 			workspaceApi: createWorkspaceApi({
 				ensureTerminalManagerForWorkspace: deps.ensureTerminalManagerForWorkspace,
