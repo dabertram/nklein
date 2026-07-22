@@ -21,7 +21,7 @@ const task = {
 describe("dev benchmark command", () => {
 	it("exposes Terminal-Bench preflight as a fail-closed action", async () => {
 		await expect(runDevBenchmarkCommand({ action: "terminal-preflight", write: () => undefined })).rejects.toThrow(
-			/requires --report-dir, --storage-path, and --required-free-gb/,
+			/requires --report-dir, --storage-path, and an explicit --required-free-gb/,
 		);
 	});
 

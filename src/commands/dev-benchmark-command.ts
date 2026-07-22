@@ -881,7 +881,7 @@ async function probeTerminalBenchHost(input: { harborPath: string; storagePath: 
 async function terminalPreflight(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) {
 	if (!options.reportDir || !options.requiredFreeGb || !options.storagePath) {
 		throw new Error(
-			"terminal-preflight requires --report-dir, --storage-path, and --required-free-gb from the selected image manifest.",
+			"terminal-preflight requires --report-dir, --storage-path, and an explicit --required-free-gb pull-headroom budget.",
 		);
 	}
 	const requiredFreeGb = integer(options.requiredFreeGb, "required-free-gb");

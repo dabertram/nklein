@@ -1115,7 +1115,7 @@ export function registerDevCommand(program: Command): void {
 		.option("--max-wait-ms <n>", "Hard live !Klein workflow deadline.")
 		.option("--harbor-path <path>", "Harbor executable for Terminal-Bench preflight.")
 		.option("--storage-path <path>", "Existing host path on the filesystem backing Docker image storage.")
-		.option("--required-free-gb <n>", "Measured task-image disk headroom required for Terminal-Bench.")
+		.option("--required-free-gb <n>", "Operator-selected task-image pull headroom for Terminal-Bench.")
 		.option("--runtime-host <host>", "Running !Klein control-plane host (default 127.0.0.1).")
 		.option("--runtime-port <port>", "Running !Klein control-plane port (default 3484).")
 		.option("--no-plan", "Run one ACT-mode card instead of the normal plan/decompose workflow.")

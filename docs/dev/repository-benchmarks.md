@@ -153,14 +153,15 @@ non-pulling compatibility check before installing or fetching task images:
 nklein dev benchmark terminal-preflight \
   --report-dir /absolute/evidence/terminal-bench-2-1 \
   --storage-path /existing/docker-backing-filesystem \
-  --required-free-gb <measured-image-headroom> \
+  --required-free-gb <operator-selected-pull-headroom> \
   --limit 5 --json
 ```
 
 The check pins Harbor 0.5.0 and the official `terminal-bench/terminal-bench-2-1` dataset, reports Docker architecture,
 measures the explicitly selected filesystem rather than guessing from the output directory, keeps reclaimable cache
-separate from actually-free bytes, and prints the bounded official oracle command without executing it. The headroom
-value must come from the selected task-image manifest; the adapter deliberately has no universal image-size guess.
+separate from actually-free bytes, and prints the bounded official oracle command without executing it. Use selected
+task-image manifest sizes when available, then apply the operator's risk tolerance; the adapter deliberately has no
+universal image-size guess or hidden hard-coded floor.
 
 The !Klein agent path is ready only when its tool executor can run inside Harbor's already-owned container, mutate that
 container's root filesystem, exchange bounded artifacts, preserve state across turns, and leave verification with

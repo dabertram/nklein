@@ -34,7 +34,7 @@ export function assessTerminalBenchHost(input: TerminalBenchHostPreflightInput):
 	const availableBytes = bytes(input.availableBytes, "availableBytes");
 	const reclaimableDockerBytes = bytes(input.reclaimableDockerBytes, "reclaimableDockerBytes");
 	const requiredFreeBytes = bytes(input.requiredFreeBytes, "requiredFreeBytes");
-	if (requiredFreeBytes === 0) throw new Error("requiredFreeBytes must come from the selected task-image manifest.");
+	if (requiredFreeBytes === 0) throw new Error("requiredFreeBytes must be an explicit positive pull-headroom budget.");
 	const blockers: string[] = [];
 	const warnings: string[] = [];
 	if (input.harborVersion !== PINNED_HARBOR_VERSION) {

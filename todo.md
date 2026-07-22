@@ -4789,8 +4789,9 @@ output and NOT acted on. Captured as F12.12.)
   **PREFLIGHT SHIPPED 2026-07-22; EARLIER “READY” CLAIM CORRECTED BY EXECUTABLE EVIDENCE.** `dev benchmark
   terminal-preflight` pins Harbor 0.5.0 + `terminal-bench/terminal-bench-2-1`, measures real free bytes separately from
   reclaimable Docker cache, retains architecture taint, and renders the bounded five-task oracle command without a pull.
-  The live root/Docker-backing filesystem has 30.2 GB free against the selected 40 GiB headroom; 15.0 GB reclaimable is
-  NOT free until David chooses cleanup. The deeper blocker is architectural: Harbor owns a stateful MUTABLE task
+  The live root/Docker-backing filesystem has 30.2 GB free and clears David's relaxed 20 GiB pull-headroom budget by
+  roughly 10 GB; 15.0 GB reclaimable remains informational and is NOT treated as already
+  free. The deeper blocker is architectural: Harbor owns a stateful MUTABLE task
   container/root filesystem and its verifier, while `AgentSandboxManager` owns a DIFFERENT read-only-root repository
   container. A real custom agent needs an externally-owned-container execution boundary (exec + bounded file exchange
   + multi-turn persistence while Harbor retains lifecycle/verifier authority). Reusing the repo sandbox would benchmark
