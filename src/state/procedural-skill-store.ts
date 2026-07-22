@@ -15,6 +15,7 @@ import type { ProceduralSkill } from "../core/procedural-skill-record.js";
 const proceduralSkillSchema = z.object({
 	id: z.string(),
 	title: z.string(),
+	description: z.string().optional(),
 	content: z.string(),
 	status: z.enum(["candidate", "quarantined", "active", "deprecated"]),
 	applicabilityTags: z.array(z.string()),

@@ -36,6 +36,7 @@ describe("distillProceduralSkill", () => {
 		expect(skill).not.toBeNull();
 		expect(skill?.status).toBe("candidate"); // NOT active — must be promoted before it is surfaced
 		expect(skill?.title).toBe("Add email/password login");
+		expect(skill?.description).toBe("Implement login with validation");
 		expect(skill?.content).toBe("1. Write the auth handler\n2. Add input validation\n3. Write tests");
 		expect(skill?.applicabilityTags).toContain("coder"); // role folds into tags
 		expect(skill?.applicabilityTags).toContain("login"); // task-text token

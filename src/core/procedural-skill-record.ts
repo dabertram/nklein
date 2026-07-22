@@ -34,6 +34,8 @@ export interface ProceduralSkillExecutionOutcomes {
 export interface ProceduralSkill {
 	id: string;
 	title: string;
+	/** Natural-language statement of when/why this procedure helps; the semantic retrieval document. */
+	description?: string;
 	/** The procedure body (steps / guidance). */
 	content: string;
 	status: SkillLifecycleStatus;
@@ -60,6 +62,7 @@ export interface ProceduralSkill {
 export interface CreateProceduralSkillInput {
 	id: string;
 	title: string;
+	description?: string;
 	content: string;
 	contentHash: string;
 	applicabilityTags?: readonly string[];
@@ -74,6 +77,7 @@ export function createProceduralSkill(input: CreateProceduralSkillInput): Proced
 	return {
 		id: input.id,
 		title: input.title,
+		...(input.description?.trim() ? { description: input.description.trim() } : {}),
 		content: input.content,
 		status: input.status ?? "candidate",
 		applicabilityTags: [...(input.applicabilityTags ?? [])],

@@ -76,6 +76,7 @@ export function distillProceduralSkill(input: ProcedureDistillationInput): Proce
 	return createProceduralSkill({
 		id,
 		title,
+		description: input.taskObjective.trim() || input.taskTitle.trim(),
 		content,
 		contentHash,
 		applicabilityTags,

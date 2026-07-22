@@ -1346,6 +1346,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					estimateNKleinStartPromptTokens({ prompt: input.prompt, images: input.images }),
 					{ taskText: input.prompt, isPlanCard: role === "architect" },
 				) / 100,
+			proceduralSkillEmbeddingProvider: input.codeEmbeddingProvider,
 		});
 		const attemptRetryContext = await this.buildAttemptRetryContext(
 			input.taskId,
@@ -2092,6 +2093,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							}),
 							{ taskText: taskPrompt, isPlanCard: request.startInPlanMode },
 						) / 100,
+					proceduralSkillEmbeddingProvider: request.codeEmbeddingProvider,
 				});
 				const sessionSkillFragments = sessionSkillContext.fragments;
 				// F12.29: remember which procedures were surfaced so the terminal attempt event can stamp them

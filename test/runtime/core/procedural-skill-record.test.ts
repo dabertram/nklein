@@ -20,15 +20,20 @@ const baseInput: CreateProceduralSkillInput = {
 
 describe("procedural-skill-record (F4.19)", () => {
 	it("creates a version-1 record with zero outcomes and no supersession", () => {
-		const skill = createProceduralSkill(baseInput);
+		const skill = createProceduralSkill({ ...baseInput, description: "Safely retry a rejected patch" });
 		expect(skill).toMatchObject({
 			id: "skill-1",
+			description: "Safely retry a rejected patch",
 			version: 1,
 			status: "candidate",
 			supersededBy: null,
 			outcomes: { helped: 0, hurt: 0 },
 			updatedAt: 1000,
 		});
+	});
+
+	it("keeps descriptions optional for legacy records", () => {
+		expect(createProceduralSkill(baseInput).description).toBeUndefined();
 	});
 
 	it("honors an explicit starting status (e.g. quarantined for imports) and copies tags defensively", () => {

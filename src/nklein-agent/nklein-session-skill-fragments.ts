@@ -13,7 +13,7 @@ import { isTruthyEnv } from "../core/env-flag.js";
 import { selectFragmentsWithinBudget } from "../core/jit-fragment-budget";
 import { estimateDistractorSensitivity } from "../core/model-sensitive-pruning";
 import type { ProceduralSkill } from "../core/procedural-skill-record.js";
-import { deriveProceduralContextTags, matchProceduralSkills } from "../core/procedural-skill-retrieval.js";
+import { deriveProceduralContextTags, expandSkillsWithDependencies } from "../core/procedural-skill-retrieval.js";
 import type { PromptFragment } from "../core/prompt-fragment-assembly.js";
 import { selectSandboxMcpServersForModel } from "../core/sandbox-mcp-catalog.js";
 import { buildSkillPromptFragments } from "../core/skill-prompt-fragments.js";
@@ -23,6 +23,8 @@ import { buildStructuralRetrievalGuidance } from "../core/structural-retrieval-g
 import { readAllDistractorObservations } from "../state/distractor-observation-store";
 import { getCurrentProceduralSkills } from "../state/procedural-skill-store.js";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
+import { matchProceduralSkillsHybrid } from "./nklein-procedural-skill-semantic-index";
 import { buildNKleinRepoMap } from "./nklein-repo-map.js";
 
 export interface BuildSessionSkillFragmentsInput {
@@ -55,6 +57,10 @@ export interface BuildSessionSkillFragmentsInput {
 	 * Only consulted when `NKLEIN_PROCEDURAL_SKILLS` is set; a rejecting loader yields no fragments (fail-soft).
 	 */
 	loadProceduralSkills?: () => Promise<ProceduralSkill[]>;
+	/** F4.19b: configured local embedding provider for NL-description retrieval; absent/unavailable stays lexical. */
+	proceduralSkillEmbeddingProvider?: NKleinCodeEmbeddingProvider;
+	/** Test/embedding-cache seam; defaults to the runtime procedural-skills directory. */
+	proceduralSkillIndexRootDir?: string;
 	/**
 	 * F4.17 overflow capping: token budget for the OPTIONAL skill-driven fragments (repo map, exemplars,
 	 * procedures, structural nudge). Unset ⇒ no capping (byte-identical). When set, fragments are ranked by
@@ -156,7 +162,18 @@ export async function buildSessionSkillContext(input: BuildSessionSkillFragments
 	if (isTruthyEnv(process.env.NKLEIN_PROCEDURAL_SKILLS)) {
 		const contextTags = deriveProceduralContextTags(input.role, input.taskText);
 		const skills = await (input.loadProceduralSkills ?? getCurrentProceduralSkills)().catch(() => []);
-		for (const { skill } of matchProceduralSkills(skills, contextTags)) {
+		const matches = await matchProceduralSkillsHybrid({
+			skills,
+			contextTags,
+			taskText: input.taskText,
+			role: input.role,
+			embeddingProvider: input.proceduralSkillEmbeddingProvider,
+			indexRootDir: input.proceduralSkillIndexRootDir,
+		});
+		for (const skill of expandSkillsWithDependencies(
+			matches.map((match) => match.skill),
+			skills,
+		)) {
 			fragments.push({
 				key: `procedural-skill:${skill.id}`,
 				volatility: "config",

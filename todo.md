@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F5.6b closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F4.19b closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-gate below is green. The current 190-package remainder is **99 ready + 1 partial + 77 dependency-blocked + 6 external/
+gate below is green. The current 189-package remainder is **98 ready + 1 partial + 77 dependency-blocked + 6 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 
@@ -92,6 +92,14 @@ feature-completeness challenges, release checks, and required manual checks are 
 gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
+
+> **⚠️ SEMANTIC RETRIEVAL MAY ADD RECALL, BUT MUST NOT ERASE THE LEXICAL BASELINE (F4.19b, 2026-07-22).** Rank
+> exact applicability-tag matches in their proven order, then use NL-description embeddings to fill remaining slots.
+> An absent, throwing, or per-call lexically degraded dense provider returns the lexical result unchanged. Detect dense
+> vectors by their dimension namespace before scoring or persistence: the local GGUF provider deliberately falls back
+> to lexical vectors while retaining its configured cache key, and persisting that fallback would poison future healthy
+> semantic calls. Cache description vectors by provider key plus description hash, single-flight concurrent builds, do
+> not rewrite an unchanged index, and expand selected procedures dependency-first at the final prompt consumer.
 
 > **⚠️ MODEL-TURN FAILURE AND ARTIFACT SETTLEMENT ARE INDEPENDENT FACTS (live-found F3.24b, 2026-07-22).** A
 > worker can author valid changes and then end in `reviewReason: error` when a later no-tool-call recovery exhausts.
@@ -2605,9 +2613,6 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   via `dev skill-audit --apply` (promote through the audit+execution DOUBLE gate, retire→deprecated), which
   SUPERSEDES the older helped/hurt-only applyProceduralSkillLifecycle path with a strictly stronger gate. The
   auto-sweep cadence = David batch (noted at F12.30). Crossed.
-- [ ] **F4.19b — NL-description semantic skill index** *(local embedding stack exists; split from F12.29 2026-07-19).* Index
-  procedures by natural-language description for semantic retrieval through the existing local embedding/index stack;
-  validate against lexical retrieval and keep lexical fallback when the embedder is unavailable.
 - [ ] **F4.21 — Implement gated discovery.** Search trusted origins by default; require an explicit untrusted-discovery
   opt-in for community indexes, use the egress broker, and never inject result text into an execution prompt.
   **AUDIT 2026-07-18: OPEN** — only the trust classifier exists (classifySkillSourceTrust); no discovery/search mechanism, no trusted-origin search, no untrusted opt-in.

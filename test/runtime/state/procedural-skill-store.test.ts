@@ -26,6 +26,7 @@ describe("procedural-skill-store (F4.19)", () => {
 		createProceduralSkill({
 			id,
 			title: `Skill ${id}`,
+			description: `Natural-language description ${id}`,
 			content: "do the thing",
 			contentHash: `hash-${id}`,
 			provenance: { source: "learned", trust: "medium", capturedAt: 1000 },
@@ -36,6 +37,7 @@ describe("procedural-skill-store (F4.19)", () => {
 		await upsertProceduralSkill(skill("a"), { rootDir });
 		const loaded = await loadProceduralSkills({ rootDir });
 		expect(loaded.a?.version).toBe(1);
+		expect(loaded.a?.description).toBe("Natural-language description a");
 		expect(loaded.a?.outcomes).toEqual({ helped: 0, hurt: 0 });
 	});
 

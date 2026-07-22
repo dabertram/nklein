@@ -2569,3 +2569,13 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   erasing later user state. Evidence: focused updater/state integration 97/97, runtime fast gate 12,011/12,011, contract
   286/286, protected 142/142, web/server typechecks and lint green; the sole broad-integration finding was a separate
   review-settlement defect, root-fixed and its exact end-to-end regression then passed.
+
+- [x] **F4.19b — NL-description semantic skill index** *(delivered 2026-07-22).* Procedural skills now have an additive,
+  legacy-compatible natural-language description; learned skills distill it from the task objective. Board start and
+  restart paths feed the configured local code-embedding provider into a durable description index keyed by provider
+  cache key and description hash. Exact tag matches preserve their prior ranking, semantic-only matches fill remaining
+  prompt slots, and the final consumer now actually expands declared skill dependencies before their dependents. Index
+  builds single-flight, unchanged snapshots are not rewritten, stale descriptions re-embed, and lexical/degraded vectors
+  are never persisted under a dense provider key. Missing, throwing, or GGUF-degraded embedding paths return the exact
+  lexical baseline. Evidence: focused retrieval/store/prompt suites 45/45, full runtime 12,018/12,018, protected 142/142,
+  typecheck and lint green.

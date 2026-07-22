@@ -120,6 +120,37 @@ describe("buildSessionSkillFragments (§5.AE effectful bridge)", () => {
 		expect(emptyStore.find((f) => f.key.startsWith("procedural-skill:"))).toBeUndefined();
 	});
 
+	it("F4.19b: semantic description retrieval surfaces synonyms and renders dependencies first", async () => {
+		process.env[PROC_FLAG] = "1";
+		const dependency = { ...mkProc("dependency", []), description: "Prepare a reversible database backup" };
+		const semantic = {
+			...mkProc("semantic", []),
+			description: "Deploy a database column without downtime",
+			dependsOnSkillIds: ["dependency"],
+		};
+		const fragments = await buildSessionSkillFragments({
+			role: "worker",
+			taskText: "Safely roll out a new field to production",
+			workspacePath: null,
+			loadProceduralSkills: async () => [dependency, semantic],
+			proceduralSkillEmbeddingProvider: {
+				kind: "local_gguf",
+				model: "test",
+				cacheKey: "test:v1",
+				embed: async (text) =>
+					text.includes("database column") || text.includes("roll out a new field")
+						? new Map([["dim:0", 1]])
+						: new Map([["dim:1", 1]]),
+			},
+			proceduralSkillIndexRootDir: workspace,
+		});
+
+		expect(fragments.map((fragment) => fragment.key)).toEqual([
+			"procedural-skill:dependency",
+			"procedural-skill:semantic",
+		]);
+	});
+
 	it("§5.AE (approved follow-up 2026-07-05): the skill-dynamics level is HONORED — `assigned_skills` (no ids) suppresses the repo map", async () => {
 		process.env[FLAG] = "1";
 		// Baseline: the resolver's default (fully_dynamic) resolves the worker code bundle → a repo-map fragment.

@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Learned procedures can now be found by natural-language meaning, not only exact tags.** Active procedures carry a
+  durable description indexed through the configured local embedding provider. Exact lexical matches remain first,
+  semantic matches fill spare slots, dependencies render before dependents, and unavailable/degraded embedders fall
+  back without changing lexical retrieval.
+
 - **Valid sandbox work is no longer stranded when its model turn ends in error.** Unsettled model errors remain out of
   review while failover owns recovery, but a later captured or explicitly empty patch becomes reviewable even without
   another session-state transition; capture failures remain held.
