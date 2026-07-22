@@ -7,7 +7,7 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
@@ -29,6 +29,7 @@ import {
 	loadCommunitySkillBundle,
 } from "../nklein-agent/community-skill-bundle-loader";
 import { getSkillPin, upsertSkillPin } from "../state/skill-pin-store";
+import { readVerifiedCommunitySkillSnapshot } from "./community-skill-snapshot";
 
 const MAX_INBOX_ENTRIES = 512;
 
@@ -116,48 +117,13 @@ function snapshotConflict(): CommunitySkillImportError {
 }
 
 async function verifyExistingSnapshot(
-	targetDir: string,
+	rootDir: string,
+	snapshotId: string,
 	reviewed: RuntimeCommunitySkillImportReviewResponse,
 ): Promise<void> {
 	try {
-		const metadata = JSON.parse(await readFile(join(targetDir, "review.json"), "utf8")) as {
-			contentHash?: unknown;
-			skillId?: unknown;
-			files?: unknown;
-		};
-		if (
-			metadata.contentHash !== reviewed.contentHash ||
-			metadata.skillId !== reviewed.skillId ||
-			!Array.isArray(metadata.files)
-		) {
-			throw snapshotConflict();
-		}
-		const originalModeByPath = new Map<string, number>();
-		for (const value of metadata.files) {
-			if (
-				!value ||
-				typeof value !== "object" ||
-				!("path" in value) ||
-				typeof value.path !== "string" ||
-				!("originalMode" in value) ||
-				typeof value.originalMode !== "number" ||
-				!Number.isSafeInteger(value.originalMode) ||
-				originalModeByPath.has(value.path)
-			) {
-				throw snapshotConflict();
-			}
-			originalModeByPath.set(value.path, value.originalMode);
-		}
-		const stored = await loadCommunitySkillBundle({ containmentRoot: targetDir, skillDirectory: "content" });
-		if (!stored.ok) throw snapshotConflict();
-		const storedFiles = canonicalFiles(stored.loaded);
-		if (storedFiles.length !== originalModeByPath.size) throw snapshotConflict();
-		const reconstructed = storedFiles.map((file) => {
-			const mode = originalModeByPath.get(file.path);
-			if (mode === undefined) throw snapshotConflict();
-			return { path: file.path, mode, content: file.content };
-		});
-		if (sha256(buildCanonicalSkillBundlePreimage(reconstructed)) !== reviewed.contentHash) {
+		const stored = await readVerifiedCommunitySkillSnapshot({ rootDir, snapshotId });
+		if (stored.metadata.contentHash !== reviewed.contentHash || stored.metadata.skillId !== reviewed.skillId) {
 			throw snapshotConflict();
 		}
 	} catch (error) {
@@ -233,6 +199,7 @@ export function createCommunitySkillImportService(
 			})),
 			bundledManifest: loaded.bundledManifest,
 			executableScreen: loaded.executableScreen,
+			executionGate: loaded.executionGate,
 			injectionScreen: loaded.injectionScreen,
 			capabilityGrant: loaded.capabilityGrant,
 			disposition: loaded.disposition,
@@ -289,7 +256,7 @@ export function createCommunitySkillImportService(
 					const targetDir = join(identityDir, reviewed.contentHash);
 					await mkdir(identityDir, { recursive: true, mode: 0o700 });
 					if (await pathExists(targetDir)) {
-						await verifyExistingSnapshot(targetDir, reviewed);
+						await verifyExistingSnapshot(rootDir, snapshotId, reviewed);
 					} else {
 						const tempDir = await mkdtemp(join(identityDir, `.tmp-${randomUUID()}-`));
 						try {
@@ -320,6 +287,7 @@ export function createCommunitySkillImportService(
 								})),
 								bundledManifest: reviewed.bundledManifest,
 								executableScreen: reviewed.executableScreen,
+								executionGate: reviewed.executionGate,
 								injectionScreen: reviewed.injectionScreen,
 								capabilityGrant: reviewed.capabilityGrant,
 								decision: reviewed.decision,

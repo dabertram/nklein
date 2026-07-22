@@ -68,6 +68,7 @@ describe("createCommunitySkillImportService", () => {
 		expect(review.sourceText).toBe(SOURCE);
 		expect(review.files.map((file) => file.path)).toEqual(["SKILL.md", "references/guide.txt"]);
 		expect(review.files[1]?.textContent).toBe("exact bundle bytes\n");
+		expect(review.executionGate.posture).toBe("clean");
 		expect(runtimeCommunitySkillImportReviewResponseSchema.parse(review)).toEqual(review);
 		expect(await getSkillPin(review.skillId, { rootDir: join(root, "pins") })).toBeNull();
 	});

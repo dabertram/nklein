@@ -30,6 +30,10 @@ import {
 	runtimeCommandRunResponseSchema,
 	runtimeCommunitySkillDiscoveryRequestSchema,
 	runtimeCommunitySkillDiscoveryResponseSchema,
+	runtimeCommunitySkillExecutionApproveRequestSchema,
+	runtimeCommunitySkillExecutionApproveResponseSchema,
+	runtimeCommunitySkillExecutionReviewRequestSchema,
+	runtimeCommunitySkillExecutionReviewResponseSchema,
 	runtimeCommunitySkillImportApproveRequestSchema,
 	runtimeCommunitySkillImportApproveResponseSchema,
 	runtimeCommunitySkillImportListResponseSchema,
@@ -232,6 +236,15 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.input(runtimeCommunitySkillImportApproveRequestSchema)
 			.output(runtimeCommunitySkillImportApproveResponseSchema)
 			.mutation(async ({ ctx, input }) => ctx.runtimeApi.approveCommunitySkillImport(input)),
+		// F4.23: server-derived, workspace-scoped session containment. No caller-controlled environment fields.
+		reviewCommunitySkillExecution: workspaceProcedure
+			.input(runtimeCommunitySkillExecutionReviewRequestSchema)
+			.output(runtimeCommunitySkillExecutionReviewResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.reviewCommunitySkillExecution(ctx.workspaceScope, input)),
+		approveCommunitySkillExecution: workspaceProcedure
+			.input(runtimeCommunitySkillExecutionApproveRequestSchema)
+			.output(runtimeCommunitySkillExecutionApproveResponseSchema)
+			.mutation(async ({ ctx, input }) => ctx.runtimeApi.approveCommunitySkillExecution(ctx.workspaceScope, input)),
 		setManagedSearchControl: t.procedure
 			.input(runtimeManagedSearchControlRequestSchema)
 			.output(runtimeManagedSearchStatusResponseSchema)

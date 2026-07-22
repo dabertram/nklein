@@ -35,6 +35,23 @@ const trustSchema = z
 const fileFindingSchema = z
 	.object({ code: z.string(), severity: z.enum(["review", "reject"]), message: z.string() })
 	.strict();
+const executionFileDecisionSchema = z
+	.object({
+		rawPath: z.string(),
+		normalizedPath: z.string().nullable(),
+		disposition: z.enum(["inert", "requires-approval", "blocked"]),
+		reasons: z.array(
+			z.enum([
+				"reject_containment",
+				"under_scripts_root",
+				"executable_bit",
+				"executable_extension",
+				"executable_content",
+				"inert_data",
+			]),
+		),
+	})
+	.strict();
 const importDecisionSchema = z
 	.object({
 		decision: z.enum(["allow", "review", "reject"]),
@@ -102,6 +119,15 @@ export const runtimeCommunitySkillImportReviewResponseSchema = z
 				files: z.array(
 					z.object({ path: z.string(), flagged: z.boolean(), reason: z.string().nullable() }).strict(),
 				),
+			})
+			.strict(),
+		executionGate: z
+			.object({
+				posture: z.enum(["clean", "approval-required", "blocked"]),
+				entries: z.array(executionFileDecisionSchema),
+				approvalRequired: z.array(executionFileDecisionSchema),
+				blocked: z.array(executionFileDecisionSchema),
+				reason: z.string(),
 			})
 			.strict(),
 		injectionScreen: z

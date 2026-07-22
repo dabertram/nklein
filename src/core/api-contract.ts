@@ -7,6 +7,8 @@ export * from "./board-api-contract.js";
 export * from "./chat-api-contract.js";
 // F4.21 community-skill discovery is a display-only user-review channel, never an agent prompt surface.
 export * from "./community-skill-discovery-api-contract.js";
+// F4.23 session-bound contained activation: policy is server-derived and hash-bound before prompt eligibility.
+export * from "./community-skill-execution-api-contract.js";
 // F4.22 reviewed community-skill import remains inert; execution is a separate containment gate.
 export * from "./community-skill-import-api-contract.js";
 // Runtime config + agents contract domain (agent definition + sandbox status, config response/save) (§5.X #2).

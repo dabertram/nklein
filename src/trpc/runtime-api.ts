@@ -137,6 +137,8 @@ import { createNKleinProviderService } from "../nklein-agent/nklein-provider-ser
 import { buildSessionSkillFragments } from "../nklein-agent/nklein-session-skill-fragments";
 import { openInBrowser } from "../server/browser";
 import { createCommunitySkillDiscoveryService } from "../server/community-skill-discovery-service";
+import { buildCommunitySkillExecutionEnvironment } from "../server/community-skill-execution-environment";
+import { createCommunitySkillExecutionService } from "../server/community-skill-execution-service";
 import { createCommunitySkillImportService } from "../server/community-skill-import-service";
 import { createRailControlCoordinator, type RailControlCoordinator } from "../server/rail-control-service";
 import { createSearxngWebSearchClient } from "../server/web-search-searxng";
@@ -368,6 +370,7 @@ async function buildMachinePoolsView(): Promise<
 export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrpcContext["runtimeApi"] {
 	const nkleinProviderService = createNKleinProviderService();
 	const communitySkillImportService = createCommunitySkillImportService();
+	const communitySkillExecutionService = createCommunitySkillExecutionService();
 	const nkleinMcpSettingsService = createNKleinMcpSettingsService();
 	const nkleinMcpRuntimeService = createNKleinMcpRuntimeService({
 		onAuthStatusesChanged: (statuses) => {
@@ -971,6 +974,20 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		listCommunitySkillImports: async () => await communitySkillImportService.listCandidates(),
 		reviewCommunitySkillImport: async (input) => await communitySkillImportService.review(input),
 		approveCommunitySkillImport: async (input) => await communitySkillImportService.approve(input),
+		reviewCommunitySkillExecution: async (workspaceScope, input) => {
+			const config = await deps.loadScopedRuntimeConfig(workspaceScope);
+			return await communitySkillExecutionService.review({
+				...input,
+				environment: buildCommunitySkillExecutionEnvironment(config, input.role),
+			});
+		},
+		approveCommunitySkillExecution: async (workspaceScope, input) => {
+			const config = await deps.loadScopedRuntimeConfig(workspaceScope);
+			return await communitySkillExecutionService.approve({
+				...input,
+				environment: buildCommunitySkillExecutionEnvironment(config, input.role),
+			});
+		},
 		setManagedSearchControl: async (input) => {
 			if (!deps.managedSearchBackend) throw new Error("Managed local search is unavailable in this runtime.");
 			if (input.action === "start") await deps.managedSearchBackend.start();

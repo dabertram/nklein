@@ -19,6 +19,7 @@ import {
 	validateBundledFileManifest,
 } from "../core/skill-bundled-file-manifest.js";
 import { reconcileSkillCapabilityGrant, type SkillCapabilityGrant } from "../core/skill-capability-grant-reconcile.js";
+import { gateSkillBundleExecution, type SkillExecutionGateResult } from "../core/skill-execution-gate.js";
 import { prescreenSkillInjection, type SkillScreenResult } from "../core/skill-injection-prescreen.js";
 import { type ParsedSkillManifest, parseSkillMd, type SkillParseError } from "../core/skill-md-parse.js";
 import type { DynamicSkill } from "../core/skill-registry.js";
@@ -75,6 +76,7 @@ export interface LoadedCommunitySkillBundle {
 	files: LoadedCommunitySkillFile[];
 	bundledManifest: BundledManifestResult;
 	executableScreen: BundleScreenResult;
+	executionGate: SkillExecutionGateResult;
 	injectionScreen: SkillScreenResult;
 	capabilityGrant: SkillCapabilityGrant;
 	/** Loader posture only. `candidate` still requires the F4.22 user-controlled import gate before activation. */
@@ -337,6 +339,7 @@ export async function loadCommunitySkillBundle(
 					.toString("latin1"),
 			})),
 		);
+		const executionGate = gateSkillBundleExecution(bundledManifest.entries, executableScreen);
 		const allowedToolBaseline = options.allowedToolBaseline ?? [];
 		const injectionScreen = prescreenSkillInjection(parsed.manifest, parsed.body, { allowedToolBaseline });
 		const capabilityGrant = reconcileSkillCapabilityGrant(parsed.manifest, allowedToolBaseline);
@@ -363,6 +366,7 @@ export async function loadCommunitySkillBundle(
 				files,
 				bundledManifest,
 				executableScreen,
+				executionGate,
 				injectionScreen,
 				capabilityGrant,
 				disposition: dispositionFor(bundledManifest, executableScreen, injectionScreen),

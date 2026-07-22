@@ -26,6 +26,13 @@ const REVIEW: RuntimeCommunitySkillImportReviewResponse = {
 	],
 	bundledManifest: { verdict: "safe", entries: [], findings: [], reason: "safe" },
 	executableScreen: { verdict: "safe", files: [] },
+	executionGate: {
+		posture: "clean",
+		entries: [],
+		approvalRequired: [],
+		blocked: [],
+		reason: "clean",
+	},
 	injectionScreen: { verdict: "safe", findings: [], reason: "safe" },
 	capabilityGrant: {
 		granted: [],

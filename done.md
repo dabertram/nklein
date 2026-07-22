@@ -2606,3 +2606,15 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   pre-fan-in behavior; it now proves only the final review prerequisite releases a join. Evidence: focused backend/wire/
   tRPC/UI tests 26/26, Settings 45/45, full runtime 12,042/12,042, full web 1,133/1,133, contract 286/286, protected
   142/142, server/web typechecks and lint green.
+
+- [x] **F4.23 — session-bound community-skill execution containment** *(delivered 2026-07-22).* Activation now
+  re-verifies the immutable imported bytes and current TOFU pin, recomputes the executable gate, intersects declared
+  tools with the runtime's actual Docker tool surface, removes host/secret/incompatible network powers, narrows full
+  network to the authenticated role-scoped allowlist, and refuses ambient credentials. Scripts are disabled by default;
+  a requested file needs explicit approval of its exact normalized path and SHA-256 for that activation. The resulting
+  session must satisfy the Rule of Two across untrusted skill input, sensitive access, and external/state-changing
+  effects. A workspace-scoped API derives all environment authority server-side and closes content/config TOCTOU with a
+  second policy hash before atomically writing an immutable, idempotent session ticket containing neither skill text nor
+  credential values. Deterministic byte screening now feeds the per-file execution gate during both import and activation.
+  Evidence: focused containment/loader/import/service/environment/tRPC suites 52/52, full runtime 12,060/12,060,
+  contract 286/286, protected 142/142, full web 1,133/1,133, server/web typechecks, and lint green.

@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F4.22 closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F4.23 closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-gate below is green. The current 187-package remainder is **96 ready + 1 partial + 77 dependency-blocked + 6 external/
+gate below is green. The current 186-package remainder is **96 ready + 1 partial + 76 dependency-blocked + 6 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 
@@ -92,6 +92,15 @@ feature-completeness challenges, release checks, and required manual checks are 
 gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
+
+> **⚠️ AN IMPORTED SKILL ACTIVATION IS A SESSION-BOUND POLICY TRANSACTION (F4.23, 2026-07-22).** Import approval
+> establishes immutable content identity; it does not authorize execution. At activation, reload and byte-verify the
+> snapshot and current TOFU pin, derive tools/network/identity only from trusted workspace runtime state, and bind the
+> complete containment result plus session/role/content to a second policy hash. Scripts stay disabled unless that exact
+> activation names and confirms each path + SHA-256. Never pass ambient credentials into the sandbox: allowlisted egress
+> uses only the audience-bound task proxy identity. Enforce the Rule of Two over untrusted input, sensitive access, and
+> external/state-changing effects, then persist an immutable activation ticket; any content or policy drift requires a
+> new review.
 
 > **⚠️ SEMANTIC RETRIEVAL MAY ADD RECALL, BUT MUST NOT ERASE THE LEXICAL BASELINE (F4.19b, 2026-07-22).** Rank
 > exact applicability-tag matches in their proven order, then use NL-description embeddings to fill remaining slots.
@@ -2626,11 +2635,9 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   via `dev skill-audit --apply` (promote through the audit+execution DOUBLE gate, retire→deprecated), which
   SUPERSEDES the older helped/hurt-only applyProceduralSkillLifecycle path with a strictly stronger gate. The
   auto-sweep cadence = David batch (noted at F12.30). Crossed.
-- [ ] **F4.23 — Wire skill execution containment.** Enforce effective tool grants, per-file no-auto-execute approvals,
-  Docker/egress policy, credential/identity constraints, and the session-level Rule of Two.
 - [x] **F4.24 — Finish deterministic bundle screening.** Inspect magic/content for executables/obfuscation, optionally **EXECUTABLE-SCREEN DONE 2026-07-15 (`70fa054e`):** skill-bundle-screening.ts screenBundleForExecutables (magic/shebang/ext → quarantine, 5 tests) completes the binary half; skill-injection-prescreen already covers text obfuscation. **FINALIZED 2026-07-19 (split):** the screening machinery is complete; the consumer wire rides F4.20's effectful SKILL.md disk loader, which is UNBUILT (David-deferred greenfield per the §5.AR epic state) — the wire lands with that loader and is tracked at F4.20/F4.26.
   collect advisory scanner signals, and persist quarantine flags at the containment boundary.
-- [>] **F4.26 — Implement suggest-only auto skill mode** *(after F4.20–F4.24).* The planner may suggest pinned,
+- [ ] **F4.26 — Implement suggest-only auto skill mode** *(F4.20–F4.24 complete).* The planner may suggest pinned,
   pre-screened skills as quarantined data; human approval is required before execution context use.
 - [ ] **F4.27 — Record skill provenance and effectiveness in the ledger.** Content hash, source, scan/import/execution
   verdicts, grants, approvals, and helped/hurt signals must be queryable.

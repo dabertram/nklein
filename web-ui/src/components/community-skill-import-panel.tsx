@@ -314,6 +314,7 @@ export function CommunitySkillImportPanel({
 					<JsonDetails label="Parsed manifest" value={review.manifest} />
 					<JsonDetails label="Bundled-file findings" value={review.bundledManifest} />
 					<JsonDetails label="Executable findings" value={review.executableScreen} />
+					<JsonDetails label="Per-file no-auto-execute gate" value={review.executionGate} />
 					<JsonDetails label="Prompt-injection findings" value={review.injectionScreen} />
 					<JsonDetails label="Least-privilege grant" value={review.capabilityGrant} />
 

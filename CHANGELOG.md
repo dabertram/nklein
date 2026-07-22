@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Approved community skills now activate through a session-specific containment review.** !Klein re-verifies the
+  pinned bytes, derives least-privilege tools and egress from workspace policy, keeps credentials out of the sandbox,
+  disables scripts by default, and requires exact per-file hash approval when execution is requested. Content and the
+  complete effective policy are hash-bound into an immutable activation ticket before the skill can enter a prompt.
+
 - **Community skills can now be reviewed and hash-pinned without becoming active.** Trust & Privacy can browse gated
   discovery results and select a locally staged bundle, then shows the exact source, every bundled file and finding,
   trust, provenance, grants, and pin drift. Approval re-reads the bytes, binds to a canonical SHA-256, and creates an

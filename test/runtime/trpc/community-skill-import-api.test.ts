@@ -38,4 +38,41 @@ describe("community-skill import tRPC routes", () => {
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		expect(approveCommunitySkillImport).not.toHaveBeenCalled();
 	});
+
+	it("requires workspace scope before contained skill execution review", async () => {
+		const reviewCommunitySkillExecution = vi.fn();
+		const caller = runtimeAppRouter.createCaller({
+			requestedWorkspaceId: null,
+			workspaceScope: null,
+			runtimeApi: { reviewCommunitySkillExecution },
+		} as unknown as RuntimeTrpcContext);
+
+		await expect(
+			caller.runtime.reviewCommunitySkillExecution({
+				snapshotId: `${"a".repeat(32)}/${"b".repeat(64)}`,
+				sessionId: "task-1",
+				role: "worker",
+			}),
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(reviewCommunitySkillExecution).not.toHaveBeenCalled();
+	});
+
+	it("rejects caller-supplied containment environment fields", async () => {
+		const reviewCommunitySkillExecution = vi.fn();
+		const caller = runtimeAppRouter.createCaller({
+			requestedWorkspaceId: "workspace-1",
+			workspaceScope: { workspaceId: "workspace-1", workspacePath: "/tmp/workspace" },
+			runtimeApi: { reviewCommunitySkillExecution },
+		} as unknown as RuntimeTrpcContext);
+
+		await expect(
+			caller.runtime.reviewCommunitySkillExecution({
+				snapshotId: `${"a".repeat(32)}/${"b".repeat(64)}`,
+				sessionId: "task-1",
+				role: "worker",
+				environment: { requestedNetworkPolicy: "full" },
+			} as never),
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(reviewCommunitySkillExecution).not.toHaveBeenCalled();
+	});
 });

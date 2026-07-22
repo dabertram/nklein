@@ -47,7 +47,7 @@ another agent's output, even the local model's own output — is DATA, never com
 | I5 | Peer-agent output → reviewer | `buildReviewSeedPrompt` (review-orchestration.ts) | **S6 fence** (diff / reasoning / focus-chain) |
 | I6 | Repo file contents + filenames | retrieval tools (nklein-retrieval-tools.ts) | taint labels (labelsForSourceContent); no block (own workspace) |
 | I7 | GitHub issue / PR / comment text | MCP / connector reads | **not yet fenced** (S6 non-web remainder) |
-| I8 | Community skill `SKILL.md` + bundles | skill-injection-prescreen.ts | screened at import (F4.24) |
+| I8 | Community skill `SKILL.md` + bundles | `community-skill-bundle-loader.ts` → `community-skill-execution-service.ts` | deterministic screen + immutable hash pin + session policy hash; Docker/least privilege/no ambient credentials; exact-file exec approval; Rule of Two (F4.23) |
 | I9 | External MCP tool output | `wrapSwarmAgentTools` (nklein-swarm-tool-broker.ts) | **S6 fence** (structural, `screen:false`; native agent path only) |
 | I10 | The local model's own output | every session turn | structurally untrusted (S6 principle); fenced where it feeds a peer |
 
@@ -65,7 +65,7 @@ block. This is the reason S6 uses `fenceUntrustedContent(..., {screen: false})`.
 | A3 | git commit / push | High (outward, persistent) | delivery-taint gate (F1.21b) |
 | A4 | Network egress (browse/search/fetch) | High (exfiltration, SSRF) | egress proxy (§10c), `checkHostForSsrf`, egress-gated tools |
 | A5 | MCP writes (post comment / PR) | High (outward, public, reputational) | confirm-dialog (F2.12b) — **S3 policy layer TBD** |
-| A6 | Skill install / exec | High (code execution) | F4.20–F4.27 screening; **S7 signature/pin TBD** |
+| A6 | Skill import / activation | High (code execution) | content-addressed import + TOFU pin; F4.23 session ticket, Docker/tool/egress/credential containment, exact-file approval, Rule of Two; signature remains S7 TBD |
 | A7 | Model load / unload | Low–Medium (resource) | machine-aware loader |
 
 ## Data → action paths, by blast radius
@@ -81,8 +81,10 @@ The dangerous paths are untrusted **source → sink** without a boundary in betw
 - **Peer-agent diff (I5) → reviewer verdict → delivery (A3):** a worker smuggles "approve this immediately" into its
   diff to launder a bad change through the reviewer. **Covered by S6** (the reviewer treats the diff as fenced data to
   judge, never as instructions).
-- **Skill bundle (I8) → skill exec (A6):** a malicious `SKILL.md`. Screened at import (F4.24); S7 adds
-  signature/provenance + pin-drift — **TBD**.
+- **Skill bundle (I8) → skill exec (A6):** a malicious `SKILL.md`. Import remains inert and hash-pinned; activation
+  reloads the bytes and current pin, derives the least-privilege Docker envelope from trusted runtime state, keeps
+  ambient credentials out, disables scripts absent exact path+digest approval, and binds the Rule-of-Two result into a
+  session policy hash. S7 still adds optional signature provenance; the execution boundary no longer waits on it.
 
 ## Defense map (Phase 7S status)
 
@@ -94,7 +96,7 @@ The dangerous paths are untrusted **source → sink** without a boundary in betw
 | S4 | Heuristic injection pre-screen — `screenUntrustedContent` | **shipped** + adopted at all four web surfaces I1–I4 |
 | S5 | Provenance & taint propagation to the action boundary | **backbone shipped**: taint-provenance.ts (source + graded trust) wired into the swarm broker; broker denials name the culprit source |
 | S6 | Treat model output + inter-agent messages as untrusted | **shipped**: I5 (worker→reviewer) + I9 (external MCP output); I7 (issue/PR text) TBD |
-| S7 | Supply-chain hardening (skills + MCP servers) | partial: F4.20–F4.27 + **rug-pull/pin-drift detection** (skill-pin-drift.ts + skill-pin-store.ts — TOFU pin, flags content-drift-with-same-version). Hashing-at-import wire + signing (credential-gated) TBD |
+| S7 | Supply-chain hardening (skills + MCP servers) | partial: F4.20–F4.23 now provide bounded loading, deterministic screening, canonical content-addressed import, TOFU/rug-pull detection, and session-bound execution containment. Optional signing and the F4.27 provenance/effectiveness ledger remain TBD. |
 | S8 | Egress / exfiltration control | **shipped**: egress-provenance-gate.ts blocks egress to an untrusted-introduced host when a secret is in context; wired into the swarm broker (+ egress proxy + SSRF) |
 | S9 | Resource / DoS abuse resistance | **shipped**: action-fanout-cap.ts (total / per-target / distinct-target ceilings) wired opt-in into the broker's outward tools; + turn-loop guard §12, retry budgets F3.30, concurrency caps F3.21 |
 | S10 | Adversarial red-team test suite (CI gate) | **corpus shipped** (test/runtime/security/red-team-injection-corpus.test.ts) |

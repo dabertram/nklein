@@ -24,6 +24,7 @@
  * pure + total over the manifest's already-parsed {@link BundledFileEntryReport}s.
  */
 
+import type { BundleScreenResult } from "./skill-bundle-screening.js";
 import type { BundledFileEntryReport, BundledFileFindingCode } from "./skill-bundled-file-manifest.js";
 
 /**
@@ -40,6 +41,7 @@ export type SkillExecutionReasonCode =
 	| "under_scripts_root" // script-by-location — RCE-by-default
 	| "executable_bit" // manifest `executable_mode`
 	| "executable_extension" // a script/binary extension (manifest `executable_script`, or this gate's own check)
+	| "executable_content" // magic/shebang/content screen flagged executable bytes regardless of path/extension
 	| "inert_data"; // nothing executable detected
 
 /** One file's execution decision. */
@@ -156,7 +158,10 @@ function hasFinding(entry: BundledFileEntryReport, code: BundledFileFindingCode)
  * findings array, non-string paths) by degrading toward the safe direction (`requires-approval` if anything looks
  * executable; `inert` only when nothing does).
  */
-export function classifyBundledFileExecution(entry: BundledFileEntryReport): SkillFileExecutionDecision {
+export function classifyBundledFileExecution(
+	entry: BundledFileEntryReport,
+	executableContentFlagged = false,
+): SkillFileExecutionDecision {
 	const rawPath = typeof entry?.rawPath === "string" ? entry.rawPath : "";
 	const normalizedPath = typeof entry?.normalizedPath === "string" ? entry.normalizedPath : null;
 
@@ -175,6 +180,7 @@ export function classifyBundledFileExecution(entry: BundledFileEntryReport): Ski
 	if (hasFinding(entry, "executable_script") || (ext != null && EXECUTABLE_EXTENSIONS.has(ext))) {
 		reasons.push("executable_extension");
 	}
+	if (executableContentFlagged) reasons.push("executable_content");
 	if (reasons.length > 0) {
 		return { rawPath, normalizedPath, disposition: "requires-approval", reasons };
 	}
@@ -188,8 +194,26 @@ export function classifyBundledFileExecution(entry: BundledFileEntryReport): Ski
  * level containment violation; else `approval-required` if ANY file is an executable; else `clean` (all inert — the
  * bundle may be materialised as data with nothing to execute). Pure + total (a non-array input ⇒ an empty clean bundle).
  */
-export function gateSkillBundleExecution(entries: readonly BundledFileEntryReport[]): SkillExecutionGateResult {
-	const decisions = Array.isArray(entries) ? entries.map(classifyBundledFileExecution) : [];
+export function gateSkillBundleExecution(
+	entries: readonly BundledFileEntryReport[],
+	executableScreen?: BundleScreenResult,
+): SkillExecutionGateResult {
+	const flaggedPaths = new Set(executableScreen?.files.filter((file) => file.flagged).map((file) => file.path) ?? []);
+	const decisions = Array.isArray(entries)
+		? entries.map((entry) => {
+				const path = typeof entry?.normalizedPath === "string" ? entry.normalizedPath : entry?.rawPath;
+				const flagged = typeof path === "string" && flaggedPaths.delete(path);
+				return classifyBundledFileExecution(entry, flagged);
+			})
+		: [];
+	for (const path of [...flaggedPaths].sort()) {
+		decisions.push({
+			rawPath: path,
+			normalizedPath: path,
+			disposition: "requires-approval",
+			reasons: ["executable_content"],
+		});
+	}
 	const blocked = decisions.filter((d) => d.disposition === "blocked");
 	const approvalRequired = decisions.filter((d) => d.disposition === "requires-approval");
 

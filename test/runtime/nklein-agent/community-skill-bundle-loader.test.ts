@@ -110,6 +110,10 @@ describe("loadCommunitySkillBundle", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.loaded.executableScreen.verdict).toBe("quarantine");
+		expect(result.loaded.executionGate).toMatchObject({
+			posture: "approval-required",
+			approvalRequired: [expect.objectContaining({ rawPath: "scripts/run.sh" })],
+		});
 		expect(result.loaded.bundledManifest.verdict).toBe("review");
 		expect(result.loaded.disposition).toBe("quarantine");
 		await expect(access(marker)).rejects.toThrow();

@@ -141,6 +141,26 @@ describe("gateSkillBundleExecution — bundle posture", () => {
 		expect(neverAutoExecutePaths(r)).toEqual(["scripts/install.sh"]);
 	});
 
+	it("consumes byte-level executable screening even when path, extension, and mode look inert", () => {
+		const r = gateSkillBundleExecution([entry({ rawPath: "assets/payload.dat", category: "assets" })], {
+			verdict: "quarantine",
+			files: [{ path: "assets/payload.dat", flagged: true, reason: "ELF magic" }],
+		});
+		expect(r.posture).toBe("approval-required");
+		expect(r.approvalRequired[0]).toMatchObject({
+			rawPath: "assets/payload.dat",
+			reasons: ["executable_content"],
+		});
+	});
+
+	it("fails closed when the executable screen names a file absent from the manifest", () => {
+		const r = gateSkillBundleExecution([], {
+			verdict: "quarantine",
+			files: [{ path: "assets/unaccounted.bin", flagged: true, reason: "native binary" }],
+		});
+		expect(neverAutoExecutePaths(r)).toEqual(["assets/unaccounted.bin"]);
+	});
+
 	it("blocked when any file violates containment (dominates approval-required)", () => {
 		const r = gateSkillBundleExecution([
 			entry({ rawPath: "scripts/ok.sh", category: "scripts" }),
