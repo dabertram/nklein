@@ -15,6 +15,7 @@ import {
 	summarizeAiderCampaign,
 	type AiderCampaignAttempt,
 	type AiderCampaignAttemptResult,
+	type AiderCampaignHarnessBaseline,
 } from "../src/core/aider-polyglot-campaign";
 import { setKanbanRuntimeHost, setKanbanRuntimePort } from "../src/core/runtime-endpoint";
 import type { RuntimeBuildIdentity } from "../src/core/runtime-build-identity";
@@ -164,6 +165,17 @@ async function readRuntimeBuildIdentity(file: CampaignFile): Promise<RuntimeBuil
 	}
 }
 
+async function assertLiveCampaignIdentity(
+	file: CampaignFile,
+	baseline: AiderCampaignHarnessBaseline,
+): Promise<void> {
+	const [runnerGitCommit, runtimeBuildIdentity] = await Promise.all([
+		readCleanHarnessCommit(),
+		readRuntimeBuildIdentity(file),
+	]);
+	assertAiderCampaignHarnessCommit(baseline, runnerGitCommit, runtimeBuildIdentity);
+}
+
 function fixedFleetSnapshot(models: readonly ResidentModel[], requiredIds: readonly string[]): ResidentModel[] {
 	const required = new Set(requiredIds);
 	const unexpected = models.map((model) => model.identifier).filter((identifier) => !required.has(identifier));
@@ -268,31 +280,26 @@ async function main(): Promise<void> {
 	const runtimeBuildIdentity = await readRuntimeBuildIdentity(file);
 	assertAiderCampaignCodeIdentity(harnessCommit, runtimeBuildIdentity);
 	const harnessBaselinePath = join(outputRoot, "harness-baseline.json");
+	let harnessBaseline: AiderCampaignHarnessBaseline;
 	if (await exists(harnessBaselinePath)) {
-		const baseline = parseAiderCampaignHarnessBaseline(
+		harnessBaseline = parseAiderCampaignHarnessBaseline(
 			JSON.parse(await readFile(harnessBaselinePath, "utf8")) as unknown,
 		);
-		assertAiderCampaignHarnessCommit(baseline, harnessCommit, runtimeBuildIdentity);
+		assertAiderCampaignHarnessCommit(harnessBaseline, harnessCommit, runtimeBuildIdentity);
 	} else {
 		if (pinnedConfigExists) {
 			throw new Error(
 				"Existing campaign predates immutable harness provenance; preserve it for diagnosis and use a new campaign id/output root.",
 			);
 		}
-		await atomicWriteNew(
-			harnessBaselinePath,
-			`${JSON.stringify(
-				{
-					schemaVersion: 1,
-					runnerGitCommit: harnessCommit,
-					runtimeBuildIdentity,
-					runner: "scripts/run-aider-campaign.mts",
-					createdAt: new Date().toISOString(),
-				},
-				null,
-				2,
-			)}\n`,
-		);
+		harnessBaseline = parseAiderCampaignHarnessBaseline({
+			schemaVersion: 1,
+			runnerGitCommit: harnessCommit,
+			runtimeBuildIdentity,
+			runner: "scripts/run-aider-campaign.mts",
+			createdAt: new Date().toISOString(),
+		});
+		await atomicWriteNew(harnessBaselinePath, `${JSON.stringify(harnessBaseline, null, 2)}\n`);
 	}
 	if (pinnedConfigExists) {
 		if ((await readFile(pinnedConfigPath, "utf8")) !== configText) {
@@ -315,6 +322,7 @@ async function main(): Promise<void> {
 
 	const results: AiderCampaignAttemptResult[] = [];
 	for (const attempt of planAiderCampaign(config)) {
+		await assertLiveCampaignIdentity(file, harnessBaseline);
 		const paths = attemptPaths(outputRoot, attempt);
 		const completed = await readCompletedAttempt(attempt, paths);
 		if (completed) {
@@ -364,6 +372,7 @@ async function main(): Promise<void> {
 				plan: attempt.startInPlanMode,
 			});
 		}
+		await assertLiveCampaignIdentity(file, harnessBaseline);
 		await invoke({
 			action: "grade",
 			source: "aider_polyglot",
@@ -374,6 +383,7 @@ async function main(): Promise<void> {
 			runId: `${attempt.runId}-grade`,
 			reportDir: paths.reportDir,
 		});
+		await assertLiveCampaignIdentity(file, harnessBaseline);
 		const result = await readCompletedAttempt(attempt, paths);
 		if (!result) throw new Error(`Campaign attempt ${attempt.runId} did not produce a report.`);
 		results.push(result);
@@ -382,6 +392,7 @@ async function main(): Promise<void> {
 			`${JSON.stringify(summarizeAiderCampaign(config, results), null, 2)}\n`,
 		);
 	}
+	await assertLiveCampaignIdentity(file, harnessBaseline);
 	const summary = summarizeAiderCampaign(config, results);
 	const summaryText = `${JSON.stringify(summary, null, 2)}\n`;
 	const finalSummaryPath = join(outputRoot, "summary.json");

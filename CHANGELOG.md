@@ -35,7 +35,8 @@
   interrupted-workspace drift before that drift can contaminate a default-flip decision.
   New campaign roots now pin the clean full !Klein Git commit before creating any workspace, verify that the selected
   runtime process captured that same clean commit before startup initialization, and refuse cross-commit, dirty/unverifiable-runtime, or
-  legacy-unprovenanced resume. Completed arms emit immutable repeated-status snapshots; the daily delta gate fails only
+  legacy-unprovenanced resume. Checkout and runtime identity are re-verified around every attempt and before
+  finalization, so mid-campaign edits or process replacement cannot mix evidence. Completed arms emit immutable repeated-status snapshots; the daily delta gate fails only
   stable resolved→stable unresolved changes while quarantining mixed repeats and keeping missing/error evidence
   inconclusive.
   Terminal-Bench 2.1 now has a non-pulling preflight that pins the official Harbor/dataset command, separates actual

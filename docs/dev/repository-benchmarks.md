@@ -133,6 +133,10 @@ different orchestration/runtime code or a different runtime process is refused. 
 `regression-plan.json` and `regression-no-plan.json` snapshots that collapse both repeats per instance: mixed outcomes
 are quarantined and missing/error attempts remain infrastructure-inconclusive.
 
+The checkout and runtime identity are re-verified at every attempt boundary, after candidate execution, after grading,
+and before finalization. A mid-campaign edit, dirty file, commit switch, runtime restart, or replacement process stops
+the root rather than letting later evidence silently mix with the pinned baseline.
+
 Cleanliness is evaluated inside both the runner and the isolated runtime home. Per-machine checkout files must be
 covered by the repository's `.gitignore`; relying on a developer-global excludes file makes the two provenance views
 disagree and correctly blocks evidence generation.

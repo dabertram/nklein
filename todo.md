@@ -153,7 +153,9 @@ gap remains.
 > runtime HOMEs intentionally omit personal Git config. Any per-machine file that is allowed in a clean checkout must
 > therefore be named by the repository's `.gitignore`, not only `core.excludesFile`; otherwise runner and runtime see
 > different dirtiness for identical bytes. Capture the runtime build identity before workspace-registry/startup
-> initialization, then require the runner and runtime to report the same clean commit.
+> initialization, then require the runner and runtime to report the same clean commit. Re-check checkout and runtime
+> identity before/after every effectful attempt boundary and before finalization; a launch-only check cannot detect a
+> mid-campaign edit, commit switch, or replacement runtime.
 > **SANDBOX LIFECYCLE SINGLE-FLIGHT MUST MATCH ITS NAME SCOPE (multi-workspace pilot, 2026-07-23):** the sandbox
 > manager's per-slot `starting` promise cannot serialize two different per-workspace managers. Giving both managers the
 > global `nklein-agent-sandbox-1` name creates a Docker race, and accepting the conflict would be unsafe because the
@@ -3760,7 +3762,9 @@ stays fast + complete.
     cross-runtime-process, dirty/unverifiable-runtime, or legacy-unprovenanced resume, and emits per-arm repeated-status snapshots. The daily gate fails
     only stable resolved→stable unresolved changes; mixed repeats are quarantined and missing/error evidence is
     inconclusive. Execution remains; the first live campaign predates the automatic commit baseline and is retained as
-    diagnostic evidence, not silently promoted into the stricter nightly baseline.
+    diagnostic evidence, not silently promoted into the stricter nightly baseline. The first clean-provenance restart
+    was also stopped during its first attempt when review found the launch-only identity check; it remains diagnostic,
+    and the replacement campaign must use continuous boundary re-verification.
   - [ ] **F11.3h — Contamination-aware fresh-set track.** Verified is >94% pre-model-cutoff + partly leaked (models recall
     file paths). Add a rolling SWE-bench-Live / SWE-rebench fresh-window gate (tasks post-dating cutoffs) as the HONEST
     "reasons vs recalls" measure; log leakage hits. (SWE-bench-Live; SWE-rebench 2505.20411)
