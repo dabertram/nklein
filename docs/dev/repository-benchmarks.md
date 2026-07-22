@@ -133,6 +133,10 @@ different orchestration/runtime code or a different runtime process is refused. 
 `regression-plan.json` and `regression-no-plan.json` snapshots that collapse both repeats per instance: mixed outcomes
 are quarantined and missing/error attempts remain infrastructure-inconclusive.
 
+Cleanliness is evaluated inside both the runner and the isolated runtime home. Per-machine checkout files must be
+covered by the repository's `.gitignore`; relying on a developer-global excludes file makes the two provenance views
+disagree and correctly blocks evidence generation.
+
 Wire the selected production arm into the daily delta gate with:
 
 ```sh

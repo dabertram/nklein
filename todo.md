@@ -149,6 +149,11 @@ gap remains.
 > sequentially. Config, fleet identity, receipts, reports, and final summary are immutable. Resume only from receipts;
 > preserve a receipt-less interrupted workspace for diagnosis and start a new campaign id. Any model disappearing,
 > appearing, resizing, or falling below 32k stops the tranche and writes a fleet event instead of confounding it.
+> **CAMPAIGN CLEANLINESS MUST NOT DEPEND ON A DEVELOPER'S GLOBAL GIT EXCLUDES (Aider, 2026-07-23):** isolated
+> runtime HOMEs intentionally omit personal Git config. Any per-machine file that is allowed in a clean checkout must
+> therefore be named by the repository's `.gitignore`, not only `core.excludesFile`; otherwise runner and runtime see
+> different dirtiness for identical bytes. Capture the runtime build identity before workspace-registry/startup
+> initialization, then require the runner and runtime to report the same clean commit.
 > **SANDBOX LIFECYCLE SINGLE-FLIGHT MUST MATCH ITS NAME SCOPE (multi-workspace pilot, 2026-07-23):** the sandbox
 > manager's per-slot `starting` promise cannot serialize two different per-workspace managers. Giving both managers the
 > global `nklein-agent-sandbox-1` name creates a Docker race, and accepting the conflict would be unsafe because the
