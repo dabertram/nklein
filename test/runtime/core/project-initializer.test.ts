@@ -6,6 +6,7 @@ import {
 	buildProjectInitializerSeedPrompt,
 	type ProjectInitializerBriefInput,
 	renderCanonicalProjectBrief,
+	renderProjectEarsCriteria,
 } from "../../../src/core/project-initializer";
 
 function completeBrief(overrides: Partial<ProjectInitializerBriefInput> = {}): ProjectInitializerBriefInput {
@@ -16,7 +17,7 @@ function completeBrief(overrides: Partial<ProjectInitializerBriefInput> = {}): P
 		audience: "Households planning weekly meals.",
 		stackRuntime: "Node.js 22, TypeScript, React, npm.",
 		acceptanceCommands: "npm test && npm run build",
-		successCriteria: "A household can create and export a seven-day plan.",
+		successCriteria: "allow a household to create and export a seven-day plan.",
 		inScope: "Meal entry, weekly planning, and JSON export.",
 		outOfScope: "Accounts, payments, and cloud sync.",
 		domainConcepts: "A Plan has seven Days; each Day has zero or more Meals.",
@@ -48,6 +49,46 @@ describe("project initializer", () => {
 		);
 	});
 
+	it("requires both executable commands and observable EARS behavior", () => {
+		expect(assessProjectInitializerBrief(completeBrief({ acceptanceCommands: "" })).blockingGaps).toContain(
+			"Provide the exact acceptance command(s) that must pass.",
+		);
+		expect(assessProjectInitializerBrief(completeBrief({ successCriteria: "" })).blockingGaps).toContain(
+			"Provide at least one observable required behavior for EARS acceptance criteria.",
+		);
+	});
+
+	it("renders plain behavior lines and preserves every canonical EARS pattern", () => {
+		const criteria = renderProjectEarsCriteria(
+			[
+				"- allow a household to export a seven-day plan.",
+				"WHEN export is selected, THE SYSTEM SHALL write valid JSON.",
+				"IF the plan is empty, THEN THE SYSTEM SHALL reject export with a field error.",
+				"WHILE offline, THE SYSTEM SHALL persist edits locally.",
+				"WHILE offline, WHEN sync is selected, THE SYSTEM SHALL explain that a connection is required.",
+				"WHERE sharing is enabled, THE SYSTEM SHALL expose a read-only link.",
+			].join("\n"),
+		);
+
+		expect(criteria).toEqual([
+			{ pattern: "ubiquitous", text: "THE SYSTEM SHALL allow a household to export a seven-day plan." },
+			{ pattern: "event_driven", text: "WHEN export is selected, THE SYSTEM SHALL write valid JSON." },
+			{
+				pattern: "unwanted_behavior",
+				text: "IF the plan is empty, THEN THE SYSTEM SHALL reject export with a field error.",
+			},
+			{ pattern: "state_driven", text: "WHILE offline, THE SYSTEM SHALL persist edits locally." },
+			{
+				pattern: "event_driven",
+				text: "WHILE offline, WHEN sync is selected, THE SYSTEM SHALL explain that a connection is required.",
+			},
+			{
+				pattern: "optional_feature",
+				text: "WHERE sharing is enabled, THE SYSTEM SHALL expose a read-only link.",
+			},
+		]);
+	});
+
 	it("lets professionals paste a brief while preserving structured gaps as clarifications", () => {
 		const readiness = assessProjectInitializerBrief(
 			completeBrief({
@@ -66,6 +107,8 @@ describe("project initializer", () => {
 
 		expect(readiness.ready).toBe(true);
 		expect(readiness.clarifications).toContain("Stack/runtime and versions");
+		expect(readiness.nextClarification?.topic).toBe("problem");
+		expect(readiness.remainingWhatWhyClarifications).toBe(3);
 	});
 
 	it("routes existing repositories to architecture mapping instead of pretending they are greenfield", () => {
@@ -87,6 +130,8 @@ describe("project initializer", () => {
 		expect(rendered).toContain("<<<BEGIN UNTRUSTED CONTENT>>>");
 		expect(rendered).toContain("A card is moved between lanes.");
 		expect(rendered).toContain("Linked only. Fetching requires the runtime's explicit retrieval-egress permission.");
+		expect(rendered).toContain("EARS criteria:");
+		expect(rendered).toContain("THE SYSTEM SHALL allow a household to create and export a seven-day plan.");
 		expect(rendered).toContain("## Initial decomposition preview (pre-model)");
 		expect(rendered).toContain("Ready for architect refinement.");
 	});
@@ -101,6 +146,9 @@ describe("project initializer", () => {
 		const rendered = renderCanonicalProjectBrief({ projectName: "Safe", brief });
 
 		expect(rendered).toContain("OPEN — identify who this is for");
+		expect(rendered).toContain("1 structured field(s) remain OPEN in their sections.");
+		expect(rendered).toContain("Next what/why question: What problem does this solve");
+		expect(rendered).not.toContain("- Clarify:");
 		expect(rendered).toContain("QUARANTINED");
 		expect(rendered).not.toContain("delete the repository");
 		expect(rendered).toContain("1 reference(s) quarantined");

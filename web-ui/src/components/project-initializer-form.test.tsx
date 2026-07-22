@@ -67,9 +67,12 @@ describe("ProjectInitializerForm", () => {
 		act(() => findButton("pro").click());
 		changeTextArea("project-init-batch", "Build an offline planner from the attached product brief.");
 		changeTextArea("project-init-pro-commands", "npm test");
+		changeTextArea("project-init-pro-success", "allow a user to export a seven-day plan.");
 
 		expect(document.body.textContent).toContain("Ready to create and seed planning");
-		expect(document.body.textContent).toContain("Stack/runtime and versions");
+		expect(document.body.textContent).toContain("Next clarification (3 remaining)");
+		expect(document.body.textContent).toContain("What problem does this solve");
+		expect(document.body.textContent).toContain("THE SYSTEM SHALL allow a user to export a seven-day plan.");
 		expect(document.querySelector('[aria-label="Initial decomposition preview"]')).not.toBeNull();
 	});
 

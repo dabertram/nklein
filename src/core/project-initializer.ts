@@ -1,3 +1,4 @@
+import { type ClarificationQuestion, type EarsCriterion, renderEarsCriterion } from "./ears-acceptance-criteria.js";
 import { reviewSpec } from "./spec-review-pipeline.js";
 import { fenceUntrustedContent } from "./untrusted-content-boundary.js";
 
@@ -37,8 +38,56 @@ export interface ProjectInitializerReadiness {
 	ready: boolean;
 	blockingGaps: string[];
 	clarifications: string[];
+	nextClarification: ClarificationQuestion | null;
+	remainingWhatWhyClarifications: number;
 	lintFindings: ReturnType<typeof reviewSpec>["lintFindings"];
 	quarantinedReferenceCount: number;
+}
+
+function parseCanonicalEarsLine(line: string): EarsCriterion | null {
+	const normalized = clean(line).replace(/^(?:[-*+]\s+|\d+[.)]\s+)/u, "");
+	const patterns: Array<{
+		pattern: RegExp;
+		build: (match: RegExpExecArray) => EarsCriterion;
+	}> = [
+		{
+			pattern: /^WHILE\s+(.+?),\s*WHEN\s+(.+?),\s*THE SYSTEM SHALL\s+(.+?)[.]*$/iu,
+			build: (match) => renderEarsCriterion({ state: match[1], trigger: match[2], behavior: match[3] ?? "" }),
+		},
+		{
+			pattern: /^WHERE\s+(.+?),\s*THE SYSTEM SHALL\s+(.+?)[.]*$/iu,
+			build: (match) => renderEarsCriterion({ feature: match[1], behavior: match[2] ?? "" }),
+		},
+		{
+			pattern: /^IF\s+(.+?),\s*THEN\s+THE SYSTEM SHALL\s+(.+?)[.]*$/iu,
+			build: (match) => renderEarsCriterion({ trigger: match[1], behavior: match[2] ?? "", unwanted: true }),
+		},
+		{
+			pattern: /^WHILE\s+(.+?),\s*THE SYSTEM SHALL\s+(.+?)[.]*$/iu,
+			build: (match) => renderEarsCriterion({ state: match[1], behavior: match[2] ?? "" }),
+		},
+		{
+			pattern: /^WHEN\s+(.+?),\s*THE SYSTEM SHALL\s+(.+?)[.]*$/iu,
+			build: (match) => renderEarsCriterion({ trigger: match[1], behavior: match[2] ?? "" }),
+		},
+		{
+			pattern: /^THE SYSTEM SHALL\s+(.+?)[.]*$/iu,
+			build: (match) => renderEarsCriterion({ behavior: match[1] ?? "" }),
+		},
+	];
+	for (const candidate of patterns) {
+		const match = candidate.pattern.exec(normalized);
+		if (match) return candidate.build(match);
+	}
+	return normalized ? renderEarsCriterion({ behavior: normalized }) : null;
+}
+
+/** Turn one observable behavior per line into canonical EARS, preserving already-structured EARS patterns. */
+export function renderProjectEarsCriteria(successCriteria: string): EarsCriterion[] {
+	return successCriteria
+		.split(/\r?\n/u)
+		.map(parseCanonicalEarsLine)
+		.filter((criterion): criterion is EarsCriterion => criterion !== null);
 }
 
 export interface InitialDecompositionTrack {
@@ -67,8 +116,9 @@ export function assessProjectInitializerBrief(input: ProjectInitializerBriefInpu
 	const bulk = clean(input.batchBrief ?? "");
 	const outcome = clean(input.outcome);
 	if (!outcome && !bulk) blockingGaps.push("Describe the outcome/vision or paste a complete pro brief.");
-	if (!clean(input.acceptanceCommands) && !clean(input.successCriteria)) {
-		blockingGaps.push("Provide an acceptance command or another observable definition of done.");
+	if (!clean(input.acceptanceCommands)) blockingGaps.push("Provide the exact acceptance command(s) that must pass.");
+	if (!clean(input.successCriteria)) {
+		blockingGaps.push("Provide at least one observable required behavior for EARS acceptance criteria.");
 	}
 	if (input.projectKind === "existing") {
 		blockingGaps.push("Existing repositories use the Existing project path and the F11.2 architecture-mapping flow.");
@@ -100,14 +150,19 @@ export function assessProjectInitializerBrief(input: ProjectInitializerBriefInpu
 	const review = reviewSpec({
 		spec: specForReview,
 		callerAnswered: [
-			...(outcome || bulk ? (["problem", "core_actions"] as const) : []),
+			...(outcome && clean(input.audience) ? (["problem"] as const) : []),
+			...(clean(input.inScope) ? (["core_actions"] as const) : []),
 			...(clean(input.outOfScope) ? (["out_of_scope"] as const) : []),
+			...(clean(input.successCriteria) ? (["success_criteria"] as const) : []),
 		],
+		callerUnanswered: clean(input.successCriteria) ? [] : ["success_criteria"],
 	});
 	return {
 		ready: blockingGaps.length === 0,
 		blockingGaps,
 		clarifications: clarificationGaps,
+		nextClarification: review.next,
+		remainingWhatWhyClarifications: Math.min(5, review.openQuestions.length),
 		lintFindings: review.lintFindings,
 		quarantinedReferenceCount: referenceResults.filter((result) => result.quarantined).length,
 	};
@@ -152,6 +207,7 @@ export function renderCanonicalProjectBrief(input: {
 	const { brief } = input;
 	const readiness = assessProjectInitializerBrief(brief);
 	const tracks = buildInitialDecompositionPreview(brief);
+	const earsCriteria = renderProjectEarsCriteria(brief.successCriteria);
 	const references = brief.references
 		.filter((reference) => clean(reference.value) || clean(reference.content ?? ""))
 		.map((reference, index) => {
@@ -192,6 +248,12 @@ export function renderCanonicalProjectBrief(input: {
 		`Commands:\n\n${renderField(brief.acceptanceCommands, "name the command(s) that must pass")}`,
 		"",
 		`Success criteria:\n\n${renderField(brief.successCriteria, "state observable pass/fail outcomes")}`,
+		"",
+		`EARS criteria:\n\n${
+			earsCriteria.length > 0
+				? earsCriteria.map((criterion, index) => `${index + 1}. ${criterion.text}`).join("\n")
+				: "**OPEN — add one observable required behavior per line; do not guess.**"
+		}`,
 		"",
 		"## Scope boundaries",
 		"",
@@ -237,7 +299,10 @@ export function renderCanonicalProjectBrief(input: {
 		"",
 		readiness.ready ? "Ready for architect refinement." : "Not ready for implementation.",
 		...readiness.blockingGaps.map((gap) => `- BLOCKING: ${gap}`),
-		...readiness.clarifications.map((gap) => `- Clarify: ${gap}`),
+		...(readiness.clarifications.length > 0
+			? [`- ${readiness.clarifications.length} structured field(s) remain OPEN in their sections.`]
+			: []),
+		...(readiness.nextClarification ? [`- Next what/why question: ${readiness.nextClarification.question}`] : []),
 		...readiness.lintFindings.map((finding) => `- Spec lint (${finding.kind}): ${finding.detail}`),
 	);
 	if (readiness.quarantinedReferenceCount > 0) {

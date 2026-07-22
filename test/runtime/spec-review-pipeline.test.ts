@@ -58,4 +58,10 @@ describe("reviewSpec", () => {
 		const review = reviewSpec({ spec: "Build the thing." });
 		expect(review.openQuestions.some((q) => q.topic === "success_criteria")).toBe(true);
 	});
+
+	it("lets authoritative structured input keep a topic open despite a free-form acceptance hint", () => {
+		const review = reviewSpec({ spec: CHECKABLE, callerUnanswered: ["success_criteria"] });
+		expect(review.detectedAnswered).not.toContain("success_criteria");
+		expect(review.openQuestions.some((question) => question.topic === "success_criteria")).toBe(true);
+	});
 });

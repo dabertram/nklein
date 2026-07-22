@@ -2727,3 +2727,14 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   while adjacent ports remain denied. Evidence: 102 focused backend assertions, 3 component assertions, full backend
   fast 12,180/12,180, full web 1,142/1,142, protected 142/142, backend/web typechecks, lint with zero errors, and a real
   Chrome walkthrough of beginner/pro surfaces and readiness gating.
+
+- [x] **F12.8 — EARS acceptance + one-at-a-time initializer clarification** *(delivered 2026-07-22).* The guided
+  initializer now turns one declared system behavior per line into canonical EARS in both the live preview and
+  versioned `PROJECT_BRIEF.md`, while preserving all supplied EARS patterns without inventing triggers, states, error
+  conditions, or feature gates. Acceptance commands and observable behavior are independently required. The shared
+  review pipeline gained an authoritative-absence input so structured facts can overrule misleading free-form hints;
+  only explicit outcome/audience, in-scope, out-of-scope, and success fields close their respective what/why questions.
+  UI and artifact surface only the next question, while every other omission remains an explicit `OPEN` field. Seeded
+  implementation and verification cards must read the canonical brief first. Evidence: 21 focused core assertions,
+  3 initializer component assertions, backend/web typechecks, full backend fast 12,183/12,183, full web 1,142/1,142,
+  protected 142/142, production web build, and lint with zero errors (20 pre-existing warnings and one info).

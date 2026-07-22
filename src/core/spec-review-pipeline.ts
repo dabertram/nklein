@@ -39,16 +39,24 @@ export function reviewSpec(input: {
 	readonly spec: string;
 	/** Topics the caller has independently confirmed the spec answers (e.g. a human read). */
 	readonly callerAnswered?: readonly ClarificationTopic[];
+	/** Topics an authoritative structured source confirms are absent, even if free-form text resembles an answer. */
+	readonly callerUnanswered?: readonly ClarificationTopic[];
 }): SpecReview {
 	const lintFindings = lintSpecForDecompose(input.spec);
+	const callerUnanswered = new Set(input.callerUnanswered ?? []);
 
 	// `success_criteria` is answered iff the lint found no missing-acceptance gap — the SAME judgement, reused, so
 	// the two cores cannot report contradictory things about whether the spec is checkable.
 	const hasCheckableSuccess = !lintFindings.some((finding) => finding.kind === "missing_acceptance");
-	const detectedAnswered = hasCheckableSuccess ? (["success_criteria"] as ClarificationTopic[]) : [];
+	const detectedAnswered =
+		hasCheckableSuccess && !callerUnanswered.has("success_criteria")
+			? (["success_criteria"] as ClarificationTopic[])
+			: [];
 
 	const callerAnswered = input.callerAnswered ?? [];
-	const answered = [...new Set([...detectedAnswered, ...callerAnswered])];
+	const answered = [...new Set([...detectedAnswered, ...callerAnswered])].filter(
+		(topic) => !callerUnanswered.has(topic),
+	);
 
 	// Undetermined = the topics this pipeline cannot read from text AND the caller did not assert. Reported, not
 	// silently folded into "answered" — folding would drop a real question the initializer must still ask.

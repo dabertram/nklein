@@ -791,6 +791,11 @@ source repo went private — so if it vanishes the buildable source still lives 
 > professional-mode omissions as explicit `OPEN` clarifications rather than guessing. URLs stay linked-only until the
 > retrieval-egress boundary admits a fetch. Creating the folder, brief, git root, workspace state, seed card, and active
 > registration is one rollback domain: a failure at any stage removes both the new directory and runtime registration.
+> **STRUCTURED ACCEPTANCE MUST NOT INVENT EARS SEMANTICS (F12.8, 2026-07-22).** Convert an operator's behavior fragment
+> into the ubiquitous `THE SYSTEM SHALL …` form, and preserve canonical EARS patterns they supplied, but never infer a
+> trigger, state, error condition, or feature gate from prose. A pasted batch brief is untrusted reference data, not proof
+> that a what/why topic was answered: only the corresponding structured field may close that question. Keep every gap
+> explicit in the versioned brief, but surface only the sequencer's next question so clarification stays one-at-a-time.
 > **Discovery is not prompt context (F4.21, 2026-07-22).** Search-engine snippets and registry prose are attacker text.
 > Skill discovery must use the configured egress-gated search client, strictly re-check every hit against the requested
 > origin (a `site:` query is not a boundary), and destroy snippets/bodies before returning display-only results. An
@@ -3808,7 +3813,7 @@ output and NOT acted on. Captured as F12.12.)
   queue. Audit core + CI invariant + live-builder nets are the complete code scope. Crossed.
 
 **Onboarding & spec (extends the shipped F11.1 surface):**
-- [ ] **F12.8 — EARS-notation acceptance criteria in the initializer** *(unblocked 2026-07-22: F11.1's guided initializer surface is shipped).* Kiro/Spec-Kit converge on EARS ("WHEN <condition>
+- [x] **F12.8 — EARS-notation acceptance criteria in the initializer** *(completed 2026-07-22 on F11.1's guided initializer surface).* Kiro/Spec-Kit converge on EARS ("WHEN <condition>
   THE SYSTEM SHALL <behavior>") to produce clear, TESTABLE acceptance criteria, and on 3–5 clarifying questions asked
   ONE-AT-A-TIME focused on what/why (problem, core actions, scope-NOT, success criteria) — not how. Fold both into F11.1:
   emit acceptance criteria in EARS, ask ≤5 gaps one at a time, and produce a versioned spec artifact the decomposer reads.
@@ -3832,9 +3837,12 @@ output and NOT acted on. Captured as F12.12.)
   (so the two cores cannot contradict each other), and `problem`/`core_actions`/`out_of_scope` are reported
   `undetermined`, NEVER guessed from keyword presence** — inferring them from the text would drop a real question,
   the confident-nonsense heuristic in miniature.
-  REMAINING: wire EARS rendering and the one-question-at-a-time sequencer into F11.1's versioned brief/UI. The shipped
-  initializer already calls the shared review pipeline and preserves gaps, but currently lists every clarification at
-  once and retains success criteria as prose rather than emitting mechanically testable EARS criteria.
+  **INITIALIZER WIRE SHIPPED 2026-07-22:** observable system-behavior lines now render into canonical EARS in both the
+  live beginner/pro UI and versioned `PROJECT_BRIEF.md`; already-canonical event, state, unwanted-behaviour, optional,
+  and combined state+event patterns are preserved without guessing missing triggers or conditions. Commands and EARS
+  behavior are independently required. Structured fields—not keyword guesses over a pasted brief—authoritatively close
+  the four what/why topics, and only the next open question is surfaced while all omissions remain explicit `OPEN` fields
+  in the artifact. Every seeded implementation/verification card is told to read that artifact first.
   (martinfowler.com/articles/exploring-gen-ai/sdd-3-tools; addyosmani.com/blog/good-spec; chatprd.ai)
 - [x] **F12.9 — Spec contradiction/completeness check before decompose.** Kiro's 2026 requirements analysis uses formal
   logic to catch contradictions before code-gen; teams report ~an order-of-magnitude fewer "regenerate from scratch"

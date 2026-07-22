@@ -6,8 +6,9 @@
   or professional batch intake for outcome, audience, stack, scope, domain rules, acceptance, constraints, uncertainty,
   references, effort, and checkpoint posture. Pasted and local-file references are screened and structurally fenced;
   URLs remain linked-only until retrieval egress is explicitly allowed. !Klein versions `PROJECT_BRIEF.md` in the root
-  commit, previews initial planning tracks, and seeds a plan-mode architect card. Any intake, git, state, or activation
-  failure rolls the new project back instead of leaving a half-created workspace.
+  commit, emits canonical EARS criteria without guessing triggers or conditions, and asks one outstanding what/why
+  clarification at a time. It previews initial planning tracks and seeds a plan-mode architect card. Any intake, git,
+  state, or activation failure rolls the new project back instead of leaving a half-created workspace.
 
 - **Desktop releases now have an authenticated cross-platform trust chain.** Stable/beta update feeds reject manifests
   that are unsigned, tampered, or signed by an unknown Ed25519 key before trusting asset URLs/checksums. Release tooling

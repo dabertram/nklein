@@ -2,6 +2,7 @@ import {
 	assessProjectInitializerBrief,
 	buildInitialDecompositionPreview,
 	type ProjectInitializerBriefInput,
+	renderProjectEarsCriteria,
 } from "@runtime-project-initializer";
 import { ChevronLeft, ChevronRight, ShieldAlert } from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";
@@ -84,6 +85,7 @@ export function ProjectInitializerForm({
 	const [beginnerStep, setBeginnerStep] = useState(0);
 	const readiness = useMemo(() => assessProjectInitializerBrief(value), [value]);
 	const preview = useMemo(() => buildInitialDecompositionPreview(value), [value]);
+	const earsCriteria = useMemo(() => renderProjectEarsCriteria(value.successCriteria), [value.successCriteria]);
 	const pastedReference = value.references.find((reference) => reference.kind === "pasted")?.value ?? "";
 	const linkedReferences = value.references
 		.filter((reference) => reference.kind !== "pasted")
@@ -245,9 +247,10 @@ export function ProjectInitializerForm({
 						label="Observable success criteria"
 						value={value.successCriteria}
 						onChange={(next) => patch("successCriteria", next)}
-						placeholder="Concrete pass/fail behavior, outputs, states, or thresholds."
+						placeholder="One required system behavior per line, e.g. ‘allow a household to export a plan’; !Klein emits canonical EARS."
 						disabled={disabled}
 					/>
+					<EarsCriteriaPreview criteria={earsCriteria} />
 				</div>
 			);
 			break;
@@ -283,6 +286,7 @@ export function ProjectInitializerForm({
 						</div>
 					))}
 					<ReadinessSummary readiness={readiness} />
+					<EarsCriteriaPreview criteria={earsCriteria} />
 				</section>
 			);
 	}
@@ -363,13 +367,22 @@ export function ProjectInitializerForm({
 						disabled={disabled}
 						rows={9}
 					/>
-					<div className="grid gap-3 md:grid-cols-2">
+					<div className="grid gap-3 md:grid-cols-3">
 						<TextAreaField
 							id="project-init-pro-commands"
 							label="Acceptance command / check"
 							value={value.acceptanceCommands}
 							onChange={(next) => patch("acceptanceCommands", next)}
 							placeholder="Exact command or observable check."
+							disabled={disabled}
+							rows={2}
+						/>
+						<TextAreaField
+							id="project-init-pro-success"
+							label="Observable success criteria"
+							value={value.successCriteria}
+							onChange={(next) => patch("successCriteria", next)}
+							placeholder="One system behavior per line, e.g. ‘allow a user to export a plan’."
 							disabled={disabled}
 							rows={2}
 						/>
@@ -383,6 +396,7 @@ export function ProjectInitializerForm({
 							rows={2}
 						/>
 					</div>
+					<EarsCriteriaPreview criteria={earsCriteria} />
 					{referenceFields}
 					{executionPosture}
 					<details className="rounded-md border border-border bg-surface-2 p-2">
@@ -405,15 +419,6 @@ export function ProjectInitializerForm({
 								value={value.stackRuntime}
 								onChange={(next) => patch("stackRuntime", next)}
 								placeholder="Versions and platform."
-								disabled={disabled}
-								rows={2}
-							/>
-							<TextAreaField
-								id="project-init-pro-success"
-								label="Success criteria"
-								value={value.successCriteria}
-								onChange={(next) => patch("successCriteria", next)}
-								placeholder="Observable pass/fail."
 								disabled={disabled}
 								rows={2}
 							/>
@@ -484,7 +489,6 @@ function ReadinessSummary({
 }: {
 	readiness: ReturnType<typeof assessProjectInitializerBrief>;
 }): ReactElement {
-	const items = [...readiness.blockingGaps, ...readiness.clarifications];
 	return (
 		<div
 			className={cn(
@@ -496,12 +500,16 @@ function ReadinessSummary({
 				{!readiness.ready ? <ShieldAlert size={13} /> : null}
 				{readiness.ready ? "Ready to create and seed planning" : "Brief needs answers before creation"}
 			</p>
-			{items.length > 0 ? (
-				<ul className="mt-1 list-disc pl-4 text-[11px] text-text-secondary">
-					{items.map((item) => (
-						<li key={item}>{item}</li>
-					))}
-				</ul>
+			{readiness.nextClarification ? (
+				<p className="mt-1 text-[11px] text-text-secondary">
+					Next clarification ({readiness.remainingWhatWhyClarifications} remaining):{" "}
+					{readiness.nextClarification.question}
+				</p>
+			) : null}
+			{readiness.clarifications.length > 0 ? (
+				<p className="mt-1 text-[11px] text-text-tertiary">
+					{readiness.clarifications.length} structured field(s) remain explicit OPEN items in the brief.
+				</p>
 			) : null}
 			{readiness.quarantinedReferenceCount > 0 ? (
 				<p className="mt-1 text-[11px] text-status-red">
@@ -509,5 +517,25 @@ function ReadinessSummary({
 				</p>
 			) : null}
 		</div>
+	);
+}
+
+function EarsCriteriaPreview({ criteria }: { criteria: ReturnType<typeof renderProjectEarsCriteria> }): ReactElement {
+	return (
+		<section
+			className="rounded-md border border-border bg-surface-2 px-3 py-2 md:col-span-2"
+			aria-label="EARS criteria preview"
+		>
+			<p className="text-[12px] font-medium text-text-primary">Generated EARS criteria</p>
+			{criteria.length > 0 ? (
+				<ol className="mt-1 list-decimal pl-4 text-[11px] text-text-secondary">
+					{criteria.map((criterion, index) => (
+						<li key={`${index}:${criterion.text}`}>{criterion.text}</li>
+					))}
+				</ol>
+			) : (
+				<p className="mt-1 text-[11px] text-text-tertiary">Add observable success behavior to generate EARS.</p>
+			)}
+		</section>
 	);
 }
