@@ -581,10 +581,11 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		synthesis: "full",
 		speed: "fast",
 		sizeGb: 0.4,
-		note: "Qwen3 0.6B (the smallest Qwen3). §11 sweep 2026-07-11 (m5max, chat-agent-tools single-read probe): a NOTABLE floor result — even at 0.6B it CALLED read_file (audited ✓) AND fully synthesized the answer (echoed the file's secret verbatim), a CLEAN single-tool PASS. So single-tool call + full synthesis is achievable even at the 0.6B floor — the qwen3 lineage synthesizes well tiny, unlike the coder-tuned/gemma-edge ≤7B rows that abbreviate to 'Done.' on the same probe (single-tool synth is family/tuning-, not size-, gated). MULTI-tool chaining NOT tested and expected to fail at 0.6B (below the ≤4B chaining floor) — kept TOOL_WEAK/single_only, mirroring nemotron-nano's treatment. n=1; a data point, not a worker recommendation.",
+		note: "Qwen3 0.6B (the smallest Qwen3). §11 sweep 2026-07-11 (m5max, chat-agent-tools single-read probe): a NOTABLE floor result — even at 0.6B it CALLED read_file (audited ✓) AND fully synthesized the answer (echoed the file's secret verbatim), a CLEAN single-tool PASS. So single-tool call + full synthesis is achievable even at the 0.6B floor — the qwen3 lineage synthesizes well tiny, unlike the coder-tuned/gemma-edge ≤7B rows that abbreviate to 'Done.' on the same probe (single-tool synth is family/tuning-, not size-, gated). MULTI-turn tool chaining remains untested and expected to fail at 0.6B (below the ≤4B chaining floor), so it stays TOOL_WEAK/single_only. Production-shaped role sweep 2026-07-22 on m4mini at 32,768 context (12 cells, native tool calls, 137s) cleared the 0.60 bar at mean 0.667: architect/decompose 1.000, reviewer 0.333, worker 0.667. It passed 2k/8k context but failed 24k and missed hard tool irrelevance; use it for cheap bounded structured decomposition/summarization, never review or high-context work.",
 		sources: [
 			"https://qwenlm.github.io/blog/qwen3/",
 			"live chat-agent-tools 2026-07-11 (m5max, `qwen3-0.6b-mlx` ~0.4 GB — single read_file + full synth PASS; §11 sweep increment)",
+			"live role eval 2026-07-22 (.real-runs/20260722-222617, m4mini, 32,768 context, native_tool_call, 12 cells)",
 		],
 		basis: "empirical",
 		verified: true,

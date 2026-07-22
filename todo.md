@@ -910,6 +910,11 @@ source repo went private — so if it vanishes the buildable source still lives 
     **The 1.95 GB Q4_1 GGUF is NOT a smaller target:** the official filename is
     `Ternary-Bonsai-27B-dspark-Q4_1.gguf`, the speculative DSpark drafter for the real ~7.17 GB Q2_0_g128 target. Reject
     it as a standalone role model; speculative decoding is outside the current layer.
+  - **QWEN3 0.6B IS A USEFUL CHEAP AUXILIARY, NOT A GENERAL WORKER (live 2026-07-22):** guarded m4mini role sweep at
+    32,768 context passed the 0.60 bar (mean 0.667/12 in 137s): architect/decompose 1.000, reviewer 0.333, worker 0.667.
+    It handled 2k/8k context but failed 24k and hard tool irrelevance. Keep the one m4mini resident for bounded
+    structured summarization/decomposition (`NKLEIN_REPO_SUMMARY_MODEL_ID=qwen3-0.6b-mlx` locally), never review or
+    high-context work. The guarded admission retained all other hosts and reported no capacity failure.
   - **FAN-IN RELEASE IS AN ALL-PREREQUISITES INVARIANT (live-found 2026-07-22):** removing/completing one incoming
     dependency edge must not release a join while any other surviving prerequisite edge remains. Enforce this twice:
     pure task-board mutation returns only genuinely ready dependents, and the effectful auto-start seam rechecks the
