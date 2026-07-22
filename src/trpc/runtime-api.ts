@@ -140,6 +140,7 @@ import { createCommunitySkillDiscoveryService } from "../server/community-skill-
 import { buildCommunitySkillExecutionEnvironment } from "../server/community-skill-execution-environment";
 import { createCommunitySkillExecutionService } from "../server/community-skill-execution-service";
 import { createCommunitySkillImportService } from "../server/community-skill-import-service";
+import { createCommunitySkillSuggestionService } from "../server/community-skill-suggestion-service";
 import { createRailControlCoordinator, type RailControlCoordinator } from "../server/rail-control-service";
 import { createSearxngWebSearchClient } from "../server/web-search-searxng";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
@@ -371,6 +372,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 	const nkleinProviderService = createNKleinProviderService();
 	const communitySkillImportService = createCommunitySkillImportService();
 	const communitySkillExecutionService = createCommunitySkillExecutionService();
+	const communitySkillSuggestionService = createCommunitySkillSuggestionService();
 	const nkleinMcpSettingsService = createNKleinMcpSettingsService();
 	const nkleinMcpRuntimeService = createNKleinMcpRuntimeService({
 		onAuthStatusesChanged: (statuses) => {
@@ -988,6 +990,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				environment: buildCommunitySkillExecutionEnvironment(config, input.role),
 			});
 		},
+		suggestCommunitySkills: async (_workspaceScope, input) => await communitySkillSuggestionService.suggest(input),
 		setManagedSearchControl: async (input) => {
 			if (!deps.managedSearchBackend) throw new Error("Managed local search is unavailable in this runtime.");
 			if (input.action === "start") await deps.managedSearchBackend.start();
@@ -1328,6 +1331,14 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				broadcastTaskChatCleared: deps.broadcastTaskChatCleared,
 				taskStartQueue: deps.taskStartQueue,
 				nkleinProviderService,
+				loadCommunitySkillSessionAdmission: async (config, sessionId, role) =>
+					await communitySkillExecutionService.loadSessionAdmission({
+						sessionId,
+						role,
+						environment: buildCommunitySkillExecutionEnvironment(config, role),
+					}),
+				loadCommunitySkillSuggestions: async (sessionId, role, taskText) =>
+					await communitySkillSuggestionService.suggest({ sessionId, role, taskText }),
 			});
 		},
 		stopTaskSession: async (workspaceScope, input) =>

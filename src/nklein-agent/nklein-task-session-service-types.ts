@@ -18,7 +18,9 @@ import type {
 } from "../core/decomposition-research-preflight";
 import type { FocusChain } from "../core/focus-chain";
 import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
+import type { PromptFragment } from "../core/prompt-fragment-assembly";
 import type { SkillDynamicsLevel } from "../core/skill-resolver";
+import type { CommunitySkillSessionAdmission } from "../server/community-skill-execution-service";
 import type { TaskRunTimeoutSource } from "../state/task-run-summary-store";
 import type { AgentSandboxManager, AgentSandboxPoolConfig, AgentSandboxShellTarget } from "./nklein-agent-sandbox";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
@@ -105,6 +107,10 @@ export interface StartNKleinTaskSessionRequest {
 	 * resolution already uses. Absent ⇒ the resolver's own default (`fully_dynamic`).
 	 */
 	skillDynamicsLevel?: SkillDynamicsLevel | null;
+	/** F4.26 trusted, hash-verified admission prepared by the host control plane; never accepted from the browser. */
+	communitySkillAdmission?: CommunitySkillSessionAdmission | null;
+	/** F4.26 metadata-only candidate data fenced by the trusted host; never accepted from the browser. */
+	communitySkillSuggestionFragment?: PromptFragment | null;
 }
 
 export interface NKleinModelTurnAdmissionRequest {

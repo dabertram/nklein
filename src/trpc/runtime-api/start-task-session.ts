@@ -1,3 +1,4 @@
+import type { RuntimeConfigState } from "../../config/runtime-config";
 import type { AgentLedgerEvent } from "../../core/agent-attempt-ledger";
 import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } from "../../core/api-contract";
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
@@ -6,6 +7,7 @@ import { difficultyTierFromScore, resolveAutoDecompositionDepth } from "../../co
 import { applyWarmthPreference } from "../../core/cache-warmth";
 import { createCapabilityBlender } from "../../core/capability-blend";
 import { assessCeilingAdvisory } from "../../core/capability-ceiling-advisory";
+import { buildCommunitySkillSuggestionFragment } from "../../core/community-skill-suggestion";
 import { resolveEffectiveHostConcurrency, resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { composeDependencyHandoffPreamble } from "../../core/decision-handoff";
 import { ensureModelLoadedOnFittingDevice } from "../../core/ensure-model-loaded";
@@ -104,6 +106,8 @@ import {
 	type NKleinStartGuardCandidate,
 } from "../../nklein-agent/nklein-task-start-guard";
 import { applyMcsrAwareLocalTimeoutScaling } from "../../nklein-agent/nklein-timeout-scaling";
+import type { CommunitySkillSessionAdmission } from "../../server/community-skill-execution-service";
+import type { CommunitySkillSuggestionResult } from "../../server/community-skill-suggestion-service";
 import { readAgentLedger, readAllAgentLedger } from "../../state/agent-attempt-ledger-store";
 import {
 	composeMailboxPromptAddendum,
@@ -151,6 +155,16 @@ export type StartTaskSessionDeps = Pick<
 	| "taskStartQueue"
 > & {
 	nkleinProviderService: ReturnType<typeof createNKleinProviderService>;
+	loadCommunitySkillSessionAdmission: (
+		config: RuntimeConfigState,
+		sessionId: string,
+		role: "architect" | "worker",
+	) => Promise<CommunitySkillSessionAdmission | null>;
+	loadCommunitySkillSuggestions: (
+		sessionId: string,
+		role: "architect" | "worker",
+		taskText: string,
+	) => Promise<CommunitySkillSuggestionResult>;
 };
 
 export function applyCandidateEffectiveContextWindow<TLaunchConfig extends ResolvedNKleinLaunchConfig>(
@@ -1762,6 +1776,19 @@ export async function handleStartTaskSession(
 				// Telemetry must never block a task start.
 			}
 		}
+		const taskSessionPrompt = `${handoffPreamble}${scopePreamble}${exemplarPreamble}${promptWithMailbox}`;
+		const communitySkillAdmission = await deps.loadCommunitySkillSessionAdmission(
+			scopedRuntimeConfig,
+			body.taskId,
+			cardRole,
+		);
+		const communitySkillSuggestionFragment =
+			cardRole === "architect"
+				? await deps
+						.loadCommunitySkillSuggestions(body.taskId, cardRole, taskSessionPrompt)
+						.then((result) => buildCommunitySkillSuggestionFragment(result.suggestions))
+						.catch(() => null)
+				: null;
 		const summary = await nkleinTaskSessionService.startTaskSession({
 			taskId: body.taskId,
 			cwd: workspaceScope.workspacePath,
@@ -1769,7 +1796,7 @@ export async function handleStartTaskSession(
 			baseRef: body.baseRef,
 			// F12.38/F11.2h: upstream handoff briefs + style exemplars FIRST, the card's own objective LAST
 			// (recency keeps the actual instruction closest to the model — the F12.21 ordering rule).
-			prompt: `${handoffPreamble}${scopePreamble}${exemplarPreamble}${promptWithMailbox}`,
+			prompt: taskSessionPrompt,
 			taskTitle: resolvedNKleinTitle.length > 0 ? resolvedNKleinTitle : undefined,
 			// F12.81: behavioural exemplars as real turns ahead of the task (empty ⇒ omitted ⇒ unchanged start).
 			...(ledgerExemplarMessages.length > 0 ? { initialMessages: ledgerExemplarMessages } : {}),
@@ -1812,6 +1839,8 @@ export async function handleStartTaskSession(
 			conversationTimeoutSource: mcsrAwareTimeouts.conversationTimeoutSource,
 			maxAgentWritableFileLines: scopedRuntimeConfig.maxAgentWritableFileLines,
 			codeEmbeddingProvider,
+			communitySkillAdmission,
+			communitySkillSuggestionFragment,
 		});
 
 		// The start SUCCEEDED and the mailbox-augmented prompt is now bound into the session — durably consume the

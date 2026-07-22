@@ -93,6 +93,18 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ SUGGESTING A COMMUNITY SKILL AND ADMITTING IT ARE DIFFERENT DATA PLANES (F4.26, 2026-07-22).** Automatic
+> matching may inspect only verified, currently pinned manifest metadata. Feed planner matches through the untrusted-data
+> fence with explicit inactive/non-prompt-eligible flags; never put the skill body in that path. Human approval produces
+> a session/role/content/policy-bound ticket, and session start must re-verify that ticket before adding the body. The
+> resulting capability grant is not advisory: intersect every live surface—tool policies, built-in executors, custom
+> tools, approval callbacks, egress tools, and MCP—with the ticket grant. A shell makes a network allowlist bypassable,
+> so community sessions receive no shell; network access exists only through host-gated retrieval tools and the
+> audience-bound egress identity. Bound both active-ticket count and aggregate approved prompt bytes.
+> **SDK gotcha:** built-in executors are merged over host defaults, so omitting a denied executor can resurrect the host
+> implementation. Use wildcard-deny plus exact enabled policy entries, and override every denied/missing built-in with
+> an explicit blocker; “not present in the partial override” is not a security boundary.
+
 > **⚠️ AN IMPORTED SKILL ACTIVATION IS A SESSION-BOUND POLICY TRANSACTION (F4.23, 2026-07-22).** Import approval
 > establishes immutable content identity; it does not authorize execution. At activation, reload and byte-verify the
 > snapshot and current TOFU pin, derive tools/network/identity only from trusted workspace runtime state, and bind the
@@ -2638,8 +2650,21 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   auto-sweep cadence = David batch (noted at F12.30). Crossed.
 - [x] **F4.24 — Finish deterministic bundle screening.** Inspect magic/content for executables/obfuscation, optionally **EXECUTABLE-SCREEN DONE 2026-07-15 (`70fa054e`):** skill-bundle-screening.ts screenBundleForExecutables (magic/shebang/ext → quarantine, 5 tests) completes the binary half; skill-injection-prescreen already covers text obfuscation. **FINALIZED 2026-07-19 (split):** the screening machinery is complete; the consumer wire rides F4.20's effectful SKILL.md disk loader, which is UNBUILT (David-deferred greenfield per the §5.AR epic state) — the wire lands with that loader and is tracked at F4.20/F4.26.
   collect advisory scanner signals, and persist quarantine flags at the containment boundary.
-- [ ] **F4.26 — Implement suggest-only auto skill mode** *(F4.20–F4.24 complete).* The planner may suggest pinned,
+- [x] **F4.26 — Implement suggest-only auto skill mode** *(F4.20–F4.24 complete).* The planner may suggest pinned,
   pre-screened skills as quarantined data; human approval is required before execution context use.
+  **SHIPPED 2026-07-22:** deterministic metadata-only ranking scans bounded immutable snapshots, re-verifies each current
+  TOFU pin, and excludes rejected/blocked candidates. Architect sessions receive matches only through the standing
+  untrusted-data fence (`quarantinedData:true`, `promptEligible:false`, `active:false`); no skill body enters that path.
+  Settings exposes suggestion → exact containment review → explicit approval, with scripts left disabled unless a later
+  exact path+digest approval requests them. At task start the host reloads every immutable activation ticket, snapshot,
+  pin, role, session, content hash, and policy hash, then injects the approved body and intersects the live tool-policy,
+  SDK-executor, custom-tool, approval, egress, and MCP surfaces with the ticket grant. Community sessions have no shell,
+  active tickets are capped at 8, aggregate approved prompt content at 32k chars, tickets are role-separated so a role
+  change cannot cross-admit or cross-block, and restart/teardown preserve/forget the admission consistently. Backend
+  runtime 12,067/12,067, protected 142/142, web 1,133/1,133, focused session/API 159/159, and backend+web typechecks are
+  green. Contract behavior is 284/284; its two independent wall-clock checks
+  remain power-gated while M5 Max is in Low Power mode (measured startup 21.96s vs 15s and warm P90 648ms vs 500ms;
+  thresholds were not weakened).
 - [ ] **F4.27 — Record skill provenance and effectiveness in the ledger.** Content hash, source, scan/import/execution
   verdicts, grants, approvals, and helped/hurt signals must be queryable.
 

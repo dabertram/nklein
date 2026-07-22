@@ -2,16 +2,23 @@ import { Search, ShieldAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
+	approveCommunitySkillExecution,
 	approveCommunitySkillImport,
 	discoverCommunitySkills,
 	listCommunitySkillImports,
+	reviewCommunitySkillExecution,
 	reviewCommunitySkillImport,
+	suggestCommunitySkills,
 } from "@/runtime/queries/community-skills";
 import type {
 	RuntimeCommunitySkillDiscoveryResponse,
+	RuntimeCommunitySkillExecutionApproveResponse,
+	RuntimeCommunitySkillExecutionReviewResponse,
 	RuntimeCommunitySkillImportApproveResponse,
 	RuntimeCommunitySkillImportListResponse,
 	RuntimeCommunitySkillImportReviewResponse,
+	RuntimeCommunitySkillSuggestionRequest,
+	RuntimeCommunitySkillSuggestionResponse,
 } from "@/runtime/types";
 
 export interface CommunitySkillImportPanelApi {
@@ -19,6 +26,9 @@ export interface CommunitySkillImportPanelApi {
 	list: typeof listCommunitySkillImports;
 	review: typeof reviewCommunitySkillImport;
 	approve: typeof approveCommunitySkillImport;
+	suggest: typeof suggestCommunitySkills;
+	reviewExecution: typeof reviewCommunitySkillExecution;
+	approveExecution: typeof approveCommunitySkillExecution;
 }
 
 const DEFAULT_API: CommunitySkillImportPanelApi = {
@@ -26,6 +36,9 @@ const DEFAULT_API: CommunitySkillImportPanelApi = {
 	list: listCommunitySkillImports,
 	review: reviewCommunitySkillImport,
 	approve: approveCommunitySkillImport,
+	suggest: suggestCommunitySkills,
+	reviewExecution: reviewCommunitySkillExecution,
+	approveExecution: approveCommunitySkillExecution,
 };
 
 function messageFor(error: unknown): string {
@@ -61,7 +74,19 @@ export function CommunitySkillImportPanel({
 	const [review, setReview] = useState<RuntimeCommunitySkillImportReviewResponse | null>(null);
 	const [approval, setApproval] = useState<RuntimeCommunitySkillImportApproveResponse | null>(null);
 	const [confirmed, setConfirmed] = useState(false);
-	const [busy, setBusy] = useState<"list" | "search" | "review" | "approve" | null>(null);
+	const [sessionId, setSessionId] = useState("");
+	const [taskText, setTaskText] = useState("");
+	const [role, setRole] = useState<RuntimeCommunitySkillSuggestionRequest["role"]>("worker");
+	const [suggestions, setSuggestions] = useState<RuntimeCommunitySkillSuggestionResponse | null>(null);
+	const [activationSnapshotId, setActivationSnapshotId] = useState("");
+	const [executionReview, setExecutionReview] = useState<RuntimeCommunitySkillExecutionReviewResponse | null>(null);
+	const [executionApproval, setExecutionApproval] = useState<RuntimeCommunitySkillExecutionApproveResponse | null>(
+		null,
+	);
+	const [activationConfirmed, setActivationConfirmed] = useState(false);
+	const [busy, setBusy] = useState<
+		"list" | "search" | "review" | "approve" | "suggest" | "execution-review" | "execution-approve" | null
+	>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	const refresh = useCallback(async () => {
@@ -129,8 +154,69 @@ export function CommunitySkillImportPanel({
 				confirmation: true,
 			});
 			setApproval(result);
+			setActivationSnapshotId(result.snapshotId);
 			setConfirmed(false);
 			setReview(await api.review(workspaceId, { directory, sourceUrl }));
+		} catch (nextError) {
+			setError(messageFor(nextError));
+		} finally {
+			setBusy(null);
+		}
+	};
+
+	const invalidateActivationReview = () => {
+		setExecutionReview(null);
+		setExecutionApproval(null);
+		setActivationConfirmed(false);
+	};
+
+	const runSuggest = async () => {
+		setBusy("suggest");
+		setError(null);
+		invalidateActivationReview();
+		try {
+			setSuggestions(await api.suggest(workspaceId, { sessionId, role, taskText }));
+		} catch (nextError) {
+			setSuggestions(null);
+			setError(messageFor(nextError));
+		} finally {
+			setBusy(null);
+		}
+	};
+
+	const runExecutionReview = async () => {
+		setBusy("execution-review");
+		setError(null);
+		setExecutionApproval(null);
+		setActivationConfirmed(false);
+		try {
+			setExecutionReview(
+				await api.reviewExecution(workspaceId, { snapshotId: activationSnapshotId, sessionId, role }),
+			);
+		} catch (nextError) {
+			setExecutionReview(null);
+			setError(messageFor(nextError));
+		} finally {
+			setBusy(null);
+		}
+	};
+
+	const runExecutionApprove = async () => {
+		if (!executionReview || !activationConfirmed) return;
+		setBusy("execution-approve");
+		setError(null);
+		try {
+			setExecutionApproval(
+				await api.approveExecution(workspaceId, {
+					snapshotId: executionReview.snapshotId,
+					sessionId: executionReview.sessionId,
+					role: executionReview.role,
+					expectedContentHash: executionReview.contentHash,
+					expectedPolicyHash: executionReview.policyHash,
+					confirmation: true,
+				}),
+			);
+			setActivationConfirmed(false);
 		} catch (nextError) {
 			setError(messageFor(nextError));
 		} finally {
@@ -339,6 +425,136 @@ export function CommunitySkillImportPanel({
 					</Button>
 				</div>
 			) : null}
+
+			<div className="mt-4 grid gap-2 border-t border-border pt-3">
+				<h6 className="m-0 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+					Suggest-only activation
+				</h6>
+				<p className="m-0 text-[11px] text-text-tertiary">
+					Suggestions rank pinned metadata only and remain quarantined data. Skill text enters a task only after
+					you review and approve its exact content hash and containment policy for that task.
+				</p>
+				<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+					<label className="grid gap-1 text-[12px] text-text-secondary" htmlFor="community-skill-session-id">
+						Task/session id
+						<input
+							id="community-skill-session-id"
+							value={sessionId}
+							onChange={(event) => {
+								setSessionId(event.target.value);
+								invalidateActivationReview();
+							}}
+							className="rounded border border-border bg-surface-2 px-2 py-1 text-[12px] text-text-primary"
+						/>
+					</label>
+					<label className="grid gap-1 text-[12px] text-text-secondary" htmlFor="community-skill-role">
+						Role
+						<select
+							id="community-skill-role"
+							value={role}
+							onChange={(event) => {
+								setRole(event.target.value as RuntimeCommunitySkillSuggestionRequest["role"]);
+								invalidateActivationReview();
+							}}
+							className="rounded border border-border bg-surface-2 px-2 py-1 text-[12px] text-text-primary"
+						>
+							<option value="worker">Worker</option>
+							<option value="architect">Architect</option>
+							<option value="reviewer">Reviewer</option>
+						</select>
+					</label>
+				</div>
+				<label className="grid gap-1 text-[12px] text-text-secondary" htmlFor="community-skill-task-text">
+					Task description used for metadata ranking
+					<textarea
+						id="community-skill-task-text"
+						value={taskText}
+						onChange={(event) => setTaskText(event.target.value)}
+						className="min-h-16 rounded border border-border bg-surface-2 px-2 py-1 text-[12px] text-text-primary"
+					/>
+				</label>
+				<Button disabled={!sessionId.trim() || !taskText.trim() || busy !== null} onClick={runSuggest}>
+					Suggest pinned skills
+				</Button>
+
+				{suggestions ? (
+					<div className="grid gap-1">
+						{suggestions.suggestions.length === 0 ? (
+							<p className="m-0 text-[11px] text-text-tertiary">No pinned skill metadata matched this task.</p>
+						) : null}
+						{suggestions.suggestions.map((suggestion) => (
+							<button
+								type="button"
+								key={suggestion.snapshotId}
+								onClick={() => {
+									setActivationSnapshotId(suggestion.snapshotId);
+									invalidateActivationReview();
+								}}
+								className="rounded border border-border bg-surface-2 px-2 py-1.5 text-left text-[11px] hover:bg-surface-3"
+							>
+								<span className="block font-medium text-text-primary">{suggestion.name}</span>
+								<span className="block text-text-secondary">{suggestion.description}</span>
+								<span className="block break-all text-text-tertiary">
+									quarantined · human approval required · score {suggestion.score} · {suggestion.snapshotId}
+								</span>
+							</button>
+						))}
+					</div>
+				) : null}
+
+				<label className="grid gap-1 text-[12px] text-text-secondary" htmlFor="community-skill-activation-snapshot">
+					Pinned quarantine snapshot
+					<input
+						id="community-skill-activation-snapshot"
+						value={activationSnapshotId}
+						onChange={(event) => {
+							setActivationSnapshotId(event.target.value);
+							invalidateActivationReview();
+						}}
+						className="rounded border border-border bg-surface-2 px-2 py-1 text-[12px] text-text-primary"
+					/>
+				</label>
+				<Button
+					disabled={!sessionId.trim() || !activationSnapshotId.trim() || busy !== null}
+					onClick={runExecutionReview}
+				>
+					Review contained activation
+				</Button>
+
+				{executionReview ? (
+					<div className="grid gap-2">
+						<JsonDetails label="Effective session containment" value={executionReview.containment} />
+						<p className="m-0 break-all text-[11px] text-text-tertiary">
+							Policy SHA-256: {executionReview.policyHash}
+						</p>
+						<label className="flex items-start gap-2 rounded border border-status-yellow/30 bg-status-yellow/5 p-2 text-[11px] text-text-secondary">
+							<input
+								type="checkbox"
+								checked={activationConfirmed}
+								onChange={(event) => setActivationConfirmed(event.target.checked)}
+								disabled={!executionReview.promptEligible}
+							/>
+							<span>
+								I approve this exact skill hash and containment policy for this session. Bundled executables
+								remain disabled because none were requested here.
+							</span>
+						</label>
+						<Button
+							variant={executionReview.promptEligible ? "primary" : "danger"}
+							disabled={!activationConfirmed || !executionReview.promptEligible || busy !== null}
+							onClick={runExecutionApprove}
+						>
+							Approve for this session
+						</Button>
+					</div>
+				) : null}
+				{executionApproval ? (
+					<p role="status" className="m-0 text-[12px] text-status-green">
+						Activation {executionApproval.activationId} is bound to {executionApproval.sessionId}. Start that task
+						to consume it.
+					</p>
+				) : null}
+			</div>
 		</div>
 	);
 }

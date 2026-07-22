@@ -11,6 +11,12 @@ import { parsePromptIntentMode } from "../core/prompt-intent-mode";
 import { isTerminalFailureSessionState } from "../core/session-state-predicates";
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { applyJudgeSessionPromptDiet, JUDGE_SESSION_KINDS } from "../core/sysprompt-level";
+import {
+	isCommunitySkillToolAllowed,
+	restrictCommunitySkillExtraTools,
+	restrictCommunitySkillToolExecutors,
+	restrictCommunitySkillToolPolicies,
+} from "./community-skill-tool-admission";
 import { createArchitectRunner } from "./nklein-architect-runner";
 
 import { readAgentResultText, readSdkSessionEvent } from "./nklein-sdk-event-readers";
@@ -72,6 +78,7 @@ import {
 import { didCreditLimitJustTrigger, shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
+import type { CommunitySkillSessionAdmission } from "../server/community-skill-execution-service";
 import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { resolveStableRoutingModelId } from "../state/runtime-id-model-key-map-store";
 import { recordTaskRunSummary, type TaskRunTerminalState } from "../state/task-run-summary-store";
@@ -316,6 +323,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	});
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
 	private readonly launchConfigByTaskId = new Map<string, NKleinTaskRestartLaunchConfig>();
+	/** F4.26: host-verified activation grants retained only for this live task/restart lifecycle. */
+	private readonly communitySkillAdmissionByTaskId = new Map<string, CommunitySkillSessionAdmission>();
+	private readonly communitySkillSuggestionFragmentByTaskId = new Map<string, PromptFragment>();
 	/** F12.29: procedural-skill ids surfaced into each task's session prompt (from `procedural-skill:` fragment keys). */
 	private readonly surfacedSkillIdsByTaskId = new Map<string, string[]>();
 	// F1.14: the recovery-rung label for the task's NEXT terminal attempt event (promptStrategy) — stamped by the
@@ -1271,6 +1281,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		input: StartRuntimeTaskSessionFromLaunchConfigInput,
 	): Promise<RuntimeTaskSessionStartResult> {
 		const launchConfig = this.cacheLaunchConfig(input.taskId, input.launchConfig);
+		const communitySkillAdmission = this.communitySkillAdmissionByTaskId.get(input.taskId) ?? null;
+		const communitySkillSuggestionFragment = this.communitySkillSuggestionFragmentByTaskId.get(input.taskId) ?? null;
 		assertLocalProviderAllowed({
 			providerId: launchConfig.providerId,
 			baseUrl: launchConfig.baseUrl,
@@ -1331,7 +1343,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// the task-id suffix) and bakes the lean/full efficiency-rules level. F4.15 resolves the same skill context here
 		// as on primary starts so restarts and auxiliary reviewers cannot silently lose request-level skill policy.
 		const role = resolveNKleinTaskRole(input.taskId, this.explicitDecompositionTaskIds.has(input.taskId));
-		const sessionSkillContext = await buildSessionSkillContext({
+		const baseSessionSkillContext = await buildSessionSkillContext({
 			role,
 			taskText: input.prompt,
 			workspacePath: hostWorkspaceRoot,
@@ -1348,6 +1360,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				) / 100,
 			proceduralSkillEmbeddingProvider: input.codeEmbeddingProvider,
 		});
+		const sessionSkillContext = {
+			...baseSessionSkillContext,
+			fragments: [
+				...baseSessionSkillContext.fragments,
+				...(communitySkillSuggestionFragment ? [communitySkillSuggestionFragment] : []),
+				...(communitySkillAdmission?.fragments ?? []),
+			],
+		};
 		const attemptRetryContext = await this.buildAttemptRetryContext(
 			input.taskId,
 			launchConfig.providerId,
@@ -1405,7 +1425,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.requestTimer.markStarted(input.taskId);
 		this.adaptiveBudgetController.refreshLearnedQualityBudgets();
 		// Sandbox-proxied tool executors / extra tools for the rebuilt session (or the caller's, if supplied).
-		const sandboxToolExecutors =
+		const baseSandboxToolExecutors =
 			input.toolExecutors ??
 			(sandboxWorkspace
 				? createAgentSandboxToolExecutors(sandboxWorkspace.manager, input.taskId, {
@@ -1424,10 +1444,41 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// §5.AC step 3: append the egress-gated web_search tool AFTER the sandbox tools (never mutate what
 		// createAgentSandboxExtraTools returns). retrievalToolsBuilder.build fails closed (default-off config, blank
 		// backend) and returns [] for synthetic `::` sessions, so reviewers/critics rebuilt here get no egress.
-		const combinedExtraTools = InMemoryNKleinTaskSessionService.combineExtraTools(
+		const baseCombinedExtraTools = InMemoryNKleinTaskSessionService.combineExtraTools(
 			sandboxExtraTools,
 			this.retrievalToolsBuilder.build(input.taskId),
 		);
+		const sandboxToolExecutors = communitySkillAdmission
+			? restrictCommunitySkillToolExecutors(baseSandboxToolExecutors, communitySkillAdmission.effectiveTools)
+			: baseSandboxToolExecutors;
+		const combinedExtraTools = communitySkillAdmission
+			? restrictCommunitySkillExtraTools(baseCombinedExtraTools, communitySkillAdmission.effectiveTools)
+			: baseCombinedExtraTools;
+		const baseToolApproval = runtimeSetup.createToolApproval({
+			taskId: input.taskId,
+			contextWindow: requestContextWindow,
+			maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+			filesLikelyTouched: launchConfig.filesLikelyTouched ?? null,
+			writeScope: launchConfig.writeScope ?? null,
+			forbiddenPaths: launchConfig.forbiddenPaths ?? null,
+		});
+		const requestToolApproval = communitySkillAdmission
+			? async (request: Parameters<typeof baseToolApproval>[0]) =>
+					isCommunitySkillToolAllowed(request.toolName, communitySkillAdmission.effectiveTools)
+						? await baseToolApproval(request)
+						: {
+								approved: false,
+								reason: `Community-skill activation did not grant tool '${request.toolName}'.`,
+							}
+			: baseToolApproval;
+		const baseToolPolicies = resolveSessionToolPolicies({
+			taskId: input.taskId,
+			isExplicitDecomposition: this.explicitDecompositionTaskIds.has(input.taskId),
+			basePolicies: runtimeSetup.toolPolicies,
+		});
+		const toolPolicies = communitySkillAdmission
+			? restrictCommunitySkillToolPolicies(baseToolPolicies, communitySkillAdmission.effectiveTools)
+			: baseToolPolicies;
 		// F12.62 (opt-in NKLEIN_ARCHITECT_EDITOR): for a write-scoped WORKER card, run ONE bounded `::architect`
 		// pre-phase (same model, fresh window) and start the worker as the EDITOR with the brief prepended — the
 		// documented aider architect win for weak models. Every degraded path (no sandbox, no brief, throw) falls
@@ -1514,7 +1565,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				...(combinedExtraTools ? { extraTools: combinedExtraTools } : {}),
 				// §5.AR: offer the curated sandbox-hosted MCP servers (fit-gated per model) when enabled — the runtime-config
 				// `sandboxMcpServersEnabled` (ON by default; global/per-project opt-out) OR the `NKLEIN_SANDBOX_MCP` env override.
-				...(this.isSandboxMcpEnabled() && sandboxWorkspace
+				...(!communitySkillAdmission && this.isSandboxMcpEnabled() && sandboxWorkspace
 					? {
 							sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(input.taskId),
 							basicMemoryExecEnv: sandboxWorkspace.manager.getBasicMemoryExecEnv?.(input.taskId),
@@ -1524,21 +1575,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						}
 					: {}),
 				userInstructionService: runtimeSetup.userInstructionService,
-				requestToolApproval: runtimeSetup.createToolApproval({
-					taskId: input.taskId,
-					contextWindow: requestContextWindow,
-					maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-					filesLikelyTouched: launchConfig.filesLikelyTouched ?? null,
-					writeScope: launchConfig.writeScope ?? null,
-					forbiddenPaths: launchConfig.forbiddenPaths ?? null,
-				}),
+				requestToolApproval,
 				// Planning seeds: read-only + decompose_project (§5.B). Verdict-only sessions (review/plan-critique):
 				// inspection + submission only — the 32.2KB worker tools block was the post-diet no-submission cause.
-				toolPolicies: resolveSessionToolPolicies({
-					taskId: input.taskId,
-					isExplicitDecomposition: this.explicitDecompositionTaskIds.has(input.taskId),
-					basePolicies: runtimeSetup.toolPolicies,
-				}),
+				toolPolicies,
 				onDecompositionApplied: this.onDecompositionApplied,
 				requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(input.taskId, hostWorkspaceRoot),
 				requestClarifyTurn: this.planCritiqueRunner.buildClarifyTurnHandler(input.taskId, hostWorkspaceRoot),
@@ -1798,6 +1838,19 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		) {
 			return cloneSummary(existing.summary);
 		}
+		if (request.communitySkillAdmission) {
+			this.communitySkillAdmissionByTaskId.set(request.taskId, request.communitySkillAdmission);
+		} else {
+			this.communitySkillAdmissionByTaskId.delete(request.taskId);
+		}
+		const communitySkillAdmission = this.communitySkillAdmissionByTaskId.get(request.taskId) ?? null;
+		if (request.communitySkillSuggestionFragment) {
+			this.communitySkillSuggestionFragmentByTaskId.set(request.taskId, request.communitySkillSuggestionFragment);
+		} else {
+			this.communitySkillSuggestionFragmentByTaskId.delete(request.taskId);
+		}
+		const communitySkillSuggestionFragment =
+			this.communitySkillSuggestionFragmentByTaskId.get(request.taskId) ?? null;
 		const pendingPlanRevision = this.planCritiqueRunner.getPendingRevisionPrompt(request.taskId);
 		const taskPrompt = pendingPlanRevision ? `${request.prompt.trim()}\n\n${pendingPlanRevision}` : request.prompt;
 		const providerId = request.providerId?.trim().toLowerCase() || UNCONFIGURED_PROVIDER_ID;
@@ -2066,7 +2119,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// §5.AE: resolve the session's active skills → their `wired` system-prompt fragments (today: a repo map
 				// for a code/planning session). Fail-soft to [] — never blocks a start.
 				const role = resolveNKleinTaskRole(request.taskId, this.explicitDecompositionTaskIds.has(request.taskId));
-				const sessionSkillContext = await buildSessionSkillContext({
+				const baseSessionSkillContext = await buildSessionSkillContext({
 					role,
 					taskText: taskPrompt,
 					workspacePath: request.workspaceRoot?.trim() || request.cwd,
@@ -2095,6 +2148,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						) / 100,
 					proceduralSkillEmbeddingProvider: request.codeEmbeddingProvider,
 				});
+				const sessionSkillContext = {
+					...baseSessionSkillContext,
+					fragments: [
+						...baseSessionSkillContext.fragments,
+						...(communitySkillSuggestionFragment ? [communitySkillSuggestionFragment] : []),
+						...(communitySkillAdmission?.fragments ?? []),
+					],
+				};
 				const sessionSkillFragments = sessionSkillContext.fragments;
 				// F12.29: remember which procedures were surfaced so the terminal attempt event can stamp them
 				// (the paired-trajectory audit needs the with-skill/without-skill split).
@@ -2204,6 +2265,52 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						);
 					}
 				}
+				const baseToolApproval = runtimeSetup.createToolApproval({
+					taskId: request.taskId,
+					contextWindow: requestContextWindow,
+					maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
+					filesLikelyTouched: request.filesLikelyTouched ?? null,
+					writeScope: request.writeScope ?? null,
+					forbiddenPaths: request.forbiddenPaths ?? null,
+				});
+				const requestToolApproval = communitySkillAdmission
+					? async (toolRequest: Parameters<typeof baseToolApproval>[0]) =>
+							isCommunitySkillToolAllowed(toolRequest.toolName, communitySkillAdmission.effectiveTools)
+								? await baseToolApproval(toolRequest)
+								: {
+										approved: false,
+										reason: `Community-skill activation did not grant tool '${toolRequest.toolName}'.`,
+									}
+					: baseToolApproval;
+				const baseToolExecutors = sandboxWorkspace
+					? createAgentSandboxToolExecutors(sandboxWorkspace.manager, request.taskId, {
+							pauseController: this.pauseController,
+						})
+					: undefined;
+				const toolExecutors = communitySkillAdmission
+					? restrictCommunitySkillToolExecutors(baseToolExecutors, communitySkillAdmission.effectiveTools)
+					: baseToolExecutors;
+				const baseExtraTools = InMemoryNKleinTaskSessionService.combineExtraTools(
+					sandboxWorkspace
+						? createAgentSandboxExtraTools(sandboxWorkspace.manager, request.taskId, {
+								sessionId: createSessionId(request.taskId),
+								contextWindow: requestContextWindow,
+								maxFileLines: request.maxAgentWritableFileLines ?? null,
+							})
+						: undefined,
+					this.retrievalToolsBuilder.build(request.taskId),
+				);
+				const extraTools = communitySkillAdmission
+					? restrictCommunitySkillExtraTools(baseExtraTools, communitySkillAdmission.effectiveTools)
+					: baseExtraTools;
+				const baseToolPolicies = resolveSessionToolPolicies({
+					taskId: request.taskId,
+					isExplicitDecomposition: this.explicitDecompositionTaskIds.has(request.taskId),
+					basePolicies: runtimeSetup.toolPolicies,
+				});
+				const toolPolicies = communitySkillAdmission
+					? restrictCommunitySkillToolPolicies(baseToolPolicies, communitySkillAdmission.effectiveTools)
+					: baseToolPolicies;
 				// auxiliary sessions already use this same gate.
 				const startResult = await this.withModelTurnAdmission(
 					{
@@ -2253,35 +2360,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							turnTimeoutMs: request.turnTimeoutMs,
 							systemPrompt,
 							userInstructionService: runtimeSetup.userInstructionService,
-							requestToolApproval: runtimeSetup.createToolApproval({
-								taskId: request.taskId,
-								contextWindow: requestContextWindow,
-								maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
-								filesLikelyTouched: request.filesLikelyTouched ?? null,
-								writeScope: request.writeScope ?? null,
-								forbiddenPaths: request.forbiddenPaths ?? null,
-							}),
-							toolExecutors: sandboxWorkspace
-								? createAgentSandboxToolExecutors(sandboxWorkspace.manager, request.taskId, {
-										pauseController: this.pauseController,
-									})
-								: undefined,
+							requestToolApproval,
+							toolExecutors,
 							// §5.AC step 3: sandbox tools ⊕ the egress-gated web_search tool (config-gated, fail closed; [] for
 							// synthetic `::` sessions). Concatenated here — createAgentSandboxExtraTools stays untouched.
-							extraTools: InMemoryNKleinTaskSessionService.combineExtraTools(
-								sandboxWorkspace
-									? createAgentSandboxExtraTools(sandboxWorkspace.manager, request.taskId, {
-											sessionId: createSessionId(request.taskId),
-											contextWindow: requestContextWindow,
-											maxFileLines: request.maxAgentWritableFileLines ?? null,
-										})
-									: undefined,
-								this.retrievalToolsBuilder.build(request.taskId),
-							),
+							extraTools,
 							// §5.AR: a RESTARTED isolated task gets the curated sandbox MCP servers too (consistent with the main
 							// start path) — gated by the config setting (on by default) OR the env override, and only when a sandbox
 							// exists for the rebuilt task.
-							...(this.isSandboxMcpEnabled() && sandboxWorkspace
+							...(!communitySkillAdmission && this.isSandboxMcpEnabled() && sandboxWorkspace
 								? {
 										sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(request.taskId),
 										basicMemoryExecEnv: sandboxWorkspace.manager.getBasicMemoryExecEnv?.(request.taskId),
@@ -2290,11 +2377,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 									}
 								: {}),
 							// Planning seeds: §5.B restriction; verdict-only sessions: judge narrowing (see resolveSessionToolPolicies).
-							toolPolicies: resolveSessionToolPolicies({
-								taskId: request.taskId,
-								isExplicitDecomposition: this.explicitDecompositionTaskIds.has(request.taskId),
-								basePolicies: runtimeSetup.toolPolicies,
-							}),
+							toolPolicies,
 							onDecompositionApplied: this.onDecompositionApplied,
 							requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(request.taskId, request.cwd),
 							requestClarifyTurn: this.planCritiqueRunner.buildClarifyTurnHandler(request.taskId, request.cwd),
@@ -2360,6 +2443,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		this.resetInterruptedTaskState(taskId);
 		this.launchConfigByTaskId.delete(taskId);
+		this.communitySkillAdmissionByTaskId.delete(taskId);
+		this.communitySkillSuggestionFragmentByTaskId.delete(taskId);
 		if (options.abortActiveTurn) {
 			await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
 		} else {
@@ -2446,6 +2531,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		this.resetInterruptedTaskState(taskId);
 		this.launchConfigByTaskId.delete(taskId);
+		this.communitySkillAdmissionByTaskId.delete(taskId);
+		this.communitySkillSuggestionFragmentByTaskId.delete(taskId);
 		// HARD-abort, not graceful stop (runs 21/22 live finding): the architect's in-flight turn kept streaming
 		// after the card completed — its hooks flipped the summary back to "running" for 18+ minutes, holding the
 		// endpoint slot AND defeating the dead-stall detector (a phantom-alive session). The decomposition is
@@ -2980,6 +3067,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
+		this.communitySkillAdmissionByTaskId.delete(taskId);
+		this.communitySkillSuggestionFragmentByTaskId.delete(taskId);
 		this.requestTimer.forget(taskId);
 		this.failureBackoff.forget(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
@@ -3660,6 +3749,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	/** The shared teardown-forgets for an auxiliary synthetic session (§5.U harness + speculative-mirror runner). */
 	private forgetSyntheticSessionState(taskId: string): void {
 		this.launchConfigByTaskId.delete(taskId);
+		this.communitySkillAdmissionByTaskId.delete(taskId);
+		this.communitySkillSuggestionFragmentByTaskId.delete(taskId);
 		this.providerIdStore.forget(taskId);
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);

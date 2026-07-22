@@ -39,6 +39,8 @@ import {
 	runtimeCommunitySkillImportListResponseSchema,
 	runtimeCommunitySkillImportReviewRequestSchema,
 	runtimeCommunitySkillImportReviewResponseSchema,
+	runtimeCommunitySkillSuggestionRequestSchema,
+	runtimeCommunitySkillSuggestionResponseSchema,
 	runtimeConfigResponseSchema,
 	runtimeConfigSaveRequestSchema,
 	runtimeDebugResetAllStateResponseSchema,
@@ -245,6 +247,10 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.input(runtimeCommunitySkillExecutionApproveRequestSchema)
 			.output(runtimeCommunitySkillExecutionApproveResponseSchema)
 			.mutation(async ({ ctx, input }) => ctx.runtimeApi.approveCommunitySkillExecution(ctx.workspaceScope, input)),
+		suggestCommunitySkills: workspaceProcedure
+			.input(runtimeCommunitySkillSuggestionRequestSchema)
+			.output(runtimeCommunitySkillSuggestionResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.suggestCommunitySkills(ctx.workspaceScope, input)),
 		setManagedSearchControl: t.procedure
 			.input(runtimeManagedSearchControlRequestSchema)
 			.output(runtimeManagedSearchStatusResponseSchema)

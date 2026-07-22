@@ -126,9 +126,27 @@ describe("createCommunitySkillExecutionService", () => {
 			confirmation: true,
 		});
 		expect(ticket).toMatchObject({ active: true, approvedAt: 9876, policyHash: review.policyHash });
-		const storedPath = join(communityRoot, "activations", hash(ticket.sessionId), `${ticket.activationId}.json`);
+		const storedPath = join(
+			communityRoot,
+			"activations",
+			hash(ticket.sessionId),
+			ticket.role,
+			`${ticket.activationId}.json`,
+		);
 		const stored = JSON.parse(await readFile(storedPath, "utf8"));
 		expect(stored).toMatchObject({ activationId: ticket.activationId, active: true });
+		const admission = await executionService.loadSessionAdmission({
+			sessionId: "task-42",
+			role: "worker",
+			environment,
+		});
+		expect(admission).toMatchObject({
+			activationIds: [ticket.activationId],
+			effectiveTools: ["read_files", "web_search", "write_file"],
+			networkPolicy: "allowlist",
+		});
+		expect(admission?.fragments[0]?.text).toContain("Inspect the supplied workspace");
+		expect(admission?.fragments[0]?.text).toContain(ticket.contentHash);
 		expect(
 			await executionService.approve({
 				snapshotId: imported.snapshotId,
@@ -186,6 +204,39 @@ describe("createCommunitySkillExecutionService", () => {
 			decision: "allow",
 			approvedExecutableFiles: [executable],
 		});
+	});
+
+	it("isolates activation tickets by role so changing a task role cannot cross-block or cross-admit", async () => {
+		const { imported, executionService, environment } = await fixture();
+		const workerReview = await executionService.review({
+			snapshotId: imported.snapshotId,
+			sessionId: "task-role-change",
+			role: "worker",
+			environment,
+		});
+		await executionService.approve({
+			snapshotId: imported.snapshotId,
+			sessionId: "task-role-change",
+			role: "worker",
+			environment,
+			expectedContentHash: workerReview.contentHash,
+			expectedPolicyHash: workerReview.policyHash,
+			confirmation: true,
+		});
+		await expect(
+			executionService.loadSessionAdmission({
+				sessionId: "task-role-change",
+				role: "architect",
+				environment,
+			}),
+		).resolves.toBeNull();
+		await expect(
+			executionService.loadSessionAdmission({
+				sessionId: "task-role-change",
+				role: "worker",
+				environment,
+			}),
+		).resolves.toMatchObject({ effectiveTools: ["read_files", "web_search", "write_file"] });
 	});
 
 	it("rejects policy TOCTOU and ambient credential exposure", async () => {

@@ -665,6 +665,51 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		).toEqual(["Investigate startup"]);
 	});
 
+	it("admits approved skill guidance while narrowing the live session to the ticket tool grant", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-community-skill",
+			cwd: "/tmp/worktree",
+			prompt: "Review the repository",
+			communitySkillSuggestionFragment: {
+				key: "community-skill:suggestions",
+				volatility: "task",
+				tier: "standard",
+				text: "QUARANTINED METADATA ONLY",
+			},
+			communitySkillAdmission: {
+				activationIds: ["a".repeat(64)],
+				effectiveTools: ["read_files"],
+				networkPolicy: "none",
+				fragments: [
+					{
+						key: `community-skill:${"a".repeat(64)}`,
+						volatility: "task",
+						tier: "standard",
+						text: "APPROVED HASH-BOUND GUIDANCE",
+					},
+				],
+			},
+		});
+
+		await waitForSettled(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1));
+		const startRequest = runtime.startTaskSessionMock.mock.calls[0]?.[0];
+		expect(startRequest?.systemPrompt).toContain("QUARANTINED METADATA ONLY");
+		expect(startRequest?.systemPrompt).toContain("APPROVED HASH-BOUND GUIDANCE");
+		expect(startRequest?.toolPolicies).toEqual({
+			"*": { enabled: false, autoApprove: false },
+			read_files: { enabled: true, autoApprove: false },
+			editor: { enabled: false, autoApprove: false },
+			apply_patch: { enabled: false, autoApprove: false },
+		});
+		await expect(
+			startRequest?.requestToolApproval?.({ toolName: "editor", input: {} } as ToolApprovalRequest),
+		).resolves.toMatchObject({ approved: false });
+		await expect(
+			startRequest?.requestToolApproval?.({ toolName: "read_files", input: {} } as ToolApprovalRequest),
+		).resolves.toMatchObject({ approved: true });
+	});
+
 	it("stamps the resolved launch role on the session summary (todo §5.G/§5.U)", async () => {
 		const { service, runtime } = createTrackedService();
 

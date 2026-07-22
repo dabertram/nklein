@@ -75,4 +75,52 @@ describe("community-skill import tRPC routes", () => {
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		expect(reviewCommunitySkillExecution).not.toHaveBeenCalled();
 	});
+
+	it("dispatches suggest-only ranking through workspace scope with quarantine flags intact", async () => {
+		const snapshotId = `${"a".repeat(32)}/${"b".repeat(64)}`;
+		const suggestCommunitySkills = vi.fn(async () => ({
+			sessionId: "plan-1",
+			role: "architect" as const,
+			channel: "suggest-only" as const,
+			suggestions: [
+				{
+					snapshotId,
+					skillId: "review",
+					name: "review",
+					description: "Review repository changes",
+					version: null,
+					contentHash: "b".repeat(64),
+					sourceUrl: "https://example.test/review",
+					score: 6,
+					matchedTerms: ["review"],
+					quarantinedData: true as const,
+					humanApprovalRequired: true as const,
+					promptEligible: false as const,
+					active: false as const,
+				},
+			],
+		}));
+		const workspaceScope = { workspaceId: "workspace-1", workspacePath: "/tmp/workspace" };
+		const caller = runtimeAppRouter.createCaller({
+			requestedWorkspaceId: "workspace-1",
+			workspaceScope,
+			runtimeApi: { suggestCommunitySkills },
+		} as unknown as RuntimeTrpcContext);
+
+		await expect(
+			caller.runtime.suggestCommunitySkills({
+				sessionId: "plan-1",
+				role: "architect",
+				taskText: "Review repository changes",
+			}),
+		).resolves.toMatchObject({
+			channel: "suggest-only",
+			suggestions: [{ quarantinedData: true, humanApprovalRequired: true, promptEligible: false, active: false }],
+		});
+		expect(suggestCommunitySkills).toHaveBeenCalledWith(workspaceScope, {
+			sessionId: "plan-1",
+			role: "architect",
+			taskText: "Review repository changes",
+		});
+	});
 });

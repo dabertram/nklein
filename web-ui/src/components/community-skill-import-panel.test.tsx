@@ -6,9 +6,13 @@ import {
 	CommunitySkillImportPanel,
 	type CommunitySkillImportPanelApi,
 } from "@/components/community-skill-import-panel";
-import type { RuntimeCommunitySkillImportReviewResponse } from "@/runtime/types";
+import type {
+	RuntimeCommunitySkillExecutionReviewResponse,
+	RuntimeCommunitySkillImportReviewResponse,
+} from "@/runtime/types";
 
 const HASH = "a".repeat(64);
+const SNAPSHOT_ID = `${"b".repeat(32)}/${HASH}`;
 const REVIEW: RuntimeCommunitySkillImportReviewResponse = {
 	inboxPath: "/tmp/community-skills/inbox",
 	directory: "fixture",
@@ -57,6 +61,46 @@ const REVIEW: RuntimeCommunitySkillImportReviewResponse = {
 	active: false,
 };
 
+const EXECUTION_REVIEW: RuntimeCommunitySkillExecutionReviewResponse = {
+	snapshotId: SNAPSHOT_ID,
+	skillId: REVIEW.skillId,
+	contentHash: HASH,
+	version: "1.0.0",
+	sessionId: "task-42",
+	role: "worker",
+	policyHash: "c".repeat(64),
+	containment: {
+		decision: "allow",
+		reason: "allow",
+		capabilityGrant: {
+			granted: ["read_files"],
+			denied: [],
+			effectiveTools: ["read_files"],
+			posture: "fully_granted",
+			reason: "granted",
+		},
+		effectiveTools: ["read_files"],
+		deniedByContainment: [],
+		networkPolicy: "none",
+		credentialMode: "none",
+		approvedExecutableFiles: [],
+		disabledExecutableFiles: [],
+		pendingExecutableApprovals: [],
+		ruleOfTwo: {
+			untrustedInput: true,
+			sensitiveAccess: false,
+			externalOrStatefulEffects: false,
+			propertyCount: 1,
+			satisfied: true,
+			configuration: "A",
+			reason: "satisfied",
+		},
+		reasons: ["satisfied"],
+	},
+	promptEligible: true,
+	active: false,
+};
+
 describe("CommunitySkillImportPanel", () => {
 	let container: HTMLDivElement;
 	let root: Root;
@@ -96,11 +140,40 @@ describe("CommunitySkillImportPanel", () => {
 			approve: vi.fn(async () => ({
 				skillId: REVIEW.skillId,
 				contentHash: HASH,
-				snapshotId: `identity/${HASH}`,
+				snapshotId: SNAPSHOT_ID,
 				importedAt: 1,
 				active: false as const,
 				quarantined: true as const,
 				decision: REVIEW.decision,
+			})),
+			suggest: vi.fn(async () => ({
+				sessionId: "task-42",
+				role: "worker" as const,
+				channel: "suggest-only" as const,
+				suggestions: [
+					{
+						snapshotId: SNAPSHOT_ID,
+						skillId: REVIEW.skillId,
+						name: "fixture",
+						description: "Repository review skill",
+						version: "1.0.0",
+						contentHash: HASH,
+						sourceUrl: REVIEW.sourceUrl,
+						score: 6,
+						matchedTerms: ["review"],
+						quarantinedData: true as const,
+						humanApprovalRequired: true as const,
+						promptEligible: false as const,
+						active: false as const,
+					},
+				],
+			})),
+			reviewExecution: vi.fn(async () => EXECUTION_REVIEW),
+			approveExecution: vi.fn(async () => ({
+				...EXECUTION_REVIEW,
+				activationId: "d".repeat(64),
+				approvedAt: 1,
+				active: true as const,
 			})),
 		};
 
@@ -146,5 +219,52 @@ describe("CommunitySkillImportPanel", () => {
 			confirmation: true,
 		});
 		expect(container.textContent).toContain("inactive quarantine snapshot");
+
+		const sessionInput = container.querySelector<HTMLInputElement>("#community-skill-session-id");
+		const taskInput = container.querySelector<HTMLTextAreaElement>("#community-skill-task-text");
+		await act(async () => {
+			sessionInput!.value = "task-42";
+			Simulate.change(sessionInput!);
+			taskInput!.value = "Review this repository";
+			Simulate.change(taskInput!);
+		});
+		const suggestButton = [...container.querySelectorAll("button")].find((button) =>
+			button.textContent?.includes("Suggest pinned skills"),
+		);
+		await act(async () => {
+			suggestButton?.click();
+			await Promise.resolve();
+		});
+		expect(container.textContent).toContain("quarantined · human approval required");
+		const suggestionButton = [...container.querySelectorAll("button")].find((button) =>
+			button.textContent?.includes("Repository review skill"),
+		);
+		await act(async () => suggestionButton?.click());
+		const executionReviewButton = [...container.querySelectorAll("button")].find((button) =>
+			button.textContent?.includes("Review contained activation"),
+		);
+		await act(async () => {
+			executionReviewButton?.click();
+			await Promise.resolve();
+		});
+		expect(container.textContent).toContain("Effective session containment");
+		const activationCheckbox = [...container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].at(-1);
+		await act(async () => activationCheckbox?.click());
+		const executionApproveButton = [...container.querySelectorAll("button")].find((button) =>
+			button.textContent?.includes("Approve for this session"),
+		);
+		await act(async () => {
+			executionApproveButton?.click();
+			await Promise.resolve();
+		});
+		expect(api.approveExecution).toHaveBeenCalledWith(null, {
+			snapshotId: SNAPSHOT_ID,
+			sessionId: "task-42",
+			role: "worker",
+			expectedContentHash: HASH,
+			expectedPolicyHash: "c".repeat(64),
+			confirmation: true,
+		});
+		expect(container.textContent).toContain("is bound to task-42");
 	});
 });

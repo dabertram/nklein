@@ -104,3 +104,40 @@ export const runtimeCommunitySkillExecutionApproveResponseSchema = runtimeCommun
 export type RuntimeCommunitySkillExecutionApproveResponse = z.infer<
 	typeof runtimeCommunitySkillExecutionApproveResponseSchema
 >;
+
+export const runtimeCommunitySkillSuggestionRequestSchema = z
+	.object({
+		sessionId: sessionIdSchema,
+		role: roleSchema,
+		taskText: z.string().trim().min(1).max(8_000),
+	})
+	.strict();
+export type RuntimeCommunitySkillSuggestionRequest = z.infer<typeof runtimeCommunitySkillSuggestionRequestSchema>;
+
+export const runtimeCommunitySkillSuggestionResponseSchema = z
+	.object({
+		sessionId: sessionIdSchema,
+		role: roleSchema,
+		channel: z.literal("suggest-only"),
+		suggestions: z.array(
+			z
+				.object({
+					snapshotId: snapshotIdSchema,
+					skillId: z.string(),
+					name: z.string(),
+					description: z.string(),
+					version: z.string().nullable(),
+					contentHash: sha256Schema,
+					sourceUrl: z.string(),
+					score: z.number().nonnegative(),
+					matchedTerms: z.array(z.string()),
+					quarantinedData: z.literal(true),
+					humanApprovalRequired: z.literal(true),
+					promptEligible: z.literal(false),
+					active: z.literal(false),
+				})
+				.strict(),
+		),
+	})
+	.strict();
+export type RuntimeCommunitySkillSuggestionResponse = z.infer<typeof runtimeCommunitySkillSuggestionResponseSchema>;

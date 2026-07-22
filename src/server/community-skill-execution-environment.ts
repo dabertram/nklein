@@ -15,7 +15,6 @@ const DOCKER_TOOL_NAMES = [
 	"repo_map",
 	"search_code",
 	"search_codebase",
-	"run_commands",
 ] as const;
 const EGRESS_TOOL_NAMES = ["web_search", "browse_url", "fetch_web_content"] as const;
 

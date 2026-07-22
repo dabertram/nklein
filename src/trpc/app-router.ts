@@ -41,6 +41,8 @@ import type {
 	RuntimeCommunitySkillImportListResponse,
 	RuntimeCommunitySkillImportReviewRequest,
 	RuntimeCommunitySkillImportReviewResponse,
+	RuntimeCommunitySkillSuggestionRequest,
+	RuntimeCommunitySkillSuggestionResponse,
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
 	RuntimeDebugResetAllStateResponse,
@@ -293,6 +295,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeCommunitySkillExecutionApproveRequest,
 		) => Promise<RuntimeCommunitySkillExecutionApproveResponse>;
+		suggestCommunitySkills: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeCommunitySkillSuggestionRequest,
+		) => Promise<RuntimeCommunitySkillSuggestionResponse>;
 		setManagedSearchControl: (
 			input: RuntimeManagedSearchControlRequest,
 		) => Promise<RuntimeManagedSearchStatusResponse>;

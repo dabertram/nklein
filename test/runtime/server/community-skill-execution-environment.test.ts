@@ -25,8 +25,9 @@ describe("buildCommunitySkillExecutionEnvironment", () => {
 			taskScopedEgressIdentity: true,
 		});
 		expect(result.availableTools.map(({ name }) => name)).toEqual(
-			expect.arrayContaining(["read_files", "write_file", "run_commands", "web_search"]),
+			expect.arrayContaining(["read_files", "write_file", "web_search"]),
 		);
+		expect(result.availableTools.map(({ name }) => name)).not.toContain("run_commands");
 		expect(result.availableTools.every(({ manifest }) => manifest.fsScope !== "host")).toBe(true);
 	});
 
