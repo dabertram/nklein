@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F5.2b closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F5.3 closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 172-package remainder is **83 ready + 0 partial + 75 dependency-blocked + 7 external/
+  gate below is green. The current 171-package remainder is **82 ready + 0 partial + 75 dependency-blocked + 7 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -95,6 +95,13 @@ feature-completeness challenges, release checks, and required manual checks are 
 gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
+
+> **⚠️ SETUP IS ONE FACT MODEL WITH MULTIPLE RENDERERS, AND INHERITANCE MUST BE HONEST (F5.3, 2026-07-22).** Browser
+> wizards and `nklein setup` render the same pure `buildGlobalSetupPlan` / `buildProjectSetupPlan` output; do not fork
+> recommendation logic into UI copy or a CLI-only checklist. A probe must distinguish “reachable with zero loaded
+> models” from “unreachable,” structured fleet settings must go through their canonical parser (a
+> `m5max:128,legion5pro:8` map is not one integer), and a project step must never advertise an override the config model
+> does not have. Global security boundaries (fleet budgets, egress, LAN bind) are shown as inherited and non-widenable.
 
 > **⚠️ RESOURCE OBSERVABILITY MUST BE DEMAND-DRIVEN AND LABEL MEASURED VERSUS MODELLED VALUES (F4.53,
 > 2026-07-22).** A permanent CPU/GPU monitor spends resources while the operator is not looking, and remote LM-Link
@@ -2938,9 +2945,6 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   is NO genuine unexposed top-level non-experimental setting. REMAINING (largely already covered by F1.29a/b): confirm
   each control's global/project provenance + validation + reset + a test; do a Settings-dialog browser pass to spot any
   control that renders but lacks reset/provenance.
-- [ ] **F5.3 — Complete guided setup for newly added capability groups.** First-run/project setup must cover isolation,
-  models, memory/MCP, egress/retrieval, resource policy, and desktop access with safe defaults; add CLI rendering parity
-  over the same setup-plan model.
 - [x] **F5.4 —  *(finalized 2026-07-19: mechanism complete + mounted, CSP-self-only proven; only the media FILES remain = content decision, DAVID BATCH.)* Add first-party self-hosted onboarding media.** Keep CSP `self`-only, make media optional/lightweight, and
   provide accessible text fallback.
 - [x] **F5.4a — Stop the startup onboarding carousel's render loop.** Reproduce the browser-observed React “Maximum

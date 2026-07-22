@@ -11,6 +11,7 @@ import {
 	type ProjectSetupFacts,
 	recommendConcurrency,
 	recommendSandboxPoolSizing,
+	summarizeDesktopAccessRecommendation,
 	summarizeReviewPostureChoice,
 } from "../../../src/core/setup-detection";
 import {
@@ -154,6 +155,18 @@ describe("summarizeReviewPostureChoice", () => {
 	});
 });
 
+describe("summarizeDesktopAccessRecommendation", () => {
+	it("does not invent live auth state in an offline CLI process", () => {
+		expect(
+			summarizeDesktopAccessRecommendation({
+				desktopShellConnected: false,
+				remoteAccessEnabled: true,
+				remoteAuthenticationEnabled: null,
+			}),
+		).toContain("status unavailable");
+	});
+});
+
 const globalFacts = (overrides: Partial<GlobalSetupFacts> = {}): GlobalSetupFacts => ({
 	totalRamMb: 32 * GB,
 	cpuCount: 8,
@@ -164,13 +177,18 @@ const globalFacts = (overrides: Partial<GlobalSetupFacts> = {}): GlobalSetupFact
 	secondOpinionReviewEnabled: true,
 	assignedModelRoleCount: 3,
 	totalModelRoleCount: 3,
-	deviceRamGb: 32,
+	deviceRamGbByMachine: { m5max: 128, m4mini: 24, legion5pro: 8 },
 	basicMemoryEnabled: true,
 	sandboxMcpServersEnabled: false,
 	memoryFreshnessAuditEnabled: true,
 	egressProxyEnabled: false,
 	egressAllowlistCount: 0,
 	retrievalEgressEnabled: false,
+	desktopAccess: {
+		desktopShellConnected: true,
+		remoteAccessEnabled: false,
+		remoteAuthenticationEnabled: true,
+	},
 	...overrides,
 });
 
@@ -179,6 +197,21 @@ const projectFacts = (overrides: Partial<ProjectSetupFacts> = {}): ProjectSetupF
 	loadedModelCount: 2,
 	cpuCount: 8,
 	detectedBaseBranch: "main",
+	isolationProfile: "lean_shared",
+	assignedModelRoleCount: 3,
+	totalModelRoleCount: 3,
+	deviceRamGbByMachine: { m5max: 128, m4mini: 24, legion5pro: 8 },
+	basicMemoryEnabled: true,
+	sandboxMcpServersEnabled: true,
+	memoryFreshnessAuditEnabled: true,
+	egressProxyEnabled: false,
+	egressAllowlistCount: 0,
+	retrievalEgressEnabled: false,
+	desktopAccess: {
+		desktopShellConnected: true,
+		remoteAccessEnabled: false,
+		remoteAuthenticationEnabled: true,
+	},
 	...overrides,
 });
 
@@ -196,6 +229,7 @@ describe("buildGlobalSetupPlan", () => {
 			"guardrails",
 			"memory",
 			"egress",
+			"desktop",
 			"features",
 		]);
 		for (const step of plan) {
@@ -209,7 +243,8 @@ describe("buildGlobalSetupPlan", () => {
 		// Fully-local privacy default + all roles assigned + fleet routing on.
 		const local = buildGlobalSetupPlan(globalFacts());
 		expect(local.find((s) => s.stepId === "models")?.recommendation).toContain("All 3 roles assigned");
-		expect(local.find((s) => s.stepId === "resources")?.recommendation).toContain("32 GB");
+		expect(local.find((s) => s.stepId === "resources")?.recommendation).toContain("m5max 128 GB");
+		expect(local.find((s) => s.stepId === "resources")?.recommendation).toContain("legion5pro 8 GB");
 		expect(local.find((s) => s.stepId === "egress")?.recommendation.toLowerCase()).toContain("fully local");
 		expect(local.find((s) => s.stepId === "memory")?.recommendation).toContain("Basic Memory");
 
@@ -217,14 +252,14 @@ describe("buildGlobalSetupPlan", () => {
 		const opened = buildGlobalSetupPlan(
 			globalFacts({
 				assignedModelRoleCount: 1,
-				deviceRamGb: null,
+				deviceRamGbByMachine: {},
 				retrievalEgressEnabled: true,
 				egressProxyEnabled: true,
 				egressAllowlistCount: 2,
 			}),
 		);
 		expect(opened.find((s) => s.stepId === "models")?.recommendation).toContain("1/3 roles assigned");
-		expect(opened.find((s) => s.stepId === "resources")?.recommendation.toLowerCase()).toContain("no device ram");
+		expect(opened.find((s) => s.stepId === "resources")?.recommendation.toLowerCase()).toContain("no fast-memory");
 		const egress = opened.find((s) => s.stepId === "egress")?.recommendation ?? "";
 		expect(egress).toContain("2 allowlisted hosts");
 		expect(egress.toLowerCase()).toContain("online retrieval");
@@ -250,10 +285,14 @@ describe("buildProjectSetupPlan", () => {
 		const plan = buildProjectSetupPlan(projectFacts());
 		expect(plan.map((s) => s.stepId)).toEqual([...PROJECT_SETUP_STEP_IDS]);
 		expect(PROJECT_SETUP_STEP_IDS).toEqual([
-			"overrides",
+			"isolation",
+			"models",
+			"resources",
+			"memory",
+			"egress",
+			"desktop",
 			"concurrency",
 			"overlap",
-			"egress",
 			"acceptance",
 			"baseBranch",
 		]);
@@ -262,6 +301,16 @@ describe("buildProjectSetupPlan", () => {
 			expect(step.recommendation.length).toBeGreaterThan(0);
 			expect(step.detail.length).toBeGreaterThan(0);
 		}
+	});
+
+	it("covers every newly-added capability group with inherited safety boundaries", () => {
+		const plan = buildProjectSetupPlan(projectFacts());
+		expect(plan.find((step) => step.stepId === "isolation")?.detail).toContain("fails closed");
+		expect(plan.find((step) => step.stepId === "models")?.recommendation).toContain("All 3 roles");
+		expect(plan.find((step) => step.stepId === "resources")?.recommendation).toContain("legion5pro 8 GB");
+		expect(plan.find((step) => step.stepId === "memory")?.recommendation).toContain("Basic Memory");
+		expect(plan.find((step) => step.stepId === "egress")?.recommendation.toLowerCase()).toContain("fully local");
+		expect(plan.find((step) => step.stepId === "desktop")?.recommendation).toContain("loopback-only");
 	});
 
 	it("surfaces the detected acceptance command and base branch", () => {

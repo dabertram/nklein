@@ -10,13 +10,18 @@ describe("handleGetGlobalSetupPlan (§5.BA)", () => {
 		getDockerVmMemoryMb: async () => 16_384,
 		getSecondOpinionReviewEnabled: () => true,
 		getModelRoleCounts: () => ({ assigned: 3, total: 3 }),
-		getDeviceRamGb: () => 32,
+		getDeviceRamGbByMachine: () => ({ m5max: 128, m4mini: 24, legion5pro: 8 }),
 		getMemorySettings: () => ({
 			basicMemoryEnabled: true,
 			sandboxMcpServersEnabled: false,
 			memoryFreshnessAuditEnabled: true,
 		}),
 		getEgressSettings: () => ({ egressProxyEnabled: false, allowlistCount: 0, retrievalEgressEnabled: false }),
+		getDesktopAccess: () => ({
+			desktopShellConnected: true,
+			remoteAccessEnabled: false,
+			remoteAuthenticationEnabled: true,
+		}),
 		getCompletedAt: () => null,
 	};
 
@@ -34,6 +39,7 @@ describe("handleGetGlobalSetupPlan (§5.BA)", () => {
 			"guardrails",
 			"memory",
 			"egress",
+			"desktop",
 			"features",
 		]);
 		// Provider reachable → the provider step reports the loaded models.
@@ -81,6 +87,24 @@ describe("handleGetGlobalSetupPlan (§5.BA)", () => {
 });
 
 describe("handleGetProjectSetupPlan (§5.BA)", () => {
+	const capabilitySettings = {
+		isolationProfile: "lean_shared" as const,
+		assignedModelRoleCount: 3,
+		totalModelRoleCount: 3,
+		deviceRamGbByMachine: { m5max: 128, m4mini: 24, legion5pro: 8 },
+		basicMemoryEnabled: true,
+		sandboxMcpServersEnabled: true,
+		memoryFreshnessAuditEnabled: true,
+		egressProxyEnabled: false,
+		egressAllowlistCount: 0,
+		retrievalEgressEnabled: false,
+		desktopAccess: {
+			desktopShellConnected: true,
+			remoteAccessEnabled: false,
+			remoteAuthenticationEnabled: true,
+		},
+	};
+
 	it("detects the acceptance command from a package.json test script", async () => {
 		const readPackageJson = vi.fn(async () => ({ scripts: { test: "vitest run" } }));
 		const plan = await handleGetProjectSetupPlan({
@@ -88,6 +112,7 @@ describe("handleGetProjectSetupPlan (§5.BA)", () => {
 			getLoadedModelIds: async () => ["a"],
 			getHardware: () => ({ cpuCount: 8 }),
 			detectBaseBranch: async () => "main",
+			getCapabilitySettings: () => capabilitySettings,
 			getCompletedAt: () => null,
 		});
 		expect(plan.kind).toBe("project");
@@ -108,6 +133,7 @@ describe("handleGetProjectSetupPlan (§5.BA)", () => {
 			detectBaseBranch: async () => {
 				throw new Error("not a git repo");
 			},
+			getCapabilitySettings: () => capabilitySettings,
 			getCompletedAt: () => null,
 		});
 		expect(plan.kind).toBe("project");

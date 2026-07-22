@@ -9,6 +9,7 @@ import { findAvailableRuntimePort, isAddressInUseError } from "./cli-runtime-por
 import { createShutdownIndicator } from "./cli-shutdown-indicator";
 import { registerChatCommand } from "./commands/chat";
 import { registerDevCommand } from "./commands/dev";
+import { registerSetupCommand } from "./commands/setup";
 import { registerTaskCommand } from "./commands/task";
 import { registerWorkflowCommand } from "./commands/workflow";
 import { runLegacyNameMigration } from "./config/legacy-name-migration";
@@ -634,6 +635,7 @@ function createProgram(invocationArgs: string[]): Command {
 	registerWorkflowCommand(program);
 	registerDevCommand(program);
 	registerChatCommand(program);
+	registerSetupCommand(program);
 
 	program
 		.command("mcp")

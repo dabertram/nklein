@@ -2700,3 +2700,16 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   18 focused pure/runtime tests, 17 focused fleet/board component tests, and a mocked-browser collapsed→expanded flow;
   root typecheck, web typecheck, 1,261-file/12,158-test backend fast suite, 157-file/1,139-test full web suite,
   protected 142/142, and lint with zero errors (20 pre-existing warnings and one info).
+
+- [x] **F5.3 — Complete guided setup for newly added capability groups** *(delivered 2026-07-22).* The shared pure
+  setup-plan model now covers Docker isolation, canonical architect/worker/reviewer seats, every parsed per-machine
+  fast-memory budget, Basic Memory/sandbox MCP/freshness posture, default-deny egress/retrieval, and desktop/LAN access
+  in both the global and project flows. Project copy is explicit about what can narrow locally and what remains an
+  inherited non-widenable runtime boundary. `nklein setup` renders those exact plan objects offline as readable terminal
+  text or `--json`, with `--scope global|project|all`; global-only reads do not touch project state. The real provider
+  probe now distinguishes a reachable empty fleet from an unavailable endpoint, and setup no longer parses a
+  multi-device string as one integer. The local Legion fast-memory override was corrected from an unsafe 32 GB to its
+  actual 8 GB VRAM. Evidence: 48 focused core/tRPC/CLI tests and one mocked-browser global→project walkthrough pass;
+  live browser verification walked all 12 global and 10 project steps with the three-host budget visible and a clean
+  console; root typecheck, web typecheck, the 1,263-file/12,166-test backend fast suite, the 157-file/1,139-test web
+  suite, and the protected 142/142 suite all pass. Lint reports zero errors (20 pre-existing warnings and one info).

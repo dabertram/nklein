@@ -27,6 +27,8 @@ nklein
 ```
 
 Run `nklein` from a git repository to open that project, or launch it without a project and add one from the UI.
+Run `nklein setup` for the same global + project recommendations in a terminal (`--scope global|project|all`, with
+`--json` for automation); it only inspects configuration and local readiness and does not mark setup complete.
 
 ### What It Does
 

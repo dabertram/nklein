@@ -78,16 +78,22 @@ export function lmStudioApiV0ModelsUrl(baseUrl: string): string {
  * Fetch the ids of currently LOADED (resident) models from LM Studio. Returns `[]` on any failure (caller decides how to
  * treat "unknown" — the harness treats it as "can't confirm loaded" and refuses). Never triggers a load (read-only GET).
  */
+export async function fetchLoadedModelIdsStrict(baseUrl: string, fetchImpl: typeof fetch = fetch): Promise<string[]> {
+	// Bounded so it can never hang a hot path (e.g. setup) on an unreachable endpoint. Unlike the ordinary residency
+	// reader, this strict variant preserves reachability: an empty loaded set is valid, while an unavailable endpoint
+	// rejects. Guided setup needs that distinction or it confidently labels an offline provider "connected".
+	const res = await fetchImpl(lmStudioApiV0ModelsUrl(baseUrl), {
+		signal: AbortSignal.timeout(3_000),
+	});
+	if (!res.ok) {
+		throw new Error(`LM Studio model probe failed with HTTP ${res.status}.`);
+	}
+	return parseLoadedModelIds(await res.json());
+}
+
 export async function fetchLoadedModelIds(baseUrl: string, fetchImpl: typeof fetch = fetch): Promise<string[]> {
 	try {
-		// Bounded so it can never hang a hot path (e.g. task start) on an unreachable endpoint.
-		const res = await fetchImpl(lmStudioApiV0ModelsUrl(baseUrl), {
-			signal: AbortSignal.timeout(3_000),
-		});
-		if (!res.ok) {
-			return [];
-		}
-		return parseLoadedModelIds(await res.json());
+		return await fetchLoadedModelIdsStrict(baseUrl, fetchImpl);
 	} catch {
 		return [];
 	}

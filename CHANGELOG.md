@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Guided setup now covers the full local runtime posture in both UI and CLI.** Global and project plans walk through
+  Docker isolation, model roles/fleet, per-machine fast-memory policy, Basic Memory/MCP, default-deny egress/retrieval,
+  and desktop/LAN access before repo execution choices. `nklein setup` renders the same plan model as readable text or
+  exact JSON; provider probes now distinguish an empty loaded fleet from an unreachable endpoint, and multi-device RAM
+  maps retain every machine instead of being misread as one number.
+
 - **The fleet rail now includes a low-overhead resource panel.** While expanded, it samples !Klein process and system
   RAM/CPU, workspace disk, configured fast-memory/VRAM budgets, model residency and reported weights, prompt-prefix
   reuse, and dispatch reservations every 15 seconds; closing the rail stops all sampling. Remote KV/allocator usage is

@@ -75,7 +75,7 @@ import {
 	LOCAL_MACHINE_ID,
 } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
-import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
+import { fetchLoadedModelIdsCached, fetchLoadedModelIdsStrict } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import {
 	buildLongMemoryStoreProfile,
@@ -99,9 +99,11 @@ import { assemblePromptFragmentsForIntent } from "../core/prompt-fragment-assemb
 import { parsePromptIntentMode } from "../core/prompt-intent-mode";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projection";
+import { isKanbanRemoteHost } from "../core/runtime-endpoint";
 import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
 import { createRuntimeResourceSampler } from "../core/runtime-resource-sampler";
 import { isBusySessionState } from "../core/session-state-predicates";
+import { setupDeviceRamGbByMachine, setupModelRoleCounts } from "../core/setup-facts";
 import type { SkillId } from "../core/skill-registry";
 import { deriveStreams } from "../core/stream-derivation";
 import { computeProjectTimeTracking, computeTimeTracking, type TimeTrackingActivity } from "../core/time-tracking";
@@ -135,6 +137,7 @@ import {
 } from "../nklein-agent/nklein-plan-artifacts";
 import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
 import { buildSessionSkillFragments } from "../nklein-agent/nklein-session-skill-fragments";
+import { isPasscodeEnabled } from "../security/passcode-manager";
 import { openInBrowser } from "../server/browser";
 import { createCommunitySkillDiscoveryService } from "../server/community-skill-discovery-service";
 import { buildCommunitySkillExecutionEnvironment } from "../server/community-skill-execution-environment";
@@ -249,6 +252,14 @@ async function probeDockerVmMemoryMb(): Promise<number | null> {
 	} catch {
 		return null;
 	}
+}
+
+function setupDesktopAccess() {
+	return {
+		desktopShellConnected: Boolean(process.env.NKLEIN_DESKTOP_NONCE?.trim()),
+		remoteAccessEnabled: isKanbanRemoteHost(),
+		remoteAuthenticationEnabled: !isKanbanRemoteHost() || isPasscodeEnabled(),
+	};
 }
 
 import type { CreateRuntimeApiDependencies } from "./runtime-api-types";
@@ -1259,23 +1270,14 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL;
 			return await handleGetGlobalSetupPlan({
 				getHardware: () => ({ totalRamMb: Math.round(totalmem() / (1024 * 1024)), cpuCount: cpus().length }),
-				getLoadedModelIds: () => fetchLoadedModelIdsCached(providerEndpoint),
+				getLoadedModelIds: () => fetchLoadedModelIdsStrict(providerEndpoint),
 				providerEndpoint,
 				getDockerAvailable: () => deps.getAgentSandboxStatus?.()?.dockerAvailable ?? null,
 				getDockerVmMemoryMb: () => probeDockerVmMemoryMb(),
 				getSecondOpinionReviewEnabled: () => globalConfig.secondOpinionReviewEnabled,
-				getModelRoleCounts: () => {
-					const entries = Object.values(globalConfig.modelRoles ?? {});
-					const assigned = entries.filter(
-						(role) => typeof role?.modelId === "string" && role.modelId.trim().length > 0,
-					).length;
-					return { assigned, total: entries.length };
-				},
-				getDeviceRamGb: () => {
-					// Stored as a string; parse to the numeric GB budget the wizard step reports (null when unset/invalid).
-					const parsed = globalConfig.deviceRamGb ? Number.parseInt(globalConfig.deviceRamGb, 10) : Number.NaN;
-					return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-				},
+				getModelRoleCounts: () => setupModelRoleCounts(globalConfig.modelRoles),
+				getDeviceRamGbByMachine: () =>
+					setupDeviceRamGbByMachine({ configuredDeviceRamGb: globalConfig.deviceRamGb }),
 				getMemorySettings: () => ({
 					basicMemoryEnabled: globalConfig.basicMemoryEnabled,
 					sandboxMcpServersEnabled: globalConfig.sandboxMcpServersEnabled,
@@ -1286,6 +1288,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					allowlistCount: parseEgressAllowlist(globalConfig.sandboxEgressAllowlist).length,
 					retrievalEgressEnabled: globalConfig.retrievalEgressEnabled,
 				}),
+				getDesktopAccess: setupDesktopAccess,
 				getCompletedAt: () => globalConfig.setupWizardCompletedAt,
 			});
 		},
@@ -1315,6 +1318,24 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					} catch {
 						return null;
 					}
+				},
+				getCapabilitySettings: () => {
+					const roleCounts = setupModelRoleCounts(scopedConfig.effectiveModelRoles);
+					return {
+						isolationProfile: scopedConfig.effectiveSandboxIsolationProfile,
+						assignedModelRoleCount: roleCounts.assigned,
+						totalModelRoleCount: roleCounts.total,
+						deviceRamGbByMachine: setupDeviceRamGbByMachine({
+							configuredDeviceRamGb: scopedConfig.deviceRamGb,
+						}),
+						basicMemoryEnabled: scopedConfig.basicMemoryEnabled,
+						sandboxMcpServersEnabled: scopedConfig.effectiveSandboxMcpServersEnabled,
+						memoryFreshnessAuditEnabled: scopedConfig.memoryFreshnessAudit.enabled,
+						egressProxyEnabled: scopedConfig.sandboxEgressProxyEnabled,
+						egressAllowlistCount: parseEgressAllowlist(scopedConfig.sandboxEgressAllowlist).length,
+						retrievalEgressEnabled: scopedConfig.retrievalEgressEnabled,
+						desktopAccess: setupDesktopAccess(),
+					};
 				},
 				getCompletedAt: async () => {
 					if (scopedConfig.projectSetupWizardCompletedAt !== null) {

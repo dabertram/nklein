@@ -3,6 +3,7 @@ import {
 	assertModelLoaded,
 	fetchLoadedModelIds,
 	fetchLoadedModelIdsCached,
+	fetchLoadedModelIdsStrict,
 	lmStudioApiV0ModelsUrl,
 	loadedModelIdsFromLmsPsModels,
 	mergeLoadedModelIds,
@@ -79,6 +80,19 @@ describe("fetchLoadedModelIds", () => {
 			throw new Error("unreachable");
 		}) as unknown as typeof fetch;
 		expect(await fetchLoadedModelIds("http://x/v1", throwingFetch)).toEqual([]);
+	});
+});
+
+describe("fetchLoadedModelIdsStrict", () => {
+	it("distinguishes a reachable empty fleet from an unreachable provider for guided setup", async () => {
+		await expect(fetchLoadedModelIdsStrict("http://x/v1", fakeFetch({ data: [] }))).resolves.toEqual([]);
+		await expect(fetchLoadedModelIdsStrict("http://x/v1", fakeFetch(payload, false))).rejects.toThrow(
+			/LM Studio model probe failed/,
+		);
+		const throwingFetch = (async () => {
+			throw new Error("unreachable");
+		}) as unknown as typeof fetch;
+		await expect(fetchLoadedModelIdsStrict("http://x/v1", throwingFetch)).rejects.toThrow("unreachable");
 	});
 });
 

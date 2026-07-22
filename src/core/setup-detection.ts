@@ -255,24 +255,26 @@ export function summarizeReviewPostureChoice(enabled: boolean): string {
 export function summarizeModelRolesRecommendation(input: {
 	assignedRoleCount: number;
 	totalRoleCount: number;
-	deviceRamGb: number | null;
+	deviceRamGbByMachine: Readonly<Record<string, number>>;
 }): string {
 	const rolePhrase =
 		input.assignedRoleCount >= input.totalRoleCount && input.totalRoleCount > 0
 			? `All ${input.totalRoleCount} roles assigned`
 			: `${input.assignedRoleCount}/${input.totalRoleCount} roles assigned`;
+	const budgetCount = Object.keys(input.deviceRamGbByMachine).length;
 	const fleetPhrase =
-		input.deviceRamGb !== null
-			? `machine-aware load routing on (${input.deviceRamGb} GB device budget)`
+		budgetCount > 0
+			? `machine-aware load routing on (${budgetCount} device budget${budgetCount === 1 ? "" : "s"})`
 			: "machine-aware load routing off (single-machine)";
 	return `${rolePhrase}; ${fleetPhrase}.`;
 }
 
 /** Headline for the resource-policy step: device RAM budget (fleet load routing) + idle-model eviction. */
-export function summarizeResourcePolicyRecommendation(deviceRamGb: number | null): string {
-	return deviceRamGb !== null
-		? `Device RAM budget ${deviceRamGb} GB — a task's model loads on a fitting machine; idle models auto-evict.`
-		: "No device RAM budget set — set NKLEIN_DEVICE_RAM_GB per machine to route model loads onto a fitting device (opt-in).";
+export function summarizeResourcePolicyRecommendation(deviceRamGbByMachine: Readonly<Record<string, number>>): string {
+	const budgets = Object.entries(deviceRamGbByMachine).sort(([left], [right]) => left.localeCompare(right));
+	return budgets.length > 0
+		? `Fast-memory budgets: ${budgets.map(([machine, gb]) => `${machine} ${gb} GB`).join("; ")} — loads route only to a fitting machine; idle models are eviction-eligible only under admission pressure.`
+		: "No fast-memory budget set — set NKLEIN_DEVICE_RAM_GB per machine to route model loads onto a fitting device (opt-in).";
 }
 
 /** Headline for the memory & MCP step: basic-memory, sandbox MCP servers, and the F5.2 freshness audit. */
@@ -310,6 +312,28 @@ export function summarizeEgressRecommendation(input: {
 	return `${parts.join("; ")}.`;
 }
 
+export interface DesktopAccessFacts {
+	desktopShellConnected: boolean;
+	remoteAccessEnabled: boolean;
+	/** null when an offline CLI can see a remote bind env but cannot inspect the running process's auth flag. */
+	remoteAuthenticationEnabled: boolean | null;
+}
+
+/** Desktop/LAN posture. Loopback is the safe default; remote-without-auth is called out rather than normalized away. */
+export function summarizeDesktopAccessRecommendation(facts: DesktopAccessFacts): string {
+	if (!facts.remoteAccessEnabled) {
+		return facts.desktopShellConnected
+			? "Desktop connected; loopback-only access (recommended default)."
+			: "Browser/CLI mode; loopback-only access (recommended default).";
+	}
+	if (facts.remoteAuthenticationEnabled === null) {
+		return "LAN access configured; live authentication status unavailable — the safe default requires a passcode.";
+	}
+	return facts.remoteAuthenticationEnabled
+		? "LAN access enabled with passcode authentication."
+		: "LAN access enabled without !Klein authentication — safe only behind an operator-controlled auth boundary.";
+}
+
 // ---------------------------------------------------------------------------------------------------------
 // Plan composition (the wizard step model)
 // ---------------------------------------------------------------------------------------------------------
@@ -343,8 +367,8 @@ export interface GlobalSetupFacts {
 	assignedModelRoleCount: number;
 	/** Total model roles the config exposes (denominator for the "N/M roles assigned" headline). */
 	totalModelRoleCount: number;
-	/** Per-device RAM budget (GB) for machine-aware load routing; null = unset (single-machine). F5.3 resources step. */
-	deviceRamGb: number | null;
+	/** Per-device fast-memory budgets (GB) for machine-aware load routing. Empty = unset/single-machine. */
+	deviceRamGbByMachine: Readonly<Record<string, number>>;
 	/** F5.3 memory & MCP step. */
 	basicMemoryEnabled: boolean;
 	sandboxMcpServersEnabled: boolean;
@@ -354,6 +378,8 @@ export interface GlobalSetupFacts {
 	egressProxyEnabled: boolean;
 	egressAllowlistCount: number;
 	retrievalEgressEnabled: boolean;
+	/** F5.3 desktop/LAN access posture. */
+	desktopAccess: DesktopAccessFacts;
 }
 
 /** Facts the caller gathers for the PROJECT wizard (repo detection). */
@@ -364,6 +390,18 @@ export interface ProjectSetupFacts {
 	cpuCount: number;
 	/** The repo's detected default base branch (e.g. "main"), or null when it could not be detected. */
 	detectedBaseBranch: string | null;
+	/** Effective project isolation profile (a project may narrow/override the global profile). */
+	isolationProfile: "lean_shared" | "strict_per_agent" | "custom";
+	assignedModelRoleCount: number;
+	totalModelRoleCount: number;
+	deviceRamGbByMachine: Readonly<Record<string, number>>;
+	basicMemoryEnabled: boolean;
+	sandboxMcpServersEnabled: boolean;
+	memoryFreshnessAuditEnabled: boolean;
+	egressProxyEnabled: boolean;
+	egressAllowlistCount: number;
+	retrievalEgressEnabled: boolean;
+	desktopAccess: DesktopAccessFacts;
 }
 
 /**
@@ -381,22 +419,27 @@ export const GLOBAL_SETUP_STEP_IDS = [
 	"guardrails",
 	"memory",
 	"egress",
+	"desktop",
 	"features",
 ] as const;
 
-/** Stable step ids for the PROJECT wizard (matches todo §5.BA's project step list). */
+/** Stable project setup order: capability posture first, then repo-specific execution/delivery choices. */
 export const PROJECT_SETUP_STEP_IDS = [
-	"overrides",
+	"isolation",
+	"models",
+	"resources",
+	"memory",
+	"egress",
+	"desktop",
 	"concurrency",
 	"overlap",
-	"egress",
 	"acceptance",
 	"baseBranch",
 ] as const;
 
 /**
  * Compose the GLOBAL setup wizard step model from gathered facts. Steps are in a stable order with stable
- * ids (provider → sandbox → concurrency → review → guardrails → features); the UI renders this list later.
+ * ids; the UI and CLI are thin renderers over this same sequence.
  */
 export function buildGlobalSetupPlan(facts: GlobalSetupFacts): SetupPlanStep[] {
 	const sandbox = recommendSandboxPoolSizing({
@@ -430,7 +473,7 @@ export function buildGlobalSetupPlan(facts: GlobalSetupFacts): SetupPlanStep[] {
 			recommendation: summarizeModelRolesRecommendation({
 				assignedRoleCount: facts.assignedModelRoleCount,
 				totalRoleCount: facts.totalModelRoleCount,
-				deviceRamGb: facts.deviceRamGb,
+				deviceRamGbByMachine: facts.deviceRamGbByMachine,
 			}),
 			detail:
 				"Assign a model to each role (architect / worker / reviewer …); reviewer diversity — a different model than the author — strengthens the check. Across machines, machine-aware load routing places each task's model on a device with room for it.",
@@ -444,7 +487,7 @@ export function buildGlobalSetupPlan(facts: GlobalSetupFacts): SetupPlanStep[] {
 		{
 			stepId: "resources",
 			title: "Resource policy",
-			recommendation: summarizeResourcePolicyRecommendation(facts.deviceRamGb),
+			recommendation: summarizeResourcePolicyRecommendation(facts.deviceRamGbByMachine),
 			detail:
 				"Set a per-machine fast-memory budget (NKLEIN_DEVICE_RAM_GB) so a task's model loads on a device that fits it. Warm models remain resident; only idle-past-TTL !Klein loads become eligible for minimal eviction when another admission needs capacity. Opt-in: unset leaves loading fully manual.",
 		},
@@ -492,6 +535,13 @@ export function buildGlobalSetupPlan(facts: GlobalSetupFacts): SetupPlanStep[] {
 				"By default nothing leaves this machine. The egress proxy allows sandbox network access only to an explicit host allowlist; retrieval egress lets agents run online search/browse — both send data off-machine, so they are OFF by default and opt-in.",
 		},
 		{
+			stepId: "desktop",
+			title: "Desktop & LAN access",
+			recommendation: summarizeDesktopAccessRecommendation(facts.desktopAccess),
+			detail:
+				"The desktop shell adds tray, start-on-boot, and LAN controls. LAN serving is OFF by default; enabling it changes the bind address and requires passcode authentication unless an advanced operator deliberately supplies another trusted auth boundary.",
+		},
+		{
 			stepId: "features",
 			title: "Optional features",
 			recommendation: "Review each opt-in trade-off; defaults are safe.",
@@ -503,8 +553,8 @@ export function buildGlobalSetupPlan(facts: GlobalSetupFacts): SetupPlanStep[] {
 
 /**
  * Compose the PROJECT setup wizard step model from repo-detection facts. Steps are in a stable order with
- * stable ids (overrides → concurrency → overlap → egress → acceptance → baseBranch); the UI renders it later.
- * Every step is framed as a per-project override relative to the inherited global default.
+ * stable ids. Capability posture comes first, then repo-specific execution/delivery choices. Project text is explicit
+ * about which controls can narrow/override the inherited global default and which security boundaries cannot widen.
  */
 export function buildProjectSetupPlan(facts: ProjectSetupFacts): SetupPlanStep[] {
 	const acceptance = detectProjectAcceptanceCommand({ packageJson: facts.packageJson });
@@ -522,10 +572,58 @@ export function buildProjectSetupPlan(facts: ProjectSetupFacts): SetupPlanStep[]
 
 	return [
 		{
-			stepId: "overrides",
-			title: "Model-role overrides",
-			recommendation: "Inherit the global model roles unless this project needs different models.",
-			detail: "Override the per-role model choices for this project only; unset roles inherit the global defaults.",
+			stepId: "isolation",
+			title: "Project isolation",
+			recommendation: `Effective profile: ${facts.isolationProfile.replaceAll("_", " ")}.`,
+			detail:
+				"Every task action remains Docker-isolated and fails closed when Docker is unavailable. A project override may change container topology, but it never grants agents a silent host fallback.",
+		},
+		{
+			stepId: "models",
+			title: "Model roles (this project)",
+			recommendation: summarizeModelRolesRecommendation({
+				assignedRoleCount: facts.assignedModelRoleCount,
+				totalRoleCount: facts.totalModelRoleCount,
+				deviceRamGbByMachine: facts.deviceRamGbByMachine,
+			}),
+			detail:
+				"Project role overrides are sparse: unset roles inherit the global fleet, while explicit roles apply only here.",
+		},
+		{
+			stepId: "resources",
+			title: "Resource policy (inherited)",
+			recommendation: summarizeResourcePolicyRecommendation(facts.deviceRamGbByMachine),
+			detail:
+				"Fast-memory budgets are machine-wide safety limits, so projects inherit them rather than widening them. Project concurrency below can further reduce pressure.",
+		},
+		{
+			stepId: "memory",
+			title: "Memory & MCP (this project)",
+			recommendation: summarizeMemoryRecommendation({
+				basicMemoryEnabled: facts.basicMemoryEnabled,
+				sandboxMcpServersEnabled: facts.sandboxMcpServersEnabled,
+				freshnessAuditEnabled: facts.memoryFreshnessAuditEnabled,
+			}),
+			detail:
+				"Basic Memory and freshness policy are global local-only services; sandbox MCP servers can be narrowed per project. Project overrides never enable an unapproved server implicitly.",
+		},
+		{
+			stepId: "egress",
+			title: "Egress & retrieval (inherited)",
+			recommendation: summarizeEgressRecommendation({
+				egressProxyEnabled: facts.egressProxyEnabled,
+				retrievalEgressEnabled: facts.retrievalEgressEnabled,
+				allowlistCount: facts.egressAllowlistCount,
+			}),
+			detail:
+				"This project inherits the global default-deny egress posture. Project setup cannot silently widen network access; change the explicit global allowlist/retrieval opt-in in Settings when the whole runtime should permit it.",
+		},
+		{
+			stepId: "desktop",
+			title: "Desktop access (inherited)",
+			recommendation: summarizeDesktopAccessRecommendation(facts.desktopAccess),
+			detail:
+				"Desktop/LAN exposure belongs to the runtime, not an individual repository. A project cannot widen the bind or authentication boundary.",
 		},
 		{
 			stepId: "concurrency",
@@ -539,13 +637,6 @@ export function buildProjectSetupPlan(facts: ProjectSetupFacts): SetupPlanStep[]
 			recommendation: "Inherit the global file-overlap setting.",
 			detail:
 				"Override whether cards touching overlapping files run in parallel (allow) or serialize for this project only; unset inherits the global default.",
-		},
-		{
-			stepId: "egress",
-			title: "Retrieval egress (this project)",
-			recommendation: "Off unless this project needs online retrieval.",
-			detail:
-				"Opt this project into egress-gated online retrieval (web_search / browse_url). This sends queries off this machine — decide per project; unset inherits the global (OFF) default.",
 		},
 		{
 			stepId: "acceptance",

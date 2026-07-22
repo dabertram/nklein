@@ -29,7 +29,7 @@ export interface GlobalSetupPlanFactSources {
 	getSecondOpinionReviewEnabled: () => boolean;
 	/** F5.3 model-roles/fleet step: assigned vs total role count + the device RAM budget for load routing. */
 	getModelRoleCounts: () => { assigned: number; total: number };
-	getDeviceRamGb: () => number | null;
+	getDeviceRamGbByMachine: () => Readonly<Record<string, number>>;
 	/** F5.3 memory & MCP step. */
 	getMemorySettings: () => {
 		basicMemoryEnabled: boolean;
@@ -38,6 +38,7 @@ export interface GlobalSetupPlanFactSources {
 	};
 	/** F5.3 egress & retrieval step. */
 	getEgressSettings: () => { egressProxyEnabled: boolean; allowlistCount: number; retrievalEgressEnabled: boolean };
+	getDesktopAccess: () => GlobalSetupFacts["desktopAccess"];
 	getCompletedAt: () => number | null;
 }
 
@@ -47,6 +48,20 @@ export interface ProjectSetupPlanFactSources {
 	getLoadedModelIds: () => Promise<readonly string[]>;
 	getHardware: () => { cpuCount: number };
 	detectBaseBranch: () => Promise<string | null>;
+	getCapabilitySettings: () => Pick<
+		ProjectSetupFacts,
+		| "isolationProfile"
+		| "assignedModelRoleCount"
+		| "totalModelRoleCount"
+		| "deviceRamGbByMachine"
+		| "basicMemoryEnabled"
+		| "sandboxMcpServersEnabled"
+		| "memoryFreshnessAuditEnabled"
+		| "egressProxyEnabled"
+		| "egressAllowlistCount"
+		| "retrievalEgressEnabled"
+		| "desktopAccess"
+	>;
 	/** May be async: the caller can consult workspace state (e.g. the dev-test marker) beyond the config stamp. */
 	getCompletedAt: () => number | null | Promise<number | null>;
 }
@@ -76,13 +91,14 @@ export async function handleGetGlobalSetupPlan(sources: GlobalSetupPlanFactSourc
 		secondOpinionReviewEnabled: sources.getSecondOpinionReviewEnabled(),
 		assignedModelRoleCount: roleCounts.assigned,
 		totalModelRoleCount: roleCounts.total,
-		deviceRamGb: sources.getDeviceRamGb(),
+		deviceRamGbByMachine: sources.getDeviceRamGbByMachine(),
 		basicMemoryEnabled: memory.basicMemoryEnabled,
 		sandboxMcpServersEnabled: memory.sandboxMcpServersEnabled,
 		memoryFreshnessAuditEnabled: memory.memoryFreshnessAuditEnabled,
 		egressProxyEnabled: egress.egressProxyEnabled,
 		egressAllowlistCount: egress.allowlistCount,
 		retrievalEgressEnabled: egress.retrievalEgressEnabled,
+		desktopAccess: sources.getDesktopAccess(),
 	};
 	return { kind: "global", steps: buildGlobalSetupPlan(facts), completedAt: sources.getCompletedAt() };
 }
@@ -100,6 +116,7 @@ export async function handleGetProjectSetupPlan(
 		loadedModelCount: loadedModelIds.length,
 		cpuCount: sources.getHardware().cpuCount,
 		detectedBaseBranch,
+		...sources.getCapabilitySettings(),
 	};
 	return { kind: "project", steps: buildProjectSetupPlan(facts), completedAt: await sources.getCompletedAt() };
 }
