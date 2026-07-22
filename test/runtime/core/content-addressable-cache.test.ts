@@ -47,7 +47,7 @@ describe("cache keys", () => {
 
 describe("cacheability policy", () => {
 	it("allows read-only retrieval tools and fails closed on mutation/execution", () => {
-		for (const tool of ["read_files", "search_code", "repo_map", "ast_search"]) {
+		for (const tool of ["read_files", "search_code", "repo_map", "search_ast"]) {
 			expect(isToolResultCacheable(tool)).toBe(true);
 		}
 		for (const tool of ["write_file", "edit_file", "run_commands", "decompose_project", "unknown_tool"]) {

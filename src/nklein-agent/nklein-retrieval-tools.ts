@@ -3,7 +3,7 @@ import {
 	type RetrievalDiscriminatorCandidate,
 	type RetrievalDiscriminatorDecision,
 } from "../core/retrieval-discriminator";
-import { searchAstShapes } from "./nklein-ast-search";
+import { type AstSearchQuery, searchAstShapes } from "./nklein-ast-search";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { searchNKleinCode } from "./nklein-code-search";
 import { searchEgoGraph } from "./nklein-ego-graph-search";
@@ -49,7 +49,7 @@ function createRepoMapTool(workspacePath: string): AgentTool {
 	return {
 		name: "repo_map",
 		description:
-			"Return a compact ranked map of important source symbols. Use this before reading files when you need codebase orientation.",
+			"Return a compact task-ranked architecture map. Use for conceptual orientation when codebase-memory graph tools are unavailable; use search_code for literal strings and search_ast for syntax shapes.",
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -112,7 +112,7 @@ function createCodeSearchTool(
 	return {
 		name: "search_code",
 		description:
-			"Search source code and return focused line-numbered snippets. Use this to find relevant functions, types, errors, or identifiers before reading files.",
+			"Search source text and return focused line-numbered snippets. Route exact strings, error messages, config keys, and literals here; route syntax/code shapes to search_ast and callers/architecture/concepts to codebase-memory graph tools (repo_map fallback).",
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -209,47 +209,68 @@ function createCodeSearchTool(
 	};
 }
 
-/** F12.1(a): the STRUCTURAL tier — find code by SHAPE where a text grep drowns (callers/definitions/implementations). */
+/** F11.2b: the STRUCTURAL tier — find code by SHAPE without comment/string false positives. */
 function createAstSearchTool(workspacePath: string, recordRetrieval?: RetrievalRecorder): AgentTool {
 	return {
-		name: "ast_search",
+		name: "search_ast",
 		description:
-			"Structural code search by SHAPE (TypeScript/JavaScript): all CALLERS of a function, all DEFINITIONS of a symbol, or all classes IMPLEMENTING/extending a type. Escalation order: search_code for text, ast_search for shape questions text-search answers noisily, repo_map for orientation.",
+			"ast-grep/tree-sitter search by CODE SHAPE (TypeScript/JavaScript), excluding comment/string false positives. Use `pattern` for arbitrary syntax with $META/$$$MULTI metavariables, or a canned symbol kind. Exact text belongs in search_code; call chains/concepts belong in codebase-memory graph tools (repo_map fallback).",
 		inputSchema: {
 			type: "object",
 			properties: {
 				kind: {
 					type: "string",
-					enum: ["callers", "definitions", "implementations", "references"],
+					enum: ["pattern", "callers", "definitions", "implementations", "references"],
 					description:
-						"The shape to find: callers of, definitions of, classes implementing/extending, or ALL references to the symbol (usages excluding its own definition).",
+						"Use `pattern` for an arbitrary ast-grep shape; canned modes find callers, definitions, implementations/extensions, or references.",
 				},
-				symbol: { type: "string", description: "The exact identifier to match (case-sensitive)." },
+				pattern: {
+					type: "string",
+					description: "For kind=pattern: source-shaped ast-grep pattern, e.g. `fetch($URL, $$$OPTIONS)`.",
+				},
+				language: {
+					type: "string",
+					enum: ["auto", "typescript", "tsx", "javascript"],
+					description: "Pattern language; auto searches every JS/TS-family file. Defaults to auto.",
+				},
+				symbol: { type: "string", description: "For canned kinds: exact identifier (case-sensitive)." },
 				maxResults: { type: "number", description: "Maximum matches to return. Defaults to 30." },
 			},
-			required: ["kind", "symbol"],
+			required: ["kind"],
 			additionalProperties: false,
 		},
 		async execute(input) {
 			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
-			const kind =
-				record.kind === "callers" ||
-				record.kind === "definitions" ||
-				record.kind === "implementations" ||
-				record.kind === "references"
-					? record.kind
-					: "definitions";
+			const kind = record.kind;
+			const pattern = typeof record.pattern === "string" ? record.pattern.trim() : "";
 			const symbol = typeof record.symbol === "string" ? record.symbol.trim() : "";
-			if (!symbol) {
-				return { error: "ast_search requires a non-empty `symbol`." };
+			const language =
+				record.language === "javascript" || record.language === "tsx" || record.language === "typescript"
+					? record.language
+					: "auto";
+			if (kind === "pattern" && !pattern)
+				return { error: "search_ast kind=pattern requires a non-empty `pattern`." };
+			if (kind !== "pattern" && !symbol) return { error: "search_ast canned kinds require a non-empty `symbol`." };
+			if (
+				kind !== "pattern" &&
+				kind !== "callers" &&
+				kind !== "definitions" &&
+				kind !== "implementations" &&
+				kind !== "references"
+			) {
+				return { error: "search_ast requires a supported `kind`." };
 			}
+			const query: AstSearchQuery = kind === "pattern" ? { kind: "pattern", pattern, language } : { kind, symbol };
 			const result = await searchAstShapes({
 				workspacePath,
-				query: { kind, symbol },
+				query,
 				maxResults: asBoundedInteger(record.maxResults, 30, 1, 100),
-			});
+			}).catch((error: unknown) => ({
+				error: `Invalid ast-grep query: ${error instanceof Error ? error.message : String(error)}`,
+			}));
+			if ("error" in result) return result;
 			recordRetrieval?.({
-				query: `${kind}:${symbol}`,
+				query: kind === "pattern" ? `pattern:${pattern}` : `${kind}:${symbol}`,
 				hitsConsidered: result.matches.length,
 				citations: result.matches.map((match) => match.path),
 			});
@@ -258,7 +279,7 @@ function createAstSearchTool(workspacePath: string, recordRetrieval?: RetrievalR
 				instruction:
 					result.matches.length > 0
 						? "Read the smallest relevant ranges at these locations; the `enclosing` field names who contains each match."
-						: "No structural matches — the symbol may be misspelled, non-TS, or dynamic; fall back to search_code.",
+						: "No structural matches — check the pattern/language or use search_code for literal text; use the graph for call chains/concepts.",
 			};
 		},
 	};
@@ -269,7 +290,7 @@ function createEgoGraphTool(workspacePath: string, recordRetrieval?: RetrievalRe
 	return {
 		name: "ego_graph",
 		description:
-			"Localize a task's code neighborhood (TypeScript/JavaScript): seed on the symbol names the task mentions and get the ranked k-hop neighborhood — declaration sites (file:line), the files that use them, and import neighbors — as a small read-target list. Escalation order: repo_map for orientation, ego_graph to LOCALIZE which files matter for a task, ast_search for exact per-file shape matches, search_code for text.",
+			"Localize a task's code neighborhood (TypeScript/JavaScript): seed on the symbol names the task mentions and get the ranked k-hop neighborhood — declaration sites (file:line), the files that use them, and import neighbors — as a small read-target list. Escalation order: repo_map for orientation, ego_graph to LOCALIZE which files matter for a task, search_ast for exact per-file shape matches, search_code for text.",
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -310,7 +331,7 @@ function createEgoGraphTool(workspacePath: string, recordRetrieval?: RetrievalRe
 				...result,
 				instruction:
 					result.targets.length > 0
-						? "These are the task's neighborhood files, closest first (`hop` 0 = declares/uses a seed; `via` says why). read_files the hop-0/1 declaration lines with focused ranges; use ast_search for exact reference lines inside a file. Unmatched seeds may be misspelled, non-TS, or dynamic."
+						? "These are the task's neighborhood files, closest first (`hop` 0 = declares/uses a seed; `via` says why). read_files the hop-0/1 declaration lines with focused ranges; use search_ast for exact reference lines inside a file. Unmatched seeds may be misspelled, non-TS, or dynamic."
 						: "No neighborhood found — the seeds may be misspelled, non-TS, or dynamic; fall back to search_code.",
 			};
 		},

@@ -9,7 +9,7 @@
  *  - `submit_citations` (EXPLORER-side): the explorer's structured hand-back — citations + one-line notes + a
  *    short answer; prose replies are not the deliverable.
  *
- * The explorer session gets the ordinary read/search tool set (read_files, search_code, ast_search, ego_graph,
+ * The explorer session gets the ordinary read/search tool set (read_files, search_code, search_ast, ego_graph,
  * repo_map) via the normal sandbox tool assembly — this module only owns the contracts, prompt, and rendering.
  */
 
@@ -98,7 +98,7 @@ export function buildExplorerSeedPrompt(question: string): string {
 		question.trim(),
 		"",
 		"## How to work",
-		"- Use repo_map for orientation, ego_graph/ast_search to localize symbols, search_code for text, and read_files with FOCUSED ranges to confirm.",
+		"- Use repo_map for orientation, ego_graph/search_ast to localize symbols, search_code for text, and read_files with FOCUSED ranges to confirm.",
 		"- Do NOT edit files or run write commands — findings only.",
 		"- Finish by calling `submit_citations` exactly once: a short direct answer + 1–12 {path, line, note} citations, most relevant first. The citations are the deliverable; keep the answer to a few sentences.",
 	].join("\n");

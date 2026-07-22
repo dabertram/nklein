@@ -12,9 +12,11 @@ const MAX_DISCOVERED_SOURCE_FILES = 20_000;
 // Bound graph work only AFTER preserving task/file-personalized symbols. The previous implementation sliced the
 // path-sorted declaration list first, which made every symbol after position 500 permanently undiscoverable.
 const MAX_PAGERANK_SYMBOLS = 5_000;
-const TYPESCRIPT_AST_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
+const TYPESCRIPT_AST_EXTENSIONS = new Set([".ts", ".mts", ".cts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const SOURCE_EXTENSIONS = new Set([
 	".ts",
+	".mts",
+	".cts",
 	".tsx",
 	".js",
 	".jsx",
@@ -219,12 +221,16 @@ function resolveImportTargetPath(
 	const candidates = [
 		normalized,
 		`${normalized}.ts`,
+		`${normalized}.mts`,
+		`${normalized}.cts`,
 		`${normalized}.tsx`,
 		`${normalized}.js`,
 		`${normalized}.jsx`,
 		`${normalized}.mjs`,
 		`${normalized}.cjs`,
 		`${normalized}/index.ts`,
+		`${normalized}/index.mts`,
+		`${normalized}/index.cts`,
 		`${normalized}/index.tsx`,
 		`${normalized}/index.js`,
 		`${normalized}/index.jsx`,

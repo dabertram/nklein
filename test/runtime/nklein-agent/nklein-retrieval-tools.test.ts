@@ -36,6 +36,16 @@ function getTool(name: string, workspacePath: string) {
 }
 
 describe("nklein retrieval tools", () => {
+	it("exposes one consistent literal → AST → graph/repo-map routing contract", async () => {
+		const workspacePath = await createWorkspace();
+		const tools = createNKleinRetrievalTools({ workspacePath });
+		const descriptions = Object.fromEntries(tools.map((tool) => [tool.name, tool.description]));
+		expect(descriptions.search_code).toContain("exact strings");
+		expect(descriptions.search_ast).toContain("CODE SHAPE");
+		expect(descriptions.repo_map).toContain("conceptual orientation");
+		expect(tools.some((tool) => tool.name === "ast_search")).toBe(false);
+	});
+
 	it("returns a compact repo map", async () => {
 		const workspacePath = await createWorkspace();
 		const repoMapTool = getTool("repo_map", workspacePath);
@@ -73,6 +83,26 @@ describe("nklein retrieval tools", () => {
 		expect(result.matches[0]?.snippet).toContain("betaFeature");
 		expect(result.matches[0]?.lineStart).toBeGreaterThan(0);
 		expect(result.matches[0]?.lineEnd).toBeGreaterThanOrEqual(result.matches[0]?.lineStart ?? 0);
+	});
+
+	it("exposes ast-grep patterns through the canonical search_ast tool", async () => {
+		const workspacePath = await createWorkspace();
+		const searchAst = getTool("search_ast", workspacePath);
+		const result = (await searchAst.execute(
+			{ kind: "pattern", pattern: "$FUNC()", language: "typescript", maxResults: 4 },
+			undefined as never,
+		)) as { matches: Array<{ path: string; line: number }>; filesScanned: number };
+
+		expect(result.filesScanned).toBe(2);
+		expect(result.matches).toEqual(
+			expect.arrayContaining([expect.objectContaining({ path: "src/index.ts", line: 2 })]),
+		);
+
+		const invalid = (await searchAst.execute(
+			{ kind: "pattern", pattern: "$$$", language: "typescript" },
+			undefined as never,
+		)) as { error: string };
+		expect(invalid.error).toContain("Invalid ast-grep query");
 	});
 
 	it("merges repo-map and indexed chunk search when line search misses", async () => {

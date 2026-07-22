@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F11.2a closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F11.2b closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 168-package remainder is **79 ready + 0 partial + 74 dependency-blocked + 8 external/
+  gate below is green. The current 167-package remainder is **78 ready + 0 partial + 74 dependency-blocked + 8 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -95,6 +95,12 @@ feature-completeness challenges, release checks, and required manual checks are 
 gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
+
+> **⚠️ CODE SEARCH MODALITIES ARE COMPLEMENTS, NOT FALLBACK QUALITY LEVELS (F11.2b, 2026-07-22).** Route exact
+> strings/errors/config keys to `search_code`; syntax shapes that must exclude comments and strings to tree-sitter
+> `search_ast`; callers/callees/relationships/concepts to codebase-memory graph tools, with `repo_map` as the bounded
+> orientation fallback. Keep this contract identical in tool descriptions and graph-available prompt guidance. Native
+> ast-grep bindings must stay external to bundles so each desktop platform and the Linux sandbox loads its own binary.
 
 > **⚠️ THE VENDORED CLINE PACKAGES ARE BUILD OUTPUTS, NOT NPM DEPENDENCIES (2026-07-22).** A normal root `npm install`
 > removes `node_modules/@cline/*` as extraneous. `scripts/build-cline-sdk.mjs` must recreate each package junction as
@@ -3628,9 +3634,6 @@ stays fast + complete.
   **RESEARCH-DERIVED BREAKDOWN (deep sweep 2026-07-17; sources inline; the enemy at a 32k floor is context DILUTION not raw
   capability — small models localize files ~86% at 14B+ but ~58% at 7B, so leverage is in the scaffolding around the model.
   ⚠ several cited 2026 arXiv IDs are very recent preprints — sanity-check exact numbers before relying on them):**
-  - [ ] **F11.2b — `search_ast` (ast-grep) + a 3-tool search router.** Add structural AST search beside lexical `search_code`
-    + the graph, and teach routing: strings→ripgrep, code-shape→ast-grep, who-calls/conceptual→graph/repo-map. Structural
-    search removes comment/string false positives that waste tiny context. Supersedes the F12.1 note. (zzet.org three-tools; ast-grep.github.io)
   - [x] **F11.2c — k-hop ego-graph localization action over codebase-memory.** Seed on task-mentioned symbols, return the
     ranked k-hop neighborhood (callers/callees/imports/implements) as file:line targets. LocAgent/RepoGraph lift small
     models to ~86–93% file localization + up to +32.8% resolve; !Klein already stores the graph — add the retrieval surface. (LocAgent 2503.09089; RepoGraph 2410.14684)
@@ -3736,28 +3739,6 @@ prompt-injection payload during this sweep — a real-world hit of exactly the P
 output and NOT acted on. Captured as F12.12.)
 
 **Retrieval & existing-codebase (feeds F11.2):**
-- [x] **F12.1 — Add a STRUCTURAL (ast-grep) search tier between lexical and semantic.** 2026 consensus: code search is
-  three complementary layers — lexical (ripgrep) → structural (ast-grep/tree-sitter) → semantic (repo-map) — orchestrated
-  in that escalation order, NOT one modality. !Klein has lexical `search_code` + `repo_map`; the structural AST-query tier
-  (find *by shape*: "all callers of X", "all classes implementing Y") is missing. Add an `ast_search` retrieval tool +
-  teach the agent the ripgrep→ast-grep→repo-map escalation. (ceaksan.com/code-search-for-ai-agents; zzet.org grep-replacement)
-  **DECIDED 2026-07-17 (autonomous, reversible): DEFER the `@ast-grep/napi` dependency.** It is a NATIVE module —
-  it must ship inside the Docker sandbox images (rebuild + size) and touches the desktop packaging/signing surface
-  (F5.7), so it is a packaging decision, not a drop-in. Two cheaper paths exist when this activates: (a) the
-  TypeScript-family shape queries can ride the ALREADY-vendored `typescript` AST (nklein-repo-map-ast.ts extracts
-  facts today — a `find callers of X` walk is an extension, no new dep, covers this repo's dominant languages);
-  (b) the ast-grep CLI could be baked into the sandbox image instead of a host napi module (aligns with the §5.AR
-  in-sandbox pattern). Recommend (a) first; David can override to full ast-grep if multi-language shape-search
-  becomes real demand. **PATH (a) SHIPPED (same day):** `nklein-ast-search.ts` — `findAstShapeMatches` (pure, TS
-  compiler API: callers incl. method-style, definitions across all declaration forms, implementations/extends via
-  heritage clauses; enclosing-declaration named per match) + `searchAstShapes` workspace scan + the `ast_search`
-  retrieval tool registered beside search_code/repo_map (schema teaches the lexical→structural→semantic escalation;
-  §5.AC retrieval telemetry recorded; non-TS files honestly return nothing — the lexical tier owns those). Plus a
-  `references` kind (Serena-style find_referencing_symbols, TS slice: all usages excluding the definition's own name
-  token) — this also chips the F12.64 LSP-tools item. 9 tests.
-  **FINALIZED 2026-07-19:** multi-language shape search IS the explicitly-deferred ast-grep decision above
-  (native dep = sandbox-image + signing surface → David; in-sandbox CLI = path (b) when wanted) — the TS tier is
-  the shipped scope. Crossed.
 - [x] **F12.2 — De-emphasize embedding retrieval for short keyword queries.** CoREB (May 2026) found short keyword queries —
   the format most agent searches actually use — collapse nearly every semantic embedding model to ~0 nDCG@10. Audit where
   !Klein leans on code embeddings (codebase-memory / code-embeddings) vs lexical+structural for keyword-shaped queries, and

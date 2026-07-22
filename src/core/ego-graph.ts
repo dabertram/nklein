@@ -10,8 +10,8 @@
  * workspace scan that assembles `EgoFileFacts` lives with the tool layer.
  *
  * Reference targets carry `line: null` (the repo-map facts record identifier NAMES, not positions) — the agent
- * escalates to `ast_search references` for exact lines within a localized file. That split is deliberate:
- * ego_graph answers WHERE, ast_search answers exactly-which-line.
+ * escalates to `search_ast references` for exact lines within a localized file. That split is deliberate:
+ * ego_graph answers WHERE, search_ast answers exactly-which-line.
  */
 
 export interface EgoFileFacts {

@@ -25,9 +25,11 @@ describe("buildStructuralRetrievalGuidance", () => {
 		expect(text).toContain("search_graph");
 		expect(text).toContain("trace_path");
 		expect(text).toContain("get_code_snippet");
-		// States the actual behavior change: prefer these over grep / whole-file reads.
-		expect(text.toLowerCase()).toContain("grep");
-		expect(text).toContain("FIRST");
+		// States the complete three-modality router instead of treating every query as a graph query.
+		expect(text).toContain("search_code");
+		expect(text).toContain("search_ast");
+		expect(text).toContain("repo_map");
+		expect(text).toContain("Callers/callees");
 	});
 
 	it("emits the block when the structural server is offered alongside others", () => {

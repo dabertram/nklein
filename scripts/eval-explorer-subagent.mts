@@ -211,7 +211,7 @@ const TOOLS = [
 	{
 		type: "function",
 		function: {
-			name: "ast_search",
+			name: "search_ast",
 			description: "Locate a symbol or concept in parsed source; returns path:line candidates.",
 			parameters: {
 				type: "object",
@@ -390,7 +390,7 @@ async function explore(model: string, task: EvalTask, corpus: ReadonlyMap<string
 				? searchCorpus(corpus, typeof args.query === "string" ? args.query : "")
 				: call.function.name === "read_files"
 					? readFocused(corpus, args)
-					: call.function.name === "ast_search"
+					: call.function.name === "search_ast"
 						? searchCorpus(corpus, typeof args.nodeId === "string" ? args.nodeId.replaceAll("_", " ") : "")
 						: call.function.name === "repo_map"
 							? "Repository source roots: src/core (pure policy), src/nklein-agent (agent runtime and tools), src/server, src/trpc, src/chat, web-ui/src. Use search_code with exact symbols from the question, then read_files on returned paths."

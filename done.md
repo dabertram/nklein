@@ -2753,3 +2753,21 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   25 focused rank/AST assertions, the 1,265-file/12,188-test backend fast suite, protected 142/142, backend/web
   typechecks, lint with zero errors (20 pre-existing warnings and one info), the production Node bundles, a fresh
   dependency-ordered vendored-SDK build, and a rebuilt Docker sandbox image all pass.
+
+- [x] **F12.1 — Initial structural-search tier** *(delivered 2026-07-17; superseded by F11.2b on 2026-07-22).* The
+  original dependency-free `ast_search` slice used the TypeScript compiler AST for canned callers, definitions,
+  implementations, and references queries, with retrieval telemetry and explicit non-TS abstention. It established the
+  live structural-search seam while deferring the native ast-grep packaging decision. F11.2b below replaces that
+  temporary boundary with the requested ast-grep runtime and canonical tool contract.
+
+- [x] **F11.2b — ast-grep `search_ast` + three-modality search routing** *(delivered 2026-07-22).* The structural tier
+  now uses ast-grep's tree-sitter N-API parser and accepts arbitrary JS/TS-family source patterns with `$META` and
+  `$$$MULTI` variables, plus the existing canned definition/reference/implementation/caller conveniences. It returns
+  bounded file:line snippets and enclosing declarations without matching strings or comments; invalid patterns are
+  actionable errors. The canonical tool is `search_ast` (the obsolete `ast_search` name is gone from live code), and
+  tool descriptions plus graph-available system guidance share one route: literals/errors/config keys → `search_code`;
+  syntax shapes → `search_ast`; callers/callees/relationships/concepts → codebase-memory graph tools, with `repo_map`
+  as the bounded fallback. Cache policy and explorer surfaces use the same name. A rebuilt Docker image passed a real
+  network-none pattern search over the mounted repository. Evidence: 83 focused AST/retrieval/router/cache/runtime
+  assertions, the 1,265-file/12,191-test backend fast suite, protected 142/142, backend/web typechecks, lint with zero
+  errors (20 pre-existing warnings and one info), production Node bundles, and the rebuilt sandbox image pass.

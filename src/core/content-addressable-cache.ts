@@ -78,7 +78,7 @@ export const CACHEABLE_READ_TOOLS: ReadonlySet<string> = new Set([
 	"search_code",
 	"search_codebase",
 	"repo_map",
-	"ast_search",
+	"search_ast",
 	"ego_graph",
 ]);
 

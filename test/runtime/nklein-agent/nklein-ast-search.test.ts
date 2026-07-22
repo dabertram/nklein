@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findAstShapeMatches } from "../../../src/nklein-agent/nklein-ast-search";
+import { findAstPatternMatches, findAstShapeMatches } from "../../../src/nklein-agent/nklein-ast-search";
 
 const SAMPLE = [
 	"export function target(a: number) { return a; }",
@@ -39,5 +39,24 @@ describe("findAstShapeMatches (F12.1a)", () => {
 		// callerOne + callerTwo (two usages: call + property access base is not target) — never line 1's definition.
 		expect(references.length).toBeGreaterThanOrEqual(2);
 		expect(references.every((match) => match.line !== 1)).toBe(true);
+	});
+
+	it("runs arbitrary ast-grep patterns without comment/string false positives", () => {
+		const source = [
+			'const distractor = "console.log(notCode)";',
+			"// console.log(commentOnly)",
+			"export function emit(realValue: string) { console.log(realValue); }",
+		].join("\n");
+		const matches = findAstPatternMatches("src/log.ts", source, {
+			kind: "pattern",
+			pattern: "console.log($A)",
+			language: "typescript",
+		});
+		expect(matches).toEqual([
+			expect.objectContaining({ line: 3, enclosing: "emit", snippet: expect.stringContaining("console.log") }),
+		]);
+		expect(
+			findAstPatternMatches("src/log.mts", source, { kind: "pattern", pattern: "console.log($A)" }),
+		).toHaveLength(1);
 	});
 });

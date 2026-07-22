@@ -28,14 +28,20 @@ export function buildStructuralRetrievalGuidance(offeredServerIds: readonly stri
 		return "";
 	}
 	return [
-		"## Code retrieval: prefer the code-graph over grep",
+		"## Code retrieval: route by question shape",
+		"Use the narrowest modality that answers the question:",
+		"- Exact strings, error text, config keys, and literals → `search_code` (lexical/ripgrep tier).",
+		"- Syntax/code shapes that must ignore comments and strings → `search_ast` (ast-grep/tree-sitter tier).",
+		"- Callers/callees, relationships, architecture, and conceptual location → the code graph tools below.",
+		"- If the graph has no answer → `repo_map`, then focused `read_files`; do not dump whole files.",
+		"",
 		"You have a `codebase-memory` MCP server that answers STRUCTURAL questions about this codebase precisely:",
 		"- `search_graph` — find a symbol / definition by name or pattern (functions, classes, types).",
 		"- `trace_path` — follow call chains: who calls X, what X calls, data flow across the graph.",
 		"- `get_code_snippet` — read the EXACT source of one qualified symbol (no surrounding noise).",
 		"- `get_architecture` — the high-level module / structure map.",
 		"",
-		"When you need to locate a symbol, find its callers/callees, or read one function's source, use these FIRST.",
+		"For graph-shaped questions, use these before text or AST search.",
 		"They return exact results and cost a fraction of the context that grepping or reading whole files does.",
 		"Fall back to text search / full-file reads only for non-code text, or when the graph has no answer.",
 	].join("\n");

@@ -8,6 +8,9 @@
   before tests/vendor sources, excludes implementation-local variables, resolves cross-file edges through imports, and
   applies square-root reference weighting. Model/context-pressure-aware token budgets remain enforced, so small local
   models get the relevant architecture instead of generic high-frequency identifiers or the first paths alphabetically.
+  The companion `search_ast` tool now runs arbitrary ast-grep/tree-sitter patterns (plus canned symbol queries) without
+  comment/string false positives. Its route is explicit everywhere: literal text to `search_code`, syntax shapes to
+  `search_ast`, and call chains/concepts to the code graph with `repo_map` as fallback.
 
 - **New projects now start from a canonical, model-ready brief.** Add Project → New offers a short beginner walkthrough
   or professional batch intake for outcome, audience, stack, scope, domain rules, acceptance, constraints, uncertainty,

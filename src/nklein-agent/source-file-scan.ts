@@ -10,6 +10,8 @@ import { extname, join } from "node:path";
 /** Source file extensions the repo scanners index. */
 export const SOURCE_EXTENSIONS = new Set([
 	".ts",
+	".mts",
+	".cts",
 	".tsx",
 	".js",
 	".jsx",
