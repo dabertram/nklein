@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Community skills can now be reviewed and hash-pinned without becoming active.** Trust & Privacy can browse gated
+  discovery results and select a locally staged bundle, then shows the exact source, every bundled file and finding,
+  trust, provenance, grants, and pin drift. Approval re-reads the bytes, binds to a canonical SHA-256, and creates an
+  inactive content-addressed quarantine snapshot before updating the TOFU pin; changed or tampered content must be
+  reviewed again, while execution remains a separate containment gate.
+
 - **Community-skill discovery now fails closed into a user-review-only channel.** Trusted origins are searched by
   default; community indexes require explicit opt-in. Searches use the configured egress-gated backend, results are
   re-confined to the requested origin, and snippets/bodies are discarded before they can reach any execution prompt.

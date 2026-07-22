@@ -2591,3 +2591,18 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   an untrusted index stays untrusted even if it links elsewhere. Focused core/service/trust and runtime API suites pass
   125 tests; the full runtime gate passes 12,029/12,029, protected passes 142/142, and the full contract gate passes
   286/286 in the resource-safe serial mode required by the current low-power host. TypeScript and lint are green.
+
+- [x] **F4.22 — user-controlled community-skill import** *(delivered 2026-07-22).* Trust & Privacy now provides the
+  complete browse/select/review flow: trusted discovery by default, explicit independent-index opt-in, a local contained
+  staging inbox, exact SKILL.md and bundled-file content, every deterministic finding, least-privilege grant, source
+  trust/provenance, prior pin, version-aware drift, and the canonical SHA-256. The hash covers raw SKILL.md plus every
+  path, original mode, and byte through a domain-separated length-framed preimage. Explicit approval reloads and
+  re-hashes the inbox entry, rejects post-review changes and reject-level findings, atomically publishes a
+  content-addressed snapshot with read-only files, and only then advances the TOFU pin through a lock-protected atomic
+  read-modify-write. Existing snapshots are re-derived from stored bytes and recorded original modes before reuse, so
+  metadata cannot bless tampering; same-version drift is surfaced as a rug-pull and forces full re-review. The import
+  result is literally inactive/quarantined and never enters a model prompt—F4.23 remains the separate activation and
+  execution-containment gate. The broad sweep also corrected one stale web assertion that still expected the unsafe
+  pre-fan-in behavior; it now proves only the final review prerequisite releases a join. Evidence: focused backend/wire/
+  tRPC/UI tests 26/26, Settings 45/45, full runtime 12,042/12,042, full web 1,133/1,133, contract 286/286, protected
+  142/142, server/web typechecks and lint green.

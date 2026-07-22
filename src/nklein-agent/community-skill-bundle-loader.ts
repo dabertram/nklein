@@ -68,6 +68,8 @@ export interface LoadedCommunitySkillBundle {
 	body: string;
 	/** Exact SKILL.md text for the future full-source review UI. */
 	sourceText: string;
+	/** Exact raw SKILL.md bytes and original mode; part of the canonical TOFU pre-image. */
+	sourceFile: LoadedCommunitySkillFile;
 	/** Containment-root-relative source location; never leaks an absolute host path. */
 	sourcePath: string;
 	files: LoadedCommunitySkillFile[];
@@ -356,6 +358,7 @@ export async function loadCommunitySkillBundle(
 				manifest: parsed.manifest,
 				body: parsed.body,
 				sourceText,
+				sourceFile: { path: "SKILL.md", ...skillMd },
 				sourcePath: confined.relativePath === "." ? "SKILL.md" : `${confined.relativePath}/SKILL.md`,
 				files,
 				bundledManifest,

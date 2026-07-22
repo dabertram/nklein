@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F4.21 closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F4.22 closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-gate below is green. The current 188-package remainder is **97 ready + 1 partial + 77 dependency-blocked + 6 external/
+gate below is green. The current 187-package remainder is **96 ready + 1 partial + 77 dependency-blocked + 6 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 
@@ -708,6 +708,14 @@ source repo went private — so if it vanishes the buildable source still lives 
 > origin (a `site:` query is not a boundary), and destroy snippets/bodies before returning display-only results. An
 > untrusted index requires a literal user opt-in and permanently taints that discovery path; it cannot launder a linked
 > repository into trusted prompt material. Full source enters only the later explicit review/import boundary.
+> **A REVIEW HASH AND ITS APPROVAL ARE ONE CONTENT TRANSACTION (F4.22, 2026-07-22).** Hash the exact raw source and
+> every bundled path, mode, and byte through one domain-separated, length-framed canonical preimage. Approval must
+> reload from the contained inbox and match the user-reviewed SHA-256 before it writes anything; only then create a
+> content-addressed inert snapshot and advance the TOFU pin. Never let a caller supply the digest, pin mutable inbox
+> files, or advance the pin before the snapshot is durable. Re-verify an existing snapshot from its bytes plus recorded
+> original modes rather than trusting its metadata label. A changed hash—especially with the same version—is a new
+> review, not an update optimization. Import is not activation: reviewed text remains out of model prompts until the
+> separate execution-containment gate grants it.
 
 ### Misc. tribal knowledge (engineering invariants & hard-won gotchas)
 > (WORKING MODE — autonomous, full capabilities — is the callout at the **top of this file**; don't re-litigate it. `/clear` at clean breakpoints once a milestone is committed and all durable state is in `todo.md`/`git`.)
@@ -2618,9 +2626,6 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   via `dev skill-audit --apply` (promote through the audit+execution DOUBLE gate, retire→deprecated), which
   SUPERSEDES the older helped/hurt-only applyProceduralSkillLifecycle path with a strictly stronger gate. The
   auto-sweep cadence = David batch (noted at F12.30). Crossed.
-- [ ] **F4.22 — Build the user-controlled import flow.** Browse/select, show full source/bundle/findings/trust/provenance,
-  compute SHA-256 over the canonical preimage, persist TOFU pins, and force re-review on change.
-  **AUDIT 2026-07-18: OPEN** — only the decideSkillImport core exists; no browse/select UI, no TOFU pin store, no production consumer, canonical-preimage hashing left to the caller.
 - [ ] **F4.23 — Wire skill execution containment.** Enforce effective tool grants, per-file no-auto-execute approvals,
   Docker/egress policy, credential/identity constraints, and the session-level Rule of Two.
 - [x] **F4.24 — Finish deterministic bundle screening.** Inspect magic/content for executables/obfuscation, optionally **EXECUTABLE-SCREEN DONE 2026-07-15 (`70fa054e`):** skill-bundle-screening.ts screenBundleForExecutables (magic/shebang/ext → quarantine, 5 tests) completes the binary half; skill-injection-prescreen already covers text obfuscation. **FINALIZED 2026-07-19 (split):** the screening machinery is complete; the consumer wire rides F4.20's effectful SKILL.md disk loader, which is UNBUILT (David-deferred greenfield per the §5.AR epic state) — the wire lands with that loader and is tracked at F4.20/F4.26.

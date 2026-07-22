@@ -41,6 +41,7 @@ import {
 	formatCodeEmbeddingSettings,
 	LOCAL_CODE_EMBEDDING_MODEL,
 } from "@/components/code-embedding-fields";
+import { CommunitySkillImportPanel } from "@/components/community-skill-import-panel";
 import { ConcurrencyEditor, type ConcurrencyMap } from "@/components/concurrency-editor";
 import { MemoryAuditSettingsPanel } from "@/components/memory-audit-settings-panel";
 import { ModelPerformanceStatsDialog } from "@/components/model-performance-stats-dialog";
@@ -3250,6 +3251,9 @@ export function RuntimeSettingsDialog({
 						</div>
 						<div className="mb-4">
 							<TrustPosturePanel workspaceId={workspaceId} />
+						</div>
+						<div className="mb-4">
+							<CommunitySkillImportPanel workspaceId={workspaceId} open={open} />
 						</div>
 
 						{/* ---- Notifications ---- */}

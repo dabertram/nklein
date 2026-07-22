@@ -53,6 +53,8 @@ describe("loadCommunitySkillBundle", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.loaded.sourcePath).toBe("fixture/SKILL.md");
+		expect(result.loaded.sourceFile.path).toBe("SKILL.md");
+		expect(result.loaded.sourceFile.content).toEqual(Buffer.from(VALID_SKILL));
 		expect(result.loaded.files.map((file) => file.path)).toEqual(["assets/badge.txt", "references/guide.md"]);
 		expect(result.loaded.files[1].content).toEqual(Buffer.from("# Guide\nInspect before acting.\n"));
 		expect(result.loaded.dynamicSkill).toMatchObject({

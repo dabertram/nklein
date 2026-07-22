@@ -137,6 +137,7 @@ import { createNKleinProviderService } from "../nklein-agent/nklein-provider-ser
 import { buildSessionSkillFragments } from "../nklein-agent/nklein-session-skill-fragments";
 import { openInBrowser } from "../server/browser";
 import { createCommunitySkillDiscoveryService } from "../server/community-skill-discovery-service";
+import { createCommunitySkillImportService } from "../server/community-skill-import-service";
 import { createRailControlCoordinator, type RailControlCoordinator } from "../server/rail-control-service";
 import { createSearxngWebSearchClient } from "../server/web-search-searxng";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
@@ -366,6 +367,7 @@ async function buildMachinePoolsView(): Promise<
 
 export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrpcContext["runtimeApi"] {
 	const nkleinProviderService = createNKleinProviderService();
+	const communitySkillImportService = createCommunitySkillImportService();
 	const nkleinMcpSettingsService = createNKleinMcpSettingsService();
 	const nkleinMcpRuntimeService = createNKleinMcpRuntimeService({
 		onAuthStatusesChanged: (statuses) => {
@@ -966,6 +968,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			});
 			return deps.withSearchBackend ? await deps.withSearchBackend(discoverAt) : await discoverAt(configured);
 		},
+		listCommunitySkillImports: async () => await communitySkillImportService.listCandidates(),
+		reviewCommunitySkillImport: async (input) => await communitySkillImportService.review(input),
+		approveCommunitySkillImport: async (input) => await communitySkillImportService.approve(input),
 		setManagedSearchControl: async (input) => {
 			if (!deps.managedSearchBackend) throw new Error("Managed local search is unavailable in this runtime.");
 			if (input.action === "start") await deps.managedSearchBackend.start();

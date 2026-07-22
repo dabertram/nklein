@@ -1,9 +1,10 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import type { PinnedArtifact } from "../core/skill-pin-drift.js";
+import { lockedFileSystem } from "../fs/locked-file-system";
 import { parseValidatedJsonl } from "./jsonl-store";
 
 /**
@@ -51,13 +52,14 @@ export async function getSkillPin(id: string, options?: { rootDir?: string }): P
 
 /** Record (or re-record, replacing) the pin for an artifact id. Re-pinning updates the stored hash/version/trust. */
 export async function upsertSkillPin(pin: StoredPin, options?: { rootDir?: string }): Promise<void> {
-	const pins = (await readSkillPins(options)).filter((existing) => existing.id !== pin.id);
-	pins.push(pin);
-	const body = pins.map((entry) => JSON.stringify(storedPinSchema.parse(entry))).join("\n");
-	await mkdir(rootOf(options?.rootDir), { recursive: true });
-	await writeFile(resolveLogPath(options?.rootDir), body.length > 0 ? `${body}\n` : "", "utf8");
-}
-
-function rootOf(rootDir?: string): string {
-	return rootDir ?? DEFAULT_ROOT;
+	const path = resolveLogPath(options?.rootDir);
+	await lockedFileSystem.withLock({ path }, async () => {
+		// Read INSIDE the lock. Reading before locking loses one of two concurrent approvals even if the final write is
+		// atomic; the whole read-modify-write sequence is the transaction.
+		const pins = (await readSkillPins(options)).filter((existing) => existing.id !== pin.id);
+		pins.push(storedPinSchema.parse(pin));
+		pins.sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+		const body = pins.map((entry) => JSON.stringify(entry)).join("\n");
+		await lockedFileSystem.writeTextFileAtomic(path, body.length > 0 ? `${body}\n` : "", { lock: null });
+	});
 }

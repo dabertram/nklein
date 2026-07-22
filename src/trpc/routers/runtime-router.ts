@@ -30,6 +30,11 @@ import {
 	runtimeCommandRunResponseSchema,
 	runtimeCommunitySkillDiscoveryRequestSchema,
 	runtimeCommunitySkillDiscoveryResponseSchema,
+	runtimeCommunitySkillImportApproveRequestSchema,
+	runtimeCommunitySkillImportApproveResponseSchema,
+	runtimeCommunitySkillImportListResponseSchema,
+	runtimeCommunitySkillImportReviewRequestSchema,
+	runtimeCommunitySkillImportReviewResponseSchema,
 	runtimeConfigResponseSchema,
 	runtimeConfigSaveRequestSchema,
 	runtimeDebugResetAllStateResponseSchema,
@@ -215,6 +220,18 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.input(runtimeCommunitySkillDiscoveryRequestSchema)
 			.output(runtimeCommunitySkillDiscoveryResponseSchema)
 			.query(async ({ ctx, input }) => ctx.runtimeApi.discoverCommunitySkills(input)),
+		// F4.22: local inbox browse + inert full review + explicit hash-bound approval. Approval does not activate.
+		listCommunitySkillImports: t.procedure
+			.output(runtimeCommunitySkillImportListResponseSchema)
+			.query(async ({ ctx }) => ctx.runtimeApi.listCommunitySkillImports()),
+		reviewCommunitySkillImport: t.procedure
+			.input(runtimeCommunitySkillImportReviewRequestSchema)
+			.output(runtimeCommunitySkillImportReviewResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.reviewCommunitySkillImport(input)),
+		approveCommunitySkillImport: t.procedure
+			.input(runtimeCommunitySkillImportApproveRequestSchema)
+			.output(runtimeCommunitySkillImportApproveResponseSchema)
+			.mutation(async ({ ctx, input }) => ctx.runtimeApi.approveCommunitySkillImport(input)),
 		setManagedSearchControl: t.procedure
 			.input(runtimeManagedSearchControlRequestSchema)
 			.output(runtimeManagedSearchStatusResponseSchema)

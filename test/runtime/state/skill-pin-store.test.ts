@@ -42,4 +42,15 @@ describe("skill-pin-store", () => {
 		await upsertSkillPin(pin({ id: "mcp-b" }), { rootDir: root });
 		expect((await readSkillPins({ rootDir: root })).map((p) => p.id).sort()).toEqual(["mcp-b", "skill-a"]);
 	});
+
+	it("does not lose distinct pins approved concurrently", async () => {
+		await Promise.all(
+			Array.from({ length: 24 }, async (_, index) =>
+				upsertSkillPin(pin({ id: `skill-${index}`, contentHash: `hash-${index}` }), { rootDir: root }),
+			),
+		);
+		const pins = await readSkillPins({ rootDir: root });
+		expect(pins).toHaveLength(24);
+		expect(new Set(pins.map((entry) => entry.id)).size).toBe(24);
+	});
 });
