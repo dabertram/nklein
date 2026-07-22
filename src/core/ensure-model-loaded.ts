@@ -25,6 +25,13 @@ import {
 	selectDeviceForModelLoad,
 } from "./device-load-routing";
 import type { LmsLinkDevices } from "./lms-link-status";
+import { MIN_CONTEXT_WINDOW_TOKENS } from "./lms-model-control";
+import { planLoadContextLength } from "./load-context-plan";
+
+export interface EnsureModelLoadFacts {
+	sizeBytes: number | null;
+	maxContextLength: number | null;
+}
 
 /** The concrete load the adapter hands to the guarded loader (a subset of `LoadExclusiveInput`). */
 export interface EnsureLoadRequest {
@@ -32,6 +39,10 @@ export interface EnsureLoadRequest {
 	candidateSizeBytes: number;
 	totalRamBytes: number;
 	contextLength: number;
+	/** Raw task need used to derive `contextLength`; retained so the guarded loader can verify/recompute the plan. */
+	taskNeededTokens: number;
+	/** Catalog-advertised ceiling used to derive `contextLength`. */
+	maxContextLength: number;
 	targetDevice: string;
 	targetDeviceIdentifier: string;
 }
@@ -40,8 +51,8 @@ export interface EnsureLoadRequest {
 export interface EnsureModelLoadedDeps {
 	/** Read the LM-Link roster (names, ids, current preferred device). */
 	fetchLinkDevices: () => Promise<LmsLinkDevices>;
-	/** Map of model key → on-disk WEIGHTS size in bytes (e.g. from the REST `listModels` `size_bytes`). */
-	listModelSizes: () => Promise<ReadonlyMap<string, number>>;
+	/** Model key → load-planning facts from the REST catalog. Missing/invalid facts make admission fail closed. */
+	listModelFacts: () => Promise<ReadonlyMap<string, EnsureModelLoadFacts>>;
 	/** Perform the guarded exclusive load on the chosen device — wraps `loadModelExclusive(run, …)`. */
 	loadExclusive: (request: EnsureLoadRequest) => Promise<{ loaded: boolean; reason: string }>;
 	/** Optional llmfit KV-aware footprint (bytes) for a model key — preferred over the weights+KV estimate. */
@@ -57,12 +68,13 @@ export type EnsureModelLoadedResult =
 	| { loaded: false; reason: string };
 
 /**
- * Load `modelId` on the linked device that best fits it (weights + KV at `contextLength`), via the guarded loader.
+ * Load `modelId` on the linked device that best fits it. The production path derives one context window from the
+ * task need and catalog maximum, then uses that exact value for both weights+KV placement and the guarded load.
  * Returns `{loaded:true, deviceName}` on success; `{loaded:false, reason}` when disabled, sized unknown, no device
  * fits, or the load fails/erred — so the caller can fall back to blocking with a clear reason. Never throws.
  */
 export async function ensureModelLoadedOnFittingDevice(
-	input: { modelId: string; contextLength: number },
+	input: { modelId: string; taskNeededTokens: number },
 	deps: EnsureModelLoadedDeps,
 ): Promise<EnsureModelLoadedResult> {
 	const rawDeviceRamBytes = resolveDeviceRamBytes({
@@ -80,15 +92,25 @@ export async function ensureModelLoadedOnFittingDevice(
 		return { loaded: false, reason: "No model id to load." };
 	}
 	try {
-		const [link, sizes] = await Promise.all([deps.fetchLinkDevices(), deps.listModelSizes()]);
+		const [link, factsByModel] = await Promise.all([deps.fetchLinkDevices(), deps.listModelFacts()]);
 		const deviceRamBytes = applyLocalDeviceAlias(rawDeviceRamBytes, link.localMachineName);
-		const weightsBytes = sizes.get(modelId);
-		if (weightsBytes === undefined || !(weightsBytes > 0)) {
+		const facts = factsByModel.get(modelId);
+		const weightsBytes = facts?.sizeBytes;
+		if (weightsBytes == null || !(weightsBytes > 0)) {
 			return { loaded: false, reason: `Weights size unknown for "${modelId}" — cannot judge headroom.` };
 		}
+		const maxContextLength = facts?.maxContextLength;
+		if (maxContextLength == null || !Number.isFinite(maxContextLength) || !(maxContextLength > 0)) {
+			return { loaded: false, reason: `Maximum context unknown for "${modelId}" — cannot plan a safe load.` };
+		}
+		const contextLength = planLoadContextLength({
+			taskNeededTokens: input.taskNeededTokens,
+			maxContextLength,
+			minContextFloor: MIN_CONTEXT_WINDOW_TOKENS,
+		});
 		const candidateSizeBytes = estimateEffectiveModelBytes({
 			weightsBytes,
-			contextLength: input.contextLength,
+			contextLength,
 			llmfitMemoryBytes: deps.llmfitMemoryBytes?.(modelId) ?? null,
 		});
 		// F12.75: probe the LOCAL device's GPU-wireable ceiling once. On Apple Silicon macOS caps GPU-wireable
@@ -123,7 +145,9 @@ export async function ensureModelLoadedOnFittingDevice(
 			modelId,
 			candidateSizeBytes,
 			totalRamBytes: deviceRamBytes[decision.deviceName],
-			contextLength: input.contextLength,
+			contextLength,
+			taskNeededTokens: input.taskNeededTokens,
+			maxContextLength,
 			targetDevice: decision.deviceName,
 			targetDeviceIdentifier: decision.deviceIdentifier,
 		});

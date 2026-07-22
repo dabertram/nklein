@@ -2843,8 +2843,16 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   PROVEN by test: a pinned `file:line` citation survives normal compaction byte-intact while unpinned filler
   compacts, and rides the emergency rebuild verbatim (3 tests). Producers adopt incrementally — any evidence
   message can now stamp the flag.
-- [ ] **F4.47 — Pass task-needed/max context into model loading.** Make the existing load-context planner a production
+- [x] **F4.47 — Pass task-needed/max context into model loading.** Make the existing load-context planner a production
   consumer and prove the loaded context matches the computed safe value.
+  **COMPLETED 2026-07-22:** task start now derives one load need from the card title/prompt/images plus floor-sized
+  output, prompt/tool-overhead, and working-room reserves. The opt-in fleet admission seam fetches both weights and the
+  real LM Studio `max_context_length`, calls `planLoadContextLength`, uses that exact result for its weights+KV device-fit
+  estimate, and passes the task need + maximum through to the guarded loader, which deterministically verifies the same
+  plan before emitting `lms load`. Unknown/invalid weights or maximum context fail closed instead of falling back to
+  40k or the advertised maximum. Focused regression coverage proves 6k→32k, 80k→100,352, model-max capping, missing-max
+  refusal, and the existing CLI load argv path. Final gates: typecheck, 39 focused assertions, 12,126 fast
+  runtime/utility assertions, and 142 protected assertions pass; lint has no errors (only pre-existing warnings).
 - [ ] **F4.48 — Wire fast-memory-fit checks.** Combine weights, KV geometry, host fast memory, and reserve policy to cap
   context/refuse loads before spillover.
 - [ ] **F4.49 — Add Apple unified-memory safety.** Keep peak below the configured safe fraction, cap MLX KV growth, and

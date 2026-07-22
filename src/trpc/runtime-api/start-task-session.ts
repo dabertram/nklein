@@ -26,6 +26,7 @@ import { recommendModelFloor } from "../../core/language-capability-routing";
 import { buildLedgerEvidence } from "../../core/ledger-evidence";
 import type { LlmfitRoutingPrior } from "../../core/llmfit-fitness-bridge";
 import { fetchLmsLinkDevices } from "../../core/lms-link-status";
+import { MIN_CONTEXT_WINDOW_TOKENS } from "../../core/lms-model-control";
 import { loadModelExclusive } from "../../core/lms-model-runner";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
 import { fetchLoadedModelDescriptors, mergeLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
@@ -356,25 +357,34 @@ export async function handleStartTaskSession(
 		};
 		const providerBaseUrlForLoad =
 			deps.nkleinProviderService.getProviderSettingsSummary().baseUrl ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+		const taskPromptTokens = estimateNKleinStartPromptTokens({
+			prompt: body.prompt,
+			taskTitle: body.taskTitle,
+			images: body.images,
+		});
+		// Size an unloaded model for the task itself, not for the model's advertised maximum. The floor-sized safety
+		// reserves cover output, prompt/tool overhead, and minimum working room; the load planner adds its own 25% slack.
+		const taskNeededTokensForLoad = estimateNKleinStartFitBudgetTokens(taskPromptTokens, MIN_CONTEXT_WINDOW_TOKENS);
 		// §5.AB autonomous loader closure: LOAD a model on a linked device that FITS (opt-in NKLEIN_DEVICE_RAM_GB,
 		// fail-safe). Used both here (before resolveLaunchConfig's residency gate) and at the later start block.
-		const attemptAutonomousModelLoad = async (modelId: string, contextLength: number) => {
+		const attemptAutonomousModelLoad = async (modelId: string) => {
 			const outcome = await ensureModelLoadedOnFittingDevice(
-				{ modelId, contextLength },
+				{ modelId, taskNeededTokens: taskNeededTokensForLoad },
 				{
 					configuredDeviceRamGb: scopedRuntimeConfig.deviceRamGb,
 					fetchLinkDevices: () => fetchLmsLinkDevices(createDefaultLmsRunner()),
-					listModelSizes: async () => {
+					listModelFacts: async () => {
 						const listed = await createLmStudioRestModelClient({ baseUrl: providerBaseUrlForLoad }).listModels();
-						const modelSizes = new Map<string, number>();
+						const modelFacts = new Map<string, { sizeBytes: number | null; maxContextLength: number | null }>();
 						if (listed.ok) {
 							for (const model of listed.value) {
-								if (model.sizeBytes != null && model.sizeBytes > 0) {
-									modelSizes.set(model.key, model.sizeBytes);
-								}
+								modelFacts.set(model.key, {
+									sizeBytes: model.sizeBytes,
+									maxContextLength: model.maxContextLength,
+								});
 							}
 						}
-						return modelSizes;
+						return modelFacts;
 					},
 					loadExclusive: async (request) => {
 						const loadResult = await loadModelExclusive(createDefaultLmsRunner(), {
@@ -382,6 +392,8 @@ export async function handleStartTaskSession(
 							candidateSizeBytes: request.candidateSizeBytes,
 							totalRamBytes: request.totalRamBytes,
 							contextLength: request.contextLength,
+							taskNeededTokens: request.taskNeededTokens,
+							maxContextLength: request.maxContextLength,
 							targetDevice: request.targetDevice,
 							targetDeviceIdentifier: request.targetDeviceIdentifier,
 						});
@@ -403,7 +415,7 @@ export async function handleStartTaskSession(
 			// resolveLaunchConfig ONCE so it now sees the model. Opt-in (NKLEIN_DEVICE_RAM_GB) + fail-safe: a failed load
 			// falls through to the original behavior (DEFAULT ⇒ loaded-fallback; EXPLICIT ⇒ rethrow).
 			const autoLoad = body.nkleinSettings?.modelId
-				? await attemptAutonomousModelLoad(body.nkleinSettings.modelId, 40_000)
+				? await attemptAutonomousModelLoad(body.nkleinSettings.modelId)
 				: { loaded: false as const, reason: "no explicit model" };
 			if (autoLoad.loaded) {
 				clearProviderModelDiscoveryCache();
@@ -463,10 +475,7 @@ export async function handleStartTaskSession(
 			// LM-Link serves a loaded model from where it sits (dispatch-time steering was proven inert, 2026-07-12).
 			// Fail-safe + opt-in: disabled / no-fit / load-error ⇒ loaded:false ⇒ fall through to the original block.
 			// With NKLEIN_DEVICE_RAM_GB unset, the adapter returns immediately with NO fleet I/O ⇒ byte-identical.
-			const autoLoad = await attemptAutonomousModelLoad(
-				nkleinLaunchConfig.modelId,
-				nkleinLaunchConfig.contextWindow ?? 40_000,
-			);
+			const autoLoad = await attemptAutonomousModelLoad(nkleinLaunchConfig.modelId);
 			if (!autoLoad.loaded) {
 				return {
 					ok: false,
@@ -668,11 +677,7 @@ export async function handleStartTaskSession(
 			dynamicsLevel: scopedRuntimeConfig.effectiveSkillDynamicsLevel,
 		}).skills.map((skill) => skill.id);
 		const taskAffinityTags = affinityTagsForSkills(resolvedSkillIds);
-		const promptTokens = estimateNKleinStartPromptTokens({
-			prompt: body.prompt,
-			taskTitle: body.taskTitle,
-			images: body.images,
-		});
+		const promptTokens = taskPromptTokens;
 		const routingOutputTokens = 1_000;
 		const llmfitWallTimeForModel = (modelId: string): number | null =>
 			llmfitPriorPredictedWallTimeMs(llmfitRoutingPriorByRuntimeId.get(modelId), routingOutputTokens);

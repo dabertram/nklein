@@ -13,7 +13,7 @@ The cause was not dead code — it was **discoverability**. A long orphan list r
 code*; the accurate reading is *a lot of built capability nobody can find*. Deleting it destroys value;
 indexing it recovers value.
 
-672 core modules.
+694 core modules.
 
 | module | purpose | labels |
 | --- | --- | --- |
@@ -24,6 +24,8 @@ indexing it recovers value.
 | `core/action-plan-executor.ts` | F3.T3 — execute an {@link ActionPlan} end to end. | — |
 | `core/action-plan-ir-gbnf.ts` | GBNF grammar generator for the action-plan IR (todo §5.O — "grammar-constrained decoding for the IR"). | §5.AN §5.O |
 | `core/action-plan-ir.ts` | Action-plan intermediate representation — a typed, validatable plan for multi-step tool workflows (todo §5.O). | §5.O |
+| `core/action-plan-producer-eval.ts` | (no docblock) | — |
+| `core/action-plan-producer.ts` | (no docblock) | — |
 | `core/adaptive-attempt-loop.ts` | The §5.AA adaptive-attempt DRIVER — the effectful loop that ties the retry-policy decision core together. | §5.AA |
 | `core/adaptive-decomposition-decision.ts` | Adaptive (ADaPT-style) decomposition-granularity decision (todo §5.AB-(E) — the model-landscape-aware | §5.AB §5.AL §5.Z |
 | `core/admissible-cited-synthesis.ts` | ADMISSIBILITY-gated cited synthesis — the guard that stands in FRONT of `assembleCitedAnswer` in the §5.AC "knows | §5.AC |
@@ -43,7 +45,7 @@ indexing it recovers value.
 | `core/answer-budget-prior.ts` | PROACTIVE answer-budget sizing (todo §5.AD "Size UP-FRONT"). | §5.AA §5.AD §5.AF |
 | `core/answer-budget-projection.ts` | F4.10 — project observed answer sizes (output tokens) per model from the §5.Q model-performance observations, so | F4.10 §5.Q |
 | `core/anti-decomposition-guard.ts` | F12.37 anti-decomposition guard — PURE core. | F12.37 |
-| `core/api-contract.ts` | (no docblock) | §5.M §5.X |
+| `core/api-contract.ts` | (no docblock) | F4.21 F4.22 F4.23 §5.M §5.X |
 | `core/api-validation.ts` | (no docblock) | — |
 | `core/apple-silicon-probe.ts` | F12.75 (effectful half) — probe the LOCAL machine for the Apple-Silicon GPU-wiring ceiling. | F12.75 |
 | `core/apple-silicon-vram.ts` | F12.75 Apple-Silicon wired-memory enrichment for load routing — PURE core. | F12.75 |
@@ -64,7 +66,7 @@ indexing it recovers value.
 | `core/background-eval-runner.ts` | §5.AI durable background-eval runner CORE — the brain of the always-on dev-test rail, with every effect INJECTED so | F1.32b §5.AF §5.AI |
 | `core/background-eval-selection.ts` | F1.32 (§5.AI) — the rail's TARGET picker: which (project, model) pair the background-eval service should run | F1.31b F1.32 F1.35 §5.AI |
 | `core/basic-memory-note-parse.ts` | F5.2 (pure core, effectful-reader companion) — parse ONE raw basic-memory markdown note into the | F5.2 |
-| `core/basic-memory-note-reader.ts` | F5.2 (effectful b-leaf) — read the on-disk basic-memory knowledge base into {@link AuditableMemoryNote}s for the | F2.9b F5.2 |
+| `core/basic-memory-note-reader.ts` | F5.2 (effectful b-leaf) — read the on-disk basic-memory knowledge base into {@link AuditableMemoryNote}s for the | F2.9b F4.32 F5.2 |
 | `core/basic-memory-provenance.ts` | §5.AR — provenance stamping + provenance-weighted RECALL for authored (basic-memory) notes. | §5.AR §5.AW |
 | `core/basic-memory-scoping.ts` | §5.AR — pure scoping + egress-hardening plan for the basic-memory MCP server. | §5.AR |
 | `core/benchmark-fitness.ts` | P20.9 — which benchmarks are usable BY A LOCAL FLEET. | P18.5 P20.9 |
@@ -105,6 +107,7 @@ indexing it recovers value.
 | `core/chat-multimodal.ts` | F2.7 (§5.M) — capability-gated MULTIMODAL chat, the pure cores: images first, audio/PDF stay refused until a | F2.7 §5.M |
 | `core/chat-session-skill-profile.ts` | §5.AE chat-session skill profile (pure) — resolve a chat session's USER-SELECTED skill ids into a merged | §5.AE |
 | `core/churn-collector.ts` | P20.10b — the CHURN COLLECTOR: turn git history into the observations `post-acceptance-churn.ts` judges. | P20.1 P20.10 P20.10b |
+| `core/churn-window-collector.ts` | P20.10c — collect the 24h/7d churn windows without requiring a daemon to stay alive for seven days. | P20.10c |
 | `core/citation-conflict-annotation.ts` | F4.5 — annotate a rendered synthesis with the resolved source conflicts. | F4.5 |
 | `core/citation-conflict-authority.ts` | F4.5 — resolve a citation conflict by preferring the newer, MORE-AUTHORITATIVE source, while RETAINING the minority | F4.5 |
 | `core/citation-conflict-batch.ts` | §5.AC batch recency tie-break — the "resolve MANY conflict groups at once" fan-out over | §5.AC |
@@ -120,6 +123,12 @@ indexing it recovers value.
 | `core/clarification-option-set.ts` | Clarification option-set preparer (todo.md §5.S) — the pure data layer behind the manual-mode clarifying dialog. | §5.S |
 | `core/coalescing-scheduler.ts` | A tiny throttle-coalescer: bounds a frequently-requested side effect to **at most one run per window**, always using | §5.AI |
 | `core/codeact-gating.ts` | F12.26 — capability-gated CodeAct (executable code actions). | F12.26 |
+| `core/community-skill-discovery-api-contract.ts` | (no docblock) | — |
+| `core/community-skill-discovery.ts` | F4.21 — gated community-skill discovery. | F4.21 F4.22 |
+| `core/community-skill-execution-api-contract.ts` | (no docblock) | — |
+| `core/community-skill-import-api-contract.ts` | (no docblock) | — |
+| `core/community-skill-session-containment.ts` | F4.23 — the complete, pure containment decision for ONE community-skill session. | F4.23 |
+| `core/community-skill-suggestion.ts` | (no docblock) | F4.26 |
 | `core/compaction-format.ts` | P18.6 — the compaction FORMAT, made testable instead of assumed. | P18.5 P18.6 P20.6 |
 | `core/compiler-diagnostics.ts` | F12.86 multi-language compiler/type-check repair micro-loop — the PURE core. | F12.86 |
 | `core/completion-stop-reason.ts` | §5.AN: normalize a completion's STOP-REASON across LM Studio's three request dialects into ONE actionable outcome (pure). | §5.AA §5.AN |
@@ -132,6 +141,7 @@ indexing it recovers value.
 | `core/content-addressable-cache.ts` | F12.32 — content-addressable caching for tool results + model responses (the determinism-BOUNDING half; | F12.32 F12.67 |
 | `core/context-budget-knee.ts` | Learned quality-effective context-budget ESTIMATOR — the "quality knee" fit (todo §5.AD). | §5.AA §5.AD §5.AE |
 | `core/context-compaction.ts` | Small-model-safe context compaction (todo §5.AQ item F) — summarization **compaction** + **tool-result clearing** | §5.AQ |
+| `core/context-integrity-experiment.ts` | (no docblock) | — |
 | `core/context-occupancy-pressure.ts` | Context-occupancy PRESSURE decider (todo §5.AD) — a multi-way triage over how full the context window is. | §5.AD §5.AE §5.W |
 | `core/context-position-salience-risk.ts` | Lost-in-the-middle POSITION-salience-risk scorer (todo §5.AD) — quantify, per placement, how much attention a | §5.AD |
 | `core/context-pressure-triage.ts` | F4.14 (pure core / a-leaf) — context-pressure TRIAGE: at runtime, decide `continue` / `compact` / `stop` for a turn | F3.1 F3.5 F4.10 F4.14 |
@@ -145,6 +155,7 @@ indexing it recovers value.
 | `core/cross-model-bounce.ts` | §5.AD cross-model bounce — the prompt substrate behind the enforced-reasoning gate's `cross_model_carry` kind: | §5.AD §5.K |
 | `core/daw-foundation-rubric.ts` | F1.2 — the SCORING rubric for the DAW-foundation challenge preset (`daw_foundation` → | F1.2 |
 | `core/decision-handoff.ts` | F12.38 compacted decision-handoff between dependent cards — PURE core. | F12.38 |
+| `core/decompose-span-ab-eval.ts` | The candidate arm must not receive an oracle span. | F11.2d |
 | `core/decompose-tool-policy.ts` | §5.B/§5.O decompose (plan-mode) TOOL-SET restriction — a decompose/plan card's ONLY job is to call `decompose_project` | §5.B §5.O |
 | `core/decomposition-redecompose-trigger.ts` | Re-decompose trigger (todo §5.B — decomposition quality & the knowledge-expansion loop). | §5.AB §5.B §5.Z |
 | `core/decomposition-research-preflight.ts` | (no docblock) | — |
@@ -157,7 +168,7 @@ indexing it recovers value.
 | `core/delivery-quality-gate-audit.ts` | Delivery-quality gate audit (pure) — gives the ported {@link aggregateGateAudit} a real, non-speculative consumer by | — |
 | `core/delivery-quality-gate.ts` | Delivery quality gate (pure) — the bridge that composes the opencode-swarm-ported diff scanners | — |
 | `core/dev-test-cleanup.ts` | Dev-test cleanup reporting (follow-up-6 §4.3). | — |
-| `core/dev-test-grader-baseline.ts` | P20.1b — RUN the grader-forgery baseline against our OWN dev-test grader, end to end. | P20.1 P20.1b P20.3 |
+| `core/dev-test-grader-baseline.ts` | P20.1b — RUN the grader-forgery baseline against our OWN dev-test grader, end to end. | P20.1 P20.1b |
 | `core/dev-test-outcome.ts` | Dev-test run outcome classification (follow-up-6 §3.4, §3.7, §5). | §5.B |
 | `core/dev-test-sweep.ts` | Dev-test sweep orchestrator (todo §5.O) — run the dev-test scenarios across a set of presets, then | §5.O |
 | `core/device-load-routing.ts` | §5.AB machine-aware load routing — the PURE device selector that keeps a model OFF a linked node it would SWAP. | §5.AB |
@@ -235,9 +246,11 @@ indexing it recovers value.
 | `core/fixture-model-ids.ts` | Whether `modelId` is a synthetic fixture/test id that must be kept out of the live registry surfaces. | — |
 | `core/flake-quarantine.ts` | §5.AI dev-test rail — per-test FLAKE-QUARANTINE policy (pure). | §5.AI |
 | `core/fleet-aware-decomposition.ts` | F12.110 fleet-aware decomposition — the AVAILABLE model fleet as DIRECT decompose input, so cards are BORN | F12.110 F4.38 |
+| `core/fleet-endpoint-loss-proof.ts` | Pin completion to the deterministic proof graph. | F3.24b |
 | `core/fleet-host-cap-config.ts` | (no docblock) | — |
 | `core/fleet-host-observation.ts` | (no docblock) | — |
 | `core/fleet-review-observation.ts` | (no docblock) | — |
+| `core/fleet-wide-fanout-board.ts` | (no docblock) | F3.24b |
 | `core/focus-chain-diff.ts` | Focus-chain diff (todo.md §5.N) — given the previous and next state of an agent's focus chain, compute *what | §5.N |
 | `core/focus-chain-nudge.ts` | §5.M / §5.N — the focus-chain NUDGE decision (pure core). | §5.M §5.N |
 | `core/focus-chain.ts` | Per-agent focus chain (todo.md §5.N) — the agent-authored, ordered checklist it drafts at the start of a task | §5.N |
@@ -308,8 +321,9 @@ indexing it recovers value.
 | `core/local-messages-api-shape.ts` | §5.AB endpoint-iteration — the PURE wire-shape core for the `anthropic_messages` endpoint kind (a LOCAL model server | §5.AB |
 | `core/local-model-endpoint-strategy.ts` | §5.AB endpoint-iteration STRATEGY — the pure try-order decider behind "some local model servers speak OpenAI's | §5.AB |
 | `core/local-model-endpoint.ts` | The default local model-server endpoint (todo §5.U — consolidates a magic URL that was hardcoded ~8x across the | §5.U |
-| `core/local-native-chat-shape.ts` | §5.AB endpoint-iteration — the PURE wire-shape core for the `native_v1_chat` endpoint kind: LM Studio's native | F4.33 F4.34 F4.45 §5.AB |
-| `core/local-native-chat-sse.ts` | F4.34 incremental parser/state machine for LM Studio native chat named SSE, including reasoning, messages, MCP tools, errors, and fail-closed termination. | F4.34 §5.AN |
+| `core/local-native-chat-session.ts` | F4.35 — task-scoped continuity for LM Studio native `/api/v1/chat` sessions. | F4.35 |
+| `core/local-native-chat-shape.ts` | §5.AB endpoint-iteration — the PURE wire-shape core for the `native_v1_chat` endpoint kind: LM Studio's native | F4.34 §5.AB |
+| `core/local-native-chat-sse.ts` | F4.34 — incremental parser/state machine for LM Studio native `/api/v1/chat` SSE. | F4.34 |
 | `core/localization-provider.ts` | §5.B localization port — the READ-ONLY fault-localization contract the repair kernel's `localize` step depends on. | §5.B |
 | `core/long-memory-eval.ts` | Internal LongMemEval-style fixture for deciding whether !Klein may broaden memory scope. | F2.10 |
 | `core/long-memory-live-eval.ts` | Pure parser/scorer for the effectful LongMemEval live verifier. | — |
@@ -323,6 +337,7 @@ indexing it recovers value.
 | `core/mcp-tool-surface-pin.ts` | F12.31 MCP hardening — tool-SURFACE pinning + server allowlist. | F12.31 |
 | `core/mechanism-decision-report.ts` | P15.2 — turn a mechanism's observation stream into a DECISION. | F12.28 F12.41 P15.1 P15.2 |
 | `core/mechanism-observation-audit.ts` | P15.1b — the observation-count half of the mechanism registry. | F4.8b P15.1b |
+| `core/memory-audit-production.ts` | F4.32 — production effects around the pure memory-audit verdict core. | F4.32 |
 | `core/memory-audit.ts` | §5.AR / §5.AW — the strong-model MEMORY AUDIT (pure core). | §5.AF §5.AR §5.AW |
 | `core/memory-freshness-audit.ts` | F5.2 (pure core) — Basic Memory FRESHNESS / CONSISTENCY audit. | F5.2 |
 | `core/memory-freshness-schedule.ts` | F5.2 (pure scheduler core) — the decision + retention seam between the runtime idle path and the model-free | F1.26 F5.2 |
@@ -367,6 +382,7 @@ indexing it recovers value.
 | `core/model-task-affinity.ts` | Best-fit affinity tags (§5.AB/§5.AE) — the small shared vocabulary that lets the router match a TASK to a MODEL | §5.AB §5.AE §5.AL |
 | `core/model-thinking-control.ts` | §5.AA model thinking-control — the per-model soft-switch that turns a reasoning model's hidden reasoning channel OFF | §5.AA |
 | `core/model-tuning-recommendations.ts` | Collapse a model key to a canonical per-model display name so the two recording paths line up. | F3.30 F4.10 F4.9 |
+| `core/model-turn-admission-wait-queue.ts` | Fair reservations for model-turn admission resources. | — |
 | `core/model-turn-admission.ts` | (no docblock) | — |
 | `core/monorepo-task-scope.ts` | F11.2k monorepo-aware task scoping — PURE core. | F11.2k |
 | `core/multimodal-provider-compat.ts` | F2.7b hardening — PROVIDER image-format compatibility. | F2.7b |
@@ -468,6 +484,7 @@ indexing it recovers value.
 | `core/research-freshness-gate.ts` | §5.AC freshness gate for the decompose/research pass — the pure decision behind "if the knowledge is stale, | §5.AC |
 | `core/resident-set-recommendation.ts` | F12.77 — the RESIDENT-SET RECOMMENDATION: which models are worth keeping loaded. | F12.77 |
 | `core/result-handle.ts` | Result-handle scheme for small-model context frugality (todo §5.O "Result handles"). | §5.O |
+| `core/retrieval-discriminator.ts` | Models that independently retained the target in 28/28 F11.2e cases, had zero valid-case regressions, zero schema | F11.2e |
 | `core/retrieval-fetch-adapter.ts` | §5.AC retrieval-loop FETCH adapter — plugs a page fetcher into the retrieval loop's injected `fetch` dep | §5.AC §5.L |
 | `core/retrieval-freshness-authority-rank.ts` | Recency×authority COMBINER for the §5.AC "knows today" retrieval loop — the step that FUSES the two freshness halves | §5.AC |
 | `core/retrieval-freshness.ts` | Freshness judgment for retrieved info (todo §5.AC, the "knows today" lighthouse). | §5.AC |
@@ -482,6 +499,7 @@ indexing it recovers value.
 | `core/retrieval-sufficiency.ts` | Sufficiency judgment for the §5.AC retrieval loop. | §5.AC |
 | `core/retrieval-synthesis-adapter.ts` | §5.AC retrieval-loop SYNTHESIS adapter — maps an injected model completion into the loop's optional `synthesize` dep | §5.AC |
 | `core/retrieved-evidence.ts` | First-class RetrievedEvidence objects + citation verification (todo §5.AC). | §5.AC §5.L |
+| `core/retry-baseline-experiment.ts` | P20.8b — a cheap retry floor that every future scaffold comparison must clear before it can claim value. | P20.8b |
 | `core/retry-budget-projection.ts` | F3.30 — project the attempt ledger into {@link RetryBudgetObservation}s per model, so `estimateLearnedRetryBudget` | F3.30 |
 | `core/retry-ladder-divergence.ts` | F3.8a — compare the CHAT path's live-tuned inline retry ladder against the shared retry-policy engine. | F3.8 F3.8a |
 | `core/retry-policy.ts` | The §5.AA retry-policy decision core — a typed controller strategy table that, given the failure that just happened | §5.AA |
@@ -508,6 +526,8 @@ indexing it recovers value.
 | `core/runtime-endpoint.ts` | (no docblock) | — |
 | `core/runtime-model-verdict.ts` | §5.AL RUNTIME model-suitability verdict (pure) — the evidence-based companion to the curated | §5.AB §5.AL |
 | `core/sandbox-mcp-catalog.ts` | §5.AR — the curated catalog of MCP servers that !Klein hosts INSIDE the agent sandbox, plus the pure helpers that | §5.AF §5.AL §5.AR |
+| `core/sandbox-mcp-controls.ts` | (no docblock) | — |
+| `core/sandbox-mcp-settings-preview.ts` | (no docblock) | — |
 | `core/sbom-generation.ts` | F12.102 (SBOM half) — build a Software Bill of Materials for the app itself, PURE core. | F12.100 F12.102 |
 | `core/scaffold-profile.ts` | F12.14 minimal-scaffold baseline + inverse-scaling discipline — PURE core. | F12.14 |
 | `core/scoped-override-resolution.ts` | F4.16 (§ dynamics-level config) — resolve a setting across the four override SCOPES with a fixed precedence: | F4.16 F4.28 |
@@ -522,6 +542,7 @@ indexing it recovers value.
 | `core/shell.ts` | (no docblock) | — |
 | `core/shortcut-behavior-monitor.ts` | F12.97 shortcut-behavior monitor over a delivered diff — PURE core, complementary to F12.44's | F12.44 F12.97 |
 | `core/skill-api-profile-request.ts` | §5.AE → §5.AN bridge (pure): translate a resolved {@link SkillApiProfile} (the abstract per-skill INTENT — | §5.AA §5.AE §5.AG §5.AN |
+| `core/skill-bundle-canonical-preimage.ts` | Canonical byte pre-image for community-skill TOFU pins. | — |
 | `core/skill-bundle-screening.ts` | F4.24 — deterministic bundle screening for EXECUTABLES / binary payloads. | F4.24 |
 | `core/skill-bundled-file-manifest.ts` | SKILL.md BUNDLED-FILE manifest validator (todo §5.AP.A leaf (b) — the bundled-file (`scripts/` / `references/` / | §5.AP |
 | `core/skill-capability-grant-reconcile.ts` | Skill capability-GRANT reconciler (todo §5.AP.D — "an activated skill runs under the SAME §5.L per-role capability | §5.AP §5.L |
@@ -551,7 +572,7 @@ indexing it recovers value.
 | `core/stable-model-identity.ts` | Stable model identity (David 2026-07-06 directive). | §5.BG |
 | `core/stale-while-revalidate-cache.ts` | A tiny stale-while-revalidate cache: a `get()` always returns immediately with the last computed value (or the | §5.AI |
 | `core/startup-orphan-reconcile.ts` | Move every `in_progress` card WITHOUT a live session to the Review lane. | W2.2 W2.2a |
-| `core/stateful-responses-gate.ts` | F4.45/F4.45b — bounded local Responses capability probe, fail-closed adoption decision, and positive-only endpoint/model cache. | F4.45 F4.45b |
+| `core/stateful-responses-gate.ts` | F4.45 — stateful LM Studio responses, gated on VERIFICATION (pure core + injectable probe). | F4.45 |
 | `core/strategy-effectiveness-ledger.ts` | The §5.AA adaptive strategy-effectiveness ledger — !Klein learns, per model, WHICH remedy rung actually recovers it, | §5.AA §5.AF |
 | `core/stream-derivation.ts` | §5.AU STEP 2 — derive STREAMS (epics) from the board's existing structure. | §5.AU |
 | `core/stream-events-api-contract.ts` | (no docblock) | §5.X |

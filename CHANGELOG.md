@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Task-driven model admission now loads the context window it actually planned.** !Klein derives a bounded task need
+  from the real title, prompt, and images, combines it with LM Studio's catalog maximum, and uses one deterministic
+  context plan for both device-fit estimation and the guarded load. Small tasks land at the 32k floor, larger tasks
+  size up, model ceilings cap the result, and missing maximum-context facts refuse the automatic load instead of
+  guessing.
+
 - **Verified LM Studio endpoints can now reuse OpenAI-compatible Responses state across normal task turns.** !Klein
   retains the authoritative transcript, proves exact continuity before sending a delta, preserves tool-call/result
   identity, resends the unchanged system policy required by the Responses contract, and falls back once to a full

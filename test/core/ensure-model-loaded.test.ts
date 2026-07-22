@@ -19,7 +19,7 @@ const roster: LmsLinkDevices = {
 	]),
 };
 
-const sizes = new Map<string, number>([["qwen/qwen2.5-coder-14b", gb(7.75)]]);
+const modelFacts = new Map([["qwen/qwen2.5-coder-14b", { sizeBytes: gb(7.75), maxContextLength: 262_144 }]]);
 
 interface Rec {
 	deps: EnsureModelLoadedDeps;
@@ -36,7 +36,7 @@ function recDeps(overrides: Partial<EnsureModelLoadedDeps> = {}): Rec {
 			linkFetches += 1;
 			return roster;
 		},
-		listModelSizes: async () => sizes,
+		listModelFacts: async () => modelFacts,
 		loadExclusive: async (request) => {
 			loadCalls.push(request);
 			return { loaded: true, reason: "Loaded (OK)" };
@@ -50,7 +50,7 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 	it("loads a non-resident 14B on the fitting farm (m5max) with the right guarded-load args", async () => {
 		const rec = recDeps();
 		const result = await ensureModelLoadedOnFittingDevice(
-			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 6_000 },
 			rec.deps,
 		);
 		expect(result.loaded).toBe(true);
@@ -63,15 +63,44 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 		expect(req.targetDevice).toBe("m5max");
 		expect(req.targetDeviceIdentifier).toBe("id-m5max");
 		expect(req.totalRamBytes).toBe(gb(128)); // the CHOSEN device's RAM, per-machine headroom
-		expect(req.contextLength).toBe(40_000);
-		// Effective size = weights + KV @40k, so well above the raw 7.75 GiB weights.
+		expect(req.contextLength).toBe(32_000);
+		expect(req.taskNeededTokens).toBe(6_000);
+		expect(req.maxContextLength).toBe(262_144);
+		// Effective size = weights + KV at the planned 32k, so well above the raw 7.75 GiB weights.
 		expect(req.candidateSizeBytes).toBeGreaterThan(gb(14));
+	});
+
+	it("sizes a large task up from the floor and passes the catalog maximum through to the guarded loader", async () => {
+		const rec = recDeps();
+		const result = await ensureModelLoadedOnFittingDevice(
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 80_000 },
+			rec.deps,
+		);
+		expect(result.loaded).toBe(true);
+		expect(rec.loadCalls()[0]).toMatchObject({
+			contextLength: 100_352,
+			taskNeededTokens: 80_000,
+			maxContextLength: 262_144,
+		});
+	});
+
+	it("caps the planned load at the model maximum", async () => {
+		const rec = recDeps({
+			listModelFacts: async () =>
+				new Map([["qwen/qwen2.5-coder-14b", { sizeBytes: gb(7.75), maxContextLength: 65_536 }]]),
+		});
+		const result = await ensureModelLoadedOnFittingDevice(
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 80_000 },
+			rec.deps,
+		);
+		expect(result.loaded).toBe(true);
+		expect(rec.loadCalls()[0].contextLength).toBe(65_536);
 	});
 
 	it("aliases a 'Local' env key onto the real local device name (m5max)", async () => {
 		const rec = recDeps({ env: { NKLEIN_DEVICE_RAM_GB: "Local:128,m4mini:16" } });
 		const result = await ensureModelLoadedOnFittingDevice(
-			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 6_000 },
 			rec.deps,
 		);
 		expect(result.loaded).toBe(true);
@@ -83,7 +112,7 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 	it("no-ops WITHOUT fleet I/O when NKLEIN_DEVICE_RAM_GB is unset (byte-identical block behavior)", async () => {
 		const rec = recDeps({ env: {} });
 		const result = await ensureModelLoadedOnFittingDevice(
-			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 6_000 },
 			rec.deps,
 		);
 		expect(result.loaded).toBe(false);
@@ -94,7 +123,7 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 	it("engages via the configured Settings value (configuredDeviceRamGb) when the env var is unset", async () => {
 		const rec = recDeps({ env: {}, configuredDeviceRamGb: "m5max:128,m4mini:16,legion5pro:24" });
 		const result = await ensureModelLoadedOnFittingDevice(
-			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 6_000 },
 			rec.deps,
 		);
 		expect(result.loaded).toBe(true);
@@ -108,7 +137,7 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 		// env maps ONLY the small box (m4mini:16) which cannot fit the 14B ⇒ no load, proving the config value was ignored.
 		const rec = recDeps({ env: { NKLEIN_DEVICE_RAM_GB: "m4mini:16" }, configuredDeviceRamGb: "m5max:128" });
 		const result = await ensureModelLoadedOnFittingDevice(
-			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 6_000 },
 			rec.deps,
 		);
 		expect(result.loaded).toBe(false);
@@ -118,7 +147,7 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 	it("does not load (loaded:false) when NO mapped device can fit the model", async () => {
 		const rec = recDeps({ env: { NKLEIN_DEVICE_RAM_GB: "m4mini:16" } }); // only the small box is mapped
 		const result = await ensureModelLoadedOnFittingDevice(
-			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 6_000 },
 			rec.deps,
 		);
 		expect(result.loaded).toBe(false);
@@ -126,12 +155,26 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 	});
 
 	it("does not load when the model's weights size is unknown", async () => {
-		const rec = recDeps({ listModelSizes: async () => new Map() });
+		const rec = recDeps({ listModelFacts: async () => new Map() });
 		const result = await ensureModelLoadedOnFittingDevice(
-			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 6_000 },
 			rec.deps,
 		);
 		expect(result.loaded).toBe(false);
+		expect(rec.loadCalls()).toEqual([]);
+	});
+
+	it("does not guess a load context when the catalog maximum is invalid", async () => {
+		const rec = recDeps({
+			listModelFacts: async () =>
+				new Map([["qwen/qwen2.5-coder-14b", { sizeBytes: gb(7.75), maxContextLength: 0 }]]),
+		});
+		const result = await ensureModelLoadedOnFittingDevice(
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 6_000 },
+			rec.deps,
+		);
+		expect(result.loaded).toBe(false);
+		expect(result.reason).toMatch(/maximum context unknown/i);
 		expect(rec.loadCalls()).toEqual([]);
 	});
 
@@ -140,7 +183,7 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 			loadExclusive: async () => ({ loaded: false, reason: "Refused by the model-capability gate: reasoning-only" }),
 		});
 		const result = await ensureModelLoadedOnFittingDevice(
-			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 6_000 },
 			rec.deps,
 		);
 		expect(result.loaded).toBe(false);
@@ -154,7 +197,7 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 			},
 		});
 		const result = await ensureModelLoadedOnFittingDevice(
-			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 6_000 },
 			rec.deps,
 		);
 		expect(result.loaded).toBe(false);
@@ -168,7 +211,7 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 			},
 		});
 		const result = await ensureModelLoadedOnFittingDevice(
-			{ modelId: "qwen/qwen2.5-coder-14b", contextLength: 40_000 },
+			{ modelId: "qwen/qwen2.5-coder-14b", taskNeededTokens: 6_000 },
 			rec.deps,
 		);
 		expect(result.loaded).toBe(false);
@@ -177,10 +220,10 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 	it("prefers the llmfit KV-aware footprint when supplied", async () => {
 		const rec = recDeps({
 			env: { NKLEIN_DEVICE_RAM_GB: "m5max:128,m4mini:16" },
-			listModelSizes: async () => new Map([["tiny", gb(3)]]),
+			listModelFacts: async () => new Map([["tiny", { sizeBytes: gb(3), maxContextLength: 262_144 }]]),
 			llmfitMemoryBytes: (id) => (id === "tiny" ? gb(15) : null),
 		});
-		const result = await ensureModelLoadedOnFittingDevice({ modelId: "tiny", contextLength: 40_000 }, rec.deps);
+		const result = await ensureModelLoadedOnFittingDevice({ modelId: "tiny", taskNeededTokens: 6_000 }, rec.deps);
 		expect(result.loaded).toBe(true);
 		if (result.loaded) {
 			expect(result.deviceName).toBe("m5max"); // 15 GiB llmfit footprint excludes the 16 GB mini
@@ -190,7 +233,7 @@ describe("ensureModelLoadedOnFittingDevice", () => {
 
 	it("skips on an empty model id", async () => {
 		const rec = recDeps();
-		const result = await ensureModelLoadedOnFittingDevice({ modelId: "  ", contextLength: 40_000 }, rec.deps);
+		const result = await ensureModelLoadedOnFittingDevice({ modelId: "  ", taskNeededTokens: 6_000 }, rec.deps);
 		expect(result.loaded).toBe(false);
 		expect(rec.linkFetches()).toBe(0);
 	});
