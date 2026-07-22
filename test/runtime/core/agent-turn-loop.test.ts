@@ -5,6 +5,7 @@ import {
 	contestedTokens,
 	decideTurnLoopResolution,
 	detectTurnLoop,
+	extractAcceptanceCheckCommand,
 	extractContestedQuestion,
 	turnFingerprint,
 } from "../../../src/core/agent-turn-loop.js";
@@ -50,6 +51,18 @@ describe("extractContestedQuestion", () => {
 	});
 });
 
+describe("extractAcceptanceCheckCommand", () => {
+	it.each(["Acceptance check", "Acceptance command"])("accepts the %s prompt label", (label) => {
+		expect(extractAcceptanceCheckCommand(`Implement the card.\n${label}: npm test\nKeep the diff focused.`)).toBe(
+			"npm test",
+		);
+	});
+
+	it("does not infer a command from ordinary prose", () => {
+		expect(extractAcceptanceCheckCommand("Run npm test before finishing.")).toBeNull();
+	});
+});
+
 describe("detectTurnLoop", () => {
 	it("flags a repeat when the same question recurs across the minimum turns", () => {
 		const turns: AgentLoopTurn[] = [
@@ -70,6 +83,22 @@ describe("detectTurnLoop", () => {
 		const verdict = detectTurnLoop([a, b, a, b, a, b]);
 		expect(verdict.kind).toBe("oscillation");
 		expect(verdict.contestedQuestion).not.toBeNull();
+	});
+
+	it("flags a three-step inspect → unchanged rewrite → retry cycle after three full repetitions", () => {
+		const inspect: AgentLoopTurn = { text: "The formatter looks correct; I will inspect it again." };
+		const rewrite: AgentLoopTurn = { text: "I will write the same test file again." };
+		const retry: AgentLoopTurn = { text: "Now I will run npm test again." };
+		const verdict = detectTurnLoop([inspect, rewrite, retry, inspect, rewrite, retry, inspect, rewrite, retry]);
+		expect(verdict.kind).toBe("cycle");
+		expect(verdict.occurrences).toBe(9);
+	});
+
+	it("does not flag two ordinary edit/test iterations as a periodic cycle", () => {
+		const inspect: AgentLoopTurn = { text: "Inspect the current failure." };
+		const edit: AgentLoopTurn = { text: "Apply a correction." };
+		const test: AgentLoopTurn = { text: "Run the acceptance command." };
+		expect(detectTurnLoop([inspect, edit, test, inspect, edit, test]).kind).toBe("none");
 	});
 
 	it("returns none for genuine progress", () => {
@@ -122,6 +151,19 @@ describe("decideTurnLoopResolution", () => {
 			specContext: "Create greet.ts exporting greet(name).",
 		});
 		expect(resolution.kind).toBe("auto_resolve");
+	});
+
+	it("auto-resolves a periodic work cycle by requiring exact failure evidence before another edit", () => {
+		const inspect: AgentLoopTurn = { text: "The formatter looks correct; inspect it again." };
+		const rewrite: AgentLoopTurn = { text: "Write the same test again." };
+		const retry: AgentLoopTurn = { text: "Run npm test again." };
+		const cycleVerdict = detectTurnLoop([inspect, rewrite, retry, inspect, rewrite, retry, inspect, rewrite, retry]);
+		const resolution = decideTurnLoopResolution({ verdict: cycleVerdict, acceptanceCommand: "npm test" });
+		expect(resolution.kind).toBe("auto_resolve");
+		if (resolution.kind === "auto_resolve") {
+			expect(resolution.guidance).toContain("exact failure output");
+			expect(resolution.guidance).toContain("Do not repeat an unchanged write");
+		}
 	});
 
 	it("escalates to an untried model when not auto-resolvable", () => {

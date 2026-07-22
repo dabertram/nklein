@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { estimateNKleinStartDifficulty } from "../../../src/nklein-agent/nklein-task-start-guard";
+import {
+	countNKleinTransitivePrerequisites,
+	estimateNKleinStartDifficulty,
+} from "../../../src/nklein-agent/nklein-task-start-guard";
 
 describe("estimateNKleinStartDifficulty with content signals (W1.2)", () => {
 	it("reproduces the historical token-only score when no signals are given", () => {
@@ -36,6 +39,26 @@ describe("estimateNKleinStartDifficulty with content signals (W1.2)", () => {
 		expect(estimateNKleinStartDifficulty(50, { skillIds: ["planning", "code_editing"] })).toBe(
 			estimateNKleinStartDifficulty(50) + 10,
 		);
+	});
+
+	it("raises a six-way fan-in join above a weak worker while leaving leaf cards unchanged", () => {
+		const leaf = estimateNKleinStartDifficulty(0, { prerequisiteCount: 0 });
+		const join = estimateNKleinStartDifficulty(0, { prerequisiteCount: 6 });
+		expect(leaf).toBe(25);
+		expect(join).toBe(47);
+	});
+
+	it("counts the full prerequisite cone once, including through a join, and tolerates cycles", () => {
+		const dependencies = [
+			{ fromTaskId: "registry", toTaskId: "json" },
+			{ fromTaskId: "registry", toTaskId: "csv" },
+			{ fromTaskId: "integration", toTaskId: "registry" },
+			{ fromTaskId: "integration", toTaskId: "json" },
+			{ fromTaskId: "json", toTaskId: "integration" },
+		];
+		expect(countNKleinTransitivePrerequisites("registry", dependencies)).toBe(3);
+		expect(countNKleinTransitivePrerequisites("integration", dependencies)).toBe(3);
+		expect(countNKleinTransitivePrerequisites("leaf", dependencies)).toBe(0);
 	});
 
 	it("clamps to [5, 100]", () => {

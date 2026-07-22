@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { resolve } from "node:path";
 import { promisify } from "node:util";
 import type { RuntimeGitRepositoryInfo } from "../core/api-contract";
 import { createGitProcessEnv } from "../core/git-process-env";
@@ -15,6 +16,19 @@ const execFileAsync = promisify(execFile);
 // Workspace resolution sits on every state read and request-scope lookup. A Git subprocess that never exits must fail
 // this one lookup, not pin the workspace-index lock and every later board request/shutdown operation indefinitely.
 export const WORKSPACE_GIT_DETECTION_TIMEOUT_MS = 10_000;
+
+// A completion wave can ask for the same workspace state hundreds of times before the first read settles. Each read
+// used to launch its own rev-parse/branch/ref subprocess set, which live proofing turned into >490 simultaneous Git
+// children and transient spawn EBADF failures. Coalesce only OVERLAPPING reads: unlike a TTL cache this preserves fresh
+// branch data on every later request while bounding one same-repository burst to one subprocess set.
+const gitRootInFlightByCwd = new Map<string, Promise<string | null>>();
+const gitInfoInFlightByRepo = new Map<string, Promise<RuntimeGitRepositoryInfo>>();
+
+/** Test-only: clear process-local coalescing state after an interrupted test. */
+export function resetWorkspaceGitDetectionInFlightForTests(): void {
+	gitRootInFlightByCwd.clear();
+	gitInfoInFlightByRepo.clear();
+}
 
 /**
  * Capture `git <args>` stdout (trimmed; null on empty / non-zero exit / spawn failure) WITHOUT blocking the event loop.
@@ -42,7 +56,20 @@ async function runGitCaptureAsync(cwd: string, args: string[]): Promise<string |
 }
 
 export async function detectGitRootAsync(cwd: string): Promise<string | null> {
-	return runGitCaptureAsync(cwd, ["rev-parse", "--show-toplevel"]);
+	const key = resolve(cwd);
+	const existing = gitRootInFlightByCwd.get(key);
+	if (existing) {
+		return existing;
+	}
+	const pending = runGitCaptureAsync(key, ["rev-parse", "--show-toplevel"]);
+	gitRootInFlightByCwd.set(key, pending);
+	try {
+		return await pending;
+	} finally {
+		if (gitRootInFlightByCwd.get(key) === pending) {
+			gitRootInFlightByCwd.delete(key);
+		}
+	}
 }
 
 async function detectGitCurrentBranch(repoPath: string): Promise<string | null> {
@@ -90,7 +117,7 @@ async function detectGitDefaultBranch(repoPath: string, branches: string[]): Pro
 	return branches[0] ?? null;
 }
 
-export async function detectGitRepositoryInfo(repoPath: string): Promise<RuntimeGitRepositoryInfo> {
+async function readGitRepositoryInfo(repoPath: string): Promise<RuntimeGitRepositoryInfo> {
 	const gitRoot = await detectGitRootAsync(repoPath);
 	if (!gitRoot) {
 		throw new Error(`No git repository detected at ${repoPath}`);
@@ -106,4 +133,21 @@ export async function detectGitRepositoryInfo(repoPath: string): Promise<Runtime
 		defaultBranch,
 		branches: orderedBranches,
 	};
+}
+
+export async function detectGitRepositoryInfo(repoPath: string): Promise<RuntimeGitRepositoryInfo> {
+	const key = resolve(repoPath);
+	const existing = gitInfoInFlightByRepo.get(key);
+	if (existing) {
+		return existing;
+	}
+	const pending = readGitRepositoryInfo(key);
+	gitInfoInFlightByRepo.set(key, pending);
+	try {
+		return await pending;
+	} finally {
+		if (gitInfoInFlightByRepo.get(key) === pending) {
+			gitInfoInFlightByRepo.delete(key);
+		}
+	}
 }

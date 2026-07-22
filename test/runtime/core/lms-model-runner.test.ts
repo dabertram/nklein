@@ -234,6 +234,26 @@ describe("loadModelExclusive", () => {
 		expect(calls.some((call) => call[0] === "load")).toBe(false);
 	});
 
+	it("does not mistake the same model identifier on another LM Link host for the requested remote resident", async () => {
+		const { run, calls } = fakeRunner([
+			"shared-target      m          IDLE      4 GB       40000      1    Local",
+			"remote-old         m          IDLE      4 GB       40000      1    m4mini",
+		]);
+		const result = await loadModelExclusive(run, {
+			modelId: "shared-target",
+			totalRamBytes: 24 * GiB,
+			targetDevice: "m4mini",
+			targetDeviceIdentifier: "remote-device",
+			candidateSizeBytes: 4 * GiB,
+		});
+		expect(result.loaded).toBe(true);
+		expect(result.reason).not.toMatch(/already resident/i);
+		expect(result.unloaded).toEqual(["remote-old"]);
+		expect(calls).toContainEqual(["link", "set-preferred-device", "remote-device"]);
+		expect(calls.some((call) => call[0] === "load" && call[1] === "shared-target")).toBe(true);
+		expect(calls).not.toContainEqual(["unload", "shared-target"]);
+	});
+
 	it("fails closed before unload/load when LM Link cannot select the target device", async () => {
 		const { run, calls } = fakeRunner(
 			["remote-model      m          IDLE      4 GB       40000      1    m4mini"],
@@ -258,6 +278,27 @@ describe("loadModelExclusive", () => {
 		const load = calls.find((c) => c[0] === "load");
 		expect(load).toContain("--gpu");
 		expect(load).toContain("0.3");
+	});
+
+	it("can keep CLI guard/device scoping while delegating only the final load to REST", async () => {
+		const { run, calls } = fakeRunner(["remote-old         m          IDLE      4 GB       40000      1    m4mini"]);
+		const delegated: Array<{ modelId: string; contextLength: number }> = [];
+		const result = await loadModelExclusive(run, {
+			modelId: "remote-target",
+			totalRamBytes: 24 * GiB,
+			targetDevice: "m4mini",
+			targetDeviceIdentifier: "remote-device",
+			candidateSizeBytes: 4 * GiB,
+			contextLength: 32768,
+			loadModel: async (input) => {
+				delegated.push(input);
+				return { stdout: "loaded by REST", exitCode: 0 };
+			},
+		});
+		expect(result.loaded).toBe(true);
+		expect(delegated).toEqual([{ modelId: "remote-target", contextLength: 32768 }]);
+		expect(calls).toContainEqual(["link", "set-preferred-device", "remote-device"]);
+		expect(calls.some((call) => call[0] === "load")).toBe(false);
 	});
 
 	it("defaults gpu to max (full offload) when unspecified — unchanged for existing callers", async () => {

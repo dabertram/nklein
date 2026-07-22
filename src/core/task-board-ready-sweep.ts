@@ -15,7 +15,8 @@ import type { CardExecutionState } from "./card-message-effect";
  *
  * Pure. `activeSessionTaskIds` must contain every task with a live/queued session — started cards PARK IN PLANNING
  * while they run (STARTED_CARD_ENTRY_LANE), so lane alone cannot distinguish waiting from working. The caller's
- * `autoStartTaskIds` re-checks lane, overlap, and concurrency per card, so over-reporting here is safe.
+ * `autoStartTaskIds` re-checks lane, dependencies, overlap, and concurrency per card, so a stale candidate cannot cross
+ * the effect boundary after the board changes.
  */
 export function listStartableUnstartedTaskIds(
 	board: RuntimeBoardData,

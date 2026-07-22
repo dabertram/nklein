@@ -64,8 +64,23 @@ function trimFailureConstraint(value: string): string {
 export function extractAcceptanceFailureConstraint(output: string): string | null {
 	const lines = output.replaceAll("\r\n", "\n").split("\n");
 	const normalizedLines = lines.map((line) => line.trimEnd());
+	// Node's TAP reporter writes the useful failure block near the FIRST `not ok` line, while stdout ends with only
+	// aggregate counts. Tail-only review evidence therefore hid the failing test name and assertion (live-found
+	// 2026-07-22). Preserve the preceding Subtest label plus the bounded diagnostic block.
+	const tapFailureIndex = normalizedLines.findIndex((line) => /^not ok\s+\d+\s+-\s+/i.test(line.trimStart()));
+	if (tapFailureIndex >= 0) {
+		const previousLine = normalizedLines[tapFailureIndex - 1]?.trimStart() ?? "";
+		const startIndex = previousLine.startsWith("# Subtest:") ? tapFailureIndex - 1 : tapFailureIndex;
+		const tapBlockEndOffset = normalizedLines
+			.slice(tapFailureIndex, tapFailureIndex + 16)
+			.findIndex((line) => line.trim() === "...");
+		const endIndex = tapBlockEndOffset >= 0 ? tapFailureIndex + tapBlockEndOffset + 1 : tapFailureIndex + 16;
+		const selectedLines = normalizedLines.slice(startIndex, endIndex).filter((line) => line.trim().length > 0);
+		const constraint = trimFailureConstraint(selectedLines.join("\n"));
+		return constraint.length > 0 ? constraint : null;
+	}
 	const assertionIndex = normalizedLines.findIndex((line) =>
-		/^(AssertionError|Error:\s+expect\(|Expected\s|Received\s|FAIL\s|\u2715\s|\u00d7\s|- Expected|- Received)/.test(
+		/^(AssertionError|assertion failed|Error:\s+expect\(|Expected\s|Received\s|FAIL\s|\u2715\s|\u00d7\s|- Expected|- Received)/i.test(
 			line.trimStart(),
 		),
 	);

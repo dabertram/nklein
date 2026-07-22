@@ -6,7 +6,7 @@ import { difficultyTierFromScore, resolveAutoDecompositionDepth } from "../../co
 import { applyWarmthPreference } from "../../core/cache-warmth";
 import { createCapabilityBlender } from "../../core/capability-blend";
 import { assessCeilingAdvisory } from "../../core/capability-ceiling-advisory";
-import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
+import { resolveEffectiveHostConcurrency, resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { composeDependencyHandoffPreamble } from "../../core/decision-handoff";
 import { ensureModelLoadedOnFittingDevice } from "../../core/ensure-model-loaded";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../../core/env-flag";
@@ -96,6 +96,7 @@ import { routeNKleinTask } from "../../nklein-agent/nklein-task-router";
 import {
 	buildNKleinSandboxStartBlock,
 	buildNKleinStartGuardCandidate,
+	countNKleinTransitivePrerequisites,
 	estimateNKleinStartDifficulty,
 	estimateNKleinStartFitBudgetTokens,
 	estimateNKleinStartPromptTokens,
@@ -725,10 +726,14 @@ export async function handleStartTaskSession(
 		// W1.2 (audit 2026-07-02): blend content signals into difficulty — plan cards + planning skill raise the
 		// floor, hard/easy task text nudges — so trivial-verbose stops over-provisioning and terse-hard stops
 		// under-routing (this score also gates the W1.3 /no_think decision).
+		const prerequisiteCount = await loadWorkspaceState(workspaceScope.workspacePath)
+			.then((state) => countNKleinTransitivePrerequisites(body.taskId, state.board.dependencies))
+			.catch(() => 0);
 		const taskDifficulty = estimateNKleinStartDifficulty(promptTokens, {
 			skillIds: resolvedSkillIds,
 			isPlanCard: body.startInPlanMode === true,
 			taskText: startTaskText,
+			prerequisiteCount,
 		});
 		const requiredContextTokens = estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow);
 		// §5.AB queue-aware free-first (opt-in via NKLEIN_QUEUE_AWARE_FREE_FIRST): a model the LM Studio SERVER is BUSY on
@@ -963,16 +968,28 @@ export async function handleStartTaskSession(
 		// unavailable) falls back to endpoint keying so routing never collapses into one synthetic pool. The admission
 		// gate keeps using the RAW map below, unchanged, so its shipped behavior is untouched.
 		const machineByModelId = machineByModelIdRaw && machineByModelIdRaw.size > 0 ? machineByModelIdRaw : undefined;
-		// §5.AB per-machine pools: ONLY when per-endpoint/pool caps are configured, route the task to a free machine
-		// pool (easy cards → secondary machines, hard → strong) and prefer the in-pool model. Inert by default (no
-		// perEndpoint caps ⇒ poolRoutedModelKey stays null ⇒ selection unchanged). Behavior-changing only once an
-		// operator configures pools; gate on the resolved per-endpoint caps so the default single-machine path is identical.
+		// §5.AB machine pools: route against the SAME effective host caps enforced by admission. LM Link exposes all linked
+		// machines through one endpoint, so looking only at perEndpoint here made an explicit perHost map invisible to the
+		// router: it repeatedly chose a full host and the later admission gate rejected it while other hosts sat idle.
+		// Endpoint caps remain supported as a coarser ceiling; mapped LM Studio hosts also inherit the safe default cap.
 		const perEndpointPoolCaps: Record<string, number> = {
 			...(scopedRuntimeConfig.concurrencyDefaults?.perEndpoint ?? {}),
 			...(scopedRuntimeConfig.concurrencyOverride?.perEndpoint ?? {}),
 		};
+		const perHostPoolCaps: Record<string, number> = {};
+		for (const hostId of new Set(machineByModelId?.values() ?? [])) {
+			const cap = resolveEffectiveHostConcurrency(hostId, {
+				global: scopedRuntimeConfig.concurrencyDefaults,
+				override: scopedRuntimeConfig.concurrencyOverride,
+				fallback: legacyPerMachineCap,
+			});
+			if (cap !== null) {
+				perHostPoolCaps[hostId] = cap;
+			}
+		}
 		let poolRoutedModelKey: string | null = null;
-		if (Object.keys(perEndpointPoolCaps).length > 0) {
+		let poolRoutedModelKeys: ReadonlySet<string> | null = null;
+		if (Object.keys(perEndpointPoolCaps).length > 0 || Object.keys(perHostPoolCaps).length > 0) {
 			const candidateList = roleScopedSelectionCandidates;
 			// §5.AB LM-Link: the ROUTING pool key. With no machine map (flag off) it is the endpoint (byte-identical);
 			// with a map it is the model's owning machine (endpoint fallback for an unmapped candidate), so LM-Link
@@ -996,6 +1013,21 @@ export async function handleStartTaskSession(
 						? derivePoolKeyForCandidate(session.endpoint, session.modelId, machineByModelId)
 						: session.endpoint,
 				);
+			const poolFreeSlots = computePoolFreeSlots(
+				poolEndpoints,
+				runningEndpoints,
+				derivePoolCaps(
+					candidateList
+						.filter((candidate) => !!candidate.entry.endpoint)
+						.map((candidate) => ({
+							endpoint: candidate.entry.endpoint ?? "",
+							modelId: candidate.entry.modelId,
+						})),
+					perEndpointPoolCaps,
+					machineByModelId,
+					perHostPoolCaps,
+				),
+			);
 			const route = selectSwarmRouteForTask({
 				role: body.startInPlanMode ? "architect" : "worker",
 				candidates: candidateList.flatMap((candidate) =>
@@ -1019,25 +1051,15 @@ export async function handleStartTaskSession(
 				),
 				difficulty: taskDifficulty,
 				requiredContextTokens,
-				// Caps re-keyed onto the pool keys (endpoint caps unchanged when no map). Each machine pool inherits its
-				// endpoint's configured cap under LM-Link; an uncapped endpoint stays uncapped.
-				poolFreeSlots: computePoolFreeSlots(
-					poolEndpoints,
-					runningEndpoints,
-					derivePoolCaps(
-						candidateList
-							.filter((candidate) => !!candidate.entry.endpoint)
-							.map((candidate) => ({
-								endpoint: candidate.entry.endpoint ?? "",
-								modelId: candidate.entry.modelId,
-							})),
-						perEndpointPoolCaps,
-						machineByModelId,
-					),
-				),
+				poolFreeSlots,
 			});
 			if (route.model?.selection.type === "assign") {
 				poolRoutedModelKey = route.model.selection.modelKey;
+				poolRoutedModelKeys = new Set(
+					candidateList
+						.filter((candidate) => candidate.entry.endpoint && poolKeyForCandidate(candidate) === route.poolId)
+						.map((candidate) => candidate.entry.key),
+				);
 			}
 		}
 		// §5.AQ (a)+(b) CACHE-WARMTH-AWARE routing: after the blend + verdict multiplier (inside
@@ -1051,7 +1073,7 @@ export async function handleStartTaskSession(
 		// GENERATION picks with no §5.AB diversity constraint; DECISION-role picks apply diversity FIRST and
 		// warmth only within the diverse set (see `pickDiverseReviewerModel`).
 		const baselinePreferredKey = poolRoutedModelKey ?? freeFirstModelKey ?? preferredCandidate.entry.key;
-		const warmthCandidatesByScore = roleScopedSelectionCandidates
+		const allCandidatesByScore = roleScopedSelectionCandidates
 			.map((candidate) => ({
 				modelKey: candidate.entry.key,
 				// The warmth ledger is keyed by the LAUNCH model id (what the prompt assembler records under).
@@ -1064,11 +1086,17 @@ export async function handleStartTaskSession(
 				),
 			}))
 			.sort((left, right) => right.score - left.score);
+		// Pool capacity is an admissibility constraint, not an optimization preference. Warmth and the speed dial may
+		// reorder models WITHIN the free pool, but must never promote a model from a full pool and hand a guaranteed
+		// rejection to the admission gate. Keep the full ranking separately for terminal failover.
+		const optimizationCandidatesByScore = poolRoutedModelKeys
+			? allCandidatesByScore.filter((candidate) => poolRoutedModelKeys.has(candidate.modelKey))
+			: allCandidatesByScore;
 		const warmthRanked = [
 			// Anchor the baseline pick at rank 0 so the warmth margin is measured against what would ship WITHOUT
 			// warmth (mirrors applyDiversityPreference's "within margin of the top" contract).
-			...warmthCandidatesByScore.filter((candidate) => candidate.modelKey === baselinePreferredKey),
-			...warmthCandidatesByScore.filter((candidate) => candidate.modelKey !== baselinePreferredKey),
+			...optimizationCandidatesByScore.filter((candidate) => candidate.modelKey === baselinePreferredKey),
+			...optimizationCandidatesByScore.filter((candidate) => candidate.modelKey !== baselinePreferredKey),
 		];
 		const warmthPreference = applyWarmthPreference({
 			ranked: warmthRanked,
@@ -1103,7 +1131,7 @@ export async function handleStartTaskSession(
 		// re-drive this card on the next untried candidate instead of parking (see modelFailoverController).
 		nkleinTaskSessionService.setTaskFailoverCandidates(
 			body.taskId,
-			warmthCandidatesByScore.map((candidate) => candidate.modelKey),
+			allCandidatesByScore.map((candidate) => candidate.modelKey),
 		);
 		// F3.7b: consult the learned ModelBehaviorProfile at attempt start — the SKIP half (proven failures
 		// excluded, router-side fail-open); preference-by-learned-success already rides the blended capability

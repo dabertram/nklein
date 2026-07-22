@@ -71,6 +71,28 @@ describe("derivePoolCaps", () => {
 		// A cap only on a DIFFERENT endpoint doesn't leak onto these machines.
 		expect(derivePoolCaps(candidates, { "http://other/v1": 3 }, MAP)).toEqual({});
 	});
+
+	it("uses per-host caps when LM Link machines share one endpoint", () => {
+		expect(
+			derivePoolCaps(candidates, {}, MAP, {
+				"legion-hex": 1,
+				"m5-hex": 2,
+			}),
+		).toEqual({ "legion-hex": 1, "m5-hex": 2 });
+	});
+
+	it("uses the stricter ceiling when both endpoint and host caps apply", () => {
+		expect(
+			derivePoolCaps(candidates, { [EP]: 2 }, MAP, {
+				"legion-hex": 1,
+				"m5-hex": 4,
+			}),
+		).toEqual({
+			"legion-hex": 1,
+			"m5-hex": 2,
+			[EP]: 2,
+		});
+	});
 });
 
 // End-to-end proof of the §5.AB-(A)-(2) gap fix, wired EXACTLY as start-task-session.ts does: derive the pool key + caps
@@ -101,6 +123,7 @@ describe("machine-keyed routing composition (mirrors start-task-session wiring)"
 	// A session running on the legion machine (its endpoint is the shared EP).
 	const running = [{ endpoint: EP, modelId: "coder-legion" }];
 	const endpointCaps = { [EP]: 1 };
+	const hostCaps = { "legion-hex": 1, "m5-hex": 1, "m4-hex": 1 };
 
 	// Build the swarm route the same way the live seam does, given the optional map.
 	const route = (map: ReadonlyMap<string, string> | undefined) => {
@@ -135,5 +158,30 @@ describe("machine-keyed routing composition (mirrors start-task-session wiring)"
 		expect(decision.poolId).not.toBe("legion-hex"); // never the busy machine
 		expect(["m5-hex", "m4-hex"]).toContain(decision.poolId); // fanned onto a free machine that shares the endpoint
 		expect(decision.model?.selection.type).toBe("assign");
+	});
+
+	it("routes off a busy host when only perHost caps are configured (live F3.24b regression)", () => {
+		const poolKey = (modelId: string) => derivePoolKeyForCandidate(EP, modelId, machineMap);
+		const poolEndpoints = [...new Set(guardLike.map((candidate) => poolKey(candidate.modelId)))];
+		const decision = selectSwarmRouteForTask({
+			role: "worker",
+			difficulty: 40,
+			requiredContextTokens: 32768,
+			candidates: guardLike.map((candidate) =>
+				swarmCand({
+					modelKey: candidate.modelKey,
+					poolId: poolKey(candidate.modelId),
+				}),
+			),
+			poolFreeSlots: computePoolFreeSlots(
+				poolEndpoints,
+				[poolKey("coder-m5")],
+				derivePoolCaps(guardLike, {}, machineMap, hostCaps),
+			),
+		});
+
+		expect(decision.pool.type).toBe("assign");
+		expect(decision.poolId).not.toBe("m5-hex");
+		expect(["legion-hex", "m4-hex"]).toContain(decision.poolId);
 	});
 });

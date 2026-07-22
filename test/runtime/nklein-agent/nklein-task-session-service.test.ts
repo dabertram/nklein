@@ -312,6 +312,7 @@ function createFakeNKleinSessionRuntime(): FakeNKleinSessionRuntimeController {
 				await clearTaskSessionsMock(taskId);
 				clearTaskSessionBinding(taskId);
 			},
+			getTaskTurnGeneration: () => 0,
 			getTaskSessionId(taskId: string): string | null {
 				return sessionIdByTaskId.get(taskId) ?? null;
 			},
@@ -1300,6 +1301,52 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(reviewSummaries.at(-1)?.latestHookActivity?.hookEventName).toBe("sandbox_patch_captured");
 	});
 
+	it("captures sandbox work when a repeated-tool guard parks the task", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-cycle-capture",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Edit and verify the result.",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-cycle-capture");
+		for (let repetition = 1; repetition <= 3; repetition += 1) {
+			runtime.emitAgentEvent(sessionId, {
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: `read-${repetition}`,
+				toolName: "Read",
+				input: { file: "result.txt" },
+			});
+		}
+
+		expect(service.getSummary("task-cycle-capture")).toMatchObject({
+			state: "awaiting_review",
+			reviewReason: "attention",
+			warningMessage: expect.stringContaining("repeated Read tool calls"),
+		});
+		await waitForSettled(() => {
+			expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalledWith("task-cycle-capture", {
+				baseRef: "main",
+			});
+		});
+		await waitForSettled(() => {
+			expect(service.getSummary("task-cycle-capture")?.latestHookActivity?.hookEventName).toBe(
+				"sandbox_patch_captured",
+			);
+		});
+	});
+
 	it("keeps a captured result authoritative when post-capture disposal reports an error", async () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
@@ -1693,6 +1740,48 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				.listMessages("task-gated-redrive")
 				.some((message) => message.content === "Address the review feedback"),
 		).toBe(true);
+	});
+
+	it("keeps an in-place model override authoritative for the next unqualified re-drive", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async () => createFakeRuntimeSetup().setup),
+			allowUnisolatedTestRuntime: true,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-failover-route-cache",
+			cwd: "/tmp/worktree",
+			prompt: "Implement the card",
+			providerId: "lmstudio",
+			modelId: "qwable",
+			baseUrl: "http://127.0.0.1:1234/v1",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-failover-route-cache");
+		runtime.emitAgentEvent(sessionId, { type: "done", text: "first attempt", reason: "completed" });
+		await waitForSettled(() => {
+			expect(service.getSummary("task-failover-route-cache")?.state).toBe("awaiting_review");
+		});
+
+		await service.sendTaskSessionInput("task-failover-route-cache", "Carry to the healthy model", "act", undefined, {
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+		});
+		await waitForSettled(() => {
+			expect(service.getSummary("task-failover-route-cache")?.modelId).toBe("qwen3-8b");
+		});
+		runtime.emitAgentEvent(sessionId, { type: "done", text: "failover attempt", reason: "completed" });
+		await waitForSettled(() => {
+			expect(service.getSummary("task-failover-route-cache")?.state).toBe("awaiting_review");
+		});
+
+		await service.sendTaskSessionInput("task-failover-route-cache", "Address acceptance feedback");
+		expect(service.getSummary("task-failover-route-cache")).toMatchObject({
+			state: "running",
+			modelId: "qwen3-8b",
+		});
 	});
 
 	it("serializes initial turns through model admission while a decomposition seed is still unwinding", async () => {

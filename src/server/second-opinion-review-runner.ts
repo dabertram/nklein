@@ -34,6 +34,7 @@ import {
 	getReusableAcceptanceEvidence,
 	storeAcceptanceEvidence,
 } from "../nklein-agent/nklein-acceptance-evidence-registry";
+import { extractAcceptanceFailureConstraint } from "../nklein-agent/nklein-acceptance-repair";
 import { getBaselineProbe } from "../nklein-agent/nklein-baseline-probe-registry";
 import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { type PanelJudge, runNEyesReviewPanel, runReviewPanel } from "../nklein-agent/nklein-review-panel-runner";
@@ -101,6 +102,11 @@ export function applyCardReviewToBoard(
 export interface RunSecondOpinionReviewForTaskInput {
 	workspacePath: string;
 	taskId: string;
+	/**
+	 * The trusted runtime gate's admitted primary-artifact class. Keep this explicit: a null/empty diff can also mean
+	 * branch lookup or capture trouble, while `empty_patch` means the worker really handed off with no file changes.
+	 */
+	primaryArtifactStatus?: "result_branch" | "empty_patch";
 	/** Exact primary artifact admitted by the runtime gate; prevents review from drifting to a later branch update. */
 	primaryResultCommit?: string | null;
 	/** Exact speculative candidate observed alongside the primary admission, when present. */
@@ -114,6 +120,7 @@ export interface RunSecondOpinionReviewForTaskInput {
 				| "cancelTaskTurn"
 				| "cancelSpeculativeMirror"
 				| "isSecondOpinionReviewInFlight"
+				| "noteNextAttemptStrategy"
 			>
 		>;
 	loadWorkspaceState?: typeof loadWorkspaceState;
@@ -201,7 +208,10 @@ const ACCEPTANCE_OUTPUT_TAIL_BUDGET = 800;
  * A failing or MISSING acceptance is framed as strong request-changes grounds (fail-closed posture, W0.1).
  */
 export function formatAcceptanceSummaryForReview(
-	acceptance: Pick<RuntimeTaskAcceptanceResult, "present" | "command" | "passed" | "exitCode" | "output"> | null,
+	acceptance: Pick<
+		RuntimeTaskAcceptanceResult,
+		"present" | "command" | "passed" | "exitCode" | "output" | "failureHint"
+	> | null,
 	// F12.60(a): the card-start BASE-tree probe, when one ran — turns a red acceptance into an ATTRIBUTED verdict.
 	baseline?: { present: boolean; passed: boolean | null } | null,
 ): string | null {
@@ -213,6 +223,7 @@ export function formatAcceptanceSummaryForReview(
 	}
 	const verdict = acceptance.passed === true ? "PASSED" : `FAILED (exit ${acceptance.exitCode ?? "?"})`;
 	const outputTail = acceptance.output.trim().slice(-ACCEPTANCE_OUTPUT_TAIL_BUDGET);
+	const failureConstraint = acceptance.passed === false ? extractAcceptanceFailureConstraint(acceptance.output) : null;
 	// F12.60(a) attribution: a red acceptance reads very differently when the BASE tree was already red before any
 	// work happened — say which world the reviewer is in, in both directions, only when a probe actually ran.
 	const attribution =
@@ -228,8 +239,13 @@ export function formatAcceptanceSummaryForReview(
 			? []
 			: [
 					"A failing acceptance check is strong grounds to request changes — reconcile the worker's claims against this result.",
+					...(acceptance.failureHint?.trim() ? [`Failure hint: ${acceptance.failureHint.trim()}`] : []),
 				]),
-		...(outputTail && acceptance.passed !== true ? ["", "Output tail:", "```", outputTail, "```"] : []),
+		...(failureConstraint && acceptance.passed !== true
+			? ["", "Failing test/error excerpt:", "```", failureConstraint, "```"]
+			: outputTail && acceptance.passed !== true
+				? ["", "Output tail:", "```", outputTail, "```"]
+				: []),
 	].join("\n");
 }
 
@@ -965,8 +981,46 @@ export async function runSecondOpinionReviewForTask(
 				await persistReview(review);
 			},
 			onBounce: async ({ review, workerPrompt }) => {
-				await persistReview(review, "in_progress");
+				// Live F3.24b proof (2026-07-22): qwen3.5-9b handed off three empty patches. The first reviewed
+				// no-op was correctly rejected, but the ordinary bounce sent it straight back to the SAME model;
+				// after another no-op the card stranded in In Progress and froze the fan-in. An admitted empty patch
+				// is already model-capability evidence, not an ordinary code-review correction. Consume the existing
+				// diverse-worker escalation rung immediately when one is available, persist that the rung was spent,
+				// and carry the review feedback to a fresh model. Do not infer this from an empty/null diff: only the
+				// trusted capture gate's explicit `empty_patch` status is authoritative.
+				const emptyPatchEscalation =
+					input.primaryArtifactStatus === "empty_patch" ? (escalationCandidate ?? null) : null;
+				await persistReview(emptyPatchEscalation ? { ...review, escalated: true } : review, "in_progress");
 				await discardSpeculativeCandidate();
+				if (emptyPatchEscalation) {
+					input.service.noteNextAttemptStrategy?.(input.taskId, "cross_model_empty_patch");
+					await input.service.sendTaskSessionInput(
+						input.taskId,
+						`You are taking over after another model returned NO file changes for a task that still requires implementation. Read the preserved objective and reviewer feedback, make the required edits, and run the acceptance check.\n\n${workerPrompt}${fileScopeNote}`,
+						"act",
+						undefined,
+						emptyPatchEscalation,
+					);
+					input.warn?.(
+						`Empty-patch review bounce for ${input.taskId}: rerouted from the no-op worker to ${emptyPatchEscalation.modelId}.`,
+					);
+					try {
+						recordSelfObservation({
+							signal: "custom",
+							severity: "warning",
+							message: `Empty-patch review bounce for ${input.taskId}: rerouted to ${emptyPatchEscalation.modelId}.`,
+							taskId: input.taskId,
+							workspacePath: input.workspacePath,
+							metadata: {
+								category: "empty_patch_model_failover",
+								nextModelId: emptyPatchEscalation.modelId,
+							},
+						});
+					} catch {
+						// Recovery telemetry must never break the re-drive.
+					}
+					return;
+				}
 				await input.service.sendTaskSessionInput(input.taskId, `${workerPrompt}${fileScopeNote}`, "act");
 			},
 			onEscalate: async ({ review, workerPrompt }) => {

@@ -126,6 +126,16 @@ describe("formatTurnLoopParkMessage", () => {
 		expect(message).toContain("bouncing between the same two proposals");
 	});
 
+	it("describes a periodic multi-step cycle distinctly", () => {
+		const message = formatTurnLoopParkMessage({
+			kind: "cycle",
+			occurrences: 9,
+			fingerprint: "inspect|rewrite|retry",
+			contestedQuestion: null,
+		});
+		expect(message).toContain("repeating the same multi-step work cycle");
+	});
+
 	it("prefers the exact capability-broker refusal when it explains the loop", () => {
 		const message = formatTurnLoopParkMessage(
 			{ kind: "repeat", occurrences: 4, fingerprint: "x", contestedQuestion: LOOPING_QUESTION },
@@ -162,6 +172,17 @@ describe("TurnLoopGuard", () => {
 		expect(harness.parked).toEqual([]);
 		expect(harness.escalated).toEqual([]);
 		expect(harness.observations[0]?.category).toBe("turn_loop_auto_resolve");
+	});
+
+	it("interrupts and nudges a three-step work cycle with exact-failure guidance", async () => {
+		const harness = buildHarness({ startPrompt: "Implement the formatter.\n\nAcceptance check: npm test" });
+		const cycle = ["Inspect the same file.", "Rewrite the same file.", "Run the same failing command."];
+		pushAssistantTurns(harness.entry, [...cycle, ...cycle, ...cycle]);
+		harness.guard.check("task-1");
+		await flush();
+		expect(harness.sent).toHaveLength(1);
+		expect(harness.sent[0]).toContain("exact failure output");
+		expect(harness.observations[0]).toMatchObject({ category: "turn_loop_auto_resolve", kind: "cycle" });
 	});
 
 	it("drops the nudge (and keeps the budget) when the run already ended before the cancel landed", async () => {

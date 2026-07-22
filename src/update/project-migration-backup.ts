@@ -1,4 +1,5 @@
-import { cp, mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { cp, mkdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export interface ProjectUpdateMigrationSpec {
@@ -158,10 +159,41 @@ export async function rollbackProjectMigration(
 	}
 
 	try {
-		await mkdir(path.dirname(plan.restoreTo), { recursive: true });
-		await cp(plan.backupPath, plan.restoreTo, { recursive: true, force: true });
-		// The backup dir carries the record marker; drop it from the restored home so rollback is idempotent + clean.
-		await rm(path.join(plan.restoreTo, MIGRATION_BACKUP_RECORD_FILENAME), { force: true });
+		const parentPath = path.dirname(plan.restoreTo);
+		const targetName = path.basename(plan.restoreTo);
+		const suffix = `${process.pid}-${randomUUID()}`;
+		const stagingPath = path.join(parentPath, `.${targetName}.migration-restore-${suffix}`);
+		const replacedPath = path.join(parentPath, `.${targetName}.migration-replaced-${suffix}`);
+		await mkdir(parentPath, { recursive: true });
+		// Build a complete sibling before touching the live home. Copying directly over the target merges trees and leaves
+		// files introduced by the failed migration behind, so it is not a rollback.
+		await cp(plan.backupPath, stagingPath, { recursive: true, errorOnExist: true, force: false });
+		await rm(path.join(stagingPath, MIGRATION_BACKUP_RECORD_FILENAME), { force: true });
+		let targetMoved = false;
+		try {
+			const targetExists = await stat(plan.restoreTo)
+				.then(() => true)
+				.catch(() => false);
+			if (targetExists) {
+				await rename(plan.restoreTo, replacedPath);
+				targetMoved = true;
+			}
+			await rename(stagingPath, plan.restoreTo);
+			if (targetMoved) {
+				await rm(replacedPath, { recursive: true, force: true });
+			}
+		} catch (error) {
+			await rm(stagingPath, { recursive: true, force: true }).catch(() => undefined);
+			if (targetMoved) {
+				const liveTargetExists = await stat(plan.restoreTo)
+					.then(() => true)
+					.catch(() => false);
+				if (!liveTargetExists) {
+					await rename(replacedPath, plan.restoreTo).catch(() => undefined);
+				}
+			}
+			throw error;
+		}
 		return { status: "restored", restoredTo: plan.restoreTo, fromBackupPath: plan.backupPath };
 	} catch (error) {
 		return {

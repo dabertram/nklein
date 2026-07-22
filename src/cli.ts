@@ -42,6 +42,7 @@ import { installRuntimeUnhandledRejectionGuard } from "./server/runtime-process-
 import type { RuntimeStateHub } from "./server/runtime-state-hub";
 import { captureNodeException, flushNodeTelemetry } from "./telemetry/sentry-node.js";
 import type { TerminalSessionManager } from "./terminal/session-manager";
+import { isProjectMigrationAccepted, runProjectMigrations } from "./update/project-migration-runner";
 import { runOnDemandUpdate } from "./update/update";
 
 interface CliOptions {
@@ -680,6 +681,12 @@ async function run(): Promise<void> {
 	loadDotEnv();
 	const argv = process.argv.slice(2);
 	await runLegacyNameMigration();
+	const migration = await runProjectMigrations();
+	if (!isProjectMigrationAccepted(migration)) {
+		throw new Error(
+			`Updated runtime rejected project migration: ${migration.message} (rollback: ${migration.rollbackStatus}).`,
+		);
+	}
 	const program = createProgram(argv);
 	await program.parseAsync(argv, { from: "user" });
 	if (!shouldAutoOpenBrowserTabForInvocation(argv)) {

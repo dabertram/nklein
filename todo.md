@@ -33,10 +33,10 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F3.T3b closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F5.6b closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-gate below is green. The current 189-package remainder is **101 ready + 0 partial + 77 dependency-blocked + 6 external/
-user-gated + 5 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
+gate below is green. The current 190-package remainder is **99 ready + 1 partial + 77 dependency-blocked + 6 external/
+user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 
 Broad blocked phases inherit these named gates (an item's narrower inline gate is additional):
@@ -92,6 +92,119 @@ feature-completeness challenges, release checks, and required manual checks are 
 gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
+
+> **⚠️ MODEL-TURN FAILURE AND ARTIFACT SETTLEMENT ARE INDEPENDENT FACTS (live-found F3.24b, 2026-07-22).** A
+> worker can author valid changes and then end in `reviewReason: error` when a later no-tool-call recovery exhausts.
+> Do not send the initial unsettled error to review while failover may still own it, but do not permanently exclude the
+> task either. Sandbox finalization is the causal boundary: a subsequent `sandbox_patch_captured` or
+> `sandbox_patch_empty` event makes the artifact reviewable; `sandbox_patch_capture_failed` does not. Consumers must
+> detect the transition from *not reviewable* to *reviewable*, even when both summaries remain `awaiting_review`, rather
+> than keying only on a lane/state change.
+
+> **⚠️ A BUSY SUMMARY IS NOT PROOF OF A NEWER MODEL TURN (live-found F3.24b, 2026-07-22).** During review, a
+> late lifecycle event from the artifact's own worker turn can project the primary summary back to `running`. Treating
+> that presentation state as proof of supersession rejects an approved artifact as stale, reruns review, and can seed
+> duplicate bounce/redrive turns. Count accepted model turns monotonically per exact task id; capture that generation
+> with the admitted artifact and compare it after review. A changed generation proves a newer primary turn even before
+> it captures; an unchanged generation makes late same-turn summary churn harmless. Keep the result-commit comparison
+> as the independent durable-artifact guard.
+
+> **⚠️ CANCELLATION AUTHORITY MUST FOLLOW THE LIVE RUNTIME, NOT ITS PROJECTED SUMMARY (live-found F3.24b,
+> 2026-07-22).** A synthetic speculative worker can trip an autonomy/tool-cycle guard that projects its task summary
+> out of `running` while the SDK auto-loop is still unwinding. Calling the user-facing turn-cancel seam then returns
+> early on that stale state and leaves the model session alive, able to monopolize a scarce reviewer endpoint for
+> minutes. The owner of a bounded synthetic runtime must register the attempt from launch-promise creation through its
+> `finally`, use that ownership registry for both concurrency accounting and preemption discovery, and hard-abort the
+> underlying session on arbitration loss or timeout regardless of presentation state. Keep state-gated cancellation
+> for user-visible turn semantics; neither use it nor a busy-summary filter as resource-lifecycle authority.
+
+> **⚠️ A ROLLBACK MUST REPLACE THE MUTATED TREE, NOT MERGE A BACKUP INTO IT (F5.6b, 2026-07-22).** Recursive
+> copy-with-overwrite restores changed files but silently preserves every file introduced by the failed migration.
+> Build the full restore in a sibling directory, strip backup-only metadata there, rename the live tree aside, and
+> atomically rename the staged tree into place; restore the renamed live tree if the swap fails. Keep the backup and
+> migration journal outside the rollback target, or the rollback can erase its own recovery authority. Gate update
+> acceptance on re-reading and validating the durable migrated state, not on the write call returning successfully.
+
+> **⚠️ ASYNC SUBPROCESSES STILL NEED BURST COALESCING (live-found F3.24b, 2026-07-22).** Making hot-path Git
+> discovery asynchronous prevented event-loop blocking, but a wide completion wave then launched more than 490
+> overlapping Git children for the same repository. The resulting spawn pressure first appeared as false “No git
+> repository” warnings (because detection intentionally maps spawn failure to null), then failed patch capture with
+> `spawn EBADF`; the repository itself remained healthy. For repeated read-only discovery, share the in-flight promise
+> per canonical resource and remove it immediately on settle: this bounds the burst without a TTL or stale branch data.
+> Apply the same rule to cold-cache `lms ps` discovery. Diagnose transient absence errors below their semantic wrapper
+> before treating them as missing state.
+
+> **⚠️ A FREE HOST SLOT IS NOT A FREE MODEL SLOT (live-found F3.24b, 2026-07-22).** With M5's host cap raised
+> to two, one Qwen worker occupied its model's only slot while the host still reported one free slot. Pool-first routing
+> selected M5 again, its within-pool picker fell back to the busy Qwen, and endpoint admission queued that stale route
+> while M4 and Legion were idle. When any task-qualified free model exists, derive pool capability from free eligible
+> models, not busy residents; preserve the busy-best fallback only when no qualified free model exists anywhere. Host,
+> model, and endpoint capacity are independent ceilings.
+
+> **⚠️ AN IN-PLACE MODEL FAILOVER MUST UPDATE EVERY RESTART AUTHORITY (live-found F3.24b, 2026-07-22).** The
+> session runtime can switch only `modelId` without rebuilding a live session, but the task service also owns a cached
+> launch config used by later review and acceptance re-drives. Updating only the runtime creates split-brain route
+> state: the failover turn runs on the healthy model, then an unqualified re-drive resurrects the disappeared model.
+> Cache the fully merged effective launch config whenever an override is accepted, matching initial-start semantics;
+> do not rely on the transient summary identity or make every subsequent caller repeat an override.
+
+> **⚠️ READ-ONLY AGENT TOOLS MAY WRITE RUNTIME CACHES; THOSE CACHES ARE NOT TASK AUTHORSHIP (live-found F3.24b,
+> 2026-07-22).** `ego_graph`/`search_code` lazily refreshed `.nklein/nklein/code-index-v1.json` inside a sandbox
+> clone. Capturing that runtime-owned file in the worker patch turned a correct formatter into an out-of-scope write,
+> failed acceptance, and triggered an unnecessary repair round. Exclude `.nklein/nklein/**` at the sandbox staging
+> seam just as the host auto-merge seam already does; keep all actual project files fail-closed and visible. Do not
+> ask models to avoid useful read tools or whitelist one cache filename in the boundary judge—the provenance boundary
+> is runtime state versus project authorship.
+
+> **⚠️ PATCH CAPTURE IS A LARGE-REPO OPERATION AND `docker exec` CAN FAIL ABOVE GIT (live-found F3.24b,
+> 2026-07-22).** A correct, tiny formatter passed its tests, then its first `git add` capture returned a null Docker
+> exit with empty stdout/stderr; the preserved volume immediately passed `git fsck` and `git status`, proving the repo
+> had not disappeared. Preserve the child-process error message when Docker emits no streams, give stage/diff a
+> capture-sized timeout, and retry exactly once only for a null transport exit after probing the same workspace. `git
+> add` is identity-preserving and idempotent; never retry a real numeric Git failure, which must remain a fail-closed
+> artifact error.
+
+> **⚠️ FINALIZE THE POST-GUARD SUMMARY, NOT THE PRE-GUARD EVENT (live-found F3.24b, 2026-07-22).**
+> `emitSummary` may transform an SDK `running` summary into an `awaiting_review` autonomy guard (for example the
+> repeated A→B tool-cycle guard). Any capture/finalization edge detector must inspect the authoritative summary left
+> on the task entry after that transform. Inspecting the adapter's original object misses the transition and strands
+> real sandbox edits as an indefinitely "unsettled" Review card.
+
+> **⚠️ A VALID VERDICT TOOL CALL IS A TERMINAL CONTROL EVENT (live-found F3.24b, 2026-07-22).** A reviewer
+> can ignore the `submit_review` result's prose instruction to stop, continue using tools, and submit later contradictory
+> verdicts. The runtime—not the model—must make the first schema-valid verdict authoritative and actively stop the
+> synthetic reviewer session immediately; otherwise one disobedient turn monopolizes the host until timeout and can
+> overwrite a sound earlier decision.
+
+> **⚠️ DEPENDENCY INSTALL TREES ARE RUNTIME STATE, BUT TRACKED FILES STAY AUTHORITATIVE (live-found F3.24b,
+> 2026-07-22).** A worker may legitimately run `npm install` to execute acceptance in an isolated clone. Untracked
+> `node_modules/**` must never enter its result patch or boundary review, while a repository that deliberately tracks a
+> file under that tree must not have its edits silently hidden. Stage tracked changes first, then add untracked files
+> with dependency-tree exclusions; keep lockfiles and every other project file visible to the ordinary write-scope gate.
+
+> **⚠️ FAN-IN COMPLEXITY LIVES IN THE TRANSITIVE DEPENDENCY CONE, NOT IN PROMPT LENGTH (live-found F3.24b,
+> 2026-07-22).** A six-way registry join had a short prompt and therefore routed at difficulty 25 to a capability-46
+> worker; it stayed healthy and made repairs, but consumed the proof's remaining 21 minutes without delivering. Count
+> distinct upstream cards transitively when estimating start difficulty, because a final card with one direct edge can
+> still integrate an entire upstream DAG. Use a bounded bonus so joins prefer a stronger eligible resident without
+> manufacturing an impossible capability floor. Treat this as latency/capability evidence—not disappearance—when the
+> model remains loaded and continues emitting semantic actions.
+
+> **⚠️ A REVIEWED EMPTY PATCH IS MODEL-CAPABILITY EVIDENCE, NOT AN ORDINARY SAME-MODEL BOUNCE (live-found
+> F3.24b, 2026-07-22).** In the real six-leaf/two-join fleet proof, `qwen3.5-9b-mlx` returned no changes three
+> times. Review correctly rejected the first admitted no-op, but sent the repair back to the same model; the next
+> empty recapture left the card in progress without a live session and froze both joins. When the trusted capture gate
+> says `empty_patch` and review requests implementation, spend the existing diverse-worker escalation rung immediately,
+> persist that it was spent, carry the feedback to the fresh model, and record the strategy. Do not infer this from a
+> null/empty diff alone because branch lookup or capture failure can look identical.
+
+> **⚠️ A FAILED SANDBOX COMMAND'S DIAGNOSTIC MAY LIVE OUTSIDE `Error.message` (live-found F3.24b,
+> 2026-07-22).** Cline's shell executor throws a `CommandExitError` whose message is only `Command exited with code
+> N`; the already-bounded combined command output is carried separately on `.output`. Any process/JSON proxy boundary
+> that serializes only `.message` destroys the compiler/test evidence and forces a worker to guess or repeat commands.
+> Preserve structural `.output` (and compatible `.stderr`/`.stdout`) beside the message, deduplicate it, and apply a
+> second head+tail hard bound before returning it to the model. Do not solve missing diagnostics with retries or a
+> prompt instruction—the information was captured correctly and lost at the transport boundary.
 
 > **⚠️ ACTIONPLAN EXECUTION MUST REUSE THE REAL TOOL SECURITY BOUNDARY (F3.T3b, 2026-07-22).** A model-produced
 > plan is orchestration data, not new authority. Offer only manifest-backed worker tools, dispatch the already
@@ -627,7 +740,25 @@ source repo went private — so if it vanishes the buildable source still lives 
     serving-layer incompatibility, not a context/RAM or demonstrated weight-capability failure. A failed tool request can
     leave the nominally-idle instance carrying the poisoned grammar into later requests, so force-reload it before
     tool-free use. Until LM Studio fixes the parser or !Klein deliberately integrates the official server, route Bonsai
-    only to fresh tool-free context/review work—not ordinary agentic chains. The catalog encodes this as a warning.
+    only to fresh tool-free context/review work—not ordinary agentic chains. Because every production role path today
+    offers or requires tools, the catalog rejects this exact LM Studio-served variant (a future explicit tool-free route
+    may opt it back in). Primary-source context nuance: Prism advertises 262K, but that full-window estimate assumes its
+    4-bit KV-cache path (~12.8 GB peak); its uncompressed measurements are ~9.2 GB at 4K, ~9.6 GB at 10K, and ~15.5 GB at
+    100K for MLX. A 40K load is therefore legitimate; it does not repair the independent parser incompatibility.
+    **The 1.95 GB Q4_1 GGUF is NOT a smaller target:** the official filename is
+    `Ternary-Bonsai-27B-dspark-Q4_1.gguf`, the speculative DSpark drafter for the real ~7.17 GB Q2_0_g128 target. Reject
+    it as a standalone role model; speculative decoding is outside the current layer.
+  - **FAN-IN RELEASE IS AN ALL-PREREQUISITES INVARIANT (live-found 2026-07-22):** removing/completing one incoming
+    dependency edge must not release a join while any other surviving prerequisite edge remains. Enforce this twice:
+    pure task-board mutation returns only genuinely ready dependents, and the effectful auto-start seam rechecks the
+    current live board immediately before launch. The second check is not redundant—candidate state can be stale by the
+    time an asynchronous completion reaches the scheduler.
+  - **REVIEWERS NEED THE FAILURE, NOT THE TEST-SUITE TAIL (live-found 2026-07-22):** Node TAP puts the first `not ok`
+    diagnostic before later green subtests; an 800-character stdout tail showed `19 pass / 1 fail` but hid the failing
+    test and assertion, sending Mistral into an exact two-search loop. Extract and fence the first bounded TAP failure
+    block (plus the classified failure hint) for the review prompt. Separately, guard exact A/B and A/B/C tool-call
+    cycles after three repetitions using lossless full-input fingerprints; consecutive-only guards do not cover
+    periodic loops, while lossy display summaries would falsely stop progressing reads.
   - **EVIDENCE CONTRACT (fixed + live-proven 2026-07-21): counts are not evidence.** The controller snapshots every
     live transcript (including short-lived auxiliary critic/reviewer sessions) and the collector emits exact
     `tool_use`→`tool_result` pairs, raw `is_error`, effective error classification, error bodies, pending/orphan calls,
@@ -2270,7 +2401,9 @@ These are known defects or incomplete migrations. Clear them before widening cap
 - [x] **F3.24 — Prove multi-machine fan-out.** A wide DAG must use at least two pools, keep hard work on capable models,
   survive one endpoint loss, and merge all results.
   **FINALIZED 2026-07-19 (split):** multi-pool routing unit-proven AND the 2026-07-15 live run validated multi-machine fan-out + cap-3 concurrency across the real 3-machine fleet (recorded in the fleet-live session evidence). The remaining ENDPOINT-LOSS survival leg + a committed proof artifact = F3.24b below.
-- [ ] **F3.24b — Committed fan-out proof artifact** *(fleet is available; split from F3.24 2026-07-19).* On the next
+- [~] **F3.24b — Committed fan-out proof artifact** *(implementation and deterministic regressions complete; remaining:
+  rerun the exact eight-card live proof once m5max/legion5pro leave low-power mode, require all eight cards merged after
+  the injected Qwable endpoint loss, then commit the durable run artifact; split from F3.24 2026-07-19).* On the next
   multi-machine fleet window: run a wide DAG across ≥2 pools, kill one endpoint mid-run, verify re-route +
   merge, and commit the run artifact (simflow probe log) as the durable proof.
 - [x] **F3.25 — Complete the model-evaluation runtime.** Run the role×difficulty matrix repeatedly, capture quality,
@@ -2670,10 +2803,6 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   hand off to the platform installer, expose tray/UI progress/errors/retry, and never install an untrusted asset.
   **AUDIT 2026-07-18: PARTIAL** — every pure updater core exists + tested in packages/desktop (feed parse, channel/trust selection, sha256 download verify, installer handoff, tray show-update). MISSING: the effectful client loop — main.ts never invokes check→download→verify→handoff; no live tray/progress/retry surface.
 - [x] **F5.6 —  *(finalized 2026-07-19 (split): backup + rollback cores complete; the effectful runner split below.)*
-- [ ] **F5.6b — Effectful migration runner** *(split from F5.6 2026-07-19).* Consume the versioned backup/rollback cores in an update-time runner (record/resume-after-interruption + update-acceptance gating); build with the first real schema migration so it is exercised, not shelf-ware.
-  *(original F5.6 head:)* Build runtime/project migrations with backup and rollback.** Version every migration, create verifiable
-  backups, record results, resume/rollback safely after interruption, and make update acceptance depend on it.
-  **AUDIT 2026-07-18: PARTIAL** — versioned backup + rollback cores exist (project-migration-backup.ts). MISSING: no effectful migration runner consumes them; no record/resume-after-interruption; no update-acceptance gating.
 - [ ] **F5.7 — Integrate signed release assets and update policy.** macOS signing/notarization, Windows signing, Linux
   checksum/signing decision, channel manifests, integrity tests, and reproducible electron-builder configuration.
 

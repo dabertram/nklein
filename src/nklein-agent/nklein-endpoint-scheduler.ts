@@ -109,6 +109,34 @@ function getSharedEndpointId(snapshot: NKleinModelRegistrySnapshot, input: NKlei
 	return getFallbackSharedEndpointId(input);
 }
 
+/**
+ * Every constrained resource a request may consume. The admission waiter queue uses the same identifiers returned by
+ * scheduling denials, preventing a newly arriving turn from overtaking an older waiter while leaving unrelated hosts
+ * fully parallel.
+ */
+export function getNKleinEndpointSchedulingResourceIds(request: NKleinEndpointSchedulingRequest): readonly string[] {
+	const resources = new Set<string>();
+	const providerId = normalizeProviderId(request.providerId);
+	const endpoint = normalizeEndpoint(request.endpoint);
+	const local = isLocalProvider(providerId, endpoint);
+	if (local && normalizePositiveCap(request.providerConcurrencyCap) !== null) {
+		resources.add(`provider:${providerId}`);
+	}
+	if (local && endpoint && normalizePositiveCap(request.endpointConcurrencyCap) !== null) {
+		resources.add(`pool:${endpoint}`);
+	}
+	const hostId = resolveRequestHostId(request);
+	if (hostId && request.machineByModelId && normalizePositiveCap(request.hostConcurrencyCap) !== null) {
+		resources.add(`host:${hostId}`);
+	}
+	if (hostId && request.machineByModelId && normalizePositiveCap(request.perMachineCap) !== null) {
+		resources.add(`machine:${hostId}`);
+	}
+	const sharedEndpointId = getSharedEndpointId(request.modelRegistry, request);
+	if (sharedEndpointId) resources.add(sharedEndpointId);
+	return [...resources];
+}
+
 function getMaxConcurrentRequests(snapshot: NKleinModelRegistrySnapshot, input: NKleinModelRegistryKeyInput): number {
 	if (!hasRealModelIdentity(input)) {
 		return 1;

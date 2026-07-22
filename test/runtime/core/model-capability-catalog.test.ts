@@ -56,14 +56,23 @@ describe("model-capability-catalog: lookup", () => {
 		expect(lookupModelCapability("qwen/qwen3-8b")?.family).toBe("qwen3-8b");
 	});
 
-	it("records Bonsai as tool-capable weights with a serving-layer warning for LM Studio", () => {
+	it("records Bonsai as tool-capable weights but rejects the broken LM Studio serving path", () => {
 		const entry = lookupModelCapability("prism-ml/Ternary-Bonsai-27B-mlx-2bit");
 		expect(entry?.family).toBe("ternary-bonsai-27b-mlx");
 		expect(entry?.toolUse).toBe("TOOL_CAPABLE");
 		expect(entry?.verified).toBe(true);
 		expect(entry?.note).toContain("context worker 1.000");
 		expect(entry?.disqualifiers?.join(" ")).toContain("LM Studio MLX runtime");
-		expect(assessModelSuitability("ternary-bonsai-27b-mlx").severity).toBe("warn");
+		expect(assessModelSuitability("ternary-bonsai-27b-mlx").severity).toBe("reject");
+		expect(assessModelSuitability("ternary-bonsai-27b-mlx").allowed).toBe(false);
+	});
+
+	it("rejects Bonsai's Q4_1 DSpark drafter as a standalone role model", () => {
+		const id = "Ternary-Bonsai-27B-dspark-Q4_1.gguf";
+		expect(lookupModelCapability(id)?.family).toBe("ternary-bonsai-27b-dspark-drafter");
+		expect(lookupModelCapability(id)?.note).toContain("not a standalone smaller quantization");
+		expect(assessModelSuitability(id).severity).toBe("reject");
+		expect(assessModelSuitability(id).allowed).toBe(false);
 	});
 
 	it("resolves the qwopus3.6 reasoning family BEFORE the generic qwopus-merge row (specific wins)", () => {
@@ -154,6 +163,16 @@ describe("model-capability-catalog: 2026-07-01 sweep additions (ordering + verdi
 		expect(nine?.verified).toBe(true);
 	});
 
+	it("keeps the exact legion Ornith Q4 alias out of unattended worker routing after the production chain failure", () => {
+		const exact = lookupModelCapability("ornith-1.0-9b");
+		expect(exact?.family).toBe("ornith-1.0-9b-gguf-q4-k-m");
+		expect(exact?.toolUse).toBe("TOOL_WEAK");
+		expect(exact?.chaining).toBe("fails");
+		expect(assessModelSuitability("ornith-1.0-9b").severity).toBe("warn");
+		// Other served aliases/quants retain the broader harness-backed family evidence.
+		expect(lookupModelCapability("ornith-1.0-9b-mlx")?.family).toBe("ornith-1.0-9b");
+	});
+
 	it("gpt-oss chaining tracks ACTIVE params: 120b (~5.1B active) TOOL_CAPABLE full-synth vs 20b (~3.6B active) TOOL_WEAK chain-drop", () => {
 		const big = lookupModelCapability("openai/gpt-oss-120b");
 		expect(big?.family).toBe("gpt-oss-120b");
@@ -223,12 +242,12 @@ describe("model-capability-catalog: fine-grained metadata (§5.AL — chaining/s
 		expect(e?.sizeGb).toBe(28.6);
 	});
 
-	it("populates the 9B reasoning (qwen3.5) as via_force / weak-synthesis / medium", () => {
+	it("populates the 9B reasoning (qwen3.5) as via_force / weak-synthesis / slow", () => {
 		const e = lookupModelCapability("qwen3.5-9b-mlx-m4");
 		expect(e?.chaining).toBe("via_force");
 		expect(e?.synthesis).toBe("weak");
 		expect(e?.structuredOutput).toBe("native_tool_call");
-		expect(e?.speed).toBe("medium");
+		expect(e?.speed).toBe("slow");
 		expect(e?.sizeGb).toBe(6);
 	});
 

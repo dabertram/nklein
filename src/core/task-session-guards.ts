@@ -3,18 +3,25 @@ import { isHomeAgentSessionId } from "./home-agent-session";
 
 /**
  * A task session summary that is awaiting review for a reason the runtime should act on: an agent hook handoff, a
- * process exit, an attention request, or an error. The single source of truth for "this summary is reviewable" —
+ * process exit, or an attention request. An unsettled error is deliberately NOT reviewable: model failover owns
+ * recoverable model-side errors, and an unrecoverable error must remain parked instead of racing a replacement worker.
+ * Once sandbox finalization durably captures a result (including an explicit empty patch), the artifact is reviewable
+ * even if the model turn itself ended in error; otherwise valid authored work can be stranded forever. The single
+ * source of truth for "this summary is reviewable" —
  * shared by the runtime server (auto-review finalization) and the state hub (ready-for-review broadcast), which
  * previously each held a byte-for-byte copy (the systems-analysis pass flagged the duplication: a change to the set
  * of reviewable reasons needed two edits and could silently diverge).
  */
 export function isReviewableNKleinSummary(summary: RuntimeTaskSessionSummary): boolean {
+	const settledSandboxArtifact =
+		summary.latestHookActivity?.hookEventName === "sandbox_patch_captured" ||
+		summary.latestHookActivity?.hookEventName === "sandbox_patch_empty";
 	return (
 		summary.state === "awaiting_review" &&
 		(summary.reviewReason === "hook" ||
 			summary.reviewReason === "exit" ||
 			summary.reviewReason === "attention" ||
-			summary.reviewReason === "error")
+			(summary.reviewReason === "error" && settledSandboxArtifact))
 	);
 }
 

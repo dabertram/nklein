@@ -365,7 +365,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		setSandbox: (taskId, repoPath, baseRef) => this.sandboxState.setSandbox(taskId, repoPath, baseRef),
 		setResultBranch: (taskId, branch) => this.sandboxState.setResultBranch(taskId, branch),
 		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
-		cancelTaskTurn: (taskId) => this.cancelTaskTurn(taskId),
+		abortRuntimeSession: (taskId) => this.sessionRuntime.abortTaskSession(taskId),
 		clearTaskSessions: (taskId) => this.sessionRuntime.clearTaskSessions(taskId),
 		forgetSyntheticState: (taskId) => this.forgetSyntheticSessionState(taskId),
 	});
@@ -391,6 +391,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
 		sendTaskSessionInput: (taskId, prompt, admissionParentTaskId) =>
 			this.sendAuxiliaryTaskSessionInput(taskId, prompt, admissionParentTaskId),
+		stopRuntimeSession: (taskId) => this.sessionRuntime.stopTaskSession(taskId, { suppressTaskEvents: true }),
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
 	});
@@ -2643,6 +2644,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const hasImages = Boolean(images && images.length > 0);
 		const effectiveMode: RuntimeTaskSessionMode = mode ?? entry.summary.mode ?? "act";
 		const effectiveLaunchConfig = this.resolveRestartLaunchConfig({ taskId, launchConfigOverrides });
+		// A launch override changes the authoritative route for this task, even when the runtime can switch models
+		// in-place without rebuilding the session. Keep the service's restart cache in lock-step with the runtime's
+		// last-start request. Otherwise a later review/acceptance re-drive with no explicit override resurrects the
+		// pre-failover model (live endpoint-loss proof 2026-07-22: Qwable disappeared, failover ran on Qwen, then the
+		// acceptance bounce silently selected Qwable again). `startTaskSession` already caches before attempting the
+		// effect, so doing the same here preserves the existing desired-config semantics if the turn itself fails.
+		if (launchConfigOverrides && effectiveLaunchConfig) {
+			this.cacheLaunchConfig(taskId, effectiveLaunchConfig);
+		}
 		const queueDelivery = entry.summary.state === "running";
 		if (normalized.length === 0 && !hasImages) {
 			return null;
@@ -3049,6 +3059,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	getSummary(taskId: string): RuntimeTaskSessionSummary | null {
 		return this.messageRepository.getSummary(taskId);
+	}
+
+	getTaskTurnGeneration(taskId: string): number {
+		return this.sessionRuntime.getTaskTurnGeneration(taskId);
 	}
 
 	getTaskShellTarget(taskId: string): AgentSandboxShellTarget | null {
@@ -3759,11 +3773,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if ((focusChainTouchDelta.files?.length ?? 0) > 0 || (focusChainTouchDelta.cardIds?.length ?? 0) > 0) {
 			this.focusChainStore.applyTouches(taskId, focusChainTouchDelta);
 		}
+		// The repeated-tool guard runs inside emitSummary and may replace the adapter's still-running summary with an
+		// awaiting_review guardrail summary. Finalization must inspect that authoritative post-guard state, not the
+		// pre-guard object retained by applyNKleinSessionEvent, or a guarded task's real sandbox edits never capture and
+		// the card remains permanently "unsettled" in Review.
+		const effectiveLatestSummary = latestSummary ? entry.summary : null;
 		const shouldAbortForCreditLimit = didCreditLimitJustTrigger(previousSummary, entry.summary);
-		if (this.sandboxReviewFinalizer.shouldFinalizeSandboxReview(previousSummary, latestSummary)) {
+		if (this.sandboxReviewFinalizer.shouldFinalizeSandboxReview(previousSummary, effectiveLatestSummary)) {
 			this.sandboxReviewFinalizer.finalizeSandboxReview(taskId);
-		} else if (shouldCaptureReviewCheckpoint(previousSummary, latestSummary)) {
-			this.captureReviewCheckpoint(taskId, latestSummary);
+		} else if (shouldCaptureReviewCheckpoint(previousSummary, effectiveLatestSummary)) {
+			this.captureReviewCheckpoint(taskId, effectiveLatestSummary);
 		}
 		const hookEventName = entry.summary.latestHookActivity?.hookEventName;
 		let decompositionRecoveryScheduled = false;

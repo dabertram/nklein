@@ -26,7 +26,7 @@ import { findBoardCardWithColumn } from "./task-board-mutations";
  * module must not drag along. A type-only import (the pattern auto-clarify/tool-argument-repair use) cannot carry
  * a function value.
  */
-const PLAN_ACCEPTANCE_CHECK_PATTERN = /^Acceptance check:\s*(.+?)\s*$/im;
+const PLAN_ACCEPTANCE_CHECK_PATTERN = /^Acceptance (?:check|command):\s*(.+?)\s*$/im;
 
 /** The sole terminal lane a plan member must reach for the plan to count as complete. */
 const PLAN_TERMINAL_COLUMN_ID = "completed";
@@ -90,7 +90,8 @@ export interface ResolvePlanAcceptanceCommandInput {
 
 /**
  * The project-level acceptance command for a PLAN — v1 heuristic per the §5.0.5 decision: the most common
- * `Acceptance check:` command across the plan's (non-trash) member cards; ties break toward the first command seen
+ * `Acceptance check:` / `Acceptance command:` command across the plan's (non-trash) member cards; ties break toward
+ * the first command seen
  * in board scan order. `null` when no member carries a machine-runnable acceptance command (the wiring records a
  * skipped observation and stops).
  */

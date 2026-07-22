@@ -30,6 +30,13 @@ describe("real-model run controller safety", () => {
 		});
 		expect(nullChecked).toContain("kind=dev-test");
 		expect(nullChecked).toContain("nullAgent=1");
+		const fleetChecked = execFileSync(
+			"bash",
+			[SCRIPT, "wide_fanout", "--fleet-swarm", "--worker", "qwen/qwen2.5-coder-14b", "--check-config"],
+			{ encoding: "utf8" },
+		);
+		expect(fleetChecked).toContain("kind=fleet");
+		expect(fleetChecked).toContain("preset=wide_fanout");
 	});
 
 	it("routes every fleet admission through the guarded retained-set command", () => {
@@ -47,10 +54,34 @@ describe("real-model run controller safety", () => {
 		expect(source).toContain("npx tsx scripts/eval-harness.mts");
 		expect(source).toContain("--cache-probe");
 		expect(source).toContain("npx tsx scripts/verify-cache-health-live.mts");
+		expect(source).toContain("--fleet-swarm");
+		expect(source).toContain("npx tsx scripts/verify-fleet-swarm.mts");
 		expect(source).toContain("--null-agent");
 		expect(source).toContain('DRAIN_OUTCOME="null_agent_rejected"');
 		expect(source).toContain('DRAIN_OUTCOME="null_agent_forged"');
 		expect(source).toContain('if [ "$RUN_KIND" = eval ]; then');
 		expect(source).toContain('elif [ "$RUN_KIND" = cache ]; then');
+	});
+
+	it("debounces transient cross-host resident snapshot omissions", () => {
+		const source = readFileSync(SCRIPT, "utf8");
+		expect(source).toContain('WORKER_MISSING_POLLS="${NKLEIN_WORKER_MISSING_POLLS:-2}"');
+		expect(source).toContain("WORKER_MISS_COUNT=$((WORKER_MISS_COUNT + 1))");
+		expect(source).toContain('if [ "$WORKER_MISS_COUNT" -ge "$WORKER_MISSING_POLLS" ]');
+		expect(source.indexOf("WORKER_MISS_COUNT=$((WORKER_MISS_COUNT + 1))")).toBeLessThan(
+			source.indexOf('ABORT_REASON="worker_unloaded"'),
+		);
+	});
+
+	it("does not treat repetitive scheduler bookkeeping as semantic run progress", () => {
+		const source = readFileSync(SCRIPT, "utf8");
+		expect(source).toContain("drain_semantic_signature()");
+		expect(source).toContain("Board-liveness watchdog:");
+		expect(source).toContain("Auto-start of .* (");
+		expect(source).toContain("queued behind a busy endpoint");
+		expect(source).toContain("hit the concurrency limit; deferred for retry on the next completion");
+		expect(source).toContain("Model turn for .* is waiting for capacity");
+		expect(source).toContain("drain-semantic=${DRAIN_SEMANTIC_SIG:-0 0}");
+		expect(source).not.toContain('CURSIG="$SIG|$TOOLS|devlog=${DEVLOG_BYTES:-0}|drain=${DRAIN_BYTES:-0}"');
 	});
 });

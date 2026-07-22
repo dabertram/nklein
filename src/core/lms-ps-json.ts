@@ -271,10 +271,12 @@ export async function fetchLmsPsSnapshot(run: LmsRunner): Promise<LmsPsSnapshot>
 // (`fetchLoadedModelIdsCached`): one shared snapshot inside the `modelDiscoveryCacheTtlMs` window. TTL 0 (the test
 // runner default) disables caching entirely, so tests and fakes see every call.
 let cachedPsSnapshot: { at: number; models: LmsPsModel[] } | null = null;
+let psFetchInFlight: Promise<LmsPsModel[]> | null = null;
 
 /** Test-only: drop the shared `lms ps` snapshot so cache tests start cold and stay order-independent. */
 export function resetLmsPsModelsCacheForTests(): void {
 	cachedPsSnapshot = null;
+	psFetchInFlight = null;
 }
 
 /**
@@ -302,7 +304,18 @@ export async function fetchLmsPsModelsCached(run: LmsRunner, ttlOverrideMs?: num
 	if (cachedPsSnapshot && now - cachedPsSnapshot.at <= ttl) {
 		return cachedPsSnapshot.models;
 	}
-	const models = await fetchLmsPsModels(run);
-	cachedPsSnapshot = { at: now, models };
-	return models;
+	if (psFetchInFlight) {
+		return psFetchInFlight;
+	}
+	const pending = fetchLmsPsModels(run);
+	psFetchInFlight = pending;
+	try {
+		const models = await pending;
+		cachedPsSnapshot = { at: Date.now(), models };
+		return models;
+	} finally {
+		if (psFetchInFlight === pending) {
+			psFetchInFlight = null;
+		}
+	}
 }

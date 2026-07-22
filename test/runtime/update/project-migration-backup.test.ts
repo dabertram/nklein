@@ -174,12 +174,14 @@ describe("rollbackProjectMigration", () => {
 
 		// Simulate a bad migration mutating the live home.
 		await writeFile(path.join(runtimeHome, "config.json"), '{"corrupted":true}', "utf8");
+		await writeFile(path.join(runtimeHome, "introduced-by-bad-migration.json"), "should disappear", "utf8");
 
 		const result = await rollbackProjectMigration({ record: backup.record });
 		expect(result.status).toBe("restored");
 		// The good config is back and the backup marker did NOT leak into the restored home.
 		expect(await readFile(path.join(runtimeHome, "config.json"), "utf8")).toBe('{"good":true}');
 		await expect(stat(path.join(runtimeHome, MIGRATION_BACKUP_RECORD_FILENAME))).rejects.toThrow();
+		await expect(stat(path.join(runtimeHome, "introduced-by-bad-migration.json"))).rejects.toThrow();
 	});
 
 	it("refuses when rollback is unsupported and reports a missing backup", async () => {

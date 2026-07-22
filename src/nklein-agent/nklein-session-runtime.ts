@@ -222,6 +222,8 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		Omit<StartNKleinSessionRuntimeRequest, "prompt" | "images" | "initialMessages" | "onTeamEvent">
 	>();
 	private readonly mcpToolBundleByTaskId = new Map<string, NKleinMcpToolBundle>();
+	/** Accepted model turns, independent of their asynchronously projected summary state. */
+	private readonly turnGenerationByTaskId = new Map<string, number>();
 	// F1.21: the swarm broker state per task, so the terminal write can record the session's accumulated taint.
 	private readonly swarmBrokerStateByTaskId = new Map<string, SwarmToolBrokerState>();
 	private sessionHostPromise: Promise<NKleinSessionHostBoundary> | null = null;
@@ -605,6 +607,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		};
 		let startResult: Awaited<ReturnType<NKleinSessionHostBoundary["start"]>>;
 		try {
+			if (runInitialTurnInStart) {
+				this.bumpTaskTurnGeneration(request.taskId);
+			}
 			// Hub-backed SDK hosts create the interactive session in start; the first turn runs through send.
 			startResult = await sessionHost.start({
 				config,
@@ -839,6 +844,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		let result: unknown = startResult.result ?? null;
 		if (shouldSendInitialTurn && !runInitialTurnInStart) {
 			try {
+				this.bumpTaskTurnGeneration(request.taskId);
 				result = await sessionHost.send({
 					sessionId: startResult.sessionId,
 					prompt: request.prompt,
@@ -913,6 +919,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			launchConfigOverrides && Object.hasOwn(launchConfigOverrides, "turnTimeoutMs")
 				? launchConfigOverrides.turnTimeoutMs
 				: this.lastStartRequestByTaskId.get(taskId)?.turnTimeoutMs;
+		this.bumpTaskTurnGeneration(taskId);
 		return await sessionHost.send({
 			sessionId,
 			prompt,
@@ -920,6 +927,10 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			...(delivery ? { delivery } : {}),
 			...(turnTimeoutMs ? { timeoutMs: turnTimeoutMs } : {}),
 		});
+	}
+
+	getTaskTurnGeneration(taskId: string): number {
+		return this.turnGenerationByTaskId.get(taskId) ?? 0;
 	}
 
 	requiresTaskSessionRestart(
@@ -1094,6 +1105,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		this.sessionIdByTaskId.clear();
 		this.taskIdBySessionId.clear();
 		this.lastStartRequestByTaskId.clear();
+		this.turnGenerationByTaskId.clear();
 		releaseAllNKleinLargeFileWorkflows();
 		clearAllSessionFocusState();
 
@@ -1133,6 +1145,10 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		}
 		this.sessionIdByTaskId.set(taskId, sessionId);
 		this.taskIdBySessionId.set(sessionId, taskId);
+	}
+
+	private bumpTaskTurnGeneration(taskId: string): void {
+		this.turnGenerationByTaskId.set(taskId, this.getTaskTurnGeneration(taskId) + 1);
 	}
 
 	private clearTaskSessionBinding(taskId: string, sessionId?: string): void {

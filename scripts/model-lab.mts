@@ -282,7 +282,6 @@ async function admitRetainedModel(input: {
 			`${input.modelId} advertises ${candidate.maxContextLength ?? "unknown"} context tokens; refusing the ${input.contextLength}-token load.`,
 		);
 	}
-
 	const psResult = await input.run(["ps", "--json"]);
 	if (psResult.exitCode !== 0) {
 		throw new Error("Unable to read LM Studio residency before retained-set admission.");
@@ -393,9 +392,42 @@ async function admitRetainedModel(input: {
 		gpu: parseGpuEnv(),
 		targetDevice: targetDeviceLabel,
 		targetDeviceIdentifier,
+		...(localTarget
+			? {}
+			: {
+					// LM Link Preview bug reproduced 2026-07-22: `lms load` ignored the selected preferred device for
+					// duplicate qwen/qwen3-8b keys and loaded M5. The same preferred-device window through REST routed
+					// correctly to Legion. CLI still owns estimation, scoped eviction, and the safety decision.
+					loadModel: async ({ modelId, contextLength }: { modelId: string; contextLength: number }) => {
+						const loaded = await createRestClient().loadModel({ model: modelId, contextLength });
+						return loaded.ok
+							? {
+									stdout: `Loaded via preferred-device REST in ${loaded.value.loadTimeSeconds ?? "?"}s`,
+									exitCode: 0,
+								}
+							: {
+									stdout: `REST load failed (${loaded.error.type}): ${loaded.error.message}`,
+									exitCode: 1,
+								};
+					},
+				}),
 	});
 	if (!result.loaded) {
 		throw new Error(result.reason);
+	}
+	const residencyAfter = await input.run(["ps", "--json"]);
+	const loadedOnTarget =
+		residencyAfter.exitCode === 0 &&
+		(JSON.parse(residencyAfter.stdout) as JsonResidentModel[]).some(
+			(model) =>
+				model.type === "llm" &&
+				model.deviceIdentifier === catalogDeviceIdentifier &&
+				(model.modelKey === candidate.modelKey || model.identifier === candidate.modelKey),
+		);
+	if (!loadedOnTarget) {
+		throw new Error(
+			`LM Studio reported a successful ${input.modelId} load but it was not resident on requested device ${targetDeviceLabel}.`,
+		);
 	}
 	if (pressureBefore) {
 		const pressureAfter = await readLocalMemoryPressure();

@@ -16,13 +16,13 @@ export interface AgentLoopTurn {
 	toolCalls?: readonly { name: string; argsKey?: string }[];
 }
 
-export type TurnLoopKind = "none" | "repeat" | "oscillation";
+export type TurnLoopKind = "none" | "repeat" | "oscillation" | "cycle";
 
 export interface TurnLoopVerdict {
 	kind: TurnLoopKind;
 	/** How many of the trailing turns participate in the loop. */
 	occurrences: number;
-	/** The repeated fingerprint (`repeat`) or the two alternating fingerprints joined by `|` (`oscillation`). */
+	/** The repeated fingerprint (`repeat`) or the periodic fingerprints joined by `|` (`oscillation` / `cycle`). */
 	fingerprint: string | null;
 	/** The extracted recurring question / contested boundary, or null when none was recognizable. */
 	contestedQuestion: string | null;
@@ -33,6 +33,10 @@ export interface TurnLoopPolicy {
 	minRepeats: number;
 	/** Trailing turns that must alternate between exactly TWO fingerprints to call an `oscillation` (≥4 = A,B,A,B). */
 	minOscillations: number;
+	/** Complete repetitions required before a period ≥3 is a `cycle`. */
+	minCycleRepeats: number;
+	/** Largest periodic turn sequence to recognize. Periods 1 and 2 use the stricter named checks above. */
+	maxCyclePeriod: number;
 	/** How many trailing turns to inspect. */
 	window: number;
 }
@@ -40,7 +44,9 @@ export interface TurnLoopPolicy {
 export const DEFAULT_TURN_LOOP_POLICY: TurnLoopPolicy = {
 	minRepeats: 3,
 	minOscillations: 4,
-	window: 8,
+	minCycleRepeats: 3,
+	maxCyclePeriod: 4,
+	window: 12,
 };
 
 /**
@@ -97,6 +103,7 @@ export function extractContestedQuestion(text: string): string | null {
  * Detect a within-session turn loop over the trailing `window` turns:
  *   - `repeat` — the last `minRepeats` turns share one fingerprint (the same question re-raised).
  *   - `oscillation` — the last turns alternate between exactly two fingerprints (bouncing between two proposals).
+ *   - `cycle` — a short period of three or more turns repeats in full (inspect → rewrite → retry, etc.).
  * Returns `none` otherwise. The contested question is pulled from the most recent looping turn.
  */
 export function detectTurnLoop(
@@ -150,18 +157,52 @@ export function detectTurnLoop(
 		};
 	}
 
+	// General periodic cycle: the trailing turns repeat a period of 3..maxCyclePeriod in full. This catches the
+	// live-observed inspect → identical rewrite → same failing command loop that adjacent-repeat and A/B oscillation
+	// guards cannot see. Require three complete cycles to avoid treating ordinary edit/test iteration as stuck.
+	for (let period = 3; period <= Math.max(3, policy.maxCyclePeriod); period += 1) {
+		const minimumTurns = period * Math.max(2, policy.minCycleRepeats);
+		if (prints.length < minimumTurns) {
+			continue;
+		}
+		let cycleTurns = period;
+		for (let index = prints.length - period - 1; index >= 0; index -= 1) {
+			if (prints[index] !== prints[index + period]) {
+				break;
+			}
+			cycleTurns += 1;
+		}
+		if (cycleTurns < minimumTurns) {
+			continue;
+		}
+		const cycleUnit = prints.slice(prints.length - period);
+		if (new Set(cycleUnit).size < 2) {
+			continue;
+		}
+		const source =
+			[...window].reverse().find((turn) => extractContestedQuestion(turn.text) !== null) ??
+			(window[window.length - 1] as AgentLoopTurn);
+		return {
+			kind: "cycle",
+			occurrences: cycleTurns,
+			fingerprint: cycleUnit.join("|"),
+			contestedQuestion: extractContestedQuestion(source.text),
+		};
+	}
+
 	return none;
 }
 
 /**
- * The card/prompt convention: one `Acceptance check: <command>` line. Kept in sync with the impure mirror in
+ * Card prompts use either `Acceptance check: <command>` or the equivalent `Acceptance command: <command>` label.
+ * Kept in sync with the impure mirror in
  * nklein-agent/nklein-acceptance-gate.ts and the pure one in plan-integration-gate.ts — the wiring layer needs it
  * HERE so the turn-loop resolution can pull the authoritative acceptance command straight from a session's start
  * prompt without importing an impure module.
  */
-const ACCEPTANCE_CHECK_PATTERN = /^Acceptance check:\s*(.+?)\s*$/im;
+const ACCEPTANCE_CHECK_PATTERN = /^Acceptance (?:check|command):\s*(.+?)\s*$/im;
 
-/** Extract the card's embedded `Acceptance check:` command from its prompt text, or null when absent. */
+/** Extract the card's embedded acceptance command from its prompt text, or null when absent. */
 export function extractAcceptanceCheckCommand(promptText: string): string | null {
 	const command = promptText.match(ACCEPTANCE_CHECK_PATTERN)?.[1]?.trim();
 	return command && command.length > 0 ? command : null;
@@ -235,6 +276,15 @@ export function decideTurnLoopResolution(input: TurnLoopResolutionInput): TurnLo
 	// (`node -e "process.exit(0)"`) can never ground against its own token (live-found via the §12 a-same-question
 	// simulator regression — the guard parked instead of auto-resolving).
 	const context = `${acceptance}\n${spec}`.replace(/["'`]/g, "");
+	if (verdict.kind === "cycle" && acceptance.length > 0 && !question) {
+		return {
+			kind: "auto_resolve",
+			guidance:
+				`You are repeating the same multi-step work cycle without changing the outcome. Stop and inspect the exact ` +
+				`failure output before editing again. Do not repeat an unchanged write or command. The acceptance command is ` +
+				`authoritative: \`${input.acceptanceCommand}\`. Make one evidence-driven correction, then proceed.`,
+		};
+	}
 
 	// (1) Auto-resolve: the contested token appears in the authoritative context ⇒ that context settles it.
 	if (question) {

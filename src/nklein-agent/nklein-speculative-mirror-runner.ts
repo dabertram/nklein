@@ -28,7 +28,8 @@ export interface SpeculativeMirrorRunnerDeps {
 	setSandbox(taskId: string, projectRepoPath: string, baseRef: string): void;
 	setResultBranch(taskId: string, branch: TaskResultBranch): void;
 	startRuntimeSession(input: StartRuntimeTaskSessionFromLaunchConfigInput): Promise<RuntimeTaskSessionStartResult>;
-	cancelTaskTurn(taskId: string): Promise<unknown>;
+	/** Hard-abort the underlying runtime binding even when the projected synthetic summary is no longer `running`. */
+	abortRuntimeSession(taskId: string): Promise<unknown>;
 	clearTaskSessions(taskId: string): Promise<unknown>;
 	forgetSyntheticState(taskId: string): void;
 }
@@ -60,7 +61,10 @@ export function createSpeculativeMirrorRunner(deps: SpeculativeMirrorRunnerDeps)
 	async function cancelSpeculativeMirror(taskId: string): Promise<void> {
 		const specTaskId = `${taskId}::spec`;
 		canceledSpeculativeMirrorTaskIds.add(specTaskId);
-		await deps.cancelTaskTurn(specTaskId).catch(() => undefined);
+		// A repeated-tool guard may already have projected the synthetic summary into a non-running state while
+		// the SDK auto-loop is still unwinding. The user-facing cancelTaskTurn seam deliberately ignores such
+		// summaries, so speculation needs unconditional authority over the runtime binding it owns.
+		await deps.abortRuntimeSession(specTaskId).catch(() => undefined);
 	}
 
 	async function runSpeculativeMirrorSession(input: {
@@ -187,7 +191,7 @@ export function createSpeculativeMirrorRunner(deps: SpeculativeMirrorRunnerDeps)
 			if (turnOutcome === "timeout") {
 				// The turn is (possibly) STILL RUNNING — capturing now would snapshot a mid-write tree as the
 				// candidate. A spec that can't finish inside its bound is not a candidate; discard it.
-				await deps.cancelTaskTurn(specTaskId).catch(() => undefined);
+				await deps.abortRuntimeSession(specTaskId).catch(() => undefined);
 				return false;
 			}
 			const patch = await sandboxManager.captureWorkspacePatch(specTaskId, { baseRef });

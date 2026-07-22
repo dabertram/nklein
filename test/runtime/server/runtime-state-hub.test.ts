@@ -42,7 +42,10 @@ function createAwaitingReviewSummary(taskId: string): RuntimeTaskSessionSummary 
 	};
 }
 
-function createTrackedService(summary: RuntimeTaskSessionSummary): NKleinTaskSessionService {
+function createTrackedService(summary: RuntimeTaskSessionSummary): {
+	service: NKleinTaskSessionService;
+	emitSummary(nextSummary: RuntimeTaskSessionSummary): void;
+} {
 	const emitter = new EventEmitter();
 	const service = {
 		listSummaries: () => [summary],
@@ -57,7 +60,10 @@ function createTrackedService(summary: RuntimeTaskSessionSummary): NKleinTaskSes
 		NKleinTaskSessionService,
 		"listSummaries" | "onSummary" | "onMessage" | "onTeamProgress" | "sendTaskSessionInput"
 	>;
-	return service as unknown as NKleinTaskSessionService;
+	return {
+		service: service as unknown as NKleinTaskSessionService,
+		emitSummary: (nextSummary) => emitter.emit("summary", nextSummary),
+	};
 }
 
 describe("createRuntimeStateHub", () => {
@@ -71,7 +77,7 @@ describe("createRuntimeStateHub", () => {
 			...createAwaitingReviewSummary("task-run"),
 			state: "running",
 		};
-		const service = createTrackedService(runningSummary);
+		const { service } = createTrackedService(runningSummary);
 		const hub = createRuntimeStateHub({
 			workspaceRegistry: {
 				resolveWorkspaceForStream: vi.fn(async () => ({
@@ -102,7 +108,7 @@ describe("createRuntimeStateHub", () => {
 
 	it("verifies nklein summaries that are already awaiting review when tracked", async () => {
 		const summary = createAwaitingReviewSummary("task-1");
-		const service = createTrackedService(summary);
+		const { service } = createTrackedService(summary);
 		const hub = createRuntimeStateHub({
 			workspaceRegistry: {
 				resolveWorkspaceForStream: vi.fn(async () => ({
@@ -130,6 +136,55 @@ describe("createRuntimeStateHub", () => {
 						summary,
 						service,
 					}),
+				);
+			});
+		} finally {
+			await hub.close();
+		}
+	});
+
+	it("verifies when an awaiting-review error later gains a settled sandbox artifact", async () => {
+		const initial = {
+			...createAwaitingReviewSummary("task-error-captured"),
+			reviewReason: "error" as const,
+		};
+		const { service, emitSummary } = createTrackedService(initial);
+		const hub = createRuntimeStateHub({
+			workspaceRegistry: {
+				resolveWorkspaceForStream: vi.fn(async () => ({
+					workspaceId: null,
+					workspacePath: null,
+					removedRequestedWorkspacePath: null,
+					didPruneProjects: false,
+				})),
+				buildProjectsPayload: vi.fn(async () => ({ projects: [], currentProjectId: null })),
+				setNKleinSessionSummariesProvider: vi.fn(),
+				buildWorkspaceStateSnapshot: vi.fn(async () => {
+					throw new Error("not used");
+				}),
+			},
+		});
+
+		try {
+			hub.trackNKleinTaskSessionService("workspace-1", "/tmp/project", service);
+			expect(runNKleinAcceptanceAutoRepairMock).not.toHaveBeenCalled();
+			const settled = {
+				...initial,
+				latestHookActivity: {
+					activityText: "Result patch captured",
+					toolName: null,
+					toolInputSummary: null,
+					finalMessage: "commit",
+					hookEventName: "sandbox_patch_captured",
+					notificationType: null,
+					source: "nklein",
+				},
+			};
+			emitSummary(settled);
+
+			await vi.waitFor(() => {
+				expect(runNKleinAcceptanceAutoRepairMock).toHaveBeenCalledWith(
+					expect.objectContaining({ taskId: "task-error-captured", summary: settled }),
 				);
 			});
 		} finally {

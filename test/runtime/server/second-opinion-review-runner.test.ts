@@ -668,6 +668,58 @@ describe("runSecondOpinionReviewForTask", () => {
 		expect(call?.[2]).toBe("act");
 	});
 
+	it("reroutes a reviewed empty patch to a diverse worker instead of bouncing to the no-op model again", async () => {
+		const deps = makeDeps({
+			diff: null,
+			submission: {
+				verdict: "request_changes",
+				summary: "No implementation",
+				feedback: "Implement the formatter and its tests.",
+				insight: null,
+			},
+		});
+		const nextAttemptStrategy = vi.fn();
+		const warn = vi.fn();
+		const escalation = { providerId: "lmstudio", modelId: "strong-worker" };
+		const rerouteService = {
+			runSecondOpinionReviewSession: deps.runSecondOpinionReviewSession,
+			sendTaskSessionInput: deps.sendTaskSessionInput,
+			getSummary: () => null,
+			cancelTaskTurn: deps.cancelTaskTurn,
+			pickDiverseEscalationModel: vi.fn(async () => escalation),
+			noteNextAttemptStrategy: nextAttemptStrategy,
+		} as unknown as Parameters<typeof runSecondOpinionReviewForTask>[0]["service"];
+		const outcome = await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			primaryArtifactStatus: "empty_patch",
+			service: rerouteService,
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+			warn,
+		});
+
+		expect(outcome).toEqual({ type: "bounced", round: 1 });
+		expect(nextAttemptStrategy).toHaveBeenCalledWith("task-1", "cross_model_empty_patch");
+		expect(deps.sendTaskSessionInput).toHaveBeenCalledWith(
+			"task-1",
+			expect.stringContaining("returned NO file changes"),
+			"act",
+			undefined,
+			escalation,
+		);
+		const persisted = deps.mutationResults[0] as { board: RuntimeBoardData };
+		const reroutedCard = persisted.board.columns
+			.flatMap((column) => column.cards)
+			.find((card) => card.id === "task-1");
+		expect(reroutedCard?.review?.escalated).toBe(true);
+		expect(warn).toHaveBeenCalledWith(
+			"Empty-patch review bounce for task-1: rerouted from the no-op worker to strong-worker.",
+		);
+	});
+
 	it("parking QUIESCES the worker session (run20: a parked card churned turns and starved its endpoint)", async () => {
 		// maxRounds 0 forces the loop past its cap on the first request_changes ⇒ park.
 		const deps = makeDeps({

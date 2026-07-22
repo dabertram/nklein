@@ -46,6 +46,11 @@ export const NKLEIN_REPEATED_PLAN_ARTIFACT_FAILURE_THRESHOLD = 4;
  */
 export const NKLEIN_EXTRA_TOOL_REPEATED_CALL_PARK_THRESHOLD = 6;
 
+/** Exact short tool-call cycles must repeat this many times before they are treated as a loop. */
+export const NKLEIN_REPEATED_TOOL_CYCLE_PARK_REPETITIONS = 3;
+/** A/B and A/B/C cycles cover the observed non-consecutive loop class without matching long normal workflows. */
+export const NKLEIN_REPEATED_TOOL_CYCLE_MAX_LENGTH = 3;
+
 // ---------------------------------------------------------------------------
 // Internal state shapes
 // ---------------------------------------------------------------------------
@@ -64,6 +69,11 @@ interface NKleinTaskRepeatedFailureTargetState {
 	toolNames: string[];
 }
 
+interface NKleinTaskRepeatedToolCycleState {
+	lastHookAt: number | null;
+	calls: Array<Omit<NKleinTaskRepeatedToolState, "count">>;
+}
+
 // ---------------------------------------------------------------------------
 // Pure helpers (exported for unit tests and the session-service re-exports)
 // ---------------------------------------------------------------------------
@@ -79,6 +89,34 @@ export function getRepeatedToolCallLimit(toolName: string, baseLimit: number): n
 		return Math.max(NKLEIN_EXTRA_TOOL_REPEATED_CALL_PARK_THRESHOLD, baseLimit);
 	}
 	return baseLimit;
+}
+
+/**
+ * Detect an exact periodic suffix such as A/B/A/B/A/B or A/B/C/A/B/C/A/B/C. Length-1 repeats belong to the
+ * consecutive-call guard. Full lossless tool-input fingerprints make this resistant to display-summary collisions.
+ */
+export function detectRepeatedToolCallCycle(
+	fingerprints: readonly string[],
+	minRepetitions: number = NKLEIN_REPEATED_TOOL_CYCLE_PARK_REPETITIONS,
+	maxCycleLength: number = NKLEIN_REPEATED_TOOL_CYCLE_MAX_LENGTH,
+): { cycleLength: number; repetitions: number } | null {
+	const repetitions = Math.max(2, Math.trunc(minRepetitions));
+	const maxLength = Math.max(2, Math.trunc(maxCycleLength));
+	for (let cycleLength = 2; cycleLength <= maxLength; cycleLength += 1) {
+		const required = cycleLength * repetitions;
+		if (fingerprints.length < required) {
+			continue;
+		}
+		const suffix = fingerprints.slice(-required);
+		const period = suffix.slice(0, cycleLength);
+		if (new Set(period).size < 2) {
+			continue;
+		}
+		if (suffix.every((fingerprint, index) => fingerprint === period[index % cycleLength])) {
+			return { cycleLength, repetitions };
+		}
+	}
+	return null;
 }
 
 /**
@@ -203,6 +241,7 @@ export interface RepeatedToolCallGuardCallbacks {
  */
 export class RepeatedToolCallGuard {
 	private readonly repeatedToolCallByTaskId = new Map<string, NKleinTaskRepeatedToolState>();
+	private readonly repeatedToolCycleByTaskId = new Map<string, NKleinTaskRepeatedToolCycleState>();
 	private readonly repeatedFailureTargetByTaskId = new Map<string, NKleinTaskRepeatedFailureTargetState>();
 
 	constructor(private readonly callbacks: RepeatedToolCallGuardCallbacks) {}
@@ -232,6 +271,7 @@ export class RepeatedToolCallGuard {
 	 */
 	resetTask(taskId: string): void {
 		this.repeatedToolCallByTaskId.delete(taskId);
+		this.repeatedToolCycleByTaskId.delete(taskId);
 	}
 
 	/**
@@ -252,6 +292,7 @@ export class RepeatedToolCallGuard {
 	 */
 	dispose(): void {
 		this.repeatedToolCallByTaskId.clear();
+		this.repeatedToolCycleByTaskId.clear();
 		this.repeatedFailureTargetByTaskId.clear();
 	}
 
@@ -266,6 +307,18 @@ export class RepeatedToolCallGuard {
 		const toolCall = computeRepeatedToolCallCandidate(summary.latestHookActivity);
 		if (!toolCall) {
 			return null;
+		}
+		const cyclePrevious = this.repeatedToolCycleByTaskId.get(summary.taskId);
+		const isNewHook = summary.lastHookAt === null || cyclePrevious?.lastHookAt !== summary.lastHookAt;
+		let cycle: {
+			cycleLength: number;
+			repetitions: number;
+		} | null = null;
+		if (isNewHook) {
+			const maxHistory = NKLEIN_REPEATED_TOOL_CYCLE_MAX_LENGTH * NKLEIN_REPEATED_TOOL_CYCLE_PARK_REPETITIONS;
+			const calls = [...(cyclePrevious?.calls ?? []), toolCall].slice(-maxHistory);
+			this.repeatedToolCycleByTaskId.set(summary.taskId, { lastHookAt: summary.lastHookAt, calls });
+			cycle = detectRepeatedToolCallCycle(calls.map((call) => call.fingerprint));
 		}
 		const previous = this.repeatedToolCallByTaskId.get(summary.taskId);
 		const nextState: NKleinTaskRepeatedToolState =
@@ -284,7 +337,29 @@ export class RepeatedToolCallGuard {
 			this.callbacks.getMaxRepeatedToolCallsPerTask(),
 		);
 		if (nextState.count < repeatedToolCallLimit) {
-			return null;
+			if (!cycle) {
+				return null;
+			}
+			const entry = this.callbacks.getTaskEntry(summary.taskId);
+			if (!entry || entry.summary.reviewReason === "attention") {
+				return null;
+			}
+			const calls = this.repeatedToolCycleByTaskId.get(summary.taskId)?.calls.slice(-cycle.cycleLength) ?? [];
+			const toolNames = [...new Set(calls.map((call) => call.toolName))];
+			return this.callbacks.parkTaskForAutonomyBudget({
+				taskId: summary.taskId,
+				entry,
+				message:
+					`!Klein paused this task after the same ${cycle.cycleLength}-step tool sequence repeated ` +
+					`${cycle.repetitions}× (${toolNames.join(" → ")}). Review progress, then send a new instruction to continue.`,
+				metadata: {
+					guardrail: "repeated_tool_call_cycle",
+					cycleLength: cycle.cycleLength,
+					repetitions: cycle.repetitions,
+					toolNames,
+					toolInputSummaries: calls.map((call) => call.toolInputSummary),
+				},
+			});
 		}
 		const entry = this.callbacks.getTaskEntry(summary.taskId);
 		if (!entry || entry.summary.reviewReason === "attention") {

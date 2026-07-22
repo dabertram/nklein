@@ -656,7 +656,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 				if (didCheckpointChange) {
 					void broadcastRuntimeWorkspaceStateUpdated(workspaceId, workspacePath);
 				}
-				if (previousSummary && previousSummary.state !== "awaiting_review" && isReviewableNKleinSummary(summary)) {
+				if (previousSummary && !isReviewableNKleinSummary(previousSummary) && isReviewableNKleinSummary(summary)) {
 					verifyNKleinTaskBeforeReady(workspaceId, workspacePath, service, summary);
 				}
 			});

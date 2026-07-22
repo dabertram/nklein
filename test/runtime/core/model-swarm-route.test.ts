@@ -55,6 +55,34 @@ describe("selectSwarmRouteForTask (pool → model)", () => {
 		expect(decision.poolId).toBe("legion");
 	});
 
+	it("skips a host with a spare host slot when its only qualified model is already busy", () => {
+		const decision = selectSwarmRouteForTask({
+			role: "worker",
+			difficulty: 40,
+			requiredContextTokens: 32768,
+			candidates: roster({ m5: { isFree: false } }),
+			// m5 has a second host slot, but no second free worker model; the busy model cannot consume it.
+			poolFreeSlots: { m4mini: 1, legion: 1, m5max: 1 },
+		});
+		expect(decision.poolId).toBe("m4mini");
+		expect(decision.model?.selection.type).toBe("assign");
+		if (decision.model?.selection.type === "assign") {
+			expect(decision.model.selection.modelKey).toBe("coder-7b");
+		}
+	});
+
+	it("retains the busy-model fallback when no task-qualified free model exists", () => {
+		const decision = selectSwarmRouteForTask({
+			role: "worker",
+			difficulty: 90,
+			requiredContextTokens: 32768,
+			candidates: roster({ m5: { isFree: false } }),
+			poolFreeSlots: { m4mini: 1, legion: 1, m5max: 1 },
+		});
+		expect(decision.poolId).toBe("m5max");
+		expect(decision.model?.selection).toMatchObject({ type: "assign", busyFallback: true });
+	});
+
 	it("a tool-UNSUITABLE model does not make its machine count for the worker role", () => {
 		// m4mini hosts only a tool-unsuitable reasoning model → it must not be the worker pool even for an easy card.
 		const decision = selectSwarmRouteForTask({

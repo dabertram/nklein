@@ -14,6 +14,7 @@
 #         scripts/real-model-run.sh [preset] --null-agent [--worker <modelId>] [--max-min N]
 #         scripts/real-model-run.sh --eval-harness --worker <modelId> [--unload] [--max-min N]
 #         scripts/real-model-run.sh --cache-probe --worker <modelId> [--unload] [--max-min N]
+#         scripts/real-model-run.sh [wide_fanout] --fleet-swarm --worker <primaryWorkerId> [--max-min N]
 # Env:    NKLEIN_RUN_HOME, NKLEIN_RUNTIME_PORT (3484), NKLEIN_STALL_SECS (180),
 #         NKLEIN_ACTIVE_STALL_SECS (900), NKLEIN_POLL_SECS (15)
 set -uo pipefail
@@ -25,12 +26,14 @@ Usage:
   scripts/real-model-run.sh [preset] --null-agent [--worker <modelId>] [--max-min N] [--unload]
   scripts/real-model-run.sh --eval-harness --worker <modelId> [--max-min N] [--unload]
   scripts/real-model-run.sh --cache-probe --worker <modelId> [--max-min N] [--unload]
+  scripts/real-model-run.sh [wide_fanout] --fleet-swarm --worker <primaryWorkerId> [--max-min N]
 
 Options:
   --plan            Run the planning/decomposition drain (default is --act).
   --act             Run the direct-action drain.
   --eval-harness    Run the deterministic per-role model evaluation without starting the !Klein runtime.
   --cache-probe     Assert repeated-prefix cache reuse through measured cold/warm time-to-first-token.
+  --fleet-swarm     Run the heterogeneous fleet verifier; may inject NKLEIN_FLEET_FAULT_MODEL loss.
   --null-agent      Seed and grade the real dev-test pipeline without starting an agent.
   --worker ID       Model identifier to run and safely admit to the retained set.
   --max-min N       Hard wall-clock bound in whole minutes (default: 20).
@@ -50,6 +53,7 @@ EOF
 PORT="${NKLEIN_RUNTIME_PORT:-3484}"
 TOKEN="${NKLEIN_INTERNAL_AUTH_TOKEN:-real-run-token-$$}"
 POLL_SECS="${NKLEIN_POLL_SECS:-15}"       # how often the watcher samples (cheap sources only)
+WORKER_MISSING_POLLS="${NKLEIN_WORKER_MISSING_POLLS:-2}" # LM Link can omit a remote host for one refresh after a load/unload
 STALL_SECS="${NKLEIN_STALL_SECS:-180}"    # no board/tool/model-log progress this long ⇒ stall reaction
 ACTIVE_STALL_SECS="${NKLEIN_ACTIVE_STALL_SECS:-900}" # active prefill/generation can be quiet; still bounded
 CTX="${NKLEIN_CONTEXT_LENGTH:-32768}"     # ≥32k floor (prime directive #3) — MUST be met or sessions never start
@@ -65,6 +69,7 @@ while [ "$#" -gt 0 ]; do
     --act) MODE="--no-plan"; MODE_SET=1; shift;;
     --eval-harness) RUN_KIND="eval"; shift;;
     --cache-probe) RUN_KIND="cache"; shift;;
+    --fleet-swarm) RUN_KIND="fleet"; shift;;
     --null-agent) NULL_AGENT=1; shift;;
     --unload) UNLOAD=1; shift;;
     --check-config) CHECK_ONLY=1; shift;;
@@ -82,11 +87,12 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$MAX_MIN" in ''|*[!0-9]*|0) printf 'error: --max-min must be a positive integer\n' >&2; exit 64;; esac
+case "$WORKER_MISSING_POLLS" in ''|*[!0-9]*|0) printf 'error: NKLEIN_WORKER_MISSING_POLLS must be a positive integer\n' >&2; exit 64;; esac
 case "$CTX" in ''|*[!0-9]*) printf 'error: NKLEIN_CONTEXT_LENGTH must be an integer ≥32000\n' >&2; exit 64;; esac
 [ "$CTX" -ge 32000 ] || { printf 'error: NKLEIN_CONTEXT_LENGTH=%s violates the 32000-token floor\n' "$CTX" >&2; exit 64; }
 case "$MAX_RESIDENTS" in ''|*[!0-9]*|0) printf 'error: NKLEIN_LOAD_MAX_RESIDENTS must be a positive integer\n' >&2; exit 64;; esac
 [ "$MAX_RESIDENTS" -le 3 ] || { printf 'error: m5max retained-set safety ceiling is 3 models\n' >&2; exit 64; }
-if [ "$RUN_KIND" != dev-test ] && { [ "$PRESET_SET" = 1 ] || [ "$MODE_SET" = 1 ]; }; then
+if [ "$RUN_KIND" != dev-test ] && [ "$RUN_KIND" != fleet ] && { [ "$PRESET_SET" = 1 ] || [ "$MODE_SET" = 1 ]; }; then
   printf 'error: presets and --plan/--act do not apply to eval/cache probes\n' >&2; exit 64
 fi
 [ "$RUN_KIND" = dev-test ] || [ "$NULL_AGENT" = 0 ] || {
@@ -197,7 +203,7 @@ teardown(){
   stop_process_tree "$RUNTIME_PID"
   [ -n "$DEVLOG_PID" ] && kill "$DEVLOG_PID" 2>/dev/null
   SANDBOX_COUNT=0
-  if [ "$RUN_KIND" = dev-test ]; then
+  if [ "$RUN_KIND" = dev-test ] || [ "$RUN_KIND" = fleet ]; then
     for container_id in $(HOME="$REAL_HOME" docker ps -aq --filter 'name=nklein-agent-sandbox' 2>/dev/null); do
       HOME="$REAL_HOME" docker rm -f "$container_id" >/dev/null 2>&1 && SANDBOX_COUNT=$((SANDBOX_COUNT + 1))
     done
@@ -255,21 +261,25 @@ trap teardown EXIT
 trap 'handle_signal interrupted 130' INT
 trap 'handle_signal terminated 143' TERM
 
-log "admitting retained fleet on $LOAD_DEVICE at ${CTX} ctx (≥32k floor, cap $MAX_RESIDENTS)…"
-LOAD_FAILURES=0
-for m in "${FLEET[@]}"; do
-  LOAD_LOG="$RUN_DIR/load-$(echo "$m" | tr '/@:' '____').log"
-  if ( cd "$REPO" && HOME="$REAL_HOME" \
-       NKLEIN_LOAD_DEVICE="$LOAD_DEVICE" NKLEIN_LOAD_MAX_RESIDENTS="$MAX_RESIDENTS" \
-       NKLEIN_LOAD_PINNED_MODELS="${NKLEIN_RETAIN_MODELS:-} ${FLEET[*]}" \
-       npx tsx scripts/model-lab.mts admit "$m" "$CTX" ) >"$LOAD_LOG" 2>&1; then
-    log "  ✓ admitted $m; warm-set policy reconciled"
-  else
-    log "  ✗ REFUSED $m — see $(basename "$LOAD_LOG")"
-    LOAD_FAILURES=$((LOAD_FAILURES + 1))
-  fi
-done
-[ "$LOAD_FAILURES" -eq 0 ] || { log "FATAL: $LOAD_FAILURES required model admission(s) failed"; exit 3; }
+if [ "$RUN_KIND" = fleet ]; then
+  log "fleet verifier owns an already-resident multi-host roster; it will fail closed rather than move/load models"
+else
+  log "admitting retained fleet on $LOAD_DEVICE at ${CTX} ctx (≥32k floor, cap $MAX_RESIDENTS)…"
+  LOAD_FAILURES=0
+  for m in "${FLEET[@]}"; do
+    LOAD_LOG="$RUN_DIR/load-$(echo "$m" | tr '/@:' '____').log"
+    if ( cd "$REPO" && HOME="$REAL_HOME" \
+         NKLEIN_LOAD_DEVICE="$LOAD_DEVICE" NKLEIN_LOAD_MAX_RESIDENTS="$MAX_RESIDENTS" \
+         NKLEIN_LOAD_PINNED_MODELS="${NKLEIN_RETAIN_MODELS:-} ${FLEET[*]}" \
+         npx tsx scripts/model-lab.mts admit "$m" "$CTX" ) >"$LOAD_LOG" 2>&1; then
+      log "  ✓ admitted $m; warm-set policy reconciled"
+    else
+      log "  ✗ REFUSED $m — see $(basename "$LOAD_LOG")"
+      LOAD_FAILURES=$((LOAD_FAILURES + 1))
+    fi
+  done
+  [ "$LOAD_FAILURES" -eq 0 ] || { log "FATAL: $LOAD_FAILURES required model admission(s) failed"; exit 3; }
+fi
 PS_JSON=$(HOME="$REAL_HOME" lms ps --json 2>/dev/null || true)
 RESIDENT=$(printf '%s' "$PS_JSON" | jq '[.[] | select(.type == "llm")] | length' 2>/dev/null || echo 0)
 LOCAL_RESIDENT=$(printf '%s' "$PS_JSON" | jq '[.[] | select(.type == "llm" and .deviceIdentifier == null)] | length' 2>/dev/null || echo 0)
@@ -304,6 +314,12 @@ elif [ "$RUN_KIND" = cache ]; then
   ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_VERIFY_MODEL="$WORKER" \
       NKLEIN_VERIFY_BASE_URL="http://127.0.0.1:1234/v1" \
       npx tsx scripts/verify-cache-health-live.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
+elif [ "$RUN_KIND" = fleet ]; then
+  DRAIN_JSON="$RUN_DIR/fleet-swarm.log"; DRAIN_ERR="$RUN_DIR/fleet-swarm.err"
+  log "launching heterogeneous fleet verifier: preset=$PRESET worker=$WORKER fault=${NKLEIN_FLEET_FAULT_MODEL:-none} max=${MAX_MIN}m"
+  ( cd "$REPO" && HOME="$REAL_HOME" NKLEIN_VERIFY_PRESET="$PRESET" NKLEIN_FLEET_WORKER="$WORKER" \
+      NKLEIN_VERIFY_TIMEOUT_MS=$((MAX_MIN*60000)) \
+      npx tsx scripts/verify-fleet-swarm.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
 else
   log "launching drain: preset=$PRESET mode=${MODE:-plan} worker=$WORKER max=${MAX_MIN}m"
   NULL_AGENT_ARG=""
@@ -356,7 +372,15 @@ snapshot_session_transcripts(){ # auxiliary sessions are cleared after use; pres
     cp "$f" "$SESSION_SNAPSHOT_DIR/$(basename "$f")" 2>/dev/null || true
   done
 }
-LAST_SIG=""; LAST_CHANGE=$(date +%s); ABORT_REASON=""; RUN_PHASE="watch"
+drain_semantic_signature(){ # raw verifier output includes repeated scheduler bookkeeping that is not work progress
+  [ -f "$DRAIN_JSON" ] || { echo "0 0"; return; }
+  # Keep board changes, WS activity, fault/recovery events, verifier assertions, and arbitrary harness output. Remove only
+  # proven periodic scheduler/capacity lines that can grow forever while every card/model is otherwise motionless.
+  grep -Ev \
+    '(^|\] )Board-liveness watchdog:|(^|\] )Auto-start of .* (queued behind a busy endpoint\.|hit the concurrency limit; deferred for retry on the next completion\.)$|(^|\] )Model turn for .* is waiting for capacity:' \
+    "$DRAIN_JSON" 2>/dev/null | cksum | awk '{print $1 " " $2}'
+}
+LAST_SIG=""; LAST_CHANGE=$(date +%s); ABORT_REASON=""; RUN_PHASE="watch"; WORKER_MISS_COUNT=0
 while kill -0 "$DRAIN_PID" 2>/dev/null; do
   sleep "$POLL_SECS"
   kill -0 "$DRAIN_PID" 2>/dev/null || break
@@ -376,7 +400,10 @@ while kill -0 "$DRAIN_PID" 2>/dev/null; do
   MSTAT=$(printf '%s' "$PS_JSON" | jq -r '.[] | select(.type == "llm" and (.status != null and .status != "idle")) | .identifier' 2>/dev/null | tr '\n' ',')
   SIG=$(board_signature); TOOLS=$(tool_activity); DEVLOG_BYTES=$(wc -c <"$DEVLOG" 2>/dev/null || echo 0)
   DEVLOG_BYTES="${DEVLOG_BYTES//[[:space:]]/}"
-  printf '%s elapsed=%ss board=[%s] tool-evidence=[%s] model-log-bytes=[%s] active=[%s]\n' "$(date +%H:%M:%S)" "$ELAPSED" "${SIG:-?}" "$TOOLS" "${DEVLOG_BYTES:-0}" "${MSTAT:-idle}" | tee -a "$SNAP"
+  DRAIN_BYTES=$(wc -c <"$DRAIN_JSON" 2>/dev/null || echo 0)
+  DRAIN_BYTES="${DRAIN_BYTES//[[:space:]]/}"
+  DRAIN_SEMANTIC_SIG=$(drain_semantic_signature)
+  printf '%s elapsed=%ss board=[%s] tool-evidence=[%s] model-log-bytes=[%s] drain-bytes=[%s] drain-semantic=[%s] active=[%s]\n' "$(date +%H:%M:%S)" "$ELAPSED" "${SIG:-?}" "$TOOLS" "${DEVLOG_BYTES:-0}" "${DRAIN_BYTES:-0}" "${DRAIN_SEMANTIC_SIG:-0 0}" "${MSTAT:-idle}" | tee -a "$SNAP"
   # REACT: floor refusal (config error — abort, it will never start)
   if [ "$RUN_KIND" = dev-test ] && HOME="$REAL_HOME" grep -q 'before this model can be activated' "$RUNTIME_LOG" 2>/dev/null; then
     ABORT_REASON="context_floor_refusal"
@@ -389,18 +416,27 @@ while kill -0 "$DRAIN_PID" 2>/dev/null; do
   if [ "$RUN_KIND" = dev-test ] && [ "$(HOME="$REAL_HOME" grep -c 'is already in use by container' "$RUNTIME_LOG" 2>/dev/null)" -gt 3 ]; then
     ABORT_REASON="sandbox_container_conflict"
     log "REACT: repeated sandbox container-name conflict — stale containers. Aborting; teardown will clear them."; break; fi
-  # REACT: the required worker disappeared. Continuing would only generate model-not-found churn and misleading stalls.
-  if ! printf '%s' "$PS_JSON" | jq -e --arg worker "$WORKER" '
+  # REACT: the required worker disappeared. LM Link briefly returned an incomplete cross-host snapshot immediately
+  # after a deliberate remote unload in run 20260722-042353, while the required worker remained resident. Debounce
+  # only the inventory observation; the authoritative backend-crash stream below still aborts on its first signal.
+  if printf '%s' "$PS_JSON" | jq -e --arg worker "$WORKER" '
     any(.[]; .type == "llm" and (.identifier == $worker or .modelKey == $worker or .indexedModelIdentifier == $worker))
   ' >/dev/null 2>&1; then
-    ABORT_REASON="worker_unloaded"
-    log "REACT: required worker $WORKER is no longer resident. Aborting before requests churn."; break; fi
+    WORKER_MISS_COUNT=0
+  else
+    WORKER_MISS_COUNT=$((WORKER_MISS_COUNT + 1))
+    if [ "$WORKER_MISS_COUNT" -ge "$WORKER_MISSING_POLLS" ]; then
+      ABORT_REASON="worker_unloaded"
+      log "REACT: required worker $WORKER was absent from $WORKER_MISS_COUNT consecutive resident snapshots. Aborting before requests churn."; break
+    fi
+    log "OBSERVE: required worker $WORKER absent from resident snapshot $WORKER_MISS_COUNT/$WORKER_MISSING_POLLS; waiting for LM Link reconciliation."
+  fi
   # REACT: LM Studio can leave a crashed model nominally IDLE. The dev stream is the authoritative backend signal.
   if grep -Eiq 'fatal exception in the backend generation thread|model has crashed' "$DEVLOG" 2>/dev/null; then
     ABORT_REASON="backend_crash"
     log "REACT: LM Studio reported a fatal backend generation crash. Aborting and preserving the exact dev log."; break; fi
   # progress tracking
-  CURSIG="$SIG|$TOOLS|devlog=${DEVLOG_BYTES:-0}"
+  CURSIG="$SIG|$TOOLS|devlog=${DEVLOG_BYTES:-0}|drain-semantic=${DRAIN_SEMANTIC_SIG:-0 0}"
   if [ "$CURSIG" != "$LAST_SIG" ]; then LAST_SIG="$CURSIG"; LAST_CHANGE="$NOW"; fi
   IDLE_FOR=$((NOW-LAST_CHANGE))
   # LM Studio can spend several minutes in PROCESSINGPROMPT without advancing its dev-log stream (real Qwen2.5
@@ -424,7 +460,7 @@ wait "$DRAIN_PID" 2>/dev/null; DRAIN_STATUS=$?; DRAIN_END=$(date +%s)
 log "=== RESULT (real wall time $((DRAIN_END-DRAIN_START))s) ==="
 snapshot_session_transcripts
 DRAIN_OUTCOME="unclassified"; DRAIN_SUCCESS=false
-if [ "$RUN_KIND" = eval ] || [ "$RUN_KIND" = cache ]; then
+if [ "$RUN_KIND" = eval ] || [ "$RUN_KIND" = cache ] || [ "$RUN_KIND" = fleet ]; then
   if [ "$DRAIN_STATUS" -eq 0 ]; then
     DRAIN_OUTCOME="passed"; DRAIN_SUCCESS=true
   elif [ "$RUN_KIND" = eval ] && [ "$DRAIN_STATUS" -eq 3 ]; then
@@ -432,7 +468,7 @@ if [ "$RUN_KIND" = eval ] || [ "$RUN_KIND" = cache ]; then
   else
     DRAIN_OUTCOME="failed"
   fi
-  EVAL_RESULT=$(grep -E '^(result:|verdict:)' "$DRAIN_JSON" 2>/dev/null | tail -1)
+  EVAL_RESULT=$(grep -E '^(result:|verdict:|SWEEP-ROW)' "$DRAIN_JSON" 2>/dev/null | tail -1)
   log "$RUN_KIND outcome: $DRAIN_OUTCOME | ${EVAL_RESULT:-no result line; see run logs}"
 elif jq -e '.classification' "$DRAIN_JSON" >/dev/null 2>&1; then
   RAW_DRAIN_OUTCOME=$(jq -r '.classification.outcome // "unclassified"' "$DRAIN_JSON")
@@ -476,10 +512,12 @@ if [ "$RUN_KIND" = dev-test ]; then
   log "logs: runtime.log, lmstudio-devlog.txt, snapshots.log, drain.json, controller-result.json, evidence/ in $RUN_DIR"
 elif [ "$RUN_KIND" = eval ]; then
   log "logs: eval.log, eval.err, lmstudio-devlog.txt, snapshots.log, controller-result.json in $RUN_DIR"
+elif [ "$RUN_KIND" = fleet ]; then
+  log "logs: fleet-swarm.log, fleet-swarm.err, lmstudio-devlog.txt, snapshots.log, controller-result.json in $RUN_DIR"
 else
   log "logs: cache-probe.log, cache-probe.err, lmstudio-devlog.txt, snapshots.log, controller-result.json in $RUN_DIR"
 fi
-if [ "$RUN_KIND" = eval ] || [ "$RUN_KIND" = cache ]; then
+if [ "$RUN_KIND" = eval ] || [ "$RUN_KIND" = cache ] || [ "$RUN_KIND" = fleet ]; then
   FINAL_STATUS="$DRAIN_STATUS"
   [ -n "$ABORT_REASON" ] && FINAL_STATUS=1
 else

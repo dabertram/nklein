@@ -77,6 +77,12 @@ export interface NKleinStartDifficultySignals {
 	isPlanCard?: boolean;
 	/** Title + prompt text for keyword signals (refactor/migration/concurrency = hard; typo/rename/docs = easy). */
 	taskText?: string;
+	/**
+	 * Number of distinct transitive prerequisite cards whose delivered artifacts this card must consume. Fan-in joins
+	 * are materially harder than equally short leaf prompts, so this raises the capability floor without relying on
+	 * brittle title keywords.
+	 */
+	prerequisiteCount?: number;
 }
 
 const HARD_TASK_TEXT =
@@ -89,6 +95,38 @@ const EASY_TASK_TEXT = /typo|rename|\bcomment\b|readme|documentation|\blabel\b|c
 const PLAN_CARD_DIFFICULTY_BONUS = 10;
 const HARD_TEXT_DIFFICULTY_BONUS = 12;
 const EASY_TEXT_DIFFICULTY_DAMPENER = 10;
+const PREREQUISITE_DIFFICULTY_BONUS_PER_CARD = 4;
+const MAX_PREREQUISITE_DIFFICULTY_BONUS = 22;
+
+/**
+ * Count the distinct TRANSITIVE prerequisite cone for one board card. Board edges are `from → to` where `from`
+ * depends on `to`; cycle-safe traversal also makes this fail-soft against legacy/corrupt boards.
+ */
+export function countNKleinTransitivePrerequisites(
+	taskId: string,
+	dependencies: readonly { fromTaskId: string; toTaskId: string }[],
+): number {
+	const directByTaskId = new Map<string, string[]>();
+	for (const dependency of dependencies) {
+		const current = directByTaskId.get(dependency.fromTaskId);
+		if (current) {
+			current.push(dependency.toTaskId);
+		} else {
+			directByTaskId.set(dependency.fromTaskId, [dependency.toTaskId]);
+		}
+	}
+	const seen = new Set<string>([taskId]);
+	const pending = [...(directByTaskId.get(taskId) ?? [])];
+	while (pending.length > 0) {
+		const prerequisiteId = pending.pop();
+		if (!prerequisiteId || seen.has(prerequisiteId)) {
+			continue;
+		}
+		seen.add(prerequisiteId);
+		pending.push(...(directByTaskId.get(prerequisiteId) ?? []));
+	}
+	return seen.size - 1;
+}
 
 export function estimateNKleinStartDifficulty(promptTokens: number, signals?: NKleinStartDifficultySignals): number {
 	const promptDifficultyBonus = Math.min(START_GUARD_MAX_PROMPT_DIFFICULTY_BONUS, Math.round(promptTokens / 800));
@@ -103,6 +141,11 @@ export function estimateNKleinStartDifficulty(promptTokens: number, signals?: NK
 	if (signals?.isPlanCard || signals?.skillIds?.includes("planning")) {
 		difficulty += PLAN_CARD_DIFFICULTY_BONUS;
 	}
+	const prerequisiteCount = Math.max(0, Math.trunc(signals?.prerequisiteCount ?? 0));
+	difficulty += Math.min(
+		MAX_PREREQUISITE_DIFFICULTY_BONUS,
+		prerequisiteCount * PREREQUISITE_DIFFICULTY_BONUS_PER_CARD,
+	);
 	return Math.max(5, Math.min(100, difficulty));
 }
 

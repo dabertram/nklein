@@ -2558,3 +2558,14 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   correction. Decomposition seeds fail safe to normal
   agent mode because trusted control-plane planning tools are deliberately outside the worker manifest. Evidence:
   `docs/dev/f3.t3b-action-plan-producer-2026-07-22.json` and controller run `20260722-023227`.
+
+- [x] **F5.6b — Effectful migration runner** *(delivered 2026-07-22).* Runtime startup now gates acceptance of the
+  updated application on a restart-safe project migration runner. The first real schema migration advances the workspace
+  index from v1 to v2 and makes every project's auto-resume policy explicit. Before mutation, the runner creates a
+  verifiable full-home backup and journal outside the rollback target; it records applying/accepting/completed phases,
+  resumes interrupted work idempotently, re-reads and schema-validates the durable output, and fails startup closed when
+  recovery authority is invalid. Rollback now replacement-restores the old tree so files introduced by a failed migration
+  cannot survive. A new attempt after a completed journal takes a fresh backup, preventing stale full-home recovery from
+  erasing later user state. Evidence: focused updater/state integration 97/97, runtime fast gate 12,011/12,011, contract
+  286/286, protected 142/142, web/server typechecks and lint green; the sole broad-integration finding was a separate
+  review-settlement defect, root-fixed and its exact end-to-end regression then passed.

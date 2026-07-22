@@ -34,6 +34,7 @@ interface ExecFileStubOptions {
 	volumeLsOutput?: string;
 	execStdout?: string;
 	failExecCommand?: readonly string[];
+	transientExecCommand?: readonly string[];
 	/**
 	 * Controls the DEAD-CONTAINER liveness probe (`docker inspect -f {{.State.Running}} <name>`). When set, the
 	 * function is asked once per inspect call (in order) and returns the running-state string to emit on stdout
@@ -49,6 +50,7 @@ function createExecFileStub(options?: ExecFileStubOptions): {
 } {
 	const calls: string[][] = [];
 	let inspectCallIndex = 0;
+	let transientExecFailed = false;
 	const stub = vi.fn((file: string, args: readonly string[], _options: unknown, callback: unknown) => {
 		expect(file).toBe("docker");
 		calls.push([...args]);
@@ -99,6 +101,15 @@ function createExecFileStub(options?: ExecFileStubOptions): {
 			stdout = "container-id\n";
 		} else if (args[0] === "exec") {
 			const command = args.slice(6);
+			if (
+				!transientExecFailed &&
+				options?.transientExecCommand &&
+				command.join("\0") === options.transientExecCommand.join("\0")
+			) {
+				transientExecFailed = true;
+				done(Object.assign(new Error("docker exec transport timed out"), { code: "ETIMEDOUT" }));
+				return {} as ReturnType<typeof execFile>;
+			}
 			if (options?.failExecCommand && command.join("\0") === options.failExecCommand.join("\0")) {
 				done(Object.assign(new Error("exec failed"), { code: 1, stdout: "", stderr: "sandbox failure" }));
 				return {} as ReturnType<typeof execFile>;
@@ -158,7 +169,7 @@ function createCaptureBarrierExecFileStub(): {
 			done(null, { stdout: "container-id\n", stderr: "" });
 			return {} as ReturnType<typeof execFile>;
 		}
-		if (args[0] === "exec" && args.slice(-3).join(" ") === "git add -A") {
+		if (args[0] === "exec" && args.includes(":(glob,exclude)**/node_modules/**")) {
 			captureCallbacks.push(done);
 			return {} as ReturnType<typeof execFile>;
 		}
@@ -1423,7 +1434,7 @@ describe("AgentSandboxManager", () => {
 		await expect(manager.runTool("task-1", "bash", "npm test")).rejects.toThrow("Next step:");
 	});
 
-	it("captures a staged binary workspace patch against the task base ref", async () => {
+	it("captures project changes while excluding untracked runtime and dependency caches", async () => {
 		const patch = "diff --git a/README.md b/README.md\n";
 		const { execFile: execFileStub, calls } = createExecFileStub({ execStdout: patch });
 		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
@@ -1439,7 +1450,26 @@ describe("AgentSandboxManager", () => {
 			"nklein-agent-sandbox-1",
 			"git",
 			"add",
+			"-u",
+			"--",
+			".",
+			":(exclude).nklein/nklein",
+		]);
+		expect(calls).toContainEqual([
+			"exec",
+			"-u",
+			String(createAgentSandboxTaskUid("task-1")),
+			"-w",
+			"/workspaces/task-1",
+			"nklein-agent-sandbox-1",
+			"git",
+			"add",
 			"-A",
+			"--",
+			".",
+			":(exclude).nklein/nklein",
+			":(exclude)node_modules",
+			":(glob,exclude)**/node_modules/**",
 		]);
 		expect(calls).toContainEqual([
 			"exec",
@@ -1570,13 +1600,48 @@ describe("AgentSandboxManager", () => {
 	});
 
 	it("fails closed when sandbox patch staging fails", async () => {
-		const { execFile: execFileStub } = createExecFileStub({ failExecCommand: ["git", "add", "-A"] });
+		const { execFile: execFileStub } = createExecFileStub({
+			failExecCommand: [
+				"git",
+				"add",
+				"-A",
+				"--",
+				".",
+				":(exclude).nklein/nklein",
+				":(exclude)node_modules",
+				":(glob,exclude)**/node_modules/**",
+			],
+		});
 		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
 		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
 
 		await expect(manager.captureWorkspacePatch("task-1")).rejects.toThrow(
 			"Could not stage sandbox workspace changes.",
 		);
+	});
+
+	it("retries one transport-level staging failure against the still-prepared workspace", async () => {
+		const stageCommand = [
+			"git",
+			"add",
+			"-A",
+			"--",
+			".",
+			":(exclude).nklein/nklein",
+			":(exclude)node_modules",
+			":(glob,exclude)**/node_modules/**",
+		];
+		const { execFile: execFileStub, calls } = createExecFileStub({
+			execStdout: "diff --git a/README.md b/README.md\n",
+			transientExecCommand: stageCommand,
+		});
+		const warn = vi.fn();
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub, warn });
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		await expect(manager.captureWorkspacePatch("task-1")).resolves.toContain("diff --git");
+		expect(calls.filter((args) => args.slice(6).join("\0") === stageCommand.join("\0"))).toHaveLength(2);
+		expect(warn).toHaveBeenCalledWith(expect.stringContaining("retrying once"));
 	});
 
 	it("queues tool execution while the task is paused", async () => {

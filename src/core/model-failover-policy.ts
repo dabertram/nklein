@@ -23,6 +23,10 @@ const MODEL_SIDE_ERROR_PATTERNS: readonly RegExp[] = [
 	/raise_exception/i,
 	/returned 5\d\d/i,
 	/econnrefused|socket hang up|fetch failed|network/i,
+	// The local adapter has already exhausted its protocol variants. A missing model commonly surfaces as OpenAI
+	// model-not-loaded followed by a final Anthropic `/messages` 404; by the time the summary is persisted only this
+	// aggregate survives. Repeating the same runtime model cannot repair that route, while another loaded model can.
+	/all local alternate endpoints failed:.*returned HTTP (?:404|5\d\d)/i,
 	/no scorable|empty (completion|content|response)/i,
 	/is not currently loaded/i,
 	// !Klein's own curated wrap of a mid-run model loss ("Local model … became unavailable mid-run (crashed or

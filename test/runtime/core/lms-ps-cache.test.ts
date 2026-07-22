@@ -52,6 +52,26 @@ describe("fetchLmsPsModelsCached (W0.5 — one subprocess per discovery window)"
 		expect(calls).toBe(1);
 	});
 
+	it("coalesces overlapping cold-cache reads before the first subprocess settles", async () => {
+		process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS = "60000";
+		let calls = 0;
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const runner = async () => {
+			calls += 1;
+			await gate;
+			return { stdout: PS_JSON, exitCode: 0 };
+		};
+		const reads = Array.from({ length: 100 }, () => fetchLmsPsModelsCached(runner));
+		expect(calls).toBe(1);
+		release();
+		const snapshots = await Promise.all(reads);
+		expect(calls).toBe(1);
+		expect(snapshots.every((snapshot) => snapshot === snapshots[0])).toBe(true);
+	});
+
 	it("ttlOverrideMs never re-enables caching at TTL 0 (tests stay uncached)", async () => {
 		process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS = "0";
 		let calls = 0;

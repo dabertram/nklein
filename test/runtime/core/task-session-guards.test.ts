@@ -25,10 +25,47 @@ function summary(over: Partial<RuntimeTaskSessionSummary>): RuntimeTaskSessionSu
 	};
 }
 
+function hook(hookEventName: string): NonNullable<RuntimeTaskSessionSummary["latestHookActivity"]> {
+	return {
+		activityText: null,
+		toolName: null,
+		toolInputSummary: null,
+		finalMessage: null,
+		hookEventName,
+		notificationType: null,
+		source: "nklein",
+	};
+}
+
 describe("isReviewableNKleinSummary", () => {
 	it("is true for awaiting_review with an actionable review reason", () => {
-		for (const reviewReason of ["hook", "exit", "attention", "error"] as const) {
+		for (const reviewReason of ["hook", "exit", "attention"] as const) {
 			expect(isReviewableNKleinSummary(summary({ reviewReason }))).toBe(true);
+		}
+	});
+
+	it("keeps model errors out of review so failover cannot race a stale empty artifact", () => {
+		expect(isReviewableNKleinSummary(summary({ reviewReason: "error" }))).toBe(false);
+		expect(
+			isReviewableNKleinSummary(
+				summary({
+					reviewReason: "error",
+					latestHookActivity: hook("sandbox_patch_capture_failed"),
+				}),
+			),
+		).toBe(false);
+	});
+
+	it("reviews a durably settled sandbox artifact even when its model turn ended in error", () => {
+		for (const hookEventName of ["sandbox_patch_captured", "sandbox_patch_empty"]) {
+			expect(
+				isReviewableNKleinSummary(
+					summary({
+						reviewReason: "error",
+						latestHookActivity: hook(hookEventName),
+					}),
+				),
+			).toBe(true);
 		}
 	});
 

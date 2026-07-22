@@ -218,6 +218,17 @@ function getLinkedBacklogTaskIdsReadyAfterTaskTrashed(
 		if (waitingColumnId !== "backlog" && waitingColumnId !== "planning") {
 			continue;
 		}
+		// A completion releases the dependent only when THIS was its final unfinished prerequisite. The old
+		// implementation returned every directly linked card, so the first leaf of a fan-in join launched the join while
+		// its sibling leaves were still running. Completed/trashed prerequisite edges are pruned by moveTaskToColumn;
+		// therefore any other surviving edge from the same waiting card is still an unmet prerequisite.
+		if (
+			board.dependencies.some(
+				(candidate) => candidate.fromTaskId === dependency.fromTaskId && candidate.toTaskId !== taskId,
+			)
+		) {
+			continue;
+		}
 		readyTaskIds.add(dependency.fromTaskId);
 	}
 	return [...readyTaskIds];

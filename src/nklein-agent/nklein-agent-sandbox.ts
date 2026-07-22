@@ -88,6 +88,7 @@ export {
 };
 
 const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
+const PATCH_CAPTURE_EXEC_TIMEOUT_MS = 120_000;
 /** A QUEUED slot acquisition waiting past this (via the injected `warn`) is logged as a possible capacity stall. */
 const SLOT_QUEUE_SLOW_WAIT_LOG_MS = 30_000;
 const DOCKER_UNAVAILABLE_MARKERS = [
@@ -769,17 +770,48 @@ export class AgentSandboxManager {
 			// release/delete this placement between `git add` and `git diff`, producing an intermittent terminal card with
 			// neither a result branch nor a truthful no-change marker.
 			const placement = this.requirePlacement(taskId);
-			assertSandboxExecOk(
-				await this.execAsTaskUser(placement, ["git", "add", "-A"]),
-				"stage sandbox workspace changes",
-			);
+			// Runtime-owned caches may be populated by read/test/install tools, but they are not task authorship. Stage
+			// tracked project changes first so even a deliberately tracked node_modules file remains visible; then admit
+			// untracked files while excluding the runtime-only code index and dependency trees. This prevents a normal
+			// `npm install` needed for acceptance from turning thousands of dependency files into an out-of-scope patch.
+			const stageCommands = [
+				["git", "add", "-u", "--", ".", ":(exclude).nklein/nklein"],
+				[
+					"git",
+					"add",
+					"-A",
+					"--",
+					".",
+					":(exclude).nklein/nklein",
+					":(exclude)node_modules",
+					":(glob,exclude)**/node_modules/**",
+				],
+			];
+			for (const stageArgs of stageCommands) {
+				let staged = await this.execAsTaskUser(placement, stageArgs, {
+					timeoutMs: PATCH_CAPTURE_EXEC_TIMEOUT_MS,
+				});
+				// `docker exec` can lose its transport while the container and repo remain healthy (the live fleet proof
+				// produced a null exit code with no command output, then the same repo immediately passed git fsck/status).
+				// One identity-preserving retry is safe because `git add` is idempotent. Never retry a real Git exit code:
+				// conflicts, permissions, and corrupt repositories must remain visible and fail closed.
+				if (staged.exitCode === null && (await this.isWorkspacePrepared(taskId))) {
+					this.warn?.(
+						`Sandbox patch staging transport failed for ${taskId}; retrying once against the same workspace.`,
+					);
+					staged = await this.execAsTaskUser(placement, stageArgs, {
+						timeoutMs: PATCH_CAPTURE_EXEC_TIMEOUT_MS,
+					});
+				}
+				assertSandboxExecOk(staged, "stage sandbox workspace changes");
+			}
 			const diffArgs = ["git", "diff", "--staged", "--binary"];
 			const baseRef = options.baseRef?.trim();
 			if (baseRef) {
 				diffArgs.push(baseRef, "--");
 			}
 			const diff = await this.execAsTaskUser(placement, diffArgs, {
-				timeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
+				timeoutMs: PATCH_CAPTURE_EXEC_TIMEOUT_MS,
 			});
 			assertSandboxExecOk(diff, "capture sandbox workspace patch");
 			return diff.stdout;
@@ -1620,10 +1652,13 @@ export class AgentSandboxManager {
 			};
 		} catch (error) {
 			const dockerError = error as DockerExecError;
+			const stdout = bufferOrStringToString(dockerError.stdout);
+			const rawStderr = bufferOrStringToString(dockerError.stderr);
+			const stderr = rawStderr || (!stdout && dockerError.message ? dockerError.message : "");
 			return {
 				exitCode: typeof dockerError.code === "number" ? dockerError.code : null,
-				stdout: bufferOrStringToString(dockerError.stdout),
-				stderr: bufferOrStringToString(dockerError.stderr),
+				stdout,
+				stderr,
 			};
 		}
 	}

@@ -63,6 +63,7 @@ export function selectSwarmRouteForTask(input: SelectSwarmRouteInput): SwarmRout
 	const capabilityByKey = new Map(input.candidates.map((c) => [c.modelKey, c.capability]));
 
 	const tierByPool = new Map<string, number>();
+	const freeTierByPool = new Map<string, number>();
 	for (const candidate of input.candidates) {
 		if (!eligibleKeys.has(candidate.modelKey)) {
 			continue;
@@ -79,9 +80,24 @@ export function selectSwarmRouteForTask(input: SelectSwarmRouteInput): SwarmRout
 		if (current === undefined || cap > current) {
 			tierByPool.set(candidate.poolId, cap);
 		}
+		if (candidate.isFree) {
+			const currentFree = freeTierByPool.get(candidate.poolId);
+			if (currentFree === undefined || cap > currentFree) {
+				freeTierByPool.set(candidate.poolId, cap);
+			}
+		}
 	}
 
-	const pools: RoleModelPoolCandidate[] = [...tierByPool.entries()].map(([poolId, capabilityTier]) => ({
+	// A host can have spare HOST capacity while every eligible model on that host is already at its own model/endpoint
+	// cap. Treating only the host slot as availability makes the pool layer select that host, after which the model
+	// layer has no free candidate and falls back to the busy model; the authoritative endpoint gate then queues a stale
+	// route while genuinely free machines sit idle. Prefer pools with a free, task-qualified model whenever one exists.
+	// If none exists, retain the historical busy fallback so callers can deliberately queue for the best model.
+	const hasQualifiedFreeModel = [...freeTierByPool.entries()].some(
+		([poolId, capabilityTier]) => capabilityTier >= input.difficulty && (input.poolFreeSlots[poolId] ?? 0) > 0,
+	);
+	const effectiveTierByPool = hasQualifiedFreeModel ? freeTierByPool : tierByPool;
+	const pools: RoleModelPoolCandidate[] = [...effectiveTierByPool.entries()].map(([poolId, capabilityTier]) => ({
 		poolId,
 		capabilityTier,
 		freeSlots: input.poolFreeSlots[poolId] ?? 0,

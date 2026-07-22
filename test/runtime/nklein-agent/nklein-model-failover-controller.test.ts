@@ -39,6 +39,27 @@ describe("createModelFailoverController", () => {
 		expect(noteStrategyApplied).toHaveBeenCalledWith("t1", "cross_model_carry");
 	});
 
+	it("re-drives an endpoint-loss aggregate instead of retrying the disappeared model", async () => {
+		const resend = vi.fn().mockResolvedValue(undefined);
+		const controller = createModelFailoverController({ resendTaskInput: resend });
+		controller.setCandidates("t1", [
+			"lmstudio:qwopus:http://localhost:1234/v1",
+			"lmstudio:qwen3.5:http://localhost:1234/v1",
+		]);
+		controller.maybeModelFailover(
+			"t1",
+			errorSummary({
+				modelId: "qwopus",
+				warningMessage:
+					"All local alternate endpoints failed: anthropic_messages:Endpoint http://127.0.0.1:1234/v1/messages returned HTTP 404.",
+			}),
+		);
+		await flush();
+		expect(resend).toHaveBeenCalledTimes(1);
+		expect(resend.mock.calls[0]?.[4]).toMatchObject({ modelId: "qwen3.5" });
+		expect(resend.mock.calls[0]?.[5]).toEqual({ freshModelCarry: true });
+	});
+
 	it("does nothing for a non-error terminal or a task/sandbox-scoped error", async () => {
 		const resend = vi.fn().mockResolvedValue(undefined);
 		const controller = createModelFailoverController({ resendTaskInput: resend });

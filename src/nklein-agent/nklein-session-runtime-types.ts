@@ -220,6 +220,8 @@ export interface NKleinSessionRuntime {
 	stopTaskSession(taskId: string, options?: { suppressTaskEvents?: boolean }): Promise<void>;
 	abortTaskSession(taskId: string): Promise<void>;
 	clearTaskSessions(taskId: string): Promise<void>;
+	/** Monotonic count of accepted model turns for this exact task id in the current runtime process. */
+	getTaskTurnGeneration(taskId: string): number;
 	getTaskSessionId(taskId: string): string | null;
 	getTaskProviderId(taskId: string): string | null;
 	canRestartTaskSession(taskId: string): boolean;

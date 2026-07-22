@@ -9,6 +9,7 @@ describe("formatAcceptanceSummaryForReview (W1.5 — the reviewer sees acceptanc
 			passed: true,
 			exitCode: 0,
 			output: "all 12 tests passed",
+			failureHint: null,
 		});
 		expect(summary).toContain("`npm test` — PASSED");
 		expect(summary).not.toContain("Output tail");
@@ -21,6 +22,7 @@ describe("formatAcceptanceSummaryForReview (W1.5 — the reviewer sees acceptanc
 			passed: false,
 			exitCode: 1,
 			output: `${"x".repeat(2_000)}\nassertion failed: expected 3 to be 4`,
+			failureHint: null,
 		});
 		expect(summary).toContain("FAILED (exit 1)");
 		expect(summary).toContain("strong grounds to request changes");
@@ -36,6 +38,7 @@ describe("formatAcceptanceSummaryForReview (W1.5 — the reviewer sees acceptanc
 			passed: null,
 			exitCode: null,
 			output: "",
+			failureHint: null,
 		});
 		expect(summary).toContain("NO acceptance command");
 	});
@@ -51,6 +54,7 @@ describe("formatAcceptanceSummaryForReview (W1.5 — the reviewer sees acceptanc
 			passed: false,
 			exitCode: 1,
 			output: "1 failing",
+			failureHint: null,
 		};
 		const preExisting = formatAcceptanceSummaryForReview(red, { present: true, passed: false });
 		expect(preExisting).toContain("ALREADY FAILED this check before any work");
@@ -64,5 +68,36 @@ describe("formatAcceptanceSummaryForReview (W1.5 — the reviewer sees acceptanc
 		expect(formatAcceptanceSummaryForReview({ ...red, passed: true }, { present: true, passed: true })).not.toContain(
 			"Baseline attribution",
 		);
+	});
+
+	it("surfaces the first TAP failure block instead of the green aggregate tail", () => {
+		const output = [
+			"TAP version 13",
+			"# Subtest: escapes special characters in recommendation",
+			"not ok 4 - escapes special characters in recommendation",
+			"  ---",
+			"  error: expected escaped quotes",
+			"  expected: escaped",
+			"  actual: raw",
+			"  ...",
+			...Array.from({ length: 19 }, (_, index) => `ok ${index + 1} - unrelated passing test`),
+			"1..20",
+			"# pass 19",
+			"# fail 1",
+		].join("\n");
+		const summary = formatAcceptanceSummaryForReview({
+			present: true,
+			command: "npm test",
+			passed: false,
+			exitCode: 1,
+			output,
+			failureHint: "A test assertion failed.",
+		});
+
+		expect(summary).toContain("Failing test/error excerpt");
+		expect(summary).toContain("not ok 4 - escapes special characters in recommendation");
+		expect(summary).toContain("expected escaped quotes");
+		expect(summary).toContain("Failure hint: A test assertion failed.");
+		expect(summary).not.toContain("# fail 1");
 	});
 });

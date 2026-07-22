@@ -41,6 +41,8 @@ export interface SecondOpinionReviewRunnerDeps {
 	getHarness(): SecondarySessionHarness;
 	startRuntimeSession(input: StartRuntimeTaskSessionFromLaunchConfigInput): Promise<RuntimeTaskSessionStartResult>;
 	sendTaskSessionInput(taskId: string, prompt: string, admissionParentTaskId: string): Promise<unknown>;
+	/** End a synthetic reviewer turn once its first valid structured verdict has been accepted. */
+	stopRuntimeSession(taskId: string): Promise<unknown>;
 	defaultTimeoutMs: number;
 	maxNudges: number;
 }
@@ -243,7 +245,15 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 							launchConfig,
 							contextScope: "minimal",
 							onReviewSubmitted: (result) => {
+								// The verdict tool is the terminal protocol event. Some local models ignore its "stop now"
+								// result and continue inspecting files/submitting contradictory verdicts, monopolizing the
+								// reviewer host until timeout. First valid submission wins; actively stop that synthetic
+								// session so the turn promise settles and the next queued review can proceed.
+								if (verdict !== null) {
+									return;
+								}
 								verdict = result;
+								void deps.stopRuntimeSession(reviewTaskId).catch(() => undefined);
 							},
 							// Route the reviewer's file/bash tools into its sandbox container (so the host cwd is never
 							// touched), exactly like a worker session — keeps strict isolation and lets the reviewer inspect.

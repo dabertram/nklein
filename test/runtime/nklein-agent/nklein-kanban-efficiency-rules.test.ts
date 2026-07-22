@@ -8,10 +8,13 @@ const base = {
 };
 
 describe("buildKanbanEfficiencyRules (§5.U / W2.4a)", () => {
-	it("always emits the core discipline + focus-chain + one-based read rule", () => {
+	it("always emits the core discipline, exact command shape, focus-chain, and one-based read rule", () => {
 		const text = buildKanbanEfficiencyRules(base);
 		expect(text).toContain("# !Klein Efficiency Rules");
 		expect(text).toContain("Focus Chain");
+		expect(text).toContain('{"commands":["npm test"]}');
+		expect(text).toContain('{"command":"npm","args":["test"]}');
+		expect(text).toContain("never a JSON-encoded string");
 		expect(text).toContain("ONE-BASED"); // the read_files start_line guidance that saves weak models a wasted turn
 	});
 

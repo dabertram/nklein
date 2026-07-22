@@ -6,8 +6,8 @@
  * `src/core/agent-turn-loop.ts`:
  *
  *  1. **DETECT** — on each COMPLETED assistant turn of a running session, fingerprint the trailing turns
- *     (`detectTurnLoop`) and catch the same question/proposal re-raised (`repeat`) or two proposals bounced
- *     between (`oscillation`).
+ *     (`detectTurnLoop`) and catch the same question/proposal re-raised (`repeat`), two proposals bounced
+ *     between (`oscillation`), or a short multi-step work sequence repeated (`cycle`).
  *  2. **AUTO-RESOLVE** — when the contested token is grounded in the card's authoritative context (the embedded
  *     `Acceptance check:` command / the start prompt's spec), inject the guidance as a mid-session nudge
  *     (`sendTaskSessionInput`, mirroring the decomposition stall nudger's re-prompt). Bounded: one nudge per task.
@@ -113,7 +113,9 @@ export function formatTurnLoopParkMessage(
 	const shape =
 		verdict.kind === "oscillation"
 			? "kept bouncing between the same two proposals"
-			: "kept re-raising the same question";
+			: verdict.kind === "cycle"
+				? "kept repeating the same multi-step work cycle"
+				: "kept re-raising the same question";
 	const question = verdict.contestedQuestion ? ` The contested question: "${verdict.contestedQuestion}"` : "";
 	if (hardDenial) {
 		return (

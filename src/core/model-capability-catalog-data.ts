@@ -12,6 +12,24 @@ import type { ModelCapabilityEntry } from "./model-capability-catalog.js";
  */
 export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 	{
+		// Prism's only Bonsai-27B Q4_1 GGUF is explicitly named `...-dspark-Q4_1`: it is the small speculative
+		// DRAFTER shipped beside the ~7.17 GB Q2_0_g128 target, not a compressed standalone 27B target.
+		family: "ternary-bonsai-27b-dspark-drafter",
+		match: /ternary-?bonsai-?27b.*dspark|dspark.*ternary-?bonsai-?27b/,
+		toolUse: "TOOL_UNSUITABLE",
+		kind: "unknown",
+		chaining: "fails",
+		structuredOutput: "unknown",
+		speed: "fast",
+		sizeGb: 1.95,
+		note: "Prism Ternary Bonsai 27B DSpark Q4_1 speculative-decoding DRAFTER (~1.95 GB), not a standalone smaller quantization of the 27B target. The actual GGUF target is Q2_0_g128 (~7.17 GB) and Prism documents pairing the drafter with that target. !Klein does not currently operate at the speculative-decoding layer, so this artifact must never be selected for architect/worker/reviewer roles.",
+		sources: ["https://huggingface.co/prism-ml/Ternary-Bonsai-27B-gguf"],
+		severityOverride: "reject",
+		disqualifiers: ["speculative-decoding drafter, not a standalone role model"],
+		basis: "research",
+		verified: true,
+	},
+	{
 		family: "ternary-bonsai-27b-mlx",
 		match: /ternary-?bonsai-?27b.*mlx|bonsai-?27b.*mlx-?2bit/,
 		toolUse: "TOOL_CAPABLE",
@@ -20,16 +38,16 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		structuredOutput: "native_tool_call",
 		speed: "medium",
 		sizeGb: 8.5,
-		note: "Prism Ternary Bonsai 27B MLX 2-bit. TOOL-FREE LIVE EVAL 2026-07-22 (m5max, fresh 40k load): context worker 1.000 across 2k/8k/24k and reviewer 0.722 (reliability 0.667; ~60s/cell), so it is a strong context-heavy reader and useful second-opinion reviewer. AGENTIC PATH BLOCKED ON THE CURRENT LM STUDIO MLX RUNTIME: architect and worker tool requests reproducibly return HTTP 400 because mlx_engine/tool_runtime.py applies an llguidance grammar at token zero and crashes when the thinking model emits `!`; the failed grammar also poisons the nominally-idle instance until reload. Prism's own mlx_lm server documents native tool calls, so this is a serving-layer incompatibility, not evidence that the weights lack tool ability. Keep out of ordinary !Klein tool chains on LM Studio; use only fresh, tool-free review/context calls until that runtime is fixed or the official server is integrated.",
+		note: "Prism Ternary Bonsai 27B MLX 2-bit. TOOL-FREE LIVE EVAL 2026-07-22 (m5max, fresh 40k load): context worker 1.000 across 2k/8k/24k and reviewer 0.722 (reliability 0.667; ~60s/cell), so the weights remain promising for context-heavy prose reads. AGENTIC PATH BLOCKED ON THE CURRENT LM STUDIO MLX RUNTIME: architect, worker, and reviewer tool requests reproducibly return HTTP 400 because mlx_engine/tool_runtime.py applies an llguidance grammar at token zero and crashes when the thinking model emits `!`; a production-shaped fleet worker retried into the same crash and the role harness scored 0/12 answers (.real-runs/20260722-032924 and 20260722-033042). Prism's own mlx_lm server documents native tool calls, so this is a serving-layer incompatibility, not evidence that the weights lack tool ability. Reject this exact served variant from ordinary !Klein roles until the runtime is fixed or the official server is integrated; keep any tool-free use behind an explicit tool-free route.",
 		sources: [
 			"real-model eval 2026-07-22 (.real-runs/20260722-010344: tool-free mean 0.861/6; context 1.000, reviewer 0.722; .real-runs/20260722-010114 + 20260722-010845: llguidance token-! fatal tool grammar)",
 			"https://huggingface.co/prism-ml/Ternary-Bonsai-27B-mlx-2bit",
 			"https://github.com/PrismML-Eng/Bonsai-demo/blob/main/TOOLS.md",
 			"https://github.com/lmstudio-ai/lmstudio-bug-tracker/issues/1592",
 		],
-		severityOverride: "warn",
+		severityOverride: "reject",
 		disqualifiers: [
-			"LM Studio MLX runtime 1.10.1 crashes its constrained tool grammar before the first call and can leak the failed grammar into later requests; fresh reload required after failure",
+			"LM Studio MLX runtime crashes its constrained tool grammar before the first call; all production role paths currently offer or require tools",
 		],
 		basis: "both",
 		verified: true,
@@ -341,7 +359,27 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		basis: "empirical",
 		verified: false,
 	},
-	// ── Ornith (local MLX) ────────────────────────────────────────────────────────────────────────────────
+	// ── Ornith (local MLX / exact GGUF aliases) ───────────────────────────────────────────────────────────
+	{
+		// Exact legion5pro Q4_K_M served alias. Keep this before the healthy generic 9B family row: the role harness's
+		// single-call score did not expose the production multi-tool command serialization + termination failure.
+		family: "ornith-1.0-9b-gguf-q4-k-m",
+		match: /^ornith-1\.0-9b$/,
+		toolUse: "TOOL_WEAK",
+		kind: "code",
+		chaining: "fails",
+		synthesis: "weak",
+		structuredOutput: "native_tool_call",
+		speed: "fast",
+		sizeGb: 5.6,
+		selfScaffolding: true,
+		note: "Exact legion5pro `ornith-1.0-9b` Q4_K_M GGUF alias. Production-shaped F3.24b run 2026-07-22 read and wrote the requested formatter correctly, but repeatedly JSON-encoded the `run_commands.commands` array, then placed executable plus arguments in the structured `command` field. The sandbox correctly returned ENOENT; Ornith falsely marked acceptance done and entered a 5+ minute generation runaway after its final focus update. It remained resident at 32k throughout (not a crash/unload). This contradicts the earlier single-call worker score at the multi-tool completion grain: keep the generic 9B/other quant evidence intact, but do not route this exact served alias as an unattended worker until command-shape prompting/recovery is re-evaluated.",
+		sources: [
+			"production fleet run 2026-07-22 (.real-runs/20260722-042559; correct file writes, malformed structured commands, false acceptance claim, generation runaway; manually bounded at 937s)",
+		],
+		basis: "empirical",
+		verified: true,
+	},
 	{
 		// Ornith-1.0 = DeepReinforce's SELF-SCAFFOLDING agentic CODING family (2026-06, MIT): RL-learns to jointly produce the
 		// solution AND its OWN scaffold (plan/tool-calls/error-recovery). The 35B MoE (~3B active) BEATS Qwen-3.5-397B on
@@ -440,12 +478,13 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		kind: "instruct",
 		chaining: "native",
 		synthesis: "full",
-		speed: "medium",
+		speed: "slow",
 		sizeGb: 7,
-		note: "qwable-9b-claude-fable-5-mlx (David's local qwen×claude-fable-5 merge, ~7 GB MLX). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness native_tool_call, mean 0.931/12): DECOMPOSE PERFECT 1.000 across all 3 tiers (n=3, no timeouts) + worker/tool-use + context probes 1.000; reviewer 0.722 (easy 1.0, medium 0.5, hard 0.667 — the same small-model reviewer ceiling, misses subtle null/race defects). STANDOUT RELIABILITY: it scored EVERY one of the 12 cells — unlike the bigger reasoning models (qwq-32b, qwen3.6-35b-a3b) which NO-ANSWER'd cells by over-thinking. So David's fable merge is a solid, RELIABLE decompose+worker all-rounder (ties qwen3-8b's 0.931) at 9B, weak only as a reviewer. Also chat-agent-tools single-tool PASS (call+synth). Moderate latency (~57-180s/cell — slower than qwen3-8b but always answers). basis: empirical.",
+		note: "qwable-9b-claude-fable-5-mlx (David's local qwen×claude-fable-5 merge, ~7 GB MLX). §11 sweep 2026-07-11 (m5max HIGH power, eval-harness native_tool_call, mean 0.931/12): DECOMPOSE PERFECT 1.000 across all 3 tiers (n=3, no timeouts) + worker/tool-use + context probes 1.000; reviewer 0.722 (easy 1.0, medium 0.5, hard 0.667 — the same small-model reviewer ceiling, misses subtle null/race defects). It scored all 12 isolated cells, but the production-shaped F3.24b run 20260722-083629 overturned the worker-default conclusion: one JSON leaf remained in a multi-turn repair loop after 35 minutes while Qwen3.6 delivered four leaves. The model stayed resident and actively generated, so this is a throughput/repair-quality limit rather than disappearance. Keep it for evaluation and non-critical experiments, not the production fleet critical path. basis: empirical.",
 		sources: [
 			"eval-harness 2026-07-11 (m5max HIGH power, qwable-9b-claude-fable-5-mlx: mean 0.931/12 — decompose 1.0 all tiers, worker 1.0, reviewer 0.722, ZERO no-answers); historical evidence archived in done.md (2026-07-13 consolidation)",
 			"chat-agent-tools 2026-07-11 (single-read PASS, call+synth)",
+			"F3.24b production-shaped fleet run 2026-07-22 (.real-runs/20260722-083629: one JSON leaf still repairing after 35m17s; resident throughout)",
 		],
 		basis: "empirical",
 		verified: true,
@@ -523,9 +562,9 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		chaining: "via_force",
 		synthesis: "weak",
 		structuredOutput: "native_tool_call",
-		speed: "medium",
+		speed: "slow",
 		sizeGb: 6,
-		note: "qwen3.5-9b (arch qwen3_5; ignores /no_think, still reasons — §4A). Completes the full 4-step agentic tool-chain + persists a card, but VIA !Klein's §5.AB force-advance rung; WITHOUT it it fixates and re-calls the first tool (not a clean native multi-tool chainer). Live 2026-07-01 e2e = PASS/PARTIAL (chain executed + card PERSISTED; only miss = final reply lacks the marker string = weak SYNTHESIS, not a capability gap). Per §4A json_schema structured output DEAD-ENDS on it — native tool_choice:required is the working lever. Medium speed (~6 GB resident 9B). UPDATE 2026-07-01: on the desktop (fresh-loaded, 24 GB, device-targeted) a clean e2e = FULL PASS (172s) WITH the marker echoed — so its synthesis is STOCHASTIC (full IS achievable), not fixed-weak; the §5.AB force-advance still carries the chain.",
+		note: "qwen3.5-9b (arch qwen3_5; ignores /no_think, still reasons — §4A). Completes the full 4-step agentic tool-chain + persists a card, but VIA !Klein's §5.AB force-advance rung; WITHOUT it it fixates and re-calls the first tool (not a clean native multi-tool chainer). Live 2026-07-01 e2e = PASS/PARTIAL (chain executed + card PERSISTED; only miss = final reply lacks the marker string = weak SYNTHESIS, not a capability gap). Per §4A json_schema structured output DEAD-ENDS on it — native tool_choice:required is the working lever. Slow in production-shaped worker sessions despite its small footprint (~6 GB resident 9B). UPDATE 2026-07-01: on the desktop (fresh-loaded, 24 GB, device-targeted) a clean e2e = FULL PASS (172s) WITH the marker echoed — so its synthesis is STOCHASTIC (full IS achievable), not fixed-weak; the §5.AB force-advance still carries the chain. F3.24b production-shaped evidence 2026-07-22: exact served alias `qwen3.5-9b-mlx` made no edits across three attempts on a tightly scoped formatter leaf (read/list only, including a reviewer-feedback turn) while staying resident at 40k; a later run eventually wrote the leaf but consumed roughly 44 minutes through repeated inspect/edit/test turns and still needed review repair. Keep it eligible for bounded/evaluated roles, not a default worker; an admitted empty patch must immediately reroute to a diverse worker rather than trusting another same-model bounce.",
 		sources: [
 			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts; commits dec62245+89becd66); todo §5.AA/§5.AB force-advance + §4A structured-output-strategy/thinking-control notes",
 		],

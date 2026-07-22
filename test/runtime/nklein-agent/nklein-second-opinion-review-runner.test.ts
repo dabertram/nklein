@@ -24,6 +24,7 @@ vi.mock("../../../src/nklein-agent/nklein-agent-sandbox-extra-tools", () => ({
 }));
 vi.mock("../../../src/nklein-agent/nklein-session-state", () => ({ createSessionId: (id: string) => id }));
 
+import type { RuntimeTaskSessionStartResult } from "../../../src/nklein-agent/nklein-runtime-session-input";
 import {
 	createSecondOpinionReviewRunner,
 	type SecondOpinionReviewRunnerDeps,
@@ -61,6 +62,7 @@ function deps(over: Partial<SecondOpinionReviewRunnerDeps> = {}): SecondOpinionR
 			return { result: {} };
 		}),
 		sendTaskSessionInput: vi.fn(async () => {}),
+		stopRuntimeSession: vi.fn(async () => {}),
 		defaultTimeoutMs: 600_000,
 		maxNudges: 2,
 		...over,
@@ -111,6 +113,7 @@ describe("createSecondOpinionReviewRunner", () => {
 			reviewer: { providerId: "lmstudio", modelId: "critic-m" },
 		});
 		expect(result).toEqual(APPROVE);
+		expect(d.stopRuntimeSession).toHaveBeenCalledWith("t1::review");
 		expect(d.startRuntimeSession).toHaveBeenCalledOnce();
 		expect(d.startRuntimeSession).toHaveBeenCalledWith(
 			expect.objectContaining({ taskId: "t1::review", admissionParentTaskId: "t1" }),
@@ -128,6 +131,26 @@ describe("createSecondOpinionReviewRunner", () => {
 				}),
 			}),
 		);
+	});
+
+	it("ends a reviewer turn at the first valid verdict even when the model would keep running", async () => {
+		let settleTurn: (() => void) | null = null;
+		const first = { verdict: "request_changes", feedback: "Fix the import." } as never;
+		const d = deps({
+			startRuntimeSession: vi.fn(
+				(input) =>
+					new Promise<RuntimeTaskSessionStartResult>((resolve) => {
+						settleTurn = () => resolve({ result: {} });
+						input.onReviewSubmitted?.(first);
+						input.onReviewSubmitted?.(APPROVE);
+					}),
+			),
+			stopRuntimeSession: vi.fn(async () => settleTurn?.()),
+		});
+
+		await expect(createSecondOpinionReviewRunner(d).runSecondOpinionReviewSession(input)).resolves.toEqual(first);
+		expect(d.stopRuntimeSession).toHaveBeenCalledTimes(1);
+		expect(d.sendTaskSessionInput).not.toHaveBeenCalled();
 	});
 
 	it("floors a REASONING reviewer's per-turn budget so it can't truncate before submit_review (live fix 2026-07-14)", async () => {

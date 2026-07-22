@@ -65,6 +65,7 @@ import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } fro
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
 import { decideIdleEvictions } from "../core/model-load-policy";
 import { findActiveSameTaskModelTurn } from "../core/model-turn-admission";
+import { ModelTurnAdmissionWaitQueue } from "../core/model-turn-admission-wait-queue";
 import { createNestedModelTurnAdmissionGate } from "../core/nested-model-turn-admission";
 import {
 	decideOpportunisticIdleWork,
@@ -104,11 +105,7 @@ import { decideSpeculativeMirror } from "../core/speculative-mirror";
 import { reconcileOrphanedInProgressCards } from "../core/startup-orphan-reconcile";
 import { assessStubbornFailure, escalationAttemptsFromLedgerEvents } from "../core/stubborn-failure-escalation";
 import { readSwarmStopSignal } from "../core/swarm-guardrails";
-import {
-	isDerivedTaskSessionId,
-	isSpeculativeMirrorTaskId,
-	primaryTaskIdOfSpeculativeMirror,
-} from "../core/synthetic-task-id";
+import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { TAINT_LABELS, type TaintLabel } from "../core/taint-labels";
 import {
 	completeTaskAndGetReadyLinkedTaskIds,
@@ -117,7 +114,7 @@ import {
 	moveTaskToColumn,
 	STARTED_CARD_ENTRY_LANE,
 } from "../core/task-board-mutations";
-import { listStartableUnstartedTaskIds } from "../core/task-board-ready-sweep";
+import { listStartableUnstartedTaskIds, listUnmetDependencyTaskIds } from "../core/task-board-ready-sweep";
 import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } from "../core/task-file-overlap";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { planTerminalRedriveEscalation } from "../core/terminal-redrive-escalation";
@@ -135,6 +132,7 @@ import {
 	scaffoldNKleinDevTestProject,
 } from "../nklein-agent/nklein-dev-test-project";
 import {
+	getNKleinEndpointSchedulingResourceIds,
 	type NKleinEndpointSessionSnapshot,
 	scheduleNKleinEndpointStart,
 } from "../nklein-agent/nklein-endpoint-scheduler";
@@ -144,6 +142,7 @@ import { buildLmStudioMachineByModelId } from "../nklein-agent/nklein-lmstudio-h
 import { handleNKleinMcpOauthCallback } from "../nklein-agent/nklein-mcp-runtime-service";
 import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../nklein-agent/nklein-model-registry";
 import { readNKleinPlanArtifacts } from "../nklein-agent/nklein-plan-artifacts";
+import { SpeculativeAttemptRegistry } from "../nklein-agent/nklein-speculative-attempt-registry";
 import {
 	hasDeliverySessionWaitingForModelTurn,
 	stopPrimaryAttemptForRedrive,
@@ -236,6 +235,7 @@ import {
 	createSessionTransitionRecorder,
 } from "./nklein-runtime-terminal-telemetry";
 import { persistCardVerification } from "./persist-card-verification";
+import { isReviewDeliverySuperseded } from "./review-delivery-supersession";
 import { resolveReviewSandboxResult, runWithSettledReviewSandboxArtifact } from "./review-sandbox-result";
 import { getRemoteIp, readRequestBody } from "./runtime-server-http";
 import type { RuntimeStateHub } from "./runtime-state-hub";
@@ -609,9 +609,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	>();
 	const speculativeSpecsStartedByWorkspaceId = new Map<string, number>();
 	const speculativeMirroredTaskIdsByWorkspaceId = new Map<string, Set<string>>();
-	// Specs between "tick fired" and "session visible" (sandbox prep) — invisible to listModelEndpointSessions,
-	// so the ceiling must count them explicitly or a 45s tick can double-book the one idle model.
-	const speculativeSpecsInFlightByWorkspaceId = new Map<string, number>();
+	// Attempt ownership is the lifecycle authority for speculation. A guard can project a live `::spec` summary out
+	// of a busy state while its SDK auto-loop still owns the endpoint, so neither admission-session snapshots nor
+	// card summaries are a sound active-attempt registry. Track every launched promise until its finally settles.
+	const speculativeAttemptRegistry = new SpeculativeAttemptRegistry();
 	const SPECULATIVE_MIRROR_TICK_MS = 45_000;
 	// §5.AW opportunistic idle-work sweep (flag-gated, default OFF): when the swarm is genuinely idle, the ranker picks
 	// the highest-value available opportunistic task. Today only the `review` picker is wired (a review-lane card whose
@@ -668,6 +669,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const activeModelTurnsByWorkspaceId = new Map<string, NKleinEndpointSessionSnapshot[]>();
 	const modelTurnAdmissionTailByWorkspaceId = new Map<string, Promise<void>>();
 	const modelTurnAdmissionGateByWorkspaceId = new Map<string, NKleinModelTurnAdmissionGate>();
+	const modelTurnAdmissionWaitQueue = new ModelTurnAdmissionWaitQueue();
 	let lastNonEmptyModelTurnPsModels: readonly LmsPsModel[] = [];
 	const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 	const emptyModelRegistrySnapshot = () => ({
@@ -813,7 +815,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				retryAfterMs: null,
 			};
 		}
-		const endpointDecision = scheduleNKleinEndpointStart({
+		const schedulingRequest = {
 			taskId: request.taskId,
 			providerId: request.providerId,
 			modelId: request.modelId,
@@ -827,8 +829,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			endpointConcurrencyCap: concurrencyCaps.endpointCap,
 			hostConcurrencyCap: concurrencyCaps.hostCap,
 			machineByModelId,
-		});
+		};
+		const reservationHolder = modelTurnAdmissionWaitQueue.reservedFor(
+			getNKleinEndpointSchedulingResourceIds(schedulingRequest),
+		);
+		if (reservationHolder && reservationHolder !== request.taskId) {
+			const resourceId = modelTurnAdmissionWaitQueue.resourceFor(reservationHolder) ?? "model capacity";
+			modelTurnAdmissionWaitQueue.enqueue(request.taskId, resourceId);
+			return {
+				ok: false,
+				reason: `Model-turn resource "${resourceId}" is reserved for earlier waiter "${reservationHolder}"; waiting fairly behind it.`,
+				retryAfterMs: null,
+			};
+		}
+		const endpointDecision = scheduleNKleinEndpointStart(schedulingRequest);
 		if (!endpointDecision.ok) {
+			modelTurnAdmissionWaitQueue.enqueue(request.taskId, endpointDecision.sharedEndpointId);
 			return {
 				ok: false,
 				reason: endpointDecision.reason,
@@ -839,6 +855,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		if (externalBlock) {
 			return { ok: false, reason: externalBlock, retryAfterMs: null };
 		}
+		modelTurnAdmissionWaitQueue.remove(request.taskId);
 		const reservation: NKleinEndpointSessionSnapshot = {
 			taskId: request.taskId,
 			state: "running",
@@ -955,6 +972,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							summary.state === "awaiting_review"),
 				);
 				if (activeSessionForTask) {
+					deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(taskId);
+					continue;
+				}
+				// Final dependency gate. Candidate lists can be stale by the time they reach this effectful seam (a terminal
+				// release, timer, queue drain, or durable dispatch may race another board mutation). More importantly, the
+				// historical linked-release helper used to over-report a fan-in join after its FIRST prerequisite completed.
+				// Never trust the caller here: re-read the live board above and refuse to start until every prerequisite is done.
+				if (listUnmetDependencyTaskIds(state.board, task.id).length > 0) {
 					deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(taskId);
 					continue;
 				}
@@ -1666,6 +1691,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								taskId: `${taskId}::spec`,
 							}).catch(() => null)
 						: null;
+					// A summary is presentation state and can be projected back to `running` by a late event from the SAME
+					// worker turn. Capture the causal model-turn generation instead; only a newly accepted primary turn can
+					// supersede this review before it delivers.
+					const admittedWorkerTurnGeneration = service.getTaskTurnGeneration?.(taskId) ?? null;
 					// Second-opinion review gate (todo §5.K). Runs for EVERY reviewable result — including an
 					// `empty_patch` (no file changes), since a no-op is usually a red flag (bad planning / mis-processed
 					// task) that deserves judgment, not a silent auto-complete. The result branch (when there is one) is
@@ -1676,6 +1705,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					const reviewOutcome = await runSecondOpinionReviewForTask({
 						workspacePath: scope.workspacePath,
 						taskId,
+						primaryArtifactStatus: gatedDelivery.result.status,
 						primaryResultCommit: admittedPrimaryCommit,
 						speculativeResultCommit: admittedSpeculativeCommit,
 						service,
@@ -1758,12 +1788,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						return;
 					}
 					const summaryAfterReview = service.getSummary(taskId);
+					const workerTurnGenerationAfterReview = service.getTaskTurnGeneration?.(taskId) ?? null;
 					const primaryCommitAfterReview = admittedPrimaryCommit
 						? await resolveTaskResultBranchCommit({ repoPath: scope.workspacePath, taskId }).catch(() => null)
 						: null;
 					if (
-						isBusySessionState(summaryAfterReview?.state) ||
-						(admittedPrimaryCommit && primaryCommitAfterReview !== admittedPrimaryCommit)
+						isReviewDeliverySuperseded({
+							admittedTurnGeneration: admittedWorkerTurnGeneration,
+							currentTurnGeneration: workerTurnGenerationAfterReview,
+							currentSummaryState: summaryAfterReview?.state ?? null,
+							admittedCommit: admittedPrimaryCommit,
+							currentCommit: primaryCommitAfterReview,
+						})
 					) {
 						deps.warn(
 							`Delivery for ${taskId} was superseded by a newer worker round after review started; the stale reviewed artifact will not be accepted or merged.`,
@@ -3432,9 +3468,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								return;
 							}
 							const sessions = trackedService.listModelEndpointSessions();
-							const runningSpecSessions = sessions.filter(
-								(session) => isSpeculativeMirrorTaskId(session.taskId) && isBusySessionState(session.state),
-							);
+							const activeSpeculativePrimaryTaskIds = speculativeAttemptRegistry.list(scope.workspaceId);
 							// PREEMPTION (adversarial finding): "real work outranks speculation" must also hold for
 							// specs ALREADY running — a mirror occupying a per-model slot for its full bound would
 							// starve queued/deferred real cards. Whenever real work is waiting, cancel every live
@@ -3443,19 +3477,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								taskStartQueue.size(scope.workspaceId) > 0 ||
 								(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) > 0 ||
 								hasDeliverySessionWaitingForModelTurn(trackedService.listSummaries());
-							if (realWorkWaiting && runningSpecSessions.length > 0) {
-								for (const spec of runningSpecSessions) {
-									const primaryTaskId = primaryTaskIdOfSpeculativeMirror(spec.taskId);
+							if (realWorkWaiting && activeSpeculativePrimaryTaskIds.length > 0) {
+								for (const primaryTaskId of activeSpeculativePrimaryTaskIds) {
 									deps.warn(
-										`Preempting speculative mirror ${spec.taskId}: real card(s) are waiting for capacity.`,
+										`Preempting speculative mirror ${primaryTaskId}::spec: real card(s) are waiting for capacity.`,
 									);
 									void trackedService.cancelSpeculativeMirror(primaryTaskId).catch(() => undefined);
 								}
 								return;
 							}
-							const runningSpecCount =
-								runningSpecSessions.length +
-								(speculativeSpecsInFlightByWorkspaceId.get(scope.workspaceId) ?? 0);
+							const runningSpecCount = speculativeAttemptRegistry.count(scope.workspaceId);
 							const runningWorkerSessions = sessions.filter(
 								(session) =>
 									session.state === "running" &&
@@ -3577,10 +3608,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									workerModelId: decision.workerModelId,
 								},
 							});
-							speculativeSpecsInFlightByWorkspaceId.set(
-								scope.workspaceId,
-								(speculativeSpecsInFlightByWorkspaceId.get(scope.workspaceId) ?? 0) + 1,
-							);
+							speculativeAttemptRegistry.begin(scope.workspaceId, decision.taskId);
 							void trackedService
 								.runSpeculativeMirrorSession({
 									taskId: decision.taskId,
@@ -3591,10 +3619,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								})
 								.catch(() => undefined)
 								.finally(() => {
-									speculativeSpecsInFlightByWorkspaceId.set(
-										scope.workspaceId,
-										Math.max(0, (speculativeSpecsInFlightByWorkspaceId.get(scope.workspaceId) ?? 1) - 1),
-									);
+									speculativeAttemptRegistry.end(scope.workspaceId, decision.taskId);
 								});
 						} catch {
 							// The mirror tick is strictly opportunistic — it must never crash the runtime.
@@ -3895,7 +3920,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 		idleReviewDispatchedByWorkspaceId.delete(workspaceId);
 		speculativeConfigByWorkspaceId.delete(workspaceId);
-		speculativeSpecsInFlightByWorkspaceId.delete(workspaceId);
+		speculativeAttemptRegistry.clearWorkspace(workspaceId);
 		const deferredTimer = deferredRetryTimerByWorkspaceId.get(workspaceId);
 		if (deferredTimer) {
 			clearTimeout(deferredTimer);

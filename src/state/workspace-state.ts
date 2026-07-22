@@ -386,6 +386,7 @@ function ensureWorkspaceEntry(
 	const entry: WorkspaceIndexEntry = {
 		workspaceId,
 		repoPath,
+		autoResumeEnabled: false,
 		...(gitRepositoryCreatedByKanban ? { gitRepositoryCreatedByKanban: true } : {}),
 		...(normalizedDisplayName ? { displayName: normalizedDisplayName } : {}),
 		...(selfProjectConfirmed ? { selfProjectConfirmed: true } : {}),
@@ -667,7 +668,7 @@ export async function setWorkspaceAutoResumeEnabled(
 		}
 		const updatedEntry: WorkspaceIndexEntry = {
 			...entry,
-			...(enabled ? { autoResumeEnabled: true } : { autoResumeEnabled: undefined }),
+			autoResumeEnabled: enabled,
 		};
 		await writeWorkspaceIndex({
 			...index,

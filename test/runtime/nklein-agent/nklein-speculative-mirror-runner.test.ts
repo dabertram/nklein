@@ -45,7 +45,7 @@ function deps(over: Partial<SpeculativeMirrorRunnerDeps> = {}): SpeculativeMirro
 		setSandbox: vi.fn(),
 		setResultBranch: vi.fn(),
 		startRuntimeSession: vi.fn(async () => ({ result: {} })),
-		cancelTaskTurn: vi.fn(async () => {}),
+		abortRuntimeSession: vi.fn(async () => {}),
 		clearTaskSessions: vi.fn(async () => {}),
 		forgetSyntheticState: vi.fn(),
 		...over,
@@ -90,12 +90,38 @@ describe("createSpeculativeMirrorRunner", () => {
 		);
 	});
 
-	it("cancelSpeculativeMirror flags the spec and aborts its turn; a subsequent run is skipped", async () => {
+	it("cancelSpeculativeMirror hard-aborts the runtime and prevents a subsequent stale run", async () => {
 		const d = deps();
 		const runner = createSpeculativeMirrorRunner(d);
 		await runner.cancelSpeculativeMirror("t1");
-		expect(d.cancelTaskTurn).toHaveBeenCalledWith("t1::spec");
+		expect(d.abortRuntimeSession).toHaveBeenCalledWith("t1::spec");
 		expect(await runner.runSpeculativeMirrorSession(input)).toBe(false); // canceled flag short-circuits
+	});
+
+	it("hard-aborts an in-flight mirror even after its projected summary leaves running", async () => {
+		let settleTurn: (() => void) | undefined;
+		const turn = new Promise<void>((resolve) => {
+			settleTurn = resolve;
+		});
+		const abortRuntimeSession = vi.fn(async () => {
+			settleTurn?.();
+		});
+		const d = deps({
+			getTaskEntry: () => ({ summary: { state: "running" } }) as never,
+			startRuntimeSession: vi.fn(async () => {
+				await turn;
+				return { result: {} } as never;
+			}),
+			abortRuntimeSession,
+		});
+		const runner = createSpeculativeMirrorRunner(d);
+		const run = runner.runSpeculativeMirrorSession(input);
+		await vi.waitFor(() => expect(d.startRuntimeSession).toHaveBeenCalled());
+		// The runtime abort must not consult a now-stale task summary; the runner owns this synthetic binding.
+		await runner.cancelSpeculativeMirror("t1");
+		expect(abortRuntimeSession).toHaveBeenCalledWith("t1::spec");
+		await expect(run).resolves.toBe(false);
+		expect(mocks.applyTaskPatchToResultBranch).not.toHaveBeenCalled();
 	});
 
 	it("captures the candidate branch on a settled turn, and always tears down", async () => {

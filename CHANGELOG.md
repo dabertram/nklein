@@ -2,6 +2,70 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Valid sandbox work is no longer stranded when its model turn ends in error.** Unsettled model errors remain out of
+  review while failover owns recovery, but a later captured or explicitly empty patch becomes reviewable even without
+  another session-state transition; capture failures remain held.
+
+- **Approved artifacts are no longer rejected by late same-turn lifecycle events.** The runtime records a monotonic
+  model-turn generation per task and uses it with the result commit at the review delivery gate, so a transient busy
+  summary cannot manufacture a newer worker round and trigger duplicate review/bounce cycles.
+
+- **Canceled speculative workers now release their model endpoint even after a guard changes their visible state.**
+  Arbitration loss and timeout hard-abort the owned runtime binding instead of passing through the state-gated
+  user-turn cancel path. The scheduler also tracks active speculative promises independently of projected summaries,
+  so queued delivery work can always discover and preempt an orphaned mirror before it monopolizes the reviewer model.
+
+- **Runtime schema updates now have a real, fail-closed migration gate.** Startup migrates the workspace index from
+  v1 to v2, making each project's auto-resume policy explicit. It first takes a full external backup, journals every
+  resumable phase outside the rollback target, re-reads and validates durable output before accepting the update, and
+  replacement-restores the old home on failure so newly introduced files cannot survive a rollback.
+
+- **Wide completion waves no longer exhaust local process spawning.** Concurrent workspace reads now share one
+  in-flight Git-discovery set per repository, and cold-cache model discovery shares one `lms ps` request. Each later
+  read remains fresh; only overlapping identical work is coalesced. This fixes transient false “not a repository”
+  warnings and `spawn EBADF` patch-capture failures observed with hundreds of simultaneous Git children.
+
+- **Fleet routing no longer confuses a spare host slot with a usable model slot.** When a host's only qualified worker
+  is already busy, pool selection fans out to a task-qualified free model on another machine; waiting for the busy best
+  model remains the fallback only when no qualified free model exists.
+
+- **Failover routes now survive later review and acceptance re-drives.** An in-place model override updates both the
+  live runtime and the task's authoritative restart configuration, so a healthy cross-host carry cannot silently
+  revert to the model that just disappeared.
+
+- **Guarded sandbox tasks now finalize their real edits.** Patch capture follows the authoritative post-guard session
+  summary, so a repeated two-tool-cycle park cannot leave a changed task indefinitely unsettled in Review.
+
+- **A structured review verdict now ends the reviewer turn.** The first valid `submit_review` call is authoritative and
+  stops its synthetic session, preventing models that ignore “stop now” from monopolizing the host or overwriting the
+  decision with later contradictory submissions.
+
+- **Sandbox acceptance installs no longer leak dependency trees into task patches.** Capture preserves all tracked
+  project edits, then excludes only untracked `node_modules` trees alongside runtime code-index state; lockfiles and
+  other project changes still pass through normal scope review.
+
+- **Runtime-owned sandbox caches no longer masquerade as worker edits.** Result-patch staging excludes
+  `.nklein/nklein/**`, matching the existing host merge boundary, so structural read tools can refresh their code index
+  without creating an out-of-scope delivery or bouncing otherwise-correct work.
+
+- **Sandbox result capture survives a transient Docker transport loss without hiding real Git failures.** Capture uses
+  a large-repository timeout, preserves child-process diagnostics when Docker returns no streams, verifies that the
+  exact workspace still exists, and retries one idempotent stage only for a null transport exit. Numeric Git failures
+  still fail closed on the first attempt.
+
+- **Fan-in joins now route by the work they inherit, not just their short prompt.** Task-start difficulty includes the
+  distinct transitive prerequisite cone with a bounded bonus, so multi-artifact integration cards prefer a sufficiently
+  capable loaded worker while leaf cards and boards without readable dependency state retain their prior routing.
+
+- **Rejected no-op deliveries now change workers instead of looping on the incapable model.** When the trusted sandbox
+  capture reports an empty patch and review confirms implementation is still required, the bounce consumes the existing
+  diverse-worker escalation rung, carries the feedback to that model, persists the escalation, and records the recovery
+  strategy. Ordinary review corrections and ambiguous missing-diff failures retain their prior behavior.
+
+- **Failed sandbox commands now keep their actionable diagnostics.** The in-container runner preserves the shell
+  executor's bounded command output (plus compatible stderr/stdout) instead of reducing every non-zero exit to only
+  “Command exited with code 1,” so local workers can see the failing test or compiler message and repair the cause.
+
 - **Cards can opt into fleet-proven bounded ActionPlan execution.** A 9B local worker produced valid plans in all
   eight held-out JSON-schema cases at 40k context. The production path exposes only manifest-backed worker tools,
   validates and executes dependency order through existing policy/approval/swarm wrappers, checkpoints completed

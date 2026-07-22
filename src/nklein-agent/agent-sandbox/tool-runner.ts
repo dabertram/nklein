@@ -7,6 +7,7 @@ import { createNKleinRetrievalTools } from "../nklein-retrieval-tools";
 import { createWriteFilesTool, createWriteFileTool } from "../nklein-write-files-tool";
 import type { AgentToolContext } from "../sdk-agent-types";
 import { normalizeHostPathInputs, normalizeSandboxBashInput } from "./path-normalization";
+import { formatToolRunnerThrown } from "./tool-runner-error";
 
 type SandboxBashInput = Parameters<NonNullable<ToolExecutors["bash"]>>[0];
 type SandboxReadFileInput = Parameters<NonNullable<ToolExecutors["readFile"]>>[0];
@@ -165,7 +166,7 @@ async function main(): Promise<void> {
 main().catch((error: unknown) => {
 	const failure: ToolRunnerFailure = {
 		ok: false,
-		error: error instanceof Error ? error.message : String(error),
+		error: formatToolRunnerThrown(error),
 	};
 	process.stdout.write(JSON.stringify(failure));
 	process.stdout.write("\n");

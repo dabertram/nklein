@@ -17,7 +17,7 @@ const DEFAULT_ACCEPTANCE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:
 const REPO_VERIFY_ACTIVE_ENV = "NKLEIN_REPO_VERIFY_ACTIVE";
 // Keep in sync with the pure mirror in src/core/plan-integration-gate.ts (PLAN_ACCEPTANCE_CHECK_PATTERN) —
 // the core layer cannot value-import this impure module (node:child_process + telemetry sink).
-const ACCEPTANCE_CHECK_PATTERN = /^Acceptance check:\s*(.+?)\s*$/im;
+const ACCEPTANCE_CHECK_PATTERN = /^Acceptance (?:check|command):\s*(.+?)\s*$/im;
 
 export interface NKleinAcceptanceGateExecution {
 	command: string;

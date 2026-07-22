@@ -168,6 +168,46 @@ function readInjectedRepoMapIndex(result: AgentBeforeModelResult | undefined): n
 }
 
 describe("InMemoryNKleinSessionRuntime", () => {
+	it("increments a causal generation once per accepted primary model turn", async () => {
+		const fakeHost = {
+			start: vi.fn(async (input: NKleinSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const runtime = createInMemoryNKleinSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		expect(runtime.getTaskTurnGeneration("task-1")).toBe(0);
+		await runtime.startTaskSession({
+			taskId: "task-1",
+			cwd: "/workspaces/task-1",
+			prompt: "Implement it",
+			providerId: "lmstudio",
+			modelId: "worker",
+			systemPrompt: "system",
+		});
+		expect(runtime.getTaskTurnGeneration("task-1")).toBe(1);
+
+		await runtime.sendTaskSessionInput("task-1", "Repair it");
+		expect(runtime.getTaskTurnGeneration("task-1")).toBe(2);
+		expect(runtime.getTaskTurnGeneration("task-1::review")).toBe(0);
+
+		await runtime.dispose();
+		expect(runtime.getTaskTurnGeneration("task-1")).toBe(0);
+	});
+
 	it("offers only the manifest-backed ActionPlan executor when a card explicitly opts in", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: NKleinSdkStartSessionInput) => ({

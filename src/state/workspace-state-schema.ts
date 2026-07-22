@@ -17,7 +17,7 @@ export {
 	getWorkspacesRootPath,
 };
 
-export const INDEX_VERSION = 1;
+export const INDEX_VERSION = 2;
 export const WORKSPACE_ID_COLLISION_SUFFIX_LENGTH = 4;
 
 export interface WorkspaceIndexEntry {
@@ -26,7 +26,7 @@ export interface WorkspaceIndexEntry {
 	gitRepositoryCreatedByKanban?: boolean;
 	displayName?: string;
 	selfProjectConfirmed?: boolean;
-	autoResumeEnabled?: boolean;
+	autoResumeEnabled: boolean;
 }
 
 export interface RuntimeWorkspaceIndexEntry {
@@ -74,7 +74,7 @@ export const workspaceIndexEntrySchema = z.object({
 	gitRepositoryCreatedByKanban: z.boolean().optional(),
 	displayName: z.string().optional(),
 	selfProjectConfirmed: z.boolean().optional(),
-	autoResumeEnabled: z.boolean().optional(),
+	autoResumeEnabled: z.boolean(),
 });
 
 export const workspaceIndexFileSchema = z

@@ -67,6 +67,27 @@ describe("nklein acceptance repair", () => {
 		expect(extractAcceptanceFailureConstraint(output)).toContain("error TS2322");
 	});
 
+	it("extracts a TAP failure block before the aggregate tail", () => {
+		const output = [
+			"TAP version 13",
+			"# Subtest: escapes special characters",
+			"not ok 4 - escapes special characters",
+			"  ---",
+			"  error: expected escaped quotes",
+			"  expected: escaped",
+			"  actual: raw",
+			"  ...",
+			"ok 5 - another test",
+			"# fail 1",
+		].join("\n");
+
+		const constraint = extractAcceptanceFailureConstraint(output);
+		expect(constraint).toContain("# Subtest: escapes special characters");
+		expect(constraint).toContain("not ok 4 - escapes special characters");
+		expect(constraint).toContain("expected escaped quotes");
+		expect(constraint).not.toContain("# fail 1");
+	});
+
 	it("escalates once to the reviewer role after repair attempts are exhausted", () => {
 		const plan = buildNKleinAcceptanceRepairPlan({
 			taskId: "task-1",

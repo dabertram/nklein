@@ -147,6 +147,22 @@ describe("planning task dependencies", () => {
 
 		expect(trashed.readyTaskIds).toEqual(["aaaaa"]);
 	});
+
+	it("does not release a fan-in join until its final prerequisite finishes", () => {
+		const join = addTaskToColumn(createBoard(), "planning", { prompt: "Join", baseRef: "main" }, () => "joinn111");
+		const leafA = addTaskToColumn(join.board, "planning", { prompt: "Leaf A", baseRef: "main" }, () => "leafa111");
+		const leafB = addTaskToColumn(leafA.board, "planning", { prompt: "Leaf B", baseRef: "main" }, () => "leafb111");
+		const linkedA = addTaskDependency(leafB.board, join.task.id, leafA.task.id);
+		const linkedB = addTaskDependency(linkedA.board, join.task.id, leafB.task.id);
+
+		const leafAInReview = moveTaskToColumn(linkedB.board, leafA.task.id, "review");
+		const firstFinished = trashTaskAndGetReadyLinkedTaskIds(leafAInReview.board, leafA.task.id);
+		expect(firstFinished.readyTaskIds).toEqual([]);
+
+		const leafBInReview = moveTaskToColumn(firstFinished.board, leafB.task.id, "review");
+		const finalFinished = trashTaskAndGetReadyLinkedTaskIds(leafBInReview.board, leafB.task.id);
+		expect(finalFinished.readyTaskIds).toEqual([join.task.id]);
+	});
 });
 
 describe("task images", () => {

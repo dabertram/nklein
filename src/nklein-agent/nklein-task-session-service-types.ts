@@ -158,6 +158,11 @@ export interface NKleinTaskSessionService {
 	clearTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	rebindPersistedTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	getSummary(taskId: string): RuntimeTaskSessionSummary | null;
+	/**
+	 * Process-local primary-turn generation. Optional for test/external implementations; the in-memory service always
+	 * provides it so delivery can distinguish a real newer turn from a late same-turn summary projection.
+	 */
+	getTaskTurnGeneration?(taskId: string): number;
 	/** Interactive-shell target for a task's prepared sandbox container, or null (todo §5.A shell-on-task). */
 	getTaskShellTarget(taskId: string): AgentSandboxShellTarget | null;
 	listSummaries(): RuntimeTaskSessionSummary[];

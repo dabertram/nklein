@@ -106,6 +106,12 @@ export interface LoadExclusiveInput {
 	 * lever for a small-VRAM linked box (e.g. the laptop's 8 GB dGPU) where a bigger model must spill to system RAM.
 	 */
 	gpu?: LmsLoadOptions["gpu"];
+	/**
+	 * Optional load transport used after the CLI guard has selected the preferred LM Link device and completed scoped
+	 * evictions/headroom checks. LM Link Preview currently ignores preferred-device selection in `lms load` for some
+	 * duplicate keys, while POST `/api/v1/models/load` honors it. Omitted keeps the ordinary CLI load byte-identical.
+	 */
+	loadModel?: (input: { modelId: string; contextLength: number }) => Promise<{ stdout: string; exitCode: number }>;
 }
 
 export interface LoadExclusiveResult {
@@ -144,7 +150,12 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 
 	const pinned = new Set(input.pinnedIdentifiers ?? []);
 	const resident = await listResidentModels(run);
-	const targetAlreadyResident = resident.some((model) => model.identifier === input.modelId);
+	// Model identifiers are not globally unique across LM Link: the same catalog key can be installed/resident on
+	// several hosts. A local copy must never satisfy a remote admission request (live 20260722-044414 did exactly
+	// that, skipped the preferred-device switch, and falsely reported a Legion load while creating a 4-model M5 set).
+	const isTargetResident = (model: ResidentModel) =>
+		model.identifier === input.modelId && (input.targetDevice === undefined || model.device === input.targetDevice);
+	const targetAlreadyResident = resident.some(isTargetResident);
 	let preferredChanged = false;
 	let previousPreferredDeviceIdentifier: string | null = null;
 
@@ -169,7 +180,7 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 	try {
 		const unloaded: string[] = [];
 		for (const model of resident) {
-			if (model.identifier === input.modelId || pinned.has(model.identifier) || isEmbeddingModel(model.identifier)) {
+			if (isTargetResident(model) || pinned.has(model.identifier) || isEmbeddingModel(model.identifier)) {
 				continue;
 			}
 			// Per-machine scoping: with a known target device, only clear residents on the SAME device — never evict a model
@@ -228,7 +239,9 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 			maxContextLength: input.maxContextLength,
 			gpu: input.gpu ?? "max",
 		});
-		const { stdout, exitCode } = await run(argv);
+		const { stdout, exitCode } = input.loadModel
+			? await input.loadModel({ modelId: input.modelId, contextLength: loadContextLength })
+			: await run(argv);
 		// On a successful load, fold any warn/unknown caveat into the reason so the caller sees it without re-querying.
 		const slotCaveat =
 			slotPlan !== null && slotPlan.perSlotUnderFloor

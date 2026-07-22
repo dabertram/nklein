@@ -103,6 +103,18 @@ describe("findJustCompletedPlans", () => {
 });
 
 describe("resolvePlanAcceptanceCommand", () => {
+	it("accepts the planning vocabulary Acceptance command: at the delivery seam", () => {
+		const board = makeBoard([
+			{
+				id: "a",
+				column: "completed",
+				plan: { planSlug: "auth" },
+				prompt: "Build login.\n\nAcceptance command: npm test",
+			},
+		]);
+		expect(resolvePlanAcceptanceCommand({ board, planSlug: "auth" })).toBe("npm test");
+	});
+
 	it("picks the most common Acceptance check: command across the plan's member cards", () => {
 		const board = makeBoard([
 			{

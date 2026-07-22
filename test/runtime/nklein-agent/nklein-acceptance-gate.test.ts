@@ -40,6 +40,7 @@ describe("nklein acceptance gate", () => {
 				].join("\n"),
 			),
 		).toBe("npm run test -- --runInBand");
+		expect(extractNKleinAcceptanceCommand("Acceptance command: npm test")).toBe("npm test");
 		expect(extractNKleinAcceptanceCommand("No check here")).toBeNull();
 	});
 

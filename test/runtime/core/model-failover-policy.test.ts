@@ -12,6 +12,11 @@ describe("isModelSideError", () => {
 		expect(isModelSideError("Jinja Exception: conversation roles must alternate")).toBe(true);
 		expect(isModelSideError("Selected LM Studio model x is not currently loaded")).toBe(true);
 		expect(isModelSideError("fetch failed: ECONNREFUSED 127.0.0.1:1234")).toBe(true);
+		expect(
+			isModelSideError(
+				"All local alternate endpoints failed: anthropic_messages:Endpoint http://127.0.0.1:1234/v1/messages returned HTTP 404.",
+			),
+		).toBe(true);
 	});
 
 	it("classifies !Klein's curated mid-run model-loss wrap as model-side (live-found: the raw patterns missed it)", () => {

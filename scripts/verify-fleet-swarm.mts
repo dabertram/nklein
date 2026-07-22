@@ -21,6 +21,8 @@
  *        NKLEIN_FLEET_MAX_CONCURRENT (default 3), NKLEIN_VERIFY_BASE_URL (default http://127.0.0.1:1234/v1),
  *        NKLEIN_FLEET_PER_MACHINE_MAX_CONCURRENCY (default 1; raise only with measured capacity evidence),
  *        NKLEIN_FLEET_PER_HOST_MAX_CONCURRENCY (optional "m5max=2,m4mini=1,legion5pro=1"; names from `lms link status`),
+ *        NKLEIN_FLEET_FAULT_MODEL (optional resident pool model to unload while it is actively serving a worker card;
+ *          makes endpoint-loss injection + same-card reroute + merged completion mandatory),
  *        NKLEIN_VERIFY_RPC_TIMEOUT_MS (default 120s; slow local hosts can block state polls while still generating),
  *        NKLEIN_VERIFY_MODEL_IDLE_STALL_MS (default 90s), NKLEIN_VERIFY_MODEL_ACTIVE_STALL_MS (default 10min).
  */
@@ -29,8 +31,11 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { RuntimeBoardCard } from "../src/core/board-api-contract";
 import { evaluateFleetHostObservation } from "../src/core/fleet-host-observation";
 import { formatFleetHostCapConfig, resolveFleetHostCapConfig } from "../src/core/fleet-host-cap-config";
+import { assessFleetEndpointLossProof, assessFleetProofBoardCompletion } from "../src/core/fleet-endpoint-loss-proof";
+import { createFleetWideFanoutBoard } from "../src/core/fleet-wide-fanout-board";
 import { fetchLmsLinkDevices, type LmsLinkDevices } from "../src/core/lms-link-status";
 import {
 	createDefaultLmsRunner,
@@ -81,6 +86,7 @@ const MAX_CONCURRENT = Number(process.env.NKLEIN_FLEET_MAX_CONCURRENT ?? "3");
 const PER_MACHINE_MAX_CONCURRENCY = positiveIntegerEnv(process.env.NKLEIN_FLEET_PER_MACHINE_MAX_CONCURRENCY, 1);
 const PER_HOST_MAX_CONCURRENCY = process.env.NKLEIN_FLEET_PER_HOST_MAX_CONCURRENCY;
 const MIN_OBSERVED_HOSTS = positiveIntegerEnv(process.env.NKLEIN_FLEET_MIN_OBSERVED_HOSTS, 2);
+const FAULT_MODEL = process.env.NKLEIN_FLEET_FAULT_MODEL?.trim() || null;
 const RPC_REQUEST_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_RPC_TIMEOUT_MS ?? "120000");
 const LMS_COMMAND_TIMEOUT_MS = positiveIntegerEnv(process.env.NKLEIN_VERIFY_LMS_TIMEOUT_MS, 15_000);
 
@@ -116,6 +122,15 @@ function busyLmsSummary(models: readonly LmsPsModel[]): string | null {
 	return busy.length > 0 ? busy.join(", ") : null;
 }
 
+function modelMatches(modelId: string | null | undefined, expected: string): boolean {
+	return Boolean(modelId && hasModelUsage(new Set([modelId]), expected));
+}
+
+function isLmsModelActive(model: LmsPsModel): boolean {
+	const status = model.status?.trim().toLowerCase() ?? "";
+	return model.queued > 0 || (status.length > 0 && status !== "idle");
+}
+
 function shortenLogValue(value: string, maxLength = 240): string {
 	const normalized = value.replace(/\s+/g, " ").trim();
 	return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
@@ -138,6 +153,7 @@ interface BoardColumn {
 }
 interface BoardState {
 	board?: { columns?: BoardColumn[] };
+	revision?: number;
 	/** Every session summary incl. SYNTHETIC ::review/::merge/::spec ones (invisible on the WS card stream). */
 	sessions?: Record<
 		string,
@@ -444,6 +460,11 @@ async function main(): Promise<void> {
 	const seenRuntimeModels = new Set<string>();
 	let lastProgressAt = Date.now();
 	let workspacePath: string | null = null;
+	const modelHistoryByTaskId = new Map<string, Set<string>>();
+	let faultInjected = false;
+	let faultModelAbsenceObserved = false;
+	let faultRerouteObserved = false;
+	let faultTargetTaskId: string | null = null;
 	// WATCH MODE (user directive 2026-07-02): the live-board link is READ-ONLY for browsers. The harness holds a
 	// per-run mutation token — its own orchestration calls attach it (requestJson reads this env), while UI
 	// mutations without it are rejected 403, so an observer can't disturb the sweep (e.g. change a model role).
@@ -570,28 +591,37 @@ async function main(): Promise<void> {
 		const boardUrl = `${server.baseUrl}/${encodeURIComponent(workspaceId)}`;
 		log(`\n  ┌─ LIVE BOARD (read-only watch mode) ───────────────────────\n  │  ${boardUrl}\n  └─ (open in a browser any time; mutations are disabled; dies when this harness exits)\n`);
 
-		const startRes = await requestJson<{ ok?: boolean; error?: string; errorCode?: string; selectionReason?: string }>({
-			baseUrl: server.baseUrl,
-			procedure: "runtime.startTaskSession",
-			type: "mutation",
-			workspaceId,
-			payload: {
-				taskId: task.id,
-				prompt: task.prompt,
-				taskTitle: task.title,
-				filesLikelyTouched: task.filesLikelyTouched,
-				startInPlanMode: task.startInPlanMode,
-				baseRef: task.baseRef ?? "HEAD",
-				agentId: task.agentId,
-				nkleinSettings: task.nkleinSettings,
-			},
-			timeoutMs: RPC_REQUEST_TIMEOUT_MS,
-		});
-		log(
-			`startTaskSession(seed): HTTP ${startRes.status} ok=${startRes.payload?.ok ?? "?"}` +
-				`${startRes.payload?.error ? ` ERROR[${startRes.payload.errorCode ?? "?"}]=${startRes.payload.error}` : ""}` +
-				`${startRes.payload?.selectionReason ? ` | ${startRes.payload.selectionReason}` : ""}`,
-		);
+		let launchCards: RuntimeBoardCard[] = [task as RuntimeBoardCard];
+		let expectedProofTaskIds: string[] | null = null;
+		if (FAULT_MODEL) {
+			// The fault-tolerance proof owns a KNOWN graph. Asking a model to invent the graph would conflate endpoint
+			// recovery with decomposition quality (run 20260722-025234 hit exactly that false dependency).
+			const stateBefore = await requestJson<BoardState>({
+				baseUrl: server.baseUrl,
+				procedure: "workspace.getState",
+				type: "query",
+				workspaceId,
+				timeoutMs: RPC_REQUEST_TIMEOUT_MS,
+			});
+			const proofBoard = createFleetWideFanoutBoard({ baseRef: task.baseRef ?? "main", now: Date.now() });
+			expectedProofTaskIds = proofBoard.columns.flatMap((column) => column.cards.map((card) => card.id));
+			const saveResult = await requestJson({
+				baseUrl: server.baseUrl,
+				procedure: "workspace.saveState",
+				type: "mutation",
+				workspaceId,
+				payload: { board: proofBoard, expectedRevision: stateBefore.payload.revision },
+				timeoutMs: RPC_REQUEST_TIMEOUT_MS,
+			});
+			launchCards = proofBoard.columns
+				.flatMap((column) => column.cards)
+				.filter((card) => !proofBoard.dependencies.some((dependency) => dependency.fromTaskId === card.id))
+				.slice(0, MAX_CONCURRENT);
+			log(
+				`Installed deterministic 6-wide/2-join proof DAG: HTTP ${saveResult.status}; ` +
+					`launching ${launchCards.map((card) => card.id).join(", ")}.`,
+			);
+		}
 
 		stream = await connectRuntimeStream(
 			`ws://${new URL(server.baseUrl).host}/api/runtime/ws?workspaceId=${encodeURIComponent(workspaceId)}`,
@@ -616,6 +646,9 @@ async function main(): Promise<void> {
 					const newActivity = `${session.modelId ? `[${session.modelId}] ` : ""}${act?.toolName ?? act?.activityText ?? "—"}`;
 					if (session.modelId) {
 						seenRuntimeModels.add(session.modelId);
+						const history = modelHistoryByTaskId.get(id) ?? new Set<string>();
+						history.add(session.modelId);
+						modelHistoryByTaskId.set(id, history);
 					}
 					const newState = session.state ?? "?";
 					const prev = latestActivityByTask.get(id);
@@ -629,6 +662,37 @@ async function main(): Promise<void> {
 				/* ignore malformed */
 			}
 		});
+
+		for (const launchCard of launchCards) {
+			const startRes = await requestJson<{
+				ok?: boolean;
+				error?: string;
+				errorCode?: string;
+				selectionReason?: string;
+			}>({
+				baseUrl: server.baseUrl,
+				procedure: "runtime.startTaskSession",
+				type: "mutation",
+				workspaceId,
+				payload: {
+					taskId: launchCard.id,
+					prompt: launchCard.prompt,
+					taskTitle: launchCard.title,
+					filesLikelyTouched: launchCard.filesLikelyTouched,
+					writeScope: launchCard.writeScope,
+					startInPlanMode: launchCard.startInPlanMode,
+					baseRef: launchCard.baseRef,
+					agentId: launchCard.agentId,
+					nkleinSettings: launchCard.nkleinSettings,
+				},
+				timeoutMs: RPC_REQUEST_TIMEOUT_MS,
+			});
+			log(
+				`startTaskSession(${launchCard.id}): HTTP ${startRes.status} ok=${startRes.payload?.ok ?? "?"}` +
+					`${startRes.payload?.error ? ` ERROR[${startRes.payload.errorCode ?? "?"}]=${startRes.payload.error}` : ""}` +
+					`${startRes.payload?.selectionReason ? ` | ${startRes.payload.selectionReason}` : ""}`,
+			);
+		}
 
 		const deadline = Date.now() + TIMEOUT_MS;
 		const stallMs = Math.round(Number(process.env.NKLEIN_VERIFY_STALL_MS ?? "420000") * power.multiplier);
@@ -653,6 +717,7 @@ async function main(): Promise<void> {
 		let lastSummary = "";
 		let decomposed = false;
 		let allTerminal = false;
+		let allResultsMerged = false;
 		let consecutivePollErrors = 0;
 		const MAX_CONSECUTIVE_POLL_ERRORS = 6;
 		// #36 (run36 false dead-stall): synthetic sessions (::review/::merge/::spec) never appear on the WS card
@@ -687,9 +752,20 @@ async function main(): Promise<void> {
 					lastSummary = summary;
 					lastProgressAt = Date.now();
 				}
-				if (total > 1) decomposed = true;
-				if (decomposed && active === 0 && terminal > 0) {
+				if (expectedProofTaskIds ? total === expectedProofTaskIds.length : total > 1) decomposed = true;
+				const merged = columns
+					.filter((column) => column.id === "completed" || column.id === "done")
+					.reduce((count, column) => count + (column.cards?.length ?? 0), 0);
+				if (expectedProofTaskIds) {
+					const completion = assessFleetProofBoardCompletion({ expectedTaskIds: expectedProofTaskIds, columns });
+					if (completion.ok) {
+						allTerminal = true;
+						allResultsMerged = true;
+						break;
+					}
+				} else if (decomposed && total > 1 && active === 0 && terminal === total && merged === total) {
 					allTerminal = true;
+					allResultsMerged = true;
 					break;
 				}
 				const polledSessions = Object.entries(stateRes.payload.sessions ?? {});
@@ -697,6 +773,12 @@ async function main(): Promise<void> {
 					if (session.modelId) {
 						seenRuntimeModels.add(session.modelId);
 					}
+				}
+				for (const [id, session] of polledSessions) {
+					if (!session.modelId) continue;
+					const history = modelHistoryByTaskId.get(id) ?? new Set<string>();
+					history.add(session.modelId);
+					modelHistoryByTaskId.set(id, history);
 				}
 				const anyPolledSessionAlive = polledSessions.some(([, s]) => isWorkspaceSessionAliveForVerifier(s));
 				const sessionProgress = evaluateWorkspaceSessionProgress({
@@ -719,6 +801,39 @@ async function main(): Promise<void> {
 				const runningSessions = polledSessions
 					.filter(([, s]) => s.state === "running")
 					.map(([id, s]) => ({ id, modelId: s.modelId ?? null }));
+				if (FAULT_MODEL && !faultInjected) {
+					const faultCandidate = runningSessions.find(
+						(session) => session.id !== task.id && !session.id.includes("::") && modelMatches(session.modelId, FAULT_MODEL),
+					);
+					if (faultCandidate) {
+						const liveSnapshot = await fetchLmsPsSnapshot(lmsRunner);
+						const activeFaultModel = liveSnapshot.ok
+							? liveSnapshot.models.find((model) => modelMatches(model.identifier, FAULT_MODEL) && isLmsModelActive(model))
+							: undefined;
+						if (activeFaultModel) {
+							faultTargetTaskId = faultCandidate.id;
+							log(
+								`FAULT-INJECT: unloading the active ${FAULT_MODEL} route on ${hostLabel(activeFaultModel.machineId, linkDevices)} while it serves ${faultTargetTaskId}.`,
+							);
+							execFileSync("lms", ["unload", FAULT_MODEL], { encoding: "utf8", timeout: LMS_COMMAND_TIMEOUT_MS });
+							faultInjected = true;
+							const afterUnload = await fetchLmsPsSnapshot(lmsRunner);
+							faultModelAbsenceObserved =
+								afterUnload.ok && !afterUnload.models.some((model) => modelMatches(model.identifier, FAULT_MODEL));
+							log(
+								`FAULT-INJECT: route absence after unload ${faultModelAbsenceObserved ? "CONFIRMED" : "NOT CONFIRMED"}; waiting for same-card reroute.`,
+							);
+						}
+					}
+				}
+				if (FAULT_MODEL && faultInjected && faultTargetTaskId && !faultRerouteObserved) {
+					const history = modelHistoryByTaskId.get(faultTargetTaskId) ?? new Set<string>();
+					const rerouteModel = [...history].find((modelId) => !modelMatches(modelId, FAULT_MODEL));
+					if (rerouteModel) {
+						faultRerouteObserved = true;
+						log(`FAULT-RECOVERY: ${faultTargetTaskId} rerouted from ${FAULT_MODEL} to ${rerouteModel}.`);
+					}
+				}
 				const aliveHandoffSessions = polledSessions
 					.filter(([, s]) => s.state === "awaiting_review" && isWorkspaceSessionAliveForVerifier(s))
 					.map(([id, s]) => ({ id, modelId: s.modelId ?? null }));
@@ -943,6 +1058,15 @@ async function main(): Promise<void> {
 		});
 		const reviewerSeen = reviewerObservation.observed;
 		const fleetUsageOk = architectSeen && workerRoleSeen && reviewerSeen;
+		const faultProof = assessFleetEndpointLossProof({
+			faultModel: FAULT_MODEL,
+			injected: faultInjected,
+			modelAbsentAfterInjection: faultModelAbsenceObserved,
+			targetTaskId: faultTargetTaskId,
+			sameTaskRerouted: faultRerouteObserved,
+			allResultsMerged,
+		});
+		const faultProofOk = faultProof.ok;
 		const hostObservation = evaluateFleetHostObservation({
 			seenModels,
 			machineByModelId: initialMachineByModelId,
@@ -951,6 +1075,7 @@ async function main(): Promise<void> {
 		const fleetHostOk = hostObservation.observed;
 		log(`Decomposed into multiple cards: ${decomposed ? "YES" : "NO"}`);
 		log(`All cards reached a terminal lane: ${allTerminal ? "YES" : "NO"}`);
+		log(`All card results merged to Completed/Done: ${allResultsMerged ? "YES" : "NO"}`);
 		log(`Configured architect model observed: ${architectSeen ? "YES" : "NO"} (${ARCHITECT})`);
 		log(
 			WORKER_MODE === "pinned"
@@ -970,17 +1095,25 @@ async function main(): Promise<void> {
 		for (const row of hostObservation.modelsByHost) {
 			log(`   ${hostLabel(row.hostId, linkDevices)}: ${row.models.join(", ")}`);
 		}
+		if (FAULT_MODEL) {
+			log(
+				`Endpoint-loss proof gate: ${faultProofOk ? "PASS" : "FAIL"} ` +
+					`(model=${FAULT_MODEL} injected=${faultInjected} absent=${faultModelAbsenceObserved} ` +
+					`target=${faultTargetTaskId ?? "none"} rerouted=${faultRerouteObserved} merged=${allResultsMerged})`,
+			);
+			if (!faultProofOk) log(`   Missing proof: ${faultProof.missing.join("; ")}`);
+		}
 		if (hostObservation.unresolvedModels.length > 0) {
 			log(`   Unmapped observed model(s): ${hostObservation.unresolvedModels.join(", ")}`);
 		}
 		log(
 			`SWEEP-ROW | ${new Date().toISOString()} | fleet ${PRESET} | architect=${ARCHITECT} worker=${WORKER} | ` +
-				`reviewer=${REVIEWER_AUTO ? "auto" : REVIEWER} | decompose=${decomposed ? "YES" : "NO"} | fleetUsage=${fleetUsageOk ? "YES" : "NO"} | hostSpread=${fleetHostOk ? "YES" : "NO"} | result=${allTerminal && fleetUsageOk && fleetHostOk ? "PASS ✓" : stalled ? "STALLED 🧱" : "INCOMPLETE ⏳"} | ` +
+				`reviewer=${REVIEWER_AUTO ? "auto" : REVIEWER} | decompose=${decomposed ? "YES" : "NO"} | fleetUsage=${fleetUsageOk ? "YES" : "NO"} | hostSpread=${fleetHostOk ? "YES" : "NO"} | faultProof=${faultProofOk ? "YES" : "NO"} | result=${allTerminal && fleetUsageOk && fleetHostOk && faultProofOk ? "PASS ✓" : stalled ? "STALLED 🧱" : "INCOMPLETE ⏳"} | ` +
 				`power=${power.mode}×${power.multiplier}`,
 		);
 		log(`Workspace PRESERVED for inspection: ${workspacePath}`);
 		log(`Home (ledger) PRESERVED: ${homeDir}`);
-		process.exitCode = allTerminal && fleetUsageOk && fleetHostOk ? 0 : 1;
+		process.exitCode = allTerminal && fleetUsageOk && fleetHostOk && faultProofOk ? 0 : 1;
 	} finally {
 		await stream?.close().catch(() => null);
 		await server?.stop().catch(() => null);
