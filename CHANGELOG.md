@@ -21,10 +21,22 @@
   Aider's pinned polyglot corpus now has a solution-only workspace path and a separate trusted Exercism grader; tests,
   examples, and metadata enter only after prediction capture. Its networkless, dependency-preloaded grader now covers
   C++, Go, Java, JavaScript, Python, and Rust; a stratified 24-task gold slice resolved twice without quarantine.
+  One untouched negative control per language now verifies the failure side too, including Cargo's exit-101 test
+  failures, so valid model misses are recorded as unresolved rather than infrastructure errors.
   Candidate patches are restricted to declared solution files before private tests enter scope. The first controlled
   Python smoke found a real signal: the Qwen3.6-35B-A3B fleet arm resolved affine-cipher without plan mode while the
   otherwise identical plan arm parked for attention and remained unresolved. This single pair validates the lane, not
   a default change.
+
+- **Speculative best-of-N now yields to real reviews across workspaces.** A headless auto-review is real queued work
+  before its reviewer session reaches model admission. The process-wide in-flight review signal now vetoes new mirrors
+  and preempts running ones, preventing an opportunistic candidate from monopolizing a reviewer while another project
+  waits. Paired benchmark arms are run sequentially so shared fleet capacity cannot decide which arm gets a mirror.
+
+- **Concurrent workspaces no longer race for one Docker sandbox name.** Task and chat pools receive stable hashed
+  workspace namespaces, composed with the process namespace, so separate managers cannot both create
+  `nklein-agent-sandbox-1` or accidentally reuse a container with another project's mount set. Agents within one
+  workspace still share their bounded pool.
 
 - **Unfamiliar repositories now gain a durable local-model onboarding map.** The `repo_summary` tool summarizes
   function-like units into files, directories, and a project overview, then stores the result by content hash. An

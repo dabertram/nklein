@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import type { RuntimeAgentSandboxStatus } from "../core/api-contract";
 import {
@@ -12,7 +13,22 @@ import {
  */
 
 /** Map the runtime config's sandbox fields into the agent-sandbox pool config (idle timeout: minutes → ms). */
-export function buildAgentSandboxPoolConfig(runtimeConfig: RuntimeConfigState): AgentSandboxPoolConfig {
+
+function scopedSandboxNamespace(
+	base: string | undefined,
+	lane: "task" | "chat",
+	scopeKey?: string,
+): string | undefined {
+	if (!scopeKey) return lane === "chat" ? (base ? `${base}-chat` : "chat") : base;
+	const digest = createHash("sha256").update(scopeKey).digest("hex").slice(0, 12);
+	return [base, lane === "chat" ? "chat" : "ws", digest].filter(Boolean).join("-");
+}
+
+export function buildAgentSandboxPoolConfig(
+	runtimeConfig: RuntimeConfigState,
+	workspaceScopeKey?: string,
+): AgentSandboxPoolConfig {
+	const processNamespace = process.env.NKLEIN_SANDBOX_NAMESPACE?.trim() || undefined;
 	return {
 		maxContainers: runtimeConfig.sandboxMaxContainers,
 		agentsPerContainer: runtimeConfig.sandboxAgentsPerContainer,
@@ -27,7 +43,7 @@ export function buildAgentSandboxPoolConfig(runtimeConfig: RuntimeConfigState): 
 		// Per-instance pool isolation (opt-in): PARALLEL nklein instances on one host (concurrent integration-test
 		// backends) otherwise collide on the global container/volume names. Read here at the composition root; unset
 		// ⇒ undefined ⇒ the historical global names (byte-identical for a single production instance).
-		namespace: process.env.NKLEIN_SANDBOX_NAMESPACE?.trim() || undefined,
+		namespace: scopedSandboxNamespace(processNamespace, "task", workspaceScopeKey),
 	};
 }
 
@@ -35,11 +51,14 @@ export function buildAgentSandboxPoolConfig(runtimeConfig: RuntimeConfigState): 
  * Chat read sandboxes use the same sizing knobs as task sandboxes, but a distinct pool namespace so a read-only chat
  * turn cannot collide with card-execution containers that use the default slot names.
  */
-export function buildChatAgentSandboxPoolConfig(runtimeConfig: RuntimeConfigState): AgentSandboxPoolConfig {
+export function buildChatAgentSandboxPoolConfig(
+	runtimeConfig: RuntimeConfigState,
+	workspaceScopeKey?: string,
+): AgentSandboxPoolConfig {
 	const base = buildAgentSandboxPoolConfig(runtimeConfig);
 	return {
 		...base,
-		namespace: base.namespace ? `${base.namespace}-chat` : "chat",
+		namespace: scopedSandboxNamespace(base.namespace, "chat", workspaceScopeKey),
 	};
 }
 

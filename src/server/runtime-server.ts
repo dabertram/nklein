@@ -462,7 +462,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	): Promise<AgentSandboxManager> => {
 		const key = chatSandboxWorkspaceKey(workspacePath, writableMounts);
 		const runtimeConfig = await loadRuntimeConfig(workspacePath);
-		const poolConfig = buildChatAgentSandboxPoolConfig(runtimeConfig);
+		const poolConfig = buildChatAgentSandboxPoolConfig(runtimeConfig, key);
 		let manager = chatSandboxManagerByWorkspaceKey.get(key);
 		if (!manager) {
 			manager = new AgentSandboxManager({
@@ -2759,7 +2759,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			configuredGuardrails: runtimeConfig.swarmGuardrails,
 			effectiveModelRoles: runtimeConfig.effectiveModelRoles,
 		});
-		const sandboxPoolConfig = buildAgentSandboxPoolConfig(runtimeConfig);
+		const sandboxPoolConfig = buildAgentSandboxPoolConfig(runtimeConfig, scope.workspaceId);
 		// The shared container pool's egress is governed by the GLOBAL capability ruleset preset (default
 		// fully_open -> full egress). Per-role network overrides would need policy-keyed pools (follow-up).
 		const globalAgentCapabilities = capabilitiesForTier(
@@ -3435,6 +3435,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const realWorkWaiting =
 								taskStartQueue.size(scope.workspaceId) > 0 ||
 								(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) > 0 ||
+								autoReviewFinalizationInFlightTaskIds.size > 0 ||
 								hasDeliverySessionWaitingForModelTurn(trackedService.listSummaries());
 							if (realWorkWaiting && activeSpeculativePrimaryTaskIds.length > 0) {
 								for (const primaryTaskId of activeSpeculativePrimaryTaskIds) {
@@ -3524,6 +3525,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								specsStartedThisRun: speculativeSpecsStartedByWorkspaceId.get(scope.workspaceId) ?? 0,
 								queuedRealStartCount: taskStartQueue.size(scope.workspaceId),
 								deferredRealCardCount: deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0,
+								pendingRealReviewCount: autoReviewFinalizationInFlightTaskIds.size,
 								runningWorkers: arbitrationEligibleWorkers.map((session) => ({
 									taskId: session.taskId,
 									modelId: toRealKey(session.modelId),

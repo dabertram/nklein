@@ -11,6 +11,7 @@ import {
 } from "../core/aider-polyglot-benchmark";
 import {
 	buildAiderPolyglotGradeDockerPlan,
+	classifyAiderPolyglotTestResult,
 	resolveAiderPolyglotCompanionExamplePath,
 	resolveAiderPolyglotGraderImage,
 } from "../core/aider-polyglot-grade-plan";
@@ -646,12 +647,7 @@ async function gradeAiderPolyglot(options: DevBenchmarkOptions) {
 		if (index === plan.setupSteps.length - 1) {
 			const test = await runDockerArgs(plan.testStep);
 			log += `\ntest\n${test.stdout}${test.stderr}`;
-			status =
-				test.exitCode === 0
-					? "resolved"
-					: test.exitCode === 1 && !test.infrastructureFailure
-						? "unresolved"
-						: "error";
+			status = classifyAiderPolyglotTestResult(test);
 		}
 	}
 	await atomicWriteNew(join(reportDir, "test.log"), log, "immutable grader log");

@@ -48,6 +48,8 @@ export interface SpeculativeMirrorDecisionInput {
 	queuedRealStartCount: number;
 	/** Real cards deferred by overlap/concurrency (any > 0 vetoes mirroring). */
 	deferredRealCardCount: number;
+	/** Headless reviews already finalizing (any > 0 vetoes mirroring; reviewers are real work too). */
+	pendingRealReviewCount: number;
 	/** Real worker sessions currently running (synthetic `::` sessions must be excluded by the caller). */
 	runningWorkers: SpeculativeMirrorRunningWorker[];
 	/** Models with free capacity this tick. */
@@ -89,6 +91,9 @@ export function decideSpeculativeMirror(input: SpeculativeMirrorDecisionInput): 
 	}
 	if (input.deferredRealCardCount > 0) {
 		return { action: "none", reason: "Real card(s) deferred — real work outranks speculation." };
+	}
+	if (input.pendingRealReviewCount > 0) {
+		return { action: "none", reason: "Real review(s) waiting — real work outranks speculation." };
 	}
 	if (input.runningWorkers.length === 0) {
 		return { action: "none", reason: "No real worker turn is running to mirror." };

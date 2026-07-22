@@ -1,8 +1,24 @@
 import type { AiderPolyglotLanguage, AiderPolyglotTask } from "./aider-polyglot-benchmark";
+import type { BenchmarkAttemptStatus } from "./swebench-benchmark";
 
 export interface AiderPolyglotGradeDockerPlan {
 	setupSteps: readonly (readonly string[])[];
 	testStep: readonly string[];
+}
+
+/**
+ * Classify the trusted test step after every setup step has succeeded.
+ *
+ * Test runners do not share a failure exit code: unittest/Jest/Gradle normally use 1 while Cargo uses 101. Once the
+ * pinned container has started and the trusted test command has run, every ordinary non-zero exit is model evidence,
+ * not infrastructure evidence. Transport/spawn/timeout failures are reported separately by the Docker runner.
+ */
+export function classifyAiderPolyglotTestResult(input: {
+	exitCode: number;
+	infrastructureFailure: boolean;
+}): BenchmarkAttemptStatus {
+	if (input.infrastructureFailure) return "error";
+	return input.exitCode === 0 ? "resolved" : "unresolved";
 }
 
 const GRADER_IMAGES: Readonly<Record<AiderPolyglotLanguage, string>> = {

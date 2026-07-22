@@ -112,12 +112,30 @@ gap remains.
 > legacy runner. Live's published Linux images are x86_64-only, so Apple/QEMU runs may validate plumbing but cannot
 > calibrate a regression baseline. Calibration JSON and each grader report directory are immutable evidence, not
 > terminal output or a stale output tree to reconstruct/reuse later.
+> **CALIBRATE BOTH SIDES OF EVERY GRADER (Aider, 2026-07-23):** two green gold repeats prove only that the oracle and
+> toolchain can pass. They cannot prove that ordinary candidate failures are classified correctly. Every language lane
+> also needs an untouched/empty-patch negative control. Test runners have different failure exits (Cargo uses 101 while
+> unittest/Jest/Gradle commonly use 1); after trusted setup succeeds, any ordinary non-zero test-step exit is
+> `unresolved`, while an actual Docker transport/spawn/timeout failure is `error`. Six-language negative controls caught
+> and closed the former hard-coded `exitCode === 1` blind spot before candidate evidence was admitted.
 > **A REVIEWED BENCHMARK ARTIFACT NEED NOT MOVE HOST HEAD:** benchmark prompts are tainted, so the delivery gate may
 > correctly refuse a host merge. Score the single durable `refs/nklein/evidence/<task>-*` review artifact and pin that
 > exact commit under a separate immutable benchmark ref; never bypass the taint gate or manually copy sandbox files.
 > Synthetic auto-review turns are not primary task sessions, so unattended monitors must count review cards without a
 > durable review result as active work. A parked operator-attention session is the opposite: terminal for an unattended
 > run, and must be captured promptly as a real failure rather than discarded or left waiting for four minutes.
+> **PAIRED WORKFLOW EVALS RUN MATCHED ARMS SEQUENTIALLY (Aider pilot, 2026-07-23):** concurrent workspaces share model
+> admission and opportunistic best-of-N, so a diverse mirror or delayed reviewer can land on only one arm and masquerade
+> as a planning effect. The three-workspace pilot is diagnostic only. It also exposed a production scheduler gap: a
+> speculative mirror could keep a reviewer endpoint while another workspace's headless review was in-flight but had not
+> yet admitted its reviewer session. The global auto-review-finalizer count now vetoes new mirrors and preempts live
+> ones. Real review work outranks speculation before model admission, not only after a waiting session exists.
+> **SANDBOX LIFECYCLE SINGLE-FLIGHT MUST MATCH ITS NAME SCOPE (multi-workspace pilot, 2026-07-23):** the sandbox
+> manager's per-slot `starting` promise cannot serialize two different per-workspace managers. Giving both managers the
+> global `nklein-agent-sandbox-1` name creates a Docker race, and accepting the conflict would be unsafe because the
+> winner has the other workspace's mount set. Task and chat pools now derive a stable hashed namespace from their
+> workspace scope (composed with the process namespace). Agents may share a container inside one workspace; unrelated
+> workspace managers must never share a Docker name or volume.
 
 > **⚠️ CODE SEARCH MODALITIES ARE COMPLEMENTS, NOT FALLBACK QUALITY LEVELS (F11.2b, 2026-07-22).** Route exact
 > strings/errors/config keys to `search_code`; syntax shapes that must exclude comments and strings to tree-sitter
@@ -3680,11 +3698,15 @@ stays fast + complete.
   one-commit, networkless workspaces and grades all six languages outside the agent boundary with the full Exercism
   exercise. The C++/Go/Java/JavaScript/Python/Rust toolchains are version/digest pinned, registry dependencies are
   preloaded, and a fixed 24-task tranche (four per language) resolved in two independent gold repeats with zero
-  quarantines.
+  quarantines. A post-calibration negative-control pass now also leaves one untouched task per language unresolved;
+  this caught and fixed Cargo's ordinary exit-101 failure being mislabeled as infrastructure error.
   Candidate patches can touch only declared solution paths after private tests are reconstructed. In a controlled
   Qwen3.6-35B-A3B + fleet-review pair, plan mode parked for attention and graded unresolved while no-plan emitted a
   reviewed 4.6 KB patch and resolved. This one-task model smoke proves non-zero signal, not a default flip. **Remainder:**
-  run the calibrated 24-task repeated A/B tranche; add Terminal-Bench and LiveCodeBench controls; obtain a native x86_64
+  A three-workspace candidate pilot was deliberately excluded from A/B evidence after it exposed cross-workspace
+  speculative-mirror/reviewer contention; the root scheduler fix is landed and the matched campaign must run
+  sequentially against a fixed resident set. Run the calibrated 24-task repeated A/B tranche; add Terminal-Bench and
+  LiveCodeBench controls; obtain a native x86_64
   Docker runner for the quarterly Live tranche; then wire the calibrated delta gate/nightly evidence.
   - [ ] **F11.3g — Pin and run the repeatable regression tranche (delta, not absolute).** Select a fixed ~20–40 task
     fit-for-fleet set, complete ≥2 gold repeats, quarantine every unstable instance, snapshot the calibrated RESOLVED
@@ -4722,16 +4744,18 @@ output and NOT acted on. Captured as F12.12.)
   change"), plus a ledger observation on a red baseline. Cost is the flag's to pay (one extra sandbox acceptance
   run per start), exactly as David scoped. 5 formatter tests. (b)/(c) remain design work as scoped above.
   cost/policy decision. All three are effectful runtime changes; none is a quick mount.
-- [>] **F12.61 — Extend F11.3 with a beyond-patch benchmark track (Terminal-Bench)** *(waits on F11.3a–F11.3b).* SWE-bench only measures patch-authoring;
+- [ ] **F12.61 — Extend F11.3 with a beyond-patch benchmark track (Terminal-Bench).** SWE-bench only measures patch-authoring;
   Terminal-Bench (89 hand-crafted CLI tasks — sysadmin, ML training, env-debugging, data science, each a Docker env +
   verification suite + oracle) measures the REST of the job, and 2026 best-practice quotes SWE-bench + one of
   Terminal-Bench/LiveCodeBench together. Add a Terminal-Bench track so !Klein is validated beyond diffs. (Terminal-Bench 2601.11868)
-  **SCOUTED 2026-07-18: PRECURSOR-BLOCKED — this "extends F11.3", and F11.3's own substrate (F11.3a vendored
-  grading core, F11.3b instance fetcher/workspace builder) is unbuilt.** Build order: F11.3a → F11.3b → the
-  Terminal-Bench track slots in as a second task-source + verifier beside the SWE-bench one (its Docker-env +
-  verification-suite shape maps cleanly onto !Klein's existing sandbox + acceptance-gate machinery). Also
-  DECISION-COUPLED: vendoring benchmark datasets (HuggingFace downloads, disk) is an infra footprint David should
-  green-light with the Phase-11 plan; actual benchmark RUNS are fleet-gated regardless.
+  **RE-SCOUTED 2026-07-23: READY, PRECURSORS RESOLVED.** F11.3's source/grader/workspace substrate now exists. Use the
+  corrected official 2.1 repository (`harbor-framework/terminal-bench-2-1`), not the stale 2.0 repo: 2.1 repaired
+  external-dependency drift, resource mismatches, and test/spec disagreements across 28/89 tasks. The official smoke is
+  `harbor run -d terminal-bench/terminal-bench-2-1 -a oracle -l 5`; !Klein then plugs in as a custom Harbor agent while
+  Harbor remains the task-source/verifier authority. Current execution constraint is physical, not conceptual: m5max
+  had only 28 GiB filesystem free during the re-scout, while Docker already held 20.2 GB of images and 11.4 GB of build
+  cache. Do not pull five task images into that margin. Build the adapter/preflight now; run the image-bearing smoke
+  after deliberate cache cleanup or added disk headroom, preserving the Aider grader images needed by F11.3.
 
 **Agent architecture deltas from the leading tools (Aider/Cline/Cursor/Claude-Code/Serena/RooCode):**
 - [x] **F12.62 — *(finalized 2026-07-19: mechanism proven end-to-end on the live rig — brief → EDITOR worker, 3/3 briefs round 4, solo baseline 0/3; the n≥5 board-reset A/B through the F12.41 gate + score-based auto-decision are FLEET queue.)*  Architect/Editor split per card (the biggest documented small-model win).** Split a card into two calls: an

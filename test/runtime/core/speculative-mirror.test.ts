@@ -10,6 +10,7 @@ const READY: SpeculativeMirrorDecisionInput = {
 	specsStartedThisRun: 0,
 	queuedRealStartCount: 0,
 	deferredRealCardCount: 0,
+	pendingRealReviewCount: 0,
 	runningWorkers: [{ taskId: "t1", modelId: "qwen9-m4", difficulty: 60, startedAt: 1000 }],
 	idleModels: [{ modelId: "gptoss120-m5" }],
 	alreadyMirroredTaskIds: new Set(),
@@ -30,9 +31,13 @@ describe("decideSpeculativeMirror (§5.AW opportunistic best-of-N)", () => {
 		expect(decideSpeculativeMirror({ ...READY, specsStartedThisRun: 3 }).action).toBe("none");
 	});
 
-	it("real work outranks speculation: queued or deferred real cards veto mirroring", () => {
+	it("real work outranks speculation: queued cards, deferred cards, or pending reviews veto mirroring", () => {
 		expect(decideSpeculativeMirror({ ...READY, queuedRealStartCount: 1 }).action).toBe("none");
 		expect(decideSpeculativeMirror({ ...READY, deferredRealCardCount: 2 }).action).toBe("none");
+		expect(decideSpeculativeMirror({ ...READY, pendingRealReviewCount: 1 })).toEqual({
+			action: "none",
+			reason: "Real review(s) waiting — real work outranks speculation.",
+		});
 	});
 
 	it("never mirrors onto a same-lineage or unknown-lineage idle model (correlated waste)", () => {

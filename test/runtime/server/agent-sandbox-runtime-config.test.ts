@@ -39,6 +39,13 @@ describe("buildAgentSandboxPoolConfig", () => {
 		expect(buildAgentSandboxPoolConfig(config({ sandboxIdleTimeoutMinutes: 0 })).idleTimeoutMs).toBe(0);
 		expect(buildAgentSandboxPoolConfig(config({ sandboxIdleTimeoutMinutes: 10 })).idleTimeoutMs).toBe(600_000);
 	});
+
+	it("gives each workspace a stable distinct Docker namespace", () => {
+		const first = buildAgentSandboxPoolConfig(config({}), "workspace-a").namespace;
+		expect(first).toMatch(/^ws-[0-9a-f]{12}$/u);
+		expect(buildAgentSandboxPoolConfig(config({}), "workspace-a").namespace).toBe(first);
+		expect(buildAgentSandboxPoolConfig(config({}), "workspace-b").namespace).not.toBe(first);
+	});
 });
 
 describe("buildChatAgentSandboxPoolConfig", () => {
@@ -72,6 +79,12 @@ describe("buildChatAgentSandboxPoolConfig", () => {
 				process.env.NKLEIN_SANDBOX_NAMESPACE = previous;
 			}
 		}
+	});
+
+	it("separates chat pools for different workspace scopes", () => {
+		const first = buildChatAgentSandboxPoolConfig(config({}), "workspace-a").namespace;
+		expect(first).toMatch(/^chat-[0-9a-f]{12}$/u);
+		expect(buildChatAgentSandboxPoolConfig(config({}), "workspace-b").namespace).not.toBe(first);
 	});
 });
 

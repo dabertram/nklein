@@ -7,6 +7,7 @@ import {
 } from "../../../src/core/aider-polyglot-benchmark";
 import {
 	buildAiderPolyglotGradeDockerPlan,
+	classifyAiderPolyglotTestResult,
 	resolveAiderPolyglotCompanionExamplePath,
 	resolveAiderPolyglotGraderImage,
 } from "../../../src/core/aider-polyglot-grade-plan";
@@ -246,5 +247,13 @@ describe("Aider polyglot benchmark adapter", () => {
 
 	it("rejects floating grader image tags", () => {
 		expect(() => resolveAiderPolyglotGraderImage("python", "python:latest")).toThrow(/semantic-version tag/);
+	});
+
+	it("classifies language-specific test exits as unresolved rather than infrastructure errors", () => {
+		expect(classifyAiderPolyglotTestResult({ exitCode: 0, infrastructureFailure: false })).toBe("resolved");
+		expect(classifyAiderPolyglotTestResult({ exitCode: 1, infrastructureFailure: false })).toBe("unresolved");
+		// Cargo's ordinary failing-test exit is 101, not 1.
+		expect(classifyAiderPolyglotTestResult({ exitCode: 101, infrastructureFailure: false })).toBe("unresolved");
+		expect(classifyAiderPolyglotTestResult({ exitCode: 1, infrastructureFailure: true })).toBe("error");
 	});
 });
