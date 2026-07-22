@@ -106,6 +106,12 @@ gap remains.
 > **Git history is part of the agent-visible input:** deleting a temporary oracle mount is insufficient if `test_patch`
 > was ever applied or committed. The sealed workspace must expose exactly one upstream baseline commit; private tests
 > first enter only the separate official grader container after prediction capture.
+> **SWE-BENCH 4.X AND SWE-BENCH-LIVE HAVE DIFFERENT OFFICIAL GRADERS:** 4.x hard-codes legacy repository specs and
+> fails on Live's arbitrary repositories before Docker setup. Live must use Microsoft's native evaluator, pinned with
+> its RepoLaunch submodule, and consumes a JSON patch map plus native `results.json`; never reinterpret it through the
+> legacy runner. Live's published Linux images are x86_64-only, so Apple/QEMU runs may validate plumbing but cannot
+> calibrate a regression baseline. Calibration JSON and each grader report directory are immutable evidence, not
+> terminal output or a stale output tree to reconstruct/reuse later.
 
 > **⚠️ CODE SEARCH MODALITIES ARE COMPLEMENTS, NOT FALLBACK QUALITY LEVELS (F11.2b, 2026-07-22).** Route exact
 > strings/errors/config keys to `search_code`; syntax shapes that must exclude comments and strings to tree-sitter
@@ -3669,6 +3675,10 @@ stays fast + complete.
     set + per-instance status, and wire it into CI/nightly. Fail only a resolved→unresolved regression; infrastructure
     absence stays inconclusive. Use Aider for daily paired A/B and native SWE-bench-Live Lite for the quarterly repo gate;
     legacy easy-Verified may remain an explicitly contamination-limited compatibility lane.
+    **2026-07-22 calibration evidence:** the native Live harness is pinned and its full command/report path has run.
+    `aws-cloudformation__cfn-lint-3767` failed its gold oracle identically in two ARM/QEMU repeats and is correctly
+    quarantined; it is not model evidence. A native x86_64 Docker runner is required before any Live baseline can close
+    this package. Legion5pro is reachable through LM Link but does not currently expose SSH or a Docker API.
   - [ ] **F11.3h — Contamination-aware fresh-set track.** Verified is >94% pre-model-cutoff + partly leaked (models recall
     file paths). Add a rolling SWE-bench-Live / SWE-rebench fresh-window gate (tasks post-dating cutoffs) as the HONEST
     "reasons vs recalls" measure; log leakage hits. (SWE-bench-Live; SWE-rebench 2505.20411)

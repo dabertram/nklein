@@ -9,7 +9,9 @@ import {
 	parseOfficialSwebenchRunReport,
 	parseSwebenchDataset,
 	planOfficialSwebenchEvaluation,
+	planOfficialSwebenchLiveEvaluation,
 	selectSwebenchInstances,
+	serializeSwebenchLivePredictions,
 	serializeSwebenchPredictions,
 } from "../../../src/core/swebench-benchmark";
 
@@ -74,15 +76,52 @@ describe("SWE-bench compatibility adapter", () => {
 		});
 		expect(JSON.parse(serializeSwebenchPredictions([prediction]).trim())).toEqual(prediction);
 		expect(() => serializeSwebenchPredictions([prediction, prediction])).toThrow(/Duplicate prediction/);
+		expect(JSON.parse(serializeSwebenchLivePredictions([prediction]))).toEqual({
+			[row.instance_id]: { model_patch: prediction.model_patch, model_name_or_path: "nklein/qwen" },
+		});
 		expect(
 			buildSwebenchPrediction({ instanceId: row.instance_id, modelNameOrPath: "nklein/no-op", modelPatch: "" }),
 		).toMatchObject({ model_patch: "" });
+	});
+
+	it("plans the distinct pinned Live evaluator and labels its x86-only image boundary", () => {
+		const plan = planOfficialSwebenchLiveEvaluation({
+			pythonPath: "/bench/bin/python",
+			harnessPath: "/bench/live",
+			datasetPath: "/private/live.jsonl",
+			predictionsPath: "gold",
+			instanceIds: [row.instance_id],
+			reportDir: "/reports/live-1",
+			hostArchitecture: "arm64",
+			dockerArchitecture: "aarch64",
+		});
+		expect(plan.harness).toBe("swebench_live");
+		expect(plan.cwd).toBe("/bench/live");
+		expect(plan.args).toContain("evaluation.evaluation");
+		expect(plan.args).toContain("/private/live.jsonl");
+		expect(plan.nativeArchitecture).toBe(false);
+		expect(plan.warnings[0]).toMatch(/x86_64.*QEMU/);
+		expect(
+			planOfficialSwebenchLiveEvaluation({
+				...{
+					pythonPath: "/bench/bin/python",
+					harnessPath: "/bench/live",
+					datasetPath: "/private/live.jsonl",
+					predictionsPath: "gold" as const,
+					instanceIds: [row.instance_id],
+					reportDir: "/reports/live-1",
+				},
+				hostArchitecture: "x64",
+				dockerArchitecture: "x86_64",
+			}).nativeArchitecture,
+		).toBe(true);
 	});
 
 	it("plans the pinned official grader and forces native local builds on Apple Silicon", () => {
 		const plan = planOfficialSwebenchEvaluation({
 			pythonPath: "/bench/bin/python",
 			datasetName: "SWE-bench/SWE-bench_Live",
+			split: "lite",
 			predictionsPath: "/run/preds.jsonl",
 			runId: "nklein-20260722",
 			instanceIds: [row.instance_id],
@@ -92,6 +131,7 @@ describe("SWE-bench compatibility adapter", () => {
 		});
 		expect(plan.command).toBe("/bench/bin/python");
 		expect(plan.args).toContain("swebench.harness.run_evaluation");
+		expect(plan.args).toContain("lite");
 		expect(plan.args.slice(-2)).toEqual(["--namespace", ""]);
 		expect(plan.nativeArchitecture).toBe(true);
 		expect(plan.warnings).toEqual([]);
@@ -148,6 +188,23 @@ describe("SWE-bench compatibility adapter", () => {
 				empty_patch_ids: [],
 			}),
 		).toEqual({ a: "resolved", b: "unresolved", c: "error", d: "error" });
+		expect(
+			parseOfficialSwebenchRunReport({
+				schema_version: 2,
+				submitted_ids: ["empty"],
+				empty_patch_ids: ["empty"],
+			}),
+		).toEqual({ empty: "unresolved" });
+		expect(
+			parseOfficialSwebenchRunReport({
+				submitted_ids: ["pass", "fail", "empty", "broken"],
+				success_ids: ["pass"],
+				failure_ids: ["fail"],
+				empty_patch_ids: ["empty"],
+				error_ids: ["broken"],
+				incomplete_ids: [],
+			}),
+		).toEqual({ pass: "resolved", fail: "unresolved", empty: "unresolved", broken: "error" });
 		expect(() =>
 			parseOfficialSwebenchRunReport({
 				schema_version: 2,

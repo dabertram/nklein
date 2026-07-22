@@ -41,4 +41,5 @@ packages/llm-simulator/node_modules
 /captures/
 .real-runs/
 benchmark-harness/.venv/
+benchmark-harness/swebench-live/
 __pycache__/

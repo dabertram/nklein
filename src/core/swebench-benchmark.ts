@@ -8,6 +8,8 @@
  */
 
 export const PINNED_SWEBENCH_VERSION = "4.1.0";
+export const PINNED_SWEBENCH_LIVE_HARNESS_COMMIT = "70ec57e852e3f2d195790fe71f553e272c691833";
+export const PINNED_SWEBENCH_LIVE_REPOLAUNCH_COMMIT = "7735b1e7363dd3bbc69bd0ef80db646a2ae391fd";
 export const MAX_BENCHMARK_DATASET_BYTES = 256 * 1024 * 1024;
 export const MAX_SWEBENCH_WORKERS = 4;
 
@@ -233,6 +235,23 @@ export function serializeSwebenchPredictions(predictions: readonly SwebenchPredi
 	return predictions.map((prediction) => JSON.stringify(prediction)).join("\n") + (predictions.length > 0 ? "\n" : "");
 }
 
+/** The native Live harness consumes one JSON object keyed by instance id, not standard SWE-bench JSONL. */
+export function serializeSwebenchLivePredictions(predictions: readonly SwebenchPrediction[]): string {
+	const entries = [...predictions]
+		.sort((left, right) => left.instance_id.localeCompare(right.instance_id))
+		.map((prediction) => [
+			prediction.instance_id,
+			{
+				model_patch: prediction.model_patch,
+				model_name_or_path: prediction.model_name_or_path,
+			},
+		]);
+	if (new Set(entries.map(([instanceId]) => instanceId)).size !== entries.length) {
+		throw new Error("Duplicate prediction in SWE-bench-Live patch map.");
+	}
+	return `${JSON.stringify(Object.fromEntries(entries), null, 2)}\n`;
+}
+
 function normalizeArchitecture(value: string): "arm64" | "x64" | "unknown" {
 	const normalized = value.toLowerCase();
 	if (normalized === "arm64" || normalized === "aarch64") return "arm64";
@@ -245,6 +264,8 @@ export interface OfficialSwebenchEvaluationPlan {
 	args: readonly string[];
 	nativeArchitecture: boolean;
 	warnings: readonly string[];
+	cwd?: string;
+	harness?: "swebench_legacy" | "swebench_live";
 }
 
 export function planOfficialSwebenchEvaluation(input: {
@@ -308,7 +329,72 @@ export function planOfficialSwebenchEvaluation(input: {
 		// Official SWE-bench guidance: empty namespace forces local, native image builds on M-series hosts.
 		args.push("--namespace", "");
 	}
-	return { command: input.pythonPath, args, nativeArchitecture, warnings };
+	return { command: input.pythonPath, args, nativeArchitecture, warnings, harness: "swebench_legacy" };
+}
+
+/** Plan the distinct official SWE-bench-Live evaluator; its arbitrary repositories are not supported by swebench 4.x. */
+export function planOfficialSwebenchLiveEvaluation(input: {
+	pythonPath: string;
+	harnessPath: string;
+	datasetPath: string;
+	predictionsPath: string | "gold";
+	instanceIds: readonly string[];
+	reportDir: string;
+	maxWorkers?: number;
+	hostArchitecture: string;
+	dockerArchitecture: string;
+}): OfficialSwebenchEvaluationPlan {
+	const maxWorkers = input.maxWorkers ?? 1;
+	if (!Number.isInteger(maxWorkers) || maxWorkers < 1 || maxWorkers > MAX_SWEBENCH_WORKERS) {
+		throw new Error(
+			`maxWorkers must be between 1 and ${MAX_SWEBENCH_WORKERS}; benchmark parallelism is deliberately low.`,
+		);
+	}
+	if (input.instanceIds.length === 0) {
+		throw new Error("Official SWE-bench-Live evaluation requires at least one instance id.");
+	}
+	for (const [name, path] of [
+		["harnessPath", input.harnessPath],
+		["datasetPath", input.datasetPath],
+		["reportDir", input.reportDir],
+	] as const) {
+		if (!path.startsWith("/")) throw new Error(`${name} must be absolute.`);
+	}
+	const host = normalizeArchitecture(input.hostArchitecture);
+	const docker = normalizeArchitecture(input.dockerArchitecture);
+	// The official Live Linux corpus publishes only x86_64 instance images. An ARM Docker daemon can emulate them,
+	// but such runs are useful smoke evidence only and must never become a regression baseline.
+	const nativeArchitecture = host === "x64" && docker === "x64";
+	const warnings = nativeArchitecture
+		? []
+		: [
+				`SWE-bench-Live publishes x86_64 Linux images; host ${host} with Docker ${docker} is QEMU/emulation-tainted and not regression-comparable.`,
+			];
+	return {
+		command: input.pythonPath,
+		args: [
+			"-m",
+			"evaluation.evaluation",
+			"--dataset",
+			input.datasetPath,
+			"--platform",
+			"linux",
+			"--patch_dir",
+			input.predictionsPath,
+			"--output_dir",
+			input.reportDir,
+			"--workers",
+			String(maxWorkers),
+			"--overwrite",
+			"0",
+			"--instance_ids",
+			...input.instanceIds,
+		],
+		nativeArchitecture,
+		warnings,
+		cwd: input.harnessPath,
+		harness: "swebench_live",
+	};
 }
 
 export type BenchmarkAttemptStatus = "resolved" | "unresolved" | "error";
@@ -331,18 +417,21 @@ export function parseOfficialSwebenchRunReport(value: unknown): Readonly<Record<
 	if (!value || typeof value !== "object" || Array.isArray(value))
 		throw new Error("Official SWE-bench report must be an object.");
 	const record = value as Record<string, unknown>;
-	if (record.schema_version !== 2) throw new Error("Official SWE-bench report schema_version must be 2.");
+	const isLegacy = record.schema_version === 2;
+	const isLive = record.schema_version === undefined && Array.isArray(record.success_ids);
+	if (!isLegacy && !isLive) {
+		throw new Error("Official report must be SWE-bench schema-v2 or native SWE-bench-Live results JSON.");
+	}
 	const groups: readonly [BenchmarkAttemptStatus, readonly string[]][] = [
-		["resolved", reportIdList(record, "resolved_ids")],
-		["unresolved", reportIdList(record, "unresolved_ids")],
+		["resolved", reportIdList(record, isLegacy ? "resolved_ids" : "success_ids")],
 		[
-			"error",
+			"unresolved",
 			[
-				...reportIdList(record, "error_ids"),
-				...reportIdList(record, "incomplete_ids"),
+				...reportIdList(record, isLegacy ? "unresolved_ids" : "failure_ids"),
 				...reportIdList(record, "empty_patch_ids"),
 			],
 		],
+		["error", [...reportIdList(record, "error_ids"), ...reportIdList(record, "incomplete_ids")]],
 	];
 	const statuses: Record<string, BenchmarkAttemptStatus> = {};
 	for (const [status, ids] of groups) {

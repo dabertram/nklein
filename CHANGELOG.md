@@ -2,17 +2,20 @@
 
 ## [Upcoming !Klein 0.0.1]
 
-- **Repository benchmark runs now have a leakage-safe, native-ARM harness.** `nklein dev benchmark` prepares bounded
+- **Repository benchmark runs now have leakage-safe, source-correct official harnesses.** `nklein dev benchmark` prepares bounded
   revision-pinned task slices, materializes sealed networkless workspaces from local mirrors, captures delivered diffs
-  in the official prediction schema, and delegates grading to a locked SWE-bench 4.1.0 environment. Gold patches must
+  in the official prediction schema, and delegates legacy grading to locked SWE-bench 4.1.0 or arbitrary-repository
+  SWE-bench-Live grading to its separately pinned Microsoft harness and RepoLaunch submodule. Gold patches must
   pass repeated calibration before any candidate run; unstable/erroring cases are quarantined, infrastructure absence
   is inconclusive, and regression gates compare resolved-set deltas rather than contaminated absolute scores. Agent
-  prompts cannot carry gold, hints, private test patches, or oracle test ids, and Apple Silicon forces native local
-  image builds while marking QEMU-tainted results non-comparable.
+  prompts cannot carry gold, hints, private test patches, or oracle test ids. Legacy Apple Silicon runs force native
+  local image builds; Live's published Linux images are x86_64-only, so ARM/QEMU runs are smoke evidence and are
+  explicitly barred from regression baselines.
   Private test patches remain exclusively in the external grader and are never mounted or committed into the
   agent-visible repository history.
   The new `benchmark run` path exercises the real plan/decompose/review/delivery pipeline, requires terminal workflow
   completion, pins the aggregate result commit, and emits a create-only evidence receipt plus official prediction.
+  Calibration can now write its own immutable JSON artifact instead of relying on shell redirection.
 
 - **Unfamiliar repositories now gain a durable local-model onboarding map.** The `repo_summary` tool summarizes
   function-like units into files, directories, and a project overview, then stores the result by content hash. An

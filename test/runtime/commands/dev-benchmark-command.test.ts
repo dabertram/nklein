@@ -63,6 +63,7 @@ describe("dev benchmark command", () => {
 	it("exposes gold quarantine and delta gate as repeatable CLI actions", async () => {
 		const root = await mkdtemp(join(tmpdir(), "nklein-bench-gate-"));
 		const attempts = join(root, "attempts.jsonl");
+		const calibrationOutput = join(root, "calibration.json");
 		const baseline = join(root, "baseline.json");
 		const current = join(root, "current.json");
 		await writeFile(
@@ -80,11 +81,25 @@ describe("dev benchmark command", () => {
 			action: "calibrate",
 			attempts,
 			instanceIds: "a",
+			output: calibrationOutput,
 			write: (text) => {
 				calibration += text;
 			},
 		});
 		expect(JSON.parse(calibration).stableInstanceIds).toEqual(["a"]);
+		expect(JSON.parse(await readFile(calibrationOutput, "utf8"))).toEqual({
+			stableInstanceIds: ["a"],
+			quarantined: {},
+		});
+		await expect(
+			runDevBenchmarkCommand({
+				action: "calibrate",
+				attempts,
+				instanceIds: "a",
+				output: calibrationOutput,
+				write: () => undefined,
+			}),
+		).rejects.toThrow(/immutable calibration/);
 		let gate = "";
 		await runDevBenchmarkCommand({
 			action: "gate",

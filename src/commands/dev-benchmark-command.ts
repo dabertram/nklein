@@ -13,10 +13,12 @@ import {
 	parseOfficialSwebenchRunReport,
 	parseSwebenchDataset,
 	planOfficialSwebenchEvaluation,
+	planOfficialSwebenchLiveEvaluation,
 	type RepositoryBenchmarkSource,
 	type SwebenchDifficulty,
 	type SwebenchPrediction,
 	selectSwebenchInstances,
+	serializeSwebenchLivePredictions,
 	serializeSwebenchPredictions,
 } from "../core/swebench-benchmark";
 import { resolveSwebenchWorkspaceName } from "../core/swebench-workspace-plan";
@@ -35,6 +37,7 @@ export interface DevBenchmarkOptions {
 	action: string;
 	dataset?: string;
 	datasetName?: string;
+	split?: string;
 	source?: string;
 	output?: string;
 	instance?: string;
@@ -51,6 +54,7 @@ export interface DevBenchmarkOptions {
 	runId?: string;
 	reportDir?: string;
 	python?: string;
+	liveHarness?: string;
 	maxWorkers?: string;
 	timeout?: string;
 	attempts?: string;
@@ -140,18 +144,28 @@ async function atomicWrite(path: string, content: string): Promise<void> {
 	}
 }
 
-async function atomicWriteNew(path: string, content: string): Promise<void> {
+async function atomicWriteNew(path: string, content: string, artifact = "immutable artifact"): Promise<void> {
 	await mkdir(dirname(path), { recursive: true });
 	const temporary = `${path}.${process.pid}.${Date.now()}.tmp`;
 	try {
 		await writeFile(temporary, content, { flag: "wx" });
 		await link(temporary, path).catch((error: NodeJS.ErrnoException) => {
-			if (error.code === "EEXIST") throw new Error(`Refusing to replace existing immutable receipt: ${path}`);
+			if (error.code === "EEXIST") throw new Error(`Refusing to replace existing ${artifact}: ${path}`);
 			throw error;
 		});
 	} finally {
 		await rm(temporary, { force: true });
 	}
+}
+
+async function createExclusiveReportDirectory(path: string): Promise<void> {
+	await mkdir(dirname(path), { recursive: true });
+	await mkdir(path).catch((error: NodeJS.ErrnoException) => {
+		if (error.code === "EEXIST") {
+			throw new Error(`Refusing to reuse existing benchmark report directory: ${path}`);
+		}
+		throw error;
+	});
 }
 
 async function loadDataset(options: DevBenchmarkOptions) {
@@ -348,7 +362,7 @@ async function run(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) 
 		...executionEvidence,
 		patch,
 	};
-	await atomicWriteNew(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
+	await atomicWriteNew(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, "immutable receipt");
 	const predictionResult = await storePrediction(options, patch);
 	return { action: "run", receipt: receiptPath, ...executionEvidence, patchBytes, ...predictionResult };
 }
@@ -384,29 +398,58 @@ async function workspace(options: DevBenchmarkOptions) {
 }
 
 async function plan(options: DevBenchmarkOptions) {
-	if (!options.datasetName || !options.predictions || !options.runId || !options.reportDir || !options.instanceIds) {
-		throw new Error(
-			"benchmark plan requires --dataset-name, --predictions, --run-id, --report-dir, and --instance-ids.",
-		);
+	if (!options.predictions || !options.runId || !options.reportDir || !options.instanceIds) {
+		throw new Error("benchmark plan requires --predictions, --run-id, --report-dir, and --instance-ids.");
 	}
+	const source = parseSource(options.source);
 	const dockerArchitecture = await execFile("docker", ["info", "--format", "{{.Architecture}}"], {
 		timeout: 10_000,
 	}).then((result) => result.stdout.trim());
 	const instanceIds = csv(options.instanceIds) ?? [];
-	const evaluation = planOfficialSwebenchEvaluation({
-		pythonPath: resolve(options.python ?? "benchmark-harness/.venv/bin/python"),
-		datasetName: options.datasetName,
-		predictionsPath: options.predictions === "gold" ? "gold" : resolve(options.predictions),
-		runId: options.runId,
-		instanceIds,
-		reportDir: resolve(options.reportDir),
-		maxWorkers: integer(options.maxWorkers, "max-workers"),
-		timeoutSeconds: integer(options.timeout, "timeout"),
-		hostArchitecture: process.arch,
-		dockerArchitecture,
-	});
+	const pythonPath = resolve(options.python ?? "benchmark-harness/.venv/bin/python");
+	const reportDir = resolve(options.reportDir);
+	const candidate = options.predictions !== "gold";
+	let livePredictionsPath: string | null = null;
+	const evaluation = (() => {
+		if (source === "swebench_live") {
+			if (!options.dataset) {
+				throw new Error("SWE-bench-Live grading requires --dataset <pinned-local-jsonl>.");
+			}
+			if (options.timeout) {
+				throw new Error("The pinned native SWE-bench-Live harness has its own timeout; --timeout is unsupported.");
+			}
+			livePredictionsPath = candidate ? join(reportDir, "predictions.live.json") : null;
+			return planOfficialSwebenchLiveEvaluation({
+				pythonPath,
+				harnessPath: resolve(options.liveHarness ?? "benchmark-harness/swebench-live"),
+				datasetPath: resolve(options.dataset),
+				predictionsPath: livePredictionsPath ?? "gold",
+				instanceIds,
+				reportDir,
+				maxWorkers: integer(options.maxWorkers, "max-workers"),
+				hostArchitecture: process.arch,
+				dockerArchitecture,
+			});
+		}
+		if (!options.datasetName) {
+			throw new Error("Legacy SWE-bench grading requires --dataset-name.");
+		}
+		return planOfficialSwebenchEvaluation({
+			pythonPath,
+			datasetName: options.datasetName,
+			predictionsPath: candidate ? resolve(options.predictions) : "gold",
+			runId: options.runId,
+			instanceIds,
+			reportDir,
+			...(options.split?.trim() ? { split: options.split.trim() } : {}),
+			maxWorkers: integer(options.maxWorkers, "max-workers"),
+			timeoutSeconds: integer(options.timeout, "timeout"),
+			hostArchitecture: process.arch,
+			dockerArchitecture,
+		});
+	})();
 	if (options.execute) {
-		if (options.predictions !== "gold") {
+		if (candidate) {
 			if (!options.calibration) {
 				throw new Error("Candidate execution requires --calibration from at least two gold repeats.");
 			}
@@ -415,10 +458,22 @@ async function plan(options: DevBenchmarkOptions) {
 				JSON.parse(await readFile(resolve(options.calibration), "utf8")) as unknown,
 			);
 		}
-		await execFile(evaluation.command, [resolve("scripts/verify-swebench-grader.py")], { timeout: 30_000 });
-		await mkdir(resolve(options.reportDir), { recursive: true });
+		// Both official runners can skip already-present instance outputs. A fresh exclusive directory prevents a
+		// nominally new run from silently inheriting stale reports after a reused run id or interrupted attempt.
+		await createExclusiveReportDirectory(reportDir);
+		if (evaluation.harness === "swebench_live") {
+			await execFile(evaluation.command, [resolve("scripts/verify-swebench-live-grader.py"), evaluation.cwd ?? ""], {
+				timeout: 30_000,
+			});
+			if (candidate && livePredictionsPath) {
+				const predictions = parsePredictions(await readFile(resolve(options.predictions), "utf8"));
+				await atomicWrite(livePredictionsPath, serializeSwebenchLivePredictions(predictions));
+			}
+		} else {
+			await execFile(evaluation.command, [resolve("scripts/verify-swebench-grader.py")], { timeout: 30_000 });
+		}
 		await execFile(evaluation.command, [...evaluation.args], {
-			cwd: resolve(options.reportDir),
+			cwd: evaluation.cwd ?? reportDir,
 			timeout: 24 * 60 * 60_000,
 			maxBuffer: 64 * 1024 * 1024,
 		});
@@ -453,10 +508,12 @@ async function calibrate(options: DevBenchmarkOptions) {
 					}));
 				}),
 			).then((rows) => rows.flat());
-	return {
-		action: "calibrate",
-		...calibrateGoldAttempts(csv(options.instanceIds) ?? [], attempts),
-	};
+	const calibration = calibrateGoldAttempts(csv(options.instanceIds) ?? [], attempts);
+	const output = options.output ? resolve(options.output) : undefined;
+	if (output) {
+		await atomicWriteNew(output, `${JSON.stringify(calibration, null, 2)}\n`, "immutable calibration");
+	}
+	return { action: "calibrate", ...(output ? { output } : {}), ...calibration };
 }
 
 async function gate(options: DevBenchmarkOptions) {
