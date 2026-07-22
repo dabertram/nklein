@@ -4,6 +4,7 @@ import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } 
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { selectModelForAttempt } from "../../core/attempt-model-selection";
 import { difficultyTierFromScore, resolveAutoDecompositionDepth } from "../../core/auto-decomposition-depth";
+import { modelUseReservationId } from "../../core/auto-loaded-model-registry";
 import { applyWarmthPreference } from "../../core/cache-warmth";
 import { createCapabilityBlender } from "../../core/capability-blend";
 import { assessCeilingAdvisory } from "../../core/capability-ceiling-advisory";
@@ -45,6 +46,7 @@ import {
 	resolveActiveModelSuitabilityPolicy,
 } from "../../core/model-capability-catalog";
 import { classifyModelClass, isModelAllowedByClassCap } from "../../core/model-class-cap";
+import { DEFAULT_MODEL_IDLE_TTL_MS } from "../../core/model-load-policy";
 import { derivePoolCaps, derivePoolKeyForCandidate } from "../../core/model-pool-key";
 import { computePoolFreeSlots } from "../../core/model-pool-routing";
 import { explainModelSelection, renderModelSelectionReason } from "../../core/model-selection-reason";
@@ -387,6 +389,7 @@ export async function handleStartTaskSession(
 						return modelFacts;
 					},
 					loadExclusive: async (request) => {
+						const nowMs = Date.now();
 						const loadResult = await loadModelExclusive(createDefaultLmsRunner(), {
 							modelId: request.modelId,
 							candidateSizeBytes: request.candidateSizeBytes,
@@ -395,16 +398,37 @@ export async function handleStartTaskSession(
 							taskNeededTokens: request.taskNeededTokens,
 							maxContextLength: request.maxContextLength,
 							fastMemoryGuard: request.fastMemoryGuard,
+							warmRetention: {
+								autoLoaded: autoLoadedModels
+									.list()
+									.filter(
+										(record) => record.deviceName === undefined || record.deviceName === request.targetDevice,
+									)
+									.map((record) => ({
+										identifier: record.modelId,
+										lastUsedAtMs: record.lastUsedAtMs,
+										loadedAtMs: record.loadedAtMs,
+									})),
+								reservedIdentifiers: [
+									...new Set([...autoLoadedModels.reservedModelIds(), ...autoLoadedModels.neededModelIds()]),
+								],
+								nowMs,
+								idleTtlMs: DEFAULT_MODEL_IDLE_TTL_MS,
+								maxResidentModels: request.fastMemoryGuard.fastMemoryBytes >= 64 * 1024 ** 3 ? 3 : 1,
+							},
 							targetDevice: request.targetDevice,
 							targetDeviceIdentifier: request.targetDeviceIdentifier,
 						});
+						for (const unloadedModelId of loadResult.unloaded) {
+							autoLoadedModels.forget(unloadedModelId, request.targetDevice);
+						}
 						return { loaded: loadResult.loaded, reason: loadResult.reason };
 					},
 				},
 			).catch(() => ({ loaded: false as const, reason: "autonomous load error" }));
 			if (outcome.loaded) {
 				// F1.23: only what !Klein itself loaded is ever an idle-TTL eviction candidate.
-				autoLoadedModels.recordLoad(modelId, Date.now());
+				autoLoadedModels.recordLoad(modelId, Date.now(), outcome.deviceName);
 			}
 			return outcome;
 		};
@@ -1910,6 +1934,10 @@ export async function handleStartTaskSession(
 		// !Klein didn't load).
 		if (nkleinLaunchConfig.modelId) {
 			autoLoadedModels.markUsed(nkleinLaunchConfig.modelId, Date.now());
+			autoLoadedModels.reserveUse(
+				nkleinLaunchConfig.modelId,
+				modelUseReservationId(workspaceScope.workspaceId, body.taskId),
+			);
 		}
 		// F1.27b (leaf 2): the session is RUNNING — every admission grant has effectively happened. Held
 		// duplicates absorb the queued-start re-entry; the mirror lands on `planning` (§5.B entry lane).

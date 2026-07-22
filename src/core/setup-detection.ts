@@ -446,7 +446,7 @@ export function buildGlobalSetupPlan(facts: GlobalSetupFacts): SetupPlanStep[] {
 			title: "Resource policy",
 			recommendation: summarizeResourcePolicyRecommendation(facts.deviceRamGb),
 			detail:
-				"Set a per-machine RAM budget (NKLEIN_DEVICE_RAM_GB) so a task's model loads on a device that fits it, and let idle auto-loaded models evict after their TTL to free memory. Opt-in: unset leaves loading fully manual.",
+				"Set a per-machine fast-memory budget (NKLEIN_DEVICE_RAM_GB) so a task's model loads on a device that fits it. Warm models remain resident; only idle-past-TTL !Klein loads become eligible for minimal eviction when another admission needs capacity. Opt-in: unset leaves loading fully manual.",
 		},
 		{
 			stepId: "concurrency",

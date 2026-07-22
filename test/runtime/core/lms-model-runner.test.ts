@@ -7,6 +7,7 @@ const totalRamBytes = 128 * GiB;
 const PS_HEADER = "IDENTIFIER          MODEL          STATUS    SIZE       CONTEXT    PARALLEL    DEVICE    TTL";
 const LINK_STATUS = JSON.stringify({
 	deviceName: "m5max",
+	deviceIdentifier: "local-device",
 	preferredDeviceIdentifier: "old-device",
 	peers: [{ deviceIdentifier: "remote-device", deviceName: "m4mini", status: "connected" }],
 });
@@ -15,7 +16,7 @@ const LINK_STATUS = JSON.stringify({
 function fakeRunner(
 	psRows: string[],
 	loadExit = 0,
-	options: { setPreferredExit?: number; throwOnRestorePreferred?: boolean } = {},
+	options: { setPreferredExit?: number; throwOnRestorePreferred?: boolean; unloadExit?: number } = {},
 ) {
 	const calls: string[][] = [];
 	const run: LmsRunner = async (args) => {
@@ -37,6 +38,12 @@ function fakeRunner(
 		}
 		if (args[0] === "load") {
 			return { stdout: loadExit === 0 ? "loaded" : "error: oom", exitCode: loadExit };
+		}
+		if (args[0] === "unload") {
+			return {
+				stdout: options.unloadExit === undefined || options.unloadExit === 0 ? "unloaded" : "still resident",
+				exitCode: options.unloadExit ?? 0,
+			};
 		}
 		return { stdout: "", exitCode: 0 };
 	};
@@ -188,6 +195,171 @@ describe("loadModelExclusive", () => {
 		});
 		expect(result.unloaded).toEqual(["drop-me"]);
 		expect(calls).not.toContainEqual(["unload", "keep-me"]);
+	});
+
+	it("F4.50 preserves a safe warm set instead of enforcing legacy one-model exclusivity", async () => {
+		const { run, calls } = fakeRunner([
+			"warm-a          m          IDLE      20 GB      40000      1    Local",
+			"warm-b          m          IDLE      20 GB      40000      1    Local",
+		]);
+		const result = await loadModelExclusive(run, {
+			modelId: "target",
+			totalRamBytes,
+			candidateSizeBytes: 16 * GiB,
+			targetDevice: "Local",
+			warmRetention: {
+				autoLoaded: [
+					{ identifier: "warm-a", loadedAtMs: 1_000, lastUsedAtMs: 90_000 },
+					{ identifier: "warm-b", loadedAtMs: 2_000, lastUsedAtMs: 90_000 },
+				],
+				reservedIdentifiers: [],
+				nowMs: 100_000,
+				idleTtlMs: 60_000,
+				maxResidentModels: 3,
+			},
+		});
+		expect(result.loaded).toBe(true);
+		expect(result.unloaded).toEqual([]);
+		expect(calls.some((call) => call[0] === "unload")).toBe(false);
+		expect(result.reason).toMatch(/fits in current headroom/i);
+	});
+
+	it("F4.50 evicts only the minimum cold idle auto-loaded model and honors reservations", async () => {
+		const { run, calls } = fakeRunner([
+			"reserved-old          m          IDLE      20 GB      40000      1    Local",
+			"cold-free             m          IDLE      20 GB      40000      1    Local",
+		]);
+		const result = await loadModelExclusive(run, {
+			modelId: "target",
+			totalRamBytes,
+			candidateSizeBytes: 16 * GiB,
+			targetDevice: "Local",
+			warmRetention: {
+				autoLoaded: [
+					{ identifier: "reserved-old", loadedAtMs: 1_000, lastUsedAtMs: 1_000 },
+					{ identifier: "cold-free", loadedAtMs: 2_000, lastUsedAtMs: 2_000 },
+				],
+				reservedIdentifiers: ["reserved-old"],
+				nowMs: 100_000,
+				idleTtlMs: 60_000,
+				maxResidentModels: 2,
+			},
+		});
+		expect(result.loaded).toBe(true);
+		expect(result.unloaded).toEqual(["cold-free"]);
+		expect(calls).not.toContainEqual(["unload", "reserved-old"]);
+	});
+
+	it("F4.50 refuses without side effects while the only resident is still warm", async () => {
+		const { run, calls } = fakeRunner(["warm          m          IDLE      20 GB      40000      1    Local"]);
+		const result = await loadModelExclusive(run, {
+			modelId: "target",
+			totalRamBytes,
+			candidateSizeBytes: 16 * GiB,
+			targetDevice: "Local",
+			warmRetention: {
+				autoLoaded: [{ identifier: "warm", loadedAtMs: 1_000, lastUsedAtMs: 90_000 }],
+				reservedIdentifiers: [],
+				nowMs: 100_000,
+				idleTtlMs: 60_000,
+				maxResidentModels: 1,
+			},
+		});
+		expect(result.loaded).toBe(false);
+		expect(result.reason).toMatch(/idle TTL|retry later/i);
+		expect(result.unloaded).toEqual([]);
+		expect(calls.some((call) => call[0] === "unload" || call[0] === "load")).toBe(false);
+	});
+
+	it("F4.50 never evicts an operator-loaded resident that is absent from the auto-load registry", async () => {
+		const { run, calls } = fakeRunner([
+			"operator-model          m          IDLE      20 GB      40000      1    Local",
+		]);
+		const result = await loadModelExclusive(run, {
+			modelId: "target",
+			totalRamBytes,
+			candidateSizeBytes: 16 * GiB,
+			targetDevice: "Local",
+			warmRetention: {
+				autoLoaded: [],
+				reservedIdentifiers: [],
+				nowMs: 1_000_000,
+				idleTtlMs: 1,
+				maxResidentModels: 1,
+			},
+		});
+		expect(result.loaded).toBe(false);
+		expect(result.unloaded).toEqual([]);
+		expect(calls.some((call) => call[0] === "unload" || call[0] === "load")).toBe(false);
+	});
+
+	it("F4.50 never loads into capacity that an unsuccessful eviction failed to free", async () => {
+		const { run, calls } = fakeRunner(["cold          m          IDLE      20 GB      40000      1    Local"], 0, {
+			unloadExit: 1,
+		});
+		const result = await loadModelExclusive(run, {
+			modelId: "target",
+			totalRamBytes,
+			candidateSizeBytes: 16 * GiB,
+			targetDevice: "Local",
+			warmRetention: {
+				autoLoaded: [{ identifier: "cold", loadedAtMs: 1_000, lastUsedAtMs: 1_000 }],
+				reservedIdentifiers: [],
+				nowMs: 100_000,
+				idleTtlMs: 60_000,
+				maxResidentModels: 1,
+			},
+		});
+		expect(result.loaded).toBe(false);
+		expect(result.unloaded).toEqual([]);
+		expect(result.reason).toMatch(/failed to unload cold/i);
+		expect(calls.some((call) => call[0] === "load")).toBe(false);
+	});
+
+	it("F4.50 treats an already-resident target as a warm-cache hit and clears nothing", async () => {
+		const { run, calls } = fakeRunner([
+			"target          m          IDLE      20 GB      40000      1    Local",
+			"other           m          IDLE      20 GB      40000      1    Local",
+		]);
+		const result = await loadModelExclusive(run, {
+			modelId: "target",
+			totalRamBytes,
+			targetDevice: "Local",
+			warmRetention: {
+				autoLoaded: [{ identifier: "other", loadedAtMs: 1_000, lastUsedAtMs: 1_000 }],
+				reservedIdentifiers: [],
+				nowMs: 100_000,
+				idleTtlMs: 60_000,
+				maxResidentModels: 2,
+			},
+		});
+		expect(result.loaded).toBe(true);
+		expect(result.reason).toMatch(/preserved the warm set/i);
+		expect(result.unloaded).toEqual([]);
+		expect(calls.some((call) => call[0] === "unload" || call[0] === "load")).toBe(false);
+	});
+
+	it("F4.50 counts lms ps Local rows against the real local LM-Link device name", async () => {
+		const { run, calls } = fakeRunner([
+			"target          m          IDLE      20 GB      40000      1    Local",
+			"other           m          IDLE      20 GB      40000      1    Local",
+		]);
+		const result = await loadModelExclusive(run, {
+			modelId: "target",
+			totalRamBytes,
+			targetDevice: "m5max",
+			targetDeviceIdentifier: "local-device",
+			warmRetention: {
+				autoLoaded: [{ identifier: "other", loadedAtMs: 1_000, lastUsedAtMs: 1_000 }],
+				reservedIdentifiers: [],
+				nowMs: 100_000,
+				idleTtlMs: 60_000,
+				maxResidentModels: 2,
+			},
+		});
+		expect(result.loaded).toBe(true);
+		expect(result.unloaded).toEqual([]);
+		expect(calls.some((call) => call[0] === "load" || call[0] === "unload")).toBe(false);
 	});
 
 	it("refuses without evicting residents when the headroom guard fails", async () => {

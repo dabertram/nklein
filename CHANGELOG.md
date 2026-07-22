@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **JIT model admission now preserves warm prompt caches.** Safe residents stay loaded—up to three LLMs on m5max and
+  one on smaller hosts. Capacity admission may evict only the minimum coldest !Klein-loaded set after its idle TTL,
+  while operator models, active task leases, and queued needs across workspaces remain protected. A timer no longer
+  unloads a model merely for being idle, long sessions receive a fresh post-completion warm window, and each LM-Link
+  host copy is tracked independently. A failed unload now aborts the incoming load instead of assuming capacity freed.
+
 - **Apple unified-memory admission now intersects safety limits instead of multiplying them.** The configured physical
   memory reserve and `iogpu.wired_limit_mb` are independent absolute ceilings, so a default 128 GiB Mac correctly has a
   96 GiB model budget rather than an accidental 72 GiB one. The tighter ceiling caps MLX KV context at both placement

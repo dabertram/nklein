@@ -34,8 +34,8 @@ describe("createAutoLoadedModelRegistry", () => {
 		const registry = createAutoLoadedModelRegistry();
 		registry.recordLoad("m", 1_000);
 		registry.markUsed("m", 2_000);
-		registry.recordLoad("m", 3_000); // re-load refreshes loadedAt, keeps lastUsed
-		expect(registry.list()).toEqual([{ modelId: "m", loadedAtMs: 3_000, lastUsedAtMs: 2_000 }]);
+		registry.recordLoad("m", 3_000); // re-load itself is fresh activity
+		expect(registry.list()).toEqual([{ modelId: "m", loadedAtMs: 3_000, lastUsedAtMs: 3_000 }]);
 		registry.markUsed("unknown", 4_000); // never recorded — a no-op (operator models never enter)
 		expect(registry.list()).toHaveLength(1);
 		registry.forget("m");

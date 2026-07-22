@@ -1149,12 +1149,17 @@ source repo went private — so if it vanishes the buildable source still lives 
   (`parseLmsPs` in [lms-model-control.ts](src/core/lms-model-control.ts)); guard via
   [model-load-headroom.ts](src/core/model-load-headroom.ts) `decideModelLoad`; plan+command via `planGuardedModelLoad` /
   `buildLmsLoadArgs`/`buildLmsUnloadArgs`; the effectful `lms` runner is the ONLY place a load happens and MUST consult
-  the guard. Reason for the old rule (freeze risk) is now handled by the guard + the 1-at-a-time/size limits. `/v1/models`
+  the guard. Reason for the old rule (freeze risk) is now handled by the capacity + residency guards. `/v1/models`
   = available (downloaded), `/api/v0/models` = resident.
   On Apple Silicon the admissible resident budget is the INTERSECTION
   `min(physical unified memory × configured safe fraction, iogpu.wired_limit_mb ceiling)` — never multiply the two
   75%-shaped limits. The read-only local probe may cap MLX KV growth; remote Apple ceilings remain unknown rather than
   guessed. A binding ceiling refuses before cache-destructive eviction and shows operator-safe remediation.
+  Idle TTL is an EVICTION-ELIGIBILITY threshold, not an unconditional timer: safe warm models remain loaded. A JIT
+  admission may evict only !Klein-auto-loaded residents that are past TTL, not reserved by any active task or queued
+  explicit model need across workspaces, and only the minimum coldest set needed for the incoming load. Operator-loaded
+  residents are immovable. m5max has a three-LLM cap; smaller hosts one. Terminal summaries refresh last-used time so a
+  long session receives a full post-completion warm window.
 - **MODEL RESIDENCY IS NOT GUARANTEED STABLE + we are currently BLIND to why a model vanishes (investigation 2026-07-07,
   user flagged; supersedes my earlier casual "auto-unloaded (TTL)" claim, which was an UNVERIFIED guess).** Observed: a
   model resident + serving many requests (`qwen/qwen2.5-coder-14b` on the **m4mini** fleet node) DISAPPEARED between two
@@ -1542,7 +1547,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   dispatch, released on the task's FIRST observed summary (closing the dispatch→session-appears window),
   `reservationAwarePools` folds holds into the admission view; capacities deliberately undeclared (blocking would
   double-gate what admission rationing + the runtime endpoint gate already enforce — the fold is the value).
-  `capacityFreed` wake wired at BOTH seams (session-terminal summaries + idle-TTL unload) through
+  `capacityFreed` wake wired at the session-terminal seam through
   `createAdmissionWakeCoordinator` → debounced tickAll; the 15s interval stays as the designed fallback
   heartbeat. +3 wiring tests (saturate→exclude→freed-admits, reservation fold/release, null fail-open); smoke
   drain green on DEFAULT-ON durable with the wiring live (fail-open path). Active-path live validation on a
@@ -2883,8 +2888,21 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   probe: m5max physical 128 GiB, applied wire ceiling 112 GiB, default safe budget 96 GiB (reserve remains binding).
   Final gates: root typecheck, 97 focused, 12,136 fast runtime/utility, and 142 protected assertions pass; lint has no
   errors (only existing warnings).
-- [ ] **F4.50 — Integrate idle TTL, auto-evict, and JIT load.** Reclaim whole-model memory when idle while respecting
+- [x] **F4.50 — Integrate idle TTL, auto-evict, and JIT load.** Reclaim whole-model memory when idle while respecting
   warm-value and queued-work reservations.
+  **COMPLETED 2026-07-22:** the existing task-start JIT loader now opts into cache-preserving residency instead of the
+  legacy sweep runner's “unload every other model” behavior. It estimates every retained LLM's weights+context KV+runtime
+  footprint, keeps two/three models on m5max and one on smaller hosts when the combined safe budget permits, and uses
+  `decideIdleEvictions` + `planResidencyForModel` to evict only the minimum coldest auto-loaded set whose 30-minute idle
+  TTL has elapsed. Operator-loaded, still-warm, active, and queued/ready-reserved models are immovable; an impossible
+  admission refuses before LM-Link preference changes or unloads. The process-wide auto-load registry now records each
+  host copy independently, plus active task leases, terminal last-use, and cross-workspace queued needs. `lms ps`'s `Local` alias is matched
+  to the real local LM-Link identifier so local residents cannot disappear from the count. The old watchdog timer unload
+  was removed: TTL makes a model eligible during actual capacity admission, so safe prompt caches remain warm instead of
+  being discarded merely because the clock advanced. Failed unloads abort before the incoming load instead of falsely
+  assuming capacity was freed. Restart still forgets auto-ownership in the safe direction. Final gates: root typecheck,
+  75 focused, 12,146 fast runtime/utility, and 142 protected assertions pass; lint has no errors (20 existing warnings
+  and one existing info diagnostic).
 - [ ] **F4.53 — Add a resource panel.** Show process/system RAM, CPU, fast memory/VRAM, disk, model residency, cache hit,
   and reservations with low idle overhead.
 

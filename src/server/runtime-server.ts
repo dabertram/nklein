@@ -34,6 +34,7 @@ import type {
 	RuntimeUpdateStatusResponse,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
+import { modelUseReservationId } from "../core/auto-loaded-model-registry";
 import { buildBackgroundEvalEvidenceByModel } from "../core/background-eval-evidence-feed";
 import { selectBackgroundEvalTarget } from "../core/background-eval-selection";
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
@@ -59,12 +60,10 @@ import { defaultLlmfitCatalogCachePath } from "../core/llmfit-catalog-update";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached, type LmsPsModel } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
-import { createLmStudioRestModelClient } from "../core/lmstudio-rest-model-client";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { type MemoryAuditCandidate, readMemoryAuditCandidates } from "../core/memory-audit-production";
 import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
-import { decideIdleEvictions } from "../core/model-load-policy";
 import { findActiveSameTaskModelTurn } from "../core/model-turn-admission";
 import { ModelTurnAdmissionWaitQueue } from "../core/model-turn-admission-wait-queue";
 import { createNestedModelTurnAdmissionGate } from "../core/nested-model-turn-admission";
@@ -2988,6 +2987,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				await ensureDurableRunForScope(scope, { resumeOnly: true });
 			}
 			const unsubscribeQueueDrain = service.onSummary((summary) => {
+				const modelReservationId = modelUseReservationId(scope.workspaceId, summary.taskId);
+				if ((summary.state === "running" || summary.state === "queued") && summary.modelId) {
+					autoLoadedModels.reserveUse(summary.modelId, modelReservationId);
+				} else {
+					autoLoadedModels.releaseUse(modelReservationId, Date.now());
+				}
 				recordNKleinKnowledgeToolUsage(scope, summary);
 				recordNKleinModelPerformance(scope, summary);
 				recordNKleinSessionTransition(scope, summary);
@@ -3255,80 +3260,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								}
 							}
 						}
-						// F1.23: reclaim IDLE auto-loaded models (opt-in via the same deviceRamGb knob as the loader —
-						// autonomous loads imply autonomous reclaim). Candidates are ONLY models !Klein itself loaded;
-						// a model with an active session is busy, and any non-terminal card's configured model counts
-						// as NEEDED (current task need). One unload per tick; re-consult next tick.
-						try {
-							const evictionConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
-							if (evictionConfig?.deviceRamGb) {
-								const busyModelIds = new Set(
-									trackedService
-										.listSummaries()
-										.filter((summary) => summary.state === "running" || summary.state === "queued")
-										.map((summary) => summary.modelId)
-										.filter((modelId): modelId is string => Boolean(modelId)),
-								);
-								const neededModelIds = new Set<string>();
-								for (const column of board.columns) {
-									if (column.id === "completed" || column.id === "trash") {
-										continue;
-									}
-									for (const card of column.cards) {
-										const modelId = card.nkleinSettings?.modelId;
-										if (modelId) {
-											neededModelIds.add(modelId);
-										}
-									}
-								}
-								const plan = decideIdleEvictions({
-									autoLoaded: autoLoadedModels.list().map((record) => ({
-										id: record.modelId,
-										sizeGb: null,
-										busy: busyModelIds.has(record.modelId),
-										lastUsedAtMs: record.lastUsedAtMs,
-										loadedAtMs: record.loadedAtMs,
-									})),
-									neededModelIds: [...neededModelIds],
-									now: Date.now(),
-								});
-								const victim = plan.unloadModelIds[0];
-								if (victim) {
-									const restClient = createLmStudioRestModelClient({ baseUrl: DEFAULT_LOCAL_MODEL_BASE_URL });
-									const listed = await restClient.listModels();
-									const loadedVictim = listed.ok
-										? listed.value.find((model) => model.key === victim && model.loadedInstanceIds.length > 0)
-										: undefined;
-									if (loadedVictim) {
-										const unloaded = await restClient.unloadModel({
-											instanceId: loadedVictim.loadedInstanceIds[0] ?? victim,
-										});
-										if (unloaded.ok) {
-											autoLoadedModels.forget(victim);
-											// F1.19b: an unload frees pool capacity — wake the durable runs.
-											if (durableSchedulerEnabled) {
-												admissionWake.capacityFreed();
-											}
-											deps.warn(
-												`Idle-TTL eviction: unloaded auto-loaded model ${victim} (${plan.reasons[victim]}).`,
-											);
-											recordSelfObservation({
-												signal: "custom",
-												severity: "info",
-												message: `Idle-TTL eviction reclaimed auto-loaded model ${victim}.`,
-												workspacePath: scope.workspacePath,
-												metadata: { category: "model_idle_eviction", modelId: victim },
-											});
-										}
-									} else {
-										// Already gone (someone else unloaded it) — just forget it.
-										autoLoadedModels.forget(victim);
-									}
-								}
+						// F4.50: publish this workspace's queued/ready model reservations into the process-wide warm-set view.
+						// Idle TTL is an admission-time eviction ELIGIBILITY threshold, not a timer that destroys safe prompt caches.
+						const workspaceNeededModelIds = new Set<string>();
+						for (const column of board.columns) {
+							if (column.id === "completed" || column.id === "trash") continue;
+							for (const card of column.cards) {
+								const modelId = card.nkleinSettings?.modelId;
+								if (modelId) workspaceNeededModelIds.add(modelId);
 							}
-						} catch {
-							// Eviction is opportunistic housekeeping — never let it break the watchdog tick.
 						}
+						autoLoadedModels.setWorkspaceNeededModels(scope.workspaceId, [...workspaceNeededModelIds]);
 						const startable = listStartableUnstartedTaskIds(board, activeSessionTaskIds);
 						// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending
 						// concurrency-deferral retry (run36: only the overlap set was checked).
@@ -4018,6 +3960,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		activeModelTurnsByWorkspaceId.delete(workspaceId);
 		modelTurnAdmissionTailByWorkspaceId.delete(workspaceId);
 		modelTurnAdmissionGateByWorkspaceId.delete(workspaceId);
+		autoLoadedModels.clearWorkspaceNeededModels(workspaceId);
 		queuedStartDrainUnsubscribeByWorkspaceId.get(workspaceId)?.();
 		queuedStartDrainUnsubscribeByWorkspaceId.delete(workspaceId);
 		const drainTimer = queuedStartDrainTimersByWorkspaceId.get(workspaceId);

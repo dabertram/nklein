@@ -1,14 +1,15 @@
 /**
  * Effectful guarded model runner (todo §5.AF / §5.AB — the 2026-06-29 load-handover). The ONLY place a model load
- * actually happens. It enforces the user's hard guardrails: **one model resident at a time** (unload every non-pinned
- * model before loading the target), **context = 40000**, and **always headroom-checked** before the load (so a load can
- * never freeze the machine). The `lms` invocations are injected (`LmsRunner`) so the orchestration is fully unit-testable
- * with a fake — no `lms` spawn in tests; the live wiring passes a real `spawn`-backed runner.
+ * actually happens. Legacy sweep callers retain one-model exclusivity; production JIT admission supplies a warm-set
+ * policy that keeps safe residents and evicts only the minimum idle-past-TTL auto-loaded set required for capacity.
+ * Every path is context- and headroom-checked before side effects. The `lms` invocations are injected (`LmsRunner`) so
+ * orchestration is fully unit-testable with a fake — no `lms` spawn in tests.
  *
  * Selection (which model / size cap) is the caller's (the model-lab sweep); this runner just makes the load SAFE.
  */
 
-import { planFastMemorySafeContext } from "./fast-memory-fit";
+import { CONSERVATIVE_KV_CACHE_GEOMETRY } from "./device-load-routing";
+import { computeFastMemoryFootprint, fastMemoryBudgetBytes, planFastMemorySafeContext } from "./fast-memory-fit";
 import type { KvCacheParams } from "./kv-cache-size";
 import { fetchLmsLinkDevices } from "./lms-link-status";
 import {
@@ -28,6 +29,8 @@ import {
 	type ModelSuitabilityVerdict,
 } from "./model-capability-catalog";
 import { decideModelLoad, resolveRamBudgetBytesFromEnv } from "./model-load-headroom";
+import { decideIdleEvictions } from "./model-load-policy";
+import { planResidencyForModel } from "./model-residency-planner";
 
 /** Injected `lms` CLI runner — `run(["load", id, …])` → its stdout + exit code. */
 export type LmsRunner = (args: readonly string[]) => Promise<{ stdout: string; exitCode: number }>;
@@ -49,7 +52,7 @@ export async function listResidentModels(run: LmsRunner): Promise<ResidentModel[
 }
 
 export interface LoadExclusiveInput {
-	/** The model to make the sole resident LLM. */
+	/** The model to make resident. */
 	modelId: string;
 	/** Host RAM in bytes (e.g. `os.totalmem()`). */
 	totalRamBytes: number;
@@ -95,6 +98,18 @@ export interface LoadExclusiveInput {
 	};
 	/** Identifiers to NEVER unload (the user's pinned set; embeddings are auto-kept regardless). */
 	pinnedIdentifiers?: readonly string[];
+	/**
+	 * Opt-in cache-preserving residency policy for production JIT admission. Only listed, idle-past-TTL identifiers may
+	 * be evicted; every operator-loaded, reserved, busy, or still-warm model is retained. Omitted keeps the legacy
+	 * exclusive sweep behavior.
+	 */
+	warmRetention?: {
+		autoLoaded: readonly { identifier: string; lastUsedAtMs: number | null; loadedAtMs: number }[];
+		reservedIdentifiers: readonly string[];
+		nowMs: number;
+		idleTtlMs: number;
+		maxResidentModels: number;
+	};
 	/** RAM fraction to keep free (default 0.25 — the freeze-avoidance reserve). */
 	reserveFraction?: number;
 	/**
@@ -134,7 +149,7 @@ export interface LoadExclusiveInput {
 export interface LoadExclusiveResult {
 	loaded: boolean;
 	modelId: string;
-	/** Identifiers unloaded to honor the one-at-a-time rule. */
+	/** Identifiers unloaded by the selected legacy-exclusive or cache-preserving residency policy. */
 	unloaded: string[];
 	reason: string;
 	/** The §5.AL capability verdict consulted for this load (so the caller can surface a warning even on success). */
@@ -142,10 +157,9 @@ export interface LoadExclusiveResult {
 }
 
 /**
- * Make `modelId` the sole resident LLM, safely: unload every non-pinned, non-embedding model first (one-at-a-time),
- * then — only if the headroom guard approves — load it with the fixed context. Returns what was unloaded + whether the
- * load happened. A refused headroom check returns `loaded:false` with the reason (never loads). Idempotent: if the
- * target is already resident, it still clears the others and reports it resident.
+ * Make `modelId` resident safely. Without `warmRetention`, preserve the legacy exclusive sweep behavior. With it,
+ * retain operator/reserved/warm models, plan the minimum cold eviction set, then load only after every admission guard
+ * passes. Refusals are side-effect-free. An already-resident production target is a warm-cache hit and clears nothing.
  */
 export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInput): Promise<LoadExclusiveResult> {
 	// §5.AL capability gate FIRST — before any unload/spawn — so a known-unsuitable model never costs us the
@@ -167,12 +181,128 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 
 	const pinned = new Set(input.pinnedIdentifiers ?? []);
 	const resident = await listResidentModels(run);
+	const exactTargetResident = resident.some(
+		(model) =>
+			model.identifier === input.modelId &&
+			(input.targetDevice === undefined || model.device === input.targetDevice),
+	);
+	const targetLinkDevices =
+		input.targetDeviceIdentifier && !exactTargetResident ? await fetchLmsLinkDevices(run) : null;
 	// Model identifiers are not globally unique across LM Link: the same catalog key can be installed/resident on
 	// several hosts. A local copy must never satisfy a remote admission request (live 20260722-044414 did exactly
 	// that, skipped the preferred-device switch, and falsely reported a Legion load while creating a 4-model M5 set).
-	const isTargetResident = (model: ResidentModel) =>
-		model.identifier === input.modelId && (input.targetDevice === undefined || model.device === input.targetDevice);
+	const isOnTargetDevice = (model: ResidentModel) =>
+		input.targetDevice === undefined ||
+		model.device === input.targetDevice ||
+		(model.device?.toLowerCase() === "local" &&
+			input.targetDeviceIdentifier !== undefined &&
+			targetLinkDevices?.localDeviceIdentifier === input.targetDeviceIdentifier);
+	const isTargetResident = (model: ResidentModel) => model.identifier === input.modelId && isOnTargetDevice(model);
 	const targetAlreadyResident = resident.some(isTargetResident);
+	const scopedResident = resident.filter(isOnTargetDevice);
+	const estimatedFootprint = (model: ResidentModel): number | null => {
+		if (model.sizeBytes === null) {
+			return null;
+		}
+		if (isEmbeddingModel(model.identifier)) {
+			return model.sizeBytes;
+		}
+		if (model.contextLength === null || model.contextLength <= 0) {
+			return null;
+		}
+		return computeFastMemoryFootprint({
+			weightsBytes: model.sizeBytes,
+			kvCache: { ...CONSERVATIVE_KV_CACHE_GEOMETRY, contextLength: model.contextLength },
+		}).totalBytes;
+	};
+	let residencyReason = "legacy exclusive residency";
+	let plannedUnloadIdentifiers: Set<string>;
+	if (input.warmRetention && !targetAlreadyResident) {
+		const protectedIdentifiers = new Set([
+			...pinned,
+			...input.warmRetention.reservedIdentifiers,
+			...scopedResident.filter((model) => isEmbeddingModel(model.identifier)).map((model) => model.identifier),
+		]);
+		const autoLoadedById = new Map(input.warmRetention.autoLoaded.map((record) => [record.identifier, record]));
+		const idleEligibility = decideIdleEvictions({
+			autoLoaded: input.warmRetention.autoLoaded.map((record) => {
+				const model = scopedResident.find((candidate) => candidate.identifier === record.identifier);
+				const footprintBytes = model ? estimatedFootprint(model) : null;
+				return {
+					id: record.identifier,
+					sizeGb: footprintBytes === null ? null : footprintBytes / GiB,
+					busy: protectedIdentifiers.has(record.identifier),
+					lastUsedAtMs: record.lastUsedAtMs,
+					loadedAtMs: record.loadedAtMs,
+				};
+			}),
+			neededModelIds: [...protectedIdentifiers],
+			now: input.warmRetention.nowMs,
+			idleTtlMs: input.warmRetention.idleTtlMs,
+		});
+		const idleEvictable = new Set(idleEligibility.unloadModelIds);
+		const unknownProtected = scopedResident.filter((model) => {
+			return !idleEvictable.has(model.identifier) && estimatedFootprint(model) === null;
+		});
+		if (unknownProtected.length > 0) {
+			return {
+				loaded: false,
+				modelId: input.modelId,
+				unloaded: [],
+				reason: `Cannot prove warm-set headroom because retained model size/context is unknown: ${unknownProtected.map((model) => model.identifier).join(", ")}.`,
+				suitability,
+			};
+		}
+		const residentForPlan = scopedResident
+			.filter((model) => !isEmbeddingModel(model.identifier))
+			.map((model) => {
+				const record = autoLoadedById.get(model.identifier);
+				const idleSince = record?.lastUsedAtMs ?? record?.loadedAtMs ?? input.warmRetention?.nowMs ?? 0;
+				return {
+					key: model.identifier,
+					sizeBytes: estimatedFootprint(model) ?? 0,
+					inUse: !idleEvictable.has(model.identifier),
+					lastUsedAt: idleSince,
+				};
+			});
+		const totalBudgetBytes = input.fastMemoryGuard
+			? fastMemoryBudgetBytes({
+					fastMemoryBytes: input.fastMemoryGuard.fastMemoryBytes,
+					fastMemoryFraction: input.fastMemoryGuard.fastMemoryFraction,
+					fastMemoryCeilingBytes: input.fastMemoryGuard.fastMemoryCeilingBytes,
+				})
+			: input.totalRamBytes;
+		const residencyPlan = planResidencyForModel({
+			neededSizeBytes: input.candidateSizeBytes ?? DEFAULT_CANDIDATE_SIZE_BYTES,
+			resident: residentForPlan,
+			totalBudgetBytes,
+			reserveFraction: input.fastMemoryGuard ? 0 : input.reserveFraction,
+			maxResidents: input.warmRetention.maxResidentModels,
+		});
+		if (!residencyPlan.fits) {
+			return {
+				loaded: false,
+				modelId: input.modelId,
+				unloaded: [],
+				reason: `${residencyPlan.reason} Warm models are retained until their idle TTL expires; retry later or choose a resident model.`,
+				suitability,
+			};
+		}
+		plannedUnloadIdentifiers = new Set(residencyPlan.toUnload);
+		residencyReason = residencyPlan.reason;
+	} else if (input.warmRetention) {
+		plannedUnloadIdentifiers = new Set();
+		residencyReason = "target already resident; preserved the warm set";
+	} else {
+		plannedUnloadIdentifiers = new Set(
+			scopedResident
+				.filter(
+					(model) =>
+						!isTargetResident(model) && !pinned.has(model.identifier) && !isEmbeddingModel(model.identifier),
+				)
+				.map((model) => model.identifier),
+		);
+	}
 	// Compute every admission verdict before changing LM Link preference or evicting a useful resident. A rejected load
 	// must be side-effect-free; otherwise a spill-risk candidate can destroy the warm set it never replaces.
 	const slotPlan =
@@ -185,10 +315,9 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 				})
 			: null;
 	let loadContextLength = slotPlan?.contextLength ?? input.contextLength ?? DEFAULT_CONTEXT_LENGTH;
-	const keptResidentBytes = resident
-		.filter((model) => pinned.has(model.identifier) || isEmbeddingModel(model.identifier))
-		.filter((model) => input.targetDevice === undefined || model.device === input.targetDevice)
-		.reduce((total, model) => total + (model.sizeBytes ?? 0), 0);
+	const keptResidentBytes = scopedResident
+		.filter((model) => !plannedUnloadIdentifiers.has(model.identifier) && !isTargetResident(model))
+		.reduce((total, model) => total + (estimatedFootprint(model) ?? 0), 0);
 	const decision = decideModelLoad({
 		candidateSizeBytes: input.candidateSizeBytes ?? DEFAULT_CANDIDATE_SIZE_BYTES,
 		residentSizeBytes: keptResidentBytes,
@@ -230,7 +359,7 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 	let previousPreferredDeviceIdentifier: string | null = null;
 
 	if (!targetAlreadyResident && input.targetDeviceIdentifier) {
-		const linkDevices = await fetchLmsLinkDevices(run);
+		const linkDevices = targetLinkDevices ?? (await fetchLmsLinkDevices(run));
 		previousPreferredDeviceIdentifier = linkDevices.preferredDeviceIdentifier;
 		if (previousPreferredDeviceIdentifier !== input.targetDeviceIdentifier) {
 			const { stdout, exitCode } = await run(["link", "set-preferred-device", input.targetDeviceIdentifier]);
@@ -249,16 +378,18 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 
 	try {
 		const unloaded: string[] = [];
-		for (const model of resident) {
-			if (isTargetResident(model) || pinned.has(model.identifier) || isEmbeddingModel(model.identifier)) {
-				continue;
+		for (const model of scopedResident) {
+			if (!plannedUnloadIdentifiers.has(model.identifier)) continue;
+			const unloadResult = await run(buildLmsUnloadArgs(model.identifier));
+			if (unloadResult.exitCode !== 0) {
+				return {
+					loaded: false,
+					modelId: input.modelId,
+					unloaded,
+					reason: `Refused to load after lms failed to unload ${model.identifier} (exit ${unloadResult.exitCode}): ${unloadResult.stdout.slice(0, 200)}`,
+					suitability,
+				};
 			}
-			// Per-machine scoping: with a known target device, only clear residents on the SAME device — never evict a model
-			// running on another linked box (a resident whose device is unknown is left alone under scoping, to be safe).
-			if (input.targetDevice !== undefined && model.device !== input.targetDevice) {
-				continue;
-			}
-			await run(buildLmsUnloadArgs(model.identifier));
 			unloaded.push(model.identifier);
 		}
 
@@ -267,7 +398,9 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 				loaded: true,
 				modelId: input.modelId,
 				unloaded,
-				reason: "Already resident; cleared other models.",
+				reason: input.warmRetention
+					? "Already resident; preserved the warm set."
+					: "Already resident; cleared other models.",
 				suitability,
 			};
 		}
@@ -294,7 +427,7 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 			unloaded,
 			reason:
 				exitCode === 0
-					? `Loaded (${decision.reason})${caveat}`
+					? `Loaded (${decision.reason}; ${residencyReason})${caveat}`
 					: `lms load failed (exit ${exitCode}): ${stdout.slice(0, 200)}`,
 			suitability,
 		};
