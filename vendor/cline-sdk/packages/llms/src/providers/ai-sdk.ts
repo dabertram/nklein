@@ -998,6 +998,15 @@ async function* emitAiSdkEvents(
 		streamError = capturedError?.current ?? extractErrorMessage(error);
 	}
 
+	if (!streamError && stream.providerMetadata) {
+		try {
+			const resolvedProviderMetadata = await stream.providerMetadata;
+			if (resolvedProviderMetadata !== undefined) finishProviderMetadata = resolvedProviderMetadata;
+		} catch {
+			// Provider metadata is optional observation data. A completed model response remains usable without it.
+		}
+	}
+
 	// Prefer stream.usage (has raw cost data) over finish part usage.
 	// stream.usage may be undefined in mocked/test scenarios, fall back to finish part + its providerMetadata.
 	let usageToEmit: unknown;
@@ -1026,12 +1035,24 @@ async function* emitAiSdkEvents(
 			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue),
 		};
 	}
+	const terminalMetadata = (() => {
+		if (!finishProviderMetadata || typeof finishProviderMetadata !== "object") {
+			return undefined;
+		}
+		const openai = (finishProviderMetadata as Record<string, unknown>).openai;
+		if (!openai || typeof openai !== "object") return undefined;
+		const responseId = (openai as Record<string, unknown>).responseId;
+		return typeof responseId === "string" && responseId.length > 0
+			? { openai: { responseId } }
+			: undefined;
+	})();
 
 	yield {
 		type: "finish",
 		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
 		error: streamError,
-	};
+		...(terminalMetadata ? { metadata: terminalMetadata } : {}),
+	} as AgentModelEvent;
 }
 
 async function createProviderModule(
@@ -1112,8 +1133,10 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				current: undefined,
 			};
 			try {
+				const effectiveKind: ProviderModuleKind =
+					kind === "openai-compatible" && config.options?.useOpenAIResponses === true ? "openai" : kind;
 				const provider = await createProviderModule(
-					kind,
+					effectiveKind,
 					{
 						...config,
 						fetch: wrapFetchForStickySession(
@@ -1130,7 +1153,13 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const tools = providerDisablesExternalToolExecution(context)
 					? undefined
 					: toAiSdkTools(request);
-				const systemPrompt = resolveAiSdkSystemPrompt(request);
+				// Responses does not inherit top-level instructions through previous_response_id. Stateful !Klein turns
+				// route the authoritative system prompt through providerOptions.openai.instructions on every request;
+				// suppressing the ordinary prompt conversion prevents one stored system item accumulating per turn.
+				const systemPrompt =
+					effectiveKind === "openai" && request.metadata?.nkleinStatefulResponses === true
+						? undefined
+						: resolveAiSdkSystemPrompt(request);
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;
 				const messagesSystemPrompt = useSystemOption ? undefined : systemPrompt;
@@ -1142,7 +1171,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const providerOptions = composeAiSdkProviderOptions(
 					request,
 					context,
-					kind,
+					effectiveKind,
 				) as never;
 				recordProviderRequestCapture({
 					stage: "ai_sdk_prompt",

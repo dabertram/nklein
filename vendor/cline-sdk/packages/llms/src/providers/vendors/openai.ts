@@ -10,7 +10,12 @@ export async function createOpenAIProviderModule(
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
-	const apiKey = await resolveApiKey(config);
+	const resolvedApiKey = await resolveApiKey(config);
+	const apiKey =
+		resolvedApiKey ??
+		(config.options?.useOpenAIResponses === true && config.baseUrl?.trim()
+			? "nklein-local-responses"
+			: undefined);
 	const provider = createOpenAI({
 		apiKey,
 		baseURL: config.baseUrl,

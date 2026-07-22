@@ -2808,7 +2808,7 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   module embeds Date.now/toISOString/random in prompt bytes (runner uses are deadline control flow only).
 - [x] **F4.45 — Use stateful LM Studio responses where verified.** *(finalized 2026-07-19 — the verification
   gate is complete + fail-closed; the session-path adoption is split to F4.45b.)*
-- [ ] **F4.45b — Stateful-responses session adoption** *(design is part of this package; split from F4.45 2026-07-19).* Thread
+- [x] **F4.45b — Stateful-responses session adoption** *(design is part of this package; split from F4.45 2026-07-19).* Thread
   previous_response_id through the model call while the transcript store REMAINS owner (replay/compaction
   correctness) with per-turn stateless fallback. The package owns the design proof; there is no separate user gate.
   *(original F4.45 detail follows.)* Adopt `previous_response_id`/native sessions behind a
@@ -2819,6 +2819,19 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   4 assertions ×2 tests. FORMER REMAINING (split to F4.45b below): the session-path adoption itself — thread
   previous_response_id through the model call while the transcript store REMAINS the owner (replay/compaction
   correctness) with per-turn stateless fallback; SDK-level change, design before build.
+  **COMPLETED 2026-07-22:** the session factory now probes the exact local endpoint/model only when opted in, deduplicates
+  in-flight probes, retains only verified positive capabilities, and routes LM Studio through the vendored official
+  OpenAI Responses adapter without changing its provider identity. `stateful-responses-model.ts` proves the caller's
+  system/policy/transcript prefix and exact prior assistant result before sending only the new delta; adaptive retry
+  notes stay wire-only, while the unchanged system prompt is resent as top-level `instructions` because Responses does
+  not inherit that field through `previous_response_id`. Divergence/compaction invalidates the chain, a failed
+  continuation is buffered and replayed once from the authoritative full transcript with cumulative usage, and caller
+  aborts never replay. Tool-call/result turns
+  preserve IDs and input exactly. Live Mistral Small 3.2 evidence proved `CEDAR-482` recall from a delta-only second
+  request and a `record_code(TOOL-917)` → `function_call_output` continuation; both carried real `resp_*` handles.
+  Regression net: 59 focused host assertions + 200 focused vendored SDK assertions, clean SDK declaration build and
+  root typecheck; final gates: 12,126 runtime/utility assertions, 1,823 vendored assertions (8 skipped), and 142
+  protected assertions all pass; lint has no errors (only the repository's pre-existing warnings).
 - [x] **F4.46 — Wire effectful context compaction.** Summarize old dialogue, drop/raw-handle tool output, retain pinned
   facts/evidence, and verify provenance/citation continuity.
   **AUDIT 2026-07-18: WIRE IS LIVE** — buildNKleinContextCompactionConfig (enabled:true, basic strategy,

@@ -33,6 +33,7 @@ import {
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { preferredEndpointKind } from "../core/model-behavior-profile";
 import { isMeasuredRetrievalDiscriminatorModel } from "../core/retrieval-discriminator";
+import { StatefulResponsesCapabilityCache } from "../core/stateful-responses-gate";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { createAdaptiveSwarmRecoveryModel } from "./adaptive-swarm-recovery-model";
@@ -100,6 +101,7 @@ import {
 	type NKleinSdkTeamEvent,
 } from "./sdk-runtime-boundary";
 import { createSkillApiProfileAgentModel } from "./skill-api-profile-agent-model";
+import { createStatefulResponsesModel } from "./stateful-responses-model";
 import { createOpenAiCompatPhaseOnePickCaller } from "./two-phase-before-model";
 
 export { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
@@ -121,6 +123,8 @@ import type {
 	StartNKleinSessionRuntimeRequest,
 	StartNKleinSessionRuntimeResult,
 } from "./nklein-session-runtime-types";
+
+const statefulResponsesCapabilities = new StatefulResponsesCapabilityCache();
 
 export type {
 	CreateInMemoryNKleinSessionRuntimeOptions,
@@ -526,13 +530,45 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			taskId: request.taskId,
 			mode: resolvedMode,
 		});
+		const normalizedBaseUrl = request.baseUrl?.trim()
+			? normalizeProviderBaseUrl(request.providerId, request.baseUrl)
+			: null;
+		const statefulResponsesDecision =
+			request.providerId.trim().toLowerCase() === "lmstudio" && normalizedBaseUrl
+				? await statefulResponsesCapabilities.decide({
+						envOptIn: isTruthyEnv(process.env.NKLEIN_STATEFUL_RESPONSES),
+						baseUrl: normalizedBaseUrl,
+						modelId: request.modelId,
+					})
+				: { adopt: false, reason: "stateful Responses applies only to the verified LM Studio provider" };
+		if (isTruthyEnv(process.env.NKLEIN_STATEFUL_RESPONSES)) {
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: statefulResponsesDecision.adopt ? "info" : "warning",
+					message: `Stateful Responses ${statefulResponsesDecision.adopt ? "adopted" : "withheld"} for ${request.taskId}: ${statefulResponsesDecision.reason}`,
+					taskId: request.taskId,
+					providerId: request.providerId,
+					modelId: request.modelId,
+					workspacePath: agentPerceivedCwd,
+					metadata: {
+						category: "stateful_responses_capability",
+						adopted: statefulResponsesDecision.adopt,
+						reason: statefulResponsesDecision.reason,
+					},
+				});
+			} catch {
+				// Capability observability must never block session start.
+			}
+		}
 		const providerConfig: NonNullable<NKleinSdkStartSessionInput["config"]["providerConfig"]> = {
 			providerId: request.providerId,
 			modelId: request.modelId,
 			...(request.apiKey?.trim() ? { apiKey: request.apiKey.trim() } : {}),
 			// A bare-host base makes the SDK POST /chat/completions at the server root — LM Studio 200s it EMPTY
 			// (live 2026-07-18: every session "completed" instantly with no output). Normalize to the /v1 API root.
-			...(request.baseUrl?.trim() ? { baseUrl: normalizeProviderBaseUrl(request.providerId, request.baseUrl) } : {}),
+			...(normalizedBaseUrl ? { baseUrl: normalizedBaseUrl } : {}),
+			...(statefulResponsesDecision.adopt ? { useOpenAIResponses: true } : {}),
 			...(request.reasoningEffort === null
 				? { reasoningEffort: "none" as NonNullable<NKleinSdkStartSessionInput["config"]["reasoningEffort"]> }
 				: request.reasoningEffort
@@ -545,7 +581,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			providerId: request.providerId,
 			modelId: request.modelId,
 			apiKey: request.apiKey?.trim() || undefined,
-			baseUrl: request.baseUrl?.trim() ? normalizeProviderBaseUrl(request.providerId, request.baseUrl) : undefined,
+			baseUrl: normalizedBaseUrl ?? undefined,
 			reasoningEffort:
 				request.reasoningEffort === null
 					? ("none" as NKleinSdkStartSessionInput["config"]["reasoningEffort"])
@@ -629,7 +665,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 					// executable shared-policy rung before any partial text/reasoning/usage event becomes visible. Caller
 					// cancellation is authoritative, and a turn that emitted a tool call is never replayed.
 					modelWrapper: (base) => {
-						const guardedBase = isTruthyEnv(process.env.NKLEIN_RUNAWAY_ABORT)
+						const interruptionGuardedBase = isTruthyEnv(process.env.NKLEIN_RUNAWAY_ABORT)
 							? createRunawayInterruptModel(base, {
 									onInterrupt: (verdict) => {
 										process.stderr.write(
@@ -657,6 +693,30 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 									},
 								})
 							: base;
+						const guardedBase = statefulResponsesDecision.adopt
+							? createStatefulResponsesModel(interruptionGuardedBase, {
+									onObservation: (observation) => {
+										try {
+											recordSelfObservation({
+												signal: "custom",
+												severity: observation.type === "stateless_fallback" ? "warning" : "info",
+												message: `OpenAI Responses session ${observation.type} for ${request.taskId}: ${observation.detail}`,
+												taskId: request.taskId,
+												providerId: request.providerId,
+												modelId: request.modelId,
+												workspacePath: agentPerceivedCwd,
+												metadata: {
+													category: "stateful_responses_session",
+													type: observation.type,
+													detail: observation.detail,
+												},
+											});
+										} catch {
+											// Session observability must never alter provider behavior.
+										}
+									},
+								})
+							: interruptionGuardedBase;
 						const directClient = request.baseUrl?.trim()
 							? new LocalLlmClient({
 									providerId: request.providerId,

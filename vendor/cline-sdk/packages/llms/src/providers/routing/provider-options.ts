@@ -112,8 +112,20 @@ export function composeAiSdkProviderOptions(
 		suppressions,
 	};
 
-	return mergeProviderOptionPatches([
+	const composed = mergeProviderOptionPatches([
 		buildBaseProviderOptionsPatch(compatibleOptions, anthropicOptions),
 		...buildProviderOptionRulePatches(matchedRules, buildInput),
 	]);
+	if (target === "openai" && request.metadata?.nkleinStatefulResponses === true) {
+		const previousResponseId = request.metadata.nkleinPreviousResponseId;
+		composed.openai = {
+			...(composed.openai ?? {}),
+			store: true,
+			...(request.systemPrompt?.trim() ? { instructions: request.systemPrompt } : {}),
+			...(typeof previousResponseId === "string" && previousResponseId.length > 0
+				? { previousResponseId }
+				: {}),
+		};
+	}
+	return composed;
 }

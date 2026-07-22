@@ -109,6 +109,7 @@ function makeRequest(overrides: RequestOverrides): GatewayStreamRequest {
 		systemPrompt: overrides.systemPrompt,
 		temperature: overrides.temperature,
 		maxTokens: overrides.maxTokens,
+		metadata: overrides.metadata,
 		reasoning: overrides.reasoning,
 		signal: overrides.signal,
 		tools: overrides.tools,
@@ -261,6 +262,43 @@ describe("composeAiSdkProviderOptions: alias bucket emission", () => {
 		expect(result.openai).not.toHaveProperty("truncation");
 		expect(result).not.toHaveProperty("v0");
 		expect(result.openaiCompatible).not.toHaveProperty("strictJsonSchema");
+	});
+
+	it("adds stateful Responses options only for an explicit OpenAI adapter target", () => {
+		const request = makeRequest({
+			providerId: "lmstudio",
+			modelId: "local-model",
+			systemPrompt: "stable policy",
+			metadata: {
+				nkleinStatefulResponses: true,
+				nkleinPreviousResponseId: "resp_prior",
+			},
+		});
+		const context = makeContext({ providerId: "lmstudio", modelId: "local-model" });
+
+		expect(composeAiSdkProviderOptions(request, context, "openai").openai).toEqual(
+			expect.objectContaining({
+				store: true,
+				instructions: "stable policy",
+				previousResponseId: "resp_prior",
+			}),
+		);
+		expect(composeAiSdkProviderOptions(request, context, "openai-compatible").openai).toBeUndefined();
+	});
+
+	it("starts a stored Responses chain without inventing a previous response id", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "lmstudio",
+				modelId: "local-model",
+				metadata: { nkleinStatefulResponses: true },
+			}),
+			makeContext({ providerId: "lmstudio", modelId: "local-model" }),
+			"openai",
+		);
+
+		expect(result.openai).toEqual(expect.objectContaining({ store: true }));
+		expect(result.openai).not.toHaveProperty("previousResponseId");
 	});
 
 	it("does not fan OpenAI-compatible strict schema defaults into native adapter buckets", () => {

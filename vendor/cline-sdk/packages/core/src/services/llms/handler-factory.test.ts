@@ -148,6 +148,36 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards a host-verified Responses route without changing the provider identity", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "lmstudio",
+				modelId: "local-model",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "lmstudio",
+					modelId: "local-model",
+					useOpenAIResponses: true,
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "lmstudio",
+						options: expect.objectContaining({ useOpenAIResponses: true }),
+					}),
+				],
+			}),
+		);
+	});
+
 	it("preserves model capabilities and metadata when configuring gateway models", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 

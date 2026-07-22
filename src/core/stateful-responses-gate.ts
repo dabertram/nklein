@@ -4,9 +4,11 @@
  * LM Studio's `/v1/responses` API can carry conversation state server-side (`previous_response_id`), cutting
  * per-turn resend cost. Adoption is only safe "where verified": the endpoint must actually implement the API
  * (older builds 404 it; some proxies strip it), and the session layer must keep OWNING the transcript so replay
- * and compaction stay correct with a STATELESS fallback at any moment. This module owns the probe decision and
- * the opt-in gate; the transcript-ownership adoption in the session path is the (large) remaining wire.
+ * and compaction stay correct with a STATELESS fallback at any moment. This module owns the bounded probe decision,
+ * opt-in gate, and positive-capability cache; the session decorator owns transcript continuity and replay.
  */
+
+import { isLocalBaseUrl } from "../nklein-agent/nklein-local-only-policy.js";
 
 export interface StatefulResponsesProbeResult {
 	/** HTTP status the endpoint returned for a minimal `/v1/responses` request; null = network failure. */
@@ -19,6 +21,14 @@ export interface StatefulResponsesDecision {
 	adopt: boolean;
 	reason: string;
 }
+
+export interface StatefulResponsesCapabilityInput {
+	envOptIn: boolean;
+	baseUrl: string;
+	modelId: string;
+}
+
+const STATEFUL_RESPONSES_PROBE_TIMEOUT_MS = 30_000;
 
 /**
  * Decide adoption from a live probe + the opt-in env. Fail-closed on every uncertainty: not opted in, probe
@@ -58,11 +68,17 @@ export async function probeStatefulResponses(
 	modelId: string,
 	fetchImpl: typeof fetch = fetch,
 ): Promise<StatefulResponsesProbeResult> {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), STATEFUL_RESPONSES_PROBE_TIMEOUT_MS);
+	(timeout as ReturnType<typeof setTimeout> & { unref?: () => void }).unref?.();
 	try {
-		const response = await fetchImpl(`${baseUrl.replace(/\/+$/u, "")}/responses`, {
+		const url = `${baseUrl.replace(/\/+$/u, "")}/responses`;
+		if (!isLocalBaseUrl(url)) return { status: null, returnedResponseId: false };
+		const response = await fetchImpl(url, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ model: modelId, input: "ping", max_output_tokens: 1, store: true }),
+			signal: controller.signal,
 		});
 		if (!response.ok) {
 			return { status: response.status, returnedResponseId: false };
@@ -71,5 +87,35 @@ export async function probeStatefulResponses(
 		return { status: response.status, returnedResponseId: typeof body?.id === "string" && body.id.length > 0 };
 	} catch {
 		return { status: null, returnedResponseId: false };
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+/** Session-factory capability cache: deduplicate in-flight probes and retain only verified positive capabilities. */
+export class StatefulResponsesCapabilityCache {
+	readonly #fetchImpl: typeof fetch | undefined;
+	readonly #probes = new Map<string, Promise<StatefulResponsesProbeResult>>();
+
+	constructor(fetchImpl?: typeof fetch) {
+		this.#fetchImpl = fetchImpl;
+	}
+
+	async decide(input: StatefulResponsesCapabilityInput): Promise<StatefulResponsesDecision> {
+		if (!input.envOptIn) return decideStatefulResponsesAdoption({ envOptIn: false, probe: null });
+		const baseUrl = input.baseUrl.trim().replace(/\/+$/u, "");
+		const modelId = input.modelId.trim();
+		if (!baseUrl || !modelId || !isLocalBaseUrl(baseUrl)) {
+			return { adopt: false, reason: "stateful Responses requires an exact local endpoint and model" };
+		}
+		const key = `${baseUrl}\u0000${modelId}`;
+		let probe = this.#probes.get(key);
+		if (!probe) {
+			probe = probeStatefulResponses(baseUrl, modelId, this.#fetchImpl ?? fetch);
+			this.#probes.set(key, probe);
+		}
+		const result = await probe;
+		if (result.status !== 200 || !result.returnedResponseId) this.#probes.delete(key);
+		return decideStatefulResponsesAdoption({ envOptIn: true, probe: result });
 	}
 }

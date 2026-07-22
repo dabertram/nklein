@@ -249,6 +249,8 @@ export interface CloudConfig {
 export interface ProviderOptions {
 	/** OpenRouter provider sorting preference */
 	openRouterProviderSorting?: string;
+	/** Use the official OpenAI Responses adapter for a host-verified compatible endpoint. */
+	useOpenAIResponses?: boolean;
 	/** Runtime model catalog refresh configuration */
 	modelCatalog?: ModelCatalogConfig;
 }

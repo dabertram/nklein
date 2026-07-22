@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Verified LM Studio endpoints can now reuse OpenAI-compatible Responses state across normal task turns.** !Klein
+  retains the authoritative transcript, proves exact continuity before sending a delta, preserves tool-call/result
+  identity, resends the unchanged system policy required by the Responses contract, and falls back once to a full
+  stateless replay when server state disappears. Capability probes are local,
+  bounded, opt-in, and retry transient failures; cancellation never triggers replay.
+
 - **LM Studio native recovery now reuses verified stateful sessions without surrendering transcript ownership.** !Klein
   proves exact transcript continuity, sends only the new turn with `previous_response_id`, and replays the full
   caller-owned transcript once when provider state is stale. Compaction, replay edits, tool turns, and endpoint changes

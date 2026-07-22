@@ -254,6 +254,8 @@ export type AgentModelEvent =
 			type: "finish";
 			reason: AgentModelFinishReason;
 			error?: string;
+			/** Narrow provider-owned terminal metadata needed above the transport seam (for example a response id). */
+			metadata?: unknown;
 	  };
 
 export interface AgentModel {

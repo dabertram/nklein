@@ -208,6 +208,81 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		expect(runtime.getTaskTurnGeneration("task-1")).toBe(0);
 	});
 
+	it("adopts the verified LM Studio Responses route at the real session/model-wrapper seam", async () => {
+		const originalOptIn = process.env.NKLEIN_STATEFUL_RESPONSES;
+		process.env.NKLEIN_STATEFUL_RESPONSES = "1";
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "resp_probe" }), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+		const fakeHost = {
+			start: vi.fn(async (input: NKleinSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-responses",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const runtime = createInMemoryNKleinSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		try {
+			await runtime.startTaskSession({
+				taskId: "task-responses",
+				cwd: "/workspaces/task-responses",
+				prompt: "Continue efficiently",
+				providerId: "lmstudio",
+				modelId: "local-responses-model",
+				baseUrl: "http://127.0.0.1:24681",
+				systemPrompt: "system",
+			});
+
+			const startInput = fakeHost.start.mock.calls[0]?.[0];
+			expect(fetchMock).toHaveBeenCalledOnce();
+			expect(startInput?.config?.providerConfig).toMatchObject({
+				providerId: "lmstudio",
+				baseUrl: "http://127.0.0.1:24681/v1",
+				useOpenAIResponses: true,
+			});
+			const modelWrapper = startInput?.localRuntime?.modelWrapper;
+			if (!modelWrapper) throw new Error("Expected the local model wrapper");
+			const providerRequests: AgentModelRequest[] = [];
+			const base: AgentModel = {
+				stream(input) {
+					providerRequests.push(input);
+					return (async function* () {
+						yield { type: "text-delta", text: "ok" } as AgentModelEvent;
+						yield {
+							type: "finish",
+							reason: "stop",
+							metadata: { openai: { responseId: "resp_1" } },
+						} as AgentModelEvent;
+					})();
+				},
+			};
+			for await (const _event of await modelWrapper(base).stream({
+				systemPrompt: "system",
+				messages: [{ id: "u1", role: "user", createdAt: 1, content: [{ type: "text", text: "go" }] }],
+				tools: [],
+			})) {
+				// Drain the wrapped stream to make its buffered provider call observable.
+			}
+			expect(providerRequests[0]?.options?.metadata).toMatchObject({ nkleinStatefulResponses: true });
+		} finally {
+			await runtime.dispose();
+			if (originalOptIn === undefined) delete process.env.NKLEIN_STATEFUL_RESPONSES;
+			else process.env.NKLEIN_STATEFUL_RESPONSES = originalOptIn;
+			vi.unstubAllGlobals();
+		}
+	});
+
 	it("F4.28 forwards the resolved curated-MCP controls to bundle creation", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: NKleinSdkStartSessionInput) => ({

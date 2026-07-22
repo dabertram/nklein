@@ -551,7 +551,7 @@ indexing it recovers value.
 | `core/stable-model-identity.ts` | Stable model identity (David 2026-07-06 directive). | §5.BG |
 | `core/stale-while-revalidate-cache.ts` | A tiny stale-while-revalidate cache: a `get()` always returns immediately with the last computed value (or the | §5.AI |
 | `core/startup-orphan-reconcile.ts` | Move every `in_progress` card WITHOUT a live session to the Review lane. | W2.2 W2.2a |
-| `core/stateful-responses-gate.ts` | F4.45 — stateful LM Studio responses, gated on VERIFICATION (pure core + injectable probe). | F4.45 |
+| `core/stateful-responses-gate.ts` | F4.45/F4.45b — bounded local Responses capability probe, fail-closed adoption decision, and positive-only endpoint/model cache. | F4.45 F4.45b |
 | `core/strategy-effectiveness-ledger.ts` | The §5.AA adaptive strategy-effectiveness ledger — !Klein learns, per model, WHICH remedy rung actually recovers it, | §5.AA §5.AF |
 | `core/stream-derivation.ts` | §5.AU STEP 2 — derive STREAMS (epics) from the board's existing structure. | §5.AU |
 | `core/stream-events-api-contract.ts` | (no docblock) | §5.X |

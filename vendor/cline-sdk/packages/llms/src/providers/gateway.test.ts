@@ -18,6 +18,7 @@ import {
 } from "./gateway";
 
 const streamTextSpy = vi.fn();
+const openaiFactorySpy = vi.fn();
 const openaiCompatibleFactorySpy = vi.fn();
 const openaiCompatibleSpy = vi.fn((modelId: string) => ({
 	modelId,
@@ -68,9 +69,12 @@ vi.mock("ai", () => ({
 }));
 
 vi.mock("@ai-sdk/openai", () => ({
-	createOpenAI: () => ({
-		responses: (modelId: string) => openaiResponsesSpy(modelId),
-	}),
+	createOpenAI: (config: unknown) => {
+		openaiFactorySpy(config);
+		return {
+			responses: (modelId: string) => openaiResponsesSpy(modelId),
+		};
+	},
 }));
 
 vi.mock("@ai-sdk/openai-compatible", () => ({
@@ -152,6 +156,7 @@ function readCaptureRecords(dir: string): Array<Record<string, unknown>> {
 describe("sdk-gateway", () => {
 	beforeEach(() => {
 		streamTextSpy.mockReset();
+		openaiFactorySpy.mockReset();
 		openaiCompatibleFactorySpy.mockReset();
 		openaiCompatibleSpy.mockReset();
 		openaiResponsesSpy.mockReset();
@@ -582,6 +587,93 @@ describe("sdk-gateway", () => {
 			}),
 		});
 		expect(events.at(-1)).toEqual({ type: "finish", reason: "tool-calls" });
+	});
+
+	it("routes a verified LM Studio config through Responses and exposes only its response id", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "local answer" },
+				{ type: "finish", finishReason: "stop", usage: { inputTokens: 4, outputTokens: 2 } },
+			]),
+			providerMetadata: Promise.resolve({
+				openai: { responseId: "resp_local", serviceTier: "default" },
+			}),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "lmstudio",
+					baseUrl: "http://127.0.0.1:1234/v1",
+					options: { useOpenAIResponses: true },
+				},
+			],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "lmstudio",
+				modelId: "local-model",
+				messages: baseMessages,
+				systemPrompt: "stable policy",
+				metadata: {
+					nkleinStatefulResponses: true,
+					nkleinPreviousResponseId: "resp_prior",
+				},
+			}),
+		);
+
+		expect(openaiResponsesSpy).toHaveBeenCalledWith("local-model");
+		expect(openaiFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({ apiKey: "nklein-local-responses" }),
+		);
+		expect(openaiCompatibleSpy).not.toHaveBeenCalled();
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openai: expect.objectContaining({
+						store: true,
+						instructions: "stable policy",
+						previousResponseId: "resp_prior",
+					}),
+				}),
+			}),
+		);
+		expect(streamTextSpy.mock.calls.at(-1)?.[0]).not.toHaveProperty("system");
+		expect(events.at(-1)).toEqual({
+			type: "finish",
+			reason: "stop",
+			metadata: { openai: { responseId: "resp_local" } },
+		});
+	});
+
+	it("retains a finish-part response id when aggregate provider metadata is unavailable", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					finishReason: "stop",
+					providerMetadata: { openai: { responseId: "resp_finish" } },
+				},
+			]),
+			providerMetadata: Promise.resolve(undefined),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toEqual({
+			type: "finish",
+			reason: "stop",
+			metadata: { openai: { responseId: "resp_finish" } },
+		});
 	});
 
 	it("surfaces nested AI SDK stream errors as human-readable finish messages", async () => {

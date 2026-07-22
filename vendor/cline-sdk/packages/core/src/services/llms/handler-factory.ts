@@ -39,6 +39,8 @@ function buildGatewayProviderOptions(
 		region: config.region,
 		apiLine: config.apiLine,
 		openRouterProviderSorting: config.openRouterProviderSorting,
+		// The declaration build resolves the previously-built @cline/llms package while this fork is rebuilt in order.
+		useOpenAIResponses: (config as ProviderConfig & { useOpenAIResponses?: boolean }).useOpenAIResponses,
 		modelCatalog: config.modelCatalog,
 	};
 

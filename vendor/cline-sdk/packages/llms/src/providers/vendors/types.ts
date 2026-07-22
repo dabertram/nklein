@@ -138,4 +138,5 @@ export interface AiSdkStreamResult {
 	textStream?: AsyncIterable<string>;
 	text?: Promise<string> | string;
 	usage?: Promise<AiSdkStreamUsage | Record<string, unknown>>;
+	providerMetadata?: Promise<Record<string, unknown> | undefined> | Record<string, unknown> | undefined;
 }
