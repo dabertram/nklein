@@ -61,6 +61,7 @@ import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descr
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { createLmStudioRestModelClient } from "../core/lmstudio-rest-model-client";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { type MemoryAuditCandidate, readMemoryAuditCandidates } from "../core/memory-audit-production";
 import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
 import { decideIdleEvictions } from "../core/model-load-policy";
@@ -69,6 +70,7 @@ import { ModelTurnAdmissionWaitQueue } from "../core/model-turn-admission-wait-q
 import { createNestedModelTurnAdmissionGate } from "../core/nested-model-turn-admission";
 import {
 	decideOpportunisticIdleWork,
+	findMemoryAuditCandidates,
 	findReviewCandidateTaskIds,
 	findStalledReviewTaskIds,
 	findThinEvalCells,
@@ -227,6 +229,7 @@ import {
 	ManagedSearchBackendController,
 	withConfiguredSearchBackend,
 } from "./managed-search-backend";
+import { runIdleMemoryAudit } from "./memory-audit-runner";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import { resolveNetworkAccessInfo } from "./network-access-info";
 import { createPlanIntegrationGateRunner } from "./nklein-plan-integration-gate-runner";
@@ -427,6 +430,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const getScopedTerminalManager = async (scope: RuntimeTrpcWorkspaceScope): Promise<TerminalSessionManager> =>
 		await deps.ensureTerminalManagerForWorkspace(scope.workspaceId, scope.workspacePath);
 	const nkleinTaskSessionServiceByWorkspaceId = new Map<string, NKleinTaskSessionService>();
+	const agentSandboxManagerByWorkspaceId = new Map<string, AgentSandboxManager>();
 	const chatSandboxManagerByWorkspaceKey = new Map<string, AgentSandboxManager>();
 	const chatSandboxWorkspaceKeyBase = (workspacePath: string): string => {
 		const activeWorkspaceId = deps.workspaceRegistry.getActiveWorkspaceId();
@@ -616,8 +620,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const speculativeAttemptRegistry = new SpeculativeAttemptRegistry();
 	const SPECULATIVE_MIRROR_TICK_MS = 45_000;
 	// §5.AW opportunistic idle-work sweep (flag-gated, default OFF): when the swarm is genuinely idle, the ranker picks
-	// the highest-value available opportunistic task. Today only the `review` picker is wired (a review-lane card whose
-	// review the event path missed) — its per-workspace idempotency set stops re-reviewing the same card each tick.
+	// the highest-value available review, content-versioned memory audit, or thin-cell re-eval. Per-workspace sets make
+	// every producer idempotent while completed memory verdicts additionally survive restarts in note frontmatter.
 	const opportunisticIdleWorkTickByWorkspaceId = new Map<string, ReturnType<typeof setInterval>>();
 	// F1.36: background-budget bookkeeping + realized-value retention for the idle sweep.
 	const opportunisticDispatchAtsByWorkspaceId = new Map<string, number[]>();
@@ -653,6 +657,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		).catch(() => {});
 	};
 	const idleReviewDispatchedByWorkspaceId = new Map<string, Set<string>>();
+	/** F4.32 content-version refs already completed/in flight for this process; persisted hashes survive restarts. */
+	const idleMemoryAuditDispatchedByWorkspaceId = new Map<string, Set<string>>();
+	const idleMemoryAuditInFlightRefs = new Set<string>();
 	/** §5.AB idle re-eval rail: eval cellKeys with a dispatch IN FLIGHT (cleared on completion so thin cells top up). */
 	const idleReEvalDispatchedByWorkspaceId = new Map<string, Set<string>>();
 	const OPPORTUNISTIC_IDLE_WORK_TICK_MS = 60_000;
@@ -2760,6 +2767,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		const agentMcpAccess = agentToolAccess.mcp;
 		let service = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
 		if (!service) {
+			const agentSandboxManager = new AgentSandboxManager({
+				poolConfig: sandboxPoolConfig,
+				networkPolicy: sandboxNetworkPolicy,
+				// §5.L egress proxy (§6 I3): persisted flag + host allowlist (env still overrides the flag).
+				sandboxEgressProxyEnabled: runtimeConfig.sandboxEgressProxyEnabled,
+				sandboxEgressAllowlist: runtimeConfig.sandboxEgressAllowlist,
+				basicMemoryEnabled: runtimeConfig.effectiveSandboxMcpServerControls["basic-memory"],
+				// Surface a stalled slot acquisition (the review-hang class) instead of a silent freeze.
+				warn: (message) => deps.warn(message),
+			});
+			agentSandboxManagerByWorkspaceId.set(scope.workspaceId, agentSandboxManager);
 			service = createInMemoryNKleinTaskSessionService({
 				watcherRegistry: nkleinWatcherRegistry,
 				swarmGuardrails: effectiveSwarmGuardrails,
@@ -2777,16 +2795,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				agentWebResearchAllowed,
 				agentMcpAccess,
 				modelTurnAdmissionGate: createModelTurnAdmissionGate(scope),
-				agentSandboxManager: new AgentSandboxManager({
-					poolConfig: sandboxPoolConfig,
-					networkPolicy: sandboxNetworkPolicy,
-					// §5.L egress proxy (§6 I3): persisted flag + host allowlist (env still overrides the flag).
-					sandboxEgressProxyEnabled: runtimeConfig.sandboxEgressProxyEnabled,
-					sandboxEgressAllowlist: runtimeConfig.sandboxEgressAllowlist,
-					basicMemoryEnabled: runtimeConfig.effectiveSandboxMcpServerControls["basic-memory"],
-					// Surface a stalled slot acquisition (the review-hang class) instead of a silent freeze.
-					warn: (message) => deps.warn(message),
-				}),
+				agentSandboxManager,
 				onDecompositionApplied: async (event) => {
 					if (event.workspacePath !== scope.workspacePath) {
 						return;
@@ -3629,9 +3638,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					})();
 				}, SPECULATIVE_MIRROR_TICK_MS),
 			);
-			// §5.AW: flag-gated opportunistic idle-work sweep. When the swarm is genuinely idle (no running worker,
-			// no real work waiting), the ranker picks the highest-value available task — today only `review` (a review-
-			// lane card whose event-driven review was missed). Idempotent per workspace so it never re-reviews a card.
+			// §5.AW: flag-gated opportunistic idle-work sweep. Real work vetoes every producer; the shared ranker chooses
+			// review first, then a content-versioned strong-model memory audit, then a loaded-model thin-cell re-eval.
 			opportunisticIdleWorkTickByWorkspaceId.set(
 				scope.workspaceId,
 				setInterval(() => {
@@ -3672,11 +3680,35 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const boardState = await loadWorkspaceState(scope.workspacePath);
 							const dispatched = idleReviewDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
 							const reviewCandidateTaskIds = findReviewCandidateTaskIds(boardState.board, dispatched);
+							let memoryAuditCandidates: MemoryAuditCandidate[] = [];
+							if (reviewCandidateTaskIds.length === 0) {
+								const liveConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
+								if (liveConfig?.effectiveSandboxMcpServerControls["basic-memory"] === true) {
+									const runtimeHome = resolveNkleinRuntimeHomePath(homedir());
+									const workspaceHash = hashWorkspacePathForLedger(scope.workspacePath);
+									const discovered = await readMemoryAuditCandidates([
+										{
+											scope: "project",
+											rootDir: join(runtimeHome, "basic-memory", workspaceHash, "notes"),
+										},
+										{ scope: "global", rootDir: join(runtimeHome, "basic-memory", "global", "notes") },
+									]);
+									const audited =
+										idleMemoryAuditDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
+									const eligibleRefs = new Set(
+										findMemoryAuditCandidates(
+											discovered.map((candidate) => candidate.ref),
+											audited,
+										).filter((ref) => !idleMemoryAuditInFlightRefs.has(ref)),
+									);
+									memoryAuditCandidates = discovered.filter((candidate) => eligibleRefs.has(candidate.ref));
+								}
+							}
 							// §5.AB re-eval budget: thin eval cells of the LOADED models (never loads anything). Fed only
 							// when nothing higher-value is available — the ranker keeps re_eval just above context_prep.
 							const evalEndpoint = DEFAULT_LOCAL_MODEL_BASE_URL;
 							const loadedModelIds =
-								reviewCandidateTaskIds.length > 0
+								reviewCandidateTaskIds.length > 0 || memoryAuditCandidates.length > 0
 									? []
 									: await fetchLoadedModelIdsCached(evalEndpoint).catch(() => [] as string[]);
 							const reEvalDispatched =
@@ -3692,6 +3724,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const decision = decideOpportunisticIdleWork({
 								hasRealQueuedWork,
 								reviewCandidateTaskIds,
+								memoryAuditNoteRefs: memoryAuditCandidates.map((candidate) => candidate.ref),
 								reEvalCandidates,
 							});
 							if (decision.reviewTaskId) {
@@ -3753,6 +3786,92 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										// The opportunistic review freed the endpoint — reuse the slot immediately (todo 11007).
 										drainQueuedTaskStarts(scope, { force: true });
 									});
+								return;
+							}
+							const memoryAuditRef = decision.memoryAuditNoteRef;
+							if (memoryAuditRef) {
+								const candidate = memoryAuditCandidates.find((entry) => entry.ref === memoryAuditRef);
+								const manager = agentSandboxManagerByWorkspaceId.get(scope.workspaceId);
+								if (!candidate || !manager) return;
+								const memoryDispatched =
+									idleMemoryAuditDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
+								memoryDispatched.add(memoryAuditRef);
+								idleMemoryAuditDispatchedByWorkspaceId.set(scope.workspaceId, memoryDispatched);
+								idleMemoryAuditInFlightRefs.add(memoryAuditRef);
+								recordOpportunisticDispatch(scope.workspaceId, Date.now());
+								bumpOpportunisticActive(scope.workspaceId, 1);
+								deps.warn(
+									`Opportunistic memory audit: checking ${memoryAuditRef} with a strong non-author model.`,
+								);
+								try {
+									recordSelfObservation({
+										signal: "custom",
+										severity: "info",
+										message: `Opportunistic memory audit dispatched for ${memoryAuditRef}.`,
+										workspacePath: scope.workspacePath,
+										metadata: { category: "opportunistic_idle_dispatch", kind: "memory_audit" },
+									});
+								} catch {
+									// Telemetry must never strand the claimed idle-work slot.
+								}
+								void (async () => {
+									try {
+										const [models, descriptors, registry, ledgerEvents] = await Promise.all([
+											fetchLmsPsModelsCached(createDefaultLmsRunner(MODEL_TURN_LMS_PS_TIMEOUT_MS)),
+											fetchLoadedModelDescriptors(DEFAULT_LOCAL_MODEL_BASE_URL).catch(() => []),
+											Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot()).catch(() =>
+												emptyModelRegistrySnapshot(),
+											),
+											readAgentLedger({
+												workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+											}),
+										]);
+										const result = await runIdleMemoryAudit({
+											workspacePath: scope.workspacePath,
+											candidate,
+											models,
+											descriptors,
+											registry,
+											ledgerEvents,
+											manager,
+											admissionGate: createModelTurnAdmissionGate(scope),
+										});
+										if (result.type === "skipped") {
+											memoryDispatched.delete(memoryAuditRef);
+											recordOpportunisticOutcome(
+												scope.workspacePath,
+												"memory_audit",
+												memoryAuditRef,
+												"no_value",
+												"no idle non-author model with at least 32k loaded context",
+											);
+											return;
+										}
+										if (!result.persisted) memoryDispatched.delete(memoryAuditRef);
+										recordOpportunisticOutcome(
+											scope.workspacePath,
+											"memory_audit",
+											memoryAuditRef,
+											result.persisted ? "realized" : "no_value",
+											`${result.verdict} by ${result.auditor}${result.persisted ? "" : " (note changed during audit)"}`,
+										);
+									} catch (error) {
+										memoryDispatched.delete(memoryAuditRef);
+										const message = error instanceof Error ? error.message : String(error);
+										deps.warn(`Opportunistic memory audit for ${memoryAuditRef} errored: ${message}`);
+										recordOpportunisticOutcome(
+											scope.workspacePath,
+											"memory_audit",
+											memoryAuditRef,
+											"error",
+											message,
+										);
+									} finally {
+										idleMemoryAuditInFlightRefs.delete(memoryAuditRef);
+										bumpOpportunisticActive(scope.workspaceId, -1);
+										drainQueuedTaskStarts(scope, { force: true });
+									}
+								})();
 								return;
 							}
 							const reEval = decision.reEvalCandidate;
@@ -3891,6 +4010,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			return;
 		}
 		nkleinTaskSessionServiceByWorkspaceId.delete(workspaceId);
+		agentSandboxManagerByWorkspaceId.delete(workspaceId);
 		// C3 (§5.AF): drop the workspace's durable run + scope entry so a disposed workspace leaves no ghost run the tick
 		// timer keeps ticking (review finding #2). No-op when the flag is off.
 		durableRunWiring?.dispose(workspaceId);
@@ -3921,6 +4041,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			opportunisticIdleWorkTickByWorkspaceId.delete(workspaceId);
 		}
 		idleReviewDispatchedByWorkspaceId.delete(workspaceId);
+		idleMemoryAuditDispatchedByWorkspaceId.delete(workspaceId);
 		speculativeConfigByWorkspaceId.delete(workspaceId);
 		speculativeAttemptRegistry.clearWorkspace(workspaceId);
 		const deferredTimer = deferredRetryTimerByWorkspaceId.get(workspaceId);
@@ -4688,6 +4809,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				}),
 			);
 			nkleinTaskSessionServiceByWorkspaceId.clear();
+			agentSandboxManagerByWorkspaceId.clear();
+			idleMemoryAuditDispatchedByWorkspaceId.clear();
+			idleMemoryAuditInFlightRefs.clear();
 			activeModelTurnsByWorkspaceId.clear();
 			modelTurnAdmissionTailByWorkspaceId.clear();
 			modelTurnAdmissionGateByWorkspaceId.clear();

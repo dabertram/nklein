@@ -10,6 +10,7 @@ import type { RoleModelCandidate } from "../../../src/core/role-model-selection"
 const clean: MemoryAuditSignals = {
 	resolvedSymbols: [],
 	unresolvedSymbols: [],
+	ledgerConfirmations: [],
 	ledgerContradictions: [],
 	internalContradictions: [],
 };
@@ -36,6 +37,10 @@ describe("auditMemoryNote", () => {
 		const r = auditMemoryNote({ ...clean, resolvedSymbols: ["pkg.Foo"], ledgerContradictions: ["claimed X passed"] });
 		expect(r.verdict).toBe("contradicted");
 		expect(r.reason).toContain("contradicted by the ledger");
+	});
+
+	it("confirms an outcome-only note when the typed ledger agrees", () => {
+		expect(auditMemoryNote({ ...clean, ledgerConfirmations: ["card-1 succeeded"] }).verdict).toBe("confirmed");
 	});
 
 	it("contradicts on an internal contradiction", () => {

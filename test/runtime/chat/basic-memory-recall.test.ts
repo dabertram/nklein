@@ -43,4 +43,20 @@ describe("rankBasicMemoryNotesForRecall (F2.9b)", () => {
 		expect(ranked[0]?.excerpt.length).toBeLessThanOrEqual(240);
 		expect(ranked[0]?.excerpt).not.toContain("  ");
 	});
+
+	it("drops contradicted notes and lets an audit-confirmed peer outrank an unaudited peer", () => {
+		const now = Date.parse("2026-07-22T00:00:00.000Z");
+		const ranked = rankBasicMemoryNotesForRecall(
+			[
+				{ ...source("bad", "OAuth", "oauth retry"), auditVerdict: "contradicted", createdAtMs: now },
+				{ ...source("raw", "OAuth", "oauth retry"), auditVerdict: null, createdAtMs: now },
+				{ ...source("checked", "OAuth", "oauth retry"), auditVerdict: "confirmed", createdAtMs: now },
+			],
+			"oauth retry",
+			6,
+			now,
+		);
+		expect(ranked.map((note) => note.permalink)).toEqual(["checked", "raw"]);
+		expect(ranked[0]?.recallReason).toContain("audit-confirmed");
+	});
 });

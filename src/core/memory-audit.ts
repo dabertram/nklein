@@ -27,6 +27,8 @@ export interface MemoryAuditSignals {
 	unresolvedSymbols: readonly string[];
 	/** Outcome claims the §5.AF ledger's typed evidence directly CONTRADICTS. */
 	ledgerContradictions: readonly string[];
+	/** Outcome claims positively confirmed by the §5.AF ledger's typed evidence. */
+	ledgerConfirmations: readonly string[];
 	/** Internal contradictions (mutually-exclusive assertions, relation cycles) detected within/among notes. */
 	internalContradictions: readonly string[];
 }
@@ -56,7 +58,7 @@ export function recallWeightForVerdict(verdict: MemoryAuditVerdict): number {
 /**
  * Fold a note's check results into an audit verdict (pure). A single hard contradiction (an unresolved symbol, a
  * ledger conflict, or an internal contradiction) ⇒ `contradicted`. Otherwise, at least one positively-resolved
- * structural claim + no contradictions ⇒ `confirmed`; nothing checkable resolved ⇒ `unverifiable` (kept, de-weighted).
+ * structural or ledger claim + no contradictions ⇒ `confirmed`; nothing checkable resolved ⇒ `unverifiable`.
  */
 export function auditMemoryNote(signals: MemoryAuditSignals): MemoryAuditResult {
 	const contradictions =
@@ -78,10 +80,13 @@ export function auditMemoryNote(signals: MemoryAuditSignals): MemoryAuditResult 
 			recallWeight: RECALL_WEIGHT.contradicted,
 		};
 	}
-	if (signals.resolvedSymbols.length > 0) {
+	const confirmations = signals.resolvedSymbols.length + signals.ledgerConfirmations.length;
+	if (confirmations > 0) {
 		return {
 			verdict: "confirmed",
-			reason: `Note confirmed: ${signals.resolvedSymbols.length} structural claim(s) resolve and nothing contradicts it.`,
+			reason:
+				`Note confirmed: ${signals.resolvedSymbols.length} structural claim(s) resolve and ` +
+				`${signals.ledgerConfirmations.length} outcome claim(s) match the ledger; nothing contradicts it.`,
 			recallWeight: RECALL_WEIGHT.confirmed,
 		};
 	}

@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Authored Basic Memory now has a production truth-audit loop.** !Klein stamps trusted author provenance at write
+  time, uses idle loaded non-author models to extract grounded claims, verifies them against the sandboxed code graph
+  and typed attempt ledger, and persists content-versioned verdicts that automatically invalidate after edits. The
+  offline Docker gate now proves a note survives a full container restart and remains searchable afterward.
+
 - **Sandboxed code-graph sessions now use `codebase-memory-mcp` v0.9.0.** The upgrade brings supervised watcher/index
   workers and upstream memory-safety fixes. !Klein pins the service to a 2 GiB internal budget matching its admission
   gate, exhausts the service's newly paginated tool catalog instead of silently losing later tools, and makes cursor

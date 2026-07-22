@@ -202,6 +202,8 @@ export interface McpLocalizationProviderOptions {
 	label?: string;
 	/** Scope the search to files matching this pattern (maps to `file_pattern`). */
 	filePattern?: string;
+	/** Truth-audit callers must distinguish an unavailable graph from a genuine zero-hit result. Default false. */
+	strictErrors?: boolean;
 }
 
 /**
@@ -241,7 +243,8 @@ export function createMcpLocalizationProvider(
 			let result: unknown;
 			try {
 				result = await callMcpTool(SEARCH_GRAPH_TOOL, args);
-			} catch {
+			} catch (error) {
+				if (options.strictErrors) throw error;
 				return []; // best-effort: a tool/transport failure yields no hits, never throws
 			}
 

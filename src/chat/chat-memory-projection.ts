@@ -56,6 +56,8 @@ export interface BasicMemoryNoteInput {
 	excerpt: string;
 	/** Relevance in [0,1] as ranked by the caller's search. */
 	score: number;
+	/** Why audit trust + freshness produced this effective score. */
+	recallReason?: string;
 }
 
 export interface FocusChainStepInput {
@@ -115,7 +117,7 @@ export function projectUnifiedMemory(input: ProjectUnifiedMemoryInput): UnifiedM
 			id: `basic:${note.permalink}`,
 			text: `${note.title}: ${note.excerpt}`.trim(),
 			salience: clamp01(note.score),
-			provenance: `Basic Memory note ${note.permalink}`,
+			provenance: `Basic Memory note ${note.permalink}${note.recallReason ? ` — ${note.recallReason}` : ""}`,
 			deleteControl: { kind: "basic_memory_note", permalink: note.permalink },
 		});
 	}

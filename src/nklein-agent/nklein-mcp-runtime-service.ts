@@ -9,6 +9,7 @@ import { toErrorMessage } from "../core/error-message";
 import type { LocalizationProvider } from "../core/localization-provider";
 import { createMcpLocalizationProvider } from "../core/mcp-localization-provider";
 import { computeToolSurfaceHash } from "../core/mcp-tool-surface-pin";
+import { stampMemoryWriteProvenance } from "../core/memory-audit-production";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint";
 import {
 	buildSandboxMcpDockerExecArgs,
@@ -189,6 +190,12 @@ export interface NKleinMcpToolBundleOptions {
 	basicMemoryEnabled?: boolean;
 	/** F4.28 resolved project→global controls; false removes a server after fit/memory/availability selection. */
 	sandboxMcpServerControls?: SandboxMcpServerControls;
+	/** F4.32 host-trusted provenance stamped onto every Basic Memory write_note call. */
+	memoryWriteProvenance?: {
+		authorModelKey: string;
+		taskId: string;
+		commitSha?: string | null;
+	};
 }
 
 export type CodebaseMemoryLocalizationIndexMode = "fast" | "moderate" | "full";
@@ -201,6 +208,8 @@ export interface NKleinCodebaseMemoryLocalizationProviderOptions {
 	repoPath?: string;
 	/** Defaults to `fast`; the repair kernel needs structural symbol/file lookup, not semantic similarity. */
 	indexMode?: CodebaseMemoryLocalizationIndexMode;
+	/** Propagate query transport failures so truth audits can mark evidence unavailable instead of contradicted. */
+	strictQueryErrors?: boolean;
 }
 
 export interface NKleinCodebaseMemoryLocalizationProviderBundle {
@@ -915,6 +924,35 @@ export function createNKleinMcpRuntimeService(
 					},
 				}));
 
+			const stampBasicMemoryWrites = (serverId: string, serverTools: SdkMcpTool[]): SdkMcpTool[] => {
+				const provenance = bundleOptions?.memoryWriteProvenance;
+				if (serverId !== "basic-memory" || !provenance) return serverTools;
+				return serverTools.map((tool) =>
+					!tool.name.endsWith("__write_note")
+						? tool
+						: {
+								...tool,
+								execute: async (input: unknown, context: unknown) => {
+									const record = asRecord(input);
+									const content = record?.content;
+									const stamped =
+										typeof content === "string"
+											? {
+													...record,
+													content: stampMemoryWriteProvenance(content, {
+														authorModelKey: provenance.authorModelKey,
+														taskId: provenance.taskId,
+														createdAtIso: new Date().toISOString(),
+														commitSha: provenance.commitSha ?? null,
+													}),
+												}
+											: input;
+									return await tool.execute(stamped, context as never);
+								},
+							},
+				);
+			};
+
 			for (const server of loadedSettings.servers) {
 				if (server.disabled || server.type === "stdio") {
 					continue;
@@ -947,7 +985,8 @@ export function createNKleinMcpRuntimeService(
 						);
 						const serverTools = await createSdkMcpTools({ serverName: server.id, provider: manager });
 						await recordToolSurface(server.id, serverTools);
-						tools.push(...sortToolsByNameForCacheStability(capMcpToolOutputs(serverTools)));
+						const preparedTools = capMcpToolOutputs(stampBasicMemoryWrites(server.id, serverTools));
+						tools.push(...sortToolsByNameForCacheStability(preparedTools));
 					} catch (error) {
 						warnings.push(`Failed to load sandbox MCP server "${server.label}": ${toErrorMessage(error)}`);
 					}
@@ -996,7 +1035,7 @@ export function createNKleinMcpRuntimeService(
 							toolName,
 							arguments: args,
 						}),
-					{ project },
+					{ project, strictErrors: localizationOptions.strictQueryErrors === true },
 				);
 
 				return {

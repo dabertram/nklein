@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { type BasicMemoryFsDeps, readBasicMemoryNotes } from "../../../src/core/basic-memory-note-reader.js";
+import {
+	type BasicMemoryFsDeps,
+	readBasicMemoryNotes,
+	readBasicMemoryRecallSources,
+} from "../../../src/core/basic-memory-note-reader.js";
 
 /** F5.2 — the effectful reader over an injected in-memory tree: walk → read/stat → parse into audit notes. */
 function fakeFs(
@@ -53,5 +57,25 @@ describe("readBasicMemoryNotes", () => {
 		};
 		const notes = await readBasicMemoryNotes("/bm", fakeFs(tree, new Set(["/bm/locked.md"])));
 		expect(notes.map((n) => n.id)).toEqual(["ok"]);
+	});
+});
+
+describe("readBasicMemoryRecallSources", () => {
+	it("carries audit verdict and trusted authoring time into recall", async () => {
+		const sources = await readBasicMemoryRecallSources(
+			"/bm",
+			fakeFs({
+				"/bm/fact.md": {
+					content:
+						'---\ntitle: Fact\npermalink: facts/fact\ncreated_at: "2026-07-20T12:00:00.000Z"\naudit_verdict: "confirmed"\n---\nTrusted body',
+					mtimeMs: 999,
+				},
+			}),
+		);
+		expect(sources[0]).toMatchObject({
+			permalink: "facts/fact",
+			auditVerdict: "confirmed",
+			createdAtMs: Date.parse("2026-07-20T12:00:00.000Z"),
+		});
 	});
 });

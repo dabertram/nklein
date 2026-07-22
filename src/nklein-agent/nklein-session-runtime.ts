@@ -268,6 +268,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		try {
 			mcpToolBundle = await this.nkleinMcpRuntimeService.createToolBundle({
 				modelId: request.modelId,
+				memoryWriteProvenance: { authorModelKey: request.modelId, taskId: request.taskId },
 				sandboxExecTarget: request.sandboxMcpExecTarget ?? null,
 				...(request.basicMemoryExecEnv ? { basicMemoryExecEnv: request.basicMemoryExecEnv } : {}),
 				...(request.basicMemoryEnabled !== undefined ? { basicMemoryEnabled: request.basicMemoryEnabled } : {}),

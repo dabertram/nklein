@@ -25,6 +25,7 @@ import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { basicMemoryHardeningEnv } from "../src/core/basic-memory-scoping";
+import { readMemoryAuditCandidates, stampMemoryWriteProvenance } from "../src/core/memory-audit-production";
 import { createMcpLocalizationProvider } from "../src/core/mcp-localization-provider";
 import {
 	buildSandboxMcpDockerExecArgs,
@@ -40,6 +41,7 @@ const CONTAINER = "nklein-verify-sandbox-mcp";
 const IMAGE = resolveAgentSandboxImageName();
 const EXPECTED_CODEBASE_MEMORY_VERSION = "codebase-memory-mcp 0.9.0";
 const EXPECTED_CODEBASE_MEMORY_BUDGET_MB = "2048";
+let basicMemoryProofRoot: string | null = null;
 
 function log(message: string): void {
 	console.log(`[verify-sandbox-mcp] ${message}`);
@@ -179,8 +181,28 @@ async function main(): Promise<void> {
 	log(`opt-in gate: default set (no opt-in) => [${withoutOptIn.join(", ")}] (basic-memory correctly withheld)`);
 
 	// 2. Start a sandbox container with NO network — proves the servers run fully offline.
-	await exec("docker", ["rm", "-f", CONTAINER]).catch(() => {});
-	await exec("docker", ["run", "-d", "--network", "none", "--name", CONTAINER, IMAGE, "sleep", "infinity"]);
+	basicMemoryProofRoot = await mkdtemp(join(tmpdir(), "nklein-basic-memory-restart-"));
+	await mkdir(join(basicMemoryProofRoot, "config"), { recursive: true });
+	await mkdir(join(basicMemoryProofRoot, "notes"), { recursive: true });
+	const startOfflineContainer = async (): Promise<void> => {
+		await exec("docker", ["rm", "-f", CONTAINER]).catch(() => {});
+		await exec("docker", [
+			"run",
+			"-d",
+			"--network",
+			"none",
+			"--name",
+			CONTAINER,
+			"--mount",
+			`type=bind,src=${join(basicMemoryProofRoot as string, "config")},dst=/tmp/bm/config`,
+			"--mount",
+			`type=bind,src=${join(basicMemoryProofRoot as string, "notes")},dst=/tmp/bm/notes`,
+			IMAGE,
+			"sleep",
+			"infinity",
+		]);
+	};
+	await startOfflineContainer();
 	log(`started ${CONTAINER} from ${IMAGE} (--network none)`);
 	const cbmVersion = (await exec("docker", ["exec", CONTAINER, "codebase-memory-mcp", "--version"])).stdout.trim();
 	if (cbmVersion !== EXPECTED_CODEBASE_MEMORY_VERSION) {
@@ -193,8 +215,25 @@ async function main(): Promise<void> {
 		);
 	}
 	log(`codebase-memory image contract => ${cbmVersion}; memory budget ${cbmBudget} MB`);
-	// A writable config/notes dir stands in for basic-memory's RW mounts in this transport-only smoke test.
-	await exec("docker", ["exec", CONTAINER, "mkdir", "-p", "/tmp/bm/config", "/tmp/bm/notes"]);
+	const basicMemoryEnv = {
+		...basicMemoryHardeningEnv(),
+		BASIC_MEMORY_CONFIG_DIR: "/tmp/bm/config",
+		BASIC_MEMORY_MCP_PROJECT: "verify-restart",
+	};
+	const seedBasicMemoryProject = async (): Promise<void> => {
+		const envArgs = Object.entries(basicMemoryEnv).flatMap(([key, value]) => ["-e", `${key}=${value}`]);
+		await exec("docker", [
+			"exec",
+			...envArgs,
+			CONTAINER,
+			"basic-memory",
+			"project",
+			"add",
+			"verify-restart",
+			"/tmp/bm/notes",
+		]);
+	};
+	await seedBasicMemoryProject();
 
 	// 3. Each baked server is reachable over docker-exec and lists its tools, offline.
 	const seqTools = await listToolsOverDockerExec(["mcp-server-sequential-thinking"]);
@@ -231,14 +270,52 @@ async function main(): Promise<void> {
 	}
 
 	const bmTools = await listToolsOverDockerExec(["basic-memory", "mcp"], {
-		...basicMemoryHardeningEnv(),
-		BASIC_MEMORY_CONFIG_DIR: "/tmp/bm/config",
-		BASIC_MEMORY_HOME: "/tmp/bm/notes",
+		...basicMemoryEnv,
 	});
 	log(`basic-memory (${bmTools.length}) => [${bmTools.slice(0, 10).join(", ")}…]`);
 	if (!bmTools.includes("write_note") || !bmTools.includes("search_notes")) {
 		throw new Error(`basic-memory write_note/search_notes not found in [${bmTools.join(", ")}]`);
 	}
+
+	// 4. Real durability proof: write through MCP, destroy/recreate the network-none container over the SAME bind
+	// mounts, then recall through a fresh MCP process. This catches an in-container-only store or stale ephemeral index.
+	const proofToken = `restart-proof-${Date.now()}`;
+	await callToolOverDockerExec(
+		["basic-memory", "mcp"],
+		"write_note",
+		{
+			title: "Sandbox restart durability proof",
+			directory: "proof",
+			content: stampMemoryWriteProvenance(`# Sandbox restart durability proof\n\n- [fact] ${proofToken}`, {
+				authorModelKey: "verify/model-author",
+				taskId: "verify-restart",
+				createdAtIso: new Date().toISOString(),
+			}),
+			project: "verify-restart",
+			output_format: "json",
+		},
+		basicMemoryEnv,
+	);
+	const auditCandidates = await readMemoryAuditCandidates([
+		{ scope: "project", rootDir: join(basicMemoryProofRoot, "notes") },
+	]);
+	const writtenCandidate = auditCandidates.find((candidate) => candidate.body.includes(proofToken));
+	if (writtenCandidate?.authorModelKey !== "verify/model-author") {
+		throw new Error("basic-memory did not preserve host-trusted authored_by provenance in persisted Markdown");
+	}
+	await exec("docker", ["rm", "-f", CONTAINER]);
+	await startOfflineContainer();
+	await seedBasicMemoryProject();
+	const recalled = await callToolOverDockerExec(
+		["basic-memory", "mcp"],
+		"search_notes",
+		{ query: proofToken, project: "verify-restart", output_format: "json" },
+		basicMemoryEnv,
+	);
+	if (!JSON.stringify(unwrapMcpJson(recalled)).includes(proofToken)) {
+		throw new Error("basic-memory write→container restart→search recall proof did not return the persisted token");
+	}
+	log(`basic-memory durability => write → container restart → recall retained ${proofToken}`);
 
 	log(
 		"PASS ✓ — all three curated sandbox MCP servers reachable over docker-exec, offline, fit/opt-in gated; codebase-memory search_graph schema validated",
@@ -252,4 +329,5 @@ try {
 	process.exitCode = 1;
 } finally {
 	await exec("docker", ["rm", "-f", CONTAINER]).catch(() => {});
+	if (basicMemoryProofRoot) await rm(basicMemoryProofRoot, { recursive: true, force: true }).catch(() => {});
 }

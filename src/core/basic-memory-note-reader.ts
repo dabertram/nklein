@@ -12,6 +12,7 @@ import type { Dirent } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { parseBasicMemoryNote } from "./basic-memory-note-parse.js";
+import type { MemoryAuditVerdict } from "./memory-audit.js";
 import type { AuditableMemoryNote } from "./memory-freshness-audit.js";
 
 /** A basic-memory note WITH its body text — the input the F2.9b chat-recall ranker scores against a query. */
@@ -20,6 +21,10 @@ export interface BasicMemoryRecallSource {
 	title: string;
 	/** The note body (frontmatter stripped). */
 	body: string;
+	/** F4.32 truth-audit verdict from trusted frontmatter; null/absent means unaudited. */
+	auditVerdict?: MemoryAuditVerdict | null;
+	/** Authoring time from trusted provenance, used for age decay; falls back to filesystem mtime. */
+	createdAtMs?: number;
 	/** Workspace/project identity supplied by the caller that owns this root. */
 	namespaceId?: string;
 	/** User-legible project name used to resolve an explicitly addressed namespace. */
@@ -48,7 +53,7 @@ export interface BasicMemoryFsDeps {
 }
 
 /** Read the frontmatter `permalink` (if any) to use as the stable note id. Cheap top-of-file scan, no YAML dep. */
-function readPermalink(content: string): string | null {
+function readFrontmatterScalar(content: string, key: string): string | null {
 	const normalized = content.replace(/\r\n/g, "\n");
 	if (!normalized.startsWith("---\n")) {
 		return null;
@@ -56,7 +61,7 @@ function readPermalink(content: string): string | null {
 	const closeIndex = normalized.indexOf("\n---", 3);
 	const block = closeIndex === -1 ? normalized.slice(4) : normalized.slice(4, closeIndex);
 	for (const line of block.split("\n")) {
-		const match = line.match(/^permalink:\s*(.*)$/);
+		const match = line.match(new RegExp(`^${key}:\\s*(.*)$`, "u"));
 		if (match) {
 			const value = match[1]
 				.trim()
@@ -66,6 +71,10 @@ function readPermalink(content: string): string | null {
 		}
 	}
 	return null;
+}
+
+function readPermalink(content: string): string | null {
+	return readFrontmatterScalar(content, "permalink");
 }
 
 /** Root-relative POSIX path with the `.md` suffix dropped — the id fallback when a note has no permalink. */
@@ -119,7 +128,18 @@ export async function readBasicMemoryRecallSources(
 		}
 		const id = readPermalink(content) ?? relativeNoteId(rootDir, path);
 		const { title } = parseBasicMemoryNote({ id, content, updatedAt });
-		sources.push({ permalink: id, title, body: stripFrontmatter(content) });
+		const auditRaw = readFrontmatterScalar(content, "audit_verdict");
+		const auditVerdict: MemoryAuditVerdict | null =
+			auditRaw === "confirmed" || auditRaw === "contradicted" || auditRaw === "unverifiable" ? auditRaw : null;
+		const createdAtRaw = readFrontmatterScalar(content, "created_at");
+		const createdAt = createdAtRaw ? Date.parse(createdAtRaw) : Number.NaN;
+		sources.push({
+			permalink: id,
+			title,
+			body: stripFrontmatter(content),
+			auditVerdict,
+			createdAtMs: Number.isFinite(createdAt) ? createdAt : updatedAt,
+		});
 	}
 	return sources;
 }

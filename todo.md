@@ -33,9 +33,9 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, after F4.23 closure):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-22, after F4.32 closure):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 183-package remainder is **93 ready + 0 partial + 76 dependency-blocked + 7 external/
+  gate below is green. The current 182-package remainder is **92 ready + 0 partial + 76 dependency-blocked + 7 external/
 user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 
@@ -1050,6 +1050,11 @@ source repo went private — so if it vanishes the buildable source still lives 
   exact name has been confirmed. A cloud-credentials error from Basic Memory is a tool-routing mistake, not a reason to
   require Basic Memory Cloud for !Klein work. The same rule applies to any future !Klein Basic Memory integration:
   local-first Markdown store by default; cloud sync/remote memory only by deliberate user opt-in.
+- **A memory-auditor model extracts claims; it does not manufacture evidence (F4.32, 2026-07-22).** Accept only claims
+  carrying exact quotes grounded in the note, then reconcile them against the sandboxed code graph and the typed
+  attempt ledger. A graph transport failure means `unavailable`, never “symbol absent.” Key verdicts to a hash of the
+  prose with audit-owned frontmatter removed, so persisting a verdict is idempotent while any later edit invalidates it.
+  Compare the hash again before atomic replacement; never bless text that changed during the auditor turn.
 - !Klein's native NKlein agent is powered by the installed `@nkleinbot/core` + `@nkleinbot/llms` packages plus the local `src/nklein-agent/` boundary layer — when NKlein behavior is unclear, inspect those packages and `src/nklein-agent/` for the real implementation.
 - The NKlein session host does not expose its internal session map. Model changes may use the public `updateSessionModel` API; provider, endpoint, reasoning, mode, context, or timeout changes require restarting from persisted history. Never cast the host to a private `sessions` shape and mutate it.
 - Task work lives in the Docker sandbox volume (`/workspaces/<taskId>`) and is captured as an `nklein/tasks/<task>` result branch the trusted runtime applies to the user's repo (`src/workspace/task-result-branches.ts`). The host-worktree subsystem is FULLY retired (P0.9, 2026-07-13): no worktree code path remains beyond the one-shot presence-keyed startup sweep (`src/workspace/legacy-worktree-sweep.ts` — migrates any pre-sandbox on-disk residue, snapshotting uncommitted work to trashed-task-patches) and the add-project guard (`isPathInsideTaskWorktreesHome`). Trash/replay/project-removal discard artifacts via `src/workspace/task-artifact-cleanup.ts` (result branch + `::spec` + patch snapshots). The agent contract is nklein-only: `runtimeAgentIdSchema` is strict on API surfaces, while `runtimeAgentIdWithLegacyMigrationSchema` (`.catch("nklein")`) parses persisted board/session state so pre-lockdown files still load. NOTE the naming trap: `task-worktree-auto-merge.ts` / `mergeTaskWorktrees` are the LIVE result-branch delivery path (misnamed, rename is cosmetic backlog), not worktree code. Shell-on-task `docker exec`s into the sandbox or opens at the project root.
@@ -2720,12 +2725,7 @@ run (fleet-gated, like the other opt-in features). REMAINING: (b) drive lifecycl
   **GLOBAL SCOPE ACTIVATED (same day):** registerProject now plans `scopes: ["global"]` — the shared cross-repo
   store mounts RW beside the pinned per-project default (identical path across projects; runtime dedups by
   destination). Item complete.
-- [ ] **F4.32 — Finish Basic Memory audit and production proof.** Dispatch strongest-non-author idle audits, reconcile
-  contradictions against code graph/ledger, test write→restart→recall, and optionally preseed offline semantic search.
-
 #### 4F. Native LM Studio API leverage *(legacy §5.AN)*
-
-  **AUDIT 2026-07-18: OPEN** — pure cores (chooseMemoryAuditor + auditMemoryNote) have zero production consumers; no idle dispatch, no reconciliation wiring, no write→restart→recall proof.
 - [x] **F4.33 — Rewrite native `/api/v1/chat` for the probed contract.** Implement request
   `{model,input:[{type,content}]}` and response `{model_instance_id,output,response_id,stats}` parsing with tolerant,
   typed fallbacks; the prior pure shape is known stale (`26cd46ce`).

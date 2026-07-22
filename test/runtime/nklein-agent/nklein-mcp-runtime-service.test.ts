@@ -83,6 +83,20 @@ class FakeMcpManager implements SdkMcpManager {
 	}
 }
 
+class FakeMemoryMcpManager extends FakeMcpManager {
+	override async listTools(): Promise<
+		readonly { name: string; description?: string; inputSchema: Record<string, unknown> }[]
+	> {
+		return [
+			{
+				name: "write_note",
+				description: "write",
+				inputSchema: { type: "object", properties: { content: { type: "string" } } },
+			},
+		];
+	}
+}
+
 describe("listAllMcpTools", () => {
 	it("follows every tools/list cursor and preserves the complete ordered tool surface", async () => {
 		const cursors: Array<string | undefined> = [];
@@ -327,6 +341,40 @@ describe("createNKleinMcpRuntimeService", () => {
 			if (previousEnv === undefined) delete process.env.NKLEIN_BASIC_MEMORY;
 			else process.env.NKLEIN_BASIC_MEMORY = previousEnv;
 		}
+	});
+
+	it("stamps host-trusted author provenance and invalidates any caller-supplied verdict on write_note", async () => {
+		const managers: FakeMemoryMcpManager[] = [];
+		const service = createNKleinMcpRuntimeService({
+			createMcpManager: (options) => {
+				const manager = new FakeMemoryMcpManager(options);
+				managers.push(manager);
+				return manager;
+			},
+		});
+		const bundle = await service.createToolBundle({
+			modelId: "phi-4-mini-instruct",
+			sandboxExecTarget: { containerName: "sandbox", uid: 1, workdir: "/workspaces/t", memoryLimitMb: 8192 },
+			basicMemoryEnabled: true,
+			sandboxMcpServerControls: {
+				"sequential-thinking": false,
+				"codebase-memory": false,
+				"basic-memory": true,
+			},
+			memoryWriteProvenance: { authorModelKey: "model-author", taskId: "card-9" },
+		});
+		const writeNote = bundle.tools.find((tool) => tool.name.endsWith("__write_note"));
+		expect(writeNote).toBeDefined();
+		await writeNote?.execute(
+			{ content: "---\naudit_verdict: confirmed\n---\n# Fact", title: "Fact", directory: "notes" },
+			{} as never,
+		);
+		const input = managers[0]?.calls.at(-1)?.arguments as { content?: string } | undefined;
+		expect(input?.content).toContain('authored_by: "model-author"');
+		expect(input?.content).toContain('task_id: "card-9"');
+		expect(input?.content).toContain("audit_verdict: null");
+		expect(input?.content?.match(/^---$/gm)).toHaveLength(2);
+		await bundle.dispose();
 	});
 
 	it("creates a codebase-memory localization provider over sandbox docker-exec and cold-indexes the repo", async () => {

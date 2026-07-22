@@ -2639,3 +2639,18 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   runtime/UI suites 121/121, backend full fast 12,088/12,088, protected 142/142, full web 1,135/1,135, backend/web
   typechecks, and lint green. The full contract's 284 behavioral assertions passed under Low Power mode; its two
   wall-clock assertions passed 4/4 when isolated and their thresholds were not weakened.
+
+- [x] **F4.32 — Finish Basic Memory audit and production proof** *(delivered 2026-07-22).* Basic Memory `write_note`
+  calls now receive host-trusted author/task provenance and clear any caller-supplied verdict. The flag-gated idle rail
+  scans the runtime-owned project/global stores, selects the strongest actually-idle loaded non-author model with at
+  least 32k context, and runs its bounded structured claim extraction through normal model-turn admission. Exact quoted
+  claims are reconciled against a fresh sandboxed codebase-memory graph and typed attempt ledger; graph outages remain
+  unavailable rather than becoming false contradictions. Verdicts are compare-before-write, atomically persisted, and
+  keyed to a source-content SHA-256 that excludes audit metadata, so edits automatically re-enter the queue. A real
+  network-none Docker proof writes through MCP, destroys/recreates the container over the same isolated mounts, and
+  recalls the token through a fresh MCP process. Recall now drops contradicted notes and ranks the remainder by lexical
+  relevance, audit trust, and freshness, with the trust/freshness reason retained in unified provenance. Offline semantic
+  embeddings remain deliberately unseeded: lexical recall is the shipped deterministic path and downloading/retaining
+  another model is optional, not required for truth auditing. Evidence: focused audit/MCP/selection tests 64/64, the
+  full backend precommit suite 12,100/12,100, protected 142/142, contract behavioral assertions 284/284 with the
+  contended Low-Power timing file green 4/4 in isolation, plus the real 3-server Docker schema and restart proof.

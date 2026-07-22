@@ -255,6 +255,15 @@ describe("createMcpLocalizationProvider — defensive (malformed / empty → [],
 		};
 		await expect(createMcpLocalizationProvider(throwing).localize({ query: "x" })).resolves.toEqual([]);
 	});
+
+	it("propagates a transport failure in strict truth-audit mode", async () => {
+		const throwing: McpToolCaller = async () => {
+			throw new Error("mcp transport down");
+		};
+		await expect(
+			createMcpLocalizationProvider(throwing, { strictErrors: true }).localize({ query: "x" }),
+		).rejects.toThrow("mcp transport down");
+	});
 });
 
 describe("createMcpLocalizationProvider — composes with the kernel localize adapter", () => {
