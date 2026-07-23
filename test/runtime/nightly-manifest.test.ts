@@ -3,6 +3,8 @@ import {
 	type CellVerdict,
 	enumerateNightlyCells,
 	type NightlyManifest,
+	nightlyCellKey,
+	nightlyCellName,
 	summarizeNightlyRun,
 } from "../../src/core/nightly-manifest";
 
@@ -67,6 +69,36 @@ describe("enumerateNightlyCells", () => {
 			],
 		};
 		expect(enumerateNightlyCells(extended)).toHaveLength(5);
+	});
+
+	it("registers a prior-release HOME as one distinct, filterable compatibility cell", () => {
+		const withCompatibility: NightlyManifest = {
+			...manifest,
+			persistedStateFixtures: [
+				{
+					id: "small-model-smoke",
+					fixture: "smoke-ts-cli",
+					recordingSet: "smoke-set",
+					invariantPack: "core-invariants",
+					modelProfiles: ["qwen-14b"],
+					persistedStateFixture: {
+						releaseVersion: "0.0.0",
+						fixtureRoot: "test/fixtures/nightly-compatibility/0.0.0",
+						fixtureSha256: "a".repeat(64),
+					},
+				},
+			],
+		};
+		const cells = enumerateNightlyCells(withCompatibility, { project: "small-model-smoke", model: "qwen-14b" });
+		expect(cells).toHaveLength(2);
+		expect(cells.map(nightlyCellName)).toEqual([
+			"small-model-smoke×qwen-14b",
+			"small-model-smoke×qwen-14b@home-0.0.0",
+		]);
+		expect(cells.map(nightlyCellKey)).toEqual([
+			"small-model-smoke × qwen-14b",
+			"small-model-smoke × qwen-14b@home-0.0.0",
+		]);
 	});
 });
 

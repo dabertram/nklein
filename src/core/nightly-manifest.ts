@@ -1,5 +1,9 @@
 import type { NightlyModelIoCost } from "./nightly-cell-cost";
 import type { NightlyHermeticEvidence } from "./nightly-hermeticity";
+import type {
+	NightlyPersistedStateEvidence,
+	NightlyPersistedStateFixtureRef,
+} from "./nightly-persisted-state-compatibility";
 import type { NightlyRecordingEvidence } from "./nightly-recording-evidence";
 
 /**
@@ -34,6 +38,12 @@ export interface NightlyProjectEntry {
 
 export interface NightlyManifest {
 	readonly projects: readonly NightlyProjectEntry[];
+	/** N9: one immutable prior-release HOME, booted and drained on the current build. */
+	readonly persistedStateFixtures?: readonly NightlyPersistedStateEntry[];
+}
+
+export interface NightlyPersistedStateEntry extends NightlyProjectEntry {
+	readonly persistedStateFixture: NightlyPersistedStateFixtureRef;
 }
 
 export interface NightlyCell {
@@ -43,6 +53,7 @@ export interface NightlyCell {
 	readonly modelProfile: string;
 	readonly recordingSet: string;
 	readonly invariantPack: string;
+	readonly persistedStateFixture?: NightlyPersistedStateFixtureRef;
 }
 
 export interface CellFilter {
@@ -75,7 +86,32 @@ export function enumerateNightlyCells(manifest: NightlyManifest, filter: CellFil
 			});
 		}
 	}
+	for (const project of manifest.persistedStateFixtures ?? []) {
+		if (filter.project && project.id !== filter.project) continue;
+		for (const modelProfile of project.modelProfiles) {
+			if (filter.model && modelProfile !== filter.model) continue;
+			cells.push({
+				projectId: project.id,
+				fixture: project.fixture,
+				modelProfile,
+				recordingSet: project.recordingSet,
+				invariantPack: project.invariantPack,
+				persistedStateFixture: project.persistedStateFixture,
+			});
+		}
+	}
 	return cells;
+}
+
+export function nightlyCellName(cell: NightlyCell): string {
+	const home = cell.persistedStateFixture ? `@home-${cell.persistedStateFixture.releaseVersion}` : "";
+	return `${cell.projectId}×${cell.modelProfile}${home}`;
+}
+
+/** Stable persistence/scheduling key. Keep the historical spaced form so existing baselines remain usable. */
+export function nightlyCellKey(cell: NightlyCell): string {
+	const home = cell.persistedStateFixture ? `@home-${cell.persistedStateFixture.releaseVersion}` : "";
+	return `${cell.projectId} × ${cell.modelProfile}${home}`;
 }
 
 export type CellOutcome = "passed" | "failed" | "skipped";
@@ -105,6 +141,8 @@ export interface CellVerdict {
 	readonly modelIoCost?: NightlyModelIoCost | null;
 	/** N4 fail-closed receipt proving every declared ambient dependency was fenced or replaced. */
 	readonly hermeticEvidence?: NightlyHermeticEvidence | null;
+	/** N9: create-only evidence that a prior-release HOME migrated and folded old+current learning state. */
+	readonly persistedStateEvidence?: NightlyPersistedStateEvidence | null;
 }
 
 export interface NightlySummary {
@@ -118,10 +156,6 @@ export interface NightlySummary {
 	readonly unmatchedViolations: readonly string[];
 	readonly ok: boolean;
 	readonly summary: string;
-}
-
-function cellName(cell: NightlyCell): string {
-	return `${cell.projectId}×${cell.modelProfile}`;
 }
 
 /**
@@ -139,7 +173,7 @@ export function summarizeNightlyRun(verdicts: readonly CellVerdict[]): NightlySu
 	let skipped = 0;
 
 	for (const verdict of verdicts) {
-		const name = cellName(verdict.cell);
+		const name = nightlyCellName(verdict.cell);
 		if (verdict.outcome === "passed") {
 			passed += 1;
 			if ((verdict.unmatchedRequests ?? 0) > 0) {

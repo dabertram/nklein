@@ -100,7 +100,11 @@ export async function readFitnessTable(options: FitnessTableStoreOptions = {}): 
  * fitness fold was removed with this flip). Read-only; either side degrading yields the other unchanged.
  */
 export async function readMergedFitnessRows(
-	options: FitnessTableStoreOptions & { ledgerRootDir?: string } = {},
+	options: FitnessTableStoreOptions & {
+		ledgerRootDir?: string;
+		/** Override shared process identity state for hermetic readers and acceptance oracles. */
+		resolveStableModelId?: (modelId: string) => string;
+	} = {},
 ): Promise<Record<string, FitnessRow>> {
 	const [table, ledgerEvents] = await Promise.all([
 		readFitnessTable(options),
@@ -116,7 +120,7 @@ export async function readMergedFitnessRows(
 	// F2.21 (David 2026-07-14): read-seam projection onto STABLE model identity — a no-op when the shared
 	// runtime-id→modelKey map has no entry for a row's key, so legacy/store rows keep their key until a mapping is
 	// learned. Groups display + eval by one identity even when older rows were written under a runtime id.
-	return projectFitnessRowsToStableModelKeys(merged, resolveStableRoutingModelId);
+	return projectFitnessRowsToStableModelKeys(merged, options.resolveStableModelId ?? resolveStableRoutingModelId);
 }
 
 export async function readFitnessRow(

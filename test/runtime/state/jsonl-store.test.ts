@@ -1,11 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { parseValidatedJsonl } from "../../../src/state/jsonl-store";
+import { parseValidatedJsonl, parseValidatedJsonlWithDiagnostics } from "../../../src/state/jsonl-store";
 
 const schema = z.object({ id: z.string(), value: z.number() });
 type Record = z.infer<typeof schema>;
 
 describe("parseValidatedJsonl — shared helper", () => {
+	it("returns structured tolerant-reader diagnostics for compatibility oracles", () => {
+		const result = parseValidatedJsonlWithDiagnostics('{"id":"ok","value":1}\nnot-json\n{"id":42,"value":1}', schema);
+		expect(result.records).toEqual([{ id: "ok", value: 1 }]);
+		expect(result.diagnostics).toEqual([
+			{ kind: "unparseable", linePreview: "not-json" },
+			expect.objectContaining({ kind: "schema_invalid", linePreview: '{"id":42,"value":1}' }),
+		]);
+	});
 	beforeEach(() => {
 		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 	});

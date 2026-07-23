@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Nightly now guards upgrade compatibility with an immutable prior-release HOME.** The current runtime boots and
+  drains a hash-bound fixture, proves its migration journal and backup, diagnoses corrupt legacy records, and verifies
+  old fitness/behavior/ledger evidence still merges with new attempts through both production learning projections into
+  sane routing decisions, isolated from process-global model identity state.
+
 - **Aider Go candidates now grade inside a complete, versioned toolchain image.** The project-owned grader pins both
   Go and Git, fixing an infrastructure error where the bare upstream Go image could run tests but could not apply the
   candidate patch inside the sealed grading boundary.

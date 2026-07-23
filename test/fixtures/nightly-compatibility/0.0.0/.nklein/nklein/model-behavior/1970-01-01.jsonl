@@ -1,0 +1,4 @@
+{"modelId":"lmstudio:fixture:model:v0:http://localhost:1234/v1","recordedAt":100,"outcome":{"kind":"success","retries":0,"toolCallFormat":"native"}}
+not-json
+{"bad":true}
+{"modelId":"lmstudio:fixture:model:v0:http://localhost:1234/v1","recordedAt":200,"outcome":{"kind":"timeout","retries":1}}

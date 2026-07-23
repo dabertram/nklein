@@ -17,9 +17,16 @@ import {
 	enumerateNightlyCells,
 	type NightlyCell,
 	type NightlyManifest,
+	nightlyCellKey,
+	nightlyCellName,
 	summarizeNightlyRun,
 } from "../core/nightly-manifest";
 import { NIGHTLY_PACK_REGISTRY } from "../core/nightly-pack-registry";
+import {
+	collectNightlyPersistedStateEvidence,
+	hashNightlyPersistedStateFixture,
+	materializeNightlyPersistedStateFixture,
+} from "../core/nightly-persisted-state-compatibility";
 import { type NightlyRecordingEvidence, parseNightlyRecordingEvidence } from "../core/nightly-recording-evidence";
 import { detectDurationRegressions, planNightlySchedule } from "../core/nightly-schedule";
 import { extractDrainSignalEvents, OBSERVABLE_DRAIN_SIGNALS } from "../core/nightly-signal-extraction";
@@ -128,14 +135,19 @@ async function readPriorBaselines(): Promise<Map<string, PriorCellBaseline>> {
 	try {
 		const raw = JSON.parse(await readFile(LAST_RUN_PATH, "utf8")) as {
 			verdicts?: {
-				cell?: { projectId?: string; modelProfile?: string };
+				cell?: {
+					projectId?: string;
+					modelProfile?: string;
+					persistedStateFixture?: { releaseVersion?: string };
+				};
 				durationMs?: number;
 				modelIoCost?: NightlyModelIoCost | null;
 			}[];
 		};
 		const out = new Map<string, PriorCellBaseline>();
 		for (const verdict of raw.verdicts ?? []) {
-			const key = `${verdict.cell?.projectId} × ${verdict.cell?.modelProfile}`;
+			const release = verdict.cell?.persistedStateFixture?.releaseVersion;
+			const key = `${verdict.cell?.projectId} × ${verdict.cell?.modelProfile}${release ? `@home-${release}` : ""}`;
 			out.set(key, { durationMs: verdict.durationMs, modelIoCost: verdict.modelIoCost });
 		}
 		return out;
@@ -156,6 +168,19 @@ async function runCell(cell: NightlyCell): Promise<CellVerdict> {
 		home = await mkdtemp(join(tmpdir(), `nklein-nightly-${cell.projectId}-`));
 	} catch (error) {
 		return { cell, outcome: "skipped", reason: `could not create an isolated HOME: ${String(error)}` };
+	}
+	if (cell.persistedStateFixture) {
+		try {
+			await materializeNightlyPersistedStateFixture({ fixture: cell.persistedStateFixture, targetHome: home });
+		} catch (error) {
+			return {
+				cell,
+				outcome: "failed",
+				durationMs: Date.now() - started,
+				homePath: home,
+				reason: `could not materialize the registered persisted-state fixture: ${error instanceof Error ? error.message : String(error)}`,
+			};
+		}
 	}
 	const simflowRun = PROFILE_TO_SIMFLOW_RUN[cell.modelProfile];
 	if (simflowRun === undefined) {
@@ -269,6 +294,23 @@ async function runCell(cell: NightlyCell): Promise<CellVerdict> {
 				reason: `invalid NIGHTLY_HERMETIC_EVIDENCE: ${error instanceof Error ? error.message : String(error)}`,
 			};
 		}
+		let persistedStateEvidence: CellVerdict["persistedStateEvidence"];
+		if (cell.persistedStateFixture) {
+			try {
+				persistedStateEvidence = await collectNightlyPersistedStateEvidence({
+					fixture: cell.persistedStateFixture,
+					home,
+				});
+			} catch (error) {
+				return {
+					cell,
+					outcome: "failed",
+					durationMs: Date.now() - started,
+					homePath: home,
+					reason: `persisted-state compatibility oracle failed: ${error instanceof Error ? error.message : String(error)}`,
+				};
+			}
+		}
 		return {
 			cell,
 			outcome: "passed",
@@ -281,6 +323,7 @@ async function runCell(cell: NightlyCell): Promise<CellVerdict> {
 			recordingEvidence,
 			modelIoCost,
 			hermeticEvidence,
+			...(persistedStateEvidence ? { persistedStateEvidence } : {}),
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -319,15 +362,14 @@ export async function runDevNightlyCommand(options: {
 	// hour 3. Execution stays strictly sequential (maxParallel 1) — the ordering is the whole gain here, and the
 	// parallelism half is what makes the two largest projects false-timeout.
 	const prior = await readPriorBaselines();
-	const cellKey = (cell: NightlyCell) => `${cell.projectId} × ${cell.modelProfile}`;
 	const plan = planNightlySchedule({
 		cells: enumerated.map((cell) => ({
-			id: cellKey(cell),
-			lastDurationMs: prior.get(cellKey(cell))?.durationMs ?? null,
+			id: nightlyCellKey(cell),
+			lastDurationMs: prior.get(nightlyCellKey(cell))?.durationMs ?? null,
 		})),
 		maxParallel: 1,
 	});
-	const byKey = new Map(enumerated.map((cell) => [cellKey(cell), cell]));
+	const byKey = new Map(enumerated.map((cell) => [nightlyCellKey(cell), cell]));
 	// planNightlySchedule throws CoverageWeakenedError rather than silently dropping a cell, so this cannot narrow
 	// the suite; the filter is a type narrowing, not a safety net.
 	const cells = plan.scheduledCells.map((id) => byKey.get(id)).filter((cell): cell is NightlyCell => Boolean(cell));
@@ -354,20 +396,40 @@ export async function runDevNightlyCommand(options: {
 		);
 		process.exitCode = 1;
 	}
+	const compatibilityFixtureProblems: string[] = [];
+	for (const cell of cells) {
+		if (!cell.persistedStateFixture) continue;
+		try {
+			const actual = await hashNightlyPersistedStateFixture(cell.persistedStateFixture.fixtureRoot);
+			if (actual !== cell.persistedStateFixture.fixtureSha256) {
+				compatibilityFixtureProblems.push(
+					`${nightlyCellName(cell)} expected sha256:${cell.persistedStateFixture.fixtureSha256}, got sha256:${actual}`,
+				);
+			}
+		} catch (error) {
+			compatibilityFixtureProblems.push(
+				`${nightlyCellName(cell)} could not validate its fixture: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+	}
+	if (compatibilityFixtureProblems.length > 0) {
+		process.stdout.write(
+			`⚠️ ${compatibilityFixtureProblems.length} persisted-state fixture problem(s):\n${compatibilityFixtureProblems.map((problem) => `  ${problem}`).join("\n")}\n\n`,
+		);
+		process.exitCode = 1;
+	}
 
 	if (options.dryRun) {
 		process.stdout.write(`${cells.length} cell(s) would run SEQUENTIALLY (fastest-first from prior durations):\n`);
 		for (const cell of cells) {
-			process.stdout.write(
-				`  ${cell.projectId} × ${cell.modelProfile}  (kernel-ephemeral port, set ${cell.recordingSet})\n`,
-			);
+			process.stdout.write(`  ${nightlyCellName(cell)}  (kernel-ephemeral port, set ${cell.recordingSet})\n`);
 		}
 		return;
 	}
 
 	const verdicts: CellVerdict[] = [];
 	for (const [index, cell] of cells.entries()) {
-		process.stderr.write(`== ${cell.projectId} × ${cell.modelProfile} (${index + 1}/${cells.length}) ==\n`);
+		process.stderr.write(`== ${nightlyCellName(cell)} (${index + 1}/${cells.length}) ==\n`);
 		// SEQUENTIAL: awaited inside the loop, deliberately. See the docblock.
 		verdicts.push(await runCell(cell));
 	}
@@ -427,9 +489,9 @@ export async function runDevNightlyCommand(options: {
 			.filter((verdict) => verdict.outcome === "failed")
 			.map(async (verdict) => {
 				const home = verdict.homePath ?? null;
-				const holdNote = await operatorHoldNote(home, `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`);
+				const holdNote = await operatorHoldNote(home, nightlyCellName(verdict.cell));
 				return buildNightlyFailureReport({
-					cellId: `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`,
+					cellId: nightlyCellName(verdict.cell),
 					seed: NIGHTLY_FIXED_SEED,
 					homePath: home,
 					homeRetained: home !== null,
@@ -455,7 +517,7 @@ export async function runDevNightlyCommand(options: {
 			.map(async (verdict) => {
 				const pack = resolvePack(verdict.cell.invariantPack, NIGHTLY_PACK_REGISTRY);
 				if (!pack) {
-					return `${verdict.cell.projectId} × ${verdict.cell.modelProfile}: invariant pack "${verdict.cell.invariantPack}" is NOT REGISTERED — nothing was asserted for this cell`;
+					return `${nightlyCellName(verdict.cell)}: invariant pack "${verdict.cell.invariantPack}" is NOT REGISTERED — nothing was asserted for this cell`;
 				}
 				// N7c: real signal events, read from the drain's own self-observation log.
 				const extraction = extractDrainSignalEvents(
@@ -486,7 +548,7 @@ export async function runDevNightlyCommand(options: {
 					unmatchedAimockRequests: verdict.unmatchedRequests ?? 0,
 					teardown: { orphanSessions: 0, orphanWorktrees: 0, orphanLeases: 0 },
 				});
-				return `${verdict.cell.projectId} × ${verdict.cell.modelProfile}: ${evaluatePack(pack, collected.state).summary} [${extraction.summary}]`;
+				return `${nightlyCellName(verdict.cell)}: ${evaluatePack(pack, collected.state).summary} [${extraction.summary}]`;
 			}),
 	);
 	if (packVerdicts.length > 0 && !options.json) {
@@ -504,7 +566,7 @@ export async function runDevNightlyCommand(options: {
 		for (const verdict of recordingReceipts) {
 			const evidence = verdict.recordingEvidence;
 			process.stdout.write(
-				`  ${verdict.cell.projectId} × ${verdict.cell.modelProfile}: ${evidence.fixture}/${evidence.runFile} · ${evidence.setId} · sha256:${evidence.sha256}\n`,
+				`  ${nightlyCellName(verdict.cell)}: ${evidence.fixture}/${evidence.runFile} · ${evidence.setId} · sha256:${evidence.sha256}\n`,
 			);
 		}
 	}
@@ -518,7 +580,23 @@ export async function runDevNightlyCommand(options: {
 		for (const verdict of costReceipts) {
 			const measured = verdict.modelIoCost;
 			process.stdout.write(
-				`  ${verdict.cell.projectId} × ${verdict.cell.modelProfile}: ${measured.modelRequests} request(s) · ${measured.requestBytes} input B + ${measured.responseBytes} response B = ${measured.totalBytes} B\n`,
+				`  ${nightlyCellName(verdict.cell)}: ${measured.modelRequests} request(s) · ${measured.requestBytes} input B + ${measured.responseBytes} response B = ${measured.totalBytes} B\n`,
+			);
+		}
+	}
+	const persistedStateReceipts = verdicts.filter(
+		(
+			verdict,
+		): verdict is CellVerdict & {
+			persistedStateEvidence: NonNullable<CellVerdict["persistedStateEvidence"]>;
+		} => verdict.persistedStateEvidence != null,
+	);
+	if (persistedStateReceipts.length > 0 && !options.json) {
+		process.stdout.write(`\nPersisted-state compatibility receipts (${persistedStateReceipts.length}):\n`);
+		for (const verdict of persistedStateReceipts) {
+			const evidence = verdict.persistedStateEvidence;
+			process.stdout.write(
+				`  ${nightlyCellName(verdict.cell)}: v${evidence.workspaceMigration.fromVersion}→v${evidence.workspaceMigration.toVersion} · ${evidence.ledger.legacyEvents}+${evidence.ledger.currentEvents} ledger events · ${evidence.ledger.corruptRecordsSkipped} corrupt record(s) skipped · sha256:${evidence.fixtureSha256}\n`,
 			);
 		}
 	}
@@ -527,8 +605,8 @@ export async function runDevNightlyCommand(options: {
 	// "the nightly got slower" and is usually absorbed rather than investigated.
 	const regressions = detectDurationRegressions(
 		verdicts.map((verdict) => ({
-			cellId: `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`,
-			baselineMs: prior.get(`${verdict.cell.projectId} × ${verdict.cell.modelProfile}`)?.durationMs ?? null,
+			cellId: nightlyCellName(verdict.cell),
+			baselineMs: prior.get(nightlyCellKey(verdict.cell))?.durationMs ?? null,
 			currentMs: verdict.durationMs ?? 0,
 		})),
 	);
@@ -536,8 +614,8 @@ export async function runDevNightlyCommand(options: {
 		verdicts
 			.filter((verdict): verdict is CellVerdict & { modelIoCost: NightlyModelIoCost } => verdict.modelIoCost != null)
 			.map((verdict) => ({
-				cellId: `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`,
-				baseline: prior.get(`${verdict.cell.projectId} × ${verdict.cell.modelProfile}`)?.modelIoCost ?? null,
+				cellId: nightlyCellName(verdict.cell),
+				baseline: prior.get(nightlyCellKey(verdict.cell))?.modelIoCost ?? null,
 				current: verdict.modelIoCost,
 			})),
 	);

@@ -1,0 +1,22 @@
+{
+  "version": 0,
+  "rows": {
+    "lmstudio:fixture:model:v0:http://localhost:1234/v1::compatibility_probe::easy": {
+      "modelKey": "lmstudio:fixture:model:v0:http://localhost:1234/v1",
+      "role": "compatibility_probe",
+      "difficultyTier": "easy",
+      "sampleCount": 2,
+      "successCount": 1
+    },
+    "fixture:bad-model::compatibility_probe::easy": {
+      "modelKey": "fixture:bad-model",
+      "role": "compatibility_probe",
+      "difficultyTier": "easy",
+      "sampleCount": 5,
+      "successCount": 0
+    },
+    "corrupt-row": {
+      "modelKey": 42
+    }
+  }
+}

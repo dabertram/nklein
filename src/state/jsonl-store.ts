@@ -14,8 +14,21 @@ import type { z } from "zod";
  * validation — the caller receives identical results for all structurally-valid data that existed before this
  * helper was introduced.
  */
-export function parseValidatedJsonl<T>(content: string, schema: z.ZodType<T>, context: string): T[] {
+export interface JsonlParseDiagnostic {
+	readonly kind: "unparseable" | "schema_invalid";
+	readonly linePreview: string;
+	readonly message?: string;
+}
+
+export interface ValidatedJsonlResult<T> {
+	readonly records: readonly T[];
+	readonly diagnostics: readonly JsonlParseDiagnostic[];
+}
+
+/** Parse while retaining every tolerant-reader skip as structured evidence. */
+export function parseValidatedJsonlWithDiagnostics<T>(content: string, schema: z.ZodType<T>): ValidatedJsonlResult<T> {
 	const results: T[] = [];
+	const diagnostics: JsonlParseDiagnostic[] = [];
 	for (const line of content.split("\n")) {
 		const trimmed = line.trim();
 		if (!trimmed) {
@@ -25,19 +38,31 @@ export function parseValidatedJsonl<T>(content: string, schema: z.ZodType<T>, co
 		try {
 			parsed = JSON.parse(trimmed);
 		} catch {
-			// Skip a malformed line rather than failing the whole read (unchanged behaviour).
-			process.stderr.write(`[jsonl-store] ${context}: skipping unparseable line: ${trimmed.slice(0, 120)}\n`);
+			diagnostics.push({ kind: "unparseable", linePreview: trimmed.slice(0, 120) });
 			continue;
 		}
 		const result = schema.safeParse(parsed);
 		if (!result.success) {
-			// NEW: surface schema-invalid records instead of silently trusting them.
-			process.stderr.write(
-				`[jsonl-store] ${context}: skipping schema-invalid record: ${result.error.message.slice(0, 240)}\n`,
-			);
+			diagnostics.push({
+				kind: "schema_invalid",
+				linePreview: trimmed.slice(0, 120),
+				message: result.error.message.slice(0, 240),
+			});
 			continue;
 		}
 		results.push(result.data);
 	}
-	return results;
+	return { records: results, diagnostics };
+}
+
+export function parseValidatedJsonl<T>(content: string, schema: z.ZodType<T>, context: string): T[] {
+	const result = parseValidatedJsonlWithDiagnostics(content, schema);
+	for (const diagnostic of result.diagnostics) {
+		process.stderr.write(
+			diagnostic.kind === "unparseable"
+				? `[jsonl-store] ${context}: skipping unparseable line: ${diagnostic.linePreview}\n`
+				: `[jsonl-store] ${context}: skipping schema-invalid record: ${diagnostic.message ?? diagnostic.linePreview}\n`,
+		);
+	}
+	return [...result.records];
 }

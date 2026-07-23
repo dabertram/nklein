@@ -24,8 +24,8 @@ import {
 	recordConsistencyAgreement,
 	recordModelBehaviorOutcome,
 } from "../core/model-behavior-profile";
-import { parseJsonLineWithSchema } from "../core/parse-json-line";
 import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { parseValidatedJsonl } from "../state/jsonl-store";
 import { resolveStableRoutingModelId } from "../state/runtime-id-model-key-map-store";
 
 const DEFAULT_MODEL_BEHAVIOR_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "model-behavior");
@@ -120,15 +120,7 @@ async function readAllOutcomes(root: string): Promise<PersistedBehaviorOutcome[]
 	const outcomes: PersistedBehaviorOutcome[] = [];
 	for (const fileName of fileNames) {
 		const text = await readFile(join(root, fileName), "utf8").catch(() => "");
-		for (const line of text.split("\n")) {
-			if (!line) {
-				continue;
-			}
-			const record = parseJsonLineWithSchema(line, persistedBehaviorOutcomeSchema);
-			if (record) {
-				outcomes.push(record);
-			}
-		}
+		outcomes.push(...parseValidatedJsonl(text, persistedBehaviorOutcomeSchema, "model-behavior-profile-store"));
 	}
 	return outcomes.sort((left, right) => left.recordedAt - right.recordedAt);
 }
@@ -206,6 +198,8 @@ function ledgerBoardAttemptOutcomes(events: readonly AgentLedgerEvent[]): Persis
 export interface CombinedModelBehaviorOptions extends ModelBehaviorStoreOptions {
 	/** Override the ledger root (tests). Defaults to the runtime home's agent-attempt-ledger. */
 	ledgerRootDir?: string;
+	/** Override shared process identity state for hermetic readers and acceptance oracles. */
+	resolveStableModelId?: (modelId: string) => string;
 }
 
 async function readCombinedOutcomes(options: CombinedModelBehaviorOptions): Promise<PersistedBehaviorOutcome[]> {
@@ -252,7 +246,8 @@ export async function readAllCombinedModelBehaviorProfiles(
 		// F2.21 (David 2026-07-14): fold the (time-ordered) outcome STREAM under the STABLE model identity, so two
 		// runtime ids for one model combine into ONE profile at the stream level — the EWMA-safe merge (a profile
 		// merge would be order-dependent and wrong). A no-op when the shared map has no entry for the id.
-		const stableModelId = resolveStableRoutingModelId(entry.modelId).trim() || entry.modelId;
+		const resolveStableModelId = options.resolveStableModelId ?? resolveStableRoutingModelId;
+		const stableModelId = resolveStableModelId(entry.modelId).trim() || entry.modelId;
 		let previous = byModel[stableModelId] ?? emptyModelBehaviorProfile(stableModelId);
 		if (entry.outcome) {
 			previous = recordModelBehaviorOutcome(previous, entry.outcome, {

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "releaseVersion": "0.0.0",
+  "legacyCutoffMs": 10000,
+  "ledgerFile": "compat-v0.jsonl",
+  "expectedLegacyLedgerEvents": 1,
+  "expectedCorruptLedgerRecords": 2,
+  "fitnessProbe": {
+    "modelKey": "lmstudio:fixture:model:v0:http://localhost:1234/v1",
+    "role": "compatibility_probe",
+    "difficultyTier": "easy",
+    "expectedStoredSamples": 2,
+    "expectedMergedSamples": 3,
+    "expectedTopModelKey": "lmstudio:fixture:model:v0:http://localhost:1234/v1"
+  },
+  "behaviorProbe": {
+    "modelId": "lmstudio:fixture:model:v0:http://localhost:1234/v1",
+    "expectedPersistedSamples": 2,
+    "expectedCombinedSamples": 3
+  }
+}

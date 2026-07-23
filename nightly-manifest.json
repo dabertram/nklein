@@ -100,5 +100,21 @@
         "flaky"
       ]
     }
+  ],
+  "persistedStateFixtures": [
+    {
+      "id": "02",
+      "fixture": "02_construction_jobsite_safety_compliance",
+      "recordingSet": "sim-02",
+      "invariantPack": "core-invariants",
+      "modelProfiles": [
+        "perfect"
+      ],
+      "persistedStateFixture": {
+        "releaseVersion": "0.0.0",
+        "fixtureRoot": "test/fixtures/nightly-compatibility/0.0.0",
+        "fixtureSha256": "ff230498a42e4f356d6a11408e72ff75b88b04e2323d431ed4c5ded935a4f2f9"
+      }
+    }
   ]
 }

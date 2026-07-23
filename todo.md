@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 151-package remainder is **49 ready + 7 partial + 79 dependency-blocked + 7 external/
+  gate below is green. The current 150-package remainder is **45 ready + 10 partial + 79 dependency-blocked + 7 external/
 user-gated + 9 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -124,6 +124,16 @@ gap remains.
 > flaky dependency: a probe releases the port before the runtime binds it, while a fixed port can silently reuse a stale
 > server. Harnesses use the kernel's atomic `listen(0)`, publish the assigned port only after bind, then hand that exact
 > port to child clients. Never infer isolation from a high numbered port or from a subprocess exiting zero.
+> **A RELEASE-HOME FIXTURE IS EXECUTABLE, HASH-BOUND INPUT (N9, 2026-07-23).** A parser unit test does not prove that
+> the current runtime can boot an old HOME. Copy an immutable prior-release tree into the same isolated HOME a normal
+> nightly drain uses, verify its SHA-256 tree identity before startup, then require the real migration journal + retained
+> v1 backup, a completed current-schema boot, and a full end-to-end drain. Seed valid and corrupt old ledger/behavior/
+> fitness records together; the oracle must prove corrupt records were diagnosed and skipped while old store rows,
+> old ledger events, and new runtime events fold through the production read/ranking seams to a sane deterministic
+> result. Never rewrite the frozen fixture in place during a test or call an empty fallback “compatible.”
+> Intentional release fixtures can live below normally ignored runtime directories. Force-track those exact files,
+> and make hook-side ignore checks use `git check-ignore --no-index`: plain `check-ignore` hides indexed matches,
+> causing a formatter restage loop to retry them without `-f` and fail only after the expensive checks finish.
 > **Git history is part of the agent-visible input:** deleting a temporary oracle mount is insufficient if `test_patch`
 > was ever applied or committed. The sealed workspace must expose exactly one upstream baseline commit; private tests
 > first enter only the separate official grader container after prediction capture.
@@ -6344,11 +6354,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   vendored grading core + instance fetcher (dataset-vendoring footprint = the David green-light already attached
   to F11.3); aimock recordings per model profile exactly like N2/N3 — the SAME four-step growth recipe applies,
   so "add nightly coverage for SWE-bench instance X" needs no further explanation either.
-- [ ] **N9 — Upgrade-path / persisted-state compatibility cells.** Freeze a fixture-HOME per release; nightly
+- [~] **N9 — Upgrade-path / persisted-state compatibility cells.** Freeze a fixture-HOME per release; nightly
   boots each on the CURRENT build and asserts: clean boot (corrupt-file recovery paths included), a full drain,
   and the LEARNING stores (fitness/behavior/ledger) folding mixed-generation data into sane routing (the
   tolerant-reader skips are logged today but nothing asserts survival). Composes with F5.6b's migration runner —
   every real migration gets its before/after fixture pair here.
+  **CODE COMPLETE 2026-07-23; ONE LIVE COMPATIBILITY DRAIN REMAINS AFTER F11 RELEASES DOCKER.** The manifest now
+  registers a SHA-256 tree-bound `0.0.0` HOME fixture as a normal extra nightly cell. Materialization rejects external
+  paths, symlinks, hash drift, release mismatch, and non-empty targets before the current build sees the bytes. The
+  fixture contains a v1 workspace index, v0 fitness rows, append-only behavior history, one valid legacy attempt, and
+  both unparseable + schema-invalid records. After the ordinary hermetic drain, a fail-closed oracle requires the
+  completed v1→v2 journal, retained v1 backup, at least one current attempt, explicit corrupt-record diagnostics,
+  exact old+ledger fitness/behavior folds, current-attempt presence in both production learning projections, and
+  deterministic production ranking. The oracle injects the isolated identity resolver rather than consulting shared
+  process model-map state. JSONL tolerant-reader diagnostics are
+  now structured and reused by behavior history instead of being silently discarded. Focused proof migrates the exact
+  tracked fixture and merges a synthetic current event. **Concrete remainder:** after the active F11 campaign releases
+  Docker, run `02×perfect@home-0.0.0` through `dev nightly`, retain its N4/N6/N9 receipts, inspect the migrated HOME and
+  recovery backup, and close only after the real drain supplies the required current-generation events.
 - [ ] **N10 — Crash/kill recovery MATRIX.** Kill the runtime (SIGKILL) at every phase — mid-decompose,
   mid-worker, mid-review, mid-delivery, mid-compaction, mid-trigger — and assert clean resume: no stuck cards, no
   double side effects, no orphan leases/worktrees/sessions. Generalizes the one-off F1.18b run-3 proof into a
