@@ -281,3 +281,22 @@ oracle-5 and matched-agent Harbor result directories as the actual track evidenc
 After reviewing the plans and ensuring the shared fleet/Docker lane is idle, add `--execute`. Execution refuses an
 existing report directory, runs oracle first and !Klein second, and stops on either harness error so evidence from
 different invocations cannot be silently mixed.
+
+## External baselines (same model families, other scaffolds)
+
+Honest external comparators for our own campaign numbers — published results from other local-first scaffolds on
+the SAME benchmarks and model families !Klein runs. These are NOT our numbers and their harness details differ
+(edit format, tooling, attempt budgets); use them to sanity-check ORDERS OF MAGNITUDE and scaffold-fit claims,
+never as a leaderboard. Sources are credited in [docs/attributions.md](../attributions.md).
+
+| Scaffold | Model | Benchmark | Published result | Recorded |
+|---|---|---|---|---|
+| little-coder (pi substrate) | Qwen3.5-9B | Aider Polyglot | 45.56% (their paper v0.0.2; own baseline 19.11%) | 2026-07-23 |
+| little-coder (pi substrate) | Qwen3.6-35B-A3B | Aider Polyglot | 78.67% (v0.0.5) | 2026-07-23 |
+| little-coder (pi substrate) | Qwen3.6-35B-A3B | Terminal-Bench 2.0 | 24.6 ± 3.2% (445 tasks) | 2026-07-23 |
+| little-coder (pi substrate) | Qwen3.5-9B | Terminal-Bench 2.0 | 9.2 ± 2.4% | 2026-07-23 |
+
+Their hardware envelope (consumer laptop, 8 GB VRAM) is comparable to !Klein's target class. The delta between a
+scaffold-fit result and a bare-model baseline (their 19.11% → 45.56% at 9B) is external corroboration of the
+charter's central claim; treat their absolute numbers as an aspiration band for our own fixed-fleet campaigns on
+the same models.

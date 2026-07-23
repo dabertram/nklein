@@ -82,4 +82,4 @@ The fail-closed packaged release/signing procedure is documented in
 
 ### License
 
-[Apache 2.0 © 2026 !Klein contributors](./LICENSE) — a fork of Cline Kanban; see [NOTICE](./NOTICE) for upstream attribution.
+[Apache 2.0 © 2026 !Klein contributors](./LICENSE) — a fork of Cline Kanban; see [NOTICE](./NOTICE) for upstream attribution and [docs/attributions.md](./docs/attributions.md) for every project whose mechanisms we adopted or imitated.

@@ -1,0 +1,22 @@
+/Users/david/GIT/nklein/.worktrees/f11-followup/scripts/run-aider-campaign.mts:216
+                if (Date.now() >= deadline) throw new Error("Fixed resident set did not become idle within 120 seconds.");
+                                                  ^
+
+Error: Fixed resident set did not become idle within 120 seconds.
+    at waitForFixedIdleFleet [90m(/Users/david/GIT/nklein/.worktrees/f11-followup/[39mscripts/run-aider-campaign.mts:216:37[90m)[39m
+[90m    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at async main [90m(/Users/david/GIT/nklein/.worktrees/f11-followup/[39mscripts/run-aider-campaign.mts:318:23[90m)[39m
+    at async <anonymous> [90m(/Users/david/GIT/nklein/.worktrees/f11-followup/[39mscripts/run-aider-campaign.mts:434:1[90m)[39m
+
+Node.js v25.9.0
+/Users/david/GIT/nklein/.worktrees/f11-followup/scripts/run-aider-campaign.mts:216
+                if (Date.now() >= deadline) throw new Error("Fixed resident set did not become idle within 120 seconds.");
+                                                  ^
+
+Error: Fixed resident set did not become idle within 120 seconds.
+    at waitForFixedIdleFleet [90m(/Users/david/GIT/nklein/.worktrees/f11-followup/[39mscripts/run-aider-campaign.mts:216:37[90m)[39m
+[90m    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at async main [90m(/Users/david/GIT/nklein/.worktrees/f11-followup/[39mscripts/run-aider-campaign.mts:340:4[90m)[39m
+    at async <anonymous> [90m(/Users/david/GIT/nklein/.worktrees/f11-followup/[39mscripts/run-aider-campaign.mts:434:1[90m)[39m
+
+Node.js v25.9.0

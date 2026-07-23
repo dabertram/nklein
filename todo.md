@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 145-package remainder is **39 ready + 11 partial + 80 dependency-blocked + 6 external/
+  gate below is green. The current 146-package remainder is **40 ready + 11 partial + 80 dependency-blocked + 6 external/
 user-gated + 9 deliberately deferred** (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
 F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 + N13 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
@@ -2489,6 +2489,19 @@ These are known defects or incomplete migrations. Clear them before widening cap
 ### Phase 3 — feature completion: adaptive local-model execution and routing
 
 #### 3A. Adaptive recovery controller *(legacy §5.O, §5.AA)*
+
+- [ ] **F3.36 — Wire the mid-turn reasoning-budget breach (adopted from little-coder; docs/attributions.md).**
+  The pure core is SHIPPED (`src/core/reasoning-budget-breach.ts`, 2026-07-23): stream-time reasoning-budget
+  tracking (little-coder's `ceil(chars/3.5)` estimate, 4096-token default), one-shot breach detection, the
+  abort+disable-thinking+commit-now recovery, and the forced-off-until-genuine-user-input state machine — the
+  MID-TURN complement to the post-turn §5.AA `thinking_disable`/`raise_token_budget` rungs (stop the burn while
+  it streams instead of classifying the corpse). **The wire:** (a) CHAT path now — the !Klein-owned chat loop
+  streams reasoning deltas; feed the tracker, and on breach cut the stream, apply the recovery (thinking off via
+  the model's verified soft switch, per `supportsThinkingControl`), append the nudge, retry within the existing
+  ladder accounting so the rung is recorded in the ledger; (b) SWARM path rides the vendored `wrapModel` hook
+  (the §5.AA recovery-ladder wrapper already buffers the stream — the tracker slots into it) when that increment
+  lands. Gate default-OFF behind `NKLEIN_REASONING_BREACH` until a fleet A/B measures recovered-turn rate
+  (P15.3 evidence bar), since it changes live turn behavior on every reasoning model.
 
 - [x] **F3.1 — Wire loop detection and salvage/park into every model path.** Use the existing classifier on chat,
   planning, worker, reviewer, and retrieval turns; preserve useful artifacts and a clear reason.
