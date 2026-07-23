@@ -13,6 +13,18 @@ describe("buildNKleinStartPromptParts (§5.U)", () => {
 		expect(parts.systemWorkflowCommand).toBe("/kanban-decompose");
 	});
 
+	it("F12.111b keeps the omitted path byte-identical and injects deliberation only into plan mode", () => {
+		const base = buildNKleinStartPromptParts("Build the thing", true);
+		const omitted = buildNKleinStartPromptParts("Build the thing", true, false, null, [], null);
+		expect(omitted).toEqual(base);
+
+		const guidance = ["## Pre-implementation specification disagreements", "Ask EXACTLY ONE question."];
+		const planned = buildNKleinStartPromptParts("Build the thing", true, false, null, [], null, guidance);
+		expect(planned.systemPrompt).toContain(guidance.join("\n"));
+		const workCard = buildNKleinStartPromptParts("Build the thing", false, true, null, [], null, guidance);
+		expect(workCard.systemPrompt).not.toContain("specification disagreements");
+	});
+
 	it("a refinable work card (not plan mode) gets the Planning/Refinement preamble and no workflow command", () => {
 		const parts = buildNKleinStartPromptParts("card prompt", false, true);
 		expect(parts.systemPrompt).toContain("Refinement");

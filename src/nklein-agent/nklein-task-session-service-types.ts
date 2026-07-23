@@ -63,6 +63,8 @@ export interface StartNKleinTaskSessionRequest {
 	autoDecompositionDepth?: AutoDecompositionDepthDecision | null;
 	/** F12.110 — advisory fleet-sharding guidance lines for the decompose seed (null/[] ⇒ byte-identical). */
 	fleetDecompositionGuidance?: readonly string[] | null;
+	/** F12.111b — normalized 0..1 routing difficulty used only to gate pre-code deliberation. */
+	taskDifficulty?: number | null;
 	/** Normalized !Klein task title; written to SDK session metadata (best-effort). */
 	taskTitle?: string;
 	initialMessages?: NKleinSdkPersistedMessage[];

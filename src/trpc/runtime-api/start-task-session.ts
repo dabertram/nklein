@@ -1851,6 +1851,7 @@ export async function handleStartTaskSession(
 			startInPlanMode: body.startInPlanMode,
 			autoDecompositionDepth, // F4.38 — advisory decompose-depth guidance (null for non-decompose tasks)
 			fleetDecompositionGuidance, // F12.110 — advisory fleet sharding (null unless the dark flag is on)
+			taskDifficulty: Math.max(0, Math.min(1, taskDifficulty / 100)), // F12.111b — deliberation gate only
 			apiKey: nkleinLaunchConfig.apiKey,
 			baseUrl: nkleinLaunchConfig.baseUrl,
 			reasoningEffort: nkleinLaunchConfig.reasoningEffort,

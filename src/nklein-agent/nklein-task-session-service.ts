@@ -63,6 +63,8 @@ import {
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { currentFocusChainStep, type FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import {
 	emptyModelBehaviorProfile,
 	type ModelBehaviorProfile,
@@ -190,6 +192,7 @@ import {
 	setOrCreateAssistantMessage,
 	updateSummary,
 } from "./nklein-session-state";
+import { readSpecDeliberationCompletionText, runSpecDeliberation } from "./nklein-spec-deliberation-runner";
 import { createSpeculativeMirrorRunner } from "./nklein-speculative-mirror-runner";
 import { TaskContextBudgetInputs } from "./nklein-task-context-budget-inputs";
 import { TaskFailureBackoffTracker } from "./nklein-task-failure-backoff-tracker";
@@ -1944,6 +1947,78 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// A work card (not plan-mode, not a home/chat session) gets the Planning/Refinement preamble + the
 		// begin_implementation promotion tool (todo §5.B); home/chat and decompose/plan cards do not.
 		const isRefinableWorkCard = !request.startInPlanMode && !isHomeAgentSessionId(request.taskId);
+		let specDeliberationGuidance: readonly string[] | null = null;
+		if (
+			isTruthyEnv(process.env.NKLEIN_SPEC_DELIBERATION) &&
+			request.startInPlanMode &&
+			!pendingPlanRevision &&
+			!request.resumeFromTrash &&
+			!request.resumeFromPersistence &&
+			providerId !== UNCONFIGURED_PROVIDER_ID &&
+			modelId !== UNCONFIGURED_MODEL_ID
+		) {
+			const deliberationBaseUrl = endpoint ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+			const deliberation = await runSpecDeliberation({
+				specText: taskPrompt,
+				difficulty: Math.max(0, Math.min(1, request.taskDifficulty ?? 0.5)),
+				primary: {
+					providerId,
+					modelId,
+					modelKey: request.stableModelKey,
+					baseUrl: deliberationBaseUrl,
+					apiKey: request.apiKey,
+					timeoutMs: request.requestTimeoutMs,
+					contextWindow: requestContextWindow ?? 0,
+				},
+				loaded: await fetchLoadedModelDescriptors(deliberationBaseUrl).catch(() => []),
+				runTurn: async ({ model, stance, prompt }) =>
+					await this.withModelTurnAdmission(
+						{
+							taskId: `${request.taskId}::spec-deliberation:${stance.id}`,
+							admissionParentTaskId: request.taskId,
+							providerId: model.providerId,
+							modelId: model.modelId,
+							endpoint: model.baseUrl,
+						},
+						async () => {
+							const completion = await new LocalLlmClient({
+								providerId: model.providerId,
+								modelId: model.modelId,
+								baseUrl: model.baseUrl,
+								apiKey: model.apiKey,
+								...(model.timeoutMs ? { timeoutMs: model.timeoutMs } : {}),
+							}).complete({
+								messages: [{ role: "user", content: prompt }],
+								sampling: { temperature: 0.2, topP: 0.9, topK: 40, minP: 0.05, maxTokens: 1_200 },
+							});
+							// Deliberation extracts a small structured ambiguity set and never persists chain-of-thought. Current
+							// reasoning templates can place the entire reply in reasoning_content; treating that as empty would
+							// turn a healthy mechanism into a silent no-op.
+							return readSpecDeliberationCompletionText(completion);
+						},
+					),
+			}).catch(() => null);
+			specDeliberationGuidance = deliberation?.guidance ?? null;
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: deliberation && deliberation.guidance.length > 0 ? "warning" : "info",
+					message: deliberation
+						? `Spec-time deliberation for ${request.taskId}: ${deliberation.completedModelIds.length} turn(s), ${deliberation.deliberation.disagreements.length} disagreement(s), ${deliberation.guidance.length > 0 ? "clarification guidance injected" : "no question injected"}.`
+						: `Spec-time deliberation for ${request.taskId}: gated off, unavailable, or insufficient independent completions; using the ordinary single-model clarification path.`,
+					taskId: request.taskId,
+					metadata: {
+						category: "spec_deliberation",
+						mode: deliberation?.mode ?? "skipped",
+						completedTurns: deliberation?.completedModelIds.length ?? 0,
+						disagreementCount: deliberation?.deliberation.disagreements.length ?? 0,
+						questionInjected: Boolean(deliberation?.guidance.length),
+					},
+				});
+			} catch {
+				// Observational evidence must never block task start.
+			}
+		}
 		// F12.89: workspace-stable frontend convention preamble (memoized per cwd; [] for backend workspaces or on any
 		// read failure ⇒ byte-identical; kill-switch NKLEIN_FRAMEWORK_PREAMBLE=off).
 		const frameworkPreamble = await readWorkspaceFrameworkPreamble(request.cwd);
@@ -1954,6 +2029,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			request.autoDecompositionDepth ?? null, // F4.38 — advisory depth line (null ⇒ byte-identical)
 			frameworkPreamble,
 			request.fleetDecompositionGuidance ?? null, // F12.110 — advisory fleet sharding (null ⇒ byte-identical)
+			specDeliberationGuidance,
 		);
 		const normalizedPrompt = startPromptParts.userPrompt.trim();
 		const hasRequestImages = Boolean(request.images && request.images.length > 0);

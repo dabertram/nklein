@@ -33,14 +33,15 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-23, refreshed after F12.77b):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 153-package remainder is **52 ready + 6 partial + 79 dependency-blocked + 7 external/
+  gate below is green. The current 153-package remainder is **51 ready + 7 partial + 79 dependency-blocked + 7 external/
 user-gated + 9 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
 gates immediately below; all seven `[?]` rows name the required operator decision, credential, machine, or live-fleet
-condition. The sole partial is F11.3 and names its remaining language/tranche/control work inline.
+condition. Every partial names its executable residue inline; the fixed-fleet/image-dependent ones remain ahead of new
+ready work until their live evidence can be admitted.
 
 Broad blocked phases inherit these named gates (an item's narrower inline gate is additional):
 
@@ -6043,13 +6044,24 @@ into the existing F12.31. Same verify-before-build caveat.**
   KNOWN LIMITATION (honest, not a bug): grouping is literal-key based, so "rate limit threshold" and
   "Definition of 'too many requests'" survive as two questions despite being one ambiguity. Semantic dedup would
   need embeddings; until then the human sees mild duplication, which is the safe direction.
-- [ ] **F12.111b — Wire spec deliberation into the initializer/decompose path *(split 2026-07-20)*.** Run the
+- [~] **F12.111b — Wire spec deliberation into the initializer/decompose path *(split 2026-07-20)*.** Run the
   staffing decision at spec time, fan out the stances (or cross-family models), and route
   `clarifyingQuestions` into the EXISTING clarification machinery (`nextClarification` / F12.8's one-at-a-time
   discipline) rather than presenting a wall of questions. **Acceptance MUST include the baseline comparison the
   item demands:** deliberation vs plain single-model clarification on the same specs — without it we cannot tell
   the feature from ceremony, and P20.8's finding (a trivial baseline beat an elaborate scaffold at 1/50th the
   cost) is the standing warning.
+  **CODE + PAIRED HARNESS SHIPPED 2026-07-23; LIVE VERDICT REMAINS:** the opt-in runtime now gates before sandbox
+  allocation, uses only already-loaded >=32k models, admits at most one model per known lineage family, and degrades
+  honestly to one model under three labelled stances. Parsed disagreements are appended to the existing plan prompt
+  with an explicit `ask_followup_question` / EXACTLY-ONE discipline; no deliberator chain-of-thought is persisted,
+  while reasoning-only local replies are still parsed instead of silently becoming empty. Omission is byte-identical
+  and the default remains OFF. `eval:spec-deliberation` pre-registers six paired same-spec cases in ABBA order and
+  reports concept recall, false concerns, quality passes, calls, and latency for plain single-model clarification vs
+  deliberation; it refuses <32k/busy/fleet-drift conditions and never loads or unloads a model. **Remainder:** execute
+  that harness on the released fixed resident fleet, inspect every scored concern, and enable by default only if the
+  deliberation arm materially improves clarification quality without an unacceptable false-question or cost increase;
+  otherwise keep it opt-in or delete the wire rather than promoting ceremony.
 - [ ] **F12.110b — Fleet-aware settings surface** *(split 2026-07-19; product/David-batch).* Expose the mode +
   fixed-target as global → per-project → per-card via resolveScopedOverride (F4.16's core, still zero live
   consumers — this is it), plus the smallest-supported-floor optional setting. Env-only today

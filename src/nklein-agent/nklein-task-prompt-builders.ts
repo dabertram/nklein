@@ -160,13 +160,16 @@ export function buildNKleinStartPromptParts(
 	frameworkPreamble?: readonly string[],
 	// F12.110: advisory fleet-sharding lines for the PLANNING branch only (omitted/[] ⇒ byte-identical).
 	fleetGuidance?: readonly string[] | null,
+	// F12.111b: pre-code disagreements, already gated/staffed by the runner (omitted/[] ⇒ byte-identical).
+	specDeliberationGuidance?: readonly string[] | null,
 ): NKleinStartPromptParts {
 	const baseSystemPrompt = startInPlanMode
 		? buildNKleinPlanningSystemPrompt(prompt, startInPlanMode, autoDepth, fleetGuidance)
 		: isRefinableWorkCard
 			? buildNKleinRefinementSystemPrompt()
 			: null;
-	const preambleText = frameworkPreamble && frameworkPreamble.length > 0 ? frameworkPreamble.join("\n") : null;
+	const preambleLines = [...(frameworkPreamble ?? []), ...(startInPlanMode ? (specDeliberationGuidance ?? []) : [])];
+	const preambleText = preambleLines.length > 0 ? preambleLines.join("\n") : null;
 	const systemPrompt =
 		preambleText === null
 			? baseSystemPrompt

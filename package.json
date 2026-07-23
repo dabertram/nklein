@@ -82,6 +82,7 @@
     "verify:decomposition-freshness": "tsx scripts/verify-decomposition-freshness.mts",
     "verify:synthesis-evidence-quality": "tsx scripts/verify-synthesis-evidence-quality.mts",
     "eval:constraint-tax": "tsx scripts/eval-constraint-tax-two-phase.mts",
+    "eval:spec-deliberation": "tsx scripts/eval-spec-deliberation.mts",
     "benchmark:setup": "sh scripts/setup-swebench-harness.sh",
     "benchmark:fetch": "benchmark-harness/.venv/bin/python scripts/fetch-swebench-dataset.py",
     "benchmark:aider-images": "benchmark-harness/aider-polyglot/build-images.sh",

@@ -665,6 +665,72 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		).toEqual(["Investigate startup"]);
 	});
 
+	it("F12.111b deliberates before the plan session and routes disagreements into its one-question prompt", async () => {
+		const previousFlag = process.env.NKLEIN_SPEC_DELIBERATION;
+		process.env.NKLEIN_SPEC_DELIBERATION = "1";
+		const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+			if (!init?.method || init.method === "GET") {
+				return new Response(
+					JSON.stringify({
+						models: [
+							{
+								key: "qwen/qwen3.6-35b-a3b",
+								type: "llm",
+								loaded_instances: [{ id: "qwen-primary", config: { context_length: 32_768 } }],
+							},
+							{
+								key: "mistralai/mistral-small-3.2",
+								type: "llm",
+								loaded_instances: [{ id: "mistral", config: { context_length: 32_768 } }],
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			const body = JSON.parse(String(init.body)) as { model?: string };
+			const content =
+				body.model === "mistral"
+					? "AMBIGUITY: admin identity | READINGS: token role // source IP"
+					: "AMBIGUITY: rate limit window | READINGS: fixed window // sliding window";
+			return new Response(JSON.stringify({ choices: [{ message: { content }, finish_reason: "stop" }] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		try {
+			const { service, runtime } = createTrackedService();
+			await service.startTaskSession({
+				taskId: "task-spec-deliberation",
+				cwd: "/tmp/worktree",
+				prompt: "Build a rate limiter. Admins are exempt. Store limits and make it fast.",
+				startInPlanMode: true,
+				providerId: "lmstudio",
+				modelId: "qwen-primary",
+				stableModelKey: "qwen/qwen3.6-35b-a3b",
+				baseUrl: "http://127.0.0.1:1234/v1",
+				contextWindow: 32_768,
+				taskDifficulty: 0.8,
+			});
+			await waitForSettled(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1));
+			const systemPrompt = runtime.startTaskSessionMock.mock.calls[0]?.[0].systemPrompt ?? "";
+			expect(systemPrompt).toContain("Pre-implementation specification disagreements");
+			expect(systemPrompt).toContain("ask EXACTLY ONE unresolved question per turn");
+			expect(systemPrompt).toContain("admin identity");
+			expect(fetchMock).toHaveBeenCalledTimes(3);
+			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					metadata: expect.objectContaining({ category: "spec_deliberation", mode: "cross_family" }),
+				}),
+			);
+		} finally {
+			vi.unstubAllGlobals();
+			if (previousFlag === undefined) delete process.env.NKLEIN_SPEC_DELIBERATION;
+			else process.env.NKLEIN_SPEC_DELIBERATION = previousFlag;
+		}
+	});
+
 	it("admits approved skill guidance while narrowing the live session to the ticket tool grant", async () => {
 		const { service, runtime } = createTrackedService();
 		await service.startTaskSession({
