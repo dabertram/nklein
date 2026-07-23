@@ -45,3 +45,4 @@ benchmark-harness/.venv/
 benchmark-harness/harbor/
 benchmark-harness/swebench-live/
 __pycache__/
+screenlog.*
