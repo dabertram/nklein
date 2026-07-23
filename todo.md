@@ -241,6 +241,14 @@ gap remains.
 > tool shape, but its unrelated shell/dashboard/project-memory surface must not bypass !Klein's existing tool, memory,
 > prompt-cache, and Docker boundaries.
 
+> **⚠️ POLYGLOT LSPs MUST BE LAZY PER LANGUAGE FAMILY (F12.85, 2026-07-23).** A single task may need several languages,
+> but eagerly starting tsserver + Pyright + rust-analyzer + gopls + a JVM can consume the sandbox before the worker does
+> useful work. Bake exact server versions into the immutable image, then launch one persistent process only when a file
+> from that family is first opened. Route by canonical in-workspace file URI; synchronize full document text after
+> external edit tools; bound diagnostics/navigation results; and treat a diagnostic timeout as `pending`, never as a
+> clean file. Java's JDT.LS `-data` directory must be writable and unique per workspace even though its installation and
+> the image root stay read-only. This preserves offline Docker isolation and warm task-local semantic indexes together.
+
 > **⚠️ THE VENDORED CLINE PACKAGES ARE BUILD OUTPUTS, NOT NPM DEPENDENCIES (2026-07-22).** A normal root `npm install`
 > removes `node_modules/@cline/*` as extraneous. `scripts/build-cline-sdk.mjs` must recreate each package junction as
 > soon as that dependency-order build finishes, so the next sibling's declaration emit and the protected suites resolve
@@ -5399,10 +5407,21 @@ verify-before-build caveat: confirm each against current code before implementin
   releases Docker, build the new image without timing interference, assert every runtime/version under `--network
   none`, run JS/Python/Rust/Go/Maven/Gradle install+test+coverage smoke fixtures, record image size/startup/install cost,
   and verify the staged F12.90 Go fixture in this exact image; then close F12.84b and unblock F12.90.
-- [ ] **F12.85 — LSP-backed diagnostics & navigation for the sandbox.** Wire language servers into the sandbox so every edit
+- [~] **F12.85 — LSP-backed diagnostics & navigation for the sandbox.** Wire language servers into the sandbox so every edit
   yields diagnostics (type errors, unused imports) + go-to-def/find-refs across the fleet's target languages. Rationale: LSP
   is a per-language correctness signal + ~50ms navigation vs ~45s text search; it's what makes non-Python languages tractable
   and feeds cleaner context to small models. Pairs with F11.2c localization. (Claude Code native LSP Dec-2025)
+  **CODE COMPLETE; LIVE IMAGE PROOF DEFERRED WITH F12.84b 2026-07-23:** generalized the F12.64 adapter into a lazy
+  per-family broker for TS/JS, Python, Rust, Go, and Java, adding bounded `find_definition` and `get_diagnostics` while
+  retaining semantic references/rename and canonical root containment. Diagnostics resynchronize full file text after
+  external writes and distinguish `pending` timeout from a clean result. The immutable image pins Pyright 1.1.410,
+  rust-analyzer from Rust 1.88, gopls 0.21.1, and SHA-256-verified Eclipse JDT.LS 1.60.0 alongside the existing TS server;
+  the catalog reserves the heaviest lazy backend rather than pretending the old 512-MB tsserver budget still applies.
+  Unit/type gates are green and the offline harness now requires the exact six-tool surface plus definition and a real
+  introduced diagnostic. **Concrete remainder:** when F11 releases Docker, rebuild the shared image once for F12.84b,
+  run the offline harness, then smoke diagnostics + definition + references in minimal Python/Rust/Go/Maven/Gradle
+  fixtures, record per-server cold/warm latency and peak memory, and close only if every family stays within the declared
+  sandbox budget. This shares the same resource-sensitive rebuild and must not perturb the immutable F11 campaign.
 - [x] **F12.86 — Multi-language compiler/type-check bounded repair micro-loop as a first-class verify step.** For typed/compiled
   languages run `tsc`/`cargo check`/`go build`/`javac`, parse structured errors, and give the worker a CAPPED repair loop
   BEFORE any expensive test execution or review. Rationale: cheapest possible early gate; type/compiler feedback cuts compile

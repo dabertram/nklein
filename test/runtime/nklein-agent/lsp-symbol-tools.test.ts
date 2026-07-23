@@ -8,6 +8,7 @@ import {
 	indexDocumentSymbols,
 	type LspProtocolClient,
 	LspSymbolToolService,
+	languageIdForPath,
 	namePathMatches,
 	positionToOffset,
 } from "../../../src/nklein-agent/lsp-symbol-tools";
@@ -63,9 +64,126 @@ describe("LSP symbol helpers", () => {
 		).toThrow(/overlapping/);
 		expect(() => positionToOffset("x", { line: 2, character: 0 })).toThrow(/outside/);
 	});
+
+	it("maps every fleet target source extension to its language-server id", () => {
+		expect(
+			["x.tsx", "x.mjs", "x.py", "x.pyi", "x.rs", "x.go", "x.java"].map((path) => languageIdForPath(path)),
+		).toEqual(["typescriptreact", "javascript", "python", "python", "rust", "go", "java"]);
+		expect(languageIdForPath("README.md")).toBeNull();
+	});
 });
 
 describe("LspSymbolToolService", () => {
+	it("primes only the active unconfigured language family for reference completeness", async () => {
+		const root = await mkdtemp(join(tmpdir(), "nklein-lsp-lazy-family-"));
+		roots.push(root);
+		await writeFile(join(root, "sample.ts"), "export const alpha = 1;\n", "utf8");
+		await writeFile(join(root, "unrelated.go"), "package unrelated\n", "utf8");
+		const opened: string[] = [];
+		const client = {
+			async didOpen(uri: string) {
+				opened.push(uri);
+			},
+			async didChange() {},
+			async documentSymbols() {
+				return [
+					{
+						name: "alpha",
+						kind: 13,
+						range: { start: { line: 0, character: 0 }, end: { line: 0, character: 23 } },
+						selectionRange: { start: { line: 0, character: 13 }, end: { line: 0, character: 18 } },
+					},
+				];
+			},
+			async workspaceSymbols() {
+				return [];
+			},
+			async references() {
+				return [];
+			},
+			async rename() {
+				return null;
+			},
+			async dispose() {},
+		} satisfies LspProtocolClient;
+		const service = new LspSymbolToolService(await realpath(root), client);
+
+		await service.findReferencingSymbols({ relativePath: "sample.ts", namePath: "alpha" });
+		expect(opened).toHaveLength(1);
+		expect(opened[0]).toMatch(/sample\.ts$/);
+	});
+
+	it("returns bounded diagnostics and semantic definitions while synchronizing external edits", async () => {
+		const root = await mkdtemp(join(tmpdir(), "nklein-lsp-diagnostics-"));
+		roots.push(root);
+		const relativePath = "sample.go";
+		const absolutePath = join(root, relativePath);
+		await writeFile(absolutePath, "package sample\nfunc Use() { Missing() }\n", "utf8");
+		const canonicalRoot = await realpath(root);
+		const uri = pathToFileURL(join(canonicalRoot, relativePath)).href;
+		const changes: string[] = [];
+		const client = {
+			async didOpen(_uri: string, languageId: string) {
+				expect(languageId).toBe("go");
+			},
+			async didChange(_uri: string, _version: number, text: string) {
+				changes.push(text);
+			},
+			async documentSymbols() {
+				return [];
+			},
+			async workspaceSymbols() {
+				return [];
+			},
+			async references() {
+				return [];
+			},
+			async rename() {
+				return null;
+			},
+			async definition() {
+				return { uri, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } } };
+			},
+			async diagnostics() {
+				return [
+					{
+						range: { start: { line: 1, character: 13 }, end: { line: 1, character: 20 } },
+						severity: 1,
+						code: "UndeclaredName",
+						source: "gopls",
+						message: "undefined: Missing",
+						tags: [1],
+					},
+				];
+			},
+			async dispose() {},
+		} satisfies LspProtocolClient;
+		const service = new LspSymbolToolService(canonicalRoot, client);
+
+		await expect(service.getDiagnostics({ relativePath, limit: 1 })).resolves.toEqual({
+			status: "ready",
+			total: 1,
+			diagnostics: [
+				{
+					relativePath,
+					range: { start: { line: 1, character: 13 }, end: { line: 1, character: 20 } },
+					severity: "error",
+					code: "UndeclaredName",
+					source: "gopls",
+					message: "undefined: Missing",
+					tags: ["unnecessary"],
+				},
+			],
+		});
+		await expect(service.findDefinition({ relativePath, position: { line: 1, character: 15 } })).resolves.toEqual([
+			{ relativePath, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } } },
+		]);
+
+		await writeFile(absolutePath, "package sample\nfunc Use() {}\n", "utf8");
+		await service.getDiagnostics({ relativePath });
+		expect(changes).toEqual(["package sample\nfunc Use() {}\n"]);
+	});
+
 	it("returns compact symbols/references and applies a complete semantic rename edit", async () => {
 		const root = await mkdtemp(join(tmpdir(), "nklein-lsp-symbols-"));
 		roots.push(root);

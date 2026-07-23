@@ -85,16 +85,16 @@ export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 	},
 	{
 		id: "lsp-symbols",
-		label: "LSP Symbols",
+		label: "LSP Diagnostics & Navigation",
 		relevanceDescription:
-			"code repository symbol definition reference usage rename refactor TypeScript JavaScript inspect locate implementation",
-		// The repository-bundled MCP wrapper starts one pinned typescript-language-server process and keeps it alive for
-		// the task. It exposes only the four F12.64 tools, not a general shell/filesystem/memory surface.
+			"code repository symbol definition reference usage rename refactor diagnostic type error unused TypeScript JavaScript Python Rust Go Java inspect locate implementation",
+		// The repository-bundled MCP wrapper lazily starts one pinned language-server process per family touched by the
+		// task and keeps it alive. Its bounded six-tool surface adds no general shell/filesystem/memory capability.
 		inContainerArgv: ["node", "/opt/nklein/lsp-symbol-mcp-server.cjs"],
 		fit: LSP_SYMBOLS_FIT,
-		// Typical tsserver projects remain below this; reserve enough for an indexed medium repository while preserving
-		// headroom in the default 4 GiB container alongside the base tools.
-		memoryBudgetMb: 512,
+		// Reserve for the heaviest single lazy backend (JDT.LS with its 1 GiB heap); only genuinely polyglot cards start
+		// multiple families. The memory-fit gate withholds the surface from undersized containers.
+		memoryBudgetMb: 1536,
 		available: true,
 	},
 	{

@@ -5,14 +5,18 @@ ARG NKLEIN_AGENT_SANDBOX_GRADLE_IMAGE=gradle:8.14-jdk21@sha256:dae150d9066fc04a7
 ARG NKLEIN_AGENT_SANDBOX_MAVEN_IMAGE=maven:3.9.9-eclipse-temurin-21@sha256:3a4ab3276a087bf276f79cae96b1af04f53731bec53fb2e651aca79e4b10211e
 
 FROM ${NKLEIN_AGENT_SANDBOX_RUST_IMAGE} AS rust-runtime
+RUN rustup component add rust-analyzer rust-src
+
 FROM ${NKLEIN_AGENT_SANDBOX_GO_IMAGE} AS go-runtime
+RUN go install golang.org/x/tools/gopls@v0.21.1 \
+	&& rm -rf /go/pkg/mod /root/.cache/go-build
 FROM ${NKLEIN_AGENT_SANDBOX_GRADLE_IMAGE} AS gradle-runtime
 FROM ${NKLEIN_AGENT_SANDBOX_MAVEN_IMAGE} AS maven-runtime
 FROM ${NKLEIN_AGENT_SANDBOX_NODE_IMAGE}
 
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
-		build-essential ca-certificates git python3 python3-pip python3-venv ripgrep \
+		build-essential ca-certificates curl git python3 python3-pip python3-venv ripgrep \
 	&& rm -rf /var/lib/apt/lists/*
 
 # F12.84b — one STRICTLY isolated, pinned polyglot runtime image. The sandbox pool intentionally shares containers
@@ -22,6 +26,7 @@ RUN apt-get update \
 COPY --from=rust-runtime /usr/local/cargo /usr/local/cargo
 COPY --from=rust-runtime /usr/local/rustup /usr/local/rustup
 COPY --from=go-runtime /usr/local/go /usr/local/go
+COPY --from=go-runtime /go/bin/gopls /usr/local/go/bin/gopls
 COPY --from=gradle-runtime /opt/gradle /opt/gradle
 COPY --from=gradle-runtime /opt/java/openjdk /opt/java/openjdk
 COPY --from=maven-runtime /usr/share/maven /usr/share/maven
@@ -48,14 +53,26 @@ RUN npm install -g @modelcontextprotocol/server-sequential-thinking@2025.12.18 \
 RUN npm install --prefix /opt/nklein @ast-grep/napi@0.44.1 \
 	&& npm cache clean --force
 
-# F12.64 — a real, persistent LSP backend for the narrow !Klein symbol MCP surface. The server wrapper itself is
-# bundled from this repository below; only the pinned upstream TypeScript/JavaScript language server is installed here.
-# Runtime stays fully offline (`--network none`) and the build asserts both executables exist, so an incomplete image
-# fails during construction rather than advertising dead tools to a worker.
-RUN npm install -g typescript-language-server@5.3.0 typescript@5.9.3 \
+# F12.64/F12.85 — persistent, lazy LSP backends for navigation + diagnostics. The repository wrapper starts only the
+# family a card actually touches, preserving container memory. Every upstream server is baked and pinned at BUILD time;
+# runtime remains fully offline (`--network none`).
+RUN npm install -g typescript-language-server@5.3.0 typescript@5.9.3 pyright@1.1.410 \
 	&& npm cache clean --force \
 	&& typescript-language-server --version | grep -Fx '5.3.0' \
-	&& tsc --version | grep -Fx 'Version 5.9.3'
+	&& tsc --version | grep -Fx 'Version 5.9.3' \
+	&& pyright --version | grep -Fx 'pyright 1.1.410'
+
+# Eclipse JDT.LS milestone (not a moving snapshot). Verify the publisher's SHA-256 before extraction. The upstream
+# `bin/jdtls` wrapper selects stdio and requires a distinct writable `-data` directory, which the broker derives under
+# the task container's /tmp for each workspace.
+ARG NKLEIN_JDTLS_URL=https://download.eclipse.org/jdtls/milestones/1.60.0/jdt-language-server-1.60.0-202606262232.tar.gz
+ARG NKLEIN_JDTLS_SHA256=e94c303d8198f977930803582738771fd18c52c5492878410bf222b1aa81ef1d
+RUN mkdir -p /opt/jdtls \
+	&& curl -fsSL "$NKLEIN_JDTLS_URL" -o /tmp/jdtls.tar.gz \
+	&& echo "$NKLEIN_JDTLS_SHA256  /tmp/jdtls.tar.gz" | sha256sum -c - \
+	&& tar -xzf /tmp/jdtls.tar.gz -C /opt/jdtls \
+	&& rm /tmp/jdtls.tar.gz \
+	&& test -x /opt/jdtls/bin/jdtls
 
 # codebase-memory-mcp (§5.AR / §5.B) — DeusData code-graph MCP: exact STRUCTURAL queries (search_graph / trace_path /
 # get_code_snippet / get_architecture) + local semantic search via a compiled-in nomic-embed-code (int8) — no API key,
@@ -117,7 +134,9 @@ RUN node --version \
 	&& python3 --version \
 	&& cargo --version \
 	&& rustc --version \
+	&& rust-analyzer --version \
 	&& go version \
+	&& gopls version \
 	&& java -version \
 	&& gradle --version \
 	&& mvn --version

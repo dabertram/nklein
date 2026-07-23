@@ -6,7 +6,7 @@ import { createLspSymbolToolService } from "../lsp-symbol-tools";
 const relativePath = z
 	.string()
 	.min(1)
-	.describe("Workspace-relative path to a TypeScript or JavaScript file, for example src/app.ts.");
+	.describe("Workspace-relative path to a TypeScript/JavaScript, Python, Rust, Go, or Java file.");
 const namePath = z
 	.string()
 	.min(1)
@@ -34,10 +34,11 @@ function errorResult(error: unknown) {
 async function main(): Promise<void> {
 	const service = await createLspSymbolToolService();
 	const server = new McpServer(
-		{ name: "nklein-lsp-symbols", version: "1.0.0" },
+		{ name: "nklein-lsp-navigation", version: "2.0.0" },
 		{
 			instructions:
-				"Use symbol tools before grep/read_file when locating TypeScript or JavaScript definitions and references. " +
+				"Use LSP navigation before grep/read_file when locating definitions and references. " +
+				"After every successful edit to a supported source file, call get_diagnostics for that file before continuing. " +
 				"Use rename_symbol only for semantic identifier renames; it applies the language server's complete WorkspaceEdit.",
 		},
 	);
@@ -45,8 +46,7 @@ async function main(): Promise<void> {
 	server.registerTool(
 		"get_symbols_overview",
 		{
-			description:
-				"Return a compact IDE/LSP outline for one TypeScript or JavaScript file without reading the whole file.",
+			description: "Return a compact IDE/LSP outline for one supported source file without reading the whole file.",
 			inputSchema: { relative_path: relativePath, depth: z.number().int().min(0).max(8).optional() },
 		},
 		async ({ relative_path, depth }) => {
@@ -62,7 +62,7 @@ async function main(): Promise<void> {
 		"find_symbol",
 		{
 			description:
-				"Find TypeScript/JavaScript symbols by semantic name path through the real language server. Restrict to a file when possible; include_body is opt-in.",
+				"Find symbols by semantic name path through the file's real language server. Restrict to a file when possible; include_body is opt-in.",
 			inputSchema: {
 				name_path: namePath,
 				relative_path: relativePath.optional(),
@@ -78,6 +78,63 @@ async function main(): Promise<void> {
 						namePath: name_path,
 						relativePath: relative_path,
 						includeBody: include_body,
+						offset,
+						limit,
+					}),
+				);
+			} catch (error) {
+				return errorResult(error);
+			}
+		},
+	);
+
+	server.registerTool(
+		"find_definition",
+		{
+			description:
+				"Go to the semantic definition of the identifier at a zero-based line/character position using the file's language server.",
+			inputSchema: {
+				relative_path: relativePath,
+				line: z.number().int().nonnegative().describe("Zero-based source line containing the identifier."),
+				character: z.number().int().nonnegative().describe("Zero-based UTF-16 character offset on the line."),
+				offset,
+				limit,
+			},
+		},
+		async ({ relative_path, line, character, offset, limit }) => {
+			try {
+				return textResult(
+					await service.findDefinition({
+						relativePath: relative_path,
+						position: { line, character },
+						offset,
+						limit,
+					}),
+				);
+			} catch (error) {
+				return errorResult(error);
+			}
+		},
+	);
+
+	server.registerTool(
+		"get_diagnostics",
+		{
+			description:
+				"Synchronize one supported source file from disk and return bounded LSP errors, warnings, unused-code hints, and deprecations. Call after every successful edit.",
+			inputSchema: {
+				relative_path: relativePath,
+				timeout_ms: z.number().int().min(50).max(10_000).optional(),
+				offset,
+				limit,
+			},
+		},
+		async ({ relative_path, timeout_ms, offset, limit }) => {
+			try {
+				return textResult(
+					await service.getDiagnostics({
+						relativePath: relative_path,
+						timeoutMs: timeout_ms,
 						offset,
 						limit,
 					}),
@@ -115,7 +172,7 @@ async function main(): Promise<void> {
 		"rename_symbol",
 		{
 			description:
-				"Semantically rename one TypeScript/JavaScript symbol across the sandbox workspace using the language server's WorkspaceEdit. Rejects file operations and out-of-workspace edits.",
+				"Semantically rename one supported-language symbol across the sandbox workspace using the language server's WorkspaceEdit. Rejects file operations and out-of-workspace edits.",
 			inputSchema: {
 				relative_path: relativePath,
 				name_path: namePath,

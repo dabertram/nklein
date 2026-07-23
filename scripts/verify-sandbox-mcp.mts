@@ -278,7 +278,14 @@ async function main(): Promise<void> {
 
 	const lspArgv = ["node", "/opt/nklein/lsp-symbol-mcp-server.cjs"];
 	const lspTools = await listToolsOverDockerExec(lspArgv, undefined, cbmRepoPath);
-	const requiredLspTools = ["find_symbol", "find_referencing_symbols", "get_symbols_overview", "rename_symbol"];
+	const requiredLspTools = [
+		"find_definition",
+		"find_referencing_symbols",
+		"find_symbol",
+		"get_diagnostics",
+		"get_symbols_overview",
+		"rename_symbol",
+	];
 	log(`lsp-symbols => [${lspTools.join(", ")}]`);
 	if (JSON.stringify([...lspTools].sort()) !== JSON.stringify([...requiredLspTools].sort())) {
 		throw new Error(`lsp-symbols must expose exactly [${requiredLspTools.join(", ")}], got [${lspTools.join(", ")}]`);
@@ -307,6 +314,18 @@ async function main(): Promise<void> {
 	if (!JSON.stringify(references).includes("src/app.ts")) {
 		throw new Error("lsp-symbols references probe did not resolve the cross-file call in src/app.ts");
 	}
+	const definition = unwrapMcpJson(
+		await callToolOverDockerExec(
+			lspArgv,
+			"find_definition",
+			{ relative_path: "src/app.ts", line: 2, character: 10 },
+			undefined,
+			cbmRepoPath,
+		),
+	);
+	if (!JSON.stringify(definition).includes("src/server.ts")) {
+		throw new Error("lsp-symbols go-to-definition probe did not resolve src/app.ts to src/server.ts");
+	}
 	const rename = unwrapMcpJson(
 		await callToolOverDockerExec(
 			lspArgv,
@@ -322,7 +341,20 @@ async function main(): Promise<void> {
 	if (asRecord(rename)?.filesChanged !== 2 || !renamedServer.includes("handleInput") || !renamedApp.includes("handleInput")) {
 		throw new Error("lsp-symbols rename probe did not atomically apply the cross-file WorkspaceEdit");
 	}
-	log("lsp-symbols schema probe => overview + cross-file references + semantic rename passed");
+	await exec("docker", ["exec", CONTAINER, "sed", "-i", "s/handleInput/missingHandler/", `${cbmRepoPath}/src/app.ts`]);
+	const diagnostics = unwrapMcpJson(
+		await callToolOverDockerExec(
+			lspArgv,
+			"get_diagnostics",
+			{ relative_path: "src/app.ts", timeout_ms: 5000 },
+			undefined,
+			cbmRepoPath,
+		),
+	);
+	if (!/missingHandler|cannot find name/i.test(JSON.stringify(diagnostics))) {
+		throw new Error(`lsp-symbols diagnostics probe did not report the introduced type error: ${JSON.stringify(diagnostics)}`);
+	}
+	log("lsp-symbols schema probe => overview + definition + references + diagnostics + semantic rename passed");
 
 	const bmTools = await listToolsOverDockerExec(["basic-memory", "mcp"], {
 		...basicMemoryEnv,

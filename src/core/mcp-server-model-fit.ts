@@ -174,9 +174,9 @@ export const CODEBASE_MEMORY_FIT: McpServerModelFitProfile = {
 };
 
 /**
- * F12.64: the four-tool LSP symbol surface is a bounded code-navigation aid. Read operations are low-risk and rename is
- * a single semantic refactor (not an iterative scaffold), so weak-but-functional and uncatalogued tool callers may use
- * it. Capability/relevance preselection still keeps the schemas away from non-code tasks.
+ * F12.64/F12.85: the six-tool LSP diagnostics/navigation surface is bounded. Reads are low-risk and rename is a single
+ * semantic refactor (not an iterative scaffold), so weak-but-functional and uncatalogued tool callers may use it.
+ * Capability/relevance preselection still keeps the schemas away from non-code tasks.
  */
 export const LSP_SYMBOLS_FIT: McpServerModelFitProfile = {
 	serverId: "lsp-symbols",
@@ -185,8 +185,8 @@ export const LSP_SYMBOLS_FIT: McpServerModelFitProfile = {
 	skipForReasoningModels: false,
 	requiresChaining: false,
 	rationale:
-		"Persistent IDE-grade symbol lookup/references/rename with a four-tool bounded surface; saves read/search tokens " +
-		"for any tool-capable model without adding an iterative loop.",
+		"Persistent IDE-grade diagnostics/definition/references/rename with a six-tool bounded surface; saves compile and " +
+		"search tokens for any tool-capable model without adding an iterative loop.",
 };
 
 /**

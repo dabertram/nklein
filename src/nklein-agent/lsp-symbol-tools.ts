@@ -1,5 +1,6 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
-import { access, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { access, mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -22,6 +23,21 @@ export interface LspRange {
 interface LspLocation {
 	uri: string;
 	range: LspRange;
+}
+
+interface LspLocationLink {
+	targetUri: string;
+	targetRange: LspRange;
+	targetSelectionRange: LspRange;
+}
+
+export interface LspDiagnostic {
+	range: LspRange;
+	severity?: number;
+	code?: string | number;
+	source?: string;
+	message: string;
+	tags?: number[];
 }
 
 interface LspDocumentSymbol {
@@ -75,9 +91,21 @@ export interface LspProtocolClient {
 	workspaceSymbols(query: string): Promise<LspSymbolInformation[] | null>;
 	references(uri: string, position: LspPosition): Promise<LspLocation[] | null>;
 	rename(uri: string, position: LspPosition, newName: string): Promise<LspWorkspaceEdit | null>;
+	definition?(uri: string, position: LspPosition): Promise<LspLocation | LspLocation[] | LspLocationLink[] | null>;
+	diagnostics?(uri: string, expectedVersion?: number, timeoutMs?: number): Promise<LspDiagnostic[] | null>;
 	didOpen(uri: string, languageId: string, text: string): Promise<void>;
 	didChange(uri: string, version: number, text: string): Promise<void>;
 	dispose(): Promise<void>;
+}
+
+export interface DiagnosticToolResult {
+	relativePath: string;
+	range: LspRange;
+	severity: "error" | "warning" | "information" | "hint" | "unknown";
+	message: string;
+	code?: string | number;
+	source?: string;
+	tags?: Array<"unnecessary" | "deprecated" | `tag-${number}`>;
 }
 
 export const LSP_SYMBOL_KIND_NAMES: Record<number, string> = {
@@ -196,12 +224,67 @@ export function applyTextEdits(text: string, edits: readonly LspTextEdit[]): str
 	return output;
 }
 
-function languageIdForPath(path: string): string | null {
+export function languageIdForPath(path: string): string | null {
 	if (/\.tsx$/i.test(path)) return "typescriptreact";
 	if (/\.ts$/i.test(path)) return "typescript";
 	if (/\.jsx$/i.test(path)) return "javascriptreact";
 	if (/\.[cm]?js$/i.test(path)) return "javascript";
+	if (/\.pyi?$/i.test(path)) return "python";
+	if (/\.rs$/i.test(path)) return "rust";
+	if (/\.go$/i.test(path)) return "go";
+	if (/\.java$/i.test(path)) return "java";
 	return null;
+}
+
+type LspLanguageFamily = "typescript" | "python" | "rust" | "go" | "java";
+
+function languageFamilyForLanguageId(languageId: string): LspLanguageFamily {
+	if (languageId.startsWith("typescript") || languageId.startsWith("javascript")) return "typescript";
+	if (languageId === "python" || languageId === "rust" || languageId === "go" || languageId === "java") {
+		return languageId;
+	}
+	throw new Error(`No language-server family is configured for ${languageId}.`);
+}
+
+function languageFamilyForUri(uri: string): LspLanguageFamily {
+	const languageId = languageIdForPath(fileURLToPath(uri));
+	if (!languageId) throw new Error(`No language server is configured for ${uri}.`);
+	return languageFamilyForLanguageId(languageId);
+}
+
+interface LspServerSpec {
+	label: string;
+	command: string;
+	args: readonly string[];
+	initializationOptions?: unknown;
+}
+
+async function lspServerSpec(root: string, family: LspLanguageFamily): Promise<LspServerSpec> {
+	switch (family) {
+		case "typescript":
+			return {
+				label: "TypeScript/JavaScript",
+				command: "typescript-language-server",
+				args: ["--stdio", "--log-level", "1"],
+			};
+		case "python":
+			return { label: "Python", command: "pyright-langserver", args: ["--stdio"] };
+		case "rust":
+			return { label: "Rust", command: "rust-analyzer", args: [] };
+		case "go":
+			return { label: "Go", command: "gopls", args: ["serve"] };
+		case "java": {
+			const workspaceId = createHash("sha256").update(root).digest("hex").slice(0, 20);
+			const dataDirectory = `/tmp/nklein-jdtls-${workspaceId}`;
+			await mkdir(dataDirectory, { recursive: true });
+			return {
+				label: "Java",
+				command: "/opt/jdtls/bin/jdtls",
+				args: ["-data", dataDirectory],
+				initializationOptions: { bundles: [], workspaceFolders: [pathToFileURL(root).href] },
+			};
+		}
+	}
 }
 
 function assertInsideRoot(root: string, candidate: string): void {
@@ -245,14 +328,54 @@ function compactWorkspaceSymbol(symbol: LspSymbolInformation, root: string): Sym
 	};
 }
 
+function diagnosticSeverity(severity: number | undefined): DiagnosticToolResult["severity"] {
+	switch (severity) {
+		case 1:
+			return "error";
+		case 2:
+			return "warning";
+		case 3:
+			return "information";
+		case 4:
+			return "hint";
+		default:
+			return "unknown";
+	}
+}
+
+function diagnosticTags(tags: readonly number[] | undefined): DiagnosticToolResult["tags"] | undefined {
+	if (!tags?.length) return undefined;
+	return tags.map((tag): NonNullable<DiagnosticToolResult["tags"]>[number] =>
+		tag === 1 ? "unnecessary" : tag === 2 ? "deprecated" : `tag-${tag}`,
+	);
+}
+
+function normalizeDefinitionLocations(result: LspLocation | LspLocation[] | LspLocationLink[] | null): LspLocation[] {
+	if (!result) return [];
+	const values = Array.isArray(result) ? result : [result];
+	return values.flatMap((value) => {
+		if ("uri" in value) return [value];
+		if ("targetUri" in value)
+			return [{ uri: value.targetUri, range: value.targetSelectionRange ?? value.targetRange }];
+		return [];
+	});
+}
+
 export class TypeScriptLspClient implements LspProtocolClient {
+	private readonly publishedDiagnostics = new Map<string, { diagnostics: LspDiagnostic[]; version?: number }>();
+	private readonly diagnosticWaiters = new Map<
+		string,
+		Set<(snapshot: { diagnostics: LspDiagnostic[]; version?: number }) => void>
+	>();
+
 	private constructor(
 		private readonly child: ChildProcessWithoutNullStreams,
 		private readonly connection: MessageConnection,
 	) {}
 
-	static async start(root: string): Promise<TypeScriptLspClient> {
-		const child = spawn("typescript-language-server", ["--stdio", "--log-level", "1"], {
+	static async start(root: string, spec?: LspServerSpec): Promise<TypeScriptLspClient> {
+		const resolvedSpec = spec ?? (await lspServerSpec(root, "typescript"));
+		const child = spawn(resolvedSpec.command, [...resolvedSpec.args], {
 			cwd: root,
 			stdio: ["pipe", "pipe", "pipe"],
 			env: { ...process.env, NO_COLOR: "1" },
@@ -271,17 +394,38 @@ export class TypeScriptLspClient implements LspProtocolClient {
 			return items.map(() => ({}));
 		});
 		connection.onRequest("client/registerCapability", () => null);
+		connection.onRequest("client/unregisterCapability", () => null);
 		connection.onRequest("window/workDoneProgress/create", () => null);
+		connection.onRequest("workspace/applyEdit", () => ({ applied: false }));
+		connection.onRequest("workspace/semanticTokens/refresh", () => null);
+		connection.onRequest("workspace/inlayHint/refresh", () => null);
+		connection.onRequest("workspace/codeLens/refresh", () => null);
+		connection.onRequest("workspace/diagnostic/refresh", () => null);
+		connection.onRequest("window/showMessageRequest", () => null);
 		connection.onRequest("workspace/workspaceFolders", () => [
 			{ uri: pathToFileURL(root).href, name: basename(root) },
 		]);
 		connection.listen();
+		const client = new TypeScriptLspClient(child, connection);
+		connection.onNotification("textDocument/publishDiagnostics", (params: unknown) => {
+			if (!isRecord(params) || typeof params.uri !== "string" || !Array.isArray(params.diagnostics)) return;
+			const diagnostics = params.diagnostics.filter(
+				(value): value is LspDiagnostic =>
+					isRecord(value) && isRecord(value.range) && typeof value.message === "string",
+			);
+			const snapshot = {
+				diagnostics,
+				...(typeof params.version === "number" ? { version: params.version } : {}),
+			};
+			client.publishedDiagnostics.set(params.uri, snapshot);
+			for (const resolveWaiter of client.diagnosticWaiters.get(params.uri) ?? []) resolveWaiter(snapshot);
+		});
 		const exited = new Promise<never>((_resolve, reject) => {
 			child.once("error", reject);
 			child.once("exit", (code, signal) => {
 				reject(
 					new Error(
-						`TypeScript language server exited during initialization (${signal ?? code ?? "unknown"}). ${stderr}`,
+						`${resolvedSpec.label} language server exited during initialization (${signal ?? code ?? "unknown"}). ${stderr}`,
 					),
 				);
 			});
@@ -294,24 +438,31 @@ export class TypeScriptLspClient implements LspProtocolClient {
 				workspace: { configuration: true, workspaceFolders: true, symbol: { resolveSupport: { properties: [] } } },
 				textDocument: {
 					documentSymbol: { hierarchicalDocumentSymbolSupport: true },
+					definition: { linkSupport: true },
+					publishDiagnostics: { relatedInformation: true, tagSupport: { valueSet: [1, 2] } },
 					references: {},
 					rename: { prepareSupport: false },
 				},
 			},
-			clientInfo: { name: "nklein-lsp-symbols", version: "1" },
+			...(resolvedSpec.initializationOptions === undefined
+				? {}
+				: { initializationOptions: resolvedSpec.initializationOptions }),
+			clientInfo: { name: "nklein-lsp-navigation", version: "2" },
 		});
 		await Promise.race([initialized, exited]);
 		await connection.sendNotification("initialized", {});
-		return new TypeScriptLspClient(child, connection);
+		return client;
 	}
 
 	async didOpen(uri: string, languageId: string, text: string): Promise<void> {
+		this.publishedDiagnostics.delete(uri);
 		await this.connection.sendNotification("textDocument/didOpen", {
 			textDocument: { uri, languageId, version: 1, text },
 		});
 	}
 
 	async didChange(uri: string, version: number, text: string): Promise<void> {
+		this.publishedDiagnostics.delete(uri);
 		await this.connection.sendNotification("textDocument/didChange", {
 			textDocument: { uri, version },
 			contentChanges: [{ text }],
@@ -345,6 +496,51 @@ export class TypeScriptLspClient implements LspProtocolClient {
 		})) as LspWorkspaceEdit | null;
 	}
 
+	async definition(
+		uri: string,
+		position: LspPosition,
+	): Promise<LspLocation | LspLocation[] | LspLocationLink[] | null> {
+		return (await this.connection.sendRequest("textDocument/definition", {
+			textDocument: { uri },
+			position,
+		})) as LspLocation | LspLocation[] | LspLocationLink[] | null;
+	}
+
+	async diagnostics(uri: string, expectedVersion?: number, timeoutMs = 2_000): Promise<LspDiagnostic[] | null> {
+		const published = this.publishedDiagnostics.get(uri);
+		if (
+			published &&
+			(published.version === undefined || expectedVersion === undefined || published.version === expectedVersion)
+		) {
+			return published.diagnostics;
+		}
+		return await new Promise<LspDiagnostic[] | null>((resolveDiagnostics) => {
+			const waiters = this.diagnosticWaiters.get(uri) ?? new Set();
+			const finish = (diagnostics: LspDiagnostic[] | null) => {
+				clearTimeout(timer);
+				waiters.delete(onDiagnostics);
+				if (waiters.size === 0) this.diagnosticWaiters.delete(uri);
+				resolveDiagnostics(diagnostics);
+			};
+			const onDiagnostics = (snapshot: { diagnostics: LspDiagnostic[]; version?: number }) => {
+				if (snapshot.version !== undefined && expectedVersion !== undefined && snapshot.version !== expectedVersion)
+					return;
+				finish(snapshot.diagnostics);
+			};
+			waiters.add(onDiagnostics);
+			this.diagnosticWaiters.set(uri, waiters);
+			const timer = setTimeout(() => {
+				const latest = this.publishedDiagnostics.get(uri);
+				finish(
+					latest &&
+						(latest.version === undefined || expectedVersion === undefined || latest.version === expectedVersion)
+						? latest.diagnostics
+						: null,
+				);
+			}, timeoutMs);
+		});
+	}
+
 	async dispose(): Promise<void> {
 		try {
 			await this.connection.sendRequest("shutdown");
@@ -353,6 +549,77 @@ export class TypeScriptLspClient implements LspProtocolClient {
 			this.connection.dispose();
 			if (!this.child.killed) this.child.kill("SIGTERM");
 		}
+	}
+}
+
+/**
+ * One lazy, persistent language-server process per language family. A task that only touches Go never pays the JVM or
+ * tsserver memory cost; a polyglot task can still navigate across every detected family. All children remain inside the
+ * sandbox container and share only the task workspace passed to this broker.
+ */
+export class PolyglotLspClient implements LspProtocolClient {
+	private readonly clients = new Map<LspLanguageFamily, Promise<TypeScriptLspClient>>();
+
+	constructor(private readonly root: string) {}
+
+	private async clientForFamily(family: LspLanguageFamily): Promise<TypeScriptLspClient> {
+		let client = this.clients.get(family);
+		if (!client) {
+			client = lspServerSpec(this.root, family).then(
+				async (spec) => await TypeScriptLspClient.start(this.root, spec),
+			);
+			this.clients.set(family, client);
+			client.catch(() => this.clients.delete(family));
+		}
+		return await client;
+	}
+
+	private async clientForUri(uri: string): Promise<TypeScriptLspClient> {
+		return await this.clientForFamily(languageFamilyForUri(uri));
+	}
+
+	async documentSymbols(uri: string): Promise<LspDocumentSymbol[] | LspSymbolInformation[] | null> {
+		return await (await this.clientForUri(uri)).documentSymbols(uri);
+	}
+
+	async workspaceSymbols(query: string): Promise<LspSymbolInformation[] | null> {
+		const results = await Promise.all(
+			[...this.clients.values()].map(async (client) => (await client).workspaceSymbols(query)),
+		);
+		return results.flatMap((symbols) => symbols ?? []);
+	}
+
+	async references(uri: string, position: LspPosition): Promise<LspLocation[] | null> {
+		return await (await this.clientForUri(uri)).references(uri, position);
+	}
+
+	async rename(uri: string, position: LspPosition, newName: string): Promise<LspWorkspaceEdit | null> {
+		return await (await this.clientForUri(uri)).rename(uri, position, newName);
+	}
+
+	async definition(
+		uri: string,
+		position: LspPosition,
+	): Promise<LspLocation | LspLocation[] | LspLocationLink[] | null> {
+		return await (await this.clientForUri(uri)).definition(uri, position);
+	}
+
+	async diagnostics(uri: string, expectedVersion?: number, timeoutMs?: number): Promise<LspDiagnostic[] | null> {
+		return await (await this.clientForUri(uri)).diagnostics(uri, expectedVersion, timeoutMs);
+	}
+
+	async didOpen(uri: string, languageId: string, text: string): Promise<void> {
+		await (await this.clientForFamily(languageFamilyForLanguageId(languageId))).didOpen(uri, languageId, text);
+	}
+
+	async didChange(uri: string, version: number, text: string): Promise<void> {
+		await (await this.clientForUri(uri)).didChange(uri, version, text);
+	}
+
+	async dispose(): Promise<void> {
+		const clients = [...this.clients.values()];
+		this.clients.clear();
+		await Promise.allSettled(clients.map(async (client) => (await client).dispose()));
 	}
 }
 
@@ -365,7 +632,7 @@ interface OpenDocument {
 
 export class LspSymbolToolService {
 	private readonly opened = new Map<string, { text: string; version: number }>();
-	private workspacePrime: Promise<void> | null = null;
+	private readonly workspacePrimes = new Map<LspLanguageFamily | "all", Promise<void>>();
 
 	constructor(
 		private readonly root: string,
@@ -408,14 +675,30 @@ export class LspSymbolToolService {
 	}
 
 	private async hasProjectConfig(startPath: string): Promise<boolean> {
+		const languageId = languageIdForPath(startPath);
+		if (!languageId) return false;
+		const configNames: readonly string[] = (() => {
+			switch (languageFamilyForLanguageId(languageId)) {
+				case "typescript":
+					return ["tsconfig.json", "jsconfig.json"];
+				case "python":
+					return ["pyrightconfig.json", "pyproject.toml", "setup.cfg"];
+				case "rust":
+					return ["Cargo.toml"];
+				case "go":
+					return ["go.work", "go.mod"];
+				case "java":
+					return ["pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"];
+			}
+		})();
 		let directory = dirname(startPath);
 		for (;;) {
-			for (const configName of ["tsconfig.json", "jsconfig.json"]) {
+			for (const configName of configNames) {
 				try {
 					await access(join(directory, configName));
 					return true;
 				} catch {
-					// Try the other config name / parent directory.
+					// Try the other family-specific config name / parent directory.
 				}
 			}
 			if (directory === this.root) return false;
@@ -426,9 +709,10 @@ export class LspSymbolToolService {
 		}
 	}
 
-	private async primeWorkspaceSources(): Promise<void> {
-		if (this.workspacePrime) return await this.workspacePrime;
-		this.workspacePrime = (async () => {
+	private async primeWorkspaceSources(family: LspLanguageFamily | "all" = "all"): Promise<void> {
+		const existing = this.workspacePrimes.get(family);
+		if (existing) return await existing;
+		const prime = (async () => {
 			const queue = [this.root];
 			const sourcePaths: string[] = [];
 			const ignoredDirectories = new Set([
@@ -453,10 +737,13 @@ export class LspSymbolToolService {
 						if (!ignoredDirectories.has(entry.name)) queue.push(path);
 						continue;
 					}
-					if (entry.isFile() && languageIdForPath(path)) sourcePaths.push(path);
+					const languageId = entry.isFile() ? languageIdForPath(path) : null;
+					if (languageId && (family === "all" || languageFamilyForLanguageId(languageId) === family)) {
+						sourcePaths.push(path);
+					}
 					if (sourcePaths.length > 2_000) {
 						throw new Error(
-							"Workspace has no tsconfig/jsconfig and exceeds the 2,000-file inferred-project safety cap; add a project config so LSP references are complete.",
+							"Workspace has no recognized language project config and exceeds the 2,000-file inferred-project safety cap; add project configs so LSP references are complete.",
 						);
 					}
 				}
@@ -466,17 +753,23 @@ export class LspSymbolToolService {
 				totalBytes += (await stat(path)).size;
 				if (totalBytes > 32 * 1024 * 1024) {
 					throw new Error(
-						"Workspace has no tsconfig/jsconfig and exceeds the 32 MiB inferred-project safety cap; add a project config so LSP references are complete.",
+						"Workspace has no recognized language project config and exceeds the 32 MiB inferred-project safety cap; add project configs so LSP references are complete.",
 					);
 				}
 				await this.open(relative(this.root, path));
 			}
 		})();
-		return await this.workspacePrime;
+		this.workspacePrimes.set(family, prime);
+		prime.catch(() => this.workspacePrimes.delete(family));
+		return await prime;
 	}
 
 	private async ensureCompleteProjectContext(document: OpenDocument): Promise<void> {
-		if (!(await this.hasProjectConfig(document.absolutePath))) await this.primeWorkspaceSources();
+		const languageId = languageIdForPath(document.absolutePath);
+		if (!languageId) return;
+		if (!(await this.hasProjectConfig(document.absolutePath))) {
+			await this.primeWorkspaceSources(languageFamilyForLanguageId(languageId));
+		}
 	}
 
 	async getSymbolsOverview(input: { relativePath: string; depth?: number }): Promise<SymbolToolResult[]> {
@@ -560,6 +853,49 @@ export class LspSymbolToolService {
 			return { relativePath: relative(this.root, absolutePath), range: location.range };
 		});
 		return results.slice(input.offset ?? 0, (input.offset ?? 0) + (input.limit ?? 100));
+	}
+
+	async findDefinition(input: { relativePath: string; position: LspPosition; offset?: number; limit?: number }) {
+		if (!this.client.definition) throw new Error("The configured language server does not support go-to-definition.");
+		const document = await this.open(input.relativePath);
+		positionToOffset(document.text, input.position);
+		await this.ensureCompleteProjectContext(document);
+		const locations = normalizeDefinitionLocations(await this.client.definition(document.uri, input.position)).map(
+			(location) => {
+				if (!location.uri.startsWith("file:")) {
+					throw new Error(
+						"Definition returned a non-file URI; refusing to expose a path outside the sandbox workspace.",
+					);
+				}
+				const absolutePath = fileURLToPath(location.uri);
+				assertInsideRoot(this.root, absolutePath);
+				return { relativePath: relative(this.root, absolutePath), range: location.range };
+			},
+		);
+		return locations.slice(input.offset ?? 0, (input.offset ?? 0) + (input.limit ?? 100));
+	}
+
+	async getDiagnostics(input: { relativePath: string; timeoutMs?: number; offset?: number; limit?: number }) {
+		if (!this.client.diagnostics) throw new Error("The configured language server does not publish diagnostics.");
+		const document = await this.open(input.relativePath);
+		const expectedVersion = this.opened.get(document.uri)?.version;
+		const diagnostics = await this.client.diagnostics(document.uri, expectedVersion, input.timeoutMs ?? 2_000);
+		const results: DiagnosticToolResult[] = (diagnostics ?? []).map((diagnostic) => ({
+			relativePath: document.relativePath,
+			range: diagnostic.range,
+			severity: diagnosticSeverity(diagnostic.severity),
+			message: diagnostic.message,
+			...(diagnostic.code === undefined ? {} : { code: diagnostic.code }),
+			...(diagnostic.source ? { source: diagnostic.source } : {}),
+			...(diagnosticTags(diagnostic.tags) ? { tags: diagnosticTags(diagnostic.tags) } : {}),
+		}));
+		const offset = input.offset ?? 0;
+		const limit = input.limit ?? 100;
+		return {
+			status: diagnostics === null ? ("pending" as const) : ("ready" as const),
+			total: results.length,
+			diagnostics: results.slice(offset, offset + limit),
+		};
 	}
 
 	async renameSymbol(input: { relativePath: string; namePath: string; newName: string }) {
@@ -656,5 +992,5 @@ export class LspSymbolToolService {
 
 export async function createLspSymbolToolService(root = process.cwd()): Promise<LspSymbolToolService> {
 	const canonicalRoot = await realpath(root);
-	return new LspSymbolToolService(canonicalRoot, await TypeScriptLspClient.start(canonicalRoot));
+	return new LspSymbolToolService(canonicalRoot, new PolyglotLspClient(canonicalRoot));
 }
