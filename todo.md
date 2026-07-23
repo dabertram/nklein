@@ -2503,6 +2503,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (evidence bar: consult-then-success rate vs the cross_model_carry baseline). CLOUD consultant (the article's
   literal setup) is Phase 14 — do not make it reachable. Avoids `cross_model_carry`'s overhead: session, prompt
   cache, and completed work all survive the escalation.
+  **VISIBILITY IS AN ACCEPTANCE CRITERION (David 2026-07-23: "details properly shown — in chat and wherever it
+  makes sense"). Presentation cores SHIPPED (`src/core/model-consult-visibility.ts`, 5 tests); the wire must emit
+  them at all four surfaces, reusing existing streams (no new UI chrome):** (1) CHAT — the start notice fires the
+  moment the consult begins ("🤝 Consulting stronger model …, stuck after N failed attempts: <one-line problem>"),
+  the answer notice pairs with it (duration + bytes + advisory framing), and a DECLINED consult is equally visible
+  (`formatConsultDeclinedNotice`) — never a silent no-op; (2) LIVE status — `consultInFlightStatusLabel` on the
+  running-state chip/session summary while the consult is in flight; (3) CARD trail/timeline —
+  `describeConsultForTrail` one-liner incl. the follow-up outcome once known; (4) TELEMETRY —
+  `buildConsultObservation` under the single `model_consult` category, REGISTERED in `MECHANISM_REGISTRY`
+  (P15.1b) in the same wire commit so `dev mechanism-registry` reports firing-vs-silent from day one.
 - [ ] **F3.36 — Wire the mid-turn reasoning-budget breach (adopted from little-coder; docs/attributions.md).**
   The pure core is SHIPPED (`src/core/reasoning-budget-breach.ts`, 2026-07-23): stream-time reasoning-budget
   tracking (little-coder's `ceil(chars/3.5)` estimate, 4096-token default), one-shot breach detection, the
