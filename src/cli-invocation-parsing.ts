@@ -6,11 +6,13 @@ import { parseRuntimePort } from "./core/runtime-endpoint";
  */
 
 /**
- * Parse a `--port` value into either a fixed port or auto-selection. `"auto"` (any case) selects a
- * free port; otherwise the value is parsed as a runtime port (1-65535). Throws on a missing/blank
- * value or an out-of-range/non-integer port.
+ * Parse a `--port` value into a fixed port, racy scan-based auto-selection, or atomic kernel-assigned ephemeral
+ * binding. `ephemeral` is intended for isolated harnesses that learn the selected port from runtime stdout.
+ * Throws on a missing/blank value or an out-of-range/non-integer port.
  */
-export function parseCliPortValue(rawValue: string): { mode: "fixed"; value: number } | { mode: "auto" } {
+export function parseCliPortValue(
+	rawValue: string,
+): { mode: "fixed"; value: number } | { mode: "auto" } | { mode: "ephemeral" } {
 	const normalized = rawValue.trim().toLowerCase();
 	if (!normalized) {
 		throw new Error("Missing value for --port.");
@@ -18,10 +20,13 @@ export function parseCliPortValue(rawValue: string): { mode: "fixed"; value: num
 	if (normalized === "auto") {
 		return { mode: "auto" };
 	}
+	if (normalized === "ephemeral") {
+		return { mode: "ephemeral" };
+	}
 	try {
 		return { mode: "fixed", value: parseRuntimePort(normalized) };
 	} catch {
-		throw new Error(`Invalid port value: ${rawValue}. Expected an integer from 1-65535 or "auto".`);
+		throw new Error(`Invalid port value: ${rawValue}. Expected an integer from 1-65535, "auto", or "ephemeral".`);
 	}
 }
 

@@ -90,6 +90,22 @@ export function setKanbanRuntimePort(port: number): void {
 	process.env[NKLEIN_RUNTIME_PORT_ENV] = String(normalized);
 }
 
+/**
+ * Ask the kernel for an unused loopback port in the atomic listen(0) operation.
+ * Kept separate from the user-facing fixed-port parser so 0 can never become a browseable/configured endpoint.
+ * `createRuntimeServer` must replace it with the assigned address before publishing its URL or spawning clients.
+ */
+export function setKanbanRuntimeEphemeralBind(): void {
+	runtimePort = 0;
+	process.env[NKLEIN_RUNTIME_PORT_ENV] = "0";
+}
+
+/** Publish a kernel-assigned listen(0) port; fixed/auto bindings pass through unchanged. */
+export function adoptKanbanRuntimeBoundPort(boundPort: number): number {
+	if (runtimePort === 0) setKanbanRuntimePort(boundPort);
+	return runtimePort;
+}
+
 export interface RuntimeTlsConfig {
 	cert: string;
 	key: string;

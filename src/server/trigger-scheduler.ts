@@ -40,6 +40,10 @@ export interface TriggerSchedulerDeps {
 	intakeDeps: TriggerIntakeDeps;
 	log(line: string): void;
 	now(): number;
+	/** False leaves reconcile manually driven (deterministic replay). */
+	automaticTicks?: boolean;
+	/** False prevents ambient fs.watch events from entering a replay. */
+	enableFileWatches?: boolean;
 }
 
 export interface TriggerSchedulerHandle {
@@ -118,7 +122,7 @@ export function startExternalTriggerScheduler(deps: TriggerSchedulerDeps): Trigg
 				}
 
 				// ── watch source: reconcile fs.watch handles ──
-				if (template.watch) {
+				if (template.watch && deps.enableFileWatches !== false) {
 					const key = `${entry.workspaceId}:${name}`;
 					seenWatchKeys.add(key);
 					const fingerprint = `${template.watch.path}:${template.watch.debounceMs}`;
@@ -183,10 +187,13 @@ export function startExternalTriggerScheduler(deps: TriggerSchedulerDeps): Trigg
 		}
 	};
 
-	const interval = setInterval(() => {
-		void reconcile().catch(() => undefined);
-	}, TRIGGER_RECONCILE_INTERVAL_MS);
-	interval.unref?.();
+	const interval =
+		deps.automaticTicks === false
+			? null
+			: setInterval(() => {
+					void reconcile().catch(() => undefined);
+				}, TRIGGER_RECONCILE_INTERVAL_MS);
+	interval?.unref?.();
 
 	return {
 		reconcileNow: async () => {
@@ -194,7 +201,7 @@ export function startExternalTriggerScheduler(deps: TriggerSchedulerDeps): Trigg
 		},
 		dispose: () => {
 			disposed = true;
-			clearInterval(interval);
+			if (interval) clearInterval(interval);
 			for (const handle of watchHandles.values()) {
 				handle.watcher.close();
 				if (handle.debounceTimer) {

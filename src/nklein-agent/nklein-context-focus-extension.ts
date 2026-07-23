@@ -6,7 +6,7 @@
 // the extension's mechanics. The per-session re-anchor state lives here behind small accessors the runtime calls on
 // focus-chain update / session end / dispose.
 
-import { statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { MODEL_USAGE_CATEGORY } from "../core/card-tracking-coverage";
 import { deriveTruncationSignal } from "../core/completion-stop-reason";
@@ -15,6 +15,7 @@ import { detectEditThrashing, extractFileEditsFromToolInput, type FileEditRecord
 import { isTruthyEnv } from "../core/env-flag";
 import { estimateTextTokens } from "../core/eval-context-footprint";
 import type { FocusChain } from "../core/focus-chain";
+import { isNightlyHermeticEnvironment, NIGHTLY_HERMETIC_EPOCH_MS } from "../core/nightly-hermeticity";
 import { mergeConsecutiveSameRoleSdkMessages } from "../core/normalize-system-first";
 import { assessProgressStall, type TurnProgressRecord } from "../core/progress-stall-detector";
 import {
@@ -242,6 +243,8 @@ export function createKanbanContextFocusExtension(
 	// F11.2l local summary refresh. Undefined still serves an already-persisted artifact, but performs no inference.
 	repoSummaryCaller?: RepoSummaryModelCaller,
 ): NKleinSdkRuntimeExtension {
+	const nightlyHermetic = isNightlyHermeticEnvironment();
+	const operationalNow = nightlyHermetic ? () => NIGHTLY_HERMETIC_EPOCH_MS : Date.now;
 	const largeFileWorkflow = getNKleinLargeFileWorkflow(sessionId, agentPerceivedCwd);
 	let cachedRepoMap: { key: string; value: Promise<string | null> } | null = null;
 	let cachedRepoSummary: Promise<string | null> | null = null;
@@ -797,6 +800,7 @@ export function createKanbanContextFocusExtension(
 				const readState = readBeforeWriteStateBySessionId.get(sessionId) ?? createReadBeforeWriteState();
 				readBeforeWriteStateBySessionId.set(sessionId, readState);
 				const statMtime = (relativePath: string): number | null => {
+					if (nightlyHermetic) return existsSync(join(orientationWorkspacePath, relativePath)) ? 0 : null;
 					try {
 						return statSync(join(orientationWorkspacePath, relativePath)).mtimeMs;
 					} catch {
@@ -811,7 +815,7 @@ export function createKanbanContextFocusExtension(
 						if (typeof raw === "string" && raw.trim()) {
 							const trimmed = raw.trim();
 							knownPaths.add(trimmed);
-							recordFileRead(readState, trimmed, { mtime: statMtime(trimmed), now: Date.now() });
+							recordFileRead(readState, trimmed, { mtime: statMtime(trimmed), now: operationalNow() });
 						}
 					}
 					readPathsBySessionId.set(sessionId, knownPaths);
@@ -832,7 +836,10 @@ export function createKanbanContextFocusExtension(
 							});
 						}
 						knownPaths.add(edit.path);
-						recordFileWrite(readState, edit.path, { mtimeAfterWrite: statMtime(edit.path), now: Date.now() });
+						recordFileWrite(readState, edit.path, {
+							mtimeAfterWrite: statMtime(edit.path),
+							now: operationalNow(),
+						});
 					}
 					readPathsBySessionId.set(sessionId, knownPaths);
 					ungroundedWriteFlaggedBySessionId.set(sessionId, flaggedWrites);

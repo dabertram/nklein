@@ -27,6 +27,8 @@ export interface BoardLivenessWatchdogHandle {
 export interface StartBoardLivenessWatchdogOptions<T> {
 	intervalMs: number;
 	snapshotTimeoutMs: number;
+	/** False keeps the watchdog manually driven through runNow (nightly deterministic replay / focused tests). */
+	automaticTicks?: boolean;
 	loadSnapshot: () => Promise<BoardLivenessWatchdogSnapshot<T>>;
 	handleSnapshot: (snapshot: T) => Promise<void>;
 	onTickEvent?: (event: BoardLivenessWatchdogTickEvent) => void;
@@ -147,8 +149,8 @@ export function startBoardLivenessWatchdog<T>(
 		})();
 	};
 
-	const timer = setInterval(runNow, intervalMs);
-	timer.unref?.();
+	const timer = options.automaticTicks === false ? null : setInterval(runNow, intervalMs);
+	timer?.unref?.();
 	return {
 		runNow,
 		dispose: () => {
@@ -156,7 +158,7 @@ export function startBoardLivenessWatchdog<T>(
 				return;
 			}
 			disposed = true;
-			clearInterval(timer);
+			if (timer) clearInterval(timer);
 		},
 	};
 }

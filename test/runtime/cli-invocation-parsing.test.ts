@@ -12,6 +12,11 @@ describe("parseCliPortValue", () => {
 		expect(parseCliPortValue("3484")).toEqual({ mode: "fixed", value: 3484 });
 	});
 
+	it("returns ephemeral mode for atomic kernel-assigned harness ports", () => {
+		expect(parseCliPortValue("ephemeral")).toEqual({ mode: "ephemeral" });
+		expect(parseCliPortValue(" EPHEMERAL ")).toEqual({ mode: "ephemeral" });
+	});
+
 	it("throws on a missing/blank value", () => {
 		expect(() => parseCliPortValue("")).toThrow(/Missing value for --port/);
 		expect(() => parseCliPortValue("   ")).toThrow(/Missing value for --port/);

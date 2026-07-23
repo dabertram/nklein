@@ -1,4 +1,5 @@
 import type { NightlyModelIoCost } from "./nightly-cell-cost";
+import type { NightlyHermeticEvidence } from "./nightly-hermeticity";
 import type { NightlyRecordingEvidence } from "./nightly-recording-evidence";
 
 /**
@@ -102,6 +103,8 @@ export interface CellVerdict {
 	readonly recordingEvidence?: NightlyRecordingEvidence | null;
 	/** Exact tokenizer-neutral model request + matched-response byte cost emitted by the aimock journal. */
 	readonly modelIoCost?: NightlyModelIoCost | null;
+	/** N4 fail-closed receipt proving every declared ambient dependency was fenced or replaced. */
+	readonly hermeticEvidence?: NightlyHermeticEvidence | null;
 }
 
 export interface NightlySummary {

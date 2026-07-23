@@ -1,7 +1,9 @@
+import { createServer } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { resetLegacyEnvWarningsForTests } from "../../src/config/legacy-env";
 
 import {
+	adoptKanbanRuntimeBoundPort,
 	buildKanbanRuntimeUrl,
 	buildKanbanRuntimeWsUrl,
 	clearKanbanRuntimeTls,
@@ -14,6 +16,7 @@ import {
 	isKanbanRuntimeHttps,
 	normalizeRuntimePublicHost,
 	parseRuntimePort,
+	setKanbanRuntimeEphemeralBind,
 	setKanbanRuntimeHost,
 	setKanbanRuntimePort,
 	setKanbanRuntimePublicHost,
@@ -102,6 +105,29 @@ describe("runtime-endpoint", () => {
 		expect(process.env.NKLEIN_RUNTIME_PORT).toBe("4567");
 		expect(buildKanbanRuntimeUrl("/api/trpc")).toBe("http://127.0.0.1:4567/api/trpc");
 		expect(buildKanbanRuntimeWsUrl("api/terminal/ws")).toBe("ws://127.0.0.1:4567/api/terminal/ws");
+	});
+
+	it("publishes a kernel-assigned ephemeral port only after the atomic bind", async () => {
+		setKanbanRuntimeEphemeralBind();
+		expect(getKanbanRuntimePort()).toBe(0);
+		expect(process.env.NKLEIN_RUNTIME_PORT).toBe("0");
+
+		const server = createServer();
+		await new Promise<void>((resolve, reject) => {
+			server.once("error", reject);
+			server.listen(getKanbanRuntimePort(), getKanbanRuntimeHost(), resolve);
+		});
+		try {
+			const address = server.address();
+			expect(address && typeof address === "object").toBe(true);
+			const boundPort = address && typeof address === "object" ? address.port : 0;
+			expect(boundPort).toBeGreaterThan(0);
+			expect(adoptKanbanRuntimeBoundPort(boundPort)).toBe(boundPort);
+			expect(getKanbanRuntimePort()).toBe(boundPort);
+			expect(process.env.NKLEIN_RUNTIME_PORT).toBe(String(boundPort));
+		} finally {
+			await new Promise<void>((resolve) => server.close(() => resolve()));
+		}
 	});
 
 	it("updates runtime url builders when host changes", () => {

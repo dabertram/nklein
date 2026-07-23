@@ -30,6 +30,7 @@ import {
 	getRuntimeFetch,
 	installKanbanFetchTimeoutPolicy,
 	isKanbanRemoteHost,
+	setKanbanRuntimeEphemeralBind,
 	setKanbanRuntimeHost,
 	setKanbanRuntimePort,
 	setKanbanRuntimePublicHost,
@@ -52,7 +53,7 @@ interface CliOptions {
 	skipShutdownCleanup: boolean;
 	host: string | null;
 	publicHost: string | null;
-	port: { mode: "fixed"; value: number } | { mode: "auto" } | null;
+	port: { mode: "fixed"; value: number } | { mode: "auto" } | { mode: "ephemeral" } | null;
 	https: boolean;
 	cert: string | null;
 	key: string | null;
@@ -66,7 +67,7 @@ const KANBAN_VERSION = typeof packageJson.version === "string" ? packageJson.ver
 interface RootCommandOptions {
 	host?: string;
 	publicHost?: string;
-	port?: { mode: "fixed"; value: number } | { mode: "auto" };
+	port?: { mode: "fixed"; value: number } | { mode: "auto" } | { mode: "ephemeral" };
 	open?: boolean;
 	skipShutdownCleanup?: boolean;
 	update?: boolean;
@@ -85,6 +86,10 @@ async function applyRuntimePortOption(portOption: CliOptions["port"]): Promise<n
 	if (portOption.mode === "fixed") {
 		setKanbanRuntimePort(portOption.value);
 		return portOption.value;
+	}
+	if (portOption.mode === "ephemeral") {
+		setKanbanRuntimeEphemeralBind();
+		return null;
 	}
 	const autoPort = await findAvailableRuntimePort(DEFAULT_KANBAN_RUNTIME_PORT);
 	setKanbanRuntimePort(autoPort);
@@ -453,6 +458,7 @@ async function runMainCommand(options: CliOptions, shouldAutoOpenBrowser: boolea
 	// contract is to find another free port. Keep the catch below for the startup race after this probe.
 	if (
 		options.port?.mode !== "auto" &&
+		options.port?.mode !== "ephemeral" &&
 		(await tryOpenExistingServer({ noOpen: options.noOpen, shouldAutoOpenBrowser }))
 	) {
 		return;
@@ -502,6 +508,7 @@ async function runMainCommand(options: CliOptions, shouldAutoOpenBrowser: boolea
 	} catch (error) {
 		if (
 			options.port?.mode !== "auto" &&
+			options.port?.mode !== "ephemeral" &&
 			isAddressInUseError(error) &&
 			(await tryOpenExistingServer({ noOpen: options.noOpen, shouldAutoOpenBrowser }))
 		) {
@@ -611,7 +618,11 @@ function createProgram(invocationArgs: string[]): Command {
 		.version(KANBAN_VERSION, "-v, --version", "Output the version number")
 		.option("--host <ip>", "Host IP to bind the server to (default: 127.0.0.1).")
 		.option("--public-host <host>", "Host/IP users should browse to when binding a wildcard or LAN interface.")
-		.option("--port <number|auto>", "Runtime port (1-65535) or auto.", parseCliPortValue)
+		.option(
+			"--port <number|auto|ephemeral>",
+			"Runtime port (1-65535), scan-based auto, or kernel-assigned ephemeral.",
+			parseCliPortValue,
+		)
 		.option("--no-open", "Do not open browser automatically.")
 		.option("--skip-shutdown-cleanup", "Do not move sessions to done or delete task workspaces on shutdown.")
 		.option("--https", "Enable HTTPS. Requires both --cert and --key.")

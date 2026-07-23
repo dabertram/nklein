@@ -111,6 +111,13 @@ gap remains.
 > speedup. Do not implement a requested cache by reflex: measure the repeated work and reject the cache when the cache
 > costs more or weakens identity. Likewise, never reuse mutable scaffold/HOME/worktree/ledger state between cells. The
 > safe optimization is to measure exact model-boundary work (request + matched-response bytes) and expose regressions.
+> **HERMETICITY IS A RECEIPT, NOT A COMMENT (N4, 2026-07-23).** A real-runtime replay must assert every ambient seam
+> before it can emit one typed receipt, and the parent must parse that receipt again before granting a pass. Mock BOTH
+> model surfaces (provider gateway + `lms ps`), disable update feeds and sandbox egress, replace clock/mtime/power reads,
+> and disable periodic/watch-driven controllers unless the scenario drives them explicitly. Port probing is itself a
+> flaky dependency: a probe releases the port before the runtime binds it, while a fixed port can silently reuse a stale
+> server. Harnesses use the kernel's atomic `listen(0)`, publish the assigned port only after bind, then hand that exact
+> port to child clients. Never infer isolation from a high numbered port or from a subprocess exiting zero.
 > **Git history is part of the agent-visible input:** deleting a temporary oracle mount is insufficient if `test_patch`
 > was ever applied or committed. The sealed workspace must expose exactly one upstream baseline commit; private tests
 > first enter only the separate official grader container after prediction capture.
@@ -6188,12 +6195,23 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   properly per combination, and encode each family's known quirks as fixtures (reasoning-channel-only output, empty
   content on json_schema, no-verdict reviewers, Jinja alternation 500s) so a regression in a quirk-handling path
   fails the matrix loudly.
-- [ ] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
+- [~] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
   git remotes, update feeds, web/egress (already hard-gated), clock-driven damping. INTERNAL flaky sources (the
   proven ones, extend as found): the host-capacity view that reads the REAL LM Studio gateway even in sims (memory:
   sweep needs an IDLE gateway — must be injectable/mocked for nightly), `lms ps`/loaded-model discovery, Date.now
   damping windows (trigger 30s, dedup 12min), watchdog tick timing, pmset power mode, filesystem mtimes (F12.19),
   and free-port probing. Nightly runs must be hermetic: a busy gateway or a slow disk must not flip a verdict.
+  **IMPLEMENTATION CHECKPOINT 2026-07-23; ONE LIVE RECEIPT-BOUND CELL PENDING F11'S DOCKER RELEASE.** Nightly now
+  fails closed unless the child emits exactly one typed N4 receipt and the parent validates it again. The receipt is
+  issued only after assertions prove loopback aimock, a fake `lms` CLI, strict/offline sandbox capabilities (covering
+  git remotes + web), disabled !Klein/Basic-Memory updates, a fixed trigger/read clock, logical fixed mtimes, fixed
+  unknown power mode, disabled periodic board/trigger ticks + trigger fs watches, and a kernel-ephemeral runtime port.
+  `--port ephemeral` binds with atomic `listen(0)` and publishes the actual port afterward, removing the old
+  probe→release→bind race and fixed-port stale-runtime reuse. Focused behavioral coverage proves the receipt refuses
+  every weakened posture, the watchdog/trigger scheduler remain manually drivable without ambient timers/watches, and
+  the kernel-assigned port is adopted only after a real bind. **Remaining before closure:** after F11 releases Docker,
+  run one registered cell while the real fleet remains busy, retain its structured receipt in the verdict artifact,
+  and confirm runtime logs contain no `pmset`, real `lms`, update, egress, or stale-server contact.
 - [x] **N5 — Invariant packs (what "finishes properly" MEANS, asserted).** Per project a reusable assertion pack over
   the drained state: board reaches the expected terminal lanes; ledger carries the expected attempt/transition
   shapes; ZERO unmatched aimock requests; zero orphan sessions/worktrees/leases after teardown; the gates that MUST

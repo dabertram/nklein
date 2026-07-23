@@ -5,6 +5,30 @@ import {
 } from "../../src/server/board-liveness-watchdog";
 
 describe("board-liveness watchdog integration", () => {
+	it("supports a manually driven hermetic mode without arming an interval", async () => {
+		vi.useFakeTimers();
+		const handled: string[] = [];
+		const watchdog = startBoardLivenessWatchdog({
+			intervalMs: 20,
+			snapshotTimeoutMs: 5,
+			automaticTicks: false,
+			loadSnapshot: async () => ({ status: "ok", value: "manual" }),
+			handleSnapshot: async (value) => {
+				handled.push(value);
+			},
+		});
+
+		try {
+			await vi.advanceTimersByTimeAsync(200);
+			expect(handled).toEqual([]);
+			watchdog.runNow();
+			await vi.waitFor(() => expect(handled).toEqual(["manual"]));
+		} finally {
+			watchdog.dispose();
+			vi.useRealTimers();
+		}
+	});
+
 	it("records tick entry and recovers on the next interval after an injected snapshot hang", async () => {
 		const events: BoardLivenessWatchdogTickEvent[] = [];
 		const handled: string[] = [];

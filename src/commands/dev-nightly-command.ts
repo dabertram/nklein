@@ -10,6 +10,7 @@ import {
 } from "../core/nightly-cell-cost";
 import { collectDrainedState } from "../core/nightly-drain-collector";
 import { buildNightlyFailureReport, summarizeNightlyFailures } from "../core/nightly-failure-report";
+import { type NightlyHermeticEvidence, parseNightlyHermeticEvidence } from "../core/nightly-hermeticity";
 import { evaluatePack, resolvePack } from "../core/nightly-invariant-pack";
 import {
 	type CellVerdict,
@@ -42,7 +43,6 @@ const execFileAsync = promisify(execFile);
  */
 
 const DEFAULT_MANIFEST_PATH = "nightly-manifest.json";
-const PORT_BASE = Number.parseInt(process.env.NKLEIN_NIGHTLY_PORT_BASE ?? "4500", 10);
 /** Generous: a large scenario legitimately takes many minutes on a low-power machine. */
 const CELL_TIMEOUT_MS = 45 * 60 * 1000;
 
@@ -52,10 +52,6 @@ async function loadManifest(path: string): Promise<NightlyManifest | null> {
 	} catch {
 		return null;
 	}
-}
-
-function portForCell(index: number): number {
-	return PORT_BASE + index * 2;
 }
 
 /**
@@ -153,7 +149,7 @@ const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	flaky: "flaky",
 };
 
-async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
+async function runCell(cell: NightlyCell): Promise<CellVerdict> {
 	const started = Date.now();
 	let home: string;
 	try {
@@ -161,7 +157,6 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 	} catch (error) {
 		return { cell, outcome: "skipped", reason: `could not create an isolated HOME: ${String(error)}` };
 	}
-	const port = portForCell(index);
 	const simflowRun = PROFILE_TO_SIMFLOW_RUN[cell.modelProfile];
 	if (simflowRun === undefined) {
 		return {
@@ -183,10 +178,12 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 				// resolve to the exact scenario it opened, and emits a digest-bound receipt for the bytes it served.
 				NKLEIN_NIGHTLY_EXPECTED_FIXTURE: cell.fixture,
 				NKLEIN_NIGHTLY_EXPECTED_RECORDING_SET: cell.recordingSet,
-				NKLEIN_SIMFLOW_RUNTIME_PORT: String(port),
 				// The profile must reach the variable the script READS, not a name only this runner knows.
 				NKLEIN_SIMFLOW_RUN: simflowRun,
 				NKLEIN_NIGHTLY_RECORDING_SET: cell.recordingSet,
+				// N4: activates the runtime's deterministic clock/mtime/power/watchdog seams. The child emits a
+				// typed receipt and this parent refuses a clean exit without exactly one matching receipt.
+				NKLEIN_NIGHTLY_HERMETIC: "1",
 			},
 		});
 		// F11.4c: a drain that leaves unmatched aimock requests did not cover what the run did. The summary core
@@ -248,6 +245,30 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 				reason: `invalid NIGHTLY_CELL_COST: ${error instanceof Error ? error.message : String(error)}`,
 			};
 		}
+		const hermeticLines = stdout.split(/\r?\n/).filter((line) => line.startsWith("NIGHTLY_HERMETIC_EVIDENCE="));
+		if (hermeticLines.length !== 1) {
+			return {
+				cell,
+				outcome: "failed",
+				durationMs: Date.now() - started,
+				homePath: home,
+				reason: `drain exited cleanly with ${hermeticLines.length} NIGHTLY_HERMETIC_EVIDENCE receipts (expected exactly 1); refusing a host-dependent nightly verdict`,
+			};
+		}
+		let hermeticEvidence: NightlyHermeticEvidence;
+		try {
+			hermeticEvidence = parseNightlyHermeticEvidence(
+				(hermeticLines[0] ?? "").slice("NIGHTLY_HERMETIC_EVIDENCE=".length),
+			);
+		} catch (error) {
+			return {
+				cell,
+				outcome: "failed",
+				durationMs: Date.now() - started,
+				homePath: home,
+				reason: `invalid NIGHTLY_HERMETIC_EVIDENCE: ${error instanceof Error ? error.message : String(error)}`,
+			};
+		}
 		return {
 			cell,
 			outcome: "passed",
@@ -259,6 +280,7 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 			homePath: home,
 			recordingEvidence,
 			modelIoCost,
+			hermeticEvidence,
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -335,9 +357,9 @@ export async function runDevNightlyCommand(options: {
 
 	if (options.dryRun) {
 		process.stdout.write(`${cells.length} cell(s) would run SEQUENTIALLY (fastest-first from prior durations):\n`);
-		for (const [index, cell] of cells.entries()) {
+		for (const cell of cells) {
 			process.stdout.write(
-				`  ${cell.projectId} × ${cell.modelProfile}  (port ${portForCell(index)}, set ${cell.recordingSet})\n`,
+				`  ${cell.projectId} × ${cell.modelProfile}  (kernel-ephemeral port, set ${cell.recordingSet})\n`,
 			);
 		}
 		return;
@@ -347,7 +369,7 @@ export async function runDevNightlyCommand(options: {
 	for (const [index, cell] of cells.entries()) {
 		process.stderr.write(`== ${cell.projectId} × ${cell.modelProfile} (${index + 1}/${cells.length}) ==\n`);
 		// SEQUENTIAL: awaited inside the loop, deliberately. See the docblock.
-		verdicts.push(await runCell(cell, index));
+		verdicts.push(await runCell(cell));
 	}
 
 	const summary = summarizeNightlyRun(verdicts);

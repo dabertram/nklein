@@ -123,4 +123,29 @@ describe("startExternalTriggerScheduler", () => {
 		await new Promise((resolve) => setTimeout(resolve, 400));
 		expect(seeded.length).toBeGreaterThanOrEqual(1);
 	});
+
+	it("can disable ambient ticks and fs.watch events for hermetic replay", async () => {
+		await makeWorkspace({
+			"log-watch": {
+				title: "Log changed",
+				prompt: "Investigate {payload.path}.",
+				watch: { path: "logs/error.log", debounceMs: 5 },
+			},
+		});
+		await mkdir(join(repoPath, "logs"), { recursive: true });
+		await writeFile(join(repoPath, "logs", "error.log"), "boot\n", "utf8");
+		const seeded: string[] = [];
+		handle = startExternalTriggerScheduler({
+			listWorkspaces: async () => [{ workspaceId: "ws-1", repoPath }],
+			intakeDeps: makeIntakeDeps(seeded),
+			log: () => {},
+			now: () => 1_700_000_000_000,
+			automaticTicks: false,
+			enableFileWatches: false,
+		});
+		await handle.reconcileNow();
+		await writeFile(join(repoPath, "logs", "error.log"), "changed\n", "utf8");
+		await new Promise((resolve) => setTimeout(resolve, 30));
+		expect(seeded).toEqual([]);
+	});
 });

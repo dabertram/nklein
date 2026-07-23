@@ -45,6 +45,10 @@ import {
 	type NightlyRecordingEvidence,
 } from "../src/core/nightly-recording-evidence.js";
 import { summarizeNightlyModelIo } from "../src/core/nightly-cell-cost.js";
+import {
+	isNightlyHermeticEnvironment,
+	parseNightlyHermeticEvidence,
+} from "../src/core/nightly-hermeticity.js";
 
 const SCENARIO_SELECTOR = process.env.NKLEIN_SIMFLOW_SCENARIO?.trim() || "";
 const SCENARIO_RUN = process.env.NKLEIN_SIMFLOW_RUN === "flaky" ? "flaky-run" : "perfect-run";
@@ -52,6 +56,7 @@ const REPLAY_SCRIPT_PATH = process.env.NKLEIN_SIMFLOW_SCRIPT?.trim() || "";
 const EXPECTED_OUTCOME = process.env.NKLEIN_SIMFLOW_EXPECT_OUTCOME?.trim() || "";
 const NIGHTLY_EXPECTED_FIXTURE = process.env.NKLEIN_NIGHTLY_EXPECTED_FIXTURE?.trim() || "";
 const NIGHTLY_EXPECTED_RECORDING_SET = process.env.NKLEIN_NIGHTLY_EXPECTED_RECORDING_SET?.trim() || "";
+const NIGHTLY_BOUND = Boolean(NIGHTLY_EXPECTED_FIXTURE || NIGHTLY_EXPECTED_RECORDING_SET);
 const TIMEOUT_MS =
 	Number(process.env.NKLEIN_SIMFLOW_TIMEOUT_MS) || (SCENARIO_SELECTOR || REPLAY_SCRIPT_PATH ? 480_000 : 240_000);
 // Env-overridable so independent scenario runs can execute in parallel on distinct runtime ports without colliding.
@@ -89,6 +94,9 @@ function fail(message: string): never {
 
 if (homedir() === "/Users/david" || process.env.HOME === "/Users/david") {
 	fail("Refusing to run against HOME=/Users/david. Set HOME to an isolated dir (e.g. mktemp -d /tmp/nklein-simflow-XXXX).");
+}
+if (NIGHTLY_BOUND && !isNightlyHermeticEnvironment()) {
+	fail("Nightly manifest bindings require NKLEIN_NIGHTLY_HERMETIC=1; refusing a host-dependent nightly verdict.");
 }
 
 // ---------------------------------------------------------------------------
@@ -311,6 +319,12 @@ async function main(): Promise<void> {
 				selectedAgentId: "nklein",
 				developerModeEnabled: true,
 				setupWizardCompletedAt: Date.now(),
+				// N4: scenario workers need local git/shell only. Keeping the sandbox offline makes git remotes and
+				// web/egress unobservable instead of trusting that no recording happens to invoke them.
+				agentRulesets: {
+					capability: { globalPreset: "strict" },
+					delivery: { globalPreset: "fully_open" },
+				},
 				modelRoles: POOLS
 					? {
 							// Pools fan-out (todo §5 ★): architect/reviewer pinned; the WORKER role pools BOTH coders —
@@ -388,9 +402,12 @@ async function main(): Promise<void> {
 	await chmod(fakeLmsPath, 0o755);
 	const simulatedFleetEnv: Record<string, string> = {
 		NKLEIN_LMS_BIN: fakeLmsPath,
+		NKLEIN_NO_AUTO_UPDATE: "1",
+		BASIC_MEMORY_AUTO_UPDATE: "false",
+		NKLEIN_NIGHTLY_MODEL_GATEWAY_URL: simBase,
 		// Every simulator runtime owns a unique sandbox namespace and skips startup mutation entirely. This keeps a
 		// hermetic replay from reaping a live benchmark runtime's Docker containers on the shared host daemon.
-		NKLEIN_SANDBOX_NAMESPACE: `simflow-${process.pid}-${RUNTIME_PORT}`,
+		NKLEIN_SANDBOX_NAMESPACE: `simflow-${process.pid}-${NIGHTLY_BOUND ? "ephemeral" : RUNTIME_PORT}`,
 		NKLEIN_SANDBOX_SKIP_STARTUP_REAP: "1",
 		...(POOLS
 			? {
@@ -401,21 +418,36 @@ async function main(): Promise<void> {
 	};
 	const runtime = spawn(
 		"npx",
-		["tsx", "src/cli.ts", "--port", String(RUNTIME_PORT), "--no-open", "--host", "127.0.0.1"],
+		[
+			"tsx",
+			"src/cli.ts",
+			"--port",
+			NIGHTLY_BOUND ? "ephemeral" : String(RUNTIME_PORT),
+			"--no-open",
+			"--host",
+			"127.0.0.1",
+		],
 		{
 			env: {
 				...process.env,
 				HOME: home,
 				NODE_ENV: "development",
-				NKLEIN_RUNTIME_PORT: String(RUNTIME_PORT),
-				KANBAN_RUNTIME_PORT: String(RUNTIME_PORT),
+				...(!NIGHTLY_BOUND
+					? { NKLEIN_RUNTIME_PORT: String(RUNTIME_PORT), KANBAN_RUNTIME_PORT: String(RUNTIME_PORT) }
+					: {}),
 				...simulatedFleetEnv,
 			},
 			stdio: ["ignore", "pipe", "pipe"],
 		},
 	);
 	const runtimeLogs: string[] = [];
-	runtime.stdout?.on("data", (chunk: Buffer) => runtimeLogs.push(chunk.toString()));
+	let activeRuntimePort = NIGHTLY_BOUND ? 0 : RUNTIME_PORT;
+	runtime.stdout?.on("data", (chunk: Buffer) => {
+		const text = chunk.toString();
+		runtimeLogs.push(text);
+		const assigned = /!Klein running at https?:\/\/127\.0\.0\.1:(\d+)/.exec(runtimeLogs.join(""));
+		if (assigned?.[1]) activeRuntimePort = Number(assigned[1]);
+	});
 	runtime.stderr?.on("data", (chunk: Buffer) => runtimeLogs.push(chunk.toString()));
 	const stopRuntime = () => {
 		runtime.kill("SIGTERM");
@@ -426,7 +458,8 @@ async function main(): Promise<void> {
 		const deadline = Date.now() + 60_000;
 		for (;;) {
 			try {
-				const response = await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/projects.list`);
+				if (activeRuntimePort === 0) throw new Error("runtime port not assigned yet");
+				const response = await fetch(`http://127.0.0.1:${activeRuntimePort}/api/trpc/projects.list`);
 				if (response.ok) break;
 			} catch {
 				/* not up yet */
@@ -438,6 +471,18 @@ async function main(): Promise<void> {
 			await new Promise((resolve) => setTimeout(resolve, 500));
 		}
 		console.log("Runtime is up. Seeding the dev-test scenario…");
+		if (NIGHTLY_BOUND) {
+			const runtimeReceiptLines = runtimeLogs
+				.join("")
+				.split(/\r?\n/)
+				.filter((line) => line.includes("NIGHTLY_RUNTIME_HERMETIC_EVIDENCE="));
+			if (runtimeReceiptLines.length !== 1) {
+				fail(`runtime emitted ${runtimeReceiptLines.length} hermetic receipts (expected exactly 1)`);
+			}
+			const rawReceipt = (runtimeReceiptLines[0] ?? "").split("NIGHTLY_RUNTIME_HERMETIC_EVIDENCE=")[1] ?? "";
+			const hermeticEvidence = parseNightlyHermeticEvidence(rawReceipt);
+			console.log(`NIGHTLY_HERMETIC_EVIDENCE=${JSON.stringify(hermeticEvidence)}`);
+		}
 
 		// 4) Seed a dev-test scenario against the RUNNING runtime and monitor to a classified outcome.
 		const seed = spawn(
@@ -460,8 +505,8 @@ async function main(): Promise<void> {
 					...process.env,
 					HOME: home,
 					NODE_ENV: "development",
-					NKLEIN_RUNTIME_PORT: String(RUNTIME_PORT),
-					KANBAN_RUNTIME_PORT: String(RUNTIME_PORT),
+					NKLEIN_RUNTIME_PORT: String(activeRuntimePort),
+					KANBAN_RUNTIME_PORT: String(activeRuntimePort),
 					...simulatedFleetEnv,
 				},
 				stdio: ["ignore", "pipe", "pipe"],

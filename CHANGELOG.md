@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Nightly cells now prove their runtime is hermetic before they can pass.** A typed receipt binds loopback aimock,
+  fake loaded-model discovery, offline sandboxes, disabled updates, deterministic clock/mtime/power sources, and
+  disabled ambient watchdog/trigger timing. Runtime ports are assigned atomically by the kernel and published after
+  bind, eliminating free-port probe races and accidental reuse of a stale !Klein server.
+
 - **Nightly coverage now binds manifest claims to the exact simulator recording bytes it served.** The first tranche
   is selected reproducibly as the ten cheapest complete perfect+flaky scenario sets, every cell resolves an exact
   fixture and recording-set id, and the drain emits a SHA-256 receipt that the parent validates again before granting

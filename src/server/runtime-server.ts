@@ -70,6 +70,11 @@ import { ModelTurnAdmissionWaitQueue } from "../core/model-turn-admission-wait-q
 import { planMutationAdequacy } from "../core/mutation-adequacy-plan";
 import { createNestedModelTurnAdmissionGate } from "../core/nested-model-turn-admission";
 import {
+	buildNightlyHermeticEvidence,
+	isNightlyHermeticEnvironment,
+	NIGHTLY_HERMETIC_EPOCH_MS,
+} from "../core/nightly-hermeticity";
+import {
 	decideOpportunisticIdleWork,
 	findMemoryAuditCandidates,
 	findReviewCandidateTaskIds,
@@ -87,6 +92,7 @@ import { detectSystemPowerMode } from "../core/power-aware-timeout";
 import { assessRewardHackSignals } from "../core/reward-hack-signals";
 import type { RuntimeBuildIdentity } from "../core/runtime-build-identity";
 import {
+	adoptKanbanRuntimeBoundPort,
 	buildKanbanRuntimeUrl,
 	getKanbanRuntimeHost,
 	getKanbanRuntimeOrigin,
@@ -314,9 +320,19 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// Silence the external `ai` package's per-call "system messages in the prompt" warning (we pass them by
 	// design) and log the rationale once, so it stops flooding the runtime log and burying the useful lines.
 	configureNKleinAiSdkWarnings(deps.warn);
+	const nightlyHermetic = isNightlyHermeticEnvironment();
 	// §5.Y #8: compute remote-mode confinement roots once at startup.
 	const isRemoteMode = isKanbanRemoteHost();
 	const globalConfig = await loadGlobalRuntimeConfig();
+	const runtimeHermeticEvidence = nightlyHermetic
+		? buildNightlyHermeticEvidence({
+				env: process.env,
+				modelGatewayUrl: process.env.NKLEIN_NIGHTLY_MODEL_GATEWAY_URL ?? "",
+				lmsBin: process.env.NKLEIN_LMS_BIN ?? "",
+				sandboxCapabilityPreset: globalConfig.agentRulesets?.capability.globalPreset ?? "",
+				runtimePortMode: getKanbanRuntimePort() === 0 ? "ephemeral" : "fixed",
+			})
+		: null;
 	const managedSearchBackend = new ManagedSearchBackendController(createDockerManagedSearchBackend());
 	const withSearchBackend = async <T>(operation: (backendUrl: string) => Promise<T>): Promise<T> => {
 		const config = await loadGlobalRuntimeConfig();
@@ -3156,6 +3172,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				startBoardLivenessWatchdog({
 					intervalMs: BOARD_LIVENESS_TICK_MS,
 					snapshotTimeoutMs: BOARD_LIVENESS_SNAPSHOT_TIMEOUT_MS,
+					automaticTicks: !nightlyHermetic,
 					loadSnapshot: async () => {
 						if ((await readSwarmStopSignal(scope.workspacePath)) !== null) {
 							return { status: "skipped", reason: "swarm_stopped" } as const;
@@ -3352,7 +3369,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							}).catch(() => []);
 							// F3.19: detect the host power mode ONCE per tick (only when there are running cards). Feeds the
 							// speed+power-aware liveness budget so a slow local model in low power isn't falsely flagged.
-							const troublePowerMode = await detectSystemPowerMode().catch(() => "unknown" as const);
+							const troublePowerMode = nightlyHermetic
+								? ("unknown" as const)
+								: await detectSystemPowerMode().catch(() => "unknown" as const);
 							const notifiedKinds =
 								troubleNotifiedKindByWorkspaceId.get(scope.workspaceId) ?? new Map<string, string>();
 							troubleNotifiedKindByWorkspaceId.set(scope.workspaceId, notifiedKinds);
@@ -3480,13 +3499,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							// cross-project endpoint contention (live-seen 2026-07-10 — no outcome, no capacity
 							// warning). Expire the dedup entry after the review budget so a still-verdict-less card
 							// gets another attempt instead of a permanent one-shot.
-							const rescueRetryTimer = setTimeout(
-								() => {
-									idleReviewDispatchedByWorkspaceId.get(scope.workspaceId)?.delete(stalledReviewTaskId);
-								},
-								12 * 60 * 1000,
-							);
-							rescueRetryTimer.unref?.();
+							if (!nightlyHermetic) {
+								const rescueRetryTimer = setTimeout(
+									() => {
+										idleReviewDispatchedByWorkspaceId.get(scope.workspaceId)?.delete(stalledReviewTaskId);
+									},
+									12 * 60 * 1000,
+								);
+								rescueRetryTimer.unref?.();
+							}
 							deps.warn(
 								`Board-liveness watchdog: ${stalledReviewTaskIds.length} verdict-less review card(s) with no live session for ${scope.workspacePath} — dispatching the stalled review for ${stalledReviewTaskId}.`,
 							);
@@ -4604,7 +4625,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				workspacePath: entry.repoPath,
 			}).catch(() => undefined);
 		},
-		now: () => Date.now(),
+		now: () => (nightlyHermetic ? NIGHTLY_HERMETIC_EPOCH_MS : Date.now()),
 		randomUuid: () => randomUUID(),
 	};
 
@@ -4933,6 +4954,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	if (!address || typeof address === "string") {
 		throw new Error("Failed to start local server.");
 	}
+	// `--port ephemeral`: publish the kernel-assigned port only AFTER listen(0) owns it atomically. This removes
+	// probe→release→bind races and stale-server reuse from hermetic harnesses while keeping normal fixed/auto intact.
+	adoptKanbanRuntimeBoundPort(address.port);
+	if (runtimeHermeticEvidence) {
+		deps.warn(`NIGHTLY_RUNTIME_HERMETIC_EVIDENCE=${JSON.stringify(runtimeHermeticEvidence)}`);
+	}
 	const activeWorkspaceId = deps.workspaceRegistry.getActiveWorkspaceId();
 	const url = activeWorkspaceId
 		? buildKanbanRuntimeUrl(`/${encodeURIComponent(activeWorkspaceId)}`)
@@ -4982,7 +5009,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		listWorkspaces: triggerIntakeDeps.listWorkspaces,
 		intakeDeps: triggerIntakeDeps,
 		log: (line) => deps.warn(line),
-		now: () => Date.now(),
+		now: () => (nightlyHermetic ? NIGHTLY_HERMETIC_EPOCH_MS : Date.now()),
+		automaticTicks: !nightlyHermetic,
+		enableFileWatches: !nightlyHermetic,
 	});
 	void externalTriggerScheduler.reconcileNow().catch(() => undefined);
 
