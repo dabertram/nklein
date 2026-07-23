@@ -5,11 +5,17 @@ import { parseMcpSuggestionText } from "@/components/runtime-settings-mcp-parsin
 describe("parseMcpSuggestionText", () => {
 	it("parses a single streamableHttp server object", () => {
 		const result = parseMcpSuggestionText(
-			JSON.stringify({ name: "ctx7", type: "streamableHttp", url: "https://mcp.example.com/mcp" }),
+			JSON.stringify({
+				name: "ctx7",
+				type: "streamableHttp",
+				url: "https://mcp.example.com/mcp",
+				description: "library documentation and API lookup",
+			}),
 		);
 		expect(result).toHaveLength(1);
 		expect(result[0]?.server).toMatchObject({
 			name: "ctx7",
+			description: "library documentation and API lookup",
 			type: "streamableHttp",
 			url: "https://mcp.example.com/mcp",
 			disabled: false,

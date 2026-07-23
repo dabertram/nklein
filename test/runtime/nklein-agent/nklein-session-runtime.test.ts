@@ -313,7 +313,8 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		await runtime.startTaskSession({
 			taskId: "task-mcp-controls",
 			cwd: "/workspaces/task-mcp-controls",
-			prompt: "Inspect it",
+			prompt: "Retry with focused guidance",
+			sourcePrompt: "Inspect the repository graph",
 			providerId: "lmstudio",
 			modelId: "phi-4-mini-instruct",
 			systemPrompt: "system",
@@ -326,7 +327,10 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		});
 
 		expect(mcpRuntimeService.createToolBundle).toHaveBeenCalledWith(
-			expect.objectContaining({ sandboxMcpServerControls: controls }),
+			expect.objectContaining({
+				sandboxMcpServerControls: controls,
+				taskText: "Inspect the repository graph",
+			}),
 		);
 		await runtime.dispose();
 	});

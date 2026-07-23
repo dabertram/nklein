@@ -15,6 +15,7 @@ const stringRecordSchema = z.record(z.string(), z.string());
 const persistedServerBaseSchema = z.object({
 	type: z.enum(["stdio", "sse", "streamableHttp"]).optional(),
 	transportType: z.enum(["stdio", "sse", "http", "streamableHttp"]).optional(),
+	description: z.string().optional(),
 	disabled: z.boolean().optional(),
 });
 
@@ -65,10 +66,12 @@ function normalizeRecord(record: Record<string, string> | undefined): Record<str
 
 function normalizeServer(server: RuntimeNKleinMcpServer): RuntimeNKleinMcpServer {
 	const name = server.name.trim();
+	const description = server.description?.trim() || undefined;
 	if (server.type === "stdio") {
 		const args = server.args?.map((value) => value.trim()).filter((value) => value.length > 0);
 		return {
 			name,
+			...(description ? { description } : {}),
 			disabled: server.disabled,
 			type: "stdio",
 			command: server.command.trim(),
@@ -80,6 +83,7 @@ function normalizeServer(server: RuntimeNKleinMcpServer): RuntimeNKleinMcpServer
 
 	return {
 		name,
+		...(description ? { description } : {}),
 		disabled: server.disabled,
 		type: server.type,
 		url: server.url.trim(),
@@ -127,6 +131,7 @@ function parseSettingsFile(filePath: string): RuntimeNKleinMcpServer[] {
 		if ("command" in raw) {
 			return {
 				name,
+				description: raw.description,
 				disabled: raw.disabled === true,
 				type: "stdio",
 				command: raw.command,
@@ -139,6 +144,7 @@ function parseSettingsFile(filePath: string): RuntimeNKleinMcpServer[] {
 		const resolvedType = resolveUrlServerType(raw);
 		return {
 			name,
+			description: raw.description,
 			disabled: raw.disabled === true,
 			type: resolvedType,
 			url: raw.url,
@@ -177,6 +183,7 @@ export function createNKleinMcpSettingsService(): NKleinMcpSettingsService {
 							{
 								type: "stdio" as const,
 								command: server.command,
+								...(server.description ? { description: server.description } : {}),
 								...(server.args ? { args: server.args } : {}),
 								...(server.cwd ? { cwd: server.cwd } : {}),
 								...(server.env ? { env: server.env } : {}),
@@ -190,6 +197,7 @@ export function createNKleinMcpSettingsService(): NKleinMcpSettingsService {
 						{
 							type: server.type,
 							url: server.url,
+							...(server.description ? { description: server.description } : {}),
 							...(server.headers ? { headers: server.headers } : {}),
 							...(server.disabled ? { disabled: true } : {}),
 						},

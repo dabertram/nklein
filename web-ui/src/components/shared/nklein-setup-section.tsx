@@ -757,6 +757,7 @@ export function NKleinSetupSection({
 														if (nextType === "stdio") {
 															return {
 																name: current.name,
+																description: current.description,
 																disabled: current.disabled,
 																type: "stdio",
 																command: "",
@@ -764,6 +765,7 @@ export function NKleinSetupSection({
 														}
 														return {
 															name: current.name,
+															description: current.description,
 															disabled: current.disabled,
 															type: nextType,
 															url: "",
@@ -867,6 +869,22 @@ export function NKleinSetupSection({
 											/>
 										</div>
 									)}
+
+									<div className="min-w-0 mt-2">
+										<p className="text-text-secondary text-[12px] mt-0 mb-1">Task relevance</p>
+										<input
+											value={server.description ?? ""}
+											onChange={(event) => {
+												updateMcpServer(serverIndex, (current) => ({
+													...current,
+													description: event.target.value,
+												}));
+											}}
+											placeholder="What tasks need this server? Blank keeps it available."
+											disabled={mcpControlsDisabled}
+											className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none"
+										/>
+									</div>
 
 									{oauthSupported ? (
 										<div className="mt-2">

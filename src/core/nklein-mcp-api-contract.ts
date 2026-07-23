@@ -7,6 +7,8 @@ import { runtimeNKleinMcpServerAuthStatusSchema } from "./stream-events-api-cont
 
 const runtimeNKleinMcpServerBaseSchema = z.object({
 	name: z.string(),
+	/** Optional trusted task vocabulary for host-side server selection. Blank/absent preserves legacy always-register. */
+	description: z.string().optional(),
 	disabled: z.boolean(),
 });
 

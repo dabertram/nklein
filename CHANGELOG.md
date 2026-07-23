@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **MCP servers can now be selected before their clients connect.** Curated servers carry trusted task-relevance
+  metadata, and user-configured servers can describe their relevant tasks in Settings. !Klein uses the original card
+  text to avoid registering irrelevant servers, while legacy/underspecified configurations fail open and no-match
+  decisions abstain rather than removing capabilities arbitrarily.
+
 - **Agent-written tests now receive honest, sandboxed mutation-adequacy evidence.** When a reviewed delivery changes
   tests, !Klein deterministically mutates up to 12 changed implementation lines and reruns the persisted acceptance
   command from a fresh clone of the exact result commit for every mutant. The ledger records killed, survived, error,

@@ -2896,3 +2896,14 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   Kotlin, C/C++, C#, Ruby, and PHP conventions. Verified with 22 focused assertions, backend typecheck, the complete
   12,319-test fast suite, 143 protected tests, and all five real-Docker sandbox integration tests; lint reports no
   errors.
+
+- [x] **F12.18c — MCP server relevance pre-pick** *(split from F12.18b and delivered 2026-07-23).* The host now
+  selects relevant MCP servers from the original card text before it creates an MCP client or calls
+  `registerServer`, so irrelevant schemas never enter the session and no needless connection is opened. Curated
+  sandbox servers carry trusted task vocabulary; user-configured servers expose the same optional metadata in Settings
+  and persistence. Legacy configurations without metadata fail open, while an empty/no-match decision abstains and
+  retains the complete eligible set rather than dropping by declaration order. Selection evidence records selected,
+  withheld, and arbitrary sets. Existing model-fit, memory-fit, opt-in, per-project controls, surface pinning, output
+  caps, and egress policy still run at their original boundaries. Verified with 71 focused backend assertions, 13 web
+  assertions, backend/web typechecks, the complete 12,324-test fast suite, 143 protected tests, and lint with zero
+  errors (19 pre-existing warnings and one info).

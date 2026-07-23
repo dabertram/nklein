@@ -28,6 +28,8 @@ export interface SandboxMcpServerDef {
 	id: string;
 	/** Display label for logs / UI. */
 	label: string;
+	/** Host-trusted task vocabulary used to decide whether to create this server's MCP client for a card. */
+	relevanceDescription: string;
 	/**
 	 * The argv to launch the server INSIDE the container (the binary is baked into the sandbox image). The first element
 	 * is the in-container executable (e.g. `mcp-server-sequential-thinking`); it speaks MCP over stdio.
@@ -59,6 +61,7 @@ export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 	{
 		id: "sequential-thinking",
 		label: "Sequential Thinking",
+		relevanceDescription: "plan reason analyze decompose architecture design strategy complex review",
 		inContainerArgv: ["mcp-server-sequential-thinking"],
 		fit: SEQUENTIAL_THINKING_FIT,
 		// A stateless reasoning scaffold (no embeddings/index) — a small node process; conservatively 256 MB.
@@ -68,6 +71,8 @@ export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 	{
 		id: "codebase-memory",
 		label: "Codebase Memory",
+		relevanceDescription:
+			"code repository symbol function class reference caller callee architecture graph search inspect locate implementation",
 		// The static binary is baked into the image (§5.AR — `codebase-memory-mcp@0.9.0`, see docker/agent-sandbox/
 		// Dockerfile). Bare invocation speaks stdio MCP (matches its published client config `args: []`).
 		inContainerArgv: ["codebase-memory-mcp"],
@@ -80,6 +85,7 @@ export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 	{
 		id: "basic-memory",
 		label: "Basic Memory",
+		relevanceDescription: "memory notes recall remember prior decision history lesson gotcha knowledge",
 		// §5.AR authored markdown-graph memory, baked into the image (uv tool install basic-memory==0.22.1, see docker/
 		// agent-sandbox/Dockerfile). `basic-memory mcp` forces STDIO (the published image CMD defaults to an SSE server).
 		// A failed connect degrades gracefully (createToolBundle try/catch → warning), so this is safe pre-rebuild.

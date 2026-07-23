@@ -8,6 +8,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { toErrorMessage } from "../core/error-message";
 import type { LocalizationProvider } from "../core/localization-provider";
 import { createMcpLocalizationProvider } from "../core/mcp-localization-provider";
+import { preselectMcpServers } from "../core/mcp-server-relevance-gate";
 import { computeToolSurfaceHash } from "../core/mcp-tool-surface-pin";
 import { stampMemoryWriteProvenance } from "../core/memory-audit-production";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint";
@@ -175,6 +176,8 @@ export interface NKleinMcpToolBundle {
 export interface NKleinMcpToolBundleOptions {
 	/** The task's model id — drives the "for models where it fits" gate over the curated sandbox servers. */
 	modelId?: string;
+	/** Original card text used for the host-side MCP server pre-pick before any connection is registered. */
+	taskText?: string | null;
 	/** The task's sandbox `docker exec` target; when present + a curated server fits, its tools are added. */
 	sandboxExecTarget?: SandboxExecTarget | null;
 	/**
@@ -788,7 +791,7 @@ export function createNKleinMcpRuntimeService(
 			if (effectiveControls["basic-memory"]) {
 				enabledOptIns.add("basic-memory");
 			}
-			const curatedServers =
+			const eligibleCuratedServers =
 				bundleOptions?.sandboxExecTarget && bundleOptions.modelId
 					? filterSandboxMcpServersByControl(
 							filterEnabledSandboxServers(
@@ -820,6 +823,48 @@ export function createNKleinMcpRuntimeService(
 							)
 					: [];
 
+			const eligibleConfiguredServers = loadedSettings.servers.filter(
+				(server) => !server.disabled && server.type !== "stdio",
+			);
+			const serverPreselection = preselectMcpServers({
+				taskText: bundleOptions?.taskText,
+				servers: [
+					...eligibleConfiguredServers.map((server) => ({
+						id: `configured:${server.name}`,
+						name: server.name,
+						description: server.description,
+						kind: "configured" as const,
+						server,
+					})),
+					...eligibleCuratedServers.map((server) => ({
+						id: `curated:${server.id}`,
+						name: server.label,
+						description: server.relevanceDescription,
+						kind: "curated" as const,
+						server,
+					})),
+				],
+			});
+			const selectedConfiguredServers = serverPreselection.selected
+				.filter((candidate) => candidate.kind === "configured")
+				.map((candidate) => candidate.server as RuntimeNKleinMcpServer);
+			const curatedServers = serverPreselection.selected
+				.filter((candidate) => candidate.kind === "curated")
+				.map((candidate) => candidate.server as SandboxMcpServerDef);
+			if (serverPreselection.withheld.length > 0 || bundleOptions?.taskText) {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: serverPreselection.reason,
+					metadata: {
+						category: "mcp_server_prepick",
+						arbitrary: serverPreselection.arbitrary,
+						selected: serverPreselection.selected.map((candidate) => candidate.id),
+						withheld: serverPreselection.withheld.map((candidate) => candidate.id),
+					},
+				});
+			}
+
 			if (loadedSettings.servers.length === 0 && curatedServers.length === 0) {
 				return {
 					tools: [],
@@ -837,10 +882,7 @@ export function createNKleinMcpRuntimeService(
 				}
 			}
 
-			for (const server of loadedSettings.servers) {
-				if (server.type === "stdio") {
-					continue;
-				}
+			for (const server of selectedConfiguredServers) {
 				await manager.registerServer(toMcpRegistration(server));
 			}
 
@@ -953,10 +995,7 @@ export function createNKleinMcpRuntimeService(
 				);
 			};
 
-			for (const server of loadedSettings.servers) {
-				if (server.disabled || server.type === "stdio") {
-					continue;
-				}
+			for (const server of selectedConfiguredServers) {
 				try {
 					const serverTools = await createSdkMcpTools({
 						serverName: server.name,

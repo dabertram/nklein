@@ -44,6 +44,7 @@ function parseAddableMcpServer(value: unknown): ParsedMcpSuggestion | null {
 		label: stringField(record, "title") || stringField(record, "label") || name,
 		server: {
 			name,
+			...(stringField(record, "description") ? { description: stringField(record, "description") } : {}),
 			disabled: false,
 			type,
 			url: parsedUrl.toString(),

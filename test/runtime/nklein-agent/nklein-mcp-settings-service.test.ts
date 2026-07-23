@@ -48,6 +48,7 @@ describe("NKleinMcpSettingsService — save/load round-trip", () => {
 		const servers: RuntimeNKleinMcpServer[] = [
 			{
 				name: " zeta ",
+				description: " repository code navigation ",
 				disabled: false,
 				type: "stdio",
 				command: " run ",
@@ -61,7 +62,13 @@ describe("NKleinMcpSettingsService — save/load round-trip", () => {
 		const loaded = svc().loadSettings();
 		expect(loaded.servers.map((s) => s.name)).toEqual(["alpha", "zeta"]); // sorted by name
 		const zeta = loaded.servers.find((s) => s.name === "zeta");
-		expect(zeta).toMatchObject({ type: "stdio", command: "run", args: ["a", "b"], env: { K: "v" } });
+		expect(zeta).toMatchObject({
+			type: "stdio",
+			description: "repository code navigation",
+			command: "run",
+			args: ["a", "b"],
+			env: { K: "v" },
+		});
 		const alpha = loaded.servers.find((s) => s.name === "alpha");
 		expect(alpha).toMatchObject({ type: "sse", url: "https://x.example/mcp", disabled: true });
 	});

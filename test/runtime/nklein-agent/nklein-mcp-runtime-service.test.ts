@@ -268,6 +268,47 @@ describe("createNKleinMcpRuntimeService", () => {
 		await bundle.dispose();
 	});
 
+	it("preselects relevant remote MCP servers before registration and keeps legacy metadata fail-open", async () => {
+		if (!process.env.NKLEIN_MCP_SETTINGS_PATH) {
+			throw new Error("Expected MCP settings path to be configured.");
+		}
+		await writeFile(
+			process.env.NKLEIN_MCP_SETTINGS_PATH,
+			JSON.stringify({
+				mcpServers: {
+					graph: {
+						type: "streamableHttp",
+						url: "https://graph.example.com/mcp",
+						description: "repository code symbol caller graph",
+					},
+					memory: {
+						type: "streamableHttp",
+						url: "https://memory.example.com/mcp",
+						description: "memory notes history recall",
+					},
+					legacy: {
+						type: "streamableHttp",
+						url: "https://legacy.example.com/mcp",
+					},
+				},
+			}),
+		);
+		const managers: FakeMcpManager[] = [];
+		const service = createNKleinMcpRuntimeService({
+			createMcpManager: (options) => {
+				const manager = new FakeMcpManager(options);
+				managers.push(manager);
+				return manager;
+			},
+		});
+
+		const bundle = await service.createToolBundle({ taskText: "Find every caller of this repository symbol" });
+
+		expect(managers[0]?.registrations.map((registration) => registration.name)).toEqual(["graph", "legacy"]);
+		expect(managers[0]?.registrations.map((registration) => registration.name)).not.toContain("memory");
+		await bundle.dispose();
+	});
+
 	it("§5.BB basic-memory opt-in: offered only when the caller's setting (or the env override) enables it", async () => {
 		const previousEnv = process.env.NKLEIN_BASIC_MEMORY;
 		delete process.env.NKLEIN_BASIC_MEMORY;

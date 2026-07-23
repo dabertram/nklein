@@ -33,13 +33,13 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-22, during F11.3 calibrated-tranche work):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-23, during F11.3 calibrated-tranche work):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 156-package remainder is **67 ready + 1 partial + 73 dependency-blocked + 7 external/
+  gate below is green. The current 154-package remainder is **64 ready + 1 partial + 74 dependency-blocked + 7 external/
 user-gated + 8 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
-gates immediately below; all eight `[?]` rows name the required operator decision, credential, machine, or live-fleet
+gates immediately below; all seven `[?]` rows name the required operator decision, credential, machine, or live-fleet
 condition. The sole partial is F11.3 and names its remaining language/tranche/control work inline.
 
 Broad blocked phases inherit these named gates (an item's narrower inline gate is additional):
@@ -483,6 +483,12 @@ gap remains.
 > only bounded `BaseEnvironment.exec` results into the native !Klein session, and let Harbor verify after the session
 > returns. Prove the adapter protocol against the exact pinned Harbor API before pulling images; compatibility green is
 > still not task-quality evidence, so retain matched oracle and agent result directories separately.
+
+> **⚠️ MCP SERVER RELEVANCE MUST BE DECIDED BY THE HOST BEFORE REGISTRATION (F12.18c, 2026-07-23).** MCP creates one
+> client/connection per server, and tool discovery happens only after initialization; connecting every server and then
+> hiding its schemas is not a server pre-pick. Use trusted host-side task-relevance metadata before `registerServer`.
+> A legacy/user server without metadata fails open, and a task with no positive described match abstains and retains the
+> full eligible set. Incomplete metadata is never permission to silently remove a capability.
 
 > **⚠️ REQUEST POLICY WRAPS RECOVERY; RECOVERY MUST NOT WRAP REQUEST POLICY (F4.15, 2026-07-21).** Apply a session's
 > skill/API profile once to the baseline `AgentModelRequest`, then hand that request to the adaptive recovery model.
@@ -4138,17 +4144,13 @@ output and NOT acted on. Captured as F12.12.)
   **SPLIT MATERIALIZED 2026-07-20** — the gate + its observation wire are complete and are this item's core
   scope; enforcement is deliberately gated on evidence (Phase 15), which makes it a separate package rather than
   an open remainder.
-- [ ] **F12.18b — Enforce the tool gate + MCP server pre-pick *(split from F12.18 2026-07-20)*.**
-  (a) **Flip observe → ENFORCING**, but only once P15.2 reports the drop rate and the `arbitrary` rate from
+- [>] **F12.18b — Enforce the tool gate *(split from F12.18 2026-07-20; waits on P15.2 evidence).***
+  **Flip observe → ENFORCING**, but only once P15.2 reports the drop rate and the `arbitrary` rate from
   `tool_catalog_gate_observation`. **Do not flip on intuition:** withholding a tool the model needed is a
   turn-level failure, and the gate itself reports when its ranking was arbitrary — enforcing while the arbitrary
   rate is high would drop tools by declaration order, which is not a policy anyone chose. Needs the real
   per-role `alwaysKeep` set wired from the tool registry (today it is a caller-supplied list), and that set is
   the deadlock guard, so it must be correct BEFORE enforcement, not after.
-  (b) **MCP SERVER-level pre-pick** (routed here from F12.66): decline to REGISTER an irrelevant server at all,
-  so its schemas never enter the context — the same retrieval decision one turn earlier and strictly cheaper than
-  narrowing after load. Registration-time change in `nklein-mcp-runtime-service`, composing with F12.31's surface
-  pinning already at both registration sites.
   **🔴 THE OBSERVATION WAS NOT MEASURING THE ENFORCING CONFIGURATION (found + fixed 2026-07-20).** This item says
   *"do not flip on intuition — wait for the drop rate"*. **But the observe-only gate passed NO `alwaysKeep` at
   all**, so it measured a gate that would drop even the tool a turn needs to FINISH. That drop rate is

@@ -49,9 +49,11 @@ function normalizeRecord(record: Record<string, string> | undefined): Record<str
 }
 
 function normalizeMcpServer(server: RuntimeNKleinMcpServer): RuntimeNKleinMcpServer {
+	const description = server.description?.trim() || undefined;
 	if (server.type === "stdio") {
 		return {
 			name: server.name.trim(),
+			...(description ? { description } : {}),
 			disabled: server.disabled,
 			type: "stdio",
 			command: server.command.trim(),
@@ -63,6 +65,7 @@ function normalizeMcpServer(server: RuntimeNKleinMcpServer): RuntimeNKleinMcpSer
 
 	return {
 		name: server.name.trim(),
+		...(description ? { description } : {}),
 		disabled: server.disabled,
 		type: server.type,
 		url: server.url.trim(),
