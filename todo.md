@@ -366,6 +366,16 @@ gap remains.
 > underlying session on arbitration loss or timeout regardless of presentation state. Keep state-gated cancellation
 > for user-visible turn semantics; neither use it nor a busy-summary filter as resource-lifecycle authority.
 
+> **⚠️ A FUTURE ASYNC OBLIGATION MUST BE DECLARED AT ITS CAUSAL BOUNDARY AND CONSUMED EXACTLY ONCE (N7d,
+> 2026-07-23).** A review bounce promises another worker turn and another sandbox capture. Marking that promise only
+> after the bounce callback returns is too late: the callback first persists `review -> in_progress`, and a late
+> terminal stop can interrupt the old session before the new send. Retaining the workspace alone is also insufficient
+> if stop deletes the launch recipe; accepting `interrupted` broadly is unsafe; and a never-consumed marker pins the
+> finished sandbox forever. The complete transaction is: mark before exposing the bounce, preserve workspace + launch
+> state only while that marker exists, admit an interrupted send only under that marker, and consume it when the owed
+> capture transaction starts (whose finalizing lease then owns teardown). Re-arm on every bounce. Tests must exercise
+> at least two cycles; a single bounce cannot reveal this third-round failure class.
+
 > **⚠️ A ROLLBACK MUST REPLACE THE MUTATED TREE, NOT MERGE A BACKUP INTO IT (F5.6b, 2026-07-22).** Recursive
 > copy-with-overwrite restores changed files but silently preserves every file introduced by the failed migration.
 > Build the full restore in a sibling directory, strip backup-only metadata there, rename the live tree aside, and
@@ -6582,6 +6592,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   and yield a confident, meaningless verdict. Unparseable lines are counted and the summary says the total is a
   **floor**, not a complete count.
 - [ ] **N7d — `01 × perfect` LEAVES 14 OF 42 CARDS UNDRAINED — a real product finding, not a stale assertion.**
+  **ROOT FIX IMPLEMENTED 2026-07-23; LIVE CELL RE-PROOF PENDING THE ACTIVE F11 CAMPAIGN'S DOCKER RELEASE.** The
+  earlier option-B marker was correctly motivated but attached after `runSecondOpinionReviewForTask` returned — after
+  its bounce callback had already persisted `review -> in_progress` and attempted the next send. It also retained the
+  workspace while `stopTaskSession` deleted the launch recipe, did not admit the resulting `interrupted` state, and was
+  never consumed after the owed capture (a terminal workspace leak). The obligation now arms inside `onBounce` before
+  persistence, stop preserves sandbox + launch/skill restart state only while it is owed, interrupted input is admitted
+  only under that obligation, and the finalizer consumes it at capture start before its own lifecycle lease takes over.
+  Deterministic regressions cover two consecutive bounce/stop/restart cycles, marker-before-persist/send ordering, and
+  post-capture terminal cleanup. Focused runner + task-session suites: 172/172 green; typecheck green. Remaining closure
+  is one real `01 × perfect` drain after the campaign releases Docker, then move this item to `done.md`.
   **DIAGNOSED 2026-07-20 with the persisted evidence** (the `seed-monitor.log` fix from the same session worked —
   the full counts survived the failure this time):
   ```

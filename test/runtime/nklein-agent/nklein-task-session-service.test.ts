@@ -3784,6 +3784,130 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		);
 	});
 
+	it("restarts an interrupted review re-drive instead of silently dropping its owed turn", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-double-bounce",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Initial implementation",
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+		});
+		await waitForTaskSessionId(runtime, "task-double-bounce");
+		await waitForSettled(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1));
+		// The N7d race exists only after an earlier round has already captured: terminal salvage then sees the old
+		// result branch and does not own another capture, while the bounce marker says a NEW one is still owed.
+		(
+			service as unknown as {
+				sandboxState: {
+					setResultBranch: (
+						taskId: string,
+						branch: {
+							taskId: string;
+							branchName: string;
+							refName: string;
+							baseCommit: string;
+							headCommit: string;
+						},
+					) => void;
+				};
+			}
+		).sandboxState.setResultBranch("task-double-bounce", {
+			taskId: "task-double-bounce",
+			branchName: "nklein/tasks/task-double-bounce",
+			refName: "refs/heads/nklein/tasks/task-double-bounce",
+			baseCommit: "base-commit",
+			headCommit: "round-1-commit",
+		});
+
+		for (let bounce = 1; bounce <= 2; bounce += 1) {
+			service.markSandboxRecaptureExpected?.(
+				"task-double-bounce",
+				`review bounce ${bounce} — another capture is owed`,
+			);
+			const stopped = await service.stopTaskSession("task-double-bounce");
+			expect(stopped?.state).toBe("interrupted");
+			expect(sandboxManager.disposeWorkspaceMock).not.toHaveBeenCalled();
+
+			const startsBefore = runtime.startTaskSessionMock.mock.calls.length;
+			const redriven = await service.sendTaskSessionInput(
+				"task-double-bounce",
+				`Address review feedback ${bounce}`,
+				"act",
+			);
+			expect(redriven?.state).toBe("running");
+			await waitForSettled(() => {
+				expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(startsBefore + 1);
+			});
+			expect(runtime.startTaskSessionMock).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					taskId: "task-double-bounce",
+					providerId: "lmstudio",
+					modelId: "qwen3-8b",
+					prompt: `resolved:Address review feedback ${bounce}`,
+				}),
+			);
+		}
+	});
+
+	it("consumes a bounce recapture marker when its capture starts so terminal cleanup cannot leak the workspace", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-consumed-recapture",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Implement the reviewed change",
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-consumed-recapture");
+		service.markSandboxRecaptureExpected?.("task-consumed-recapture", "review bounce — another capture is owed");
+
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			text: "ready for another review",
+			reason: "completed",
+		});
+		await waitForSettled(() => {
+			expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalledTimes(1);
+			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledTimes(1);
+		});
+
+		await service.stopTaskSession("task-consumed-recapture");
+
+		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledTimes(2);
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "task-consumed-recapture",
+				metadata: expect.objectContaining({
+					category: "sandbox_workspace_disposed",
+					recaptureExpected: false,
+				}),
+			}),
+		);
+	});
+
 	it("aborts the provider turn when a redrive replaces an active attempt", async () => {
 		const { service, runtime } = createTrackedService();
 		await service.startTaskSession({

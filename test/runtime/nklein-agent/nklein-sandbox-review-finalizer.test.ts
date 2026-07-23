@@ -19,6 +19,7 @@ function sandboxState(over: Record<string, unknown> = {}) {
 		getRepoPath: vi.fn(() => "/repo"),
 		getBaseRef: vi.fn(() => "main"),
 		markFinalizing: vi.fn(),
+		clearRecaptureExpected: vi.fn(),
 		unmarkFinalizing: vi.fn(),
 		setResultBranch: vi.fn(),
 		...over,
@@ -97,6 +98,10 @@ describe("finalizeSandboxReview early-return guards (§5.U extraction)", () => {
 			),
 		).finalizeSandboxReview("t1");
 		expect(ss.markFinalizing).toHaveBeenCalledWith("t1");
+		expect(ss.clearRecaptureExpected).toHaveBeenCalledWith("t1");
+		expect(ss.markFinalizing.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY).toBeLessThan(
+			ss.clearRecaptureExpected.mock.invocationCallOrder[0] ?? 0,
+		);
 	});
 
 	it("releases task-scoped sandbox MCP resources before disposing a parked workspace", async () => {

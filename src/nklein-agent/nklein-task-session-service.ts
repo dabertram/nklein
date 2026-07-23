@@ -2572,10 +2572,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				return reboundSummary;
 			}
 		}
+		// N7d: snapshot the FUTURE obligation before reset/stop tears down task-local routing state. A review bounce
+		// can race a late terminal stop between `review -> in_progress` persistence and its next turn dispatch.
+		// That stop may interrupt the old SDK session, but it must retain both the sandbox and the launch recipe so
+		// the already-promised re-drive can restart rather than becoming an `in_progress` card with no turn.
+		const recaptureReason = this.sandboxState.recaptureExpectedReason(taskId);
 		this.resetInterruptedTaskState(taskId);
-		this.launchConfigByTaskId.delete(taskId);
-		this.communitySkillAdmissionByTaskId.delete(taskId);
-		this.communitySkillSuggestionFragmentByTaskId.delete(taskId);
+		if (recaptureReason === null) {
+			this.launchConfigByTaskId.delete(taskId);
+			this.communitySkillAdmissionByTaskId.delete(taskId);
+			this.communitySkillSuggestionFragmentByTaskId.delete(taskId);
+		}
 		if (options.abortActiveTurn) {
 			await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
 		} else {
@@ -2593,7 +2600,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// result branch exists" as "nothing left to salvage" then disposed the workspace the NEXT capture needs,
 		// which is how a bounced card reached `workspace_disposed_before_capture` and held in Review with 22
 		// dependents behind it. `recaptureExpectedReason` describes what is still OWED rather than what happened.
-		const recaptureReason = this.sandboxState.recaptureExpectedReason(taskId);
 		const finalizerOwnsSandboxTeardown =
 			entry.summary.state !== "idle" &&
 			Boolean(this.agentSandboxManager) &&
@@ -2707,7 +2713,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * workspace forever.
 	 */
 	markSandboxRecaptureExpected(taskId: string, reason: string): void {
-		this.sandboxState.markRecaptureExpected(taskId, reason);
+		// Only isolated tasks owe a sandbox recapture. Marking an in-process task would retain restart config with no
+		// sandbox finalizer capable of consuming the obligation.
+		if (this.sandboxState.hasSandbox(taskId)) {
+			this.sandboxState.markRecaptureExpected(taskId, reason);
+		}
 	}
 
 	/** Clear the recapture marker once the owed capture has settled. */
@@ -2841,12 +2851,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!entry) {
 			return null;
 		}
+		const interruptedRecaptureOwed =
+			entry.summary.state === "interrupted" && this.sandboxState.recaptureExpectedReason(taskId) !== null;
 		if (
 			entry.summary.state !== "running" &&
 			entry.summary.state !== "paused" &&
 			entry.summary.state !== "awaiting_review" &&
 			entry.summary.state !== "idle" &&
-			entry.summary.state !== "failed"
+			entry.summary.state !== "failed" &&
+			!interruptedRecaptureOwed
 		) {
 			return null;
 		}

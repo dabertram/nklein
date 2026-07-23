@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Repeated review bounces no longer strand a card between its lane transition and its next sandbox turn.** The
+  recapture obligation is now armed at the review-bounce boundary, survives a racing terminal stop together with the
+  exact launch recipe, admits only that owed interrupted re-drive, and is consumed when the next capture begins.
+  Consecutive-bounce regressions also prove terminal cleanup cannot leak a workspace through a stale obligation.
+
 - **Task evidence now keeps one host-scoped identity while agents work inside disposable sandbox paths.** Terminal
   attempts, focus transitions, task-run summaries, difficulty reads, and knowledge-debt reads derive their workspace
   from the persisted launch contract instead of the agent-facing `/workspaces/<taskId>` cwd. Reviewer-side scaffold,

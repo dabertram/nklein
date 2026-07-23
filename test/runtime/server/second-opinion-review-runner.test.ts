@@ -82,6 +82,7 @@ function makeDeps(overrides: {
 		preexistingRedecompose: overrides.preexistingRedecompose,
 		review: overrides.review,
 	});
+	const operationOrder: string[] = [];
 	const reviewerRole = {
 		providerId: "lmstudio",
 		modelId: "reviewer-model",
@@ -97,6 +98,7 @@ function makeDeps(overrides: {
 	const loadWorkspaceState = vi.fn(async () => ({ board })) as unknown as never;
 	const mutationResults: unknown[] = [];
 	const mutateWorkspaceState = vi.fn(async (_cwd: string, mutate: (state: { board: RuntimeBoardData }) => unknown) => {
+		operationOrder.push("persist");
 		const result = mutate({ board }) as { save?: boolean; value?: unknown };
 		mutationResults.push(result);
 		return { saved: result.save !== false, value: result.value };
@@ -109,9 +111,16 @@ function makeDeps(overrides: {
 			? ({ verdict: "approve", summary: "LGTM", feedback: null, insight: null } satisfies ReviewSubmissionInput)
 			: overrides.submission,
 	);
-	const sendTaskSessionInput = vi.fn(async (_taskId: string, _prompt: string, _mode?: string) => null);
+	const sendTaskSessionInput = vi.fn(async (_taskId: string, _prompt: string, _mode?: string) => {
+		operationOrder.push("send");
+		return null;
+	});
 	const cancelTaskTurn = vi.fn(async (_taskId: string) => null);
+	const markSandboxRecaptureExpected = vi.fn((_taskId: string, _reason: string) => {
+		operationOrder.push("mark");
+	});
 	return {
+		operationOrder,
 		mutationResults,
 		loadRuntimeConfig,
 		loadWorkspaceState,
@@ -120,6 +129,7 @@ function makeDeps(overrides: {
 		runSecondOpinionReviewSession,
 		sendTaskSessionInput,
 		cancelTaskTurn,
+		markSandboxRecaptureExpected,
 	};
 }
 
@@ -225,6 +235,7 @@ describe("runSecondOpinionReviewForTask", () => {
 			sendTaskSessionInput: deps.sendTaskSessionInput,
 			getSummary: () => null,
 			cancelTaskTurn: deps.cancelTaskTurn,
+			markSandboxRecaptureExpected: deps.markSandboxRecaptureExpected,
 		}) as unknown as never;
 
 	it("skips and never starts a session when review is disabled", async () => {
@@ -728,6 +739,38 @@ describe("runSecondOpinionReviewForTask", () => {
 		expect(call?.[0]).toBe("task-1");
 		expect(call?.[1]).toContain("Add a guard");
 		expect(call?.[2]).toBe("act");
+		expect(deps.markSandboxRecaptureExpected).toHaveBeenCalledWith(
+			"task-1",
+			"review bounced (request_changes) — a further worker round will capture again",
+		);
+		expect(deps.operationOrder.slice(-3)).toEqual(["mark", "persist", "send"]);
+	});
+
+	it("re-arms the recapture obligation before every repeated review bounce", async () => {
+		const deps = makeDeps({
+			submission: { verdict: "request_changes", summary: "Still wrong", feedback: "Try again", insight: null },
+		});
+		const input = {
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: service(deps),
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+		};
+
+		await expect(runSecondOpinionReviewForTask(input)).resolves.toMatchObject({ type: "bounced" });
+		await expect(runSecondOpinionReviewForTask(input)).resolves.toMatchObject({ type: "bounced" });
+
+		expect(deps.markSandboxRecaptureExpected).toHaveBeenCalledTimes(2);
+		expect(deps.sendTaskSessionInput).toHaveBeenCalledTimes(2);
+		for (let index = 0; index < 2; index += 1) {
+			const markerOrder =
+				deps.markSandboxRecaptureExpected.mock.invocationCallOrder[index] ?? Number.POSITIVE_INFINITY;
+			const sendOrder = deps.sendTaskSessionInput.mock.invocationCallOrder[index] ?? 0;
+			expect(markerOrder).toBeLessThan(sendOrder);
+		}
 	});
 
 	it("reroutes a reviewed empty patch to a diverse worker instead of bouncing to the no-op model again", async () => {

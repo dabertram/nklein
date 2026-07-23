@@ -161,6 +161,11 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 			return;
 		}
 		deps.getSandboxState().markFinalizing(taskId);
+		// N7d: the marker is a one-capture obligation, not a permanent "never dispose" bit. Consume it when the
+		// owed capture transaction STARTS. `isFinalizing` now owns teardown safety until the transaction settles.
+		// Clearing later would race a fast reviewer that already marked the NEXT bounce while post-capture cleanup
+		// was still finishing, erasing round N+1's obligation.
+		deps.getSandboxState().clearRecaptureExpected(taskId);
 		const finalization = (async () => {
 			let artifactSettled = false;
 			try {

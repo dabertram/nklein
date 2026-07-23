@@ -124,6 +124,7 @@ export interface RunSecondOpinionReviewForTaskInput {
 				| "cancelSpeculativeMirror"
 				| "isSecondOpinionReviewInFlight"
 				| "noteNextAttemptStrategy"
+				| "markSandboxRecaptureExpected"
 			>
 		>;
 	loadWorkspaceState?: typeof loadWorkspaceState;
@@ -1050,6 +1051,15 @@ export async function runSecondOpinionReviewForTask(
 				await persistReview(review);
 			},
 			onBounce: async ({ review, workerPrompt }) => {
+				// N7d: declare the owed capture at the ACTUAL bounce boundary, before the board mutation can expose
+				// `in_progress` to terminal/session cleanup. The old runtime-server call marked this only AFTER this
+				// callback returned — after persistReview and after the attempted send — so a late stop could interrupt
+				// the session in between and make sendTaskSessionInput silently decline the re-drive. Every bounce owns
+				// exactly one marker; the sandbox finalizer consumes it when that next capture begins.
+				input.service.markSandboxRecaptureExpected?.(
+					input.taskId,
+					"review bounced (request_changes) — a further worker round will capture again",
+				);
 				// Live F3.24b proof (2026-07-22): qwen3.5-9b handed off three empty patches. The first reviewed
 				// no-op was correctly rejected, but the ordinary bounce sent it straight back to the SAME model;
 				// after another no-op the card stranded in In Progress and froze the fan-in. An admitted empty patch
