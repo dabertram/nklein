@@ -126,6 +126,12 @@ gap remains.
 > unittest/Jest/Gradle commonly use 1); after trusted setup succeeds, any ordinary non-zero test-step exit is
 > `unresolved`, while an actual Docker transport/spawn/timeout failure is `error`. Six-language negative controls caught
 > and closed the former hard-coded `exitCode === 1` blind spot before candidate evidence was admitted.
+> **LIVECODEBENCH IS A DIRECT MODEL CONTROL, NOT A WORKFLOW SCORE (2026-07-23):** pin the official harness/release and
+> use its prompt formatter, extractor, and `custom_evaluator`; do not reinterpret the private test oracle. Dataset
+> caching is a separate explicit egress step, while generation/evaluation force Hugging Face offline mode and permit
+> only a local/private model endpoint. Every immutable report carries the model cutoff and classifies its date window;
+> a pre-cutoff or mixed window is contamination-limited matched evidence, never “fresh 2026” evidence, and even a
+> post-cutoff result measures direct Python coding capability rather than !Klein's repository-agent workflow.
 > **A REVIEWED BENCHMARK ARTIFACT NEED NOT MOVE HOST HEAD:** benchmark prompts are tainted, so the delivery gate may
 > correctly refuse a host merge. Score the single durable `refs/nklein/evidence/<task>-*` review artifact and pin that
 > exact commit under a separate immutable benchmark ref; never bypass the taint gate or manually copy sandbox files.
@@ -3766,8 +3772,8 @@ stays fast + complete.
   **Remainder:**
   A three-workspace candidate pilot was deliberately excluded from A/B evidence after it exposed cross-workspace
   speculative-mirror/reviewer contention; the root scheduler fix is landed and the matched campaign must run
-  sequentially against a fixed resident set. Run the calibrated 24-task repeated A/B tranche; add Terminal-Bench and
-  LiveCodeBench controls; obtain a native x86_64
+  sequentially against a fixed resident set. Run the calibrated 24-task repeated A/B tranche; add the Terminal-Bench
+  control and execute the now-shipped LiveCodeBench control against the matched resident fleet; obtain a native x86_64
   Docker runner for the quarterly Live tranche; then wire the calibrated delta gate/nightly evidence.
   - [ ] **F11.3g — Pin and run the repeatable regression tranche (delta, not absolute).** Select a fixed ~20–40 task
     fit-for-fleet set, complete ≥2 gold repeats, quarantine every unstable instance, snapshot the calibrated RESOLVED

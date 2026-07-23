@@ -2863,3 +2863,12 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   smoke minted one task, resolved gold, left a no-op unresolved, and kept an attempted private-test rewrite unresolved.
   Evidence: 35 focused assertions, backend/web typechecks, full 12,841/12,841, protected 142/142, and lint with zero
   errors (19 pre-existing warnings and one info).
+
+- [x] **F11.3k — pinned, cutoff-honest LiveCodeBench capability control** *(delivered 2026-07-23).* The official
+  LiveCodeBench harness is pinned at `28fef95e`, release v6/date window/scenario are explicit, and setup plus dataset
+  caching remain visible egress steps. The actual run is offline except for a validated loopback/private-LAN model
+  endpoint. !Klein uses the upstream prompt formatter/code extractor and `custom_evaluator`, then cross-checks aggregate
+  pass@1 against every n=1 problem grade and hashes the generation/metrics/eval-all inputs into an immutable report.
+  Model-cutoff classification prevents the April-2025 ceiling from being mislabeled as fresh evidence, and the report
+  says plainly that this is a direct Python coding control rather than a repository-agent score. Four focused core/CLI
+  assertions and backend typecheck pass. Matched real-fleet execution remains in the parent F11.3 campaign remainder.

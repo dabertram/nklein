@@ -129,6 +129,50 @@ describe("dev benchmark command", () => {
 		).rejects.toThrow(/fresh benchmark evidence/);
 	});
 
+	it("imports mutually consistent official LiveCodeBench evidence as an immutable capability control", async () => {
+		const root = await mkdtemp(join(tmpdir(), "nklein-bench-lcb-"));
+		const generations = join(root, "generations.json");
+		const metrics = join(root, "generations_codegen_output_eval.json");
+		const evalAll = join(root, "generations_codegen_output_eval_all.json");
+		const output = join(root, "control.json");
+		await writeFile(generations, JSON.stringify([{ question_id: "a", code_list: ["print(1)"] }]));
+		await writeFile(metrics, JSON.stringify([{ "pass@1": 1 }]));
+		await writeFile(evalAll, JSON.stringify([{ question_id: "a", graded_list: [true] }]));
+
+		await runDevBenchmarkCommand({
+			action: "livecodebench-report",
+			model: "local/model",
+			modelCutoff: "2024-12-31",
+			startDate: "2025-04-01",
+			endDate: "2025-04-30",
+			predictions: generations,
+			reports: `${metrics},${evalAll}`,
+			output,
+			write: () => undefined,
+		});
+		const report = JSON.parse(await readFile(output, "utf8"));
+		expect(report).toMatchObject({
+			kind: "model_capability_control",
+			cutoffStatus: "post_cutoff",
+			totalProblems: 1,
+			resolvedProblems: 1,
+			passAt1: 1,
+		});
+		await expect(
+			runDevBenchmarkCommand({
+				action: "livecodebench-report",
+				model: "local/model",
+				modelCutoff: "2024-12-31",
+				startDate: "2025-04-01",
+				endDate: "2025-04-30",
+				predictions: generations,
+				reports: `${metrics},${evalAll}`,
+				output,
+				write: () => undefined,
+			}),
+		).rejects.toThrow(/LiveCodeBench control report/);
+	});
+
 	it("grades local-minted predictions against a post-capture held-out oracle", async () => {
 		const root = await mkdtemp(join(tmpdir(), "nklein-bench-local-grade-"));
 		const dataset = join(root, "dataset.json");

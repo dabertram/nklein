@@ -1,4 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
+import { createHash } from "node:crypto";
 import { link, lstat, mkdir, readdir, readFile, rename, rm, statfs, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -19,6 +20,11 @@ import {
 } from "../core/aider-polyglot-grade-plan";
 import type { RuntimeTaskTestEvidencePolicy } from "../core/api-contract";
 import { buildFreshBenchmarkTrack, type FreshBenchmarkLeakageHit } from "../core/fresh-benchmark-track";
+import {
+	buildLiveCodeBenchControlReport,
+	PINNED_LIVECODEBENCH_COMMIT,
+	planLiveCodeBenchControl,
+} from "../core/livecodebench-control";
 import { buildLocalBenchmarkExecutionPrompt, LOCAL_BENCHMARK_PUBLIC_ACCEPTANCE } from "../core/local-benchmark-mint";
 import { getKanbanRuntimeOrigin, setKanbanRuntimeHost, setKanbanRuntimePort } from "../core/runtime-endpoint";
 import {
@@ -95,6 +101,7 @@ export interface DevBenchmarkOptions {
 	corpus?: string;
 	languages?: string;
 	maxWorkers?: string;
+	maxTokens?: string;
 	timeout?: string;
 	attempts?: string;
 	reports?: string;
@@ -110,6 +117,10 @@ export interface DevBenchmarkOptions {
 	harborPath?: string;
 	requiredFreeGb?: string;
 	storagePath?: string;
+	baseUrl?: string;
+	modelCutoff?: string;
+	startDate?: string;
+	endDate?: string;
 	runtimeHost?: string;
 	runtimePort?: string;
 	plan?: boolean;
@@ -1104,6 +1115,133 @@ async function terminalPreflight(options: DevBenchmarkOptions, deps: DevBenchmar
 	};
 }
 
+async function verifyPinnedLiveCodeBenchCheckout(path: string): Promise<void> {
+	const [head, status] = await Promise.all([
+		execFile("git", ["-C", path, "rev-parse", "HEAD"], { timeout: 10_000 }).then((result) => result.stdout.trim()),
+		execFile("git", ["-C", path, "status", "--porcelain"], { timeout: 10_000 }).then((result) =>
+			result.stdout.trim(),
+		),
+	]);
+	if (head !== PINNED_LIVECODEBENCH_COMMIT) {
+		throw new Error(`LiveCodeBench checkout must be pinned at ${PINNED_LIVECODEBENCH_COMMIT}; found ${head}.`);
+	}
+	if (status) throw new Error("LiveCodeBench checkout must be clean.");
+}
+
+async function liveCodeBenchPlan(options: DevBenchmarkOptions) {
+	if (
+		!options.python ||
+		!options.liveHarness ||
+		!options.baseUrl ||
+		!options.model ||
+		!options.modelCutoff ||
+		!options.startDate ||
+		!options.endDate ||
+		!options.output
+	) {
+		throw new Error(
+			"livecodebench-plan requires --python, --live-harness, --base-url, --model, --model-cutoff, --start-date, --end-date, and --output.",
+		);
+	}
+	const harnessPath = resolve(options.liveHarness);
+	await verifyPinnedLiveCodeBenchCheckout(harnessPath);
+	const controlPlan = planLiveCodeBenchControl({
+		pythonPath: resolve(options.python),
+		harnessPath,
+		runnerPath: resolve("scripts/run-livecodebench-control.py"),
+		apiBaseUrl: options.baseUrl,
+		model: options.model,
+		modelCutoff: options.modelCutoff,
+		startDate: options.startDate,
+		endDate: options.endDate,
+		outputPath: resolve(options.output),
+		maxTokens: integer(options.maxTokens, "max-tokens"),
+		timeoutSeconds: integer(options.timeout, "timeout"),
+		evaluationWorkers: integer(options.maxWorkers, "max-workers"),
+	});
+	if (!options.execute) return { action: "livecodebench-plan", plan: controlPlan };
+	const reportPath = `${resolve(options.output).slice(0, -5)}_control.json`;
+	const evidencePaths = [
+		controlPlan.generation.outputPath,
+		controlPlan.evaluation.metricsPath,
+		controlPlan.evaluation.evalAllPath,
+		reportPath,
+	];
+	for (const path of evidencePaths) {
+		await lstat(path)
+			.then(() => {
+				throw new Error(`Refusing to replace existing LiveCodeBench evidence: ${path}`);
+			})
+			.catch((error: NodeJS.ErrnoException) => {
+				if (error.code !== "ENOENT") throw error;
+			});
+	}
+	for (const step of [controlPlan.generation, controlPlan.evaluation]) {
+		await execFile(step.command, [...step.args], {
+			cwd: step.cwd,
+			env: { ...process.env, ...step.env },
+			timeout: 24 * 60 * 60_000,
+			maxBuffer: 64 * 1024 * 1024,
+		});
+	}
+	const imported = await liveCodeBenchReport({
+		...options,
+		action: "livecodebench-report",
+		predictions: controlPlan.generation.outputPath,
+		reports: `${controlPlan.evaluation.metricsPath},${controlPlan.evaluation.evalAllPath}`,
+		output: reportPath,
+	});
+	return { action: "livecodebench-execute", plan: controlPlan, imported };
+}
+
+async function sha256File(path: string): Promise<string> {
+	return createHash("sha256")
+		.update(await readFile(path))
+		.digest("hex");
+}
+
+async function liveCodeBenchReport(options: DevBenchmarkOptions) {
+	if (
+		!options.model ||
+		!options.modelCutoff ||
+		!options.startDate ||
+		!options.endDate ||
+		!options.predictions ||
+		!options.reports ||
+		!options.output
+	) {
+		throw new Error(
+			"livecodebench-report requires --model, --model-cutoff, --start-date, --end-date, --predictions, --reports <metrics,eval-all>, and --output.",
+		);
+	}
+	const reportPaths = csv(options.reports) ?? [];
+	if (reportPaths.length !== 2) throw new Error("livecodebench-report --reports must contain metrics,eval-all paths.");
+	const generationPath = resolve(options.predictions);
+	const metricsPath = resolve(reportPaths[0]);
+	const evalAllPath = resolve(reportPaths[1]);
+	const [generationSha256, metricsText, evalAllText, metricsSha256, evalAllSha256] = await Promise.all([
+		sha256File(generationPath),
+		readFile(metricsPath, "utf8"),
+		readFile(evalAllPath, "utf8"),
+		sha256File(metricsPath),
+		sha256File(evalAllPath),
+	]);
+	const report = buildLiveCodeBenchControlReport({
+		metrics: JSON.parse(metricsText) as unknown,
+		evalAll: JSON.parse(evalAllText) as unknown,
+		model: options.model,
+		modelCutoff: options.modelCutoff,
+		startDate: options.startDate,
+		endDate: options.endDate,
+		generationSha256,
+		metricsSha256,
+		evalAllSha256,
+	});
+	const output = resolve(options.output);
+	await atomicWriteNew(output, `${JSON.stringify(report, null, 2)}\n`, "immutable LiveCodeBench control report");
+	return { action: "livecodebench-report", output, report };
+}
+
 export async function runDevBenchmarkCommand(
 	options: DevBenchmarkOptions,
 	deps: DevBenchmarkCommandDeps = {},
@@ -1120,12 +1258,14 @@ export async function runDevBenchmarkCommand(
 		plan,
 		calibrate,
 		gate,
+		"livecodebench-plan": liveCodeBenchPlan,
+		"livecodebench-report": liveCodeBenchReport,
 		"terminal-preflight": (value) => terminalPreflight(value, deps),
 	};
 	const handler = handlers[options.action];
 	if (!handler)
 		throw new Error(
-			"benchmark action must be prepare, fresh-track, mint-local, prediction, workspace, run, grade, plan, calibrate, gate, or terminal-preflight.",
+			"benchmark action must be prepare, fresh-track, mint-local, prediction, workspace, run, grade, plan, calibrate, gate, livecodebench-plan, livecodebench-report, or terminal-preflight.",
 		);
 	const result = await handler(options);
 	write(`${JSON.stringify(result, null, options.json ? 2 : 2)}\n`);

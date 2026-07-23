@@ -2,6 +2,10 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Local model capability can now be controlled independently of repository workflow quality.** A revision-pinned,
+  offline LiveCodeBench lane records honest model-cutoff/date-window claims, delegates semantic grading to the official
+  evaluator, and emits immutable hash-bound evidence for local/private model endpoints.
+
 - **Repository benchmark runs now have leakage-safe, source-correct official harnesses.** `nklein dev benchmark` prepares bounded
   revision-pinned task slices, materializes sealed networkless workspaces from local mirrors, captures delivered diffs
   in the official prediction schema, and delegates legacy grading to locked SWE-bench 4.1.0 or arbitrary-repository

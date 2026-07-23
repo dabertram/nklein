@@ -86,6 +86,8 @@
     "benchmark:aider-images": "benchmark-harness/aider-polyglot/build-images.sh",
     "benchmark:aider-campaign": "tsx scripts/run-aider-campaign.mts",
     "benchmark:aider-regression-gate": "tsx scripts/gate-aider-regression.mts",
+    "benchmark:livecodebench-setup": "sh scripts/setup-livecodebench-harness.sh",
+    "benchmark:livecodebench-cache": "benchmark-harness/livecodebench/.venv/bin/python scripts/cache-livecodebench-control.py",
     "prepare": "husky",
     "prepublishOnly": "npm run build && npm run check"
   },

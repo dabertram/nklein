@@ -204,6 +204,47 @@ The receipt contains the exact baseline/result commits, durable evidence ref, wo
 persisted test-evidence policy, and delivered patch. It is create-only: rerunning requires a new run id and fresh
 materialized workspace rather than silently replacing evidence.
 
+## LiveCodeBench direct-capability control
+
+LiveCodeBench is a model control, not a repository-agent score. !Klein pins the official harness at
+`28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24`, `release_v6`, and the `codegeneration` scenario. That release ends in
+April 2025. Every report therefore carries the model's declared training cutoff and labels the selected date window
+`post_cutoff`, `mixed_cutoff`, or `pre_or_at_cutoff`; only the first can support a fresh-capability claim, and none can
+be quoted as a score for !Klein's repository workflow.
+
+Harness/dependency setup and dataset caching are separate, explicit egress steps:
+
+```sh
+npm run benchmark:livecodebench-setup
+npm run benchmark:livecodebench-cache -- \
+  --harness benchmark-harness/livecodebench \
+  --release-version release_v6 \
+  --start-date 2025-04-01 --end-date 2025-04-30 \
+  --manifest /absolute/evidence/livecodebench/window.json
+```
+
+The cache manifest is create-only and records exact problem ids plus prompt hashes. Generation and grading then force
+Hugging Face offline mode. The generator permits only loopback, a private LAN address, or a local hostname for the
+chosen resident model:
+
+```sh
+nklein dev benchmark livecodebench-plan \
+  --live-harness benchmark-harness/livecodebench \
+  --python benchmark-harness/livecodebench/.venv/bin/python \
+  --base-url http://m5max.local:1234/v1 \
+  --model qwen/qwen3.6-35b-a3b \
+  --model-cutoff 2025-06-01 \
+  --start-date 2025-04-01 --end-date 2025-04-30 \
+  --max-tokens 4096 --timeout 300 --max-workers 4 \
+  --output /absolute/evidence/livecodebench/m5max.json --execute --json
+```
+
+The local generator uses the official OpenAI-chat prompt formatter and code extractor with deterministic `n=1`,
+temperature zero. The revision-pinned official `custom_evaluator` remains the semantic grader. !Klein cross-checks its
+aggregate score against every per-problem grade, hashes all generation/metrics/eval-all inputs, and publishes an
+immutable `*_control.json` report. This keeps model-server failures, extraction, grading, and workflow quality
+independently diagnosable.
+
 ## Terminal-Bench 2.1 preflight
 
 Terminal-Bench uses Harbor's task container as the mutable work artifact; it is not a repository-patch dataset. Run the

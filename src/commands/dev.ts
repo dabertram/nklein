@@ -1092,7 +1092,7 @@ export function registerDevCommand(program: Command): void {
 		.description("F11.3 repository-benchmark adapter: prepare, materialize, run, grade, calibrate, and delta-gate.")
 		.argument(
 			"<action>",
-			"prepare|fresh-track|mint-local|prediction|workspace|run|grade|plan|calibrate|gate|terminal-preflight",
+			"prepare|fresh-track|mint-local|prediction|workspace|run|grade|plan|calibrate|gate|livecodebench-plan|livecodebench-report|terminal-preflight",
 		)
 		.option("--dataset <file>", "Local JSON/JSONL task dataset (fetching is a separate egress-gated operator step).")
 		.option("--dataset-name <name>", "Official grader dataset name/path.")
@@ -1126,6 +1126,10 @@ export function registerDevCommand(program: Command): void {
 		.option("--harbor-path <path>", "Harbor executable for Terminal-Bench preflight.")
 		.option("--storage-path <path>", "Existing host path on the filesystem backing Docker image storage.")
 		.option("--required-free-gb <n>", "Operator-selected task-image pull headroom for Terminal-Bench.")
+		.option("--base-url <url>", "Local/private OpenAI-compatible endpoint for a LiveCodeBench control.")
+		.option("--model-cutoff <date>", "Declared YYYY-MM-DD training cutoff for one control model.")
+		.option("--start-date <date>", "Inclusive LiveCodeBench problem-window start (YYYY-MM-DD).")
+		.option("--end-date <date>", "Inclusive LiveCodeBench problem-window end (YYYY-MM-DD).")
 		.option("--runtime-host <host>", "Running !Klein control-plane host (default 127.0.0.1).")
 		.option("--runtime-port <port>", "Running !Klein control-plane port (default 3484).")
 		.option("--no-plan", "Run one ACT-mode card instead of the normal plan/decompose workflow.")
@@ -1135,6 +1139,7 @@ export function registerDevCommand(program: Command): void {
 		.option("--python <path>", "Pinned benchmark Python interpreter.")
 		.option("--live-harness <path>", "Pinned native SWE-bench-Live checkout.")
 		.option("--max-workers <n>", "Low official-grader parallelism (1–4).")
+		.option("--max-tokens <n>", "LiveCodeBench generation token ceiling per problem.")
 		.option("--timeout <seconds>", "Per-instance official-grader timeout.")
 		.option("--attempts <jsonl>", "Gold calibration attempts.")
 		.option("--reports <csv>", "Official schema-v2 gold reports (one per repeat).")
