@@ -1,6 +1,12 @@
 import type { RuntimeConfigState } from "../../config/runtime-config";
+import { resolveFleetDecompositionSettings } from "../../config/runtime-config-fleet-decomposition-resolver";
 import type { AgentLedgerEvent } from "../../core/agent-attempt-ledger";
-import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } from "../../core/api-contract";
+import {
+	DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
+	type RuntimeFleetDecompositionSettings,
+	type RuntimeTaskSessionStartRequest,
+	type RuntimeTaskSessionStartResponse,
+} from "../../core/api-contract";
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { selectModelForAttempt } from "../../core/attempt-model-selection";
 import { difficultyTierFromScore, resolveAutoDecompositionDepth } from "../../core/auto-decomposition-depth";
@@ -17,7 +23,6 @@ import { buildFitnessRoutingEvidence } from "../../core/fitness-routing-evidence
 import {
 	buildFleetCapabilitySummary,
 	buildFleetDecompositionGuidance,
-	parseFleetDecompositionMode,
 	selectDepthTargetClass,
 } from "../../core/fleet-aware-decomposition";
 import { shouldWaitForBestModel } from "../../core/hard-task-wait";
@@ -1701,8 +1706,33 @@ export async function handleStartTaskSession(
 		// fixed target via NKLEIN_FLEET_DECOMPOSE_TARGET. Computed BEFORE the depth decision so slice (a) can drive
 		// depth from the selected class's effective context (the weakest clearable class, not the routed model).
 		const isDecomposePlanTask = body.startInPlanMode && isExplicitDecompositionPrompt(promptWithMailbox);
-		const fleetAwareDecomposeOn = isTruthyEnv(process.env.NKLEIN_FLEET_AWARE_DECOMPOSE);
-		const fleetDecompositionMode = parseFleetDecompositionMode(process.env.NKLEIN_FLEET_DECOMPOSE_MODE);
+		const legacyFleetSettings: RuntimeFleetDecompositionSettings | null = isTruthyEnv(
+			process.env.NKLEIN_FLEET_AWARE_DECOMPOSE,
+		)
+			? {
+					mode:
+						process.env.NKLEIN_FLEET_DECOMPOSE_MODE === "smallest" ||
+						process.env.NKLEIN_FLEET_DECOMPOSE_MODE === "capability_weighted" ||
+						process.env.NKLEIN_FLEET_DECOMPOSE_MODE === "fixed_target" ||
+						process.env.NKLEIN_FLEET_DECOMPOSE_MODE === "off"
+							? process.env.NKLEIN_FLEET_DECOMPOSE_MODE
+							: "auto",
+					fixedTargetModelKey: process.env.NKLEIN_FLEET_DECOMPOSE_TARGET?.trim() || null,
+					smallestBasis: "loaded",
+					smallestSupportedModelKey: null,
+				}
+			: null;
+		const resolvedFleetDecomposition = resolveFleetDecompositionSettings({
+			global:
+				legacyFleetSettings ??
+				scopedRuntimeConfig.fleetDecompositionDefaults ??
+				DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
+			project: scopedRuntimeConfig.fleetDecompositionOverride ?? null,
+			task: body.nkleinSettings?.fleetDecomposition ?? null,
+		});
+		const fleetDecompositionSettings = resolvedFleetDecomposition.value;
+		const fleetDecompositionMode = fleetDecompositionSettings.mode;
+		const fleetAwareDecomposeOn = fleetDecompositionMode !== "off";
 		const fleetCapabilitySummary =
 			isDecomposePlanTask && fleetAwareDecomposeOn
 				? buildFleetCapabilitySummary(
@@ -1719,13 +1749,31 @@ export async function handleStartTaskSession(
 						})),
 					)
 				: null;
+		const supportedFloorClass =
+			fleetDecompositionMode === "smallest" &&
+			fleetDecompositionSettings.smallestBasis === "supported_floor" &&
+			fleetDecompositionSettings.smallestSupportedModelKey
+				? (Object.values(modelRegistrySnapshot.models)
+						.filter(
+							(entry) =>
+								entry.key === fleetDecompositionSettings.smallestSupportedModelKey ||
+								entry.modelId === fleetDecompositionSettings.smallestSupportedModelKey,
+						)
+						.map((entry) => ({
+							modelKey: entry.key,
+							paramB: parseModelAttributes(entry.modelId).paramB ?? null,
+							workerCapability: entry.capability.effectiveScore,
+							effectiveContextTokens: entry.contextWindow.effective,
+						}))[0] ?? null)
+				: null;
 		// F12.110 slice (a): when fleet-aware is on, the depth-target class's effective context drives granularity
 		// (a weak class → finer cards) instead of the single launch window; else fall back to the launch config.
 		const fleetDepthTargetClass = fleetCapabilitySummary
 			? selectDepthTargetClass(
 					fleetCapabilitySummary,
 					fleetDecompositionMode,
-					process.env.NKLEIN_FLEET_DECOMPOSE_TARGET ?? null,
+					fleetDecompositionSettings.fixedTargetModelKey,
+					supportedFloorClass,
 				)
 			: null;
 		// F4.38 — for an explicit decompose-in-plan task, derive the AUTO decomposition depth from the card's difficulty
@@ -1743,7 +1791,8 @@ export async function handleStartTaskSession(
 			? buildFleetDecompositionGuidance(
 					fleetCapabilitySummary,
 					fleetDecompositionMode,
-					process.env.NKLEIN_FLEET_DECOMPOSE_TARGET ?? null,
+					fleetDecompositionSettings.fixedTargetModelKey,
+					supportedFloorClass,
 				)
 			: null;
 		// F4.8b: both exemplar mechanisms say "Fleet A/B decides the default" in their own comments, and neither
@@ -1795,6 +1844,9 @@ export async function handleStartTaskSession(
 					metadata: {
 						category: "fleet_aware_decompose",
 						mode: fleetDecompositionMode,
+						source: resolvedFleetDecomposition.source,
+						smallestBasis: fleetDecompositionSettings.smallestBasis,
+						supportedFloorResolved: supportedFloorClass?.modelKey ?? null,
 						// null when the fleet summary came out EMPTY — the case where the feature is on and does
 						// nothing, which a success-only record would hide.
 						targetClass: fleetDepthTargetClass?.modelKey ?? null,

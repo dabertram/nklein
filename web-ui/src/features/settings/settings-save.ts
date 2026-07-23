@@ -306,6 +306,8 @@ export function buildRuntimeConfigSaveRequest(
 		reviewLensesEnabled: draft.reviewLensesEnabled,
 		codeEmbeddingDefaults: draft.codeEmbeddingDefaults,
 		codeEmbeddingOverride: draft.codeEmbeddingOverride,
+		fleetDecompositionDefaults: draft.fleetDecompositionDefaults,
+		fleetDecompositionOverride: draft.fleetDecompositionOverride,
 		readyForReviewNotificationsEnabled: draft.readyForReviewNotificationsEnabled,
 		modelRoles: normalizeModelRolesForSettings(draft.modelRoles),
 		modelSuitabilityPolicyDefaults: { onUnsuitable: draft.modelGateUnsuitable, onUnknown: draft.modelGateUnknown },

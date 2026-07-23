@@ -14,6 +14,7 @@ import type {
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeFileOverlapParallelism,
+	RuntimeFleetDecompositionSettings,
 	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeMemoryFreshnessAudit,
@@ -26,6 +27,7 @@ import type {
 import {
 	areRuntimeMemoryFreshnessAuditEqual,
 	areRuntimeSwarmGuardrailsEqual,
+	DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
 	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	DEFAULT_RUNTIME_SANDBOX_ISOLATION_PROFILE,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
@@ -75,6 +77,10 @@ import {
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
+import {
+	areFleetDecompositionSettingsEqual,
+	normalizeFleetDecompositionSettings,
+} from "./runtime-config-fleet-decomposition-resolver";
 import {
 	areAgentRulesetsEqual,
 	areCodeEmbeddingSettingsEqual,
@@ -189,6 +195,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
 	skillDynamicsLevelDefault?: RuntimeSkillDynamicsLevel;
 	fileOverlapParallelism?: RuntimeFileOverlapParallelism;
+	fleetDecompositionDefaults?: RuntimeFleetDecompositionSettings;
 	concurrencyDefaults?: ConcurrencyConfig;
 	modelRoles?: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
@@ -243,6 +250,7 @@ export function buildRuntimeGlobalConfigFilePayload(
 	const speculativeMaxConcurrentSpecs = normalizeSpeculativeMaxConcurrentSpecs(config.speculativeMaxConcurrentSpecs);
 	const speculativeMaxSpecsPerRun = normalizeSpeculativeMaxSpecsPerRun(config.speculativeMaxSpecsPerRun);
 	const fileOverlapParallelism = normalizeFileOverlapParallelism(config.fileOverlapParallelism);
+	const fleetDecompositionDefaults = normalizeFleetDecompositionSettings(config.fleetDecompositionDefaults);
 	const retrievalSearchBackendUrl =
 		config.retrievalSearchBackendUrl === undefined
 			? undefined
@@ -707,6 +715,12 @@ export function buildRuntimeGlobalConfigFilePayload(
 		fileOverlapParallelism,
 		DEFAULT_FILE_OVERLAP_PARALLELISM,
 	);
+	if (
+		hasOwnKey(existing, "fleetDecompositionDefaults") ||
+		!areFleetDecompositionSettingsEqual(fleetDecompositionDefaults, DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS)
+	) {
+		payload.fleetDecompositionDefaults = fleetDecompositionDefaults;
+	}
 	if (
 		hasOwnKey(existing, "concurrencyDefaults") ||
 		!areConcurrencyConfigsEqual(concurrencyDefaults, DEFAULT_CONCURRENCY_CONFIG)

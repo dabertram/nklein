@@ -295,6 +295,18 @@ describe("buildRuntimeConfigSaveRequest", () => {
 			modelGateUnknown: "reject",
 			skillDynamicsLevel: "assigned_skills",
 			skillDynamicsLevelOverride: "fully_static",
+			fleetDecompositionDefaults: {
+				mode: "smallest",
+				fixedTargetModelKey: null,
+				smallestBasis: "supported_floor",
+				smallestSupportedModelKey: "qwen/qwen3-8b",
+			},
+			fleetDecompositionOverride: {
+				mode: "fixed_target",
+				fixedTargetModelKey: "qwen/qwen3.5-9b",
+				smallestBasis: "loaded",
+				smallestSupportedModelKey: null,
+			},
 			maxConcurrentTasksOverride: 4,
 			selectedAgentIdOverride: "nklein",
 			sandboxMcpServersEnabledOverride: false,
@@ -308,6 +320,8 @@ describe("buildRuntimeConfigSaveRequest", () => {
 		expect(payload.modelSuitabilityPolicyDefaults).toEqual({ onUnsuitable: "warn", onUnknown: "reject" });
 		expect(payload.skillDynamicsLevelDefault).toBe("assigned_skills");
 		expect(payload.skillDynamicsLevelOverride).toBe("fully_static");
+		expect(payload.fleetDecompositionDefaults).toEqual(draft.fleetDecompositionDefaults);
+		expect(payload.fleetDecompositionOverride).toEqual(draft.fleetDecompositionOverride);
 		expect(payload.maxConcurrentTasksOverride).toBe(4);
 		expect(payload.selectedAgentIdOverride).toBe("nklein");
 		expect(payload.sandboxMcpServersEnabledOverride).toBe(false);

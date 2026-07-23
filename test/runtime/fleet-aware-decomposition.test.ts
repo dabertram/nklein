@@ -72,6 +72,20 @@ describe("fleet-aware decomposition (F12.110)", () => {
 		expect(lines[1]).toContain(ministral.modelKey);
 	});
 
+	it("can target a configured supported floor that is not currently loaded", () => {
+		const summary = buildFleetCapabilitySummary([gemma, ministral]);
+		const supportedFloor = {
+			modelKey: "qwen/qwen3-8b-supported-floor",
+			paramB: 8,
+			workerCapability: 62,
+			effectiveContextTokens: 32_768,
+		};
+		expect(selectDepthTargetClass(summary, "smallest", null, supportedFloor)).toEqual(supportedFloor);
+		const guidance = buildFleetDecompositionGuidance(summary, "smallest", null, supportedFloor);
+		expect(guidance[1]?.toLowerCase()).toContain("configured supported floor");
+		expect(guidance[1]).toContain(supportedFloor.modelKey);
+	});
+
 	it("is byte-silent for off mode and empty snapshots", () => {
 		expect(buildFleetDecompositionGuidance(buildFleetCapabilitySummary([gemma]), "off")).toEqual([]);
 		expect(buildFleetDecompositionGuidance(buildFleetCapabilitySummary([]), "auto")).toEqual([]);

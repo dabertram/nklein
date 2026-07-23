@@ -16,6 +16,7 @@ export interface ProjectOverrideFields {
 	concurrencyOverride?: unknown;
 	modelSuitabilityPolicyOverride?: unknown;
 	skillDynamicsLevelOverride?: unknown;
+	fleetDecompositionOverride?: unknown;
 	fileOverlapParallelismOverride?: unknown;
 	modelRolesOverride?: unknown;
 	agentRulesetsOverride?: unknown;
@@ -41,6 +42,7 @@ export function listActiveProjectOverrides(config: ProjectOverrideFields | null 
 	push(config.concurrencyOverride, "Concurrency caps");
 	push(config.modelSuitabilityPolicyOverride, "Model suitability");
 	push(config.skillDynamicsLevelOverride, "Skill dynamics");
+	push(config.fleetDecompositionOverride, "Fleet decomposition");
 	push(config.fileOverlapParallelismOverride, "File-overlap parallelism");
 	push(config.modelRolesOverride, "Model roles");
 	push(config.agentRulesetsOverride, "Agent rulesets");

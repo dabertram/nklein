@@ -20,6 +20,25 @@ describe("buildProjectConfigFilePayload (F1.28)", () => {
 		expect(payload.selectedAgentIdOverride).toBe("agent-x");
 		expect(payload.testDrivenModeOverride).toBeNull();
 	});
+
+	it("normalizes and persists the whole project fleet-decomposition override", () => {
+		const payload = buildProjectConfigFilePayload(
+			input({
+				fleetDecompositionOverride: {
+					mode: "smallest",
+					fixedTargetModelKey: "  fixed/model  ",
+					smallestBasis: "supported_floor",
+					smallestSupportedModelKey: "  floor/model  ",
+				},
+			}),
+		);
+		expect(payload.fleetDecompositionOverride).toEqual({
+			mode: "smallest",
+			fixedTargetModelKey: "fixed/model",
+			smallestBasis: "supported_floor",
+			smallestSupportedModelKey: "floor/model",
+		});
+	});
 });
 
 describe("buildSavedRuntimeConfigStateValues (F1.28)", () => {
@@ -52,6 +71,7 @@ describe("buildSavedRuntimeConfigStateValues (F1.28)", () => {
 		expect(state.selectedAgentIdOverride).toBeNull();
 		expect(state.modelRolesOverride).toBeNull();
 		expect(state.maxConcurrentTasksOverride).toBeNull();
+		expect(state.fleetDecompositionOverride).toBeNull();
 	});
 });
 

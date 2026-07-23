@@ -2595,4 +2595,54 @@ describe("RuntimeSettingsDialog", () => {
 		);
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
 	});
+
+	it("saves fleet decomposition through global and project scopes (F12.110b)", async () => {
+		const projectConfig = {
+			...savedNKleinOauthConfig,
+			projectConfigPath: "/repo/.nklein/nklein/config.json",
+		} as RuntimeConfigResponse;
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={projectConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const globalMode = document.body.querySelector<HTMLSelectElement>(
+			'select[aria-label="Fleet decomposition mode"]',
+		);
+		expect(globalMode).not.toBeNull();
+		await act(async () => setSelectValue(globalMode as HTMLSelectElement, "auto"));
+
+		const row = Array.from(document.body.querySelectorAll<HTMLDivElement>("div.grid.gap-1")).find(
+			(candidate) => candidate.querySelector("span")?.textContent?.trim() === "Fleet decomposition",
+		);
+		await act(async () => row?.querySelector<HTMLButtonElement>("button")?.click());
+
+		const scopedModes = document.body.querySelectorAll<HTMLSelectElement>(
+			'select[aria-label="Fleet decomposition mode"]',
+		);
+		expect(scopedModes).toHaveLength(2);
+		await act(async () => setSelectValue(scopedModes[1] as HTMLSelectElement, "fixed_target"));
+		const target = document.body.querySelector<HTMLInputElement>(
+			'input[aria-label="Fleet decomposition target model key"]',
+		);
+		expect(target).not.toBeNull();
+		await act(async () => setInputValue(target as HTMLInputElement, "qwen/qwen3.5-9b"));
+
+		await act(async () => findButtonByText(document.body, "Save")?.click());
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				fleetDecompositionDefaults: expect.objectContaining({ mode: "auto" }),
+				fleetDecompositionOverride: expect.objectContaining({
+					mode: "fixed_target",
+					fixedTargetModelKey: "qwen/qwen3.5-9b",
+				}),
+			}),
+		);
+	});
 });

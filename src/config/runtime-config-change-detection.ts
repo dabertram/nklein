@@ -1,6 +1,7 @@
 import { areRuntimeMemoryFreshnessAuditEqual, areRuntimeSwarmGuardrailsEqual } from "../core/api-contract";
 import { areConcurrencyConfigsEqual, areConcurrencyOverridesEqual } from "../core/concurrency-config";
 import { areSandboxMcpServerOverridesEqual } from "../core/sandbox-mcp-controls";
+import { areFleetDecompositionSettingsEqual } from "./runtime-config-fleet-decomposition-resolver";
 import {
 	areAgentRulesetsEqual,
 	areCodeEmbeddingSettingsEqual,
@@ -25,6 +26,7 @@ export type RuntimeConfigChangeComparable = Omit<
 	| "effectiveSkillDynamicsLevel"
 	| "effectiveTestDrivenMode"
 	| "effectiveFileOverlapParallelism"
+	| "effectiveFleetDecompositionSettings"
 	| "effectiveMaxConcurrentTasks"
 	| "effectiveSelectedAgentId"
 	| "effectiveModelRoles"
@@ -100,6 +102,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("modelSuitabilityPolicyDefaults", areModelSuitabilityPoliciesEqual),
 	runtimeConfigChangeField("skillDynamicsLevelDefault", areSkillDynamicsLevelsEqual),
 	runtimeConfigChangeField("fileOverlapParallelism"),
+	runtimeConfigChangeField("fleetDecompositionDefaults", areFleetDecompositionSettingsEqual),
 	runtimeConfigChangeField("concurrencyDefaults", areConcurrencyConfigsEqual),
 	runtimeConfigChangeField("modelRoles", areModelRolesEqual),
 	runtimeConfigChangeField("agentRulesets", areAgentRulesetsEqual),
@@ -124,6 +127,7 @@ export const RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeF
 	runtimeConfigChangeField("sandboxMcpServersEnabledOverride"),
 	runtimeConfigChangeField("sandboxMcpServerOverrides", areSandboxMcpServerOverridesEqual),
 	runtimeConfigChangeField("fileOverlapParallelismOverride"),
+	runtimeConfigChangeField("fleetDecompositionOverride", areFleetDecompositionSettingsEqual),
 	runtimeConfigChangeField("concurrencyOverride", areConcurrencyOverridesEqual),
 	runtimeConfigChangeField("maxConcurrentTasksOverride"),
 	runtimeConfigChangeField("selectedAgentIdOverride"),
@@ -142,6 +146,7 @@ export const RUNTIME_CONFIG_DERIVED_FIELD_KEYS = [
 	"effectiveSkillDynamicsLevel",
 	"effectiveTestDrivenMode",
 	"effectiveFileOverlapParallelism",
+	"effectiveFleetDecompositionSettings",
 	"effectiveMaxConcurrentTasks",
 	"effectiveSelectedAgentId",
 	"effectiveAgentRulesets",

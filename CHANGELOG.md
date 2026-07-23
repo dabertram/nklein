@@ -20,6 +20,13 @@
   otherwise the UI shows a copyable 32k-context `lms load` command but never applies it. Warm recommendations omit LM
   Studio's timed auto-unload TTL, while disposable probes get separate short-TTL guidance.
 
+- **Fleet-aware decomposition is now a first-class scoped setting instead of an environment-only switch.** Operators
+  can choose auto, smallest-class, capability-weighted, fixed-target, or off globally, override the complete policy per
+  project, and override it again on an individual card. Smallest-class mode can target either the weakest loaded model
+  or an explicitly configured supported model-registry floor even when that floor is not resident. The legacy
+  environment variables remain an outer/global compatibility input; project and card choices still win. The feature
+  stays off by default and never loads or unloads models.
+
 - **Agents now get IDE-precise TypeScript/JavaScript symbol tools inside their networkless task sandbox.** A persistent,
   pinned language server exposes only `find_symbol`, `find_referencing_symbols`, `get_symbols_overview`, and
   `rename_symbol`; task relevance and model/container fit are checked before it connects. Cross-file renames use the

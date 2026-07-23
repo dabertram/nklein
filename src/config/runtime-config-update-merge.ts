@@ -36,6 +36,7 @@ import {
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
+import { normalizeFleetDecompositionSettings } from "./runtime-config-fleet-decomposition-resolver";
 import {
 	DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
 	DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
@@ -275,6 +276,11 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			updates.fileOverlapParallelism,
 			current.fileOverlapParallelism,
 			normalizeFileOverlapParallelism,
+		),
+		fleetDecompositionDefaults: keepNormalizedValue(
+			updates.fleetDecompositionDefaults,
+			current.fleetDecompositionDefaults,
+			normalizeFleetDecompositionSettings,
 		),
 		concurrencyDefaults: keepNormalizedValue(
 			updates.concurrencyDefaults,

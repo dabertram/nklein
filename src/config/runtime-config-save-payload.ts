@@ -14,6 +14,7 @@ import type {
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeFileOverlapParallelism,
+	RuntimeFleetDecompositionSettings,
 	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeMemoryFreshnessAudit,
@@ -24,7 +25,11 @@ import type {
 	RuntimeSkillDynamicsLevel,
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
-import { normalizeRuntimeMemoryFreshnessAudit, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
+import {
+	DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
+	normalizeRuntimeMemoryFreshnessAudit,
+	normalizeRuntimeSwarmGuardrails,
+} from "../core/api-contract";
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
 import { DEFAULT_CONCURRENCY_CONFIG } from "../core/concurrency-config";
 import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
@@ -57,7 +62,10 @@ import {
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
-
+import {
+	normalizeFleetDecompositionSettings,
+	normalizeFleetDecompositionSettingsOverride,
+} from "./runtime-config-fleet-decomposition-resolver";
 import {
 	DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
 	DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
@@ -71,7 +79,6 @@ import {
 	normalizePositiveInteger,
 	normalizePositiveNumber,
 } from "./runtime-config-normalizers";
-
 import { normalizeFileOverlapParallelism } from "./runtime-config-overlap-resolver";
 
 import {
@@ -153,6 +160,8 @@ export interface SaveRuntimeConfigInput {
 	skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
 	fileOverlapParallelism?: RuntimeFileOverlapParallelism;
 	fileOverlapParallelismOverride?: RuntimeFileOverlapParallelism | null;
+	fleetDecompositionDefaults?: RuntimeFleetDecompositionSettings;
+	fleetDecompositionOverride?: RuntimeFleetDecompositionSettings | null;
 	concurrencyDefaults?: ConcurrencyConfig;
 	concurrencyOverride?: ConcurrencyOverride | null;
 	maxConcurrentTasksOverride?: number | null;
@@ -205,6 +214,7 @@ export function buildGlobalConfigFilePayload(config: SaveRuntimeConfigInput) {
 		speculativeMaxConcurrentSpecs: normalizeSpeculativeMaxConcurrentSpecs(config.speculativeMaxConcurrentSpecs),
 		speculativeMaxSpecsPerRun: normalizeSpeculativeMaxSpecsPerRun(config.speculativeMaxSpecsPerRun),
 		fileOverlapParallelism: normalizeFileOverlapParallelism(config.fileOverlapParallelism),
+		fleetDecompositionDefaults: normalizeFleetDecompositionSettings(config.fleetDecompositionDefaults),
 		agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 		agentTimeoutMode: config.agentTimeoutMode,
 		agentTimeoutProfile: config.agentTimeoutProfile,
@@ -280,6 +290,7 @@ export function buildProjectConfigFilePayload(config: SaveRuntimeConfigInput) {
 				: null,
 		sandboxMcpServerOverrides: normalizeSandboxMcpServerOverrides(config.sandboxMcpServerOverrides),
 		fileOverlapParallelismOverride: config.fileOverlapParallelismOverride,
+		fleetDecompositionOverride: normalizeFleetDecompositionSettingsOverride(config.fleetDecompositionOverride),
 		maxConcurrentTasksOverride: config.maxConcurrentTasksOverride,
 		selectedAgentIdOverride: config.selectedAgentIdOverride,
 		agentRulesetsOverride: config.agentRulesetsOverride,
@@ -395,6 +406,11 @@ export function buildSavedRuntimeConfigStateValues(config: SaveRuntimeConfigInpu
 		modelSuitabilityPolicyOverride: config.modelSuitabilityPolicyOverride ?? null,
 		skillDynamicsLevelDefault: config.skillDynamicsLevelDefault ?? DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
 		skillDynamicsLevelOverride: config.skillDynamicsLevelOverride ?? null,
+		fleetDecompositionDefaults: normalizeFleetDecompositionSettings(
+			config.fleetDecompositionDefaults,
+			DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
+		),
+		fleetDecompositionOverride: normalizeFleetDecompositionSettingsOverride(config.fleetDecompositionOverride),
 		testDrivenModeOverride: config.testDrivenModeOverride ?? null,
 		concurrencyDefaults: config.concurrencyDefaults ?? DEFAULT_CONCURRENCY_CONFIG,
 		concurrencyOverride: config.concurrencyOverride ?? null,

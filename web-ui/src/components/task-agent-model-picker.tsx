@@ -1,5 +1,6 @@
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { getRuntimeLaunchSupportedAgentCatalog } from "@runtime-agent-catalog";
+import { DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS } from "@runtime-contract";
 import { ChevronDown } from "lucide-react";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -11,6 +12,7 @@ import {
 	buildNKleinSelectedModelButtonText,
 	getNKleinReasoningEnabledModelIds,
 } from "@/components/detail-panels/nklein-model-picker-options";
+import { FleetDecompositionSettingsFields } from "@/components/fleet-decomposition-settings-fields";
 import { SearchSelectDropdown } from "@/components/search-select-dropdown";
 import { cn } from "@/components/ui/cn";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -274,6 +276,7 @@ function cloneTaskNKleinSettings(settings?: RuntimeTaskNKleinSettings): RuntimeT
 		...(providerId ? { providerId } : {}),
 		...(modelId ? { modelId } : {}),
 		...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
+		...(settings.fleetDecomposition ? { fleetDecomposition: { ...settings.fleetDecomposition } } : {}),
 	};
 }
 
@@ -341,7 +344,12 @@ export function TaskAgentModelPicker({
 	const effectiveProviderId = nkleinProviderId ?? defaultProviderId ?? null;
 	const hasExplicitLmStudioProviderOverride = nkleinProviderId !== undefined && isLmStudioProviderId(nkleinProviderId);
 	const showNKleinModelPicker = showNKleinProviderPicker && Boolean(effectiveProviderId);
-	const hasTaskNKleinSettingsOverride = nkleinSettings !== undefined;
+	const hasOnlyFleetOverride =
+		nkleinSettings !== undefined &&
+		nkleinSettings.fleetDecomposition !== undefined &&
+		Object.keys(nkleinSettings).every((key) => key === "fleetDecomposition");
+	const hasTaskNKleinSettingsOverride = nkleinSettings !== undefined && !hasOnlyFleetOverride;
+	const hasFleetDecompositionOverride = nkleinSettings?.fleetDecomposition !== undefined;
 	const selectedTaskReasoningEffort = nkleinReasoningEffort ?? "";
 	const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
 	const [isProviderPopoverOpen, setIsProviderPopoverOpen] = useState(false);
@@ -362,6 +370,7 @@ export function TaskAgentModelPicker({
 				if (
 					nextSettings.providerId ||
 					nextSettings.modelId ||
+					nextSettings.fleetDecomposition ||
 					currentSettings !== undefined ||
 					defaultReasoningEffort
 				) {
@@ -498,7 +507,10 @@ export function TaskAgentModelPicker({
 				}
 				delete nextSettings.modelId;
 				const preserveEmptyOverride = currentSettings !== undefined && Object.keys(currentSettings).length === 0;
-				return nextSettings.providerId || nextSettings.reasoningEffort || preserveEmptyOverride
+				return nextSettings.providerId ||
+					nextSettings.reasoningEffort ||
+					nextSettings.fleetDecomposition ||
+					preserveEmptyOverride
 					? nextSettings
 					: undefined;
 			});
@@ -565,117 +577,160 @@ export function TaskAgentModelPicker({
 							</NativeSelect>
 						</div>
 						{showNKleinProviderPicker ? (
-							<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-								<div className="min-w-0">
-									<span className="text-[11px] text-text-secondary block mb-1">
-										Provider{isLoadingProviders ? " (loading\u2026)" : ""}
-									</span>
-									<SearchSelectDropdown
-										options={nkleinProviderOptions}
-										selectedValue={nkleinProviderId ?? ""}
-										onSelect={(value) => {
-											const newProviderId = value || undefined;
-											const newDefaultModel =
-												newProviderId && providerDefaultModels && !isLmStudioProviderId(newProviderId)
-													? providerDefaultModels[newProviderId]
-													: undefined;
-											updateTaskNKleinSettings((currentSettings) => {
-												const nextSettings = cloneTaskNKleinSettings(currentSettings) ?? {};
-												if (newProviderId) {
-													nextSettings.providerId = newProviderId;
-												} else {
-													delete nextSettings.providerId;
-												}
-												if (newDefaultModel) {
-													nextSettings.modelId = newDefaultModel;
-												} else {
-													delete nextSettings.modelId;
-												}
-												delete nextSettings.reasoningEffort;
-												const preserveEmptyOverride =
-													newProviderId !== undefined ||
-													(currentSettings !== undefined && Object.keys(currentSettings).length === 0);
-												return nextSettings.providerId || nextSettings.modelId || preserveEmptyOverride
-													? nextSettings
-													: undefined;
-											});
-											setReasoningEffort(
-												newProviderId ||
-													(nkleinSettings !== undefined && Object.keys(nkleinSettings).length === 0)
-													? ""
-													: (defaultReasoningEffort ?? ""),
-											);
-										}}
-										disabled={isLoadingProviders}
-										fill
-										size="sm"
-										placeholder="Search providers..."
-										emptyText="No providers available"
-										noResultsText="No matching providers"
-										showSelectedIndicator
-										onPopoverOpenChange={setIsProviderPopoverOpen}
-									/>
-								</div>
-								{showNKleinModelPicker ? (
+							<>
+								<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
 									<div className="min-w-0">
 										<span className="text-[11px] text-text-secondary block mb-1">
-											Model{isLoadingModels ? " (loading\u2026)" : ""}
+											Provider{isLoadingProviders ? " (loading\u2026)" : ""}
 										</span>
-										<NKleinChatModelSelector
-											modelOptions={modelPickerOptions.options}
-											recommendedModelIds={modelPickerOptions.recommendedModelIds}
-											pinSelectedModelToTop={modelPickerOptions.shouldPinSelectedModelToTop}
-											selectedModelId={nkleinModelId ?? ""}
-											selectedModelButtonText={selectedModelButtonText}
-											onSelectModel={(value) => {
+										<SearchSelectDropdown
+											options={nkleinProviderOptions}
+											selectedValue={nkleinProviderId ?? ""}
+											onSelect={(value) => {
+												const newProviderId = value || undefined;
+												const newDefaultModel =
+													newProviderId && providerDefaultModels && !isLmStudioProviderId(newProviderId)
+														? providerDefaultModels[newProviderId]
+														: undefined;
 												updateTaskNKleinSettings((currentSettings) => {
 													const nextSettings = cloneTaskNKleinSettings(currentSettings) ?? {};
-													if (value) {
-														nextSettings.modelId = value;
+													if (newProviderId) {
+														nextSettings.providerId = newProviderId;
+													} else {
+														delete nextSettings.providerId;
+													}
+													if (newDefaultModel) {
+														nextSettings.modelId = newDefaultModel;
 													} else {
 														delete nextSettings.modelId;
 													}
-													if (!value || !reasoningEnabledModelIdSet.has(value)) {
-														delete nextSettings.reasoningEffort;
-													}
+													delete nextSettings.reasoningEffort;
 													const preserveEmptyOverride =
-														currentSettings !== undefined && Object.keys(currentSettings).length === 0;
+														newProviderId !== undefined ||
+														(currentSettings !== undefined && Object.keys(currentSettings).length === 0);
 													return nextSettings.providerId ||
 														nextSettings.modelId ||
-														nextSettings.reasoningEffort ||
+														nextSettings.fleetDecomposition ||
 														preserveEmptyOverride
 														? nextSettings
 														: undefined;
 												});
-												if (!value && !nkleinProviderId) {
-													setReasoningEffort(
-														nkleinSettings !== undefined && Object.keys(nkleinSettings).length === 0
-															? ""
-															: (defaultReasoningEffort ?? ""),
-													);
-													return;
-												}
-												if (!value || !reasoningEnabledModelIdSet.has(value)) {
-													setReasoningEffortWithOverride("");
-												}
+												setReasoningEffort(
+													newProviderId ||
+														(nkleinSettings !== undefined && Object.keys(nkleinSettings).length === 0)
+														? ""
+														: (defaultReasoningEffort ?? ""),
+												);
 											}}
-											reasoningEnabledModelIds={reasoningEnabledModelIds}
-											defaultOptionSupportsReasoningEffort={
-												!nkleinModelId && selectedModelSupportsReasoningEffort
-											}
-											selectedReasoningEffort={reasoningEffort}
-											onSelectReasoningEffort={(nextReasoningEffort) =>
-												setReasoningEffortWithOverride(nextReasoningEffort)
-											}
-											disabled={isLoadingModels}
-											isModelLoading={isLoadingModels}
+											disabled={isLoadingProviders}
 											fill
-											triggerVariant="default"
-											onPopoverOpenChange={setIsModelPopoverOpen}
+											size="sm"
+											placeholder="Search providers..."
+											emptyText="No providers available"
+											noResultsText="No matching providers"
+											showSelectedIndicator
+											onPopoverOpenChange={setIsProviderPopoverOpen}
 										/>
 									</div>
-								) : null}
-							</div>
+									{showNKleinModelPicker ? (
+										<div className="min-w-0">
+											<span className="text-[11px] text-text-secondary block mb-1">
+												Model{isLoadingModels ? " (loading\u2026)" : ""}
+											</span>
+											<NKleinChatModelSelector
+												modelOptions={modelPickerOptions.options}
+												recommendedModelIds={modelPickerOptions.recommendedModelIds}
+												pinSelectedModelToTop={modelPickerOptions.shouldPinSelectedModelToTop}
+												selectedModelId={nkleinModelId ?? ""}
+												selectedModelButtonText={selectedModelButtonText}
+												onSelectModel={(value) => {
+													updateTaskNKleinSettings((currentSettings) => {
+														const nextSettings = cloneTaskNKleinSettings(currentSettings) ?? {};
+														if (value) {
+															nextSettings.modelId = value;
+														} else {
+															delete nextSettings.modelId;
+														}
+														if (!value || !reasoningEnabledModelIdSet.has(value)) {
+															delete nextSettings.reasoningEffort;
+														}
+														const preserveEmptyOverride =
+															currentSettings !== undefined && Object.keys(currentSettings).length === 0;
+														return nextSettings.providerId ||
+															nextSettings.modelId ||
+															nextSettings.reasoningEffort ||
+															nextSettings.fleetDecomposition ||
+															preserveEmptyOverride
+															? nextSettings
+															: undefined;
+													});
+													if (!value && !nkleinProviderId) {
+														setReasoningEffort(
+															nkleinSettings !== undefined && Object.keys(nkleinSettings).length === 0
+																? ""
+																: (defaultReasoningEffort ?? ""),
+														);
+														return;
+													}
+													if (!value || !reasoningEnabledModelIdSet.has(value)) {
+														setReasoningEffortWithOverride("");
+													}
+												}}
+												reasoningEnabledModelIds={reasoningEnabledModelIds}
+												defaultOptionSupportsReasoningEffort={
+													!nkleinModelId && selectedModelSupportsReasoningEffort
+												}
+												selectedReasoningEffort={reasoningEffort}
+												onSelectReasoningEffort={(nextReasoningEffort) =>
+													setReasoningEffortWithOverride(nextReasoningEffort)
+												}
+												disabled={isLoadingModels}
+												isModelLoading={isLoadingModels}
+												fill
+												triggerVariant="default"
+												onPopoverOpenChange={setIsModelPopoverOpen}
+											/>
+										</div>
+									) : null}
+								</div>
+								<div className="mt-2 rounded-md border border-border p-2 sm:col-span-2">
+									<label className="flex items-center gap-2 text-[12px] text-text-primary">
+										<input
+											type="checkbox"
+											aria-label="Override fleet decomposition for this card"
+											checked={hasFleetDecompositionOverride}
+											onChange={(event) =>
+												updateTaskNKleinSettings((currentSettings) => {
+													const nextSettings = cloneTaskNKleinSettings(currentSettings) ?? {};
+													if (event.target.checked) {
+														nextSettings.fleetDecomposition = {
+															...DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
+														};
+														return nextSettings;
+													}
+													delete nextSettings.fleetDecomposition;
+													return Object.keys(nextSettings).length > 0 ? nextSettings : undefined;
+												})
+											}
+										/>
+										Override fleet-aware decomposition for this card
+									</label>
+									{nkleinSettings?.fleetDecomposition ? (
+										<div className="mt-2">
+											<FleetDecompositionSettingsFields
+												value={nkleinSettings.fleetDecomposition}
+												onChange={(fleetDecomposition) =>
+													updateTaskNKleinSettings((currentSettings) => ({
+														...(cloneTaskNKleinSettings(currentSettings) ?? {}),
+														fleetDecomposition,
+													}))
+												}
+												compact
+											/>
+										</div>
+									) : null}
+								</div>
+							</>
 						) : null}
 					</div>
 				</Collapsible.Content>

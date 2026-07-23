@@ -50,6 +50,10 @@ import {
 	writeRuntimeGlobalConfigFile,
 	writeRuntimeProjectConfigFile,
 } from "./runtime-config-file-io";
+import {
+	deriveFleetDecompositionFields,
+	normalizeFleetDecompositionSettingsOverride,
+} from "./runtime-config-fleet-decomposition-resolver";
 import { resolveRuntimeModelRolesConfig } from "./runtime-config-model-roles-resolver";
 import {
 	normalizeAgentRulesetsOverride,
@@ -191,6 +195,10 @@ function toRuntimeConfigState({
 		llmfitCatalogUpdateMode: normalizeLlmfitCatalogUpdateMode(globalConfig?.llmfitCatalogUpdateMode),
 		...resolveRuntimeSpeculativeConfig(globalConfig),
 		...resolveRuntimeFileOverlapConfig(globalConfig, projectConfig),
+		...deriveFleetDecompositionFields(
+			globalConfig?.fleetDecompositionDefaults,
+			projectConfig?.fleetDecompositionOverride,
+		),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
 		hardTaskRoutingMode:
 			globalConfig?.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
@@ -299,6 +307,8 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		speculativeMaxSpecsPerRun: current.speculativeMaxSpecsPerRun,
 		fileOverlapParallelism: current.fileOverlapParallelism,
 		fileOverlapParallelismOverride: null,
+		fleetDecompositionDefaults: current.fleetDecompositionDefaults,
+		fleetDecompositionOverride: null,
 		agentAutonomousModeEnabled: current.agentAutonomousModeEnabled,
 		agentTimeoutMode: current.agentTimeoutMode,
 		agentTimeoutProfile: current.agentTimeoutProfile,
@@ -418,6 +428,11 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				current.fileOverlapParallelismOverride,
 				normalizeFileOverlapParallelismOverride,
 			),
+			fleetDecompositionOverride: keepNormalizedValue(
+				updates.fleetDecompositionOverride,
+				current.fleetDecompositionOverride ?? null,
+				normalizeFleetDecompositionSettingsOverride,
+			),
 			concurrencyOverride: keepNormalizedValue(
 				updates.concurrencyOverride,
 				current.concurrencyOverride,
@@ -498,6 +513,7 @@ export async function updateGlobalRuntimeConfig(
 				modelSuitabilityPolicyOverride: null,
 				skillDynamicsLevelOverride: null,
 				fileOverlapParallelismOverride: null,
+				fleetDecompositionOverride: null,
 				concurrencyOverride: null,
 				maxConcurrentTasksOverride: null,
 				selectedAgentIdOverride: null,

@@ -855,3 +855,81 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 		expect(container.textContent).not.toContain("GPT-5.3 Codex (High)");
 	});
 });
+
+describe("TaskAgentModelPicker – card fleet decomposition override", () => {
+	it("creates a complete card override without dropping existing model settings", async () => {
+		const { TaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
+		const onNKleinSettingsChange = vi.fn();
+		await act(async () =>
+			root.render(
+				<TaskAgentModelPicker
+					agentId={"nklein" as RuntimeAgentId}
+					onAgentIdChange={() => {}}
+					nkleinSettings={{ providerId: "lmstudio" }}
+					onNKleinSettingsChange={onNKleinSettingsChange}
+					agentOptions={[{ value: "", label: "!Klein" }]}
+					nkleinProviderOptions={[{ value: "", label: "LM Studio" }]}
+					nkleinModelOptions={[{ value: "", label: "Default" }]}
+					isLoadingProviders={false}
+					isLoadingModels={false}
+					defaultAgentId={"nklein" as RuntimeAgentId}
+					defaultProviderId="lmstudio"
+				/>,
+			),
+		);
+		const settingsTrigger = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Override Agent Settings"),
+		);
+		await act(async () => (settingsTrigger as HTMLButtonElement).click());
+		const checkbox = container.querySelector(
+			'input[aria-label="Override fleet decomposition for this card"]',
+		) as HTMLInputElement;
+		expect(checkbox).not.toBeNull();
+		await act(async () => checkbox.click());
+		expect(onNKleinSettingsChange).toHaveBeenLastCalledWith({
+			providerId: "lmstudio",
+			fleetDecomposition: {
+				mode: "off",
+				fixedTargetModelKey: null,
+				smallestBasis: "loaded",
+				smallestSupportedModelKey: null,
+			},
+		});
+	});
+
+	it("a fleet-only card override still inherits the global reasoning effort", async () => {
+		const { TaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
+		await act(async () =>
+			root.render(
+				<TaskAgentModelPicker
+					agentId={"nklein" as RuntimeAgentId}
+					onAgentIdChange={() => {}}
+					nkleinSettings={{
+						fleetDecomposition: {
+							mode: "auto",
+							fixedTargetModelKey: null,
+							smallestBasis: "loaded",
+							smallestSupportedModelKey: null,
+						},
+					}}
+					onNKleinSettingsChange={() => {}}
+					agentOptions={[{ value: "", label: "!Klein" }]}
+					nkleinProviderOptions={[{ value: "", label: "LM Studio" }]}
+					nkleinModelOptions={[{ value: "", label: "Qwen" }]}
+					effectiveDefaultModelId="qwen"
+					providerModels={[{ id: "qwen", name: "Qwen", supportsReasoningEffort: true }]}
+					isLoadingProviders={false}
+					isLoadingModels={false}
+					defaultAgentId={"nklein" as RuntimeAgentId}
+					defaultProviderId="lmstudio"
+					defaultReasoningEffort="high"
+				/>,
+			),
+		);
+		const settingsTrigger = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Override Agent Settings"),
+		);
+		await act(async () => (settingsTrigger as HTMLButtonElement).click());
+		expect(container.textContent).toContain("Qwen (High)");
+	});
+});

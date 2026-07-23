@@ -9,6 +9,8 @@ import {
 	RUNTIME_SWARM_GUARDRAIL_BOUNDS,
 	RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH,
 	type RuntimeSwarmGuardrails,
+	runtimeFleetDecompositionSettingsSchema,
+	runtimeTaskNKleinSettingsSchema,
 } from "../../../src/core/runtime-config-api-contract";
 
 describe("clampRuntimeSwarmCardStartBatchSize", () => {
@@ -32,6 +34,26 @@ describe("clampRuntimeSwarmCardStartBatchSize", () => {
 
 	it("passes a normal in-range value through", () => {
 		expect(clampRuntimeSwarmCardStartBatchSize(5)).toBe(5);
+	});
+});
+
+describe("fleet decomposition settings contract (F12.110b)", () => {
+	const settings = {
+		mode: "smallest" as const,
+		fixedTargetModelKey: null,
+		smallestBasis: "supported_floor" as const,
+		smallestSupportedModelKey: "qwen/qwen3-8b",
+	};
+
+	it("requires a complete atomic settings object", () => {
+		expect(runtimeFleetDecompositionSettingsSchema.parse(settings)).toEqual(settings);
+		expect(runtimeFleetDecompositionSettingsSchema.safeParse({ mode: "auto" }).success).toBe(false);
+	});
+
+	it("preserves the complete card-level override", () => {
+		expect(runtimeTaskNKleinSettingsSchema.parse({ fleetDecomposition: settings })).toEqual({
+			fleetDecomposition: settings,
+		});
 	});
 });
 

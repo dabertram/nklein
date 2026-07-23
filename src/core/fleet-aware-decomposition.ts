@@ -14,7 +14,9 @@
  * toward what the real executors can clear (same contract as F4.38's depth line, which this composes with).
  */
 
-export type FleetDecompositionMode = "auto" | "smallest" | "capability_weighted" | "fixed_target" | "off";
+import type { RuntimeFleetDecompositionMode } from "./api-contract";
+
+export type FleetDecompositionMode = RuntimeFleetDecompositionMode;
 
 /** Parse a configured mode with a safe default — unset/unknown ⇒ `auto` (the caller gates the feature itself). */
 export function parseFleetDecompositionMode(value: string | undefined | null): FleetDecompositionMode {
@@ -74,6 +76,7 @@ export function selectDepthTargetClass(
 	summary: FleetCapabilitySummary,
 	mode: FleetDecompositionMode,
 	fixedTargetModelKey?: string | null,
+	supportedFloorClass?: FleetModelClassInput | null,
 ): FleetModelClassInput | null {
 	if (mode === "off" || summary.classes.length === 0) {
 		return null;
@@ -82,7 +85,7 @@ export function selectDepthTargetClass(
 		return summary.classes.find((entry) => entry.modelKey === fixedTargetModelKey) ?? summary.weakest;
 	}
 	if (mode === "smallest") {
-		return summary.weakest;
+		return supportedFloorClass ?? summary.weakest;
 	}
 	// auto / capability_weighted: shard so the BULK of cards fits the weaker half while big cards can target the
 	// strongest — depth follows the weakest class (cards must be clearable fleet-wide), mix guidance does the rest.
@@ -104,6 +107,7 @@ export function buildFleetDecompositionGuidance(
 	summary: FleetCapabilitySummary,
 	mode: FleetDecompositionMode,
 	fixedTargetModelKey?: string | null,
+	supportedFloorClass?: FleetModelClassInput | null,
 ): string[] {
 	if (mode === "off" || summary.classes.length === 0) {
 		return [];
@@ -112,9 +116,13 @@ export function buildFleetDecompositionGuidance(
 	const extra = summary.classes.length > 4 ? ` (+${summary.classes.length - 4} more)` : "";
 	const header = `Available model fleet (LOADED, ${summary.classes.length} class(es)): ${named}${extra}.`;
 	if (mode === "smallest") {
+		const target = supportedFloorClass ?? summary.weakest;
+		const basis = supportedFloorClass
+			? "configured SUPPORTED floor (not necessarily loaded)"
+			: "weakest LOADED class";
 		return [
 			header,
-			`Fleet sharding (SMALLEST mode): size EVERY card so the weakest class — ${summary.weakest ? describeClass(summary.weakest) : "n/a"} — can complete it alone: tight scope, one focused change per card, explicit acceptance checks. More small cards beats fewer large ones here.`,
+			`Fleet sharding (SMALLEST mode): size EVERY card for the ${basis} — ${target ? describeClass(target) : "n/a"} — so it can complete the card alone: tight scope, one focused change per card, explicit acceptance checks. More small cards beats fewer large ones here.`,
 		];
 	}
 	if (mode === "fixed_target") {

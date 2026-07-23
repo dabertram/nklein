@@ -13,7 +13,10 @@ import {
 	saveRuntimeConfig,
 	updateRuntimeConfig,
 } from "../../../src/config/runtime-config";
-import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
+import {
+	DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
+	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+} from "../../../src/core/api-contract";
 import { createTempDir } from "../../utilities/temp-dir";
 
 function withTemporaryEnv<T>(
@@ -560,6 +563,47 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(withOverride.skillDynamicsLevelOverride).toBe("fully_static");
 				expect(withOverride.skillDynamicsLevelDefault).toBe("static_skills_auto_model");
 				expect(withOverride.effectiveSkillDynamicsLevel).toBe("fully_static");
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("round-trips fleet decomposition global → project and restores inheritance when reverted (F12.110b)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("nklein-home-fleet-decompose-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("nklein-project-fleet-decompose-");
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const defaults = await loadRuntimeConfig(tempProject);
+				expect(defaults.fleetDecompositionDefaults).toEqual(DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS);
+				expect(defaults.fleetDecompositionOverride).toBeNull();
+
+				const global = {
+					mode: "smallest" as const,
+					fixedTargetModelKey: null,
+					smallestBasis: "supported_floor" as const,
+					smallestSupportedModelKey: "qwen/qwen3-8b",
+				};
+				await updateRuntimeConfig(tempProject, { fleetDecompositionDefaults: global });
+				expect((await loadRuntimeConfig(tempProject)).effectiveFleetDecompositionSettings).toEqual(global);
+
+				const project = {
+					mode: "fixed_target" as const,
+					fixedTargetModelKey: "qwen/qwen3.5-9b",
+					smallestBasis: "loaded" as const,
+					smallestSupportedModelKey: null,
+				};
+				await updateRuntimeConfig(tempProject, { fleetDecompositionOverride: project });
+				const overridden = await loadRuntimeConfig(tempProject);
+				expect(overridden.fleetDecompositionDefaults).toEqual(global);
+				expect(overridden.fleetDecompositionOverride).toEqual(project);
+				expect(overridden.effectiveFleetDecompositionSettings).toEqual(project);
+
+				await updateRuntimeConfig(tempProject, { fleetDecompositionOverride: null });
+				const inherited = await loadRuntimeConfig(tempProject);
+				expect(inherited.fleetDecompositionOverride).toBeNull();
+				expect(inherited.effectiveFleetDecompositionSettings).toEqual(global);
 			});
 		} finally {
 			cleanupProject();

@@ -47,6 +47,7 @@ export function cloneTaskNKleinSettings(
 		...(settings.conversationTimeoutMs !== undefined
 			? { conversationTimeoutMs: settings.conversationTimeoutMs }
 			: {}),
+		...(settings.fleetDecomposition ? { fleetDecomposition: { ...settings.fleetDecomposition } } : {}),
 	};
 }
 

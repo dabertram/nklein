@@ -39,6 +39,27 @@ export type RuntimeTaskAutoReviewMode = z.infer<typeof runtimeTaskAutoReviewMode
 
 export const runtimeNKleinReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
 export type RuntimeNKleinReasoningEffort = z.infer<typeof runtimeNKleinReasoningEffortSchema>;
+export const runtimeFleetDecompositionModeSchema = z.enum([
+	"auto",
+	"smallest",
+	"capability_weighted",
+	"fixed_target",
+	"off",
+]);
+export type RuntimeFleetDecompositionMode = z.infer<typeof runtimeFleetDecompositionModeSchema>;
+export const runtimeFleetDecompositionSettingsSchema = z.object({
+	mode: runtimeFleetDecompositionModeSchema,
+	fixedTargetModelKey: z.string().trim().min(1).nullable(),
+	smallestBasis: z.enum(["loaded", "supported_floor"]),
+	smallestSupportedModelKey: z.string().trim().min(1).nullable(),
+});
+export type RuntimeFleetDecompositionSettings = z.infer<typeof runtimeFleetDecompositionSettingsSchema>;
+export const DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS: RuntimeFleetDecompositionSettings = {
+	mode: "off",
+	fixedTargetModelKey: null,
+	smallestBasis: "loaded",
+	smallestSupportedModelKey: null,
+};
 /** Minimum context window (tokens) a model must report before NKlein will activate it. */
 export const RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000;
 /** Assumed context window (tokens) when a model does not report one; used as a conservative fallback in
@@ -299,6 +320,8 @@ export const runtimeTaskNKleinSettingsSchema = z.object({
 	toolTimeoutMs: runtimeTimeoutMsSchema.optional(),
 	agentTimeoutMs: runtimeTimeoutMsSchema.optional(),
 	conversationTimeoutMs: runtimeTimeoutMsSchema.optional(),
+	/** F12.110b card-level override; absent inherits project then global. */
+	fleetDecomposition: runtimeFleetDecompositionSettingsSchema.optional(),
 });
 export type RuntimeTaskNKleinSettings = z.infer<typeof runtimeTaskNKleinSettingsSchema>;
 // A role's model config = its primary model settings plus an optional pool of `additionalModels`. When the pool

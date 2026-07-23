@@ -61,6 +61,20 @@ describe("cloneTaskNKleinSettings", () => {
 		expect(cloned).toEqual({ timeoutMode: "auto" });
 		expect(cloned).not.toBe(input);
 	});
+
+	it("deep-clones the atomic card fleet-decomposition override", () => {
+		const input = settings({
+			fleetDecomposition: {
+				mode: "smallest",
+				fixedTargetModelKey: null,
+				smallestBasis: "supported_floor",
+				smallestSupportedModelKey: "qwen/qwen3-8b",
+			},
+		});
+		const cloned = cloneTaskNKleinSettings(input);
+		expect(cloned).toEqual(input);
+		expect(cloned?.fleetDecomposition).not.toBe(input.fleetDecomposition);
+	});
 });
 
 describe("normalizeFilesLikelyTouched", () => {

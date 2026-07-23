@@ -6,6 +6,7 @@ import {
 	areRuntimeSwarmGuardrailsEqual,
 	areSandboxMcpServerOverridesEqual,
 	DEFAULT_AGENT_RULESETS_CONFIG,
+	DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
 	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 } from "@runtime-contract";
@@ -33,6 +34,7 @@ import type {
 	RuntimeAgentId,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeConfigResponse,
+	RuntimeFleetDecompositionSettings,
 	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeMemoryFreshnessAudit,
@@ -113,6 +115,8 @@ interface SettingsDraftCommonFields {
 	readyForReviewNotificationsEnabled: boolean;
 	codeEmbeddingDefaults: RuntimeCodeEmbeddingSettings;
 	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
+	fleetDecompositionDefaults: RuntimeFleetDecompositionSettings;
+	fleetDecompositionOverride: RuntimeFleetDecompositionSettings | null;
 	shortcuts: RuntimeProjectShortcut[];
 	maxConcurrentTasksOverride: number | null;
 	selectedAgentIdOverride: RuntimeAgentId | null;
@@ -238,6 +242,8 @@ export function initSettingsDraftFromConfig(
 		readyForReviewNotificationsEnabled: config?.readyForReviewNotificationsEnabled ?? true,
 		codeEmbeddingDefaults: config?.codeEmbeddingDefaults ?? DEFAULT_CODE_EMBEDDING_DEFAULTS,
 		codeEmbeddingOverride: config?.codeEmbeddingOverride ?? null,
+		fleetDecompositionDefaults: config?.fleetDecompositionDefaults ?? DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
+		fleetDecompositionOverride: config?.fleetDecompositionOverride ?? null,
 		shortcuts: config?.shortcuts ?? [],
 		maxConcurrentTasksOverride: config?.maxConcurrentTasksOverride ?? null,
 		selectedAgentIdOverride: config?.selectedAgentIdOverride ?? null,
@@ -463,6 +469,12 @@ export function isSettingsDraftDirty(args: SettingsDirtyArgs): boolean {
 		return true;
 	}
 	if (!areCodeEmbeddingSettingsEqual(draft.codeEmbeddingOverride, snapshot.codeEmbeddingOverride)) {
+		return true;
+	}
+	if (JSON.stringify(draft.fleetDecompositionDefaults) !== JSON.stringify(snapshot.fleetDecompositionDefaults)) {
+		return true;
+	}
+	if (JSON.stringify(draft.fleetDecompositionOverride) !== JSON.stringify(snapshot.fleetDecompositionOverride)) {
 		return true;
 	}
 	if (

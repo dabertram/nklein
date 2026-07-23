@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 153-package remainder is **51 ready + 7 partial + 79 dependency-blocked + 7 external/
+  gate below is green. The current 152-package remainder is **50 ready + 7 partial + 79 dependency-blocked + 7 external/
 user-gated + 9 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -6062,10 +6062,6 @@ into the existing F12.31. Same verify-before-build caveat.**
   that harness on the released fixed resident fleet, inspect every scored concern, and enable by default only if the
   deliberation arm materially improves clarification quality without an unacceptable false-question or cost increase;
   otherwise keep it opt-in or delete the wire rather than promoting ceremony.
-- [ ] **F12.110b — Fleet-aware settings surface** *(split 2026-07-19; product/David-batch).* Expose the mode +
-  fixed-target as global → per-project → per-card via resolveScopedOverride (F4.16's core, still zero live
-  consumers — this is it), plus the smallest-supported-floor optional setting. Env-only today
-  (NKLEIN_FLEET_AWARE_DECOMPOSE / _MODE / _TARGET); the UI/placement is David's call.
 - [ ] **F12.110c — Auto re-shard on fleet change** *(split 2026-07-19; DESIGN-HEAVY effectful, flag for Fable or
   a dedicated pass).* David's decision #2: automatic re-shard default-ON w/ opt-out when the LOADED fleet changes
   mid-plan and strands cards. DESIGN SENSITIVITY (why this is not a one-shot wire): the existing

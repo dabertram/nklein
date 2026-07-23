@@ -12,6 +12,7 @@ import type {
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeFileOverlapParallelism,
+	RuntimeFleetDecompositionSettings,
 	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeMemoryFreshnessAudit,
@@ -44,6 +45,7 @@ import {
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 } from "./runtime-config-defaults";
 import { deriveEmbeddingFields } from "./runtime-config-embedding-resolver";
+import { deriveFleetDecompositionFields } from "./runtime-config-fleet-decomposition-resolver";
 import { deriveModelRolesFields } from "./runtime-config-model-roles-resolver";
 import {
 	normalizeBoolean,
@@ -144,6 +146,8 @@ export interface RuntimeConfigStateFromValuesInput {
 	skillDynamicsLevelOverride: RuntimeSkillDynamicsLevel | null;
 	fileOverlapParallelism: RuntimeFileOverlapParallelism;
 	fileOverlapParallelismOverride: RuntimeFileOverlapParallelism | null;
+	fleetDecompositionDefaults?: RuntimeFleetDecompositionSettings;
+	fleetDecompositionOverride?: RuntimeFleetDecompositionSettings | null;
 	concurrencyDefaults: ConcurrencyConfig;
 	concurrencyOverride: ConcurrencyOverride | null;
 	modelRoles: RuntimeModelRoles;
@@ -266,6 +270,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		...deriveSuitabilityFields(input.modelSuitabilityPolicyDefaults, input.modelSuitabilityPolicyOverride),
 		...deriveSkillDynamicsFields(input.skillDynamicsLevelDefault, input.skillDynamicsLevelOverride),
 		...deriveFileOverlapFields(input.fileOverlapParallelism, input.fileOverlapParallelismOverride),
+		...deriveFleetDecompositionFields(input.fleetDecompositionDefaults, input.fleetDecompositionOverride),
 		...deriveModelRolesFields(input.modelRoles, input.modelRolesOverride),
 		...deriveRulesetsFields(input.agentRulesets, input.agentRulesetsOverride),
 		swarmGuardrails: normalizeRuntimeSwarmGuardrails(input.swarmGuardrails),

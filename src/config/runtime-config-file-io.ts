@@ -9,6 +9,7 @@ import type {
 	RuntimeAgentId,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeFileOverlapParallelism,
+	RuntimeFleetDecompositionSettings,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
@@ -18,6 +19,7 @@ import type {
 import { type ConcurrencyOverride, normalizeConcurrencyOverride } from "../core/concurrency-config";
 import { normalizeSandboxMcpServerOverrides, type SandboxMcpServerOverrides } from "../core/sandbox-mcp-controls";
 import { lockedFileSystem } from "../fs/locked-file-system";
+import { normalizeFleetDecompositionSettingsOverride } from "./runtime-config-fleet-decomposition-resolver";
 import {
 	normalizeAgentRulesetsOverride,
 	normalizeCodeEmbeddingOverride,
@@ -94,6 +96,7 @@ export async function writeRuntimeProjectConfigFile(
 		modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
 		skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
 		fileOverlapParallelismOverride?: RuntimeFileOverlapParallelism | null;
+		fleetDecompositionOverride?: RuntimeFleetDecompositionSettings | null;
 		concurrencyOverride?: ConcurrencyOverride | null;
 		maxConcurrentTasksOverride?: number | null;
 		selectedAgentIdOverride?: RuntimeAgentId | null;
@@ -115,6 +118,7 @@ export async function writeRuntimeProjectConfigFile(
 	const fileOverlapParallelismOverride = normalizeFileOverlapParallelismOverride(
 		config.fileOverlapParallelismOverride,
 	);
+	const fleetDecompositionOverride = normalizeFleetDecompositionSettingsOverride(config.fleetDecompositionOverride);
 	const concurrencyOverride = normalizeConcurrencyOverride(config.concurrencyOverride);
 	const maxConcurrentTasksOverride = normalizeMaxConcurrentTasksOverride(config.maxConcurrentTasksOverride);
 	const selectedAgentIdOverride = normalizeSelectedAgentIdOverride(config.selectedAgentIdOverride);
@@ -144,6 +148,9 @@ export async function writeRuntimeProjectConfigFile(
 		}
 		if (fileOverlapParallelismOverride) {
 			throw new Error("Cannot save project file-overlap parallelism override without a selected project.");
+		}
+		if (fleetDecompositionOverride) {
+			throw new Error("Cannot save project fleet-decomposition override without a selected project.");
 		}
 		if (projectSetupWizardCompletedAt !== null) {
 			throw new Error("Cannot save project setup-wizard completion stamp without a selected project.");
@@ -178,6 +185,7 @@ export async function writeRuntimeProjectConfigFile(
 		modelSuitabilityPolicyOverride === null &&
 		skillDynamicsLevelOverride === null &&
 		fileOverlapParallelismOverride === null &&
+		fleetDecompositionOverride === null &&
 		concurrencyOverride === null &&
 		maxConcurrentTasksOverride === null &&
 		selectedAgentIdOverride === null &&
@@ -205,6 +213,7 @@ export async function writeRuntimeProjectConfigFile(
 			...(modelSuitabilityPolicyOverride ? { modelSuitabilityPolicyOverride } : {}),
 			...(skillDynamicsLevelOverride ? { skillDynamicsLevelOverride } : {}),
 			...(fileOverlapParallelismOverride ? { fileOverlapParallelismOverride } : {}),
+			...(fleetDecompositionOverride ? { fleetDecompositionOverride } : {}),
 			...(concurrencyOverride ? { concurrencyOverride } : {}),
 			...(maxConcurrentTasksOverride !== null ? { maxConcurrentTasksOverride } : {}),
 			...(selectedAgentIdOverride !== null ? { selectedAgentIdOverride } : {}),

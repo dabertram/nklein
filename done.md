@@ -2940,3 +2940,14 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   prompt-cache and stability evidence. Evidence: 34 focused backend assertions, 15 focused UI assertions, backend/web
   typechecks, the complete 12,339-test fast suite, 143 protected tests, a production web build, and lint with zero
   errors (19 pre-existing warnings and one info).
+
+- [x] **F12.110b — fleet-aware settings surface** *(completed 2026-07-23).* Fleet decomposition now resolves one
+  atomic policy through the shared scope precedence `card > project > global`: mode, fixed target, smallest-class
+  basis, and optional supported-floor model key cannot drift independently. Global and project settings persist and
+  round-trip through the runtime config API and Settings UI; the card editor deep-clones and preserves the same object.
+  The legacy environment flag remains a global compatibility input, so narrower persisted choices can override it.
+  Smallest mode may use a model-registry floor that is not loaded, with honest guidance and telemetry naming the
+  winning scope, basis, resolved floor, and target class; absent/invalid configuration fails closed to off, and no path
+  loads or unloads a model. A fleet-only card override deliberately continues inheriting global reasoning effort.
+  Evidence: focused config/contract/core/UI tests, a full 12k+ backend gate, all 1,147 web tests, 143 protected tests,
+  backend/web typechecks, a production web build, and lint with zero errors (19 pre-existing warnings and one info).

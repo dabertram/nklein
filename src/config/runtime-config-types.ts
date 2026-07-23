@@ -9,6 +9,7 @@ import type {
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeFileOverlapParallelism,
+	RuntimeFleetDecompositionSettings,
 	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeMemoryFreshnessAudit,
@@ -118,6 +119,10 @@ export interface RuntimeConfigState {
 	fileOverlapParallelism: RuntimeFileOverlapParallelism;
 	fileOverlapParallelismOverride: RuntimeFileOverlapParallelism | null;
 	effectiveFileOverlapParallelism: RuntimeFileOverlapParallelism;
+	/** F12.110b persisted global/project controls; card override resolves at task start. */
+	fleetDecompositionDefaults?: RuntimeFleetDecompositionSettings;
+	fleetDecompositionOverride?: RuntimeFleetDecompositionSettings | null;
+	effectiveFleetDecompositionSettings?: RuntimeFleetDecompositionSettings;
 	/** §5.W: global per-provider/per-model concurrency caps + the per-project override (effective resolved per session). */
 	concurrencyDefaults: ConcurrencyConfig;
 	concurrencyOverride: ConcurrencyOverride | null;
@@ -212,6 +217,8 @@ export interface RuntimeConfigUpdateInput {
 	skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
 	fileOverlapParallelism?: RuntimeFileOverlapParallelism;
 	fileOverlapParallelismOverride?: RuntimeFileOverlapParallelism | null;
+	fleetDecompositionDefaults?: RuntimeFleetDecompositionSettings;
+	fleetDecompositionOverride?: RuntimeFleetDecompositionSettings | null;
 	concurrencyDefaults?: ConcurrencyConfig;
 	concurrencyOverride?: ConcurrencyOverride | null;
 	maxConcurrentTasksOverride?: number | null;
@@ -281,6 +288,7 @@ export interface RuntimeGlobalConfigFileShape {
 	modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
 	skillDynamicsLevelDefault?: RuntimeSkillDynamicsLevel;
 	fileOverlapParallelism?: RuntimeFileOverlapParallelism;
+	fleetDecompositionDefaults?: RuntimeFleetDecompositionSettings;
 	concurrencyDefaults?: ConcurrencyConfig;
 	modelRoles?: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
@@ -302,6 +310,7 @@ export interface RuntimeProjectConfigFileShape {
 	modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
 	skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
 	fileOverlapParallelismOverride?: RuntimeFileOverlapParallelism | null;
+	fleetDecompositionOverride?: RuntimeFleetDecompositionSettings | null;
 	concurrencyOverride?: ConcurrencyOverride | null;
 	maxConcurrentTasksOverride?: number | null;
 	selectedAgentIdOverride?: RuntimeAgentId | null;

@@ -1,5 +1,6 @@
 import {
 	DEFAULT_AGENT_RULESETS_CONFIG,
+	DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
 	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 } from "@runtime-contract";
@@ -72,6 +73,18 @@ const representativeConfig = {
 	readyForReviewNotificationsEnabled: false,
 	codeEmbeddingDefaults: { provider: "openai_compatible", model: "embed-1", baseUrl: "http://127.0.0.1:1234/v1" },
 	codeEmbeddingOverride: null,
+	fleetDecompositionDefaults: {
+		mode: "smallest",
+		fixedTargetModelKey: null,
+		smallestBasis: "supported_floor",
+		smallestSupportedModelKey: "qwen/qwen3-8b",
+	},
+	fleetDecompositionOverride: {
+		mode: "fixed_target",
+		fixedTargetModelKey: "qwen/qwen3.5-9b",
+		smallestBasis: "loaded",
+		smallestSupportedModelKey: null,
+	},
 	shortcuts: [{ label: "Deploy", command: "deploy", icon: null }],
 	maxConcurrentTasksOverride: 2,
 	selectedAgentIdOverride: "nklein",
@@ -165,6 +178,8 @@ describe("initSettingsDraftFromConfig", () => {
 			baseUrl: null,
 		});
 		expect(snapshot.codeEmbeddingOverride).toBeNull();
+		expect(snapshot.fleetDecompositionDefaults).toEqual(DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS);
+		expect(snapshot.fleetDecompositionOverride).toBeNull();
 		expect(snapshot.shortcuts).toEqual([]);
 		expect(snapshot.maxConcurrentTasksOverride).toBeNull();
 		expect(snapshot.selectedAgentIdOverride).toBeNull();
@@ -227,6 +242,8 @@ describe("initSettingsDraftFromConfig", () => {
 		expect(snapshot.modelGateUnknown).toBe("reject");
 		expect(snapshot.skillDynamicsLevel).toBe("assigned_skills");
 		expect(snapshot.skillDynamicsLevelOverride).toBe("fully_static");
+		expect(snapshot.fleetDecompositionDefaults).toEqual(representativeConfig.fleetDecompositionDefaults);
+		expect(snapshot.fleetDecompositionOverride).toEqual(representativeConfig.fleetDecompositionOverride);
 		expect(snapshot.concurrencyOverride).toEqual({
 			perProvider: {},
 			perModel: { "qwen3-8b": 1 },
@@ -344,6 +361,8 @@ describe("isSettingsDraftDirty", () => {
 			{ modelGateUnknown: "warn" },
 			{ skillDynamicsLevel: "fully_dynamic" },
 			{ skillDynamicsLevelOverride: null },
+			{ fleetDecompositionDefaults: DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS },
+			{ fleetDecompositionOverride: null },
 			{ concurrencyOverride: null },
 			{ agentRulesetsOverride: DEFAULT_AGENT_RULESETS_CONFIG },
 			{ commitPromptTemplate: "changed" },

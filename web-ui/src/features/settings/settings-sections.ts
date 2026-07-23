@@ -58,6 +58,8 @@ export const SETTINGS_SECTION_FIELDS = {
 	],
 	planning_review: [
 		"decompositionAutoApplyEnabled",
+		"fleetDecompositionDefaults",
+		"fleetDecompositionOverride",
 		"testDrivenModeEnabled",
 		"hardTaskRoutingMode",
 		"secondOpinionReviewEnabled",
@@ -276,7 +278,14 @@ export const SETTINGS_NAV_FIELDS: Partial<Record<SettingsNavId, readonly (keyof 
 	// full panel there) — editing it lights BOTH dots, which is correct (both controls mutate the one object).
 	tasks: ["workspaceBaseDir", "deviceRamGb", "agentRulesets"],
 	guardrails: ["maxConcurrentTasks", "swarmGuardrailInputs", "memoryAuditInputs"],
-	nklein: ["modelRoles", "modelGateUnsuitable", "modelGateUnknown", "llmfitCatalogUpdateMode", "skillDynamicsLevel"],
+	nklein: [
+		"modelRoles",
+		"modelGateUnsuitable",
+		"modelGateUnknown",
+		"llmfitCatalogUpdateMode",
+		"skillDynamicsLevel",
+		"fleetDecompositionDefaults",
+	],
 	// `codeEmbeddingDefaults` is a derived useMemo (no direct setter) — the dirty dot JSON-compares it fine, but its
 	// Reset must revert the constituent provider/model/baseUrl sub-state (see the dialog's handler).
 	"code-intelligence": ["codeEmbeddingDefaults"],
@@ -289,6 +298,7 @@ export const SETTINGS_NAV_FIELDS: Partial<Record<SettingsNavId, readonly (keyof 
 		"modelRolesOverride",
 		"agentRulesetsOverride",
 		"skillDynamicsLevelOverride",
+		"fleetDecompositionOverride",
 		"codeEmbeddingOverride",
 		"sandboxMcpServersEnabledOverride",
 		"sandboxMcpServerOverrides",

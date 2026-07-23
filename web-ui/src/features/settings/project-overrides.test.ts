@@ -47,12 +47,14 @@ describe("listActiveProjectOverrides (§10c#9 nav badge)", () => {
 			concurrencyOverride: {},
 			modelSuitabilityPolicyOverride: {},
 			skillDynamicsLevelOverride: "fully_dynamic",
+			fleetDecompositionOverride: { mode: "off" },
 			fileOverlapParallelismOverride: "allow",
 			modelRolesOverride: {},
 			agentRulesetsOverride: {},
 			sandboxMcpServersEnabledOverride: true,
 			sandboxMcpServerOverrides: { "basic-memory": true },
 		});
-		expect(labels).toHaveLength(12);
+		expect(labels).toHaveLength(13);
+		expect(labels).toContain("Fleet decomposition");
 	});
 });

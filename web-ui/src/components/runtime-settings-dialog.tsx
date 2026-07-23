@@ -11,6 +11,7 @@ import {
 	buildGlobalSandboxMcpServerControls,
 	buildSandboxMcpSettingsPreview,
 	DEFAULT_AGENT_RULESETS_CONFIG,
+	DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
 	DEFAULT_RUNTIME_MEMORY_FRESHNESS_AUDIT,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 } from "@runtime-contract";
@@ -46,6 +47,10 @@ import {
 import { CommunitySkillImportPanel } from "@/components/community-skill-import-panel";
 import { ConcurrencyEditor, type ConcurrencyMap } from "@/components/concurrency-editor";
 import { CuratedMcpStatusPanel } from "@/components/curated-mcp-status-panel";
+import {
+	describeFleetDecompositionSettings,
+	FleetDecompositionSettingsFields,
+} from "@/components/fleet-decomposition-settings-fields";
 import { MemoryAuditSettingsPanel } from "@/components/memory-audit-settings-panel";
 import { ModelPerformanceStatsDialog } from "@/components/model-performance-stats-dialog";
 import { ModelRolesEditor } from "@/components/model-roles-editor";
@@ -100,6 +105,7 @@ import type {
 	RuntimeAgentId,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeConfigResponse,
+	RuntimeFleetDecompositionSettings,
 	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeManagedSearchStatusResponse,
@@ -380,6 +386,11 @@ export function RuntimeSettingsDialog({
 	// §5.AE global skill-dynamics level default.
 	const [skillDynamicsLevel, setSkillDynamicsLevel] = useState<RuntimeSkillDynamicsLevel>("fully_dynamic");
 	const [skillDynamicsLevelOverride, setSkillDynamicsLevelOverride] = useState<RuntimeSkillDynamicsLevel | null>(null);
+	const [fleetDecompositionDefaults, setFleetDecompositionDefaults] = useState<RuntimeFleetDecompositionSettings>(
+		DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
+	);
+	const [fleetDecompositionOverride, setFleetDecompositionOverride] =
+		useState<RuntimeFleetDecompositionSettings | null>(null);
 	const [concurrencyOverride, setConcurrencyOverride] = useState<{
 		perProvider: ConcurrencyMap;
 		perModel: ConcurrencyMap;
@@ -805,6 +816,8 @@ export function RuntimeSettingsDialog({
 			modelGateUnknown,
 			skillDynamicsLevel,
 			skillDynamicsLevelOverride,
+			fleetDecompositionDefaults,
+			fleetDecompositionOverride,
 			concurrencyOverride,
 			agentRulesets,
 			modelRolesOverride,
@@ -872,6 +885,8 @@ export function RuntimeSettingsDialog({
 			modelGateUnknown,
 			skillDynamicsLevel,
 			skillDynamicsLevelOverride,
+			fleetDecompositionDefaults,
+			fleetDecompositionOverride,
 			concurrencyOverride,
 			agentRulesets,
 			modelRolesOverride,
@@ -1112,6 +1127,9 @@ export function RuntimeSettingsDialog({
 					case "skillDynamicsLevel":
 						setSkillDynamicsLevel(configSnapshot.skillDynamicsLevel);
 						break;
+					case "fleetDecompositionDefaults":
+						setFleetDecompositionDefaults(configSnapshot.fleetDecompositionDefaults);
+						break;
 					case "codeEmbeddingDefaults":
 						// Derived useMemo — revert its constituent sub-state (mirrors the dialog's reset effect).
 						setCodeEmbeddingDefaultsProvider(configSnapshot.codeEmbeddingDefaults.provider);
@@ -1135,6 +1153,9 @@ export function RuntimeSettingsDialog({
 						break;
 					case "skillDynamicsLevelOverride":
 						setSkillDynamicsLevelOverride(configSnapshot.skillDynamicsLevelOverride);
+						break;
+					case "fleetDecompositionOverride":
+						setFleetDecompositionOverride(configSnapshot.fleetDecompositionOverride);
 						break;
 					case "codeEmbeddingOverride":
 						// Derived useMemo — revert its 4 sub-state fields (mirrors the dialog's reset effect).
@@ -1251,6 +1272,8 @@ export function RuntimeSettingsDialog({
 		setModelGateUnknown(snapshot.modelGateUnknown);
 		setSkillDynamicsLevel(snapshot.skillDynamicsLevel);
 		setSkillDynamicsLevelOverride(snapshot.skillDynamicsLevelOverride);
+		setFleetDecompositionDefaults(snapshot.fleetDecompositionDefaults);
+		setFleetDecompositionOverride(snapshot.fleetDecompositionOverride);
 		setConcurrencyOverride(snapshot.concurrencyOverride);
 		setAgentRulesets(snapshot.agentRulesets);
 		setModelRolesOverride(snapshot.modelRolesOverride);
@@ -1314,6 +1337,8 @@ export function RuntimeSettingsDialog({
 		config?.maxConcurrentTasksOverride,
 		config?.selectedAgentIdOverride,
 		config?.skillDynamicsLevelOverride,
+		config?.fleetDecompositionDefaults,
+		config?.fleetDecompositionOverride,
 		config?.modelRoles,
 		config?.modelRolesOverride,
 		config?.agentRulesetsOverride,
@@ -3184,6 +3209,20 @@ export function RuntimeSettingsDialog({
 											<option value="fully_static">Fully static skills, model assignment unchanged</option>
 										</NativeSelect>
 									</div>
+									<div className="mt-4 border-t border-border pt-4">
+										<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+											Fleet-aware decomposition
+										</h6>
+										<p className="m-0 mb-3 text-[12px] text-text-secondary">
+											Shape decomposition cards for the model classes that can actually execute them. This
+											only changes explicit plan/decompose tasks; it never loads or unloads models.
+										</p>
+										<FleetDecompositionSettingsFields
+											value={fleetDecompositionDefaults}
+											onChange={setFleetDecompositionDefaults}
+											disabled={controlsDisabled}
+										/>
+									</div>
 								</div>
 							</>
 						) : null}
@@ -3781,6 +3820,20 @@ export function RuntimeSettingsDialog({
 											<option value="assigned_skills">Assigned skills</option>
 											<option value="fully_static">Fully static skills, model assignment unchanged</option>
 										</NativeSelect>
+									</OverrideRow>
+									<OverrideRow
+										label="Fleet decomposition"
+										inheritLabel={describeFleetDecompositionSettings(fleetDecompositionDefaults)}
+										isOverridden={fleetDecompositionOverride !== null}
+										onOverride={() => setFleetDecompositionOverride({ ...fleetDecompositionDefaults })}
+										onRevert={() => setFleetDecompositionOverride(null)}
+										disabled={controlsDisabled}
+									>
+										<FleetDecompositionSettingsFields
+											value={fleetDecompositionOverride ?? fleetDecompositionDefaults}
+											onChange={setFleetDecompositionOverride}
+											disabled={controlsDisabled}
+										/>
 									</OverrideRow>
 									<OverrideRow
 										label="Code embeddings"
