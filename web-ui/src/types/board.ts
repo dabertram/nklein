@@ -1,13 +1,11 @@
 import type {
-	RuntimeAgentId,
+	RuntimeBoardCard,
+	RuntimeBoardColumn,
 	RuntimeBoardColumnId,
-	RuntimeCardReview,
-	RuntimeCardVerification,
-	RuntimeFocusChain,
-	RuntimeGeneratedFromPlan,
+	RuntimeBoardData,
+	RuntimeBoardDependency,
 	RuntimeTaskAutoReviewMode,
 	RuntimeTaskImage,
-	RuntimeTaskNKleinSettings,
 } from "@/runtime/types";
 
 export type BoardColumnId = RuntimeBoardColumnId;
@@ -41,48 +39,16 @@ export function getTaskAutoReviewCancelButtonLabel(mode: TaskAutoReviewMode | nu
 	return "Cancel Auto-commit";
 }
 
-export interface BoardCard {
-	id: string;
-	title: string;
-	prompt: string;
-	startInPlanMode: boolean;
-	autoReviewEnabled?: boolean;
-	autoReviewMode?: TaskAutoReviewMode;
-	autoReviewStatus?: "running" | "failed";
-	autoReviewMessage?: string;
-	review?: RuntimeCardReview;
-	/** F12.53: the artifact's own last acceptance run (badge + merge-warn source) — not the reviewer's opinion. */
-	verification?: RuntimeCardVerification;
-	focusChain?: RuntimeFocusChain;
-	images?: TaskImage[];
-	agentId?: RuntimeAgentId;
-	nkleinSettings?: RuntimeTaskNKleinSettings;
-	filesLikelyTouched?: string[];
-	generatedFromPlan?: RuntimeGeneratedFromPlan;
-	blockedKind?: TaskBlockedKind;
-	blockedReason?: string;
-	baseRef: string;
-	createdAt: number;
-	updatedAt: number;
-}
+/**
+ * Keep the browser's card contract structurally identical to the runtime contract. A hand-maintained UI subset made
+ * newly-added durable fields disappear whenever the browser normalized and saved a board (the auto-review notice path
+ * exposed this with `testEvidencePolicy`). UI-only views should derive from this type, never fork the persisted shape.
+ */
+export type BoardCard = RuntimeBoardCard;
 
-export interface BoardColumn {
-	id: BoardColumnId;
-	title: string;
-	cards: BoardCard[];
-}
-
-export interface BoardDependency {
-	id: string;
-	fromTaskId: string;
-	toTaskId: string;
-	createdAt: number;
-}
-
-export interface BoardData {
-	columns: BoardColumn[];
-	dependencies: BoardDependency[];
-}
+export type BoardColumn = RuntimeBoardColumn;
+export type BoardDependency = RuntimeBoardDependency;
+export type BoardData = RuntimeBoardData;
 
 export interface ReviewTaskWorkspaceSnapshot {
 	taskId: string;

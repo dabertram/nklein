@@ -30,7 +30,10 @@
   prompt convention as ordinary cards, while semantic grading stays private and external. Benchmark cards persist
   an externally-held-out test-evidence policy, so delivery no longer misreports intentionally sealed tests as
   missing agent-written coverage; placeholder, file-size, and duplication checks remain active, and ordinary cards keep
-  the strict agent-visible-test default. Benchmark monitoring inherits the production real-model settle window, so
+  the strict agent-visible-test default. Browser board normalization now derives its persisted card/board shapes from
+  the runtime contract and round-trips additive/future fields instead of erasing fields it does not render. The isolated
+  launcher also offers `--runtime-only` for headless benchmarks, preventing Vite/browser auto-review automation from
+  racing the runtime finalizer. Benchmark monitoring inherits the production real-model settle window, so
   immutable receipts cannot capture an empty intermediate artifact while
   watchdog review or correction is still progressing. A resumable Aider campaign runner pre-registers detectable
   effect, fixed task-to-model assignments, alternating pair order, and the complete resident fleet; it runs matched arms

@@ -6,7 +6,7 @@
  *
  * Behavior (faithful to the previous scripts):
  *   - flags: --force/-f (kill a stale instance without asking), --test/-t (isolated test instance on offset ports +
- *     its own data dir), --help/-h.
+ *     its own data dir), --runtime-only (no Vite/browser automation), --help/-h.
  *   - env preflight (node >= 22, npm, git; docker is a soft warning) — was start.bat-only, now on every OS.
  *   - stale-instance detection on the dev ports (a leftover instance serves OLD code because it doesn't hot-reload);
  *     prompt to stop it, or --force to stop automatically. Skipped in --test mode (it uses offset ports).
@@ -31,7 +31,7 @@ const TEST_RUNTIME_PORT = 3584;
 const TEST_WEB_UI_PORT = 4273;
 const MIN_NODE_MAJOR = 22;
 
-const HELP = `Usage: ./start.sh [--force] [--test]   (Windows: start.bat …;  or: node start.mjs …)
+const HELP = `Usage: ./start.sh [--force] [--test] [--runtime-only]   (Windows: start.bat …;  or: node start.mjs …)
   Starts !Klein in full dev mode (runtime :${RUNTIME_PORT} + Vite UI :${WEB_UI_PORT}). Detects a
   leftover dev instance from a previous run and offers to shut it down first
   (a stale instance does not hot-reload, so it silently serves old code).
@@ -39,7 +39,9 @@ const HELP = `Usage: ./start.sh [--force] [--test]   (Windows: start.bat …;  o
   --test,  -t   Spawn an ISOLATED TEST instance ALONGSIDE your main one:
                 offset ports (runtime :${TEST_RUNTIME_PORT} + UI :${TEST_WEB_UI_PORT}) + a separate data dir
                 (.nklein-test-home/.nklein) — never touches your real board and
-                never kills the main instance. Then open http://127.0.0.1:${TEST_WEB_UI_PORT}.`;
+                never kills the main instance. Then open http://127.0.0.1:${TEST_WEB_UI_PORT}.
+  --runtime-only Start only the runtime, without Vite or a browser tab. Use this for headless benchmarks and
+                 diagnostics so UI automation cannot compete with the runtime's headless lifecycle.`;
 
 /** Parse argv strictly — an unknown flag is a hard error (unlike the old lenient `case`), with a helpful message. */
 function parseCliArgs() {
@@ -48,6 +50,7 @@ function parseCliArgs() {
 			options: {
 				force: { type: "boolean", short: "f", default: false },
 				test: { type: "boolean", short: "t", default: false },
+				"runtime-only": { type: "boolean", default: false },
 				help: { type: "boolean", short: "h", default: false },
 			},
 			allowPositionals: false,
@@ -176,12 +179,16 @@ function confirm(question) {
 }
 
 /** `npm run <script>` inheriting stdio, with optional extra env; returns the child's exit code. */
-function runNpm(script, extraEnv = {}) {
-	const child = spawn(process.platform === "win32" ? "npm.cmd" : "npm", ["run", script], {
-		cwd: ROOT_DIR,
-		stdio: "inherit",
-		env: { ...process.env, ...extraEnv },
-	});
+function runNpm(script, extraEnv = {}, scriptArgs = []) {
+	const child = spawn(
+		process.platform === "win32" ? "npm.cmd" : "npm",
+		["run", script, ...(scriptArgs.length > 0 ? ["--", ...scriptArgs] : [])],
+		{
+			cwd: ROOT_DIR,
+			stdio: "inherit",
+			env: { ...process.env, ...extraEnv },
+		},
+	);
 	return new Promise((resolve) => child.on("close", (code) => resolve(code ?? 0)));
 }
 
@@ -224,17 +231,40 @@ async function main() {
 	if (args.test) {
 		const testHome = join(ROOT_DIR, ".nklein-test-home");
 		await mkdir(testHome, { recursive: true });
-		console.log("Starting !Klein ISOLATED TEST instance...");
-		console.log(`  data dir: ${join(testHome, ".nklein")}   ports: runtime ${TEST_RUNTIME_PORT} / UI ${TEST_WEB_UI_PORT}`);
-		console.log(`  (separate from your main board; coexists with a running main instance) — open http://127.0.0.1:${TEST_WEB_UI_PORT}`);
-		const code = await runNpm("dev:full", {
+		console.log(`Starting !Klein ISOLATED TEST ${args["runtime-only"] ? "runtime" : "instance"}...`);
+		console.log(
+			`  data dir: ${join(testHome, ".nklein")}   runtime: ${TEST_RUNTIME_PORT}${
+				args["runtime-only"] ? "" : `   UI: ${TEST_WEB_UI_PORT}`
+			}`,
+		);
+		console.log(
+			args["runtime-only"]
+				? "  (separate from your main board; no Vite process or browser automation)"
+				: `  (separate from your main board; coexists with a running main instance) — open http://127.0.0.1:${TEST_WEB_UI_PORT}`,
+		);
+		const isolatedEnv = {
 			HOME: testHome,
 			USERPROFILE: testHome, // Windows equivalent of HOME
 			NKLEIN_DEV_ISOLATED: "1",
 			NKLEIN_DEV_RUNTIME_PORT: String(TEST_RUNTIME_PORT),
 			NKLEIN_DEV_WEB_UI_PORT: String(TEST_WEB_UI_PORT),
-		});
+		};
+		const code = args["runtime-only"]
+			? await runNpm("dev", isolatedEnv, [
+					"--port",
+					String(TEST_RUNTIME_PORT),
+					"--no-open",
+					"--skip-shutdown-cleanup",
+				])
+			: await runNpm("dev:full", isolatedEnv);
 		process.exit(code);
+	}
+
+	if (args["runtime-only"]) {
+		console.log("Starting !Klein runtime only...");
+		process.exit(
+			await runNpm("dev", {}, ["--port", String(RUNTIME_PORT), "--no-open", "--skip-shutdown-cleanup"]),
+		);
 	}
 
 	console.log("Starting !Klein in full dev mode...");

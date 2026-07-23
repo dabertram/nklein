@@ -14,6 +14,7 @@ import {
 	moveTaskToColumn,
 	normalizeBoardData,
 	trashTaskAndGetReadyLinkedTaskIds,
+	updateTaskAutoReviewNotice,
 	updateTaskBlockedState,
 	updateTaskFocusChain,
 	updateTaskTitle,
@@ -599,6 +600,60 @@ describe("board dependency state", () => {
 		]);
 		expect(normalized?.columns.find((column) => column.id === "planning")?.cards).toEqual([]);
 		expect(normalized?.columns.find((column) => column.id === "backlog")?.cards[0]?.id).toBe("task-1");
+	});
+
+	it("round-trips additive runtime card fields through normalization and auto-review notice writes", () => {
+		const normalized = normalizeBoardData({
+			columns: [
+				{
+					id: "review",
+					futureColumnField: { color: "violet" },
+					cards: [
+						{
+							id: "benchmark-task",
+							title: "Benchmark task",
+							prompt: "Implement the held-out benchmark task",
+							startInPlanMode: true,
+							baseRef: "benchmark-baseline",
+							createdAt: 1,
+							updatedAt: 2,
+							testEvidencePolicy: "externally_held_out",
+							deliveryTierOverride: "guarded",
+							writeScope: ["src/**"],
+							forbiddenPaths: ["test/**"],
+							streamId: "benchmark",
+							futureRuntimeField: { version: 2 },
+						},
+					],
+				},
+			],
+			dependencies: [],
+			streams: [{ id: "benchmark", title: "Benchmark", source: "manual", createdAt: 1, updatedAt: 2 }],
+			futureBoardField: { revision: 3 },
+		});
+		expect(normalized).not.toBeNull();
+		if (!normalized) throw new Error("Expected board to normalize");
+
+		const noticed = updateTaskAutoReviewNotice(normalized, "benchmark-task", {
+			status: "failed",
+			message: "Auto-commit did not start.",
+		});
+		const card = noticed.board.columns.find((column) => column.id === "review")?.cards[0];
+		expect(card).toMatchObject({
+			testEvidencePolicy: "externally_held_out",
+			deliveryTierOverride: "guarded",
+			writeScope: ["src/**"],
+			forbiddenPaths: ["test/**"],
+			streamId: "benchmark",
+			autoReviewStatus: "failed",
+		});
+		expect((card as unknown as Record<string, unknown>)?.futureRuntimeField).toEqual({ version: 2 });
+		const reviewColumn = noticed.board.columns.find((column) => column.id === "review");
+		expect((reviewColumn as unknown as Record<string, unknown>)?.futureColumnField).toEqual({ color: "violet" });
+		expect(noticed.board.streams).toEqual([
+			{ id: "benchmark", title: "Benchmark", source: "manual", createdAt: 1, updatedAt: 2 },
+		]);
+		expect((noticed.board as unknown as Record<string, unknown>).futureBoardField).toEqual({ revision: 3 });
 	});
 
 	it("normalizes and updates task blocked state", () => {

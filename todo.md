@@ -145,6 +145,15 @@ gap remains.
 > duplication scans remain live, the public acceptance check still runs, and only the external grader can resolve the
 > task. Never infer this from a title, prompt, benchmark-looking id, or missing test files, and never disable the whole
 > quality budget to accommodate a sealed oracle.
+> **A BROWSER BOARD NORMALIZER MUST NEVER BE A LOSSY PERSISTED-CONTRACT SUBSET (Aider campaign, 2026-07-23):** the
+> isolated full-stack launcher opened Vite during a headless benchmark. When the UI auto-review hook persisted its
+> notice, `normalizeCard` rebuilt each card from a hand-maintained UI subset and erased newer runtime fields—including
+> `testEvidencePolicy`, delivery tier/scope metadata, and streams. The portable CRDT retained the older register only
+> because absent fields are not tombstones; canonical board JSON was already damaged. Derive UI board/card types from
+> the runtime contract and preserve every field outside the explicitly normalized legacy set at board, column, and card
+> boundaries. Regress normalization followed by an actual notice mutation with both current additive fields and unknown
+> future sentinels. Headless lifecycle evidence must launch `./start.sh --test --runtime-only`: a benchmark runtime must
+> not also open a browser whose UI automation competes with the headless finalizer.
 > **A BENCHMARK RECEIPT MUST FOLLOW THE WHOLE RECOVERY/REVIEW MACHINE (Aider candidate pilot, 2026-07-22):** never shorten
 > the mature real-model settle window to a handful of campaign polls. A three-poll override captured `stagnant` + empty
 > patch during an ordinary between-turn lull while the watchdog continued review/correction after the immutable receipt
@@ -3776,7 +3785,12 @@ stays fast + complete.
     contract mismatch before evidence was admitted: a public-acceptance pass with intentionally sealed tests was
     recorded as `insufficient_tests`. Benchmark cards now persist an explicit externally-held-out test-evidence policy
     through delivery; only the inapplicable ratio is suppressed, while every other quality signal remains active.
-    Restart from a fresh commit-pinned root and prove the first pair reaches the external grader.
+    The next live diagnostic proved that card seeding and CRDT export carried the policy, but a browser auto-review
+    notice later erased it from both canonical board mirrors: the web normalizer duplicated only a subset of the
+    runtime card contract. UI card/board types now derive from the runtime contract, normalization preserves additive
+    and future fields at board/column/card boundaries, and the isolated launcher has a runtime-only mode so headless
+    evidence does not activate competing browser automation. Restart from a fresh commit-pinned, runtime-only root and
+    prove the first pair reaches the external grader.
   - [ ] **F11.3h — Contamination-aware fresh-set track.** Verified is >94% pre-model-cutoff + partly leaked (models recall
     file paths). Add a rolling SWE-bench-Live / SWE-rebench fresh-window gate (tasks post-dating cutoffs) as the HONEST
     "reasons vs recalls" measure; log leakage hits. (SWE-bench-Live; SWE-rebench 2505.20411)

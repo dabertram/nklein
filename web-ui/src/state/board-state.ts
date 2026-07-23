@@ -238,12 +238,52 @@ function normalizeGeneratedFromPlan(raw: unknown): BoardCard["generatedFromPlan"
 	};
 }
 
+// Fields below are deliberately normalized by this module (or are legacy inputs consumed during migration). Every
+// other card field is forward-compatible persisted data and must round-trip untouched. Without this complement, each
+// runtime contract addition had to be remembered here too; omissions silently became destructive whole-board writes.
+const NORMALIZED_CARD_FIELD_NAMES = new Set([
+	"id",
+	"title",
+	"prompt",
+	"startInPlanMode",
+	"autoReviewEnabled",
+	"autoReviewMode",
+	"autoReviewStatus",
+	"autoReviewMessage",
+	"review",
+	"focusChain",
+	"images",
+	"baseRef",
+	"agentId",
+	"nkleinSettings",
+	"blockedKind",
+	"blockedReason",
+	"generatedFromPlan",
+	"nkleinProviderId",
+	"nkleinModelId",
+	"nkleinReasoningEffort",
+	"createdAt",
+	"updatedAt",
+]);
+
+function collectForwardCompatibleCardFields(card: Record<string, unknown>): Record<string, unknown> {
+	return Object.fromEntries(Object.entries(card).filter(([key]) => !NORMALIZED_CARD_FIELD_NAMES.has(key)));
+}
+
+function collectForwardCompatibleFields(
+	value: Record<string, unknown>,
+	normalizedFieldNames: readonly string[],
+): Record<string, unknown> {
+	const normalized = new Set(normalizedFieldNames);
+	return Object.fromEntries(Object.entries(value).filter(([key]) => !normalized.has(key)));
+}
+
 function normalizeCard(rawCard: unknown): BoardCard | null {
 	if (!rawCard || typeof rawCard !== "object") {
 		return null;
 	}
 
-	const card = rawCard as {
+	const card = rawCard as Record<string, unknown> & {
 		id?: unknown;
 		title?: unknown;
 		prompt?: unknown;
@@ -289,6 +329,7 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 	const now = Date.now();
 
 	return {
+		...collectForwardCompatibleCardFields(card),
 		id: typeof card.id === "string" && card.id ? card.id : createShortTaskId(createBrowserUuid),
 		title,
 		prompt,
@@ -385,8 +426,9 @@ export function normalizeBoardData(rawBoard: unknown): BoardData | null {
 		return null;
 	}
 
-	const candidateColumns = (rawBoard as { columns?: unknown }).columns;
-	const candidateDependencies = (rawBoard as { dependencies?: unknown }).dependencies;
+	const rawBoardRecord = rawBoard as Record<string, unknown>;
+	const candidateColumns = rawBoardRecord.columns;
+	const candidateDependencies = rawBoardRecord.dependencies;
 	if (!Array.isArray(candidateColumns)) {
 		return null;
 	}
@@ -399,7 +441,7 @@ export function normalizeBoardData(rawBoard: unknown): BoardData | null {
 		if (!rawColumn || typeof rawColumn !== "object") {
 			continue;
 		}
-		const column = rawColumn as { id?: unknown; cards?: unknown };
+		const column = rawColumn as Record<string, unknown> & { id?: unknown; cards?: unknown };
 		if (typeof column.id !== "string") {
 			continue;
 		}
@@ -411,6 +453,7 @@ export function normalizeBoardData(rawBoard: unknown): BoardData | null {
 		if (!normalizedColumn || !Array.isArray(column.cards)) {
 			continue;
 		}
+		Object.assign(normalizedColumn, collectForwardCompatibleFields(column, ["id", "title", "cards"]));
 		for (const rawCard of column.cards) {
 			const card = normalizeCard(rawCard);
 			if (card) {
@@ -432,6 +475,7 @@ export function normalizeBoardData(rawBoard: unknown): BoardData | null {
 	}
 
 	return runtimeTaskState.updateTaskDependencies({
+		...collectForwardCompatibleFields(rawBoardRecord, ["columns", "dependencies"]),
 		columns: normalizedColumns,
 		dependencies: normalizedDependencies,
 	});

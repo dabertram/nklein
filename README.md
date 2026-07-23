@@ -70,6 +70,9 @@ npm run install:all
 npm run dev:full
 ```
 
+For an isolated headless runtime (benchmarks/diagnostics, no Vite or browser automation), run
+`./start.sh --test --runtime-only`.
+
 On Windows, run `start.bat` from the repository root. It checks the required local tools, installs missing
 dependencies, and starts the same full development runtime.
 
