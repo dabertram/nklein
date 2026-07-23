@@ -619,7 +619,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					buildTransitionEvent({
 						workflowId: taskId,
 						taskId,
-						workspacePathHash: hashWorkspacePathForLedger(entry?.summary.workspacePath ?? null),
+						workspacePathHash: hashWorkspacePathForLedger(
+							this.resolveHostWorkspacePathForTask(taskId, entry?.summary.workspacePath ?? null),
+						),
 						role: null,
 						from: transition.from ? `focus:${transition.from}` : null,
 						to: `focus:${transition.to}`,
@@ -929,6 +931,23 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.contextBudgetController.resolveContextWindowForTask(taskId, normalized.contextWindow);
 		}
 		return normalized;
+	}
+
+	/**
+	 * Resolve the trusted host workspace identity for control-plane persistence.
+	 *
+	 * `summary.workspacePath` deliberately becomes the agent-perceived sandbox cwd (`/workspaces/<taskId>`) while an
+	 * isolated turn runs. Hashing that presentation/execution path fragments one workspace's ledger from every host-side
+	 * reader (reviews, workflow scope, retries). The launch contract is authoritative; the prepared sandbox's repo path
+	 * is the same-host fallback for legacy launches that did not persist `workspaceRoot`.
+	 */
+	private resolveHostWorkspacePathForTask(taskId: string, fallback: string | null): string | null {
+		return (
+			this.launchConfigByTaskId.get(taskId)?.workspaceRoot?.trim() ||
+			this.sandboxState.getRepoPath(taskId)?.trim() ||
+			fallback?.trim() ||
+			null
+		);
 	}
 
 	private resolvePersistedLaunchConfig(input: {
@@ -3701,6 +3720,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return;
 		}
 		const taskId = summary.taskId;
+		// Snapshot before asynchronous capture/finalization can prune the launch/sandbox maps. The summary's path is the
+		// sandbox cwd under isolation; ledger/task-run readers use the host workspace identity.
+		const hostWorkspacePath = this.resolveHostWorkspacePathForTask(taskId, summary.workspacePath ?? null);
 		if (this.lastRecordedRunStateByTaskId.get(taskId) === state) {
 			return;
 		}
@@ -3752,7 +3774,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		void recordTaskRunSummary(
 			{
 				taskId,
-				workspacePath: summary.workspacePath ?? null,
+				workspacePath: hostWorkspacePath,
 				state,
 				reviewReason: summary.reviewReason ?? null,
 				providerId: summary.providerId ?? this.resolveProviderIdForTask(taskId),
@@ -3787,7 +3809,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// F1.1: distill the knowledge-tool usage summary here, where the transcript's tool calls are in hand —
 				// projections correlate it with the attempt outcome without re-reading transcripts. The plan-declared
 				// knowledge debt of the originating card rides along (null when unknown / not plan-born).
-				const knowledgeDebtPresent = await resolveTaskKnowledgeDebtPresent(summary.workspacePath, taskId);
+				const knowledgeDebtPresent = await resolveTaskKnowledgeDebtPresent(hostWorkspacePath, taskId);
 				const knowledge = summarizeAttemptKnowledgeUsage(toolCalls, { knowledgeDebtPresent });
 				// F1.5: the ledger and the reviewer prompt derive "the current step" from the SAME core helper.
 				const focusStep = currentFocusChainStep(this.focusChainStore.get(taskId))?.text ?? null;
@@ -3797,8 +3819,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				const attemptStrategy = this.nextAttemptStrategyByTaskId.get(taskId) ?? null;
 				this.nextAttemptStrategyByTaskId.delete(taskId);
 				// F1.15a: the SAME difficulty tier the fitness fold records, so ledger projections can key fitness cells.
-				const difficultyCard = summary.workspacePath
-					? await loadWorkspaceState(summary.workspacePath)
+				const difficultyCard = hostWorkspacePath
+					? await loadWorkspaceState(hostWorkspacePath)
 							.then(
 								(state) =>
 									state.board.columns
@@ -3809,7 +3831,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					: null;
 				const difficulty = deriveTaskDifficultyTier(taskId, difficultyCard);
 				const priorAttempts = await readAgentLedger({
-					workspacePathHash: hashWorkspacePathForLedger(summary.workspacePath ?? null),
+					workspacePathHash: hashWorkspacePathForLedger(hostWorkspacePath),
 					rootDir: this.diagnosticStoreRoot,
 				})
 					.then((events) => events.filter((event) => event.kind === "attempt" && event.taskId === taskId).length)
@@ -3817,7 +3839,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				await appendAgentLedgerEvent(
 					buildTerminalAttemptEvent({
 						taskId,
-						workspacePath: summary.workspacePath ?? null,
+						workspacePath: hostWorkspacePath,
 						state,
 						role,
 						// F12.29: stamp the surfaced procedures (empty/absent = the without-skill trajectory side).

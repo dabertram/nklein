@@ -699,13 +699,17 @@ gap remains.
 > an UNCAPPED per-category tally (`countSelfObservationsByCategory`) rather than tallying a capped event read.
 > Generalises to any telemetry query with a tail limit.
 
-> **⚠️ SANDBOX PATH vs HOST PATH: this distinction has now bitten TWICE (2026-07-20).** (1) The repo map was
+> **⚠️ SANDBOX PATH vs HOST PATH: this distinction has now bitten THREE TIMES (2026-07-23).** (1) The repo map was
 > silently empty under isolation because it read the agent-perceived cwd; (2) retrieval ledger events were
 > written under `hashWorkspacePathForLedger(agentPerceivedCwd)` — a key **no reader ever computes** — so the
 > ledger held ZERO retrieval events across all 76 workspace hashes with no error anywhere. **Rule: a
 > control-plane KEY (ledger hash, cache key, store scope) is always HOST-scoped; only the TOOL's own filesystem
 > view is agent-perceived.** Guarded by `test/runtime/ledger-key-host-path-guard.test.ts`, because a comment
-> warning about it was already present three lines above the bug and did not prevent it.
+> warning about it was already present three lines above the bug and did not prevent it. (3) The task-session summary
+> correctly became the sandbox cwd, but terminal attempts and focus transitions reused it as their ledger identity,
+> splitting one task across sandbox- and host-keyed files. Snapshot the canonical launch `workspaceRoot` synchronously
+> before asynchronous finalization can prune launch/sandbox state; never repair a scoped reader by scanning every
+> project's ledger, because that trades a path bug for a privacy/isolation bug.
 
 
 > **FLAKY-UNDER-LOAD (FIXED 2026-07-19): `nklein-task-session-service.test.ts` (129 timing-sensitive tests).**
@@ -7308,82 +7312,6 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   the `taskId` filter then finds nothing in — **that would be a reader/writer hash mismatch, a real bug affecting
   every ledger consumer in this path, not just F12.35**; or (b) the second-opinion review path simply has not run
   on this machine in the logged period. Filed as F12.35b.
-- [ ] **F12.35b — Root-cause `review_effort_scaling` recording ZERO of 44,421 observations *(filed 2026-07-20 by
-  P15.1c)*.** See the investigation above: not flag-gated, live call site, guard data present for 62 tasks, still
-  never fires. **Check the reader/writer workspace-hash agreement FIRST** — if `hashWorkspacePathForLedger` in
-  `second-opinion-review-runner` disagrees with the hash the attempt writer uses, every ledger read in that path
-  silently returns nothing, which would also quietly weaken F12.14's scaffold recommendation and F12.81's
-  exemplars (both read the ledger from the same seam). **This is exactly the class of defect the mechanism audit
-  was built to surface: no error, no orphan, tests green, and the feature simply never happens.**
-  **EVIDENCE GATHERED 2026-07-20 — the ledger is FRAGMENTED, and one write site hashes the WRONG PATH.**
-  · **76 distinct workspace-path hashes = 76 ledger files, and 37 contain exactly ONE event.** `readAgentLedger`
-    reads ONE file by hash, so a consumer deriving its hash from a different path than the writer used sees a
-    fraction of the history — or nothing. Half the ledger is single-event fragments.
-  · **CONFIRMED INCONSISTENCY:** every hash site in the tree derives from a HOST path (`workspacePath`,
-    `scope.workspacePath`, `repoPath`, `process.cwd()`) EXCEPT `nklein-session-runtime.ts:274`, which uses
-    **`agentPerceivedCwd`** — the SANDBOX path (`/workspaces/<taskId>` under isolation). Retrieval events are
-    written under a hash no reader ever computes.
-  · **CORROBORATION FROM THE DATA:** across all 76 files the kinds are `{transition: 967, attempt: 226}` —
-    **ZERO `retrieval` events exist anywhere**, despite `buildRetrievalEvent` being wired at that line. Either
-    that path never runs or its events go where nothing reads; both are bugs.
-  · **PRIOR ART IN THIS CODEBASE:** the context-focus extension's docblock records the same sandbox-vs-host
-    confusion biting once already — *"It must be the host path, not the sandbox cwd (`/workspaces/<taskId>` does
-    not exist on the host), which left the repo map silently empty under isolation."* **This is its sibling.**
-  **WRONG-PATH WRITE FIXED 2026-07-20.** `nklein-session-runtime.ts:274` now hashes `hostWorkspaceRoot`, which
-  was already defined three lines above it — and the comment there literally says the two path concepts are
-  *"named so a future surface can't silently pick the wrong one."* The surface picked the wrong one anyway, which
-  is why this is now guarded rather than commented: `test/runtime/ledger-key-host-path-guard.test.ts` greps `src`
-  for `hashWorkspacePathForLedger(agentPerceivedCwd|sandboxCwd|agentCwd)` in the style of the existing
-  no-wallclock guard. **Verified by REINTRODUCING the bug — the guard fails, then passes again on the fix.**
-  Note the retrieval TOOL above it correctly keeps `agentPerceivedCwd` (it operates in the agent's filesystem);
-  only the control-plane KEY is host-scoped.
-  **HASH-IDENTIFICATION PASS 2026-07-20 — and the result is the actionable part.** Computed
-  `hashWorkspacePathForLedger` over every plausible current path and matched against the 76 ledger filenames:
-  · **The MAIN REPO path (`/Users/david/GIT/nklein`) matches NO ledger file.** So a consumer running from the
-    repo root — which is what the review runner does — calls `readAgentLedger` for a file that does not exist and
-    gets an EMPTY history. **That is a complete, sufficient explanation for F12.35 recording zero**, and it
-    applies identically to every other consumer on that seam.
-  · **One file IS the `"unknown"` sentinel hash**, meaning some events were written with a null/empty
-    `workspacePath` and silently bucketed under `"unknown"` rather than failing. Those events are unreachable by
-    any path-derived lookup.
-  · 75 hashes match none of: the main repo, any `dev-test-projects/*` path, any of the 25 `dev-runs/*` workspaces
-    (with `/workspace`, `/repo`, `/project` suffixes tried), and there are NO active git worktrees. **So the
-    write-time paths are not any current path** — most plausibly deleted worktrees, historical temp dirs, or
-    sandbox paths. Not chased further; the actionable finding above does not depend on identifying them.
-  **ROOT-DIR RULED OUT 2026-07-20 (checked because it looked like the likelier culprit):** the attempt WRITE and
-  the service's own read both pass `{ rootDir: this.diagnosticStoreRoot }`, and `diagnosticStoreRoot` is supplied
-  **only in tests** (a `mkdtemp` dir) — in production `options.diagnosticStoreRoot` is undefined and everything
-  falls back to the same default root. So writer and reader agree on the DIRECTORY; they disagree on the
-  **workspace-path HASH**, which is the finding above.
-  **RECOMMENDED FIX — and it carries a tradeoff that is DAVID'S call, not mine.** `readAllAgentLedger({rootDir})`
-  already exists (used at `nklein-task-session-service.ts:1029`) and reads EVERY ledger file. A task-scoped
-  consumer could use it and filter by `taskId` instead of guessing which workspace hash its task was written
-  under — that makes F12.35, F12.14, F12.81 and F3.7b work regardless of which path the writer saw.
-  **THE TRADEOFF:** the per-workspace hash exists to keep one project's history out of another's decisions, and
-  `readAllAgentLedger` deliberately crosses that boundary. Filtering by `taskId` narrows it in practice, but the
-  read still touches other projects' files. **That is a privacy/isolation decision, so it is recorded rather than
-  applied** — the alternative (make every writer derive the hash from one canonical host path) preserves the
-  boundary but cannot recover the 76 files already written under other keys.
-  **NOT YET PROVEN → NOW SELF-PROVING 2026-07-20.** The "one instrumented review run" is no longer needed: the
-  silent `if (difficultyTier === null) return;` in `review_effort_scaling` — the exact line that recorded zero —
-  now emits a `review_effort_scaling_skipped` observation with the reason distinguished: `no_ledger_records` (no
-  attempt records for this task in the read → the wrong-hash/fragmentation cause) vs `no_difficulty_tier` (an
-  attempt found but carrying no difficulty). So EVERY future review confirms or refutes the fragmentation
-  hypothesis on its own — if the skips are all `no_ledger_records`, the empty-read cause is proven; the metadata
-  carries `ledgerEventsRead`/`taskAttemptsFound` for the exact counts. **This is the session's own lesson applied
-  to the item that motivated the mechanism audit: a silent early return made a defect look like an unused
-  feature; making the decline observable is what turns "not yet proven" into "proven on the next run".**
-  The fragmentation and the sandbox-path write site remain defects independently of F12.35.
-  **✅ AND THE MANUAL INVESTIGATION IS NOW A ONE-COMMAND DIAGNOSTIC: `dev ledger-health` (`ledger-health.ts`, 5
-  tests).** It computes what the investigation did by hand — file count, single-event fragmentation, the
-  `unknown` sentinel, and the load-bearing check: does the CURRENT path's hash match any ledger file? Run live
-  from the repo root it reproduces the finding exactly — *"76 file(s), 1193 event(s), the current path's hash
-  matches NO ledger file, 37/76 single-event, unknown sentinel present"* — and **exits 1 on the empty-read
-  defect** so a pre-release run (it is now in the checklist) catches a regression of this seam without anyone
-  re-deriving hashes by hand. The one boolean that is a defect (`currentPathMatchesNoFile`) is separated from the
-  context, in the output and in the exit code.
-  **SCOPE IF CONFIRMED:** every ledger consumer shares this seam — F12.14 scaffold recommendation, F12.81
-  exemplars, F3.7b behaviour profiles, the retry-note builder — and each degrades the same silent way.
 - [x] **P15.1d — Generate `docs/dev/mechanism-registry.md` from both scans *(split 2026-07-20)*.** Combine
   `dev unwired-cores` (nothing calls it) and `dev mechanism-registry` (it runs but never fires) into one
   generated document so the two failure modes appear side by side and neither can be mistaken for the other.

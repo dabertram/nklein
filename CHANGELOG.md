@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Task evidence now keeps one host-scoped identity while agents work inside disposable sandbox paths.** Terminal
+  attempts, focus transitions, task-run summaries, difficulty reads, and knowledge-debt reads derive their workspace
+  from the persisted launch contract instead of the agent-facing `/workspaces/<taskId>` cwd. Reviewer-side scaffold,
+  exemplar, retry, and review-effort decisions therefore see the evidence written for the task without crossing the
+  per-project ledger boundary.
+
 - **The strict Docker sandbox now has a deterministic polyglot environment path.** Its digest-pinned image includes
   modern Node, Python, Rust, Go, Maven/JDK, and Gradle runtimes; repository manifests choose lockfile-correct install,
   test, typecheck, and coverage commands. Acceptance constructs dependencies inside Docker and fails before tests when

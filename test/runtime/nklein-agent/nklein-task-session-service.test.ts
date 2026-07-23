@@ -13,6 +13,7 @@ import {
 import { buildPromptShellKey } from "../../../src/core/cache-warmth";
 import { AgentSandboxExecutionError, type AgentSandboxManager } from "../../../src/nklein-agent/nklein-agent-sandbox";
 import { buildKanbanEfficiencyRules } from "../../../src/nklein-agent/nklein-kanban-efficiency-rules";
+import { hashWorkspacePathForLedger } from "../../../src/nklein-agent/nklein-ledger-attempt";
 import { buildNKleinModelRegistryKey } from "../../../src/nklein-agent/nklein-model-registry";
 import type { NKleinRuntimeSetup } from "../../../src/nklein-agent/nklein-runtime-setup";
 import type {
@@ -3131,6 +3132,45 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(service.listMessages("task-1").some((message) => message.content.includes("NKlein SDK send failed"))).toBe(
 			false,
 		);
+	});
+
+	it("keys terminal attempt evidence by the host workspace while the agent runs at its sandbox cwd", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-ledger-host-key",
+			cwd: "/host/task-worktree",
+			workspaceRoot: "/host/project",
+			prompt: "Implement the repair",
+		});
+		await waitForSettled(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1));
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({ cwd: "/workspaces/task-ledger-host-key", workspaceRoot: "/host/project" }),
+		);
+		expect(service.getSummary("task-ledger-host-key")?.workspacePath).toBe("/workspaces/task-ledger-host-key");
+
+		const sessionId = await waitForTaskSessionId(runtime, "task-ledger-host-key");
+		runtime.emitAgentEvent(sessionId, { type: "done", reason: "completed" });
+
+		await waitForSettled(async () => {
+			const taskEvents = (await readAllAgentLedger({ rootDir: diagnosticStoreRoot })).filter(
+				(event) => event.taskId === "task-ledger-host-key",
+			);
+			const attempts = taskEvents.filter((event) => event.kind === "attempt");
+			expect(attempts).toHaveLength(1);
+			expect(taskEvents.length).toBeGreaterThan(0);
+			expect(new Set(taskEvents.map((event) => event.workspacePathHash))).toEqual(
+				new Set([hashWorkspacePathForLedger("/host/project")]),
+			);
+		});
 	});
 
 	it("reuses the current task mode when follow-up input does not provide a mode override", async () => {
