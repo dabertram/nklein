@@ -8,6 +8,7 @@ import { deriveRepoVerifyCommands } from "../core/repo-verify-commands";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
 import type { NKleinPauseController } from "./nklein-pause-controller";
+import { runSandboxToolchainSetup } from "./nklein-sandbox-toolchain-setup";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_ACCEPTANCE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -15,6 +16,8 @@ const DEFAULT_ACCEPTANCE_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 const DEFAULT_ACCEPTANCE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 /** Prevent default-on repo verification from recursively activating inside a command launched by this gate. */
 const REPO_VERIFY_ACTIVE_ENV = "NKLEIN_REPO_VERIFY_ACTIVE";
+/** Default-on F12.84b environment construction; set false/no/off/0 only as an emergency rollback. */
+const AUTO_ENV_SETUP_ENV = "NKLEIN_AUTO_ENV_SETUP";
 // Keep in sync with the pure mirror in src/core/plan-integration-gate.ts (PLAN_ACCEPTANCE_CHECK_PATTERN) —
 // the core layer cannot value-import this impure module (node:child_process + telemetry sink).
 const ACCEPTANCE_CHECK_PATTERN = /^Acceptance (?:check|command):\s*(.+?)\s*$/im;
@@ -436,34 +439,83 @@ export async function runNKleinAcceptanceGateInSandbox(
 		maxQueueWaitMs: ACCEPTANCE_SLOT_QUEUE_WAIT_MS,
 	});
 	try {
+		const executeInSandbox = async (execution: NKleinAcceptanceGateExecution, respectPause: boolean) => {
+			// Bounded pause-wait: this runs AFTER the slot is acquired, so an indefinite wait on a stuck pause
+			// leaks the slot (the review-hang deadlock class). Past the cap we proceed — the command has its own
+			// timeout, and a genuinely-paused board is the operator's decision, not a reason to freeze the pool.
+			const pauseWait = respectPause ? options.pauseController?.waitUntilResumed(taskId) : undefined;
+			if (pauseWait) {
+				let capTimer: ReturnType<typeof setTimeout> | undefined;
+				const cap = new Promise<void>((resolve) => {
+					capTimer = setTimeout(resolve, ACCEPTANCE_PAUSE_WAIT_CAP_MS);
+					capTimer.unref?.();
+				});
+				await Promise.race([pauseWait.catch(() => undefined), cap]);
+				if (capTimer) clearTimeout(capTimer);
+			}
+			const command = rewriteSandboxAcceptanceCommand(execution.command, workspace.workdir);
+			const shellExecution = resolveShellExecution(command);
+			const envArgs = Object.entries(execution.env ?? {}).map(([name, value]) => `${name}=${value}`);
+			const argv =
+				envArgs.length > 0
+					? ["/usr/bin/env", ...envArgs, shellExecution.binary, ...shellExecution.args]
+					: [shellExecution.binary, ...shellExecution.args];
+			return await options.sandboxManager.exec(sandboxTaskId, argv, { timeoutMs: execution.timeoutMs });
+		};
+		const runCommandInSandbox = async (execution: NKleinAcceptanceGateExecution) =>
+			await executeInSandbox(execution, true);
+
+		// Construct dependencies only when a real acceptance command will run. Detection and every install command use
+		// the same docker-exec seam as acceptance; there is deliberately no host execution fallback.
+		if (
+			extractNKleinAcceptanceCommand(options.taskPrompt) &&
+			isEnabledByDefaultEnv(process.env[AUTO_ENV_SETUP_ENV])
+		) {
+			const setupStartedAt = Date.now();
+			const rootFileNames = (await options.sandboxManager.listSandboxRootFileNames?.(sandboxTaskId)) ?? [];
+			const setup = await runSandboxToolchainSetup({
+				rootFileNames,
+				timeoutMs: options.timeoutMs ?? DEFAULT_ACCEPTANCE_TIMEOUT_MS,
+				runCommand: async (execution) => await executeInSandbox({ ...execution, cwd: workspace.workdir }, false),
+			});
+			if (setup.status !== "not_applicable") {
+				(options.recordObservation ?? recordSelfObservation)({
+					signal: setup.status === "failed" ? "verification_failed" : "custom",
+					severity: setup.status === "failed" ? "error" : "info",
+					message: `Sandbox environment setup ${setup.status} in ${setup.durationMs}ms.`,
+					taskId,
+					workspacePath: workspace.workdir,
+					metadata: {
+						category: "sandbox_environment_setup",
+						status: setup.status,
+						sandboxStartupDurationMs: options.sandboxManager.getSandboxStartupDurationMs?.(sandboxTaskId) ?? null,
+						durationMs: setup.durationMs,
+						toolchains: setup.plan.toolchains.map((toolchain) => toolchain.buildSystem),
+						installStepCount: setup.plan.installSteps.length,
+						failedCommand: setup.failedCommand,
+					},
+					createdAt: Date.now(),
+				});
+			}
+			if (setup.status === "failed") {
+				const failedStep = setup.steps.at(-1);
+				return {
+					present: true,
+					command: extractNKleinAcceptanceCommand(options.taskPrompt),
+					passed: false,
+					exitCode: failedStep?.exitCode ?? null,
+					output: `[environment setup: ${setup.failedCommand ?? "unknown"}]\n${failedStep?.output.slice(0, 4_000) ?? ""}`,
+					durationMs: Math.max(0, Date.now() - setupStartedAt),
+					failureCategory: "acceptance_setup_error",
+					failureHint: `${setup.reason}. Fix the manifest/lockfile or sandbox runtime before retrying acceptance.`,
+				};
+			}
+		}
+
 		return await runNKleinAcceptanceGate({
 			...options,
 			workspacePath: workspace.workdir,
-			runCommand: async (execution) => {
-				// Bounded pause-wait: this runs AFTER the slot is acquired, so an indefinite wait on a stuck pause
-				// leaks the slot (the review-hang deadlock class). Past the cap we proceed — the command has its own
-				// timeout, and a genuinely-paused board is the operator's decision, not a reason to freeze the pool.
-				const pauseWait = options.pauseController?.waitUntilResumed(taskId);
-				if (pauseWait) {
-					let capTimer: ReturnType<typeof setTimeout> | undefined;
-					const cap = new Promise<void>((resolve) => {
-						capTimer = setTimeout(resolve, ACCEPTANCE_PAUSE_WAIT_CAP_MS);
-						capTimer.unref?.();
-					});
-					await Promise.race([pauseWait.catch(() => undefined), cap]);
-					if (capTimer) {
-						clearTimeout(capTimer);
-					}
-				}
-				const command = rewriteSandboxAcceptanceCommand(execution.command, execution.cwd);
-				const shellExecution = resolveShellExecution(command);
-				const envArgs = Object.entries(execution.env ?? {}).map(([name, value]) => `${name}=${value}`);
-				const argv =
-					envArgs.length > 0
-						? ["/usr/bin/env", ...envArgs, shellExecution.binary, ...shellExecution.args]
-						: [shellExecution.binary, ...shellExecution.args];
-				return await options.sandboxManager.exec(sandboxTaskId, argv, { timeoutMs: execution.timeoutMs });
-			},
+			runCommand: runCommandInSandbox,
 		});
 	} finally {
 		await options.sandboxManager.disposeWorkspace(sandboxTaskId).catch(() => null);

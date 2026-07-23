@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The strict Docker sandbox now has a deterministic polyglot environment path.** Its digest-pinned image includes
+  modern Node, Python, Rust, Go, Maven/JDK, and Gradle runtimes; repository manifests choose lockfile-correct install,
+  test, typecheck, and coverage commands. Acceptance constructs dependencies inside Docker and fails before tests when
+  setup is broken. Per-task tmpfs homes keep package-manager caches writable without host execution or patch pollution,
+  while startup and install time are measured separately.
+
 - **Small local models can now reason before JSON constraints are applied.** Structured generation uses an
   unconstrained semantic turn followed by a schema-constrained, lossless packaging turn for the provisional <14B
   local-small-model tier. Packaging failures retry only transcription, never regenerate the answer; measured direct-

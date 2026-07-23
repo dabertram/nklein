@@ -5,13 +5,16 @@ describe("language toolchain detection (F12.84)", () => {
 	it("picks the package manager from the LOCKFILE, not just package.json", () => {
 		expect(detectToolchains(["package.json"])[0]).toMatchObject({
 			buildSystem: "npm",
-			install: "npm ci",
+			// `npm ci` without a lockfile is a deterministic failure, not deterministic installation.
+			install: "npm install",
 			test: "npm run test",
 			typecheck: "npm run typecheck",
+			coverage: "NODE_V8_COVERAGE=.nklein-coverage npm run test",
 		});
+		expect(detectToolchains(["package.json", "package-lock.json"])[0]?.install).toBe("npm ci");
 		expect(detectToolchains(["package.json", "pnpm-lock.yaml"])[0]).toMatchObject({
 			buildSystem: "pnpm",
-			install: "pnpm install",
+			install: "pnpm install --frozen-lockfile",
 			test: "pnpm run test",
 		});
 		expect(detectToolchains(["package.json", "yarn.lock"])[0]?.buildSystem).toBe("yarn");
@@ -29,6 +32,7 @@ describe("language toolchain detection (F12.84)", () => {
 			install: "go mod download",
 			test: "go test ./...",
 			typecheck: "go build ./...",
+			coverage: "go test -coverprofile=.nklein-coverage.out ./...",
 		});
 	});
 
@@ -43,19 +47,20 @@ describe("language toolchain detection (F12.84)", () => {
 	it("distinguishes poetry from bare pip and only claims a python type gate when opted in", () => {
 		expect(detectToolchains(["pyproject.toml", "poetry.lock"])[0]).toMatchObject({
 			buildSystem: "poetry",
-			install: "poetry install",
+			install: expect.stringContaining("poetry install"),
 			test: "poetry run pytest",
 			typecheck: null,
 		});
 		expect(detectToolchains(["pyproject.toml"])[0]).toMatchObject({
 			buildSystem: "pip",
-			install: "pip install -e .",
+			install: expect.stringContaining("python3 -m venv .nklein-venv"),
+			test: ".nklein-venv/bin/pytest",
 		});
 		expect(detectToolchains(["requirements.txt"])[0]).toMatchObject({
-			install: "pip install -r requirements.txt",
-			test: "pytest",
+			install: expect.stringContaining(".nklein-venv/bin/pip install -r requirements.txt"),
+			test: ".nklein-venv/bin/pytest",
 		});
-		expect(detectToolchains(["requirements.txt", "mypy.ini"])[0]?.typecheck).toBe("mypy .");
+		expect(detectToolchains(["requirements.txt", "mypy.ini"])[0]?.typecheck).toBe(".nklein-venv/bin/mypy .");
 	});
 
 	it("returns SEVERAL toolchains for a polyglot repo, in stable order", () => {
@@ -73,8 +78,12 @@ describe("language toolchain detection (F12.84)", () => {
 	});
 
 	it("renders the setup→install→test contract across toolchains", () => {
-		const plan = planEnvironmentSetup(["package.json", "Cargo.toml"]);
+		const plan = planEnvironmentSetup(["package.json", "package-lock.json", "Cargo.toml"]);
 		expect(plan.steps).toEqual(["npm ci", "npm run test", "cargo test"]);
+		expect(plan.installSteps).toEqual(["npm ci"]);
+		expect(plan.testSteps).toEqual(["npm run test", "cargo test"]);
+		expect(plan.coverageSteps).toHaveLength(2);
+		expect(plan.runtimeExecutables).toEqual(["npm", "cargo"]);
 		expect(plan.reason).toContain("javascript/npm");
 		expect(plan.reason).toContain("rust/cargo");
 	});

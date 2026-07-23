@@ -488,6 +488,112 @@ describe("nklein acceptance gate", () => {
 		}
 	});
 
+	it("F12.84b constructs the detected environment inside Docker before acceptance", async () => {
+		process.env.NKLEIN_REPO_VERIFY = "0";
+		try {
+			const commands: string[] = [];
+			const exec = vi.fn(async (_taskId: string, argv: readonly string[]) => {
+				commands.push(argv.at(-1) ?? "");
+				return { exitCode: 0, stdout: "ok", stderr: "" };
+			});
+			const recordObservation = vi.fn();
+			const sandboxManager = {
+				assertAvailable: vi.fn(async () => {}),
+				prepareWorkspace: vi.fn(async () => ({ workdir: "/sandbox/toolchain", uid: 70_001 })),
+				listSandboxRootFileNames: vi.fn(async () => ["package.json", "package-lock.json"]),
+				getSandboxStartupDurationMs: vi.fn(() => 87),
+				exec,
+				disposeWorkspace: vi.fn(async () => {}),
+			} as unknown as AgentSandboxManager;
+
+			const result = await runNKleinAcceptanceGateInSandbox({
+				taskId: "toolchain",
+				projectRepoPath: "/repo",
+				taskPrompt: "Acceptance check: npm test",
+				sandboxManager,
+				recordObservation,
+			});
+
+			expect(result.passed).toBe(true);
+			expect(commands).toEqual(["command -v npm", "npm ci", "npm test"]);
+			expect(recordObservation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					metadata: expect.objectContaining({
+						category: "sandbox_environment_setup",
+						sandboxStartupDurationMs: 87,
+					}),
+				}),
+			);
+		} finally {
+			delete process.env.NKLEIN_REPO_VERIFY;
+		}
+	});
+
+	it("F12.84b fails closed on dependency setup instead of running misleading tests", async () => {
+		process.env.NKLEIN_REPO_VERIFY = "0";
+		try {
+			const commands: string[] = [];
+			const exec = vi.fn(async (_taskId: string, argv: readonly string[]) => {
+				const command = argv.at(-1) ?? "";
+				commands.push(command);
+				return command === "npm ci"
+					? { exitCode: 1, stdout: "", stderr: "lockfile mismatch" }
+					: { exitCode: 0, stdout: "ok", stderr: "" };
+			});
+			const sandboxManager = {
+				assertAvailable: vi.fn(async () => {}),
+				prepareWorkspace: vi.fn(async () => ({ workdir: "/sandbox/toolchain-red", uid: 70_001 })),
+				listSandboxRootFileNames: vi.fn(async () => ["package.json", "package-lock.json"]),
+				exec,
+				disposeWorkspace: vi.fn(async () => {}),
+			} as unknown as AgentSandboxManager;
+
+			const result = await runNKleinAcceptanceGateInSandbox({
+				taskId: "toolchain-red",
+				projectRepoPath: "/repo",
+				taskPrompt: "Acceptance check: npm test",
+				sandboxManager,
+				recordObservation: vi.fn(),
+			});
+
+			expect(result).toMatchObject({ passed: false, failureCategory: "acceptance_setup_error" });
+			expect(result.output).toContain("lockfile mismatch");
+			expect(commands).toEqual(["command -v npm", "npm ci"]);
+		} finally {
+			delete process.env.NKLEIN_REPO_VERIFY;
+		}
+	});
+
+	it("F12.84b emergency rollback skips both detection and installation", async () => {
+		process.env.NKLEIN_AUTO_ENV_SETUP = "0";
+		process.env.NKLEIN_REPO_VERIFY = "0";
+		try {
+			const listSandboxRootFileNames = vi.fn(async () => ["package.json", "package-lock.json"]);
+			const exec = vi.fn(async () => ({ exitCode: 0, stdout: "ok", stderr: "" }));
+			const sandboxManager = {
+				assertAvailable: vi.fn(async () => {}),
+				prepareWorkspace: vi.fn(async () => ({ workdir: "/sandbox/toolchain-off", uid: 70_001 })),
+				listSandboxRootFileNames,
+				exec,
+				disposeWorkspace: vi.fn(async () => {}),
+			} as unknown as AgentSandboxManager;
+
+			await expect(
+				runNKleinAcceptanceGateInSandbox({
+					taskId: "toolchain-off",
+					projectRepoPath: "/repo",
+					taskPrompt: "Acceptance check: npm test",
+					sandboxManager,
+				}),
+			).resolves.toMatchObject({ passed: true });
+			expect(listSandboxRootFileNames).not.toHaveBeenCalled();
+			expect(exec).toHaveBeenCalledTimes(1);
+		} finally {
+			delete process.env.NKLEIN_AUTO_ENV_SETUP;
+			delete process.env.NKLEIN_REPO_VERIFY;
+		}
+	});
+
 	it("F11.2g kill-switch stays byte-identical (no package.json read at all)", async () => {
 		process.env.NKLEIN_REPO_VERIFY = "0";
 		try {

@@ -1,9 +1,40 @@
 ARG NKLEIN_AGENT_SANDBOX_NODE_IMAGE=node:22-bookworm-slim@sha256:d9f850096136edbc402debdd8729579a288aac64574ada0ff4db26b6ae58b0b2
+ARG NKLEIN_AGENT_SANDBOX_RUST_IMAGE=rust:1.88-bookworm@sha256:af306cfa71d987911a781c37b59d7d67d934f49684058f96cf72079c3626bfe0
+ARG NKLEIN_AGENT_SANDBOX_GO_IMAGE=golang:1.24-bookworm@sha256:1a6d4452c65dea36aac2e2d606b01b4a029ec90cc1ae53890540ce6173ea77ac
+ARG NKLEIN_AGENT_SANDBOX_GRADLE_IMAGE=gradle:8.14-jdk21@sha256:dae150d9066fc04a791ec7f0adc1a0eb4e867f11d76d03063ee0a60e5da56149
+ARG NKLEIN_AGENT_SANDBOX_MAVEN_IMAGE=maven:3.9.9-eclipse-temurin-21@sha256:3a4ab3276a087bf276f79cae96b1af04f53731bec53fb2e651aca79e4b10211e
+
+FROM ${NKLEIN_AGENT_SANDBOX_RUST_IMAGE} AS rust-runtime
+FROM ${NKLEIN_AGENT_SANDBOX_GO_IMAGE} AS go-runtime
+FROM ${NKLEIN_AGENT_SANDBOX_GRADLE_IMAGE} AS gradle-runtime
+FROM ${NKLEIN_AGENT_SANDBOX_MAVEN_IMAGE} AS maven-runtime
 FROM ${NKLEIN_AGENT_SANDBOX_NODE_IMAGE}
 
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends git ripgrep ca-certificates python3 \
+	&& apt-get install -y --no-install-recommends \
+		build-essential ca-certificates git python3 python3-pip python3-venv ripgrep \
 	&& rm -rf /var/lib/apt/lists/*
+
+# F12.84b — one STRICTLY isolated, pinned polyglot runtime image. The sandbox pool intentionally shares containers
+# across cards, so per-card base-image swapping would strand co-tenants and destroy warm caches. Instead we copy the
+# exact language runtimes into the same read-only image and deterministically select only the detected toolchain's
+# commands at execution time. No host compiler/interpreter is mounted or invoked.
+COPY --from=rust-runtime /usr/local/cargo /usr/local/cargo
+COPY --from=rust-runtime /usr/local/rustup /usr/local/rustup
+COPY --from=go-runtime /usr/local/go /usr/local/go
+COPY --from=gradle-runtime /opt/gradle /opt/gradle
+COPY --from=gradle-runtime /opt/java/openjdk /opt/java/openjdk
+COPY --from=maven-runtime /usr/share/maven /usr/share/maven
+ENV RUSTUP_HOME=/usr/local/rustup \
+	CARGO_HOME=/usr/local/cargo \
+	JAVA_HOME=/opt/java/openjdk \
+	GRADLE_HOME=/opt/gradle \
+	PATH=/usr/local/cargo/bin:/usr/local/go/bin:/opt/gradle/bin:/usr/share/maven/bin:/opt/java/openjdk/bin:${PATH}
+
+# Lockfile-selected JS package managers must already exist because runtime network access may be `none`. Their package
+# dependencies are still installed only inside the task workspace, under that card's network policy.
+RUN npm install -g pnpm@10.13.1 yarn@1.22.22 bun@1.2.18 \
+	&& npm cache clean --force
 
 # Curated MCP servers (§5.AR) baked into the image so they run 100% OFFLINE inside the sandbox (prime-directive #1):
 # !Klein reaches them via `docker exec -i <container> <cmd>` — the host never spawns the process, so strict Docker
@@ -64,8 +95,10 @@ ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python \
 	UV_TOOL_DIR=/opt/uv/tools \
 	UV_TOOL_BIN_DIR=/usr/local/bin
 RUN uv tool install --python 3.12 basic-memory==0.22.1 \
+	&& uv tool install --python 3.12 poetry==2.1.3 \
 	&& chmod -R a+rX /opt/uv \
-	&& basic-memory --help >/dev/null
+	&& basic-memory --help >/dev/null \
+	&& poetry --version | grep -Fx 'Poetry (version 2.1.3)'
 ENV BASIC_MEMORY_AUTO_UPDATE=false \
 	BASIC_MEMORY_NO_PROMOS=1 \
 	BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED=false \
@@ -73,6 +106,21 @@ ENV BASIC_MEMORY_AUTO_UPDATE=false \
 	TRANSFORMERS_OFFLINE=1
 
 RUN mkdir -m 1777 /workspaces
+
+# Fail the IMAGE BUILD when any advertised runtime is absent. Version output is kept in the build log as immutable
+# provenance for later startup/install timing reports.
+RUN node --version \
+	&& npm --version \
+	&& pnpm --version \
+	&& yarn --version \
+	&& bun --version \
+	&& python3 --version \
+	&& cargo --version \
+	&& rustc --version \
+	&& go version \
+	&& java -version \
+	&& gradle --version \
+	&& mvn --version
 
 WORKDIR /workspaces
 

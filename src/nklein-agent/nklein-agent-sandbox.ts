@@ -197,6 +197,8 @@ interface ContainerState {
 	 * on — never a stale pool-policy read across a runtime tier switch (occupied containers age out).
 	 */
 	egressProxyIp: string | null;
+	/** Last measured `docker run` wall time for P21.10/F12.84b overhead accounting. */
+	lastStartupDurationMs: number | null;
 }
 
 interface TaskPlacement {
@@ -208,6 +210,10 @@ interface TaskPlacement {
 	projectRepoPath: string;
 	/** F2.5b credential registered inside the proxy and injected only into this task's docker exec environment. */
 	egressIdentityToken: string | null;
+}
+
+function taskHomePath(placement: Pick<TaskPlacement, "taskId" | "uid">): string {
+	return `/tmp/nklein-home-${placement.uid}-${normalizeTaskIdForSandboxPath(placement.taskId)}`;
 }
 
 interface QueueEntry {
@@ -663,6 +669,14 @@ export class AgentSandboxManager {
 					}),
 					"create sandbox task workspace",
 				);
+				// Language/package managers need writable HOME/cache locations. The image root is deliberately read-only;
+				// putting these under the container tmpfs preserves strict isolation and avoids polluting the git clone.
+				assertSandboxExecOk(
+					await this.execAsTaskUser(placement, ["mkdir", "-m", "700", "-p", taskHomePath(placement)], {
+						workdir: "/tmp",
+					}),
+					"create sandbox task home",
+				);
 				assertSandboxExecOk(
 					await this.execAsTaskUser(placement, ["git", "clone", "--no-hardlinks", repoSource, placement.workdir], {
 						workdir: AGENT_SANDBOX_WORKSPACES_DIR,
@@ -728,6 +742,26 @@ export class AgentSandboxManager {
 	 */
 	getContainerMemoryLimitMb(): number {
 		return this.poolConfig.memoryPerContainerMb;
+	}
+
+	/** Measured startup of the container serving this task; null before placement/start or for a retired slot. */
+	getSandboxStartupDurationMs(taskId: string): number | null {
+		const placement = this.placements.get(taskId);
+		return placement ? (this.containers.get(placement.slot)?.lastStartupDurationMs ?? null) : null;
+	}
+
+	/**
+	 * Read root NAMES from the already-cloned/checked-out SANDBOX workspace. Detection therefore observes the exact
+	 * baseRef under test rather than the host checkout, and never falls back to host git or a host toolchain.
+	 */
+	async listSandboxRootFileNames(taskId: string): Promise<string[]> {
+		const result = await this.exec(taskId, ["/bin/sh", "-c", "ls -1A"], { timeoutMs: 30_000 });
+		return result.exitCode === 0
+			? (result.stdout ?? "")
+					.split("\n")
+					.map((name) => name.trim())
+					.filter(Boolean)
+			: [];
 	}
 
 	/**
@@ -1156,6 +1190,7 @@ export class AgentSandboxManager {
 	}
 
 	private async startContainer(container: ContainerState): Promise<void> {
+		const startupStartedAt = Date.now();
 		await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(() => null);
 		const mounts = [...this.projectMountsByKey.values()];
 		// §5.AR basic-memory (flag-gated): the per-project writable stores for the projects this container serves. Empty
@@ -1216,6 +1251,10 @@ export class AgentSandboxManager {
 			);
 		}
 		container.containerId = result.stdout.trim();
+		container.lastStartupDurationMs = Math.max(0, Date.now() - startupStartedAt);
+		this.warn?.(
+			`Docker sandbox ${container.containerName} started in ${container.lastStartupDurationMs}ms (F12.84b/P21.10 overhead measurement).`,
+		);
 		// Record the proxy IP this container was created on the egress network with (null unless a confirmed proxied
 		// `allowlist` start) so the exec seam injects `HTTP(S)_PROXY` iff the container truly has that route.
 		container.egressProxyIp = egress.internalIp ?? null;
@@ -1246,6 +1285,7 @@ export class AgentSandboxManager {
 			idleTimer: null,
 			mountedProjectKeys: null,
 			egressProxyIp: null,
+			lastStartupDurationMs: null,
 		};
 	}
 
@@ -1536,9 +1576,13 @@ export class AgentSandboxManager {
 		// acquisition queued indefinitely, silently: callers .catch(() => null)). The slot release must be
 		// unconditional: a leftover workdir is recoverable, a leaked slot freezes the whole run.
 		try {
-			const removal = await this.execAsTaskUser(placement, ["rm", "-rf", placement.workdir], {
-				workdir: AGENT_SANDBOX_WORKSPACES_DIR,
-			});
+			const removal = await this.execAsTaskUser(
+				placement,
+				["rm", "-rf", placement.workdir, taskHomePath(placement)],
+				{
+					workdir: AGENT_SANDBOX_WORKSPACES_DIR,
+				},
+			);
 			assertSandboxExecOk(removal, "remove sandbox task workspace");
 		} finally {
 			await this.releaseSlot(taskId);
@@ -1550,14 +1594,29 @@ export class AgentSandboxManager {
 		argv: string[],
 		options?: { timeoutMs?: number; workdir?: string },
 	): Promise<AgentSandboxExecResult> {
+		const taskHome = taskHomePath(placement);
 		return await this.withExecSlot(() =>
 			this.runDocker(
 				[
 					"exec",
 					// §5.L: inject the egress-proxy env (`-e HTTP(S)_PROXY`) for a container on the egress network; `[]`
-					// otherwise, so a flag-off / non-proxied exec is byte-identical. Additive — this seam carries no
-					// other `-e` env (basic-memory rides the separate MCP-host exec), so nothing is clobbered.
+					// otherwise. These values are additive to the F12.84b per-task HOME/cache env immediately below;
+					// basic-memory rides the separate MCP-host exec, so no caller-supplied environment is clobbered.
 					...this.egressProxyExecEnvArgs(placement),
+					"-e",
+					`HOME=${taskHome}`,
+					"-e",
+					`XDG_CACHE_HOME=${taskHome}/.cache`,
+					"-e",
+					`NPM_CONFIG_CACHE=${taskHome}/.npm`,
+					"-e",
+					`CARGO_HOME=${taskHome}/.cargo`,
+					"-e",
+					`GOPATH=${taskHome}/go`,
+					"-e",
+					`GRADLE_USER_HOME=${taskHome}/.gradle`,
+					"-e",
+					`MAVEN_OPTS=-Duser.home=${taskHome}`,
 					"-u",
 					String(placement.uid),
 					"-w",

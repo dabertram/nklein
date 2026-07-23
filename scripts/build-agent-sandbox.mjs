@@ -52,10 +52,16 @@ try {
 
 function runDockerBuild(tag) {
 	return new Promise((resolve, reject) => {
-		const nodeImageOverride = process.env.NKLEIN_AGENT_SANDBOX_NODE_IMAGE?.trim();
-		const buildArgs = nodeImageOverride
-			? ["--build-arg", `NKLEIN_AGENT_SANDBOX_NODE_IMAGE=${nodeImageOverride}`]
-			: [];
+		const buildArgs = [
+			"NKLEIN_AGENT_SANDBOX_NODE_IMAGE",
+			"NKLEIN_AGENT_SANDBOX_RUST_IMAGE",
+			"NKLEIN_AGENT_SANDBOX_GO_IMAGE",
+			"NKLEIN_AGENT_SANDBOX_GRADLE_IMAGE",
+			"NKLEIN_AGENT_SANDBOX_MAVEN_IMAGE",
+		].flatMap((name) => {
+			const value = process.env[name]?.trim();
+			return value ? ["--build-arg", `${name}=${value}`] : [];
+		});
 		const child = spawn(
 			"docker",
 			["build", "--pull=false", "--progress=plain", ...buildArgs, "-t", tag, dockerContextDir],

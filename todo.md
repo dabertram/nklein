@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed after F12.77b):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 151-package remainder is **55 ready + 2 partial + 78 dependency-blocked + 7 external/
+  gate below is green. The current 152-package remainder is **55 ready + 3 partial + 78 dependency-blocked + 7 external/
 user-gated + 9 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -209,6 +209,14 @@ gap remains.
 > unnamespaced slots, never `*-ws-<hash>-<slot>`. Hermetic simulator runtimes additionally set a unique process
 > namespace and skip startup reaping. Labels identify resource kind, not ownership—never use a kind-wide query as a
 > destructive multi-runtime cleanup boundary.
+> **A READ-ONLY POLYGLOT IMAGE STILL NEEDS PER-TASK WRITABLE TOOLCHAIN HOMES (F12.84b, 2026-07-23):** merely baking
+> `cargo`, Go, Maven, Gradle, Python and JS package managers into the image is not an executable environment. Cargo
+> writes its registry under `CARGO_HOME`, Go writes module/build caches, Maven/Gradle derive user homes, npm writes a
+> cache, and the image root is intentionally read-only while task UIDs have no passwd home. Inject a unique tmpfs HOME
+> plus explicit cache homes on every task-user `docker exec`, create it before clone-time work, and remove it at the
+> same unconditional disposal chokepoint as the workspace. Detect manifests from the checked-out sandbox tree—not the
+> host checkout, which may be on a different ref. The shared pool makes per-card image swapping unsafe for co-tenants;
+> use one digest-pinned polyglot image and select only the detected runtime commands.
 > **PATCH-CAPTURE FAILURE IS BENCHMARK INFRASTRUCTURE, NOT AN EMPTY CANDIDATE PATCH (Aider campaign, 2026-07-23):** if
 > `sandbox_patch_capture_failed` is terminal, the external grader never received a trustworthy candidate artifact.
 > Monitor board/session evidence from one atomic workspace revision, stop on that event, preserve the receipt-less
@@ -5369,7 +5377,7 @@ verify-before-build caveat: confirm each against current code before implementin
   **SPLIT MATERIALIZED 2026-07-20** — the detection half is complete, wired (the acceptance gate already falls
   back to it for cargo/go/maven) and tested; the container half is a genuinely separate effectful package with
   its own acceptance, so it becomes a visible line rather than an invisible remainder.
-- [ ] **F12.84b — Construct the per-toolchain environment inside Docker *(split from F12.84 2026-07-20)*.**
+- [~] **F12.84b — Construct the per-toolchain environment inside Docker *(split from F12.84 2026-07-20)*.**
   Image/runtime selection per detected toolchain, install-step execution, and coverage runners — the detection
   contract (`detectToolchains` / `planEnvironmentSetup`) is ready and already names which steps a toolchain needs
   and which it cannot install (cargo/gradle report no install step). **Constraint to honour:** the standing
@@ -5378,6 +5386,19 @@ verify-before-build caveat: confirm each against current code before implementin
   at 50–500 ms vs Bubblewrap 5–20 ms and rejected containers partly on that basis — we accept the cost for the
   isolation guarantee, and this item is where that cost actually lands (per-card image selection and install
   time). Measure it here rather than assuming it is free.
+  **IMPLEMENTATION COMPLETE 2026-07-23; live image acceptance remains.** The shared sandbox pool cannot safely swap
+  base images per card while co-tenants and warm caches occupy it, so the image is now one digest-pinned polyglot
+  runtime: Node 22 plus pinned Rust 1.88, Go 1.24, Gradle 8.14/JDK 21 and Maven 3.9.9 stages, with pinned
+  pnpm/yarn/bun and Poetry. `detectToolchains` now produces lockfile-correct install commands (`npm ci` only when a
+  lock exists), runtime probes, test runners and honest coverage runners (Gradle stays null unless the project opted
+  into JaCoCo). Default-on acceptance setup reads the EXACT checked-out sandbox root, probes every runtime, executes
+  installs in stable order via `docker exec`, and fails closed as `acceptance_setup_error` before misleading tests;
+  `NKLEIN_AUTO_ENV_SETUP=0` is the emergency rollback. A per-task tmpfs HOME/cache set makes package managers writable
+  without weakening the read-only image or dirtying the candidate patch. Docker startup and install wall times are
+  recorded separately. 100 focused tests + typecheck green. **Concrete remainder:** after the immutable F11 campaign
+  releases Docker, build the new image without timing interference, assert every runtime/version under `--network
+  none`, run JS/Python/Rust/Go/Maven/Gradle install+test+coverage smoke fixtures, record image size/startup/install cost,
+  and verify the staged F12.90 Go fixture in this exact image; then close F12.84b and unblock F12.90.
 - [ ] **F12.85 — LSP-backed diagnostics & navigation for the sandbox.** Wire language servers into the sandbox so every edit
   yields diagnostics (type errors, unused imports) + go-to-def/find-refs across the fleet's target languages. Rationale: LSP
   is a per-language correctness signal + ~50ms navigation vs ~45s text search; it's what makes non-Python languages tractable

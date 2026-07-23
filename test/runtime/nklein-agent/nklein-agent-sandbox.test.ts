@@ -44,6 +44,13 @@ interface ExecFileStubOptions {
 	inspectRunningState?: (callIndex: number) => string;
 }
 
+/** Docker exec options are intentionally extensible (`-e` caches, proxy env, user/workdir); inspect the command after the container. */
+function dockerExecCommand(args: readonly string[]): string[] {
+	if (args[0] !== "exec") return [];
+	const containerIndex = args.findIndex((arg, index) => index > 0 && arg.startsWith("nklein-agent-sandbox"));
+	return containerIndex >= 0 ? args.slice(containerIndex + 1) : [];
+}
+
 function createExecFileStub(options?: ExecFileStubOptions): {
 	execFile: typeof execFile;
 	calls: string[][];
@@ -100,7 +107,7 @@ function createExecFileStub(options?: ExecFileStubOptions): {
 		} else if (args[0] === "run") {
 			stdout = "container-id\n";
 		} else if (args[0] === "exec") {
-			const command = args.slice(6);
+			const command = dockerExecCommand(args);
 			if (
 				!transientExecFailed &&
 				options?.transientExecCommand &&
@@ -313,8 +320,14 @@ function createDisposeBarrierExecFileStub(): {
 		expect(file).toBe("docker");
 		calls.push([...args]);
 		const done = callback as (error: unknown, result?: { stdout: string; stderr: string }) => void;
-		const command = args[0] === "exec" ? args.slice(6) : [];
-		if (hold && command.join("\0") === ["rm", "-rf", "/workspaces/task-1"].join("\0")) {
+		const command = dockerExecCommand(args);
+		if (
+			hold &&
+			command.join("\0") ===
+				["rm", "-rf", "/workspaces/task-1", `/tmp/nklein-home-${createAgentSandboxTaskUid("task-1")}-task-1`].join(
+					"\0",
+				)
+		) {
 			heldCbs.push(() => done(null, { stdout: "", stderr: "" }));
 			return {} as ReturnType<typeof execFile>;
 		}
@@ -698,22 +711,22 @@ describe("AgentSandboxManager", () => {
 		});
 
 		const mkdirRootCallIndex = calls.findIndex(
-			(args) => args.join(" ") === "exec -u 0:0 -w /workspaces nklein-agent-sandbox-1 mkdir -p /workspaces",
+			(args) => dockerExecCommand(args).join(" ") === "mkdir -p /workspaces",
 		);
 		const chmodRootCallIndex = calls.findIndex(
-			(args) => args.join(" ") === "exec -u 0:0 -w /workspaces nklein-agent-sandbox-1 chmod 1777 /workspaces",
+			(args) => dockerExecCommand(args).join(" ") === "chmod 1777 /workspaces",
 		);
 		const mkdirTaskCallIndex = calls.findIndex(
-			(args) =>
-				args.join(" ") ===
-				`exec -u ${createAgentSandboxTaskUid("task-1")} -w /workspaces nklein-agent-sandbox-1 mkdir -m 700 -p /workspaces/task-1`,
+			(args) => dockerExecCommand(args).join(" ") === "mkdir -m 700 -p /workspaces/task-1",
 		);
 		// A stale workspace at the task path is cleared BEFORE the (re)create + clone, so a leftover from a prior
 		// run that didn't dispose cleanly can't block `git clone` with "destination path already exists / not empty".
 		const rmStaleCallIndex = calls.findIndex(
-			(args) =>
-				args.join(" ") ===
-				`exec -u ${createAgentSandboxTaskUid("task-1")} -w /workspaces nklein-agent-sandbox-1 rm -rf /workspaces/task-1`,
+			(args) => dockerExecCommand(args).join(" ") === "rm -rf /workspaces/task-1",
+		);
+		const taskHome = `/tmp/nklein-home-${createAgentSandboxTaskUid("task-1")}-task-1`;
+		const mkdirHomeCallIndex = calls.findIndex(
+			(args) => dockerExecCommand(args).join(" ") === `mkdir -m 700 -p ${taskHome}`,
 		);
 		const cloneCallIndex = calls.findIndex((args) => args.includes("clone"));
 		const cloneCall = calls[cloneCallIndex] ?? [];
@@ -722,14 +735,14 @@ describe("AgentSandboxManager", () => {
 		expect(chmodRootCallIndex).toBeGreaterThan(mkdirRootCallIndex);
 		expect(rmStaleCallIndex).toBeGreaterThan(chmodRootCallIndex);
 		expect(mkdirTaskCallIndex).toBeGreaterThan(rmStaleCallIndex);
-		expect(cloneCallIndex).toBeGreaterThan(mkdirTaskCallIndex);
-		expect(cloneCall).toEqual([
-			"exec",
-			"-u",
-			String(createAgentSandboxTaskUid("task-1")),
-			"-w",
-			"/workspaces",
-			"nklein-agent-sandbox-1",
+		expect(mkdirHomeCallIndex).toBeGreaterThan(mkdirTaskCallIndex);
+		expect(cloneCallIndex).toBeGreaterThan(mkdirHomeCallIndex);
+		expect(cloneCall).toContain(`HOME=${taskHome}`);
+		expect(cloneCall).toContain(`CARGO_HOME=${taskHome}/.cargo`);
+		expect(cloneCall).toContain(`GOPATH=${taskHome}/go`);
+		expect(cloneCall).toContain(`GRADLE_USER_HOME=${taskHome}/.gradle`);
+		expect(cloneCall).toContain(`MAVEN_OPTS=-Duser.home=${taskHome}`);
+		expect(dockerExecCommand(cloneCall)).toEqual([
 			"git",
 			"clone",
 			"--no-hardlinks",
@@ -798,8 +811,9 @@ describe("AgentSandboxManager", () => {
 	});
 
 	it("reports workspace cleanup failures without leaking the pool slot", async () => {
+		const taskHome = `/tmp/nklein-home-${createAgentSandboxTaskUid("task-1")}-task-1`;
 		const { execFile: execFileStub, calls } = createExecFileStub({
-			failExecCommand: ["rm", "-rf", "/workspaces/task-1"],
+			failExecCommand: ["rm", "-rf", "/workspaces/task-1", taskHome],
 		});
 		const manager = new AgentSandboxManager({
 			image: "test-image",
@@ -817,17 +831,7 @@ describe("AgentSandboxManager", () => {
 			taskId: "task-2",
 			slot: 1,
 		});
-		expect(calls).toContainEqual([
-			"exec",
-			"-u",
-			String(createAgentSandboxTaskUid("task-1")),
-			"-w",
-			"/workspaces",
-			"nklein-agent-sandbox-1",
-			"rm",
-			"-rf",
-			"/workspaces/task-1",
-		]);
+		expect(calls.map(dockerExecCommand)).toContainEqual(["rm", "-rf", "/workspaces/task-1", taskHome]);
 	});
 
 	it("derives one canonical project key for every spelling of the same directory (run19)", async () => {
@@ -973,17 +977,7 @@ describe("AgentSandboxManager", () => {
 
 		expect(manager.hasWorkspace("task-1")).toBe(true);
 		expect(await manager.isWorkspacePrepared("task-1")).toBe(true);
-		expect(calls).toContainEqual([
-			"exec",
-			"-u",
-			String(createAgentSandboxTaskUid("task-1")),
-			"-w",
-			"/workspaces",
-			"nklein-agent-sandbox-1",
-			"test",
-			"-d",
-			"/workspaces/task-1",
-		]);
+		expect(calls.map(dockerExecCommand)).toContainEqual(["test", "-d", "/workspaces/task-1"]);
 	});
 
 	it("reports a stale placement as not prepared when the Docker workdir is gone", async () => {
@@ -1431,13 +1425,7 @@ describe("AgentSandboxManager", () => {
 		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
 
 		await expect(manager.runTool("task-1", "editor", { command: "replace" })).resolves.toBe("edited");
-		expect(calls).toContainEqual([
-			"exec",
-			"-u",
-			String(createAgentSandboxTaskUid("task-1")),
-			"-w",
-			"/workspaces/task-1",
-			"nklein-agent-sandbox-1",
+		expect(calls.map(dockerExecCommand)).toContainEqual([
 			"node",
 			"/opt/nklein/tool-runner.cjs",
 			"editor",
@@ -1476,27 +1464,8 @@ describe("AgentSandboxManager", () => {
 		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
 
 		await expect(manager.captureWorkspacePatch("task-1", { baseRef: "main" })).resolves.toBe(patch);
-		expect(calls).toContainEqual([
-			"exec",
-			"-u",
-			String(createAgentSandboxTaskUid("task-1")),
-			"-w",
-			"/workspaces/task-1",
-			"nklein-agent-sandbox-1",
-			"git",
-			"add",
-			"-u",
-			"--",
-			".",
-			":(exclude).nklein/nklein",
-		]);
-		expect(calls).toContainEqual([
-			"exec",
-			"-u",
-			String(createAgentSandboxTaskUid("task-1")),
-			"-w",
-			"/workspaces/task-1",
-			"nklein-agent-sandbox-1",
+		expect(calls.map(dockerExecCommand)).toContainEqual(["git", "add", "-u", "--", ".", ":(exclude).nklein/nklein"]);
+		expect(calls.map(dockerExecCommand)).toContainEqual([
 			"git",
 			"add",
 			"-A",
@@ -1506,20 +1475,7 @@ describe("AgentSandboxManager", () => {
 			":(exclude)node_modules",
 			":(glob,exclude)**/node_modules/**",
 		]);
-		expect(calls).toContainEqual([
-			"exec",
-			"-u",
-			String(createAgentSandboxTaskUid("task-1")),
-			"-w",
-			"/workspaces/task-1",
-			"nklein-agent-sandbox-1",
-			"git",
-			"diff",
-			"--staged",
-			"--binary",
-			"main",
-			"--",
-		]);
+		expect(calls.map(dockerExecCommand)).toContainEqual(["git", "diff", "--staged", "--binary", "main", "--"]);
 	});
 
 	it("serializes result capture and same-task disposal so the workspace survives through git diff", async () => {
@@ -1620,18 +1576,7 @@ describe("AgentSandboxManager", () => {
 		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
 
 		await expect(manager.captureWorkspacePatch("task-1")).resolves.toBe(patch);
-		expect(calls).toContainEqual([
-			"exec",
-			"-u",
-			String(createAgentSandboxTaskUid("task-1")),
-			"-w",
-			"/workspaces/task-1",
-			"nklein-agent-sandbox-1",
-			"git",
-			"diff",
-			"--staged",
-			"--binary",
-		]);
+		expect(calls.map(dockerExecCommand)).toContainEqual(["git", "diff", "--staged", "--binary"]);
 	});
 
 	it("fails closed when sandbox patch staging fails", async () => {
@@ -1675,7 +1620,7 @@ describe("AgentSandboxManager", () => {
 		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
 
 		await expect(manager.captureWorkspacePatch("task-1")).resolves.toContain("diff --git");
-		expect(calls.filter((args) => args.slice(6).join("\0") === stageCommand.join("\0"))).toHaveLength(2);
+		expect(calls.filter((args) => dockerExecCommand(args).join("\0") === stageCommand.join("\0"))).toHaveLength(2);
 		expect(warn).toHaveBeenCalledWith(expect.stringContaining("retrying once"));
 	});
 
