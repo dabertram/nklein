@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Nightly coverage now binds manifest claims to the exact simulator recording bytes it served.** The first tranche
+  is selected reproducibly as the ten cheapest complete perfect+flaky scenario sets, every cell resolves an exact
+  fixture and recording-set id, and the drain emits a SHA-256 receipt that the parent validates again before granting
+  a pass. Generated perfect sets guarantee a real request-changes→approve review bounce, while every flaky set
+  guarantees all five required recovery families instead of leaving either contract to seeded chance.
+
 - **Repeated review bounces no longer strand a card between its lane transition and its next sandbox turn.** The
   recapture obligation is now armed at the review-bounce boundary, survives a racing terminal stop together with the
   exact launch recipe, admits only that owed interrupted re-drive, and is consumed when the next capture begins.

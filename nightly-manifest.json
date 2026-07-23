@@ -1,9 +1,9 @@
 {
   "projects": [
     {
-      "id": "01",
-      "fixture": "ts-starter",
-      "recordingSet": "sim-01",
+      "id": "02",
+      "fixture": "02_construction_jobsite_safety_compliance",
+      "recordingSet": "sim-02",
       "invariantPack": "core-invariants",
       "modelProfiles": [
         "perfect",
@@ -11,9 +11,89 @@
       ]
     },
     {
-      "id": "02",
-      "fixture": "ts-starter",
-      "recordingSet": "sim-02",
+      "id": "03",
+      "fixture": "03_precision_irrigation_nutrient_management",
+      "recordingSet": "sim-03",
+      "invariantPack": "core-invariants",
+      "modelProfiles": [
+        "perfect",
+        "flaky"
+      ]
+    },
+    {
+      "id": "04",
+      "fixture": "04_food_traceability_allergen_haccp",
+      "recordingSet": "sim-04",
+      "invariantPack": "core-invariants",
+      "modelProfiles": [
+        "perfect",
+        "flaky"
+      ]
+    },
+    {
+      "id": "05",
+      "fixture": "05_emergency_dispatch_incident_command",
+      "recordingSet": "sim-05",
+      "invariantPack": "core-invariants",
+      "modelProfiles": [
+        "perfect",
+        "flaky"
+      ]
+    },
+    {
+      "id": "06",
+      "fixture": "06_industrial_predictive_maintenance_historian",
+      "recordingSet": "sim-06",
+      "invariantPack": "core-invariants",
+      "modelProfiles": [
+        "perfect",
+        "flaky"
+      ]
+    },
+    {
+      "id": "07",
+      "fixture": "07_regulated_banking_ledger_loan_servicing",
+      "recordingSet": "sim-07",
+      "invariantPack": "core-invariants",
+      "modelProfiles": [
+        "perfect",
+        "flaky"
+      ]
+    },
+    {
+      "id": "08",
+      "fixture": "08_privacy_first_ehr_practice_platform",
+      "recordingSet": "sim-08",
+      "invariantPack": "core-invariants",
+      "modelProfiles": [
+        "perfect",
+        "flaky"
+      ]
+    },
+    {
+      "id": "20",
+      "fixture": "20_virtualized_microkernel_operating_system_lab",
+      "recordingSet": "sim-20",
+      "invariantPack": "core-invariants",
+      "modelProfiles": [
+        "perfect",
+        "flaky"
+      ]
+    },
+    {
+      "id": "09",
+      "fixture": "09_maritime_fleet_routing_compliance",
+      "recordingSet": "sim-09",
+      "invariantPack": "core-invariants",
+      "modelProfiles": [
+        "perfect",
+        "flaky"
+      ]
+    },
+    {
+      "id": "01",
+      "fixture": "01_clinical_medication_safety_platform",
+      "recordingSet": "sim-01",
       "invariantPack": "core-invariants",
       "modelProfiles": [
         "perfect",

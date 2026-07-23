@@ -455,9 +455,17 @@ function fallbackTrack(): ScenarioTrack {
 function perfectScript(project: ProjectInput, cards: CardPlan[], seed: number): ScenarioScript {
 	const rng = createSeededRng(seed);
 	const tracks: ScenarioTrack[] = [decomposeTrack(project, cards)];
+	const bounceByCard = new Map(cards.map((card) => [card.id, card.id !== "s00" && rng.chance(0.08)]));
+	// A probability is not a coverage contract. Two generated sets happened to draw zero bounces, so their
+	// "request_changes→approve" claim was false while the README still promised it. Preserve the seeded choices,
+	// but deterministically promote the first worker when the sample contains none.
+	if (![...bounceByCard.values()].some(Boolean)) {
+		const firstWorker = cards.find((card) => card.id !== "s00");
+		if (firstWorker) bounceByCard.set(firstWorker.id, true);
+	}
 	for (const card of cards) {
-		// A seeded ~8% of cards take one request_changes→approve review ladder so the bounce path stays exercised.
-		const bounce = card.id !== "s00" && rng.chance(0.08);
+		// A seeded ~8% of cards take one request_changes→approve review ladder; at least one is guaranteed above.
+		const bounce = bounceByCard.get(card.id) ?? false;
 		tracks.push(workerTrack(project, card, { fixup: bounce }));
 		tracks.push(...reviewTracks(card, { requestChangesFirst: bounce }));
 	}
@@ -483,6 +491,14 @@ function flakyScript(project: ProjectInput, cards: CardPlan[], seed: number): Sc
 			failing.set(card.id, failureKinds[failing.size] as (typeof failureKinds)[number]);
 		}
 		if (index >= subset.length - 1) break;
+	}
+	// Likewise, seeded selection is useful for placement but cannot decide whether a required failure family exists.
+	// Fill any missing catalog slots onto the first still-clean workers so every generated flaky set exercises all five.
+	const placedFailureKinds = new Set(failing.values());
+	for (const failureKind of failureKinds.filter((candidate) => !placedFailureKinds.has(candidate))) {
+		const card = subset.find((candidate) => candidate.id !== "s00" && !failing.has(candidate.id));
+		if (!card) throw new Error(`${project.id}: not enough worker cards to place every required flaky failure`);
+		failing.set(card.id, failureKind);
 	}
 	for (const card of subset) {
 		const failure = failing.get(card.id);

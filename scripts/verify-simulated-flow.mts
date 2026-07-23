@@ -11,6 +11,9 @@
  *         NKLEIN_SIMFLOW_SCENARIO — a scenario-set project ("02" or the full registry id): loads that set from
  *         packages/llm-simulator/scenarios/<project>/ and drives the REAL dev-test registry project with it.
  *         NKLEIN_SIMFLOW_RUN — "perfect" (default) or "flaky": which run file of the set to serve.
+ *         NKLEIN_NIGHTLY_EXPECTED_FIXTURE / NKLEIN_NIGHTLY_EXPECTED_RECORDING_SET — nightly-only manifest
+ *         bindings. Resolution fails closed on either mismatch and emits a SHA-256 evidence line for the exact
+ *         scenario bytes served; direct simulator runs may omit both.
  *         NKLEIN_SIMFLOW_SCRIPT — captured ScenarioScript JSON to replay; requires NKLEIN_SIMFLOW_SCENARIO to name
  *         the original dev-test preset. NKLEIN_SIMFLOW_EXPECT_OUTCOME may pin a known failure classification (for
  *         example `stagnant`) so a real-model failure becomes a deterministic regression fixture rather than a
@@ -37,11 +40,17 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { createSimulatorServer } from "../packages/llm-simulator/src/index.js";
 import type { ScenarioScript } from "../packages/llm-simulator/src/index.js";
+import {
+	bindNightlyRecording,
+	type NightlyRecordingEvidence,
+} from "../src/core/nightly-recording-evidence.js";
 
 const SCENARIO_SELECTOR = process.env.NKLEIN_SIMFLOW_SCENARIO?.trim() || "";
 const SCENARIO_RUN = process.env.NKLEIN_SIMFLOW_RUN === "flaky" ? "flaky-run" : "perfect-run";
 const REPLAY_SCRIPT_PATH = process.env.NKLEIN_SIMFLOW_SCRIPT?.trim() || "";
 const EXPECTED_OUTCOME = process.env.NKLEIN_SIMFLOW_EXPECT_OUTCOME?.trim() || "";
+const NIGHTLY_EXPECTED_FIXTURE = process.env.NKLEIN_NIGHTLY_EXPECTED_FIXTURE?.trim() || "";
+const NIGHTLY_EXPECTED_RECORDING_SET = process.env.NKLEIN_NIGHTLY_EXPECTED_RECORDING_SET?.trim() || "";
 const TIMEOUT_MS =
 	Number(process.env.NKLEIN_SIMFLOW_TIMEOUT_MS) || (SCENARIO_SELECTOR || REPLAY_SCRIPT_PATH ? 480_000 : 240_000);
 // Env-overridable so independent scenario runs can execute in parallel on distinct runtime ports without colliding.
@@ -222,7 +231,13 @@ if (SMOKE_TURN_LATENCY_MS) {
 }
 
 /** Resolve NKLEIN_SIMFLOW_SCENARIO ("02" or a full registry id) to {registryId, script}. */
-async function resolveScenario(): Promise<{ registryId: string; scenario: ScenarioScript } | undefined> {
+interface ResolvedScenario {
+	readonly registryId: string;
+	readonly scenario: ScenarioScript;
+	readonly recordingEvidence?: NightlyRecordingEvidence;
+}
+
+async function resolveScenario(): Promise<ResolvedScenario | undefined> {
 	if (REPLAY_SCRIPT_PATH) {
 		if (!SCENARIO_SELECTOR) {
 			fail("NKLEIN_SIMFLOW_SCRIPT requires NKLEIN_SIMFLOW_SCENARIO=<dev-test preset id>");
@@ -240,9 +255,21 @@ async function resolveScenario(): Promise<{ registryId: string; scenario: Scenar
 	const match = dirs.find((dir) => dir === SCENARIO_SELECTOR || dir.startsWith(`${SCENARIO_SELECTOR}_`));
 	if (!match) fail(`no scenario set matches "${SCENARIO_SELECTOR}" under packages/llm-simulator/scenarios/`);
 	const runPath = join(scenariosDir, match, `${SCENARIO_RUN}.json`);
-	const scenario = JSON.parse(await readFile(runPath, "utf8")) as ScenarioScript;
+	const rawScenario = await readFile(runPath, "utf8");
+	const scenario = JSON.parse(rawScenario) as ScenarioScript;
 	console.log(`Scenario mode: ${match} · ${SCENARIO_RUN} (${scenario.tracks.length} tracks)`);
-	return { registryId: match, scenario };
+	const recordingEvidence = bindNightlyRecording({
+		selector: SCENARIO_SELECTOR,
+		resolvedFixture: match,
+		expectedFixture: NIGHTLY_EXPECTED_FIXTURE,
+		expectedRecordingSet: NIGHTLY_EXPECTED_RECORDING_SET,
+		runFile: `${SCENARIO_RUN}.json`,
+		rawScenario,
+	});
+	if (NIGHTLY_EXPECTED_FIXTURE || NIGHTLY_EXPECTED_RECORDING_SET) {
+		console.log(`NIGHTLY_RECORDING_EVIDENCE=${JSON.stringify(recordingEvidence)}`);
+	}
+	return { registryId: match, scenario, recordingEvidence };
 }
 
 async function main(): Promise<void> {

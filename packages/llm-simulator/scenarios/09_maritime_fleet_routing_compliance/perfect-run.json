@@ -671,9 +671,63 @@
 						"kind": "text",
 						"content": "Implemented \"Core domain model and stable identifiers\": src/core-domain-model-and-stable-identifiers.mjs, test/core-domain-model-and-stable-identifiers.test.mjs with deterministic node:test coverage. Acceptance (npm test) is green. Task complete."
 					}
+				},
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "test/core-domain-model-and-stable-identifiers.test.mjs",
+											"content": "import test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { evaluateCoreDomainModelAndStableIdentifiers } from \"../src/core-domain-model-and-stable-identifiers.mjs\";\n\ntest(\"core-domain-model-and-stable-identifiers: accepts a clean input with evidence\", () => {\n\tconst result = evaluateCoreDomainModelAndStableIdentifiers({ id: \"subject-1\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: 1 });\n\tassert.equal(result.status, \"accepted\");\n\tassert.ok(result.findings.length > 0);\n\tassert.ok(result.findings.every((finding) => finding.evidence.length > 0));\n});\n\ntest(\"core-domain-model-and-stable-identifiers: blocks negative quantity with a critical finding\", () => {\n\tconst result = evaluateCoreDomainModelAndStableIdentifiers({ id: \"subject-2\", occurredAt: \"2026-01-01T00:00:00.000Z\", quantity: -1 });\n\tassert.equal(result.status, \"blocked\");\n\tassert.ok(result.findings.some((finding) => finding.severity === \"critical\"));\n});\n"
+										}
+									]
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Addressed the review feedback on \"Core domain model and stable identifiers\" and re-ran the tests. Task complete."
+					}
 				}
 			],
 			"repeatLastTurn": true,
+			"provenance": "generated baseline (generate-scenario-sets.mts)"
+		},
+		{
+			"id": "bounce-review-s01-round-1",
+			"requestClass": "review",
+			"userMessageIncludes": "the card \"Core domain model and stable identifiers\" (review round 1)",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "request_changes",
+									"summary": "\"Core domain model and stable identifiers\" is close but ships a gap the card explicitly owns.",
+									"feedback": "The evaluate module for \"Core domain model and stable identifiers\" only exercises the happy path plus one blocking case; the card asks for evidence on EVERY finding. Add an assertion that every finding carries non-empty evidence and re-run the acceptance command."
+								}
+							}
+						]
+					}
+				},
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Review submitted."
+					}
+				}
+			],
+			"cycleTurns": true,
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{

@@ -6160,6 +6160,19 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   guards, park/resume, re-drive), efficiency rails (budgets, capping, admission), and correctness gates (taint,
   acceptance evidence, fail-closed delivery, syntax guard) — and whatever David missed listing: when a codepath is
   discovered uncovered mid-work, ADD it here rather than skipping it.
+  **IMPLEMENTATION CHECKPOINT 2026-07-23; 20 LIVE CELLS + MECHANISM AUDIT PENDING THE ACTIVE F11 CAMPAIGN'S DOCKER
+  RELEASE.** The tranche is now recomputed from total perfect+flaky scripted turns (recording bytes break ties), not
+  hand-picked: `02, 03, 04, 05, 06, 07, 08, 20, 09, 01`. All ten exact fixture directories and both profiles are
+  registered. `fixture` and `recordingSet` are no longer decorative manifest fields: the child binds them immediately
+  after scenario resolution, digests the exact raw run-file bytes, and the parent requires exactly one typed receipt
+  matching fixture + set + run file + SHA-256 before it can issue a passing verdict. The receipt remains in both JSON
+  output and the duration-baseline artifact. Static integrity tests recompute the cheapest ten, prove every perfect
+  recording has decompose/write/acceptance plus request_changes→approve, and prove every flaky recording has 429,
+  empty-completion, reasoning-only, stalled-stream, and malformed-tool recovery. Seeded probability is explicitly not
+  treated as coverage: generation deterministically fills a missing bounce/failure family. **This is not closure yet:**
+  after F11 releases Docker, run all 20 cells and audit the resulting journal/telemetry against every mechanism named
+  above; any steering, park/resume, failover, budget/admission, taint, evidence, or syntax path without real proof gets
+  an explicit profile/action and invariant rather than an inferred checkmark.
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,

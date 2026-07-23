@@ -14,6 +14,7 @@ import {
 	summarizeNightlyRun,
 } from "../core/nightly-manifest";
 import { NIGHTLY_PACK_REGISTRY } from "../core/nightly-pack-registry";
+import { type NightlyRecordingEvidence, parseNightlyRecordingEvidence } from "../core/nightly-recording-evidence";
 import { detectDurationRegressions, planNightlySchedule } from "../core/nightly-schedule";
 import { extractDrainSignalEvents, OBSERVABLE_DRAIN_SIGNALS } from "../core/nightly-signal-extraction";
 import { extractOperatorHold } from "../core/operator-hold-extraction";
@@ -166,6 +167,10 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 				HOME: home,
 				NKLEIN_AGENT_LEDGER_ROOT: join(home, "ledger"),
 				NKLEIN_SIMFLOW_SCENARIO: cell.projectId,
+				// These fields used to be decorative manifest prose. The drain now refuses to run if either does not
+				// resolve to the exact scenario it opened, and emits a digest-bound receipt for the bytes it served.
+				NKLEIN_NIGHTLY_EXPECTED_FIXTURE: cell.fixture,
+				NKLEIN_NIGHTLY_EXPECTED_RECORDING_SET: cell.recordingSet,
 				NKLEIN_SIMFLOW_RUNTIME_PORT: String(port),
 				// The profile must reach the variable the script READS, not a name only this runner knows.
 				NKLEIN_SIMFLOW_RUN: simflowRun,
@@ -182,6 +187,33 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 		// If that script is ever changed to succeed without printing it, this default silently under-reports — treat
 		// the fail()-forces-nonzero-exit contract as load-bearing here, not incidental.
 		const unmatched = Number.parseInt(/unmatched[^0-9]*(\d+)/i.exec(stdout)?.[1] ?? "0", 10);
+		const receiptLines = stdout.split(/\r?\n/).filter((line) => line.startsWith("NIGHTLY_RECORDING_EVIDENCE="));
+		if (receiptLines.length !== 1) {
+			return {
+				cell,
+				outcome: "failed",
+				durationMs: Date.now() - started,
+				homePath: home,
+				reason: `drain exited cleanly with ${receiptLines.length} NIGHTLY_RECORDING_EVIDENCE receipts (expected exactly 1); refusing to claim that the manifest's fixture/recording set was exercised`,
+			};
+		}
+		let recordingEvidence: NightlyRecordingEvidence;
+		try {
+			recordingEvidence = parseNightlyRecordingEvidence({
+				raw: (receiptLines[0] ?? "").slice("NIGHTLY_RECORDING_EVIDENCE=".length),
+				expectedFixture: cell.fixture,
+				expectedRecordingSet: cell.recordingSet,
+				expectedRunFile: `${simflowRun}-run.json`,
+			});
+		} catch (error) {
+			return {
+				cell,
+				outcome: "failed",
+				durationMs: Date.now() - started,
+				homePath: home,
+				reason: `invalid NIGHTLY_RECORDING_EVIDENCE: ${error instanceof Error ? error.message : String(error)}`,
+			};
+		}
 		return {
 			cell,
 			outcome: "passed",
@@ -191,6 +223,7 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 			// `indeterminate` rather than as a pass.
 			terminalLanesJson: /NIGHTLY_TERMINAL_LANES=(\{[^\n]*\})/.exec(stdout)?.[1] ?? null,
 			homePath: home,
+			recordingEvidence,
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -198,6 +231,7 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 			cell,
 			outcome: "failed",
 			durationMs: Date.now() - started,
+			homePath: home,
 			reason: // 300 chars cut the failure mid-`finalCounts` on the first real run, hiding the lane data that explained it.
 				// The report is the artifact that survives, so it should not economise on the part that diagnoses.
 				`${message.slice(0, 1200)} (isolated HOME kept for inspection: ${home}; seed monitor output at ${join(home, "seed-monitor.log")})`,
@@ -335,7 +369,7 @@ export async function runDevNightlyCommand(options: {
 		verdicts
 			.filter((verdict) => verdict.outcome === "failed")
 			.map(async (verdict) => {
-				const home = /isolated HOME kept for inspection: ([^)]+)/.exec(verdict.reason ?? "")?.[1]?.trim() ?? null;
+				const home = verdict.homePath ?? null;
 				const holdNote = await operatorHoldNote(home, `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`);
 				return buildNightlyFailureReport({
 					cellId: `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`,
@@ -402,6 +436,19 @@ export async function runDevNightlyCommand(options: {
 		process.stdout.write(`\nInvariant packs:\n`);
 		for (const line of packVerdicts) {
 			process.stdout.write(`  ${line}\n`);
+		}
+	}
+	const recordingReceipts = verdicts.filter(
+		(verdict): verdict is CellVerdict & { recordingEvidence: NonNullable<CellVerdict["recordingEvidence"]> } =>
+			verdict.recordingEvidence != null,
+	);
+	if (recordingReceipts.length > 0 && !options.json) {
+		process.stdout.write(`\nRecording receipts (${recordingReceipts.length}/${verdicts.length} cells):\n`);
+		for (const verdict of recordingReceipts) {
+			const evidence = verdict.recordingEvidence;
+			process.stdout.write(
+				`  ${verdict.cell.projectId} × ${verdict.cell.modelProfile}: ${evidence.fixture}/${evidence.runFile} · ${evidence.setId} · sha256:${evidence.sha256}\n`,
+			);
 		}
 	}
 

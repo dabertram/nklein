@@ -276,10 +276,23 @@
 			"provenance": "generated baseline (generate-scenario-sets.mts)"
 		},
 		{
-			"id": "perfect-worker-s01",
+			"id": "flaky-worker-s01",
 			"requestClass": "worker",
 			"userMessageIncludes": "Files for THIS card: src/core-domain-model-and-stable-identifiers.mjs",
 			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": "[{\"path\":\"src/core-domain-model-and-stable-identifiers.mjs\",\"content\":\"export const truncated = "
+								}
+							}
+						]
+					}
+				},
 				{
 					"behavior": {
 						"kind": "tool_calls",
@@ -340,7 +353,7 @@
 				}
 			],
 			"repeatLastTurn": true,
-			"provenance": "generated baseline (generate-scenario-sets.mts)"
+			"provenance": "generated flaky baseline — c-trunc-tool-json then recovery (failure-catalog.md)"
 		},
 		{
 			"id": "perfect-review-s01",

@@ -1,3 +1,5 @@
+import type { NightlyRecordingEvidence } from "./nightly-recording-evidence";
+
 /**
  * N1 — the nightly-tests MANIFEST and cell model. PURE core.
  *
@@ -18,7 +20,7 @@
 
 export interface NightlyProjectEntry {
 	readonly id: string;
-	/** Fixture template the project builds on (e.g. `ts-starter`). */
+	/** Exact dev-test/scenario fixture directory this project executes. */
 	readonly fixture: string;
 	/** aimock recording set that drains it end-to-end. */
 	readonly recordingSet: string;
@@ -34,6 +36,8 @@ export interface NightlyManifest {
 
 export interface NightlyCell {
 	readonly projectId: string;
+	/** Exact dev-test/scenario fixture directory this cell must execute. */
+	readonly fixture: string;
 	readonly modelProfile: string;
 	readonly recordingSet: string;
 	readonly invariantPack: string;
@@ -62,6 +66,7 @@ export function enumerateNightlyCells(manifest: NightlyManifest, filter: CellFil
 			}
 			cells.push({
 				projectId: project.id,
+				fixture: project.fixture,
 				modelProfile,
 				recordingSet: project.recordingSet,
 				invariantPack: project.invariantPack,
@@ -89,6 +94,11 @@ export interface CellVerdict {
 	readonly terminalLanesJson?: string | null;
 	/** N7c: the cell's isolated HOME, so its self-observation log can be read for fired signals. */
 	readonly homePath?: string | null;
+	/**
+	 * Create-only evidence emitted by the drain after resolving the declared recording set to exact bytes.
+	 * Missing evidence is a failed cell at the runner boundary; it must never be synthesized by this summary core.
+	 */
+	readonly recordingEvidence?: NightlyRecordingEvidence | null;
 }
 
 export interface NightlySummary {

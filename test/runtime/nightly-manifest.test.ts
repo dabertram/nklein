@@ -27,6 +27,7 @@ const manifest: NightlyManifest = {
 
 const cell = (projectId: string, modelProfile: string) => ({
 	projectId,
+	fixture: `${projectId}-fixture`,
 	modelProfile,
 	recordingSet: "s",
 	invariantPack: "p",
@@ -40,6 +41,7 @@ describe("enumerateNightlyCells", () => {
 			"small-model-smoke×gemma-12b",
 			"habit-many-small×qwen-14b",
 		]);
+		expect(cells.map((c) => c.fixture)).toEqual(["smoke-ts-cli", "smoke-ts-cli", "ts-starter"]);
 	});
 
 	it("is deterministic — a nightly summary must be diffable against yesterday's", () => {
