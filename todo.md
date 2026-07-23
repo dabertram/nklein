@@ -35,8 +35,8 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed after F12.64):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 152-package remainder is **58 ready + 1 partial + 78 dependency-blocked + 7 external/
-user-gated + 8 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
+  gate below is green. The current 152-package remainder is **57 ready + 1 partial + 78 dependency-blocked + 7 external/
+user-gated + 9 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
 gates immediately below; all seven `[?]` rows name the required operator decision, credential, machine, or live-fleet
@@ -5026,9 +5026,19 @@ output and NOT acted on. Captured as F12.12.)
   per-session plan by `concurrentSlots` with the 32k/slot floor, and the LIVE loader (lms-model-runner load path)
   consumes it — under-floor mis-fits surface a caveat naming the max safe slot count ("lower this model's
   concurrency cap to ≤N"). The audit clause is this wire check. Crossed.
-- [ ] **F12.69 — MTP + n-gram self-speculation as the zero-cost fast path.** Prefer Unsloth MTP GGUFs in LM Studio (toggle
-  MTP in load params — ~50% throughput, NO draft model in VRAM) + `--spec-type ngram-mod` for llama.cpp coder roles (zero
-  VRAM, shines on the templated/JSON output agents emit). ~1.5× free speedup, no draft-pair bookkeeping. (localllm MTP; llama.cpp ngram)
+- [-] **F12.69 — MTP + n-gram self-speculation** *(deliberately deferred 2026-07-23 at David's direction: speculative
+  decoding is not the layer being worked on now).* Do not reload a drafter or change the active fixed-fleet campaign.
+  The original “zero-cost / ~1.5× free” premise is also too strong: current LM Studio documentation exposes
+  draft-model speculation, not an operator/API contract for MTP or n-gram self-speculation; upstream llama.cpp does
+  expose `draft-mtp` and `ngram-mod`, but `ngram-mod` belongs behind the still-unbuilt P17.1/P17.1a runtime adapter and
+  publishes acceptance/timing statistics precisely because the win is workload-specific. The Apple-Metal MTP report
+  llama.cpp #23752 measured an 11–28% regression across its tested configurations, and the proposal to pipeline MTP
+  into n-gram speculation (#23184) was closed not-planned. Re-open only when a supported runtime adapter exposes the
+  knobs and SPEED-Bench-style paired evidence shows a net win for an exact model × engine × machine × workload cell;
+  activation remains opt-in and user-controlled. Sources: [LM Studio speculative decoding](https://lmstudio.ai/docs/app/advanced/speculative-decoding),
+  [llama.cpp speculative decoding](https://github.com/ggml-org/llama.cpp/blob/master/docs/speculative.md),
+  [Metal MTP report](https://github.com/ggml-org/llama.cpp/issues/23752),
+  [non-pipelined MTP+n-gram issue](https://github.com/ggml-org/llama.cpp/issues/23184).
 - [x] **F12.70 — Per-request speculative-decoding gate (batch-1, non-MoE only).**
   **ALREADY SHIPPED — found 2026-07-20, not newly built.** `inference-lever-planning.ts:428`:
   `speculativeDecoding = samplingSafe && concurrency === 1 && !input.isMoe` — exactly this item's gate, plus the
