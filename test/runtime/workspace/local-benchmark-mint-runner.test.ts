@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { createGitProcessEnv } from "../../../src/core/git-process-env";
 import { parseSwebenchDataset } from "../../../src/core/swebench-benchmark";
 import { mintLocalBenchmarkTasks } from "../../../src/workspace/local-benchmark-mint-runner";
 
@@ -22,10 +23,11 @@ describe("local benchmark mint runner", () => {
 			"function allowed(value: number) {\n\treturn value >= 1 && value < 4;\n}\nexport { allowed };\n",
 		);
 		await writeFile(join(repo, "test", "range.test.ts"), "// protected oracle\n");
-		await execFile("git", ["init", "--initial-branch=main"], { cwd: repo });
-		await execFile("git", ["add", "--all"], { cwd: repo });
+		await execFile("git", ["init", "--initial-branch=main"], { cwd: repo, env: createGitProcessEnv() });
+		await execFile("git", ["add", "--all"], { cwd: repo, env: createGitProcessEnv() });
 		await execFile("git", ["-c", "user.name=Test", "-c", "user.email=test@localhost", "commit", "-m", "base"], {
 			cwd: repo,
+			env: createGitProcessEnv(),
 		});
 		let calls = 0;
 		const result = await mintLocalBenchmarkTasks(
@@ -60,7 +62,10 @@ describe("local benchmark mint runner", () => {
 		expect(instances[0].problemStatement).not.toContain("value >= 1");
 		expect(instances[0].goldPatch).toContain("src/range.ts");
 		expect(
-			await execFile("git", ["cat-file", "-t", instances[0].baseCommit], { cwd: result.mirrorPath }),
+			await execFile("git", ["cat-file", "-t", instances[0].baseCommit], {
+				cwd: result.mirrorPath,
+				env: createGitProcessEnv(),
+			}),
 		).toMatchObject({
 			stdout: "commit\n",
 		});
@@ -91,10 +96,11 @@ describe("local benchmark mint runner", () => {
 			"function allowed(value: number) {\n\treturn value >= 1 && value < 4;\n}\nexport { allowed };\n",
 		);
 		await writeFile(join(repo, "test", "range.test.ts"), "// protected oracle\n");
-		await execFile("git", ["init", "--initial-branch=main"], { cwd: repo });
-		await execFile("git", ["add", "--all"], { cwd: repo });
+		await execFile("git", ["init", "--initial-branch=main"], { cwd: repo, env: createGitProcessEnv() });
+		await execFile("git", ["add", "--all"], { cwd: repo, env: createGitProcessEnv() });
 		await execFile("git", ["-c", "user.name=Test", "-c", "user.email=test@localhost", "commit", "-m", "base"], {
 			cwd: repo,
+			env: createGitProcessEnv(),
 		});
 		let calls = 0;
 		await expect(

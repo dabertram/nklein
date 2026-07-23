@@ -3,6 +3,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createGitProcessEnv } from "../../../src/core/git-process-env";
 import {
 	captureBenchmarkWorkspaceResult,
 	verifySealedBenchmarkWorkspace,
@@ -12,7 +13,7 @@ function git(repoPath: string, ...args: string[]): string {
 	return execFileSync("git", ["-C", repoPath, ...args], {
 		encoding: "utf8",
 		env: {
-			...process.env,
+			...createGitProcessEnv(),
 			GIT_AUTHOR_NAME: "Benchmark Test",
 			GIT_AUTHOR_EMAIL: "benchmark@example.invalid",
 			GIT_COMMITTER_NAME: "Benchmark Test",

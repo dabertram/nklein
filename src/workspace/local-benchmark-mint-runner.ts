@@ -3,6 +3,7 @@ import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
+import { createGitProcessEnv } from "../core/git-process-env";
 import {
 	localBenchmarkProblemStatement,
 	PINNED_SWE_SMITH_COMMIT,
@@ -41,7 +42,11 @@ async function command(
 	cwd?: string,
 	env?: NodeJS.ProcessEnv,
 ): Promise<string> {
-	const result = await execFile(command, [...args], { cwd, env, maxBuffer: 32 * 1024 * 1024 });
+	const result = await execFile(command, [...args], {
+		cwd,
+		env: command === "git" ? createGitProcessEnv(env) : env,
+		maxBuffer: 32 * 1024 * 1024,
+	});
 	return result.stdout.trim();
 }
 
@@ -243,7 +248,6 @@ export async function mintLocalBenchmarkTasks(
 			if (!goldPatch) throw new Error(`Killed mutant ${candidate.file}:${candidate.line} produced no gold patch.`);
 			await command("git", ["add", "--", candidate.file], workspace);
 			const commitEnv = {
-				...process.env,
 				GIT_AUTHOR_DATE: sourceDate,
 				GIT_COMMITTER_DATE: sourceDate,
 			};
