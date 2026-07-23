@@ -173,7 +173,7 @@ export function useNKleinChatSession({
 	const sendMessage = useCallback(
 		async (
 			text: string,
-			options?: { mode?: RuntimeTaskSessionMode; images?: RuntimeTaskImage[] },
+			options?: { mode?: RuntimeTaskSessionMode; images?: RuntimeTaskImage[]; interventionHumanSeconds?: number },
 		): Promise<boolean> => {
 			const trimmed = text.trim();
 			const hasImages = Boolean(options?.images && options.images.length > 0);

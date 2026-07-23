@@ -49,6 +49,11 @@ export const runtimeTaskChatSendRequestSchema = z.object({
 	providerId: z.string().optional(),
 	modelId: z.string().optional(),
 	reasoningEffort: runtimeNKleinReasoningEffortSchema.nullable().optional(),
+	/**
+	 * P16.5b: the composer-MEASURED typing span (first keystroke → send, seconds) for the operator gesture. Attached
+	 * to the nudge intervention record only when the send actually steered a RUNNING session; never estimated.
+	 */
+	interventionHumanSeconds: z.number().nonnegative().finite().optional(),
 });
 export type RuntimeTaskChatSendRequest = z.infer<typeof runtimeTaskChatSendRequestSchema>;
 

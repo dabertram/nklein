@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 147-package remainder is **40 ready + 12 partial + 80 dependency-blocked + 6 external/
+  gate below is green. The current 146-package remainder is **40 ready + 11 partial + 80 dependency-blocked + 6 external/
 user-gated + 9 deliberately deferred** (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
 F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 + N13 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
@@ -7755,21 +7755,6 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   effort. **`rankInterventionsForReport`** puts takeovers and aborts before nudges, because those are where the
   harness was most confidently wrong. 10 tests.
   **SPLIT MATERIALIZED 2026-07-20.**
-- [~] **P16.5b — Capture intervention events at the four real seams *(split from P16.5 2026-07-20)*.** Emit an
-  `InterventionEvent` for: typed guidance (nudge), a user edit of agent output (correction), a human-authored fix
-  (takeover), and card abandon (abort) — each with **harness-MEASURED wall-clock**, never a later estimate.
-  **AUDIT 2026-07-23: the four emission seams are SHIPPED and wired end-to-end** (verified by tracing, not by the
-  item's stale claim): nudge = `task-chat-send.ts` (recorded only when a RUNNING session accepted the input),
-  correction = `task-session-io.ts` via the review-comments composer (`use-board-interactions.ts` sends
-  `interventionSeverity:"correction"` atomically with delivery), takeover = `task-chat-turn-control.ts`, abort =
-  `task-session-io.ts` stop-with-abort from the Trash gesture; `intervention-observation.ts` extracts them and
-  `dev interventions` reads the result. "The metric has no input" is no longer true. **Concrete remainder:**
-  (1) `humanSeconds` is never measured — every event lands null, so the time total is a permanent all-null floor.
-  Measure the TYPING SPAN (first keystroke → send) in the two text composers (chat nudge; diff review-comments)
-  and pass it as an optional `interventionHumanSeconds` through both request schemas into the emission metadata.
-  Takeover/abort are single clicks whose human cost is structurally unmeasurable at the seam — they stay null BY
-  DESIGN (measured-or-absent, never estimated). (2) After wiring, verify with `dev mechanism-registry` on real
-  usage telemetry, not by inspection.
 - [x] **P16.6 — Generation path + degradation LADDER (P16.6b carries the model call).** The report is written by whatever the user
   has connected. **A weak local model must degrade to the STRUCTURED report (Layer A is pure aggregation and needs
   no model at all), never to a hallucinated narrative.** Layer A must be generatable with zero models available.

@@ -229,6 +229,9 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 					appendNewline,
 					...(options?.steer ? { delivery: "steer" as const } : {}),
 					interventionSeverity: options?.interventionSeverity,
+					...(typeof options?.interventionHumanSeconds === "number"
+						? { interventionHumanSeconds: options.interventionHumanSeconds }
+						: {}),
 				});
 				if (!payload.ok) {
 					const errorMessage = payload.error || "Task session input failed.";

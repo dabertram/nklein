@@ -225,7 +225,7 @@ describe("useNKleinChatPanelController", () => {
 			await requireSnapshot(latestSnapshot).handleSendDraft("plan");
 		});
 
-		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Ship it", { mode: "plan" });
+		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Ship it", { mode: "plan", interventionHumanSeconds: 0 });
 		expect(requireSnapshot(latestSnapshot).draft).toBe("");
 		expect(requireSnapshot(latestSnapshot).messageIds).toEqual(["sent-1"]);
 		expect(requireSnapshot(latestSnapshot).lastMessageContent).toBe("Ship it");

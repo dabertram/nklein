@@ -1423,7 +1423,7 @@ describe("NKleinAgentChatPanel", () => {
 			await Promise.resolve();
 		});
 
-		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Ship it", { mode: "act" });
+		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Ship it", { mode: "act", interventionHumanSeconds: 0 });
 
 		await act(async () => {
 			textarea.dispatchEvent(
@@ -1490,6 +1490,7 @@ describe("NKleinAgentChatPanel", () => {
 
 		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Use the new model", {
 			mode: "act",
+			interventionHumanSeconds: 0,
 			providerId: "lmstudio",
 			modelId: "new-model",
 			reasoningEffort: "high",
@@ -1738,7 +1739,10 @@ describe("NKleinAgentChatPanel", () => {
 			await Promise.resolve();
 		});
 
-		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Investigate", { mode: "plan" });
+		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Investigate", {
+			mode: "plan",
+			interventionHumanSeconds: 0,
+		});
 	});
 
 	it("restores the previously selected mode when switching back to a task", async () => {
@@ -1955,7 +1959,7 @@ describe("NKleinAgentChatPanel", () => {
 			await Promise.resolve();
 		});
 
-		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Switch it", { mode: "plan" });
+		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Switch it", { mode: "plan", interventionHumanSeconds: 0 });
 	});
 
 	it("hides the composer mode toggle when requested", async () => {
@@ -2025,7 +2029,7 @@ describe("NKleinAgentChatPanel", () => {
 			await Promise.resolve();
 		});
 
-		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Keep acting", { mode: "act" });
+		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Keep acting", { mode: "act", interventionHumanSeconds: 0 });
 	});
 
 	it("keeps chat pinned to bottom when action footer appears", async () => {

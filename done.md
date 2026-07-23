@@ -3136,3 +3136,21 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   isolation) has no reproduction; the standing net is exactly this package — pre-commit captures full output on
   failure, so a recurrence names itself and quarantine + the named-input workflow take over (and the dispose-flush
   fix removes one known class of cross-file pollution that could plausibly have caused it — not asserted).
+
+## 2026-07-23 P16.5b intervention capture completed
+
+- [x] **P16.5b — Capture intervention events at the four real seams (audit + measurement completion).** The
+  2026-07-23 audit found the four emission seams ALREADY SHIPPED end-to-end (nudge `task-chat-send.ts` recorded
+  only when a running session accepted the input; correction `task-session-io.ts` atomic with review-comment
+  delivery; takeover `task-chat-turn-control.ts`; abort stop-with-abort from the Trash gesture) — the item's "the
+  metric has no input" claim was stale. The genuine gap was WALL-CLOCK: every event landed `humanSeconds: null`.
+  Now MEASURED at the two text seams: the chat composer (nudge) and the diff review-comments composer (correction)
+  measure the typing span (first keystroke → send, 0.1s resolution) and pass it as optional
+  `interventionHumanSeconds` through the request schemas (`runtimeTaskChatSendRequestSchema`,
+  `runtimeTaskSessionInputRequestSchema`) into the emission metadata — measured-or-absent, never estimated; an
+  abandoned-and-resumed draft inflates the span rather than hiding cost (the metric core reports floors and ranks
+  outliers). Takeover/abort are single clicks whose human cost is structurally unmeasurable at the seam and stay
+  null BY DESIGN. Verified per the item's own instruction with the tool, not inspection: `dev interventions` reads
+  real telemetry end-to-end and reports "All four severities have an emission site" with honest zeros (no operator
+  gestures yet — the registry's "zero is the CORRECT result" case). Backend 12 488 green; web-ui 1 147 green
+  (six draft-send assertions extended with the measured-0s field).

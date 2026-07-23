@@ -91,7 +91,14 @@ export async function handleSendTaskChatMessage(
 					severity: "info",
 					message: `Operator sent guidance to running task ${body.taskId}.`,
 					taskId: body.taskId,
-					metadata: { category: INTERVENTION_CATEGORY, interventionSeverity: "nudge" },
+					metadata: {
+						category: INTERVENTION_CATEGORY,
+						interventionSeverity: "nudge",
+						// P16.5b: composer-measured typing span; absent stays absent (measured-or-null, never estimated).
+						...(typeof body.interventionHumanSeconds === "number"
+							? { humanSeconds: body.interventionHumanSeconds }
+							: {}),
+					},
 				});
 			} catch {
 				// Swallowed deliberately — see above.

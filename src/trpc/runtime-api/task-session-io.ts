@@ -112,7 +112,14 @@ export async function handleSendTaskSessionInput(
 					severity: "info",
 					message: `Operator submitted corrective review feedback for ${body.taskId}.`,
 					taskId: body.taskId,
-					metadata: { category: INTERVENTION_CATEGORY, interventionSeverity: "correction" },
+					metadata: {
+						category: INTERVENTION_CATEGORY,
+						interventionSeverity: "correction",
+						// P16.5b: composer-measured typing span; absent stays absent (measured-or-null, never estimated).
+						...(typeof body.interventionHumanSeconds === "number"
+							? { humanSeconds: body.interventionHumanSeconds }
+							: {}),
+					},
 				});
 			} catch {
 				// Telemetry must never break feedback delivery.

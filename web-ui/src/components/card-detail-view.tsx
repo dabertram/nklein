@@ -452,7 +452,7 @@ export function CardDetailView({
 	agentOpenPrTaskLoadingById?: Record<string, boolean>;
 	moveToTrashLoadingById?: Record<string, boolean>;
 	onAddReviewComments?: (taskId: string, text: string) => void;
-	onSendReviewComments?: (taskId: string, text: string) => void;
+	onSendReviewComments?: (taskId: string, text: string, interventionHumanSeconds?: number) => void;
 	onSendNKleinChatMessage?: (
 		taskId: string,
 		text: string,
@@ -503,7 +503,17 @@ export function CardDetailView({
 	const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
 	const terminalThemeColors = useTerminalThemeColors();
 	const [selectedPath, setSelectedPath] = useState<string | null>(null);
-	const [diffComments, setDiffComments] = useState<Map<string, DiffLineComment>>(new Map());
+	const [diffComments, setDiffCommentsState] = useState<Map<string, DiffLineComment>>(new Map());
+	// P16.5b: MEASURE the review-comment composition span (first comment edit → send); measured-or-absent only.
+	const diffCommentsStartedAtRef = useRef<number | null>(null);
+	const setDiffComments = useCallback((next: Map<string, DiffLineComment>) => {
+		if (next.size === 0) {
+			diffCommentsStartedAtRef.current = null;
+		} else if (diffCommentsStartedAtRef.current === null) {
+			diffCommentsStartedAtRef.current = Date.now();
+		}
+		setDiffCommentsState(next);
+	}, []);
 	const [diffMode, setDiffMode] = useState<RuntimeWorkspaceChangesMode>("working_copy");
 	const [isDiffExpanded, setIsDiffExpanded] = useState(false);
 	const {
@@ -688,12 +698,16 @@ export function CardDetailView({
 
 	const handleSendDiffComments = useCallback(
 		(formatted: string) => {
+			const startedAt = diffCommentsStartedAtRef.current;
+			const interventionHumanSeconds =
+				startedAt === null ? undefined : Math.max(0, Math.round((Date.now() - startedAt) / 100) / 10);
+			diffCommentsStartedAtRef.current = null;
 			if (showNKleinAgentChatPanel) {
 				void nkleinAgentChatPanelRef.current?.sendText(formatted);
 				setIsDiffExpanded(false);
 				return;
 			}
-			onSendReviewComments?.(selection.card.id, formatted);
+			onSendReviewComments?.(selection.card.id, formatted, interventionHumanSeconds);
 			setIsDiffExpanded(false);
 		},
 		[onSendReviewComments, selection.card.id, showNKleinAgentChatPanel],

@@ -1,7 +1,7 @@
 // Builds the view model for the native NKlein chat panel.
 // Keep panel-specific UI state here so the panel component can stay mostly
 // declarative and shared across detail and sidebar surfaces.
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import type { NKleinChatActionResult } from "@/hooks/use-nklein-chat-runtime-actions";
 import { type NKleinChatMessage, useNKleinChatSession } from "@/hooks/use-nklein-chat-session";
@@ -75,7 +75,19 @@ export function useNKleinChatPanelController({
 	cancelAutomaticActionLabel,
 	showMoveToTrash = false,
 }: UseNKleinChatPanelControllerInput): UseNKleinChatPanelControllerResult {
-	const [draft, setDraft] = useState("");
+	const [draft, setDraftState] = useState("");
+	// P16.5b: MEASURE the operator's typing span (first keystroke → send). Wall-clock from the first keystroke,
+	// so an abandoned-and-resumed draft inflates the span rather than hiding cost — the metric core reports
+	// measured seconds as a FLOOR and ranks outliers visibly, so honesty beats a cap here.
+	const draftStartedAtRef = useRef<number | null>(null);
+	const setDraft = useCallback((next: string) => {
+		if (next.trim().length === 0) {
+			draftStartedAtRef.current = null;
+		} else if (draftStartedAtRef.current === null) {
+			draftStartedAtRef.current = Date.now();
+		}
+		setDraftState(next);
+	}, []);
 	const reviewWorkspaceSnapshot = useTaskWorkspaceSnapshotValue(taskId);
 	const { messages, isSending, isCanceling, error, sendMessage, cancelTurn } = useNKleinChatSession({
 		taskId,
@@ -116,13 +128,20 @@ export function useNKleinChatPanelController({
 
 	const handleSendDraft = useCallback(
 		async (mode?: RuntimeTaskSessionMode, images?: RuntimeTaskImage[]): Promise<boolean> => {
-			const sent = await handleSendText(draft, mode, images);
+			const startedAt = draftStartedAtRef.current;
+			const interventionHumanSeconds =
+				startedAt === null ? undefined : Math.max(0, Math.round((Date.now() - startedAt) / 100) / 10);
+			const sent = await sendMessage(draft, {
+				...(mode ? { mode } : {}),
+				...(images?.length ? { images } : {}),
+				...(interventionHumanSeconds !== undefined ? { interventionHumanSeconds } : {}),
+			});
 			if (sent) {
 				setDraft("");
 			}
 			return sent;
 		},
-		[draft, handleSendText],
+		[draft, sendMessage, setDraft],
 	);
 
 	const handleCancelTurn = useCallback(() => {

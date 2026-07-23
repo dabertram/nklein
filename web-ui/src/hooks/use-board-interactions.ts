@@ -441,13 +441,14 @@ export function useBoardInteractions({
 	);
 
 	const handleSendReviewComments = useCallback(
-		async (taskId: string, text: string) => {
+		async (taskId: string, text: string, interventionHumanSeconds?: number) => {
 			// This is not a generic nudge: the operator is explicitly identifying output that needs correction.
 			// Send through the backend (not xterm) so successful delivery and its intervention severity are atomic.
 			const typed = await sendTaskSessionInput(taskId, text, {
 				appendNewline: true,
 				preferTerminal: false,
 				interventionSeverity: "correction",
+				...(typeof interventionHumanSeconds === "number" ? { interventionHumanSeconds } : {}),
 			});
 			if (!typed.ok) {
 				showAppToast({

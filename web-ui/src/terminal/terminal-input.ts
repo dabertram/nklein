@@ -6,4 +6,6 @@ export interface SendTerminalInputOptions {
 	steer?: boolean;
 	/** N18: explicit review feedback; forces the backend path so the successful delivery is durably observed. */
 	interventionSeverity?: "correction";
+	/** P16.5b: composer-MEASURED typing span (first keystroke → send, seconds) for the intervention record. */
+	interventionHumanSeconds?: number;
 }

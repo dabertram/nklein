@@ -362,6 +362,8 @@ export const runtimeTaskSessionInputRequestSchema = z.object({
 	delivery: z.enum(["queue", "steer"]).optional(),
 	/** N18: submitted review feedback explicitly identifies output that needs correction. */
 	interventionSeverity: z.literal("correction").optional(),
+	/** P16.5b: composer-MEASURED typing span (first keystroke → send, seconds); recorded with the correction only. */
+	interventionHumanSeconds: z.number().nonnegative().finite().optional(),
 });
 export type RuntimeTaskSessionInputRequest = z.infer<typeof runtimeTaskSessionInputRequestSchema>;
 

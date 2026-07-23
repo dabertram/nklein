@@ -25,6 +25,8 @@ export interface SendNKleinChatMessageOptions {
 	providerId?: string;
 	modelId?: string;
 	reasoningEffort?: RuntimeNKleinReasoningEffort | null;
+	/** P16.5b: composer-MEASURED typing span (first keystroke → send, seconds); rides the nudge intervention record. */
+	interventionHumanSeconds?: number;
 }
 
 interface UseNKleinChatRuntimeActionsInput {
@@ -71,6 +73,9 @@ export function useNKleinChatRuntimeActions({
 					...(providerId ? { providerId } : {}),
 					...(modelId ? { modelId } : {}),
 					...(options && "reasoningEffort" in options ? { reasoningEffort: options.reasoningEffort ?? null } : {}),
+					...(typeof options?.interventionHumanSeconds === "number"
+						? { interventionHumanSeconds: options.interventionHumanSeconds }
+						: {}),
 				});
 				if (!payload.ok) {
 					return { ok: false, message: payload.error ?? "Task chat message failed." };
