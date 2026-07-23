@@ -3924,6 +3924,14 @@ stays fast + complete.
   explicitly-declaring Dockerfiles. The 2 stained java attempts (affine-cipher, all-your-base; candidate patches
   preserved) recover post-campaign: delete their evidence files and resume the campaign while the fixed fleet is
   still resident — a full clean re-run of exactly those two attempts, keeping the pre-registered power.
+  **2026-07-23 LIVE-FOUND (crash forensics, twice-crashed campaign): THE RUNNER'S CRASH PATH ORPHANS LIVE
+  SESSIONS.** After the driver died at the idle gate (13:11Z), the ALREADY-GRADED java-alphametics no_plan
+  attempt's worker session kept running in the campaign runtime — and on its stop, its AUTO-REVIEW chain kept
+  cycling — holding qwen3.5-9b `processingPrompt` for 4+ hours, which then killed every resume at the same idle
+  gate (a self-sustaining crash loop). Cleared surgically: tRPC `stopTaskSession` + `task trash` of the zombie
+  card via the CLI against the campaign runtime. **Follow-up (small, post-campaign): on startup the campaign
+  runner should RECONCILE — stop/trash any runtime session whose attempt evidence is already sealed — so a crash
+  can never strand a session that blocks its own resume.**
   **Remainder:**
   A three-workspace candidate pilot was deliberately excluded from A/B evidence after it exposed cross-workspace
   speculative-mirror/reviewer contention; the root scheduler fix is landed and the matched campaign must run
