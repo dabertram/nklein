@@ -1090,11 +1090,19 @@ export function registerDevCommand(program: Command): void {
 		});
 	dev.command("benchmark")
 		.description("F11.3 repository-benchmark adapter: prepare, materialize, run, grade, calibrate, and delta-gate.")
-		.argument("<action>", "prepare|prediction|workspace|run|grade|plan|calibrate|gate|terminal-preflight")
+		.argument(
+			"<action>",
+			"prepare|fresh-track|mint-local|prediction|workspace|run|grade|plan|calibrate|gate|terminal-preflight",
+		)
 		.option("--dataset <file>", "Local JSON/JSONL task dataset (fetching is a separate egress-gated operator step).")
 		.option("--dataset-name <name>", "Official grader dataset name/path.")
+		.option("--repo <path>", "Clean local Git repository to mint private tasks from.")
+		.option("--repo-name <owner/repo>", "Stable local benchmark repository identity.")
+		.option("--files <csv>", "Repository-relative implementation files eligible for local mutation.")
+		.option("--test-files <csv>", "Protected repository-relative test files restored by the local oracle.")
+		.option("--test-command <command>", "Test command executed only inside the pinned networkless grader image.")
 		.option("--split <name>", "Dataset split for the official grader (for example lite).")
-		.option("--source <kind>", "swebench_legacy|swebench_live|local_minted|aider_polyglot.")
+		.option("--source <kind>", "swebench_legacy|swebench_live|swe_rebench|local_minted|aider_polyglot.")
 		.option("--corpus <path>", "Pinned local benchmark corpus checkout (Aider polyglot).")
 		.option("--languages <csv>", "Aider polyglot language selection.")
 		.option("--output <file>", "Output manifest, prediction JSONL, or immutable calibration JSON.")
@@ -1102,6 +1110,8 @@ export function registerDevCommand(program: Command): void {
 		.option("--instance-ids <csv>", "Pinned instance ids.")
 		.option("--difficulty <csv>", "under_15m|15m_to_1h|1h_to_4h|over_4h|unknown.")
 		.option("--fresh-after <date>", "Only dated instances at/after this contamination cutoff.")
+		.option("--model-cutoffs <json>", "Model-id to training-cutoff JSON for the honest fresh-set boundary.")
+		.option("--leakage-hits <json>", "Explicit per-instance leakage evidence to log and exclude from the fresh lane.")
 		.option("--limit <n>", "Deterministic selection cap.")
 		.option("--repo-cache <dir>", "Pre-fetched local bare-mirror directory.")
 		.option("--workspace-parent <dir>", "Parent for sealed benchmark workspaces.")

@@ -11,7 +11,7 @@ function validateAbsolutePath(value: string, name: string): void {
 	if (value.includes("\n") || value.includes("\0")) throw new Error(`${name} contains an invalid character.`);
 }
 
-function repositoryMirrorName(repo: string): string {
+export function repositoryMirrorName(repo: string): string {
 	if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/u.test(repo)) {
 		throw new Error("Benchmark repo must be an owner/name GitHub-style slug.");
 	}

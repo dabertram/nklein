@@ -52,6 +52,44 @@ describe("SWE-bench compatibility adapter", () => {
 		expect(Object.keys(task)).not.toContain("hintsText");
 	});
 
+	it("parses a local oracle but structurally withholds it from the execution task", () => {
+		const instance = parseSwebenchDataset(
+			JSON.stringify([
+				{
+					...row,
+					local_oracle: {
+						image: "nklein-agent:0.1.0",
+						test_command: "npm test -- --runInBand",
+						test_files: ["test/private.test.ts"],
+						solution_files: ["src/frob.py"],
+					},
+				},
+			]),
+			"local_minted",
+		)[0];
+		expect(instance.localOracle).toMatchObject({
+			testFiles: ["test/private.test.ts"],
+			solutionFiles: ["src/frob.py"],
+		});
+		expect(JSON.stringify(buildLeakageSafeBenchmarkTask(instance))).not.toContain("private.test.ts");
+		expect(() =>
+			parseSwebenchDataset(
+				JSON.stringify([
+					{
+						...row,
+						local_oracle: {
+							image: "nklein-agent:0.1.0",
+							test_command: "npm test",
+							test_files: [],
+							solution_files: ["src/frob.py"],
+						},
+					},
+				]),
+				"local_minted",
+			),
+		).toThrow(/at least one protected test file/);
+	});
+
 	it("quarantines a source row whose public problem literally contains a withheld answer", () => {
 		const duplicated = { ...row, problem_statement: row.hints_text };
 		const instance = parseSwebenchDataset(JSON.stringify([duplicated]))[0];
@@ -214,6 +252,15 @@ describe("SWE-bench compatibility adapter", () => {
 				error_ids: [],
 			}),
 		).toEqual({ pass: "resolved", fail: "unresolved" });
+		expect(
+			parseOfficialSwebenchRunReport({
+				schema_version: "local_minted_v1",
+				submitted_ids: ["local-pass"],
+				resolved_ids: ["local-pass"],
+				unresolved_ids: [],
+				error_ids: [],
+			}),
+		).toEqual({ "local-pass": "resolved" });
 		expect(() =>
 			parseOfficialSwebenchRunReport({
 				schema_version: 2,

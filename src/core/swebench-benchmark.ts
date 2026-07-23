@@ -14,7 +14,19 @@ export const MAX_BENCHMARK_DATASET_BYTES = 256 * 1024 * 1024;
 export const MAX_SWEBENCH_WORKERS = 4;
 
 export type SwebenchDifficulty = "under_15m" | "15m_to_1h" | "1h_to_4h" | "over_4h" | "unknown";
-export type RepositoryBenchmarkSource = "swebench_legacy" | "swebench_live" | "local_minted" | "aider_polyglot";
+export type RepositoryBenchmarkSource =
+	| "swebench_legacy"
+	| "swebench_live"
+	| "swe_rebench"
+	| "local_minted"
+	| "aider_polyglot";
+
+export interface LocalMintOracle {
+	image: string;
+	testCommand: string;
+	testFiles: readonly string[];
+	solutionFiles: readonly string[];
+}
 
 export interface SwebenchInstance {
 	instanceId: string;
@@ -29,6 +41,7 @@ export interface SwebenchInstance {
 	difficulty: SwebenchDifficulty;
 	source: RepositoryBenchmarkSource;
 	createdAt: string | null;
+	localOracle: LocalMintOracle | null;
 }
 
 export interface LeakageSafeBenchmarkTask {
@@ -96,6 +109,32 @@ function parseDate(value: unknown): string | null {
 	return new Date(value).toISOString();
 }
 
+function parseLocalMintOracle(value: unknown, source: RepositoryBenchmarkSource): LocalMintOracle | null {
+	if (source !== "local_minted") return null;
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new Error("Local-minted instance requires a local_oracle object.");
+	}
+	const record = value as Record<string, unknown>;
+	const image = requiredString(record, "image");
+	if (!/(@sha256:[0-9a-f]{64}|:\d+\.\d+\.\d+)$/iu.test(image)) {
+		throw new Error("Local-minted oracle image must use a semantic-version tag or immutable digest.");
+	}
+	const testFiles = stringList(record, "test_files");
+	if (testFiles.length === 0) throw new Error("Local-minted oracle requires at least one protected test file.");
+	const solutionFiles = stringList(record, "solution_files");
+	if (solutionFiles.length === 0) throw new Error("Local-minted oracle requires at least one solution file.");
+	const protectedFiles = new Set(testFiles);
+	if (solutionFiles.some((path) => protectedFiles.has(path))) {
+		throw new Error("Local-minted oracle solution_files and test_files must not overlap.");
+	}
+	return {
+		image,
+		testCommand: requiredString(record, "test_command"),
+		testFiles,
+		solutionFiles,
+	};
+}
+
 export function parseSwebenchInstance(
 	value: unknown,
 	source: RepositoryBenchmarkSource = "swebench_legacy",
@@ -116,6 +155,7 @@ export function parseSwebenchInstance(
 		difficulty: normalizeSwebenchDifficulty(record.difficulty),
 		source,
 		createdAt: parseDate(record.created_at ?? record.createdAt),
+		localOracle: parseLocalMintOracle(record.local_oracle, source),
 	};
 }
 
@@ -419,13 +459,13 @@ export function parseOfficialSwebenchRunReport(value: unknown): Readonly<Record<
 	const record = value as Record<string, unknown>;
 	const isLegacy = record.schema_version === 2;
 	const isLive = record.schema_version === undefined && Array.isArray(record.success_ids);
-	const isAiderPolyglot = record.schema_version === "aider_polyglot_v1";
-	if (!isLegacy && !isLive && !isAiderPolyglot) {
+	const isHeldOutLocal = record.schema_version === "aider_polyglot_v1" || record.schema_version === "local_minted_v1";
+	if (!isLegacy && !isLive && !isHeldOutLocal) {
 		throw new Error(
-			"Benchmark report must be SWE-bench schema-v2, native SWE-bench-Live results JSON, or Aider polyglot v1.",
+			"Benchmark report must be SWE-bench schema-v2, native SWE-bench-Live results JSON, Aider polyglot v1, or local-minted v1.",
 		);
 	}
-	const usesLegacyStatusKeys = isLegacy || isAiderPolyglot;
+	const usesLegacyStatusKeys = isLegacy || isHeldOutLocal;
 	const groups: readonly [BenchmarkAttemptStatus, readonly string[]][] = [
 		["resolved", reportIdList(record, usesLegacyStatusKeys ? "resolved_ids" : "success_ids")],
 		[

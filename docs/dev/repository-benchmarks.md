@@ -9,6 +9,7 @@ measurement strategy. The current benchmark policy is:
 - Terminal-Bench for harness quality;
 - LiveCodeBench as the model-capability control;
 - SWE-bench-Live Lite as a fresh quarterly repository check;
+- a private local-minted lane for contamination-free user-repository checks;
 - legacy SWE-bench Lite/Verified only for paired comparisons, never absolute claims.
 
 SWE-bench Pro is excluded: the local fleet has no useful score gradient and its task corpus is unsuitable for
@@ -81,6 +82,34 @@ Repository mirrors are also an explicit operator egress step. Store each bare mi
 
 Use `nklein dev benchmark --help` for exact arguments. Full external runs remain expensive and egress-bearing; the
 adapter, safety invariants, and report transforms are covered by the fast local test suite.
+
+## Honest fresh-window lane
+
+`benchmark fresh-track` turns a pinned local SWE-bench-Live or SWE-rebench dataset into create-only selection evidence.
+It uses the latest boundary across `--fresh-after` and every model-specific date in `--model-cutoffs`; undated and
+pre-cutoff instances cannot enter the lane. Supply observed `known_memorization`, `path_recall`, and
+`public_solution_match` records through `--leakage-hits`; each hit requires concrete evidence, stays in the artifact,
+and excludes that instance. Selection is deterministic by id, and every limit exclusion remains recorded rather than
+silently disappearing. Feed only the resulting ids into the existing calibrated run/grade/delta flow. This is the
+reasons-vs-recalls lane; legacy Verified remains a contamination-limited paired compatibility measure.
+
+## Private local-minted lane
+
+The pinned SWE-smith revision is a design reference, not a generic local-repository executable: it currently needs a
+statically registered repository profile and a pushed GitHub mirror, while automatic installation is documented as
+future work. `benchmark mint-local` therefore implements the compatible local-only semantics directly. It accepts a
+clean local Git commit, explicit implementation and protected-test files, a pinned grader image, and a trusted test
+command. The baseline and every bounded deterministic mutant run inside a read-only-root, capability-dropped,
+resource-bounded container with no network. Only mutants killed by the declared oracle become tasks. Publication emits
+a create-only dataset and same-filesystem local bare mirror; no upload or repository egress occurs.
+
+The execution task contains only the generic problem statement, bug commit, and public `git diff --check` contract.
+Image, command, protected tests,
+solution allowlist, and inverse gold patch stay in the held-out dataset. `benchmark grade --source local_minted` clones
+the bug commit after prediction capture, filters candidate/gold patches to declared solution files, restores and
+verifies protected tests, then runs the oracle networklessly. Invalid candidate patches and ordinary test failures are
+`unresolved`; Docker transport/runtime failure is `error`. Candidate execution requires an immutable calibration from
+at least two gold repeats, and an untouched negative control must remain unresolved before the lane is trusted.
 
 ## Aider daily paired lane
 

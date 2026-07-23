@@ -18,6 +18,8 @@ import {
 	resolveAiderPolyglotGraderImage,
 } from "../core/aider-polyglot-grade-plan";
 import type { RuntimeTaskTestEvidencePolicy } from "../core/api-contract";
+import { buildFreshBenchmarkTrack, type FreshBenchmarkLeakageHit } from "../core/fresh-benchmark-track";
+import { buildLocalBenchmarkExecutionPrompt, LOCAL_BENCHMARK_PUBLIC_ACCEPTANCE } from "../core/local-benchmark-mint";
 import { getKanbanRuntimeOrigin, setKanbanRuntimeHost, setKanbanRuntimePort } from "../core/runtime-endpoint";
 import {
 	assertCandidateCalibration,
@@ -50,6 +52,8 @@ import { resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandb
 import { materializeAiderPolyglotWorkspace } from "../nklein-agent/nklein-aider-polyglot-workspace";
 import { materializeSwebenchWorkspace } from "../nklein-agent/nklein-swebench-workspace";
 import { loadWorkspaceContext } from "../state/workspace-state";
+import { gradeLocalBenchmark, type LocalBenchmarkDockerRunner } from "../workspace/local-benchmark-grade-runner";
+import { mintLocalBenchmarkTasks } from "../workspace/local-benchmark-mint-runner";
 import {
 	captureBenchmarkWorkspaceResult,
 	verifySealedBenchmarkWorkspace,
@@ -63,6 +67,11 @@ export interface DevBenchmarkOptions {
 	action: string;
 	dataset?: string;
 	datasetName?: string;
+	repo?: string;
+	repoName?: string;
+	files?: string;
+	testFiles?: string;
+	testCommand?: string;
 	split?: string;
 	source?: string;
 	output?: string;
@@ -70,6 +79,8 @@ export interface DevBenchmarkOptions {
 	instanceIds?: string;
 	difficulty?: string;
 	freshAfter?: string;
+	modelCutoffs?: string;
+	leakageHits?: string;
 	limit?: string;
 	repoCache?: string;
 	workspaceParent?: string;
@@ -134,6 +145,7 @@ export interface BenchmarkTaskExecutionResult {
 
 export interface DevBenchmarkCommandDeps {
 	executeBenchmarkTask?: (input: BenchmarkTaskExecutionInput) => Promise<BenchmarkTaskExecutionResult>;
+	runBenchmarkDocker?: LocalBenchmarkDockerRunner;
 	probeTerminalBenchHost?: (input: { harborPath: string; storagePath: string }) => Promise<{
 		harborVersion: string | null;
 		dockerReachable: boolean;
@@ -156,11 +168,12 @@ function parseSource(value: string | undefined): RepositoryBenchmarkSource {
 	if (
 		source === "swebench_legacy" ||
 		source === "swebench_live" ||
+		source === "swe_rebench" ||
 		source === "local_minted" ||
 		source === "aider_polyglot"
 	)
 		return source;
-	throw new Error("--source must be swebench_legacy, swebench_live, local_minted, or aider_polyglot.");
+	throw new Error("--source must be swebench_legacy, swebench_live, swe_rebench, local_minted, or aider_polyglot.");
 }
 
 function parseDifficulties(value: string | undefined): SwebenchDifficulty[] | undefined {
@@ -331,7 +344,14 @@ async function loadExecutionTask(
 	const instances = await loadDataset(options);
 	const instance = instances.find((entry) => entry.instanceId === options.instance);
 	if (!instance) throw new Error(`Benchmark instance ${options.instance} is not present in the local dataset.`);
-	return { task: buildLeakageSafeBenchmarkTask(instance), acceptanceCommand: "" };
+	const task = buildLeakageSafeBenchmarkTask(instance);
+	if (instance.source === "local_minted") {
+		return {
+			task: { ...task, prompt: buildLocalBenchmarkExecutionPrompt(task.prompt) },
+			acceptanceCommand: LOCAL_BENCHMARK_PUBLIC_ACCEPTANCE,
+		};
+	}
+	return { task, acceptanceCommand: "" };
 }
 
 function selectionFromOptions(options: DevBenchmarkOptions) {
@@ -351,6 +371,92 @@ async function prepare(options: DevBenchmarkOptions) {
 	const output = resolve(options.output);
 	await atomicWrite(output, `${JSON.stringify({ schemaVersion: 1, tasks }, null, 2)}\n`);
 	return { action: "prepare", output, selected: tasks.length, instanceIds: tasks.map((task) => task.instanceId) };
+}
+
+function parseStringRecord(value: unknown, label: string): Readonly<Record<string, string>> {
+	if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be a JSON object.`);
+	const entries = Object.entries(value as Record<string, unknown>);
+	if (entries.some(([, entry]) => typeof entry !== "string")) throw new Error(`${label} values must be strings.`);
+	return Object.fromEntries(entries) as Readonly<Record<string, string>>;
+}
+
+function parseLeakageHits(value: unknown): readonly FreshBenchmarkLeakageHit[] {
+	if (!Array.isArray(value)) throw new Error("--leakage-hits must contain a JSON array.");
+	return value.map((entry, index) => {
+		if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+			throw new Error(`Leakage hit ${index + 1} must be an object.`);
+		}
+		const record = entry as Record<string, unknown>;
+		if (
+			typeof record.instanceId !== "string" ||
+			typeof record.kind !== "string" ||
+			typeof record.evidence !== "string"
+		) {
+			throw new Error(`Leakage hit ${index + 1} requires string instanceId, kind, and evidence fields.`);
+		}
+		return {
+			instanceId: record.instanceId,
+			kind: record.kind as FreshBenchmarkLeakageHit["kind"],
+			evidence: record.evidence,
+		};
+	});
+}
+
+async function freshTrack(options: DevBenchmarkOptions) {
+	if (!options.output) throw new Error("benchmark fresh-track requires --output <evidence.json>.");
+	const instances = await loadDataset(options);
+	const modelCutoffs = options.modelCutoffs
+		? parseStringRecord(
+				JSON.parse(await readFile(resolve(options.modelCutoffs), "utf8")) as unknown,
+				"--model-cutoffs",
+			)
+		: {};
+	const leakageHits = options.leakageHits
+		? parseLeakageHits(JSON.parse(await readFile(resolve(options.leakageHits), "utf8")) as unknown)
+		: [];
+	const evidence = buildFreshBenchmarkTrack({
+		instances,
+		freshAfter: options.freshAfter,
+		modelCutoffs,
+		leakageHits,
+		limit: integer(options.limit, "limit"),
+	});
+	const output = resolve(options.output);
+	await atomicWriteNew(output, `${JSON.stringify(evidence, null, 2)}\n`, "fresh benchmark evidence");
+	return { action: "fresh-track", output, ...evidence };
+}
+
+async function mintLocal(options: DevBenchmarkOptions) {
+	const implementationFiles = csv(options.files);
+	const testFiles = csv(options.testFiles);
+	if (
+		!options.repo ||
+		!options.repoName ||
+		!implementationFiles ||
+		!testFiles ||
+		!options.testCommand ||
+		!options.image ||
+		!options.repoCache ||
+		!options.output
+	) {
+		throw new Error(
+			"benchmark mint-local requires --repo, --repo-name, --files, --test-files, --test-command, --image, --repo-cache, and --output.",
+		);
+	}
+	return {
+		action: "mint-local",
+		...(await mintLocalBenchmarkTasks({
+			repoPath: options.repo,
+			repoName: options.repoName,
+			implementationFiles,
+			testFiles,
+			testCommand: options.testCommand,
+			image: options.image,
+			repoCacheDir: options.repoCache,
+			outputPath: options.output,
+			maxMutants: integer(options.limit, "limit"),
+		})),
+	};
 }
 
 function parsePredictions(text: string): SwebenchPrediction[] {
@@ -486,9 +592,9 @@ async function run(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) 
 	}
 	const { task, acceptanceCommand } = await loadExecutionTask(options);
 	const testEvidencePolicy = "externally_held_out" satisfies RuntimeTaskTestEvidencePolicy;
-	if (task.source === "aider_polyglot") {
+	if (task.source === "aider_polyglot" || task.source === "local_minted") {
 		if (!options.calibration) {
-			throw new Error("Aider candidate execution requires --calibration from at least two gold repeats.");
+			throw new Error("Held-out candidate execution requires --calibration from at least two gold repeats.");
 		}
 		assertCandidateCalibration(
 			[task.instanceId],
@@ -560,11 +666,12 @@ async function runDockerArgs(args: readonly string[]) {
 		return { exitCode: 0, stdout: result.stdout, stderr: result.stderr, infrastructureFailure: false };
 	} catch (error) {
 		const failure = error as Error & { code?: number; stdout?: string; stderr?: string };
+		const exitCode = typeof failure.code === "number" ? failure.code : 1;
 		return {
-			exitCode: typeof failure.code === "number" ? failure.code : 1,
+			exitCode,
 			stdout: failure.stdout ?? "",
 			stderr: failure.stderr ?? failure.message,
-			infrastructureFailure: typeof failure.code !== "number",
+			infrastructureFailure: typeof failure.code !== "number" || exitCode >= 125,
 		};
 	}
 }
@@ -704,6 +811,80 @@ async function gradeAiderPolyglot(options: DevBenchmarkOptions) {
 	const reportPath = join(reportDir, "results.json");
 	await atomicWriteNew(reportPath, `${JSON.stringify(report, null, 2)}\n`, "immutable grader report");
 	return { action: "grade", source: "aider_polyglot", instanceId: task.instanceId, status, report: reportPath };
+}
+
+async function gradeLocalMinted(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) {
+	if (
+		parseSource(options.source) !== "local_minted" ||
+		!options.instance ||
+		!options.repoCache ||
+		!options.predictions ||
+		!options.reportDir ||
+		!options.runId
+	) {
+		throw new Error(
+			"Local-minted grade requires --source local_minted, --dataset, --instance, --repo-cache, --predictions, --report-dir, and --run-id.",
+		);
+	}
+	const instance = (await loadDataset(options)).find((entry) => entry.instanceId === options.instance);
+	if (!instance) throw new Error(`Benchmark instance ${options.instance} is not present in the local dataset.`);
+	if (!instance.localOracle)
+		throw new Error(`Local benchmark instance ${instance.instanceId} has no held-out oracle.`);
+	const gold = options.predictions === "gold";
+	let modelNameOrPath = "gold";
+	let patch = instance.goldPatch;
+	if (gold && !patch) throw new Error(`Local benchmark instance ${instance.instanceId} has no gold patch.`);
+	if (!gold) {
+		const prediction = parsePredictions(await readFile(resolve(options.predictions), "utf8")).find(
+			(entry) => entry.instance_id === instance.instanceId,
+		);
+		if (!prediction) throw new Error(`Predictions do not contain ${instance.instanceId}.`);
+		modelNameOrPath = prediction.model_name_or_path;
+		patch = prediction.model_patch;
+	}
+	const reportDir = resolve(options.reportDir);
+	await createExclusiveReportDirectory(reportDir);
+	let patchPath: string | undefined;
+	if (patch) {
+		patchPath = join(reportDir, gold ? "gold.patch" : "candidate.patch");
+		await atomicWriteNew(patchPath, patch, gold ? "immutable gold patch" : "immutable candidate patch");
+	}
+	const grade = await gradeLocalBenchmark({
+		instance,
+		repoCacheDir: resolve(options.repoCache),
+		workspaceParentDir: reportDir,
+		...(patchPath ? { patchPath } : {}),
+		mode: gold ? "gold" : "candidate",
+		runDocker: deps.runBenchmarkDocker ?? runDockerArgs,
+	});
+	await atomicWriteNew(join(reportDir, "test.log"), grade.log, "immutable grader log");
+	const report = {
+		schema_version: "local_minted_v1",
+		run_id: options.runId,
+		model_name_or_path: modelNameOrPath,
+		submitted_ids: [instance.instanceId],
+		resolved_ids: grade.status === "resolved" ? [instance.instanceId] : [],
+		unresolved_ids: grade.status === "unresolved" ? [instance.instanceId] : [],
+		error_ids: grade.status === "error" ? [instance.instanceId] : [],
+	};
+	const reportPath = join(reportDir, "results.json");
+	await atomicWriteNew(reportPath, `${JSON.stringify(report, null, 2)}\n`, "immutable grader report");
+	return {
+		action: "grade",
+		source: "local_minted",
+		instanceId: instance.instanceId,
+		status: grade.status,
+		report: reportPath,
+	};
+}
+
+async function grade(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) {
+	const source = parseSource(options.source);
+	if (source === "aider_polyglot") return gradeAiderPolyglot(options);
+	if (source === "local_minted") return gradeLocalMinted(options, deps);
+	throw new Error(
+		"benchmark grade is native only for --source aider_polyglot or local_minted; use plan --execute for official harnesses.",
+	);
 }
 
 async function plan(options: DevBenchmarkOptions) {
@@ -930,10 +1111,12 @@ export async function runDevBenchmarkCommand(
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
 	const handlers: Record<string, (value: DevBenchmarkOptions) => Promise<unknown>> = {
 		prepare,
+		"fresh-track": freshTrack,
+		"mint-local": mintLocal,
 		prediction,
 		workspace,
 		run: (value) => run(value, deps),
-		grade: gradeAiderPolyglot,
+		grade: (value) => grade(value, deps),
 		plan,
 		calibrate,
 		gate,
@@ -942,7 +1125,7 @@ export async function runDevBenchmarkCommand(
 	const handler = handlers[options.action];
 	if (!handler)
 		throw new Error(
-			"benchmark action must be prepare, prediction, workspace, run, grade, plan, calibrate, gate, or terminal-preflight.",
+			"benchmark action must be prepare, fresh-track, mint-local, prediction, workspace, run, grade, plan, calibrate, gate, or terminal-preflight.",
 		);
 	const result = await handler(options);
 	write(`${JSON.stringify(result, null, options.json ? 2 : 2)}\n`);

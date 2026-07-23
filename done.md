@@ -2845,3 +2845,21 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   CLI help, and a native ARM evaluation-plan smoke all pass. A real ten-step `--network none` Docker materialization
   from a local bare mirror left a clean worktree with exactly the sealed baseline + harness-test commits and no retained
   private patch mount.
+
+- [x] **F11.3h — contamination-aware fresh-set track** *(delivered 2026-07-23).* `benchmark fresh-track` accepts only
+  SWE-bench-Live and SWE-rebench inputs, chooses the latest explicit/per-model training cutoff, and excludes undated,
+  pre-cutoff, or explicitly leaked tasks. Known memorization, withheld-path recall, and public-solution matches require
+  concrete evidence and remain in the create-only artifact; deterministic selection-limit exclusions remain visible.
+  The resulting ids feed the existing calibrated delta gate instead of being promoted as another absolute score.
+
+- [x] **F11.3i — private SWE-smith-style local task minting** *(delivered 2026-07-23).* The official pinned SWE-smith
+  checkout currently requires a static repository profile plus GitHub mirror, so !Klein implements its local-only
+  semantics natively rather than claiming unsupported arbitrary-repo installation. A clean local commit and green
+  baseline are mandatory; safe non-symlink paths, a pinned image, bounded deterministic mutations, and the declared
+  oracle run in hardened networkless Docker. Only test-killed mutants publish into a same-filesystem local bare mirror
+  plus create-only dataset. Agent tasks structurally exclude image, command, protected tests, solution allowlist, and
+  gold inverse. The post-capture grader filters patches to solution files, restores/verifies protected tests, records
+  immutable `local_minted_v1` reports, and requires repeated gold calibration before candidate execution. A real Docker
+  smoke minted one task, resolved gold, left a no-op unresolved, and kept an attempted private-test rewrite unresolved.
+  Evidence: 35 focused assertions, backend/web typechecks, full 12,841/12,841, protected 142/142, and lint with zero
+  errors (19 pre-existing warnings and one info).

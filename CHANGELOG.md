@@ -49,6 +49,13 @@
   disk headroom from merely reclaimable Docker cache, preserves architecture warnings, and reports the still-missing
   externally-owned mutable-container agent boundary instead of treating !Klein's separate read-only repo sandbox as an
   equivalent execution environment.
+  Fresh-window evidence now accepts only SWE-bench-Live/SWE-rebench rows, applies the latest explicit or per-model
+  training cutoff, excludes undated/pre-cutoff instances, and immutably records known-memorization, path-recall, and
+  public-solution leakage exclusions. A new private local-minted lane turns bounded test-killed mutations from a clean
+  user repository into local SWE-bench-style tasks without repository egress. Its image, command, protected tests,
+  solution allowlist, and gold inverse remain outside the agent task; post-capture grading accepts only solution-file
+  hunks, restores protected tests from the immutable bug commit, and runs in a networkless hardened container. Private
+  candidates require repeated gold calibration, while no-op and test-tampering negative controls remain unresolved.
 
 - **Speculative best-of-N now yields to real reviews across workspaces.** A headless auto-review is real queued work
   before its reviewer session reaches model admission. The process-wide in-flight review signal now vetoes new mirrors

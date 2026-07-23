@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -83,6 +83,106 @@ describe("dev benchmark command", () => {
 		expect(manifest).not.toContain("PRIVATE TEST");
 		expect(manifest).not.toContain("new-test");
 		expect(JSON.parse(printed).selected).toBe(1);
+	});
+
+	it("writes immutable fresh-window evidence with explicit leakage exclusions", async () => {
+		const root = await mkdtemp(join(tmpdir(), "nklein-bench-fresh-"));
+		const dataset = join(root, "dataset.json");
+		const cutoffs = join(root, "cutoffs.json");
+		const leakage = join(root, "leakage.json");
+		const output = join(root, "fresh.json");
+		await writeFile(
+			dataset,
+			JSON.stringify([
+				{ ...task, instance_id: "fresh", created_at: "2026-06-01" },
+				{ ...task, instance_id: "recalled", created_at: "2026-06-01" },
+			]),
+		);
+		await writeFile(cutoffs, JSON.stringify({ "local/model": "2026-01-01" }));
+		await writeFile(
+			leakage,
+			JSON.stringify([{ instanceId: "recalled", kind: "path_recall", evidence: "Named a withheld file path." }]),
+		);
+		await runDevBenchmarkCommand({
+			action: "fresh-track",
+			dataset,
+			source: "swe_rebench",
+			modelCutoffs: cutoffs,
+			leakageHits: leakage,
+			output,
+			write: () => undefined,
+		});
+		const evidence = JSON.parse(await readFile(output, "utf8"));
+		expect(evidence.instanceIds).toEqual(["fresh"]);
+		expect(evidence.exclusions).toContainEqual(
+			expect.objectContaining({ instanceId: "recalled", reason: "leakage_hit" }),
+		);
+		await expect(
+			runDevBenchmarkCommand({
+				action: "fresh-track",
+				dataset,
+				source: "swe_rebench",
+				modelCutoffs: cutoffs,
+				output,
+				write: () => undefined,
+			}),
+		).rejects.toThrow(/fresh benchmark evidence/);
+	});
+
+	it("grades local-minted predictions against a post-capture held-out oracle", async () => {
+		const root = await mkdtemp(join(tmpdir(), "nklein-bench-local-grade-"));
+		const dataset = join(root, "dataset.json");
+		const cache = join(root, "cache");
+		const predictions = join(root, "predictions.jsonl");
+		const reportDir = join(root, "report");
+		const localTask = {
+			...task,
+			instance_id: "local-owner-repo-1",
+			patch: "diff --git a/src/a.ts b/src/a.ts\n-old\n+fixed\n",
+			local_oracle: {
+				image: "nklein-agent:0.1.0",
+				test_command: "npm test",
+				test_files: ["test/private.test.ts"],
+				solution_files: ["src/a.ts"],
+			},
+		};
+		await mkdir(cache);
+		await writeFile(join(cache, "owner__repo.git"), "fixture");
+		await writeFile(dataset, JSON.stringify([localTask]));
+		await writeFile(
+			predictions,
+			`${JSON.stringify({
+				instance_id: localTask.instance_id,
+				model_name_or_path: "nklein/test",
+				model_patch: "diff --git a/src/a.ts b/src/a.ts\n-old\n+fixed\n",
+			})}\n`,
+		);
+		let printed = "";
+		await runDevBenchmarkCommand(
+			{
+				action: "grade",
+				source: "local_minted",
+				dataset,
+				instance: localTask.instance_id,
+				repoCache: cache,
+				predictions,
+				reportDir,
+				runId: "local-grade-1",
+				write: (text) => {
+					printed += text;
+				},
+			},
+			{
+				runBenchmarkDocker: async (args) => {
+					if (args.includes("clone")) await mkdir(join(reportDir, "grade-workspace"));
+					return { exitCode: 0, stdout: "ok\n", stderr: "", infrastructureFailure: false };
+				},
+			},
+		);
+		expect(JSON.parse(printed)).toMatchObject({ source: "local_minted", status: "resolved" });
+		const report = JSON.parse(await readFile(join(reportDir, "results.json"), "utf8"));
+		expect(report).toMatchObject({ schema_version: "local_minted_v1", resolved_ids: [localTask.instance_id] });
+		expect(await readFile(join(reportDir, "test.log"), "utf8")).toContain("held-out local oracle");
 	});
 
 	it("atomically accumulates prediction JSONL and refuses accidental replacement", async () => {
@@ -264,5 +364,74 @@ describe("dev benchmark command", () => {
 				{ executeBenchmarkTask: async () => Promise.reject(new Error("must not execute")) },
 			),
 		).rejects.toThrow(/requires --calibration/);
+	});
+
+	it("refuses a private local candidate before execution when calibrated gold evidence is absent", async () => {
+		const root = await mkdtemp(join(tmpdir(), "nklein-bench-local-calibration-"));
+		const dataset = join(root, "dataset.json");
+		const privateTask = {
+			...task,
+			instance_id: "local-owner-repo-calibration",
+			local_oracle: {
+				image: "nklein-agent:0.1.0",
+				test_command: "npm test",
+				test_files: ["test/private.test.ts"],
+				solution_files: ["src/a.ts"],
+			},
+		};
+		await writeFile(dataset, JSON.stringify([privateTask]));
+		await expect(
+			runDevBenchmarkCommand(
+				{
+					action: "run",
+					source: "local_minted",
+					dataset,
+					instance: privateTask.instance_id,
+					workspaceParent: join(root, "workspace"),
+					model: "fixed-model",
+					output: join(root, "prediction.jsonl"),
+					receipt: join(root, "receipt.json"),
+					runId: "uncalibrated-local",
+					write: () => undefined,
+				},
+				{ executeBenchmarkTask: async () => Promise.reject(new Error("must not execute")) },
+			),
+		).rejects.toThrow(/requires --calibration/);
+		const calibration = join(root, "calibration.json");
+		await writeFile(calibration, JSON.stringify({ stableInstanceIds: [privateTask.instance_id], quarantined: {} }));
+		let acceptanceCommand = "";
+		await runDevBenchmarkCommand(
+			{
+				action: "run",
+				source: "local_minted",
+				dataset,
+				instance: privateTask.instance_id,
+				workspaceParent: join(root, "workspace"),
+				model: "fixed-model",
+				output: join(root, "prediction.jsonl"),
+				receipt: join(root, "receipt.json"),
+				runId: "calibrated-local",
+				calibration,
+				write: () => undefined,
+			},
+			{
+				executeBenchmarkTask: async (input) => {
+					acceptanceCommand = input.acceptanceCommand;
+					expect(input.task.prompt).toContain("Acceptance check: git diff --check");
+					expect(JSON.stringify(input.task)).not.toContain("private.test.ts");
+					return {
+						seedTaskId: input.runId,
+						durationMs: 1,
+						workflowOutcome: "completed",
+						completedCardCount: 1,
+						baseCommit: "a".repeat(40),
+						resultCommit: "b".repeat(40),
+						evidenceRef: "refs/nklein/benchmark-evidence/calibrated-local",
+						patch: "",
+					};
+				},
+			},
+		);
+		expect(acceptanceCommand).toBe("git diff --check");
 	});
 });

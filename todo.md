@@ -35,8 +35,8 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-22, during F11.3 calibrated-tranche work):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 158-package remainder is **68 ready + 1 partial + 74 dependency-blocked + 8 external/
-user-gated + 7 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
+  gate below is green. The current 156-package remainder is **67 ready + 1 partial + 73 dependency-blocked + 7 external/
+user-gated + 8 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
 gates immediately below; all eight `[?]` rows name the required operator decision, credential, machine, or live-fleet
@@ -106,6 +106,14 @@ gap remains.
 > **Git history is part of the agent-visible input:** deleting a temporary oracle mount is insufficient if `test_patch`
 > was ever applied or committed. The sealed workspace must expose exactly one upstream baseline commit; private tests
 > first enter only the separate official grader container after prediction capture.
+> **PRIVATE LOCAL TASK MINTING IS NATIVE, NOT A CLAIM THAT SWE-SMITH ALREADY ACCEPTS ARBITRARY LOCAL REPOS
+> (2026-07-23).** The pinned SWE-smith revision still requires a statically registered `RepoProfile` and a GitHub mirror;
+> its documented automatic-install path is not implemented. For private/local-only evidence, follow its semantics in the
+> native runner: require a clean source commit and passing baseline, generate a bounded deterministic mutant, retain it
+> only when the declared networkless oracle kills it, and publish a same-filesystem local bare mirror plus create-only
+> dataset. Withhold image/command/test/solution boundaries from the agent task. The post-capture grader may apply patches
+> only to declared solution files, must restore and verify protected tests from the immutable bug commit, and needs both
+> repeated gold calibration and a failing negative control before candidate evidence is admitted.
 > **SWE-BENCH 4.X AND SWE-BENCH-LIVE HAVE DIFFERENT OFFICIAL GRADERS:** 4.x hard-codes legacy repository specs and
 > fails on Live's arbitrary repositories before Docker setup. Live must use Microsoft's native evaluator, pinned with
 > its RepoLaunch submodule, and consumes a JSON patch map plus native `results.json`; never reinterpret it through the
@@ -3791,12 +3799,6 @@ stays fast + complete.
     and future fields at board/column/card boundaries, and the isolated launcher has a runtime-only mode so headless
     evidence does not activate competing browser automation. Restart from a fresh commit-pinned, runtime-only root and
     prove the first pair reaches the external grader.
-  - [ ] **F11.3h — Contamination-aware fresh-set track.** Verified is >94% pre-model-cutoff + partly leaked (models recall
-    file paths). Add a rolling SWE-bench-Live / SWE-rebench fresh-window gate (tasks post-dating cutoffs) as the HONEST
-    "reasons vs recalls" measure; log leakage hits. (SWE-bench-Live; SWE-rebench 2505.20411)
-  - [ ] **F11.3i — SWE-smith local task-minting (leak-free, in-domain, aligns with local-only).** Generate !Klein-owned
-    SWE-bench-style instances from the USER's own target repos (break a test → task) for a private, contamination-free
-    gate — directly serves "prove excellence on real repos" without egress. (SWE-smith)
 - [ ] **F11.4 — Make aimock a first-class accelerator for COMPLETE, fast testing.** aimock (the recorded/synthetic model
   responder) already backs the dev-test scenario suite; extend its use so testing stays fast + comprehensive as F11.1–F11.3
   land: (a) record real-model transcripts from the F11.3 benchmark runs into aimock fixtures so the full onboarding →
@@ -7313,7 +7315,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **STANDING RECOMMENDATION: nothing warrants deletion today.** The 119 figure is a real signal about
   build-ahead-of-wire PACE — which the charter accepts and Phase 15 tracks — not a pile of dead code.
   **SPLIT MATERIALIZED 2026-07-20 — the remainder is a DECISION, not code.**
-- [?] **P15.4b — Walk the untracked orphans and mark keep/delete *(split 2026-07-20; DAVID-GATED)*.**
+- [-] **P15.4b — Walk the untracked orphans and mark keep/delete *(split 2026-07-20; deliberately deferred)*.**
   **TIMING DECISION (David 2026-07-21): defer deletion batches until one of the final passes before the first maturity
   level.** Keep measuring reachability and classifying keep/delete candidates meanwhile, but do not eagerly remove code;
   late cleanup gets the benefit of the intervening wires and avoids deleting a core shortly before its consumer lands.
