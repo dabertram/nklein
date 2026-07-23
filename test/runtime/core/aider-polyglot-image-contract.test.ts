@@ -15,4 +15,16 @@ describe("Aider polyglot grader image contract", () => {
 			'docker build --file "$root/go.Dockerfile" --tag nklein/aider-polyglot-go:1.0.0 "$root"',
 		);
 	});
+
+	// Live-found 2026-07-23 mid-campaign: every Java grade errored with "exec: git: not found" — the Temurin base
+	// ships no VCS tooling, and the slim Node base has the same gap (caught in the same sweep before the JS tranche
+	// started). The cpp/go(base+pin)/rust bases carry git already; these two must DECLARE it.
+	it.each([
+		["java.Dockerfile", "FROM eclipse-temurin@sha256:"],
+		["javascript.Dockerfile", "FROM node@sha256:"],
+	])("owns an explicit in-boundary patching tool in %s", async (file, fromPrefix) => {
+		const dockerfile = await readFile(resolve(`benchmark-harness/aider-polyglot/${file}`), "utf8");
+		expect(dockerfile).toContain(fromPrefix);
+		expect(dockerfile).toContain("apt-get install -y --no-install-recommends git");
+	});
 });

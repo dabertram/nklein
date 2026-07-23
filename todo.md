@@ -3914,6 +3914,16 @@ stays fast + complete.
   alphametics prediction changed `error` into an honest `unresolved` compiler verdict (`undefined: letterInfo`), proving
   setup and the private oracle both ran. The affected campaign root is retained as diagnostic evidence and stopped at
   10/96 rather than knowingly collecting false Go errors; restart from the new clean commit/campaign identity.
+  **2026-07-23 MID-CAMPAIGN GRADER REPAIR (recorded transparently; same class as the Go gap):** the running
+  aider24 fixed-fleet campaign hit 2 infrastructure errors — every JAVA grade died with `exec: git: not found`
+  (Temurin base ships no VCS tooling), and a sweep of all five images found the slim-Node JAVASCRIPT image had the
+  same gap BEFORE its tranche started. Both Dockerfiles now declare git explicitly (installed last, gradle
+  cache-seed layers stay cached); both images rebuilt in place (`:1.0.0` content changed — the campaign's
+  harness-baseline pins the runner commit, not grader digests, so provenance is intact and generation was never
+  touched; the grader is deterministic post-hoc machinery). Image-contract test extended to all three
+  explicitly-declaring Dockerfiles. The 2 stained java attempts (affine-cipher, all-your-base; candidate patches
+  preserved) recover post-campaign: delete their evidence files and resume the campaign while the fixed fleet is
+  still resident — a full clean re-run of exactly those two attempts, keeping the pre-registered power.
   **Remainder:**
   A three-workspace candidate pilot was deliberately excluded from A/B evidence after it exposed cross-workspace
   speculative-mirror/reviewer contention; the root scheduler fix is landed and the matched campaign must run

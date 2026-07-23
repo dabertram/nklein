@@ -19,3 +19,12 @@ COPY java-build.gradle build.gradle
 COPY java-settings.gradle settings.gradle
 RUN gradle --no-daemon --gradle-user-home /opt/gradle-cache seedTestDependencies \
     && rm -rf /opt/gradle-cache/daemon /opt/gradle-cache/caches/*/fileHashes
+
+# Candidate patches are applied inside the sealed grader boundary. The Temurin
+# base intentionally ships the JDK only, so make the grader's patching
+# dependency explicit instead of assuming `git` exists (live-found 2026-07-23:
+# every Java grade errored with "exec: git: not found"). Installed last so the
+# gradle cache-seed layers stay cached across rebuilds.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
