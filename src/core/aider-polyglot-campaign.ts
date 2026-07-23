@@ -227,6 +227,21 @@ export function planAiderCampaign(config: AiderCampaignConfig): readonly AiderCa
 	return attempts;
 }
 
+/** Select the first complete matched pair as a preflight gate before a long immutable campaign is resumed in full. */
+export function selectAiderCampaignPilotAttempts(
+	attempts: readonly AiderCampaignAttempt[],
+): readonly AiderCampaignAttempt[] {
+	const first = attempts[0];
+	if (!first) throw new Error("Aider campaign pilot requires at least one planned attempt.");
+	const pair = attempts.filter(
+		(attempt) => attempt.instanceId === first.instanceId && attempt.repeat === first.repeat,
+	);
+	if (pair.length !== 2 || new Set(pair.map((attempt) => attempt.arm)).size !== 2) {
+		throw new Error("Aider campaign pilot could not identify one complete matched plan/no-plan pair.");
+	}
+	return pair;
+}
+
 export function summarizeAiderCampaign(
 	config: AiderCampaignConfig,
 	results: readonly AiderCampaignAttemptResult[],

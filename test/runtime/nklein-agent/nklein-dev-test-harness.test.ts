@@ -96,6 +96,22 @@ describe("runDevTestProject", () => {
 		expect(result.classification.outcome).toBe("needs_attention");
 	});
 
+	it("stops immediately and preserves a patch-capture infrastructure failure", async () => {
+		const failedCapture: DevTestStateRead = {
+			...board({ in_progress: 1 }),
+			infrastructureFailure: "Sandbox patch capture failed for seed-1: container disappeared",
+		};
+		const deps = makeDeps([failedCapture]);
+
+		const result = await runDevTestProject(
+			{ scenario: SCENARIO, seedTaskId: "seed-1", baseRef: "main", stablePollsUntilSettled: 20 },
+			deps,
+		);
+
+		expect(result.polls).toBe(1);
+		expect(result.infrastructureFailure).toContain("container disappeared");
+	});
+
 	it("does NOT false-green when a decompose seed completes a beat before its child materializes", async () => {
 		// Observed live (2026-07-11): a plan-mode smoke seed reached Completed, and for one poll the board showed
 		// completed:1 with nothing else — a beat BEFORE its spawned child card appeared. The child then sat stuck in

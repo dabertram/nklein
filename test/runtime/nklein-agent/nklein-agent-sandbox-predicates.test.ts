@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { AGENT_SANDBOX_VOLUME_PREFIX } from "../../../src/nklein-agent/nklein-agent-sandbox-docker";
 import {
 	escapeRegExp,
+	isAgentSandboxContainerNameForNamespace,
 	isAgentSandboxExecResult,
 	isAgentSandboxWorkspaceVolumeName,
+	isAgentSandboxWorkspaceVolumeNameForNamespace,
 	isContainerMissingError,
 } from "../../../src/nklein-agent/nklein-agent-sandbox-predicates";
 
@@ -55,6 +57,22 @@ describe("isAgentSandboxExecResult (§5.U extraction)", () => {
 		expect(isAgentSandboxExecResult(undefined)).toBe(false);
 		expect(isAgentSandboxExecResult("nope")).toBe(false);
 		expect(isAgentSandboxExecResult({ exitCode: 0, stdout: "" })).toBe(false);
+	});
+});
+
+describe("namespace-exact destructive cleanup predicates", () => {
+	it("keeps unnamespaced cleanup out of every namespaced pool", () => {
+		expect(isAgentSandboxContainerNameForNamespace("nklein-agent-sandbox-1")).toBe(true);
+		expect(isAgentSandboxContainerNameForNamespace("nklein-agent-sandbox-live-1")).toBe(false);
+		expect(isAgentSandboxWorkspaceVolumeNameForNamespace("nklein-agent-ws-1")).toBe(true);
+		expect(isAgentSandboxWorkspaceVolumeNameForNamespace("nklein-agent-ws-live-1")).toBe(false);
+	});
+
+	it("matches only the exact namespace, including regex metacharacters literally", () => {
+		expect(isAgentSandboxContainerNameForNamespace("nklein-agent-sandbox-live.a-2", "live.a")).toBe(true);
+		expect(isAgentSandboxContainerNameForNamespace("nklein-agent-sandbox-liveXa-2", "live.a")).toBe(false);
+		expect(isAgentSandboxWorkspaceVolumeNameForNamespace("nklein-agent-ws-live.a-2", "live.a")).toBe(true);
+		expect(isAgentSandboxWorkspaceVolumeNameForNamespace("nklein-agent-ws-live.a-child-2", "live.a")).toBe(false);
 	});
 });
 

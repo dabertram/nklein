@@ -37,6 +37,24 @@ describe("createDevTestStateReader", () => {
 		expect(state).toMatchObject({ runtimeReachable: true, failedCardCount: 3 });
 	});
 
+	it("prefers one atomic live-state read and preserves infrastructure evidence", async () => {
+		const read = createDevTestStateReader({
+			readLiveState: async () => ({
+				board: board({ in_progress: 1 }),
+				runtimeReachable: false,
+				activeSessionCount: 1,
+				infrastructureFailure: "capture failed",
+			}),
+			readPersistedBoard: async () => board({}),
+		});
+
+		expect(await read()).toMatchObject({
+			runtimeReachable: true,
+			activeSessionCount: 1,
+			infrastructureFailure: "capture failed",
+		});
+	});
+
 	it("falls back to the persisted board (unreachable) when the live read throws", async () => {
 		const read = createDevTestStateReader({
 			readLiveBoard: async () => {

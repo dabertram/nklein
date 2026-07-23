@@ -19,8 +19,10 @@ import type { DevTestStateRead } from "./nklein-dev-test-harness";
  */
 
 export interface CreateDevTestStateReaderDeps {
+	/** Preferred atomic live-state read; prevents board/session evidence from coming from different revisions. */
+	readLiveState?(): Promise<DevTestStateRead>;
 	/** Read live board state from the running runtime (tRPC `workspace.getState`). */
-	readLiveBoard(): Promise<DevTestBoardLike>;
+	readLiveBoard?(): Promise<DevTestBoardLike>;
 	/** Read the last persisted board state for the workspace, used when the runtime is unreachable. */
 	readPersistedBoard(): Promise<DevTestBoardLike>;
 	/** Optional count of failed sessions the column derivation cannot see (live runtime only). */
@@ -34,6 +36,12 @@ export interface CreateDevTestStateReaderDeps {
 export function createDevTestStateReader(deps: CreateDevTestStateReaderDeps): () => Promise<DevTestStateRead> {
 	return async (): Promise<DevTestStateRead> => {
 		try {
+			if (deps.readLiveState) {
+				return { ...(await deps.readLiveState()), runtimeReachable: true };
+			}
+			if (!deps.readLiveBoard) {
+				throw new Error("createDevTestStateReader requires readLiveState or readLiveBoard");
+			}
 			const board = await deps.readLiveBoard();
 			const failedCardCount = deps.readFailedCardCount
 				? await deps.readFailedCardCount().catch(() => undefined)

@@ -59,6 +59,8 @@ export function buildDevTestSeedStartPayload(options: BuildDevTestSeedStartPaylo
 export interface DevTestStateRead {
 	board: DevTestBoardLike | null;
 	runtimeReachable: boolean;
+	/** Terminal harness/infrastructure failure that must not be scored as a candidate-model outcome. */
+	infrastructureFailure?: string | null;
 	/** Optional count of failed sessions the column derivation cannot see. */
 	failedCardCount?: number;
 	/**
@@ -108,6 +110,8 @@ export interface DevTestProjectRunResult {
 	polls: number;
 	runtimeReachable: boolean;
 	finalCounts: DevTestBoardCounts;
+	/** Non-null when the run ended because the benchmark harness could not preserve/capture the candidate result. */
+	infrastructureFailure: string | null;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
@@ -206,6 +210,12 @@ export async function runDevTestProject(
 		}
 		consecutiveUnreachable = 0;
 		lastReachableState = state;
+		// A patch-capture failure destroys the benchmark measurement boundary: there is no trustworthy candidate diff to
+		// grade. Stop immediately and carry an explicit infrastructure result instead of waiting for board stagnation and
+		// mis-scoring the empty patch as a model failure.
+		if (state.infrastructureFailure) {
+			break;
+		}
 		// A session explicitly parked for the operator cannot make autonomous progress. This is a terminal result for an
 		// unattended dev-test/benchmark run, not ordinary board stagnation that benefits from the long real-model settle
 		// window. The count is only exposed after the session reaches awaiting_review+attention; an active sibling still
@@ -248,5 +258,6 @@ export async function runDevTestProject(
 		polls,
 		runtimeReachable: runtimeConfirmedReachable,
 		finalCounts,
+		infrastructureFailure: lastReachableState.infrastructureFailure ?? null,
 	};
 }

@@ -1,5 +1,5 @@
 import type { AgentSandboxExecResult } from "./nklein-agent-sandbox";
-import { AGENT_SANDBOX_VOLUME_PREFIX } from "./nklein-agent-sandbox-docker";
+import { AGENT_SANDBOX_CONTAINER_PREFIX, AGENT_SANDBOX_VOLUME_PREFIX } from "./nklein-agent-sandbox-docker";
 
 /**
  * §5.U — the pure sandbox predicates/utilities extracted from `nklein-agent-sandbox`: recognizing a
@@ -27,6 +27,23 @@ export function isAgentSandboxWorkspaceVolumeName(volumeName: string): boolean {
 	// pattern never matched a namespaced volume, so the orphan reaper silently reaped ZERO volumes and stale
 	// workspaces accumulated across runs (7 found) — the stale-state class behind the dschinn Docker errors.
 	return new RegExp(`^${escapeRegExp(AGENT_SANDBOX_VOLUME_PREFIX)}-(?:[A-Za-z0-9_.-]+-)?\\d+$`).test(volumeName);
+}
+
+/**
+ * True only for a container owned by the requested pool namespace. An omitted namespace deliberately matches only
+ * the historical unnamespaced shape; it must never absorb a namespaced pool owned by another !Klein runtime.
+ */
+export function isAgentSandboxContainerNameForNamespace(containerName: string, namespace?: string): boolean {
+	const normalizedNamespace = namespace?.trim();
+	const namespacePart = normalizedNamespace ? `${escapeRegExp(normalizedNamespace)}-` : "";
+	return new RegExp(`^${escapeRegExp(AGENT_SANDBOX_CONTAINER_PREFIX)}-${namespacePart}\\d+$`).test(containerName);
+}
+
+/** Namespace-exact counterpart of {@link isAgentSandboxWorkspaceVolumeName} for destructive orphan cleanup. */
+export function isAgentSandboxWorkspaceVolumeNameForNamespace(volumeName: string, namespace?: string): boolean {
+	const normalizedNamespace = namespace?.trim();
+	const namespacePart = normalizedNamespace ? `${escapeRegExp(normalizedNamespace)}-` : "";
+	return new RegExp(`^${escapeRegExp(AGENT_SANDBOX_VOLUME_PREFIX)}-${namespacePart}\\d+$`).test(volumeName);
 }
 
 /** Structural guard: the value looks like a docker exec result (has exitCode / stdout / stderr). */

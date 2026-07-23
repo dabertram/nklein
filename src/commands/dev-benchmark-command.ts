@@ -585,6 +585,9 @@ async function executeBenchmarkTask(input: BenchmarkTaskExecutionInput): Promise
 	if (execution.result.classification.outcome === "runtime_down") {
 		throw new Error(`!Klein benchmark infrastructure became unavailable: ${execution.result.classification.summary}`);
 	}
+	if (execution.result.infrastructureFailure) {
+		throw new Error(`!Klein benchmark infrastructure failed: ${execution.result.infrastructureFailure}`);
+	}
 	const captured = await captureBenchmarkWorkspaceResult({
 		repoPath: input.workspacePath,
 		baseCommit: sealed.baseCommit,

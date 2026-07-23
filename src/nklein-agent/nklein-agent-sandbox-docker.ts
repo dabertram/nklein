@@ -58,8 +58,8 @@ export interface AgentSandboxPoolConfig {
 	 * Optional per-INSTANCE discriminator woven into the container/volume names (`nklein-agent-sandbox[-<namespace>]-<slot>`).
 	 * `undefined` (the default) ⇒ the historical global names — byte-identical for a single production instance. Set it to
 	 * isolate the pool of PARALLEL nklein instances on one host (e.g. concurrent integration-test backends, which otherwise
-	 * all collide on `nklein-agent-sandbox-1`). NOTE: startup orphan-reaping is by label, so a namespaced instance must
-	 * skip the reap (tests set NKLEIN_SANDBOX_SKIP_STARTUP_REAP) — cross-namespace reaping is a follow-up.
+	 * all collide on `nklein-agent-sandbox-1`). Orphan reaping is namespace-exact: an unnamespaced manager never removes a
+	 * namespaced pool, and a namespaced manager removes only its own exact slot names.
 	 */
 	namespace?: string;
 }

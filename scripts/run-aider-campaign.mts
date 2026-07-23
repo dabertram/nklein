@@ -12,6 +12,7 @@ import {
 	parseAiderCampaignConfig,
 	parseAiderCampaignHarnessBaseline,
 	planAiderCampaign,
+	selectAiderCampaignPilotAttempts,
 	summarizeAiderCampaign,
 	type AiderCampaignAttempt,
 	type AiderCampaignAttemptResult,
@@ -246,9 +247,13 @@ async function readCompletedAttempt(
 }
 
 async function main(): Promise<void> {
-	const configPath = process.argv[2];
-	if (!configPath) throw new Error("Usage: npx tsx scripts/run-aider-campaign.mts <campaign.json>");
+	const args = process.argv.slice(2);
+	const configPath = args.find((arg) => !arg.startsWith("--"));
+	if (!configPath) {
+		throw new Error("Usage: npx tsx scripts/run-aider-campaign.mts <campaign.json> [--plan] [--pilot]");
+	}
 	const planOnly = process.argv.includes("--plan");
+	const pilot = process.argv.includes("--pilot");
 	const configText = await readFile(resolve(configPath), "utf8");
 	const file = parseCampaignFile(JSON.parse(configText) as unknown);
 	const manifestPath = resolve(file.manifestPath);
@@ -268,9 +273,11 @@ async function main(): Promise<void> {
 		config.assignments.map((assignment) => assignment.instanceId),
 		JSON.parse(await readFile(calibrationPath, "utf8")) as unknown,
 	);
+	const plannedAttempts = planAiderCampaign(config);
+	const selectedAttempts = pilot ? selectAiderCampaignPilotAttempts(plannedAttempts) : plannedAttempts;
 	if (planOnly) {
 		process.stdout.write(
-			`${JSON.stringify({ config, attempts: planAiderCampaign(config), preRegistration: summarizeAiderCampaign(config, []).preRegistration }, null, 2)}\n`,
+			`${JSON.stringify({ config, attempts: selectedAttempts, preRegistration: summarizeAiderCampaign(config, []).preRegistration }, null, 2)}\n`,
 		);
 		return;
 	}
@@ -321,7 +328,7 @@ async function main(): Promise<void> {
 	}
 
 	const results: AiderCampaignAttemptResult[] = [];
-	for (const attempt of planAiderCampaign(config)) {
+	for (const attempt of selectedAttempts) {
 		await assertLiveCampaignIdentity(file, harnessBaseline);
 		const paths = attemptPaths(outputRoot, attempt);
 		const completed = await readCompletedAttempt(attempt, paths);
@@ -391,6 +398,13 @@ async function main(): Promise<void> {
 			join(outputRoot, "summary.latest.json"),
 			`${JSON.stringify(summarizeAiderCampaign(config, results), null, 2)}\n`,
 		);
+	}
+	if (pilot) {
+		await assertLiveCampaignIdentity(file, harnessBaseline);
+		const summary = summarizeAiderCampaign(config, results);
+		await atomicWrite(join(outputRoot, "summary.latest.json"), `${JSON.stringify(summary, null, 2)}\n`);
+		process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+		return;
 	}
 	await assertLiveCampaignIdentity(file, harnessBaseline);
 	const summary = summarizeAiderCampaign(config, results);

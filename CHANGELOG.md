@@ -80,7 +80,12 @@
 - **Concurrent workspaces no longer race for one Docker sandbox name.** Task and chat pools receive stable hashed
   workspace namespaces, composed with the process namespace, so separate managers cannot both create
   `nklein-agent-sandbox-1` or accidentally reuse a container with another project's mount set. Agents within one
-  workspace still share their bounded pool.
+  workspace still share their bounded pool. Startup orphan cleanup now enforces the same boundary: it enumerates
+  labeled resource names but removes only the manager's exact namespace, preventing a simulator or second runtime from
+  deleting a live campaign sandbox. Simulated-flow runtimes also use unique namespaces and opt out of startup cleanup.
+  Benchmark monitoring reads board and sessions atomically and treats sandbox patch-capture loss as infrastructure,
+  stopping before an empty diff can be scored as a model miss. Long paired campaigns can now run one complete matched
+  pilot pair first, then resume the same immutable evidence root only after both arms reach the external grader.
 
 - **Unfamiliar repositories now gain a durable local-model onboarding map.** The `repo_summary` tool summarizes
   function-like units into files, directories, and a project overview, then stores the result by content hash. An

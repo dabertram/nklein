@@ -202,6 +202,19 @@ gap remains.
 > winner has the other workspace's mount set. Task and chat pools now derive a stable hashed namespace from their
 > workspace scope (composed with the process namespace). Agents may share a container inside one workspace; unrelated
 > workspace managers must never share a Docker name or volume.
+> **STARTUP ORPHAN REAPING MUST SHARE THAT SAME OWNERSHIP BOUNDARY (Aider campaign, 2026-07-23):** a separate simulator
+> runtime used the global `nklein.kind=agent-sandbox` label to `docker rm -f` a live campaign container. The victim
+> service remained healthy, so its in-process disposal rail correctly showed no matching teardown. Destructive cleanup
+> now enumerates names and accepts only the manager's exact namespace; an unnamespaced manager matches only historical
+> unnamespaced slots, never `*-ws-<hash>-<slot>`. Hermetic simulator runtimes additionally set a unique process
+> namespace and skip startup reaping. Labels identify resource kind, not ownership—never use a kind-wide query as a
+> destructive multi-runtime cleanup boundary.
+> **PATCH-CAPTURE FAILURE IS BENCHMARK INFRASTRUCTURE, NOT AN EMPTY CANDIDATE PATCH (Aider campaign, 2026-07-23):** if
+> `sandbox_patch_capture_failed` is terminal, the external grader never received a trustworthy candidate artifact.
+> Monitor board/session evidence from one atomic workspace revision, stop on that event, preserve the receipt-less
+> workspace, and fail the campaign before prediction capture. A matched campaign must first run one complete
+> plan/no-plan pilot pair under the immutable root; only after both arms reach the external grader may the same root
+> resume the full pre-registered attempt sequence.
 
 > **⚠️ CODE SEARCH MODALITIES ARE COMPLEMENTS, NOT FALLBACK QUALITY LEVELS (F11.2b, 2026-07-22).** Route exact
 > strings/errors/config keys to `search_code`; syntax shapes that must exclude comments and strings to tree-sitter
@@ -3820,7 +3833,13 @@ stays fast + complete.
     runtime card contract. UI card/board types now derive from the runtime contract, normalization preserves additive
     and future fields at board/column/card boundaries, and the isolated launcher has a runtime-only mode so headless
     evidence does not activate competing browser automation. Restart from a fresh commit-pinned, runtime-only root and
-    prove the first pair reaches the external grader.
+    prove the first pair reaches the external grader. The first runtime-only replacement reached 14/96 attempts before
+    an apparently unrelated simulator replay intermittently removed active campaign containers. Root-cause telemetry
+    proved the campaign service never initiated the removal: simulator startup reaped every container carrying the
+    shared sandbox kind label. Reaping is now exact-namespace-only, simulator runtimes are unique-namespaced and skip
+    startup mutation, patch-capture failure aborts as infrastructure before an empty prediction can be scored, and the
+    runner has a `--pilot` gate that executes exactly the first matched pair before the full immutable campaign resumes.
+    Start a new clean campaign id/root on this corrected commit; preserve the interrupted root as diagnostic evidence.
 - [x] **F11.4 — Make aimock a first-class accelerator for COMPLETE, fast testing.** aimock (the recorded/synthetic model
   responder) already backs the dev-test scenario suite; extend its use so testing stays fast + comprehensive as F11.1–F11.3
   land: (a) record real-model transcripts from the F11.3 benchmark runs into aimock fixtures so the full onboarding →

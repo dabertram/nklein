@@ -93,7 +93,7 @@ function createExecFileStub(options?: ExecFileStubOptions): {
 			return {} as ReturnType<typeof execFile>;
 		}
 		let stdout = "";
-		if (args.join(" ") === `ps -aq --filter label=${AGENT_SANDBOX_CONTAINER_LABEL}`) {
+		if (args.join(" ") === `ps -a --format {{.Names}} --filter label=${AGENT_SANDBOX_CONTAINER_LABEL}`) {
 			stdout = options?.psOutput ?? "";
 		} else if (args.join(" ") === `volume ls -q --filter name=${AGENT_SANDBOX_VOLUME_PREFIX}`) {
 			stdout = options?.volumeLsOutput ?? "";
@@ -544,23 +544,58 @@ describe("AgentSandboxManager", () => {
 		});
 	});
 
-	it("reaps orphan containers and workspace volumes by label and generated-name prefix", async () => {
+	it("reaps only legacy unnamespaced orphan containers and volumes", async () => {
 		const { execFile: execFileStub, calls } = createExecFileStub({
-			psOutput: "container-a\ncontainer-b\n",
-			volumeLsOutput: "nklein-agent-ws-1\nother-volume\nnklein-agent-ws-backup\nnklein-agent-ws-2\n",
+			psOutput: "nklein-agent-sandbox-1\nnklein-agent-sandbox-live-ws-aabbccddeeff-1\nforeign-container\n",
+			volumeLsOutput:
+				"nklein-agent-ws-1\nother-volume\nnklein-agent-ws-backup\nnklein-agent-ws-2\nnklein-agent-ws-live-ws-aabbccddeeff-1\n",
 		});
 		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
 
 		await manager.reapOrphanResources();
 
-		expect(calls).toContainEqual(["ps", "-aq", "--filter", `label=${AGENT_SANDBOX_CONTAINER_LABEL}`]);
-		expect(calls).toContainEqual(["rm", "-f", "container-a"]);
-		expect(calls).toContainEqual(["rm", "-f", "container-b"]);
+		expect(calls).toContainEqual([
+			"ps",
+			"-a",
+			"--format",
+			"{{.Names}}",
+			"--filter",
+			`label=${AGENT_SANDBOX_CONTAINER_LABEL}`,
+		]);
+		expect(calls).toContainEqual(["rm", "-f", "nklein-agent-sandbox-1"]);
+		expect(calls).not.toContainEqual(["rm", "-f", "nklein-agent-sandbox-live-ws-aabbccddeeff-1"]);
+		expect(calls).not.toContainEqual(["rm", "-f", "foreign-container"]);
 		expect(calls).toContainEqual(["volume", "ls", "-q", "--filter", `name=${AGENT_SANDBOX_VOLUME_PREFIX}`]);
 		expect(calls).toContainEqual(["volume", "rm", "nklein-agent-ws-1"]);
 		expect(calls).toContainEqual(["volume", "rm", "nklein-agent-ws-2"]);
 		expect(calls).not.toContainEqual(["volume", "rm", "other-volume"]);
 		expect(calls).not.toContainEqual(["volume", "rm", "nklein-agent-ws-backup"]);
+		expect(calls).not.toContainEqual(["volume", "rm", "nklein-agent-ws-live-ws-aabbccddeeff-1"]);
+	});
+
+	it("reaps only the exact requested namespace", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub({
+			psOutput:
+				"nklein-agent-sandbox-campaign-1\nnklein-agent-sandbox-campaign-2\nnklein-agent-sandbox-other-1\nnklein-agent-sandbox-1\n",
+			volumeLsOutput:
+				"nklein-agent-ws-campaign-1\nnklein-agent-ws-campaign-2\nnklein-agent-ws-other-1\nnklein-agent-ws-1\n",
+		});
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: { namespace: "campaign" },
+		});
+
+		await manager.reapOrphanResources();
+
+		expect(calls).toContainEqual(["rm", "-f", "nklein-agent-sandbox-campaign-1"]);
+		expect(calls).toContainEqual(["rm", "-f", "nklein-agent-sandbox-campaign-2"]);
+		expect(calls).not.toContainEqual(["rm", "-f", "nklein-agent-sandbox-other-1"]);
+		expect(calls).not.toContainEqual(["rm", "-f", "nklein-agent-sandbox-1"]);
+		expect(calls).toContainEqual(["volume", "rm", "nklein-agent-ws-campaign-1"]);
+		expect(calls).toContainEqual(["volume", "rm", "nklein-agent-ws-campaign-2"]);
+		expect(calls).not.toContainEqual(["volume", "rm", "nklein-agent-ws-other-1"]);
+		expect(calls).not.toContainEqual(["volume", "rm", "nklein-agent-ws-1"]);
 	});
 
 	it("queues tasks when the pool is full and reuses the freed container", async () => {

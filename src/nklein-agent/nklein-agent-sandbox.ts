@@ -58,8 +58,9 @@ import {
 import { AGENT_SANDBOX_EXTRA_TOOL_RUNNER } from "./nklein-agent-sandbox-extra-tools";
 import { bufferOrStringToString, joinDockerOutput, parseDockerOutputLines } from "./nklein-agent-sandbox-output";
 import {
+	isAgentSandboxContainerNameForNamespace,
 	isAgentSandboxExecResult,
-	isAgentSandboxWorkspaceVolumeName,
+	isAgentSandboxWorkspaceVolumeNameForNamespace,
 	isContainerMissingError,
 } from "./nklein-agent-sandbox-predicates";
 import {
@@ -523,9 +524,9 @@ export class AgentSandboxManager {
 	}
 
 	async reapOrphanResources(): Promise<void> {
-		const containerIds = await this.listOrphanContainerIds();
-		for (const containerId of containerIds) {
-			await this.runDocker(["rm", "-f", containerId], { timeoutMs: 30_000 }).catch(() => null);
+		const containerNames = await this.listOrphanContainerNames();
+		for (const containerName of containerNames) {
+			await this.runDocker(["rm", "-f", containerName], { timeoutMs: 30_000 }).catch(() => null);
 		}
 
 		const volumeNames = await this.listOrphanWorkspaceVolumeNames();
@@ -1264,11 +1265,17 @@ export class AgentSandboxManager {
 		return this.poolConfig.agentsPerContainer === 0 || container.occupancy.size < this.poolConfig.agentsPerContainer;
 	}
 
-	private async listOrphanContainerIds(): Promise<string[]> {
-		const result = await this.runDocker(["ps", "-aq", "--filter", `label=${AGENT_SANDBOX_CONTAINER_LABEL}`], {
-			timeoutMs: 10_000,
-		});
-		return result.exitCode === 0 ? parseDockerOutputLines(result.stdout) : [];
+	private async listOrphanContainerNames(): Promise<string[]> {
+		const result = await this.runDocker(
+			["ps", "-a", "--format", "{{.Names}}", "--filter", `label=${AGENT_SANDBOX_CONTAINER_LABEL}`],
+			{ timeoutMs: 10_000 },
+		);
+		if (result.exitCode !== 0) {
+			return [];
+		}
+		return parseDockerOutputLines(result.stdout).filter((name) =>
+			isAgentSandboxContainerNameForNamespace(name, this.poolConfig.namespace),
+		);
 	}
 
 	private async listOrphanWorkspaceVolumeNames(): Promise<string[]> {
@@ -1278,7 +1285,9 @@ export class AgentSandboxManager {
 		if (result.exitCode !== 0) {
 			return [];
 		}
-		return parseDockerOutputLines(result.stdout).filter(isAgentSandboxWorkspaceVolumeName);
+		return parseDockerOutputLines(result.stdout).filter((name) =>
+			isAgentSandboxWorkspaceVolumeNameForNamespace(name, this.poolConfig.namespace),
+		);
 	}
 
 	private async releaseSlot(taskId: string): Promise<void> {

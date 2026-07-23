@@ -7,6 +7,7 @@ import type {
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import { addTaskToColumn } from "../core/task-board-mutations";
+import type { RuntimeTaskSessionSummary } from "../core/task-session-api-contract";
 import { countActiveAgentSessions, countAttentionParkedSessions } from "../core/task-session-api-contract";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { runDevTestProject } from "../nklein-agent/nklein-dev-test-harness";
@@ -43,6 +44,23 @@ interface DevScenarioBoardForActivity {
 export function countPendingAutoReviews(board: DevScenarioBoardForActivity): number {
 	const review = board.columns.find((column) => column.id === "review");
 	return review?.cards.filter((card) => card.autoReviewEnabled === true && card.review === undefined).length ?? 0;
+}
+
+/** Identify a terminal sandbox result-capture failure without conflating ordinary model/session failures with infra. */
+export function findSandboxPatchCaptureFailure(
+	sessions: readonly Pick<RuntimeTaskSessionSummary, "taskId" | "latestHookActivity" | "warningMessage">[],
+): string | null {
+	const failed = sessions.find(
+		(summary) =>
+			summary.latestHookActivity?.hookEventName === "sandbox_patch_capture_failed" ||
+			/(?:patch.*captur|captur.*patch)/iu.test(summary.warningMessage ?? ""),
+	);
+	if (!failed) return null;
+	const detail =
+		failed.warningMessage?.trim() ||
+		failed.latestHookActivity?.activityText?.trim() ||
+		"sandbox patch capture failed";
+	return `Sandbox patch capture failed for ${failed.taskId}: ${detail}`;
 }
 
 // Real-model runs have between-turn lulls that exceed the simulator's 30-second settle default. A live 2026-07-12
@@ -86,18 +104,20 @@ export async function executeDevTestScenario(
 ): Promise<ExecuteDevTestScenarioResult> {
 	const seedTaskId = input.seedTaskId ?? `devtest-${input.scenario.id}-${Date.now()}`;
 	const readState = createDevTestStateReader({
-		readLiveBoard: async () => (await input.client.workspace.getState.query()).board,
-		readPersistedBoard: async () => await loadWorkspaceBoardById(input.workspaceId),
-		readActiveSessionCount: async () => {
+		readLiveState: async () => {
 			const state = await input.client.workspace.getState.query();
 			const sessions = Object.values(state.sessions ?? {});
 			const counts = countActiveAgentSessions(sessions);
-			return counts.running + counts.queued + countPendingAutoReviews(state.board);
+			return {
+				board: state.board,
+				runtimeReachable: true,
+				failedCardCount: sessions.filter((summary) => summary.state === "failed").length,
+				activeSessionCount: counts.running + counts.queued + countPendingAutoReviews(state.board),
+				attentionCardCount: countAttentionParkedSessions(sessions),
+				infrastructureFailure: findSandboxPatchCaptureFailure(sessions),
+			};
 		},
-		readAttentionCardCount: async () => {
-			const sessions = Object.values((await input.client.workspace.getState.query()).sessions ?? {});
-			return countAttentionParkedSessions(sessions);
-		},
+		readPersistedBoard: async () => await loadWorkspaceBoardById(input.workspaceId),
 	});
 	const startedAt = Date.now();
 	const result = await runDevTestProject(

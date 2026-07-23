@@ -364,15 +364,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		return agentSandboxStatus;
 	};
 	void (async () => {
-		// Orphan-reaping `docker rm -f`s EVERY container carrying the sandbox label — correct for a normal single-instance
-		// host (clean up leftovers from a crashed run), but DESTRUCTIVE when multiple !Klein instances share one host Docker
-		// (each would reap the others' live containers, since container names are a fixed global slot). The integration
-		// tests spawn many ephemeral backends in parallel ALONGSIDE the agent-sandbox unit test on the same host Docker, so
-		// a spawned backend's startup reap would kill the unit test's in-flight container (its `docker exec` then returns
-		// exit 137). Ephemeral/hermetic backends therefore opt out via NKLEIN_SANDBOX_SKIP_STARTUP_REAP=1 (set by the test
-		// backend factory); production startup still reaps. (todo §5.AM, root-caused 2026-06-29.)
-		// Also skip automatically under vitest (`VITEST`) — that covers IN-PROCESS server boots (e.g. ws-upgrade-passcode)
-		// that run in a worker parallel to the agent-sandbox integration test and would otherwise reap its live container.
+		// Reaping is namespace-exact: this unnamespaced startup manager removes only historical unnamespaced slot names,
+		// never the workspace-scoped pool of another live runtime. Hermetic backends still opt out because their own
+		// short-lived resources are explicitly torn down and startup mutation would weaken test isolation. Also skip under
+		// vitest for in-process server boots.
 		const skipStartupReap = process.env.NKLEIN_SANDBOX_SKIP_STARTUP_REAP === "1" || process.env.VITEST === "true";
 		if (!skipStartupReap) {
 			await startupAgentSandboxManager.reapOrphanResources();

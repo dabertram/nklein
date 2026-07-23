@@ -360,6 +360,10 @@ async function main(): Promise<void> {
 	await chmod(fakeLmsPath, 0o755);
 	const simulatedFleetEnv: Record<string, string> = {
 		NKLEIN_LMS_BIN: fakeLmsPath,
+		// Every simulator runtime owns a unique sandbox namespace and skips startup mutation entirely. This keeps a
+		// hermetic replay from reaping a live benchmark runtime's Docker containers on the shared host daemon.
+		NKLEIN_SANDBOX_NAMESPACE: `simflow-${process.pid}-${RUNTIME_PORT}`,
+		NKLEIN_SANDBOX_SKIP_STARTUP_REAP: "1",
 		...(POOLS
 			? {
 					NKLEIN_PER_MACHINE_MAX_CONCURRENCY: "1",

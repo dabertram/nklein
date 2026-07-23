@@ -9,6 +9,7 @@ import {
 	parseAiderCampaignHarnessBaseline,
 	parseAiderRegressionSnapshot,
 	planAiderCampaign,
+	selectAiderCampaignPilotAttempts,
 	summarizeAiderCampaign,
 } from "../../../src/core/aider-polyglot-campaign";
 
@@ -78,6 +79,21 @@ describe("Aider paired campaign", () => {
 		expect(attempts.slice(0, 4).map((attempt) => attempt.arm)).toEqual(["plan", "no_plan", "no_plan", "plan"]);
 		expect(attempts[0]?.modelId).toBe(attempts[1]?.modelId);
 		expect(attempts[48]?.arm).toBe("no_plan");
+	});
+
+	it("selects one complete matched pair for the pilot gate", () => {
+		const attempts = planAiderCampaign(parseAiderCampaignConfig(rawConfig(), manifest));
+		const pilot = selectAiderCampaignPilotAttempts(attempts);
+		expect(pilot).toHaveLength(2);
+		expect(pilot.map((attempt) => attempt.arm)).toEqual(["plan", "no_plan"]);
+		expect(new Set(pilot.map((attempt) => `${attempt.instanceId}:${attempt.repeat}`))).toEqual(
+			new Set([`${attempts[0]?.instanceId}:${attempts[0]?.repeat}`]),
+		);
+	});
+
+	it("rejects an incomplete pilot pair", () => {
+		const attempts = planAiderCampaign(parseAiderCampaignConfig(rawConfig(), manifest));
+		expect(() => selectAiderCampaignPilotAttempts(attempts.slice(0, 1))).toThrow(/complete matched/);
 	});
 
 	it("rejects an underpowered promise before candidate execution", () => {
