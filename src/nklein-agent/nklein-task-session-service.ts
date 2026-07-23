@@ -132,6 +132,7 @@ import {
 } from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
 import { forgetLiveTaskUsage, getLiveTaskUsage, sumLiveUsageTokens } from "./nklein-live-usage-registry";
+import { LocalLlmClient } from "./nklein-local-llm-client";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
 import {
 	createMergeResolutionRunner,
@@ -152,6 +153,8 @@ import type { NKleinPlanCritiqueResult } from "./nklein-plan-critique-tool";
 import { forgetPredictedOutput, getPredictedOutput } from "./nklein-predict-output-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import { type AssembleSessionSystemPromptInput, createPromptWarmthLedger } from "./nklein-prompt-warmth-ledger";
+import { createPropertyBindingModelCaller } from "./nklein-property-binding-model-caller";
+import { forgetPropertyCheckEvidence } from "./nklein-property-evidence-registry";
 import { forgetCompactionRequest, getCompactionRequest } from "./nklein-request-compaction-tool";
 import { createRetrievalToolsBuilder, type RetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
 import type { NKleinReviewResult } from "./nklein-review-tool";
@@ -359,6 +362,26 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly acceptanceVerifier = createAcceptanceVerifier({
 		getAgentSandboxManager: () => this.agentSandboxManager,
 		getPauseController: () => this.pauseController,
+		getPropertyBindingModelCaller: async (taskId) => {
+			const launch = this.launchConfigByTaskId.get(taskId);
+			const baseUrl = launch?.baseUrl?.trim() || this.modelEndpoint.getEndpoint(taskId);
+			if (!launch || !baseUrl || !launch.modelId.trim()) return null;
+			// Prefer a lineage-diverse loaded model: deterministic extraction owns the oracle, while an independent
+			// fresh context performs the implementation-specific binding. Fall back to a fresh worker-model context only
+			// when the fleet has no eligible alternative; that is still translation, never invariant invention.
+			const selected = await pickDiverseReviewerModel(launch, `${taskId}::property-binder`, "review", {
+				lastShellKeyByModel: this.promptWarmthLedger.shellKeyByModelId,
+			}).catch(() => null);
+			return createPropertyBindingModelCaller(
+				new LocalLlmClient({
+					providerId: selected?.providerId ?? launch.providerId,
+					modelId: selected?.modelId ?? launch.modelId,
+					baseUrl,
+					apiKey: launch.apiKey,
+					...(launch.apiTimeoutMs ? { timeoutMs: launch.apiTimeoutMs } : {}),
+				}),
+			);
+		},
 	});
 	/** §5.U shared skeleton for the auxiliary secondary sessions (reviewer/plan-critic/merge/mirror): bounded sandbox
 	 * session against the delivered tree, always torn down. Runners supply only their `drive` closure. */
@@ -3069,6 +3092,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		forgetLiveTaskUsage(taskId);
 		forgetBaselineProbe(taskId);
 		forgetAcceptanceEvidence(taskId);
+		forgetPropertyCheckEvidence(taskId);
 		forgetCompactionRequest(taskId);
 	}
 
@@ -3093,6 +3117,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		forgetLiveTaskUsage(taskId);
 		forgetBaselineProbe(taskId);
 		forgetAcceptanceEvidence(taskId);
+		forgetPropertyCheckEvidence(taskId);
 		forgetCompactionRequest(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);

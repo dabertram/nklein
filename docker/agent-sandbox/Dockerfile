@@ -51,7 +51,9 @@ RUN npm install -g @modelcontextprotocol/server-sequential-thinking@2025.12.18 \
 # The repo-map/structural-search tools use ast-grep's Linux N-API binding. F12.87b's sandbox-native visual capture uses
 # pinned Playwright + Chromium in the SAME network-none task container as the candidate dev server. Both remain external
 # to the host-built bundle so no Darwin native/browser artifact can leak into the Linux image.
-RUN npm install --prefix /opt/nklein @ast-grep/napi@0.44.1 playwright@1.61.1 \
+RUN npm install --prefix /opt/nklein @ast-grep/napi@0.44.1 playwright@1.61.1 fast-check@4.9.0 vitest@4.1.10 \
+	&& test "$(node -p "require('/opt/nklein/node_modules/fast-check/package.json').version")" = "4.9.0" \
+	&& /opt/nklein/node_modules/.bin/vitest --version | grep -F 'vitest/4.1.10' \
 	&& npm cache clean --force
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 RUN /opt/nklein/node_modules/.bin/playwright install --with-deps chromium \

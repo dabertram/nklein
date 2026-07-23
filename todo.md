@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed after F12.77b):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 153-package remainder is **53 ready + 5 partial + 79 dependency-blocked + 7 external/
+  gate below is green. The current 153-package remainder is **52 ready + 6 partial + 79 dependency-blocked + 7 external/
 user-gated + 9 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -5639,7 +5639,7 @@ verify-before-build caveat: confirm each against current code before implementin
   execution half was NAMED as "F12.93b" in prose but never had a checkbox, so its remainder was invisible to the
   backlog count. It is now a visible line below. Composes with F12.97's ensemble half (property checks are one of
   its three verifiers).
-- [ ] **F12.93b — Property-based acceptance gate: EXECUTION half *(split from F12.93 2026-07-20)*.** Run the bound
+- [~] **F12.93b — Property-based acceptance gate: EXECUTION half *(split from F12.93 2026-07-20)*.** Run the bound
   properties inside the sandbox as a delivery gate. Concrete blockers, in order: (a) **`fast-check` is not a repo
   dependency** and would need adding as a SANDBOX dep (not a host one — the properties run where the agent's code
   runs); (b) the **model-side binding pass** that turns `renderPropertyScaffold`'s deliberately-failing skeleton
@@ -5649,6 +5649,21 @@ verify-before-build caveat: confirm each against current code before implementin
   **Honesty requirement inherited from the core:** a spec stating no invariants yields NO properties, and that
   must read as "no property evidence", never as "properties passed" — it feeds `verifier_ensemble` as an
   `unavailable` verifier, which the F12.97 combiner already names rather than silently treating as agreement.
+  **CODE + DELIVERY/ENSEMBLE WIRE COMPLETE 2026-07-23; LIVE MODEL+IMAGE PROOF REMAINS:** the deterministic invariant
+  set and exact delivered patch go to a fresh-context, preferably lineage-diverse local binder through a required
+  `submit_property_binding` tool (schema-constrained fallback retained). The binder may translate the oracle or
+  explicitly decline; it cannot invent one. Static admission rejects retained placeholders, skipped/TODO tests,
+  missing provenance markers, low `numRuns`, constant-only arbitraries, non-relative dependencies, and filesystem/
+  network/process escape shapes. Only admitted code reaches the exact delivered commit's disposable network-none
+  sandbox, where pinned `fast-check@4.9.0` + `vitest@4.1.10` run it; generated files and temporary dependency links
+  are removed on every path. A falsified property becomes the ordinary blocking acceptance failure. No invariant,
+  binder decline, compile/import failure, missing result commit, or non-JS repo is `unavailable`, never pass. Evidence
+  now replaces F12.97's hard-coded missing property verdict, and stale evidence is cleared on retries/task cleanup.
+  `NKLEIN_PROPERTY_GATE` remains default-OFF until the deferred F12.84b shared-image rebuild proves the baked runner,
+  then a fixed prompt corpus must measure honest bind/decline rate, false-oracle rate, counterexample quality, cleanup,
+  and latency across the resident diverse models before enabling. The verifier's own pinned dependencies resolve from
+  a freshly recreated private module directory, so candidate dependencies or a planted symlink cannot shadow/redirect
+  the oracle. 25 focused tests + typecheck green.
 - [x] **F12.94 —  *(finalized 2026-07-19 (split): clustered-selection core complete with injected exec/compare; the live best-of-N shape is N=2 where pairwise arbitration is optimal — the clustering wire adopts when an N>=3 candidate shape exists.)* Upgrade best-of-N selection to clustering + tournament voting (§5.AW).** Replace pick-best/LLM-judge with (a)
   execution/semantic-OUTPUT clustering + pick-largest-cluster when tests exist, (b) recursive pairwise tournament voting over
   compact rollout summaries when they don't, with optional Z3 symbolic-equivalence partitioning when tests are sparse.

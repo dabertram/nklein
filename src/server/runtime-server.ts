@@ -148,6 +148,7 @@ import { handleNKleinMcpOauthCallback } from "../nklein-agent/nklein-mcp-runtime
 import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../nklein-agent/nklein-model-registry";
 import { runNKleinMutationAdequacy } from "../nklein-agent/nklein-mutation-adequacy-runner";
 import { readNKleinPlanArtifacts } from "../nklein-agent/nklein-plan-artifacts";
+import { getPropertyCheckEvidence } from "../nklein-agent/nklein-property-evidence-registry";
 import { SpeculativeAttemptRegistry } from "../nklein-agent/nklein-speculative-attempt-registry";
 import {
 	hasDeliverySessionWaitingForModelTurn,
@@ -2256,6 +2257,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									// outvoted, converging advisory objections escalate to review, and verifiers that could
 									// not run are NAMED so absent evidence is never read as agreement. Recorded beside the
 									// individual scans; the enforcing flip is the observe-first David call.
+									const propertyEvidence = getPropertyCheckEvidence(taskId);
 									const ensemble = combineVerifierVerdicts([
 										// The delivered patch exists because acceptance already passed at this seam.
 										{ kind: "execution_tests", outcome: "pass" },
@@ -2269,8 +2271,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 											outcome: minimality.verdict === "bloated" ? "fail" : "pass",
 											detail: minimality.verdict === "bloated" ? minimality.reason.slice(0, 200) : undefined,
 										},
-										// Not yet wired anywhere — declared so the ensemble reports them as MISSING.
-										{ kind: "property_checks", outcome: "unavailable" },
+										{
+											kind: "property_checks",
+											outcome: propertyEvidence?.outcome ?? "unavailable",
+											detail:
+												propertyEvidence && propertyEvidence.outcome !== "pass"
+													? propertyEvidence.reason.slice(0, 200)
+													: undefined,
+										},
+										// The rubric judge is still not wired and remains named as missing.
 										{ kind: "rubric_judge", outcome: "unavailable" },
 									]);
 									if (ensemble.decision !== "accept") {

@@ -1,8 +1,12 @@
 import type { RuntimeTaskAcceptanceResult } from "../core/api-contract";
+import { isTruthyEnv } from "../core/env-flag";
 import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { runNKleinAcceptanceGateInSandbox } from "./nklein-acceptance-gate";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
 import type { NKleinPauseController } from "./nklein-pause-controller";
+import { verifyPropertiesInSandbox } from "./nklein-property-acceptance-verifier";
+import type { PropertyBindingModelCaller } from "./nklein-property-binding-model-caller";
+import { forgetPropertyCheckEvidence, storePropertyCheckEvidence } from "./nklein-property-evidence-registry";
 
 export interface VerifyTaskAcceptanceInput {
 	taskId: string;
@@ -22,6 +26,7 @@ export interface VerifyTaskAcceptanceInput {
 export interface AcceptanceVerifierDeps {
 	getAgentSandboxManager(): AgentSandboxManager | null;
 	getPauseController(): NKleinPauseController;
+	getPropertyBindingModelCaller?(taskId: string): Promise<PropertyBindingModelCaller | null>;
 }
 
 export interface AcceptanceVerifier {
@@ -53,7 +58,7 @@ export function createAcceptanceVerifier(deps: AcceptanceVerifierDeps): Acceptan
 					repoPath: input.projectRepoPath,
 					taskId: input.resultBranchTaskId ?? input.taskId,
 				}).catch(() => null));
-		return await runNKleinAcceptanceGateInSandbox({
+		const acceptance = await runNKleinAcceptanceGateInSandbox({
 			taskId: input.taskId,
 			projectRepoPath: input.projectRepoPath,
 			baseRef: resultCommit ?? input.baseRef,
@@ -62,6 +67,64 @@ export function createAcceptanceVerifier(deps: AcceptanceVerifierDeps): Acceptan
 			sandboxManager,
 			pauseController: deps.getPauseController(),
 		});
+		if (input.useBaseTree) {
+			forgetPropertyCheckEvidence(input.taskId);
+			return acceptance;
+		}
+		// Property evidence can strengthen a successful ordinary acceptance run, but it can never promote a missing,
+		// inconclusive, or failed primary harness into a pass.
+		if (!isTruthyEnv(process.env.NKLEIN_PROPERTY_GATE) || acceptance.passed !== true) {
+			forgetPropertyCheckEvidence(input.taskId);
+			return acceptance;
+		}
+		const propertyStartedAt = Date.now();
+		const property = await (async () => {
+			try {
+				return await verifyPropertiesInSandbox({
+					taskId: input.taskId,
+					projectRepoPath: input.projectRepoPath,
+					baseRef: input.baseRef,
+					taskPrompt: input.taskPrompt,
+					resultCommit,
+					timeoutMs: input.timeoutMs,
+					sandboxManager,
+					bindProperties: await deps.getPropertyBindingModelCaller?.(input.taskId),
+				});
+			} catch (error) {
+				return {
+					outcome: "unavailable" as const,
+					reason: error instanceof Error ? error.message : String(error),
+					output: "",
+					invariantCount: 0,
+				};
+			}
+		})();
+		storePropertyCheckEvidence(input.taskId, property);
+		const propertyOutput = `\n\n[property checks: ${property.outcome}] ${property.reason}${property.output ? `\n${property.output}` : ""}`;
+		const durationMs = acceptance.durationMs + Math.max(0, Date.now() - propertyStartedAt);
+		if (property.outcome === "unavailable") {
+			return { ...acceptance, output: `${acceptance.output}${propertyOutput}`, durationMs };
+		}
+		if (property.outcome === "fail") {
+			return {
+				...acceptance,
+				present: true,
+				passed: false,
+				exitCode: 1,
+				output: `${acceptance.output}${propertyOutput}`,
+				durationMs,
+				failureCategory: "test_failure",
+				failureHint: `A spec-derived property was falsified. ${property.reason}`,
+			};
+		}
+		return {
+			...acceptance,
+			present: true,
+			passed: true,
+			exitCode: acceptance.exitCode ?? 0,
+			output: `${acceptance.output}${propertyOutput}`,
+			durationMs,
+		};
 	}
 
 	return { verify };

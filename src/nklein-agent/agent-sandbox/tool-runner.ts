@@ -1,4 +1,5 @@
 import { createDefaultExecutors, type ToolExecutors } from "@cline/sdk";
+import type { SpecInvariant } from "../../core/spec-invariant-derivation";
 import { AGENT_SANDBOX_EXTRA_TOOL_RUNNER } from "../nklein-agent-sandbox-extra-tools";
 import { createEditFileTool } from "../nklein-edit-file-tool";
 import { createFileDiscoveryTools } from "../nklein-file-discovery-tools";
@@ -7,6 +8,7 @@ import { createNKleinRetrievalTools } from "../nklein-retrieval-tools";
 import { createWriteFilesTool, createWriteFileTool } from "../nklein-write-files-tool";
 import type { AgentToolContext } from "../sdk-agent-types";
 import { normalizeHostPathInputs, normalizeSandboxBashInput } from "./path-normalization";
+import { runSandboxPropertyCheck } from "./property-check";
 import { formatToolRunnerThrown } from "./tool-runner-error";
 import { runSandboxVisualCapture } from "./visual-capture";
 
@@ -159,6 +161,18 @@ async function runTool(): Promise<ToolRunnerResult> {
 						timeoutMs?: number;
 						width?: number;
 						height?: number;
+					},
+					cwd,
+				),
+			};
+		case "propertyCheck":
+			return {
+				ok: true,
+				result: await runSandboxPropertyCheck(
+					(rawParsedInput && typeof rawParsedInput === "object" ? rawParsedInput : {}) as {
+						testCode: string;
+						invariants: SpecInvariant[];
+						timeoutMs?: number;
 					},
 					cwd,
 				),
