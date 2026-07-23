@@ -307,6 +307,7 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		const controls = {
 			"sequential-thinking": false,
 			"codebase-memory": true,
+			"lsp-symbols": true,
 			"basic-memory": false,
 		} as const;
 

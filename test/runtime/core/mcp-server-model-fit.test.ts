@@ -4,6 +4,7 @@ import {
 	CODEBASE_MEMORY_FIT,
 	decideMcpServerModelFit,
 	decideMcpServerModelFitById,
+	LSP_SYMBOLS_FIT,
 	type McpServerModelFitProfile,
 	SEQUENTIAL_THINKING_FIT,
 } from "../../../src/core/mcp-server-model-fit";
@@ -111,6 +112,14 @@ describe("decideMcpServerModelFit — custom profile edge cases", () => {
 		const strict: McpServerModelFitProfile = { serverId: "x", minToolUse: "TOOL_NATIVE", rationale: "r" };
 		expect(decideMcpServerModelFit(strict, entry({ toolUse: "TOOL_NATIVE", kind: "agentic" })).offer).toBe(true);
 		expect(decideMcpServerModelFit(strict, entry({ toolUse: "TOOL_CAPABLE", kind: "agentic" })).offer).toBe(false);
+	});
+});
+
+describe("decideMcpServerModelFit — LSP symbols", () => {
+	it("offers a bounded semantic lookup to weak and uncatalogued tool callers without requiring chaining", () => {
+		expect(decideMcpServerModelFit(LSP_SYMBOLS_FIT, entry({ toolUse: "TOOL_WEAK", kind: "code" })).offer).toBe(true);
+		expect(decideMcpServerModelFit(LSP_SYMBOLS_FIT, capable("code", "single_only")).offer).toBe(true);
+		expect(decideMcpServerModelFit(LSP_SYMBOLS_FIT, null).offer).toBe(true);
 	});
 });
 

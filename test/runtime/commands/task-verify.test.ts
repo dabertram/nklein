@@ -85,6 +85,7 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 		effectiveSandboxMcpServerControls: {
 			"sequential-thinking": true,
 			"codebase-memory": true,
+			"lsp-symbols": true,
 			"basic-memory": false,
 		},
 		basicMemoryEnabled: false,

@@ -161,6 +161,7 @@
     "proper-lockfile": "^4.1.2",
     "simple-git": "^3.32.3",
     "tree-kill": "^1.2.2",
+    "vscode-jsonrpc": "^9.0.0",
     "ws": "^8.18.0",
     "yaml": "^2.8.2",
     "zod": "^4.3.6",

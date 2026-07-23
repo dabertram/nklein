@@ -371,6 +371,7 @@ describe("createNKleinMcpRuntimeService", () => {
 				sandboxMcpServerControls: {
 					"sequential-thinking": false,
 					"codebase-memory": false,
+					"lsp-symbols": false,
 					"basic-memory": true,
 				},
 			});
@@ -400,6 +401,7 @@ describe("createNKleinMcpRuntimeService", () => {
 			sandboxMcpServerControls: {
 				"sequential-thinking": false,
 				"codebase-memory": false,
+				"lsp-symbols": false,
 				"basic-memory": true,
 			},
 			memoryWriteProvenance: { authorModelKey: "model-author", taskId: "card-9" },

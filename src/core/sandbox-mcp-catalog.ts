@@ -18,6 +18,7 @@ import {
 	BASIC_MEMORY_FIT,
 	CODEBASE_MEMORY_FIT,
 	decideMcpServerModelFitById,
+	LSP_SYMBOLS_FIT,
 	type McpServerModelFitProfile,
 	SEQUENTIAL_THINKING_FIT,
 } from "./mcp-server-model-fit";
@@ -80,6 +81,20 @@ export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 		// The heavy one: compiled-in embeddings + a code graph. The image pins `CBM_MEM_BUDGET_MB=2048`, matching this
 		// admission budget even though v0.9 can otherwise scale its default from the detected cgroup/host memory tier.
 		memoryBudgetMb: 2048,
+		available: true,
+	},
+	{
+		id: "lsp-symbols",
+		label: "LSP Symbols",
+		relevanceDescription:
+			"code repository symbol definition reference usage rename refactor TypeScript JavaScript inspect locate implementation",
+		// The repository-bundled MCP wrapper starts one pinned typescript-language-server process and keeps it alive for
+		// the task. It exposes only the four F12.64 tools, not a general shell/filesystem/memory surface.
+		inContainerArgv: ["node", "/opt/nklein/lsp-symbol-mcp-server.cjs"],
+		fit: LSP_SYMBOLS_FIT,
+		// Typical tsserver projects remain below this; reserve enough for an indexed medium repository while preserving
+		// headroom in the default 4 GiB container alongside the base tools.
+		memoryBudgetMb: 512,
 		available: true,
 	},
 	{

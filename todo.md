@@ -222,6 +222,17 @@ gap remains.
 > orientation fallback. Keep this contract identical in tool descriptions and graph-available prompt guidance. Native
 > ast-grep bindings must stay external to bundles so each desktop platform and the Linux sandbox loads its own binary.
 
+> **⚠️ LSP INFERRED PROJECTS ARE INCOMPLETE UNTIL THEIR SOURCE SET IS ENROLLED (F12.64, 2026-07-23).** Opening one
+> TypeScript/JavaScript file without a `tsconfig.json`/`jsconfig.json` creates an inferred project that can miss reverse
+> imports in unopened siblings: `textDocument/references` may look precise while silently returning only one file. For
+> reference/rename tools, detect a real project config; otherwise open a deterministic, ignore-filtered source set with
+> explicit 2,000-file/32-MiB caps and fail with “add a project config” above those caps—never return partial semantics as
+> complete. Keep the language server persistent for the task and its model-facing MCP surface narrow. A semantic rename
+> must validate every returned URI stays inside the canonical sandbox root, reject LSP resource operations, precompute
+> all non-overlapping text edits, and roll back already-written files on I/O failure. Serena established the useful four-
+> tool shape, but its unrelated shell/dashboard/project-memory surface must not bypass !Klein's existing tool, memory,
+> prompt-cache, and Docker boundaries.
+
 > **⚠️ THE VENDORED CLINE PACKAGES ARE BUILD OUTPUTS, NOT NPM DEPENDENCIES (2026-07-22).** A normal root `npm install`
 > removes `node_modules/@cline/*` as extraneous. `scripts/build-cline-sdk.mjs` must recreate each package junction as
 > soon as that dependency-order build finishes, so the next sibling's declaration emit and the protected suites resolve
@@ -4951,9 +4962,19 @@ output and NOT acted on. Captured as F12.12.)
   edit_file AFTER apply: rejects only when the edit INTRODUCED the breakage (already-broken files stay editable),
   failing fast while the model still holds repair context. 20 tests green. REMAINING: the optional local "apply
   model" (Morph-style) — fleet-gated by David's postponement.
-- [ ] **F12.64 — LSP-backed symbol tools (Serena-style).** Add `find_symbol` / `find_referencing_symbols` /
+- [x] **F12.64 — LSP-backed symbol tools (Serena-style).** Add `find_symbol` / `find_referencing_symbols` /
   `get_symbols_overview` / `rename_symbol` via real language servers alongside grep — IDE-grade precision at a fraction of
   grep-then-read-whole-file tokens; the saved budget extends a small model's reasoning room. Composes with F11.2b/c. (Serena MCP)
+  **SHIPPED 2026-07-23:** evaluated Serena v1.5.3 first and retained its four-tool semantic shape, but did not embed its
+  overlapping shell/filesystem/dashboard/project-memory surface. Added a narrow persistent `lsp-symbols` MCP server in
+  the network-none task container, backed by pinned `typescript-language-server@5.3.0` + TypeScript 5.9.3 over real
+  JSON-RPC/LSP. It exposes exactly the four requested tools, is model-fit/memory/control/task-relevance gated before
+  registration, caps/paginates discovery, opt-ins bodies, canonicalizes every path, and applies cross-file rename
+  `WorkspaceEdit`s transactionally while refusing resource operations and out-of-root edits. Configured TS/JS projects
+  use their project graph; unconfigured inferred projects get deterministic bounded source enrollment so cross-file
+  references cannot silently disappear. `scripts/verify-sandbox-mcp.mts` proves the exact four-tool surface plus real
+  outline, cross-file references, and a two-file semantic rename with `--network none`; 47 focused tests + typecheck +
+  Docker image build/live smoke pass. F12.85 remains the separate expansion to diagnostics and non-TS fleet languages.
 - [x] **F12.65 — Tool-output truncation + pagination defaults everywhere.** Cap every retrieval/tool result (Claude Code caps
   at 25k tokens; SWE-agent uses a 100-line windowed file view) with head/tail + range/pagination params + sane defaults, so
   one file dump can't blow a small window. Near-free; composes with F12.25. (Anthropic writing-tools-for-agents)

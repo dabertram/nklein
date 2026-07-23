@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-export const SANDBOX_MCP_SERVER_IDS = ["sequential-thinking", "codebase-memory", "basic-memory"] as const;
+export const SANDBOX_MCP_SERVER_IDS = [
+	"sequential-thinking",
+	"codebase-memory",
+	"lsp-symbols",
+	"basic-memory",
+] as const;
 export const sandboxMcpServerIdSchema = z.enum(SANDBOX_MCP_SERVER_IDS);
 export type SandboxMcpServerId = z.infer<typeof sandboxMcpServerIdSchema>;
 
@@ -8,6 +13,7 @@ export const sandboxMcpServerControlsSchema = z
 	.object({
 		"sequential-thinking": z.boolean(),
 		"codebase-memory": z.boolean(),
+		"lsp-symbols": z.boolean(),
 		"basic-memory": z.boolean(),
 	})
 	.strict();
@@ -37,7 +43,7 @@ export function areSandboxMcpServerOverridesEqual(
 	return SANDBOX_MCP_SERVER_IDS.every((id) => left?.[id] === right?.[id]);
 }
 
-/** Resolve project overrides over the global master switch and the three curated server defaults. */
+/** Resolve project overrides over the global master switch and the curated server defaults. */
 export function resolveSandboxMcpControls(input: {
 	sandboxMcpServersEnabled: boolean;
 	sandboxMcpServersEnabledOverride?: boolean | null;
@@ -52,6 +58,7 @@ export function resolveSandboxMcpControls(input: {
 	const globalControls: SandboxMcpServerControls = {
 		"sequential-thinking": true,
 		"codebase-memory": true,
+		"lsp-symbols": true,
 		"basic-memory": input.basicMemoryEnabled === true,
 	};
 	return {

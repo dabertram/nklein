@@ -782,6 +782,7 @@ export function createNKleinMcpRuntimeService(
 			const controls: SandboxMcpServerControls = bundleOptions?.sandboxMcpServerControls ?? {
 				"sequential-thinking": true,
 				"codebase-memory": true,
+				"lsp-symbols": true,
 				"basic-memory": Boolean(basicMemoryForceEnabled),
 			};
 			const effectiveControls: SandboxMcpServerControls = basicMemoryForceEnabled

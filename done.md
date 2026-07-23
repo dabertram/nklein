@@ -2907,3 +2907,15 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   caps, and egress policy still run at their original boundaries. Verified with 71 focused backend assertions, 13 web
   assertions, backend/web typechecks, the complete 12,324-test fast suite, 143 protected tests, and lint with zero
   errors (19 pre-existing warnings and one info).
+
+- [x] **F12.64 — sandboxed LSP symbol tools** *(delivered 2026-07-23).* !Klein now exposes exactly four curated,
+  model-gated TypeScript/JavaScript symbol operations inside the existing networkless MCP sandbox: symbol search,
+  bounded overviews, reverse-reference discovery, and transactional rename. The implementation drives pinned upstream
+  `typescript-language-server` and TypeScript releases over JSON-RPC instead of approximating language semantics. It
+  enrolls a bounded source set when no project configuration exists so inferred projects do not silently omit unopened
+  reverse references. Rename validates root containment, rejects resource operations, overlapping edits, and stale
+  ranges, applies every edit atomically, synchronizes open-document versions, and rolls back all changed files on any
+  failure. Serena 1.5.3 was evaluated but its broader memory, shell, and agent-control surface was intentionally not
+  imported into the prompt or trust boundary. Verified with focused unit and service tests, backend typecheck, a pinned
+  sandbox image build, and a real `--network none` Docker smoke covering the exact tool surface, cross-file references,
+  two-file rename, and the other curated MCP servers.

@@ -387,6 +387,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					"sequential-thinking": true,
 					"codebase-memory": true,
 					"basic-memory": false,
+					"lsp-symbols": true,
 				});
 
 				await updateRuntimeConfig(tempProject, {
@@ -410,6 +411,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					"sequential-thinking": true,
 					"codebase-memory": false,
 					"basic-memory": false,
+					"lsp-symbols": true,
 				});
 
 				await updateRuntimeConfig(tempProject, {

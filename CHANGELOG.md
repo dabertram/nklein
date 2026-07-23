@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Agents now get IDE-precise TypeScript/JavaScript symbol tools inside their networkless task sandbox.** A persistent,
+  pinned language server exposes only `find_symbol`, `find_referencing_symbols`, `get_symbols_overview`, and
+  `rename_symbol`; task relevance and model/container fit are checked before it connects. Cross-file renames use the
+  language server's complete edit, reject out-of-workspace or file-operation changes, and roll back partial writes.
+  Unconfigured small projects are enrolled within explicit size caps so references cannot silently omit unopened files.
+
 - **MCP servers can now be selected before their clients connect.** Curated servers carry trusted task-relevance
   metadata, and user-configured servers can describe their relevant tasks in Settings. !Klein uses the original card
   text to avoid registering irrelevant servers, while legacy/underspecified configurations fail open and no-match

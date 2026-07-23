@@ -676,6 +676,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.sandboxMcpServerControls = options.sandboxMcpServerControls ?? {
 			"sequential-thinking": true,
 			"codebase-memory": true,
+			"lsp-symbols": true,
 			"basic-memory": this.basicMemoryEnabled,
 		};
 		this.retrievalEgressEnabled = options.retrievalEgressEnabled ?? DEFAULT_RETRIEVAL_EGRESS_ENABLED;

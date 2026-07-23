@@ -19,6 +19,7 @@ describe("sandbox MCP controls", () => {
 			effectiveSandboxMcpServerControls: {
 				"sequential-thinking": true,
 				"codebase-memory": true,
+				"lsp-symbols": true,
 				"basic-memory": false,
 			},
 		});
@@ -40,6 +41,7 @@ describe("sandbox MCP controls", () => {
 		expect(resolved.effectiveSandboxMcpServerControls).toEqual({
 			"sequential-thinking": true,
 			"codebase-memory": false,
+			"lsp-symbols": true,
 			"basic-memory": false,
 		});
 	});
@@ -51,6 +53,7 @@ describe("sandbox MCP controls", () => {
 			filterSandboxMcpServersByControl([{ id: "sequential-thinking" }, { id: "unknown" }], {
 				"sequential-thinking": true,
 				"codebase-memory": true,
+				"lsp-symbols": true,
 				"basic-memory": false,
 			}),
 		).toEqual([{ id: "sequential-thinking" }]);

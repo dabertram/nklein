@@ -174,6 +174,22 @@ export const CODEBASE_MEMORY_FIT: McpServerModelFitProfile = {
 };
 
 /**
+ * F12.64: the four-tool LSP symbol surface is a bounded code-navigation aid. Read operations are low-risk and rename is
+ * a single semantic refactor (not an iterative scaffold), so weak-but-functional and uncatalogued tool callers may use
+ * it. Capability/relevance preselection still keeps the schemas away from non-code tasks.
+ */
+export const LSP_SYMBOLS_FIT: McpServerModelFitProfile = {
+	serverId: "lsp-symbols",
+	minToolUse: "TOOL_WEAK",
+	allowUnknownToolUse: true,
+	skipForReasoningModels: false,
+	requiresChaining: false,
+	rationale:
+		"Persistent IDE-grade symbol lookup/references/rename with a four-tool bounded surface; saves read/search tokens " +
+		"for any tool-capable model without adding an iterative loop.",
+};
+
+/**
  * Curated fit profile for **basic-memory** (§5.AR authored markdown-graph memory) — a WRITE-capable, multi-tool surface
  * (write_note/read_note/search_notes/build_context/…). Unlike codebase-memory (a read-only token-cutter offered broadly),
  * a weak/one-shot caller that mis-drives a write tool can accrete GARBAGE into a durable store, so it is offered only to

@@ -9,6 +9,7 @@ import { clineSdkEsbuildAlias } from "./cline-sdk-alias.mjs";
 const rootDir = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const dockerContextDir = join(rootDir, "docker", "agent-sandbox");
 const bundledToolRunnerPath = join(dockerContextDir, "tool-runner.cjs");
+const bundledLspSymbolServerPath = join(dockerContextDir, "lsp-symbol-mcp-server.cjs");
 const imageName = process.env.NKLEIN_AGENT_SANDBOX_IMAGE?.trim() || `nklein/agent-sandbox:${packageJson.version}`;
 
 await mkdir(dockerContextDir, { recursive: true });
@@ -29,20 +30,40 @@ await esbuild.build({
 		"import.meta.url": "__nkleinImportMetaUrl",
 	},
 });
+await esbuild.build({
+	entryPoints: [join(rootDir, "src", "nklein-agent", "agent-sandbox", "lsp-symbol-mcp-server.ts")],
+	outfile: bundledLspSymbolServerPath,
+	bundle: true,
+	format: "cjs",
+	platform: "node",
+	target: "node22",
+	packages: "bundle",
+});
 
 try {
 	await runDockerBuild(imageName);
 	console.log(`Built ${imageName}`);
 } finally {
-	await rm(bundledToolRunnerPath, { force: true });
+	await Promise.all([
+		rm(bundledToolRunnerPath, { force: true }),
+		rm(bundledLspSymbolServerPath, { force: true }),
+	]);
 }
 
 function runDockerBuild(tag) {
 	return new Promise((resolve, reject) => {
-		const child = spawn("docker", ["build", "-t", tag, dockerContextDir], {
+		const nodeImageOverride = process.env.NKLEIN_AGENT_SANDBOX_NODE_IMAGE?.trim();
+		const buildArgs = nodeImageOverride
+			? ["--build-arg", `NKLEIN_AGENT_SANDBOX_NODE_IMAGE=${nodeImageOverride}`]
+			: [];
+		const child = spawn(
+			"docker",
+			["build", "--pull=false", "--progress=plain", ...buildArgs, "-t", tag, dockerContextDir],
+			{
 			cwd: rootDir,
 			stdio: "inherit",
-		});
+			},
+		);
 		child.on("error", reject);
 		child.on("exit", (code) => {
 			if (code === 0) {

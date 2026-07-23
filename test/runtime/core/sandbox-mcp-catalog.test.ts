@@ -10,15 +10,18 @@ import {
 } from "../../../src/core/sandbox-mcp-catalog";
 
 describe("sandbox MCP catalog", () => {
-	it("registers all three curated servers as available (all baked into the image)", () => {
+	it("registers all four curated servers as available (all baked into the image)", () => {
 		const byId = new Map(SANDBOX_MCP_SERVERS.map((s) => [s.id, s]));
 		expect(byId.get("sequential-thinking")?.available).toBe(true);
 		expect(byId.get("codebase-memory")?.available).toBe(true);
+		expect(byId.get("lsp-symbols")?.available).toBe(true);
+		expect(byId.get("lsp-symbols")?.inContainerArgv).toEqual(["node", "/opt/nklein/lsp-symbol-mcp-server.cjs"]);
 		expect(byId.get("basic-memory")?.available).toBe(true);
 		expect(byId.get("basic-memory")?.inContainerArgv).toEqual(["basic-memory", "mcp"]);
 		expect(listAvailableSandboxMcpServers().map((s) => s.id)).toEqual([
 			"sequential-thinking",
 			"codebase-memory",
+			"lsp-symbols",
 			"basic-memory",
 		]);
 	});
@@ -47,6 +50,11 @@ describe("selectSandboxMcpServersForModel — applies the §5.AL fit gate over A
 		// CODEBASE_MEMORY_FIT is minToolUse TOOL_WEAK + allowUnknownToolUse, no reasoning/chaining gate.
 		expect(selectSandboxMcpServersForModel("qwen/qwen3-8b").map((s) => s.id)).toContain("codebase-memory");
 		expect(selectSandboxMcpServersForModel("no-such-model-xyz").map((s) => s.id)).toContain("codebase-memory");
+	});
+
+	it("offers the bounded LSP symbol surface broadly without an iterative-chain requirement", () => {
+		expect(selectSandboxMcpServersForModel("qwen/qwen3-8b").map((s) => s.id)).toContain("lsp-symbols");
+		expect(selectSandboxMcpServersForModel("no-such-model-xyz").map((s) => s.id)).toContain("lsp-symbols");
 	});
 
 	it("still withholds codebase-memory from a genuinely tool-UNSUITABLE model (offering it would just burn context)", () => {

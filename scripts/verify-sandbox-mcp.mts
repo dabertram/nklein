@@ -12,7 +12,9 @@
  *   - a `--network none` sandbox container runs EACH baked server and the MCP client lists its tools — sequential-
  *     thinking (`sequentialthinking`), codebase-memory (`search_graph` + the code-graph tools), and basic-memory
  *     (`write_note`/`search_notes` + the authored-memory tools, its scoping/hardening env passed via `-e`) — confirming
- *     each binary is baked in and runs 100% offline inside the container (invariant #2 + prime-directive #1).
+ *     lsp-symbols (the four narrow symbol/refactor tools), and basic-memory (`write_note`/`search_notes` + the authored-
+ *     memory tools, its scoping/hardening env passed via `-e`) — confirming each binary is baked in and runs 100%
+ *     offline inside the container (invariant #2 + prime-directive #1).
  *
  * Run:  tsx scripts/verify-sandbox-mcp.mts     (requires Docker + the built nklein/agent-sandbox image)
  */
@@ -48,8 +50,12 @@ function log(message: string): void {
 }
 
 /** Connect the REAL MCP client over the docker-exec transport createToolBundle builds, and return the listed tools. */
-async function listToolsOverDockerExec(argv: readonly string[], env?: Record<string, string>): Promise<string[]> {
-	const args = buildSandboxMcpDockerExecArgs({ containerName: CONTAINER, uid: 0, workdir: "/workspaces" }, argv, env);
+async function listToolsOverDockerExec(
+	argv: readonly string[],
+	env?: Record<string, string>,
+	workdir = "/workspaces",
+): Promise<string[]> {
+	const args = buildSandboxMcpDockerExecArgs({ containerName: CONTAINER, uid: 0, workdir }, argv, env);
 	log(`transport: docker ${args.join(" ")}`);
 	const transport = new StdioClientTransport({ command: "docker", args, stderr: "ignore" });
 	const client = new Client({ name: "klein-verify-sandbox-mcp", version: "0" }, { capabilities: {} });
@@ -64,8 +70,9 @@ async function callToolOverDockerExec(
 	toolName: string,
 	toolArgs: Record<string, unknown>,
 	env?: Record<string, string>,
+	workdir = "/workspaces",
 ): Promise<unknown> {
-	const args = buildSandboxMcpDockerExecArgs({ containerName: CONTAINER, uid: 0, workdir: "/workspaces" }, argv, env);
+	const args = buildSandboxMcpDockerExecArgs({ containerName: CONTAINER, uid: 0, workdir }, argv, env);
 	const transport = new StdioClientTransport({ command: "docker", args, stderr: "ignore" });
 	const client = new Client({ name: "klein-verify-sandbox-mcp", version: "0" }, { capabilities: {} });
 	await client.connect(transport);
@@ -269,6 +276,54 @@ async function main(): Promise<void> {
 		throw new Error("codebase-memory search_graph schema probe did not localize handleRequest in src/server.ts");
 	}
 
+	const lspArgv = ["node", "/opt/nklein/lsp-symbol-mcp-server.cjs"];
+	const lspTools = await listToolsOverDockerExec(lspArgv, undefined, cbmRepoPath);
+	const requiredLspTools = ["find_symbol", "find_referencing_symbols", "get_symbols_overview", "rename_symbol"];
+	log(`lsp-symbols => [${lspTools.join(", ")}]`);
+	if (JSON.stringify([...lspTools].sort()) !== JSON.stringify([...requiredLspTools].sort())) {
+		throw new Error(`lsp-symbols must expose exactly [${requiredLspTools.join(", ")}], got [${lspTools.join(", ")}]`);
+	}
+	const overview = unwrapMcpJson(
+		await callToolOverDockerExec(
+			lspArgv,
+			"get_symbols_overview",
+			{ relative_path: "src/server.ts", depth: 1 },
+			undefined,
+			cbmRepoPath,
+		),
+	);
+	if (!JSON.stringify(overview).includes("handleRequest")) {
+		throw new Error("lsp-symbols documentSymbol probe did not find handleRequest");
+	}
+	const references = unwrapMcpJson(
+		await callToolOverDockerExec(
+			lspArgv,
+			"find_referencing_symbols",
+			{ relative_path: "src/server.ts", name_path: "handleRequest" },
+			undefined,
+			cbmRepoPath,
+		),
+	);
+	if (!JSON.stringify(references).includes("src/app.ts")) {
+		throw new Error("lsp-symbols references probe did not resolve the cross-file call in src/app.ts");
+	}
+	const rename = unwrapMcpJson(
+		await callToolOverDockerExec(
+			lspArgv,
+			"rename_symbol",
+			{ relative_path: "src/server.ts", name_path: "handleRequest", new_name: "handleInput" },
+			undefined,
+			cbmRepoPath,
+		),
+	);
+	const renamedServer = (await exec("docker", ["exec", CONTAINER, "cat", `${cbmRepoPath}/src/server.ts`])).stdout;
+	const renamedApp = (await exec("docker", ["exec", CONTAINER, "cat", `${cbmRepoPath}/src/app.ts`])).stdout;
+	log(`lsp-symbols rename result => ${JSON.stringify(rename)}`);
+	if (asRecord(rename)?.filesChanged !== 2 || !renamedServer.includes("handleInput") || !renamedApp.includes("handleInput")) {
+		throw new Error("lsp-symbols rename probe did not atomically apply the cross-file WorkspaceEdit");
+	}
+	log("lsp-symbols schema probe => overview + cross-file references + semantic rename passed");
+
 	const bmTools = await listToolsOverDockerExec(["basic-memory", "mcp"], {
 		...basicMemoryEnv,
 	});
@@ -318,7 +373,7 @@ async function main(): Promise<void> {
 	log(`basic-memory durability => write → container restart → recall retained ${proofToken}`);
 
 	log(
-		"PASS ✓ — all three curated sandbox MCP servers reachable over docker-exec, offline, fit/opt-in gated; codebase-memory search_graph schema validated",
+		"PASS ✓ — all four curated sandbox MCP servers reachable over docker-exec, offline, fit/opt-in gated; codebase-memory and LSP schemas validated",
 	);
 }
 

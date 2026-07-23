@@ -1,4 +1,5 @@
-FROM node:22-bookworm-slim@sha256:d9f850096136edbc402debdd8729579a288aac64574ada0ff4db26b6ae58b0b2
+ARG NKLEIN_AGENT_SANDBOX_NODE_IMAGE=node:22-bookworm-slim@sha256:d9f850096136edbc402debdd8729579a288aac64574ada0ff4db26b6ae58b0b2
+FROM ${NKLEIN_AGENT_SANDBOX_NODE_IMAGE}
 
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends git ripgrep ca-certificates python3 \
@@ -15,6 +16,15 @@ RUN npm install -g @modelcontextprotocol/server-sequential-thinking@2025.12.18 \
 # dependency external so Docker resolves the Linux build here instead of bundling the host's Darwin/Windows binary.
 RUN npm install --prefix /opt/nklein @ast-grep/napi@0.44.1 \
 	&& npm cache clean --force
+
+# F12.64 — a real, persistent LSP backend for the narrow !Klein symbol MCP surface. The server wrapper itself is
+# bundled from this repository below; only the pinned upstream TypeScript/JavaScript language server is installed here.
+# Runtime stays fully offline (`--network none`) and the build asserts both executables exist, so an incomplete image
+# fails during construction rather than advertising dead tools to a worker.
+RUN npm install -g typescript-language-server@5.3.0 typescript@5.9.3 \
+	&& npm cache clean --force \
+	&& typescript-language-server --version | grep -Fx '5.3.0' \
+	&& tsc --version | grep -Fx 'Version 5.9.3'
 
 # codebase-memory-mcp (§5.AR / §5.B) — DeusData code-graph MCP: exact STRUCTURAL queries (search_graph / trace_path /
 # get_code_snippet / get_architecture) + local semantic search via a compiled-in nomic-embed-code (int8) — no API key,
@@ -67,5 +77,6 @@ RUN mkdir -m 1777 /workspaces
 WORKDIR /workspaces
 
 COPY tool-runner.cjs /opt/nklein/tool-runner.cjs
+COPY lsp-symbol-mcp-server.cjs /opt/nklein/lsp-symbol-mcp-server.cjs
 
 CMD ["sleep", "infinity"]
