@@ -4,8 +4,8 @@ import type { RgbaImage } from "../core/visual-verification-gate";
 /**
  * F12.87 effectful leg: shoot a rendered route for the visual-verification gate. Thin, injectable adapter around
  * Playwright — the LAUNCHER is a dependency so the orchestration (console-error capture, render failure, decode,
- * teardown) unit-tests with a fake, and production passes `chromium` from the root-level playwright dependency
- * (browser binaries ship with the web-ui e2e setup). Local-only by design: the gate shoots the DEV SERVER route.
+ * teardown) unit-tests with a fake. Production passes the pinned Chromium launcher baked into the agent-sandbox image;
+ * candidate dev server + browser share one network-none container. Local-only by design: the gate shoots that route.
  */
 
 export interface RouteScreenshotPage {
@@ -27,6 +27,8 @@ export interface RouteScreenshotLauncher {
 export interface RouteScreenshotResult {
 	/** Decoded RGBA, or null when the route failed to render or the shot failed to decode. */
 	readonly image: RgbaImage | null;
+	/** Original screenshot bytes for transport out of the task sandbox. */
+	readonly png: Uint8Array | null;
 	/** Did navigation itself succeed? */
 	readonly rendered: boolean;
 	/** Console error / pageerror texts captured during the render. */
@@ -61,14 +63,14 @@ export async function captureRouteScreenshot(
 			await page.goto(input.url, { waitUntil: "networkidle", timeout: input.timeoutMs ?? 30_000 });
 		} catch (error) {
 			consoleErrors.push(`navigation failed: ${error instanceof Error ? error.message : String(error)}`);
-			return { image: null, rendered: false, consoleErrors };
+			return { image: null, png: null, rendered: false, consoleErrors };
 		}
 		const png = await page.screenshot({ type: "png" });
 		const image = decodePngToRgba(png instanceof Uint8Array ? png : new Uint8Array(png));
-		return { image, rendered: true, consoleErrors };
+		return { image, png: new Uint8Array(png), rendered: true, consoleErrors };
 	} catch (error) {
 		consoleErrors.push(`screenshot failed: ${error instanceof Error ? error.message : String(error)}`);
-		return { image: null, rendered: false, consoleErrors };
+		return { image: null, png: null, rendered: false, consoleErrors };
 	} finally {
 		await Promise.resolve(browser?.close()).catch(() => {});
 	}

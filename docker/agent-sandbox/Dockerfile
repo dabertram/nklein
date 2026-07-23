@@ -48,10 +48,17 @@ RUN npm install -g pnpm@10.13.1 yarn@1.22.22 bun@1.2.18 \
 RUN npm install -g @modelcontextprotocol/server-sequential-thinking@2025.12.18 \
 	&& npm cache clean --force
 
-# The repo-map and structural-search tools use ast-grep's tree-sitter N-API binding. The tool runner leaves this native
-# dependency external so Docker resolves the Linux build here instead of bundling the host's Darwin/Windows binary.
-RUN npm install --prefix /opt/nklein @ast-grep/napi@0.44.1 \
+# The repo-map/structural-search tools use ast-grep's Linux N-API binding. F12.87b's sandbox-native visual capture uses
+# pinned Playwright + Chromium in the SAME network-none task container as the candidate dev server. Both remain external
+# to the host-built bundle so no Darwin native/browser artifact can leak into the Linux image.
+RUN npm install --prefix /opt/nklein @ast-grep/napi@0.44.1 playwright@1.61.1 \
 	&& npm cache clean --force
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN /opt/nklein/node_modules/.bin/playwright install --with-deps chromium \
+	&& chmod -R a+rX /opt/ms-playwright \
+	&& /opt/nklein/node_modules/.bin/playwright --version | grep -Fx 'Version 1.61.1' \
+	&& find /opt/ms-playwright -type f -name chrome -perm -111 -print -quit | grep -q . \
+	&& rm -rf /var/lib/apt/lists/*
 
 # F12.64/F12.85 — persistent, lazy LSP backends for navigation + diagnostics. The repository wrapper starts only the
 # family a card actually touches, preserving container memory. Every upstream server is baked and pinned at BUILD time;

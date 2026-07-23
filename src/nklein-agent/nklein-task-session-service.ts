@@ -203,6 +203,7 @@ import type { NKleinTaskTimeoutKind } from "./nklein-task-timeout-handles";
 import { createTeamProgressEmitter } from "./nklein-team-progress-emitter";
 import { createTimeoutController } from "./nklein-timeout-controller";
 import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
+import { type SandboxVisualDeliveryResult, verifyCurrentBuildVisualInSandbox } from "./nklein-visual-delivery-verifier";
 import { createNKleinWatcherRegistry, type NKleinWatcherRegistry } from "./nklein-watcher-registry";
 import { maybeDistillAndStoreProcedure } from "./procedural-skill-producer";
 import type { RepeatedToolCallGuardCallbacks } from "./repeated-tool-call-guard";
@@ -3329,6 +3330,23 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			// Observational only.
 		}
 		return result;
+	}
+
+	async verifyTaskVisualInSandbox(input: {
+		taskId: string;
+		projectRepoPath: string;
+		baseRef: string;
+		resultCommit?: string | null;
+		route?: string;
+		timeoutMs?: number;
+	}): Promise<SandboxVisualDeliveryResult> {
+		if (!this.agentSandboxManager) {
+			throw new Error("!Klein visual verification requires the configured agent sandbox manager.");
+		}
+		return await verifyCurrentBuildVisualInSandbox({
+			...input,
+			sandboxManager: this.agentSandboxManager,
+		});
 	}
 
 	/**

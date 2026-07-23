@@ -38,6 +38,7 @@ import type { NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import type { CreateInMemoryNKleinSessionRuntimeOptions, NKleinSessionRuntime } from "./nklein-session-runtime";
 import { buildSessionSkillFragments } from "./nklein-session-skill-fragments";
 import type { NKleinTaskMessage } from "./nklein-session-state";
+import type { SandboxVisualDeliveryResult } from "./nklein-visual-delivery-verifier";
 import type { NKleinWatcherRegistry } from "./nklein-watcher-registry";
 import type { NKleinSdkPersistedMessage, NKleinSdkSlashCommand } from "./sdk-runtime-boundary.js";
 import type { TurnLoopEscalationEvent } from "./turn-loop-guard";
@@ -228,6 +229,14 @@ export interface NKleinTaskSessionService {
 		/** #39: run against the BASE tree (no result branch) — the baseline sample for the was-it-already-broken waiver. */
 		useBaseTree?: boolean;
 	}): Promise<RuntimeTaskAcceptanceResult>;
+	verifyTaskVisualInSandbox(input: {
+		taskId: string;
+		projectRepoPath: string;
+		baseRef: string;
+		resultCommit?: string | null;
+		route?: string;
+		timeoutMs?: number;
+	}): Promise<SandboxVisualDeliveryResult>;
 	/**
 	 * W4.2 (layer 3): a lineage-diverse loaded model to ESCALATE a stuck card's worker to (null when none exists
 	 * or the task has no cached launch config). Reuses the W2.5a diverse-pick machinery.

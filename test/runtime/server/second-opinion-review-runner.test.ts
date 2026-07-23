@@ -242,6 +242,68 @@ describe("runSecondOpinionReviewForTask", () => {
 		expect(deps.runSecondOpinionReviewSession).not.toHaveBeenCalled();
 	});
 
+	it("F12.87b: bounces a UI card on the opt-in sandbox-native deterministic visual gate", async () => {
+		const previous = process.env.NKLEIN_VISUAL_GATE;
+		process.env.NKLEIN_VISUAL_GATE = "1";
+		try {
+			const deps = makeDeps({
+				diff: "diff --git a/web-ui/src/Card.tsx b/web-ui/src/Card.tsx\n+++ b/web-ui/src/Card.tsx\n+broken",
+			});
+			const verifyTaskVisualInSandbox = vi.fn(async () => ({
+				applicability: "applicable" as const,
+				decision: { verdict: "fail" as const, reason: "pixel diff 8.00% exceeds 1.00%" },
+				screenshotPngBase64: "png",
+				route: "/",
+				framework: "vite",
+				baselineKey: "k",
+			}));
+			const outcome = await runSecondOpinionReviewForTask({
+				workspacePath: "/repo",
+				taskId: "task-1",
+				service: {
+					...(service(deps) as unknown as Record<string, unknown>),
+					verifyTaskVisualInSandbox,
+				} as never,
+				loadRuntimeConfig: deps.loadRuntimeConfig,
+				loadWorkspaceState: deps.loadWorkspaceState,
+				mutateWorkspaceState: deps.mutateWorkspaceState,
+				getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+			});
+			expect(outcome).toEqual({ type: "bounced", round: 1 });
+			expect(verifyTaskVisualInSandbox).toHaveBeenCalledOnce();
+			expect(deps.runSecondOpinionReviewSession).not.toHaveBeenCalled();
+			expect(deps.sendTaskSessionInput.mock.calls[0]?.[1]).toContain("pixel diff 8.00%");
+		} finally {
+			if (previous === undefined) delete process.env.NKLEIN_VISUAL_GATE;
+			else process.env.NKLEIN_VISUAL_GATE = previous;
+		}
+	});
+
+	it("F12.87b: fails closed when an enabled UI visual gate cannot produce evidence", async () => {
+		const previous = process.env.NKLEIN_VISUAL_GATE;
+		process.env.NKLEIN_VISUAL_GATE = "1";
+		try {
+			const deps = makeDeps({
+				diff: "diff --git a/web-ui/src/Card.tsx b/web-ui/src/Card.tsx\n+++ b/web-ui/src/Card.tsx\n+changed",
+			});
+			const outcome = await runSecondOpinionReviewForTask({
+				workspacePath: "/repo",
+				taskId: "task-1",
+				service: service(deps),
+				loadRuntimeConfig: deps.loadRuntimeConfig,
+				loadWorkspaceState: deps.loadWorkspaceState,
+				mutateWorkspaceState: deps.mutateWorkspaceState,
+				getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+			});
+			expect(outcome).toEqual({ type: "bounced", round: 1 });
+			expect(deps.runSecondOpinionReviewSession).not.toHaveBeenCalled();
+			expect(deps.sendTaskSessionInput.mock.calls[0]?.[1]).toContain("could not produce sandbox evidence");
+		} finally {
+			if (previous === undefined) delete process.env.NKLEIN_VISUAL_GATE;
+			else process.env.NKLEIN_VISUAL_GATE = previous;
+		}
+	});
+
 	it("delivers on approve and persists the review (no worker re-drive)", async () => {
 		const deps = makeDeps({ submission: { verdict: "approve", summary: "Good", feedback: null, insight: null } });
 		const outcome = await runSecondOpinionReviewForTask({

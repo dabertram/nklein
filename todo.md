@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed after F12.77b):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 152-package remainder is **55 ready + 3 partial + 78 dependency-blocked + 7 external/
+  gate below is green. The current 153-package remainder is **53 ready + 5 partial + 79 dependency-blocked + 7 external/
 user-gated + 9 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -5463,8 +5463,31 @@ verify-before-build caveat: confirm each against current code before implementin
   navigation failure, PNG→RGBA decode, guaranteed browser teardown. 3 mock-tests. ALL PIECES NOW EXIST (gate core +
   baseline store + PNG decode + shot fn). REMAINING: the single delivery-gate wire for UI-touching cards (route
   detection → shoot the dev-server route → readVisualBaseline → decideVisualGate → write-on-baseline_created →
-  record-only ledger transition, same stance as the other delivery scans) — needs a per-workspace dev-server URL
-  source, the one open design question. (Design2Code; DesignBench 2506.06251; Playwright toHaveScreenshot)
+  record-only ledger transition, same stance as the other delivery scans). The wire is now tracked explicitly as
+  F12.87b below rather than hidden inside this completed core. (Design2Code; DesignBench 2506.06251; Playwright toHaveScreenshot)
+- [~] **F12.87b — Sandbox-native current-build visual capture + deterministic delivery-gate wire *(split from F12.87
+  2026-07-23; previously hidden remainder).*** Derive the card's dev/preview command and route, then run server + browser
+  in the SAME task sandbox so candidate code never executes on the host and `localhost` never crosses the network-none
+  boundary. The lifecycle must be one owned operation: choose a collision-safe task-local port, wait on HTTP readiness,
+  capture through the existing `captureRouteScreenshot`/PNG path, collect console/page errors, and kill the complete dev-
+  server process tree on success, timeout, cancellation, and browser failure. Feed the result to
+  `readVisualBaseline` → `decideVisualGate` → write only on `baseline_created`, then record the delivery decision. Do not
+  publish a container port and do not accept an operator-supplied host URL: either would break strict isolation or allow a
+  stale/wrong build. **Dependency boundary:** the browser/runtime bake and live offline proof share F12.84b's deferred
+  immutable image rebuild; code can land first, but this item stays partial until that exact image proves cleanup,
+  readiness, screenshot freshness, and baseline behavior under `--network none`.
+  **CODE + REVIEW WIRE COMPLETE 2026-07-23; LIVE IMAGE PROOF REMAINS:** added allowlisted package-script/framework
+  planning for Vite, Next, Angular, Vue CLI, React Scripts and generic dev/start/preview, plus conservative filesystem-
+  route derivation for Next/SvelteKit (dynamic parameters fall back to `/`, never invented). The delivered commit gets
+  a fresh `::visual-N` workspace; dependency setup, loopback HTTP readiness, Chromium capture, console/page errors, PNG
+  transport, baseline compare/create, and unconditional workspace/process-group teardown are one owned operation.
+  `NKLEIN_VISUAL_GATE` stays default-OFF; when enabled, a deterministic failure becomes the standard pre-review
+  `request_changes`, while missing/non-JS harnesses remain explicitly not-applicable. The image pins Playwright 1.61.1
+  and bakes Chromium, both asserted at build time. Exact result-commit binding and setup/verifier failures are fail-closed
+  (never substitute the base tree or pass on absent evidence). 39 focused tests + typecheck green. **Concrete remainder:** after F11,
+  build the shared F12.84b image, prove the runner under `--network none` with planted render/console/pixel failures,
+  assert no descendant process or bound port survives each success/failure/timeout path, measure browser image/RSS/start
+  cost, then enable only from evidence. F12.88b remains correctly dependency-blocked until this proof is green.
 - [x] **F12.88 — Optional local-VLM screenshot review lens (LENS core; F12.88b carries the wire).** Add a vision review lens backed by a local VLM (Qwen2.5-VL /
   Qwen3-VL) that compares the rendered UI to a reference/spec and flags layout defects (wrong size, misalignment, missing
   components). Rationale: coding models are TEXT-ONLY, so subjective visual grading needs a separate VLM; slots into the
@@ -5487,7 +5510,7 @@ verify-before-build caveat: confirm each against current code before implementin
   text ends abruptly with 'contin'". **The truncation is the significant one — a text-only reviewer reading the
   CSS diff could not have caught it**, which is precisely the residue this lens exists for. Format contract held
   exactly; no invented defects. 13 tests; suite green.
-- [ ] **F12.88b — Wire the VLM lens into the review path *(split from F12.88 2026-07-20)*.** Two pieces: (a)
+- [>] **F12.88b — Wire the VLM lens into the review path *(split from F12.88 2026-07-20; BLOCKED on F12.87b)*.** Two pieces: (a)
   SCREENSHOT CAPTURE for the card's build — without it `decideVlmLens` correctly declines forever, so this is the
   actual blocker, and it must capture the CURRENT build (a stale screenshot produces confident wrong verdicts);
   (b) register the lens in the §5.AW review-lens system, running only on the F12.87 deterministic gate's

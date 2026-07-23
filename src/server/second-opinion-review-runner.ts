@@ -14,6 +14,7 @@ import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../c
 import { REVIEW_PHASE_CATEGORY } from "../core/card-tracking-coverage";
 import { isTruthyEnv } from "../core/env-flag";
 import { arbitrateByExecution, type CandidateExecutionRun } from "../core/execution-arbitration";
+import { deriveFrontendRouteFromChangedPaths } from "../core/frontend-preview-plan";
 import { buildHistoryBlindCorrectorPrompt } from "../core/history-blind-corrector";
 import { fetchLoadedModelDescriptors, type LoadedModelDescriptor } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
@@ -117,6 +118,7 @@ export interface RunSecondOpinionReviewForTaskInput {
 			Pick<
 				NKleinTaskSessionService,
 				| "verifyTaskAcceptanceInSandbox"
+				| "verifyTaskVisualInSandbox"
 				| "pickDiverseEscalationModel"
 				| "cancelTaskTurn"
 				| "cancelSpeculativeMirror"
@@ -611,6 +613,67 @@ export async function runSecondOpinionReviewForTask(
 	// coming back testless trips the identical-feedback PARK guard instead of bouncing forever. The changed-file
 	// list is parsed from the same result-branch diff the reviewer sees (`+++ b/<path>` headers).
 	let preReviewVerdict: ReviewSubmissionInput | null = null;
+	// F12.87b: current-build visual verification is an opt-in deterministic delivery gate. Candidate code, its dev
+	// server, and Chromium all execute in one network-none task sandbox; the host receives only screenshot evidence.
+	// Run only for an actual UI diff. A non-frontend repository is explicitly not-applicable; missing evidence or a
+	// broken harness fails closed because silently reviewing the wrong/stale build would invalidate the gate.
+	if (isTruthyEnv(process.env.NKLEIN_VISUAL_GATE) && preReviewVerdict === null) {
+		const visualDiff = await getDiff({
+			repoPath: input.workspacePath,
+			taskId: input.taskId,
+			baseRef: card.baseRef,
+			...(input.primaryResultCommit ? { resultCommit: input.primaryResultCommit } : {}),
+		}).catch(() => null);
+		const visualChangedPaths = [...(visualDiff ?? "").matchAll(/^\+\+\+ b\/(.+)$/gm)].map((match) => match[1] ?? "");
+		const uiTouched = visualChangedPaths.some((path) => /\.(?:css|html|jsx|scss|svelte|tsx|vue)$/i.test(path));
+		if (uiTouched) {
+			const visual = input.service.verifyTaskVisualInSandbox
+				? await input.service
+						.verifyTaskVisualInSandbox({
+							taskId: input.taskId,
+							projectRepoPath: input.workspacePath,
+							baseRef: card.baseRef,
+							resultCommit: input.primaryResultCommit,
+							route: deriveFrontendRouteFromChangedPaths(visualChangedPaths),
+						})
+						.catch(() => null)
+				: null;
+			if (!visual) {
+				preReviewVerdict = {
+					verdict: "request_changes",
+					summary: "Visual verification unavailable",
+					feedback:
+						"The enabled current-build visual gate could not produce sandbox evidence. Restore the sandbox verifier and retry; absence of evidence is not a pass.",
+					insight: null,
+				};
+			} else if (visual.decision?.verdict === "fail") {
+				preReviewVerdict = {
+					verdict: "request_changes",
+					summary: "Deterministic visual verification failed",
+					feedback: visual.decision.reason,
+					insight: null,
+				};
+			}
+			try {
+				recordSelfObservation({
+					signal: visual?.decision?.verdict === "fail" ? "verification_failed" : "custom",
+					severity: visual?.decision?.verdict === "fail" ? "warning" : "info",
+					message: `Visual delivery gate for ${input.taskId}: ${visual?.decision?.verdict ?? visual?.applicability ?? "unavailable"}.`,
+					taskId: input.taskId,
+					workspacePath: input.workspacePath,
+					metadata: {
+						category: "visual_delivery_gate",
+						verdict: visual?.decision?.verdict ?? null,
+						applicability: visual?.applicability ?? "unavailable",
+						route: visual?.route ?? null,
+						framework: visual?.framework ?? null,
+					},
+				});
+			} catch {
+				// Telemetry cannot break review.
+			}
+		}
+	}
 	// Slice 2: the persisted config field ORs with the env flag (either enables; default OFF until live-validated).
 	if (isTruthyEnv(process.env.NKLEIN_TEST_DRIVEN_MODE) || config.effectiveTestDrivenMode) {
 		const gateDiff = await getDiff({

@@ -8,6 +8,7 @@ import { createWriteFilesTool, createWriteFileTool } from "../nklein-write-files
 import type { AgentToolContext } from "../sdk-agent-types";
 import { normalizeHostPathInputs, normalizeSandboxBashInput } from "./path-normalization";
 import { formatToolRunnerThrown } from "./tool-runner-error";
+import { runSandboxVisualCapture } from "./visual-capture";
 
 type SandboxBashInput = Parameters<NonNullable<ToolExecutors["bash"]>>[0];
 type SandboxReadFileInput = Parameters<NonNullable<ToolExecutors["readFile"]>>[0];
@@ -148,6 +149,19 @@ async function runTool(): Promise<ToolRunnerResult> {
 			return {
 				ok: true,
 				result: await runKanbanExtraTool(input, cwd),
+			};
+		case "visualCapture":
+			return {
+				ok: true,
+				result: await runSandboxVisualCapture(
+					(rawParsedInput && typeof rawParsedInput === "object" ? rawParsedInput : {}) as {
+						route?: string;
+						timeoutMs?: number;
+						width?: number;
+						height?: number;
+					},
+					cwd,
+				),
 			};
 		default:
 			return { ok: false, error: `Unsupported sandbox tool: ${tool}.` };
