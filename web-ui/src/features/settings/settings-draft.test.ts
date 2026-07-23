@@ -150,7 +150,7 @@ describe("initSettingsDraftFromConfig", () => {
 		expect(snapshot.sandboxIsolationProfileDefault).toBe("lean_shared");
 		expect(snapshot.lostHeartbeatPolicy).toBe("park");
 		expect(snapshot.decompositionAutoApplyEnabled).toBe(true);
-		expect(snapshot.testDrivenModeEnabled).toBe(false);
+		expect(snapshot.testDrivenModeEnabled).toBe(true); // default ON since 2026-07-23 (F1.34b-ext)
 		expect(snapshot.hardTaskRoutingMode).toBe("attempt_with_available");
 		expect(snapshot.secondOpinionReviewEnabled).toBe(true);
 		expect(snapshot.reviewMaxRounds).toBe(20);

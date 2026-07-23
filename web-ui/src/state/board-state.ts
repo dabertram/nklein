@@ -3,7 +3,12 @@ import { createShortTaskId } from "@runtime-task-id";
 import * as runtimeTaskState from "@runtime-task-state";
 
 import { createInitialBoardData } from "@/data/board-data";
-import type { RuntimeAgentId, RuntimeNKleinReasoningEffort, RuntimeTaskNKleinSettings } from "@/runtime/types";
+import type {
+	RuntimeAgentId,
+	RuntimeNKleinReasoningEffort,
+	RuntimeTaskNKleinSettings,
+	RuntimeTaskTestability,
+} from "@/runtime/types";
 import { isAllowedCrossColumnCardMove, type ProgrammaticCardMoveInFlight } from "@/state/drag-rules";
 import {
 	type BoardCard,
@@ -29,6 +34,9 @@ export interface TaskDraft {
 	agentId?: RuntimeAgentId;
 	nkleinSettings?: RuntimeTaskNKleinSettings;
 	filesLikelyTouched?: string[];
+	/** F1.34b-ext: operator-declared upfront testability (absent/undefined ⇒ keep or none; null ⇒ explicitly clear). */
+	testability?: RuntimeTaskTestability | null;
+	testabilityReason?: string | null;
 	blockedKind?: TaskBlockedKind;
 	blockedReason?: string;
 	baseRef: string;
@@ -520,6 +528,9 @@ export function addTaskToColumnWithResult(
 			agentId: draft.agentId,
 			nkleinSettings: draft.nkleinSettings,
 			filesLikelyTouched: draft.filesLikelyTouched,
+			...(draft.testability
+				? { testability: draft.testability, testabilityReason: draft.testabilityReason ?? undefined }
+				: {}),
 			baseRef: draft.baseRef,
 		},
 		createBrowserUuid,
@@ -727,6 +738,15 @@ export function updateTask(board: BoardData, taskId: string, draft: TaskDraft): 
 							: undefined,
 				agentId: draft.agentId,
 				nkleinSettings: draft.nkleinSettings,
+				// F1.34b-ext: keep (undefined) / clear (null) / set the upfront testability declaration.
+				...(draft.testability === undefined
+					? { testability: card.testability, testabilityReason: card.testabilityReason }
+					: draft.testability === null
+						? { testability: undefined, testabilityReason: undefined }
+						: {
+								testability: draft.testability,
+								testabilityReason: draft.testabilityReason?.trim() ? draft.testabilityReason.trim() : undefined,
+							}),
 				blockedKind: undefined,
 				blockedReason: undefined,
 				baseRef,

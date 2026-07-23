@@ -214,7 +214,7 @@ export function initSettingsDraftFromConfig(
 		sandboxIsolationProfileDefault: config?.sandboxIsolationProfileDefault ?? "lean_shared",
 		lostHeartbeatPolicy: config?.lostHeartbeatPolicy ?? "park",
 		decompositionAutoApplyEnabled: config?.decompositionAutoApplyEnabled ?? true,
-		testDrivenModeEnabled: config?.testDrivenModeEnabled ?? false,
+		testDrivenModeEnabled: config?.testDrivenModeEnabled ?? true,
 		hardTaskRoutingMode: config?.hardTaskRoutingMode ?? "attempt_with_available",
 		secondOpinionReviewEnabled: config?.secondOpinionReviewEnabled ?? true,
 		reviewMaxRounds: config?.reviewMaxRounds ?? 20,

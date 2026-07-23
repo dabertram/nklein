@@ -27,6 +27,11 @@ export const nkleinPlanTaskSchema = z.object({
 	acceptanceCommand: z.string().nullable().default(null),
 	testFirst: z.boolean().default(false),
 	acceptanceTestPrompt: z.string().nullable().default(null),
+	// F1.34b-ext (David 2026-07-23): upfront testability declaration. Absent ⇒ testable (the strict default —
+	// the test-driven delivery gate will require a test change). `not_testable` declares that automated tests
+	// cannot cover this card's work; the reason rides along for the operator/audit trail.
+	testability: z.enum(["testable", "not_testable"]).optional(),
+	testabilityReason: z.string().nullable().optional(),
 	knowledgeDebt: z.string().nullable().optional(),
 	// §5.AK/§5.B richer per-card CONTRACT — all OPTIONAL enrichment (absent ⇒ not provided, fully backward-compatible;
 	// a card decomposed without them is unchanged). A decomposition can populate them so a worker executes against an

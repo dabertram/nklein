@@ -78,6 +78,20 @@ export function buildTaskPrompt(
 		}
 		sections.push(testInstructions.join("\n"));
 	}
+	// F1.34b-ext: the worker learns the card's testability contract UPFRONT — testable work must ship with a test
+	// change (the delivery gate enforces it); a declared not_testable card may legitimately deliver without tests.
+	if (task.testability === "not_testable") {
+		sections.push(
+			`Testability: this card is declared NOT testable${
+				task.testabilityReason?.trim() ? ` (${task.testabilityReason.trim()})` : ""
+			} — delivering without a test change is acceptable here. Do not fabricate empty placeholder tests.`,
+		);
+	} else if (task.testability === "testable" && !task.testFirst) {
+		// Only an EXPLICIT declaration adds the line — legacy plans without the field keep byte-identical prompts.
+		sections.push(
+			"Testability: this card is testable — include a test change (new or updated test covering your change) in the delivery; the test-driven gate will bounce a delivery without one.",
+		);
+	}
 	sections.push(`Complexity: ${Math.round(task.complexity)}/100`);
 	if (task.knowledgeDebt?.trim()) {
 		sections.push(

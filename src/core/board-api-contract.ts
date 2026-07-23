@@ -27,6 +27,10 @@ export type RuntimeTaskImage = z.infer<typeof runtimeTaskImageSchema>;
  * leakage-safe benchmark cards use an external held-out oracle and therefore cannot be required to add those tests.
  */
 export const runtimeTaskTestEvidencePolicySchema = z.enum(["agent_visible", "externally_held_out"]);
+
+/** F1.34b-ext: a card's upfront testability declaration (mirrors `TaskTestability` in test-driven-delivery.ts). */
+export const runtimeTaskTestabilitySchema = z.enum(["testable", "not_testable"]);
+export type RuntimeTaskTestability = z.infer<typeof runtimeTaskTestabilitySchema>;
 export type RuntimeTaskTestEvidencePolicy = z.infer<typeof runtimeTaskTestEvidencePolicySchema>;
 
 export const runtimeFleetSizingCandidateSchema = z.object({
@@ -191,6 +195,12 @@ export const runtimeBoardCardSchema = z
 		verification: runtimeCardVerificationSchema.optional(),
 		// Additive + optional for persisted-board compatibility. Undefined means the strict ordinary-card default.
 		testEvidencePolicy: runtimeTaskTestEvidencePolicySchema.optional(),
+		// F1.34b-ext (David 2026-07-23): upfront testability declaration. Absent ⇒ `testable` (the strict default —
+		// the test-driven gate applies). `not_testable` is declared at decompose time or by the operator, with the
+		// reason kept for the audit trail; the worker being gated can never set it. Additive optional (CRDT
+		// whole-object LWW) so older boards load as-is.
+		testability: runtimeTaskTestabilitySchema.optional(),
+		testabilityReason: z.string().optional(),
 		focusChain: runtimeFocusChainSchema.optional(),
 		// Per-card delivery-autonomy override (todo §5.L): when set, wins over the project + global/role delivery
 		// tier at the auto-delivery gate. Additive optional field (CRDT whole-object LWW), so older boards load as-is.

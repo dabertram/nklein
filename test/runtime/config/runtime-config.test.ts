@@ -341,35 +341,35 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
-	it("F1.34: test-driven mode defaults OFF and the per-project override round-trips + wins both ways", async () => {
+	it("F1.34: test-driven mode defaults ON (2026-07-23) and the per-project override round-trips + wins both ways", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-tdd-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-tdd-");
 		try {
 			await withTemporaryEnv({ home: tempHome }, async () => {
 				const defaults = await loadRuntimeConfig(tempProject);
-				expect(defaults.testDrivenModeEnabled).toBe(false); // the explicit safe default
+				expect(defaults.testDrivenModeEnabled).toBe(true); // the explicit default: testable work ships with tests
 				expect(defaults.testDrivenModeOverride).toBeNull();
-				expect(defaults.effectiveTestDrivenMode).toBe(false);
+				expect(defaults.effectiveTestDrivenMode).toBe(true);
 
-				// Project opts IN while the global stays off.
-				await updateRuntimeConfig(tempProject, { testDrivenModeOverride: true });
-				const optedIn = await loadRuntimeConfig(tempProject);
-				expect(optedIn.testDrivenModeEnabled).toBe(false);
-				expect(optedIn.testDrivenModeOverride).toBe(true);
-				expect(optedIn.effectiveTestDrivenMode).toBe(true);
-
-				// Global turns ON, project opts OUT — the override wins in the other direction too.
-				await updateRuntimeConfig(tempProject, { testDrivenModeEnabled: true, testDrivenModeOverride: false });
+				// Project opts OUT while the global stays on-by-default.
+				await updateRuntimeConfig(tempProject, { testDrivenModeOverride: false });
 				const optedOut = await loadRuntimeConfig(tempProject);
 				expect(optedOut.testDrivenModeEnabled).toBe(true);
 				expect(optedOut.testDrivenModeOverride).toBe(false);
 				expect(optedOut.effectiveTestDrivenMode).toBe(false);
 
-				// Clearing the override inherits the global again.
+				// Global explicitly OFF, project opts IN — the override wins in the other direction too.
+				await updateRuntimeConfig(tempProject, { testDrivenModeEnabled: false, testDrivenModeOverride: true });
+				const optedIn = await loadRuntimeConfig(tempProject);
+				expect(optedIn.testDrivenModeEnabled).toBe(false);
+				expect(optedIn.testDrivenModeOverride).toBe(true);
+				expect(optedIn.effectiveTestDrivenMode).toBe(true);
+
+				// Clearing the override inherits the (explicitly disabled) global — an explicit false is a real opt-out.
 				await updateRuntimeConfig(tempProject, { testDrivenModeOverride: null });
 				const inherited = await loadRuntimeConfig(tempProject);
 				expect(inherited.testDrivenModeOverride).toBeNull();
-				expect(inherited.effectiveTestDrivenMode).toBe(true);
+				expect(inherited.effectiveTestDrivenMode).toBe(false);
 			});
 		} finally {
 			cleanupProject();

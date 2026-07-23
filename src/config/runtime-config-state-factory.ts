@@ -27,7 +27,7 @@ import { normalizeRuntimeMemoryFreshnessAudit, normalizeRuntimeSwarmGuardrails }
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
 import { type ModelStatsTrackingLevel, normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import { resolveSandboxMcpControls, type SandboxMcpServerOverrides } from "../core/sandbox-mcp-controls";
-import { resolveEffectiveTestDrivenMode } from "../core/test-driven-delivery";
+import { resolveEffectiveTestDrivenMode, TEST_DRIVEN_MODE_DEFAULT } from "../core/test-driven-delivery";
 import { deriveAgentIdFields } from "./runtime-config-agent-id-resolver";
 import { deriveConcurrencyFields } from "./runtime-config-concurrency-resolver";
 import {
@@ -131,7 +131,7 @@ export interface RuntimeConfigStateFromValuesInput {
 	/** §5.AB hard-task routing when the best qualified model is busy (default attempt_with_available). Optional
 	 *  on INPUT (fixtures/legacy states omit it); the factory normalizes to attempt_with_available. */
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
-	/** §5.V test-driven delivery gate (default false until live-validated; then default ON per the design). */
+	/** §5.V test-driven delivery gate (default ON since 2026-07-23; per-card `testability` declares exemptions). */
 	testDrivenModeEnabled?: boolean;
 	/** F1.34: per-project test-driven override (true/false both meaningful; null/omitted → inherit the global). */
 	testDrivenModeOverride?: boolean | null;
@@ -258,7 +258,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(input.lostHeartbeatPolicy),
 		hardTaskRoutingMode: input.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
-		testDrivenModeEnabled: input.testDrivenModeEnabled === true,
+		testDrivenModeEnabled: input.testDrivenModeEnabled ?? TEST_DRIVEN_MODE_DEFAULT,
 		...deriveTestDrivenFields(input.testDrivenModeEnabled, input.testDrivenModeOverride),
 		...resolveRuntimeReviewConfig({
 			decompositionAutoApplyEnabled: input.decompositionAutoApplyEnabled,

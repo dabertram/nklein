@@ -9,7 +9,7 @@ import { normalizeRuntimeMemoryFreshnessAudit, normalizeRuntimeSwarmGuardrails }
 import { normalizeConcurrencyOverride } from "../core/concurrency-config";
 import { normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import { normalizeSandboxMcpServerOverrides, resolveSandboxMcpControls } from "../core/sandbox-mcp-controls";
-import { resolveEffectiveTestDrivenMode } from "../core/test-driven-delivery";
+import { resolveEffectiveTestDrivenMode, TEST_DRIVEN_MODE_DEFAULT } from "../core/test-driven-delivery";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { detectInstalledCommands } from "../terminal/agent-registry";
 import { resolveRuntimeAgentIdConfig } from "./runtime-config-agent-id-resolver";
@@ -202,7 +202,7 @@ function toRuntimeConfigState({
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
 		hardTaskRoutingMode:
 			globalConfig?.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
-		testDrivenModeEnabled: globalConfig?.testDrivenModeEnabled === true,
+		testDrivenModeEnabled: globalConfig?.testDrivenModeEnabled ?? TEST_DRIVEN_MODE_DEFAULT,
 		testDrivenModeOverride: normalizeTestDrivenModeOverride(projectConfig?.testDrivenModeOverride),
 		effectiveTestDrivenMode: resolveEffectiveTestDrivenMode(
 			globalConfig?.testDrivenModeEnabled,

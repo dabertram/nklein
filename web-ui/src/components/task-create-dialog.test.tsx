@@ -78,6 +78,10 @@ describe("TaskCreateDialog", () => {
 					onStartInPlanModeChange={() => {}}
 					autoReviewEnabled={false}
 					onAutoReviewEnabledChange={() => {}}
+					notTestable={false}
+					onNotTestableChange={() => {}}
+					testabilityReason=""
+					onTestabilityReasonChange={() => {}}
 					autoReviewMode="commit"
 					onAutoReviewModeChange={() => {}}
 					workspaceId="workspace-1"

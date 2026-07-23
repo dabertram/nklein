@@ -2,6 +2,14 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Test-driven delivery is now on by default, with upfront testability declarations.** Testable work must ship with
+  a test change before it reaches review — the way a developer team plans it, work that automated tests cannot cover
+  (docs, assets, config-only wiring) is declared "not testable" upfront: by the planning model when it decomposes a
+  project, or by you when creating/editing a card (a compact checkbox with an optional reason). Declared cards skip
+  the test requirement visibly (the skip is recorded, never silent), workers are told their card's test contract
+  before they start, and a project or the global setting can still opt out entirely. An explicit opt-out is now
+  honored as a real setting rather than being overwritten by the default.
+
 - **Nightly now exercises deterministic crash recovery at every runtime phase.** A standing matrix kills and restarts
   the real runtime mid-decompose, worker, review, delivery, compaction, and trigger, then fails on stuck cards,
   duplicate effects, active leases, worktrees, sessions, or sandbox containers. Trigger retries converge through a

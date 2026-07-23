@@ -685,7 +685,11 @@ export async function runSecondOpinionReviewForTask(
 			...(input.primaryResultCommit ? { resultCommit: input.primaryResultCommit } : {}),
 		}).catch(() => null);
 		const changedFilePaths = [...(gateDiff ?? "").matchAll(/^\+\+\+ b\/(.+)$/gm)].map((match) => match[1] ?? "");
-		const gate = decideTestDrivenDelivery({ enabled: true, changedFilePaths });
+		const gate = decideTestDrivenDelivery({
+			enabled: true,
+			changedFilePaths,
+			...(card.testability ? { testability: card.testability } : {}),
+		});
 		if (!gate.allowReview && changedFilePaths.length > 0) {
 			preReviewVerdict = {
 				verdict: "request_changes",
@@ -702,12 +706,20 @@ export async function runSecondOpinionReviewForTask(
 			recordSelfObservation({
 				signal: "custom",
 				severity: gate.allowReview ? "info" : "warning",
-				message: `Test-driven gate for ${input.taskId}: ${gate.allowReview ? "allowed" : "BOUNCED"} — ${gate.reason}`,
+				message: `Test-driven gate for ${input.taskId}: ${
+					gate.skippedNonTestable
+						? "skipped (card declared not_testable upfront)"
+						: gate.allowReview
+							? "allowed"
+							: "BOUNCED"
+				} — ${gate.reason}`,
 				taskId: input.taskId,
 				workspacePath: input.workspacePath,
 				metadata: {
 					category: "test_driven_gate",
 					allowReview: gate.allowReview,
+					skippedNonTestable: gate.skippedNonTestable,
+					testability: card.testability ?? "testable",
 					changedFiles: changedFilePaths.length,
 					reason: gate.reason,
 				},

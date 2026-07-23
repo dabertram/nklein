@@ -35,7 +35,7 @@ import { DEFAULT_CONCURRENCY_CONFIG } from "../core/concurrency-config";
 import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import { normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import { normalizeSandboxMcpServerOverrides, type SandboxMcpServerOverrides } from "../core/sandbox-mcp-controls";
-
+import { TEST_DRIVEN_MODE_DEFAULT } from "../core/test-driven-delivery";
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
@@ -44,7 +44,6 @@ import {
 	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../nklein-agent/nklein-agent-sandbox";
-
 import {
 	DEFAULT_BASIC_MEMORY_ENABLED,
 	DEFAULT_CAPABILITY_BROKER_ENABLED,
@@ -256,7 +255,7 @@ export function buildGlobalConfigFilePayload(config: SaveRuntimeConfigInput) {
 			config.hardTaskRoutingMode === "wait_for_best"
 				? ("wait_for_best" as const)
 				: ("attempt_with_available" as const),
-		testDrivenModeEnabled: config.testDrivenModeEnabled === true,
+		testDrivenModeEnabled: normalizeBoolean(config.testDrivenModeEnabled, TEST_DRIVEN_MODE_DEFAULT),
 		secondOpinionReviewEnabled: normalizeBoolean(
 			config.secondOpinionReviewEnabled,
 			DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
@@ -393,7 +392,7 @@ export function buildSavedRuntimeConfigStateValues(config: SaveRuntimeConfigInpu
 			config.hardTaskRoutingMode === "wait_for_best"
 				? ("wait_for_best" as const)
 				: ("attempt_with_available" as const),
-		testDrivenModeEnabled: config.testDrivenModeEnabled === true,
+		testDrivenModeEnabled: normalizeBoolean(config.testDrivenModeEnabled, TEST_DRIVEN_MODE_DEFAULT),
 		secondOpinionReviewEnabled: normalizeBoolean(
 			config.secondOpinionReviewEnabled,
 			DEFAULT_SECOND_OPINION_REVIEW_ENABLED,

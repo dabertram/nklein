@@ -8,6 +8,7 @@ import { BranchSelectDropdown, type BranchSelectOption } from "@/components/bran
 import { TaskAgentModelPicker, useTaskAgentModelPicker } from "@/components/task-agent-model-picker";
 import { TaskPromptComposer } from "@/components/task-prompt-composer";
 import { TaskPromptTemplateMenu } from "@/components/task-prompt-template-menu";
+import { TaskTestabilityField } from "@/components/task-testability-field";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { RuntimeAgentId, RuntimeNKleinReasoningEffort, RuntimeTaskNKleinSettings } from "@/runtime/types";
@@ -60,6 +61,10 @@ export function TaskInlineCreateCard({
 	onAutoReviewEnabledChange,
 	autoReviewMode,
 	onAutoReviewModeChange,
+	notTestable,
+	onNotTestableChange,
+	testabilityReason,
+	onTestabilityReasonChange,
 	startInPlanModeDisabled = false,
 	workspaceId,
 	branchRef,
@@ -93,6 +98,11 @@ export function TaskInlineCreateCard({
 	onAutoReviewEnabledChange: (value: boolean) => void;
 	autoReviewMode: TaskAutoReviewMode;
 	onAutoReviewModeChange: (value: TaskAutoReviewMode) => void;
+	/** F1.34b-ext: upfront testability declaration (unchecked = testable, the strict default). */
+	notTestable: boolean;
+	onNotTestableChange: (value: boolean) => void;
+	testabilityReason: string;
+	onTestabilityReasonChange: (value: string) => void;
 	startInPlanModeDisabled?: boolean;
 	workspaceId: string | null;
 	branchRef: string;
@@ -315,6 +325,13 @@ export function TaskInlineCreateCard({
 						))}
 					</NativeSelect>
 				</div>
+				<TaskTestabilityField
+					notTestable={notTestable}
+					onNotTestableChange={onNotTestableChange}
+					reason={testabilityReason}
+					onReasonChange={onTestabilityReasonChange}
+					idPrefix={idPrefix}
+				/>
 				{onAgentIdChange && onNKleinSettingsChange ? (
 					<TaskAgentModelPicker
 						agentId={agentId}

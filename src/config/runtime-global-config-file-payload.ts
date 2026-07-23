@@ -45,6 +45,7 @@ import {
 	type ModelStatsTrackingLevel,
 	normalizeModelStatsTrackingLevel,
 } from "../core/model-stats-tracking-level";
+import { TEST_DRIVEN_MODE_DEFAULT } from "../core/test-driven-delivery";
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
@@ -356,7 +357,7 @@ export function buildRuntimeGlobalConfigFilePayload(
 	);
 	const hardTaskRoutingMode: "wait_for_best" | "attempt_with_available" =
 		config.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available";
-	const testDrivenModeEnabled = config.testDrivenModeEnabled === true;
+	const testDrivenModeEnabled = config.testDrivenModeEnabled ?? TEST_DRIVEN_MODE_DEFAULT;
 	const secondOpinionReviewEnabled = normalizeBoolean(
 		config.secondOpinionReviewEnabled,
 		DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
@@ -674,7 +675,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 		DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	);
 	assignChangedConfigField(payload, existing, "hardTaskRoutingMode", hardTaskRoutingMode, "attempt_with_available");
-	assignChangedConfigField(payload, existing, "testDrivenModeEnabled", testDrivenModeEnabled, false);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"testDrivenModeEnabled",
+		testDrivenModeEnabled,
+		TEST_DRIVEN_MODE_DEFAULT,
+	);
 	assignChangedConfigField(
 		payload,
 		existing,

@@ -250,6 +250,11 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 				// F1.9: the card carries its work-package bounds so dispatch/review enforce without re-reading artifacts.
 				...(task.writeScope ? { writeScope: [...task.writeScope] } : {}),
 				...(task.forbiddenPaths ? { forbiddenPaths: [...task.forbiddenPaths] } : {}),
+				// F1.34b-ext: the upfront testability declaration rides the card so the test-driven gate can honor it.
+				...(task.testability ? { testability: task.testability } : {}),
+				...(task.testability === "not_testable" && task.testabilityReason
+					? { testabilityReason: task.testabilityReason }
+					: {}),
 				generatedFromPlan: {
 					artifactKind: "decomposition",
 					planSlug: taskGraph.slug,

@@ -96,6 +96,24 @@ describe("buildTaskPrompt", () => {
 		expect(minimal).not.toContain("Card contract"); // §5.AK: no contract fields ⇒ no contract block
 	});
 
+	it("F1.34b-ext: an EXPLICIT testability declaration reaches the worker; absence stays byte-identical to legacy prompts", () => {
+		const notTestable = buildTaskPrompt(
+			task({ testability: "not_testable", testabilityReason: "pure documentation" }),
+		);
+		expect(notTestable).toContain("declared NOT testable (pure documentation)");
+		expect(notTestable).toContain("Do not fabricate empty placeholder tests.");
+		const declaredTestable = buildTaskPrompt(task({ testability: "testable" }));
+		expect(declaredTestable).toContain("this card is testable — include a test change");
+		// Legacy plans (no declaration) keep byte-identical prompts so recorded aimock scenarios still match.
+		expect(buildTaskPrompt(task())).not.toContain("Testability:");
+		// A test-first card already carries its stronger test instruction; no duplicate testability line.
+		const testFirst = buildTaskPrompt(
+			task({ testFirst: true, acceptanceTestPrompt: "write the failing test", testability: "testable" }),
+		);
+		expect(testFirst).toContain("Test-first:");
+		expect(testFirst).not.toContain("Testability:");
+	});
+
 	it("§5.AK: folds the card's explicit contract into the worker prompt when populated", () => {
 		const withContract = buildTaskPrompt(
 			task({

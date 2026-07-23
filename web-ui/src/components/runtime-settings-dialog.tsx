@@ -292,7 +292,7 @@ export function RuntimeSettingsDialog({
 		useState<RuntimeSandboxIsolationProfile>("lean_shared");
 	const [lostHeartbeatPolicy, setLostHeartbeatPolicy] = useState<RuntimeLostHeartbeatPolicy>("park");
 	const [decompositionAutoApplyEnabled, setDecompositionAutoApplyEnabled] = useState(true);
-	const [testDrivenModeEnabled, setTestDrivenModeEnabled] = useState(false);
+	const [testDrivenModeEnabled, setTestDrivenModeEnabled] = useState(true);
 	const [hardTaskRoutingMode, setHardTaskRoutingMode] = useState<"wait_for_best" | "attempt_with_available">(
 		"attempt_with_available",
 	);
@@ -2504,8 +2504,9 @@ export function RuntimeSettingsDialog({
 										<span>Test-driven delivery</span>
 									</div>
 									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-										A change that touched no test file bounces back to the worker with an "add a test" note
-										before review. Repeated testless rounds park the card for you.
+										On by default: a change that touched no test file bounces back to the worker with an "add
+										a test" note before review; repeated testless rounds park the card for you. Cards declared
+										"not testable" upfront (by the plan or by you) skip the requirement.
 									</p>
 								</div>
 								<div style={{ gridColumn: "1 / span 2" }}>

@@ -463,6 +463,10 @@ export default function App(): ReactElement {
 		setNewTaskAgentId,
 		newTaskNKleinSettings,
 		setNewTaskNKleinSettings,
+		newTaskNotTestable,
+		setNewTaskNotTestable,
+		newTaskTestabilityReason,
+		setNewTaskTestabilityReason,
 		editingTaskId,
 		editTaskPrompt,
 		setEditTaskPrompt,
@@ -481,6 +485,10 @@ export default function App(): ReactElement {
 		setEditTaskAgentId,
 		editTaskNKleinSettings,
 		setEditTaskNKleinSettings,
+		editTaskNotTestable,
+		setEditTaskNotTestable,
+		editTaskTestabilityReason,
+		setEditTaskTestabilityReason,
 		handleOpenCreateTask,
 		handleCancelCreateTask,
 		handleOpenEditTask,
@@ -962,6 +970,10 @@ export default function App(): ReactElement {
 			onAutoReviewEnabledChange={setEditTaskAutoReviewEnabled}
 			autoReviewMode={editTaskAutoReviewMode}
 			onAutoReviewModeChange={setEditTaskAutoReviewMode}
+			notTestable={editTaskNotTestable}
+			onNotTestableChange={setEditTaskNotTestable}
+			testabilityReason={editTaskTestabilityReason}
+			onTestabilityReasonChange={setEditTaskTestabilityReason}
 			workspaceId={currentProjectId}
 			branchRef={editTaskBranchRef}
 			branchOptions={createTaskBranchOptions}
@@ -1493,6 +1505,10 @@ export default function App(): ReactElement {
 					onAutoReviewEnabledChange={setNewTaskAutoReviewEnabled}
 					autoReviewMode={newTaskAutoReviewMode}
 					onAutoReviewModeChange={setNewTaskAutoReviewMode}
+					notTestable={newTaskNotTestable}
+					onNotTestableChange={setNewTaskNotTestable}
+					testabilityReason={newTaskTestabilityReason}
+					onTestabilityReasonChange={setNewTaskTestabilityReason}
 					workspaceId={currentProjectId}
 					branchRef={newTaskBranchRef}
 					branchOptions={createTaskBranchOptions}

@@ -114,6 +114,7 @@ function buildNKleinPlanningSystemPrompt(
 			"Always refer to files by workspace-relative paths (e.g. `src/foo.ts`), never absolute host or sandbox paths. If the workspace contains a `specification.md`, treat it as the authoritative product specification; if it is absent, plan from the task brief above and the existing code — do NOT attempt to read a `specification.md` that was never mentioned as present.",
 			"Do not invent replacement requirements or alternate input fields that are not in the specification or existing code.",
 			"If a generated leaf uses `testFirst: true`, include a concrete `acceptanceTestPrompt`; otherwise set `testFirst: false`.",
+			"Declare each leaf's `testability` upfront, the way a developer team plans it: testable work MUST ship with a test change (test-driven delivery is on by default), so mark `not_testable` ONLY for work automated tests genuinely cannot cover (pure documentation, static assets, config-only wiring verified by build) and state why in `testabilityReason`.",
 			"Do not modify implementation files, do not use write tools outside !Klein planning artifacts, and do not implement product code yet.",
 			"Continue autonomously through the planning workflow when the task can be completed with !Klein-managed tools.",
 			// F12.9 pre-flight (OPT-IN via NKLEIN_SPEC_LINT; default OFF = byte-identical): surface the spec linter's

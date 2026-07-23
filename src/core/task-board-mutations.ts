@@ -9,6 +9,7 @@ import type {
 	RuntimeTaskAutoReviewMode,
 	RuntimeTaskImage,
 	RuntimeTaskNKleinSettings,
+	RuntimeTaskTestability,
 	RuntimeTaskTestEvidencePolicy,
 } from "./api-contract";
 import {
@@ -16,6 +17,7 @@ import {
 	cloneTaskNKleinSettings,
 	normalizeFilesLikelyTouched,
 	normalizeTaskAutoReviewMode,
+	normalizeTaskTestabilityFields,
 } from "./task-field-normalization";
 import { createUniqueTaskId } from "./task-id";
 import { resolveTaskTitle } from "./task-title";
@@ -40,6 +42,9 @@ export interface RuntimeCreateTaskInput {
 	autoReviewEnabled?: boolean;
 	autoReviewMode?: RuntimeTaskAutoReviewMode;
 	testEvidencePolicy?: RuntimeTaskTestEvidencePolicy;
+	/** F1.34b-ext: upfront testability declaration (decompose-time or operator-set; absent ⇒ testable). */
+	testability?: RuntimeTaskTestability;
+	testabilityReason?: string;
 	images?: RuntimeTaskImage[];
 	agentId?: RuntimeAgentId;
 	nkleinSettings?: RuntimeTaskNKleinSettings;
@@ -63,6 +68,9 @@ export interface RuntimeUpdateTaskInput {
 	images?: RuntimeTaskImage[];
 	agentId?: RuntimeAgentId | null;
 	nkleinSettings?: RuntimeTaskNKleinSettings | null;
+	/** F1.34b-ext: undefined = keep the card's declaration, null = clear (back to testable-by-default), value = set. */
+	testability?: RuntimeTaskTestability | null;
+	testabilityReason?: string | null;
 	baseRef: string;
 }
 
@@ -322,6 +330,7 @@ export function addTaskToColumn(
 		autoReviewEnabled: Boolean(input.autoReviewEnabled),
 		autoReviewMode: normalizeTaskAutoReviewMode(input.autoReviewMode),
 		...(input.testEvidencePolicy ? { testEvidencePolicy: input.testEvidencePolicy } : {}),
+		...normalizeTaskTestabilityFields(input.testability, input.testabilityReason),
 		images: cloneTaskImages(input.images),
 		...(input.agentId ? { agentId: input.agentId } : {}),
 		...(input.nkleinSettings !== undefined ? { nkleinSettings: cloneTaskNKleinSettings(input.nkleinSettings) } : {}),
@@ -761,6 +770,17 @@ export function updateTask(
 						: input.nkleinSettings === null
 							? undefined
 							: cloneTaskNKleinSettings(input.nkleinSettings),
+				// F1.34b-ext: keep / clear / set the upfront testability declaration (operator edit path).
+				...(input.testability === undefined
+					? { testability: card.testability, testabilityReason: card.testabilityReason }
+					: input.testability === null
+						? { testability: undefined, testabilityReason: undefined }
+						: {
+								// Reset both first so a set that drops the reason cannot leave a stale one behind.
+								testability: undefined,
+								testabilityReason: undefined,
+								...normalizeTaskTestabilityFields(input.testability, input.testabilityReason),
+							}),
 				baseRef,
 				updatedAt: now,
 			};

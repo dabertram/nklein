@@ -6,6 +6,7 @@ import {
 	cloneTaskNKleinSettings,
 	normalizeFilesLikelyTouched,
 	normalizeTaskAutoReviewMode,
+	normalizeTaskTestabilityFields,
 } from "../../../src/core/task-field-normalization";
 
 const settings = (partial: Record<string, unknown>) => partial as RuntimeTaskNKleinSettings;
@@ -19,6 +20,24 @@ describe("normalizeTaskAutoReviewMode", () => {
 		expect(normalizeTaskAutoReviewMode("commit")).toBe("commit");
 		expect(normalizeTaskAutoReviewMode(null)).toBe("commit");
 		expect(normalizeTaskAutoReviewMode(undefined)).toBe("commit");
+	});
+});
+
+describe("normalizeTaskTestabilityFields (F1.34b-ext)", () => {
+	it("returns {} for absent/invalid declarations (absence means testable-by-default, stored implicitly)", () => {
+		expect(normalizeTaskTestabilityFields(undefined, undefined)).toEqual({});
+		expect(normalizeTaskTestabilityFields(null, "why")).toEqual({});
+	});
+	it("keeps an explicit declaration and a trimmed reason only for not_testable", () => {
+		expect(normalizeTaskTestabilityFields("testable", "stale reason")).toEqual({ testability: "testable" });
+		expect(normalizeTaskTestabilityFields("not_testable", "  docs only  ")).toEqual({
+			testability: "not_testable",
+			testabilityReason: "docs only",
+		});
+	});
+	it("drops a blank reason instead of storing empty audit text", () => {
+		expect(normalizeTaskTestabilityFields("not_testable", "   ")).toEqual({ testability: "not_testable" });
+		expect(normalizeTaskTestabilityFields("not_testable", undefined)).toEqual({ testability: "not_testable" });
 	});
 });
 

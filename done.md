@@ -3053,3 +3053,31 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   11 real `review_effort_scaling` observations, proving the mechanism fires once host-keyed attempts are reachable. A
   sandbox regression proves the agent still sees `/workspaces/<taskId>` while every control-plane event uses only the
   host workspace hash.
+
+## 2026-07-23 test-driven delivery: default ON + upfront testability (F1.34b closed)
+
+- [x] **F1.34b — Test-driven mode default flip + upfront per-card testability declaration (David's directive
+  2026-07-23; supersedes the keep-OFF recommendation).** David rejected default-OFF-with-opt-in: "non-testable work
+  must be known and defined upfront to not be testable; for those, skipping/empty tests is acceptable — for every
+  testable work, enabled by default, the way a human developer team would handle it." Shipped in one increment:
+  **(1) Default ON, honestly:** `TEST_DRIVEN_MODE_DEFAULT = true`; `resolveEffectiveTestDrivenMode` is now a true
+  tri-state (project override → explicit global `true`/`false` → default), so an explicit opt-out is honored rather
+  than clobbered. Every `=== true` coercion in the config stack (loader, state factory, save payload ×2, file
+  payload) became `?? TEST_DRIVEN_MODE_DEFAULT`; the diff-gated config-file write keeps defaults out of the file, so
+  the flip lands on existing installs without migration (David's live config carries no testDriven keys — verified).
+  **(2) Upfront testability:** new per-card `testability: "testable" | "not_testable"` + `testabilityReason`
+  (additive optional on `runtimeBoardCardSchema`, CRDT whole-object LWW; browser normalization round-trips it).
+  Declared by the architect at decompose time (`nkleinPlanTaskSchema` + tool JSON schema with guidance + a decompose
+  prompt rule) or by the operator (create dialog + edit card via a shared `TaskTestabilityField` checkbox+reason;
+  `updateTask` gained keep/clear/set semantics) — never by the worker being gated. Contradiction RECOVERY, not
+  bounce: `not_testable` + effective `testFirst` normalizes back to testable and strips the stale reason.
+  **(3) The gate steps aside audibly:** `decideTestDrivenDelivery` allows a declared `not_testable` card without
+  tests, returning `skippedNonTestable: true`; the review runner records testability + skip in the
+  `test_driven_gate` self-observation, and the bounce reason now names the declaration as the remedy. Worker
+  prompts state the contract upfront — but ONLY for explicitly declared cards, keeping legacy plan prompts
+  byte-identical so recorded aimock scenarios still match. Settings copy + dialog defaults updated.
+  **Evidence:** typecheck + web:typecheck + lint green; test:fast 12 475 green (only 3 tests in the whole suite
+  encoded the old default — updated with the directive cited); protected 32 green; web-ui 1 147 green; new focused
+  coverage at every seam (pure gate ×5, tri-state resolution, field normalization ×3, plan normalization ×4,
+  board-apply copy-through, worker-prompt lines, runner bounce/skip ×2); `test:simulated-flows` full-runtime drain
+  PASS. **Residue tracked in todo.md:** post-F11 drain audit of the 20 aimock dev-test sets under the new default.

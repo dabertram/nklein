@@ -53,19 +53,60 @@ describe("decideTestDrivenDelivery", () => {
 });
 
 describe("resolveEffectiveTestDrivenMode (F1.34)", () => {
-	it("the intended safe default is explicit and OFF", () => {
-		expect(TEST_DRIVEN_MODE_DEFAULT).toBe(false);
-		expect(resolveEffectiveTestDrivenMode(undefined, undefined)).toBe(false);
-		expect(resolveEffectiveTestDrivenMode(undefined, null)).toBe(false);
+	it("the default is explicit and ON (David 2026-07-23: testable work ships with tests by default)", () => {
+		expect(TEST_DRIVEN_MODE_DEFAULT).toBe(true);
+		expect(resolveEffectiveTestDrivenMode(undefined, undefined)).toBe(true);
+		expect(resolveEffectiveTestDrivenMode(undefined, null)).toBe(true);
 	});
 	it("the per-project override wins in BOTH directions (a project can opt out of a global ON)", () => {
 		expect(resolveEffectiveTestDrivenMode(false, true)).toBe(true);
 		expect(resolveEffectiveTestDrivenMode(true, false)).toBe(false);
 	});
+	it("an EXPLICIT global false is honored as a real opt-out (not clobbered by the ON default)", () => {
+		expect(resolveEffectiveTestDrivenMode(false, undefined)).toBe(false);
+		expect(resolveEffectiveTestDrivenMode(false, null)).toBe(false);
+	});
 	it("null/omitted override inherits the global setting", () => {
 		expect(resolveEffectiveTestDrivenMode(true, null)).toBe(true);
 		expect(resolveEffectiveTestDrivenMode(false, null)).toBe(false);
 		expect(resolveEffectiveTestDrivenMode(true, undefined)).toBe(true);
+	});
+});
+
+describe("upfront testability declaration (F1.34b-ext, David 2026-07-23)", () => {
+	it("a declared not_testable card passes the enabled gate WITHOUT tests, audibly (skippedNonTestable)", () => {
+		const d = decideTestDrivenDelivery({
+			enabled: true,
+			changedFilePaths: ["docs/readme.md"],
+			testability: "not_testable",
+		});
+		expect(d.allowReview).toBe(true);
+		expect(d.skippedNonTestable).toBe(true);
+		expect(d.reason).toBe("");
+	});
+	it("an explicit testable declaration behaves exactly like the absent default (gated)", () => {
+		const declared = decideTestDrivenDelivery({
+			enabled: true,
+			changedFilePaths: ["src/x.ts"],
+			testability: "testable",
+		});
+		const defaulted = decideTestDrivenDelivery({ enabled: true, changedFilePaths: ["src/x.ts"] });
+		expect(declared.allowReview).toBe(false);
+		expect(declared.skippedNonTestable).toBe(false);
+		expect(declared.reason).toBe(defaulted.reason);
+	});
+	it("a disabled gate never reports a non-testable skip (nothing was skipped — there was no gate)", () => {
+		const d = decideTestDrivenDelivery({
+			enabled: false,
+			changedFilePaths: ["docs/readme.md"],
+			testability: "not_testable",
+		});
+		expect(d.allowReview).toBe(true);
+		expect(d.skippedNonTestable).toBe(false);
+	});
+	it("the bounce reason tells the agent the declaration is the remedy for genuinely non-testable work, not a workaround", () => {
+		const d = decideTestDrivenDelivery({ enabled: true, changedFilePaths: ["src/x.ts"] });
+		expect(d.reason).toMatch(/not_testable/);
 	});
 });
 

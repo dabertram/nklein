@@ -13,6 +13,7 @@ const COLUMN_IDS = ["backlog", "planning", "in_progress", "review", "completed",
 function boardWithCardInReview(options?: {
 	preexistingRedecompose?: boolean;
 	review?: RuntimeCardReview;
+	testability?: "testable" | "not_testable";
 }): RuntimeBoardData {
 	return {
 		columns: COLUMN_IDS.map((id) => ({
@@ -27,6 +28,7 @@ function boardWithCardInReview(options?: {
 								prompt: "Implement login.",
 								startInPlanMode: false,
 								baseRef: "main",
+								...(options?.testability ? { testability: options.testability } : {}),
 								...(options?.review
 									? { review: options.review }
 									: options?.preexistingRedecompose
@@ -77,10 +79,13 @@ function makeDeps(overrides: {
 	preexistingRedecompose?: boolean;
 	reviewLensesEnabled?: boolean;
 	review?: RuntimeCardReview;
+	effectiveTestDrivenMode?: boolean;
+	cardTestability?: "testable" | "not_testable";
 }) {
 	const board = boardWithCardInReview({
 		preexistingRedecompose: overrides.preexistingRedecompose,
 		review: overrides.review,
+		...(overrides.cardTestability ? { testability: overrides.cardTestability } : {}),
 	});
 	const operationOrder: string[] = [];
 	const reviewerRole = {
@@ -94,6 +99,7 @@ function makeDeps(overrides: {
 		reviewLensesEnabled: overrides.reviewLensesEnabled ?? false,
 		modelRoles: { reviewer: reviewerRole },
 		effectiveModelRoles: { reviewer: reviewerRole },
+		effectiveTestDrivenMode: overrides.effectiveTestDrivenMode ?? false,
 	})) as unknown as never;
 	const loadWorkspaceState = vi.fn(async () => ({ board })) as unknown as never;
 	const mutationResults: unknown[] = [];
@@ -313,6 +319,45 @@ describe("runSecondOpinionReviewForTask", () => {
 			if (previous === undefined) delete process.env.NKLEIN_VISUAL_GATE;
 			else process.env.NKLEIN_VISUAL_GATE = previous;
 		}
+	});
+
+	it("F1.34b-ext: with test-driven mode effective, a testless change on an undeclared card bounces WITHOUT calling the reviewer", async () => {
+		const deps = makeDeps({
+			effectiveTestDrivenMode: true,
+			diff: "diff --git a/login.ts b/login.ts\n+++ b/login.ts\n+code",
+		});
+		const outcome = await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: service(deps),
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+		});
+		expect(outcome).toEqual({ type: "bounced", round: 1 });
+		expect(deps.runSecondOpinionReviewSession).not.toHaveBeenCalled();
+		expect(deps.sendTaskSessionInput.mock.calls[0]?.[1]).toContain("touched no test file");
+	});
+
+	it("F1.34b-ext: a card DECLARED not_testable passes the effective gate without tests and reaches the reviewer", async () => {
+		const deps = makeDeps({
+			effectiveTestDrivenMode: true,
+			cardTestability: "not_testable",
+			diff: "diff --git a/docs/readme.md b/docs/readme.md\n+++ b/docs/readme.md\n+docs",
+			submission: { verdict: "approve", summary: "Good", feedback: null, insight: null },
+		});
+		const outcome = await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: service(deps),
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+		});
+		expect(outcome.type).toBe("delivered");
+		expect(deps.runSecondOpinionReviewSession).toHaveBeenCalledOnce();
 	});
 
 	it("delivers on approve and persists the review (no worker re-drive)", async () => {

@@ -29,6 +29,17 @@ export const decomposeProjectTaskJsonSchema = {
 		acceptanceCommand: { type: ["string", "null"] },
 		testFirst: { type: "boolean" },
 		acceptanceTestPrompt: { type: ["string", "null"] },
+		testability: {
+			type: "string",
+			enum: ["testable", "not_testable"],
+			description:
+				"Upfront testability declaration. Omit or use 'testable' for any work automated tests can cover — testable cards MUST ship with a test change (test-driven delivery is on by default). Declare 'not_testable' ONLY for work tests genuinely cannot cover (pure documentation, static assets, config-only wiring verified by build) and give testabilityReason. A testFirst card is always testable.",
+		},
+		testabilityReason: {
+			type: ["string", "null"],
+			description:
+				"Why automated tests cannot cover this card. Required reasoning when testability is 'not_testable'.",
+		},
 		knowledgeDebt: {
 			type: ["string", "null"],
 			description:

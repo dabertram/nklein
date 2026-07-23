@@ -35,8 +35,9 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 150-package remainder is **44 ready + 11 partial + 79 dependency-blocked + 7 external/
-user-gated + 9 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
+  gate below is green. The current 150-package remainder is **44 ready + 11 partial + 80 dependency-blocked + 6 external/
+user-gated + 9 deliberately deferred** (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
+F11-gated F1.34c). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
 gates immediately below; all seven `[?]` rows name the required operator decision, credential, machine, or live-fleet
@@ -2087,25 +2088,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   F1.26-style retention event to the ledger; `--json` emits both machine-readable. REMAINING (fleet-gated): let the
   F1.31b rail TICK feed fresh reports through this live so the operator surface (F1.35) shows "what the rail found"
   without re-analysis — needs the F1.31b rail running on the fleet.
-- [?] **F1.34b — Live-validate test-driven mode, then decide the default flip (mode COMPLETE 2026-07-13).** The
-  per-project override shipped (`testDrivenModeOverride` true/false/null-inherit through the full config stack:
-  types → state factory `effectiveTestDrivenMode` → load/update/save/file-io/change-detection → contract; the
-  review runner gates on the EFFECTIVE mode), the safe default is explicit (`TEST_DRIVEN_MODE_DEFAULT = false` in
-  test-driven-delivery.ts, documented: intended eventual default ON, gated on live validation), and the
-  bounce/no-churn contract is proven at the pure seam (testless blocked with a byte-identical deterministic
-  reason → the identical-feedback park guard's precondition; test-backed passes clean) + the config round-trip
-  (override wins BOTH ways, null inherits) + the existing preReviewVerdict bounce-without-reviewer runner test.
-  REMAINING (fleet): drive one real testless card and one test-backed card through a live swarm (bounce → re-work
-  → park vs. clean review), then decide whether to flip the global default ON; optionally expose the override in
-  the Settings project section (rides F1.29b).
-  **AUDIT 2026-07-18:** the drive ran DETERMINISTICALLY — the aimock test-driven drain (2026-07-17 five-drain
-  batch; all-40 invariant 897b975c) exercises the full bounce → re-work → clean-review contract through the real
-  runner machinery with scripted models, which is the same evidence a weak-model live swarm would give minus
-  model noise. What remains is exactly the DEFAULT-FLIP decision — a product-default change that belongs in
-  David's decision batch (same class as the F12.58 soft-cap default), plus the optional Settings exposure
-  (rides F1.29b). Nothing left to build solo. **AWAITING DAVID 2026-07-21:** recommendation is keep default OFF:
-  the present gate proves only that a test-shaped path changed, not meaningful coverage, and default-ON would also
-  reject legitimately non-testable work. Project/global opt-in remains available; do not stall later build packages.
+- [>] **F1.34c — Post-flip drain audit of the aimock dev-test sets (gate: F11 releases Docker).** F1.34b shipped
+  David's 2026-07-23 directive (test-driven delivery ON by default + upfront per-card `testability` declarations;
+  see done.md 2026-07-23). The recorded aimock scenario sets predate the flip: worker prompts stay byte-identical
+  (the testability line renders only for explicitly declared cards), but the REVIEW GATE now bounces testless
+  deliveries by default, which can reroute recorded drains through the bounce path. When F11 releases Docker, run
+  all 20 dev-test sets: where a scenario's delivery legitimately lacks test changes, either extend the recording
+  with the bounce→re-work path or declare the fixture card `not_testable` (with reason) — do NOT weaken the gate.
+  Also fold the new default into the N11 flag-matrix "defaults" lane expectations.
 - [x] **F1.35b — Mount the rail controls/status surface (core SHIPPED 2026-07-13; UI SHIPPED + browser-verified 2026-07-15, `7aa47224`).**
   `src/core/background-eval-controls.ts` is the whole F1.35 brain: `applyRailControlCommand` (enable/disable/
   pause/resume reducer emitting the exact start/stop action for the F1.31 service — idempotent, pause holds

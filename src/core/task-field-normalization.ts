@@ -1,4 +1,9 @@
-import type { RuntimeTaskAutoReviewMode, RuntimeTaskImage, RuntimeTaskNKleinSettings } from "./api-contract";
+import type {
+	RuntimeTaskAutoReviewMode,
+	RuntimeTaskImage,
+	RuntimeTaskNKleinSettings,
+	RuntimeTaskTestability,
+} from "./api-contract";
 
 /**
  * Pure task-field normalizers/cloners extracted from task-board-mutations. They defensively copy
@@ -48,6 +53,25 @@ export function cloneTaskNKleinSettings(
 			? { conversationTimeoutMs: settings.conversationTimeoutMs }
 			: {}),
 		...(settings.fleetDecomposition ? { fleetDecomposition: { ...settings.fleetDecomposition } } : {}),
+	};
+}
+
+/**
+ * F1.34b-ext: normalize a card's upfront testability declaration. `testable` is the default meaning of absence,
+ * so it is stored explicitly only when provided; the reason is kept only for a `not_testable` declaration (a
+ * reason without the declaration is meaningless and dropped), trimmed, and only when non-blank.
+ */
+export function normalizeTaskTestabilityFields(
+	testability: RuntimeTaskTestability | null | undefined,
+	testabilityReason: string | null | undefined,
+): { testability?: RuntimeTaskTestability; testabilityReason?: string } {
+	if (testability !== "testable" && testability !== "not_testable") {
+		return {};
+	}
+	const reason = testability === "not_testable" ? testabilityReason?.trim() : undefined;
+	return {
+		testability,
+		...(reason ? { testabilityReason: reason } : {}),
 	};
 }
 

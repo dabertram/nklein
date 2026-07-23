@@ -59,6 +59,10 @@ export interface UseTaskEditorResult {
 	setNewTaskAgentId: Dispatch<SetStateAction<RuntimeAgentId | undefined>>;
 	newTaskNKleinSettings: RuntimeTaskNKleinSettings | undefined;
 	setNewTaskNKleinSettings: Dispatch<SetStateAction<RuntimeTaskNKleinSettings | undefined>>;
+	newTaskNotTestable: boolean;
+	setNewTaskNotTestable: Dispatch<SetStateAction<boolean>>;
+	newTaskTestabilityReason: string;
+	setNewTaskTestabilityReason: Dispatch<SetStateAction<string>>;
 	editingTaskId: string | null;
 	editTaskPrompt: string;
 	setEditTaskPrompt: Dispatch<SetStateAction<string>>;
@@ -77,6 +81,10 @@ export interface UseTaskEditorResult {
 	setEditTaskAgentId: Dispatch<SetStateAction<RuntimeAgentId | undefined>>;
 	editTaskNKleinSettings: RuntimeTaskNKleinSettings | undefined;
 	setEditTaskNKleinSettings: Dispatch<SetStateAction<RuntimeTaskNKleinSettings | undefined>>;
+	editTaskNotTestable: boolean;
+	setEditTaskNotTestable: Dispatch<SetStateAction<boolean>>;
+	editTaskTestabilityReason: string;
+	setEditTaskTestabilityReason: Dispatch<SetStateAction<string>>;
 	handleOpenCreateTask: () => void;
 	handleCancelCreateTask: () => void;
 	handleOpenEditTask: (task: BoardCard, options?: OpenEditTaskOptions) => void;
@@ -134,6 +142,11 @@ export function useTaskEditor({
 	const [editTaskNKleinSettings, setEditTaskNKleinSettings] = useState<RuntimeTaskNKleinSettings | undefined>(
 		undefined,
 	);
+	// F1.34b-ext: the upfront testability declaration (unchecked = testable, the strict default).
+	const [newTaskNotTestable, setNewTaskNotTestable] = useState(false);
+	const [newTaskTestabilityReason, setNewTaskTestabilityReason] = useState("");
+	const [editTaskNotTestable, setEditTaskNotTestable] = useState(false);
+	const [editTaskTestabilityReason, setEditTaskTestabilityReason] = useState("");
 
 	const lastCreatedTaskBranchRef = useMemo(() => {
 		if (!currentProjectId) {
@@ -222,6 +235,8 @@ export function useTaskEditor({
 		}
 		setNewTaskAgentId(undefined);
 		setNewTaskNKleinSettings(undefined);
+		setNewTaskNotTestable(false);
+		setNewTaskTestabilityReason("");
 		setIsInlineTaskCreateOpen(true);
 	}, []);
 
@@ -233,6 +248,8 @@ export function useTaskEditor({
 		setNewTaskBranchRef(resolvedDefaultTaskBranchRef);
 		setNewTaskAgentId(undefined);
 		setNewTaskNKleinSettings(undefined);
+		setNewTaskNotTestable(false);
+		setNewTaskTestabilityReason("");
 	}, [resolvedDefaultTaskBranchRef]);
 
 	const handleOpenEditTask = useCallback(
@@ -256,6 +273,8 @@ export function useTaskEditor({
 			setEditTaskBranchRef(fallbackBranch);
 			setEditTaskAgentId(task.agentId);
 			setEditTaskNKleinSettings(task.nkleinSettings);
+			setEditTaskNotTestable(task.testability === "not_testable");
+			setEditTaskTestabilityReason(task.testabilityReason ?? "");
 		},
 		[resolvedDefaultTaskBranchRef, setSelectedTaskId],
 	);
@@ -269,6 +288,8 @@ export function useTaskEditor({
 		setEditTaskAutoReviewMode("commit");
 		setEditTaskImages([]);
 		setEditTaskBranchRef("");
+		setEditTaskNotTestable(false);
+		setEditTaskTestabilityReason("");
 	}, []);
 
 	const handleSaveEditedTask = useCallback((): string | null => {
@@ -298,6 +319,8 @@ export function useTaskEditor({
 				images: editTaskImages,
 				agentId: editTaskAgentId,
 				nkleinSettings: editTaskNKleinSettings,
+				testability: editTaskNotTestable ? "not_testable" : null,
+				testabilityReason: editTaskNotTestable ? editTaskTestabilityReason : null,
 				baseRef,
 			});
 			return updated.updated ? updated.board : currentBoard;
@@ -312,6 +335,8 @@ export function useTaskEditor({
 		setEditTaskBranchRef("");
 		setEditTaskAgentId(undefined);
 		setEditTaskNKleinSettings(undefined);
+		setEditTaskNotTestable(false);
+		setEditTaskTestabilityReason("");
 		return savedTaskId;
 	}, [
 		editTaskAgentId,
@@ -319,9 +344,11 @@ export function useTaskEditor({
 		editTaskAutoReviewMode,
 		editTaskBranchRef,
 		editTaskNKleinSettings,
+		editTaskNotTestable,
 		editTaskPrompt,
 		editTaskImages,
 		editTaskStartInPlanMode,
+		editTaskTestabilityReason,
 		editingTaskId,
 		resolvedDefaultTaskBranchRef,
 		setBoard,
@@ -375,6 +402,9 @@ export function useTaskEditor({
 				images: newTaskImages,
 				agentId: newTaskAgentId,
 				nkleinSettings: newTaskNKleinSettings,
+				...(newTaskNotTestable
+					? { testability: "not_testable" as const, testabilityReason: newTaskTestabilityReason }
+					: {}),
 				baseRef,
 			});
 			setBoard(created.board);
@@ -396,6 +426,8 @@ export function useTaskEditor({
 			setNewTaskBranchRef(baseRef);
 			setNewTaskAgentId(undefined);
 			setNewTaskNKleinSettings(undefined);
+			setNewTaskNotTestable(false);
+			setNewTaskTestabilityReason("");
 			if (!options?.keepDialogOpen) {
 				setIsInlineTaskCreateOpen(false);
 			}
@@ -409,9 +441,11 @@ export function useTaskEditor({
 			newTaskAutoReviewMode,
 			newTaskBranchRef,
 			newTaskNKleinSettings,
+			newTaskNotTestable,
 			newTaskImages,
 			newTaskPrompt,
 			newTaskStartInPlanMode,
+			newTaskTestabilityReason,
 			resolvedDefaultTaskBranchRef,
 			selectedAgentId,
 			setBoard,
@@ -441,6 +475,9 @@ export function useTaskEditor({
 					images: newTaskImages,
 					agentId: newTaskAgentId,
 					nkleinSettings: newTaskNKleinSettings,
+					...(newTaskNotTestable
+						? { testability: "not_testable" as const, testabilityReason: newTaskTestabilityReason }
+						: {}),
 					baseRef,
 				});
 				updatedBoard = created.board;
@@ -467,6 +504,8 @@ export function useTaskEditor({
 			setNewTaskBranchRef(baseRef);
 			setNewTaskAgentId(undefined);
 			setNewTaskNKleinSettings(undefined);
+			setNewTaskNotTestable(false);
+			setNewTaskTestabilityReason("");
 			if (!options?.keepDialogOpen) {
 				setIsInlineTaskCreateOpen(false);
 			}
@@ -480,8 +519,10 @@ export function useTaskEditor({
 			newTaskAutoReviewMode,
 			newTaskBranchRef,
 			newTaskNKleinSettings,
+			newTaskNotTestable,
 			newTaskImages,
 			newTaskStartInPlanMode,
+			newTaskTestabilityReason,
 			resolvedDefaultTaskBranchRef,
 			selectedAgentId,
 			setBoard,
@@ -507,6 +548,10 @@ export function useTaskEditor({
 		setNewTaskImages([]);
 		setNewTaskAgentId(undefined);
 		setNewTaskNKleinSettings(undefined);
+		setNewTaskNotTestable(false);
+		setNewTaskTestabilityReason("");
+		setEditTaskNotTestable(false);
+		setEditTaskTestabilityReason("");
 	}, []);
 
 	return {
@@ -528,6 +573,10 @@ export function useTaskEditor({
 		setNewTaskAgentId,
 		newTaskNKleinSettings,
 		setNewTaskNKleinSettings,
+		newTaskNotTestable,
+		setNewTaskNotTestable,
+		newTaskTestabilityReason,
+		setNewTaskTestabilityReason,
 		editingTaskId,
 		editTaskPrompt,
 		setEditTaskPrompt,
@@ -546,6 +595,10 @@ export function useTaskEditor({
 		setEditTaskAgentId,
 		editTaskNKleinSettings,
 		setEditTaskNKleinSettings,
+		editTaskNotTestable,
+		setEditTaskNotTestable,
+		editTaskTestabilityReason,
+		setEditTaskTestabilityReason,
 		handleOpenCreateTask,
 		handleCancelCreateTask,
 		handleOpenEditTask,

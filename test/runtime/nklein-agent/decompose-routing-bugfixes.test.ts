@@ -106,6 +106,51 @@ describe("bug #2 — defaultAcceptanceCommand is FILL-ONLY (decided 2026-07-05, 
 	});
 });
 
+describe("F1.34b-ext — upfront testability normalization (David 2026-07-23)", () => {
+	it("keeps a not_testable declaration with its trimmed reason", () => {
+		const normalized = normalizeTaskAcceptanceCommand(
+			task({
+				id: "docs",
+				title: "Write docs",
+				testability: "not_testable",
+				testabilityReason: "  pure documentation  ",
+			}),
+			null,
+		);
+		expect(normalized.testability).toBe("not_testable");
+		expect(normalized.testabilityReason).toBe("pure documentation");
+	});
+	it("coerces a contradictory not_testable + testFirst card back to testable (testFirst carries concrete test intent)", () => {
+		const normalized = normalizeTaskAcceptanceCommand(
+			task({
+				id: "impl",
+				title: "Implement",
+				testFirst: true,
+				acceptanceTestPrompt: "write the failing test first",
+				testability: "not_testable",
+				testabilityReason: "should not survive",
+			}),
+			null,
+		);
+		expect(normalized.testFirst).toBe(true);
+		expect(normalized.testability).toBe("testable");
+		expect(normalized.testabilityReason).toBeNull();
+	});
+	it("a not_testable card whose testFirst was itself normalized away (no acceptanceTestPrompt) KEEPS the declaration", () => {
+		const normalized = normalizeTaskAcceptanceCommand(
+			task({ id: "docs", title: "Docs", testFirst: true, testability: "not_testable" }),
+			null,
+		);
+		expect(normalized.testFirst).toBe(false);
+		expect(normalized.testability).toBe("not_testable");
+	});
+	it("leaves the declaration absent when the architect did not provide one (absence = testable-by-default)", () => {
+		const normalized = normalizeTaskAcceptanceCommand(task({ id: "t", title: "T" }), null);
+		expect(normalized.testability).toBeUndefined();
+		expect(normalized.testabilityReason).toBeNull();
+	});
+});
+
 describe("bug #4 — a padded task id is trimmed to match its (trimmed) dependency references", () => {
 	it("trims the id in normalizeTaskAcceptanceCommand", () => {
 		expect(normalizeTaskAcceptanceCommand(task({ id: " build ", title: "Build" }), null).id).toBe("build");
@@ -177,6 +222,42 @@ describe("bug #3 — an empty task graph must not silently complete (discard) th
 	});
 	// The normal path (a NON-empty decomposition completes the source card) is covered end-to-end by the full-board
 	// applies in nklein-decomposition-tool.test.ts; the guard only ADDS `producedCards &&`, a no-op when cards exist.
+
+	it("F1.34b-ext: a plan task's upfront testability declaration (+ reason) rides onto the created card; absence stays absent", () => {
+		const fullBoard = {
+			columns: [
+				{ id: "planning", cards: [{ id: "src-1", title: "Plan it" }] },
+				{ id: "in_progress", cards: [] },
+				{ id: "completed", cards: [] },
+			],
+			dependencies: [],
+		} as unknown as RuntimeBoardData;
+		const result = applyNKleinPlanTaskGraphToBoard({
+			board: fullBoard,
+			taskGraph: graph([
+				task({
+					id: "docs",
+					title: "Write docs",
+					testability: "not_testable",
+					testabilityReason: "pure documentation",
+				}),
+				task({ id: "impl", title: "Implement", testability: "testable" }),
+				task({ id: "legacy", title: "Undeclared" }),
+			]),
+			baseRef: "main",
+			randomUuid: () => "uuid",
+			sourceTaskId: "src-1",
+			now: 1,
+		});
+		const byPlanId = (planTaskId: string) =>
+			result.createdTasks.find((created) => created.generatedFromPlan?.planTaskId === planTaskId);
+		expect(byPlanId("docs")?.testability).toBe("not_testable");
+		expect(byPlanId("docs")?.testabilityReason).toBe("pure documentation");
+		expect(byPlanId("impl")?.testability).toBe("testable");
+		expect(byPlanId("impl")?.testabilityReason).toBeUndefined();
+		expect(byPlanId("legacy")?.testability).toBeUndefined();
+		expect(byPlanId("legacy")?.testabilityReason).toBeUndefined();
+	});
 });
 
 describe("bug #5 — the router picks deterministically among equal candidates lacking cost/speed (no NaN comparator)", () => {

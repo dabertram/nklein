@@ -28,6 +28,7 @@ import { BranchSelectDropdown } from "@/components/branch-select-dropdown";
 import { TaskAgentModelPicker, useTaskAgentModelPicker } from "@/components/task-agent-model-picker";
 import { TaskPromptComposer } from "@/components/task-prompt-composer";
 import { TaskPromptTemplateMenu } from "@/components/task-prompt-template-menu";
+import { TaskTestabilityField } from "@/components/task-testability-field";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -119,6 +120,10 @@ export function TaskCreateDialog({
 	onAutoReviewEnabledChange,
 	autoReviewMode,
 	onAutoReviewModeChange,
+	notTestable,
+	onNotTestableChange,
+	testabilityReason,
+	onTestabilityReasonChange,
 	startInPlanModeDisabled = false,
 	workspaceId,
 	branchRef,
@@ -151,6 +156,11 @@ export function TaskCreateDialog({
 	onAutoReviewEnabledChange: (value: boolean) => void;
 	autoReviewMode: TaskAutoReviewMode;
 	onAutoReviewModeChange: (value: TaskAutoReviewMode) => void;
+	/** F1.34b-ext: upfront testability declaration (unchecked = testable, the strict default). */
+	notTestable: boolean;
+	onNotTestableChange: (value: boolean) => void;
+	testabilityReason: string;
+	onTestabilityReasonChange: (value: string) => void;
 	startInPlanModeDisabled?: boolean;
 	workspaceId: string | null;
 	branchRef: string;
@@ -725,6 +735,14 @@ export function TaskCreateDialog({
 							))}
 						</NativeSelect>
 					</div>
+
+					<TaskTestabilityField
+						notTestable={notTestable}
+						onNotTestableChange={onNotTestableChange}
+						reason={testabilityReason}
+						onReasonChange={onTestabilityReasonChange}
+						idPrefix="task-create-dialog"
+					/>
 
 					{onAgentIdChange && onNKleinSettingsChange ? (
 						<TaskAgentModelPicker

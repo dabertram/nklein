@@ -61,11 +61,14 @@ describe("buildSavedRuntimeConfigStateValues (F1.28)", () => {
 		expect(buildSavedRuntimeConfigStateValues(input({})).hardTaskRoutingMode).toBe("attempt_with_available");
 	});
 
-	it("treats testDrivenModeEnabled strictly (=== true), so undefined/other → false", () => {
+	it("preserves an explicit testDrivenModeEnabled and resolves absence to the ON default (2026-07-23)", () => {
 		expect(buildSavedRuntimeConfigStateValues(input({ testDrivenModeEnabled: true })).testDrivenModeEnabled).toBe(
 			true,
 		);
-		expect(buildSavedRuntimeConfigStateValues(input({})).testDrivenModeEnabled).toBe(false);
+		expect(buildSavedRuntimeConfigStateValues(input({ testDrivenModeEnabled: false })).testDrivenModeEnabled).toBe(
+			false,
+		);
+		expect(buildSavedRuntimeConfigStateValues(input({})).testDrivenModeEnabled).toBe(true);
 	});
 
 	it("coalesces unset override fields to null (not undefined) for a stable persisted shape", () => {

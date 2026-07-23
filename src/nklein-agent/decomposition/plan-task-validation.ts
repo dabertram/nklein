@@ -13,6 +13,12 @@ export function normalizeTaskAcceptanceCommand(
 ): NKleinPlanTask {
 	const normalizedDefaultAcceptanceCommand = defaultAcceptanceCommand?.trim() || null;
 	const acceptanceTestPrompt = task.acceptanceTestPrompt?.trim() || null;
+	const testFirst = task.testFirst && acceptanceTestPrompt !== null;
+	// F1.34b-ext contradiction RECOVERY (recover in !Klein, don't teach the model): a test-first card carries
+	// concrete test intent, so a simultaneous `not_testable` declaration is normalized back to testable instead
+	// of bouncing the (possibly weak) architect model. The reason survives only with a kept not_testable.
+	const testability = task.testability === "not_testable" && testFirst ? ("testable" as const) : task.testability;
+	const testabilityReason = testability === "not_testable" ? task.testabilityReason?.trim() || null : null;
 	return {
 		...task,
 		// Trim the id so it matches its dependents' (already-trimmed) `dependsOn` entries below — otherwise a padded id
@@ -23,8 +29,11 @@ export function normalizeTaskAcceptanceCommand(
 		// only fills in when the task omits one — matches the tool-schema contract ("applied to tasks that omit
 		// acceptanceCommand"). A coarse global default must not silently clobber a card's own, more precise objective check.
 		acceptanceCommand: task.acceptanceCommand?.trim() || normalizedDefaultAcceptanceCommand,
-		testFirst: task.testFirst && acceptanceTestPrompt !== null,
+		testFirst,
 		acceptanceTestPrompt,
+		...(testability !== undefined ? { testability } : {}),
+		// Always emitted (null when testable/absent) so a stale reason from a coerced declaration cannot survive `...task`.
+		testabilityReason,
 		knowledgeDebt: task.knowledgeDebt?.trim() || null,
 		dependsOn: uniqStringsInternal(task.dependsOn),
 	};
