@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, during F11.3 calibrated-tranche work):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 154-package remainder is **64 ready + 1 partial + 74 dependency-blocked + 7 external/
+  gate below is green. The current 154-package remainder is **60 ready + 1 partial + 78 dependency-blocked + 7 external/
 user-gated + 8 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -4038,7 +4038,8 @@ output and NOT acted on. Captured as F12.12.)
   never in-band text. Corpus floor `block`; 36 corpus + screen tests green, benign controls stay clean.
 
 **Model landscape (feeds the sweep + routing):**
-- [ ] **F12.13 — Refresh the model roster with 2026 small coding leaders + re-sweep.** Current strong local coders per 2026
+- [>] **F12.13 — Refresh the model roster with 2026 small coding leaders + re-sweep** *(waits for the active F11.3
+  fixed-fleet campaign to release all three hosts).* Current strong local coders per 2026
   roundups: Qwen3-Coder-Next (best local, 58.7% SWE-bench Verified, 256K ctx), Qwen 3.6 27B (77.2% SWE-bench, best dense),
   Devstral-Small-24B (purpose-built for agentic tool-calling + multi-file — matches our live-validation pick), DeepSeek
   V3.2/V4 (long-horizon + tool-call reliability), Kimi K2.6. Confirm which are in the fitness store, pull the notable
@@ -4308,7 +4309,8 @@ output and NOT acted on. Captured as F12.12.)
   refused outright — composition with nothing to compose is pure tax. 11 tests; suite green.
   **SPLIT MATERIALIZED 2026-07-20** — the gate is the item's decision scope and is complete; the execution
   surface is a separate effectful package with its own acceptance and its own risk profile.
-- [ ] **F12.26b — CodeAct EXECUTION surface *(split from F12.26 2026-07-20)*.** Offer code-actions as a turn
+- [>] **F12.26b — CodeAct EXECUTION surface *(split from F12.26 2026-07-20; waits for F12.26/P15.2 gate
+  observations).*** Offer code-actions as a turn
   format and run them in the sandbox. **Risk profile is materially different from every other tool:** a
   code-action is arbitrary code composed by the model at runtime, so it must run inside the Docker fence with the
   SAME audit/taint treatment as any other side effect — every external effect paired atomically with its audit
@@ -4403,7 +4405,8 @@ output and NOT acted on. Captured as F12.12.)
   failures in private vocabulary is harder to act on. 14 tests; suite green (11,041).
   **SPLIT MATERIALIZED 2026-07-20** — the gate is the safety-critical scope and is complete; the optimizer run is
   a separate effectful package that CANNOT adopt anything except through this gate.
-- [ ] **F12.28b — Run the offline prompt optimizer *(split from F12.28 2026-07-20)*.** Take an incumbent prompt +
+- [>] **F12.28b — Run the offline prompt optimizer *(split from F12.28 2026-07-20; waits for the active F11.3
+  fixed-fleet campaign to release the paired-eval lane).*** Take an incumbent prompt +
   its `summarizeFailurePatterns` reflection, call a model for the ≤3-change delta, apply it to a candidate, run
   the PAIRED eval through the §5.AB harness on an identical task set, and feed the results to
   `decidePromptAdoption`. **Nothing may adopt except through that gate**, and the gate's `unresolved` verdict must
@@ -4862,7 +4865,8 @@ output and NOT acted on. Captured as F12.12.)
   change"), plus a ledger observation on a red baseline. Cost is the flag's to pay (one extra sandbox acceptance
   run per start), exactly as David scoped. 5 formatter tests. (b)/(c) remain design work as scoped above.
   cost/policy decision. All three are effectful runtime changes; none is a quick mount.
-- [ ] **F12.61 — Extend F11.3 with a beyond-patch benchmark track (Terminal-Bench).** SWE-bench only measures patch-authoring;
+- [>] **F12.61 — Extend F11.3 with a beyond-patch benchmark track (Terminal-Bench)** *(adapter complete; retained
+  oracle-5 + matched-agent evidence waits for the active F11.3 Aider campaign to release the fleet/Docker lane).* SWE-bench only measures patch-authoring;
   Terminal-Bench (89 hand-crafted CLI tasks — sysadmin, ML training, env-debugging, data science, each a Docker env +
   verification suite + oracle) measures the REST of the job, and 2026 best-practice quotes SWE-bench + one of
   Terminal-Bench/LiveCodeBench together. Add a Terminal-Bench track so !Klein is validated beyond diffs. (Terminal-Bench 2601.11868)
