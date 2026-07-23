@@ -13,8 +13,11 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { isCrashRecoveryMatrixPhaseEnabled, reachCrashRecoveryMatrixBarrier } from "../core/crash-recovery-matrix";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import {
+	deriveTriggerIdempotencyTaskId,
+	isSafeTriggerIdempotencyKey,
 	isSafeTriggerName,
 	parseTriggerPayload,
 	renderTriggerCard,
@@ -32,11 +35,12 @@ export interface TriggerIntakeDeps {
 	listWorkspaces(): Promise<TriggerWorkspaceEntry[]>;
 	/** Raw template file content, or null when the workspace does not define the trigger. */
 	readTemplateFile(repoPath: string, name: string): Promise<string | null>;
+	cardExists(input: { entry: TriggerWorkspaceEntry; taskId: string }): Promise<boolean>;
 	seedCard(input: {
 		entry: TriggerWorkspaceEntry;
 		template: TriggerCardTemplate;
 		card: { taskId: string; title: string; prompt: string };
-	}): Promise<void>;
+	}): Promise<"created" | "existing">;
 	/** Best-effort audit + watchdog warm-up; must never throw. */
 	audit(input: {
 		entry: TriggerWorkspaceEntry;
@@ -73,13 +77,28 @@ export async function loadTriggerTemplateFile(repoPath: string, name: string): P
 }
 
 export async function handleTriggerIntake(
-	input: { name: string; bodyText: string; workspaceIdParam: string | null },
+	input: {
+		name: string;
+		bodyText: string;
+		workspaceIdParam: string | null;
+		idempotencyKey?: string | null;
+	},
 	deps: TriggerIntakeDeps,
 ): Promise<TriggerIntakeResult> {
 	if (!isSafeTriggerName(input.name)) {
 		return {
 			status: 400,
 			body: { error: "Invalid trigger name (lowercase letters, digits, '-' and '_' only, max 64 chars)." },
+		};
+	}
+	if (
+		input.idempotencyKey !== null &&
+		input.idempotencyKey !== undefined &&
+		!isSafeTriggerIdempotencyKey(input.idempotencyKey)
+	) {
+		return {
+			status: 400,
+			body: { error: "Invalid Idempotency-Key (1-128 header-safe letters, digits, '.', '_', ':' or '-')." },
 		};
 	}
 	const parsed = parseTriggerPayload(input.bodyText);
@@ -135,20 +154,61 @@ export async function handleTriggerIntake(
 		};
 	}
 
-	// Alarm-storm damping: one fire per (workspace, trigger) per cooldown window.
-	const cooldownKey = `${chosen.entry.workspaceId}:${input.name}`;
-	const now = deps.now();
-	const lastFiredAt = lastFiredAtByKey.get(cooldownKey);
-	if (lastFiredAt !== undefined && now - lastFiredAt < TRIGGER_COOLDOWN_MS) {
+	const idempotentTaskId = input.idempotencyKey
+		? deriveTriggerIdempotencyTaskId({
+				workspaceId: chosen.entry.workspaceId,
+				triggerName: input.name,
+				idempotencyKey: input.idempotencyKey,
+			})
+		: null;
+	const auditFire = async (taskId: string): Promise<void> => {
+		await deps
+			.audit({
+				entry: chosen.entry,
+				triggerName: input.name,
+				taskId,
+				payloadBytes: Buffer.byteLength(input.bodyText.trim(), "utf8"),
+			})
+			.catch(() => undefined);
+	};
+	// The board card is the durable receipt. Check it BEFORE the process-local cooldown so a retry after an
+	// acknowledged or crash-interrupted fire returns the original identity rather than 429/creating another card.
+	if (
+		idempotentTaskId &&
+		(await deps.cardExists({ entry: chosen.entry, taskId: idempotentTaskId }).catch(() => false))
+	) {
+		await auditFire(idempotentTaskId);
 		return {
-			status: 429,
+			status: 200,
 			body: {
-				error: `Trigger "${input.name}" fired ${Math.round((now - lastFiredAt) / 1000)}s ago — damped to one fire per ${TRIGGER_COOLDOWN_MS / 1000}s per workspace.`,
-				retryAfterSeconds: Math.ceil((TRIGGER_COOLDOWN_MS - (now - lastFiredAt)) / 1000),
+				ok: true,
+				deduplicated: true,
+				taskId: idempotentTaskId,
+				workspaceId: chosen.entry.workspaceId,
+				lane: template.lane,
+				front: template.front,
 			},
 		};
 	}
-	lastFiredAtByKey.set(cooldownKey, now);
+
+	// Alarm-storm damping applies only to identity-less fires. A caller that supplied an idempotency key must reach
+	// the atomic board mutation even when two retries overlap; that mutation is the serialization point and returns
+	// `existing` to the loser. Applying the process-local cooldown here would turn a safe concurrent retry into 429.
+	const cooldownKey = `${chosen.entry.workspaceId}:${input.name}`;
+	const now = deps.now();
+	if (!idempotentTaskId) {
+		const lastFiredAt = lastFiredAtByKey.get(cooldownKey);
+		if (lastFiredAt !== undefined && now - lastFiredAt < TRIGGER_COOLDOWN_MS) {
+			return {
+				status: 429,
+				body: {
+					error: `Trigger "${input.name}" fired ${Math.round((now - lastFiredAt) / 1000)}s ago — damped to one fire per ${TRIGGER_COOLDOWN_MS / 1000}s per workspace.`,
+					retryAfterSeconds: Math.ceil((TRIGGER_COOLDOWN_MS - (now - lastFiredAt)) / 1000),
+				},
+			};
+		}
+		lastFiredAtByKey.set(cooldownKey, now);
+	}
 
 	const card = renderTriggerCard({
 		triggerName: input.name,
@@ -156,12 +216,14 @@ export async function handleTriggerIntake(
 		payload: parsed.payload,
 		now,
 		uniqueSuffix: deps.randomUuid().slice(0, 8),
+		...(idempotentTaskId ? { taskId: idempotentTaskId } : {}),
 	});
+	let seedResult: "created" | "existing";
 	try {
-		await deps.seedCard({ entry: chosen.entry, template, card });
+		seedResult = await deps.seedCard({ entry: chosen.entry, template, card });
 	} catch (error) {
 		// The fire did not seed — release the cooldown so a corrected retry is not damped.
-		lastFiredAtByKey.delete(cooldownKey);
+		if (!idempotentTaskId) lastFiredAtByKey.delete(cooldownKey);
 		return {
 			status: 500,
 			body: {
@@ -169,18 +231,33 @@ export async function handleTriggerIntake(
 			},
 		};
 	}
-	await deps
-		.audit({
-			entry: chosen.entry,
+	if (seedResult === "existing") {
+		await auditFire(card.taskId);
+		return {
+			status: 200,
+			body: {
+				ok: true,
+				deduplicated: true,
+				taskId: card.taskId,
+				workspaceId: chosen.entry.workspaceId,
+				lane: template.lane,
+				front: template.front,
+			},
+		};
+	}
+	if (isCrashRecoveryMatrixPhaseEnabled("trigger")) {
+		await reachCrashRecoveryMatrixBarrier("trigger", {
 			triggerName: input.name,
 			taskId: card.taskId,
-			payloadBytes: Buffer.byteLength(input.bodyText.trim(), "utf8"),
-		})
-		.catch(() => undefined);
+			workspaceId: chosen.entry.workspaceId,
+		});
+	}
+	await auditFire(card.taskId);
 	return {
 		status: 201,
 		body: {
 			ok: true,
+			deduplicated: false,
 			taskId: card.taskId,
 			workspaceId: chosen.entry.workspaceId,
 			lane: template.lane,

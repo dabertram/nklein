@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { type AgentLedgerEvent, agentLedgerEventSchema } from "../core/agent-attempt-ledger";
+import { lockedFileSystem } from "../fs/locked-file-system";
 import { parseValidatedJsonl } from "./jsonl-store";
 
 /**
@@ -62,6 +63,37 @@ export async function appendAgentLedgerEvent(event: AgentLedgerEvent, options?: 
 		await appendFile(logPath, `${JSON.stringify(parsed)}\n`, "utf8");
 	} catch {
 		// Best-effort durability only; a ledger write must never break the flow that produced the event.
+	}
+}
+
+/**
+ * Append a deterministic event exactly once by `eventId`, under the same cross-process file lock used by other
+ * durable state. This is the transactional-outbox sink for effects (such as trigger audits) that may be retried
+ * after a SIGKILL between their primary state mutation and acknowledgement.
+ *
+ * Returns true only when this call appended. Best-effort like the ordinary ledger writer: persistence failure
+ * returns false and never breaks the product path; a later retry can try again because no event was written.
+ */
+export async function appendAgentLedgerEventOnce(
+	event: AgentLedgerEvent,
+	options?: { rootDir?: string },
+): Promise<boolean> {
+	const parsed = agentLedgerEventSchema.parse(event);
+	const rootDir = resolveRootDir(options?.rootDir);
+	const logPath = resolveLogPath(parsed.workspacePathHash, rootDir);
+	try {
+		await mkdir(rootDir, { recursive: true });
+		return await lockedFileSystem.withLock({ path: logPath, type: "file" }, async () => {
+			const raw = await readFile(logPath, "utf8").catch(() => "");
+			const existing = parseValidatedJsonl(raw, agentLedgerEventSchema, "agent-attempt-ledger-store");
+			if (existing.some((candidate) => candidate.eventId === parsed.eventId)) {
+				return false;
+			}
+			await appendFile(logPath, `${JSON.stringify(parsed)}\n`, "utf8");
+			return true;
+		});
+	} catch {
+		return false;
 	}
 }
 

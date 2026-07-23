@@ -1,4 +1,5 @@
 import type { RuntimeTaskImage, RuntimeTaskSessionMode, RuntimeTaskSessionSummary } from "../core/api-contract";
+import { isCrashRecoveryMatrixPhaseEnabled, reachCrashRecoveryMatrixBarrier } from "../core/crash-recovery-matrix";
 import type { SelfObservationEventInput } from "../telemetry/self-observation-sink";
 import { CONTEXT_BUDGET_SEND_RESERVE_TOKENS } from "./nklein-context-budget-plan";
 import { estimateNextPromptTokens } from "./nklein-context-budget-tokens";
@@ -158,6 +159,13 @@ export function createContextOverflowController(deps: ContextOverflowControllerD
 		});
 
 		await deps.stopTaskSession(input.taskId).catch(() => null);
+		if (isCrashRecoveryMatrixPhaseEnabled("compaction")) {
+			await reachCrashRecoveryMatrixBarrier("compaction", {
+				taskId: input.taskId,
+				kind: "reactive",
+				messageCount: compactedMessages.length,
+			});
+		}
 		return await restartOrStartWithMessages({
 			taskId: input.taskId,
 			prompt: input.prompt,
@@ -211,6 +219,13 @@ export function createContextOverflowController(deps: ContextOverflowControllerD
 		}
 
 		await deps.stopTaskSession(input.taskId).catch(() => null);
+		if (isCrashRecoveryMatrixPhaseEnabled("compaction")) {
+			await reachCrashRecoveryMatrixBarrier("compaction", {
+				taskId: input.taskId,
+				kind: "proactive",
+				messageCount: compactedMessages.length,
+			});
+		}
 		const restartLaunchConfig =
 			input.launchConfigOverrides ??
 			deps.resolvePersistedLaunchConfig({

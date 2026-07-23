@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 150-package remainder is **45 ready + 10 partial + 79 dependency-blocked + 7 external/
+  gate below is green. The current 150-package remainder is **44 ready + 11 partial + 79 dependency-blocked + 7 external/
 user-gated + 9 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -117,6 +117,13 @@ gap remains.
 > speedup. Do not implement a requested cache by reflex: measure the repeated work and reject the cache when the cache
 > costs more or weakens identity. Likewise, never reuse mutable scaffold/HOME/worktree/ledger state between cells. The
 > safe optimization is to measure exact model-boundary work (request + matched-response bytes) and expose regressions.
+> **A CRASH BARRIER BELONGS AFTER THE SIDE EFFECT AND BEFORE ITS ACKNOWLEDGEMENT (N10, 2026-07-23).** Killing before an
+> effect proves only that restart happens; it says nothing about duplicate prevention. Put each deterministic barrier
+> after the phase's durable/user-visible effect and before the caller can acknowledge it, and give the effect its own
+> stable idempotency identity or awaited receipt. Trigger intake therefore derives a workspace+trigger+event task id
+> and writes its audit event once; delivery awaits merge-history persistence before its barrier. Post-restart evidence
+> must be collected after graceful teardown, not inferred from a terminal board: inspect active sessions/containers,
+> task worktrees, and durable leases, and fail closed when the typed teardown receipt is missing or malformed.
 > **HERMETICITY IS A RECEIPT, NOT A COMMENT (N4, 2026-07-23).** A real-runtime replay must assert every ambient seam
 > before it can emit one typed receipt, and the parent must parse that receipt again before granting a pass. Mock BOTH
 > model surfaces (provider gateway + `lms ps`), disable update feeds and sandbox egress, replace clock/mtime/power reads,
@@ -6372,10 +6379,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   tracked fixture and merges a synthetic current event. **Concrete remainder:** after the active F11 campaign releases
   Docker, run `02×perfect@home-0.0.0` through `dev nightly`, retain its N4/N6/N9 receipts, inspect the migrated HOME and
   recovery backup, and close only after the real drain supplies the required current-generation events.
-- [ ] **N10 — Crash/kill recovery MATRIX.** Kill the runtime (SIGKILL) at every phase — mid-decompose,
+- [~] **N10 — Crash/kill recovery MATRIX.** Kill the runtime (SIGKILL) at every phase — mid-decompose,
   mid-worker, mid-review, mid-delivery, mid-compaction, mid-trigger — and assert clean resume: no stuck cards, no
   double side effects, no orphan leases/worktrees/sessions. Generalizes the one-off F1.18b run-3 proof into a
   standing lane.
+  **CODE COMPLETE 2026-07-23; SIX LIVE PHASE DRAINS REMAIN AFTER F11 RELEASES DOCKER.** Default-inert, HOME-confined
+  deterministic barriers now sit after each phase's real side effect and before acknowledgement. The harness waits
+  for the durable marker, SIGKILLs the whole runtime tree, restarts the same HOME exactly once, drives the original
+  flow to a terminal board, then stops the runtime and inspects duplicate cards/scheduler completions/trigger audits,
+  active leases, task worktrees, active sessions, and namespace-owned sandbox containers. Trigger retries now use a
+  stable `Idempotency-Key`: the board card is the durable receipt, concurrent seeds converge on one deterministic task
+  id, and the agent ledger uses a cross-process lock plus deterministic event id for exactly-once trigger audit. Merge
+  history is awaited before the delivery seam. A standing manifest lane runs all six phases sequentially and accepts
+  exactly one typed aggregate receipt. The same post-shutdown collector also removed N5/N7's hard-coded zero-orphan
+  shortcut: ordinary nightly cells must emit one validated teardown receipt, and a violated/indeterminate invariant
+  pack now fails the overall nightly verdict instead of being report-only. Focused proof: typecheck + 53 tests green.
+  **Concrete remainder:** after the immutable F11 campaign releases Docker, run `npm run test:crash-recovery-matrix`,
+  retain all six phase receipts, inspect any retained failed HOME at the first non-green residue, and close only when
+  every phase reports one marker, one SIGKILL restart, a terminal board, no duplicate effect, and zero teardown residue.
 - [ ] **N11 — Flag-matrix lanes.** Three nightly lanes over the same cells: (a) defaults, (b) all safe opt-ins ON
   (the dark flags shipped observe-first), (c) kill-switches OFF — so flag INTERACTIONS are exercised, not just
   each flag alone. New flags register here at ship time.

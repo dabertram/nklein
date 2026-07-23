@@ -41,6 +41,7 @@ import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memor
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
 import { readPausedTasks } from "../core/card-pause";
 import { resolveSessionConcurrencyCaps } from "../core/concurrency-config";
+import { isCrashRecoveryMatrixPhaseEnabled, reachCrashRecoveryMatrixBarrier } from "../core/crash-recovery-matrix";
 import { decideDeliveryAction, shouldRedriveApprovedButAcceptanceFailed } from "../core/delivery-decision";
 import {
 	cardVerificationFromAcceptance,
@@ -188,7 +189,11 @@ import {
 } from "../security/passcode-manager";
 import { evaluateRemoteRequestAuth, isLoopbackAddress } from "../security/remote-request-auth";
 import { APP_CONTENT_SECURITY_POLICY, buildTlsHardeningHeaders } from "../security/remote-security-policy";
-import { appendAgentLedgerEvent, readAgentLedger } from "../state/agent-attempt-ledger-store";
+import {
+	appendAgentLedgerEvent,
+	appendAgentLedgerEventOnce,
+	readAgentLedger,
+} from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote } from "../state/card-mailbox-store";
 import { recordMergeHistory } from "../state/merge-history-store";
 import { appendModelEvalRuns, readAllModelEvalRuns } from "../state/model-eval-run-store";
@@ -2625,8 +2630,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								},
 							}),
 						);
-						// Durable board-level merge history (todo §5.G) — best-effort, never blocks the merge flow.
-						void recordMergeHistory({ workspacePath: scope.workspacePath, taskId, result: mergeResult });
+						// The merge is already a user-visible side effect. Persist its receipt BEFORE any N10 crash seam so a
+						// restarted finalizer can distinguish "merge happened, board completion did not" from "not delivered".
+						// Failure remains best-effort for ordinary delivery, but the awaited ordering closes the SIGKILL race.
+						await recordMergeHistory({ workspacePath: scope.workspacePath, taskId, result: mergeResult }).catch(
+							() => undefined,
+						);
 						if (!mergeResult.ok) {
 							const reason =
 								mergeResult.blocked?.reason ??
@@ -2634,6 +2643,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								"unknown task result merge failure";
 							deps.warn(`Could not auto-merge task result ${taskId} for ${scope.workspacePath}: ${reason}`);
 							return;
+						}
+						if (isCrashRecoveryMatrixPhaseEnabled("delivery")) {
+							await reachCrashRecoveryMatrixBarrier("delivery", {
+								taskId,
+								deliveredBranchTaskId,
+								resultCommit: deliveredResultCommit,
+							});
 						}
 						if (isBusySessionState(service.getSummary(taskId)?.state)) {
 							deps.warn(
@@ -4578,12 +4594,23 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				repoPath: entry.repoPath,
 			})),
 		readTemplateFile: loadTriggerTemplateFile,
+		cardExists: async ({ entry, taskId }: Parameters<Parameters<typeof handleTriggerIntake>[1]["cardExists"]>[0]) => {
+			const state = await loadWorkspaceState(entry.repoPath);
+			return state.board.columns.some((column) => column.cards.some((card) => card.id === taskId));
+		},
 		seedCard: async ({
 			entry,
 			template,
 			card,
 		}: Parameters<Parameters<typeof handleTriggerIntake>[1]["seedCard"]>[0]) => {
-			await mutateWorkspaceState(entry.repoPath, (latestState) => {
+			const mutation = await mutateWorkspaceState(entry.repoPath, (latestState) => {
+				if (
+					latestState.board.columns.some((column) =>
+						column.cards.some((candidate) => candidate.id === card.taskId),
+					)
+				) {
+					return { board: latestState.board, save: false, value: "existing" as const };
+				}
 				const applied = applyTriggerCardToBoard({
 					board: latestState.board,
 					template,
@@ -4591,8 +4618,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					randomUuid: () => randomUUID(),
 					now: Date.now(),
 				});
-				return { board: applied.board, value: applied.task.id };
+				return { board: applied.board, value: "created" as const };
 			});
+			return mutation.value;
 		},
 		audit: async ({
 			entry,
@@ -4600,16 +4628,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			taskId,
 			payloadBytes,
 		}: Parameters<Parameters<typeof handleTriggerIntake>[1]["audit"]>[0]) => {
-			recordSelfObservation({
-				signal: "custom",
-				severity: "info",
-				message: `External trigger "${triggerName}" seeded card ${taskId} (${payloadBytes} payload bytes).`,
-				taskId,
-				workspacePath: entry.repoPath,
-				metadata: { category: "trigger_intake", triggerName },
-			});
-			await appendAgentLedgerEvent(
+			const ledgerAppended = await appendAgentLedgerEventOnce(
 				buildTransitionEvent({
+					eventId: `trigger-audit-${createHash("sha256").update(taskId).digest("hex")}`,
 					workflowId: taskId,
 					taskId,
 					workspacePathHash: hashWorkspacePathForLedger(entry.repoPath),
@@ -4618,7 +4639,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					reason: `trigger:${triggerName}`,
 					controllerDecision: "external_trigger_intake",
 				}),
-			).catch(() => {});
+			);
+			if (ledgerAppended) {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `External trigger "${triggerName}" seeded card ${taskId} (${payloadBytes} payload bytes).`,
+					taskId,
+					workspacePath: entry.repoPath,
+					metadata: { category: "trigger_intake", triggerName },
+				});
+			}
 			// Arm the board machinery for a possibly-headless workspace so the seeded card is swept.
 			await getScopedNKleinTaskSessionService({
 				workspaceId: entry.workspaceId,
@@ -4777,6 +4808,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						name: decodeURIComponent(pathname.slice("/api/triggers/".length)),
 						bodyText: triggerBody,
 						workspaceIdParam: requestUrl.searchParams.get("workspaceId"),
+						idempotencyKey:
+							typeof req.headers["idempotency-key"] === "string"
+								? req.headers["idempotency-key"]
+								: (req.headers["idempotency-key"]?.[0] ?? null),
 					},
 					triggerIntakeDeps,
 				);

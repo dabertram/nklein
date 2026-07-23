@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildAttemptEvent, buildTransitionEvent } from "../../../src/core/agent-attempt-ledger";
 import {
 	appendAgentLedgerEvent,
+	appendAgentLedgerEventOnce,
 	readAgentLedger,
 	readAllAgentLedger,
 	runWithAgentLedgerRoot,
@@ -40,6 +41,19 @@ describe("agent-attempt-ledger-store", () => {
 		const events = await readAgentLedger({ workspacePathHash: "ws-A", rootDir });
 		// Sorted by recordedAt ASC regardless of append order.
 		expect(events.map((event) => event.eventId)).toEqual(["e1", "t1"]);
+	});
+
+	it("atomically appends a deterministic event id once across concurrent retry attempts", async () => {
+		const event = buildTransitionEvent({ ...base, to: "trigger_seeded", eventId: "trigger-audit-t-1" });
+		const outcomes = await Promise.all([
+			appendAgentLedgerEventOnce(event, { rootDir }),
+			appendAgentLedgerEventOnce(event, { rootDir }),
+			appendAgentLedgerEventOnce(event, { rootDir }),
+		]);
+		expect(outcomes.filter(Boolean)).toHaveLength(1);
+		expect((await readAgentLedger({ workspacePathHash: "ws-A", rootDir })).map((entry) => entry.eventId)).toEqual([
+			"trigger-audit-t-1",
+		]);
 	});
 
 	it("limit keeps the most-recent N events (the tail)", async () => {

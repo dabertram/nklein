@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeBoardData } from "../../../src/core/api-contract";
 import {
+	deriveTriggerIdempotencyTaskId,
+	isSafeTriggerIdempotencyKey,
 	isSafeTriggerName,
 	parseTriggerPayload,
 	renderTriggerCard,
@@ -53,8 +55,10 @@ function makeDeps(overrides?: Partial<TriggerIntakeDeps> & { template?: string |
 		listWorkspaces: async () => [{ workspaceId: "ws-1", repoPath: "/repo-1" }],
 		readTemplateFile: async () =>
 			overrides && "template" in overrides ? (overrides.template ?? null) : INCIDENT_TEMPLATE,
+		cardExists: async () => false,
 		seedCard: async ({ entry, template, card }) => {
 			seeded.push({ workspaceId: entry.workspaceId, taskId: card.taskId, lane: template.lane });
+			return "created";
 		},
 		audit: async ({ taskId }) => {
 			audits.push(taskId);
@@ -73,6 +77,30 @@ describe("trigger-intake core", () => {
 		expect(isSafeTriggerName("../etc")).toBe(false);
 		expect(isSafeTriggerName("UPPER")).toBe(false);
 		expect(isSafeTriggerName("")).toBe(false);
+	});
+
+	it("derives a restart-stable, workspace-scoped task identity from a safe idempotency key", () => {
+		expect(isSafeTriggerIdempotencyKey("pagerduty:incident-42.v1")).toBe(true);
+		expect(isSafeTriggerIdempotencyKey(" bad key ")).toBe(false);
+		const first = deriveTriggerIdempotencyTaskId({
+			workspaceId: "ws-1",
+			triggerName: "prod-down",
+			idempotencyKey: "incident-42",
+		});
+		expect(
+			deriveTriggerIdempotencyTaskId({
+				workspaceId: "ws-1",
+				triggerName: "prod-down",
+				idempotencyKey: "incident-42",
+			}),
+		).toBe(first);
+		expect(
+			deriveTriggerIdempotencyTaskId({
+				workspaceId: "ws-2",
+				triggerName: "prod-down",
+				idempotencyKey: "incident-42",
+			}),
+		).not.toBe(first);
 	});
 
 	it("bounds and shapes payloads", () => {
@@ -153,6 +181,57 @@ describe("handleTriggerIntake", () => {
 		resetTriggerCooldowns();
 	});
 
+	it("returns the durable board receipt and repairs the idempotent audit without re-seeding", async () => {
+		resetTriggerCooldowns();
+		const expectedTaskId = deriveTriggerIdempotencyTaskId({
+			workspaceId: "ws-1",
+			triggerName: "prod-down",
+			idempotencyKey: "incident-42",
+		});
+		const { deps, seeded, audits } = makeDeps({
+			cardExists: async ({ taskId }) => taskId === expectedTaskId,
+		});
+		const result = await handleTriggerIntake(
+			{
+				name: "prod-down",
+				bodyText: '{"service":"api"}',
+				workspaceIdParam: null,
+				idempotencyKey: "incident-42",
+			},
+			deps,
+		);
+		expect(result).toMatchObject({
+			status: 200,
+			body: { ok: true, deduplicated: true, taskId: expectedTaskId },
+		});
+		expect(seeded).toHaveLength(0);
+		expect(audits).toEqual([expectedTaskId]);
+	});
+
+	it("closes the concurrent retry race at the atomic board mutation", async () => {
+		resetTriggerCooldowns();
+		let exists = false;
+		const { deps, audits } = makeDeps({
+			cardExists: async () => false,
+			seedCard: async () => {
+				await Promise.resolve();
+				if (exists) return "existing";
+				exists = true;
+				return "created";
+			},
+		});
+		const input = {
+			name: "prod-down",
+			bodyText: '{"service":"api"}',
+			workspaceIdParam: null,
+			idempotencyKey: "incident-43",
+		};
+		const results = await Promise.all([handleTriggerIntake(input, deps), handleTriggerIntake(input, deps)]);
+		expect(results.map((result) => result.status).sort()).toEqual([200, 201]);
+		expect(results.map((result) => result.body.taskId)).toEqual([results[0]?.body.taskId, results[0]?.body.taskId]);
+		expect(audits).toHaveLength(2); // the production audit sink deduplicates this deterministic event id
+	});
+
 	it("404s an undefined trigger, 409s an ambiguous one, 400s an unsafe name", async () => {
 		resetTriggerCooldowns();
 		const missing = makeDeps({ template: null });
@@ -192,6 +271,7 @@ describe("handleTriggerIntake", () => {
 				if (fail) {
 					throw new Error("board locked");
 				}
+				return "created";
 			},
 		});
 		const failed = await handleTriggerIntake({ name: "prod-down", bodyText: "", workspaceIdParam: null }, deps);
@@ -200,6 +280,26 @@ describe("handleTriggerIntake", () => {
 		const retried = await handleTriggerIntake({ name: "prod-down", bodyText: "", workspaceIdParam: null }, deps);
 		expect(retried.status).toBe(201);
 		resetTriggerCooldowns();
+	});
+
+	it("rejects malformed idempotency keys before any effects", async () => {
+		resetTriggerCooldowns();
+		const { deps, seeded, audits } = makeDeps();
+		const result = await handleTriggerIntake(
+			{ name: "prod-down", bodyText: "", workspaceIdParam: null, idempotencyKey: "contains spaces" },
+			deps,
+		);
+		expect(result.status).toBe(400);
+		expect(seeded).toHaveLength(0);
+		expect(audits).toHaveLength(0);
+		expect(
+			(
+				await handleTriggerIntake(
+					{ name: "prod-down", bodyText: "", workspaceIdParam: null, idempotencyKey: "" },
+					deps,
+				)
+			).status,
+		).toBe(400);
 	});
 
 	it("422s an invalid template with the file path in the message", async () => {

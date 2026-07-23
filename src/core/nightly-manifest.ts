@@ -1,4 +1,5 @@
 import type { NightlyModelIoCost } from "./nightly-cell-cost";
+import type { TeardownReport } from "./nightly-drain-collector";
 import type { NightlyHermeticEvidence } from "./nightly-hermeticity";
 import type {
 	NightlyPersistedStateEvidence,
@@ -40,6 +41,8 @@ export interface NightlyManifest {
 	readonly projects: readonly NightlyProjectEntry[];
 	/** N9: one immutable prior-release HOME, booted and drained on the current build. */
 	readonly persistedStateFixtures?: readonly NightlyPersistedStateEntry[];
+	/** N10: six real-runtime SIGKILL seams; a separate standing lane because it is phase×recovery, not project×model. */
+	readonly crashRecoveryMatrix?: { readonly enabled: boolean };
 }
 
 export interface NightlyPersistedStateEntry extends NightlyProjectEntry {
@@ -141,6 +144,8 @@ export interface CellVerdict {
 	readonly modelIoCost?: NightlyModelIoCost | null;
 	/** N4 fail-closed receipt proving every declared ambient dependency was fenced or replaced. */
 	readonly hermeticEvidence?: NightlyHermeticEvidence | null;
+	/** N5/N7: measured only after the child runtime exited and cleanup hooks completed. */
+	readonly teardownEvidence?: TeardownReport | null;
 	/** N9: create-only evidence that a prior-release HOME migrated and folded old+current learning state. */
 	readonly persistedStateEvidence?: NightlyPersistedStateEvidence | null;
 }
@@ -156,6 +161,15 @@ export interface NightlySummary {
 	readonly unmatchedViolations: readonly string[];
 	readonly ok: boolean;
 	readonly summary: string;
+}
+
+/** One place for the top-level gate: report-only invariant failures are not a nightly pass. */
+export function isNightlyOverallOk(input: {
+	readonly cellsOk: boolean;
+	readonly crashRecoveryOk: boolean;
+	readonly invariantPacksOk: boolean;
+}): boolean {
+	return input.cellsOk && input.crashRecoveryOk && input.invariantPacksOk;
 }
 
 /**

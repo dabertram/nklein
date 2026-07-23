@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Nightly now exercises deterministic crash recovery at every runtime phase.** A standing matrix kills and restarts
+  the real runtime mid-decompose, worker, review, delivery, compaction, and trigger, then fails on stuck cards,
+  duplicate effects, active leases, worktrees, sessions, or sandbox containers. Trigger retries converge through a
+  durable idempotency key and exactly-once audit event. Ordinary nightly cells also replace assumed teardown zeroes
+  with a typed post-shutdown receipt, and invariant-pack failures now fail the overall run rather than only printing.
+
 - **Nightly now guards upgrade compatibility with an immutable prior-release HOME.** The current runtime boots and
   drains a hash-bound fixture, proves its migration journal and backup, diagnoses corrupt legacy records, and verifies
   old fitness/behavior/ledger evidence still merges with new attempts through both production learning projections into

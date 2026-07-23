@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { type CollectorInput, collectDrainedState } from "../../src/core/nightly-drain-collector";
+import {
+	type CollectorInput,
+	collectDrainedState,
+	parseNightlyTeardownReport,
+} from "../../src/core/nightly-drain-collector";
 import { evaluatePack, type InvariantPack } from "../../src/core/nightly-invariant-pack";
 
 const T0 = 1_000_000;
@@ -25,6 +29,23 @@ function input(overrides: Partial<CollectorInput> = {}): CollectorInput {
 }
 
 describe("collectDrainedState", () => {
+	it("parses only measured non-negative integer teardown receipts", () => {
+		expect(parseNightlyTeardownReport('{"orphanSessions":1,"orphanWorktrees":2,"orphanLeases":3}')).toEqual({
+			orphanSessions: 1,
+			orphanWorktrees: 2,
+			orphanLeases: 3,
+		});
+		for (const raw of [
+			"not-json",
+			"null",
+			'{"orphanSessions":-1,"orphanWorktrees":0,"orphanLeases":0}',
+			'{"orphanSessions":0.5,"orphanWorktrees":0,"orphanLeases":0}',
+			'{"orphanSessions":0,"orphanWorktrees":0}',
+		]) {
+			expect(() => parseNightlyTeardownReport(raw)).toThrow();
+		}
+	});
+
 	it("derives watchedSignals from SUBSCRIPTIONS, not from what fired", () => {
 		const { state } = collectDrainedState(input());
 		expect([...state.watchedSignals].sort()).toEqual(["acceptance_evidence", "review_verdict", "stall_guard"]);

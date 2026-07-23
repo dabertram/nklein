@@ -6,6 +6,7 @@ import type {
 	RuntimeFleetDecompositionSettings,
 	RuntimeTaskNKleinSettings,
 } from "../core/api-contract";
+import { isCrashRecoveryMatrixPhaseEnabled, reachCrashRecoveryMatrixBarrier } from "../core/crash-recovery-matrix";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { NKleinPlanTaskGraphQualityAssessment } from "./nklein-decomposition-graph-quality";
@@ -638,6 +639,13 @@ function createDecomposeProjectTool(
 				taskGraph: validation.taskGraph,
 				sourceTaskId,
 			});
+			if (isCrashRecoveryMatrixPhaseEnabled("decompose")) {
+				await reachCrashRecoveryMatrixBarrier("decompose", {
+					planSlug: slug,
+					sourceTaskId: sourceTaskId ?? null,
+					taskCount: artifacts.taskGraph.tasks.length,
+				});
+			}
 			const applied = await applyDecomposeProjectArtifactsToWorkspace({
 				workspacePath,
 				taskGraph: artifacts.taskGraph,

@@ -9,6 +9,7 @@
  * landing at the FRONT of the Ready lane, picked up by the same autonomous ready-sweep every board card rides.
  */
 
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 /** URL-path-safe trigger names only — the name selects a file, so this is also the path-traversal guard. */
@@ -23,6 +24,29 @@ export const TRIGGER_PAYLOAD_MAX_BYTES = 32_768;
 
 /** Consecutive fires of the same (workspace, trigger) inside this window are refused — alarm-storm damping. */
 export const TRIGGER_COOLDOWN_MS = 30_000;
+
+/**
+ * HTTP retries use this caller-supplied identity to make the board card itself the durable deduplication record.
+ * Keep the alphabet header-safe and bounded: the raw value never enters a path or card, only its SHA-256 digest does.
+ */
+export const TRIGGER_IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+
+export function isSafeTriggerIdempotencyKey(value: string): boolean {
+	return TRIGGER_IDEMPOTENCY_KEY_PATTERN.test(value);
+}
+
+/** Stable across runtime restarts; scoped so the same caller key may be reused in another workspace/trigger. */
+export function deriveTriggerIdempotencyTaskId(input: {
+	workspaceId: string;
+	triggerName: string;
+	idempotencyKey: string;
+}): string {
+	const digest = createHash("sha256")
+		.update(JSON.stringify([input.workspaceId, input.triggerName, input.idempotencyKey]), "utf8")
+		.digest("hex")
+		.slice(0, 24);
+	return `trigger-${input.triggerName}-idem-${digest}`;
+}
 
 export const triggerCardTemplateSchema = z.object({
 	/** Card title; supports the same substitution tokens as `prompt`. */
@@ -106,6 +130,7 @@ export function renderTriggerCard(input: {
 	payload: TriggerPayload | null;
 	now: number;
 	uniqueSuffix: string;
+	taskId?: string;
 }): RenderedTriggerCard {
 	const timestamp = new Date(input.now).toISOString();
 	const tokens = new Map<string, string>([
@@ -123,7 +148,7 @@ export function renderTriggerCard(input: {
 	const title = substitute(input.template.title, tokens);
 	const prompt = `${substitute(input.template.prompt, tokens)}\n\n(Seeded by external trigger "${input.triggerName}" at ${timestamp}.)`;
 	return {
-		taskId: `trigger-${input.triggerName}-${input.now}-${input.uniqueSuffix}`,
+		taskId: input.taskId ?? `trigger-${input.triggerName}-${input.now}-${input.uniqueSuffix}`,
 		title,
 		prompt,
 	};

@@ -33,18 +33,27 @@
  *         worker model, every review on the reviewer model, and the two worker sessions overlapping in time.
  */
 
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { readdirSync } from "node:fs";
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import treeKill from "tree-kill";
 import { createSimulatorServer } from "../packages/llm-simulator/src/index.js";
 import type { ScenarioScript } from "../packages/llm-simulator/src/index.js";
+import {
+	CRASH_RECOVERY_MATRIX_PHASES,
+	evaluateCrashRecoveryPhaseEvidence,
+	type CrashRecoveryMatrixPhase,
+	type CrashRecoveryMatrixPhaseEvidence,
+} from "../src/core/crash-recovery-matrix.js";
 import {
 	bindNightlyRecording,
 	type NightlyRecordingEvidence,
 } from "../src/core/nightly-recording-evidence.js";
+import type { TeardownReport } from "../src/core/nightly-drain-collector.js";
 import { summarizeNightlyModelIo } from "../src/core/nightly-cell-cost.js";
+import { readAllAgentLedger } from "../src/state/agent-attempt-ledger-store.js";
 import {
 	isNightlyHermeticEnvironment,
 	parseNightlyHermeticEvidence,
@@ -67,6 +76,10 @@ const RUNTIME_PORT = Number(process.env.NKLEIN_SIMFLOW_RUNTIME_PORT) || 3986;
 const MULTI_MODEL = process.env.NKLEIN_SIMFLOW_MULTI_MODEL === "1";
 const POOLS = process.env.NKLEIN_SIMFLOW_POOLS === "1";
 const TURNLOOP = process.env.NKLEIN_SIMFLOW_TURNLOOP === "1";
+const CRASH_PHASE = (process.env.NKLEIN_SIMFLOW_CRASH_PHASE?.trim() || null) as CrashRecoveryMatrixPhase | null;
+if (CRASH_PHASE && !CRASH_RECOVERY_MATRIX_PHASES.includes(CRASH_PHASE)) {
+	fail(`Unknown NKLEIN_SIMFLOW_CRASH_PHASE=${CRASH_PHASE}. Expected: ${CRASH_RECOVERY_MATRIX_PHASES.join(", ")}.`);
+}
 /** §12 a-same-question: the boundary question the looping worker keeps re-raising. Its contested token (the
  *  backticked acceptance command) is present in the card's `Acceptance check:` line, so the guard must ground it
  *  there and auto-resolve with a nudge instead of parking. */
@@ -117,6 +130,14 @@ const SMOKE_CARDS = [
 			]
 		: []),
 ];
+const TRIGGER_CRASH_CARD = {
+	id: "trigger-crash-recovery",
+	title: "Crash matrix trigger delivery",
+	file: "trigger-recovery.ts",
+	fn: "triggerRecovered",
+	body: "return `Recovered trigger ${name}.`;",
+};
+const FLOW_CARDS = [...SMOKE_CARDS, ...(CRASH_PHASE === "trigger" ? [TRIGGER_CRASH_CARD] : [])];
 
 const script: ScenarioScript = {
 	name: "simflow-smoke",
@@ -154,7 +175,7 @@ const script: ScenarioScript = {
 			],
 			repeatLastTurn: true,
 		},
-		...SMOKE_CARDS.map((card) => ({
+		...FLOW_CARDS.map((card) => ({
 			id: TURNLOOP && card.fn === "greet" ? "a-same-question-worker-greet" : `perfect-worker-${card.fn}`,
 			requestClass: "worker" as const,
 			userMessageIncludes: card.file,
@@ -190,13 +211,24 @@ const script: ScenarioScript = {
 						],
 					},
 				},
+				...(CRASH_PHASE === "compaction" && card.fn === "greet"
+					? [
+							{
+								behavior: {
+									kind: "http_error" as const,
+									status: 400 as const,
+									message: "maximum context length exceeded while encoding the prompt",
+								},
+							},
+						]
+					: []),
 				{ behavior: { kind: "text" as const, content: `Created ${card.file} with the ${card.fn}(name) export. Task complete.` } },
 			],
 			repeatLastTurn: true,
 		})),
 		// Reviews are PER-CARD tracks (needle = card title): occurrence ladders are per FIXTURE, not per session —
 		// a shared review track lets card A consume the whole turn ladder and starve card B (live-found).
-		...SMOKE_CARDS.map((card) => ({
+		...FLOW_CARDS.map((card) => ({
 			id: `perfect-review-${card.fn}`,
 			requestClass: "review" as const,
 			userMessageIncludes: `the card "${card.title}"`,
@@ -279,6 +311,80 @@ async function resolveScenario(): Promise<ResolvedScenario | undefined> {
 		console.log(`NIGHTLY_RECORDING_EVIDENCE=${JSON.stringify(recordingEvidence)}`);
 	}
 	return { registryId: match, scenario, recordingEvidence };
+}
+
+interface PostTeardownResidue {
+	readonly report: TeardownReport;
+	readonly orphanSessionIds: readonly string[];
+	readonly orphanWorktreePaths: readonly string[];
+	readonly orphanLeaseIds: readonly string[];
+}
+
+/**
+ * Inspect every resource class the nightly invariant pack calls "teardown" after the runtime has exited.
+ * Container residue is counted as an orphan session resource: a sandbox container is the session's effectful
+ * process boundary, and reporting zero sessions while its container survives would be a false clean shutdown.
+ */
+async function collectPostTeardownResidue(input: {
+	readonly home: string;
+	readonly sandboxNamespace: string;
+}): Promise<PostTeardownResidue> {
+	const index = JSON.parse(
+		await readFile(join(input.home, ".nklein", "nklein", "workspaces", "index.json"), "utf8"),
+	) as { entries?: Record<string, { workspaceId?: string }> };
+	const orphanSessionIds: string[] = [];
+	for (const entry of Object.values(index.entries ?? {})) {
+		if (!entry.workspaceId) continue;
+		const sessions = JSON.parse(
+			await readFile(join(input.home, ".nklein", "nklein", "workspaces", entry.workspaceId, "sessions.json"), "utf8"),
+		) as Record<string, { state?: string }>;
+		for (const [taskId, session] of Object.entries(sessions)) {
+			if (["running", "queued", "paused", "awaiting_review"].includes(session.state ?? "")) {
+				orphanSessionIds.push(`${taskId}:${session.state}`);
+			}
+		}
+	}
+
+	const ledgerRoot = process.env.NKLEIN_AGENT_LEDGER_ROOT?.trim() ||
+		join(input.home, ".nklein", "nklein", "agent-attempt-ledger");
+	const ledgerEvents = await readAllAgentLedger({ rootDir: ledgerRoot });
+	const activeLeases = new Map<string, string>();
+	for (const event of ledgerEvents) {
+		if (event.kind !== "scheduler") continue;
+		const key = `${event.workflowId}:${event.taskId}`;
+		if (event.event === "lease_acquired" && event.leaseId) activeLeases.set(key, event.leaseId);
+		if (["completed", "reclaimed", "cancelled"].includes(event.event)) activeLeases.delete(key);
+	}
+	const orphanLeaseIds = [...activeLeases.entries()].map(([key, leaseId]) => `${key}:${leaseId}`);
+
+	const worktreesRoot = join(input.home, ".nklein", "task-worktrees");
+	const orphanWorktreePaths = await readdir(worktreesRoot, { withFileTypes: true })
+		.then((entries) => entries.filter((entry) => entry.isDirectory()).map((entry) => join(worktreesRoot, entry.name)))
+		.catch(() => [] as string[]);
+	const containerNames = await new Promise<string[]>((settle) => {
+		const child = spawn("docker", ["ps", "-a", "--format", "{{.Names}}", "--filter", "label=nklein.kind=agent-sandbox"]);
+		let output = "";
+		child.stdout?.on("data", (chunk: Buffer) => (output += chunk.toString()));
+		child.once("error", () => settle(["docker-inspection-unavailable"]));
+		child.once("close", (code) =>
+			settle(
+				code === 0
+					? output.split(/\r?\n/).filter((name) => name.includes(input.sandboxNamespace))
+					: ["docker-inspection-failed"],
+			),
+		);
+	});
+	orphanSessionIds.push(...containerNames.map((name) => `container:${name}`));
+	return {
+		report: {
+			orphanSessions: orphanSessionIds.length,
+			orphanWorktrees: orphanWorktreePaths.length,
+			orphanLeases: orphanLeaseIds.length,
+		},
+		orphanSessionIds,
+		orphanWorktreePaths,
+		orphanLeaseIds,
+	};
 }
 
 async function main(): Promise<void> {
@@ -400,6 +506,7 @@ async function main(): Promise<void> {
 	);
 	await writeFile(fakeLmsPath, `#!/bin/sh\ncase "$*" in *"ps"*) printf '%s' '${lmsPsPayload}' ;; *) printf '[]' ;; esac\n`);
 	await chmod(fakeLmsPath, 0o755);
+	const sandboxNamespace = `simflow-${process.pid}-${NIGHTLY_BOUND ? "ephemeral" : RUNTIME_PORT}`;
 	const simulatedFleetEnv: Record<string, string> = {
 		NKLEIN_LMS_BIN: fakeLmsPath,
 		NKLEIN_NO_AUTO_UPDATE: "1",
@@ -407,8 +514,20 @@ async function main(): Promise<void> {
 		NKLEIN_NIGHTLY_MODEL_GATEWAY_URL: simBase,
 		// Every simulator runtime owns a unique sandbox namespace and skips startup mutation entirely. This keeps a
 		// hermetic replay from reaping a live benchmark runtime's Docker containers on the shared host daemon.
-		NKLEIN_SANDBOX_NAMESPACE: `simflow-${process.pid}-${NIGHTLY_BOUND ? "ephemeral" : RUNTIME_PORT}`,
-		NKLEIN_SANDBOX_SKIP_STARTUP_REAP: "1",
+		NKLEIN_SANDBOX_NAMESPACE: sandboxNamespace,
+		...(CRASH_PHASE ? {} : { NKLEIN_SANDBOX_SKIP_STARTUP_REAP: "1" }),
+		...(CRASH_PHASE
+			? {
+					NKLEIN_CRASH_RECOVERY_MATRIX: "1",
+					NKLEIN_CRASH_RECOVERY_PHASE: CRASH_PHASE,
+					NKLEIN_CRASH_RECOVERY_CONTROL_DIR: join(
+						home,
+						".nklein",
+						"nklein",
+						"crash-recovery-matrix",
+					),
+				}
+			: {}),
 		...(POOLS
 			? {
 					NKLEIN_PER_MACHINE_MAX_CONCURRENCY: "1",
@@ -416,60 +535,78 @@ async function main(): Promise<void> {
 				}
 			: {}),
 	};
-	const runtime = spawn(
-		"npx",
-		[
-			"tsx",
-			"src/cli.ts",
-			"--port",
-			NIGHTLY_BOUND ? "ephemeral" : String(RUNTIME_PORT),
-			"--no-open",
-			"--host",
-			"127.0.0.1",
-		],
-		{
-			env: {
-				...process.env,
-				HOME: home,
-				NODE_ENV: "development",
-				...(!NIGHTLY_BOUND
-					? { NKLEIN_RUNTIME_PORT: String(RUNTIME_PORT), KANBAN_RUNTIME_PORT: String(RUNTIME_PORT) }
-					: {}),
-				...simulatedFleetEnv,
-			},
-			stdio: ["ignore", "pipe", "pipe"],
-		},
-	);
 	const runtimeLogs: string[] = [];
 	let activeRuntimePort = NIGHTLY_BOUND ? 0 : RUNTIME_PORT;
-	runtime.stdout?.on("data", (chunk: Buffer) => {
-		const text = chunk.toString();
-		runtimeLogs.push(text);
-		const assigned = /!Klein running at https?:\/\/127\.0\.0\.1:(\d+)/.exec(runtimeLogs.join(""));
-		if (assigned?.[1]) activeRuntimePort = Number(assigned[1]);
-	});
-	runtime.stderr?.on("data", (chunk: Buffer) => runtimeLogs.push(chunk.toString()));
-	const stopRuntime = () => {
-		runtime.kill("SIGTERM");
+	let runtime: ChildProcess | null = null;
+	let runtimeRestarts = 0;
+	const spawnRuntime = (): ChildProcess => {
+		const child = spawn(
+			"npx",
+			[
+				"tsx",
+				"src/cli.ts",
+				"--port",
+				NIGHTLY_BOUND ? "ephemeral" : String(RUNTIME_PORT),
+				"--no-open",
+				"--host",
+				"127.0.0.1",
+			],
+			{
+				env: {
+					...process.env,
+					HOME: home,
+					NODE_ENV: "development",
+					...(!NIGHTLY_BOUND
+						? { NKLEIN_RUNTIME_PORT: String(RUNTIME_PORT), KANBAN_RUNTIME_PORT: String(RUNTIME_PORT) }
+						: {}),
+					...simulatedFleetEnv,
+				},
+				stdio: ["ignore", "pipe", "pipe"],
+			},
+		);
+		child.stdout?.on("data", (chunk: Buffer) => {
+			const text = chunk.toString();
+			runtimeLogs.push(text);
+			const assigned = /!Klein running at https?:\/\/127\.0\.0\.1:(\d+)/.exec(text);
+			if (assigned?.[1]) activeRuntimePort = Number(assigned[1]);
+		});
+		child.stderr?.on("data", (chunk: Buffer) => runtimeLogs.push(chunk.toString()));
+		runtime = child;
+		return child;
 	};
-
-	try {
-		// Wait for the runtime API.
-		const deadline = Date.now() + 60_000;
+	spawnRuntime();
+	const stopRuntime = () => runtime?.kill("SIGTERM");
+	const stopRuntimeAndWait = async (): Promise<void> => {
+		const child = runtime;
+		if (!child || child.exitCode !== null || child.signalCode !== null) return;
+		const closed = new Promise<void>((settle) => child.once("close", () => settle()));
+		child.kill("SIGTERM");
+		await Promise.race([
+			closed,
+			new Promise<void>((_, reject) => setTimeout(() => reject(new Error("runtime did not stop within 60s")), 60_000)),
+		]);
+	};
+	const waitForRuntime = async (timeoutMs: number): Promise<void> => {
+		const deadline = Date.now() + timeoutMs;
 		for (;;) {
 			try {
 				if (activeRuntimePort === 0) throw new Error("runtime port not assigned yet");
 				const response = await fetch(`http://127.0.0.1:${activeRuntimePort}/api/trpc/projects.list`);
-				if (response.ok) break;
+				if (response.ok) return;
 			} catch {
 				/* not up yet */
 			}
-			if (Date.now() > deadline) {
-				console.error(runtimeLogs.join("").slice(-2000));
-				fail("runtime did not come up within 60s");
-			}
-			await new Promise((resolve) => setTimeout(resolve, 500));
+			if (Date.now() > deadline) throw new Error(`runtime did not come up within ${timeoutMs}ms`);
+			await new Promise((resolve) => setTimeout(resolve, 200));
 		}
+	};
+
+	try {
+		// Wait for the runtime API.
+		await waitForRuntime(60_000).catch(() => {
+			console.error(runtimeLogs.join("").slice(-2000));
+			fail("runtime did not come up within 60s");
+		});
 		console.log("Runtime is up. Seeding the dev-test scenario…");
 		if (NIGHTLY_BOUND) {
 			const runtimeReceiptLines = runtimeLogs
@@ -485,6 +622,30 @@ async function main(): Promise<void> {
 		}
 
 		// 4) Seed a dev-test scenario against the RUNNING runtime and monitor to a classified outcome.
+		const crashCoordinator = CRASH_PHASE
+			? (async () => {
+					const markerPath = join(home, ".nklein", "nklein", "crash-recovery-matrix", `${CRASH_PHASE}.reached.json`);
+					const deadline = Date.now() + TIMEOUT_MS;
+					while (Date.now() < deadline) {
+						if (await access(markerPath).then(() => true, () => false)) break;
+						await new Promise((settle) => setTimeout(settle, 25));
+					}
+					if (!(await access(markerPath).then(() => true, () => false))) {
+						throw new Error(`crash barrier ${CRASH_PHASE} was never reached`);
+					}
+					const victim = runtime;
+					if (!victim?.pid) throw new Error("runtime has no PID at crash barrier");
+					console.log(`CRASH_MATRIX killing runtime pid=${victim.pid} at ${CRASH_PHASE}`);
+					const closed = new Promise<void>((settle) => victim.once("close", () => settle()));
+					await new Promise<void>((settle) => treeKill(victim.pid as number, "SIGKILL", () => settle()));
+					await closed;
+					runtimeRestarts += 1;
+					spawnRuntime();
+					await waitForRuntime(60_000);
+					console.log(`CRASH_MATRIX runtime restarted at ${CRASH_PHASE}`);
+				})()
+			: Promise.resolve();
+
 		const seed = spawn(
 			"npx",
 			[
@@ -518,7 +679,70 @@ async function main(): Promise<void> {
 			process.stdout.write(chunk);
 		});
 		seed.stderr?.on("data", (chunk: Buffer) => process.stderr.write(chunk));
+		const triggerDriver = CRASH_PHASE === "trigger"
+			? (async () => {
+					const indexPath = join(home, ".nklein", "nklein", "workspaces", "index.json");
+					const deadline = Date.now() + TIMEOUT_MS;
+					let workspace: { workspaceId: string; repoPath: string } | null = null;
+					while (!workspace && Date.now() < deadline) {
+						try {
+							const index = JSON.parse(await readFile(indexPath, "utf8")) as {
+								entries?: Record<string, { workspaceId?: string; repoPath?: string }>;
+							};
+							const entry = Object.values(index.entries ?? {}).find(
+								(candidate) => candidate.workspaceId && candidate.repoPath,
+							);
+							if (entry?.workspaceId && entry.repoPath) {
+								workspace = { workspaceId: entry.workspaceId, repoPath: entry.repoPath };
+							}
+						} catch {
+							/* dev-test scaffold has not registered its workspace yet */
+						}
+						if (!workspace) await new Promise((settle) => setTimeout(settle, 100));
+					}
+					if (!workspace) throw new Error("trigger crash matrix never observed a registered dev-test workspace");
+					const triggerDirectory = join(workspace.repoPath, ".nklein", "triggers");
+					await mkdir(triggerDirectory, { recursive: true });
+					await writeFile(
+						join(triggerDirectory, "crash-matrix.json"),
+						JSON.stringify({
+							title: TRIGGER_CRASH_CARD.title,
+							prompt: `Create ${TRIGGER_CRASH_CARD.file} exporting ${TRIGGER_CRASH_CARD.fn}(name).`,
+							lane: "ready",
+							front: true,
+						}),
+					);
+					let response: Response | null = null;
+					while (Date.now() < deadline) {
+						try {
+							response = await fetch(
+								`http://127.0.0.1:${activeRuntimePort}/api/triggers/crash-matrix?workspaceId=${encodeURIComponent(workspace.workspaceId)}`,
+								{
+									method: "POST",
+									headers: { "content-type": "application/json", "idempotency-key": "crash-matrix-event-1" },
+									body: '{"source":"n10"}',
+								},
+							);
+							if (response.ok) break;
+						} catch {
+							/* expected: the first connection is severed by SIGKILL; retry after restart */
+						}
+						await new Promise((settle) => setTimeout(settle, 100));
+					}
+					if (!response?.ok) throw new Error("idempotent trigger retry never succeeded after runtime restart");
+					const body = (await response.json()) as { deduplicated?: boolean; taskId?: string };
+					if (response.status !== 200 || body.deduplicated !== true || !body.taskId) {
+						throw new Error(`trigger retry was not deduplicated: HTTP ${response.status} ${JSON.stringify(body)}`);
+					}
+					console.log(`CRASH_MATRIX trigger retry deduplicated to ${body.taskId}`);
+				})()
+			: Promise.resolve();
 		const seedExit: number = await new Promise((resolve) => seed.on("close", (code) => resolve(code ?? 1)));
+		await triggerDriver;
+		await crashCoordinator;
+		if (CRASH_PHASE && runtimeRestarts !== 1) {
+			throw new Error(`crash matrix expected exactly one restart, saw ${runtimeRestarts}`);
+		}
 
 		console.log(`\nSeed monitor exited ${seedExit}.`);
 		// Definitive matcher debugging: what did the simulator actually receive per request?
@@ -694,6 +918,82 @@ async function main(): Promise<void> {
 				// throw (not fail/process.exit) so the finally block still tears children down + dumps runtime.log.
 				throw new Error(`perfect-run left cards undrained (${counts})`);
 			}
+		}
+		if (CRASH_PHASE) {
+			// The invariant is post-TEARDOWN, not merely post-drain: a runtime can render a green board while still
+			// owning leaked session processes/containers. Stop it cleanly, then inspect every durable residue class.
+			await stopRuntimeAndWait();
+			const residue = await collectPostTeardownResidue({ home, sandboxNamespace });
+			const index = JSON.parse(
+				await readFile(join(home, ".nklein", "nklein", "workspaces", "index.json"), "utf8"),
+			) as { entries?: Record<string, { workspaceId?: string; repoPath?: string }> };
+			const workspaceEntries = Object.values(index.entries ?? {}).filter(
+				(entry): entry is { workspaceId: string; repoPath: string } => Boolean(entry.workspaceId && entry.repoPath),
+			);
+			const stuckCardIds: string[] = [];
+			const duplicateSideEffectIds: string[] = [];
+			const allCardIds: string[] = [];
+			for (const entry of workspaceEntries) {
+				const workspaceDirectory = join(home, ".nklein", "nklein", "workspaces", entry.workspaceId);
+				const board = JSON.parse(await readFile(join(workspaceDirectory, "board.json"), "utf8")) as {
+					columns?: Array<{ id?: string; cards?: Array<{ id?: string }> }>;
+				};
+				for (const column of board.columns ?? []) {
+					for (const card of column.cards ?? []) {
+						if (!card.id) continue;
+						allCardIds.push(card.id);
+						if (column.id !== "completed" && column.id !== "trash") stuckCardIds.push(`${card.id}@${column.id ?? "?"}`);
+					}
+				}
+			}
+			for (const id of new Set(allCardIds)) {
+				if (allCardIds.filter((candidate) => candidate === id).length > 1) duplicateSideEffectIds.push(`board-card:${id}`);
+			}
+			const ledgerEvents = await readAllAgentLedger({
+				rootDir:
+					process.env.NKLEIN_AGENT_LEDGER_ROOT?.trim() ||
+					join(home, ".nklein", "nklein", "agent-attempt-ledger"),
+			});
+			const completedCounts = new Map<string, number>();
+			const triggerSeedCounts = new Map<string, number>();
+			for (const event of ledgerEvents) {
+				if (event.kind === "scheduler") {
+					const key = `${event.workflowId}:${event.taskId}`;
+					if (event.event === "completed") completedCounts.set(key, (completedCounts.get(key) ?? 0) + 1);
+				}
+				if (event.kind === "transition" && event.to === "trigger_seeded") {
+					triggerSeedCounts.set(event.taskId, (triggerSeedCounts.get(event.taskId) ?? 0) + 1);
+				}
+			}
+			for (const [key, count] of completedCounts) {
+				if (count > 1) duplicateSideEffectIds.push(`scheduler-completed:${key}×${count}`);
+			}
+			for (const [taskId, count] of triggerSeedCounts) {
+				if (count > 1) duplicateSideEffectIds.push(`trigger-audit:${taskId}×${count}`);
+			}
+			const evidence: CrashRecoveryMatrixPhaseEvidence = {
+				phase: CRASH_PHASE,
+				markerCount: await access(
+					join(home, ".nklein", "nklein", "crash-recovery-matrix", `${CRASH_PHASE}.reached.json`),
+				).then(() => 1, () => 0),
+				killSignal: "SIGKILL",
+				restartCount: runtimeRestarts,
+				stuckCardIds,
+				duplicateSideEffectIds,
+				orphanLeaseIds: residue.orphanLeaseIds,
+				orphanWorktreePaths: residue.orphanWorktreePaths,
+				orphanSessionIds: residue.orphanSessionIds,
+			};
+			const verdict = evaluateCrashRecoveryPhaseEvidence(evidence);
+			console.log(`CRASH_RECOVERY_PHASE_EVIDENCE=${JSON.stringify({ ...evidence, verdict })}`);
+			if (!verdict.ok) throw new Error(`crash recovery residue: ${verdict.issues.join("; ")}`);
+		}
+		if (NIGHTLY_BOUND && !CRASH_PHASE) {
+			// N5/N7: a terminal board is not a teardown receipt. Stop the real runtime, wait for its cleanup hooks,
+			// then count the durable/process residue the invariant packs actually judge.
+			await stopRuntimeAndWait();
+			const residue = await collectPostTeardownResidue({ home, sandboxNamespace });
+			console.log(`NIGHTLY_TEARDOWN_EVIDENCE=${JSON.stringify(residue.report)}`);
 		}
 		console.log(
 			EXPECTED_OUTCOME

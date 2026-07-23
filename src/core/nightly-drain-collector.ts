@@ -53,6 +53,37 @@ export interface TeardownReport {
 	readonly orphanLeases: number;
 }
 
+/**
+ * Parse the post-shutdown receipt emitted by the drain harness.
+ *
+ * This is intentionally fail-closed. A clean child exit without a receipt, or a receipt containing guessed,
+ * negative, fractional, or non-numeric counts, is not evidence of a clean teardown.
+ */
+export function parseNightlyTeardownReport(raw: string): TeardownReport {
+	let value: unknown;
+	try {
+		value = JSON.parse(raw);
+	} catch (error) {
+		throw new Error(`teardown receipt is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+	}
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new Error("teardown receipt must be a JSON object");
+	}
+	const record = value as Record<string, unknown>;
+	const count = (name: keyof TeardownReport): number => {
+		const candidate = record[name];
+		if (typeof candidate !== "number" || !Number.isSafeInteger(candidate) || candidate < 0) {
+			throw new Error(`${name} must be a non-negative safe integer`);
+		}
+		return candidate;
+	};
+	return {
+		orphanSessions: count("orphanSessions"),
+		orphanWorktrees: count("orphanWorktrees"),
+		orphanLeases: count("orphanLeases"),
+	};
+}
+
 export interface CollectorInput {
 	/** When the drain began. Subscriptions registered after this cannot have watched it. */
 	readonly drainStartedAt: number;

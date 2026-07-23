@@ -12,6 +12,7 @@ import {
 	planBasicMemorySandboxWiring,
 	planBasicMemoryScoping,
 } from "../core/basic-memory-scoping";
+import { isCrashRecoveryMatrixPhaseEnabled, reachCrashRecoveryMatrixBarrier } from "../core/crash-recovery-matrix";
 import type {
 	EgressConfirmRequest,
 	EgressConfirmResolveOutcome,
@@ -261,7 +262,11 @@ export function createAgentSandboxToolExecutors(
 ): Partial<ToolExecutors> {
 	const runToolWhenResumed = async (tool: string, input: unknown): Promise<string> => {
 		await options.pauseController?.waitUntilResumed(taskId);
-		return await manager.runTool(taskId, tool, input);
+		const result = await manager.runTool(taskId, tool, input);
+		if (isCrashRecoveryMatrixPhaseEnabled("worker")) {
+			await reachCrashRecoveryMatrixBarrier("worker", { taskId, tool });
+		}
+		return result;
 	};
 	return {
 		bash: async (command: SandboxBashInput) => runToolWhenResumed("bash", command),

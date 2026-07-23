@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	type CellVerdict,
 	enumerateNightlyCells,
+	isNightlyOverallOk,
 	type NightlyManifest,
 	nightlyCellKey,
 	nightlyCellName,
@@ -33,6 +34,13 @@ const cell = (projectId: string, modelProfile: string) => ({
 	modelProfile,
 	recordingSet: "s",
 	invariantPack: "p",
+});
+
+describe("isNightlyOverallOk", () => {
+	it("fails the top-level verdict when an invariant pack is non-green", () => {
+		expect(isNightlyOverallOk({ cellsOk: true, crashRecoveryOk: true, invariantPacksOk: true })).toBe(true);
+		expect(isNightlyOverallOk({ cellsOk: true, crashRecoveryOk: true, invariantPacksOk: false })).toBe(false);
+	});
 });
 
 describe("enumerateNightlyCells", () => {

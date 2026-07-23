@@ -8,13 +8,14 @@ import {
 	type NightlyModelIoCost,
 	parseNightlyModelIoCost,
 } from "../core/nightly-cell-cost";
-import { collectDrainedState } from "../core/nightly-drain-collector";
+import { collectDrainedState, parseNightlyTeardownReport } from "../core/nightly-drain-collector";
 import { buildNightlyFailureReport, summarizeNightlyFailures } from "../core/nightly-failure-report";
 import { type NightlyHermeticEvidence, parseNightlyHermeticEvidence } from "../core/nightly-hermeticity";
 import { evaluatePack, resolvePack } from "../core/nightly-invariant-pack";
 import {
 	type CellVerdict,
 	enumerateNightlyCells,
+	isNightlyOverallOk,
 	type NightlyCell,
 	type NightlyManifest,
 	nightlyCellKey,
@@ -52,6 +53,8 @@ const execFileAsync = promisify(execFile);
 const DEFAULT_MANIFEST_PATH = "nightly-manifest.json";
 /** Generous: a large scenario legitimately takes many minutes on a low-power machine. */
 const CELL_TIMEOUT_MS = 45 * 60 * 1000;
+/** Six sequential low-power SIGKILL drains; each phase owns the regular cell budget. */
+const CRASH_RECOVERY_MATRIX_TIMEOUT_MS = 6 * CELL_TIMEOUT_MS;
 
 async function loadManifest(path: string): Promise<NightlyManifest | null> {
 	try {
@@ -294,6 +297,30 @@ async function runCell(cell: NightlyCell): Promise<CellVerdict> {
 				reason: `invalid NIGHTLY_HERMETIC_EVIDENCE: ${error instanceof Error ? error.message : String(error)}`,
 			};
 		}
+		const teardownLines = stdout.split(/\r?\n/).filter((line) => line.startsWith("NIGHTLY_TEARDOWN_EVIDENCE="));
+		if (teardownLines.length !== 1) {
+			return {
+				cell,
+				outcome: "failed",
+				durationMs: Date.now() - started,
+				homePath: home,
+				reason: `drain exited cleanly with ${teardownLines.length} NIGHTLY_TEARDOWN_EVIDENCE receipts (expected exactly 1); refusing to replace post-shutdown inspection with assumed zeroes`,
+			};
+		}
+		let teardownEvidence: CellVerdict["teardownEvidence"];
+		try {
+			teardownEvidence = parseNightlyTeardownReport(
+				(teardownLines[0] ?? "").slice("NIGHTLY_TEARDOWN_EVIDENCE=".length),
+			);
+		} catch (error) {
+			return {
+				cell,
+				outcome: "failed",
+				durationMs: Date.now() - started,
+				homePath: home,
+				reason: `invalid NIGHTLY_TEARDOWN_EVIDENCE: ${error instanceof Error ? error.message : String(error)}`,
+			};
+		}
 		let persistedStateEvidence: CellVerdict["persistedStateEvidence"];
 		if (cell.persistedStateFixture) {
 			try {
@@ -323,6 +350,7 @@ async function runCell(cell: NightlyCell): Promise<CellVerdict> {
 			recordingEvidence,
 			modelIoCost,
 			hermeticEvidence,
+			teardownEvidence,
 			...(persistedStateEvidence ? { persistedStateEvidence } : {}),
 		};
 	} catch (error) {
@@ -424,6 +452,9 @@ export async function runDevNightlyCommand(options: {
 		for (const cell of cells) {
 			process.stdout.write(`  ${nightlyCellName(cell)}  (kernel-ephemeral port, set ${cell.recordingSet})\n`);
 		}
+		if (manifest.crashRecoveryMatrix?.enabled && !options.project && !options.model) {
+			process.stdout.write("  crash-recovery-matrix  (6 sequential real-runtime SIGKILL phase drains)\n");
+		}
 		return;
 	}
 
@@ -432,6 +463,46 @@ export async function runDevNightlyCommand(options: {
 		process.stderr.write(`== ${nightlyCellName(cell)} (${index + 1}/${cells.length}) ==\n`);
 		// SEQUENTIAL: awaited inside the loop, deliberately. See the docblock.
 		verdicts.push(await runCell(cell));
+	}
+	let crashRecoveryMatrix: {
+		outcome: "passed" | "failed" | "not_selected";
+		reason: string;
+		evidence: unknown | null;
+	} = { outcome: "not_selected", reason: "not enabled or a project/model filter selected", evidence: null };
+	if (manifest.crashRecoveryMatrix?.enabled && !options.project && !options.model) {
+		process.stderr.write("== crash-recovery-matrix (standing N10 lane) ==\n");
+		try {
+			const { stdout, stderr } = await execFileAsync("npx", ["tsx", "scripts/verify-crash-recovery-matrix.mts"], {
+				timeout: CRASH_RECOVERY_MATRIX_TIMEOUT_MS,
+				maxBuffer: 20 * 1024 * 1024,
+			});
+			if (stderr) process.stderr.write(stderr);
+			const receiptLines = stdout
+				.split(/\r?\n/)
+				.filter((line) => line.startsWith("CRASH_RECOVERY_MATRIX_EVIDENCE="));
+			if (receiptLines.length !== 1) {
+				throw new Error(
+					`matrix exited cleanly with ${receiptLines.length} aggregate receipt(s), expected exactly one`,
+				);
+			}
+			const evidence = JSON.parse((receiptLines[0] ?? "").slice("CRASH_RECOVERY_MATRIX_EVIDENCE=".length)) as {
+				verdict?: { ok?: boolean; issues?: string[] };
+			};
+			if (evidence.verdict?.ok !== true) {
+				throw new Error(`matrix receipt is not green: ${(evidence.verdict?.issues ?? []).join("; ")}`);
+			}
+			crashRecoveryMatrix = {
+				outcome: "passed",
+				reason: "all six SIGKILL phase receipts passed",
+				evidence,
+			};
+		} catch (error) {
+			crashRecoveryMatrix = {
+				outcome: "failed",
+				reason: error instanceof Error ? error.message.slice(0, 2_000) : String(error),
+				evidence: null,
+			};
+		}
 	}
 
 	const summary = summarizeNightlyRun(verdicts);
@@ -511,13 +582,22 @@ export async function runDevNightlyCommand(options: {
 	//
 	// So the packs currently assert little, and the output SAYS SO. That is the correct starting state: signals get
 	// added to a pack when the collector can genuinely observe them, never in advance of that.
-	const packVerdicts = await Promise.all(
+	const packEvaluations = await Promise.all(
 		verdicts
 			.filter((verdict) => verdict.outcome === "passed")
 			.map(async (verdict) => {
 				const pack = resolvePack(verdict.cell.invariantPack, NIGHTLY_PACK_REGISTRY);
 				if (!pack) {
-					return `${nightlyCellName(verdict.cell)}: invariant pack "${verdict.cell.invariantPack}" is NOT REGISTERED — nothing was asserted for this cell`;
+					return {
+						passed: false,
+						text: `${nightlyCellName(verdict.cell)}: invariant pack "${verdict.cell.invariantPack}" is NOT REGISTERED — nothing was asserted for this cell`,
+					};
+				}
+				if (!verdict.teardownEvidence) {
+					return {
+						passed: false,
+						text: `${nightlyCellName(verdict.cell)}: teardown evidence is ABSENT — no clean-shutdown claim was asserted`,
+					};
 				}
 				// N7c: real signal events, read from the drain's own self-observation log.
 				const extraction = extractDrainSignalEvents(
@@ -546,11 +626,22 @@ export async function runDevNightlyCommand(options: {
 					// runner does not have.
 					terminalCards: parseTerminalLanes(verdict.terminalLanesJson ?? null),
 					unmatchedAimockRequests: verdict.unmatchedRequests ?? 0,
-					teardown: { orphanSessions: 0, orphanWorktrees: 0, orphanLeases: 0 },
+					teardown: verdict.teardownEvidence,
 				});
-				return `${nightlyCellName(verdict.cell)}: ${evaluatePack(pack, collected.state).summary} [${extraction.summary}]`;
+				const evaluation = evaluatePack(pack, collected.state);
+				return {
+					passed: evaluation.passed,
+					text: `${nightlyCellName(verdict.cell)}: ${evaluation.summary} [${extraction.summary}]`,
+				};
 			}),
 	);
+	const packVerdicts = packEvaluations.map((evaluation) => evaluation.text);
+	const invariantPacksOk = packEvaluations.every((evaluation) => evaluation.passed);
+	const overallOk = isNightlyOverallOk({
+		cellsOk: summary.ok,
+		crashRecoveryOk: crashRecoveryMatrix.outcome !== "failed",
+		invariantPacksOk,
+	});
 	if (packVerdicts.length > 0 && !options.json) {
 		process.stdout.write(`\nInvariant packs:\n`);
 		for (const line of packVerdicts) {
@@ -600,6 +691,11 @@ export async function runDevNightlyCommand(options: {
 			);
 		}
 	}
+	if (crashRecoveryMatrix.outcome !== "not_selected" && !options.json) {
+		process.stdout.write(
+			`\nCrash-recovery matrix: ${crashRecoveryMatrix.outcome.toUpperCase()} — ${crashRecoveryMatrix.reason}\n`,
+		);
+	}
 
 	// N6: the suite watching its OWN cost. A cell drifting 40s -> 200s is a product regression that presents as
 	// "the nightly got slower" and is usually absorbed rather than investigated.
@@ -634,16 +730,16 @@ export async function runDevNightlyCommand(options: {
 	}
 	if (options.json) {
 		process.stdout.write(
-			`${JSON.stringify({ ...summary, verdicts, failureReports, regressions, costRegressions, packVerdicts }, null, 2)}\n`,
+			`${JSON.stringify({ ...summary, ok: overallOk, verdicts, failureReports, regressions, costRegressions, packVerdicts, crashRecoveryMatrix }, null, 2)}\n`,
 		);
 	} else {
-		process.stdout.write(`\n${summary.summary}\n`);
+		process.stdout.write(`\n${summary.summary}${overallOk ? "" : " Overall nightly verdict: FAILED."}\n`);
 	}
 	// Write the baseline through the SAME constant readPriorDurations reads (not a re-spelled literal): if the two
 	// paths ever drifted, the write would land elsewhere, every read would miss, and detectDurationRegressions would
 	// go permanently dead WITHOUT any error — the exact silent-regression-detection failure this whole suite guards.
 	await writeFile(LAST_RUN_PATH, JSON.stringify({ ...summary, verdicts }, null, 2), "utf8").catch(() => {});
-	if (!summary.ok) {
+	if (!overallOk) {
 		process.exitCode = 1;
 	}
 }

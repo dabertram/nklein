@@ -62,8 +62,10 @@ describe("startExternalTriggerScheduler", () => {
 		return {
 			listWorkspaces: async () => [{ workspaceId: "ws-1", repoPath }],
 			readTemplateFile: loadTriggerTemplateFile,
+			cardExists: async () => false,
 			seedCard: async ({ card }) => {
 				seeded.push(card.taskId);
+				return "created";
 			},
 			audit: async () => {},
 			now: () => Date.now(),

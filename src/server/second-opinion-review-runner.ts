@@ -12,6 +12,7 @@
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
 import { REVIEW_PHASE_CATEGORY } from "../core/card-tracking-coverage";
+import { isCrashRecoveryMatrixPhaseEnabled, reachCrashRecoveryMatrixBarrier } from "../core/crash-recovery-matrix";
 import { isTruthyEnv } from "../core/env-flag";
 import { arbitrateByExecution, type CandidateExecutionRun } from "../core/execution-arbitration";
 import { deriveFrontendRouteFromChangedPaths } from "../core/frontend-preview-plan";
@@ -989,7 +990,13 @@ export async function runSecondOpinionReviewForTask(
 					});
 				};
 				const primary = await runPrimaryReviewSession(sessionArgs);
-				if (!primary || primary.verdict !== "approve") {
+				if (isCrashRecoveryMatrixPhaseEnabled("review")) {
+					await reachCrashRecoveryMatrixBarrier("review", {
+						taskId: input.taskId,
+						verdict: primary?.verdict ?? null,
+					});
+				}
+				if (primary?.verdict !== "approve") {
 					// Nothing to tighten: a non-approval already carries the stricter verdict, and running the
 					// corrector could only produce a looser opinion we would discard anyway.
 					return primary;
