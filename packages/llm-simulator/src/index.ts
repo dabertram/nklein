@@ -18,6 +18,19 @@ export type {
 	TurnBehavior,
 } from "./scenario/track-types.js";
 
+export {
+	buildScenarioDriftReport,
+	chatRequestFromJournalEntry,
+	formatScenarioDriftReport,
+	isUnmatchedJournalEntry,
+} from "./aimock/drift-report.js";
+export type {
+	NeedleDriftDetail,
+	ScenarioDriftReport,
+	TrackDriftDiagnosis,
+	UnmatchedRequestDiagnosis,
+	UnmatchedRequestKind,
+} from "./aimock/drift-report.js";
 export { classifyRequest, DEFAULT_REQUEST_CLASS_MARKERS } from "./aimock/request-classifier.js";
 export type { ClassifierRequestShape, RequestClassMarkers } from "./aimock/request-classifier.js";
 export { compileScenarioScript, compileTrack } from "./aimock/track-compiler.js";

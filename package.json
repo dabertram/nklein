@@ -74,6 +74,7 @@
     "test:vendor": "node scripts/test-vendor.mjs",
     "test:simulator": "vitest run --root packages/llm-simulator",
     "test:simulated-flows": "sh -c 'HOME=$(mktemp -d /tmp/nklein-simflow-XXXXXX) npx tsx scripts/verify-simulated-flow.mts'",
+    "scenario:rerecord": "tsx scripts/generate-scenario-sets.mts",
     "test:crash-recovery-matrix": "tsx scripts/verify-crash-recovery-matrix.mts",
     "test:nightly": "tsx src/cli.ts dev nightly",
     "test:nightly:dry": "tsx src/cli.ts dev nightly --dry-run",

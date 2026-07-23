@@ -3090,3 +3090,23 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   impressions. Presented in the 2026-07-23 decision batch; acknowledged without objection. The standing rule now
   lives in §4A ("Speed claims come from instrumentation, NEVER from impression"), making Phase 16 instrumentation
   and P20.10 harness-logged timing the only admissible evidence for speed claims.
+
+## 2026-07-23 N12 recording-staleness workflow
+
+- [x] **N12 — Recording-staleness workflow (drift diagnosis + one-command re-record).** Unmatched aimock requests
+  now produce a DIAGNOSIS instead of one undifferentiated failure. New pure core
+  `packages/llm-simulator/src/aimock/drift-report.ts` (no !Klein imports, exported from the package index):
+  `buildScenarioDriftReport(unmatchedJournalEntries, script)` re-derives the three matcher checks per track
+  (needle / request class / per-session assistant count, including the `cycleTurns`/`repeatLastTurn`/
+  `atAssistantCount` count contracts) and classifies every unmatched request as **prompt_drift** (a track matched
+  on class + turn shape and failed ONLY its needle — the F4.40-stable prompt text moved ⇒ RE-RECORD NEEDED, with
+  the needle's first diverging byte, the expected continuation, and the request's actual excerpt),
+  **turn_shape_drift** (class + needle matched but the assistant count fell outside the scripted ladder ⇒
+  BEHAVIOR BROKEN: an extra/missing model call), or **unscripted_request_class** (no track scripts this kind of
+  request ⇒ BEHAVIOR BROKEN). Report verdict: clean / re_record_needed / behavior_broken / mixed.
+  `verify-simulated-flow.mts` (the nightly drain child) prints the formatted report on its unmatched-requests
+  failure path — including the one-command remedy `npm run scenario:rerecord -- <NN>` (new npm alias for the
+  existing per-scenario generator; distilled/real-capture recordings still re-record via the record→distill flow,
+  which needs a live model) — and the thrown error carries the drift verdict. 8 focused tests (exact byte-offset
+  divergence, count contracts on resumed sessions, mixed-verdict rendering, journal-entry helpers); simulator
+  suite 76 green; `test:simulated-flows` full-runtime drain PASS.

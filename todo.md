@@ -35,9 +35,9 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 149-package remainder is **43 ready + 11 partial + 80 dependency-blocked + 6 external/
+  gate below is green. The current 148-package remainder is **42 ready + 11 partial + 80 dependency-blocked + 6 external/
 user-gated + 9 deliberately deferred** (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
-F11-gated F1.34c; P20.11 acknowledged → §4A rule). These are package counts, not effort estimates. Recalculate the authoritative total
+F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
 gates immediately below; all seven `[?]` rows name the required operator decision, credential, machine, or live-fleet
@@ -6398,10 +6398,6 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
 - [ ] **N11 — Flag-matrix lanes.** Three nightly lanes over the same cells: (a) defaults, (b) all safe opt-ins ON
   (the dark flags shipped observe-first), (c) kill-switches OFF — so flag INTERACTIONS are exercised, not just
   each flag alone. New flags register here at ship time.
-- [ ] **N12 — Recording-staleness workflow (keeps the suite trustworthy under active development).** When a
-  prompt changes legitimately, aimock cells go unmatched — the failure output must DISTINGUISH "behavior broken"
-  from "re-record needed": a prompt-drift report (which request diverged, at which byte, vs the F4.40 prefix
-  contract) + a one-command re-record for a named cell. Without this the suite decays into noise.
 - [ ] **N13 — Suite self-trust: double-run flake quarantine.** Pre-release runs each cell twice; any verdict flip
   ⇒ the cell is QUARANTINED (reported loudly, excluded from the gate) until root-caused — a suite that flakes
   gets ignored, which is worse than no suite (the smoke arc's false-green lesson).

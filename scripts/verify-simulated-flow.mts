@@ -39,7 +39,12 @@ import { access, chmod, mkdir, readFile, readdir, writeFile } from "node:fs/prom
 import { homedir } from "node:os";
 import { join } from "node:path";
 import treeKill from "tree-kill";
-import { createSimulatorServer } from "../packages/llm-simulator/src/index.js";
+import {
+	buildScenarioDriftReport,
+	createSimulatorServer,
+	formatScenarioDriftReport,
+	isUnmatchedJournalEntry,
+} from "../packages/llm-simulator/src/index.js";
 import type { ScenarioScript } from "../packages/llm-simulator/src/index.js";
 import {
 	CRASH_RECOVERY_MATRIX_PHASES,
@@ -788,7 +793,23 @@ async function main(): Promise<void> {
 		const catalogHits = (runtimeLogs.join("").match(/no_fixture_match/g) ?? []).length;
 		console.log(`Unmatched simulator requests observed in runtime logs: ${catalogHits}`);
 		if (catalogHits !== 0) {
-			throw new Error(`captured replay is incomplete: ${catalogHits} request(s) had no aimock fixture`);
+			// N12: distinguish "behavior broken" from "re-record needed" instead of one undifferentiated failure.
+			// The journal knows which requests no fixture served; diagnosing them against the active script names
+			// the closest track, the failed check, and — for prompt drift — the first diverging byte of the needle.
+			const unmatchedEntries = journal.filter(isUnmatchedJournalEntry);
+			const driftReport = buildScenarioDriftReport(unmatchedEntries, scenarioMode?.scenario ?? script);
+			const reRecordCommand = scenarioMode
+				? `npm run scenario:rerecord -- ${scenarioMode.registryId.slice(0, 2)}`
+				: undefined;
+			console.log(formatScenarioDriftReport(driftReport, reRecordCommand));
+			if (unmatchedEntries.length === 0) {
+				console.log(
+					"(runtime logs counted no_fixture_match hits, but the simulator journal shows no unmatched entry — the mismatch itself is diagnostic: the runtime may have called a non-chat surface the scenario does not mount.)",
+				);
+			}
+			throw new Error(
+				`captured replay is incomplete: ${catalogHits} request(s) had no aimock fixture (drift verdict: ${driftReport.verdict})`,
+			);
 		}
 		if (seedExit !== 0) {
 			console.error(runtimeLogs.join("").slice(-3000));
