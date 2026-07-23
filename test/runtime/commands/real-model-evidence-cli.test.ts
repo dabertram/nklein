@@ -33,8 +33,15 @@ describe("real-model evidence collector", () => {
 				sessionId: "session-1",
 				messages: [
 					{
+						id: "seed",
+						role: "user",
+						content: [{ type: "text", text: "Plan this system with the kanban decomposition tool." }],
+					},
+					{
 						id: "assistant",
+						role: "assistant",
 						ts: 1,
+						modelInfo: { id: "qwen-test" },
 						content: [
 							{ type: "tool_use", id: "failed", name: "decompose_project", input: { tasks: [] } },
 							{ type: "tool_use", id: "nested-failed", name: "run_commands", input: { commands: ["npm test"] } },
@@ -43,6 +50,7 @@ describe("real-model evidence collector", () => {
 					},
 					{
 						id: "result",
+						role: "user",
 						ts: 2,
 						content: [
 							{
@@ -68,12 +76,19 @@ describe("real-model evidence collector", () => {
 				sessionId: "session-2",
 				messages: [
 					{
+						id: "critic-seed",
+						role: "user",
+						content: [{ type: "text", text: "You are the second-opinion reviewer for card 1." }],
+					},
+					{
 						id: "critic",
+						role: "assistant",
 						ts: 3,
 						content: [{ type: "tool_use", id: "verdict", name: "submit_plan_critique", input: {} }],
 					},
 					{
 						id: "critic-result",
+						role: "user",
 						ts: 4,
 						content: [{ type: "tool_result", tool_use_id: "verdict", content: { verdict: "revise" } }],
 					},
@@ -100,7 +115,7 @@ describe("real-model evidence collector", () => {
 			runtimeLogPath: runtimeLog,
 		});
 
-		expect(summary).toMatchObject({
+			expect(summary).toMatchObject({
 			sessions: 2,
 			toolUses: 4,
 			errorResults: 2,
@@ -108,6 +123,10 @@ describe("real-model evidence collector", () => {
 			transitions: 1,
 			boards: 1,
 			runtimeSignals: 2,
+			aimockRecordedFixtures: 2,
+			aimockReplayTracks: 2,
+			aimockReplaySessions: 2,
+			aimockSupersededSessions: 0,
 			collectionErrors: [],
 		});
 		const toolErrors = (await readFile(join(output, "tool-errors.jsonl"), "utf8"))
@@ -134,5 +153,66 @@ describe("real-model evidence collector", () => {
 		expect(await readFile(join(output, "runtime-signals.jsonl"), "utf8")).toContain('"kind":"model_capacity_wait"');
 		expect(await readFile(join(output, "runtime-signals.jsonl"), "utf8")).toContain('"kind":"auto_start_failure"');
 		expect(await readFile(join(output, "tool-executions.jsonl"), "utf8")).toContain("submit_plan_critique");
+		const fixtures = JSON.parse(await readFile(join(output, "aimock-recorded-fixtures.json"), "utf8"));
+		expect(fixtures.fixtures).toHaveLength(2);
+		expect(fixtures.fixtures[0]).toMatchObject({
+			match: { model: "qwen-test", turnIndex: 0, context: "persisted-session:session-1;class:decompose" },
+			response: { toolCalls: expect.arrayContaining([expect.objectContaining({ name: "decompose_project" })]) },
+		});
+		const replay = JSON.parse(await readFile(join(output, "aimock-replay.json"), "utf8"));
+		expect(replay.tracks).toHaveLength(2);
+		expect(replay.tracks.map((track: { requestClass: string }) => track.requestClass).sort()).toEqual([
+			"any",
+			"review",
+		]);
+	});
+
+	it("keeps all retry fixtures but selects one most-complete transcript per executable replay key", async () => {
+		const home = join(root, "retry-home");
+		const output = join(root, "retry-evidence");
+		const sessions = join(home, ".nklein", "data", "sessions");
+		await Promise.all([mkdir(join(sessions, "attempt-a"), { recursive: true }), mkdir(join(sessions, "attempt-b"), { recursive: true })]);
+		const seed = { role: "user", content: [{ type: "text", text: "Guidance topic: ts\n\nImplement the retry-safe worker." }] };
+		await writeFile(
+			join(sessions, "attempt-a", "attempt-a.messages.json"),
+			JSON.stringify({
+				sessionId: "attempt-a",
+				messages: [seed, { role: "assistant", content: [{ type: "text", text: "older short attempt" }] }],
+			}),
+			"utf8",
+		);
+		await writeFile(
+			join(sessions, "attempt-b", "attempt-b.messages.json"),
+			JSON.stringify({
+				sessionId: "attempt-b",
+				messages: [
+					seed,
+					{
+						role: "assistant",
+						content: [{ type: "tool_use", id: "edit", name: "write_file", input: { path: "worker.ts" } }],
+					},
+					{ role: "user", content: [{ type: "tool_result", tool_use_id: "edit", content: "ok" }] },
+					{ role: "assistant", content: [{ type: "text", text: "new complete attempt" }] },
+				],
+			}),
+			"utf8",
+		);
+
+		const summary = await collectRealModelRunEvidence({ homeDir: home, outputDir: output, runtimeLogPath: null });
+		expect(summary).toMatchObject({
+			sessions: 2,
+			aimockRecordedFixtures: 3,
+			aimockReplayTracks: 2,
+			aimockReplaySessions: 1,
+			aimockSupersededSessions: 1,
+		});
+		const replay = JSON.parse(await readFile(join(output, "aimock-replay.json"), "utf8"));
+		expect(JSON.stringify(replay)).toContain("new complete attempt");
+		expect(JSON.stringify(replay)).not.toContain("older short attempt");
+		const manifest = JSON.parse(await readFile(join(output, "aimock-replay-manifest.json"), "utf8"));
+		expect(manifest[0]).toMatchObject({
+			selectedSessionId: "attempt-b",
+			supersededSessionIds: ["attempt-a"],
+		});
 	});
 });

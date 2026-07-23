@@ -11,6 +11,10 @@
  *         NKLEIN_SIMFLOW_SCENARIO — a scenario-set project ("02" or the full registry id): loads that set from
  *         packages/llm-simulator/scenarios/<project>/ and drives the REAL dev-test registry project with it.
  *         NKLEIN_SIMFLOW_RUN — "perfect" (default) or "flaky": which run file of the set to serve.
+ *         NKLEIN_SIMFLOW_SCRIPT — captured ScenarioScript JSON to replay; requires NKLEIN_SIMFLOW_SCENARIO to name
+ *         the original dev-test preset. NKLEIN_SIMFLOW_EXPECT_OUTCOME may pin a known failure classification (for
+ *         example `stagnant`) so a real-model failure becomes a deterministic regression fixture rather than a
+ *         falsely expected successful drain.
  *         NKLEIN_SIMFLOW_POOLS=1 — the per-MACHINE pool fan-out verification (todo §5 ★ pools): a fake `lms` CLI
  *         reports two machines (coder-a local, coder-b on sim-machine-2), the worker role pools both coders, the
  *         runtime runs with NKLEIN_PER_MACHINE_MAX_CONCURRENCY=1, and 4 dep-free cards must fan out: workers
@@ -28,7 +32,7 @@
 
 import { spawn } from "node:child_process";
 import { readdirSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createSimulatorServer } from "../packages/llm-simulator/src/index.js";
@@ -36,7 +40,10 @@ import type { ScenarioScript } from "../packages/llm-simulator/src/index.js";
 
 const SCENARIO_SELECTOR = process.env.NKLEIN_SIMFLOW_SCENARIO?.trim() || "";
 const SCENARIO_RUN = process.env.NKLEIN_SIMFLOW_RUN === "flaky" ? "flaky-run" : "perfect-run";
-const TIMEOUT_MS = Number(process.env.NKLEIN_SIMFLOW_TIMEOUT_MS) || (SCENARIO_SELECTOR ? 480_000 : 240_000);
+const REPLAY_SCRIPT_PATH = process.env.NKLEIN_SIMFLOW_SCRIPT?.trim() || "";
+const EXPECTED_OUTCOME = process.env.NKLEIN_SIMFLOW_EXPECT_OUTCOME?.trim() || "";
+const TIMEOUT_MS =
+	Number(process.env.NKLEIN_SIMFLOW_TIMEOUT_MS) || (SCENARIO_SELECTOR || REPLAY_SCRIPT_PATH ? 480_000 : 240_000);
 // Env-overridable so independent scenario runs can execute in parallel on distinct runtime ports without colliding.
 // Default 3986 unchanged when unset — byte-identical to before. NB: each run spawns worker sessions that shell out to
 // `npm test`, so runs are CPU-heavy; parallelizing MANY (or the two largest scenarios) can starve a big project into a
@@ -216,6 +223,17 @@ if (SMOKE_TURN_LATENCY_MS) {
 
 /** Resolve NKLEIN_SIMFLOW_SCENARIO ("02" or a full registry id) to {registryId, script}. */
 async function resolveScenario(): Promise<{ registryId: string; scenario: ScenarioScript } | undefined> {
+	if (REPLAY_SCRIPT_PATH) {
+		if (!SCENARIO_SELECTOR) {
+			fail("NKLEIN_SIMFLOW_SCRIPT requires NKLEIN_SIMFLOW_SCENARIO=<dev-test preset id>");
+		}
+		const scenario = JSON.parse(await readFile(REPLAY_SCRIPT_PATH, "utf8")) as ScenarioScript;
+		if (!scenario.name || !Array.isArray(scenario.tracks) || scenario.tracks.length === 0) {
+			fail(`captured replay at ${REPLAY_SCRIPT_PATH} is not a non-empty ScenarioScript`);
+		}
+		console.log(`Captured replay mode: ${SCENARIO_SELECTOR} · ${REPLAY_SCRIPT_PATH} (${scenario.tracks.length} tracks)`);
+		return { registryId: SCENARIO_SELECTOR, scenario };
+	}
 	if (!SCENARIO_SELECTOR) return undefined;
 	const scenariosDir = new URL("../packages/llm-simulator/scenarios/", import.meta.url).pathname;
 	const dirs = readdirSync(scenariosDir).sort();
@@ -233,17 +251,21 @@ async function main(): Promise<void> {
 	const scenarioMode = await resolveScenario();
 
 	// 1) Simulator (chat surface + LM Studio /api shim on one origin).
-	const simulator = createSimulatorServer(scenarioMode?.scenario ?? script, {
-		models: POOLS
-			? Object.values(POOL_MODELS).map((id) => ({ id, state: "loaded" as const, family: "qwen", maxContextLength: 65536 }))
-			: MULTI_MODEL
-				? [
-						{ id: SWARM_MODELS.architect, state: "loaded", family: "qwen", maxContextLength: 65536 },
-						{ id: SWARM_MODELS.worker, state: "loaded", family: "qwen", maxContextLength: 65536 },
-						{ id: SWARM_MODELS.reviewer, state: "loaded", family: "qwen", maxContextLength: 65536 },
-					]
-				: [{ id: SIM_MODEL, state: "loaded", family: "qwen", maxContextLength: 65536 }],
-	});
+	const simulatedModels = POOLS
+		? Object.values(POOL_MODELS).map((id) => ({
+				id,
+				state: "loaded" as const,
+				family: "qwen",
+				maxContextLength: 65536,
+			}))
+		: MULTI_MODEL
+			? [
+					{ id: SWARM_MODELS.architect, state: "loaded" as const, family: "qwen", maxContextLength: 65536 },
+					{ id: SWARM_MODELS.worker, state: "loaded" as const, family: "qwen", maxContextLength: 65536 },
+					{ id: SWARM_MODELS.reviewer, state: "loaded" as const, family: "qwen", maxContextLength: 65536 },
+				]
+			: [{ id: SIM_MODEL, state: "loaded" as const, family: "qwen", maxContextLength: 65536 }];
+	const simulator = createSimulatorServer(scenarioMode?.scenario ?? script, { models: simulatedModels });
 	await simulator.start();
 	const simBase = simulator.url(); // http://127.0.0.1:<port>/v1
 	console.log(`Simulator: ${simBase}`);
@@ -318,25 +340,33 @@ async function main(): Promise<void> {
 	);
 
 	// 3) Boot the runtime under the isolated HOME.
-	// Pools mode: a fake `lms` CLI reports coder-a on the LOCAL machine and coder-b on a second machine, so the
-	// per-machine concurrency gate + machine-aware routing run against a deterministic two-machine map.
-	let poolsEnv: Record<string, string> = {};
-	if (POOLS) {
-		const fakeLmsPath = join(home, "fake-lms.sh");
-		const lmsPsPayload = JSON.stringify([
-			{ type: "llm", identifier: POOL_MODELS.architect, modelKey: POOL_MODELS.architect, deviceIdentifier: null, status: "IDLE", queued: 0 },
-			{ type: "llm", identifier: POOL_MODELS.coderA, modelKey: POOL_MODELS.coderA, deviceIdentifier: null, status: "IDLE", queued: 0 },
-			{ type: "llm", identifier: POOL_MODELS.coderB, modelKey: POOL_MODELS.coderB, deviceIdentifier: POOL_MACHINE_2, status: "IDLE", queued: 0 },
-			{ type: "llm", identifier: POOL_MODELS.reviewer, modelKey: POOL_MODELS.reviewer, deviceIdentifier: POOL_MACHINE_2, status: "IDLE", queued: 0 },
-		]);
-		await writeFile(fakeLmsPath, `#!/bin/sh\ncase "$*" in *"ps"*) printf '%s' '${lmsPsPayload}' ;; *) printf '[]' ;; esac\n`);
-		await import("node:fs/promises").then(({ chmod }) => chmod(fakeLmsPath, 0o755));
-		poolsEnv = {
-			NKLEIN_LMS_BIN: fakeLmsPath,
-			NKLEIN_PER_MACHINE_MAX_CONCURRENCY: "1",
-			NKLEIN_QUEUE_AWARE_FREE_FIRST: "1",
-		};
-	}
+	// The simulator must be hermetic at BOTH model surfaces. Provider traffic already targets aimock, but the
+	// capacity view independently shells out to `lms ps`; consulting the real fleet made simulated drains queue behind
+	// unrelated live campaigns. Always provide a deterministic `lms` inventory matching the simulator catalog. Pools
+	// mode additionally assigns its second coder/reviewer to another machine to exercise machine-aware admission.
+	const fakeLmsPath = join(home, "fake-lms.sh");
+	const lmsPsPayload = JSON.stringify(
+		simulatedModels.map((model) => ({
+			type: "llm",
+			identifier: model.id,
+			modelKey: model.id,
+			deviceIdentifier:
+				POOLS && (model.id === POOL_MODELS.coderB || model.id === POOL_MODELS.reviewer) ? POOL_MACHINE_2 : null,
+			status: "IDLE",
+			queued: 0,
+		})),
+	);
+	await writeFile(fakeLmsPath, `#!/bin/sh\ncase "$*" in *"ps"*) printf '%s' '${lmsPsPayload}' ;; *) printf '[]' ;; esac\n`);
+	await chmod(fakeLmsPath, 0o755);
+	const simulatedFleetEnv: Record<string, string> = {
+		NKLEIN_LMS_BIN: fakeLmsPath,
+		...(POOLS
+			? {
+					NKLEIN_PER_MACHINE_MAX_CONCURRENCY: "1",
+					NKLEIN_QUEUE_AWARE_FREE_FIRST: "1",
+				}
+			: {}),
+	};
 	const runtime = spawn(
 		"npx",
 		["tsx", "src/cli.ts", "--port", String(RUNTIME_PORT), "--no-open", "--host", "127.0.0.1"],
@@ -347,7 +377,7 @@ async function main(): Promise<void> {
 				NODE_ENV: "development",
 				NKLEIN_RUNTIME_PORT: String(RUNTIME_PORT),
 				KANBAN_RUNTIME_PORT: String(RUNTIME_PORT),
-				...poolsEnv,
+				...simulatedFleetEnv,
 			},
 			stdio: ["ignore", "pipe", "pipe"],
 		},
@@ -400,7 +430,7 @@ async function main(): Promise<void> {
 					NODE_ENV: "development",
 					NKLEIN_RUNTIME_PORT: String(RUNTIME_PORT),
 					KANBAN_RUNTIME_PORT: String(RUNTIME_PORT),
-					...poolsEnv,
+					...simulatedFleetEnv,
 				},
 				stdio: ["ignore", "pipe", "pipe"],
 			},
@@ -453,6 +483,9 @@ async function main(): Promise<void> {
 		await writeFile(join(home, "journal.json"), JSON.stringify(journal, null, 1)).catch(() => undefined);
 		const catalogHits = (runtimeLogs.join("").match(/no_fixture_match/g) ?? []).length;
 		console.log(`Unmatched simulator requests observed in runtime logs: ${catalogHits}`);
+		if (catalogHits !== 0) {
+			throw new Error(`captured replay is incomplete: ${catalogHits} request(s) had no aimock fixture`);
+		}
 		if (seedExit !== 0) {
 			console.error(runtimeLogs.join("").slice(-3000));
 			fail(`dev-test monitor exit ${seedExit} — see output above (classification is printed by the monitor)`);
@@ -566,7 +599,13 @@ async function main(): Promise<void> {
 		}
 		const reviewLines = runtimeLogs.join("").split("\n").filter((line) => /review|acceptance|sandbox/i.test(line)).slice(-12);
 		console.log("Review/acceptance trail:\n" + reviewLines.join("\n"));
-		if (scenarioMode && SCENARIO_RUN === "perfect-run") {
+		const observedOutcome = /"outcome":\s*"([^"]+)"/u.exec(seedOut)?.[1] ?? "";
+		if (EXPECTED_OUTCOME && observedOutcome !== EXPECTED_OUTCOME) {
+			throw new Error(
+				`captured replay outcome drifted: expected ${EXPECTED_OUTCOME}, observed ${observedOutcome || "<missing>"}`,
+			);
+		}
+		if (scenarioMode && SCENARIO_RUN === "perfect-run" && !EXPECTED_OUTCOME) {
 			// A perfect-run scenario must fully drain the board: anything parked in Review/failed means fixtures
 			// mis-matched (the monitor is lenient about "blocked_by_review_cards" — the harness must not be).
 			const counts = /"finalCounts":\s*{[^}]*}/.exec(seedOut)?.[0] ?? "";
@@ -576,7 +615,11 @@ async function main(): Promise<void> {
 				throw new Error(`perfect-run left cards undrained (${counts})`);
 			}
 		}
-		console.log("PASS ✓ simulated fast path drove a real runtime flow with zero LLM compute.");
+		console.log(
+			EXPECTED_OUTCOME
+				? `PASS ✓ captured real-model failure reproduced as ${EXPECTED_OUTCOME} with zero unmatched requests.`
+				: "PASS ✓ simulated fast path drove a real runtime flow with zero LLM compute.",
+		);
 	} finally {
 		await writeFile(join(home, "runtime.log"), runtimeLogs.join("")).catch(() => undefined);
 		console.log(`Full runtime log: ${join(home, "runtime.log")}`);

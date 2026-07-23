@@ -2,6 +2,16 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Real-model benchmark sessions now become executable aimock regression evidence automatically.** The evidence
+  collector converts durable SDK transcripts into raw aimock fixtures plus a collision-free ScenarioScript and an
+  explicit retry-selection manifest. It preserves text, reasoning, tool calls, model/session provenance, and
+  transcript turn counts; skips shared skill boilerplate when deriving card matchers; and retains every raw retry while
+  selecting one deterministic most-complete ladder per executable matcher. The simulated-flow harness can drive a
+  captured script through its original dev-test preset, can pin a known failure classification for regression replay,
+  fails on any unmatched request, and now fakes the capacity-layer `lms ps` inventory so live fleet activity cannot
+  stall a hermetic run. Aimock-backed integration tests also cover the real initializer readiness/seed boundary and
+  the production `repo_summary` tool through the local structured-model client.
+
 - **Local model capability can now be controlled independently of repository workflow quality.** A revision-pinned,
   offline LiveCodeBench lane records honest model-cutoff/date-window claims, delegates semantic grading to the official
   evaluator, and emits immutable hash-bound evidence for local/private model endpoints.

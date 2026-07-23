@@ -2872,3 +2872,13 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   Model-cutoff classification prevents the April-2025 ceiling from being mislabeled as fresh evidence, and the report
   says plainly that this is a direct Python coding control rather than a repository-agent score. Four focused core/CLI
   assertions and backend typecheck pass. Matched real-fleet execution remains in the parent F11.3 campaign remainder.
+
+- [x] **F11.4 — executable aimock evidence from real-model transcripts** *(delivered 2026-07-23).* Persisted SDK
+  transcripts now distill automatically into a complete raw fixture archive, a collision-free executable replay, and a
+  retry-selection manifest. Stable card-specific matching, deterministic most-complete retry selection, assistant
+  text/reasoning/tool-call preservation, and model/session provenance make the replay both faithful and executable.
+  Aimock product tests cover initializer Q&A/seed generation and production `repo_summary`; the simulated-flow harness
+  accepts captured scripts, isolates capacity discovery from the live fleet, pins expected failures, and requires zero
+  unmatched requests. A prior 11-session real-model `mid_task` failure produced 42 raw fixtures, 28 selected tracks,
+  eight replay sessions, and three explicitly superseded sessions, then reproduced on the current runtime after 51
+  polls as `acceptance_green_workflow_incomplete` with zero unmatched requests.

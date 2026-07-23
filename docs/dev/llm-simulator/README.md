@@ -23,11 +23,15 @@ LLM compute. Research trail: [existing-solutions.md](existing-solutions.md) (bui
 | Regenerate the lower-20 scenario sets from the specs | `npx tsx scripts/generate-scenario-sets.mts [NN…]` |
 | Capture real-LLM traffic (reflection loop, §13d) | `npx tsx scripts/run-record-proxy.mts --upstream http://127.0.0.1:1234 --out captures/<name>` |
 | Distill a capture into scenario tracks | `npx tsx scripts/distill-capture.mts captures/<name>` |
+| Replay a real evidence bundle through its original dev-test preset | `HOME=$(mktemp -d /tmp/nklein-replay-XXXX) NKLEIN_SIMFLOW_SCENARIO=mid_task NKLEIN_SIMFLOW_SCRIPT=/path/to/evidence/aimock-replay.json npx tsx scripts/verify-simulated-flow.mts` |
+| Regression-lock an observed failure outcome | Same command plus `NKLEIN_SIMFLOW_EXPECT_OUTCOME=stagnant` (or the recorded classifier outcome) |
 
 The harness (`scripts/verify-simulated-flow.mts`) refuses `HOME=/Users/david`, provisions an isolated HOME,
 boots the runtime on :3986, seeds via `dev test-project --preset <registry-id>` (any `dev-test-projects/` folder
 id is a valid preset), dumps the simulator request journal + `journal.json`/`runtime.log` into the HOME, and — in
 scenario perfect-run mode — FAILS unless the board fully drains to Completed.
+The harness supplies a fake `lms ps` inventory matching its simulator catalog, so its capacity controller cannot
+accidentally queue behind a busy real-model campaign. Every run fails on even one `no_fixture_match`.
 
 ## Scenario sets (packages/llm-simulator/scenarios/)
 
@@ -66,6 +70,10 @@ wire truths below — run it before trusting an edited set.
    tier) — otherwise one set's no-needle `any` fallback swallows another set's decompose request (live-found:
    projects stranded in Planning under the dev stack's merged script). Encoded in `trackSpecificity`
    (track-compiler.ts) + track-compiler-order.test.ts.
+10. **Persisted worker transcripts key after `Guidance topic:`**, not on the shared injected skill/checklist preamble.
+    Otherwise every TypeScript card compiles to the same predicate and the first captured worker shadows the rest.
+    Retry sessions with an identical compiled key are also indistinguishable on the wire: keep every raw fixture, but
+    select one deterministic most-complete transcript for executable replay and disclose the others in the manifest.
 
 ## Reflection loop (§13d)
 
@@ -79,6 +87,19 @@ Distill: `distill-capture.mts` → `distillCampaign` classifies each capture (re
 text; failure id conservatively from the response — `t-<status>`, `c-empty-completion`, `c-reasoning-only`,
 `c-bad-json-args`, `c-trunc-length`, else `perfect-observed`) and emits tracks pinned to their recorded turn via
 `atAssistantCount`. Merge the interesting ones into scenario sets, keyed by the failure catalog.
+
+Real benchmark evidence does not need a proxy retrofit. `real-model-evidence-cli` reads !Klein's durable
+`*.messages.json` envelopes and automatically emits:
+
+- `aimock-recorded-fixtures.json` — every assistant response converted to aimock's capture shape (all retries kept);
+- `aimock-replay.json` — the executable, collision-free ScenarioScript;
+- `aimock-replay-manifest.json` — selected session per compiled matcher plus every superseded retry.
+
+The decoder preserves text, reasoning, tool calls, model id, assistant-turn count, logical role, and session
+provenance; tool results are deliberately not model turns (the replay executes captured calls through the real tool
+harness). Recorded decomposition is compiled as needle-scoped `any`, because its live request is otherwise
+wire-indistinguishable from a worker card. `distill-capture.mts` accepts these persisted envelopes directly as well as
+native aimock recordings.
 
 ## Product bugs already found by this layer
 

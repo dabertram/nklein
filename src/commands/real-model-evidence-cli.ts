@@ -3,6 +3,11 @@ import { copyFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+	distillCampaign,
+	entriesFromPersistedTranscript,
+	type RecordedFixtureEntry,
+} from "../../packages/llm-simulator/src/index.js";
+import {
 	extractRealModelRuntimeSignals,
 	extractRealModelToolEvidence,
 	isCardTransitionLedgerEvent,
@@ -26,6 +31,13 @@ interface CollectedTranscript {
 	sessionId: string;
 	messageCount: number;
 	executions: RealModelToolExecutionEvidence[];
+	aimockEntries: RecordedFixtureEntry[];
+}
+
+interface ReplaySelection {
+	key: string;
+	selected: CollectedTranscript;
+	superseded: CollectedTranscript[];
 }
 
 function parseArgs(args: readonly string[]): CliOptions {
@@ -112,6 +124,53 @@ function readJsonLines(body: string, file: string, errors: EvidenceFileError[]):
 	return records;
 }
 
+function replayKey(transcript: CollectedTranscript): string | null {
+	const firstTrack = distillCampaign(transcript.aimockEntries)[0];
+	if (!firstTrack?.userMessageIncludes) {
+		return null;
+	}
+	return `${firstTrack.requestClass}\u0000${firstTrack.userMessageIncludes.toLowerCase()}`;
+}
+
+function preferReplayTranscript(left: CollectedTranscript, right: CollectedTranscript): CollectedTranscript {
+	if (left.messageCount !== right.messageCount) {
+		return left.messageCount > right.messageCount ? left : right;
+	}
+	if (left.executions.length !== right.executions.length) {
+		return left.executions.length > right.executions.length ? left : right;
+	}
+	return left.sessionId.localeCompare(right.sessionId) >= 0 ? left : right;
+}
+
+/**
+ * A runtime retry starts a fresh SDK session with the same card prompt and assistant count. Both captures are valid
+ * evidence, but compiling both into one aimock script creates indistinguishable predicates; the first silently
+ * shadows the rest. Keep every raw fixture, while selecting one deterministic, most-complete transcript per compiled
+ * match key for the executable replay. The manifest makes every supersession explicit.
+ */
+function selectReplayTranscripts(transcripts: readonly CollectedTranscript[]): ReplaySelection[] {
+	const selections = new Map<string, ReplaySelection>();
+	for (const transcript of transcripts) {
+		const key = replayKey(transcript);
+		if (!key) {
+			continue;
+		}
+		const current = selections.get(key);
+		if (!current) {
+			selections.set(key, { key, selected: transcript, superseded: [] });
+			continue;
+		}
+		const preferred = preferReplayTranscript(current.selected, transcript);
+		if (preferred === current.selected) {
+			current.superseded.push(transcript);
+		} else {
+			current.superseded.push(current.selected);
+			current.selected = transcript;
+		}
+	}
+	return [...selections.values()].sort((left, right) => left.key.localeCompare(right.key));
+}
+
 export async function collectRealModelRunEvidence(options: CliOptions): Promise<Record<string, unknown>> {
 	await mkdir(options.outputDir, { recursive: true });
 	const sessionOutputDir = join(options.outputDir, "sessions");
@@ -141,13 +200,14 @@ export async function collectRealModelRunEvidence(options: CliOptions): Promise<
 				executions[0]?.sessionId ||
 				basename(dirname(file));
 			const messageCount = Array.isArray(record.messages) ? record.messages.length : 0;
+			const aimockEntries = entriesFromPersistedTranscript(document);
 			const previous = transcriptBySessionId.get(sessionId);
 			if (
 				!previous ||
 				executions.length > previous.executions.length ||
 				(executions.length === previous.executions.length && messageCount > previous.messageCount)
 			) {
-				transcriptBySessionId.set(sessionId, { file, sessionId, messageCount, executions });
+				transcriptBySessionId.set(sessionId, { file, sessionId, messageCount, executions, aimockEntries });
 			}
 		} catch (error) {
 			errors.push({ file, error: error instanceof Error ? error.message : String(error) });
@@ -158,6 +218,37 @@ export async function collectRealModelRunEvidence(options: CliOptions): Promise<
 		await copyFile(transcript.file, join(sessionOutputDir, `${safeName(transcript.sessionId)}.messages.json`));
 	}
 	const sessionExecutions = transcripts.map((transcript) => transcript.executions);
+	const aimockEntries = transcripts.flatMap((transcript) => transcript.aimockEntries);
+	const replaySelections = selectReplayTranscripts(transcripts);
+	const replayEntries = replaySelections.flatMap((selection) => selection.selected.aimockEntries);
+	const aimockReplay = {
+		name: `real-model-evidence:${basename(options.outputDir)}`,
+		seed: 1,
+		tracks: distillCampaign(replayEntries),
+	};
+	await Promise.all([
+		writeFile(
+			join(options.outputDir, "aimock-recorded-fixtures.json"),
+			`${JSON.stringify({ fixtures: aimockEntries }, null, 2)}\n`,
+			"utf8",
+		),
+		writeFile(join(options.outputDir, "aimock-replay.json"), `${JSON.stringify(aimockReplay, null, 2)}\n`, "utf8"),
+		writeFile(
+			join(options.outputDir, "aimock-replay-manifest.json"),
+			`${JSON.stringify(
+				replaySelections.map((selection) => ({
+					requestClass: selection.key.split("\u0000")[0],
+					needle: selection.key.split("\u0000")[1],
+					selectedSessionId: selection.selected.sessionId,
+					selectedMessageCount: selection.selected.messageCount,
+					supersededSessionIds: selection.superseded.map((transcript) => transcript.sessionId).sort(),
+				})),
+				null,
+				2,
+			)}\n`,
+			"utf8",
+		),
+	]);
 
 	const executions = sessionExecutions.flat().sort((left, right) => (left.toolUseAt ?? 0) - (right.toolUseAt ?? 0));
 	await Promise.all([
@@ -213,6 +304,13 @@ export async function collectRealModelRunEvidence(options: CliOptions): Promise<
 		boards: boardFiles.length,
 		ledgerEvents: ledgerEvents.length,
 		runtimeSignals: runtimeSignalCount,
+		aimockRecordedFixtures: aimockEntries.length,
+		aimockReplayTracks: aimockReplay.tracks.length,
+		aimockReplaySessions: replaySelections.length,
+		aimockSupersededSessions: replaySelections.reduce(
+			(total, selection) => total + selection.superseded.length,
+			0,
+		),
 		collectionErrors: errors,
 	};
 	await writeFile(join(options.outputDir, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`, "utf8");

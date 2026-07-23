@@ -19,6 +19,8 @@
 import { classifyRequest, DEFAULT_REQUEST_CLASS_MARKERS, type RequestClassMarkers } from "../aimock/request-classifier.js";
 import type { RequestClass, ScenarioTrack, TurnBehavior } from "../scenario/track-types.js";
 
+type UnknownRecord = Record<string, unknown>;
+
 /** One recorded fixture entry as aimock persists it (subset we consume; files hold one entry or {fixtures:[…]}). */
 export interface RecordedFixtureEntry {
 	match?: {
@@ -76,6 +78,12 @@ export function classifyRecordedClass(
 	entry: RecordedFixtureEntry,
 	markers: RequestClassMarkers = DEFAULT_REQUEST_CLASS_MARKERS,
 ): RequestClass {
+	const persistedClass = entry.match?.context?.match(
+		/^persisted-session:[^;]*;class:(decompose|worker|review|acceptance|chat|any)$/u,
+	)?.[1] as RequestClass | undefined;
+	if (persistedClass) {
+		return persistedClass;
+	}
 	return classifyRequest(
 		{ messages: [{ role: "user", content: entry.match?.userMessage ?? "" }] },
 		markers,
@@ -116,11 +124,160 @@ function safeParse(value: string): Record<string, unknown> {
 
 /** A short, stable slice of the recorded userMessage keys the track without over-fitting to the full prompt. */
 function needleFromUserMessage(entry: RecordedFixtureEntry): string | undefined {
-	const text = entry.match?.userMessage?.trim();
+	const text = entry.match?.userMessage
+		?.replace(/\[!Klein context focus brief\][\s\S]*?\[\/!Klein context focus brief\]/giu, "\n")
+		.replace(/<\/?user_input(?:\s[^>]*)?>/giu, "")
+		.trim();
 	if (!text) {
 		return undefined;
 	}
-	return text.split("\n")[0]?.slice(0, 60)?.trim() || undefined;
+	const lines = text
+		.split("\n")
+		.map((line) => line.trim())
+		.filter(Boolean);
+	// Skill-backed worker prompts prepend a shared checklist to every card. Keying on its first sentence makes all
+	// workers collide and lets aimock's first fixture shadow the rest. `Guidance topic:` is the stable runtime boundary;
+	// the next prose line is the card-specific objective. Reviewer seeds are exempt because they may quote the entire
+	// worker prompt (including that boundary) later in their own request.
+	const isReviewerSeed = /second-opinion review(?:er)?/iu.test(lines[0] ?? "");
+	const guidanceIndex = isReviewerSeed ? -1 : lines.findIndex((line) => /^guidance topic:/iu.test(line));
+	const candidateLines = guidanceIndex >= 0 ? lines.slice(guidanceIndex + 1) : lines;
+	const meaningful = candidateLines.find(
+		(line) =>
+			line.length >= 12 &&
+			!/^#{1,6}\s/u.test(line) &&
+			!/^\[(?:\/)?!Klein\b/iu.test(line) &&
+			!/^instructions:?$/iu.test(line) &&
+			!/^use this skill when\b/iu.test(line) &&
+			!/^checklist:?$/iu.test(line),
+	);
+	return (meaningful ?? candidateLines[0] ?? lines[0])?.slice(0, 60)?.trim() || undefined;
+}
+
+function asRecord(value: unknown): UnknownRecord | null {
+	return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as UnknownRecord) : null;
+}
+
+function partText(part: UnknownRecord, key: "text" | "thinking"): string {
+	return typeof part[key] === "string" ? part[key] : "";
+}
+
+function messageText(message: UnknownRecord): string {
+	return Array.isArray(message.content)
+		? message.content
+				.map(asRecord)
+				.filter((part): part is UnknownRecord => part !== null && part.type === "text")
+				.map((part) => partText(part, "text"))
+				.join("\n")
+		: typeof message.content === "string"
+			? message.content
+			: "";
+}
+
+function assistantResponse(message: UnknownRecord): NonNullable<RecordedFixtureEntry["response"]> {
+	const parts = Array.isArray(message.content)
+		? message.content.map(asRecord).filter((part): part is UnknownRecord => part !== null)
+		: [];
+	const content =
+		parts
+			.filter((part) => part.type === "text")
+			.map((part) => partText(part, "text"))
+			.join("\n") || (typeof message.content === "string" ? message.content : "");
+	const reasoning = parts
+		.filter((part) => part.type === "thinking")
+		.map((part) => partText(part, "thinking"))
+		.filter(Boolean)
+		.join("\n");
+	const toolCalls = parts
+		.filter((part) => part.type === "tool_use" && typeof part.name === "string")
+		.map((part) => ({
+			name: part.name as string,
+			arguments: asRecord(part.input) ?? { raw: part.input },
+		}));
+	return {
+		content,
+		...(reasoning ? { reasoning } : {}),
+		...(toolCalls.length > 0 ? { toolCalls } : {}),
+	};
+}
+
+function transcriptRequestClass(
+	messages: readonly UnknownRecord[],
+	firstUserText: string,
+	systemPrompt: string,
+): RequestClass {
+	// A bounced worker later quotes reviewer feedback in the same transcript. Only the FIRST user seed identifies the
+	// session's role without that ambiguity; reviewers declare themselves there before quoting the worker card.
+	if (/second-opinion review(?:er)?/iu.test(firstUserText)) {
+		return "review";
+	}
+	const emittedToolNames = messages.flatMap((message) => {
+		if (message.role !== "assistant" || !Array.isArray(message.content)) {
+			return [];
+		}
+		return message.content
+			.map(asRecord)
+			.filter((part): part is UnknownRecord => part !== null && part.type === "tool_use" && typeof part.name === "string")
+			.map((part) => part.name as string);
+	});
+	if (emittedToolNames.includes("submit_review")) {
+		return "review";
+	}
+	if (emittedToolNames.includes("decompose_project")) {
+		return "decompose";
+	}
+	return classifyRequest({
+		messages: [
+			...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
+			{ role: "user", content: firstUserText },
+		],
+		tools: emittedToolNames.map((name) => ({ function: { name } })),
+	});
+}
+
+/**
+ * Convert !Klein's persisted SDK message envelope into aimock's recorded-fixture shape. This is intentionally a
+ * tolerant structural decoder: evidence snapshots may omit the outer metadata, while durable session files carry
+ * `system_prompt`, `agent`, timestamps, and modelInfo. Tool RESULTS are not model responses and are therefore omitted;
+ * replay executes the captured tool calls against the real harness and conditions the next response on the per-session
+ * assistant count, exactly like aimock's own recorder.
+ */
+export function entriesFromPersistedTranscript(parsed: unknown): RecordedFixtureEntry[] {
+	const document = asRecord(parsed);
+	if (!document || !Array.isArray(document.messages)) {
+		return [];
+	}
+	const messages = document.messages.map(asRecord).filter((message): message is UnknownRecord => message !== null);
+	const firstUserText = messages
+		.filter((message) => message.role === "user")
+		.map(messageText)
+		.find((text) => text.trim().length > 0)
+		?.trim();
+	if (!firstUserText) {
+		return [];
+	}
+	const systemPrompt = typeof document.system_prompt === "string" ? document.system_prompt : "";
+	const requestClass = transcriptRequestClass(messages, firstUserText, systemPrompt);
+	const sessionId = typeof document.sessionId === "string" ? document.sessionId : "unknown-session";
+	let turnIndex = 0;
+	const entries: RecordedFixtureEntry[] = [];
+	for (const message of messages) {
+		if (message.role !== "assistant") {
+			continue;
+		}
+		const modelInfo = asRecord(message.modelInfo);
+		entries.push({
+			match: {
+				userMessage: firstUserText,
+				...(typeof modelInfo?.id === "string" ? { model: modelInfo.id } : {}),
+				turnIndex,
+				context: `persisted-session:${sessionId};class:${requestClass}`,
+			},
+			response: assistantResponse(message),
+		});
+		turnIndex += 1;
+	}
+	return entries;
 }
 
 /**
@@ -132,13 +289,18 @@ export function distillInteraction(entry: RecordedFixtureEntry, index: number): 
 	const failureId = classifyObservedFailure(entry);
 	const userMessageIncludes = needleFromUserMessage(entry);
 	const turnIndex = entry.match?.turnIndex;
+	// On the production wire a decomposition seed carries the same worker scaffold + full tool registry as a card.
+	// The generic classifier therefore sees it as worker; the stable project-specific needle is the authoritative
+	// discriminator. Compile recorded decomposition turns as needle-scoped `any`, matching the hand-authored scenario
+	// contract and preserving the logical decompose class in the id/provenance.
+	const replayRequestClass = requestClass === "decompose" && userMessageIncludes ? "any" : requestClass;
 	return {
 		id: `${failureId}:${requestClass}:${index}`,
-		requestClass,
+		requestClass: replayRequestClass,
 		...(userMessageIncludes ? { userMessageIncludes } : {}),
 		...(typeof turnIndex === "number" && turnIndex > 0 ? { atAssistantCount: turnIndex } : {}),
 		turns: [{ behavior: responseToBehavior(entry.response ?? {}) }],
-		provenance: `distilled from real capture (${failureId}${entry.match?.model ? `, ${entry.match.model}` : ""})`,
+		provenance: `distilled from real capture (${[failureId, entry.match?.model, entry.match?.context].filter(Boolean).join(", ")})`,
 	};
 }
 
@@ -154,6 +316,9 @@ export function entriesFromCaptureFile(parsed: unknown): RecordedFixtureEntry[] 
 	}
 	if (parsed && typeof parsed === "object" && "response" in (parsed as Record<string, unknown>)) {
 		return [parsed as RecordedFixtureEntry];
+	}
+	if (parsed && typeof parsed === "object" && "messages" in (parsed as Record<string, unknown>)) {
+		return entriesFromPersistedTranscript(parsed);
 	}
 	return [];
 }

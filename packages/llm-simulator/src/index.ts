@@ -32,5 +32,6 @@ export {
 	distillCampaign,
 	distillInteraction,
 	entriesFromCaptureFile,
+	entriesFromPersistedTranscript,
 } from "./reflection/distill.js";
 export type { RecordedFixtureEntry } from "./reflection/distill.js";

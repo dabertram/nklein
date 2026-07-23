@@ -106,6 +106,15 @@ gap remains.
 > **Git history is part of the agent-visible input:** deleting a temporary oracle mount is insufficient if `test_patch`
 > was ever applied or committed. The sealed workspace must expose exactly one upstream baseline commit; private tests
 > first enter only the separate official grader container after prediction capture.
+> **A REAL-TRANSCRIPT AIMOCK REPLAY HAS TWO IDENTITIES (F11.4, 2026-07-23):** archive identity keeps every persisted
+> assistant turn from every retry; executable identity must have exactly one response ladder per compiled matcher.
+> Fresh SDK retries start with the same card prompt and assistant count, so two retry transcripts are
+> indistinguishable to the OpenAI wire and one silently shadows the other. Retain all raw fixtures, but choose one
+> deterministic most-complete transcript per `(requestClass, card-specific needle)` and write a manifest naming every
+> superseded session. The card-specific needle begins after the injected `Guidance topic:` boundary—never at the shared
+> “Use this skill…” preamble. Persisted decomposition compiles as needle-scoped `any` because its full production prompt
+> looks like a worker. A simulated runtime must fake BOTH the provider catalog and `lms ps`; otherwise the capacity view
+> leaks the busy real fleet into a supposedly hermetic test. Zero `no_fixture_match` is an asserted gate, not a log line.
 > **PRIVATE LOCAL TASK MINTING IS NATIVE, NOT A CLAIM THAT SWE-SMITH ALREADY ACCEPTS ARBITRARY LOCAL REPOS
 > (2026-07-23).** The pinned SWE-smith revision still requires a statically registered `RepoProfile` and a GitHub mirror;
 > its documented automatic-install path is not implemented. For private/local-only evidence, follow its semantics in the
@@ -3812,7 +3821,7 @@ stays fast + complete.
     and future fields at board/column/card boundaries, and the isolated launcher has a runtime-only mode so headless
     evidence does not activate competing browser automation. Restart from a fresh commit-pinned, runtime-only root and
     prove the first pair reaches the external grader.
-- [ ] **F11.4 — Make aimock a first-class accelerator for COMPLETE, fast testing.** aimock (the recorded/synthetic model
+- [x] **F11.4 — Make aimock a first-class accelerator for COMPLETE, fast testing.** aimock (the recorded/synthetic model
   responder) already backs the dev-test scenario suite; extend its use so testing stays fast + comprehensive as F11.1–F11.3
   land: (a) record real-model transcripts from the F11.3 benchmark runs into aimock fixtures so the full onboarding →
   decompose → work → review → deliver pipeline can be replayed deterministically in CI without a live model; (b) add aimock
@@ -3831,6 +3840,16 @@ stays fast + complete.
   **INVARIANT VALIDATED 2026-07-17: ALL 40 DRAINS PASS (scenarios 01-20, perfect+flaky) on the idle gateway** —
   including 01-perfect, confirming the earlier failure was the busy-gateway interaction, not a regression. The (c)
   completeness check is now a proven, repeatable runner.
+  **REMAINING (a/b/d) SHIPPED 2026-07-23:** `real-model-evidence` now imports persisted SDK transcripts into a raw
+  all-retry aimock archive, a collision-free executable `ScenarioScript`, and an explicit selected/superseded manifest.
+  The importer preserves assistant text/reasoning/tool calls and model/session provenance, derives stable card-specific
+  matchers beyond shared skill boilerplate, and deterministically retains the most complete retry ladder per executable
+  matcher while keeping every source session in the archive. Product-level aimock tests exercise the real initializer
+  readiness/seed boundary and the production `repo_summary` tool. The simulated-flow harness accepts captured scripts,
+  pins expected failure classifications, fakes the capacity-layer `lms ps` inventory, and fails on unmatched requests.
+  Live proof: the prior `mid_task` real-model run distilled 42 raw fixtures into 28 collision-free replay tracks across
+  eight selected sessions (three superseded); its current-runtime failure replay settled as
+  `acceptance_green_workflow_incomplete` after 51 polls with **zero unmatched requests**.
 
 ### Phase 12 — research-derived capability improvements (David's deep-research mandate, 2026-07-17)
 
