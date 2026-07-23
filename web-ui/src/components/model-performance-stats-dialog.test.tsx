@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type {
 	RuntimeDecompositionKnowledgeUsageAggregate,
@@ -276,5 +278,17 @@ describe("filterAndSortFitnessRows (F2.22)", () => {
 		];
 		const result = filterAndSortFitnessRows(rows, baseOptions);
 		expect(result.map((row) => row.modelKey)).toEqual(["best-more-samples", "best", "worst"]);
+	});
+});
+
+describe("resident-set guidance surface (F12.77b)", () => {
+	it("shows copyable guidance without adding an Apply action", () => {
+		const source = readFileSync(join(process.cwd(), "src/components/model-performance-stats-dialog.tsx"), "utf8");
+		const start = source.indexOf('data-testid="resident-set-guidance"');
+		const end = source.indexOf('data-testid="reeval-priority-summary"', start);
+		const surface = source.slice(start, end);
+		expect(surface).toContain('data-testid="resident-set-load-command"');
+		expect(surface).toContain("!Klein does not apply these commands");
+		expect(surface).not.toMatch(/>\s*Apply\s*</u);
 	});
 });

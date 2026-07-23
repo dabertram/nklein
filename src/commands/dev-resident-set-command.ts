@@ -3,8 +3,8 @@
  *
  * A RECOMMENDATION, never an action. Cold loads cost 40–90s, and a fleet that reloads the same model six times
  * an evening has spent ten minutes doing nothing — but the standing production constraint (David, 2026-07-19) is
- * that !Klein NEVER auto-loads or auto-unloads. So this prints a set for the OPERATOR to act on, and the core it
- * calls has no `toLoad`/`toUnload` field to execute even if this command wanted to.
+ * this command is recommendation-only. It prints a set for the OPERATOR to inspect, and the core it calls has no
+ * `toLoad`/`toUnload` field to execute even if this command wanted to. Guarded runtime admission is a separate path.
  *
  * The core shipped with no consumer; this is one that needs no live fleet — it reads observed per-model
  * candidates from a file, exactly the shape the fitness store already holds.
@@ -53,7 +53,7 @@ export async function runDevResidentSetCommand(options: {
 		process.stdout.write(
 			"usage: dev resident-set --candidates <file> --budget-gb <n>\n" +
 				"  Each candidate line: {modelId, sizeBytes, measuredFitness|null, observationCount, requestCount} JSON.\n" +
-				"  Prints a set to keep loaded — a RECOMMENDATION only; !Klein never auto-loads.\n",
+				"  Prints a set to keep loaded — a RECOMMENDATION only; this command performs no model action.\n",
 		);
 		process.exitCode = 2;
 		return;
@@ -83,7 +83,7 @@ export async function runDevResidentSetCommand(options: {
 	}
 
 	const gb = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-	process.stdout.write(`RESIDENT-SET RECOMMENDATION (operator acts; !Klein never auto-loads)\n\n`);
+	process.stdout.write(`RESIDENT-SET RECOMMENDATION (read-only; no model action is performed)\n\n`);
 	process.stdout.write(
 		`${recommendation.recommended.length} model(s) recommended · ${Math.round(recommendation.secondsSaved)}s of cold loads avoided/window · ${gb(recommendation.bytesUsed)} of ${gb(recommendation.bytesAvailable)} usable.\n\n`,
 	);

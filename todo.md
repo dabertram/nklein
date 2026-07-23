@@ -33,7 +33,7 @@ deferred or optional · `[~]` **partially done — the item MUST name its concre
 named remainder is a bug in the queue, not a status). `[x]` is shipped-with-evidence and moves to `done.md`. Count only non-quoted checkbox rows. Legacy `§5.*` labels are retained in topic headings and in
 the alias map so old commits, comments, and references remain searchable.
 
-**Live status clarification (2026-07-23, refreshed after F12.64):** `[ ]` means executable now, not merely “not started”;
+**Live status clarification (2026-07-23, refreshed after F12.77b):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
   gate below is green. The current 152-package remainder is **57 ready + 1 partial + 78 dependency-blocked + 7 external/
 user-gated + 9 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
@@ -487,6 +487,14 @@ gap remains.
 > memory-pressure plus swap-growth checks. Smaller linked hosts retain a single hardware-fit model. Evict only the
 > cold residents needed to admit the next model, never active work or unrelated hosts. The unsafe state was four
 > unbudgeted 32k residents (~74.5 GB weights before KV/runtime memory), not residency itself.
+
+> **⚠️ LM LINK USES TWO HOST IDENTITIES IN THE SAME SNAPSHOT (live-found F12.77b, 2026-07-23).** `lms ls`
+> assigns downloaded models to friendly names such as `m4mini`/`legion5pro` and calls the current host `Local`, while
+> `lms ps --json` assigns loaded remote instances opaque `deviceIdentifier` hashes and assigns the current host `null`
+> (normalized internally as `local`). Joining either directly makes every remote model look unloaded and makes configured
+> per-host RAM disappear. Read `lms link status --json` in the same bounded snapshot, map opaque ids to `deviceName`,
+> and map the local sentinel to its reported local `deviceName` before any catalog/residency/pool join. Unknown linked
+> ids remain unknown rather than being guessed.
 
 > **⚠️ EXTERNAL BENCHMARK ENVIRONMENTS MUST REMAIN THE EXECUTION AND VERIFICATION AUTHORITY (Terminal-Bench F12.61,
 > 2026-07-23).** Do not relabel !Klein's repository `AgentSandboxManager` as a benchmark task environment: Harbor owns a
@@ -1406,7 +1414,10 @@ source repo went private — so if it vanishes the buildable source still lives 
   admission may evict only !Klein-auto-loaded residents that are past TTL, not reserved by any active task or queued
   explicit model need across workspaces, and only the minimum coldest set needed for the incoming load. Operator-loaded
   residents are immovable. m5max has a three-LLM cap; smaller hosts one. Terminal summaries refresh last-used time so a
-  long session receives a full post-completion warm window.
+  long session receives a full post-completion warm window. **Do not implement that 30-minute eligibility clock with
+  LM Studio's `--ttl`: LM Studio's flag is an unconditional idle-time auto-unload.** Safe warm loads omit `--ttl`; the
+  internal ownership/headroom planner applies eligibility only when a new admission actually needs capacity. A short
+  LM Studio TTL is appropriate only for an intentionally disposable probe.
 - **MODEL RESIDENCY IS NOT GUARANTEED STABLE + we are currently BLIND to why a model vanishes (investigation 2026-07-07,
   user flagged; supersedes my earlier casual "auto-unloaded (TTL)" claim, which was an UNVERIFIED guess).** Observed: a
   model resident + serving many requests (`qwen/qwen2.5-coder-14b` on the **m4mini** fleet node) DISAPPEARED between two
@@ -5225,57 +5236,6 @@ output and NOT acted on. Captured as F12.12.)
   stream + the model-role config UI. 10 tests (41 in the module).
   NOT DONE: no wire — this is the profile BUILDER; F12.70's runtime spec-decode toggle and the per-request backend
   switch are separate effectful changes against the provider layer.
-- [x] **F12.77 — Warm-pool + TTL orchestration to kill cold-starts (cold loads cost 40–90s).**
-  **RECOMMENDATION CORE SHIPPED 2026-07-20: `resident-set-recommendation.ts`, 10 tests.** This is the half the
-  standing constraint actually allows: !Klein says WHICH models are worth keeping loaded; the operator loads them.
-  **WHY THIS IS NOT `model-residency-planner.ts`, WHICH ALREADY EXISTED.** That core answers *"if X does not fit,
-  what do I UNLOAD?"* — an autonomous eviction planner, and a good one. It also has **zero consumers, and that is
-  not neglect**: the standing production constraint (David 2026-07-19, no auto-load/unload — prompt-cache thrash +
-  MLX) **removed its purpose in production by decision.** Production needs the opposite question, so this is a
-  genuinely different core rather than a duplicate. (Checked against `dev capability-index` first.)
-  **THE CONSTRAINT IS ENFORCED BY SHAPE, NOT DISCIPLINE.** `ResidentSetRecommendation` has no `toLoad`, no
-  `toUnload`, **no field a caller could execute** — so this cannot become an auto-loader by increments, which is
-  exactly how such things arrive (one convenience field, one "dev-only" flag, one default flip). The constraint
-  survives as a TYPE rather than as a comment someone has to remember. Pinned by a source guard.
-  **Ranked by TIME SAVED, not fitness.** A slightly-worse model requested 40× saves far more wall clock than an
-  excellent one requested twice; fitness is a GATE, not the ranking — *a bad model kept warm is a bad model
-  answering faster.* Unmeasured models are excluded outright: residency is EXCLUSIVE, so every recommendation
-  denies a slot to another model, and "we have no idea whether this is good" must not outrank measured evidence.
-  **REFUSES to over-recommend past the usable budget** (25% OS/KV reserve). Over-recommending is worse than
-  silence: the operator loads it, the machine swaps, and the slowdown gets blamed on the model rather than on the
-  advice that caused it.
-  🐛 A test caught a real off-by-one: a model requested EXACTLY ONCE was being recommended. Its single load had to
-  happen anyway, so residency buys zero seconds while consuming an exclusive slot — the gate is `<= 1`, not `<= 0`.
-  The TTL half + the surface are F12.77b.
-- [ ] **F12.77b — TTL guidance + the recommendation surface *(split from F12.77 2026-07-20)*.** Feed
-  `recommendResidentSet` real fitness/request counts, show the result somewhere an operator sees it, and evaluate
-  llama-swap for finer TTL control. `lms load --ttl` is verified exposed (2026-07-19), so the TTL half is
-  reachable today — but as GUIDANCE printed for the operator, never as a command !Klein runs.
-  **✅ DE-ORPHANED 2026-07-20 via `dev resident-set` — the recommender has a consumer, and it is print-only.**
-  `--candidates <file> --budget-gb <n>` reads observed per-model rows (the shape the fitness store holds) and
-  prints the set to keep loaded, in GB. Live-exercised on a 5-model fleet at 24 GB, and the result demonstrates
-  the core's whole point: `qwopus-27b` at fitness 0.91 is EXCLUDED while `coder-14b` at 0.82 is kept, because
-  residency ranks by TIME SAVED (120 requests × cold-load cost) not by fitness — a heavily-used good-enough model
-  beats a rarely-used excellent one for a scarce slot. All five exclusion reasons surfaced (unmeasured,
-  below_fitness_bar, never_requested, no_room, thin_evidence). **The command is print-only BY INHERITANCE — the
-  core has no `toLoad`/`toUnload` field, so there is nothing for the command to execute even accidentally**, which
-  is the type-level guard doing exactly what its docblock promises. REMAINING: feed it REAL fitness-store rows
-  (not a hand-made file) and surface it in the UI — where the risk below (an "apply" button) lives.
-  **⚠️ THE WARM-POOL HALF OF F12.77 IS DECLINED, NOT DEFERRED.** Keeping models resident automatically, TTL-evicting
-  cold ones, and preloading on idle are all auto-load/unload, which the standing constraint (David 2026-07-19)
-  rules out for production on prompt-cache-thrash and MLX grounds. Recorded as declined so a future reader does
-  not mistake an empty slot for unfinished work and helpfully build it.
-  **THE RISK IN THIS ITEM: a surface that offers a "apply this" button.** That single affordance would convert a
-  recommendation into an auto-loader while the core stays honest — the type-level guard in
-  `resident-set-recommendation.ts` protects the DATA, and cannot protect a button someone adds beside it. The
-  surface must present the set as guidance to act on manually, with the `lms` command shown as copyable text.
- **`--ttl` IS exposed by `lms load` (verified 2026-07-19), so the TTL half is reachable today; the warm-pool half stays gated by the standing no-auto-load/unload production constraint — !Klein RECOMMENDS a resident set, the operator loads it.** Keep top-fitness models
-  resident, TTL-evict cold ones, preload + warm-up on machine idle; evaluate llama-swap (YAML JIT load + per-model TTL
-  auto-unload + explicit unload endpoints) for finer control than LM Studio (whose `n_parallel` isn't API-configurable, JIT
-  TTL defaults 60 min). Bounds resident VRAM while avoiding reloads + the m4mini swap-crash from manual `lms load`. New
-  fleet candidates to sweep: Qwen3-Coder-30B-A3B (256K, best quality/GB), Devstral-24B (agent-first, 46.8% SWE-bench, 16GB),
-  GLM-4.5-Air (90.6% tool-call), Qwen3-Next-80B-A3B (hybrid-attn, ~10× throughput >32K, built-in MTP). (llama-swap; zenvanriel mac-mini; vllm qwen3-next)
-
 **Research batch 2 (2026-07-17) — 3 deep-research briefs (prompt/context engineering, per-language & framework capability,
 emerging inference-time techniques). Cross-checked vs existing items; duplicates folded (system-reminder channel⇒F12.21,
 k-hop localization⇒F11.2c, in-repo few-shot⇒F11.2h, reward-hack detector⇒F12.44, adaptive reasoning depth⇒F4.38). Same
@@ -5906,9 +5866,10 @@ into the existing F12.31. Same verify-before-build caveat.**
   (decompose as-if for a named class — also what makes decomposition DETERMINISTIC per profile for the N3
   nightly matrix), `off` (today's behavior). Scope global → per-project → per-card via resolveScopedOverride
   (F4.16's core, zero consumers — this is its first). Ship OPT-IN dark (flag), A/B through the F12.41 flip-gate
-  before any default. **DECISIONS RESOLVED (David 2026-07-19):** (1) fleet snapshot = **LOADED models only** — !Klein must NOT
-  auto-load/unload in production AT ALL (it thrashes prompt caches, e.g. MLX; the autonomous loader is a
-  DEV-TIME tool only — standing product constraint, see the F4.47-50 note); (2) fleet-change mid-plan ⇒
+  before any default. **DECISIONS RESOLVED (David 2026-07-19; residency clause superseded by guarded F4.50 on
+  2026-07-21):** (1) fleet snapshot = **LOADED models only**. Selection never assumes a downloaded model is resident;
+  guarded task admission may now retain/load within headroom and evict only cold !Klein-owned models under actual
+  pressure (see F4.47–F4.50); (2) fleet-change mid-plan ⇒
   **AUTOMATIC re-shard, ON by default**, with a user opt-out setting (rides the existing redecompose trigger);
   (3) `smallest` = **smallest LOADED** model, with an OPTIONAL setting to target the smallest SUPPORTED catalog
   floor instead (reproducible sharding for those who want it). Composes

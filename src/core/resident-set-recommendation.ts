@@ -5,11 +5,10 @@
  * nothing, and the fix is simply knowing which models to keep resident.
  *
  * ── WHY THIS IS NOT `model-residency-planner.ts`, WHICH ALREADY EXISTS ──
- * That module answers "if X does not fit, what do I UNLOAD to make room?" — an autonomous eviction planner, and
- * a good one. It also has zero consumers, and that is not an oversight: **the standing production constraint
- * (David, 2026-07-19) is that !Klein never auto-loads or auto-unloads models.** Prompt-cache thrash and MLX
- * behaviour make it the wrong thing to do, so the autonomous planner is dev-time tooling and its purpose in
- * production was removed by decision, not by neglect.
+ * That module answers "can the guarded runtime admit X, and which idle !Klein-owned model may leave under actual
+ * capacity pressure?" This module answers the opposite planning question: "given observed use, which safe set is
+ * worth keeping warm?" F4.50 later connected the guarded planner to production, but that does not turn this read-only
+ * recommendation into an action plan.
  *
  * What production actually needs is the opposite question: **"given how this fleet is used, which set should the
  * OPERATOR keep loaded?"** That is a recommendation, and the difference is not cosmetic.
@@ -18,7 +17,7 @@
  * `ResidentSetRecommendation` has no `toLoad`, no `toUnload`, no action of any kind — only a set, reasons, and
  * costs. **There is no field a caller could execute**, so this module cannot grow into an auto-loader by
  * increments, which is exactly how such things normally arrive: one convenience field, one "dev-only" flag, one
- * default flip. The standing constraint survives as a type rather than as a comment someone has to remember.
+ * default flip. The read-only surface survives as a type rather than as a comment someone has to remember.
  *
  * Honesty stance: an UNMEASURED model does not earn residency. Residency is a scarce, exclusive resource — every
  * recommended model denies the slot to another — so "we have no idea whether this is any good" must not outrank a
@@ -36,7 +35,13 @@ export interface ResidencyCandidate {
 	readonly requestCount: number;
 }
 
-export type ExclusionReason = "unmeasured" | "thin_evidence" | "below_fitness_bar" | "never_requested" | "no_room";
+export type ExclusionReason =
+	| "unmeasured"
+	| "thin_evidence"
+	| "below_fitness_bar"
+	| "never_requested"
+	| "no_room"
+	| "host_cap";
 
 export interface RecommendedModel {
 	readonly modelId: string;
@@ -92,10 +97,14 @@ export function recommendResidentSet(input: {
 	readonly budgetBytes: number;
 	readonly reserveFraction?: number;
 	readonly coldLoadSeconds?: number;
+	/** Optional hard cap on chat models kept resident on this host (embeddings are infrastructure, not candidates). */
+	readonly maxResidents?: number;
 }): ResidentSetRecommendation {
 	const reserve = input.reserveFraction ?? DEFAULT_RESERVE_FRACTION;
 	const usable = Math.max(0, Math.floor(input.budgetBytes * (1 - reserve)));
 	const loadCost = input.coldLoadSeconds ?? COLD_LOAD_SECONDS;
+	const maxResidents =
+		input.maxResidents === undefined ? Number.POSITIVE_INFINITY : Math.max(0, Math.trunc(input.maxResidents));
 
 	const excluded: ExcludedModel[] = [];
 	const eligible: { candidate: ResidencyCandidate; secondsSaved: number }[] = [];
@@ -148,6 +157,14 @@ export function recommendResidentSet(input: {
 	const recommended: RecommendedModel[] = [];
 	let bytesUsed = 0;
 	for (const entry of eligible) {
+		if (recommended.length >= maxResidents) {
+			excluded.push({
+				modelId: entry.candidate.modelId,
+				reason: "host_cap",
+				detail: `would exceed the ${maxResidents}-model host cap — RAM headroom alone is not permission to grow the warm set`,
+			});
+			continue;
+		}
 		if (bytesUsed + entry.candidate.sizeBytes > usable) {
 			excluded.push({
 				modelId: entry.candidate.modelId,
@@ -175,7 +192,7 @@ export function recommendResidentSet(input: {
 		secondsSaved,
 		summary:
 			recommended.length === 0
-				? `No model earns a residency slot (${input.candidates.length} candidate(s) considered). !Klein recommends; it never loads.`
-				: `Recommend keeping ${recommended.length} model(s) resident (${Math.round(secondsSaved)}s of cold loads avoided over the observed window), using ${bytesUsed} of ${usable} usable bytes. !Klein does NOT load these — the operator does.`,
+				? `No model earns a residency slot (${input.candidates.length} candidate(s) considered). This view is guidance only.`
+				: `Recommend keeping ${recommended.length} model(s) resident (${Math.round(secondsSaved)}s of cold loads avoided over the observed window), using ${bytesUsed} of ${usable} usable bytes${Number.isFinite(maxResidents) ? ` within the ${maxResidents}-model host cap` : ""}. This view does not apply the recommendation.`,
 	};
 }

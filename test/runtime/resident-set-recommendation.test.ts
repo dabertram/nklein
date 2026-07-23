@@ -85,24 +85,36 @@ describe("recommendResidentSet", () => {
 		expect(result.excluded.some((e) => e.reason === "no_room")).toBe(true);
 	});
 
-	it("says plainly that !Klein does not load", () => {
+	it("also respects the production resident-count cap when RAM could fit more", () => {
+		const result = recommendResidentSet({
+			candidates: [
+				candidate({ modelId: "a", sizeBytes: GB, requestCount: 30 }),
+				candidate({ modelId: "b", sizeBytes: GB, requestCount: 20 }),
+			],
+			budgetBytes: 64 * GB,
+			maxResidents: 1,
+		});
+		expect(result.recommended.map((model) => model.modelId)).toEqual(["a"]);
+		expect(result.excluded).toContainEqual(expect.objectContaining({ modelId: "b", reason: "host_cap" }));
+	});
+
+	it("says plainly that the view does not apply the recommendation", () => {
 		const result = recommendResidentSet({ candidates: [candidate()], budgetBytes: 64 * GB });
-		expect(result.summary).toContain("the operator does");
+		expect(result.summary).toContain("does not apply");
 	});
 
 	it("handles an empty fleet", () => {
 		const result = recommendResidentSet({ candidates: [], budgetBytes: 64 * GB });
 		expect(result.recommended).toEqual([]);
-		expect(result.summary).toContain("never loads");
+		expect(result.summary).toContain("guidance only");
 	});
 });
 
 describe("the no-auto-load constraint is enforced by SHAPE", () => {
 	it("the recommendation carries NO executable action", () => {
-		// The standing production constraint (David 2026-07-19) is that !Klein never auto-loads or auto-unloads.
-		// Enforcing that by discipline fails the usual way: one convenience field, one dev-only flag, one default
-		// flip. There is no field here a caller could execute, so the module cannot become an auto-loader by
-		// increments. This test pins the absence.
+		// Read-only guidance must stay separate from F4.50's guarded runtime admission. Enforcing that by discipline fails
+		// the usual way: one convenience field, one dev-only flag, one default flip. There is no field here a caller could
+		// execute, so this module cannot become an auto-loader by increments. This test pins the absence.
 		const source = readFileSync(new URL("../../src/core/resident-set-recommendation.ts", import.meta.url), "utf8");
 		const code = source.slice(source.indexOf("export interface ResidencyCandidate"));
 		expect(code).not.toMatch(/toLoad|toUnload|\bload\(|\bunload\(/);

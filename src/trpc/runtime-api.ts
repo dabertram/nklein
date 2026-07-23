@@ -67,6 +67,7 @@ import {
 	isHostOpenTargetId,
 	validateHostOpenFilePath,
 } from "../core/host-open-intents";
+import { fetchLmsLinkDevices, type LmsLinkDevices } from "../core/lms-link-status";
 import { parseLmsLsCatalog } from "../core/lms-model-catalog";
 import {
 	createDefaultLmsRunner,
@@ -98,6 +99,7 @@ import { summarizeOpportunisticValue } from "../core/opportunistic-work-value";
 import { assemblePromptFragmentsForIntent } from "../core/prompt-fragment-assembly";
 import { parsePromptIntentMode } from "../core/prompt-intent-mode";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
+import { buildResidentSetGuidance } from "../core/resident-set-guidance";
 import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projection";
 import { isKanbanRemoteHost } from "../core/runtime-endpoint";
 import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
@@ -279,20 +281,44 @@ const CAPABILITY_UPGRADE_BARS: readonly RoleQualityBar[] = [
  * clear. Gathers the effectful inputs (the `lms ls` catalog, real loaded ids, the NKLEIN_DEVICE_RAM_GB map) and defers
  * the logic to the shared {@link computeFleetCapabilityUpgrades}. Best-effort: the caller wraps this in `.catch(() => [])`.
  */
-async function computeCapabilityUpgrades(
-	fitnessRows: readonly { modelKey: string; role: string; successCount: number; sampleCount: number }[],
-): Promise<ReturnType<typeof computeFleetCapabilityUpgrades>> {
+interface FitnessFleetContext {
+	catalog: ReturnType<typeof parseLmsLsCatalog>;
+	loadedModels: Awaited<ReturnType<typeof fetchLmsPsModelsCached>>;
+	loadedIds: string[];
+	configuredRamBytes: Record<string, number>;
+	linkDevices: LmsLinkDevices;
+}
+
+/** One bounded fleet read shared by every fitness-table enrichment (catalog, loaded instances, and RAM budgets). */
+async function collectFitnessFleetContext(): Promise<FitnessFleetContext> {
 	const runner = createDefaultLmsRunner();
-	const [lsOut, loadedIds] = await Promise.all([
+	const [lsOut, loadedModels, loadedIds, linkDevices] = await Promise.all([
 		runner(["ls"])
-			.then((r) => r.stdout)
+			.then((result) => result.stdout)
 			.catch(() => ""),
+		fetchLmsPsModelsCached(runner).catch(() => []),
 		fetchLoadedModelIdsCached(DEFAULT_LOCAL_MODEL_BASE_URL).catch(() => [] as string[]),
+		fetchLmsLinkDevices(runner),
 	]);
-	const catalog = parseLmsLsCatalog(lsOut, { localDeviceName: LOCAL_MACHINE_ID });
+	const localDeviceName = linkDevices.localMachineName ?? LOCAL_MACHINE_ID;
+	const namesByDeviceId = new Map(linkDevices.namesByDeviceId);
+	namesByDeviceId.set(LOCAL_MACHINE_ID, localDeviceName);
+	return {
+		catalog: parseLmsLsCatalog(lsOut, { localDeviceName }),
+		loadedModels,
+		loadedIds,
+		configuredRamBytes: resolveDeviceRamBytesFromEnv(),
+		linkDevices: { ...linkDevices, namesByDeviceId },
+	};
+}
+
+function computeCapabilityUpgrades(
+	fitnessRows: readonly { modelKey: string; role: string; successCount: number; sampleCount: number }[],
+	context: FitnessFleetContext,
+): ReturnType<typeof computeFleetCapabilityUpgrades> {
 	const isLoaded = (modelKey: string): boolean =>
-		loadedIds.some((id) => id === modelKey || modelKey.includes(id) || id.includes(modelKey));
-	const ramBytes = resolveDeviceRamBytesFromEnv();
+		context.loadedIds.some((id) => id === modelKey || modelKey.includes(id) || id.includes(modelKey));
+	const ramBytes = context.configuredRamBytes;
 	const deviceRamGB = Object.fromEntries(Object.entries(ramBytes).map(([m, bytes]) => [m, bytes / 1024 ** 3]));
 	return computeFleetCapabilityUpgrades({
 		fitnessSamples: fitnessRows.map((r) => ({
@@ -301,7 +327,7 @@ async function computeCapabilityUpgrades(
 			successCount: r.successCount,
 			sampleCount: r.sampleCount,
 		})),
-		catalog,
+		catalog: context.catalog,
 		deviceRamGB,
 		isLoaded,
 		bars: CAPABILITY_UPGRADE_BARS,
@@ -363,21 +389,22 @@ function resolveRailCoordinator(deps: CreateRuntimeApiDependencies): RailControl
 
 // F3.23 — fold the live `lms ps` snapshot into the read-only machine-pool view (id + resident models + the
 // operator's NKLEIN_DEVICE_RAM_GB budget). Best-effort: unreachable lms ⇒ [].
-async function buildMachinePoolsView(): Promise<
-	{
-		id: string;
-		residentModels: { identifier: string; modelKey: string; isEmbedding: boolean }[];
-		configuredRamGb: number | null;
-	}[]
-> {
-	const models = await fetchLmsPsModelsCached(createDefaultLmsRunner());
+function buildMachinePoolsView(context: FitnessFleetContext): {
+	id: string;
+	residentModels: { identifier: string; modelKey: string; isEmbedding: boolean }[];
+	configuredRamGb: number | null;
+}[] {
 	const ramByMachine = parseDeviceRamGb(process.env.NKLEIN_DEVICE_RAM_GB);
 	const pools: {
 		id: string;
 		residentModels: { identifier: string; modelKey: string; isEmbedding: boolean }[];
 		configuredRamGb: number | null;
 	}[] = [];
-	for (const [machineId, machineModels] of groupModelsByMachine(models)) {
+	const loadedModels = context.loadedModels.map((model) => ({
+		...model,
+		machineId: context.linkDevices.namesByDeviceId.get(model.machineId) ?? model.machineId,
+	}));
+	for (const [machineId, machineModels] of groupModelsByMachine(loadedModels)) {
 		pools.push({
 			id: machineId,
 			residentModels: machineModels.map((model) => ({
@@ -389,6 +416,24 @@ async function buildMachinePoolsView(): Promise<
 		});
 	}
 	return pools.sort((left, right) => (left.id < right.id ? -1 : 1));
+}
+
+function buildResidentSetGuidanceView(
+	fitnessRows: readonly { modelKey: string; successCount: number; sampleCount: number }[],
+	context: FitnessFleetContext,
+) {
+	// The local host's real RAM is trustworthy even when setup has not persisted NKLEIN_DEVICE_RAM_GB yet. Linked hosts
+	// remain fail-closed: without an explicit budget, !Klein cannot prove that a recommendation is safe there.
+	const deviceRamBytes = { ...context.configuredRamBytes };
+	const localHostId = context.linkDevices.localMachineName ?? LOCAL_MACHINE_ID;
+	deviceRamBytes[localHostId] ??= totalmem();
+	return buildResidentSetGuidance({
+		fitnessRows,
+		catalog: context.catalog,
+		loadedModels: context.loadedModels,
+		deviceNamesById: context.linkDevices.namesByDeviceId,
+		deviceRamBytes,
+	});
 }
 
 export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrpcContext["runtimeApi"] {
@@ -865,15 +910,19 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// F1.15c: the unified read — persisted store (eval + legacy) merged with the live ledger projection.
 			const rows = await readMergedFitnessRows().catch(() => ({}) as Record<string, never>);
 			const fitnessRows = Object.values(rows);
+			const fleetContext = await collectFitnessFleetContext().catch(() => null);
 			return {
 				generatedAt: Date.now(),
 				rows: buildFitnessTableView(fitnessRows),
 				// F3.35 enrichment — best not-loaded upgrade per ceiling-hit role, from the fitness rows + the `lms ls`
 				// catalog (machine + size) + the NKLEIN_DEVICE_RAM_GB map + real loaded state. Best-effort: any failing
 				// source degrades to no upgrades (never breaks the fitness view).
-				capabilityUpgrades: await computeCapabilityUpgrades(fitnessRows).catch(() => []),
+				capabilityUpgrades: fleetContext ? computeCapabilityUpgrades(fitnessRows, fleetContext) : [],
 				// F3.23: the read-only machine-pool view — resident models per machine + the configured RAM budget.
-				machinePools: await buildMachinePoolsView().catch(() => []),
+				machinePools: fleetContext ? buildMachinePoolsView(fleetContext) : [],
+				// F12.77b: real fitness/request counts + catalog sizes become safe, manual resident-set guidance. There is
+				// intentionally no mutation endpoint and no action field for the browser to call.
+				residentSetGuidance: fleetContext ? buildResidentSetGuidanceView(fitnessRows, fleetContext) : [],
 			};
 		},
 		// Ledger analytics: retrieval-usefulness + knowledge-outcome lift + opportunistic-value — the same three

@@ -165,6 +165,42 @@ export const runtimeMachinePoolSchema = z.object({
 });
 export type RuntimeMachinePool = z.infer<typeof runtimeMachinePoolSchema>;
 
+// F12.77b — read-only per-host resident-set guidance. `loadCommand` is copyable text for the operator; there is no
+// mutation/action endpoint behind it. A null TTL is intentional: `lms load` then stays warm instead of destroying its
+// prompt cache on a timer. Short TTL advice is confined to one-off probes.
+export const runtimeResidentSetGuidanceSchema = z.object({
+	hostId: z.string(),
+	totalRamBytes: z.number().int().positive(),
+	usableRamBytes: z.number().int().nonnegative(),
+	maxResidentModels: z.number().int().positive(),
+	recommended: z.array(
+		z.object({
+			modelId: z.string(),
+			sizeBytes: z.number().int().nonnegative(),
+			measuredFitness: z.number().min(0).max(1),
+			observationCount: z.number().int().nonnegative(),
+			requestCount: z.number().int().nonnegative(),
+			secondsSaved: z.number().nonnegative(),
+			alreadyLoaded: z.boolean(),
+			loadCommand: z.string().nullable(),
+			ttlSeconds: z.number().int().positive().nullable(),
+			ttlGuidance: z.string(),
+		}),
+	),
+	excluded: z.array(
+		z.object({
+			modelId: z.string(),
+			reason: z.enum(["unmeasured", "thin_evidence", "below_fitness_bar", "never_requested", "no_room", "host_cap"]),
+			detail: z.string(),
+		}),
+	),
+	secondsSaved: z.number().nonnegative(),
+	summary: z.string(),
+	probeTtlSeconds: z.number().int().positive(),
+	probeTtlGuidance: z.string(),
+});
+export type RuntimeResidentSetGuidance = z.infer<typeof runtimeResidentSetGuidanceSchema>;
+
 export const runtimeFitnessTableResponseSchema = z.object({
 	generatedAt: z.number().int().nonnegative(),
 	rows: z.array(runtimeFitnessRowSchema),
@@ -173,6 +209,8 @@ export const runtimeFitnessTableResponseSchema = z.object({
 	capabilityUpgrades: z.array(runtimeCapabilityUpgradeSchema).default([]),
 	// F3.23 — live machine pools (empty when lms is unreachable; never breaks the fitness view).
 	machinePools: z.array(runtimeMachinePoolSchema).default([]),
+	// F12.77b — real-store, per-host resident-set guidance; empty when catalog/RAM evidence is unavailable.
+	residentSetGuidance: z.array(runtimeResidentSetGuidanceSchema).default([]),
 });
 export type RuntimeFitnessTableResponse = z.infer<typeof runtimeFitnessTableResponseSchema>;
 

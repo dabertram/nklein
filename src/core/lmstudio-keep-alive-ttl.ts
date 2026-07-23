@@ -6,11 +6,10 @@
  * TTL field). Nothing here loads or unloads a model or reads the clock: it only advises how long a model *should* stay
  * warm after a request, so a caller can right-size the TTL instead of hard-coding one.
  *
- * WHY it is SUGGESTION-ONLY (prime directive #1 — never autonomously load/unload; the user owns residency): a TTL is a
- * self-eviction hint the model server enforces on its own timer; suggesting one does NOT trigger a load or an immediate
- * unload — a resident model simply evicts itself later if left idle for the TTL. This module produces the number; the
- * decision to APPLY it stays with the guarded loader and the freeze-avoidance headroom guard. It never *extends*
- * residency of a running model and never issues an unload; the worst it can do is advise a shorter self-eviction window.
+ * WHY it is SUGGESTION-ONLY: an LM Studio TTL is an unconditional idle-time self-eviction timer, not !Klein's internal
+ * "eligible for eviction if new work needs capacity" marker. The guarded production loader therefore keeps a safe warm
+ * set without an LM Studio TTL and uses its own ownership/headroom/idle gates under capacity pressure. This helper is
+ * for explicit operator guidance and intentionally disposable loads such as sweep probes; it never performs an action.
  *
  * The policy balances two costs that pull opposite ways:
  *   - **Reload cost** — a model that was expensive to load (big weights, slow cold start) is wasteful to evict if more
@@ -50,7 +49,7 @@ export interface KeepAliveTtlSuggestion {
 	reason: string;
 }
 
-/** Neutral default keep-alive when no strong signal points either way (5 minutes — LM Studio's own default TTL). */
+/** !Klein's neutral bounded suggestion when no strong signal points either way (not LM Studio's app default). */
 const DEFAULT_TTL_SECONDS = 300;
 
 /** A one-off probe should self-evict quickly so a swept model doesn't linger resident and hold RAM. */

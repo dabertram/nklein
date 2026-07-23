@@ -94,6 +94,10 @@ function formatNumber(value: number | null | undefined): string {
 	return Math.round(value).toLocaleString();
 }
 
+function formatGiB(bytes: number): string {
+	return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+}
+
 function formatTimestamp(value: number | null | undefined): string {
 	if (typeof value !== "number" || !Number.isFinite(value)) {
 		return "n/a";
@@ -818,6 +822,60 @@ export function ModelPerformanceStatsDialog({
 								</li>
 							))}
 						</ul>
+					</div>
+				)}
+				{(fitnessTable?.residentSetGuidance ?? []).length > 0 && (
+					<div
+						className="mb-2 rounded-md border border-border bg-surface-1 p-2 text-[12px] text-text-secondary"
+						data-testid="resident-set-guidance"
+					>
+						<div className="mb-1 font-semibold text-text-primary">Resident-set guidance (F12.77b)</div>
+						<div className="mb-2 text-text-tertiary">
+							Read-only guidance from real fitness/request evidence. !Klein does not apply these commands.
+						</div>
+						<div className="space-y-2">
+							{(fitnessTable?.residentSetGuidance ?? []).map((host) => (
+								<div
+									key={host.hostId}
+									className="rounded border border-border bg-surface-2 p-2"
+									data-testid="resident-set-host"
+								>
+									<div className="font-semibold text-text-primary">
+										{host.hostId} · {host.maxResidentModels}-model cap · {formatGiB(host.usableRamBytes)}{" "}
+										usable
+									</div>
+									<div className="mb-1 text-text-tertiary">{host.summary}</div>
+									{host.recommended.map((model) => (
+										<div key={model.modelId} className="mt-1" data-testid="resident-set-model">
+											<div>
+												<span className="font-mono text-text-primary">{model.modelId}</span> ·{" "}
+												{formatGiB(model.sizeBytes)} · fitness {model.measuredFitness.toFixed(2)} /{" "}
+												{model.observationCount} observations · ~{Math.round(model.secondsSaved)}s saved
+											</div>
+											{model.alreadyLoaded ? (
+												<div className="text-status-green">Already loaded — keep warm.</div>
+											) : (
+												<code
+													className="block select-all overflow-x-auto rounded bg-surface-0 px-2 py-1 text-text-primary"
+													data-testid="resident-set-load-command"
+												>
+													{model.loadCommand}
+												</code>
+											)}
+											<div className="text-text-tertiary">{model.ttlGuidance}</div>
+										</div>
+									))}
+									{host.recommended.length === 0 ? (
+										<div className="text-text-tertiary">
+											No downloaded model has enough qualifying evidence for a warm slot yet.
+										</div>
+									) : null}
+									<div className="mt-1 text-text-tertiary">
+										{host.excluded.length} excluded · {host.probeTtlGuidance}
+									</div>
+								</div>
+							))}
+						</div>
 					</div>
 				)}
 				{topReevalCells.length > 0 && (

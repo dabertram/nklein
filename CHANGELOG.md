@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Resident-model guidance now preserves warm caches inside explicit safety limits.** The Model Performance view joins
+  real fitness/request history with downloaded sizes, loaded state, and per-host RAM, then recommends at most one model
+  on smaller hosts or three on 64+ GiB hosts while retaining a 25% memory reserve. Already-loaded models are recognized;
+  otherwise the UI shows a copyable 32k-context `lms load` command but never applies it. Warm recommendations omit LM
+  Studio's timed auto-unload TTL, while disposable probes get separate short-TTL guidance.
+
 - **Agents now get IDE-precise TypeScript/JavaScript symbol tools inside their networkless task sandbox.** A persistent,
   pinned language server exposes only `find_symbol`, `find_referencing_symbols`, `get_symbols_overview`, and
   `rename_symbol`; task relevance and model/container fit are checked before it connects. Cross-file renames use the

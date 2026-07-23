@@ -2919,3 +2919,24 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   imported into the prompt or trust boundary. Verified with focused unit and service tests, backend typecheck, a pinned
   sandbox image build, and a real `--network none` Docker smoke covering the exact tool surface, cross-file references,
   two-file rename, and the other curated MCP servers.
+
+- [x] **F12.77 / F12.77b — evidence-backed resident-set and TTL guidance** *(completed 2026-07-23).* The original
+  actionless recommender now consumes the real merged fitness store, aggregating each model's role/difficulty cells into
+  one request/fitness signal and joining it with downloaded sizes, loaded-instance ownership, and per-host RAM. It keeps
+  the 25% OS/KV reserve and now also enforces production's one-chat-model cap below 64 GiB and three-model cap at/above
+  64 GiB, so spare bytes alone cannot overgrow the warm set. The fleet snapshot reconciles `lms ps --json`'s opaque LM
+  Link device ids/local sentinel through `lms link status --json` before joining `lms ls`'s friendly host names. The
+  Model Performance dialog shows the per-host result,
+  recognizes already-warm models, and exposes a selectable `lms load ... --context-length 32000` command only as text;
+  a source guard pins the absence of an Apply action.
+  TTL semantics were corrected against current LM Studio documentation: `lms load` without `--ttl` remains loaded,
+  while `--ttl` is an unconditional idle-time auto-unload, not !Klein's pressure-only eviction-eligibility clock.
+  Warm-set commands therefore omit TTL to preserve weights and prompt caches; a 60-second TTL is guidance only for an
+  intentional one-off probe. F4.50's guarded runtime admission remains the separate action path: it owns only its own
+  loads, retains operator/active/queued/embedding/pinned models, and evicts an idle eligible model only when new work
+  actually needs capacity. `llama-swap` was evaluated and not adopted at this layer: its OpenAI/Anthropic proxy, process
+  lifecycle, JIT swapping, matrix, preload hooks, and timed TTL would duplicate/conflict with LM Studio + LM Link and
+  the existing ownership/headroom planner; reconsider it only behind P17.1's runtime-adapter boundary with paired
+  prompt-cache and stability evidence. Evidence: 34 focused backend assertions, 15 focused UI assertions, backend/web
+  typechecks, the complete 12,339-test fast suite, 143 protected tests, a production web build, and lint with zero
+  errors (19 pre-existing warnings and one info).

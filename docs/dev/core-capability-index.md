@@ -13,7 +13,7 @@ The cause was not dead code — it was **discoverability**. A long orphan list r
 code*; the accurate reading is *a lot of built capability nobody can find*. Deleting it destroys value;
 indexing it recovers value.
 
-694 core modules.
+717 core modules.
 
 | module | purpose | labels |
 | --- | --- | --- |
@@ -40,6 +40,10 @@ indexing it recovers value.
 | `core/agent-stuckness.ts` | Failure outcomes that usually reflect a fixable OUTPUT-FORMAT slip (or a transient SDK/endpoint abort) — the model | §5.AA §5.AB §5.AF §5.AK |
 | `core/agent-turn-loop.ts` | (no docblock) | §5.AF §5.AG |
 | `core/agent-write-guard.ts` | `maxAgentWritableFileLines` is a SOFT target (the push-against point), NOT a hard wall — a write may exceed it when a | — |
+| `core/aider-polyglot-benchmark.ts` | Build the strongest acceptance command that can safely run inside the generic agent sandbox. | — |
+| `core/aider-polyglot-campaign.ts` | (no docblock) | — |
+| `core/aider-polyglot-grade-plan.ts` | Classify the trusted test step after every setup step has succeeded. | — |
+| `core/aider-polyglot-workspace-plan.ts` | (no docblock) | — |
 | `core/air-gap-posture.ts` | Air-gap posture assessment (F12.101 first slice) — PURE core. | F12.101 |
 | `core/answer-budget-learn.ts` | §5.AD (output sibling) — LEARN the per-(model, task-class) output/answer budget from observed token consumption. | §5.AA §5.AD |
 | `core/answer-budget-prior.ts` | PROACTIVE answer-budget sizing (todo §5.AD "Size UP-FRONT"). | §5.AA §5.AD §5.AF |
@@ -70,7 +74,7 @@ indexing it recovers value.
 | `core/basic-memory-provenance.ts` | §5.AR — provenance stamping + provenance-weighted RECALL for authored (basic-memory) notes. | §5.AR §5.AW |
 | `core/basic-memory-scoping.ts` | §5.AR — pure scoping + egress-hardening plan for the basic-memory MCP server. | §5.AR |
 | `core/benchmark-fitness.ts` | P20.9 — which benchmarks are usable BY A LOCAL FLEET. | P18.5 P20.9 |
-| `core/board-api-contract.ts` | (no docblock) | §5.K §5.X |
+| `core/board-api-contract.ts` | Where delivery-time test evidence is expected to come from. | §5.K §5.X |
 | `core/board-chat-digest.ts` | §5.AT STEP 2 — build the board→chat digest MESSAGE from a set of surfaced feedback items (the output of | §5.AG §5.AT §5.AU |
 | `core/board-chat-feedback.ts` | §5.AT — the pure decision heart of board→chat feedback: given a board/card STATE TRANSITION (prev vs next normalized | §5.AT |
 | `core/board-streams-summary.ts` | §5.AU — compose a board into its per-STREAM overview: for each stream, the member cards + their rolled-up status | §5.AU |
@@ -254,6 +258,7 @@ indexing it recovers value.
 | `core/focus-chain-diff.ts` | Focus-chain diff (todo.md §5.N) — given the previous and next state of an agent's focus chain, compute *what | §5.N |
 | `core/focus-chain-nudge.ts` | §5.M / §5.N — the focus-chain NUDGE decision (pure core). | §5.M §5.N |
 | `core/focus-chain.ts` | Per-agent focus chain (todo.md §5.N) — the agent-authored, ordered checklist it drafts at the start of a task | §5.N |
+| `core/fresh-benchmark-track.ts` | (no docblock) | — |
 | `core/frontend-framework-preamble.ts` | Frontend framework-convention preamble (F12.89) — PURE core. | F12.79 F12.80 F12.89 |
 | `core/gate-audit-metrics.ts` | Gate audit metrics (pure) — ported from opencode-swarm's gate-audit / gate-stats. | — |
 | `core/git-history-api-contract.ts` | (no docblock) | §5.X |
@@ -293,6 +298,7 @@ indexing it recovers value.
 | `core/ledger-health.ts` | F12.35b — assess the agent ledger's health: fragmentation and reader/writer hash agreement. | F12.14 F12.35b F12.81 F3.7b |
 | `core/ledger-replay-determinism.ts` | Replay-determinism checker for the Agent Attempt Ledger (todo.md §5.AF — "Replay / simulation mode"). | §5.AF §5.V |
 | `core/live-agent-state.ts` | F12.51 differentiated live agent-state taxonomy — PURE core. | F12.51 §5.AG |
+| `core/livecodebench-control.ts` | (no docblock) | — |
 | `core/llmfit-adapter.ts` | Adapter for `llmfit` (todo §5.AB; MIT, https://github.com/AlexsJones/llmfit) — a local CLI that scores models for | §5.AB §5.AL |
 | `core/llmfit-capability-prior.ts` | llmfit → cold-start capability PRIOR (todo §5.AB, user 2026-07-01: "llmfit will help to have a baseline for model | §5.AB §5.AL |
 | `core/llmfit-catalog-supplement.ts` | Converts the explicit llmfit GitHub catalog cache into a NON-authoritative catalog supplement. | — |
@@ -317,8 +323,11 @@ indexing it recovers value.
 | `core/lmstudio-response-format.ts` | §5.AN: build + validate LM Studio's `response_format` structured-output payload from an INJECTED target JSON Schema (pure). | §5.AN |
 | `core/lmstudio-rest-model-client.ts` | §5.AN LM Studio REST model management — the IN-PROCESS alternative to `lms` CLI shell-outs, wired to the | §5.AN |
 | `core/load-context-plan.ts` | Load-context planner (todo §5.AQ item G — the #1 VRAM lever) — decide what context-length to load a model AT, so | F12.68 §5.AB §5.AQ §5.L |
+| `core/local-benchmark-grade-plan.ts` | (no docblock) | — |
+| `core/local-benchmark-mint.ts` | (no docblock) | — |
 | `core/local-endpoint-clients.ts` | §5.AB endpoint-iteration — the effectful HTTP clients for the `anthropic_messages` + `native_v1_chat` endpoint kinds, | §5.AB |
 | `core/local-messages-api-shape.ts` | §5.AB endpoint-iteration — the PURE wire-shape core for the `anthropic_messages` endpoint kind (a LOCAL model server | §5.AB |
+| `core/local-model-base-url.ts` | (no docblock) | — |
 | `core/local-model-endpoint-strategy.ts` | §5.AB endpoint-iteration STRATEGY — the pure try-order decider behind "some local model servers speak OpenAI's | §5.AB |
 | `core/local-model-endpoint.ts` | The default local model-server endpoint (todo §5.U — consolidates a magic URL that was hardcoded ~8x across the | §5.U |
 | `core/local-native-chat-session.ts` | F4.35 — task-scoped continuity for LM Studio native `/api/v1/chat` sessions. | F4.35 |
@@ -334,6 +343,7 @@ indexing it recovers value.
 | `core/mcp-localization-provider.ts` | §5.B — MCP-backed {@link LocalizationProvider}, pure over an INJECTED mcp-tool-caller. | §5.B |
 | `core/mcp-server-memory-fit.ts` | §5.AR / §5.AF — decide whether a curated sandbox MCP server FITS in a task's container MEMORY budget, paralleling the | §5.AF §5.AL §5.AR |
 | `core/mcp-server-model-fit.ts` | §5.AL / §5.AP — decide whether a curated MCP server's tools should be OFFERED to a given model ("for models where it | §5.AL §5.AP |
+| `core/mcp-server-relevance-gate.ts` | (no docblock) | — |
 | `core/mcp-tool-surface-pin.ts` | F12.31 MCP hardening — tool-SURFACE pinning + server allowlist. | F12.31 |
 | `core/mechanism-decision-report.ts` | P15.2 — turn a mechanism's observation stream into a DECISION. | F12.28 F12.41 P15.1 P15.2 |
 | `core/mechanism-observation-audit.ts` | P15.1b — the observation-count half of the mechanism registry. | F4.8b P15.1b |
@@ -386,6 +396,7 @@ indexing it recovers value.
 | `core/model-turn-admission.ts` | (no docblock) | — |
 | `core/monorepo-task-scope.ts` | F11.2k monorepo-aware task scoping — PURE core. | F11.2k |
 | `core/multimodal-provider-compat.ts` | F2.7b hardening — PROVIDER image-format compatibility. | F2.7b |
+| `core/mutation-adequacy-plan.ts` | Read added result-tree lines from a one-file unified diff. | — |
 | `core/mutation-adequacy.ts` | F12.46 — test-adequacy (mutation) gate for agent-written tests (pure core). | F12.46 |
 | `core/n-eyes-review-schedule.ts` | F1.37 (§5.AW) — orthogonal N-EYES review scheduling, the pure protocol layer over the shipped parts: lenses | F1.37 F1.37b §5.AW |
 | `core/narration-dialect.ts` | §5.AA — classify WHICH narrated-tool-call recovery dialect a stuck (no-structured-call) turn is in, so the runtime | §5.AA §5.AG |
@@ -446,6 +457,7 @@ indexing it recovers value.
 | `core/process-remediation-ledger.ts` | Project a {@link ProcessTrajectory} from the agent attempt ledger (pure) — the input adapter that lets the record-only | — |
 | `core/process-remediation.ts` | Process Remediation Model (pure) — ported from opencode-swarm's PRM and adapted to complement (not duplicate) | F1.10 |
 | `core/progress-stall-detector.ts` | F12.22 progress-ledger stall detector — PURE core. | F12.22 |
+| `core/project-initializer.ts` | (no docblock) | — |
 | `core/projects-api-contract.ts` | (no docblock) | §5.AF §5.O §5.X |
 | `core/prompt-cache-verification.ts` | P19.4 — verify prompt caching EMPIRICALLY, per runtime build. | P18.5 P19.4 |
 | `core/prompt-evolution-gate.ts` | F12.28 — per-(model×role) prompt evolution, and the ADOPTION GATE that keeps it honest. | F12.28 P20.6 |
@@ -482,7 +494,8 @@ indexing it recovers value.
 | `core/request-economy-plan.ts` | Request-economy planner (todo §5.AQ) — the ONE pure decision that unifies the context-economy substrate so the | §5.AQ |
 | `core/requirement-coverage-audit.ts` | P15.7 — REQUIREMENT-level coverage: do all the elements of a requirement actually reach production? PURE core. | F3.8 F4.8 P15.1 P15.1b P15.6 P15.7 |
 | `core/research-freshness-gate.ts` | §5.AC freshness gate for the decompose/research pass — the pure decision behind "if the knowledge is stale, | §5.AC |
-| `core/resident-set-recommendation.ts` | F12.77 — the RESIDENT-SET RECOMMENDATION: which models are worth keeping loaded. | F12.77 |
+| `core/resident-set-guidance.ts` | F12.77b — turn the real fitness table + downloaded-model catalog into per-host resident-set guidance. | F12.77b |
+| `core/resident-set-recommendation.ts` | F12.77 — the RESIDENT-SET RECOMMENDATION: which models are worth keeping loaded. | F12.77 F4.50 |
 | `core/result-handle.ts` | Result-handle scheme for small-model context frugality (todo §5.O "Result handles"). | §5.O |
 | `core/retrieval-discriminator.ts` | Models that independently retained the target in 28/28 F11.2e cases, had zero valid-case regressions, zero schema | F11.2e |
 | `core/retrieval-fetch-adapter.ts` | §5.AC retrieval-loop FETCH adapter — plugs a page fetcher into the retrieval loop's injected `fetch` dep | §5.AC §5.L |
@@ -522,9 +535,11 @@ indexing it recovers value.
 | `core/run-state-machine.ts` | Finite-state run controller — PURE decision core (todo §5.AA(a)). | §5.AA §5.AF §5.AG §5.Z |
 | `core/runaway-budget-stop.ts` | F12.40 runaway budget HARD-STOP — PURE core. | F12.40 F12.58 §5.AG |
 | `core/runaway-generation-detector.ts` | Runaway-generation detector (§5.AA robustness — live-found sweep run 9, 2026-07-08). | §5.AA |
+| `core/runtime-build-identity.ts` | (no docblock) | — |
 | `core/runtime-config-api-contract.ts` | (no docblock) | P0.9c §5.X |
 | `core/runtime-endpoint.ts` | (no docblock) | — |
 | `core/runtime-model-verdict.ts` | §5.AL RUNTIME model-suitability verdict (pure) — the evidence-based companion to the curated | §5.AB §5.AL |
+| `core/runtime-resource-sampler.ts` | F4.53 low-overhead host resource sampler. | F4.53 |
 | `core/sandbox-mcp-catalog.ts` | §5.AR — the curated catalog of MCP servers that !Klein hosts INSIDE the agent sandbox, plus the pure helpers that | §5.AF §5.AL §5.AR |
 | `core/sandbox-mcp-controls.ts` | (no docblock) | — |
 | `core/sandbox-mcp-settings-preview.ts` | (no docblock) | — |
@@ -539,6 +554,7 @@ indexing it recovers value.
 | `core/session-state-predicates.ts` | Session-state predicates (todo §5.U — consolidates a `state === "running" \|\| state === "queued"` check that had | §5.U |
 | `core/session-turn-liveness.ts` | ZERO-TOKEN TURN LIVENESS (live-found 2026-07-13, real-model rail run — the "planning freeze" root cause). | §5.AQ |
 | `core/setup-detection.ts` | §5.BA guided-configuration detection core — PURE "detect → recommend" logic. | §5.AR §5.AX §5.BA |
+| `core/setup-facts.ts` | (no docblock) | F5.3 |
 | `core/shell.ts` | (no docblock) | — |
 | `core/shortcut-behavior-monitor.ts` | F12.97 shortcut-behavior monitor over a delivered diff — PURE core, complementary to F12.44's | F12.44 F12.97 |
 | `core/skill-api-profile-request.ts` | §5.AE → §5.AN bridge (pure): translate a resolved {@link SkillApiProfile} (the abstract per-skill INTENT — | §5.AA §5.AE §5.AG §5.AN |
@@ -589,6 +605,8 @@ indexing it recovers value.
 | `core/swarm-roster-load-plan.ts` | Pure planning for effectful swarm-roster loads. | — |
 | `core/swarm-roster.ts` | Named swarm rosters (todo §5.AB per-machine pools, user 2026-06-29). | §5.AA §5.AB §5.AL §5.O §5.Z |
 | `core/swarm-tool-capability.ts` | Swarm-tool capability lookup (§5.L decision-4) — the PER-TOOL STATIC manifest + output-taint for the autonomous | F1.21 §5.L |
+| `core/swebench-benchmark.ts` | F11.3 — pure, source-agnostic repository-benchmark substrate. | F11.3 P20.9 |
+| `core/swebench-workspace-plan.ts` | (no docblock) | — |
 | `core/sweep-resource-governance.ts` | §5.AI/§10 sweep resource governance (operational) — the pure deciders that keep a background model-sweep from | §5.AB §5.AI |
 | `core/synthesis-evidence-quality-eval.ts` | F4.6 paired answer-quality evaluation for the live retrieval synthesis prompt. | F4.6 |
 | `core/synthetic-task-id.ts` | Synthetic task-id conventions (todo §5.U — consolidates a `::` magic-string check that had drifted across ~5 files). | §5.U |
@@ -620,6 +638,8 @@ indexing it recovers value.
 | `core/temporal-claim-consistency.ts` | Temporal-consistency checker for DATED CLAIMS — the anachronism guard of the "knows today" lighthouse (todo §5.AC). | §5.AC |
 | `core/temporal-context-injection.ts` | §5.AC "knows-today" temporal-context INJECTION decision (user guidance 2026-07-01). | §5.AC §5.AQ |
 | `core/terminal-api-contract.ts` | (no docblock) | §5.X |
+| `core/terminal-bench-agent.ts` | (no docblock) | — |
+| `core/terminal-bench-harness.ts` | Preflight the image-bearing Harbor smoke without pulling anything. | — |
 | `core/terminal-redrive-escalation.ts` | §5.AG Layer-1 automatic escalation, planned at the terminal-redrive seam (the #24 dead-card one-shot restart is the | §5.AF §5.AG |
 | `core/test-driven-delivery.ts` | §5.AI — test-driven mode: the pure delivery-gate decision. | F1.34 §5.AI |
 | `core/test-misinterpretation-detector.ts` | F12.15b test-misinterpretation detector — the daplab failure pattern where a worker "fixes" a RED test run by | F12.15b |
@@ -675,6 +695,7 @@ indexing it recovers value.
 | `commands/chat.ts` | `nklein chat` (todo §5.M) — a board-independent chat entry point that drives one turn of the unified chat | §5.AB §5.M |
 | `commands/dev-ablation-command.ts` | `nklein dev ablation` — did stubbing the artifact actually break anything? (P20.3) | P20.3 |
 | `commands/dev-ai-bom-command.ts` | F12.100 — `nklein dev ai-bom`: render the project's AI Bill of Materials over the LOADED fleet (models + | F12.100 |
+| `commands/dev-benchmark-command.ts` | (no docblock) | — |
 | `commands/dev-cache-check-command.ts` | `nklein dev cache-check` — is this llama.cpp build ACTUALLY reusing the prompt cache? (P19.4) | P19.4 |
 | `commands/dev-capability-index-command.ts` | `nklein dev capability-index [--search <q>] [--out <path>]`. | F12.28 F12.41 F12.82 P20.2 |
 | `commands/dev-card-timeline-command.ts` | `nklein dev card-timeline <cardId>` — everything that happened to one card, in one ordered timeline. | F12.55 P15.6 |
@@ -694,6 +715,7 @@ indexing it recovers value.
 | `commands/dev-nightly-command.ts` | N1b — `nklein dev nightly [--project <id>] [--model <profile>] [--json] [--dry-run]`. | P20.6 |
 | `commands/dev-off-track-command.ts` | `nklein dev off-track` — compact, restart, park, or continue? (P18.4) | P18.4 P18.4b |
 | `commands/dev-otel-export-command.ts` | F12.47 effectful half — `nklein dev otel-export`: read the agent-attempt ledger, map attempt events to OTel | F12.47 |
+| `commands/dev-project-execution.ts` | (no docblock) | — |
 | `commands/dev-requirement-coverage-command.ts` | P15.7b — `nklein dev requirement-coverage`: do all the elements of a tracked requirement reach production? | P15.7b P15.7c |
 | `commands/dev-resident-set-command.ts` | `nklein dev resident-set` — which models is it worth keeping loaded? (F12.77) | F12.77 |
 | `commands/dev-rounds-budget-command.ts` | `nklein dev rounds-budget` — how many reasoning rounds is a loop worth, and when should it stop? (rounds-budget.ts) | — |
@@ -709,5 +731,6 @@ indexing it recovers value.
 | `commands/dev-unwired-cores-command.ts` | P15.1 — `nklein dev unwired-cores`: list exported core symbols with no non-test consumer. | P15.1 P15.7b P15.7c |
 | `commands/dev.ts` | (no docblock) | — |
 | `commands/real-model-evidence-cli.ts` | (no docblock) | — |
+| `commands/setup.ts` | (no docblock) | F5.3 |
 | `commands/task.ts` | (no docblock) | — |
 | `commands/workflow.ts` | F12.107 — `nklein workflow` CLI: run/list first-class ADW definitions (`.nklein/workflows/<name>.json`). | F12.107 |
