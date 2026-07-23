@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Agent-written tests now receive honest, sandboxed mutation-adequacy evidence.** When a reviewed delivery changes
+  tests, !Klein deterministically mutates up to 12 changed implementation lines and reruns the persisted acceptance
+  command from a fresh clone of the exact result commit for every mutant. The ledger records killed, survived, error,
+  and score evidence; thin samples, absent commands, and infrastructure failures remain explicitly unmeasured. This is
+  observe-only while live false-positive data accumulates, so it cannot block delivery.
+
 - **Real-model benchmark sessions now become executable aimock regression evidence automatically.** The evidence
   collector converts durable SDK transcripts into raw aimock fixtures plus a collision-free ScenarioScript and an
   explicit retry-selection manifest. It preserves text, reasoning, tool calls, model/session provenance, and

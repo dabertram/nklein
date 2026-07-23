@@ -2882,3 +2882,17 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   unmatched requests. A prior 11-session real-model `mid_task` failure produced 42 raw fixtures, 28 selected tracks,
   eight replay sessions, and three explicitly superseded sessions, then reproduced on the current runtime after 51
   polls as `acceptance_green_workflow_incomplete` with zero unmatched requests.
+
+- [x] **F12.46 / F12.46b — test mutation adequacy, including the effectful sandbox runner** *(delivered
+  2026-07-23).* The existing pure core generates 13 classic line-targeted operators, computes killed/total, and keeps
+  samples below three mutants explicitly unmeasured. The delivery seam now activates only when an attempt changed a
+  recognized test file, derives exact added result-tree implementation lines from per-file unified diffs, and selects
+  at most 12 deterministic mutants. Every mutant runs from a fresh Docker clone of the exact reviewed result commit;
+  a direct-argv mutation script confines the path, verifies the original line, preserves line endings, and then reruns
+  the card's exact persisted acceptance command. Surviving/killed/error evidence and the score are appended as a
+  `mutation_adequacy` ledger transition. Missing commands, thin/operator-free samples, absent sandbox capacity, and
+  transport failures are named `unmeasured`; infrastructure is never laundered as a killed mutant. The whole feature
+  remains observe-first and cannot block delivery. Test-file recognition now covers JS/TS plus Python, Go, Rust, Java,
+  Kotlin, C/C++, C#, Ruby, and PHP conventions. Verified with 22 focused assertions, backend typecheck, the complete
+  12,319-test fast suite, 143 protected tests, and all five real-Docker sandbox integration tests; lint reports no
+  errors.

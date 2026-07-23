@@ -10,6 +10,10 @@ describe("test-misinterpretation detector (F12.15b)", () => {
 		expect(isTestFilePath("src/foo.test.ts")).toBe(true);
 		expect(isTestFilePath("tests/habit.spec.jsx")).toBe(true);
 		expect(isTestFilePath("packages/app/__tests__/util.js")).toBe(true);
+		expect(isTestFilePath("test_range.py")).toBe(true);
+		expect(isTestFilePath("src/range_test.go")).toBe(true);
+		expect(isTestFilePath("src/BankAccountTest.java")).toBe(true);
+		expect(isTestFilePath("spec/model_spec.rb")).toBe(true);
 		expect(isTestFilePath("src/foo.ts")).toBe(false);
 		expect(isTestFilePath("src/latest-run.ts")).toBe(false);
 	});

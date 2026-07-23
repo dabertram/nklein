@@ -17,11 +17,20 @@ export interface TestMisinterpretationVerdict {
 	readonly testEditCount: number;
 }
 
-const TEST_PATH_PATTERN = /(^|\/)(tests?|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/i;
+const TEST_DIRECTORY_PATTERN = /(^|\/)(tests?|specs?|__tests__)(\/|$)/iu;
+const JS_TEST_SUFFIX_PATTERN = /\.(test|spec)\.[cm]?[jt]sx?$/iu;
+const PYTHON_TEST_PATTERN = /(^|\/)(test_[^/]+|[^/]+_test)\.py$/iu;
+const POLYGLOT_TEST_SUFFIX_PATTERN = /(_tests?|Tests?)\.(go|rs|java|kt|kts|cpp|cc|cxx|c|h|hpp|cs|rb|php)$/u;
 
 /** True when the workspace-relative path names a test file (directory or suffix convention). */
 export function isTestFilePath(path: string): boolean {
-	return TEST_PATH_PATTERN.test(path.trim());
+	const normalized = path.trim();
+	return (
+		TEST_DIRECTORY_PATTERN.test(normalized) ||
+		JS_TEST_SUFFIX_PATTERN.test(normalized) ||
+		PYTHON_TEST_PATTERN.test(normalized) ||
+		POLYGLOT_TEST_SUFFIX_PATTERN.test(normalized)
+	);
 }
 
 /**

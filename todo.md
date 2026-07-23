@@ -384,6 +384,13 @@ gap remains.
 > add` is identity-preserving and idempotent; never retry a real numeric Git failure, which must remain a fail-closed
 > artifact error.
 
+> **⚠️ MUTATION ADEQUACY MUST ISOLATE EVERY MUTANT AND ABSTAIN ON INFRASTRUCTURE (F12.46b, 2026-07-23).** A
+> surviving mutant can leave build/test artifacts that contaminate the next run, while a timeout, lost sandbox, or
+> missing transport is not evidence that tests killed behavior. Clone the exact reviewed result commit afresh per
+> mutant, verify the original target line before changing it, run the exact persisted acceptance command, and count
+> only numeric test outcomes after a successful mutation. Stop and mark the whole sample unmeasured on infrastructure
+> loss; exclude mutation-application errors, and keep fewer than three successful executions unmeasured.
+
 > **⚠️ FINALIZE THE POST-GUARD SUMMARY, NOT THE PRE-GUARD EVENT (live-found F3.24b, 2026-07-22).**
 > `emitSummary` may transform an SDK `running` summary into an `awaiting_review` autonomy guard (for example the
 > repeated A→B tool-cycle guard). Any capture/finalization edge detector must inspect the authoritative summary left
@@ -4664,22 +4671,6 @@ output and NOT acted on. Captured as F12.12.)
   content → queued with the eval-harness fixture work (fleet-adjacent). (arxiv 2605.07769) **Crossed 2026-07-19.**
   **SCOPE WIRE LIVE 2026-07-17:** deliveryCard.filesLikelyTouched now threads into assessDiffMinimality at the
   delivery scan — the out-of-scope signal is active (record-only stance unchanged).
-- [x] **F12.46 —  *(finalized 2026-07-19 (split): adequacy math complete; the effectful sandbox mutation runner split below.)*
-- [ ] **F12.46b — Sandbox mutation runner** *(split from F12.46 2026-07-19).* For attempts that authored/edited
-  tests: mutate the changed impl lines in the result branch, re-run the test command in the sandbox, record a
-  mutation score beside coverage (observe-first; gate later).
-  *(original F12.46 head:)* Test-adequacy (mutation) gate for agent-written tests.** The reward is only as good as the verifier;
-  line-cov 80% / mutation 58% is the signature of tests written to satisfy a metric. When an attempt authors/edits tests,
-  run a lightweight mutation/property check on the CHANGED lines and record a mutation score beside coverage; gate on
-  adequacy, not just "tests pass." Closes the biggest reward-hacking loophole. (verification-horizon 2606.26300; augmentcode mutation-testing)
-  **PURE CORE SHIPPED 2026-07-18:** `mutation-adequacy.ts` — generateLineMutants (13 classic operators:
-  comparison flips, boundary shifts, logical/arithmetic swaps, boolean/off-by-one literal tweaks; string/comment
-  masking so literals never mutate; one site per operator per changed line = bounded mutant count; import/blank/
-  comment lines skipped), computeMutationScore, decideMutationAdequacy (threshold 0.6 default; <3 mutants ⇒
-  UNMEASURED pass-with-note — a thin sample never fakes a fail nor launders as adequacy proof). 5 tests.
-  FORMER REMAINING (split to F12.46b below): runner half — for an attempt that touched tests, mutate the CHANGED impl lines from the result
-  diff, re-run the sandbox acceptance per mutant (bounded, e.g. ≤12 mutants), record mutation_adequacy beside
-  coverage in the ledger; record-only first, gate flip on live data.
 - [x] **F12.47 — OTel GenAI export bridge for the ledger → self-hosted Langfuse/Phoenix.** Emit existing ledger events in
   OpenTelemetry GenAI shape (`invoke_agent`/`execute_tool`/`chat`, `gen_ai.tool.call.*`, `gen_ai.usage.*`,
   `gen_ai.evaluation.*`) to an OTLP endpoint so a LOCAL Docker Langfuse/Phoenix renders traces, tool-call analytics, agent

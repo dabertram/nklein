@@ -67,6 +67,7 @@ import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } fro
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
 import { findActiveSameTaskModelTurn } from "../core/model-turn-admission";
 import { ModelTurnAdmissionWaitQueue } from "../core/model-turn-admission-wait-queue";
+import { planMutationAdequacy } from "../core/mutation-adequacy-plan";
 import { createNestedModelTurnAdmissionGate } from "../core/nested-model-turn-admission";
 import {
 	decideOpportunisticIdleWork,
@@ -121,6 +122,7 @@ import { listStartableUnstartedTaskIds, listUnmetDependencyTaskIds } from "../co
 import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } from "../core/task-file-overlap";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { planTerminalRedriveEscalation } from "../core/terminal-redrive-escalation";
+import { isTestFilePath } from "../core/test-misinterpretation-detector";
 import { DELIVERY_ACTION_MANIFEST } from "../core/tool-capability-manifest";
 import { parseAddedLinesFromUnifiedDiff } from "../core/unified-diff-added-lines";
 import { combineVerifierVerdicts } from "../core/verifier-ensemble";
@@ -144,6 +146,7 @@ import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attemp
 import { buildLmStudioMachineByModelId } from "../nklein-agent/nklein-lmstudio-host-map";
 import { handleNKleinMcpOauthCallback } from "../nklein-agent/nklein-mcp-runtime-service";
 import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../nklein-agent/nklein-model-registry";
+import { runNKleinMutationAdequacy } from "../nklein-agent/nklein-mutation-adequacy-runner";
 import { readNKleinPlanArtifacts } from "../nklein-agent/nklein-plan-artifacts";
 import { SpeculativeAttemptRegistry } from "../nklein-agent/nklein-speculative-attempt-registry";
 import {
@@ -2108,6 +2111,85 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										scope.workspacePath,
 										{ trimStdout: false },
 									);
+									// F12.46b mutation adequacy (OBSERVE-ONLY): when this delivery authored/edited tests,
+									// mutate only its changed IMPLEMENTATION lines on fresh result-commit clones and rerun
+									// the exact persisted acceptance command per mutant. Missing/thin/infrastructure evidence
+									// remains explicitly unmeasured and never blocks delivery during the observation phase.
+									if (deliveryCard && changedFiles.some(isTestFilePath)) {
+										try {
+											const implementationPaths = changedFiles
+												.filter((path) => !isTestFilePath(path))
+												.sort((left, right) => left.localeCompare(right));
+											const filePatches: Array<{ path: string; patch: string }> = [];
+											for (const path of implementationPaths) {
+												filePatches.push({
+													path,
+													patch: await getGitStdout(
+														[
+															"diff",
+															"--unified=0",
+															`${deliveredResultCommit}^`,
+															deliveredResultCommit,
+															"--",
+															path,
+														],
+														scope.workspacePath,
+														{ trimStdout: false },
+													),
+												});
+											}
+											const mutationPlan = planMutationAdequacy({ changedFiles, filePatches });
+											const sandboxManager = service.getAgentSandboxManagerForEgressControl();
+											if (!sandboxManager) {
+												await appendAgentLedgerEvent(
+													buildTransitionEvent({
+														workflowId: taskId,
+														taskId,
+														workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+														from: "review",
+														to: "mutation_adequacy",
+														reason:
+															"tests changed, but no sandbox manager was available; mutation adequacy unmeasured",
+														controllerDecision: `mutation_adequacy:status=unmeasured,planned=${mutationPlan.candidates.length},reason=no_sandbox`,
+													}),
+												).catch(() => {});
+											} else {
+												const mutation = await runNKleinMutationAdequacy({
+													taskId,
+													projectRepoPath: scope.workspacePath,
+													resultCommit: deliveredResultCommit,
+													taskPrompt: deliveryCard.prompt,
+													plan: mutationPlan,
+													sandboxManager,
+												});
+												await appendAgentLedgerEvent(
+													buildTransitionEvent({
+														workflowId: taskId,
+														taskId,
+														workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+														from: "review",
+														to: "mutation_adequacy",
+														reason: mutation.reason.slice(0, 900),
+														controllerDecision: `mutation_adequacy:status=${mutation.status},verdict=${mutation.verdict},score=${mutation.score === null ? "unmeasured" : mutation.score.toFixed(3)},killed=${mutation.killedMutants},survived=${mutation.survivedMutants},errors=${mutation.errorMutants},planned=${mutation.plannedMutants}`,
+													}),
+												).catch(() => {});
+											}
+										} catch (error) {
+											const message = error instanceof Error ? error.message : String(error);
+											await appendAgentLedgerEvent(
+												buildTransitionEvent({
+													workflowId: taskId,
+													taskId,
+													workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+													from: "review",
+													to: "mutation_adequacy",
+													reason: `mutation adequacy observation failed: ${message}`.slice(0, 900),
+													controllerDecision:
+														"mutation_adequacy:status=unmeasured,reason=observation_error",
+												}),
+											).catch(() => {});
+										}
+									}
 									// F12.44 reward-hack signals (record-only): tests-only greens, net assertion loss, added
 									// skips, vacuous assertions — evidence for the reviewer/ledger, never a block.
 									const rewardHack = assessRewardHackSignals(patch);

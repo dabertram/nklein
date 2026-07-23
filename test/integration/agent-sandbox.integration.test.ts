@@ -18,6 +18,7 @@ import {
 	createAgentSandboxVolumeName,
 	resolveAgentSandboxImageName,
 } from "../../src/nklein-agent/nklein-agent-sandbox";
+import { runNKleinMutationAdequacy } from "../../src/nklein-agent/nklein-mutation-adequacy-runner";
 import { createGitTestEnv } from "../utilities/git-env";
 import { createTempDir } from "../utilities/temp-dir";
 
@@ -288,6 +289,33 @@ if (dockerGate.ready) {
 					writeFileSync(join(sandboxRoot, "workspace.patch"), patch, "utf8");
 					runGit(clonePath, ["apply", "--check", join(sandboxRoot, "workspace.patch")]);
 					runGit(clonePath, ["apply", join(sandboxRoot, "workspace.patch")]);
+
+					const mutation = await runNKleinMutationAdequacy({
+						taskId: `mutation-${suffix}`,
+						projectRepoPath: repoPath,
+						resultCommit: "HEAD",
+						taskPrompt: "Acceptance command: grep -q '^hello$' README.md",
+						plan: {
+							applicable: true,
+							reason: "Docker integration mutation sample",
+							candidates: ["goodbye", "farewell", "wrong"].map((mutated, index) => ({
+								path: "README.md",
+								line: 1,
+								original: "hello",
+								mutated,
+								operator: `integration_${index + 1}`,
+							})),
+							truncatedCandidates: 0,
+						},
+						sandboxManager: manager,
+					});
+					expect(mutation).toMatchObject({
+						status: "measured",
+						verdict: "adequate",
+						score: 1,
+						killedMutants: 3,
+						survivedMutants: 0,
+					});
 
 					expect(existsSync(join(homePath, ".nklein", "nklein"))).toBe(false);
 					expect(existsSync(join(homePath, ".nklein", "worktrees"))).toBe(false);
