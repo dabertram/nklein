@@ -327,6 +327,15 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 	},
 	{
+		// F3.36 2026-07-23 (adopted from little-coder): registered in the SAME commit as the wire, per the F4.8b
+		// day-one rule — a mechanism must be observable from the moment it can fire.
+		category: "reasoning_budget_breach",
+		item: "F3.36",
+		observes: "a streamed reasoning channel breaching its per-turn budget mid-turn and retrying with thinking off",
+		enabledBy: "NKLEIN_REASONING_BREACH",
+		expectation: "exceptional",
+	},
+	{
 		// F4.8b 2026-07-20: likewise already instrumented, only unregistered.
 		category: "model_lost_residency",
 		item: "§5.AL",

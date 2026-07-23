@@ -96,6 +96,76 @@ describe("createChatModelDeps — F4.12 truncation recording", () => {
 	});
 });
 
+describe("F3.36 mid-turn reasoning-budget breach (opt-in NKLEIN_REASONING_BREACH; adopted from little-coder)", () => {
+	const FLAG = "NKLEIN_REASONING_BREACH";
+	let saved: string | undefined;
+	beforeEach(() => {
+		saved = process.env[FLAG];
+	});
+	afterEach(() => {
+		if (saved === undefined) delete process.env[FLAG];
+		else process.env[FLAG] = saved;
+	});
+
+	/** Streaming fake: pours reasoning deltas until told to stop; the RECOVERY call answers cleanly. */
+	const breachingStreamClient = (): {
+		client: ChatCompletionClient;
+		streamCalls: LocalLlmChatMessage[][];
+	} => {
+		const streamCalls: LocalLlmChatMessage[][] = [];
+		const client: ChatCompletionClient = {
+			complete: async () => ({ content: "plain", finishReason: "stop", raw: {} }),
+			completeStream: async (request, onChunk, opts) => {
+				streamCalls.push(request.messages);
+				if (streamCalls.length === 1 && opts?.onReasoningDelta) {
+					// Pour reasoning until the tracker reports the breach (little-coder default: 4096 tokens).
+					for (let i = 0; i < 40; i += 1) {
+						if (opts.onReasoningDelta("r".repeat(1_000))) {
+							return { content: "", finishReason: "reasoning_budget", raw: null };
+						}
+					}
+				}
+				onChunk("recovered answer");
+				return { content: "recovered answer", finishReason: "stop", raw: {} };
+			},
+		};
+		return { client, streamCalls };
+	};
+
+	it("breach ⇒ visible marker + ONE retry with thinking disabled and the commit-now nudge", async () => {
+		process.env[FLAG] = "1";
+		const { client, streamCalls } = breachingStreamClient();
+		const deps = createChatModelDeps(client, { modelId: "qwen/qwen3-8b" });
+		const streamed: string[] = [];
+		const reply = await deps.complete([{ role: "user", content: "solve it" }], (delta) => streamed.push(delta));
+		expect(streamCalls).toHaveLength(2);
+		const retryUserText = streamCalls[1]?.filter((m) => m.role === "user").at(-1)?.content ?? "";
+		expect(retryUserText).toContain("/no_think");
+		expect(retryUserText).toContain("Commit to an implementation NOW");
+		expect(streamed.join("")).toContain("reasoning budget exceeded — retrying with thinking off");
+		expect(reply).toContain("recovered answer");
+	});
+
+	it("flag OFF (default) ⇒ byte-identical: no reasoning observation, no retry, no marker", async () => {
+		delete process.env[FLAG];
+		const { client, streamCalls } = breachingStreamClient();
+		const deps = createChatModelDeps(client, { modelId: "qwen/qwen3-8b" });
+		const streamed: string[] = [];
+		const reply = await deps.complete([{ role: "user", content: "solve it" }], (delta) => streamed.push(delta));
+		expect(streamCalls).toHaveLength(1);
+		expect(reply).toContain("recovered answer");
+		expect(streamed.join("")).not.toContain("reasoning budget exceeded");
+	});
+
+	it("no verified thinking switch (e.g. qwen3.5-9b-mlx) ⇒ the mechanism stands down even when the flag is on", async () => {
+		process.env[FLAG] = "1";
+		const { client, streamCalls } = breachingStreamClient();
+		const deps = createChatModelDeps(client, { modelId: "qwen3.5-9b-mlx" });
+		await deps.complete([{ role: "user", content: "solve it" }], () => {});
+		expect(streamCalls).toHaveLength(1);
+	});
+});
+
 describe("createChatModelDeps", () => {
 	it("maps the rendered prompt to the client and strips inline reasoning from the reply", async () => {
 		const { client, calls } = fakeClient("<think>hmm let me consider</think>The answer is 42.");

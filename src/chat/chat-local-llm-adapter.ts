@@ -5,6 +5,7 @@ import { isTruthyEnv, resolveDefaultOnFlag } from "../core/env-flag";
 import { applyThinkingDisable, isReasoningModel, supportsThinkingControl } from "../core/model-thinking-control";
 import { downgradeSchemaForProfile } from "../core/provider-schema-downgrade";
 import { schemaProviderFromProviderId, selectProviderSchemaProfile } from "../core/provider-schema-profile";
+import { createReasoningBudgetTracker, REASONING_BUDGET_BREACH_NUDGE } from "../core/reasoning-budget-breach";
 import { stripReasoningChannel } from "../core/reasoning-channel-split";
 import { planReasoningOutputBudget } from "../core/reasoning-output-budget";
 import { createRetryStrategyCursor, type RetryStrategy, raisedTokenBudget } from "../core/retry-policy";
@@ -51,6 +52,7 @@ export interface ChatCompletionClient {
 	completeStream?(
 		request: { messages: LocalLlmChatMessage[]; sampling?: LocalLlmSamplingOptions },
 		onChunk: (delta: string) => void,
+		opts?: { onReasoningDelta?: (delta: string) => boolean },
 	): Promise<LocalLlmCompletion>;
 }
 
@@ -146,6 +148,15 @@ const TRUNCATION_RETRY_BUDGET_CEILING = 8192;
 // 27B truncated at 1024 and climbed across escalations) — a persistently-truncating model is still bounded by BOTH the
 // attempt count AND the ceiling clamp (raisedTokenBudget stops growing), so the turn can never spin.
 const ADAPTIVE_TRUNCATION_LADDER_FLAG = "NKLEIN_CHAT_ADAPTIVE_TRUNCATION";
+/**
+ * F3.36 (adopted from little-coder; docs/attributions.md) OPT-IN, default OFF = byte-identical: watch the
+ * streamed reasoning channel and, the moment its spend breaches the per-turn budget, stop the stream, disable
+ * thinking (the model's verified soft switch), and retry ONCE with a commit-now nudge — the mid-turn complement
+ * to the post-turn §5.AA rungs. Applies only to reasoning models with a verified thinking control.
+ */
+const REASONING_BREACH_FLAG = "NKLEIN_REASONING_BREACH";
+/** The visible seam when a breach retry replaces the turn (same UX contract as the continuation marker). */
+export const REASONING_BREACH_MARKER = "\n\n_(reasoning budget exceeded — retrying with thinking off)_\n\n";
 const TRUNCATION_RETRY_MAX_ATTEMPTS = 3;
 
 /**
@@ -292,6 +303,7 @@ async function streamWithContinuationLadder(
 	sampling: LocalLlmSamplingOptions,
 	onToken: (delta: string) => void,
 	onFinalCompletion?: (completion: LocalLlmCompletion) => void,
+	breachModelId?: string,
 ): Promise<string> {
 	if (!client.completeStream) {
 		return completePlainWithTruncationLadder(client, messages, sampling, onFinalCompletion);
@@ -300,7 +312,42 @@ async function streamWithContinuationLadder(
 	// detached call broke EVERY streamed chat turn ("Cannot read properties of undefined (reading 'config')") while
 	// the plain-object test fakes kept passing. Keep the receiver.
 	const completeStream = client.completeStream.bind(client);
-	const first = await completeStream({ messages, sampling }, onToken);
+	// F3.36 mid-turn reasoning-budget breach: only for reasoning models with a VERIFIED thinking soft switch —
+	// forcing thinking off on a model without one would silently do nothing and waste the retry.
+	const breachEligible =
+		isTruthyEnv(process.env.NKLEIN_REASONING_BREACH) &&
+		breachModelId !== undefined &&
+		isReasoningModel(breachModelId) &&
+		supportsThinkingControl(breachModelId);
+	const tracker = breachEligible ? createReasoningBudgetTracker() : null;
+	let first = await completeStream(
+		{ messages, sampling },
+		onToken,
+		tracker ? { onReasoningDelta: (delta) => tracker.addReasoningDelta(delta.length) } : undefined,
+	);
+	if (tracker?.breached() && breachModelId) {
+		// Visibility first (David 2026-07-23): the operator sees the breach the moment it acts, in the stream.
+		onToken(REASONING_BREACH_MARKER);
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Reasoning budget breached mid-stream on ${breachModelId} (~${tracker.spentTokens()} reasoning tokens) — retrying with thinking off.`,
+				metadata: {
+					category: "reasoning_budget_breach",
+					modelId: breachModelId,
+					spentTokens: tracker.spentTokens(),
+				},
+			});
+		} catch {
+			// Telemetry must never break the turn.
+		}
+		const disabledMessages = replaceLastUserText(
+			messages,
+			`${applyThinkingDisable(lastUserText(messages), breachModelId)}\n\n${REASONING_BUDGET_BREACH_NUDGE}`,
+		);
+		first = await completeStream({ messages: disabledMessages, sampling }, onToken);
+	}
 	let combined = cleanModelReply(first.content);
 	let lastCompletion = first;
 	if (isAdaptiveTruncationLadderEnabled()) {
@@ -446,8 +493,13 @@ export function createChatModelDeps(
 			if (onToken && client.completeStream) {
 				// Stream raw deltas to the caller (live view); persist the cleaned (reasoning-stripped + loop-salvaged)
 				// reply. A finish:"length" cut-off streams an appended continuation after a subtle marker (§10c#12).
-				return streamWithContinuationLadder(client, messages, sampling, onToken, (c) =>
-					recordTruncation("chat-stream", c),
+				return streamWithContinuationLadder(
+					client,
+					messages,
+					sampling,
+					onToken,
+					(c) => recordTruncation("chat-stream", c),
+					options.modelId,
 				);
 			}
 			return completePlainWithTruncationLadder(client, messages, sampling, (c) => recordTruncation("chat", c));

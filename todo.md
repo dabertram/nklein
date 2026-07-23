@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 147-package remainder is **41 ready + 11 partial + 80 dependency-blocked + 6 external/
+  gate below is green. The current 147-package remainder is **40 ready + 12 partial + 80 dependency-blocked + 6 external/
 user-gated + 9 deliberately deferred** (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
 F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 + N13 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
@@ -2513,7 +2513,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `describeConsultForTrail` one-liner incl. the follow-up outcome once known; (4) TELEMETRY —
   `buildConsultObservation` under the single `model_consult` category, REGISTERED in `MECHANISM_REGISTRY`
   (P15.1b) in the same wire commit so `dev mechanism-registry` reports firing-vs-silent from day one.
-- [ ] **F3.36 — Wire the mid-turn reasoning-budget breach (adopted from little-coder; docs/attributions.md).**
+- [~] **F3.36 — Wire the mid-turn reasoning-budget breach (adopted from little-coder; docs/attributions.md).**
+  **CHAT-PATH WIRE SHIPPED 2026-07-23:** `completeStream` now surfaces `reasoning_content` deltas mid-stream with a
+  clean deliberate-stop path (`finishReason:"reasoning_budget"` — never the abort/transient-retry machinery); the
+  chat stream ladder feeds the tracker for reasoning models WITH a verified thinking switch, and on breach emits
+  the visible marker into the stream, records the `reasoning_budget_breach` observation (registered in
+  `MECHANISM_REGISTRY` same commit, F4.8b day-one rule), and retries ONCE with `applyThinkingDisable` + the
+  commit-now nudge. Opt-in `NKLEIN_REASONING_BREACH`, default OFF = byte-identical (3 wire tests: breach recovery
+  shape, flag-off identity, no-switch stand-down; fast suite 12,509). **Concrete remainder:** (a) the SWARM-path
+  wire rides the vendored `wrapModel` hook (the §5.AA recovery-ladder wrapper buffers the stream — the tracker
+  slots in when that increment lands), including the cross-turn forced-off state machine (chat turns are
+  single-shot; cards need `applyReasoningForcedOffEvent`); (b) fleet A/B for the default decision per P15.3
+  (recovered-turn rate vs flag-off baseline).
   The pure core is SHIPPED (`src/core/reasoning-budget-breach.ts`, 2026-07-23): stream-time reasoning-budget
   tracking (little-coder's `ceil(chars/3.5)` estimate, 4096-token default), one-shot breach detection, the
   abort+disable-thinking+commit-now recovery, and the forced-off-until-genuine-user-input state machine — the

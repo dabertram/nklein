@@ -404,6 +404,14 @@ export class LocalLlmClient {
 	async completeStream(
 		request: LocalLlmCompletionRequest,
 		onChunk: (delta: string) => void,
+		opts?: {
+			/**
+			 * F3.36: observe streamed `reasoning_content` deltas AS THEY ARRIVE. Return true to stop the stream
+			 * cleanly (the reasoning budget breached) — the call resolves with `finishReason: "reasoning_budget"`
+			 * and whatever visible content already streamed, taking no abort/transient-retry paths.
+			 */
+			onReasoningDelta?: (delta: string) => boolean;
+		},
 	): Promise<LocalLlmCompletion> {
 		const url = `${normalizeBaseUrl(this.config.baseUrl)}/chat/completions`;
 		let visibleOutput = false;
@@ -441,6 +449,7 @@ export class LocalLlmClient {
 				let buffer = "";
 				let content = "";
 				let finishReason: string | null = null;
+				let reasoningBudgetBreached = false;
 				while (true) {
 					const { done, value } = await reader.read();
 					if (done) {
@@ -460,7 +469,10 @@ export class LocalLlmClient {
 						}
 						try {
 							const json = JSON.parse(data) as {
-								choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+								choices?: Array<{
+									delta?: { content?: string; reasoning_content?: string };
+									finish_reason?: string | null;
+								}>;
 							};
 							const choice = json.choices?.[0];
 							const delta = choice?.delta?.content;
@@ -469,6 +481,13 @@ export class LocalLlmClient {
 								visibleOutput = true;
 								onChunk(delta);
 							}
+							// F3.36: surface the reasoning channel mid-stream; a true return = budget breached ⇒ stop
+							// generating NOW (the rest of the budget would go to more reasoning, not to the answer).
+							const reasoningDelta = choice?.delta?.reasoning_content;
+							if (reasoningDelta && opts?.onReasoningDelta?.(reasoningDelta)) {
+								reasoningBudgetBreached = true;
+								break;
+							}
 							if (choice?.finish_reason) {
 								finishReason = choice.finish_reason;
 							}
@@ -476,6 +495,14 @@ export class LocalLlmClient {
 							// Skip a malformed SSE line rather than failing the stream.
 						}
 					}
+					if (reasoningBudgetBreached) {
+						break;
+					}
+				}
+				if (reasoningBudgetBreached) {
+					// A deliberate, clean stop — never the abort/transient-retry machinery. The finally cancels the
+					// reader, which tells the endpoint to stop producing.
+					return { content, finishReason: "reasoning_budget", raw: null };
 				}
 				if (finishReason === "aborted" && !visibleOutput) {
 					throw modelRuntimeAbortError();
