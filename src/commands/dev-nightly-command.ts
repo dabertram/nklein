@@ -10,6 +10,15 @@ import {
 } from "../core/nightly-cell-cost";
 import { collectDrainedState, parseNightlyTeardownReport } from "../core/nightly-drain-collector";
 import { buildNightlyFailureReport, summarizeNightlyFailures } from "../core/nightly-failure-report";
+import {
+	detectVerdictFlips,
+	formatQuarantineReport,
+	mergeNightlyQuarantine,
+	type PairedCellRun,
+	parseNightlyQuarantineFile,
+	serializeNightlyQuarantineFile,
+	splitVerdictsByQuarantine,
+} from "../core/nightly-flake-quarantine";
 import { type NightlyHermeticEvidence, parseNightlyHermeticEvidence } from "../core/nightly-hermeticity";
 import { evaluatePack, resolvePack } from "../core/nightly-invariant-pack";
 import {
@@ -51,6 +60,8 @@ const execFileAsync = promisify(execFile);
  */
 
 const DEFAULT_MANIFEST_PATH = "nightly-manifest.json";
+/** N13: repo-visible quarantine data (excluding a cell from the gate must survive machines and show up in diffs). */
+const QUARANTINE_PATH = "nightly-quarantine.json";
 /** Generous: a large scenario legitimately takes many minutes on a low-power machine. */
 const CELL_TIMEOUT_MS = 45 * 60 * 1000;
 /** Six sequential low-power SIGKILL drains; each phase owns the regular cell budget. */
@@ -373,6 +384,8 @@ export async function runDevNightlyCommand(options: {
 	manifest?: string;
 	json?: boolean;
 	dryRun?: boolean;
+	/** N13 (pre-release): run every cell twice; a verdict flip quarantines the cell until root-caused. */
+	doubleRun?: boolean;
 }): Promise<void> {
 	const manifestPath = options.manifest ?? DEFAULT_MANIFEST_PATH;
 	const manifest = await loadManifest(manifestPath);
@@ -448,7 +461,9 @@ export async function runDevNightlyCommand(options: {
 	}
 
 	if (options.dryRun) {
-		process.stdout.write(`${cells.length} cell(s) would run SEQUENTIALLY (fastest-first from prior durations):\n`);
+		process.stdout.write(
+			`${cells.length} cell(s) would run SEQUENTIALLY (fastest-first from prior durations)${options.doubleRun ? ", EACH TWICE (N13 double-run flake screen)" : ""}:\n`,
+		);
 		for (const cell of cells) {
 			process.stdout.write(`  ${nightlyCellName(cell)}  (kernel-ephemeral port, set ${cell.recordingSet})\n`);
 		}
@@ -459,11 +474,32 @@ export async function runDevNightlyCommand(options: {
 	}
 
 	const verdicts: CellVerdict[] = [];
+	const doubleRunPairs: PairedCellRun[] = [];
 	for (const [index, cell] of cells.entries()) {
 		process.stderr.write(`== ${nightlyCellName(cell)} (${index + 1}/${cells.length}) ==\n`);
 		// SEQUENTIAL: awaited inside the loop, deliberately. See the docblock.
-		verdicts.push(await runCell(cell));
+		const first = await runCell(cell);
+		verdicts.push(first);
+		if (options.doubleRun) {
+			// N13: the second, identical run. A deterministic cell repeats its verdict; a flip is the finding.
+			process.stderr.write(`== ${nightlyCellName(cell)} (${index + 1}/${cells.length}) — double-run pass 2 ==\n`);
+			const second = await runCell(cell);
+			doubleRunPairs.push({
+				cellId: nightlyCellName(cell),
+				first: { outcome: first.outcome, reason: first.reason ?? null },
+				second: { outcome: second.outcome, reason: second.reason ?? null },
+			});
+		}
 	}
+	// N13: quarantine is read on EVERY run (a quarantined cell stays out of the gate until a human clears it),
+	// and double-run flips join it durably in the same pass.
+	const priorQuarantine = parseNightlyQuarantineFile(await readFile(QUARANTINE_PATH, "utf8").catch(() => null));
+	const newlyQuarantined = options.doubleRun ? detectVerdictFlips(doubleRunPairs, new Date().toISOString()) : [];
+	const quarantine = mergeNightlyQuarantine(priorQuarantine, newlyQuarantined);
+	if (newlyQuarantined.length > 0) {
+		await writeFile(QUARANTINE_PATH, serializeNightlyQuarantineFile(quarantine), "utf8");
+	}
+	const quarantineSplit = splitVerdictsByQuarantine(verdicts, (verdict) => nightlyCellName(verdict.cell), quarantine);
 	let crashRecoveryMatrix: {
 		outcome: "passed" | "failed" | "not_selected";
 		reason: string;
@@ -505,7 +541,8 @@ export async function runDevNightlyCommand(options: {
 		}
 	}
 
-	const summary = summarizeNightlyRun(verdicts);
+	// N13: the gate sees only non-quarantined cells; quarantined ones still ran and are reported loudly below.
+	const summary = summarizeNightlyRun(quarantineSplit.gated);
 
 	// N7: every failing cell gets a report that is checked for being ACTIONABLE, not merely printed. A failure the
 	// next morning cannot be re-run — the state is gone — so the summary is the only artifact that survives.
@@ -583,7 +620,7 @@ export async function runDevNightlyCommand(options: {
 	// So the packs currently assert little, and the output SAYS SO. That is the correct starting state: signals get
 	// added to a pack when the collector can genuinely observe them, never in advance of that.
 	const packEvaluations = await Promise.all(
-		verdicts
+		quarantineSplit.gated
 			.filter((verdict) => verdict.outcome === "passed")
 			.map(async (verdict) => {
 				const pack = resolvePack(verdict.cell.invariantPack, NIGHTLY_PACK_REGISTRY);
@@ -642,6 +679,10 @@ export async function runDevNightlyCommand(options: {
 		crashRecoveryOk: crashRecoveryMatrix.outcome !== "failed",
 		invariantPacksOk,
 	});
+	const quarantineReport = formatQuarantineReport({ file: quarantine, newlyQuarantined });
+	if (quarantineReport && !options.json) {
+		process.stdout.write(`\n${quarantineReport}\n`);
+	}
 	if (packVerdicts.length > 0 && !options.json) {
 		process.stdout.write(`\nInvariant packs:\n`);
 		for (const line of packVerdicts) {
@@ -730,7 +771,7 @@ export async function runDevNightlyCommand(options: {
 	}
 	if (options.json) {
 		process.stdout.write(
-			`${JSON.stringify({ ...summary, ok: overallOk, verdicts, failureReports, regressions, costRegressions, packVerdicts, crashRecoveryMatrix }, null, 2)}\n`,
+			`${JSON.stringify({ ...summary, ok: overallOk, verdicts, failureReports, regressions, costRegressions, packVerdicts, crashRecoveryMatrix, quarantine: { entries: quarantine.entries, newlyQuarantined: newlyQuarantined.map((entry) => entry.cellId) } }, null, 2)}\n`,
 		);
 	} else {
 		process.stdout.write(`\n${summary.summary}${overallOk ? "" : " Overall nightly verdict: FAILED."}\n`);

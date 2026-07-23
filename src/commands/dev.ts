@@ -869,8 +869,19 @@ export function registerDevCommand(program: Command): void {
 		.option("--manifest <path>", "Manifest path (default nightly-manifest.json).")
 		.option("--dry-run", "List the cells that would run, with their ports.")
 		.option("--json", "Machine-readable verdicts.")
+		.option(
+			"--double-run",
+			"N13 (pre-release): run every cell twice; a verdict flip quarantines the cell (nightly-quarantine.json) until root-caused.",
+		)
 		.action(
-			async (options: { project?: string; model?: string; manifest?: string; dryRun?: boolean; json?: boolean }) => {
+			async (options: {
+				project?: string;
+				model?: string;
+				manifest?: string;
+				dryRun?: boolean;
+				json?: boolean;
+				doubleRun?: boolean;
+			}) => {
 				await runDevNightlyCommand(options);
 			},
 		);

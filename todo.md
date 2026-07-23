@@ -35,9 +35,9 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 148-package remainder is **42 ready + 11 partial + 80 dependency-blocked + 6 external/
+  gate below is green. The current 147-package remainder is **41 ready + 11 partial + 80 dependency-blocked + 6 external/
 user-gated + 9 deliberately deferred** (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
-F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
+F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 + N13 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
 gates immediately below; all seven `[?]` rows name the required operator decision, credential, machine, or live-fleet
@@ -6398,60 +6398,6 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
 - [ ] **N11 — Flag-matrix lanes.** Three nightly lanes over the same cells: (a) defaults, (b) all safe opt-ins ON
   (the dark flags shipped observe-first), (c) kill-switches OFF — so flag INTERACTIONS are exercised, not just
   each flag alone. New flags register here at ship time.
-- [ ] **N13 — Suite self-trust: double-run flake quarantine.** Pre-release runs each cell twice; any verdict flip
-  ⇒ the cell is QUARANTINED (reported loudly, excluded from the gate) until root-caused — a suite that flakes
-  gets ignored, which is worse than no suite (the smoke arc's false-green lesson).
-  **🔴 A LIVE INSTANCE OF EXACTLY THIS, OBSERVED 2026-07-20 — and it belongs here rather than in a new item.**
-  One run of `npm run test:fast` reported `1 failed | 11401 passed (11402)`. **27 subsequent runs across four
-  deliberately adversarial conditions could not reproduce it** — 18 idle, 3 under CPU saturation (17/18 cores),
-  2 concurrent suites, 4 against a live nightly drain holding ports 4500+. Every hypothesis raised was excluded by
-  experiment. The failing test's identity is UNKNOWN.
-  **It is recorded rather than dismissed.** "It passed on the retry" is how a real intermittent bug becomes
-  invisible, and this session already spent hours on a nondeterministic drain (N7d) that a green re-run would have
-  buried. A flake in `test:fast` matters more than one in a drain: **it is the gate every commit passes through**,
-  so it is both a false-red generator and proof something in the suite is not hermetic (N4 lists the candidates —
-  `Date.now` damping windows, watchdog tick timing, free-port probing).
-  **THE FIX WAS CAPTURE, NOT CHASING.** It occurred twice and BOTH times its identity was lost — once in a
-  pre-commit hook that printed a summary and discarded the detail, once in a loop that did not persist output.
-  **The bug is not hard to hit; it is hard to hold onto.** `.husky/pre-commit` now writes full output to a
-  timestamped log, deletes it on success (zero cost on the passing path), and on failure prints the tail plus the
-  log path. **The third occurrence will name its own test** — which is what N13's quarantine needs as input.
-  **🎯 AN INTERMITTENT FAILURE CAUGHT WITH A NAME 2026-07-20:**
-  `test/runtime/nklein-agent/nklein-task-session-service.test.ts > InMemoryNKleinTaskSessionService > "keeps the
-  task resumable when native NKlein startup throws"` — `1 failed | 11492 passed`.
-  **Two subsequent `test:fast` runs were clean, and the file passes 129/129 in ISOLATION.** So it fails only in the
-  full-suite context: a cross-file ordering or shared-state effect, not a bug in the test's own logic.
-  ⚠️ **NOT ASSERTED to be the same flake as the earlier unidentified one** — that one was never named, so the two
-  cannot be equated. What IS established: an intermittent `test:fast` failure exists, it is now NAMED, and
-  "passes in isolation but fails in the suite" is a much smaller search space than "something somewhere is not
-  hermetic".
-  **✅ A THIRD INTERMITTENT — NAMED, ROOT-CAUSED, AND FIXED 2026-07-20 (the capture mechanism paid off exactly as
-  designed).** The `.husky/pre-commit` log named it on failure:
-  `nklein-provider-credential-helpers.test.ts > normalizeEpochMs > "treats missing / non-finite / non-positive as
-  already-expired"` — `1 failed | 11658 passed`, `expected 1784573280622 to be less than 1784573280615` (an 8ms
-  overshoot). This is a `Date.now` DAMPING WINDOW — precisely the class N4/N13 predicted. Root cause: the test
-  captured `before = Date.now()` ONCE, then asserted every one of six `normalizeEpochMs(bad)` results (each returns
-  `Date.now()-1`) was `< before + 1`; on a slow machine (low-power mode) the loop took >1ms, so a later result
-  out-ran the stale baseline. Not a product bug — the helper is correct (a bad expiry IS in the past); the TEST's
-  window was too tight. Fixed by comparing each result to a `Date.now()` sampled AFTER its own call (result =
-  callNow−1 is always < a now taken after), which is timing-robust by construction — proven 5/5 green under
-  repetition. NOT asserted to be the earlier unnamed flake (that one was never named, so they cannot be equated),
-  but it IS a real, unhermetic-under-load instance now permanently removed from the gate. Lesson for the class:
-  a Date.now-window assertion must sample its comparison clock AFTER the code under test, never before it.
-  **This is precisely the input this item's quarantine needs.** A cell that flips verdict between runs is exactly
-  what N13 quarantines, and the identity is what makes quarantine actionable rather than a blanket re-run.
-  NEXT: run this file AFTER the files that precede it in suite order to find the polluter, rather than chasing it
-  in isolation where it does not reproduce.
-  **🔴 A FLAKE NAMED ITSELF + WAS ROOT-CAUSED + FIXED 2026-07-20 — the exact workflow N13 exists to enable.** A
-  pre-commit run failed on `nklein-task-session-service.test.ts:601` with `ENOTEMPTY` during the `afterEach`
-  `rmSync(diagnosticStoreRoot, {recursive,force})`. Root cause: `dispose()` does NOT await the FIRE-AND-FORGET
-  ledger writes (`void appendAgentLedgerEvent(...)`), so a late attempt-event write lands in the temp dir DURING
-  rmSync's recursive walk — a file appears between its readdir and unlink and the walk throws. Passed in
-  isolation every time; only the full-suite timing exposed it. **Fixed at the test with a bounded ENOTEMPTY
-  retry** (a second walk catches the straggler; still-failing after 5 rethrows rather than hiding a real leak),
-  verified by running the file 3× green. **The deeper defect is noted, not chased here:** dispose() leaking
-  fire-and-forget writes past its own resolution is a production-adjacent smell — a caller that disposes and
-  then reads assumes writes are flushed. Recorded for whoever picks up the dispose-flush contract.
 - [x] **F4.8b — 38 of 40 opt-in mechanisms are UNREGISTERED, so nothing can say whether they run *(found 2026-07-20)*.**
   **`dev env-gated` SHIPPED.** F4.8 exposed the shape: the goal re-anchor had a complete import chain to the
   session runtime, every audit reported the requirement satisfied, and its injection site sat behind

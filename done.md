@@ -3110,3 +3110,29 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   which needs a live model) — and the thrown error carries the drift verdict. 8 focused tests (exact byte-offset
   divergence, count contracts on resumed sessions, mixed-verdict rendering, journal-entry helpers); simulator
   suite 76 green; `test:simulated-flows` full-runtime drain PASS.
+
+## 2026-07-23 N13 double-run flake quarantine
+
+- [x] **N13 — Suite self-trust: double-run flake quarantine + the dispose-flush root fix.** Two deliverables:
+  **(1) The quarantine mechanism.** `dev nightly --double-run` (pre-release profile) runs every cell twice; a
+  verdict flip is detected by the new pure core `src/core/nightly-flake-quarantine.ts` and lands durably in
+  repo-visible `nightly-quarantine.json` (excluding a cell from the gate is an engineering decision that must
+  survive machines and show up in diffs). EVERY nightly run — double or single — reads the file, excludes
+  quarantined cells from the pass/fail gate (`summarizeNightlyRun` + invariant packs now consume only the gated
+  split), keeps running + reporting them LOUDLY (a NEW-THIS-RUN marker, both verdicts, both reasons, and the
+  clearing contract: delete the entry in the same commit as the root-cause fix), and includes the quarantine in
+  the JSON output. A stable double-fail is NOT a flake and stays in the gate. 10 focused tests (flip detection in
+  both directions, first-observation-wins merge, tolerant parse of corrupt files, gate split, loud/silent
+  rendering); `--dry-run --double-run` verified live (21 cells, "EACH TWICE"). The live double-run pass over the
+  real cells rides the post-F11 Docker window with the other drain work.
+  **(2) The recorded flake history, closed at the root where possible.** Of the three named intermittents, two
+  were already root-caused+fixed (the Date.now damping window; the ENOTEMPTY teardown race — test-level retry).
+  The ENOTEMPTY's DEEPER defect ("dispose() does not await its fire-and-forget ledger writes") is now fixed at
+  the root: new `src/core/pending-write-tracker.ts` (flush includes writes enqueued during the flush; rejections
+  stay swallowed — only WHEN dispose returns changes), both fire-and-forget `appendAgentLedgerEvent` sites in
+  `nklein-task-session-service.ts` are tracked, and `dispose()` flushes them before teardown — "disposed ⇒
+  writes flushed" is now true by construction. 4 tracker tests; session-service suite 148 green; fast suite
+  12 486 green. The one never-root-caused intermittent ("keeps the task resumable…", cross-file, passes in
+  isolation) has no reproduction; the standing net is exactly this package — pre-commit captures full output on
+  failure, so a recurrence names itself and quarantine + the named-input workflow take over (and the dispose-flush
+  fix removes one known class of cross-file pollution that could plausibly have caused it — not asserted).

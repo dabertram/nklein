@@ -7,6 +7,7 @@ import {
 	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
 	type ModelStatsTrackingLevel,
 } from "../core/model-stats-tracking-level";
+import { createPendingWriteTracker } from "../core/pending-write-tracker";
 import { parsePromptIntentMode } from "../core/prompt-intent-mode";
 import { isTerminalFailureSessionState } from "../core/session-state-predicates";
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
@@ -615,23 +616,28 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		onTransitions: (taskId, transitions) => {
 			const entry = this.messageRepository.getTaskEntry(taskId);
 			for (const transition of transitions) {
-				void appendAgentLedgerEvent(
-					buildTransitionEvent({
-						workflowId: taskId,
-						taskId,
-						workspacePathHash: hashWorkspacePathForLedger(
-							this.resolveHostWorkspacePathForTask(taskId, entry?.summary.workspacePath ?? null),
-						),
-						role: null,
-						from: transition.from ? `focus:${transition.from}` : null,
-						to: `focus:${transition.to}`,
-						reason: `focus_step: ${transition.stepText}`,
-					}),
-					{ rootDir: this.diagnosticStoreRoot },
-				).catch(() => undefined);
+				// N13 dispose-flush contract: tracked so dispose() can await stragglers instead of racing teardown.
+				this.pendingLedgerWrites.track(
+					appendAgentLedgerEvent(
+						buildTransitionEvent({
+							workflowId: taskId,
+							taskId,
+							workspacePathHash: hashWorkspacePathForLedger(
+								this.resolveHostWorkspacePathForTask(taskId, entry?.summary.workspacePath ?? null),
+							),
+							role: null,
+							from: transition.from ? `focus:${transition.from}` : null,
+							to: `focus:${transition.to}`,
+							reason: `focus_step: ${transition.stepText}`,
+						}),
+						{ rootDir: this.diagnosticStoreRoot },
+					),
+				);
 			}
 		},
 	});
+	/** N13: fire-and-forget durable writes tracked so dispose() flushes them (the ENOTEMPTY teardown race). */
+	private readonly pendingLedgerWrites = createPendingWriteTracker();
 	private readonly runtimeSetupLeaseCache = createRuntimeSetupLeaseCache({
 		acquire: (workspacePath) => this.watcherRegistry.acquire(workspacePath),
 	});
@@ -1206,22 +1212,25 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		observation: StrategyAttemptObservation & { strategyLabel: string | null; resultOutcome: ModelOutcomeKind };
 	}): void {
 		try {
-			void appendAgentLedgerEvent(
-				buildRetryStrategyEvent({
-					workflowId: input.taskId,
-					taskId: input.taskId,
-					workspacePathHash: hashWorkspacePathForLedger(input.workspacePath),
-					role: input.role,
-					modelId: this.resolveLedgerModelId(input.providerId, input.modelId, input.endpoint),
-					triggerOutcome: input.observation.outcome,
-					strategy: input.observation.strategy,
-					strategyLabel: input.observation.strategyLabel,
-					resultOutcome: input.observation.resultOutcome,
-					durationMs: input.observation.durationMs,
-					totalTokens: input.observation.totalTokens,
-				}),
-				{ rootDir: this.diagnosticStoreRoot },
-			).catch(() => {});
+			// N13 dispose-flush contract: tracked so dispose() can await stragglers instead of racing teardown.
+			this.pendingLedgerWrites.track(
+				appendAgentLedgerEvent(
+					buildRetryStrategyEvent({
+						workflowId: input.taskId,
+						taskId: input.taskId,
+						workspacePathHash: hashWorkspacePathForLedger(input.workspacePath),
+						role: input.role,
+						modelId: this.resolveLedgerModelId(input.providerId, input.modelId, input.endpoint),
+						triggerOutcome: input.observation.outcome,
+						strategy: input.observation.strategy,
+						strategyLabel: input.observation.strategyLabel,
+						resultOutcome: input.observation.resultOutcome,
+						durationMs: input.observation.durationMs,
+						totalTokens: input.observation.totalTokens,
+					}),
+					{ rootDir: this.diagnosticStoreRoot },
+				),
+			);
 		} catch {
 			// Observational durability must never alter the model turn.
 		}
@@ -3687,6 +3696,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.timeoutController.clearSettings();
 		await this.sessionRuntime.dispose();
 		await this.clarificationWriteTail;
+		// N13 dispose-flush contract: a disposed service has FLUSHED its fire-and-forget ledger writes — a late
+		// write must never race whatever tears the store root down next (the live ENOTEMPTY flake's root cause).
+		await this.pendingLedgerWrites.flush();
 		// Patch capture is only the first half of finalization; host-side result-branch assembly and the durable marker
 		// continue asynchronously. Drain them before clearing state/stopping Docker so clean shutdown cannot lose a result.
 		await this.sandboxReviewFinalizer.drain();
