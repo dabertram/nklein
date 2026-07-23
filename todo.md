@@ -35,9 +35,9 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 150-package remainder is **44 ready + 11 partial + 80 dependency-blocked + 6 external/
+  gate below is green. The current 149-package remainder is **43 ready + 11 partial + 80 dependency-blocked + 6 external/
 user-gated + 9 deliberately deferred** (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
-F11-gated F1.34c). These are package counts, not effort estimates. Recalculate the authoritative total
+F11-gated F1.34c; P20.11 acknowledged → §4A rule). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
 gates immediately below; all seven `[?]` rows name the required operator decision, credential, machine, or live-fleet
@@ -978,6 +978,14 @@ source repo went private — so if it vanishes the buildable source still lives 
 > 2026-07-13 (P0.10). Spawn-heavy contract/integration files get a 120s per-test default via `vitest-setup-home.ts`
 > and generous internal server-start/CLI-exit waits — sized for a SATURATED 18-core full-suite run, where an idle-
 > machine 10-15s wait flakes healthy tests. Don't tighten them back without re-proving 3 consecutive clean full runs.
+
+### Speed claims come from instrumentation, NEVER from impression (P20.11, acknowledged by David 2026-07-23)
+> METR's randomized controlled trial (arXiv 2507.09089; 16 experienced OSS developers, 246 tasks, in repos they had
+> worked in ~5 years) found them **19% SLOWER with AI while self-reporting a 20% SPEEDUP** — wrong by ~39 pp and wrong
+> in SIGN. Therefore: any claim that !Klein makes anyone faster — in docs, defaults, release notes, or a decision
+> rationale — must cite Phase 16 instrumentation or P20.10 harness-logged timing, never subjective experience.
+> David's own dogfooding remains the right tool for finding BUGS and judging FEEL; it is structurally unreliable for
+> judging speed, and so is any model's impression of its own effectiveness.
 
 ### When debugging an LLM, READ THE LM STUDIO DEV LOGS FIRST (non-negotiable, user 2026-06-30)
 > **Any time a model behaves unexpectedly — a stall, timeout, slow/empty response, a tool-call that never lands, a
@@ -8397,14 +8405,6 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Per P18.5, `GRADIENT_FLOOR_PERCENT = 5` is an **OPERATIONAL DEFAULT**, chosen above SWE-bench Pro's 3.4% and
   below Aider's "low but rankable" ~8%. **The boundary between those two IS the judgement**, and it is labelled
   as a judgement rather than a finding.
-- [ ] **P20.11 — ⚠️ DAVID, THIS ONE IS ABOUT YOUR OWN TESTING PLAN.** METR's randomized controlled trial
-  (arXiv 2507.09089): 16 experienced open-source developers, 246 tasks, in repositories they had worked in for
-  ~5 years. They were **19% SLOWER with AI while self-reporting a 20% SPEEDUP** — wrong by ~39 pp **and wrong in
-  SIGN**. The plan of record is "David tests !Klein himself and that guidance tunes the defaults". That plan is
-  sound for finding BUGS and judging FEEL, and it is **structurally unreliable for judging whether !Klein makes
-  you faster.** This is not a criticism of the plan; it is the reason Phase 16's automated instrumentation and
-  P20.10's harness-logged timing are load-bearing rather than nice-to-have. **Whatever we conclude about speed
-  must come from instrumentation, not impression — including yours, and including mine.**
 - [ ] **P20.12 — Spec-conformance judging: prompt structure dominates model choice.** arXiv 2508.12358 (ASE'25):
   LLM-as-judge for spec conformance fails in a SPECIFIC direction — **over-correction bias, flagging CORRECT code
   as defective**. A three-step prompt collapsed GPT-4o from **52.4% → 11.0%** on HumanEval, and *more*

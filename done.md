@@ -3081,3 +3081,12 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   coverage at every seam (pure gate ×5, tri-state resolution, field normalization ×3, plan normalization ×4,
   board-apply copy-through, worker-prompt lines, runner bounce/skip ×2); `test:simulated-flows` full-runtime drain
   PASS. **Residue tracked in todo.md:** post-F11 drain audit of the 20 aimock dev-test sets under the new default.
+
+## 2026-07-23 P20.11 acknowledged
+
+- [x] **P20.11 — Speed conclusions must come from instrumentation, not impression (David acknowledged 2026-07-23).**
+  The package existed so David would internalize METR's RCT result (arXiv 2507.09089: experienced developers were
+  19% slower with AI while self-reporting a 20% speedup — wrong in sign) before trusting self-tested speed
+  impressions. Presented in the 2026-07-23 decision batch; acknowledged without objection. The standing rule now
+  lives in §4A ("Speed claims come from instrumentation, NEVER from impression"), making Phase 16 instrumentation
+  and P20.10 harness-logged timing the only admissible evidence for speed claims.
