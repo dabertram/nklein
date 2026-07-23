@@ -39,6 +39,22 @@ hardware — built on the pi substrate (Mario Zechner). Apache-2.0. Reviewed 202
   threshold; quality monitor ≈ !Klein's loop/turn guards + PRM watchdog; read-before-edit; evidence store ≈
   focus briefs) — convergent designs are recorded as corroboration, not adoption.
 
+## "Local LLM calls a stronger model when stuck" (XDA Developers article)
+
+- **Source:** https://www.xda-developers.com/taught-local-llm-call-fable-5-gets-stuck-changed-everything/
+  (reviewed 2026-07-23; brought in by David). The author gave a local 7B an `ask_fable` TOOL gated by three
+  explicit stuck-conditions; the stronger model answers a scoped question and the answer returns into the live
+  session as a tool result.
+- **Adopted — model-initiated peer consultation**
+  ([src/core/model-consult.ts](../src/core/model-consult.ts)): the in-session consult tool pattern, the three
+  stuck-conditions (kept nearly verbatim in the tool description), and the scoped four-field request shape
+  (problem / attempts / error / relevant context). !Klein's adaptations: the consultant is the strongest
+  ELIGIBLE **local** model (loaded + idle + materially stronger — the local-only prime directive; the article's
+  cloud consultant maps to the hard-gated Phase 14), the stuck-gate is additionally HARNESS-enforced (admission
+  after ≥2 recorded failed attempts, per-card consult budget — never trust a prompt rule alone), and answers come
+  back explicitly advisory. This complements the harness-driven §5.AA `cross_model_carry` rung by avoiding its
+  overhead: no session teardown, no cold prompt cache, no redone work.
+
 ## opencode-swarm — https://github.com/sst/opencode
 
 - **What:** five cores ported 2026-07-15 into !Klein's delivery/watchdog/audit seams (placeholder + quality

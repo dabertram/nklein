@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 146-package remainder is **40 ready + 11 partial + 80 dependency-blocked + 6 external/
+  gate below is green. The current 147-package remainder is **41 ready + 11 partial + 80 dependency-blocked + 6 external/
 user-gated + 9 deliberately deferred** (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
 F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 + N13 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
@@ -2490,6 +2490,19 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 3A. Adaptive recovery controller *(legacy §5.O, §5.AA)*
 
+- [ ] **F3.37 — Wire model-initiated peer consultation (`consult_stronger_model`; adopted pattern, docs/attributions.md; David 2026-07-23).**
+  Pure core SHIPPED 2026-07-23 (`src/core/model-consult.ts`): harness-enforced stuck-gate (≥2 recorded failed
+  attempts + per-card consult budget), strongest-eligible-LOCAL-consultant selection (loaded + idle + ≥10
+  capability points stronger + never the asker; declines rather than load/unload), capped four-field request,
+  scoped peer-consult prompt, advisory-framed answer. **The wire:** register the tool in the worker session's
+  tool registry gated on `decideConsultAdmission` (ledger-derived failed-attempt count); execute via the existing
+  gateway client against the selected consultant with shared-endpoint admission (a consult must never queue behind
+  or preempt sibling card work — reuse the §5.AB contention veto); record a `model_consult` ledger event
+  (asker, consultant, request bytes, answer bytes, subsequent-attempt outcome) so P15.3 can judge the mechanism;
+  flag-gate `NKLEIN_MODEL_CONSULT` default-OFF until an aimock + fleet A/B shows consults convert failed cards
+  (evidence bar: consult-then-success rate vs the cross_model_carry baseline). CLOUD consultant (the article's
+  literal setup) is Phase 14 — do not make it reachable. Avoids `cross_model_carry`'s overhead: session, prompt
+  cache, and completed work all survive the escalation.
 - [ ] **F3.36 — Wire the mid-turn reasoning-budget breach (adopted from little-coder; docs/attributions.md).**
   The pure core is SHIPPED (`src/core/reasoning-budget-breach.ts`, 2026-07-23): stream-time reasoning-budget
   tracking (little-coder's `ceil(chars/3.5)` estimate, 4096-token default), one-shot breach detection, the
