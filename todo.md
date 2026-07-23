@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 146-package remainder is **40 ready + 11 partial + 80 dependency-blocked + 6 external/
+  gate below is green. The current 145-package remainder is **39 ready + 11 partial + 80 dependency-blocked + 6 external/
 user-gated + 9 deliberately deferred** (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
 F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 + N13 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
@@ -7867,12 +7867,6 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   we would DECLINE the `terminal` client capability and keep execution in our sandbox (conformant, since those
   caps are optional) at the cost of live terminal output in the editor. `session/request_permission` maps
   naturally onto the existing S3 confirm queue. Estimate 1–2 weeks done properly.
-- [ ] **P17.3 — MCP session-handshake seam (defensive; time-sensitive).** **The MCP `2026-07-28` revision is the
-  largest since launch and is explicitly BREAKING** — it removes the `initialize`/`initialized` handshake
-  (SEP-2575) and eliminates `Mcp-Session-Id` / protocol-level sessions entirely (SEP-2567), and restructures
-  server→client requests (SEP-2260/2322) away from the SSE model toward an `InputRequiredResult` + re-issue
-  pattern. **Build against the stable `2025-11-25` and keep handshake/session assumptions behind a seam** so the
-  migration is contained. A 12-month deprecation policy protects us; chasing the RC does not.
 - [-] **P17.4 — A2A (Agent2Agent): DECIDED AGAINST, with reasons recorded.** Researched 2026-07-19 and
   **rejected** — this is a decision, not a deferral. A2A v1.0 is HTTP-native with no stdio binding; its push
   notifications are **outbound HTTP POSTs to registered webhooks** (a direct egress channel, precisely what the

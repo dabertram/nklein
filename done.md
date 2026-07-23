@@ -3154,3 +3154,17 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   real telemetry end-to-end and reports "All four severities have an emission site" with honest zeros (no operator
   gestures yet — the registry's "zero is the CORRECT result" case). Backend 12 488 green; web-ui 1 147 green
   (six draft-send assertions extended with the measured-0s field).
+
+## 2026-07-23 P17.3 MCP protocol seam pinned
+
+- [x] **P17.3 — MCP session-handshake seam (defensive; closed 5 days before the breaking revision).** Audit:
+  !Klein never hand-rolls the MCP handshake — all protocol behavior (initialize/initialized, Mcp-Session-Id)
+  lives inside `@modelcontextprotocol/sdk`, every client transport is constructed in exactly one place
+  (`nklein-mcp-transport-factory.ts`, now documented as THE protocol seam), and our own sandbox MCP servers
+  (e.g. lsp-symbol-mcp-server) use the SDK `McpServer` class. Hardening shipped: the dependency is PINNED exact
+  (`1.29.0`, stable `2025-11-25` protocol generation — the caret range had already silently drifted 1.27.1→1.29.0,
+  which is precisely the unreviewed-bump channel the 2026-07-28 revision would ride in on), and a protocol-
+  generation TRIPWIRE test asserts `LATEST_PROTOCOL_VERSION === "2025-11-25"` and rejects any post-revision
+  (2026+) supported version, with the failure message naming the deliberate P17.3 migration (SEP-2575 handshake
+  removal, SEP-2567 session removal, SEP-2260/2322 restructure) instead of letting a dep bump change wire
+  behavior as a side effect. The 12-month deprecation policy on 2025-11-25 protects the interim.

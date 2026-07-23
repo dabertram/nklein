@@ -9,6 +9,13 @@ import type { SdkMcpServerRegistration } from "./sdk-provider-boundary";
  * §5.U — the MCP transport/registration construction extracted from `nklein-mcp-runtime-service`: map a configured
  * server to an SDK registration, build the concrete client transport for its type (stdio / sse / streamable-http), and
  * classify whether a transport can carry OAuth. Pure construction — no connect/IO — so it's independently testable.
+ *
+ * P17.3 — THIS FILE IS THE PROTOCOL SEAM. All handshake/session behavior (initialize/initialized, Mcp-Session-Id)
+ * lives inside the pinned `@modelcontextprotocol/sdk` (stable `2025-11-25` generation; see the protocol-generation
+ * tripwire test), and every protocol-facing transport is constructed here and only here. When the breaking
+ * `2026-07-28` revision (handshake removal SEP-2575, session removal SEP-2567, server→client restructure
+ * SEP-2260/2322) is adopted, the migration is: bump the pinned SDK, satisfy the tripwire deliberately, and adjust
+ * THIS factory + the sandbox MCP servers — nothing else in the product speaks the protocol.
  */
 
 export const MCP_LOCAL_EXECUTION_DISABLED_MESSAGE = "MCP local execution is disabled under strict isolation.";
