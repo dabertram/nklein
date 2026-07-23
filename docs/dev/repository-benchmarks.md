@@ -245,26 +245,39 @@ aggregate score against every per-problem grade, hashes all generation/metrics/e
 immutable `*_control.json` report. This keeps model-server failures, extraction, grading, and workflow quality
 independently diagnosable.
 
-## Terminal-Bench 2.1 preflight
+## Terminal-Bench 2.1 beyond-patch track
 
-Terminal-Bench uses Harbor's task container as the mutable work artifact; it is not a repository-patch dataset. Run the
-non-pulling compatibility check before installing or fetching task images:
+Terminal-Bench uses Harbor's task container as the mutable work artifact; it is not a repository-patch dataset. Install
+the pinned Harbor 0.5.0 harness into its ignored Python 3.12 environment, then run the non-pulling compatibility check
+before fetching task images:
 
 ```sh
+npm run benchmark:terminal-setup
 nklein dev benchmark terminal-preflight \
   --report-dir /absolute/evidence/terminal-bench-2-1 \
   --storage-path /existing/docker-backing-filesystem \
   --required-free-gb <operator-selected-pull-headroom> \
+  --harbor-path benchmark-harness/harbor/.venv/bin/harbor \
+  --python benchmark-harness/harbor/.venv/bin/python \
+  --base-url http://127.0.0.1:1234/v1 \
+  --model-id qwen/qwen3.6-35b-a3b --max-tokens 4096 \
   --limit 5 --json
 ```
 
 The check pins Harbor 0.5.0 and the official `terminal-bench/terminal-bench-2-1` dataset, reports Docker architecture,
 measures the explicitly selected filesystem rather than guessing from the output directory, keeps reclaimable cache
-separate from actually-free bytes, and prints the bounded official oracle command without executing it. Use selected
-task-image manifest sizes when available, then apply the operator's risk tolerance; the adapter deliberately has no
-universal image-size guess or hidden hard-coded floor.
+separate from actually-free bytes, and prints the bounded official oracle and matched !Klein commands without executing
+them. Use selected task-image manifest sizes when available, then apply the operator's risk tolerance; the adapter has
+no universal image-size guess or hidden hard-coded floor.
 
-The !Klein agent path is ready only when its tool executor can run inside Harbor's already-owned container, mutate that
-container's root filesystem, exchange bounded artifacts, preserve state across turns, and leave verification with
-Harbor. The ordinary `AgentSandboxManager` does not meet that contract: it owns a different container with a read-only
-root and a writable repository mount. The preflight exposes those as blockers rather than returning a false green.
+The custom `NKleinHarborAgent` implements Harbor's external-agent boundary. Harbor passes its already-owned mutable
+environment to the adapter; !Klein's native session runtime receives only `terminal_exec` and lifecycle-ending
+`terminal_submit`. Each exec is routed back to `BaseEnvironment.exec`, state remains in that same Harbor container
+across turns, stdout/stderr are bounded, and Harbor independently runs the hidden verifier after the agent returns. The
+ordinary repository `AgentSandboxManager` is intentionally not reused because it owns a different, read-only-root
+container. Preflight runs a deterministic protocol probe against the installed Harbor API and fails closed on any
+version/import/envelope/ownership regression. A green preflight proves compatibility, not task quality; retain the
+oracle-5 and matched-agent Harbor result directories as the actual track evidence.
+After reviewing the plans and ensuring the shared fleet/Docker lane is idle, add `--execute`. Execution refuses an
+existing report directory, runs oracle first and !Klein second, and stops on either harness error so evidence from
+different invocations cannot be silently mixed.

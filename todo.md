@@ -448,6 +448,13 @@ gap remains.
 > cold residents needed to admit the next model, never active work or unrelated hosts. The unsafe state was four
 > unbudgeted 32k residents (~74.5 GB weights before KV/runtime memory), not residency itself.
 
+> **⚠️ EXTERNAL BENCHMARK ENVIRONMENTS MUST REMAIN THE EXECUTION AND VERIFICATION AUTHORITY (Terminal-Bench F12.61,
+> 2026-07-23).** Do not relabel !Klein's repository `AgentSandboxManager` as a benchmark task environment: Harbor owns a
+> different mutable container, its lifecycle, and its hidden verifier. Implement Harbor's external-agent seam, pass
+> only bounded `BaseEnvironment.exec` results into the native !Klein session, and let Harbor verify after the session
+> returns. Prove the adapter protocol against the exact pinned Harbor API before pulling images; compatibility green is
+> still not task-quality evidence, so retain matched oracle and agent result directories separately.
+
 > **⚠️ REQUEST POLICY WRAPS RECOVERY; RECOVERY MUST NOT WRAP REQUEST POLICY (F4.15, 2026-07-21).** Apply a session's
 > skill/API profile once to the baseline `AgentModelRequest`, then hand that request to the adaptive recovery model.
 > Putting the profile decorator inside every retry silently re-enables `thinking:true`/`/think` after a
@@ -4848,6 +4855,15 @@ output and NOT acted on. Captured as F12.12.)
   the wrong environment. Build that boundary, install the pinned Harbor harness, then run oracle-5 and the matched
   !Klein agent smoke; no image pull before
   both the boundary and disk preflight are green.
+  **ADAPTER + PINNED HARNESS SHIPPED IN ISOLATED FOLLOW-UP (2026-07-23; image-bearing evidence pending campaign
+  drain).** `npm run benchmark:terminal-setup` provisions Harbor 0.5.0 in an ignored Python 3.12 environment and runs a
+  deterministic external-agent protocol probe. `NKleinHarborAgent` receives Harbor's `BaseEnvironment`, launches the
+  native TypeScript session runtime, advertises only `terminal_exec` + lifecycle-ending `terminal_submit`, routes every
+  command through Harbor's persistent container, bounds stdout/stderr, and leaves the hidden verifier with Harbor. The
+  preflight now fails closed on import/protocol drift and is genuinely green on m5max: ~189 GiB actual free space versus
+  David's relaxed 20 GiB headroom, Harbor 0.5.0, Docker reachable, adapter probe green; reclaimable cache remains only a
+  warning. It emits both oracle-5 and matched custom-agent plans. REMAINING before crossing: run and retain oracle-5 +
+  matched !Klein result directories after the active clean-commit Aider campaign releases the fleet/Docker lane.
 
 **Agent architecture deltas from the leading tools (Aider/Cline/Cursor/Claude-Code/Serena/RooCode):**
 - [x] **F12.62 — *(finalized 2026-07-19: mechanism proven end-to-end on the live rig — brief → EDITOR worker, 3/3 briefs round 4, solo baseline 0/3; the n≥5 board-reset A/B through the F12.41 gate + score-based auto-decision are FLEET queue.)*  Architect/Editor split per card (the biggest documented small-model win).** Split a card into two calls: an

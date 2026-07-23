@@ -52,7 +52,9 @@ import {
 	assessTerminalBenchAgentBoundary,
 	assessTerminalBenchHost,
 	PINNED_HARBOR_VERSION,
+	planTerminalBenchAgentSmoke,
 	planTerminalBenchOracleSmoke,
+	type TerminalBenchEnvironmentCapabilities,
 } from "../core/terminal-bench-harness";
 import { resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox-docker";
 import { materializeAiderPolyglotWorkspace } from "../nklein-agent/nklein-aider-polyglot-workspace";
@@ -164,6 +166,16 @@ export interface DevBenchmarkCommandDeps {
 		availableBytes: number;
 		reclaimableDockerBytes: number;
 	}>;
+	probeTerminalBenchAgentBoundary?: (input: {
+		pythonPath: string;
+		repoPath: string;
+	}) => Promise<TerminalBenchEnvironmentCapabilities>;
+	runTerminalBenchCommand?: (input: {
+		command: string;
+		args: readonly string[];
+		cwd: string;
+		env?: Readonly<Record<string, string>>;
+	}) => Promise<{ stdout: string; stderr: string }>;
 }
 
 function csv(value: string | undefined): string[] | undefined {
@@ -1076,6 +1088,29 @@ async function probeTerminalBenchHost(input: { harborPath: string; storagePath: 
 	};
 }
 
+async function probeTerminalBenchAgentBoundary(input: {
+	pythonPath: string;
+	repoPath: string;
+}): Promise<TerminalBenchEnvironmentCapabilities> {
+	try {
+		const result = await execFile(
+			input.pythonPath,
+			[resolve(input.repoPath, "scripts/verify-terminal-bench-adapter.py"), "--repo", input.repoPath],
+			{ cwd: input.repoPath, timeout: 30_000, env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } },
+		);
+		return JSON.parse(result.stdout.trim()) as TerminalBenchEnvironmentCapabilities;
+	} catch (error) {
+		return {
+			execInOwnedContainer: false,
+			mutableRootFilesystem: false,
+			boundedExecResults: false,
+			preserveContainerAcrossTurns: false,
+			harborOwnsVerification: false,
+			probeError: error instanceof Error ? error.message : String(error),
+		};
+	}
+}
+
 async function terminalPreflight(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) {
 	if (!options.reportDir || !options.requiredFreeGb || !options.storagePath) {
 		throw new Error(
@@ -1086,32 +1121,85 @@ async function terminalPreflight(options: DevBenchmarkOptions, deps: DevBenchmar
 	if (!requiredFreeGb || requiredFreeGb < 1) throw new Error("--required-free-gb must be at least 1.");
 	const harborPath = options.harborPath?.trim() || "harbor";
 	const storagePath = resolve(options.storagePath);
+	const repoPath = resolve(".");
+	const pythonPath =
+		options.python?.trim() || (harborPath.includes("/") ? resolve(dirname(harborPath), "python") : "python3");
 	const probe = await (deps.probeTerminalBenchHost ?? probeTerminalBenchHost)({ harborPath, storagePath });
 	const host = assessTerminalBenchHost({
 		...probe,
 		requiredFreeBytes: requiredFreeGb * 1024 ** 3,
 	});
-	// Current AgentSandboxManager owns a separate, read-only-root container. It cannot be relabeled as Harbor's mutable
-	// task environment without breaking verifier authority and task semantics; keep this blocker executable and visible.
-	const agentBoundary = assessTerminalBenchAgentBoundary({
-		execInOwnedContainer: false,
-		mutableRootFilesystem: false,
-		copyFilesToAndFromContainer: false,
-		preserveContainerAcrossTurns: false,
-		harborOwnsVerification: true,
+	const boundaryProbe = await (deps.probeTerminalBenchAgentBoundary ?? probeTerminalBenchAgentBoundary)({
+		pythonPath,
+		repoPath,
 	});
-	return {
+	const agentBoundary = assessTerminalBenchAgentBoundary(boundaryProbe);
+	const modelId = options.modelId?.trim();
+	const baseUrl = options.baseUrl?.trim();
+	const reportDir = resolve(options.reportDir);
+	const oracleSmoke = planTerminalBenchOracleSmoke({
+		outputDir: reportDir,
+		limit: integer(options.limit, "limit") ?? 5,
+		harborPath,
+	});
+	const agentSmoke =
+		modelId && baseUrl
+			? planTerminalBenchAgentSmoke({
+					outputDir: resolve(reportDir, "nklein"),
+					cwd: repoPath,
+					modelId,
+					baseUrl,
+					contextWindow: 32_768,
+					maxTokensPerTurn: integer(options.maxTokens, "max-tokens") ?? 4_096,
+					limit: integer(options.limit, "limit") ?? 5,
+					harborPath,
+				})
+			: null;
+	const report = {
 		action: "terminal-preflight",
 		ready: host.ready && agentBoundary.ready,
 		pinnedHarborVersion: PINNED_HARBOR_VERSION,
 		storagePath,
+		pythonPath,
 		host,
 		agentBoundary,
-		oracleSmoke: planTerminalBenchOracleSmoke({
-			outputDir: resolve(options.reportDir),
-			limit: integer(options.limit, "limit") ?? 5,
-			harborPath,
-		}),
+		oracleSmoke,
+		agentSmoke,
+	};
+	if (!options.execute) return report;
+	if (!report.ready) throw new Error("Terminal-Bench execution requires a green host and agent-boundary preflight.");
+	if (!agentSmoke) throw new Error("Terminal-Bench --execute requires --model-id and --base-url for the matched run.");
+	const evidenceExists = await lstat(reportDir)
+		.then(() => true)
+		.catch((error: NodeJS.ErrnoException) => {
+			if (error.code === "ENOENT") return false;
+			throw error;
+		});
+	if (evidenceExists) throw new Error(`Terminal-Bench evidence path already exists: ${reportDir}`);
+	await mkdir(dirname(reportDir), { recursive: true });
+	const run =
+		deps.runTerminalBenchCommand ??
+		(async (input: {
+			command: string;
+			args: readonly string[];
+			cwd: string;
+			env?: Readonly<Record<string, string>>;
+		}) =>
+			execFile(input.command, [...input.args], {
+				cwd: input.cwd,
+				env: { ...process.env, ...input.env },
+				maxBuffer: 16 * 1024 * 1024,
+			}));
+	const oracleResult = await run({ ...oracleSmoke, cwd: repoPath });
+	const agentResult = await run(agentSmoke);
+	const tail = (value: string) => (value.length <= 8_000 ? value : value.slice(-8_000));
+	return {
+		...report,
+		executed: true,
+		execution: {
+			oracle: { stdoutTail: tail(oracleResult.stdout), stderrTail: tail(oracleResult.stderr) },
+			agent: { stdoutTail: tail(agentResult.stdout), stderrTail: tail(agentResult.stderr) },
+		},
 	};
 }
 

@@ -3,6 +3,7 @@ import {
 	assessTerminalBenchAgentBoundary,
 	assessTerminalBenchHost,
 	PINNED_HARBOR_VERSION,
+	planTerminalBenchAgentSmoke,
 	planTerminalBenchOracleSmoke,
 	TERMINAL_BENCH_21_DATASET,
 } from "../../../src/core/terminal-bench-harness";
@@ -15,6 +16,39 @@ describe("Terminal-Bench 2.1 harness preflight", () => {
 			command: "/opt/harbor",
 			args: ["run", "-d", TERMINAL_BENCH_21_DATASET, "-a", "oracle", "-l", "5", "-o", "/evidence/tb21"],
 		});
+	});
+
+	it("plans a matched custom-agent smoke while keeping Harbor as dataset and verifier authority", () => {
+		expect(
+			planTerminalBenchAgentSmoke({
+				outputDir: "/evidence/tb21/nklein",
+				cwd: "/repo",
+				modelId: "local/model",
+				baseUrl: "http://127.0.0.1:1234/v1",
+				contextWindow: 32_768,
+				maxTokensPerTurn: 4_096,
+				limit: 5,
+				harborPath: "/opt/harbor",
+			}),
+		).toMatchObject({
+			command: "/opt/harbor",
+			cwd: "/repo",
+			args: expect.arrayContaining([
+				"--agent-import-path",
+				"integrations.harbor.nklein_harbor_agent:NKleinHarborAgent",
+			]),
+			env: { NKLEIN_TERMINAL_MODEL_ID: "local/model", NKLEIN_TERMINAL_CONTEXT_WINDOW: "32768" },
+		});
+		expect(() =>
+			planTerminalBenchAgentSmoke({
+				outputDir: "/evidence/tb21/nklein",
+				cwd: "/repo",
+				modelId: "remote/model",
+				baseUrl: "https://api.example.com/v1",
+				contextWindow: 32_768,
+				maxTokensPerTurn: 4_096,
+			}),
+		).toThrow(/private LAN/);
 	});
 
 	it("becomes host-ready only with the pinned harness, reachable Docker, and real free headroom", () => {
@@ -49,7 +83,7 @@ describe("Terminal-Bench 2.1 harness preflight", () => {
 		const result = assessTerminalBenchAgentBoundary({
 			execInOwnedContainer: false,
 			mutableRootFilesystem: false,
-			copyFilesToAndFromContainer: true,
+			boundedExecResults: true,
 			preserveContainerAcrossTurns: false,
 			harborOwnsVerification: true,
 		});
@@ -63,7 +97,7 @@ describe("Terminal-Bench 2.1 harness preflight", () => {
 			assessTerminalBenchAgentBoundary({
 				execInOwnedContainer: true,
 				mutableRootFilesystem: true,
-				copyFilesToAndFromContainer: true,
+				boundedExecResults: true,
 				preserveContainerAcrossTurns: true,
 				harborOwnsVerification: true,
 			}),

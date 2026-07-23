@@ -49,10 +49,11 @@
   finalization, so mid-campaign edits or process replacement cannot mix evidence. Completed arms emit immutable repeated-status snapshots; the daily delta gate fails only
   stable resolved→stable unresolved changes while quarantining mixed repeats and keeping missing/error evidence
   inconclusive.
-  Terminal-Bench 2.1 now has a non-pulling preflight that pins the official Harbor/dataset command, separates actual
-  disk headroom from merely reclaimable Docker cache, preserves architecture warnings, and reports the still-missing
-  externally-owned mutable-container agent boundary instead of treating !Klein's separate read-only repo sandbox as an
-  equivalent execution environment.
+  Terminal-Bench 2.1 now has a pinned Harbor 0.5.0 harness and external-agent adapter. Harbor retains its mutable task
+  container, lifecycle, and hidden verifier while !Klein's native session receives only bounded terminal exec and
+  submit tools; a deterministic protocol probe fails closed on dependency/import/envelope drift. The non-pulling
+  preflight separates actual disk headroom from reclaimable Docker cache, preserves architecture warnings, and renders
+  both the official oracle-5 and matched !Klein smoke plans without pretending the repository sandbox is equivalent.
   Fresh-window evidence now accepts only SWE-bench-Live/SWE-rebench rows, applies the latest explicit or per-model
   training cutoff, excludes undated/pre-cutoff instances, and immutably records known-memorization, path-recall, and
   public-solution leakage exclusions. A new private local-minted lane turns bounded test-killed mutations from a clean

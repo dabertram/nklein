@@ -28,6 +28,7 @@ describe("dev benchmark command", () => {
 	it("measures the explicitly selected Docker-backing filesystem without pulling images", async () => {
 		let output = "";
 		let probeInput: { harborPath: string; storagePath: string } | undefined;
+		let boundaryInput: { pythonPath: string; repoPath: string } | undefined;
 		await runDevBenchmarkCommand(
 			{
 				action: "terminal-preflight",
@@ -50,16 +51,74 @@ describe("dev benchmark command", () => {
 						reclaimableDockerBytes: 10 * 1024 ** 3,
 					};
 				},
+				probeTerminalBenchAgentBoundary: async (input) => {
+					boundaryInput = input;
+					return {
+						execInOwnedContainer: true,
+						mutableRootFilesystem: true,
+						boundedExecResults: true,
+						preserveContainerAcrossTurns: true,
+						harborOwnsVerification: true,
+					};
+				},
 			},
 		);
 		expect(probeInput).toEqual({ harborPath: "/opt/harbor", storagePath: "/tmp" });
+		expect(boundaryInput?.pythonPath).toBe("/opt/python");
 		expect(JSON.parse(output)).toMatchObject({
 			action: "terminal-preflight",
-			ready: false,
+			ready: true,
 			storagePath: "/tmp",
 			host: { ready: true },
-			agentBoundary: { ready: false },
+			agentBoundary: { ready: true },
 		});
+	});
+
+	it("executes oracle then the matched custom agent into a create-only evidence root", async () => {
+		const root = await mkdtemp(join(tmpdir(), "nklein-terminal-run-"));
+		const reportDir = join(root, "evidence");
+		const calls: Array<{ args: readonly string[]; env?: Readonly<Record<string, string>> }> = [];
+		let output = "";
+		await runDevBenchmarkCommand(
+			{
+				action: "terminal-preflight",
+				reportDir,
+				storagePath: root,
+				requiredFreeGb: "1",
+				harborPath: "/opt/harbor",
+				modelId: "local/model",
+				baseUrl: "http://127.0.0.1:1234/v1",
+				execute: true,
+				write: (text) => {
+					output += text;
+				},
+			},
+			{
+				probeTerminalBenchHost: async () => ({
+					harborVersion: "0.5.0",
+					dockerReachable: true,
+					dockerArchitecture: "amd64",
+					availableBytes: 2 * 1024 ** 3,
+					reclaimableDockerBytes: 0,
+				}),
+				probeTerminalBenchAgentBoundary: async () => ({
+					execInOwnedContainer: true,
+					mutableRootFilesystem: true,
+					boundedExecResults: true,
+					preserveContainerAcrossTurns: true,
+					harborOwnsVerification: true,
+				}),
+				runTerminalBenchCommand: async (input) => {
+					calls.push(input);
+					return { stdout: "ok", stderr: "" };
+				},
+			},
+		);
+		expect(calls).toHaveLength(2);
+		expect(calls[0]?.args).toContain("oracle");
+		expect(calls[1]?.args).toContain("integrations.harbor.nklein_harbor_agent:NKleinHarborAgent");
+		expect(calls[1]?.env?.NKLEIN_TERMINAL_MODEL_ID).toBe("local/model");
+		expect(JSON.parse(output)).toMatchObject({ executed: true, execution: { oracle: {}, agent: {} } });
 	});
 
 	it("prepares a deterministic manifest with no oracle material", async () => {

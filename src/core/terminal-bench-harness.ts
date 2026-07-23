@@ -1,3 +1,5 @@
+import { assertLocalModelBaseUrl } from "./local-model-base-url";
+
 export const TERMINAL_BENCH_21_DATASET = "terminal-bench/terminal-bench-2-1";
 export const PINNED_HARBOR_VERSION = "0.5.0";
 
@@ -78,9 +80,10 @@ export function assessTerminalBenchHost(input: TerminalBenchHostPreflightInput):
 export interface TerminalBenchEnvironmentCapabilities {
 	execInOwnedContainer: boolean;
 	mutableRootFilesystem: boolean;
-	copyFilesToAndFromContainer: boolean;
+	boundedExecResults: boolean;
 	preserveContainerAcrossTurns: boolean;
 	harborOwnsVerification: boolean;
+	probeError?: string;
 }
 
 /**
@@ -91,15 +94,68 @@ export function assessTerminalBenchAgentBoundary(capabilities: TerminalBenchEnvi
 	blockers: readonly string[];
 } {
 	const blockers: string[] = [];
+	if (capabilities.probeError) blockers.push(`adapter protocol probe failed: ${capabilities.probeError}`);
 	if (!capabilities.execInOwnedContainer) blockers.push("tool calls cannot execute in Harbor's task container");
 	if (!capabilities.mutableRootFilesystem)
 		blockers.push("the execution boundary exposes only a read-only/rootless repo mount");
-	if (!capabilities.copyFilesToAndFromContainer)
-		blockers.push("the adapter cannot exchange bounded artifacts with Harbor");
+	if (!capabilities.boundedExecResults)
+		blockers.push("the adapter does not bound command results returned from Harbor");
 	if (!capabilities.preserveContainerAcrossTurns)
 		blockers.push("task-container state does not survive the multi-turn agent loop");
 	if (!capabilities.harborOwnsVerification) blockers.push("verification authority is not retained by Harbor");
 	return { ready: blockers.length === 0, blockers };
+}
+
+export function planTerminalBenchAgentSmoke(input: {
+	outputDir: string;
+	cwd: string;
+	modelId: string;
+	baseUrl: string;
+	contextWindow: number;
+	maxTokensPerTurn: number;
+	limit?: number;
+	harborPath?: string;
+}): { command: string; args: readonly string[]; cwd: string; env: Readonly<Record<string, string>> } {
+	const oracle = planTerminalBenchOracleSmoke(input);
+	if (!input.cwd.startsWith("/") || input.cwd.includes("\0") || input.cwd.includes("\n")) {
+		throw new Error("cwd must be a safe absolute path.");
+	}
+	const modelId = input.modelId.trim();
+	const baseUrl = assertLocalModelBaseUrl(input.baseUrl);
+	if (!modelId || modelId.includes("\0") || modelId.includes("\n")) throw new Error("modelId must be a safe value.");
+	if (!Number.isInteger(input.contextWindow) || input.contextWindow < 32_768) {
+		throw new Error("contextWindow must be at least 32768.");
+	}
+	if (
+		!Number.isInteger(input.maxTokensPerTurn) ||
+		input.maxTokensPerTurn < 1 ||
+		input.maxTokensPerTurn >= input.contextWindow
+	) {
+		throw new Error("maxTokensPerTurn must be positive and smaller than contextWindow.");
+	}
+	return {
+		command: oracle.command,
+		args: [
+			"run",
+			"-d",
+			TERMINAL_BENCH_21_DATASET,
+			"--agent-import-path",
+			"integrations.harbor.nklein_harbor_agent:NKleinHarborAgent",
+			"-m",
+			modelId,
+			"-l",
+			String(input.limit ?? 5),
+			"-o",
+			input.outputDir,
+		],
+		cwd: input.cwd,
+		env: {
+			NKLEIN_TERMINAL_MODEL_BASE_URL: baseUrl,
+			NKLEIN_TERMINAL_MODEL_ID: modelId,
+			NKLEIN_TERMINAL_CONTEXT_WINDOW: String(input.contextWindow),
+			NKLEIN_TERMINAL_MAX_TOKENS: String(input.maxTokensPerTurn),
+		},
+	};
 }
 
 export function planTerminalBenchOracleSmoke(input: { outputDir: string; limit?: number; harborPath?: string }): {
