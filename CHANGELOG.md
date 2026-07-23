@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Small local models can now reason before JSON constraints are applied.** Structured generation uses an
+  unconstrained semantic turn followed by a schema-constrained, lossless packaging turn for the provisional <14B
+  local-small-model tier. Packaging failures retry only transcription, never regenerate the answer; measured direct-
+  constraint accuracy can override the provisional size policy. A paired live evaluator reports semantic accuracy and
+  wrong-but-valid failures separately from JSON validity.
+
 - **Resident-model guidance now preserves warm caches inside explicit safety limits.** The Model Performance view joins
   real fitness/request history with downloaded sizes, loaded state, and per-host RAM, then recommends at most one model
   on smaller hosts or three on 64+ GiB hosts while retaining a 25% memory reserve. Already-loaded models are recognized;

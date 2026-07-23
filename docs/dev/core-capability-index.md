@@ -13,7 +13,7 @@ The cause was not dead code — it was **discoverability**. A long orphan list r
 code*; the accurate reading is *a lot of built capability nobody can find*. Deleting it destroys value;
 indexing it recovers value.
 
-717 core modules.
+718 core modules.
 
 | module | purpose | labels |
 | --- | --- | --- |
@@ -141,6 +141,7 @@ indexing it recovers value.
 | `core/confidence-resource-routing.ts` | F3.33 — confidence- and resource-aware routing (pure). | F3.33 |
 | `core/confidence-scorer.ts` | §5.AB / §5.K — calibrated-confidence scorer (pure core). | §5.AB §5.K |
 | `core/config-api-contract.ts` | (no docblock) | §5.AB §5.L §5.W §5.X |
+| `core/constraint-tax-eval.ts` | (no docblock) | F12.78b |
 | `core/constraint-tax-strategy.ts` | F12.78 — "reason-free, constrain-late": decide HOW to get structured output from a model. | F12.78 |
 | `core/content-addressable-cache.ts` | F12.32 — content-addressable caching for tool results + model responses (the determinism-BOUNDING half; | F12.32 F12.67 |
 | `core/context-budget-knee.ts` | Learned quality-effective context-budget ESTIMATOR — the "quality knee" fit (todo §5.AD). | §5.AA §5.AD §5.AE |

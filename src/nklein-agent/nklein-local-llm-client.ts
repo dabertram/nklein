@@ -1,4 +1,9 @@
 import type { MultimodalContentPart } from "../core/chat-multimodal";
+import {
+	buildPackagingPrompt,
+	type ConstraintStrategy,
+	decideConstraintStrategy,
+} from "../core/constraint-tax-strategy";
 import { buildJsonSchemaResponseFormat } from "../core/lmstudio-response-format";
 import { mergeConsecutiveSameRoleMessages, mergeSystemMessagesFirst } from "../core/normalize-system-first";
 import { normalizeOpenAiCompatBaseUrl } from "../core/openai-compat-base-url";
@@ -294,9 +299,9 @@ export class LocalLlmClient {
 	}
 
 	/**
-	 * Generates a JSON object constrained to `jsonSchema`, parsed/validated by `parse`. Constrained decoding
-	 * makes this reliable even on small models; `parse` (e.g. a zod `.parse`) is the post-hoc guarantee. On a
-	 * parse failure, retries once with a corrective instruction (reflection).
+	 * Generates and validates a JSON object. Models below the evidence/size threshold first answer without constrained
+	 * decoding, then a schema-constrained transcription turn packages that answer; capable pairings use the direct path.
+	 * A failed packaging/parse attempt retries the packaging turn once without regenerating the semantic answer.
 	 */
 	async generateStructured<T>(input: {
 		messages: LocalLlmChatMessage[];
@@ -305,6 +310,11 @@ export class LocalLlmClient {
 		parse: (value: unknown) => T;
 		sampling?: LocalLlmSamplingOptions;
 		signal?: AbortSignal;
+		/** Measured semantic accuracy under direct constraint; overrides the weak parameter-count fallback at 5+ samples. */
+		measuredConstrainedAccuracy?: number | null;
+		constrainedAccuracyObservations?: number;
+		/** Explicit experiment override. Production callers should omit this and use the evidence-aware decision. */
+		constraintStrategy?: ConstraintStrategy;
 	}): Promise<T> {
 		const format: LocalLlmStructuredFormat = {
 			// generateStructured does its OWN JSON recovery + retry, so it doesn't need LM Studio's STRICT enforcement
@@ -314,29 +324,77 @@ export class LocalLlmClient {
 			...(input.grammar ? { grammar: input.grammar } : {}),
 		};
 		const sampling: LocalLlmSamplingOptions = { temperature: 0.1, ...input.sampling };
-		const first = await this.complete({ messages: input.messages, sampling, format, signal: input.signal });
-		const firstParsed = tryParseJson(first.content);
-		if (firstParsed.ok) {
-			return input.parse(firstParsed.value);
+		const runConstrainedPackaging = async (
+			messages: LocalLlmChatMessage[],
+			packagingSampling: LocalLlmSamplingOptions,
+		): Promise<T> => {
+			const first = await this.complete({ messages, sampling: packagingSampling, format, signal: input.signal });
+			const firstParsed = tryParseJson(first.content);
+			if (firstParsed.ok) {
+				try {
+					return input.parse(firstParsed.value);
+				} catch {
+					// A schema-valid envelope can still violate the caller's semantic parser. Retry the packaging turn only.
+				}
+			}
+			const retryMessages: LocalLlmChatMessage[] = [
+				...messages,
+				{ role: "assistant", content: first.content },
+				{
+					role: "user",
+					content:
+						"Your previous packaging reply was not valid JSON for the required schema. Transcribe the SAME supplied answer again with ONLY the JSON object — do not revise or add facts.",
+				},
+			];
+			const second = await this.complete({
+				messages: retryMessages,
+				sampling: packagingSampling,
+				format,
+				signal: input.signal,
+			});
+			const secondParsed = tryParseJson(second.content);
+			if (!secondParsed.ok) {
+				throw new LocalLlmRequestError(
+					`Local model did not return valid JSON for schema "${input.jsonSchema.name}" after a packaging retry.`,
+					null,
+				);
+			}
+			return input.parse(secondParsed.value);
+		};
+
+		const decision = decideConstraintStrategy({
+			modelId: this.config.modelId,
+			measuredConstrainedAccuracy: input.measuredConstrainedAccuracy,
+			observationCount: input.constrainedAccuracyObservations,
+		});
+		const strategy = input.constraintStrategy ?? decision.strategy;
+		if (strategy === "direct_constrained") {
+			return runConstrainedPackaging(input.messages, sampling);
 		}
-		const retryMessages: LocalLlmChatMessage[] = [
-			...input.messages,
-			{ role: "assistant", content: first.content },
-			{
-				role: "user",
-				content:
-					"Your previous reply was not valid JSON for the required schema. Reply again with ONLY the JSON object that matches the schema — no prose, no code fences.",
-			},
-		];
-		const second = await this.complete({ messages: retryMessages, sampling, format, signal: input.signal });
-		const secondParsed = tryParseJson(second.content);
-		if (!secondParsed.ok) {
+
+		// F12.78b: the semantic turn has NO response_format. Only the second, transcription-only call is constrained.
+		const reasoning = await this.complete({ messages: input.messages, sampling, signal: input.signal });
+		if (!reasoning.content.trim()) {
 			throw new LocalLlmRequestError(
-				`Local model did not return valid JSON for schema "${input.jsonSchema.name}" after a retry.`,
+				`Local model returned no free-text answer before packaging schema "${input.jsonSchema.name}".`,
 				null,
 			);
 		}
-		return input.parse(secondParsed.value);
+		const packagingMessages: LocalLlmChatMessage[] = [
+			{
+				role: "system",
+				content:
+					"You are a lossless JSON transcription step. Preserve the supplied answer's semantics; never solve the task again.",
+			},
+			{
+				role: "user",
+				content: buildPackagingPrompt({
+					freeTextAnswer: reasoning.content,
+					schemaDescription: JSON.stringify(input.jsonSchema.schema, null, 2),
+				}),
+			},
+		];
+		return runConstrainedPackaging(packagingMessages, { ...sampling, temperature: 0 });
 	}
 
 	/**

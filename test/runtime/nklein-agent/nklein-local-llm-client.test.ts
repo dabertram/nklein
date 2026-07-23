@@ -313,7 +313,7 @@ describe("LocalLlmClient.generateStructured", () => {
 		const fetchImpl = vi.fn(async () => jsonResponse('{"value": 42}'));
 		const client = new LocalLlmClient({
 			providerId: "lmstudio",
-			modelId: "qwen",
+			modelId: "qwen2.5-coder-14b",
 			baseUrl: "http://127.0.0.1:1234/v1",
 			fetchImpl: fetchImpl as unknown as typeof fetch,
 		});
@@ -329,7 +329,7 @@ describe("LocalLlmClient.generateStructured", () => {
 		const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse('here you go: ```json\n{"value": 7}\n```'));
 		const client = new LocalLlmClient({
 			providerId: "lmstudio",
-			modelId: "qwen",
+			modelId: "qwen2.5-coder-14b",
 			baseUrl: "http://127.0.0.1:1234/v1",
 			fetchImpl: fetchImpl as unknown as typeof fetch,
 		});
@@ -349,7 +349,7 @@ describe("LocalLlmClient.generateStructured", () => {
 			.mockResolvedValueOnce(jsonResponse('{"value": 1}'));
 		const client = new LocalLlmClient({
 			providerId: "lmstudio",
-			modelId: "qwen",
+			modelId: "qwen2.5-coder-14b",
 			baseUrl: "http://127.0.0.1:1234/v1",
 			fetchImpl: fetchImpl as unknown as typeof fetch,
 		});
@@ -362,6 +362,80 @@ describe("LocalLlmClient.generateStructured", () => {
 		expect(fetchImpl).toHaveBeenCalledTimes(2);
 		const retryBody = JSON.parse((fetchImpl.mock.calls[1] as unknown as [string, RequestInit])[1].body as string);
 		expect(retryBody.messages.at(-1).content).toContain("valid JSON");
+	});
+
+	it("runs a small model's semantic turn unconstrained and constrains only the packaging turn", async () => {
+		const fetchImpl = vi
+			.fn()
+			.mockResolvedValueOnce(jsonResponse("The requested value is forty-two."))
+			.mockResolvedValueOnce(jsonResponse('{"value":42}'));
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+			baseUrl: "http://127.0.0.1:1234/v1",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		await expect(
+			client.generateStructured<{ value: number }>({
+				messages: [{ role: "user", content: "What value was requested?" }],
+				jsonSchema: { name: "out", schema: { type: "object", properties: { value: { type: "number" } } } },
+				parse: (value) => value as { value: number },
+			}),
+		).resolves.toEqual({ value: 42 });
+
+		const reasoningBody = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+		const packagingBody = JSON.parse((fetchImpl.mock.calls[1] as unknown as [string, RequestInit])[1].body as string);
+		expect(reasoningBody.response_format).toBeUndefined();
+		expect(packagingBody.response_format?.type).toBe("json_schema");
+		expect(packagingBody.messages.at(-1).content).toContain("TRANSCRIPTION task");
+		expect(packagingBody.messages.at(-1).content).toContain("forty-two");
+	});
+
+	it("retries only the packaging turn without regenerating the free-text answer", async () => {
+		const fetchImpl = vi
+			.fn()
+			.mockResolvedValueOnce(jsonResponse("The requested value is seven."))
+			.mockResolvedValueOnce(jsonResponse("not json"))
+			.mockResolvedValueOnce(jsonResponse('{"value":7}'));
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+			baseUrl: "http://127.0.0.1:1234/v1",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await expect(
+			client.generateStructured({
+				messages: [{ role: "user", content: "What value was requested?" }],
+				jsonSchema: { name: "out", schema: { type: "object" } },
+				parse: (value) => value as { value: number },
+			}),
+		).resolves.toEqual({ value: 7 });
+		expect(fetchImpl).toHaveBeenCalledTimes(3);
+		for (const call of fetchImpl.mock.calls.slice(1)) {
+			const body = JSON.parse((call as unknown as [string, RequestInit])[1].body as string);
+			expect(body.response_format?.type).toBe("json_schema");
+		}
+	});
+
+	it("lets sufficient measured constrained accuracy override the small-model fallback", async () => {
+		const fetchImpl = vi.fn(async () => jsonResponse('{"value":9}'));
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+			baseUrl: "http://127.0.0.1:1234/v1",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await client.generateStructured({
+			messages: [{ role: "user", content: "value" }],
+			jsonSchema: { name: "out", schema: { type: "object" } },
+			parse: (value) => value,
+			measuredConstrainedAccuracy: 0.9,
+			constrainedAccuracyObservations: 8,
+		});
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
+		const body = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+		expect(body.response_format?.type).toBe("json_schema");
 	});
 });
 

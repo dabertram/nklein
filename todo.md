@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed after F12.77b):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 152-package remainder is **57 ready + 1 partial + 78 dependency-blocked + 7 external/
+  gate below is green. The current 151-package remainder is **55 ready + 2 partial + 78 dependency-blocked + 7 external/
 user-gated + 9 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -5266,13 +5266,24 @@ verify-before-build caveat: confirm each against current code before implementin
   packaging pass that "improves" the answer reintroduces exactly the semantic risk the split exists to avoid.
   10 tests; suite green.
   **SPLIT MATERIALIZED 2026-07-20.**
-- [ ] **F12.78b — Wire the two-phase turn *(split from F12.78 2026-07-20)*.** Run the reasoning turn
+- [~] **F12.78b — Wire the two-phase turn *(split from F12.78 2026-07-20)*.** Run the reasoning turn
   UNCONSTRAINED, then issue the packaging call with LM Studio's `response_format: json_schema` — the only
   constrained-decode lever that runtime honours (it silently ignores top-level `grammar`, §4A). Needs the
   turn-loop seam plus model time to confirm the packaging pass does not itself become a failure source on the
   smallest models. **Acceptance must measure the thing the strategy claims:** compare wrong-but-valid RATES
   between direct-constrained and two-phase on the same cards, not just validity — the whole argument is that
   validity improves while correctness degrades, so a validity-only acceptance would confirm the wrong half.
+  **IMPLEMENTATION COMPLETE 2026-07-23; live paired acceptance remains.** `LocalLlmClient.generateStructured` now
+  chooses the evidence-aware strategy: the semantic call omits `response_format`, and only a narrow transcription
+  call receives LM Studio `json_schema`; a failed parse retries packaging without regenerating/revising the answer.
+  A 55-assertion focused suite pins the wire shape, packaging-only retry, and measured-accuracy override. The new
+  create-only `eval:constraint-tax` harness runs eight identical code-localization cards in ABBA order, records
+  validity, semantic accuracy, overall wrong-but-valid rate, wrong-among-valid rate, and packaging failures, requires
+  an already-loaded ≥32k model plus an idle/unchanged fleet, and never loads/unloads. Primary-source correction: the
+  cited paper directly studies 0.5B–3B (including tax at 3B), not 14B; `<14B` is therefore labeled !Klein's
+  provisional local-small-model policy, pending this 8B/9B evidence. **Concrete remainder:** run the paired harness on
+  the resident 8B Legion and 9B M4 models after the commit-pinned F11 campaign releases the fixed fleet, then keep,
+  narrow, or retire the provisional cutoff from observed wrong-but-valid and packaging-failure rates.
 - [x] **F12.79 — Assembled-prompt instruction-budget linter.** Count discrete imperative instructions in the FINAL assembled
   prompt; warn/auto-trim above a model-size-scaled cap (~150 for 32B, far lower for 4–7B) and report which volatility tier to
   shed first. **CORE BUILT 2026-07-17:** `prompt-fragment-lint.ts` — `extractInstructionUnits` (bullets + imperative-lead +

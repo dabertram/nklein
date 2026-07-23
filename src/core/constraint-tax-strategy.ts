@@ -15,14 +15,19 @@
  * text, then package the answer into JSON in a cheap second pass. The packaging step is nearly mechanical, which
  * is exactly the kind of work a small model can do reliably.
  *
- * Honesty stance: the threshold below is the PAPER'S, not ours. Phase 22 recorded that parameter count is a poor
- * capability proxy at agent depth, so a caller with measured evidence for this pairing should override it — and
- * when there is no measurement, the fallback is the strategy whose failures are VISIBLE.
+ * Honesty stance: the paper directly tests only 0.5B–3B models. The 14B boundary below is !Klein's provisional,
+ * conservative local-small-model policy, not a paper result. Phase 22 also recorded that parameter count is a poor
+ * capability proxy at agent depth, so measured evidence for the exact pairing must override it — and when there is
+ * no measurement, the fallback is the strategy whose failures are VISIBLE.
  */
 
 import { parseModelAttributes } from "./model-attributes";
 
-/** The paper's threshold: below this, hard-constraining the reasoning turn costs more accuracy than it buys. */
+/**
+ * !Klein's provisional local-small-model boundary. The paper directly tests 0.5B–3B and still finds tax at 3B; it
+ * does NOT establish 14B. We conservatively extend the two-phase policy through the current 8B/9B small-host tier
+ * until paired local wrong-but-valid measurements replace this weak cutoff.
+ */
 export const CONSTRAINT_TAX_SIZE_B = 14;
 
 export type ConstraintStrategy = "free_text_then_package" | "direct_constrained";
@@ -97,12 +102,12 @@ export function decideConstraintStrategy(input: ConstraintStrategyInput): Constr
 		? {
 				strategy: "free_text_then_package",
 				weakBasis: true,
-				reason: `~${paramB}B is below the ${CONSTRAINT_TAX_SIZE_B}B constraint-tax threshold — hard schema decode roughly halves accuracy at this size and makes ~89% of outputs wrong-but-valid`,
+				reason: `~${paramB}B is inside !Klein's provisional <${CONSTRAINT_TAX_SIZE_B}B local-small-model tier — the paper directly proves constraint tax only through 3B, so paired local wrong-but-valid evidence must confirm or retire this conservative extension`,
 			}
 		: {
 				strategy: "direct_constrained",
 				weakBasis: true,
-				reason: `~${paramB}B is at or above the ${CONSTRAINT_TAX_SIZE_B}B threshold (WEAK BASIS: the paper's size cutoff, not a measurement of this pairing — override with measured constrained accuracy when available)`,
+				reason: `~${paramB}B is outside !Klein's provisional <${CONSTRAINT_TAX_SIZE_B}B local-small-model tier (WEAK BASIS: this is a product cutoff, not a paper result or measurement of this pairing — override with measured constrained accuracy)`,
 			};
 }
 
