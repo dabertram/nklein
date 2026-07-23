@@ -8,6 +8,11 @@
   a pass. Generated perfect sets guarantee a real request-changes→approve review bounce, while every flaky set
   guarantees all five required recovery families instead of leaving either contract to seeded chance.
 
+- **Nightly runs now expose deterministic per-cell model-I/O cost.** Each passed cell carries exact aimock request and
+  matched-response byte counts plus request volume, persists them as the next-run baseline, and flags only material
+  growth using ratio and absolute floors. The metric stays tokenizer-neutral instead of presenting a character-based
+  token estimate as fact.
+
 - **Repeated review bounces no longer strand a card between its lane transition and its next sandbox turn.** The
   recapture obligation is now armed at the review-bounce boundary, survives a racing terminal stop together with the
   exact launch recipe, admits only that owed interrupted re-drive, and is consumed when the next capture begins.

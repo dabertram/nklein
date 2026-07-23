@@ -44,6 +44,7 @@ import {
 	bindNightlyRecording,
 	type NightlyRecordingEvidence,
 } from "../src/core/nightly-recording-evidence.js";
+import { summarizeNightlyModelIo } from "../src/core/nightly-cell-cost.js";
 
 const SCENARIO_SELECTOR = process.env.NKLEIN_SIMFLOW_SCENARIO?.trim() || "";
 const SCENARIO_RUN = process.env.NKLEIN_SIMFLOW_RUN === "flaky" ? "flaky-run" : "perfect-run";
@@ -477,6 +478,9 @@ async function main(): Promise<void> {
 		console.log(`\nSeed monitor exited ${seedExit}.`);
 		// Definitive matcher debugging: what did the simulator actually receive per request?
 		const journal = simulator.mock.getRequests();
+		if (NIGHTLY_EXPECTED_FIXTURE || NIGHTLY_EXPECTED_RECORDING_SET) {
+			console.log(`NIGHTLY_CELL_COST=${JSON.stringify(summarizeNightlyModelIo(journal))}`);
+		}
 		// N7b: emit the terminal board lanes in a machine-readable form so the nightly runner can hand them to N5's
 		// invariant packs. The counts already existed in this script and were only ever asserted inline — every
 		// consumer downstream (packs, collector, failure report) sat idle for want of this one line.

@@ -1,3 +1,4 @@
+import type { NightlyModelIoCost } from "./nightly-cell-cost";
 import type { NightlyRecordingEvidence } from "./nightly-recording-evidence";
 
 /**
@@ -99,6 +100,8 @@ export interface CellVerdict {
 	 * Missing evidence is a failed cell at the runner boundary; it must never be synthesized by this summary core.
 	 */
 	readonly recordingEvidence?: NightlyRecordingEvidence | null;
+	/** Exact tokenizer-neutral model request + matched-response byte cost emitted by the aimock journal. */
+	readonly modelIoCost?: NightlyModelIoCost | null;
 }
 
 export interface NightlySummary {

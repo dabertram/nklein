@@ -104,6 +104,13 @@ gap remains.
 > image builds and label architecture mismatch QEMU-tainted. Calibrate gold ≥2 times before candidate execution,
 > quarantine unresolved/flip/error/missing cases, and gate only calibrated resolved→unresolved deltas; infrastructure
 > absence is inconclusive. This is why a famous absolute benchmark score is weaker evidence than a clean paired delta.
+> **CACHE ONLY REPEATED EXPENSIVE WORK, NOT ONE-SHOT NIGHTLY PROSE (N6b, 2026-07-23).** Measured on the full 01–20
+> corpus, parsing all 40 perfect+flaky JSON recordings costs 10.514 ms and compiling all tracks costs 7.163 ms per
+> complete suite—about 0.44 ms/cell before the hours-long drain. Each nightly subprocess consumes one unique recording
+> once, so a cross-process disk cache would add serialization, invalidation, and stale-evidence risk for no material
+> speedup. Do not implement a requested cache by reflex: measure the repeated work and reject the cache when the cache
+> costs more or weakens identity. Likewise, never reuse mutable scaffold/HOME/worktree/ledger state between cells. The
+> safe optimization is to measure exact model-boundary work (request + matched-response bytes) and expose regressions.
 > **Git history is part of the agent-visible input:** deleting a temporary oracle mount is insufficient if `test_patch`
 > was ever applied or committed. The sealed workspace must expose exactly one upstream baseline commit; private tests
 > first enter only the separate official grader container after prediction capture.
@@ -6264,7 +6271,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   absolute alone misses a fast cell degrading badly. A cell with no baseline reports nothing — a first observation
   is not a comparison, and treating it as one would manufacture a regression on every newly-added cell.
   The effectful half is N6b.
-- [ ] **N6b — Scaffold reuse, fixture-parse caching, per-cell cost emission *(split from N6 2026-07-20)*.**
+- [~] **N6b — Scaffold reuse, fixture-parse caching, per-cell cost emission *(split from N6 2026-07-20)*.**
   Reuse scaffolds where hermetically safe, cache aimock fixture parsing, and emit per-cell wall/cost from a real
   run so `detectDurationRegressions` has a baseline to compare against. Rides N7's runner.
   **✅ THE WALL-TIME BASELINE HALF IS ALREADY COMPLETE (verified 2026-07-20) — and had a silent-death hazard, now
@@ -6275,9 +6282,19 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   `LAST_RUN_PATH` constant the reader uses. Identical strings today, so it worked — but if either ever changed, the
   write would land elsewhere, every baseline read would miss, and regression detection would go **permanently dead
   with no error**, the precise silent failure N7 exists to prevent. Now both sides go through the one constant.
-  **GENUINE REMAINDER = the COST half only:** per-cell TOKEN cost has no source in a sim/aimock drain (no real
-  model calls), so a cost baseline needs a real-fleet nightly run — fleet-gated, not code I can write blind. And
-  fixture-parse caching is the only untouched buildable sub-part; scaffold reuse the item argues AGAINST by default.
+  **CODE COMPLETE 2026-07-23; ONE LIVE RECEIPT/BASELINE REPLAY REMAINS AFTER F11 RELEASES DOCKER.** The earlier
+  conclusion that cost required a real model was too narrow: aimock's journal carries the exact request body and the
+  exact matched response fixture. The drain now emits tokenizer-neutral `modelRequests`, `requestBytes`,
+  `responseBytes`, and additive `totalBytes`; the parent requires exactly one typed, non-zero receipt before passing a
+  cell, persists it beside wall time, prints every cell's cost, and reports prior-run growth only when both ratio and
+  absolute floors are crossed. It deliberately does **not** call a 4-chars/token guess “tokens.” This catches prompt,
+  retry, and response growth reproducibly without pretending all model tokenizers agree.
+  The requested parse cache and scaffold reuse were rejected by measurement, not omitted: parsing all 40 01–20
+  perfect+flaky files costs 10.514 ms and compiling them costs 7.163 ms per full suite on this host (~0.44 ms/cell),
+  while each isolated subprocess uses one unique recording once. A disk cache would add invalidation/stale-identity
+  risk for a rounding error; mutable scaffold reuse would violate isolation. **Concrete remainder:** after F11 releases
+  Docker, run one N2 cell twice, prove the first run persists the exact receipt and the second loads it as baseline,
+  then deliberately expand a fixture/prompt enough to trip the cost oracle before reverting the probe and closing N6b.
   **⚠️ "WHERE HERMETICALLY SAFE" IS THE WHOLE ITEM, and it is the one phrase that can silently undo N6.** A reused
   scaffold that carries ANY state between cells — a warm store, a leftover worktree, a cached fitness row — makes
   cell B pass because cell A ran first. That is not a faster suite, it is **a suite with hidden ordering

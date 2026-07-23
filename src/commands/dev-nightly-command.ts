@@ -3,6 +3,11 @@ import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import {
+	detectNightlyCostRegressions,
+	type NightlyModelIoCost,
+	parseNightlyModelIoCost,
+} from "../core/nightly-cell-cost";
 import { collectDrainedState } from "../core/nightly-drain-collector";
 import { buildNightlyFailureReport, summarizeNightlyFailures } from "../core/nightly-failure-report";
 import { evaluatePack, resolvePack } from "../core/nightly-invariant-pack";
@@ -118,17 +123,24 @@ function parseTerminalLanes(json: string | null): { cardId: string; lane: string
 	return cards;
 }
 
-async function readPriorDurations(): Promise<Map<string, number>> {
+interface PriorCellBaseline {
+	readonly durationMs?: number;
+	readonly modelIoCost?: NightlyModelIoCost | null;
+}
+
+async function readPriorBaselines(): Promise<Map<string, PriorCellBaseline>> {
 	try {
 		const raw = JSON.parse(await readFile(LAST_RUN_PATH, "utf8")) as {
-			verdicts?: { cell?: { projectId?: string; modelProfile?: string }; durationMs?: number }[];
+			verdicts?: {
+				cell?: { projectId?: string; modelProfile?: string };
+				durationMs?: number;
+				modelIoCost?: NightlyModelIoCost | null;
+			}[];
 		};
-		const out = new Map<string, number>();
+		const out = new Map<string, PriorCellBaseline>();
 		for (const verdict of raw.verdicts ?? []) {
 			const key = `${verdict.cell?.projectId} × ${verdict.cell?.modelProfile}`;
-			if (typeof verdict.durationMs === "number" && verdict.durationMs > 0) {
-				out.set(key, verdict.durationMs);
-			}
+			out.set(key, { durationMs: verdict.durationMs, modelIoCost: verdict.modelIoCost });
 		}
 		return out;
 	} catch {
@@ -214,6 +226,28 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 				reason: `invalid NIGHTLY_RECORDING_EVIDENCE: ${error instanceof Error ? error.message : String(error)}`,
 			};
 		}
+		const costLines = stdout.split(/\r?\n/).filter((line) => line.startsWith("NIGHTLY_CELL_COST="));
+		if (costLines.length !== 1) {
+			return {
+				cell,
+				outcome: "failed",
+				durationMs: Date.now() - started,
+				homePath: home,
+				reason: `drain exited cleanly with ${costLines.length} NIGHTLY_CELL_COST receipts (expected exactly 1); refusing to hide an unmeasured nightly cell`,
+			};
+		}
+		let modelIoCost: NightlyModelIoCost;
+		try {
+			modelIoCost = parseNightlyModelIoCost((costLines[0] ?? "").slice("NIGHTLY_CELL_COST=".length));
+		} catch (error) {
+			return {
+				cell,
+				outcome: "failed",
+				durationMs: Date.now() - started,
+				homePath: home,
+				reason: `invalid NIGHTLY_CELL_COST: ${error instanceof Error ? error.message : String(error)}`,
+			};
+		}
 		return {
 			cell,
 			outcome: "passed",
@@ -224,6 +258,7 @@ async function runCell(cell: NightlyCell, index: number): Promise<CellVerdict> {
 			terminalLanesJson: /NIGHTLY_TERMINAL_LANES=(\{[^\n]*\})/.exec(stdout)?.[1] ?? null,
 			homePath: home,
 			recordingEvidence,
+			modelIoCost,
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -261,12 +296,12 @@ export async function runDevNightlyCommand(options: {
 	// N6: order fastest-first from the PREVIOUS run's durations, so a failure surfaces at minute 4 rather than
 	// hour 3. Execution stays strictly sequential (maxParallel 1) — the ordering is the whole gain here, and the
 	// parallelism half is what makes the two largest projects false-timeout.
-	const prior = await readPriorDurations();
+	const prior = await readPriorBaselines();
 	const cellKey = (cell: NightlyCell) => `${cell.projectId} × ${cell.modelProfile}`;
 	const plan = planNightlySchedule({
 		cells: enumerated.map((cell) => ({
 			id: cellKey(cell),
-			lastDurationMs: prior.get(cellKey(cell)) ?? null,
+			lastDurationMs: prior.get(cellKey(cell))?.durationMs ?? null,
 		})),
 		maxParallel: 1,
 	});
@@ -451,15 +486,38 @@ export async function runDevNightlyCommand(options: {
 			);
 		}
 	}
+	const costReceipts = verdicts.filter(
+		(verdict): verdict is CellVerdict & { modelIoCost: NightlyModelIoCost } => verdict.modelIoCost != null,
+	);
+	if (costReceipts.length > 0 && !options.json) {
+		process.stdout.write(
+			`\nModel-I/O cost (${costReceipts.length}/${verdicts.length} cells; exact bytes, not estimated tokens):\n`,
+		);
+		for (const verdict of costReceipts) {
+			const measured = verdict.modelIoCost;
+			process.stdout.write(
+				`  ${verdict.cell.projectId} × ${verdict.cell.modelProfile}: ${measured.modelRequests} request(s) · ${measured.requestBytes} input B + ${measured.responseBytes} response B = ${measured.totalBytes} B\n`,
+			);
+		}
+	}
 
 	// N6: the suite watching its OWN cost. A cell drifting 40s -> 200s is a product regression that presents as
 	// "the nightly got slower" and is usually absorbed rather than investigated.
 	const regressions = detectDurationRegressions(
 		verdicts.map((verdict) => ({
 			cellId: `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`,
-			baselineMs: prior.get(`${verdict.cell.projectId} × ${verdict.cell.modelProfile}`) ?? null,
+			baselineMs: prior.get(`${verdict.cell.projectId} × ${verdict.cell.modelProfile}`)?.durationMs ?? null,
 			currentMs: verdict.durationMs ?? 0,
 		})),
+	);
+	const costRegressions = detectNightlyCostRegressions(
+		verdicts
+			.filter((verdict): verdict is CellVerdict & { modelIoCost: NightlyModelIoCost } => verdict.modelIoCost != null)
+			.map((verdict) => ({
+				cellId: `${verdict.cell.projectId} × ${verdict.cell.modelProfile}`,
+				baseline: prior.get(`${verdict.cell.projectId} × ${verdict.cell.modelProfile}`)?.modelIoCost ?? null,
+				current: verdict.modelIoCost,
+			})),
 	);
 	if (regressions.length > 0 && !options.json) {
 		process.stdout.write(`\n${regressions.length} cell(s) got materially slower:\n`);
@@ -467,12 +525,16 @@ export async function runDevNightlyCommand(options: {
 			process.stdout.write(`  ${regression.detail}\n`);
 		}
 	}
+	if (costRegressions.length > 0 && !options.json) {
+		process.stdout.write(`\n${costRegressions.length} cell cost metric(s) grew materially:\n`);
+		for (const regression of costRegressions) process.stdout.write(`  ${regression.detail}\n`);
+	}
 	if (failureReports.length > 0 && !options.json) {
 		process.stdout.write(`\n${summarizeNightlyFailures(failureReports).text}\n`);
 	}
 	if (options.json) {
 		process.stdout.write(
-			`${JSON.stringify({ ...summary, verdicts, failureReports, regressions, packVerdicts }, null, 2)}\n`,
+			`${JSON.stringify({ ...summary, verdicts, failureReports, regressions, costRegressions, packVerdicts }, null, 2)}\n`,
 		);
 	} else {
 		process.stdout.write(`\n${summary.summary}\n`);
