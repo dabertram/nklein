@@ -1720,6 +1720,7 @@ export async function handleStartTaskSession(
 					fixedTargetModelKey: process.env.NKLEIN_FLEET_DECOMPOSE_TARGET?.trim() || null,
 					smallestBasis: "loaded",
 					smallestSupportedModelKey: null,
+					autoReshardOnFleetChange: true,
 				}
 			: null;
 		const resolvedFleetDecomposition = resolveFleetDecompositionSettings({

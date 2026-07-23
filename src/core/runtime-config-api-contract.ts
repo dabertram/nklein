@@ -52,6 +52,7 @@ export const runtimeFleetDecompositionSettingsSchema = z.object({
 	fixedTargetModelKey: z.string().trim().min(1).nullable(),
 	smallestBasis: z.enum(["loaded", "supported_floor"]),
 	smallestSupportedModelKey: z.string().trim().min(1).nullable(),
+	autoReshardOnFleetChange: z.boolean().default(true),
 });
 export type RuntimeFleetDecompositionSettings = z.infer<typeof runtimeFleetDecompositionSettingsSchema>;
 export const DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS: RuntimeFleetDecompositionSettings = {
@@ -59,6 +60,7 @@ export const DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS: RuntimeFleetDecomposi
 	fixedTargetModelKey: null,
 	smallestBasis: "loaded",
 	smallestSupportedModelKey: null,
+	autoReshardOnFleetChange: true,
 };
 /** Minimum context window (tokens) a model must report before NKlein will activate it. */
 export const RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000;

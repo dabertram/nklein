@@ -30,6 +30,10 @@ export function normalizeFleetDecompositionSettings(
 				? parsed.smallestBasis
 				: fallback.smallestBasis,
 		smallestSupportedModelKey: cleanKey(parsed.smallestSupportedModelKey, fallback.smallestSupportedModelKey),
+		autoReshardOnFleetChange:
+			typeof parsed.autoReshardOnFleetChange === "boolean"
+				? parsed.autoReshardOnFleetChange
+				: fallback.autoReshardOnFleetChange,
 	};
 }
 
@@ -46,7 +50,8 @@ export function areFleetDecompositionSettingsEqual(
 		left.mode === right.mode &&
 		left.fixedTargetModelKey === right.fixedTargetModelKey &&
 		left.smallestBasis === right.smallestBasis &&
-		left.smallestSupportedModelKey === right.smallestSupportedModelKey
+		left.smallestSupportedModelKey === right.smallestSupportedModelKey &&
+		left.autoReshardOnFleetChange === right.autoReshardOnFleetChange
 	);
 }
 

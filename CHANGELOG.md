@@ -27,6 +27,12 @@
   environment variables remain an outer/global compatibility input; project and card choices still win. The feature
   stays off by default and never loads or unloads models.
 
+- **Fleet-sized plans now recover safely when the loaded model set changes.** After two stable loaded-only fleet
+  observations, !Klein rebinds clearable waiting cards to a fitting resident model and re-shards only cards no loaded
+  model can clear. Running/review work is never touched, empty/transient probes cannot trigger changes, and plan
+  amendments fail closed if they alter unaffected tasks or break dependency boundaries. Automatic re-sharding defaults
+  on and can be disabled globally, per project, or on the originating card.
+
 - **Agents now get IDE-precise TypeScript/JavaScript symbol tools inside their networkless task sandbox.** A persistent,
   pinned language server exposes only `find_symbol`, `find_referencing_symbols`, `get_symbols_overview`, and
   `rename_symbol`; task relevance and model/container fit are checked before it connects. Cross-file renames use the

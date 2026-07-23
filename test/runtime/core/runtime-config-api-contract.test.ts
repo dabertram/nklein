@@ -43,6 +43,7 @@ describe("fleet decomposition settings contract (F12.110b)", () => {
 		fixedTargetModelKey: null,
 		smallestBasis: "supported_floor" as const,
 		smallestSupportedModelKey: "qwen/qwen3-8b",
+		autoReshardOnFleetChange: true,
 	};
 
 	it("requires a complete atomic settings object", () => {

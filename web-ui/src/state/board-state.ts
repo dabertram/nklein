@@ -222,7 +222,13 @@ function normalizeGeneratedFromPlan(raw: unknown): BoardCard["generatedFromPlan"
 	if (!raw || typeof raw !== "object") {
 		return undefined;
 	}
-	const value = raw as { artifactKind?: unknown; planSlug?: unknown; planTaskId?: unknown; sourceTaskId?: unknown };
+	const value = raw as {
+		artifactKind?: unknown;
+		planSlug?: unknown;
+		planTaskId?: unknown;
+		sourceTaskId?: unknown;
+		fleetSizing?: unknown;
+	};
 	if (typeof value.planSlug !== "string" || !value.planSlug.trim()) {
 		return undefined;
 	}
@@ -235,6 +241,9 @@ function normalizeGeneratedFromPlan(raw: unknown): BoardCard["generatedFromPlan"
 		planSlug: value.planSlug,
 		planTaskId: value.planTaskId,
 		...(typeof value.sourceTaskId === "string" && value.sourceTaskId ? { sourceTaskId: value.sourceTaskId } : {}),
+		...(value.fleetSizing && typeof value.fleetSizing === "object"
+			? { fleetSizing: value.fleetSizing as NonNullable<BoardCard["generatedFromPlan"]>["fleetSizing"] }
+			: {}),
 	};
 }
 

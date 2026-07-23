@@ -91,6 +91,16 @@ export function FleetDecompositionSettingsFields({
 					) : null}
 				</>
 			) : null}
+			<label className="flex items-center gap-2 text-[12px] text-text-secondary">
+				<input
+					type="checkbox"
+					aria-label="Automatically re-shard stranded cards when the loaded fleet changes"
+					checked={value.autoReshardOnFleetChange}
+					disabled={disabled}
+					onChange={(event) => update({ autoReshardOnFleetChange: event.target.checked })}
+				/>
+				Auto re-shard stranded cards when the loaded fleet changes
+			</label>
 		</div>
 	);
 }

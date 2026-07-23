@@ -4,6 +4,7 @@ import type {
 	RuntimeBoardColumnId,
 	RuntimeBoardData,
 	RuntimeBoardDependency,
+	RuntimeFleetReshardRequest,
 	RuntimeGeneratedFromPlan,
 	RuntimeTaskAutoReviewMode,
 	RuntimeTaskImage,
@@ -47,6 +48,7 @@ export interface RuntimeCreateTaskInput {
 	writeScope?: string[];
 	forbiddenPaths?: string[];
 	generatedFromPlan?: RuntimeGeneratedFromPlan;
+	fleetReshardRequest?: RuntimeFleetReshardRequest;
 	/** §5.AU: the stream/epic this card belongs to (set by the decomposition write-path). */
 	streamId?: string;
 	baseRef: string;
@@ -327,6 +329,7 @@ export function addTaskToColumn(
 		...(writeScope ? { writeScope } : {}),
 		...(forbiddenPaths ? { forbiddenPaths } : {}),
 		...(input.generatedFromPlan ? { generatedFromPlan: { ...input.generatedFromPlan } } : {}),
+		...(input.fleetReshardRequest ? { fleetReshardRequest: { ...input.fleetReshardRequest } } : {}),
 		...(input.streamId ? { streamId: input.streamId } : {}),
 		baseRef,
 		createdAt: now,

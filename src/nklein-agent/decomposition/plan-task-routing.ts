@@ -13,6 +13,31 @@ import {
 import { buildTaskPrompt } from "./plan-task-prompt";
 import { validateNKleinPlanTaskGraph } from "./plan-task-validation";
 
+export interface PlanTaskRoutingSizing {
+	taskDifficulty: number;
+	promptTokens: number;
+	fitBudgetTokens: number;
+}
+
+/** Persistable routing requirement used to tell whether a later loaded fleet can still clear this card. */
+export function derivePlanTaskRoutingSizing(
+	task: NKleinPlanTask,
+	taskPrompt: string,
+	routingCandidates: readonly NKleinTaskRoutingCandidate[] | undefined,
+): PlanTaskRoutingSizing {
+	const promptTokens = estimateNKleinStartPromptTokens({ prompt: taskPrompt, taskTitle: task.title });
+	const largestContextWindow =
+		routingCandidates
+			?.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
+			.filter((contextWindow) => contextWindow > 0)
+			.sort((left, right) => right - left)[0] ?? null;
+	return {
+		taskDifficulty: Math.max(task.complexity, estimateNKleinStartDifficulty(promptTokens)),
+		promptTokens,
+		fitBudgetTokens: estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow),
+	};
+}
+
 export function selectTaskRoutingCandidate(
 	task: NKleinPlanTask,
 	taskPrompt: string,
@@ -26,10 +51,8 @@ export function selectTaskRoutingCandidate(
 	if (!routingCandidates || routingCandidates.length === 0) {
 		return undefined;
 	}
-	const promptTokens = estimateNKleinStartPromptTokens({
-		prompt: taskPrompt,
-		taskTitle: task.title,
-	});
+	const sizing = derivePlanTaskRoutingSizing(task, taskPrompt, routingCandidates);
+	const promptTokens = sizing.promptTokens;
 	// §5.AE→§5.AB: resolve the card's skills, then project them onto the same affinity tags a fitting model carries, so a
 	// code-editing card prefers a `code` model and a planning card a `reasoning` one (best-fit BEFORE smallest-sufficient).
 	// NOTE: the `assigned_skills` level has no config-side assignedSkillIds source yet, so it resolves to an EMPTY skill
@@ -42,17 +65,12 @@ export function selectTaskRoutingCandidate(
 			dynamicsLevel,
 		}).skills.map((skill) => skill.id),
 	);
-	const largestContextWindow =
-		routingCandidates
-			.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
-			.filter((contextWindow) => contextWindow > 0)
-			.sort((left, right) => right - left)[0] ?? null;
 	const preferredModelKey = task.suggestedRole
 		? (routingCandidates.find((candidate) => candidate.role === task.suggestedRole)?.entry.key ?? null)
 		: null;
 	const routingDecision = routeNKleinTask({
-		difficulty: Math.max(task.complexity, estimateNKleinStartDifficulty(promptTokens)),
-		fitBudgetTokens: estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow),
+		difficulty: sizing.taskDifficulty,
+		fitBudgetTokens: sizing.fitBudgetTokens,
 		promptTokens,
 		outputTokens: 1_000,
 		preferredModelKey,

@@ -29,13 +29,43 @@ export type RuntimeTaskImage = z.infer<typeof runtimeTaskImageSchema>;
 export const runtimeTaskTestEvidencePolicySchema = z.enum(["agent_visible", "externally_held_out"]);
 export type RuntimeTaskTestEvidencePolicy = z.infer<typeof runtimeTaskTestEvidencePolicySchema>;
 
+export const runtimeFleetSizingCandidateSchema = z.object({
+	modelKey: z.string().min(1),
+	providerId: z.string().min(1),
+	modelId: z.string().min(1),
+	capability: z.number().min(0).max(100),
+	contextWindow: z.number().int().nonnegative(),
+});
+export type RuntimeFleetSizingCandidate = z.infer<typeof runtimeFleetSizingCandidateSchema>;
+
+export const runtimeFleetSizingSchema = z.object({
+	fingerprint: z.string().min(1),
+	candidates: z.array(runtimeFleetSizingCandidateSchema).min(1),
+	taskDifficulty: z.number().min(0).max(100),
+	promptTokens: z.number().int().nonnegative(),
+	fitBudgetTokens: z.number().int().nonnegative(),
+	autoReshardOnFleetChange: z.boolean().default(true),
+});
+export type RuntimeFleetSizing = z.infer<typeof runtimeFleetSizingSchema>;
+
 export const runtimeGeneratedFromPlanSchema = z.object({
 	artifactKind: z.enum(["decomposition", "buildout", "spec"]).default("decomposition"),
 	planSlug: z.string().min(1),
 	planTaskId: z.string().min(1),
 	sourceTaskId: z.string().min(1).nullable().optional(),
+	/** The loaded fleet and routing requirement this card was sized against. Absent on legacy/non-fleet plans. */
+	fleetSizing: runtimeFleetSizingSchema.optional(),
 });
 export type RuntimeGeneratedFromPlan = z.infer<typeof runtimeGeneratedFromPlanSchema>;
+
+export const runtimeFleetReshardRequestSchema = z.object({
+	planSlug: z.string().min(1),
+	targetPlanTaskIds: z.array(z.string().min(1)).min(1),
+	fromFleetFingerprints: z.array(z.string().min(1)).min(1),
+	toFleetFingerprint: z.string().min(1),
+	requestedAt: z.number(),
+});
+export type RuntimeFleetReshardRequest = z.infer<typeof runtimeFleetReshardRequestSchema>;
 
 const runtimeLegacyTaskNKleinReasoningEffortSchema = z.enum(["default", "low", "medium", "high", "xhigh"]);
 
@@ -178,6 +208,8 @@ export const runtimeBoardCardSchema = z
 		writeScope: z.array(z.string()).optional(),
 		forbiddenPaths: z.array(z.string()).optional(),
 		generatedFromPlan: runtimeGeneratedFromPlanSchema.optional(),
+		/** Deterministic control-plane card that replaces only stranded nodes in an existing plan. */
+		fleetReshardRequest: runtimeFleetReshardRequestSchema.optional(),
 		// §5.AU: the stream/epic this card belongs to (single-parent). Additive optional (CRDT whole-object LWW) so older
 		// boards load as-is; a manual `set_card_stream` override wins over the derived membership (see `deriveStreams`).
 		streamId: z.string().optional(),

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { relative, sep } from "node:path";
 import { loadRuntimeConfig } from "../../config/runtime-config";
+import { resolveFleetDecompositionSettings } from "../../config/runtime-config-fleet-decomposition-resolver";
+import { DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS } from "../../core/api-contract";
 import { resolveAutonomousTimeoutPowerMultiplier } from "../../core/autonomous-timeout-defaults";
 import { mutateWorkspaceState } from "../../state/workspace-state";
 import { recordSelfObservation } from "../../telemetry/self-observation-sink";
@@ -79,6 +81,9 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 	const routingCandidates = runtimeConfig
 		? await buildDecompositionRoutingCandidates(runtimeConfig).catch(() => undefined)
 		: undefined;
+	const fleetSizingCandidates = runtimeConfig
+		? await buildDecompositionRoutingCandidates(runtimeConfig, { loadedOnly: true }).catch(() => [])
+		: [];
 	// Compute the fallback preview (shown on the not-applied return paths below, incl. the outer catch which depends on
 	// this value) BEFORE the apply `try` — so it must not throw. The *-WithFallback helper degrades an all-infeasible
 	// card to a candidate-less "model selected at start" preview instead of letting the model-feasibility guard escape
@@ -125,6 +130,14 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 					},
 				};
 			}
+			const sourceCard = input.sourceTaskId
+				? state.board.columns.flatMap((column) => column.cards).find((card) => card.id === input.sourceTaskId)
+				: undefined;
+			const fleetDecompositionSettings = resolveFleetDecompositionSettings({
+				global: runtimeConfig?.fleetDecompositionDefaults ?? DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS,
+				project: runtimeConfig?.fleetDecompositionOverride ?? null,
+				task: sourceCard?.nkleinSettings?.fleetDecomposition ?? null,
+			}).value;
 			const applyInput = {
 				board: state.board,
 				taskGraph: input.taskGraph,
@@ -135,6 +148,8 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 				powerMultiplier,
 				sharedContext: input.sharedContext,
 				focusedSpansByTaskId,
+				fleetSizingCandidates,
+				fleetDecompositionSettings,
 			};
 			let applied: ReturnType<typeof applyNKleinPlanTaskGraphToBoard>;
 			try {

@@ -25,6 +25,7 @@ describe("fleet decomposition config resolution (F12.110b)", () => {
 			fixedTargetModelKey: "host/model",
 			smallestBasis: "supported_floor",
 			smallestSupportedModelKey: "floor/model",
+			autoReshardOnFleetChange: true,
 		});
 	});
 
@@ -37,10 +38,11 @@ describe("fleet decomposition config resolution (F12.110b)", () => {
 		expect(result.effectiveFleetDecompositionSettings).toEqual(project);
 	});
 
-	it("compares all four persisted fields", () => {
+	it("compares all five persisted fields", () => {
 		const base = { ...DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS, mode: "smallest" as const };
 		expect(areFleetDecompositionSettingsEqual(base, { ...base })).toBe(true);
 		expect(areFleetDecompositionSettingsEqual(base, { ...base, smallestBasis: "supported_floor" })).toBe(false);
+		expect(areFleetDecompositionSettingsEqual(base, { ...base, autoReshardOnFleetChange: false })).toBe(false);
 	});
 
 	it("uses resolveScopedOverride precedence for card > project > global, including explicit off", () => {

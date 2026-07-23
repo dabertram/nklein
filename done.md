@@ -2951,3 +2951,16 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   loads or unloads a model. A fleet-only card override deliberately continues inheriting global reasoning effort.
   Evidence: focused config/contract/core/UI tests, a full 12k+ backend gate, all 1,147 web tests, 143 protected tests,
   backend/web typechecks, a production web build, and lint with zero errors (19 pre-existing warnings and one info).
+
+- [x] **F12.110c — Auto re-shard on fleet change** *(completed 2026-07-23).* Fleet-sized cards now persist the
+  loaded-only model fingerprint plus their exact routing difficulty/context requirement. The board-liveness cadence
+  requires two identical non-empty fleet observations before acting; an empty/transient probe is never interpreted as
+  an unload. Clearable waiting cards are rebound in place to the best resident candidate. Only genuinely un-clearable
+  waiting cards are blocked and grouped into deterministic, plan-scoped architect cards; running/review work is never
+  touched. Re-shard submissions must amend the same plan, replace every named target, preserve every unaffected task
+  and unrelated dependency, reconnect both graph boundaries, and re-check that targets remain waiting before the old
+  nodes move to trash and the normal apply path materializes/links their replacements. Auto re-shard defaults on and
+  has the same global/project/card opt-out surface as fleet decomposition. Evidence: surgical-amendment, rebind,
+  stranded-card, stability, opt-out, and dependency-rewire regressions; all 12,968 backend tests, all 1,147 web tests,
+  143 protected tests, backend/web typechecks, production web build, and lint with zero errors (19 pre-existing
+  warnings, one info).

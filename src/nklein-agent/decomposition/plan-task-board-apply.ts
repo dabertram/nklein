@@ -15,12 +15,18 @@ import type {
 import type { NKleinPlanTask, NKleinPlanTaskGraph } from "../nklein-plan-artifacts";
 import { nkleinPlanTaskGraphSchema, nkleinPlanTaskSchema } from "../nklein-plan-artifacts";
 import type { NKleinTaskRoutingCandidate } from "../nklein-task-router";
+import {
+	assertFleetReshardSubmissionSafe,
+	fingerprintFleetRoutingCandidates,
+	snapshotFleetRoutingCandidates,
+} from "./fleet-change-reshard";
 import { breakDependencyCycles } from "./plan-task-cycle-break";
 import { expandDecomposeProjectTasks, getReplacementBoundaryTaskIds } from "./plan-task-expansion";
 import { shouldAttachPlanTaskFocusedSpan } from "./plan-task-focused-spans";
 import { slugifyTaskId } from "./plan-task-input-parse";
 import { buildTaskPrompt } from "./plan-task-prompt";
 import {
+	derivePlanTaskRoutingSizing,
 	formatTaskModelFitEvidence,
 	previewNKleinPlanTaskGraph,
 	resolveTaskModelSettings,
@@ -125,6 +131,28 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 		routingCandidates: input.routingCandidates,
 		sharedContext: input.sharedContext,
 	});
+	const fleetCandidates =
+		input.fleetDecompositionSettings?.mode !== "off"
+			? snapshotFleetRoutingCandidates(input.fleetSizingCandidates ?? input.routingCandidates ?? [])
+			: [];
+	const fleetFingerprint = fingerprintFleetRoutingCandidates(fleetCandidates);
+	const reshardRequest = assertFleetReshardSubmissionSafe(board, input.sourceTaskId, taskGraph);
+	if (reshardRequest) {
+		for (const planTaskId of reshardRequest.targetPlanTaskIds) {
+			const located = board.columns
+				.map((column) => ({
+					columnId: column.id,
+					card: column.cards.find(
+						(card) =>
+							card.generatedFromPlan?.planSlug === taskGraph.slug &&
+							card.generatedFromPlan.planTaskId === planTaskId,
+					),
+				}))
+				.find((entry) => entry.card !== undefined);
+			if (!located?.card) continue; // asserted above; defensive against malformed duplicate provenance
+			board = moveTaskToColumn(board, located.card.id, "trash", now).board;
+		}
+	}
 
 	// Duplicate-decomposition guard (live-found 2026-07-18): one seed card applied TWO differently-slugged
 	// decompositions — a retry re-ran the whole plan under a fresh slug and materialized parallel duplicate
@@ -179,6 +207,11 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 		}
 		const availableFocusedCodeSpan = input.focusedSpansByTaskId?.[task.id];
 		const taskPromptForRouting = buildTaskPrompt(task, input.sharedContext);
+		const routingSizing = derivePlanTaskRoutingSizing(
+			task,
+			taskPromptForRouting,
+			input.fleetSizingCandidates ?? input.routingCandidates,
+		);
 		const selectedRoutingCandidate = selectTaskRoutingCandidate(task, taskPromptForRouting, input.routingCandidates);
 		const focusedCodeSpan = shouldAttachPlanTaskFocusedSpan(selectedRoutingCandidate)
 			? availableFocusedCodeSpan
@@ -222,6 +255,16 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 					planSlug: taskGraph.slug,
 					planTaskId: task.id,
 					sourceTaskId: input.sourceTaskId ?? null,
+					...(fleetCandidates.length > 0 && fleetFingerprint
+						? {
+								fleetSizing: {
+									fingerprint: fleetFingerprint,
+									candidates: fleetCandidates,
+									...routingSizing,
+									autoReshardOnFleetChange: input.fleetDecompositionSettings?.autoReshardOnFleetChange ?? true,
+								},
+							}
+						: {}),
 				},
 				streamId,
 			},

@@ -127,6 +127,14 @@ import { DELIVERY_ACTION_MANIFEST } from "../core/tool-capability-manifest";
 import { parseAddedLinesFromUnifiedDiff } from "../core/unified-diff-added-lines";
 import { combineVerifierVerdicts } from "../core/verifier-ensemble";
 import { findWorkPackageBoundaryViolations } from "../core/work-package-card-shape";
+import { buildDecompositionRoutingCandidates } from "../nklein-agent/decomposition/build-decomposition-routing-candidates";
+import {
+	advanceStableFleetObservation,
+	applyFleetChangeReshardPlan,
+	fingerprintFleetRoutingCandidates,
+	planFleetChangeReshard,
+	snapshotFleetRoutingCandidates,
+} from "../nklein-agent/decomposition/fleet-change-reshard";
 import { evalDifficultyToFitnessTier, type ModelEvalChatChoice, runModelEval } from "../nklein-agent/model-eval-runner";
 import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
 import { configureNKleinAiSdkWarnings } from "../nklein-agent/nklein-ai-sdk-warnings";
@@ -564,6 +572,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// F1.10: per-workspace "already notified" map for the running-task trouble read (taskId → episode kind), so a
 	// troubled card is steered ONCE per episode kind instead of every watchdog tick; cleared when the trouble clears.
 	const troubleNotifiedKindByWorkspaceId = new Map<string, Map<string, string>>();
+	/** F12.110c: require two identical non-empty loaded-fleet observations before any board mutation. */
+	const fleetReshardObservationByWorkspaceId = new Map<string, { fingerprint: string; count: number }>();
 	// Record-only PRM dedup: workspaceId → (taskId → last-recorded peak "pattern:level"), so a persistent trajectory
 	// fault is logged once per episode, not every watchdog tick.
 	const remediationRecordedByWorkspaceId = new Map<string, Map<string, string>>();
@@ -3205,6 +3215,88 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								activelyHandledTaskIds.add(finalizationKey.slice(finalizationKeyPrefix.length));
 							}
 						}
+						// F12.110c fleet-change checkpoint. Probe only when a WAITING card carries a fleet-sizing receipt;
+						// legacy/non-fleet boards pay no endpoint/config cost. The two-observation gate prevents a transient
+						// LM Link omission or a model reload from re-sharding a healthy plan. Running/review cards are excluded
+						// by the pure planner, and the apply gate re-checks target lanes before replacing anything.
+						const hasFleetSizedWaitingCard = board.columns.some(
+							(column) =>
+								(column.id === "backlog" || column.id === "planning" || column.id === "ready") &&
+								column.cards.some((card) => card.generatedFromPlan?.fleetSizing !== undefined),
+						);
+						if (hasFleetSizedWaitingCard) {
+							const liveConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
+							const enabled =
+								liveConfig?.effectiveFleetDecompositionSettings?.autoReshardOnFleetChange !== false;
+							if (!enabled) {
+								fleetReshardObservationByWorkspaceId.delete(scope.workspaceId);
+							} else if (liveConfig) {
+								const currentCandidates = await buildDecompositionRoutingCandidates(liveConfig, {
+									loadedOnly: true,
+								}).catch(() => []);
+								const fingerprint = fingerprintFleetRoutingCandidates(
+									snapshotFleetRoutingCandidates(currentCandidates),
+								);
+								if (!fingerprint || currentCandidates.length === 0) {
+									// An empty probe is uncertainty, never evidence that every model disappeared.
+									fleetReshardObservationByWorkspaceId.delete(scope.workspaceId);
+								} else {
+									const advanced = advanceStableFleetObservation(
+										fleetReshardObservationByWorkspaceId.get(scope.workspaceId),
+										fingerprint,
+									);
+									if (advanced.observation) {
+										fleetReshardObservationByWorkspaceId.set(scope.workspaceId, advanced.observation);
+									}
+									if (advanced.stable) {
+										const mutation = await mutateWorkspaceState(scope.workspacePath, (latest) => {
+											const plan = planFleetChangeReshard({
+												board: latest.board,
+												currentCandidates,
+												activeTaskIds: activelyHandledTaskIds,
+												enabled: true,
+											});
+											if (plan.rebinds.length === 0 && plan.strandedGroups.length === 0) {
+												return {
+													board: latest.board,
+													save: false,
+													value: null,
+												};
+											}
+											const applied = applyFleetChangeReshardPlan({ board: latest.board, plan });
+											return { board: applied.board, value: applied };
+										});
+										if (mutation.value) {
+											const applied = mutation.value;
+											deps.warn(
+												`Stable loaded-fleet change: rebound ${applied.reboundTaskIds.length} clearable card(s), blocked ${applied.blockedTaskIds.length} stranded card(s), and spawned ${applied.spawnedTaskIds.length} scoped re-shard card(s).`,
+											);
+											recordSelfObservation({
+												signal: "custom",
+												severity: "warning",
+												message: `Stable loaded-fleet change handled without disrupting running work (rebound=${applied.reboundTaskIds.length}, stranded=${applied.blockedTaskIds.length}, re-shard=${applied.spawnedTaskIds.length}).`,
+												workspacePath: scope.workspacePath,
+												metadata: {
+													category: "fleet_change_reshard",
+													fingerprint,
+													reboundTaskIds: applied.reboundTaskIds,
+													blockedTaskIds: applied.blockedTaskIds,
+													spawnedTaskIds: applied.spawnedTaskIds,
+												},
+											});
+											void deps.runtimeStateHub.broadcastRuntimeWorkspaceStateUpdated(
+												scope.workspaceId,
+												scope.workspacePath,
+											);
+											if (applied.spawnedTaskIds.length > 0) {
+												autoStartTaskIds(scope, applied.spawnedTaskIds, { bypassDurableGuard: true });
+											}
+											return; // the remainder of this tick holds a stale board snapshot
+										}
+									}
+								}
+							}
+						}
 						// §5.BD rescue: an interrupted worker card still IN PROGRESS with a result branch is the
 						// salvage the capture-path rebounds sometimes miss (docker-409 stop-path capture errors,
 						// runs 36/38) — rebind it into review so the machinery judges the work. Scope this to the
@@ -4147,6 +4239,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		activeModelTurnsByWorkspaceId.delete(workspaceId);
 		modelTurnAdmissionTailByWorkspaceId.delete(workspaceId);
 		modelTurnAdmissionGateByWorkspaceId.delete(workspaceId);
+		fleetReshardObservationByWorkspaceId.delete(workspaceId);
 		autoLoadedModels.clearWorkspaceNeededModels(workspaceId);
 		queuedStartDrainUnsubscribeByWorkspaceId.get(workspaceId)?.();
 		queuedStartDrainUnsubscribeByWorkspaceId.delete(workspaceId);
@@ -4917,6 +5010,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				watchdog.dispose();
 			}
 			boardLivenessWatchdogByWorkspaceId.clear();
+			fleetReshardObservationByWorkspaceId.clear();
 			for (const timer of speculativeMirrorTickByWorkspaceId.values()) {
 				clearInterval(timer);
 			}

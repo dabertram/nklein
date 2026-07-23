@@ -3,13 +3,16 @@ import type {
 	RuntimeBoardCard,
 	RuntimeBoardData,
 	RuntimeBoardDependency,
+	RuntimeFleetDecompositionSettings,
 	RuntimeTaskNKleinSettings,
 } from "../core/api-contract";
+import { loadWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { NKleinPlanTaskGraphQualityAssessment } from "./nklein-decomposition-graph-quality";
 import type { NKleinPlanTaskGraph } from "./nklein-plan-artifacts";
 import {
 	nkleinPlanTaskGraphSchema,
+	readNKleinPlanArtifacts,
 	updateNKleinPlanArtifactApplicationStatus,
 	writeNKleinPlanArtifacts,
 } from "./nklein-plan-artifacts";
@@ -95,6 +98,9 @@ export interface ApplyNKleinPlanTaskGraphInput {
 	sourceTaskId?: string | null;
 	modelRoleSettings?: Record<string, RuntimeTaskNKleinSettings>;
 	routingCandidates?: readonly NKleinTaskRoutingCandidate[];
+	/** Candidate snapshot retained even when routing falls back to deferred selection for one infeasible card. */
+	fleetSizingCandidates?: readonly NKleinTaskRoutingCandidate[];
+	fleetDecompositionSettings?: RuntimeFleetDecompositionSettings;
 	sharedContext?: NKleinPlanTaskSharedContext;
 	/** F11.2d bounded top-1 spans, precomputed outside the pure board mutation. */
 	focusedSpansByTaskId?: Readonly<Record<string, string>>;
@@ -189,6 +195,10 @@ import { validateSubtaskDag } from "../core/decomposition-subtask-dag";
 import { decidePlanCritique } from "../core/plan-critique-decision";
 import { formatHotFileWarnings } from "../core/work-package-card-shape";
 import { didTaskConsultKnowledge } from "../telemetry/knowledge-tool-usage-stats";
+import {
+	assertFleetReshardGraphAmendment,
+	assertFleetReshardSubmissionSafe,
+} from "./decomposition/fleet-change-reshard";
 import {
 	createIncrementalDagSessionState,
 	createIncrementalDagTools,
@@ -337,6 +347,18 @@ function createDecomposeProjectTool(
 				: inputWithSourceAcceptance;
 			const { slug, spec, plan, summary, questions, taskGraph, expansions } =
 				normalizeDecomposeProjectToolInput(effectiveInput);
+			if (sourceTaskId) {
+				const currentBoard = await loadWorkspaceState(workspacePath)
+					.then((state) => state.board)
+					.catch(() => null);
+				if (currentBoard) {
+					const request = assertFleetReshardSubmissionSafe(currentBoard, sourceTaskId, taskGraph);
+					if (request) {
+						const currentArtifacts = await readNKleinPlanArtifacts(workspacePath, request.planSlug);
+						assertFleetReshardGraphAmendment(currentArtifacts.taskGraph, taskGraph, request.targetPlanTaskIds);
+					}
+				}
+			}
 			let validation: ReturnType<typeof validateNKleinPlanTaskGraph>;
 			try {
 				validation = validateNKleinPlanTaskGraph({ taskGraph, enforceGraphQuality: true });

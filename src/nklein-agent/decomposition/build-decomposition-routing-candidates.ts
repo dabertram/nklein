@@ -17,6 +17,7 @@ import { buildNKleinStartGuardCandidate } from "../nklein-task-start-guard";
  */
 export async function buildDecompositionRoutingCandidates(
 	runtimeConfig: RuntimeConfigState,
+	options: { loadedOnly?: boolean } = {},
 ): Promise<NKleinTaskRoutingCandidate[]> {
 	const nkleinProviderService = createNKleinProviderService();
 	const modelRegistry = await getDefaultNKleinModelRegistry()
@@ -27,6 +28,7 @@ export async function buildDecompositionRoutingCandidates(
 			models: {},
 		}));
 	const candidates = new Map<string, NKleinTaskRoutingCandidate>();
+	const loadedCandidateKeys = new Set<string>();
 	try {
 		const launchConfig = await nkleinProviderService.resolveLaunchConfig({});
 		const candidate = buildNKleinStartGuardCandidate({
@@ -67,6 +69,7 @@ export async function buildDecompositionRoutingCandidates(
 				// never-observed loaded model is ranked by its card. llmfit's richer score can chain into the prior later.
 				resolveProfile: (runtimeId) => profilesByRuntimeId.get(runtimeId) ?? null,
 			})) {
+				loadedCandidateKeys.add(loadedCandidate.entry.key);
 				if (!candidates.has(loadedCandidate.entry.key)) {
 					candidates.set(loadedCandidate.entry.key, loadedCandidate);
 				}
@@ -95,10 +98,23 @@ export async function buildDecompositionRoutingCandidates(
 				entry: candidate.entry,
 				role: candidate.role,
 			});
+			if (options.loadedOnly && launchConfig.baseUrl && launchConfig.modelId) {
+				const loaded = await fetchLoadedModelDescriptors(launchConfig.baseUrl).catch(() => []);
+				if (
+					loaded.some(
+						(descriptor) =>
+							descriptor.runtimeId === launchConfig.modelId || descriptor.modelKey === launchConfig.modelId,
+					)
+				) {
+					loadedCandidateKeys.add(candidate.entry.key);
+				}
+			}
 		} catch {
 			// Ignore roles that are configured but not currently runnable.
 		}
 	}
 
-	return [...candidates.values()];
+	return [...candidates.values()].filter(
+		(candidate) => options.loadedOnly !== true || loadedCandidateKeys.has(candidate.entry.key),
+	);
 }

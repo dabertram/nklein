@@ -893,6 +893,7 @@ describe("TaskAgentModelPicker – card fleet decomposition override", () => {
 				fixedTargetModelKey: null,
 				smallestBasis: "loaded",
 				smallestSupportedModelKey: null,
+				autoReshardOnFleetChange: true,
 			},
 		});
 	});
@@ -910,6 +911,7 @@ describe("TaskAgentModelPicker – card fleet decomposition override", () => {
 							fixedTargetModelKey: null,
 							smallestBasis: "loaded",
 							smallestSupportedModelKey: null,
+							autoReshardOnFleetChange: true,
 						},
 					}}
 					onNKleinSettingsChange={() => {}}

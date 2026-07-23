@@ -29,6 +29,7 @@ describe("buildProjectConfigFilePayload (F1.28)", () => {
 					fixedTargetModelKey: "  fixed/model  ",
 					smallestBasis: "supported_floor",
 					smallestSupportedModelKey: "  floor/model  ",
+					autoReshardOnFleetChange: false,
 				},
 			}),
 		);
@@ -37,6 +38,7 @@ describe("buildProjectConfigFilePayload (F1.28)", () => {
 			fixedTargetModelKey: "fixed/model",
 			smallestBasis: "supported_floor",
 			smallestSupportedModelKey: "floor/model",
+			autoReshardOnFleetChange: false,
 		});
 	});
 });

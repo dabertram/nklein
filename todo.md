@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 152-package remainder is **50 ready + 7 partial + 79 dependency-blocked + 7 external/
+  gate below is green. The current 151-package remainder is **49 ready + 7 partial + 79 dependency-blocked + 7 external/
 user-gated + 9 deliberately deferred**. These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -1435,6 +1435,15 @@ source repo went private — so if it vanishes the buildable source still lives 
   LM Studio's `--ttl`: LM Studio's flag is an unconditional idle-time auto-unload.** Safe warm loads omit `--ttl`; the
   internal ownership/headroom planner applies eligibility only when a new admission actually needs capacity. A short
   LM Studio TTL is appropriate only for an intentionally disposable probe.
+- **A fleet change is evidence only after a stable, non-empty observation; re-sharding is a surgical graph amendment
+  (2026-07-23).** Never treat an empty LM Studio/LM Link probe as “all models unloaded,” and never mutate on one poll:
+  require two identical loaded-only fingerprints. Persist the exact routing requirement and fleet receipt on each
+  fleet-sized card. On stable drift, rebind a waiting card in place when another resident model can clear it; only a
+  genuinely un-clearable waiting card may be blocked for re-sharding. Running/review cards are untouchable. The
+  architect must amend the same plan and replace only the named nodes; fail closed if the slug/title changes, an
+  unaffected task or unrelated edge changes, either dependency boundary is not reconnected, or a target left its
+  waiting lane. Move replaced nodes only when the accepted amendment materializes, so dependencies are rewired through
+  the normal board graph rather than by an ad-hoc prompt-side guess.
 - **MODEL RESIDENCY IS NOT GUARANTEED STABLE + we are currently BLIND to why a model vanishes (investigation 2026-07-07,
   user flagged; supersedes my earlier casual "auto-unloaded (TTL)" claim, which was an UNVERIFIED guess).** Observed: a
   model resident + serving many requests (`qwen/qwen2.5-coder-14b` on the **m4mini** fleet node) DISAPPEARED between two
@@ -6062,16 +6071,6 @@ into the existing F12.31. Same verify-before-build caveat.**
   that harness on the released fixed resident fleet, inspect every scored concern, and enable by default only if the
   deliberation arm materially improves clarification quality without an unacceptable false-question or cost increase;
   otherwise keep it opt-in or delete the wire rather than promoting ceremony.
-- [ ] **F12.110c — Auto re-shard on fleet change** *(split 2026-07-19; DESIGN-HEAVY effectful, flag for Fable or
-  a dedicated pass).* David's decision #2: automatic re-shard default-ON w/ opt-out when the LOADED fleet changes
-  mid-plan and strands cards. DESIGN SENSITIVITY (why this is not a one-shot wire): the existing
-  decideRedecomposeTrigger fires at DECOMPOSE time on the fresh graph, not on a fleet-change event — so this needs
-  a new check-point (a fleet-watch at the F12.106 trigger-scheduler / board-liveness watchdog cadence) that (i)
-  detects the loaded-class set diverging from the set the plan was sized for, (ii) identifies now-unclearable
-  cards, (iii) re-shards ONLY those without churning the whole board or disrupting running work (the never-disrupt
-  constraint), (iv) respects the opt-out. Cadence + disruption-safety are the hard part; build carefully or with
-  Fable.
-
 ### Phase 13 — "Nightly tests": the aimock-hardened e2e regression layer (David 2026-07-19)
 
 **Standing name + contract (memorize this — it is the whole point of the name).** "Nightly tests" is THE canonical

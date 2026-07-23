@@ -584,6 +584,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					fixedTargetModelKey: null,
 					smallestBasis: "supported_floor" as const,
 					smallestSupportedModelKey: "qwen/qwen3-8b",
+					autoReshardOnFleetChange: true,
 				};
 				await updateRuntimeConfig(tempProject, { fleetDecompositionDefaults: global });
 				expect((await loadRuntimeConfig(tempProject)).effectiveFleetDecompositionSettings).toEqual(global);
@@ -593,6 +594,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					fixedTargetModelKey: "qwen/qwen3.5-9b",
 					smallestBasis: "loaded" as const,
 					smallestSupportedModelKey: null,
+					autoReshardOnFleetChange: false,
 				};
 				await updateRuntimeConfig(tempProject, { fleetDecompositionOverride: project });
 				const overridden = await loadRuntimeConfig(tempProject);
