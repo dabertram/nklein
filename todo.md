@@ -104,6 +104,12 @@ gap remains.
 > image builds and label architecture mismatch QEMU-tainted. Calibrate gold ≥2 times before candidate execution,
 > quarantine unresolved/flip/error/missing cases, and gate only calibrated resolved→unresolved deltas; infrastructure
 > absence is inconclusive. This is why a famous absolute benchmark score is weaker evidence than a clean paired delta.
+> **A GRADER IMAGE OWNS EVERY TOOL ITS PLAN INVOKES (F11.3, 2026-07-23).** A language runtime image is not a grader
+> contract. Candidate setup invokes `git apply` inside the sealed boundary, so every project-owned grader image must
+> explicitly install and pin Git as well as its language toolchain. Never move patch application onto the host to make
+> a missing binary disappear: that weakens isolation and turns an image defect into an untracked host dependency. Build
+> the image, then regrade the exact failed prediction and require a real resolved/unresolved oracle result before
+> restarting immutable evidence under a new campaign identity.
 > **CACHE ONLY REPEATED EXPENSIVE WORK, NOT ONE-SHOT NIGHTLY PROSE (N6b, 2026-07-23).** Measured on the full 01–20
 > corpus, parsing all 40 perfect+flaky JSON recordings costs 10.514 ms and compiling all tracks costs 7.163 ms per
 > complete suite—about 0.44 ms/cell before the hours-long drain. Each nightly subprocess consumes one unique recording
@@ -3887,6 +3893,12 @@ stays fast + complete.
   (9/10), proving public acceptance and external semantic grading remain separate. A resumable 96-attempt campaign
   runner now pre-registers the 24-task × two-repeat paired design at a 30-point detectable effect, alternates pair order,
   pins the complete four-model resident set, and delegates its result to the existing McNemar default-flip gate.
+  **2026-07-23 LIVE GRADER ROOT FIX:** the clean-provenance campaign reached Go and exposed that the pinned bare Alpine
+  Go image lacked `git`, although candidate setup always invokes `git apply` inside the sealed grader. The image is now
+  project-owned and pins both the original Go base digest and Alpine Git 2.47.3-r0. Regrading the exact failed 4,586-byte
+  alphametics prediction changed `error` into an honest `unresolved` compiler verdict (`undefined: letterInfo`), proving
+  setup and the private oracle both ran. The affected campaign root is retained as diagnostic evidence and stopped at
+  10/96 rather than knowingly collecting false Go errors; restart from the new clean commit/campaign identity.
   **Remainder:**
   A three-workspace candidate pilot was deliberately excluded from A/B evidence after it exposed cross-workspace
   speculative-mirror/reviewer contention; the root scheduler fix is landed and the matched campaign must run

@@ -23,7 +23,7 @@ export function classifyAiderPolyglotTestResult(input: {
 
 const GRADER_IMAGES: Readonly<Record<AiderPolyglotLanguage, string>> = {
 	cpp: "nklein/aider-polyglot-cpp:1.0.0",
-	go: "golang@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052",
+	go: "nklein/aider-polyglot-go:1.0.0",
 	java: "nklein/aider-polyglot-java:1.0.0",
 	javascript: "nklein/aider-polyglot-javascript:1.0.0",
 	python: "nklein/agent-sandbox:0.0.1",

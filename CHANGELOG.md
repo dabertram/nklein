@@ -2,6 +2,10 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Aider Go candidates now grade inside a complete, versioned toolchain image.** The project-owned grader pins both
+  Go and Git, fixing an infrastructure error where the bare upstream Go image could run tests but could not apply the
+  candidate patch inside the sealed grading boundary.
+
 - **Nightly cells now prove their runtime is hermetic before they can pass.** A typed receipt binds loopback aimock,
   fake loaded-model discovery, offline sandboxes, disabled updates, deterministic clock/mtime/power sources, and
   disabled ambient watchdog/trigger timing. Runtime ports are assigned atomically by the kernel and published after

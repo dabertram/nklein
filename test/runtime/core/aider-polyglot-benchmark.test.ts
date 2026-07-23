@@ -149,7 +149,7 @@ describe("Aider polyglot benchmark adapter", () => {
 			solution: "answer.go",
 			test: "answer_test.go",
 			example: ".meta/example.go",
-			image: "golang@sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052",
+			image: "nklein/aider-polyglot-go:1.0.0",
 			command: "env\nGOTMPDIR=/grade/.go-tmp\ngo\ntest\n./...",
 			setup: undefined,
 		},
@@ -189,39 +189,34 @@ describe("Aider polyglot benchmark adapter", () => {
 			command: "CARGO_NET_OFFLINE=true\ncargo\ntest\n--\n--include-ignored",
 			setup: "/opt/cargo-cache/.",
 		},
-	])("builds a pinned, networkless $language grader", ({
-		language,
-		solution,
-		test,
-		example,
-		image,
-		command,
-		setup,
-	}) => {
-		const task = buildAiderPolyglotTask({
-			language,
-			exercise: "answer",
-			corpusCommit: PINNED_AIDER_POLYGLOT_COMMIT,
-			configText: JSON.stringify({ files: { solution: [solution], test: [test], example: [example] } }),
-			instructionParts: ["Implement it."],
-		});
-		const plan = buildAiderPolyglotGradeDockerPlan({
-			task,
-			corpusDir: "/corpus",
-			gradeDir: "/reports/gold",
-			exampleFiles: [example],
-			testFiles: [test],
-			mode: "gold",
-			uid: 501,
-			gid: 20,
-		});
-		expect(resolveAiderPolyglotGraderImage(language)).toBe(image);
-		expect(plan.testStep.join("\n")).toContain(command);
-		expect([...plan.setupSteps, plan.testStep].every((step) => step.includes("none"))).toBe(true);
-		expect([...plan.setupSteps, plan.testStep].every((step) => step.includes(image))).toBe(true);
-		expect(plan.testStep).toContain(language === "cpp" ? "2048" : "256");
-		if (setup) expect(plan.setupSteps.flat().join("\n")).toContain(setup);
-	});
+	])(
+		"builds a pinned, networkless $language grader",
+		({ language, solution, test, example, image, command, setup }) => {
+			const task = buildAiderPolyglotTask({
+				language,
+				exercise: "answer",
+				corpusCommit: PINNED_AIDER_POLYGLOT_COMMIT,
+				configText: JSON.stringify({ files: { solution: [solution], test: [test], example: [example] } }),
+				instructionParts: ["Implement it."],
+			});
+			const plan = buildAiderPolyglotGradeDockerPlan({
+				task,
+				corpusDir: "/corpus",
+				gradeDir: "/reports/gold",
+				exampleFiles: [example],
+				testFiles: [test],
+				mode: "gold",
+				uid: 501,
+				gid: 20,
+			});
+			expect(resolveAiderPolyglotGraderImage(language)).toBe(image);
+			expect(plan.testStep.join("\n")).toContain(command);
+			expect([...plan.setupSteps, plan.testStep].every((step) => step.includes("none"))).toBe(true);
+			expect([...plan.setupSteps, plan.testStep].every((step) => step.includes(image))).toBe(true);
+			expect(plan.testStep).toContain(language === "cpp" ? "2048" : "256");
+			if (setup) expect(plan.setupSteps.flat().join("\n")).toContain(setup);
+		},
+	);
 
 	it("maps a partial gold reference set by unique extension and leaves build metadata intact", () => {
 		const task = buildAiderPolyglotTask({
