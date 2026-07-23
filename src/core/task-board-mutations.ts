@@ -8,6 +8,7 @@ import type {
 	RuntimeTaskAutoReviewMode,
 	RuntimeTaskImage,
 	RuntimeTaskNKleinSettings,
+	RuntimeTaskTestEvidencePolicy,
 } from "./api-contract";
 import {
 	cloneTaskImages,
@@ -37,6 +38,7 @@ export interface RuntimeCreateTaskInput {
 	startInPlanMode?: boolean;
 	autoReviewEnabled?: boolean;
 	autoReviewMode?: RuntimeTaskAutoReviewMode;
+	testEvidencePolicy?: RuntimeTaskTestEvidencePolicy;
 	images?: RuntimeTaskImage[];
 	agentId?: RuntimeAgentId;
 	nkleinSettings?: RuntimeTaskNKleinSettings;
@@ -317,6 +319,7 @@ export function addTaskToColumn(
 		startInPlanMode: Boolean(input.startInPlanMode),
 		autoReviewEnabled: Boolean(input.autoReviewEnabled),
 		autoReviewMode: normalizeTaskAutoReviewMode(input.autoReviewMode),
+		...(input.testEvidencePolicy ? { testEvidencePolicy: input.testEvidencePolicy } : {}),
 		images: cloneTaskImages(input.images),
 		...(input.agentId ? { agentId: input.agentId } : {}),
 		...(input.nkleinSettings !== undefined ? { nkleinSettings: cloneTaskNKleinSettings(input.nkleinSettings) } : {}),

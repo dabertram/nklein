@@ -69,6 +69,19 @@ describe("runtimeBoardCardSchema transform — title resolution", () => {
 	});
 });
 
+describe("runtimeBoardCardSchema — test evidence policy", () => {
+	it("round-trips the external held-out policy while old cards retain the strict default by absence", () => {
+		expect(
+			runtimeBoardCardSchema.parse({ ...baseCard, testEvidencePolicy: "externally_held_out" }).testEvidencePolicy,
+		).toBe("externally_held_out");
+		expect(runtimeBoardCardSchema.parse(baseCard).testEvidencePolicy).toBeUndefined();
+	});
+
+	it("rejects unknown policy values", () => {
+		expect(() => runtimeBoardCardSchema.parse({ ...baseCard, testEvidencePolicy: "skip_all_quality" })).toThrow();
+	});
+});
+
 describe("§5.AU stream schema — additive + back-compat", () => {
 	it("accepts a card with a streamId (and a card without one)", () => {
 		expect(runtimeBoardCardSchema.parse({ ...baseCard, streamId: "stream-auth" }).streamId).toBe("stream-auth");

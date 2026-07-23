@@ -186,6 +186,7 @@ describe("dev benchmark command", () => {
 					expect(input.startInPlanMode).toBe(true);
 					expect(input.modelId).toBe("loaded-model");
 					expect(input.acceptanceCommand).toBe("");
+					expect(input.testEvidencePolicy).toBe("externally_held_out");
 					return {
 						seedTaskId: input.runId,
 						durationMs: 123,
@@ -202,7 +203,12 @@ describe("dev benchmark command", () => {
 		const prediction = JSON.parse((await readFile(output, "utf8")).trim());
 		expect(prediction.model_patch).toContain("+new");
 		const evidence = JSON.parse(await readFile(receipt, "utf8"));
-		expect(evidence).toMatchObject({ runId: "run-1", startInPlanMode: true, completedCardCount: 3 });
+		expect(evidence).toMatchObject({
+			runId: "run-1",
+			startInPlanMode: true,
+			testEvidencePolicy: "externally_held_out",
+			completedCardCount: 3,
+		});
 		expect(evidence.patch).toContain("+new");
 		expect(JSON.parse(printed)).not.toHaveProperty("patch");
 		await expect(

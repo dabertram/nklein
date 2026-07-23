@@ -27,6 +27,44 @@ describe("assessDeliveryQuality", () => {
 		expect(result.holdReasons.some((r) => r.includes("insufficient_tests"))).toBe(true);
 	});
 
+	it("waives only the added-test ratio when evidence comes from an external held-out oracle", () => {
+		const sourceOnly = Array.from({ length: 100 }, (_, i) => `const unique${i} = ${i};`);
+		const accepted = assessDeliveryQuality([src("src/external.ts", sourceOnly)], {
+			testEvidencePolicy: "externally_held_out",
+		});
+		expect(accepted.hold).toBe(false);
+		expect(accepted.quality?.metrics.testRatio).toBe(0);
+		expect(accepted.quality?.violations).toEqual([]);
+
+		const placeholder = assessDeliveryQuality([src("src/external.ts", ["// TODO: implement", "const x = 1;"])], {
+			testEvidencePolicy: "externally_held_out",
+		});
+		expect(placeholder.holdReasons.some((reason) => reason.includes("placeholder"))).toBe(true);
+		expect(placeholder.holdReasons.some((reason) => reason.includes("insufficient_tests"))).toBe(false);
+
+		const oversized = assessDeliveryQuality(
+			[
+				src(
+					"src/external.ts",
+					Array.from({ length: 401 }, (_, i) => `const unique${i} = ${i};`),
+				),
+			],
+			{ testEvidencePolicy: "externally_held_out" },
+		);
+		expect(oversized.quality?.violations.map((violation) => violation.kind)).toEqual(["file_too_large"]);
+
+		const duplicated = assessDeliveryQuality(
+			[
+				src(
+					"src/external.ts",
+					Array.from({ length: 10 }, () => "const repeated = expensiveCall();"),
+				),
+			],
+			{ testEvidencePolicy: "externally_held_out" },
+		);
+		expect(duplicated.quality?.violations.map((violation) => violation.kind)).toEqual(["excess_duplication"]);
+	});
+
 	it("passes clean, well-tested, stub-free work", () => {
 		const result = assessDeliveryQuality([
 			src("src/c.ts", ["export const add = (a: number, b: number) => a + b;"]),

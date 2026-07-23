@@ -11,6 +11,7 @@
  * stance made enforceable at delivery.
  */
 
+import type { RuntimeTaskTestEvidencePolicy } from "./board-api-contract.js";
 import { type PlaceholderScanConfig, type PlaceholderScanResult, scanForPlaceholders } from "./placeholder-scan.js";
 import {
 	assessQualityBudget,
@@ -32,6 +33,11 @@ export interface DeliveryQualityGateConfig {
 	readonly placeholderScanEnabled?: boolean;
 	/** Run the quality budget (default true). */
 	readonly qualityBudgetEnabled?: boolean;
+	/**
+	 * Ordinary cards must contribute visible tests. For a leakage-safe external oracle, suppress only the added-test
+	 * ratio; file-size, duplication, and placeholder checks remain active. Defaults to `agent_visible`.
+	 */
+	readonly testEvidencePolicy?: RuntimeTaskTestEvidencePolicy;
 	readonly placeholderScanConfig?: PlaceholderScanConfig;
 	readonly qualityBudgetConfig?: QualityBudgetConfig;
 }
@@ -51,6 +57,11 @@ export function assessDeliveryQuality(
 ): DeliveryQualityResult {
 	const placeholderEnabled = config.placeholderScanEnabled !== false;
 	const qualityEnabled = config.qualityBudgetEnabled !== false;
+	const qualityBudgetConfig = config.qualityBudgetConfig ?? DEFAULT_QUALITY_BUDGET_CONFIG;
+	const effectiveQualityBudgetConfig =
+		config.testEvidencePolicy === "externally_held_out"
+			? { ...qualityBudgetConfig, minTestRatio: 0 }
+			: qualityBudgetConfig;
 
 	const placeholder = placeholderEnabled
 		? scanForPlaceholders(
@@ -62,12 +73,12 @@ export function assessDeliveryQuality(
 	const quality = qualityEnabled
 		? assessQualityBudget(
 				files.map((file) => ({ path: file.path, addedLines: file.addedLines, isTest: file.isTest })),
-				config.qualityBudgetConfig ?? DEFAULT_QUALITY_BUDGET_CONFIG,
+				effectiveQualityBudgetConfig,
 			)
 		: null;
 
 	const holdReasons: string[] = [];
-	if (placeholder && placeholder.hasPlaceholders) {
+	if (placeholder?.hasPlaceholders) {
 		for (const finding of placeholder.findings) {
 			holdReasons.push(`placeholder (${finding.kind}) at ${finding.path}:${finding.line} — ${finding.snippet}`);
 		}

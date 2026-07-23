@@ -137,6 +137,14 @@ gap remains.
 > invariant (`git diff --check` plus non-empty declared solution files) through the normal card convention so review can
 > distinguish “private oracle” from “no completion contract.” A passed public check is not a resolve verdict; only the
 > external grader supplies that.
+> **TEST-EVIDENCE POLICY IS A CARD CONTRACT, NOT A TASK-ID HEURISTIC (Aider campaign, 2026-07-23):** a private-oracle
+> task deliberately withholds the tests that provide semantic evidence, so an agent-added-test ratio is impossible by
+> construction and must not be reported as ordinary `insufficient_tests`. Persist `testEvidencePolicy` on the card:
+> ordinary/legacy cards default to `agent_visible`; repository benchmark runs explicitly use
+> `externally_held_out`. The latter suppresses only the added-test ratio at delivery—placeholder, oversized-file, and
+> duplication scans remain live, the public acceptance check still runs, and only the external grader can resolve the
+> task. Never infer this from a title, prompt, benchmark-looking id, or missing test files, and never disable the whole
+> quality budget to accommodate a sealed oracle.
 > **A BENCHMARK RECEIPT MUST FOLLOW THE WHOLE RECOVERY/REVIEW MACHINE (Aider candidate pilot, 2026-07-22):** never shorten
 > the mature real-model settle window to a handful of campaign polls. A three-poll override captured `stagnant` + empty
 > patch during an ordinary between-turn lull while the watchdog continued review/correction after the immutable receipt
@@ -3764,7 +3772,11 @@ stays fast + complete.
     inconclusive. Execution remains; the first live campaign predates the automatic commit baseline and is retained as
     diagnostic evidence, not silently promoted into the stricter nightly baseline. The first clean-provenance restart
     was also stopped during its first attempt when review found the launch-only identity check; it remains diagnostic,
-    and the replacement campaign must use continuous boundary re-verification.
+    and the replacement campaign must use continuous boundary re-verification. That replacement exposed one more
+    contract mismatch before evidence was admitted: a public-acceptance pass with intentionally sealed tests was
+    recorded as `insufficient_tests`. Benchmark cards now persist an explicit externally-held-out test-evidence policy
+    through delivery; only the inapplicable ratio is suppressed, while every other quality signal remains active.
+    Restart from a fresh commit-pinned root and prove the first pair reaches the external grader.
   - [ ] **F11.3h — Contamination-aware fresh-set track.** Verified is >94% pre-model-cutoff + partly leaked (models recall
     file paths). Add a rolling SWE-bench-Live / SWE-rebench fresh-window gate (tasks post-dating cutoffs) as the HONEST
     "reasons vs recalls" measure; log leakage hits. (SWE-bench-Live; SWE-rebench 2505.20411)

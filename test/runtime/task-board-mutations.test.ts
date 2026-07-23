@@ -263,6 +263,24 @@ describe("per-task agent/model/provider overrides", () => {
 		expect(created.task.nkleinSettings).toBeUndefined();
 	});
 
+	it("persists an explicit externally held-out test evidence policy without weakening ordinary cards", () => {
+		const benchmark = addTaskToColumn(
+			createBoard(),
+			"backlog",
+			{ prompt: "Benchmark task", baseRef: "benchmark-baseline", testEvidencePolicy: "externally_held_out" },
+			() => "bench111",
+		);
+		const ordinary = addTaskToColumn(
+			benchmark.board,
+			"backlog",
+			{ prompt: "Ordinary task", baseRef: "main" },
+			() => "usual111",
+		);
+
+		expect(benchmark.task.testEvidencePolicy).toBe("externally_held_out");
+		expect(ordinary.task.testEvidencePolicy).toBeUndefined();
+	});
+
 	it("updates agentId from undefined to a value", () => {
 		const created = addTaskToColumn(createBoard(), "backlog", { prompt: "Task", baseRef: "main" }, () => "aaaaa111");
 		expect(created.task.agentId).toBeUndefined();

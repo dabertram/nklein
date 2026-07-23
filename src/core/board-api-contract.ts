@@ -22,6 +22,13 @@ export const runtimeTaskImageSchema = z.object({
 });
 export type RuntimeTaskImage = z.infer<typeof runtimeTaskImageSchema>;
 
+/**
+ * Where delivery-time test evidence is expected to come from. Ordinary cards keep the default agent-visible policy;
+ * leakage-safe benchmark cards use an external held-out oracle and therefore cannot be required to add those tests.
+ */
+export const runtimeTaskTestEvidencePolicySchema = z.enum(["agent_visible", "externally_held_out"]);
+export type RuntimeTaskTestEvidencePolicy = z.infer<typeof runtimeTaskTestEvidencePolicySchema>;
+
 export const runtimeGeneratedFromPlanSchema = z.object({
 	artifactKind: z.enum(["decomposition", "buildout", "spec"]).default("decomposition"),
 	planSlug: z.string().min(1),
@@ -152,6 +159,8 @@ export const runtimeBoardCardSchema = z
 		startInPlanMode: z.boolean(),
 		review: runtimeCardReviewSchema.optional(),
 		verification: runtimeCardVerificationSchema.optional(),
+		// Additive + optional for persisted-board compatibility. Undefined means the strict ordinary-card default.
+		testEvidencePolicy: runtimeTaskTestEvidencePolicySchema.optional(),
 		focusChain: runtimeFocusChainSchema.optional(),
 		// Per-card delivery-autonomy override (todo §5.L): when set, wins over the project + global/role delivery
 		// tier at the auto-delivery gate. Additive optional field (CRDT whole-object LWW), so older boards load as-is.

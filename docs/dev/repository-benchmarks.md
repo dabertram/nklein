@@ -63,7 +63,9 @@ Repository mirrors are also an explicit operator egress step. Store each bare mi
    benchmark ref—there is no security bypass or manual sandbox copy. It writes an exclusive run receipt before
    atomically updating official prediction JSONL. `--runtime-host`/`--runtime-port` select a dedicated server, and
    `--no-plan` is available for an explicit single-card ablation. The private acceptance oracle is never run in the
-   agent workspace.
+   agent workspace. The persisted card explicitly declares `testEvidencePolicy: externally_held_out`: delivery still
+   scans placeholders, oversized files, and duplication, but it does not demand agent-authored copies of tests that are
+   intentionally sealed outside the workspace. Ordinary and legacy cards retain the strict `agent_visible` default.
 4. Run the source-appropriate official grader with `predictions=gold` at least twice. Legacy runs use
    `--dataset-name` and the explicit `--split` recorded by acquisition. Live runs use `--source swebench_live`, the
    pinned local `--dataset`, and the native Live harness; do not route them through SWE-bench 4.x. Persist the result
@@ -98,7 +100,9 @@ grader, so a model cannot replace a reconstructed private test.
 Candidate execution itself requires the immutable gold calibration (passing a path is not advisory). Each Aider card
 also carries a public `Acceptance check:` that runs `git diff --check` and verifies the declared solution files remain
 non-empty. This gives the normal production reviewer a machine-runnable contract without exposing the private oracle;
-passing it is never reported as semantic resolution. The external grader remains authoritative.
+passing it is never reported as semantic resolution. The external grader remains authoritative. Its explicit
+externally-held-out test-evidence policy suppresses only the inapplicable added-test ratio; it does not disable the
+delivery quality budget or infer trust from a benchmark-shaped task id.
 
 The first Python affine-cipher calibration resolved the official example twice. A controlled single-pair smoke using
 Qwen3.6-35B-A3B plus the same fleet review policy produced `unresolved` in plan mode (operator-attention park, empty
@@ -168,8 +172,8 @@ nklein dev benchmark run \
 ```
 
 The receipt contains the exact baseline/result commits, durable evidence ref, workflow outcome, card count, duration,
-and delivered patch. It is create-only: rerunning requires a new run id and fresh materialized workspace rather than
-silently replacing evidence.
+persisted test-evidence policy, and delivered patch. It is create-only: rerunning requires a new run id and fresh
+materialized workspace rather than silently replacing evidence.
 
 ## Terminal-Bench 2.1 preflight
 

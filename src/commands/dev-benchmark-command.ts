@@ -17,6 +17,7 @@ import {
 	resolveAiderPolyglotCompanionExamplePath,
 	resolveAiderPolyglotGraderImage,
 } from "../core/aider-polyglot-grade-plan";
+import type { RuntimeTaskTestEvidencePolicy } from "../core/api-contract";
 import { getKanbanRuntimeOrigin, setKanbanRuntimeHost, setKanbanRuntimePort } from "../core/runtime-endpoint";
 import {
 	assertCandidateCalibration,
@@ -115,6 +116,7 @@ export interface BenchmarkTaskExecutionInput {
 	modelId?: string;
 	providerId?: string;
 	startInPlanMode: boolean;
+	testEvidencePolicy: RuntimeTaskTestEvidencePolicy;
 	pollIntervalMs?: number;
 	maxWaitMs?: number;
 }
@@ -441,6 +443,7 @@ async function executeBenchmarkTask(input: BenchmarkTaskExecutionInput): Promise
 		startInPlanMode: input.startInPlanMode,
 		autoReviewEnabled: true,
 		autoReviewMode: "commit",
+		testEvidencePolicy: input.testEvidencePolicy,
 		...(input.modelId
 			? { nkleinSettings: { providerId: input.providerId?.trim() || "lmstudio", modelId: input.modelId } }
 			: {}),
@@ -482,6 +485,7 @@ async function run(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) 
 		);
 	}
 	const { task, acceptanceCommand } = await loadExecutionTask(options);
+	const testEvidencePolicy = "externally_held_out" satisfies RuntimeTaskTestEvidencePolicy;
 	if (task.source === "aider_polyglot") {
 		if (!options.calibration) {
 			throw new Error("Aider candidate execution requires --calibration from at least two gold repeats.");
@@ -520,6 +524,7 @@ async function run(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) 
 		acceptanceCommand,
 		runId: options.runId,
 		startInPlanMode: options.plan !== false,
+		testEvidencePolicy,
 		...(options.modelId ? { modelId: options.modelId } : {}),
 		...(options.providerId ? { providerId: options.providerId } : {}),
 		...(options.pollIntervalMs ? { pollIntervalMs: integer(options.pollIntervalMs, "poll-interval-ms") } : {}),
@@ -537,6 +542,7 @@ async function run(options: DevBenchmarkOptions, deps: DevBenchmarkCommandDeps) 
 		providerId: options.modelId ? options.providerId?.trim() || "lmstudio" : null,
 		runtimeOrigin,
 		startInPlanMode: options.plan !== false,
+		testEvidencePolicy,
 		workspacePath,
 		predictionOutput: resolve(options.output),
 		patchBytes,

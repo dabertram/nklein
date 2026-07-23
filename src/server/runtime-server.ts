@@ -2213,7 +2213,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									if (qualityFiles.length === 0) {
 										return;
 									}
-									const quality = assessDeliveryQuality(qualityFiles);
+									const testEvidencePolicy = deliveryCard?.testEvidencePolicy ?? "agent_visible";
+									const quality = assessDeliveryQuality(qualityFiles, { testEvidencePolicy });
 									if (!quality.hold) {
 										return;
 									}
@@ -2225,7 +2226,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 											from: "review",
 											to: "delivery_quality_scan",
 											reason: quality.holdReasons.slice(0, 5).join("; ").slice(0, 900) || null,
-											controllerDecision: `delivery_quality:placeholders=${quality.placeholder?.findings.length ?? 0},budget=${quality.quality?.violations.length ?? 0}`,
+											controllerDecision: `delivery_quality:test_evidence=${testEvidencePolicy},placeholders=${quality.placeholder?.findings.length ?? 0},budget=${quality.quality?.violations.length ?? 0}`,
 										}),
 									);
 								} catch {

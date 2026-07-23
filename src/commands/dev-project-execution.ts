@@ -1,5 +1,9 @@
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
-import type { RuntimeTaskAutoReviewMode, RuntimeTaskNKleinSettings } from "../core/api-contract";
+import type {
+	RuntimeTaskAutoReviewMode,
+	RuntimeTaskNKleinSettings,
+	RuntimeTaskTestEvidencePolicy,
+} from "../core/api-contract";
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import { addTaskToColumn } from "../core/task-board-mutations";
@@ -59,6 +63,7 @@ export interface ExecuteDevTestScenarioInput {
 	startInPlanMode?: boolean;
 	autoReviewEnabled?: boolean;
 	autoReviewMode?: RuntimeTaskAutoReviewMode;
+	testEvidencePolicy?: RuntimeTaskTestEvidencePolicy;
 	nullAgent?: boolean;
 	/** Independent acceptance is intentionally optional; benchmark oracles must stay outside the agent workspace. */
 	runAcceptance?: () => Promise<boolean>;
@@ -129,6 +134,7 @@ export async function executeDevTestScenario(
 									? { autoReviewEnabled: input.autoReviewEnabled }
 									: {}),
 								...(input.autoReviewMode ? { autoReviewMode: input.autoReviewMode } : {}),
+								...(input.testEvidencePolicy ? { testEvidencePolicy: input.testEvidencePolicy } : {}),
 								...(payload.nkleinSettings ? { nkleinSettings: payload.nkleinSettings } : {}),
 							},
 							() => crypto.randomUUID(),

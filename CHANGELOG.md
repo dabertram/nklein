@@ -27,8 +27,11 @@
   Python smoke found a real signal: the Qwen3.6-35B-A3B fleet arm resolved affine-cipher without plan mode while the
   otherwise identical plan arm parked for attention and remained unresolved. This single pair validates the lane, not
   a default change. Candidate cards now also carry a leakage-safe public acceptance check through the same persisted
-  prompt convention as ordinary cards, while semantic grading stays private and external. Benchmark monitoring inherits
-  the production real-model settle window, so immutable receipts cannot capture an empty intermediate artifact while
+  prompt convention as ordinary cards, while semantic grading stays private and external. Benchmark cards persist
+  an externally-held-out test-evidence policy, so delivery no longer misreports intentionally sealed tests as
+  missing agent-written coverage; placeholder, file-size, and duplication checks remain active, and ordinary cards keep
+  the strict agent-visible-test default. Benchmark monitoring inherits the production real-model settle window, so
+  immutable receipts cannot capture an empty intermediate artifact while
   watchdog review or correction is still progressing. A resumable Aider campaign runner pre-registers detectable
   effect, fixed task-to-model assignments, alternating pair order, and the complete resident fleet; it runs matched arms
   sequentially, resumes only immutable completed evidence, and stops on calibration, 32k-context, fleet-identity, or
