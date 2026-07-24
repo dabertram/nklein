@@ -6491,6 +6491,18 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   Docker, run `02×perfect@home-0.0.0` through `dev nightly`, retain its N4/N6/N9 receipts, inspect the migrated HOME and
   recovery backup, and close only after the real drain supplies the required current-generation events.
 - [~] **N10 — Crash/kill recovery MATRIX.** Kill the runtime (SIGKILL) at every phase — mid-decompose,
+  **LIVE DRAIN 2026-07-25 (post-F11, 3 runs — the matrix is earning its keep):** run 1 caught the F1.34c
+  interaction (testless smoke deliveries bounce→identical-feedback→park under the default-ON gate ⇒ stuck cards +
+  orphan leases; FIXED — fixtures declare `not_testable` through the scripted decompose, drain delivers clean);
+  run 2 caught the fire-and-forget plan-integration gate racing teardown (child SIGKILLed, exit 137 persisted as
+  a card-stranding FAILURE; FIXED — signal-killed acceptance = indeterminate, never a verdict); run 3: decompose
+  phase PASSES; **two open findings:** (a) the WORKER kill barrier is never reached although the drain completes
+  (barrier env wiring for phase "worker" — cell exits with 0 receipts); (b) ⚠️ acceptance commands FAIL INSIDE
+  THE SANDBOX on BOTH trees (`node -e "process.exit(0)"` → exit 1; masked on cards by the pre-existing-breakage
+  waiver — which makes the waiver a defect-masker here — fatal at the plan gate). Suspect the rebuilt
+  `nklein/agent-sandbox:0.0.1` image's exec path or the hermetic cell's sandbox posture. Retained HOME:
+  `/var/folders/_k/dk3l4h_j0jg7p5pld9t7y65h0000gn/T/nklein-verify-crash-matrix-worker-Qp4QIL`. Investigate (b)
+  FIRST — it silently weakens every acceptance verdict, not just this cell.
   mid-worker, mid-review, mid-delivery, mid-compaction, mid-trigger — and assert clean resume: no stuck cards, no
   double side effects, no orphan leases/worktrees/sessions. Generalizes the one-off F1.18b run-3 proof into a
   standing lane.
