@@ -136,6 +136,30 @@ export function createPlanIntegrationGateRunner(deps: PlanIntegrationGateRunnerD
 					});
 					return;
 				}
+				// N10 crash forensics 2026-07-25: exit 128+N means the acceptance CHILD died by signal — most
+				// commonly SIGKILL/SIGTERM from a runtime/harness teardown racing this fire-and-forget gate. A killed
+				// child proves NOTHING about the merged tree; surfacing it as a Review failure strands the source
+				// card as false crash residue. Loud + recorded, never a verdict.
+				const signalKilled =
+					acceptance.exitCode !== null && acceptance.exitCode >= 128 && acceptance.exitCode <= 165;
+				if (signalKilled) {
+					deps.warn(
+						`Plan integration gate for plan "${planSlug}" was signal-killed (exit ${acceptance.exitCode}) — result INDETERMINATE (likely shutdown racing the gate); not surfacing a failure.`,
+					);
+					recordSelfObservation({
+						signal: "custom",
+						severity: "warning",
+						message: `Plan integration gate indeterminate for plan "${planSlug}": acceptance child signal-killed (exit ${acceptance.exitCode}).`,
+						workspacePath: scope.workspacePath,
+						metadata: {
+							category: "plan_integration_gate",
+							planSlug,
+							command,
+							verdict: "indeterminate_signal_killed",
+						},
+					});
+					return;
+				}
 				const outputHead = acceptance.output.slice(0, PLAN_GATE_OUTPUT_HEAD_BUDGET);
 				recordSelfObservation({
 					signal: "verification_failed",

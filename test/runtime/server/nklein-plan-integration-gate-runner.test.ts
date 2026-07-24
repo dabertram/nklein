@@ -89,6 +89,21 @@ describe("createPlanIntegrationGateRunner", () => {
 		expect(h.applyCardReviewToBoard).toHaveBeenCalledWith(expect.anything(), "card-1", expect.anything(), "review");
 	});
 
+	it("treats a signal-killed acceptance child (exit 137) as INDETERMINATE — no Review surfacing (N10 forensics)", async () => {
+		h.findJustCompletedPlans.mockReturnValue(["plan-a"]);
+		const service = {
+			verifyTaskAcceptanceInSandbox: vi.fn(async () => ({ passed: false, output: "", exitCode: 137 })),
+		};
+		const warn = vi.fn();
+		createPlanIntegrationGateRunner({ warn }).runForCompletion(scope, service as never, "t1", board);
+		await flush();
+		expect(h.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({ metadata: expect.objectContaining({ verdict: "indeterminate_signal_killed" }) }),
+		);
+		expect(h.mutateWorkspaceState).not.toHaveBeenCalled();
+		expect(warn.mock.calls.some((call) => String(call[0]).includes("INDETERMINATE"))).toBe(true);
+	});
+
 	it("runs the gate AT MOST once per (workspace, plan) key", async () => {
 		h.findJustCompletedPlans.mockReturnValue(["plan-a"]);
 		const service = serviceWith(true);
