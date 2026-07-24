@@ -8,7 +8,9 @@ FROM ${NKLEIN_AGENT_SANDBOX_RUST_IMAGE} AS rust-runtime
 RUN rustup component add rust-analyzer rust-src
 
 FROM ${NKLEIN_AGENT_SANDBOX_GO_IMAGE} AS go-runtime
-RUN go install golang.org/x/tools/gopls@v0.21.1 \
+# gopls v0.21+ requires go >= 1.25; v0.20.0 is the last line compatible with the pinned go1.24 base
+# (live-found at the first post-F11 build 2026-07-24 — the pin pair was authored while F11 held Docker).
+RUN go install golang.org/x/tools/gopls@v0.20.0 \
 	&& rm -rf /go/pkg/mod /root/.cache/go-build
 FROM ${NKLEIN_AGENT_SANDBOX_GRADLE_IMAGE} AS gradle-runtime
 FROM ${NKLEIN_AGENT_SANDBOX_MAVEN_IMAGE} AS maven-runtime
@@ -38,7 +40,10 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 
 # Lockfile-selected JS package managers must already exist because runtime network access may be `none`. Their package
 # dependencies are still installed only inside the task workspace, under that card's network policy.
-RUN npm install -g pnpm@10.13.1 yarn@1.22.22 bun@1.2.18 \
+# The Node base ships its own yarn/yarnpkg links; remove them first so the PINNED versions install
+# deterministically (EEXIST otherwise — live-found at the first post-F11 build 2026-07-24).
+RUN rm -f /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+	&& npm install -g pnpm@10.13.1 yarn@1.22.22 bun@1.2.18 \
 	&& npm cache clean --force
 
 # Curated MCP servers (§5.AR) baked into the image so they run 100% OFFLINE inside the sandbox (prime-directive #1):
