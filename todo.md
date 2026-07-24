@@ -35,7 +35,7 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 147-package remainder is **40 ready + 12 partial + 80 dependency-blocked + 6 external/
+  gate below is green. The current 145-package remainder is **38 ready + 12 partial + 80 dependency-blocked + 6 external/
 user-gated + 9 deliberately deferred** (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
 F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 + N13 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
@@ -1073,6 +1073,27 @@ source repo went private — so if it vanishes the buildable source still lives 
 > a helped/hurt *signal*, but its `acceptance` evidence basis must stay explicit: correlation is not causal proof.
 
 ### Misc. tribal knowledge (engineering invariants & hard-won gotchas)
+
+- **The Docker-isolation COST is accepted deliberately — state it, don't leave it unanswered (P21.10, recorded
+  2026-07-24).** Fusion measured sandbox startup overheads (Wasm ~1–10 ms, Bubblewrap ~5–20 ms, Firecracker
+  ~100 ms, **Docker 50–500 ms**, gVisor 200–500 ms), does not containerize agent tasks, and rejected Docker partly
+  for the daemon's failure modes. !Klein pays Docker's 50–500 ms + daemon dependency ON PURPOSE: agents here run
+  UNATTENDED in parallel with write access and shell, so isolation is a SECURITY boundary, not development
+  hygiene — Conductor's own docs concede the weaker class ("workspace isolation is development isolation, not a
+  security boundary"). On !Klein's timescales the overhead is noise (a local-model turn costs seconds-to-minutes;
+  container startup is amortized across a card's whole session by the warm-pool/lifecycle design), and the daemon
+  failure modes are handled fail-CLOSED (no sandbox ⇒ no agent execution, never a silent fallback to the host).
+  If a future profile shows container lifecycle dominating short cards, the answer is warm-pool tuning
+  (F12.77-adjacent), never dropping the boundary.
+- **External corroboration for F12.91's history-blind reviewer + single-writer architecture (P21.11, recorded
+  2026-07-24).** Cognition's published Devin Review data: **~2 bugs caught per PR, ~58% severe**, and the reviewer
+  performs BETTER with clean context ("context rot" degrades longer ones) — exactly F12.91's history-blind
+  corrector, validated externally. Their architectural conclusion matches !Klein's design: "multi-agent systems
+  work best today when writes stay single-threaded and the additional agents contribute intelligence rather than
+  actions"; the unstructured-swarm approach "is mostly a distraction". !Klein's shape — parallel WORKERS with
+  disjoint write scopes (F1.8/F1.9 bounds), reviewers/critics contributing intelligence not writes, map-reduce
+  decomposition — is that recommendation implemented. Treat this as a standing argument AGAINST any future
+  proposal to let multiple agents write the same scope concurrently.
 > (WORKING MODE — autonomous, full capabilities — is the callout at the **top of this file**; don't re-litigate it. `/clear` at clean breakpoints once a milestone is committed and all durable state is in `todo.md`/`git`.)
 
 - **An in-place stdio MCP update invalidates every already-running client transport (live-found with
@@ -8623,20 +8644,6 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   instruction failures and externalized domain knowledge 81% of knowledge failures; headline **"89.7% of LLM
   performance at 4% of the cost."** F12.18 (retrieval-gate the tool catalog to ≤~8 schemas) is already the right
   shape — this supplies the external evidence for it and suggests ~7 as the target, not ~8-12.
-- [ ] **P21.10 — Answer Fusion's Docker-cost argument explicitly (§4A + charter).** Fusion **does not
-  containerize agent tasks** and published measured startup overheads to justify it: Wasm/WASI ~1–10 ms,
-  **Bubblewrap ~5–20 ms**, Firecracker ~100 ms, **Docker 50–500 ms**, gVisor 200–500 ms; they recommend
-  Bubblewrap short-term and rejected Docker partly on "daemon dependency adds failure modes". !Klein's
-  strict-Docker prime directive is defensible — Conductor says the quiet part out loud, *"Workspace isolation is
-  development isolation, **not a security boundary**"*, and worktree-only tools are in that weaker class — but we
-  should **state the cost we accept and why**, rather than leave a competitor's measured figure unanswered.
-- [ ] **P21.11 — External empirical support for F12.91 (record in §4A).** Cognition's published reviewer data is
-  the only hard number in the space: Devin Review catches **~2 bugs per PR, ~58% of them severe** (logic errors,
-  missing edge cases, security vulnerabilities), and the reviewer performs **BETTER with clean context** because
-  "context rot" degrades longer ones. That is exactly F12.91's history-blind corrector, validated externally.
-  Their broader conclusion also matches !Klein's architecture: **"multi-agent systems work best today when writes
-  stay single-threaded and the additional agents contribute intelligence rather than actions"**, and
-  *"the unstructured-swarm approach… is mostly a distraction"* — map-reduce-and-manage wins.
 - [ ] **P21.12 — Symbol-level conflict detection (the one idea nobody has shipped properly).** `wit`
   (github.com/amaar-mc/wit) locks **Tree-sitter AST symbols — functions, classes, types, exports — not files**,
   so two agents can safely edit different functions in the same file. !Klein currently serializes on FILE overlap,

@@ -3168,3 +3168,16 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   (2026+) supported version, with the failure message naming the deliberate P17.3 migration (SEP-2575 handshake
   removal, SEP-2567 session removal, SEP-2260/2322 restructure) instead of letting a dep bump change wire
   behavior as a side effect. The 12-month deprecation policy on 2025-11-25 protects the interim.
+
+## 2026-07-24 P21.10 + P21.11 recorded in §4A
+
+- [x] **P21.10 — Fusion's Docker-cost argument answered explicitly.** §4A now states the accepted cost (Docker's
+  measured 50–500 ms startup + daemon dependency) and the reason it is paid deliberately: !Klein's agents run
+  unattended with write+shell access, so isolation is a SECURITY boundary (Conductor concedes worktree-only
+  isolation is not one), the overhead is noise on local-model timescales and amortized by the warm-pool design,
+  and daemon failures are fail-closed. Remedy for any future lifecycle-dominated profile: warm-pool tuning, never
+  dropping the boundary.
+- [x] **P21.11 — Cognition's Devin Review data recorded as external support for F12.91.** ~2 bugs/PR (~58%
+  severe), reviewer better with clean context (context rot) = the history-blind corrector validated; their
+  single-threaded-writes + intelligence-not-actions conclusion = !Klein's disjoint write scopes + reviewer
+  architecture. Recorded as a standing argument against concurrent same-scope writers.
