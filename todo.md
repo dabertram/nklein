@@ -6499,7 +6499,13 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   phase PASSES; **two open findings:** (a) the WORKER kill barrier is never reached although the drain completes
   (barrier env wiring for phase "worker" — cell exits with 0 receipts); (b) ⚠️ acceptance commands FAIL INSIDE
   THE SANDBOX on BOTH trees (`node -e "process.exit(0)"` → exit 1; masked on cards by the pre-existing-breakage
-  waiver — which makes the waiver a defect-masker here — fatal at the plan gate). INVESTIGATION 2026-07-25 (narrowed): the
+  waiver — which makes the waiver a defect-masker here — fatal at the plan gate). ✅ ROOT-CAUSED + FIXED 2026-07-25 (suspect 1 confirmed): the offline
+  toolchain auto-setup ran `npm install` inside the deliberately no-egress sandbox (EAI_AGAIN), and its failure
+  VETOED acceptance before the command ever ran — on every tree, in every hermetic cell, silently absorbed by the
+  baseline waiver. Fixed: network-unreachable install failures classify as non-fatal `skipped_offline` (setup is
+  preparation, not a gate; a command that needs the deps fails with its own honest error), and the waiver
+  observation now records BOTH output heads (the truncation hid this for weeks). Verified: simulated-flows drains
+  with ZERO waivers and `skipped_offline` setup receipts. Superseded investigation notes: the
   image is EXONERATED (`docker run … node -e "process.exit(0)"` exits 0, incl. under an arbitrary uid + HOME +
   workdir replicating `execAsTaskUser`), and this PREDATES the image rebuild (the same waiver line appears in
   2026-07-24 runs). Remaining suspects, in order: (1) the OFFLINE toolchain auto-setup inside

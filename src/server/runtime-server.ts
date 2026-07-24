@@ -1961,6 +1961,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									command: acceptance.command ?? null,
 									resultExit: String(acceptance.exitCode ?? ""),
 									baselineExit: String(baseline.exitCode ?? ""),
+									// N10 forensics 2026-07-25: the waiver hid a systemic acceptance-exec failure for
+									// weeks because it recorded only exit codes. The OUTPUT heads are the diagnosis.
+									resultOutputHead: (acceptance.output ?? "").slice(0, 600),
+									baselineOutputHead: (baseline.output ?? "").slice(0, 600),
 								},
 							});
 							deps.warn(

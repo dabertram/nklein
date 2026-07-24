@@ -19,7 +19,7 @@ export interface SandboxToolchainSetupStep {
 }
 
 export interface SandboxToolchainSetupReport {
-	readonly status: "not_applicable" | "ready" | "failed";
+	readonly status: "not_applicable" | "ready" | "failed" | "skipped_offline";
 	readonly plan: EnvironmentPlan;
 	readonly steps: readonly SandboxToolchainSetupStep[];
 	readonly durationMs: number;
@@ -66,6 +66,25 @@ async function executeStep(
  * Probe every selected runtime before installing anything, then execute install steps in stable toolchain order.
  * The first failure stops the setup: continuing would turn one clear environment defect into misleading test noise.
  */
+/** Network-unreachable signatures across package managers (DNS blocked, egress-fenced, no route). */
+const OFFLINE_INSTALL_SIGNATURES = [
+	"EAI_AGAIN",
+	"ENOTFOUND",
+	"ECONNREFUSED",
+	"ETIMEDOUT",
+	"ENETUNREACH",
+	"EHOSTUNREACH",
+	"Could not resolve host",
+	"Temporary failure in name resolution",
+	"network is unreachable",
+	"proxy CONNECT",
+	"403 (blocked by egress policy)",
+];
+
+export function isOfflineInstallFailure(output: string): boolean {
+	return OFFLINE_INSTALL_SIGNATURES.some((signature) => output.includes(signature));
+}
+
 export async function runSandboxToolchainSetup(
 	options: RunSandboxToolchainSetupOptions,
 ): Promise<SandboxToolchainSetupReport> {
@@ -105,6 +124,22 @@ export async function runSandboxToolchainSetup(
 		const step = await executeStep(options, "install", command);
 		steps.push(step);
 		if (step.exitCode !== 0) {
+			// N10 forensics 2026-07-25: an install failing because the sandbox has NO NETWORK (the deliberate
+			// offline/egress-fenced posture — EAI_AGAIN/ENOTFOUND/proxy-refused) is not a setup verdict, and it
+			// must never veto acceptance: the acceptance command itself may not need the install at all, and if
+			// it does, IT fails with its own honest error. Setup is best-effort preparation, not a gate. This
+			// exact coupling made `node -e "process.exit(0)"` "fail" on every tree in hermetic cells for weeks,
+			// silently absorbed by the baseline waiver.
+			if (isOfflineInstallFailure(step.output)) {
+				return {
+					status: "skipped_offline",
+					plan,
+					steps,
+					durationMs: Math.max(0, now() - startedAt),
+					failedCommand: command,
+					reason: `dependency installation unreachable from the offline sandbox (${command}); proceeding to the acceptance command without installed dependencies`,
+				};
+			}
 			return {
 				status: "failed",
 				plan,
