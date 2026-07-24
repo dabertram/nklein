@@ -281,6 +281,13 @@ export function useReviewAutoActions({
 					continue;
 				}
 
+				// P21.13a: `stage` delivery is owned by the HEADLESS runtime finalizer (changes land staged,
+				// uncommitted, for the operator to author) — the browser must never drive a git action for it.
+				if (autoReviewMode === "stage") {
+					clearAutoReviewTimer(reviewTask.id);
+					continue;
+				}
+
 				scheduleAutoReviewAction(reviewTask.id, autoReviewMode, () => {
 					const latestSelection = findCardSelection(boardRef.current, reviewTask.id);
 					if (latestSelection?.column.id !== "review") {

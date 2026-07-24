@@ -30,7 +30,9 @@ export const runtimeBoardColumnIdSchema = z.preprocess(
 );
 export type RuntimeBoardColumnId = z.infer<typeof runtimeBoardColumnIdEnum>;
 
-const runtimeTaskAutoReviewModeEnum = z.enum(["commit", "pr"]);
+// P21.13a (container-use `apply`; docs/attributions.md): `stage` = the lower-trust delivery — changes land
+// STAGED and uncommitted so the human authors the commit. `commit` stays the default everywhere.
+const runtimeTaskAutoReviewModeEnum = z.enum(["commit", "pr", "stage"]);
 export const runtimeTaskAutoReviewModeSchema = z.preprocess(
 	(val) => (val === "move_to_trash" || val === "move_to_done" ? "commit" : val),
 	runtimeTaskAutoReviewModeEnum,

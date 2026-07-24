@@ -14,11 +14,11 @@ import type {
  * slightly different signature (no `null`); consolidating them is a §4A verify-before-merge follow-up.
  */
 
-/** Coerce the auto-review mode to a valid value, defaulting anything but `"pr"` to `"commit"`. */
+/** Coerce the auto-review mode to a valid value, defaulting anything but `"pr"`/`"stage"` to `"commit"`. */
 export function normalizeTaskAutoReviewMode(
 	value: RuntimeTaskAutoReviewMode | null | undefined,
 ): RuntimeTaskAutoReviewMode {
-	if (value === "pr") {
+	if (value === "pr" || value === "stage") {
 		return value;
 	}
 	return "commit";

@@ -236,7 +236,7 @@ import {
 	pinTaskResultEvidenceCommit,
 	resolveTaskResultBranchCommit,
 } from "../workspace/task-result-branches";
-import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
+import { mergeTaskWorktreesInDependencyOrder, stageTaskResultUncommitted } from "../workspace/task-worktree-auto-merge";
 import { acceptancePresentAndFailed } from "./acceptance-waiver-decision";
 import {
 	buildAgentSandboxPoolConfig,
@@ -2587,87 +2587,148 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							);
 							return;
 						}
-						const mergeResult = await runWorkspaceMergeSerialized(scope.workspaceId, () =>
-							mergeTaskWorktreesInDependencyOrder({
-								repoPath: scope.workspacePath,
-								board: reviewState.board,
-								columns: ["review"],
-								taskIds: [taskId],
-								...(preferredSpeculative
-									? { resultBranchTaskIdOverrides: { [taskId]: deliveredBranchTaskId } }
-									: {}),
-								resultCommitOverrides: { [taskId]: deliveredResultCommit },
-								// §5.AK Phase B: on a result-branch merge conflict, run the bounded `::merge` resolution
-								// session instead of hard-aborting. Wired UNCONDITIONALLY — conflicts can happen even under
-								// "serialize" (coarse-path edits), and the agent is strictly better than abort in all cases:
-								// every non-"resolved" outcome maps to null, which keeps the abort-and-surface fail-safe
-								// byte-identical to before.
-								resolveConflict: async ({ taskId: conflictTaskId, headCommit, conflictedPaths }) => {
-									try {
-										const session = await service.runMergeResolutionSession({
-											taskId: conflictTaskId,
-											projectRepoPath: scope.workspacePath,
-											mainRef: deliveryCard?.baseRef ?? "HEAD",
-											resultCommit: headCommit,
-											conflictedPaths,
-										});
-										if (session?.outcome === "resolved") {
-											return { resolvedFiles: session.resolvedFiles };
-										}
-										if (session?.outcome === "cannot_resolve") {
-											deps.warn(
-												`Merge-resolution agent could not resolve ${conflictTaskId} (falling back to abort): ${session.reason}`,
-											);
-										}
-										return null;
-									} catch (error) {
-										const message = error instanceof Error ? error.message : String(error);
-										deps.warn(
-											`Merge-resolution session errored for ${conflictTaskId} (falling back to abort): ${message}`,
-										);
-										return null;
-									}
-								},
-							}),
-						);
+						// P21.13a `stage` (container-use `apply`; docs/attributions.md): the reviewed result lands STAGED
+						// and uncommitted so the human authors the commit. Same serialization as the merge; on conflict
+						// there is deliberately NO resolution agent (a human-trust mode must never receive machine-authored
+						// resolutions) — warn and hold in Review. The result branch is KEPT as the recovery path (no
+						// losing-candidate pruning either), and on success the flow falls through to the SAME shared
+						// completion machinery as a merge (durable-run release, kernel walk, integration gate, drains).
+						const stagedDeliveryMode = (deliveryCard?.autoReviewMode ?? "commit") === "stage";
+						if (stagedDeliveryMode) {
+							const stageOutcome = await runWorkspaceMergeSerialized(scope.workspaceId, () =>
+								stageTaskResultUncommitted({
+									repoPath: scope.workspacePath,
+									taskId: deliveredBranchTaskId,
+									resultCommit: deliveredResultCommit,
+								}),
+							);
+							try {
+								recordSelfObservation({
+									signal: "custom",
+									severity: stageOutcome.ok ? "info" : "warning",
+									message: `Stage delivery for ${taskId}: ${stageOutcome.reason}`,
+									taskId,
+									workspacePath: scope.workspacePath,
+									metadata: {
+										category: "stage_delivery",
+										ok: stageOutcome.ok,
+										conflict: stageOutcome.ok ? false : stageOutcome.conflict,
+										stagedFiles: stageOutcome.ok ? stageOutcome.stagedFiles : 0,
+									},
+								});
+							} catch {
+								// Telemetry must never break delivery.
+							}
+							if (!stageOutcome.ok) {
+								deps.warn(
+									`Could not stage task result ${taskId} for ${scope.workspacePath}: ${stageOutcome.reason}`,
+								);
+								return;
+							}
+							if (isCrashRecoveryMatrixPhaseEnabled("delivery")) {
+								await reachCrashRecoveryMatrixBarrier("delivery", {
+									taskId,
+									deliveredBranchTaskId,
+									resultCommit: deliveredResultCommit,
+								});
+							}
+							if (isBusySessionState(service.getSummary(taskId)?.state)) {
+								deps.warn(
+									`A newer worker round for ${taskId} started while its reviewed commit was staging; the staged changes are in the index, but the card remains active for the new round.`,
+								);
+								return;
+							}
+						}
+						const mergeResult = stagedDeliveryMode
+							? null
+							: await runWorkspaceMergeSerialized(scope.workspaceId, () =>
+									mergeTaskWorktreesInDependencyOrder({
+										repoPath: scope.workspacePath,
+										board: reviewState.board,
+										columns: ["review"],
+										taskIds: [taskId],
+										...(preferredSpeculative
+											? { resultBranchTaskIdOverrides: { [taskId]: deliveredBranchTaskId } }
+											: {}),
+										resultCommitOverrides: { [taskId]: deliveredResultCommit },
+										// §5.AK Phase B: on a result-branch merge conflict, run the bounded `::merge` resolution
+										// session instead of hard-aborting. Wired UNCONDITIONALLY — conflicts can happen even under
+										// "serialize" (coarse-path edits), and the agent is strictly better than abort in all cases:
+										// every non-"resolved" outcome maps to null, which keeps the abort-and-surface fail-safe
+										// byte-identical to before.
+										resolveConflict: async ({ taskId: conflictTaskId, headCommit, conflictedPaths }) => {
+											try {
+												const session = await service.runMergeResolutionSession({
+													taskId: conflictTaskId,
+													projectRepoPath: scope.workspacePath,
+													mainRef: deliveryCard?.baseRef ?? "HEAD",
+													resultCommit: headCommit,
+													conflictedPaths,
+												});
+												if (session?.outcome === "resolved") {
+													return { resolvedFiles: session.resolvedFiles };
+												}
+												if (session?.outcome === "cannot_resolve") {
+													deps.warn(
+														`Merge-resolution agent could not resolve ${conflictTaskId} (falling back to abort): ${session.reason}`,
+													);
+												}
+												return null;
+											} catch (error) {
+												const message = error instanceof Error ? error.message : String(error);
+												deps.warn(
+													`Merge-resolution session errored for ${conflictTaskId} (falling back to abort): ${message}`,
+												);
+												return null;
+											}
+										},
+									}),
+								);
 						// The merge is already a user-visible side effect. Persist its receipt BEFORE any N10 crash seam so a
 						// restarted finalizer can distinguish "merge happened, board completion did not" from "not delivered".
 						// Failure remains best-effort for ordinary delivery, but the awaited ordering closes the SIGKILL race.
-						await recordMergeHistory({ workspacePath: scope.workspacePath, taskId, result: mergeResult }).catch(
-							() => undefined,
-						);
-						if (!mergeResult.ok) {
-							const reason =
-								mergeResult.blocked?.reason ??
-								mergeResult.conflict?.message ??
-								"unknown task result merge failure";
-							deps.warn(`Could not auto-merge task result ${taskId} for ${scope.workspacePath}: ${reason}`);
-							return;
-						}
-						if (isCrashRecoveryMatrixPhaseEnabled("delivery")) {
-							await reachCrashRecoveryMatrixBarrier("delivery", {
+						// (P21.13a: the stage path already ran its own crash barrier + busy re-check above; mergeResult is
+						// null there and every merge-only step below is skipped — including losing-candidate pruning, since
+						// the kept branches ARE the staged delivery's recovery path.)
+						if (mergeResult !== null) {
+							await recordMergeHistory({
+								workspacePath: scope.workspacePath,
 								taskId,
-								deliveredBranchTaskId,
-								resultCommit: deliveredResultCommit,
-							});
-						}
-						if (isBusySessionState(service.getSummary(taskId)?.state)) {
-							deps.warn(
-								`A newer worker round for ${taskId} started while its previously reviewed commit was merging; the reviewed commit is integrated, but the card remains active for the new round.`,
-							);
-							return;
-						}
-						// §5.AW (adversarial finding): prune the LOSING candidate after an arbitration merge — a
-						// rejected branch left mergeable can be silently delivered by a later merge seam. The ::spec
-						// branch always goes (its content is merged or rejected); a spec-preferred delivery also
-						// deletes the rejected primary branch so no seam resolves it again.
-						if (reviewOutcome.type === "delivered" && (reviewOutcome.preferred ?? null) !== null) {
-							await deleteTaskResultBranch({
-								repoPath: scope.workspacePath,
-								taskId: `${taskId}::spec`,
-							}).catch(() => false);
-							if (preferredSpeculative) {
-								await deleteTaskResultBranch({ repoPath: scope.workspacePath, taskId }).catch(() => false);
+								result: mergeResult,
+							}).catch(() => undefined);
+							if (!mergeResult.ok) {
+								const reason =
+									mergeResult.blocked?.reason ??
+									mergeResult.conflict?.message ??
+									"unknown task result merge failure";
+								deps.warn(`Could not auto-merge task result ${taskId} for ${scope.workspacePath}: ${reason}`);
+								return;
+							}
+							if (isCrashRecoveryMatrixPhaseEnabled("delivery")) {
+								await reachCrashRecoveryMatrixBarrier("delivery", {
+									taskId,
+									deliveredBranchTaskId,
+									resultCommit: deliveredResultCommit,
+								});
+							}
+							if (isBusySessionState(service.getSummary(taskId)?.state)) {
+								deps.warn(
+									`A newer worker round for ${taskId} started while its previously reviewed commit was merging; the reviewed commit is integrated, but the card remains active for the new round.`,
+								);
+								return;
+							}
+							// §5.AW (adversarial finding): prune the LOSING candidate after an arbitration merge — a
+							// rejected branch left mergeable can be silently delivered by a later merge seam. The ::spec
+							// branch always goes (its content is merged or rejected); a spec-preferred delivery also
+							// deletes the rejected primary branch so no seam resolves it again.
+							if (reviewOutcome.type === "delivered" && (reviewOutcome.preferred ?? null) !== null) {
+								await deleteTaskResultBranch({
+									repoPath: scope.workspacePath,
+									taskId: `${taskId}::spec`,
+								}).catch(() => false);
+								if (preferredSpeculative) {
+									await deleteTaskResultBranch({ repoPath: scope.workspacePath, taskId }).catch(() => false);
+								}
 							}
 						}
 					}

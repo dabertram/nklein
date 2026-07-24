@@ -39,6 +39,18 @@ hardware — built on the pi substrate (Mario Zechner). Apache-2.0. Reviewed 202
   threshold; quality monitor ≈ !Klein's loop/turn guards + PRM watchdog; read-before-edit; evidence store ≈
   focus briefs) — convergent designs are recorded as corroboration, not adoption.
 
+## container-use (Dagger) — https://github.com/dagger/container-use
+
+- **Adopted — the `apply` trust level as !Klein's `stage` delivery mode (P21.13a, 2026-07-24):** container-use
+  ships two delivery trust levels — `merge` (machine-authored merge commit, full history) vs `apply` (changes
+  staged UNCOMMITTED so the human authors the commit). !Klein's auto-review modes gained the third option
+  `stage` ([task-worktree-auto-merge.ts](../src/workspace/task-worktree-auto-merge.ts)
+  `stageTaskResultUncommitted`): the reviewed result lands as staged, uncommitted changes via
+  `git merge --squash`; on conflict there is deliberately no machine-authored resolution (a human-trust mode
+  never receives agent conflict resolutions), and the result branch is kept as the recovery path.
+- **Queued from the same source:** secrets-as-references resolved at container exec (P21.13b) and
+  executed-command audit logging (P21.13c).
+
 ## "Local LLM calls a stronger model when stuck" (XDA Developers article)
 
 - **Source:** https://www.xda-developers.com/taught-local-llm-call-fable-5-gets-stuck-changed-everything/

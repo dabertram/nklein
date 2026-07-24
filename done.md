@@ -3181,3 +3181,19 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   severe), reviewer better with clean context (context rot) = the history-blind corrector validated; their
   single-threaded-writes + intelligence-not-actions conclusion = !Klein's disjoint write scopes + reviewer
   architecture. Recorded as a standing argument against concurrent same-scope writers.
+
+## 2026-07-24 P21.13a stage delivery mode
+
+- [x] **P21.13a — Delivery trust level `stage` (container-use `apply`; docs/attributions.md).** Third auto-review
+  mode `stage`: the headless finalizer delivers the reviewed result as STAGED, UNCOMMITTED changes
+  (`stageTaskResultUncommitted` = `git merge --squash`, same clean-base precondition as the merge, rollback via
+  `git reset --merge` on conflict) so the human authors the commit. Deliberate trust properties: NO machine-
+  authored conflict resolutions in this mode (conflict ⇒ warn + hold in Review), the result/spec branches are
+  KEPT as the recovery path (no losing-candidate pruning), and the flow falls through to the SAME shared
+  completion machinery as a merge (durable-run release, kernel walk, integration gate, queued-start drains) —
+  no duplicated completion path. `stage_delivery` self-observation records ok/conflict/stagedFiles. The browser
+  fallback automation explicitly SKIPS stage cards (the runtime owns them), and the web mode-resolution keeps
+  `stage` intact — the pre-existing coercion would have silently auto-committed a card whose whole point is
+  human authorship (caught during implementation). Enum + normalizers + both dialog dropdowns ("Stage only") +
+  labels updated; default unchanged. Tests: 3 stage-function (squash/no-commit proof, dirty-base refusal,
+  conflict rollback), normalization keep, dialog options; fast 12,512 + web 1,147 green.

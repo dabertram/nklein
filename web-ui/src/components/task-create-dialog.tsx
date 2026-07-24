@@ -42,6 +42,8 @@ import { useRawLocalStorageValue } from "@/utils/react-use";
 const AUTO_REVIEW_MODE_OPTIONS: Array<{ value: TaskAutoReviewMode; label: string }> = [
 	{ value: "commit", label: "Make commit" },
 	{ value: "pr", label: "Make PR" },
+	// P21.13a: the lower-trust delivery — changes land staged and uncommitted so you author the commit.
+	{ value: "stage", label: "Stage only" },
 ];
 
 type TaskCreateStartAction = "start" | "start_and_open";

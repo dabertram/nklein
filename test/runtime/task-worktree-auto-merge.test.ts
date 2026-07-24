@@ -3,6 +3,7 @@ import type { RuntimeBoardData } from "../../src/core/api-contract";
 import {
 	mergeTaskWorktreesInDependencyOrder,
 	orderTaskWorktreeAutoMergeCandidates,
+	stageTaskResultUncommitted,
 	type TaskWorktreeAutoMergeCandidate,
 } from "../../src/workspace/task-worktree-auto-merge";
 
@@ -772,5 +773,63 @@ describe("task worktree auto merge", () => {
 
 		expect(result.ok).toBe(true);
 		expect(result.mergedTaskIds).toEqual(["storage"]);
+	});
+});
+
+describe("stageTaskResultUncommitted (P21.13a — container-use `apply`)", () => {
+	it("squash-stages the result commit and reports the staged file count with NO commit", async () => {
+		const calls: string[][] = [];
+		const runGit = vi.fn(async (_cwd: string, args: string[]) => {
+			calls.push(args);
+			if (args[0] === "status") return gitOk("");
+			if (args[0] === "merge" && args[1] === "--squash") return gitOk("Squash commit -- not updating HEAD");
+			if (args[0] === "diff") return gitOk("src/a.ts\nsrc/b.ts\ntest/a.test.ts\n");
+			return gitOk("");
+		});
+		const outcome = await stageTaskResultUncommitted({
+			repoPath: "/repo",
+			taskId: "card-1",
+			resultCommit: "abc123def456",
+			runGit,
+		});
+		expect(outcome).toMatchObject({ ok: true, stagedFiles: 3, resultCommit: "abc123def456" });
+		expect(outcome.ok && outcome.reason).toContain("author the commit yourself");
+		// The whole point: no `git commit` is ever issued.
+		expect(calls.some((args) => args[0] === "commit")).toBe(false);
+	});
+
+	it("refuses to stage over a dirty base (staging over local dirt would mix authorship)", async () => {
+		const runGit = vi.fn(async (_cwd: string, args: string[]) =>
+			args[0] === "status" ? gitOk(" M local.ts\n") : gitOk(""),
+		);
+		const outcome = await stageTaskResultUncommitted({
+			repoPath: "/repo",
+			taskId: "card-1",
+			resultCommit: "abc",
+			runGit,
+		});
+		expect(outcome.ok).toBe(false);
+		expect(!outcome.ok && outcome.conflict).toBe(false);
+		expect(!outcome.ok && outcome.reason).toContain("clean base");
+		expect(runGit).toHaveBeenCalledTimes(1);
+	});
+
+	it("rolls back on a squash conflict and reports conflict:true (no machine-authored resolution)", async () => {
+		const calls: string[][] = [];
+		const runGit = vi.fn(async (_cwd: string, args: string[]) => {
+			calls.push(args);
+			if (args[0] === "status") return gitOk("");
+			if (args[0] === "merge") return gitFail("CONFLICT (content): src/a.ts");
+			return gitOk("");
+		});
+		const outcome = await stageTaskResultUncommitted({
+			repoPath: "/repo",
+			taskId: "card-1",
+			resultCommit: "abc",
+			runGit,
+		});
+		expect(outcome.ok).toBe(false);
+		expect(!outcome.ok && outcome.conflict).toBe(true);
+		expect(calls.some((args) => args[0] === "reset" && args[1] === "--merge")).toBe(true);
 	});
 });

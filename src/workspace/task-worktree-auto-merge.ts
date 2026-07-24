@@ -310,6 +310,56 @@ function parseNullSeparatedPaths(output: string): string[] {
 		.filter((path) => path.length > 0);
 }
 
+/** P21.13a: the outcome of staging a result branch UNCOMMITTED (container-use's `apply` trust level). */
+export type StageTaskResultOutcome =
+	| { ok: true; resultCommit: string; stagedFiles: number; reason: string }
+	| { ok: false; reason: string; conflict: boolean };
+
+/**
+ * P21.13a (container-use `apply`; docs/attributions.md) — deliver a reviewed result branch as STAGED, UNCOMMITTED
+ * changes so the human authors the commit: `git merge --squash <resultCommit>` stages the combined diff without a
+ * commit and without merge state. Same clean-base precondition as the auto-merge (staging over local dirt would
+ * mix authorship). On conflict the stage is rolled back (`git reset --merge`) and surfaced — a human-trust
+ * delivery mode must never receive machine-authored conflict resolutions, so there is deliberately no
+ * resolveConflict seam here.
+ */
+export async function stageTaskResultUncommitted(input: {
+	repoPath: string;
+	taskId: string;
+	resultCommit: string;
+	runGit?: RunGit;
+}): Promise<StageTaskResultOutcome> {
+	const runGit = input.runGit ?? defaultRunGit;
+	const status = await runGit(input.repoPath, ["status", "--porcelain", "--", ".", ":(exclude).nklein/nklein"]);
+	if (!status.ok || status.stdout.trim()) {
+		return {
+			ok: false,
+			conflict: false,
+			reason: status.ok
+				? "Base workspace has uncommitted changes; stage the task result from a clean base."
+				: (status.error ?? "Could not read base workspace status."),
+		};
+	}
+	const squash = await runGit(input.repoPath, ["merge", "--squash", input.resultCommit]);
+	if (!squash.ok) {
+		// Roll the partial squash back so the workspace is exactly as before; report the conflict for the hold.
+		await runGit(input.repoPath, ["reset", "--merge"]).catch(() => undefined);
+		return {
+			ok: false,
+			conflict: true,
+			reason: squash.error ?? `git merge --squash ${input.resultCommit.slice(0, 12)} failed`,
+		};
+	}
+	const staged = await runGit(input.repoPath, ["diff", "--cached", "--name-only"]);
+	const stagedFiles = staged.ok ? staged.stdout.split("\n").filter((line) => line.trim().length > 0).length : 0;
+	return {
+		ok: true,
+		resultCommit: input.resultCommit,
+		stagedFiles,
+		reason: `Staged ${stagedFiles} file(s) from ${input.taskId} uncommitted — author the commit yourself; the result branch is kept as the recovery path.`,
+	};
+}
+
 export async function mergeTaskWorktreesInDependencyOrder(input: {
 	repoPath: string;
 	board: RuntimeBoardData;

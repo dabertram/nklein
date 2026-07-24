@@ -20,12 +20,18 @@ export interface AutoReviewCardRecord {
 }
 
 /**
- * True iff a card opts into headless auto-completion: auto-review enabled AND in `commit` mode (the default when unset).
- * The single source of truth for "auto-completable", shared by {@link decideAutoReviewCardAction} (the per-card
- * finalize classification) and {@link selectHeadlessAutoReviewReconcileCandidates} (the boot/reconcile sweep).
+ * True iff a card opts into headless auto-completion: auto-review enabled AND in `commit` mode (the default when
+ * unset) OR the P21.13a lower-trust `stage` mode (same headless pipeline; the DELIVERY step stages uncommitted
+ * instead of merging — the finalize path branches on the mode there, not here). The single source of truth for
+ * "auto-completable", shared by {@link decideAutoReviewCardAction} (the per-card finalize classification) and
+ * {@link selectHeadlessAutoReviewReconcileCandidates} (the boot/reconcile sweep).
  */
 export function isAutoReviewCommitCard(card: AutoReviewCommitCardFields): boolean {
-	return card.autoReviewEnabled === true && (card.autoReviewMode ?? "commit") === "commit";
+	if (card.autoReviewEnabled !== true) {
+		return false;
+	}
+	const mode = card.autoReviewMode ?? "commit";
+	return mode === "commit" || mode === "stage";
 }
 
 /**

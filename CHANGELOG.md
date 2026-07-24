@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **New "Stage only" delivery mode.** Cards can now deliver at a lower trust level: the reviewed result lands as
+  staged, uncommitted changes in your workspace so YOU author the commit (adopted from container-use's `apply`;
+  see docs/attributions.md). On a conflict nothing is machine-resolved — the card holds in Review and the result
+  branch is kept as the recovery path. The auto-review dropdown gains the option; existing cards are unaffected.
+
 - **Test-driven delivery is now on by default, with upfront testability declarations.** Testable work must ship with
   a test change before it reaches review — the way a developer team plans it, work that automated tests cannot cover
   (docs, assets, config-only wiring) is declared "not testable" upfront: by the planning model when it decomposes a

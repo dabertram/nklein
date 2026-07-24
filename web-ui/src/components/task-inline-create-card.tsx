@@ -23,6 +23,8 @@ export type TaskBranchOption = BranchSelectOption;
 const AUTO_REVIEW_MODE_OPTIONS: Array<{ value: TaskAutoReviewMode; label: string }> = [
 	{ value: "commit", label: "Make commit" },
 	{ value: "pr", label: "Make PR" },
+	// P21.13a: the lower-trust delivery — changes land staged and uncommitted so you author the commit.
+	{ value: "stage", label: "Stage only" },
 ];
 const AUTO_REVIEW_MODE_SELECT_WIDTH_CH = 16;
 const COMPACT_ACTIONS_WIDTH_THRESHOLD_PX = 280;

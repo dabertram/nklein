@@ -12,6 +12,9 @@ import {
 const settings = (partial: Record<string, unknown>) => partial as RuntimeTaskNKleinSettings;
 
 describe("normalizeTaskAutoReviewMode", () => {
+	it("keeps 'stage' (P21.13a — the lower-trust staged delivery)", () => {
+		expect(normalizeTaskAutoReviewMode("stage")).toBe("stage");
+	});
 	it("keeps 'pr'", () => {
 		expect(normalizeTaskAutoReviewMode("pr")).toBe("pr");
 	});

@@ -35,8 +35,8 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 147-package remainder is **40 ready + 12 partial + 80 dependency-blocked + 6 external/
-user-gated + 9 deliberately deferred** (P21.13 split into three implementation-sized leaves 2026-07-24). (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
+  gate below is green. The current 146-package remainder is **39 ready + 12 partial + 80 dependency-blocked + 6 external/
+user-gated + 9 deliberately deferred** (P21.13 split into three leaves 2026-07-24; P21.13a shipped). (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
 F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 + N13 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -8649,29 +8649,6 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   so two agents can safely edit different functions in the same file. !Klein currently serializes on FILE overlap,
   which is strictly coarser. Honest limitation in their implementation: **all conflicts are warnings, not
   blocks.** Relevant to the F12.64 LSP-symbol-tools item — the same symbol index serves both.
-- [ ] **P21.13a — Delivery trust level "stage" (container-use `apply`; split 2026-07-24).** container-use ships
-  two trust levels behind one flag: `merge` (full history, merge commit) vs `apply` (changes staged UNCOMMITTED so
-  the human authors the commit). !Klein's auto-review modes are commit/PR — both machine-authored commits. Add the
-  third, lower-trust delivery mode `stage`: the delivery seam leaves the result branch's changes STAGED in the
-  workspace with no commit, the card completes with a "staged for your authorship" receipt, and the operator
-  commits with their own name/message. Wire: `runtimeTaskAutoReviewModeSchema` + the delivery/commit seam +
-  the auto-review mode select (existing dropdown gains one option — no new UI chrome); default unchanged
-  (commit). Attribution: docs/attributions.md container-use entry when shipped.
-  **SEAM TRACED 2026-07-24 (implement mechanically):** (1) enum: `runtimeTaskAutoReviewModeEnum` in
-  `runtime-config-api-contract.ts:34` gains `"stage"` (the preprocess legacy-mapping stays); (2)
-  `auto-review-card-decision.ts` — `isAutoReviewCommitCard` treats `stage` as auto-completable too (rename or add
-  a sibling predicate; the finalize path branches on the mode, not eligibility); (3) execution: in
-  `runtime-server.ts` finalizeHeadlessAutoReviewTask's delivery section (~line 2590, inside
-  `runWorkspaceMergeSerialized`), when mode==="stage" call a NEW sibling in
-  `src/workspace/task-worktree-auto-merge.ts`: `stageTaskResultUncommitted` = `git merge --squash <resultCommit>`
-  (stages combined changes, NO commit, no merge state); on conflict DO NOT run the resolveConflict agent (a
-  human-trust mode must not get machine-authored resolutions) — abort + warn + hold in Review; on success record
-  merge history with a `staged` step kind, complete the card with a "staged for your authorship" receipt in the
-  completion note, and SKIP result-branch deletion until the operator commits (the branch is the recovery path);
-  (4) UI: AUTO_REVIEW_MODE_OPTIONS in task-create-dialog.tsx + task-inline-create-card.tsx gain
-  {value:"stage", label:"Stage only"}; `normalizeTaskAutoReviewMode` keeps non-matching → "commit";
-  (5) tests: enum round-trip, decision-core eligibility, squash-stage happy/conflict paths (fixture repo),
-  dialog option render.
 - [ ] **P21.13b — Secrets as REFERENCES resolved at container exec (split 2026-07-24).** Store `env://`-style
   references in card/sandbox config, resolve them into the container environment ONLY at execution, so the model
   never sees actual secret values and values are strippable from every log by construction (the reference is the
