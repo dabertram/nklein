@@ -171,6 +171,11 @@ const script: ScenarioScript = {
 										id: card.id,
 										title: card.title,
 										prompt: `Create ${card.file} exporting ${card.fn}(name).`,
+										// F1.34b-ext: the scripted fixtures write a greeting module with no test scaffolding —
+										// declared upfront so the default-ON test-driven gate steps aside AUDIBLY instead of
+										// bounce→identical-feedback→park (which N10 caught as stuck cards after recovery).
+										testability: "not_testable",
+										testabilityReason: "scripted smoke fixture without test scaffolding",
 									})),
 								},
 							},
