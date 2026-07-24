@@ -6499,9 +6499,18 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   phase PASSES; **two open findings:** (a) the WORKER kill barrier is never reached although the drain completes
   (barrier env wiring for phase "worker" — cell exits with 0 receipts); (b) ⚠️ acceptance commands FAIL INSIDE
   THE SANDBOX on BOTH trees (`node -e "process.exit(0)"` → exit 1; masked on cards by the pre-existing-breakage
-  waiver — which makes the waiver a defect-masker here — fatal at the plan gate). Suspect the rebuilt
-  `nklein/agent-sandbox:0.0.1` image's exec path or the hermetic cell's sandbox posture. Retained HOME:
-  `/var/folders/_k/dk3l4h_j0jg7p5pld9t7y65h0000gn/T/nklein-verify-crash-matrix-worker-Qp4QIL`. Investigate (b)
+  waiver — which makes the waiver a defect-masker here — fatal at the plan gate). INVESTIGATION 2026-07-25 (narrowed): the
+  image is EXONERATED (`docker run … node -e "process.exit(0)"` exits 0, incl. under an arbitrary uid + HOME +
+  workdir replicating `execAsTaskUser`), and this PREDATES the image rebuild (the same waiver line appears in
+  2026-07-24 runs). Remaining suspects, in order: (1) the OFFLINE toolchain auto-setup inside
+  `runNKleinAcceptanceGateInSandbox` (AUTO_ENV_SETUP default-on runs detection/install steps in the hermetic
+  no-egress cell BEFORE the command — check whether its failure folds into a plain exit-1 acceptance result);
+  (2) `prepareWorkspace` for the `<taskId>::acceptance-N` sandbox (clone/checkout of the result commit) failing
+  and the failure being read as command exit 1 via `readErrorOutput`; (3) the pause/exec wrapper. REPRO: any
+  `test:simulated-flows` run shows `acceptance_baseline_waiver` events for a command that cannot fail. Add
+  temporary instrumentation to print the acceptance OUTPUT head in the waiver observation (it already truncates
+  it away — that alone hid this for weeks). Retained HOME:
+  `/var/folders/_k/dk3l4h_j0jg7p5pld9t7y65h0000gn/T/nklein-verify-crash-matrix-worker-Qp4QIL`. Investigate
   FIRST — it silently weakens every acceptance verdict, not just this cell.
   mid-worker, mid-review, mid-delivery, mid-compaction, mid-trigger — and assert clean resume: no stuck cards, no
   double side effects, no orphan leases/worktrees/sessions. Generalizes the one-off F1.18b run-3 proof into a
