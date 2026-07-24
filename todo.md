@@ -35,8 +35,8 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 146-package remainder is **39 ready + 12 partial + 80 dependency-blocked + 6 external/
-user-gated + 9 deliberately deferred** (P21.13 split into three leaves 2026-07-24; P21.13a shipped). (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
+  gate below is green. The current 145-package remainder is **38 ready + 12 partial + 80 dependency-blocked + 6 external/
+user-gated + 9 deliberately deferred** (P21.13 split into three leaves 2026-07-24; P21.13a + P21.13c shipped). (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
 F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 + N13 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -8656,14 +8656,6 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   env) accepts `env://VAR` references resolved host-side at spawn; the S2 fence redaction gains "resolved-secret
   values never serialize into prompts/logs" as a tested invariant. Rides the S-track seams; coordinate with the
   Phase 7S final audit pass.
-- [ ] **P21.13c — Audit the COMMANDS EXECUTED, not just tool names/diffs (split 2026-07-24).** The agent ledger
-  records tool calls by NAME and outcome; for weak models the failure lives in the HOW — the actual command
-  lines. Record the sanitized executed command line (post P21.13b-redaction) per sandbox exec in the attempt
-  ledger/S11 audit trail, bounded per event, and surface it in the card trail + `dev security-events`. Composes
-  with the existing S11 recording; the retro question "what did the model actually RUN before it failed?" must be
-  answerable from the ledger alone.
-
-
 ### Phase 22 — ⚠️ Parameter count is a BAD capability proxy at agent depth (researched 2026-07-19; challenges live code)
 
 > **This phase exists because the research directly contradicts an assumption threaded through !Klein's routing.**

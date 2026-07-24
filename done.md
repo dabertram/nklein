@@ -3197,3 +3197,14 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   human authorship (caught during implementation). Enum + normalizers + both dialog dropdowns ("Stage only") +
   labels updated; default unchanged. Tests: 3 stage-function (squash/no-commit proof, dirty-base refusal,
   conflict rollback), normalization keep, dialog options; fast 12,512 + web 1,147 green.
+
+## 2026-07-24 P21.13c executed-command audit
+
+- [x] **P21.13c — The ledger records the COMMANDS EXECUTED, not just tool names (container-use;
+  docs/attributions.md).** `AttemptToolCall` gains additive `commandLine` (bounded 500 chars,
+  whitespace-collapsed) derived at terminal-extraction time from exec-class tool inputs across naming
+  conventions (`command`/`cmd`/`commandLine` strings; `commands` joined " && "; `argv` joined " "); non-exec
+  tools stay lean (field absent). The card action trail renders it (`… $ npm test — FAILED …`), so "what did the
+  model actually RUN before it failed?" is answerable from the ledger alone. Redaction hardens further when
+  P21.13b's secrets-as-references land (values then never enter tool inputs at all). 3 focused tests + trail
+  coverage; fast suite 12,516 green.

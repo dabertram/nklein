@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { extractTerminalToolCalls } from "../../../src/nklein-agent/nklein-ledger-tool-calls";
+import {
+	deriveToolCallCommandLine,
+	extractTerminalToolCalls,
+} from "../../../src/nklein-agent/nklein-ledger-tool-calls";
 import type { NKleinSdkPersistedMessage } from "../../../src/nklein-agent/sdk-runtime-boundary";
 
 function toolUse(id: string, name: string, input: Record<string, unknown>): NKleinSdkPersistedMessage {
@@ -92,5 +95,29 @@ describe("extractTerminalToolCalls", () => {
 		]);
 		expect(calls[0]?.fingerprint).toBe(calls[1]?.fingerprint);
 		expect(calls[0]?.fingerprint).not.toBe(calls[2]?.fingerprint);
+	});
+});
+
+describe("deriveToolCallCommandLine (P21.13c — the ledger answers 'what did it actually RUN?')", () => {
+	it("extracts the command string across exec-tool naming conventions, whitespace-collapsed", () => {
+		expect(deriveToolCallCommandLine({ command: "npm  test\n--silent" })).toBe("npm test --silent");
+		expect(deriveToolCallCommandLine({ cmd: " ls -la " })).toBe("ls -la");
+		expect(deriveToolCallCommandLine({ argv: ["git", "status", "--porcelain"] })).toBe("git status --porcelain");
+		expect(deriveToolCallCommandLine({ commands: ["npm ci", "npm test"] })).toBe("npm ci && npm test");
+	});
+	it("yields null for non-exec tools and caps runaway command lines", () => {
+		expect(deriveToolCallCommandLine({ path: "a.ts", content: "x" })).toBeNull();
+		expect(deriveToolCallCommandLine(null)).toBeNull();
+		const capped = deriveToolCallCommandLine({ command: "x".repeat(1_000) });
+		expect(capped?.length).toBeLessThanOrEqual(501);
+		expect(capped?.endsWith("…")).toBe(true);
+	});
+	it("rides onto the attempt tool-call record for exec calls only", () => {
+		const calls = extractTerminalToolCalls([
+			toolUse("u1", "execute_command", { command: "npm test" }),
+			toolUse("u2", "read_files", { files: [{ path: "a.ts" }] }),
+		]);
+		expect(calls[0]?.commandLine).toBe("npm test");
+		expect(calls[1]?.commandLine).toBeUndefined();
 	});
 });

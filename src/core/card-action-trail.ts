@@ -152,7 +152,10 @@ export function buildCardActionTrail(events: readonly AgentLedgerEvent[], taskId
 			trail.push({
 				at: event.completedAt ?? event.recordedAt,
 				kind: "action",
-				text: `${describeToolCall(toolCall.name, files)}${failed ? ` — FAILED (${toolCall.outcome})` : ""}${
+				// P21.13c: for exec-class calls show WHAT actually ran — for weak models the failure lives in the how.
+				text: `${describeToolCall(toolCall.name, files)}${
+					toolCall.commandLine ? ` $ ${toolCall.commandLine}` : ""
+				}${failed ? ` — FAILED (${toolCall.outcome})` : ""}${
 					toolCall.resultSummary ? ` → ${toolCall.resultSummary}` : ""
 				}`,
 				files,

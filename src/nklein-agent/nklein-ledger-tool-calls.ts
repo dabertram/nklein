@@ -28,6 +28,48 @@ const FILE_PATH_INPUT_KEYS = new Set([
 /** Input keys whose value is an ARRAY of file paths (multi-file tools). */
 const FILE_PATH_ARRAY_KEYS = new Set(["paths", "files", "target_files", "targetFiles", "file_paths"]);
 
+/** Input keys whose string value is an executed shell command (exec-class tools across naming conventions). */
+const COMMAND_INPUT_KEYS = ["command", "cmd", "commandLine"] as const;
+const COMMAND_ARRAY_KEYS = ["commands", "argv"] as const;
+const COMMAND_LINE_MAX_CHARS = 500;
+
+/**
+ * P21.13c (container-use; docs/attributions.md): derive the EXECUTED COMMAND LINE from an exec-class tool call's
+ * input, bounded. Pure + total — non-exec tools yield null. Multi-command inputs join with " && " (the executed
+ * order); argv arrays join with spaces. The cap keeps ledger lines lean while preserving what identifies the run.
+ */
+export function deriveToolCallCommandLine(input: unknown): string | null {
+	if (!input || typeof input !== "object") {
+		return null;
+	}
+	const record = input as Record<string, unknown>;
+	let command: string | null = null;
+	for (const key of COMMAND_INPUT_KEYS) {
+		const value = record[key];
+		if (typeof value === "string" && value.trim().length > 0) {
+			command = value.trim();
+			break;
+		}
+	}
+	if (command === null) {
+		for (const key of COMMAND_ARRAY_KEYS) {
+			const value = record[key];
+			if (Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string")) {
+				command = value
+					.map((entry) => entry.trim())
+					.filter(Boolean)
+					.join(key === "argv" ? " " : " && ");
+				break;
+			}
+		}
+	}
+	if (!command) {
+		return null;
+	}
+	const collapsed = command.replace(/\s+/g, " ").trim();
+	return collapsed.length > COMMAND_LINE_MAX_CHARS ? `${collapsed.slice(0, COMMAND_LINE_MAX_CHARS)}…` : collapsed;
+}
+
 /**
  * Derive the file paths a tool call touched from its input (shallow scan of the known path-bearing keys). Pure + total:
  * unknown/non-file tools yield []. This is what populates {@link AttemptToolCall.filePaths} for PRM's context-thrash.
@@ -85,12 +127,14 @@ export function extractTerminalToolCalls(messages: readonly NKleinSdkPersistedMe
 			if (block.type === "tool_use") {
 				callIndexByUseId.set(block.id, calls.length);
 				const filePaths = deriveToolCallFilePaths(block.input);
+				const commandLine = deriveToolCallCommandLine(block.input);
 				calls.push({
 					name: block.name,
 					fingerprint: computeNKleinToolInputFingerprint(block.input),
 					outcome: null,
-					// Only carry the field when it says something (keeps legacy-shaped lines lean).
+					// Only carry the fields when they say something (keeps legacy-shaped lines lean).
 					...(filePaths.length > 0 ? { filePaths } : {}),
+					...(commandLine ? { commandLine } : {}),
 				});
 			} else if (block.type === "tool_result") {
 				const index = callIndexByUseId.get(block.tool_use_id);
