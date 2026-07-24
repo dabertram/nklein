@@ -35,8 +35,9 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 145-package remainder is **38 ready + 12 partial + 80 dependency-blocked + 6 external/
-user-gated + 9 deliberately deferred** (P21.13 split into three leaves 2026-07-24; P21.13a + P21.13c shipped). (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
+  gate below is green. The current 147-package remainder is **39 ready + 12 partial + 81 dependency-blocked + 6 external/
+user-gated + 9 deliberately deferred** (2026-07-24: P21.13a/c shipped; campaign forensics added F11.3i (gated) +
+F3.38; the auto-start failure guard + paused-set gate shipped directly). (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
 F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 + N13 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -4000,6 +4001,23 @@ stays fast + complete.
   card via the CLI against the campaign runtime. **Follow-up (small, post-campaign): on startup the campaign
   runner should RECONCILE — stop/trash any runtime session whose attempt evidence is already sealed — so a crash
   can never strand a session that blocks its own resume.**
+  - [>] **F11.3i — Runner-side session/board reconcile (the crash-loop root fix; gate: this campaign completes).**
+    Forensics 2026-07-23/24 (babysitter era): the runner's fatal 120s idle gate is tripped by !Klein itself —
+    finished attempts' worker/review chains outlive teardown, and plan-arm DECOMPOSITION LEAF cards are
+    auto-started by the runtime forever after the driver dies (~10k auto-start failures logged in a day; models
+    busy for hours on leaves nobody wanted). Fix in the HARNESS (new campaign identity, post-campaign): (a) after
+    sealing each attempt, stop the attempt's sessions and trash its board columns (the babysitter's proven
+    sweep, moved inside the runner); (b) on startup, reconcile ALL campaign workspaces the same way before the
+    initial idle gate; (c) launch attempt runtimes with autonomous drains disabled for leftover boards (the
+    driver owns every start). The external babysitter (scratchpad script) is the interim evidence this works.
+  - [ ] **F3.38 — Unattended-workspace autonomy budget (investigate, then bound).** The F11 forensics showed a
+    runtime consuming model-hours on auto-started leaf cards with NO operator or driver interaction — nothing
+    bounded the unattended burn (the per-session autonomy budget watchdog never tripped across many short leaf
+    sessions). Investigate the existing `autonomyBudgetWatchdog` scope; design a WORKSPACE-level unattended
+    budget: when no operator gesture/driver call has touched a workspace for N hours, autonomous starts pause
+    (the auto-start-failure-guard's pause path is the hold surface) with a loud, resumable notice. Bound the
+    default generously (autonomy is the product); the point is "hours of silent burn nobody asked for" becomes
+    impossible, not that autonomy gets timid.
   **Remainder:**
   A three-workspace candidate pilot was deliberately excluded from A/B evidence after it exposed cross-workspace
   speculative-mirror/reviewer contention; the root scheduler fix is landed and the matched campaign must run

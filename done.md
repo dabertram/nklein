@@ -3208,3 +3208,17 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   model actually RUN before it failed?" is answerable from the ledger alone. Redaction hardens further when
   P21.13b's secrets-as-references land (values then never enter tool inputs at all). 3 focused tests + trail
   coverage; fast suite 12,516 green.
+
+## 2026-07-24 auto-start failure guard + paused-set gate (campaign forensics)
+
+- [x] **Auto-start drain hardening (found via F11 crash forensics; fixed same-day).** Two product defects at the
+  auto-start seam: (1) a failing start was retried FOREVER by every sweep trigger — ~10,000 identical
+  "Auto-start failed before a session was created" events in one day's telemetry; (2) the seam never consulted
+  the persisted pause set, so a paused card with no live session was still auto-startable. Shipped: pure
+  `auto-start-failure-guard.ts` (per-card consecutive-failure counter; at 5 the card is PAUSED through the
+  operator's own persisted pause set with the cause + RESUME remedy named — the repeated-feedback-park pattern
+  applied to starts; success/queued resets the climb; pause-once semantics give a resumed card a fresh
+  threshold), the drain now skips paused cards (fail-open on an unreadable pause file), `auto_start_paused`
+  observation registered in MECHANISM_REGISTRY same-commit (always-on: an unbounded retry loop is a defect, not
+  an opt-in). 4 guard tests; fast suite 12,520 green. The harness-side reconcile (F11.3i) and the
+  unattended-workspace budget investigation (F3.38) are filed as follow-ups.

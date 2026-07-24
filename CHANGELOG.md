@@ -2273,3 +2273,8 @@
 - "Automatically commit" and "automatically open PR" toggles give agents more autonomy to complete work on their own
 - MCP integration lets agents add and start tasks on the board themselves, decomposing large work into parallelizable linked tasks
 - Built-in git visualizer shows your branches and commit history so you can track the work your agents are doing
+
+- **Cards that repeatedly fail to auto-start are now paused with the cause named, instead of being retried
+  forever.** After five consecutive failed starts the card is held via the normal pause mechanism with a notice
+  naming the error and the remedy — resume it to retry. Paused cards are now also reliably excluded from
+  autonomous start sweeps.

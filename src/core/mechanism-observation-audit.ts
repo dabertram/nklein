@@ -327,6 +327,15 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 	},
 	{
+		// Campaign forensics 2026-07-24: registered same-commit as the wire (F4.8b day-one rule). Always-on (no
+		// flag): an unbounded auto-start retry loop is a defect, not an opt-in behavior.
+		category: "auto_start_paused",
+		item: "§5.AA",
+		observes: "a card paused after consecutive auto-start failures instead of being retried forever",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
 		// F3.36 2026-07-23 (adopted from little-coder): registered in the SAME commit as the wire, per the F4.8b
 		// day-one rule — a mechanism must be observable from the moment it can fire.
 		category: "reasoning_budget_breach",

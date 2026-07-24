@@ -35,11 +35,12 @@ import type {
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import { modelUseReservationId } from "../core/auto-loaded-model-registry";
+import { createAutoStartFailureGuard, formatAutoStartPauseMessage } from "../core/auto-start-failure-guard";
 import { buildBackgroundEvalEvidenceByModel } from "../core/background-eval-evidence-feed";
 import { selectBackgroundEvalTarget } from "../core/background-eval-selection";
 import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
-import { readPausedTasks } from "../core/card-pause";
+import { readPausedTasks, setCardPaused } from "../core/card-pause";
 import { resolveSessionConcurrencyCaps } from "../core/concurrency-config";
 import { isCrashRecoveryMatrixPhaseEnabled, reachCrashRecoveryMatrixBarrier } from "../core/crash-recovery-matrix";
 import { decideDeliveryAction, shouldRedriveApprovedButAcceptanceFailed } from "../core/delivery-decision";
@@ -553,6 +554,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// Requests that arrive mid-drain are remembered here and re-run when the in-flight drain finishes.
 	const queuedStartDrainRerunRequestByWorkspaceId = new Map<string, { force: boolean }>();
 	const autoReviewFinalizationInFlightTaskIds = new Set<string>();
+	// Campaign forensics 2026-07-24: consecutive auto-start failures per card; at the threshold the card is
+	// paused-with-reason instead of retried forever (see the failure branch in the auto-start drain).
+	const autoStartFailureGuard = createAutoStartFailureGuard();
 	// §5.AK Phase B (adversarial review, 2026-07): per-workspace MERGE SERIALIZATION. Delivery finalizations
 	// dedupe per-taskId only, so two cards finishing simultaneously could interleave merge attempts on the SAME
 	// host repo — task B's fall-through `git merge --abort` then destroys task A's in-flight (possibly agent-
@@ -985,8 +989,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		// global). A failed config load fails safe to "serialize" — today's defer-on-overlap behavior.
 		const overlapRuntimeConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
 		const fileOverlapParallelism = overlapRuntimeConfig?.effectiveFileOverlapParallelism ?? "serialize";
+		// Campaign forensics 2026-07-24: this seam never consulted the persisted pause set, so a paused card with
+		// no live session was still auto-startable — and the failure guard below RELIES on a paused card staying
+		// down. One read per drain; fail-open to empty (an unreadable pause file must not block legitimate starts).
+		const pausedTaskIds = await readPausedTasks(scope.workspacePath).catch(() => new Set<string>());
 		for (const taskId of taskIds) {
 			try {
+				if (pausedTaskIds.has(taskId)) {
+					continue;
+				}
 				const state = await loadWorkspaceState(scope.workspacePath);
 				const sourceColumnId = getTaskColumnId(state.board, taskId);
 				// backlog/planning = a waiting card; `ready` = a dep-free card parked after an earlier defer (todo 11116).
@@ -1183,8 +1194,42 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							errorCode: startErrorCode,
 						},
 					});
+					// Campaign forensics 2026-07-24 (~10k identical retries in a day): after N consecutive failures the
+					// sweep HOLDS the card through the persisted pause set (the operator's own pause gesture, so RESUME
+					// retries it) instead of re-attempting forever on every watchdog tick.
+					{
+						const failureDecision = autoStartFailureGuard.recordFailure(`${scope.workspaceId}:${task.id}`);
+						if (failureDecision.shouldPause) {
+							const pauseMessage = formatAutoStartPauseMessage({
+								taskId: task.id,
+								consecutiveFailures: failureDecision.consecutiveFailures,
+								lastErrorCode: startErrorCode,
+								lastError: started.error ?? null,
+							});
+							await setCardPaused({ workspacePath: scope.workspacePath, taskId: task.id, paused: true }).catch(
+								() => null,
+							);
+							pausedTaskIds.add(task.id);
+							deps.warn(pauseMessage);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: pauseMessage,
+								taskId: task.id,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "auto_start_paused",
+									consecutiveFailures: failureDecision.consecutiveFailures,
+									errorCode: startErrorCode,
+								},
+							});
+						}
+					}
 					continue;
 				}
+				// Reaching here means the start was accepted (ok or queued) — the card is startable again, so the
+				// consecutive-failure climb resets.
+				autoStartFailureGuard.reset(`${scope.workspaceId}:${task.id}`);
 				if (started.queued) {
 					// Run14 live finding: a silently-queued start is INVISIBLE — 17 minutes of dead air with no way
 					// to tell queued-and-stuck from never-started. Always say so (the queue's drain timers do the rest).
