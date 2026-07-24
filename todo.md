@@ -35,8 +35,8 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 145-package remainder is **38 ready + 12 partial + 80 dependency-blocked + 6 external/
-user-gated + 9 deliberately deferred** (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
+  gate below is green. The current 147-package remainder is **40 ready + 12 partial + 80 dependency-blocked + 6 external/
+user-gated + 9 deliberately deferred** (P21.13 split into three implementation-sized leaves 2026-07-24). (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
 F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 + N13 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.
 The same marker audit confirmed that every `[>]` row either names its prerequisite inline or inherits one of the phase
@@ -8649,12 +8649,27 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   so two agents can safely edit different functions in the same file. !Klein currently serializes on FILE overlap,
   which is strictly coarser. Honest limitation in their implementation: **all conflicts are warnings, not
   blocks.** Relevant to the F12.64 LSP-symbol-tools item — the same symbol index serves both.
-- [ ] **P21.13 — Steal container-use's three primitives.** (a) **`merge` vs `apply`** — `merge` preserves full
-  environment history with a merge commit, `apply` stages changes UNCOMMITTED so the human authors them: two
-  trust levels behind one flag. (b) **Secrets as REFERENCES, never values** — store `op://`, `env://`, `vault://`
-  and resolve into the container at execution, so *"the AI model never sees actual secret values"* and values are
-  stripped from logs. (c) **Log the COMMANDS EXECUTED, not just the diffs** — for weak models the failure lives
-  in the *how*, not the *what*. Composes with the existing S11 audit recording.
+- [ ] **P21.13a — Delivery trust level "stage" (container-use `apply`; split 2026-07-24).** container-use ships
+  two trust levels behind one flag: `merge` (full history, merge commit) vs `apply` (changes staged UNCOMMITTED so
+  the human authors the commit). !Klein's auto-review modes are commit/PR — both machine-authored commits. Add the
+  third, lower-trust delivery mode `stage`: the delivery seam leaves the result branch's changes STAGED in the
+  workspace with no commit, the card completes with a "staged for your authorship" receipt, and the operator
+  commits with their own name/message. Wire: `runtimeTaskAutoReviewModeSchema` + the delivery/commit seam +
+  the auto-review mode select (existing dropdown gains one option — no new UI chrome); default unchanged
+  (commit). Attribution: docs/attributions.md container-use entry when shipped.
+- [ ] **P21.13b — Secrets as REFERENCES resolved at container exec (split 2026-07-24).** Store `env://`-style
+  references in card/sandbox config, resolve them into the container environment ONLY at execution, so the model
+  never sees actual secret values and values are strippable from every log by construction (the reference is the
+  only thing that appears). Scope for !Klein today: the sandbox env plumbing (`RuntimeNKleinMcpServer.env`, task
+  env) accepts `env://VAR` references resolved host-side at spawn; the S2 fence redaction gains "resolved-secret
+  values never serialize into prompts/logs" as a tested invariant. Rides the S-track seams; coordinate with the
+  Phase 7S final audit pass.
+- [ ] **P21.13c — Audit the COMMANDS EXECUTED, not just tool names/diffs (split 2026-07-24).** The agent ledger
+  records tool calls by NAME and outcome; for weak models the failure lives in the HOW — the actual command
+  lines. Record the sanitized executed command line (post P21.13b-redaction) per sandbox exec in the attempt
+  ledger/S11 audit trail, bounded per event, and surface it in the card trail + `dev security-events`. Composes
+  with the existing S11 recording; the retro question "what did the model actually RUN before it failed?" must be
+  answerable from the ledger alone.
 
 
 ### Phase 22 — ⚠️ Parameter count is a BAD capability proxy at agent depth (researched 2026-07-19; challenges live code)
