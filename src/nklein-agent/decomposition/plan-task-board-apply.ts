@@ -317,6 +317,28 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 	// leave the source card in place so it can be re-decomposed or inspected.
 	const producedCards = Object.keys(taskIdByPlanTaskId).length > 0;
 	if (sourceTaskId && producedCards && !Object.values(taskIdByPlanTaskId).includes(sourceTaskId)) {
+		// F1.34c (live-found by the 20-set drain audit 2026-07-25): a decomposition SOURCE delivers a PLAN — specs,
+		// scaffolding, spawned children — and the children carry the tests. Stamp it not_testable so a session-end
+		// review racing this apply cannot bounce the seed on the test-driven gate into an identical-feedback park
+		// (which froze every child behind it in Planning). The stamp is the F1.34b mechanism itself: an upfront
+		// declaration by the layer that KNOWS the deliverable's nature — never worker-set.
+		board = {
+			...board,
+			columns: board.columns.map((column) => ({
+				...column,
+				cards: column.cards.map((card) =>
+					card.id === sourceTaskId && card.testability === undefined
+						? {
+								...card,
+								testability: "not_testable" as const,
+								testabilityReason:
+									"decomposition source — delivers a plan; the generated cards carry the tests",
+								updatedAt: now,
+							}
+						: card,
+				),
+			})),
+		};
 		board = moveTaskToColumn(board, sourceTaskId, "completed", now).board;
 	}
 

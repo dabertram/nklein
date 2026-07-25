@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { type ChildProcess, execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -22,6 +22,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { TOOL_RUNNER_STDIN_INPUT_ARG, TOOL_RUNNER_STDIN_THRESHOLD_BYTES } from "./agent-sandbox/tool-runner-protocol";
 import {
 	issueEgressTaskIdentity,
 	listPendingEgressConfirms,
@@ -789,11 +790,23 @@ export class AgentSandboxManager {
 		// §5.O: recover a redundant `workspaces/<taskId>/` prefix a model emits when it mistakes its cwd (the sandbox
 		// workdir) for the repo root — otherwise the container nests the file and the write lands off the deliverable path.
 		const effectiveInput = recoverRedundantSandboxToolPath(tool, input, taskId);
+		const serializedInput = JSON.stringify(effectiveInput);
+		// N10.e2big: a single argv string dies with E2BIG at Linux's 128 KiB MAX_ARG_STRLEN (and the host's own
+		// execve ceiling), so large payloads — write_files content, big patches — stream over the exec's stdin
+		// with a sentinel in the input slot. Small inputs keep the argv fast path.
+		const viaStdin = Buffer.byteLength(serializedInput, "utf8") > TOOL_RUNNER_STDIN_THRESHOLD_BYTES;
 		const result = await this.execAsTaskUser(
 			placement,
-			["node", "/opt/nklein/tool-runner.cjs", tool, JSON.stringify(effectiveInput), placement.projectRepoPath],
+			[
+				"node",
+				"/opt/nklein/tool-runner.cjs",
+				tool,
+				viaStdin ? TOOL_RUNNER_STDIN_INPUT_ARG : serializedInput,
+				placement.projectRepoPath,
+			],
 			{
 				timeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
+				...(viaStdin ? { stdin: serializedInput } : {}),
 			},
 		);
 		if (result.exitCode !== 0) {
@@ -1602,13 +1615,16 @@ export class AgentSandboxManager {
 	private async execAsTaskUser(
 		placement: TaskPlacement,
 		argv: string[],
-		options?: { timeoutMs?: number; workdir?: string },
+		options?: { timeoutMs?: number; workdir?: string; stdin?: string },
 	): Promise<AgentSandboxExecResult> {
 		const taskHome = taskHomePath(placement);
 		return await this.withExecSlot(() =>
 			this.runDocker(
 				[
 					"exec",
+					// `-i` only when a caller streams input (N10.e2big stdin transport) — every other exec keeps a
+					// byte-identical argv (the §5.L egress-env invariant is asserted on exact argv shapes).
+					...(options?.stdin !== undefined ? ["-i"] : []),
 					// §5.L: inject the egress-proxy env (`-e HTTP(S)_PROXY`) for a container on the egress network; `[]`
 					// otherwise. These values are additive to the F12.84b per-task HOME/cache env immediately below;
 					// basic-memory rides the separate MCP-host exec, so no caller-supplied environment is clobbered.
@@ -1717,12 +1733,27 @@ export class AgentSandboxManager {
 		return placement;
 	}
 
-	private async runDocker(argv: readonly string[], options?: { timeoutMs?: number }): Promise<AgentSandboxExecResult> {
+	private async runDocker(
+		argv: readonly string[],
+		options?: { timeoutMs?: number; stdin?: string },
+	): Promise<AgentSandboxExecResult> {
 		try {
-			const result = await promisify(this.execFileImpl)("docker", [...argv], {
+			const pending = promisify(this.execFileImpl)("docker", [...argv], {
 				timeout: options?.timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS,
 				maxBuffer: 64 * 1024 * 1024,
 			});
+			if (options?.stdin !== undefined) {
+				// The promisified execFile exposes the ChildProcess as `.child` (via promisify.custom); a test stub
+				// without that implementation yields no child, and then there is nothing to write to.
+				const child = (pending as unknown as { child?: ChildProcess }).child;
+				if (child?.stdin) {
+					child.stdin.on("error", () => {
+						// EPIPE when docker exits before draining stdin — the exec result itself reports that failure.
+					});
+					child.stdin.end(options.stdin);
+				}
+			}
+			const result = await pending;
 			return {
 				exitCode: 0,
 				stdout: bufferOrStringToString(result.stdout),

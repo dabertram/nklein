@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { MAX_AGENT_WRITABLE_FILE_BYTES } from "../../../src/nklein-agent/nklein-context-budgets";
 import {
 	createWriteFilesTool,
 	createWriteFileTool,
@@ -127,6 +128,39 @@ describe("createWriteFilesTool", () => {
 		const nineLines = Array.from({ length: 9 }, (_, index) => `line${index}`).join("\n");
 		await expect(tool.execute({ files: [{ path: "runaway.md", content: nineLines }] }, TOOL_CONTEXT)).rejects.toThrow(
 			"hard backstop",
+		);
+	});
+
+	// N10.e2big: the accidental ~150 KB exec-argv wall is gone — a large write well past it must succeed.
+	it("allows a write far beyond the old ~150KB argv wall", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const tool = createWriteFilesTool({ workspacePath, maxFileLines: 1000 });
+		const content = `${"x".repeat(400_000)}\n`;
+
+		const result = (await tool.execute(
+			{ files: [{ path: "generated/big-artifact.txt", content }] },
+			TOOL_CONTEXT,
+		)) as { written: unknown[] };
+
+		expect(result.written).toHaveLength(1);
+		await expect(readFile(join(workspacePath, "generated", "big-artifact.txt"), "utf8")).resolves.toBe(content);
+	});
+
+	// N10.e2big: the DELIBERATE replacement policy — a single file past the fleet-read-back byte ceiling is
+	// blocked with an audible, actionable message (never a raw OS error). Few lines, huge bytes: the byte
+	// ceiling must catch what the line backstop cannot see.
+	it("blocks a single file over the fleet-read-back byte ceiling with the policy message", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		// Pin the documented derivation: 57,600 chars (32k-floor chunk budget) × 16 chunks = 900 KiB. A change
+		// here means the write policy moved — revisit todo N10.e2big's recorded decision deliberately.
+		expect(MAX_AGENT_WRITABLE_FILE_BYTES).toBe(921_600);
+		const tool = createWriteFilesTool({ workspacePath, maxFileLines: 1000 });
+		const content = "x".repeat(MAX_AGENT_WRITABLE_FILE_BYTES + 1);
+
+		await expect(tool.execute({ files: [{ path: "huge-single-line.txt", content }] }, TOOL_CONTEXT)).rejects.toThrow(
+			/per-file write ceiling[\s\S]*read back[\s\S]*Split the content/,
 		);
 	});
 

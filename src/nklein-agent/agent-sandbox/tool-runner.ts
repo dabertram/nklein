@@ -10,6 +10,7 @@ import type { AgentToolContext } from "../sdk-agent-types";
 import { normalizeHostPathInputs, normalizeSandboxBashInput } from "./path-normalization";
 import { runSandboxPropertyCheck } from "./property-check";
 import { formatToolRunnerThrown } from "./tool-runner-error";
+import { resolveToolRunnerRawInput } from "./tool-runner-protocol";
 import { runSandboxVisualCapture } from "./visual-capture";
 
 type SandboxBashInput = Parameters<NonNullable<ToolExecutors["bash"]>>[0];
@@ -38,10 +39,10 @@ interface ToolRunnerFailure {
 type ToolRunnerResult = ToolRunnerSuccess | ToolRunnerFailure;
 
 const tool = process.argv[2]?.trim();
-const rawInput = process.argv[3] ?? "null";
+const rawInputArg = process.argv[3] ?? "null";
 const hostProjectPath = process.argv[4]?.trim() || null;
 
-function parseInput(): unknown {
+function parseInput(rawInput: string): unknown {
 	try {
 		return JSON.parse(rawInput) as unknown;
 	} catch (error) {
@@ -110,7 +111,7 @@ async function runTool(): Promise<ToolRunnerResult> {
 	if (!tool) {
 		return { ok: false, error: "Missing sandbox tool name." };
 	}
-	const rawParsedInput = parseInput();
+	const rawParsedInput = parseInput(await resolveToolRunnerRawInput(rawInputArg, process.stdin));
 	const executors = createDefaultExecutors();
 	const cwd = process.cwd();
 	const input =

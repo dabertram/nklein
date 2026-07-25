@@ -5,6 +5,7 @@ import {
 	findPotentialSecretInText,
 	findProtectedTestPath,
 	formatProtectedTestBlockReason,
+	formatWriteByteCeilingBlockReason,
 	HARD_WRITE_BACKSTOP_MULTIPLIER,
 	normalizeMaxAgentWritableFileLines,
 	resolveHardWriteBackstopLines,
@@ -17,6 +18,7 @@ import {
 	parseIntentMergeReply,
 } from "../core/intent-merge-rung";
 import { lockedFileSystem } from "../fs/locked-file-system";
+import { MAX_AGENT_WRITABLE_FILE_BYTES } from "./nklein-context-budgets";
 import { applySearchReplaceBlocks, type SearchReplaceBlock } from "./nklein-fuzzy-edit";
 import { repairJsonStringValue } from "./nklein-tool-argument-repair";
 import { assertRealToolPathWithinRoot, confineToolPath } from "./nklein-tool-path-containment";
@@ -308,6 +310,19 @@ export function createEditFileTool(options: {
 			if (lineCount > hardBackstopLines) {
 				throw new Error(
 					`Blocked edit_file: the edit would grow ${request.path} to ${lineCount} lines, exceeding the ${hardBackstopLines}-line hard backstop (${HARD_WRITE_BACKSTOP_MULTIPLIER}× the ${maxFileLines}-line soft target). A file this large is almost always unintended — split it across files.`,
+				);
+			}
+			// N10.e2big: the line backstop is byte-blind, so the fleet-read-back byte ceiling backs it up — no
+			// model-authored file may grow past what a floor-context worker can read back in bounded chunks.
+			const contentBytes = Buffer.byteLength(applied.content, "utf8");
+			if (contentBytes > MAX_AGENT_WRITABLE_FILE_BYTES) {
+				throw new Error(
+					formatWriteByteCeilingBlockReason({
+						toolName: "edit_file",
+						path: request.path,
+						bytes: contentBytes,
+						ceilingBytes: MAX_AGENT_WRITABLE_FILE_BYTES,
+					}),
 				);
 			}
 			const secretFinding = findPotentialSecretInText(applied.content);

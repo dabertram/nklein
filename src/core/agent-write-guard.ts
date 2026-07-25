@@ -65,6 +65,29 @@ export function buildLargeFileWriteNudge(
 	);
 }
 
+/**
+ * N10.e2big: the audible block for the per-file BYTE ceiling on model-authored writes (the deliberate policy
+ * that replaced the accidental ~150 KB exec-argv E2BIG wall). The ceiling value itself is derived where the
+ * context budgets live (`MAX_AGENT_WRITABLE_FILE_BYTES` in nklein-context-budgets); this formatter keeps the
+ * wording identical across every enforcement site (write tools, edit tool, SDK write approval). Pure.
+ */
+export function formatWriteByteCeilingBlockReason(options: {
+	toolName: string;
+	path: string;
+	bytes: number;
+	ceilingBytes: number;
+}): string {
+	const toKiB = (value: number) => Math.round(value / 1024);
+	return (
+		`Blocked ${options.toolName}: writing ${toKiB(options.bytes)} KiB to ${options.path} exceeds !Klein's ` +
+		`${toKiB(options.ceilingBytes)} KiB per-file write ceiling. The ceiling is what the model fleet can read ` +
+		"back (a floor-context worker re-reads a ceiling-sized file in at most 16 read_large_file chunks); a " +
+		"bigger single file would be unworkable for every later task that touches it. Split the content across " +
+		"smaller cohesive files. If the artifact genuinely must be one huge file (a bundle, lockfile, or dataset), " +
+		"generate it with a build command via the bash tool instead of authoring it in a write call."
+	);
+}
+
 export interface AgentWriteSecretFinding {
 	label: string;
 }

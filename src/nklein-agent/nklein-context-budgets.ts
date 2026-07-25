@@ -1,5 +1,6 @@
 import { countTokens } from "gpt-tokenizer";
 import { normalizePositiveNumber } from "../core/normalize-number";
+import { MIN_CONTEXT_FLOOR_TOKENS } from "../core/turn-budget-allocator";
 
 const DEFAULT_FILE_CHUNK_TOKEN_BUDGET = 12_000;
 const READ_FILES_TOOL_RESULT_OVERHEAD_TOKENS = 1_000;
@@ -143,6 +144,27 @@ export function buildKanbanContextSafetyBudgets(contextWindowInput?: number | nu
 		fileChunkCharBudget: fileChunkTokenBudget * TOKEN_TO_CHAR_BUDGET_MULTIPLIER,
 	};
 }
+
+/**
+ * N10.e2big write-side policy: !Klein must not author files bigger than its own fleet can read back. A
+ * floor-context (32k) worker re-reads a file in `fileChunkCharBudget`-sized `read_large_file` chunks, so this
+ * bound caps the read-back cost of any model-authored file at that many chunk turns. 16 keeps a ceiling-sized
+ * file re-readable in one workflow without dominating a session's turn budget.
+ */
+export const FLEET_READBACK_CHUNK_BOUND = 16;
+
+/**
+ * The deliberate per-file byte ceiling for model-authored writes (write_file/write_files/edit_file and the SDK
+ * write approval layer): the floor-context chunk char budget × {@link FLEET_READBACK_CHUNK_BOUND} — 900 KiB at
+ * the current 32k floor (57,600 chars × 16). This REPLACES the accidental ~150 KB exec-argv transport wall
+ * (E2BIG) with a documented policy keyed to fleet read-back capacity; the transport itself now streams over
+ * stdin and carries payloads of any size (a multi-file write_files batch may legitimately exceed this per-file
+ * value). Char budget ≈ bytes for the mostly-ASCII text a model authors; enforcement measures UTF-8 bytes.
+ * Files that genuinely must be bigger (bundles, lockfiles, datasets) belong to build commands run via bash,
+ * not to model-authored writes.
+ */
+export const MAX_AGENT_WRITABLE_FILE_BYTES =
+	buildKanbanContextSafetyBudgets(MIN_CONTEXT_FLOOR_TOKENS).fileChunkCharBudget * FLEET_READBACK_CHUNK_BOUND;
 
 export function buildKanbanContextPressurePolicy(
 	options: BuildKanbanContextPressurePolicyOptions = {},

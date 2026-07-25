@@ -4,11 +4,13 @@ import {
 	findPotentialSecretInText,
 	findProtectedTestPath,
 	formatProtectedTestBlockReason,
+	formatWriteByteCeilingBlockReason,
 	HARD_WRITE_BACKSTOP_MULTIPLIER,
 	normalizeMaxAgentWritableFileLines,
 	resolveHardWriteBackstopLines,
 } from "../core/agent-write-guard";
 import { lockedFileSystem } from "../fs/locked-file-system";
+import { MAX_AGENT_WRITABLE_FILE_BYTES } from "./nklein-context-budgets";
 import { repairJsonStringValue } from "./nklein-tool-argument-repair";
 import { assertRealToolPathWithinRoot, confineToolPath } from "./nklein-tool-path-containment";
 import type { AgentTool } from "./sdk-agent-types";
@@ -147,6 +149,19 @@ function createWriteTool(options: {
 				if (lineCount > hardBackstopLines) {
 					throw new Error(
 						`Blocked ${options.name}: writing ${lineCount} lines to ${request.path} exceeds the ${hardBackstopLines}-line hard backstop (${HARD_WRITE_BACKSTOP_MULTIPLIER}× the ${maxFileLines}-line soft target). A file this large is almost always unintended — split it across files. If a single file this large is truly required, raise the maxAgentWritableFileLines setting.`,
+					);
+				}
+				// N10.e2big: the line backstop is byte-blind (a handful of enormous lines passes it), so the
+				// fleet-read-back byte ceiling backs it up — the deliberate replacement for the old E2BIG argv wall.
+				const contentBytes = Buffer.byteLength(request.content, "utf8");
+				if (contentBytes > MAX_AGENT_WRITABLE_FILE_BYTES) {
+					throw new Error(
+						formatWriteByteCeilingBlockReason({
+							toolName: options.name,
+							path: request.path,
+							bytes: contentBytes,
+							ceilingBytes: MAX_AGENT_WRITABLE_FILE_BYTES,
+						}),
 					);
 				}
 				const secretFinding = findPotentialSecretInText(request.content);

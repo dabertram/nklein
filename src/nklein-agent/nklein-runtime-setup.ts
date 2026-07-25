@@ -7,6 +7,7 @@ import {
 	findPotentialSecretInText,
 	findProtectedTestPath,
 	formatProtectedTestBlockReason,
+	formatWriteByteCeilingBlockReason,
 	HARD_WRITE_BACKSTOP_MULTIPLIER,
 	normalizeMaxAgentWritableFileLines,
 	resolveHardWriteBackstopLines,
@@ -15,7 +16,11 @@ import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { type ProtectedTestApprovalStore, protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { buildAgentSandboxWorkdir } from "./nklein-agent-sandbox";
 import { parseApplyPatchTargets } from "./nklein-apply-patch-targets";
-import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
+import {
+	buildKanbanContextSafetyBudgets,
+	countKanbanTextTokens,
+	MAX_AGENT_WRITABLE_FILE_BYTES,
+} from "./nklein-context-budgets";
 import { KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN } from "./nklein-decomposition-workflow";
 import { parseEditFileRequest } from "./nklein-edit-file-tool";
 import { NKLEIN_GUIDANCE_SKILL_DEFAULTS } from "./nklein-guidance-skills";
@@ -387,6 +392,19 @@ async function approveEditorTool(
 			reason: `Blocked ${request.toolName}: writing ${nextLines} lines to ${rawPath} exceeds the ${hardBackstopLines}-line hard backstop (${HARD_WRITE_BACKSTOP_MULTIPLIER}× the ${maxAgentWritableFileLines}-line soft target). Split content across multiple files.`,
 		};
 	}
+	// N10.e2big: the line backstop is byte-blind, so the fleet-read-back byte ceiling backs it up here too.
+	const nextBytes = Buffer.byteLength(nextText, "utf8");
+	if (nextBytes > MAX_AGENT_WRITABLE_FILE_BYTES) {
+		return {
+			approved: false,
+			reason: formatWriteByteCeilingBlockReason({
+				toolName: request.toolName,
+				path: rawPath,
+				bytes: nextBytes,
+				ceilingBytes: MAX_AGENT_WRITABLE_FILE_BYTES,
+			}),
+		};
+	}
 	const secretFinding = findPotentialSecretInText(newText);
 	if (secretFinding) {
 		return {
@@ -452,6 +470,19 @@ async function approveWriteFilesTool(
 			return {
 				approved: false,
 				reason: `Blocked ${request.toolName}: writing ${lineCount} lines to ${writeRequest.path} exceeds the ${hardBackstopLines}-line hard backstop (${HARD_WRITE_BACKSTOP_MULTIPLIER}× the ${maxAgentWritableFileLines}-line soft target). Split content across multiple files.`,
+			};
+		}
+		// N10.e2big: byte ceiling backs up the byte-blind line backstop (same policy as the write tools).
+		const contentBytes = Buffer.byteLength(writeRequest.content, "utf8");
+		if (contentBytes > MAX_AGENT_WRITABLE_FILE_BYTES) {
+			return {
+				approved: false,
+				reason: formatWriteByteCeilingBlockReason({
+					toolName: request.toolName,
+					path: writeRequest.path,
+					bytes: contentBytes,
+					ceilingBytes: MAX_AGENT_WRITABLE_FILE_BYTES,
+				}),
 			};
 		}
 		const secretFinding = findPotentialSecretInText(writeRequest.content);

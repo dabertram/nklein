@@ -685,10 +685,23 @@ export async function runSecondOpinionReviewForTask(
 			...(input.primaryResultCommit ? { resultCommit: input.primaryResultCommit } : {}),
 		}).catch(() => null);
 		const changedFilePaths = [...(gateDiff ?? "").matchAll(/^\+\+\+ b\/(.+)$/gm)].map((match) => match[1] ?? "");
+		// F1.34c (20-set drain audit, 2026-07-25): a DECOMPOSITION SOURCE delivers a plan — specs/scaffolding, with
+		// the generated children carrying the tests — so demanding a test file from it bounced every recorded
+		// scenario seed into an identical-feedback park (40 children frozen in Planning behind it). The board itself
+		// knows the relationship (children reference the source via generatedFromPlan), and checking HERE covers
+		// every apply variant (batch, incremental, re-shard) at the single gate evaluation point. An explicit card
+		// declaration still wins.
+		const isDecompositionSource = state.board.columns.some((column) =>
+			column.cards.some((candidate) => candidate.generatedFromPlan?.sourceTaskId === input.taskId),
+		);
 		const gate = decideTestDrivenDelivery({
 			enabled: true,
 			changedFilePaths,
-			...(card.testability ? { testability: card.testability } : {}),
+			...(card.testability
+				? { testability: card.testability }
+				: isDecompositionSource
+					? { testability: "not_testable" as const }
+					: {}),
 		});
 		if (!gate.allowReview && changedFilePaths.length > 0) {
 			preReviewVerdict = {

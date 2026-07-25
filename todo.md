@@ -6579,8 +6579,47 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   can't start review-lane cards) — moot for auto-review cards after fix (1), but a MANUAL-review card orphaned by
   a crash would still freeze silently; extend the classifier to include review-lane cards without any review
   record whose session is dead.
-- [ ] **N10.e2big — large-file WRITE ceiling: replace the accidental argv limit with a deliberate policy (David
-  2026-07-25).** The compaction cell found `write_files` failing at ~150KB with E2BIG (`kanbanExtraTool …
+- [ ] **F1.34c-incremental — audit finding (2026-07-25, 20-set drain runs 1-3): the INCREMENTAL decompose path never finalizes
+  the source card — 0/20 sets drain under default-ON test-driven mode.** Chain, fully forensicated on set 01: the
+  dev-test seed is ACT-mode + autoReviewEnabled; its recorded session decomposes INCREMENTALLY (multiple partial
+  decompose_project calls); unlike the batch apply, the incremental path (a) does NOT stamp `generatedFromPlan`
+  on the children and (b) does NOT complete the source card when the graph materializes. The seed session then
+  ends awaiting_review; the recorded sets predate seed reviews, so its review requests MIS-MATCH worker tracks
+  (text answer, no verdict) → identical-feedback park → the 40 children, released only on source completion,
+  starve in Planning forever. Two necessary-but-insufficient fixes are IN: the batch apply stamps the source
+  `not_testable` before completing it, and the test-driven gate derives not_testable for any card children
+  reference via `generatedFromPlan` (single evaluation point — covers every apply variant THAT STAMPS LINKAGE).
+  REMAINING ROOT FIX: give the incremental construction's FINAL apply batch-parity — stamp `generatedFromPlan`
+  on incrementally-created cards AND complete+stamp the source (nklein-decomposition-tool.ts `incrementalState`
+  handling; batch semantics: plan-task-board-apply.ts:313-340). Then re-run the 20-set audit
+  (scratchpad/f134c-drain-audit.sh; per-set logs /tmp/f134c-set-NN.log). Watch item: whether recorded workers of
+  `testFirst` tasks actually write tests — child-level gate bounces may surface once seeds complete.
+- [x] **N10.e2big — large-file WRITE ceiling: replace the accidental argv limit with a deliberate policy (David
+  2026-07-25).** ✅ RESOLVED 2026-07-25, all three steps. **(1) READ AUDIT VERDICT: solved-enough.** A 32k worker
+  can work WITH a 1MB file today: whole-file reads of large files are hard-REFUSED with corrective guidance
+  (approveReadFilesTool, nklein-runtime-setup ~232-307 — no context blow-up possible), ranged `read_files` slices
+  ≤ fileChunkContentTokenBudget (13,400 tok at 32k) are allowed, `read_large_file` guarantees full coverage in
+  ~13.4k-token chunks (≈18-20 turns/MB — workable, not cheap), `get_file_size` steers tool choice, LSP
+  `find_symbol include_body` fetches single symbols (fits the default 4 GB container exactly). Residual gap (not
+  this item's): codebase-memory (`get_code_snippet`, the ~99% token-cut path) needs 4,608 MB and is WITHHELD on
+  the default 4,096 MB container. **(2) TRANSPORT FIXED: stdin streaming.** Tool inputs > 64 KiB now stream over
+  `docker exec -i` stdin with a sentinel (`@nklein-tool-input-on-stdin`) in the argv input slot
+  (agent-sandbox/tool-runner-protocol.ts; runTool/execAsTaskUser/runDocker in nklein-agent-sandbox.ts;
+  tool-runner.ts reads the stream). Small inputs keep the byte-identical argv fast path, so a STALE sandbox image
+  only affects large writes (which were E2BIG-broken anyway; an old runner JSON-parse-fails naming the sentinel →
+  points at the stale image). NOTE: needs a sandbox image rebuild (`scripts/build-agent-sandbox.mjs`) to activate.
+  Regression tests: manager-seam 1.2MB-payload stdin test + protocol unit tests + E2E through the esbuild-bundled
+  runner (1.2MB two-file batch written; verified live). **(3) POLICY DECISION: the accidental ~150 KB ceiling is
+  DROPPED; the deliberate policy is the EXISTING line guard (soft 1,000 / hard 4,000 lines) PLUS a new
+  fleet-read-back BYTE ceiling closing its long-line blind spot: `MAX_AGENT_WRITABLE_FILE_BYTES` = 921,600 (900
+  KiB) = fileChunkCharBudget at the 32k fleet floor (57,600 chars) × FLEET_READBACK_CHUNK_BOUND (16) — i.e. no
+  model-authored file may exceed what a floor-context worker re-reads in ≤16 read_large_file chunks (constants +
+  derivation doc in nklein-context-budgets.ts). Enforced at all four write seams (write_files/write_file,
+  edit_file, both SDK write-approval sites in nklein-runtime-setup) with one audible shared message
+  (formatWriteByteCeilingBlockReason, agent-write-guard.ts): names the ceiling, explains fleet read-back, points
+  at splitting across files or generating genuinely-huge artifacts via bash build commands — never a raw OS
+  error. Bigger-than-ceiling MULTI-file batches still flow (transport is unlimited; the ceiling is per-file).
+  Historical context: The compaction cell found `write_files` failing at ~150KB with E2BIG (`kanbanExtraTool …
   argument list too long` — content travels through exec argv). David's context: the practical write ceiling was
   never JUST an accident — it also protected a real constraint: **!Klein must not produce files bigger than its
   own fleet can reasonably read back** (Cline-style whole-file reads blow small models' context). If reading

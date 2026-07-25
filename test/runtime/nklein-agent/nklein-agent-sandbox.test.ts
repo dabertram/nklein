@@ -2,8 +2,11 @@ import type { execFile } from "node:child_process";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Writable } from "node:stream";
+import { promisify } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import { createHomeAgentSessionId } from "../../../src/core/home-agent-session";
+import { TOOL_RUNNER_STDIN_INPUT_ARG } from "../../../src/nklein-agent/agent-sandbox/tool-runner-protocol";
 import {
 	AGENT_SANDBOX_CONTAINER_LABEL,
 	AGENT_SANDBOX_VOLUME_PREFIX,
@@ -129,6 +132,60 @@ function createExecFileStub(options?: ExecFileStubOptions): {
 	return {
 		execFile: stub as unknown as typeof execFile,
 		calls,
+	};
+}
+
+/**
+ * N10.e2big: an execFile stub that ALSO models the promisified ChildProcess (`promise.child`), so the
+ * manager's stdin transport is observable. Node's `promisify(execFile)` only exposes `.child` through
+ * execFile's own `promisify.custom` implementation, so the stub provides one; stdin written by the manager is
+ * collected per docker call into `stdinPayloads`.
+ */
+function createStdinCapturingExecFileStub(options: { execStdout: string }): {
+	execFile: typeof execFile;
+	calls: string[][];
+	stdinPayloads: string[];
+} {
+	const calls: string[][] = [];
+	const stdinPayloads: string[] = [];
+	const custom = (file: string, args: readonly string[]) => {
+		expect(file).toBe("docker");
+		calls.push([...args]);
+		let stdout = "";
+		if (args[0] === "run") {
+			stdout = "container-id\n";
+		} else if (args[0] === "inspect" && args[1] === "-f" && args[2] === "{{.State.Running}}") {
+			stdout = "true\n";
+		} else if (args[0] === "exec") {
+			stdout = options.execStdout;
+		}
+		const chunks: Buffer[] = [];
+		const stdin = new Writable({
+			write(chunk: Buffer | string, _encoding, done) {
+				chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+				done();
+			},
+			final(done) {
+				stdinPayloads.push(Buffer.concat(chunks).toString("utf8"));
+				done();
+			},
+		});
+		// Resolve on a macrotask so any synchronous stdin write/end lands (and is captured) first.
+		const promise = new Promise<{ stdout: string; stderr: string }>((resolve) => {
+			setImmediate(() => resolve({ stdout, stderr: "" }));
+		});
+		return Object.assign(promise, { child: { stdin } });
+	};
+	const stub = Object.assign(
+		vi.fn(() => {
+			throw new Error("stdin-capturing stub expects the promisify.custom path");
+		}),
+		{ [promisify.custom]: custom },
+	);
+	return {
+		execFile: stub as unknown as typeof execFile,
+		calls,
+		stdinPayloads,
 	};
 }
 
@@ -1432,6 +1489,72 @@ describe("AgentSandboxManager", () => {
 			JSON.stringify({ command: "replace" }),
 			"/repo",
 		]);
+	});
+
+	// N10.e2big regression: write_files content used to travel as one exec argv string and die with E2BIG at
+	// ~128 KiB. Large inputs must stream over the exec's stdin with the sentinel in the argv slot.
+	it("streams a ≥1MB write_files payload over stdin instead of argv", async () => {
+		const {
+			execFile: execFileStub,
+			calls,
+			stdinPayloads,
+		} = createStdinCapturingExecFileStub({
+			execStdout: JSON.stringify({ ok: true, result: "written" }),
+		});
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		const input = {
+			toolName: "write_files",
+			input: { files: [{ path: "docs/generated.md", content: "x".repeat(1_200_000) }] },
+			sessionId: "session-1",
+			contextWindow: 32_000,
+			maxFileLines: null,
+		};
+		await expect(manager.runTool("task-1", "kanbanExtraTool", input)).resolves.toBe("written");
+
+		const toolExec = calls.map(dockerExecCommand).find((command) => command[1] === "/opt/nklein/tool-runner.cjs");
+		expect(toolExec).toEqual([
+			"node",
+			"/opt/nklein/tool-runner.cjs",
+			"kanbanExtraTool",
+			TOOL_RUNNER_STDIN_INPUT_ARG,
+			"/repo",
+		]);
+		// No argv string may approach Linux's 128 KiB MAX_ARG_STRLEN wall.
+		for (const call of calls) {
+			for (const arg of call) {
+				expect(Buffer.byteLength(arg, "utf8")).toBeLessThan(64 * 1024 + 1024);
+			}
+		}
+		// The docker exec must request stdin forwarding and deliver the full serialized payload.
+		const execCall = calls.find((args) => args[0] === "exec" && args.includes("/opt/nklein/tool-runner.cjs"));
+		expect(execCall?.[1]).toBe("-i");
+		expect(stdinPayloads).toEqual([JSON.stringify(input)]);
+	});
+
+	it("keeps small tool inputs on the byte-identical argv path", async () => {
+		const {
+			execFile: execFileStub,
+			calls,
+			stdinPayloads,
+		} = createStdinCapturingExecFileStub({
+			execStdout: JSON.stringify({ ok: true, result: "edited" }),
+		});
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		await expect(manager.runTool("task-1", "editor", { command: "replace" })).resolves.toBe("edited");
+		expect(calls.map(dockerExecCommand)).toContainEqual([
+			"node",
+			"/opt/nklein/tool-runner.cjs",
+			"editor",
+			JSON.stringify({ command: "replace" }),
+			"/repo",
+		]);
+		const execCall = calls.find((args) => args[0] === "exec" && args.includes("/opt/nklein/tool-runner.cjs"));
+		expect(execCall?.[1]).not.toBe("-i");
+		expect(stdinPayloads).toEqual([]);
 	});
 
 	it("adds next-step guidance when sandbox tool execution fails", async () => {
