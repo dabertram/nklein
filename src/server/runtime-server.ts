@@ -229,7 +229,7 @@ import {
 import { loadQueuedTaskStartsFromDisk, saveQueuedTaskStartsToDisk } from "../trpc/runtime-task-start-queue-store";
 import { createWorkspaceApi } from "../trpc/workspace-api";
 import { getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-changes";
-import { getGitStdout } from "../workspace/git-utils";
+import { getGitStdout, runGit as runGitCommand } from "../workspace/git-utils";
 import { sweepLegacyTaskWorktrees } from "../workspace/legacy-worktree-sweep";
 import { resolveRemoteBrowseRoots } from "../workspace/remote-path-confinement";
 import {
@@ -1750,6 +1750,45 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					if (!shouldAutoComplete) {
 						return;
 					}
+					// N10 delivery-phase recovery (live-found by the crash matrix): a SIGKILL between the merge and
+					// board completion leaves an ALREADY-MERGED delivery stuck in Review, and the re-finalize would
+					// re-review it into an identical-feedback park. Ground truth beats receipts here: if the card's
+					// current result commit (primary or ::spec) is already an ancestor of the workspace HEAD, the
+					// delivery happened — complete + cascade without re-reviewing or re-merging.
+					for (const recoveryBranchTaskId of [taskId, `${taskId}::spec`]) {
+						const recoveredCommit = await resolveTaskResultBranchCommit({
+							repoPath: scope.workspacePath,
+							taskId: recoveryBranchTaskId,
+						}).catch(() => null);
+						if (!recoveredCommit) {
+							continue;
+						}
+						const ancestry = await runGitCommand(scope.workspacePath, [
+							"merge-base",
+							"--is-ancestor",
+							recoveredCommit,
+							"HEAD",
+						]).catch(() => null);
+						if (ancestry?.ok) {
+							deps.warn(
+								`Recovered receipted delivery for ${taskId}: result commit ${recoveredCommit.slice(0, 12)} is already merged into the workspace — completing without re-review (crash landed between merge and completion).`,
+							);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Crash-recovery completion for ${taskId}: merged-but-uncompleted delivery finished on re-finalize.`,
+								taskId,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "delivery_crash_recovery",
+									resultCommit: recoveredCommit,
+									branchTaskId: recoveryBranchTaskId,
+								},
+							});
+							await completeDeliveredTaskAndCascade();
+							return;
+						}
+					}
 					const loadedReviewState = await retryWorkspaceStateLock(() => loadWorkspaceState(scope.workspacePath));
 					// The session's round-2 capture and the review finalizer are triggered by the same summary edge. A late
 					// live-state write can transiently project the card back into In Progress after the authoritative move
@@ -2781,75 +2820,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							}
 						}
 					}
-					let readyTaskIds: string[] = [];
-					let completedBoard: RuntimeBoardData | null = null;
-					await retryWorkspaceStateLock(() =>
-						mutateWorkspaceState(scope.workspacePath, (latestState) => {
-							const completed = completeTaskAndGetReadyLinkedTaskIds(latestState.board, taskId);
-							readyTaskIds = completed.readyTaskIds;
-							completedBoard = completed.board;
-							return {
-								board: completed.board,
-								save: completed.moved,
-								value: null,
-							};
-						}),
-					);
-					// F1.18: the DELIVERY is the durable run's dependency-releasing success (awaiting_review only
-					// heartbeats) — report it so the controller cascades the freed dependents.
-					void durableRunWiring?.observeDelivered(scope.workspaceId, taskId);
-					// F1.27b (leaf 5): the card DELIVERED — the kernel walks acceptance → review → delivery → completed
-					// (holds absorb whatever prefix already applied on earlier rounds).
-					dispatchWorkflowCommands(scope.workspacePath, scope.workspaceId, taskId, [
-						{ kind: "acceptance_passed" },
-						{ kind: "review_started" },
-						{ kind: "review_passed" },
-						{ kind: "delivery_requested" },
-						{ kind: "delivered" },
-					]);
-					// §5.0.5 plan-level integration gate: if this delivery completed a decomposition's LAST card, run
-					// the plan's project-level acceptance on the fully-merged tree (fire-and-forget + per-slug debounced
-					// inside — must not delay releasing dependents below).
-					if (completedBoard) {
-						planIntegrationGateRunner.runForCompletion(scope, service, taskId, completedBoard);
-					}
-					await service.stopTaskSession(taskId).catch(() => null);
-					drainQueuedTaskStarts(scope, { force: true });
-					// §5.AA/§5.AI: retry cards deferred for file-overlap (this completion may have released the file lock)
-					// alongside the dependency-newly-ready ones, so an overlap-skipped card can no longer orphan. The just-
-					// completed task is excluded; `autoStartTaskIds` re-checks overlap and re-defers any still-conflicting card.
-					const deferredOverlapTaskIds = [
-						...(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId) ?? []),
-					].filter((deferredTaskId) => deferredTaskId !== taskId);
-					// READY-SWEEP (runs 12/14/15): also attempt EVERY dependency-free waiting card, not just the ones
-					// this completion released — a card can become startable outside the release/defer paths (edge
-					// reorientation, missed plan roots) and previously fell through every crack. autoStartTaskIds
-					// re-checks lane/overlap/concurrency per card, so the superset is safe.
-					const sweepState = await retryWorkspaceStateLock(() => loadWorkspaceState(scope.workspacePath)).catch(
-						() => null,
-					);
-					const activeSessionTaskIds = new Set(
-						service
-							.listSummaries()
-							.filter(
-								(summary) =>
-									summary.state === "running" ||
-									summary.state === "queued" ||
-									summary.state === "paused" ||
-									summary.state === "awaiting_review",
-							)
-							.map((summary) => summary.taskId),
-					);
-					const sweepTaskIds = sweepState
-						? listStartableUnstartedTaskIds(sweepState.board, activeSessionTaskIds)
-						: [];
-					// Under a durable run the controller owns ready/sweep (dependency_unblocked → lease); only the
-					// deferred set is ours to restart here (startRescueCandidates). Off durable this is the same union.
-					await startRescueCandidates(scope, deferredOverlapTaskIds, [
-						...readyTaskIds,
-						...deferredOverlapTaskIds,
-						...sweepTaskIds,
-					]);
+					await completeDeliveredTaskAndCascade();
 				})();
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -2876,6 +2847,81 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						finalizeHeadlessAutoReviewTask(scope, service, taskId);
 					}
 				}
+			}
+
+			// The shared post-delivery completion cascade (board completion, durable release, kernel walk,
+			// integration gate, session stop, queued/deferred/sweep restarts). Called by the normal flow after a
+			// merge/stage delivery AND by the N10 already-merged recovery below — one implementation, never two.
+			async function completeDeliveredTaskAndCascade(): Promise<void> {
+				let readyTaskIds: string[] = [];
+				let completedBoard: RuntimeBoardData | null = null;
+				await retryWorkspaceStateLock(() =>
+					mutateWorkspaceState(scope.workspacePath, (latestState) => {
+						const completed = completeTaskAndGetReadyLinkedTaskIds(latestState.board, taskId);
+						readyTaskIds = completed.readyTaskIds;
+						completedBoard = completed.board;
+						return {
+							board: completed.board,
+							save: completed.moved,
+							value: null,
+						};
+					}),
+				);
+				// F1.18: the DELIVERY is the durable run's dependency-releasing success (awaiting_review only
+				// heartbeats) — report it so the controller cascades the freed dependents.
+				void durableRunWiring?.observeDelivered(scope.workspaceId, taskId);
+				// F1.27b (leaf 5): the card DELIVERED — the kernel walks acceptance → review → delivery → completed
+				// (holds absorb whatever prefix already applied on earlier rounds).
+				dispatchWorkflowCommands(scope.workspacePath, scope.workspaceId, taskId, [
+					{ kind: "acceptance_passed" },
+					{ kind: "review_started" },
+					{ kind: "review_passed" },
+					{ kind: "delivery_requested" },
+					{ kind: "delivered" },
+				]);
+				// §5.0.5 plan-level integration gate: if this delivery completed a decomposition's LAST card, run
+				// the plan's project-level acceptance on the fully-merged tree (fire-and-forget + per-slug debounced
+				// inside — must not delay releasing dependents below).
+				if (completedBoard) {
+					planIntegrationGateRunner.runForCompletion(scope, service, taskId, completedBoard);
+				}
+				await service.stopTaskSession(taskId).catch(() => null);
+				drainQueuedTaskStarts(scope, { force: true });
+				// §5.AA/§5.AI: retry cards deferred for file-overlap (this completion may have released the file lock)
+				// alongside the dependency-newly-ready ones, so an overlap-skipped card can no longer orphan. The just-
+				// completed task is excluded; `autoStartTaskIds` re-checks overlap and re-defers any still-conflicting card.
+				const deferredOverlapTaskIds = [
+					...(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId) ?? []),
+				].filter((deferredTaskId) => deferredTaskId !== taskId);
+				// READY-SWEEP (runs 12/14/15): also attempt EVERY dependency-free waiting card, not just the ones
+				// this completion released — a card can become startable outside the release/defer paths (edge
+				// reorientation, missed plan roots) and previously fell through every crack. autoStartTaskIds
+				// re-checks lane/overlap/concurrency per card, so the superset is safe.
+				const sweepState = await retryWorkspaceStateLock(() => loadWorkspaceState(scope.workspacePath)).catch(
+					() => null,
+				);
+				const activeSessionTaskIds = new Set(
+					service
+						.listSummaries()
+						.filter(
+							(summary) =>
+								summary.state === "running" ||
+								summary.state === "queued" ||
+								summary.state === "paused" ||
+								summary.state === "awaiting_review",
+						)
+						.map((summary) => summary.taskId),
+				);
+				const sweepTaskIds = sweepState
+					? listStartableUnstartedTaskIds(sweepState.board, activeSessionTaskIds)
+					: [];
+				// Under a durable run the controller owns ready/sweep (dependency_unblocked → lease); only the
+				// deferred set is ours to restart here (startRescueCandidates). Off durable this is the same union.
+				await startRescueCandidates(scope, deferredOverlapTaskIds, [
+					...readyTaskIds,
+					...deferredOverlapTaskIds,
+					...sweepTaskIds,
+				]);
 			}
 		})();
 	};

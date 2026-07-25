@@ -6498,8 +6498,13 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   a card-stranding FAILURE; FIXED — signal-killed acceptance = indeterminate, never a verdict); run 3: decompose
   phase PASSES; **run-5 state (2026-07-25): decompose + worker + one more phase PASS.** (a) worker barrier FIXED — it
   was armed only at the SDK-executor wrapper while write_files/read_files proxy through `manager.runTool`
-  directly; the barrier now lives at that single choke point (one-shot by construction). **(c) OPEN — the
-  delivery-phase recovery gap:** SIGKILL at the delivery barrier (post-merge receipt, pre-completion) leaves both
+  directly; the barrier now lives at that single choke point (one-shot by construction). **run-6 state: fast suite green; worker barrier verified firing (receipt landed). Delivery-phase recovery
+  SHIPPED (already-merged ancestry check → shared completion cascade, never re-reviewed; the completion tail is
+  now ONE extracted function used by merge, stage, and recovery paths). NEXT OPEN: the worker-phase residue —
+  SIGKILL mid-worker-tool leaves `sim-smoke-card-farewell` stuck @review + its durable-run lease orphaned after
+  restart (retained HOME `…/nklein-verify-crash-matrix-worker-V5EKlw`); trace what the post-restart re-drive did
+  with the interrupted worker (the card reached Review but never delivered/released).** Historical: (c) — the
+  delivery-phase recovery gap: SIGKILL at the delivery barrier (post-merge receipt, pre-completion) leaves both
   cards STUCK in Review + their durable-run leases ORPHANED after restart — the boot reconcile either doesn't
   re-finalize receipted-but-uncompleted deliveries or bounces them. The merge-history receipt exists precisely to
   make this recoverable ("merge happened, board completion did not"); wire the restart path to read it: complete
