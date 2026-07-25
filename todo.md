@@ -6622,6 +6622,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   Review-runner stamps added 2026-07-25 split the former bracketed-run blind spot into three segments.
   HARNESS NOTE: failed scenario runs leak sandbox containers (37 reaped by hand 2026-07-25) — the
   verify-simulated-flow teardown must reap `nklein-agent-sandbox-simflow-*` on the throw path too.
+  **STALL ROOT-CAUSE LADDER v3 (2026-07-25 evening — supersedes v2's reservation theory; instrumentation
+  committed):** (1) CONFIRMED + fixed in-harness: the §10c#5+6 host-cap default (1 session/host) re-activated in
+  sim because the harness's fake lms maps models to host "local" (the documented no-lms escape hatch defeated by
+  our own fake); scenario mode now sets NKLEIN_PER_MACHINE_MAX_CONCURRENCY=4. (2) With caps lifted the SAME two
+  cards stall deterministically: `s06::review` passes card/diff/context-load, ACQUIRES the shared-endpoint
+  admission, and NEVER emits its HTTP request (journal: 23 review briefs sent, s06/s15 absent in every run) —
+  holding the endpoint forever; `s15::review` queues behind it (the log's literal last admission line), and 16
+  planning dependents starve at 24/41. The 10-min runBoundedTurn race demonstrably never concludes it either
+  (40-min run, same shape). NEXT PROBES: (a) socket-pool exhaustion at the sim origin — the swarm-churned failed
+  card may leak undici connections; lsof -p <runtime> -i against the sim port during a repro, and/or raise the
+  fetch dispatcher's connections-per-origin; (b) a stamp immediately before the provider fetch (ai-sdk seam) to
+  split "assembly hang" from "socket wait"; (c) why runBoundedTurn's Promise.race doesn't settle at 10 min
+  (deadline computed AFTER workspace acquisition — verify the timer actually arms). New durable diagnostics:
+  admission-queue decisions now log reason + blockedByTaskId holder (runtime-server), review runner stamps split
+  the bracketed-run window. Repro: set-01 command above, stalls ≤5 min, HOME retains journal+runtime.log.
 - [x] **N10.e2big — large-file WRITE ceiling: replace the accidental argv limit with a deliberate policy (David
   2026-07-25).** ✅ RESOLVED 2026-07-25, all three steps. **(1) READ AUDIT VERDICT: solved-enough.** A 32k worker
   can work WITH a 1MB file today: whole-file reads of large files are hard-REFUSED with corrective guidance

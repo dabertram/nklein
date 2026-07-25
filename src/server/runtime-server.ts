@@ -893,6 +893,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 		const endpointDecision = scheduleNKleinEndpointStart(schedulingRequest);
 		if (!endpointDecision.ok) {
+			// F1.34c stall forensics 2026-07-25: "queued behind a busy endpoint" hid WHAT was busy — the decision's
+			// reason (which sessions/caps produced the verdict) is the difference between a real capacity wait and a
+			// phantom session blocking the endpoint forever. Keep it in the log, not just the return value.
+			deps.warn(
+				`Model-turn admission queued ${request.taskId}: ${endpointDecision.reason}${endpointDecision.blockedByTaskId ? ` (holder: ${endpointDecision.blockedByTaskId})` : ""}`,
+			);
 			modelTurnAdmissionWaitQueue.enqueue(request.taskId, endpointDecision.sharedEndpointId);
 			return {
 				ok: false,

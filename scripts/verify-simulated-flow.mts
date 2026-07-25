@@ -578,6 +578,15 @@ async function main(): Promise<void> {
 					),
 				}
 			: {}),
+		// Scenario drains: the §10c#5+6 host-serialization default (ONE concurrent session per LM Studio host) is
+		// meant to protect REAL GPU hosts, and its documented escape hatch is "no lms ps ⇒ no host mapping ⇒ sim
+		// unaffected" — but this harness installs a FAKE lms (so capacity checks don't consult the real fleet),
+		// which maps every sim model to host "local" and re-activates the serialization against a host that is
+		// pure software (live-found 2026-07-25: 41-card drains starved at cap 1, cards dropped on retry-budget
+		// exhaustion). The documented env fallback lifts the fake host's cap; real-fleet posture is untouched.
+		...(SCENARIO_SELECTOR && !process.env.NKLEIN_PER_MACHINE_MAX_CONCURRENCY
+			? { NKLEIN_PER_MACHINE_MAX_CONCURRENCY: "4" }
+			: {}),
 		// Compaction cell: the RATIO is policy, the stop→compact→restart MECHANISM is the invariant under test.
 		// A smoke-scale session can never reach the default 0.92 honestly — every ballast fixture trips a
 		// legitimate admission guard (start-fit, difficulty, E2BIG, repetition) — so the cell lowers the
