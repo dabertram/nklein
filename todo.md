@@ -6579,21 +6579,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   can't start review-lane cards) — moot for auto-review cards after fix (1), but a MANUAL-review card orphaned by
   a crash would still freeze silently; extend the classifier to include review-lane cards without any review
   record whose session is dead.
-- [ ] **F1.34c-incremental — audit finding (2026-07-25, 20-set drain runs 1-3): the INCREMENTAL decompose path never finalizes
-  the source card — 0/20 sets drain under default-ON test-driven mode.** Chain, fully forensicated on set 01: the
-  dev-test seed is ACT-mode + autoReviewEnabled; its recorded session decomposes INCREMENTALLY (multiple partial
-  decompose_project calls); unlike the batch apply, the incremental path (a) does NOT stamp `generatedFromPlan`
-  on the children and (b) does NOT complete the source card when the graph materializes. The seed session then
-  ends awaiting_review; the recorded sets predate seed reviews, so its review requests MIS-MATCH worker tracks
-  (text answer, no verdict) → identical-feedback park → the 40 children, released only on source completion,
-  starve in Planning forever. Two necessary-but-insufficient fixes are IN: the batch apply stamps the source
-  `not_testable` before completing it, and the test-driven gate derives not_testable for any card children
-  reference via `generatedFromPlan` (single evaluation point — covers every apply variant THAT STAMPS LINKAGE).
-  REMAINING ROOT FIX: give the incremental construction's FINAL apply batch-parity — stamp `generatedFromPlan`
-  on incrementally-created cards AND complete+stamp the source (nklein-decomposition-tool.ts `incrementalState`
-  handling; batch semantics: plan-task-board-apply.ts:313-340). Then re-run the 20-set audit
-  (scratchpad/f134c-drain-audit.sh; per-set logs /tmp/f134c-set-NN.log). Watch item: whether recorded workers of
-  `testFirst` tasks actually write tests — child-level gate bounces may surface once seeds complete.
+- [ ] **F1.34c-drift — audit finding v2 (2026-07-25, supersedes the incremental-path hypothesis, which was WRONG:
+  the incremental apply DOES stamp `generatedFromPlan` and DOES complete the source — the "stuck seed" was a
+  misread; `…-s00` is a generated CHILD, and the devtest seed completes fine).** TRUE chain, journal-proven on
+  set 01: child s00's worker drains normally; its REVIEW request then matches the recorded WORKER track (fixture
+  serves the worker's repeat-last text "Scaffold complete…"), so the reviewer gets prose, no verdict, three
+  identical rounds → identical-feedback park → the remaining children starve behind the dependency chain.
+  0/20 sets drain this way. This is RECORDED-SET DRIFT vs today's reviewer request shape (10 days of prompt/flow
+  evolution) — N12's exact domain. Fix directions, in preference order: (a) aimock request-classifier hardening —
+  a request classified `review` must NEVER be served by a `worker`-class track (check what requestClass the
+  distilled sets' worker tracks carry; if "any", tighten the distiller + matching precedence); (b) if the sets'
+  tracks are sound and the classifier is right, re-record the 20 sets against real models (`npm run
+  scenario:rerecord -- NN`, fleet-gated). The two shipped gate fixes (source stamped not_testable at batch apply;
+  gate derives not_testable via generatedFromPlan) remain correct product hardening regardless. Also still
+  watch: whether recorded workers of `testFirst` tasks actually write tests once reviews match again.
 - [x] **N10.e2big — large-file WRITE ceiling: replace the accidental argv limit with a deliberate policy (David
   2026-07-25).** ✅ RESOLVED 2026-07-25, all three steps. **(1) READ AUDIT VERDICT: solved-enough.** A 32k worker
   can work WITH a 1MB file today: whole-file reads of large files are hard-REFUSED with corrective guidance
