@@ -6656,6 +6656,22 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   evaluateModelTurnAdmission) — then one repro names the final seam. Note the SAME card (s15) sticks across all
   runs — whatever wedges is deterministic per card, likely tied to its worker's §5.AA churn residue (zombie
   summary state also worth dumping at stall: service.listSummaries for s15).
+  **v6 — FINAL TRUTH (2026-07-25 late, sampler + stamp forensics): THERE IS NO FREEZE AND NO DEADLOCK.** The
+  "global freeze at t+190s" was the dev-test monitor's STAGNATION SETTLE tearing the runtime down (post-teardown
+  silence misread as a wedge — "Seed monitor exited 0" was in the harness log all along). Real mechanics: the
+  SHARED-ENDPOINT rule serializes every session on the one sim endpoint at cap 1 ("Another !Klein task is
+  already running on shared endpoint…"), the F1.34d-churning card holds that single slot through minutes of
+  §5.AA backoff rungs, reviews + ready cards legitimately queue behind it, and the monitor's stagnation window
+  expires before the queue drains ⇒ settle at 24/41 every run. REMAINING WORK, now mundane: (a) lift the SIM
+  endpoint/pool concurrency in scenario mode the same way the host cap was lifted (the sim endpoint is pure
+  software; find the endpoint/pool cap default in concurrency-config and set it via the harness-written runtime
+  config or env); (b) fix F1.34d so the churn card stops monopolizing the slot; (c) optionally lengthen the
+  monitor's stagnation window for scenario drains. KEEPER HARDENINGS from the hunt (committed `hardening
+  commit`): admission evaluation bounded under the serialization mutex (30s→named warn+repoll), lms-ps
+  shared-promise bound (15s), registry-snapshot bound (10s), runtime-config load bound with last-known fallback,
+  fair-queue reservations expire 60s after their waiter stops polling, both formerly-silent admission branches
+  now log, aux session starts + aux model streams stamp phases, parent-exemption + fresh-start self-ghost
+  exemption in admission.
 - [ ] **F1.34d — repeated-tool-call guard parks the INCREMENTAL decompose route (found 2026-07-25):** the seed's
   recorded flow makes 3 `decompose_project` calls (the documented F1.7 add_task/incremental COMPLETION route) and
   the repeated-tool-call guard parks it — "!Klein paused this task after 3 repeated decompose_project tool calls
