@@ -81,6 +81,21 @@ export const triggerCardTemplateSchema = z.object({
 	 * rather than silently behaving like `true`.
 	 */
 	autoStart: z.literal(true).default(true),
+	/**
+	 * Whether the seeded card enters the headless auto-review/commit flow. DEFAULT TRUE — a trigger fires with no
+	 * human present, and a card without auto-review strands at the manual-review boundary the moment its worker
+	 * finishes: finalize skips it (`shouldAutoComplete` false) and every rescue path ignores it (N10 trigger cell,
+	 * live-found 2026-07-25 — the card sat verdict-less in Review while the watchdog called it "startable").
+	 * Opting OUT is still expressible for genuinely operator-reviewed trigger flows.
+	 */
+	autoReviewEnabled: z.boolean().default(true),
+	/**
+	 * Upfront testability declaration for the seeded card (F1.34b): the default-ON test-driven gate bounces any
+	 * code-touching delivery without tests, and a trigger card has no architect to declare intent — so the
+	 * TEMPLATE author declares it. Omitted = the gate applies its default (testable) posture.
+	 */
+	testability: z.enum(["testable", "not_testable"]).optional(),
+	testabilityReason: z.string().max(500).optional(),
 });
 export type TriggerCardTemplate = z.infer<typeof triggerCardTemplateSchema>;
 

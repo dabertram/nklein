@@ -6566,15 +6566,19 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   count 0) re-draws the round-1 verdict forever — round 2 must be keyed by its own needle (`the card "…" (review
   round 2)` appears verbatim in the reviewer prompt); and the reactive overflow path CORRECTLY declines at smoke
   scale (nothing to compact in a 5-message history) so its barrier is out of reach by design, not by defect.
-  **TRIGGER CELL (6/6, first-ever run) — NEXT OPEN:** the trigger-intake idem card
-  (`trigger-crash-matrix-idem-*`) drains its worker (turn-2 stall → card to Review, result branch captured) but
-  NO review ever runs (zero review_phase events) and the board-liveness watchdog classifies it "1 STARTABLE card"
-  (frozen-board sweep — which cannot start a review-lane card) instead of a stalled review ⇒ frozen forever.
-  Investigate (a) why the finalize's reviewer step never ran after capture (worker ended on a stall — summary
-  state?), (b) the watchdog's stalled-review classifier missing a verdict-less review-lane card with NO review
-  record, (c) whether the idem card needs its own worker/review aimock tracks (it currently pot-lucks the
-  fallback text track — its turn-2 stall may be the fixture, not the product). Retained HOME:
-  `…/nklein-verify-crash-matrix-trigger-ax0jvV`.
+  **TRIGGER CELL GREEN → ★ FULL MATRIX 6/6 GREEN 2026-07-25 ("crash-recovery matrix: 6/6 SIGKILL phases
+  recovered cleanly").** Trigger-cell root causes (defects #12+#13, both product): (1) trigger-seeded cards
+  carried NO `autoReviewEnabled` — but a trigger fires with no human present, so the card stranded at the
+  manual-review boundary (finalize's `shouldAutoComplete` false; every rescue path ignores a verdict-less
+  review-lane card with no review record). Template schema now has `autoReviewEnabled` (DEFAULT TRUE, opt-out
+  expressible) passed through to the card. (2) trigger cards had no upfront testability declaration → the
+  default-ON test-driven gate bounced→identical-feedback→parked (the F1.34c interaction, third surface); template
+  schema now carries optional `testability`/`testabilityReason` and the cell's fixture declares not_testable.
+  RESIDUAL HARDENING (small, open): the board-liveness watchdog's stalled-review classifier still cannot see a
+  verdict-less review-lane card with NO review record (it mis-classes it "startable" and the frozen-board sweep
+  can't start review-lane cards) — moot for auto-review cards after fix (1), but a MANUAL-review card orphaned by
+  a crash would still freeze silently; extend the classifier to include review-lane cards without any review
+  record whose session is dead.
 - [ ] **N10.e2big — `write_files` large-content E2BIG (found by the compaction cell 2026-07-25):** the sandbox
   tool wrapper execs with the file content in argv (`kanbanExtraTool … argument list too long` at ~150KB), so a
   worker writing a legitimately large file fails. Route content via stdin or a tempfile handoff instead of argv;

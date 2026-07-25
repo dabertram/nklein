@@ -283,6 +283,15 @@ export function applyTriggerCardToBoard(input: {
 			prompt: input.card.prompt,
 			baseRef: input.template.baseRef,
 			startInPlanMode: input.template.startInPlanMode,
+			// N10 trigger cell (2026-07-25): a trigger fires unattended, so the card must enter the headless
+			// auto-review flow — without this, finalize skips it and it strands verdict-less in Review forever.
+			autoReviewEnabled: input.template.autoReviewEnabled,
+			...(input.template.testability
+				? {
+						testability: input.template.testability,
+						...(input.template.testabilityReason ? { testabilityReason: input.template.testabilityReason } : {}),
+					}
+				: {}),
 			...(input.template.agentId ? { agentId: input.template.agentId } : {}),
 			...(input.template.filesLikelyTouched.length > 0
 				? { filesLikelyTouched: input.template.filesLikelyTouched }

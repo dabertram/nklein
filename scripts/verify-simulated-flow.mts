@@ -765,6 +765,11 @@ async function main(): Promise<void> {
 							prompt: `Create ${TRIGGER_CRASH_CARD.file} exporting ${TRIGGER_CRASH_CARD.fn}(name).`,
 							lane: "ready",
 							front: true,
+							// F1.34b upfront declaration — the fixture writes a module with no test scaffolding, and the
+							// default-ON gate would otherwise bounce→identical-feedback→park (the same interaction the
+							// smoke decompose declares away).
+							testability: "not_testable",
+							testabilityReason: "scripted trigger fixture without test scaffolding",
 						}),
 					);
 					let response: Response | null = null;
