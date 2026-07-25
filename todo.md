@@ -6593,6 +6593,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   scenario:rerecord -- NN`, fleet-gated). The two shipped gate fixes (source stamped not_testable at batch apply;
   gate derives not_testable via generatedFromPlan) remain correct product hardening regardless. Also still
   watch: whether recorded workers of `testFirst` tasks actually write tests once reviews match again.
+  **PROGRESS 2026-07-25 (set-01: 2→24/41 completed; three fixes landed):** (1) classifier hardening — a user
+  message OPENING with the review-seed line classifies `review` (anchored per-message prefix; pinned
+  bounced-worker contract preserved; parts-array safe) — all 24 recorded review tracks now match and verdict;
+  (2) the 20 sets' decompose args now DECLARE not_testable for exactly the 53 tasks whose recorded workers write
+  no test files (scratchpad patcher, conservative: testFirst tasks untouched); (3) run-level offline-verdict
+  cache in the acceptance gate (10-min TTL) — the sandbox toolchain setup paid ~70s×2 per card re-discovering
+  the offline posture (41-card drains: hours → minutes; setups now 29-50ms). REMAINING STALL at 24/41: one card
+  fails after burning §5.AA re-drive rungs (the "Already attempted this task…" re-drive prompt POSTDATES the
+  recordings — its requests only re-match the worker repeat-turn, no new patch ever) and two reviews sit in
+  single-flight behind the churn until settle expires; 16 planning dependents starve. This is recording-vs-
+  machinery drift: either teach the re-drive-prompt shape to the distiller/patcher too, or re-record the sets
+  (`npm run scenario:rerecord -- NN`, fleet-gated). Set-01 command with the longer budget:
+  HOME=$(mktemp -d) NKLEIN_SIMFLOW_SCENARIO=01 NKLEIN_SIMFLOW_TIMEOUT_MS=900000 NKLEIN_SIMFLOW_RUNTIME_PORT=…
+  npx tsx scripts/verify-simulated-flow.mts.
 - [x] **N10.e2big — large-file WRITE ceiling: replace the accidental argv limit with a deliberate policy (David
   2026-07-25).** ✅ RESOLVED 2026-07-25, all three steps. **(1) READ AUDIT VERDICT: solved-enough.** A 32k worker
   can work WITH a 1MB file today: whole-file reads of large files are hard-REFUSED with corrective guidance

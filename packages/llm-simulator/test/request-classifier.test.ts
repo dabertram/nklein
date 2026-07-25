@@ -121,6 +121,48 @@ describe("classifyRequest against live !Klein wire shapes", () => {
 		).toBe("decompose");
 	});
 
+	it("classifies a RESUME-based review (worker registry, no submit_review, brief as last user message) as review", () => {
+		// F1.34c-drift (live-found 2026-07-25): some flows review by resuming the WORKER session — worker tool
+		// registry, no submit_review — and the review brief (which quotes the card's Leaf scope / Acceptance check
+		// scaffold) arrives as the LAST user message. The whole-text worker markers must not win there.
+		expect(
+			classifyRequest({
+				messages: [
+					{ role: "system", content: GENERIC_SYSTEM },
+					{ role: "user", content: "Leaf scope: complete only this card. Acceptance check: `npm test`." },
+					{ role: "assistant", content: "Done. Files written." },
+					{
+						role: "user",
+						content:
+							'You are the second-opinion reviewer for the card "Scaffold" (review round 1).\n' +
+							"Objective (quoted): Leaf scope: complete only this card. Acceptance check: `npm test`.\n" +
+							"Inspect the diff and return a single verdict.",
+					},
+				],
+				tools: REGISTRY_TOOLS,
+			}),
+		).toBe("review");
+	});
+
+	it("still classifies a bounced worker re-drive (feedback quoted, re-work prompt last) as worker", () => {
+		expect(
+			classifyRequest({
+				messages: [
+					{ role: "system", content: GENERIC_SYSTEM },
+					{ role: "user", content: "Leaf scope: complete only this card. Acceptance check: `npm test`." },
+					{ role: "assistant", content: "Done. Files written." },
+					{
+						role: "user",
+						content:
+							"You are taking over this task from another model that got stuck in review. " +
+							"Reviewer feedback: add a trailing newline check. Address it directly and keep the kanban card scoped.",
+					},
+				],
+				tools: REGISTRY_TOOLS,
+			}),
+		).toBe("worker");
+	});
+
 	it("classifies bare prompts with no tools as chat", () => {
 		expect(
 			classifyRequest({

@@ -33,7 +33,9 @@
             "vitest.config.ts"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
-           "testFirst": false
+           "testFirst": false,
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s01",
@@ -94,7 +96,9 @@
             "src/fixtures/rxnorm-graph.ts"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
-           "testFirst": false
+           "testFirst": false,
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s05",
@@ -186,7 +190,9 @@
             "src/core/rule-types.ts"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
-           "testFirst": false
+           "testFirst": false,
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s10",
@@ -521,7 +527,9 @@
             "src/fixtures/patients.ts"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
-           "testFirst": false
+           "testFirst": false,
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s31",
@@ -535,7 +543,9 @@
             "src/fixtures/adversarial-scenarios.ts"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
-           "testFirst": false
+           "testFirst": false,
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s32",
@@ -593,7 +603,9 @@
             "src/fixtures/patients.ts"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
-           "testFirst": false
+           "testFirst": false,
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s35",
@@ -639,7 +651,9 @@
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
            "testFirst": false,
-           "knowledgeDebt": "The ledger itself is the debt register; keeping it current is a standing obligation on every card that touches reference data."
+           "knowledgeDebt": "The ledger itself is the debt register; keeping it current is a standing obligation on every card that touches reference data.",
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s38",
@@ -686,7 +700,9 @@
             "README.md"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
-           "testFirst": false
+           "testFirst": false,
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           }
          ]
         }

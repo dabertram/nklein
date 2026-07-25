@@ -71,6 +71,37 @@ export function classifyRequest(
 	if (toolClasses.includes("review")) {
 		return "review";
 	}
+	// Resume-based reviews (F1.34c-drift, live-found 2026-07-25): some flows review by RESUMING the worker session —
+	// worker tool registry, NO submit_review — so the structural marker above never fires and the whole-text scan
+	// below sees the card prompt's worker scaffold and misclassifies the reviewer as a worker (the recorded review
+	// tracks then never match; verdicts degrade to prose). The review BRIEF is a user message that OPENS with the
+	// deterministic seed line (`review-orchestration.ts` buildReviewSeedPrompt) — an ANCHORED per-message prefix,
+	// because (a) a bounced worker only QUOTES reviewer feedback mid-text (the pinned contract has "The
+	// second-opinion reviewer requested changes…" as its whole last message) and (b) the brief is not always LAST:
+	// the runtime appends a focus-brief user message after it ("[!Klein context focus brief] …", live journal
+	// 2026-07-25), so position alone cannot anchor.
+	const userOpensWithReviewSeed = (request.messages ?? []).some((message) => {
+		if (message.role !== "user") {
+			return false;
+		}
+		// Flatten OpenAI content-part arrays to their text (a stringified parts array would defeat the prefix anchor).
+		const rawText =
+			typeof message.content === "string"
+				? message.content
+				: Array.isArray(message.content)
+					? message.content
+							.map((part) =>
+								part && typeof part === "object" && "text" in part
+									? String((part as { text: unknown }).text ?? "")
+									: "",
+							)
+							.join("\n")
+					: "";
+		return rawText.trimStart().toLowerCase().startsWith("you are the second-opinion reviewer");
+	});
+	if (userOpensWithReviewSeed) {
+		return "review";
+	}
 	const text = markerText(request);
 	const matchingTextMarkers = markers.systemMarkers.filter((marker) => text.includes(marker.includes));
 	const workerMarker = matchingTextMarkers.find((marker) => marker.requestClass === "worker");

@@ -36,6 +36,8 @@ export interface RunSandboxToolchainSetupOptions {
 		stderr?: string;
 	}>;
 	readonly now?: () => number;
+	/** Caller's cached run-level verdict that the sandbox network is offline — skips install steps up front. */
+	readonly assumeOffline?: boolean;
 }
 
 function joinOutput(stdout: string | undefined, stderr: string | undefined): string {
@@ -118,6 +120,23 @@ export async function runSandboxToolchainSetup(
 				reason: `detected ${executable}, but the pinned sandbox image does not contain that runtime`,
 			};
 		}
+	}
+
+	if (options.assumeOffline) {
+		// F1.34c drain forensics 2026-07-25: a run whose FIRST setup proved the sandbox network offline paid the
+		// same ~70s discovery (DNS timeouts per install step) again on EVERY subsequent card — 41 cards × 2 setups
+		// turned a minutes-long drain into hours. Offline is a run-level property of the sandbox posture, not a
+		// per-card one; the caller passes its cached verdict and the installs are skipped up front with the same
+		// audible skipped_offline outcome (probes above still ran — runtime presence is per-image truth).
+		return {
+			status: "skipped_offline",
+			plan,
+			steps,
+			durationMs: Math.max(0, now() - startedAt),
+			failedCommand: null,
+			reason:
+				"sandbox network already classified offline earlier in this run — installs skipped; proceeding to the acceptance command without installed dependencies",
+		};
 	}
 
 	for (const command of plan.installSteps) {

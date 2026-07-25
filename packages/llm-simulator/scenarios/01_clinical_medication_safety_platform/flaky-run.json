@@ -33,7 +33,9 @@
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
            "testFirst": false,
-           "knowledgeDebt": "mg/m2 BSA dosing and renal-interval adjustment are not modeled; a later card must add explicit, pharmacist-reviewed conversion hooks instead of widening this arithmetic."
+           "knowledgeDebt": "mg/m2 BSA dosing and renal-interval adjustment are not modeled; a later card must add explicit, pharmacist-reviewed conversion hooks instead of widening this arithmetic.",
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s05",
@@ -61,7 +63,9 @@
            ],
            "nonGoals": [
             "No live RxNorm/NDC directory calls; the fixture graph is the only source"
-           ]
+           ],
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s08",
@@ -74,7 +78,9 @@
             "test/audit-log.test.ts"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
-           "testFirst": false
+           "testFirst": false,
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s12",
@@ -89,7 +95,9 @@
             "test/max-dose.test.ts"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
-           "testFirst": false
+           "testFirst": false,
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s15",
@@ -108,7 +116,9 @@
            "acceptanceChecks": [
             "held medications produce zero alerts across all five rules",
             "every returned alert carries evidence.length >= 1"
-           ]
+           ],
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s20",
@@ -124,7 +134,9 @@
             "test/reconciliation.test.ts"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
-           "testFirst": false
+           "testFirst": false,
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s22",
@@ -137,7 +149,9 @@
             "test/adherence-calendar.test.ts"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
-           "testFirst": false
+           "testFirst": false,
+           "testability": "not_testable",
+           "testabilityReason": "recorded fixture writes no test files (pre-F1.34b recording)"
           },
           {
            "id": "s24",

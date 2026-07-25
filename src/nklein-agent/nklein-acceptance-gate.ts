@@ -18,6 +18,14 @@ const DEFAULT_ACCEPTANCE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:
 const REPO_VERIFY_ACTIVE_ENV = "NKLEIN_REPO_VERIFY_ACTIVE";
 /** Default-on F12.84b environment construction; set false/no/off/0 only as an emergency rollback. */
 const AUTO_ENV_SETUP_ENV = "NKLEIN_AUTO_ENV_SETUP";
+/**
+ * Run-level offline-verdict cache (F1.34c drain forensics 2026-07-25): once ONE setup proves the sandbox network
+ * offline, every later setup in this process skips the install attempts instead of re-paying ~70s of DNS
+ * timeouts per card (41-card drains went from minutes to hours). TTL-bounded so a long-lived runtime rechecks —
+ * offline can be transient (VPN flap, egress fence toggled).
+ */
+const OFFLINE_VERDICT_TTL_MS = 10 * 60 * 1000;
+let sandboxOfflineVerdictAt: number | null = null;
 // Keep in sync with the pure mirror in src/core/plan-integration-gate.ts (PLAN_ACCEPTANCE_CHECK_PATTERN) —
 // the core layer cannot value-import this impure module (node:child_process + telemetry sink).
 const ACCEPTANCE_CHECK_PATTERN = /^Acceptance (?:check|command):\s*(.+?)\s*$/im;
@@ -477,7 +485,12 @@ export async function runNKleinAcceptanceGateInSandbox(
 				rootFileNames,
 				timeoutMs: options.timeoutMs ?? DEFAULT_ACCEPTANCE_TIMEOUT_MS,
 				runCommand: async (execution) => await executeInSandbox({ ...execution, cwd: workspace.workdir }, false),
+				assumeOffline:
+					sandboxOfflineVerdictAt !== null && Date.now() - sandboxOfflineVerdictAt < OFFLINE_VERDICT_TTL_MS,
 			});
+			if (setup.status === "skipped_offline") {
+				sandboxOfflineVerdictAt = Date.now();
+			}
 			if (setup.status !== "not_applicable") {
 				(options.recordObservation ?? recordSelfObservation)({
 					signal: setup.status === "failed" ? "verification_failed" : "custom",
