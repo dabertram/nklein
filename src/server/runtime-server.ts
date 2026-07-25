@@ -3243,17 +3243,45 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						)
 						.map((summary) => summary.taskId),
 				);
+				// N10 worker-phase forensics 2026-07-25: an orphan is only REVIEWABLE if its worker captured a result
+				// branch before dying. A no-capture orphan parked into Review livelocks: the capture gate holds it
+				// forever while the durable controller's re-dispatch no-ops against the Review lane. Split them:
+				// result-branch keepers -> Review (the #21 salvage rebinds), the rest -> Ready for a clean re-drive.
+				const preState = await retryWorkspaceStateLock(() => loadWorkspaceState(scope.workspacePath));
+				const orphanCandidates = (
+					preState.board.columns.find((column) => column.id === "in_progress")?.cards ?? []
+				).filter((card) => !liveTaskIds.has(card.id));
+				const taskIdsWithResultBranch = new Set<string>();
+				for (const card of orphanCandidates) {
+					const commit = await resolveTaskResultBranchCommit({
+						repoPath: scope.workspacePath,
+						taskId: card.id,
+					}).catch(() => null);
+					if (commit) {
+						taskIdsWithResultBranch.add(card.id);
+					}
+				}
 				await mutateWorkspaceState(scope.workspacePath, (latestState) => {
 					const reconciled = reconcileOrphanedInProgressCards({
 						board: latestState.board,
 						liveSessionTaskIds: liveTaskIds,
+						taskIdsWithResultBranch,
 					});
 					if (reconciled.parkedTaskIds.length > 0) {
 						deps.warn(
-							`Startup crash-recovery: parked ${reconciled.parkedTaskIds.length} orphaned in-progress card(s) into Review (sessions lost on restart): ${reconciled.parkedTaskIds.join(", ")}.`,
+							`Startup crash-recovery: parked ${reconciled.parkedTaskIds.length} orphaned in-progress card(s) into Review (sessions lost on restart, result branch captured): ${reconciled.parkedTaskIds.join(", ")}.`,
 						);
 					}
-					return { board: reconciled.board, save: reconciled.parkedTaskIds.length > 0, value: null };
+					if (reconciled.requeuedTaskIds.length > 0) {
+						deps.warn(
+							`Startup crash-recovery: requeued ${reconciled.requeuedTaskIds.length} orphaned in-progress card(s) to Ready (no result capture, nothing to review yet): ${reconciled.requeuedTaskIds.join(", ")}.`,
+						);
+					}
+					return {
+						board: reconciled.board,
+						save: reconciled.parkedTaskIds.length > 0 || reconciled.requeuedTaskIds.length > 0,
+						value: null,
+					};
 				});
 			} catch (error) {
 				deps.warn(
@@ -3702,6 +3730,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								onRedecomposeCardSpawned: (redecomposeTaskId) =>
 									autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
 							})
+								.then((outcome) => {
+									// N10 worker-phase forensics 2026-07-25: bounce/park/skip are self-contained inside the
+									// runner, but a DELIVERED verdict needs the merge + completion cascade that only the
+									// finalize path owns — a detached rescue that stops here strands the approved card in
+									// Review forever. Re-entering finalize is idempotent: the durable approval is reused,
+									// so no second reviewer turn runs.
+									if (outcome.type === "delivered") {
+										finalizeHeadlessAutoReviewTask(scope, trackedService, stalledReviewTaskId);
+									}
+								})
 								.catch((error) => {
 									const message = error instanceof Error ? error.message : String(error);
 									deps.warn(`Stalled-review rescue for ${stalledReviewTaskId} errored: ${message}`);
@@ -4168,7 +4206,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									onRedecomposeCardSpawned: (redecomposeTaskId) =>
 										autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
 								})
-									.then(() => {
+									.then((outcome) => {
+										// Same delivered-verdict hole as the stalled-review rescue: the detached idle
+										// review owns no delivery tail, so re-enter finalize (durable approval reused).
+										if (outcome.type === "delivered") {
+											finalizeHeadlessAutoReviewTask(scope, trackedService, idleReviewTaskId);
+										}
 										recordOpportunisticOutcome(
 											scope.workspacePath,
 											"review",

@@ -459,6 +459,26 @@ describe("DurableRunController", () => {
 		expect(log.at(-1)).toEqual({ kind: "completed", jobId: "a", outcome: "succeeded" });
 	});
 
+	it("DRC-17b accepts a SUCCEEDED report on a READY job (crash-recovery completion racing boot-reclaim)", async () => {
+		// N10 delivery-phase matrix (2026-07-25): a crash between merge and completion means boot-resume reclaims
+		// the orphaned lease (job → ready) while the re-finalize recovers the already-merged delivery and reports
+		// success. Dropping that report re-dispatched a completed card into a lease no session would ever serve —
+		// found as post-teardown lease residue. A failed report on ready must STILL be a no-op (attempt budget).
+		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
+		const { ports, log } = fakePorts();
+		const controller = new DurableRunController(graph, config, ports);
+		await controller.tick(); // lease "a"
+		await controller.reclaimOrphanedLeases(); // simulated boot-reclaim: job back to ready
+		expect(controller.jobsSnapshot()[0]?.state).toBe("ready");
+
+		await controller.reportCompletion("a", "failed");
+		expect(controller.jobsSnapshot()[0]?.state).toBe("ready"); // late failure stays a no-op
+
+		await controller.reportCompletion("a", "succeeded");
+		expect(controller.jobsSnapshot()[0]).toMatchObject({ state: "succeeded" });
+		expect(log.at(-1)).toEqual({ kind: "completed", jobId: "a", outcome: "succeeded" });
+	});
+
 	it("DRC-18 still succeeds a succeeded report even when its error arg looks transient", async () => {
 		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
 		const { ports, log } = fakePorts();

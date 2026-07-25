@@ -15,7 +15,7 @@ function card(id: string): RuntimeBoardCard {
 }
 
 function board(byColumn: Partial<Record<string, string[]>>): RuntimeBoardData {
-	const columnIds = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
+	const columnIds = ["backlog", "planning", "ready", "in_progress", "review", "completed", "trash"] as const;
 	return {
 		columns: columnIds.map((id) => ({ id, title: id, cards: (byColumn[id] ?? []).map(card) })),
 		dependencies: [],
@@ -55,5 +55,31 @@ describe("reconcileOrphanedInProgressCards (§5.0.5 W2.2 startup crash-recovery)
 		const result = reconcileOrphanedInProgressCards({ board: b, liveSessionTaskIds: new Set(), now: 100 });
 		expect(result.parkedTaskIds).toEqual([]);
 		expect(result.board).toBe(b); // untouched reference
+	});
+
+	it("splits orphans by result-branch existence: keepers to Review, no-capture orphans back to Ready (N10)", () => {
+		const result = reconcileOrphanedInProgressCards({
+			board: board({ in_progress: ["captured", "killed-mid-tool"] }),
+			liveSessionTaskIds: new Set(),
+			taskIdsWithResultBranch: new Set(["captured"]),
+			now: 100,
+		});
+		expect(result.parkedTaskIds).toEqual(["captured"]);
+		expect(result.requeuedTaskIds).toEqual(["killed-mid-tool"]);
+		expect(lane(result.board, "review")).toEqual(["captured"]);
+		// A review of a card with no captured result can never deliver (the capture gate holds it forever) —
+		// re-driving is the only recovery that terminates.
+		expect(lane(result.board, "ready")).toEqual(["killed-mid-tool"]);
+	});
+
+	it("keeps the conservative everything-to-Review behavior when the caller cannot supply branch knowledge", () => {
+		const result = reconcileOrphanedInProgressCards({
+			board: board({ in_progress: ["unknown"] }),
+			liveSessionTaskIds: new Set(),
+			now: 100,
+		});
+		expect(result.parkedTaskIds).toEqual(["unknown"]);
+		expect(result.requeuedTaskIds).toEqual([]);
+		expect(lane(result.board, "review")).toEqual(["unknown"]);
 	});
 });

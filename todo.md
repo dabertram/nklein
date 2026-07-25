@@ -6500,10 +6500,26 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   was armed only at the SDK-executor wrapper while write_files/read_files proxy through `manager.runTool`
   directly; the barrier now lives at that single choke point (one-shot by construction). **run-6 state: fast suite green; worker barrier verified firing (receipt landed). Delivery-phase recovery
   SHIPPED (already-merged ancestry check → shared completion cascade, never re-reviewed; the completion tail is
-  now ONE extracted function used by merge, stage, and recovery paths). NEXT OPEN: the worker-phase residue —
-  SIGKILL mid-worker-tool leaves `sim-smoke-card-farewell` stuck @review + its durable-run lease orphaned after
-  restart (retained HOME `…/nklein-verify-crash-matrix-worker-V5EKlw`); trace what the post-restart re-drive did
-  with the interrupted worker (the card reached Review but never delivered/released).** Historical: (c) — the
+  now ONE extracted function used by merge, stage, and recovery paths). Worker-phase residue ROOT-CAUSED + FIXED
+  (2026-07-25): the post-restart re-drive worked — the board-liveness watchdog's stalled-review rescue picked up the
+  verdict-less card and the reviewer APPROVED it — but both detached review dispatchers (`void
+  runSecondOpinionReviewForTask` in the watchdog rescue AND the opportunistic idle review) owned no delivery tail: a
+  bounce/park is self-contained inside the runner, but a DELIVERED verdict needs the merge + completion cascade that
+  only `finalizeHeadlessAutoReviewTask` owns ⇒ the approved card strands @review + lease held forever. FIX: both
+  sites now re-enter finalize on `outcome.type === "delivered"` (idempotent — durable approval reused, no second
+  reviewer turn). FOLLOW-UP (hermeticity, small): in that simulated cell the rescue's reviewer resolved to the REAL
+  loaded model `qwen/qwen3-8b (loaded_fallback)` while the main-path review used `sim/qwen-fast-coder
+  (worker_fallback)` — a sim/hermetic run's reviewer resolution should never consult the live gateway; audit the
+  reviewer-resolve fallback chain under `NKLEIN_*` sim/hermetic env. SECOND worker-phase finding (matrix run 7,
+  2026-07-25): with the delivery tail fixed, the residue moved to the KILLED card itself — W2.2 startup recovery
+  parked the no-capture orphan into Review, where (a) the capture gate correctly holds every rescue review forever
+  (no capture marker will ever settle — the worker is dead) and (b) the durable controller's boot-reclaim
+  re-dispatch NO-OPS against the Review lane, silently burning full 5-minute leases in a reclaim loop (ledger:
+  lease→reclaim→lease→reclaim@+300s…). FIX: `reconcileOrphanedInProgressCards` now splits orphans — result-branch
+  keepers → Review (salvage rebinds; genuinely reviewable), no-capture orphans → READY for a clean re-drive (the
+  path the matrix proves works end-to-end). FOLLOW-UP (durable, small): a durable dispatch whose start silently
+  no-ops (wrong lane, refused start) should fail the lease immediately instead of aging out the full
+  `leaseDurationMs` — the 5-minute silent burn is a liveness tax on every mis-dispatch.** Historical: (c) — the
   delivery-phase recovery gap: SIGKILL at the delivery barrier (post-merge receipt, pre-completion) leaves both
   cards STUCK in Review + their durable-run leases ORPHANED after restart — the boot reconcile either doesn't
   re-finalize receipted-but-uncompleted deliveries or bounces them. The merge-history receipt exists precisely to

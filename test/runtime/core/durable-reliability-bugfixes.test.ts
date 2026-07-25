@@ -108,7 +108,7 @@ describe("bug #1 — reportCompletion is a no-op for a non-leased (post-transien
 		return { ports, log, advance: (ms: number) => (clock += ms) };
 	};
 
-	it("a late/duplicate report after a transient retry returned the card to `ready` is NOT applied again", async () => {
+	it("a late/duplicate FAILED report after a transient retry returned the card to `ready` is NOT applied again", async () => {
 		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
 		const { ports, log } = fakePorts();
 		const controller = new DurableRunController(graph, config, ports);
@@ -117,12 +117,18 @@ describe("bug #1 — reportCompletion is a no-op for a non-leased (post-transien
 		await controller.reportCompletion("a", "failed", new Error("Body Timeout Error")); // transient → a back to ready
 		const completedAfterFirst = log.filter((e) => e.kind === "completed").length;
 
-		// a is now `ready` (not leased). A late/duplicate report must be ignored.
+		// a is now `ready` (not leased). A late/duplicate FAILED report must be ignored — applying it again would
+		// double-burn the attempt budget for one real failure.
 		await controller.reportCompletion("a", "failed", new Error("Body Timeout Error"));
-		await controller.reportCompletion("a", "succeeded");
-		const completedAfterSecond = log.filter((e) => e.kind === "completed").length;
-
+		const completedAfterDuplicateFailure = log.filter((e) => e.kind === "completed").length;
 		expect(completedAfterFirst).toBe(1);
-		expect(completedAfterSecond).toBe(1); // no second `completed` event appended — the at-most-once-per-lease guard held
+		expect(completedAfterDuplicateFailure).toBe(1);
+
+		// A SUCCEEDED report on ready is the N10 exception (contract extended 2026-07-25): the delivery seam only
+		// reports success when the work demonstrably delivered, and success burns no attempts — dropping it
+		// re-dispatched an already-merged card into a lease no session would ever serve (post-teardown residue).
+		await controller.reportCompletion("a", "succeeded");
+		expect(controller.jobsSnapshot()[0]).toMatchObject({ state: "succeeded" });
+		expect(log.filter((e) => e.kind === "completed").length).toBe(2);
 	});
 });

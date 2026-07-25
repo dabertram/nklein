@@ -195,8 +195,14 @@ export class DurableRunController {
 			// recover a card AFTER the durable budget failed the job. Delivery then reported success here and was
 			// silently dropped — leaving the job failed and its dependency_failed-cancelled subtree dead forever
 			// (22/41 cards undrained on an otherwise-green board). Accept succeeded-on-failed; the next tick's
-			// resurrection rule revives the cancelled dependents. Every other non-leased report stays a no-op.
-			if (!(job?.state === "failed" && outcome === "succeeded")) {
+			// resurrection rule revives the cancelled dependents.
+			// SUCCEEDED-ON-READY (N10 delivery-phase crash matrix, 2026-07-25): after a crash the boot-resume
+			// reclaims the orphaned lease (job → ready) while the runtime's re-finalize recovers the ALREADY-MERGED
+			// delivery and reports success — dropping that report re-dispatches a completed card into a lease no
+			// session will ever serve (found as post-teardown lease residue). A succeeded report is a fact about
+			// the WORK and burns no attempt budget, so it is safe on both non-leased states. Every other
+			// non-leased report stays a no-op (a late failed/interrupted must not double-burn attempts).
+			if (!(outcome === "succeeded" && (job?.state === "failed" || job?.state === "ready"))) {
 				return;
 			}
 		}
