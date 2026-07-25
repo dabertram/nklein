@@ -386,8 +386,16 @@ export function scheduleNKleinEndpointStart(
 	// Per-model parallel-request capacity (default 1 = strict serialization). The swarm may run up to `limit`
 	// concurrent sessions on the same shared endpoint before a new start is held. §5.W: an effective per-model
 	// config cap (`modelConcurrencyCap`) wins over the machine-local registry constraint when supplied.
+	// Test/tuning lever mirroring the legacy NKLEIN_PER_MACHINE_MAX_CONCURRENCY host env (F1.34c 2026-07-25):
+	// the simulator's shared endpoint is pure software, and the registry default of 1 serialized whole scenario
+	// drains behind a single slow card until the monitor gave up. Explicit per-model config still wins.
+	const envSharedEndpointCap = normalizePositiveCap(
+		Number.parseInt(process.env.NKLEIN_SHARED_ENDPOINT_MAX_CONCURRENCY ?? "", 10),
+	);
 	const limit =
-		normalizePositiveCap(request.modelConcurrencyCap) ?? getMaxConcurrentRequests(request.modelRegistry, request);
+		normalizePositiveCap(request.modelConcurrencyCap) ??
+		envSharedEndpointCap ??
+		getMaxConcurrentRequests(request.modelRegistry, request);
 
 	const concurrentSessions = request.runningSessions.filter(
 		(session) =>

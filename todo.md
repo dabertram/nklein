@@ -6672,6 +6672,15 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   fair-queue reservations expire 60s after their waiter stops polling, both formerly-silent admission branches
   now log, aux session starts + aux model streams stamp phases, parent-exemption + fresh-start self-ghost
   exemption in admission.
+  **v7 (2026-07-25 evening): shared-endpoint cap env SHIPPED — reviews fully unblocked (review lane 0 at
+  settle).** `NKLEIN_SHARED_ENDPOINT_MAX_CONCURRENCY` mirrors the legacy host env (explicit per-model config
+  still wins; registry default 1 untouched for real fleets); scenario mode sets 3. New terminal shape: 24
+  completed / 0 review / 1 failed / 18 planning — the drain flows except ONE deterministically-failing card
+  whose worker turn ends model_stalled (neither toolcall nor text), churns the §5.AA ladder, fails terminally,
+  and blocks its dependency subtree. ITS recorded track is clean (read→write→text-done, repeatLast) — the stall
+  trigger needs the raw journal request/response ORDER for that session (which fixture answered which request,
+  what the empty turn actually contained). That forensic is the LAST set-01 blocker; then the perfect-run check
+  also needs failed==0, so the card must drain clean, not merely unblock others.
 - [ ] **F1.34d — repeated-tool-call guard parks the INCREMENTAL decompose route (found 2026-07-25):** the seed's
   recorded flow makes 3 `decompose_project` calls (the documented F1.7 add_task/incremental COMPLETION route) and
   the repeated-tool-call guard parks it — "!Klein paused this task after 3 repeated decompose_project tool calls

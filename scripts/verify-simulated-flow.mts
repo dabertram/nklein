@@ -587,6 +587,11 @@ async function main(): Promise<void> {
 		...(SCENARIO_SELECTOR && !process.env.NKLEIN_PER_MACHINE_MAX_CONCURRENCY
 			? { NKLEIN_PER_MACHINE_MAX_CONCURRENCY: "4" }
 			: {}),
+		// Same reasoning one level down: the shared-endpoint per-model cap (registry default 1) serialized the
+		// whole drain behind one slow card; the sim endpoint is pure software.
+		...(SCENARIO_SELECTOR && !process.env.NKLEIN_SHARED_ENDPOINT_MAX_CONCURRENCY
+			? { NKLEIN_SHARED_ENDPOINT_MAX_CONCURRENCY: "3" }
+			: {}),
 		// Compaction cell: the RATIO is policy, the stop→compact→restart MECHANISM is the invariant under test.
 		// A smoke-scale session can never reach the default 0.92 honestly — every ballast fixture trips a
 		// legitimate admission guard (start-fit, difficulty, E2BIG, repetition) — so the cell lowers the
