@@ -6607,6 +6607,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   (`npm run scenario:rerecord -- NN`, fleet-gated). Set-01 command with the longer budget:
   HOME=$(mktemp -d) NKLEIN_SIMFLOW_SCENARIO=01 NKLEIN_SIMFLOW_TIMEOUT_MS=900000 NKLEIN_SIMFLOW_RUNTIME_PORT=…
   npx tsx scripts/verify-simulated-flow.mts.
+  **STALL THEORY v2 (2026-07-25 afternoon, 4 reproductions — supersedes "recorded-drift churn" as the stall
+  mechanism):** the terminal shape is IDENTICAL every run (24/41 completed; s15 review frozen at the new
+  "starting reviewer turn" stamp; s06 frozen pre-turn; ready:1 NEVER starts; planning stops releasing) — i.e.
+  after the one worker-session failure, the runtime stops STARTING sessions entirely. Prime suspect: **F1.24
+  dispatch-reservation leak** — the durable dispatch takes a hold released on the task's FIRST observed summary
+  (durable-run-wiring observeSummary → reservations.release); a dispatch whose session dies BEFORE any summary
+  never releases, the reservation-aware admission view reads the pool as full, and every later start (worker,
+  reviewer ::review synthetic, ready card) queues forever. Verify by (a) reading the reservation
+  take/release seams (F1.24 in durable-run-wiring.ts + admission view reservationAwarePools) for the
+  no-summary-ever path, (b) logging reservation counts in the admission view, (c) the fix shape: TTL/expiry on
+  dispatch holds AND release on dispatch-failure, plus the already-filed "durable dispatch no-op should fail the
+  lease fast" hardening. Repro: the set-01 command above stalls identically every run within ~4 min.
+  Review-runner stamps added 2026-07-25 split the former bracketed-run blind spot into three segments.
+  HARNESS NOTE: failed scenario runs leak sandbox containers (37 reaped by hand 2026-07-25) — the
+  verify-simulated-flow teardown must reap `nklein-agent-sandbox-simflow-*` on the throw path too.
 - [x] **N10.e2big — large-file WRITE ceiling: replace the accidental argv limit with a deliberate policy (David
   2026-07-25).** ✅ RESOLVED 2026-07-25, all three steps. **(1) READ AUDIT VERDICT: solved-enough.** A 32k worker
   can work WITH a 1MB file today: whole-file reads of large files are hard-REFUSED with corrective guidance

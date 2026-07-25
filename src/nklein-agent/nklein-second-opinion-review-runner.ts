@@ -201,6 +201,10 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 			isReasoningModel(modelId) || catalogDeclaresReasoning
 				? Math.max(workerLaunch?.maxTokensPerTurn ?? 0, REASONING_REVIEWER_BUDGET_FLOOR)
 				: (workerLaunch?.maxTokensPerTurn ?? null);
+		// F1.34c hang forensics 2026-07-25: reviews were observed stuck for 30+ minutes with "bracketed-run enter"
+		// as their last stamp — an un-instrumented window spanning descriptor resolution, workspace/sandbox
+		// acquisition, and the first model turn. These stamps split it so the NEXT hang names its exact segment.
+		stamp("session: descriptors resolved; acquiring bracket workspace");
 		const launchConfig: NKleinTaskRestartLaunchConfig = {
 			...(workerLaunch ?? {}),
 			providerId,
@@ -229,6 +233,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 				errorLabel: "Second-opinion reviewer session",
 			},
 			async ({ workspace, deadlineMs, runBoundedTurn }) => {
+				stamp("session: bracket workspace acquired; starting reviewer turn");
 				let verdict: NKleinReviewResult | null = null;
 				let turnOutcome: SecondaryTurnOutcome = "settled";
 				// First turn: seed prompt + the submit_review tool. startRuntimeSession awaits the turn, so the
