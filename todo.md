@@ -8209,6 +8209,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   authorized trial host) is unreachable too. The trial's natural target is now the LOCAL m5max (idle, Apple
   Silicon, models on disk). Needs David's go for (a) running it on m5max instead of qwable and (b) downloading
   the mlx-serve binary itself (the "no new downloads" grant covered model files).**
+  **★ FUNCTIONAL TRIAL PASSED on m5max, 2026-07-26 (v26.7.11, 61.5MB arm64 tarball — the "~7MB" research note
+  was stale; David delegated the go). Served `Qwopus3.5-9B-Coder-MLX-4bit` straight from the LM Studio model
+  dir. Verified live: `/v1/models` (capabilities incl. tool_use/streaming/reasoning), `/v1/chat/completions`
+  (correct usage accounting), **OpenAI tool calls clean** (proper tool_calls array + finish_reason=tool_calls —
+  the !Klein-critical path), **Anthropic Messages API** (`/v1/messages`, proper msg envelope), **hot prefix
+  cache observed working** (repeat request: cached_tokens 18/19 — F12.73's lever is real). Flag surface exceeds
+  the research: `--kv-quant off/4/8/turbo2/turbo4` + `--kv-attn-mode dense|fused` (F12.72), per-request
+  `kv_quant` override, `--prefix-cache-entries/-mem/-disk` SSD tier, PLD + `--drafter` + Qwen native MTP head
+  with adaptive depth (F12.69/70), plus unexpected wins: `--reasoning-budget` (pairs with F3.36),
+  stall-vs-generation timeout semantics, model-load RAM preflight, `/v1/responses` with an opaque compaction
+  blob + websocket upgrade. **F12.76 CONCERN RESOLVED:** speculation uses the Leviathan probability-ratio
+  sampler — mathematically exact in distribution at temp>0 (byte-identical at temp=0), NOT argmax-equality;
+  equivalence pinned by the project's own test suite, with prompt-time and runtime acceptance gates.
+  REMAINING for closure: performance measurements (kv-quant memory/quality curve incl. turbo modes vs the
+  q8K/q4V asymmetry finding; prefix-cache hit economics; PLD/MTP tokens/s on agentic loops) once the machine is
+  quiet, then the P17.1 runtime-adapter boundary work to actually route !Klein traffic through it. Binary at
+  scratchpad/mlx-serve/ (not vendored — adapter work decides packaging).**
   **This is the strongest candidate found so far, and it directly unblocks levers LM Studio hides.** Zig-native
   MLX server for Apple Silicon, MIT, active (v26.7.9, July 2026), single ~7 MB signed binary, **no Python**.
   Serves OpenAI-compatible `/v1/chat/completions` + `/v1/embeddings`, **plus the Anthropic Messages API** and
