@@ -6681,6 +6681,14 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   trigger needs the raw journal request/response ORDER for that session (which fixture answered which request,
   what the empty turn actually contained). That forensic is the LAST set-01 blocker; then the perfect-run check
   also needs failed==0, so the card must drain clean, not merely unblock others.
+  **★★★ F1.34c AUDIT COMPLETE 2026-07-25 ~17:30: 20/20 SETS PASS.** The stalled card's terminal churn was the
+  write-scope guard (postdates recordings) blocking s33's recorded breadth-test write; recorded
+  filesLikelyTouched now include every path each recorded worker writes (2 paths, set 01 only). With the full
+  stack — 53 upfront testability declarations, the review-classifier seed anchor, the run-level offline-verdict
+  cache, the sim host/shared-endpoint concurrency levers, the admission hardenings (bounded awaits under the
+  serialization mutex, fair-queue expiry, parent + self-ghost exemptions, silent branches logged) — ALL TWENTY
+  recorded scenario sets drain perfect-run green under default-ON test-driven mode. The default flip (F1.34b) is
+  now validated against the entire recorded regression corpus.
 - [ ] **F1.34d — repeated-tool-call guard parks the INCREMENTAL decompose route (found 2026-07-25):** the seed's
   recorded flow makes 3 `decompose_project` calls (the documented F1.7 add_task/incremental COMPLETION route) and
   the repeated-tool-call guard parks it — "!Klein paused this task after 3 repeated decompose_project tool calls
