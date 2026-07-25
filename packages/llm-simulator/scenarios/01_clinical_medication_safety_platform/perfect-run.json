@@ -585,7 +585,8 @@
            "complexity": 25,
            "filesLikelyTouched": [
             "src/fixtures/reference-pack.ts",
-            "test/reference-pack.test.ts"
+            "test/reference-pack.test.ts",
+            "test/reference-pack-breadth.test.ts"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
            "testFirst": false
@@ -600,7 +601,8 @@
            ],
            "complexity": 25,
            "filesLikelyTouched": [
-            "src/fixtures/patients.ts"
+            "src/fixtures/patients.ts",
+            "src/fixtures/patients-class-breadth.ts"
            ],
            "acceptanceCommand": "node -e \"process.exit(0)\"",
            "testFirst": false,
