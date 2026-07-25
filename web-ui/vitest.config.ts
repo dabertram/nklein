@@ -35,6 +35,8 @@ export default defineConfig({
 			"@runtime-escalation-resume-action": resolve(__dirname, "../src/core/escalation-resume-action.ts"),
 			"@runtime-chat-execution-posture": resolve(__dirname, "../src/chat/chat-execution-posture.ts"),
 			"@runtime-project-initializer": resolve(__dirname, "../src/core/project-initializer.ts"),
+			"@runtime-field-report-transport": resolve(__dirname, "../src/core/field-report-transport.ts"),
+			"@runtime-field-report-assembly": resolve(__dirname, "../src/core/field-report-assembly.ts"),
 		},
 		conditions: ["import", "module", "browser", "default"],
 	},

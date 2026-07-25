@@ -6519,7 +6519,17 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   keepers → Review (salvage rebinds; genuinely reviewable), no-capture orphans → READY for a clean re-drive (the
   path the matrix proves works end-to-end). FOLLOW-UP (durable, small): a durable dispatch whose start silently
   no-ops (wrong lane, refused start) should fail the lease immediately instead of aging out the full
-  `leaseDurationMs` — the 5-minute silent burn is a liveness tax on every mis-dispatch.** Historical: (c) — the
+  `leaseDurationMs` — the 5-minute silent burn is a liveness tax on every mis-dispatch. THIRD finding (run 9,
+  2026-07-25, commit 4994cf932 landed fixes 1-3; decompose+worker+review+delivery cells ALL PASS): the COMPACTION
+  cell ran for the first time and its barrier was NEVER REACHED — the scenario injects a mid-worker-session HTTP
+  400 "maximum context length exceeded", but `recoverAfterOverflow` only wraps DISPATCH-time errors
+  (nklein-task-session-service ~3040); a mid-session model-call 400 is absorbed by the SDK's provider-retry
+  ladder, and aimock's occurrence ladder then serves the next (success) turn, masking the recurrence a real
+  gateway would produce. Open question with product weight: mid-session overflow should reach the overflow
+  controller (compact-and-continue) rather than blind same-size retries — on a real fleet the retry re-sends the
+  same over-long prompt and fails again. Investigate where the vendored SDK surfaces per-turn API errors and
+  either route overflow-classified errors to the controller there, or redesign the cell to inject overflow at a
+  dispatch boundary if mid-session coverage is genuinely out of scope.** Historical: (c) — the
   delivery-phase recovery gap: SIGKILL at the delivery barrier (post-merge receipt, pre-completion) leaves both
   cards STUCK in Review + their durable-run leases ORPHANED after restart — the boot reconcile either doesn't
   re-finalize receipted-but-uncompleted deliveries or bounces them. The merge-history receipt exists precisely to
@@ -7944,7 +7954,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   send this — a person did."* It **REFUSES to render** when included content carries unacknowledged hidden
   characters, and the caller must surface that refusal rather than swallow it. 12 tests.
   Pure-core side complete; the UI is P16.7b.
-- [ ] **P16.7b — The review UI that hosts the toggles and opens the prefilled draft *(split from P16.7
+- [x] **P16.7b — The review UI that hosts the toggles and opens the prefilled draft *(split from P16.7
   2026-07-20)*.** Render the per-section and per-claim toggles over `projectReviewState`, show the running "what
   this reveals" indicator, and open the prefilled GitHub draft. **There is no submit path to build, because there
   is none to expose** — `renderIssueDraft` returns markdown and stops.
@@ -7957,6 +7967,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Second: `renderIssueDraft` **REFUSES** to render on unacknowledged hidden characters. The UI must surface that
   refusal as a blocking, explained state — a swallowed refusal (silent empty draft, disabled button with no
   reason) converts a working guard into a confusing bug and teaches the user to route around it.
+  **SHIPPED 2026-07-25.** Missing effectful seam built first: `field-report-assembly.ts` (pure — Layer A
+  arithmetic aggregation over self-observations, ALWAYS ≥1 field even at zero telemetry; Layer C = the 5 newest
+  warning/error messages passed through P16.4 redaction BEFORE becoming candidates; message text categorically
+  excluded from Layer A; model IDs reduced to a count) + `runtime.fieldReportCandidates` tRPC route. The panel
+  (`field-report-panel.tsx`, Trust & Privacy section) imports the SAME `projectReviewState`/`renderIssueDraft`
+  modules via web-ui aliases — byte fidelity by construction, not by contract. Raw bytes in a plain `<pre>`,
+  always expanded (no collapse/truncation — the arXiv 2607.05744 hazard); refusal = blocking red state listing
+  exact code points with an explicit acknowledge that RESETS on any toggle (consent to one byte set is not
+  consent to another); transport = copy-exact-bytes + an external new-issue link. No submit path exists to
+  disable. 5 core + 4 panel tests.
 - [>] **P16.8 — Nightly coverage (Phase 13 recipe)** *(waits on N1 — the nightly runner does not exist yet).* Field-report generation joins the N1 cells with aimock
   fixtures, including the adversarial redaction corpus and the hallucination-drop fixture, so the privacy and
   grounding invariants are regression-protected rather than reviewed once.

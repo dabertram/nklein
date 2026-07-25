@@ -35,7 +35,9 @@
       "@runtime-escalation-suggestions": ["../src/core/escalation-suggestions.ts"],
       "@runtime-escalation-resume-action": ["../src/core/escalation-resume-action.ts"],
       "@runtime-chat-execution-posture": ["../src/chat/chat-execution-posture.ts"],
-      "@runtime-project-initializer": ["../src/core/project-initializer.ts"]
+      "@runtime-project-initializer": ["../src/core/project-initializer.ts"],
+      "@runtime-field-report-transport": ["../src/core/field-report-transport.ts"],
+      "@runtime-field-report-assembly": ["../src/core/field-report-assembly.ts"]
     },
     "types": ["vitest/globals"]
   },

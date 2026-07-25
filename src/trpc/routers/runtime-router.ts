@@ -182,6 +182,7 @@ import {
 	runtimeTrustPostureResponseSchema,
 	runtimeUpdateStatusResponseSchema,
 } from "../../core/api-contract";
+import { runtimeFieldReportCandidatesResponseSchema } from "../../core/field-report-api-contract";
 import { runtimeBuildIdentitySchema } from "../../core/runtime-build-identity";
 import type { RuntimeTrpcBuilder, RuntimeWorkspaceProcedure } from "../app-router";
 
@@ -440,6 +441,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeCardEffortResponseSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.getCardEffort(ctx.workspaceScope, input);
+			}),
+		// P16.7b: candidates for the field-report review surface (assembled server-side from local telemetry).
+		fieldReportCandidates: workspaceProcedure
+			.output(runtimeFieldReportCandidatesResponseSchema)
+			.query(async ({ ctx }) => {
+				return await ctx.runtimeApi.fieldReportCandidates(ctx.workspaceScope);
 			}),
 		listAdwWorkflows: workspaceProcedure.output(runtimeAdwListWorkflowsResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.listAdwWorkflows(ctx.workspaceScope);

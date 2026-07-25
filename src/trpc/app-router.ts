@@ -245,6 +245,7 @@ import type {
 	RuntimeMemoryDeleteControl,
 	RuntimeSessionMemoryResponse,
 } from "../core/chat-api-contract.js";
+import type { RuntimeFieldReportCandidatesResponse } from "../core/field-report-api-contract";
 import type { RuntimeBuildIdentity } from "../core/runtime-build-identity";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import { buildChatRouter } from "./routers/chat-router";
@@ -431,6 +432,8 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeCardEffortRequest,
 		) => Promise<RuntimeCardEffortResponse>;
+		/** P16.7b: assemble field-report candidates (Layer A aggregation + redacted Layer C excerpts) for review. */
+		fieldReportCandidates: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeFieldReportCandidatesResponse>;
 		/** F12.107: list the workspace's ADW definitions (.nklein/workflows). */
 		listAdwWorkflows: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeAdwListWorkflowsResponse>;
 		/** F12.107: start an ADW run (deterministic steps host-side; agent steps as swept board cards). */

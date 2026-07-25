@@ -128,6 +128,7 @@ import {
 } from "@/utils/notification-permission";
 import { formatPathForDisplay } from "@/utils/path-display";
 import { useUnmount, useWindowEvent } from "@/utils/react-use";
+import { FieldReportPanel } from "./field-report-panel";
 import { NKleinAdvisorActions } from "./nklein-advisor-actions";
 import {
 	NKleinDogfoodSuggestion,
@@ -3378,6 +3379,14 @@ export function RuntimeSettingsDialog({
 						</div>
 						<div className="mb-4">
 							<CommunitySkillImportPanel workspaceId={workspaceId} open={open} />
+						</div>
+						{/* P16.7b: the field-report review surface lives with Trust & Privacy — it IS a disclosure
+							    decision. The panel renders raw bytes and opens a prefilled draft; !Klein never submits. */}
+						<div className="mb-4">
+							<h3 className="text-sm font-semibold text-text-primary mt-0 mb-2">
+								Field report (you review, you send)
+							</h3>
+							<FieldReportPanel workspaceId={workspaceId} open={open} />
 						</div>
 
 						{/* ---- Notifications ---- */}

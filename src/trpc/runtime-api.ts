@@ -60,6 +60,8 @@ import { computeFleetCapabilityUpgrades, type RoleQualityBar } from "../core/cap
 import { SELECTABLE_CHAT_SKILL_IDS } from "../core/chat-session-skill-profile";
 import { parseDeviceRamGb, resolveDeviceRamBytes, resolveDeviceRamBytesFromEnv } from "../core/device-load-routing";
 import { isTruthyEnv } from "../core/env-flag";
+import { assembleFieldReportCandidates } from "../core/field-report-assembly";
+import { buildFieldReport, renderReviewPayload } from "../core/field-report-content";
 import { buildFitnessTableView } from "../core/fitness-table-view";
 import {
 	buildHostOpenCommand,
@@ -1437,6 +1439,18 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		// F12.58: the per-card cost/effort meter over the persisted run summaries.
 		getCardEffort: async (workspaceScope, input) => handleGetCardEffort(workspaceScope, input),
 		// F12.107: the ADW runner surface — list definitions, start a run, poll status.
+		// P16.7b: field-report candidates - Layer A arithmetic over recorded observations + redacted Layer C
+		// excerpts. The server assembles CANDIDATES only; consent + draft rendering happen in the review UI with
+		// the same pure modules (byte fidelity by construction). Layer B arrives with P16.6b's generation wire.
+		fieldReportCandidates: async (workspaceScope) => {
+			const events = await readSelfObservationEvents({
+				workspacePath: workspaceScope.workspacePath,
+				limit: 2_000,
+			});
+			const fields = assembleFieldReportCandidates(events);
+			const report = buildFieldReport(fields, { maxLayer: "C" });
+			return { candidates: [...renderReviewPayload(report)] };
+		},
 		listAdwWorkflows: async (workspaceScope) => handleListAdwWorkflows(workspaceScope),
 		startAdwRun: async (workspaceScope, input) =>
 			handleStartAdwRun(workspaceScope, input, {
