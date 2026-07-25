@@ -6579,10 +6579,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   can't start review-lane cards) — moot for auto-review cards after fix (1), but a MANUAL-review card orphaned by
   a crash would still freeze silently; extend the classifier to include review-lane cards without any review
   record whose session is dead.
-- [ ] **N10.e2big — `write_files` large-content E2BIG (found by the compaction cell 2026-07-25):** the sandbox
-  tool wrapper execs with the file content in argv (`kanbanExtraTool … argument list too long` at ~150KB), so a
-  worker writing a legitimately large file fails. Route content via stdin or a tempfile handoff instead of argv;
-  add a regression test writing a ≥1MB file through the sandbox write_files path.** Historical: (c) — the
+- [ ] **N10.e2big — large-file WRITE ceiling: replace the accidental argv limit with a deliberate policy (David
+  2026-07-25).** The compaction cell found `write_files` failing at ~150KB with E2BIG (`kanbanExtraTool …
+  argument list too long` — content travels through exec argv). David's context: the practical write ceiling was
+  never JUST an accident — it also protected a real constraint: **!Klein must not produce files bigger than its
+  own fleet can reasonably read back** (Cline-style whole-file reads blow small models' context). If reading
+  large files is solved, the limit is obsolete; if not, an EXPLICIT limit must replace the accidental one.
+  Resolve in three steps:
+  (1) **Audit the large-file READ story as it stands:** partial reads (`read_files` start/end lines — note weak
+  models flail on them, see [[read-files-start-line-zero-rejected]]), the `fileChunkTokenBudget` chunking
+  (context-budgets), `get_file_size` pre-checks, LSP symbol tools, and the codebase-memory index. Verdict needed:
+  can a 32k-context worker productively work WITH (not just around) a 1MB file today?
+  (2) **Fix the transport regardless:** stdin/tempfile handoff instead of argv (the exec wall at ~150KB is an
+  implementation artifact either way — even a deliberate ceiling must fail with a clear, actionable message, not
+  E2BIG). Regression test writing a ≥1MB file through the sandbox write_files path.
+  (3) **Make the policy explicit:** if (1) says reading is solved, drop the ceiling; otherwise enforce a
+  DOCUMENTED per-file write limit derived from what the fleet can process (e.g. keyed to `fileChunkTokenBudget` ×
+  a chunk-count bound), with an audible tool-result explaining the limit and pointing the worker at chunked
+  writes/appends — never a silent OS error. Either way the outcome is a decision recorded here, not an accident. Historical: (c) — the
   delivery-phase recovery gap: SIGKILL at the delivery barrier (post-merge receipt, pre-completion) leaves both
   cards STUCK in Review + their durable-run leases ORPHANED after restart — the boot reconcile either doesn't
   re-finalize receipted-but-uncompleted deliveries or bounces them. The merge-history receipt exists precisely to
