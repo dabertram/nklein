@@ -6637,6 +6637,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   (deadline computed AFTER workspace acquisition — verify the timer actually arms). New durable diagnostics:
   admission-queue decisions now log reason + blockedByTaskId holder (runtime-server), review runner stamps split
   the bracketed-run window. Repro: set-01 command above, stalls ≤5 min, HOME retains journal+runtime.log.
+  RULED OUT since (probes 2026-07-25 late): procedural-skill embeddings (env-gated OFF in cells); the
+  pause-gate at the aux path's waitUntilTaskResumed (the budget_wall park is awaiting_review/attention, not a
+  pause-controller pause; board not paused); stale git index.lock (none in retained HOMEs); sandbox slot pool
+  (zero queue diagnostics). NEXT INSTRUMENT (not yet added): phase observations through
+  startRuntimeTaskSessionFromLaunchConfig (entry → runtimeSetup ensured → skill context built → system prompt
+  assembled → waitUntilTaskResumed passed → session-runtime start) — the stall names its segment on the next
+  repro. SAMPLER NOTE: `lsof -iTCP:<SIMFLOW_RUNTIME_PORT> -sTCP:LISTEN` finds no runtime listener (port model
+  differs from assumption); find the pid via the harness's child tree instead.
+- [ ] **F1.34d — repeated-tool-call guard parks the INCREMENTAL decompose route (found 2026-07-25):** the seed's
+  recorded flow makes 3 `decompose_project` calls (the documented F1.7 add_task/incremental COMPLETION route) and
+  the repeated-tool-call guard parks it — "!Klein paused this task after 3 repeated decompose_project tool calls
+  with the same input" (budget_wall, two retained HOMEs). The guard must exempt (or fingerprint more precisely)
+  the incremental decompose protocol: repeated `decompose_project` calls whose incremental construction state
+  DIFFERS are progress, not a loop. The seed recovers via apply in these runs, but a live incremental architect
+  would be parked mid-construction.
 - [x] **N10.e2big — large-file WRITE ceiling: replace the accidental argv limit with a deliberate policy (David
   2026-07-25).** ✅ RESOLVED 2026-07-25, all three steps. **(1) READ AUDIT VERDICT: solved-enough.** A 32k worker
   can work WITH a 1MB file today: whole-file reads of large files are hard-REFUSED with corrective guidance
