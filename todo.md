@@ -6529,7 +6529,22 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   controller (compact-and-continue) rather than blind same-size retries — on a real fleet the retry re-sends the
   same over-long prompt and fails again. Investigate where the vendored SDK surfaces per-turn API errors and
   either route overflow-classified errors to the controller there, or redesign the cell to inject overflow at a
-  dispatch boundary if mid-session coverage is genuinely out of scope.** Historical: (c) — the
+  dispatch boundary if mid-session coverage is genuinely out of scope.
+  **COMPACTION-CELL FORENSICS CHECKPOINT (runs 10-12, 2026-07-25 morning — continue from here):** the scenario now
+  serves the overflow 400 ×30 (real-gateway determinism) + 3 filler write_files ballast turns
+  (scripts/verify-simulated-flow.mts, CRASH_PHASE==="compaction" block) — but the BALLAST WRITES WERE
+  SCOPE-REJECTED (merged tree has no notes/ files; card file scope is [card.file]) so history stayed small, AND
+  ALL 30 400s WERE ABSORBED anyway: ledger shows ONE worker attempt, outcome success, 71s duration (~2-3s/retry
+  backoff) reaching awaiting_review. The adaptive swarm ladder caps at baseline+6 retries, so ~23 came from a
+  layer ABOVE it — likely the vendored SDK session loop's API-request auto-retry
+  (vendor/cline-sdk/packages/core/src/runtime/orchestration/session-runtime-orchestrator.ts — unverified; read
+  its api error path next). PRODUCT DEFECT: a deterministic context-overflow is blind-retried 20+ times at the
+  same prompt size instead of short-circuiting to compaction; on a real fleet this burns minutes per overflow.
+  FIX DIRECTION: classify with isContextOverflowError at that retry layer and STOP retrying — let the error
+  propagate so the dispatch catch runs recoverAfterOverflow (nklein-task-session-service ~3040). ALSO fix the
+  cell ballast: write filler INSIDE the card's file scope (or declare wider fileScope in the scripted decompose)
+  so recoverAfterOverflow's compactor has real work (it needs >60k history tokens or a 2nd real user turn-start;
+  otherwise it returns null and exits BEFORE its barrier — verified in code).** Historical: (c) — the
   delivery-phase recovery gap: SIGKILL at the delivery barrier (post-merge receipt, pre-completion) leaves both
   cards STUCK in Review + their durable-run leases ORPHANED after restart — the boot reconcile either doesn't
   re-finalize receipted-but-uncompleted deliveries or bounces them. The merge-history receipt exists precisely to
