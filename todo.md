@@ -6496,8 +6496,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   orphan leases; FIXED — fixtures declare `not_testable` through the scripted decompose, drain delivers clean);
   run 2 caught the fire-and-forget plan-integration gate racing teardown (child SIGKILLed, exit 137 persisted as
   a card-stranding FAILURE; FIXED — signal-killed acceptance = indeterminate, never a verdict); run 3: decompose
-  phase PASSES; **two open findings:** (a) the WORKER kill barrier is never reached although the drain completes
-  (barrier env wiring for phase "worker" — cell exits with 0 receipts); (b) ⚠️ acceptance commands FAIL INSIDE
+  phase PASSES; **run-5 state (2026-07-25): decompose + worker + one more phase PASS.** (a) worker barrier FIXED — it
+  was armed only at the SDK-executor wrapper while write_files/read_files proxy through `manager.runTool`
+  directly; the barrier now lives at that single choke point (one-shot by construction). **(c) OPEN — the
+  delivery-phase recovery gap:** SIGKILL at the delivery barrier (post-merge receipt, pre-completion) leaves both
+  cards STUCK in Review + their durable-run leases ORPHANED after restart — the boot reconcile either doesn't
+  re-finalize receipted-but-uncompleted deliveries or bounces them. The merge-history receipt exists precisely to
+  make this recoverable ("merge happened, board completion did not"); wire the restart path to read it: complete
+  the card + release the lease without re-reviewing. Retained HOME:
+  `/var/folders/_k/dk3l4h_j0jg7p5pld9t7y65h0000gn/T/nklein-verify-crash-matrix-delivery-2v2t4D`. (b) ✅ acceptance
+  offline-veto fixed (see below). Historical: (b-orig) ⚠️ acceptance commands FAIL INSIDE
   THE SANDBOX on BOTH trees (`node -e "process.exit(0)"` → exit 1; masked on cards by the pre-existing-breakage
   waiver — which makes the waiver a defect-masker here — fatal at the plan gate). ✅ ROOT-CAUSED + FIXED 2026-07-25 (suspect 1 confirmed): the offline
   toolchain auto-setup ran `npm install` inside the deliberately no-egress sandbox (EAI_AGAIN), and its failure

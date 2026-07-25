@@ -262,11 +262,10 @@ export function createAgentSandboxToolExecutors(
 ): Partial<ToolExecutors> {
 	const runToolWhenResumed = async (tool: string, input: unknown): Promise<string> => {
 		await options.pauseController?.waitUntilResumed(taskId);
-		const result = await manager.runTool(taskId, tool, input);
-		if (isCrashRecoveryMatrixPhaseEnabled("worker")) {
-			await reachCrashRecoveryMatrixBarrier("worker", { taskId, tool });
-		}
-		return result;
+		// N10: the worker crash barrier lives inside manager.runTool — the single choke point ALL worker tool
+		// executions share (the !Klein extra tools like write_files/read_files proxy there directly and never
+		// pass through these SDK executors; arming only here made the worker phase unreachable — live-found).
+		return await manager.runTool(taskId, tool, input);
 	};
 	return {
 		bash: async (command: SandboxBashInput) => runToolWhenResumed("bash", command),
@@ -781,6 +780,12 @@ export class AgentSandboxManager {
 
 	async runTool(taskId: string, tool: string, input: unknown): Promise<string> {
 		const placement = this.requirePlacement(taskId);
+		// N10 worker-phase kill barrier: every worker tool execution funnels through here (SDK executors AND the
+		// !Klein extra tools). One-shot by construction (marker+claim), so acceptance/property runs after the
+		// restart pass straight through.
+		if (isCrashRecoveryMatrixPhaseEnabled("worker")) {
+			await reachCrashRecoveryMatrixBarrier("worker", { taskId, tool });
+		}
 		// §5.O: recover a redundant `workspaces/<taskId>/` prefix a model emits when it mistakes its cwd (the sandbox
 		// workdir) for the repo root — otherwise the container nests the file and the write lands off the deliverable path.
 		const effectiveInput = recoverRedundantSandboxToolPath(tool, input, taskId);
