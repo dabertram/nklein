@@ -8205,6 +8205,10 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > research (below) shows exactly one interop protocol whose transport model MATCHES a local-only product.
 
 - [ ] **P17.1a — Evaluate `mlx-serve` as the SECOND runtime adapter (David 2026-07-20; https://github.com/ddalcu/mlx-serve).**
+  **FLEET NOTE 2026-07-25 (David): legion + m4mini are gone, and LM Link reports 0 remote devices — qwable (the
+  authorized trial host) is unreachable too. The trial's natural target is now the LOCAL m5max (idle, Apple
+  Silicon, models on disk). Needs David's go for (a) running it on m5max instead of qwable and (b) downloading
+  the mlx-serve binary itself (the "no new downloads" grant covered model files).**
   **This is the strongest candidate found so far, and it directly unblocks levers LM Studio hides.** Zig-native
   MLX server for Apple Silicon, MIT, active (v26.7.9, July 2026), single ~7 MB signed binary, **no Python**.
   Serves OpenAI-compatible `/v1/chat/completions` + `/v1/embeddings`, **plus the Anthropic Messages API** and
