@@ -221,48 +221,16 @@ const script: ScenarioScript = {
 						],
 					},
 				},
-				// Compactible-history precondition (run-10 forensics): `recoverAfterOverflow` declines (returns BEFORE
-				// its crash barrier) unless the persisted history is actually compactible - the smoke flow's 3-message
-				// history has nothing to drop (its only real user turn-start is the first message, and the focus
-				// compactor only acts above its 60k-token target). Inflate greet's history past the target with
-				// filler write_files turns (~150KB of tool_use arguments each) so the overflow recovery has real
-				// work to do, the way a genuinely long session would.
 				...(CRASH_PHASE === "compaction" && card.fn === "greet"
-					? Array.from({ length: 3 }, (_, fillerIndex) => ({
-							behavior: {
-								kind: "tool_calls" as const,
-								calls: [
-									{
-										name: "write_files",
-										arguments: {
-											files: [
-												{
-													path: `notes/context-filler-${fillerIndex}.txt`,
-													content: Array.from(
-														{ length: 3_000 },
-														(_, line) => `filler ${fillerIndex} line ${String(line).padStart(5, "0")}: synthetic session history ballast`,
-													).join("\n"),
-												},
-											],
-										},
-									},
-								],
+					? [
+							{
+								behavior: {
+										kind: "http_error" as const,
+										status: 400 as const,
+										message: "maximum context length exceeded while encoding the prompt",
+								},
 							},
-						}))
-					: []),
-				...(CRASH_PHASE === "compaction" && card.fn === "greet"
-					? // Real-gateway determinism (run-9 forensics 2026-07-25): a real endpoint 400s EVERY resend of the
-						// same over-long prompt, but a SINGLE injected 400 is absorbed by the adaptive swarm recovery's
-						// context_shrink retry - and aimock's occurrence ladder then advances to the success turn, masking
-						// the recurrence, so the reactive overflow controller (and its crash barrier) never ran. Serve the
-						// overflow REPEATEDLY so the in-turn ladder exhausts and the dispatch-level recovery must fire.
-						Array.from({ length: 30 }, () => ({
-							behavior: {
-								kind: "http_error" as const,
-								status: 400 as const,
-								message: "maximum context length exceeded while encoding the prompt",
-							},
-						}))
+						]
 					: []),
 				{ behavior: { kind: "text" as const, content: `Created ${card.file} with the ${card.fn}(name) export. Task complete.` } },
 			],

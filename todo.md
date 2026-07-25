@@ -6544,7 +6544,23 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   propagate so the dispatch catch runs recoverAfterOverflow (nklein-task-session-service ~3040). ALSO fix the
   cell ballast: write filler INSIDE the card's file scope (or declare wider fileScope in the scripted decompose)
   so recoverAfterOverflow's compactor has real work (it needs >60k history tokens or a 2nd real user turn-start;
-  otherwise it returns null and exits BEFORE its barrier — verified in code).** Historical: (c) — the
+  otherwise it returns null and exits BEFORE its barrier — verified in code).
+  **RUN-12 TELEMETRY TRUTH (supersedes the retry-layer hypothesis — there is NO mystery retry layer):** greet's
+  worker NEVER reached the 400 turns. The 150KB filler writes failed with `Sandbox tool kanbanExtraTool failed:
+  exec … argument list too long` (E2BIG — 5 runtime_error events), then the repetition guard ("same 3-step tool
+  sequence repeated 3×") paused the card to Review, the reviewer approved the surviving one-file diff, delivered
+  clean. The 71s was acceptance-verify's offline npm wait, not retries. TWO takeaways: (a) **REAL BUG, own item
+  below: `write_files` content travels through exec argv — large file writes fail with E2BIG; should stream via
+  stdin/tempfile.** (b) The ballast-fixture approach fights !Klein's own anti-degenerate guards — abandon it.
+  REVISED CELL DESIGN (proactive path): give the compaction cell's sim model a SMALL context window (find where
+  the sim shim advertises context length; check the 32k activation floor's behavior in sim), and force a SECOND
+  dispatch with non-empty history (the TURNLOOP nudge machinery already in this script does exactly that) so
+  `compactBeforeOverflow` (ratio ≥0.92) fires with real messages → its barrier at
+  nklein-context-overflow-controller.ts:222 arms naturally, no scenario contortions.
+- [ ] **N10.e2big — `write_files` large-content E2BIG (found by the compaction cell 2026-07-25):** the sandbox
+  tool wrapper execs with the file content in argv (`kanbanExtraTool … argument list too long` at ~150KB), so a
+  worker writing a legitimately large file fails. Route content via stdin or a tempfile handoff instead of argv;
+  add a regression test writing a ≥1MB file through the sandbox write_files path.** Historical: (c) — the
   delivery-phase recovery gap: SIGKILL at the delivery barrier (post-merge receipt, pre-completion) leaves both
   cards STUCK in Review + their durable-run leases ORPHANED after restart — the boot reconcile either doesn't
   re-finalize receipted-but-uncompleted deliveries or bounces them. The merge-history receipt exists precisely to
