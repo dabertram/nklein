@@ -20,7 +20,17 @@ import type { NKleinSdkPersistedMessage } from "./sdk-runtime-boundary.js";
 
 /** Above this projected-usage ratio the send warns the operator; above the compact ratio it proactively compacts. */
 const CONTEXT_BUDGET_WARNING_RATIO = 0.8;
-const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
+/**
+ * Proactive-compaction threshold. Env-tunable (`NKLEIN_CONTEXT_COMPACT_RATIO`, clamped 0.05–0.99) because the
+ * RATIO is policy while the stop→compact→restart MECHANISM is the invariant: the N10 crash matrix exercises
+ * kill-during-compaction at a low threshold on smoke-scale sessions — every attempt to reach the default 0.92
+ * with fixture ballast just trips a legitimate admission guard (start-fit, difficulty, E2BIG, repetition) that
+ * exists to prevent exactly such oversized cards. Operators can also lower it on memory-tight fleets.
+ */
+const CONTEXT_BUDGET_COMPACT_RATIO = (() => {
+	const raw = Number.parseFloat(process.env.NKLEIN_CONTEXT_COMPACT_RATIO ?? "");
+	return Number.isFinite(raw) ? Math.min(0.99, Math.max(0.05, raw)) : 0.92;
+})();
 
 /** The uniform outcome of a recovered/compacted send: the completed (re)started session's result + warnings. */
 type RestartOutcome = { result: unknown; warnings?: string[] };

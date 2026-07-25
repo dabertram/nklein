@@ -221,21 +221,38 @@ const script: ScenarioScript = {
 						],
 					},
 				},
-				...(CRASH_PHASE === "compaction" && card.fn === "greet"
-					? [
-							{
-								behavior: {
-										kind: "http_error" as const,
-										status: 400 as const,
-										message: "maximum context length exceeded while encoding the prompt",
-								},
-							},
-						]
-					: []),
 				{ behavior: { kind: "text" as const, content: `Created ${card.file} with the ${card.fn}(name) export. Task complete.` } },
 			],
 			repeatLastTurn: true,
 		})),
+		// Compaction cell: aimock indexes cycled turns by the request's ASSISTANT-MESSAGE COUNT, and a rescue
+		// review after a crash is a FRESH session (count 0) — so a count-keyed ladder would serve the round-1
+		// request_changes forever (identical-feedback park). The round number is in the prompt text; key round 2
+		// on it directly (needle-keyed tracks are most specific, and this one is listed first among them).
+		...(CRASH_PHASE === "compaction"
+			? [
+				{
+					id: "compaction-review-greet-round2",
+					requestClass: "review" as const,
+					userMessageIncludes: 'the card "Greeting module" (review round 2)',
+					turns: [
+						{
+							behavior: {
+								kind: "tool_calls" as const,
+								calls: [
+									{
+										name: "submit_review",
+										arguments: { verdict: "approve", summary: 'Reviewed "Greeting module": follow-up pass is clean.' },
+									},
+								],
+							},
+						},
+						{ behavior: { kind: "text" as const, content: "Review submitted: approved." } },
+					],
+					cycleTurns: true,
+				},
+			]
+			: []),
 		// Reviews are PER-CARD tracks (needle = card title): occurrence ladders are per FIXTURE, not per session —
 		// a shared review track lets card A consume the whole turn ladder and starve card B (live-found).
 		...FLOW_CARDS.map((card) => ({
@@ -243,6 +260,29 @@ const script: ScenarioScript = {
 			requestClass: "review" as const,
 			userMessageIncludes: `the card "${card.title}"`,
 			turns: [
+				// Compaction cell: the FIRST greet verdict requests changes so the bounce re-drive issues a second
+				// dispatch with existing history — the deterministic core path that walks compactBeforeOverflow (ratio
+				// lowered via NKLEIN_CONTEXT_COMPACT_RATIO) into its crash barrier. No guard interference.
+				...(CRASH_PHASE === "compaction" && card.fn === "greet"
+					? [
+							{
+								behavior: {
+									kind: "tool_calls" as const,
+									calls: [
+										{
+											name: "submit_review",
+											arguments: {
+												verdict: "request_changes",
+												summary: `Reviewed "${card.title}": one more pass needed.`,
+												feedback: "Add a trailing newline check to the module before delivery.",
+											},
+										},
+									],
+								},
+							},
+							{ behavior: { kind: "text" as const, content: "Review submitted: changes requested." } },
+						]
+					: []),
 				{
 					behavior: {
 						kind: "tool_calls" as const,
@@ -538,6 +578,11 @@ async function main(): Promise<void> {
 					),
 				}
 			: {}),
+		// Compaction cell: the RATIO is policy, the stop→compact→restart MECHANISM is the invariant under test.
+		// A smoke-scale session can never reach the default 0.92 honestly — every ballast fixture trips a
+		// legitimate admission guard (start-fit, difficulty, E2BIG, repetition) — so the cell lowers the
+		// threshold and exercises the identical code path, barrier included.
+		...(CRASH_PHASE === "compaction" ? { NKLEIN_CONTEXT_COMPACT_RATIO: "0.05" } : {}),
 		...(POOLS
 			? {
 					NKLEIN_PER_MACHINE_MAX_CONCURRENCY: "1",

@@ -6557,6 +6557,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   dispatch with non-empty history (the TURNLOOP nudge machinery already in this script does exactly that) so
   `compactBeforeOverflow` (ratio ≥0.92) fires with real messages → its barrier at
   nklein-context-overflow-controller.ts:222 arms naturally, no scenario contortions.
+**COMPACTION CELL GREEN 2026-07-25 (runs 13-16):** the cell now exercises the PROACTIVE path — greet's round-1
+  review requests changes, the bounce re-drive's dispatch walks `compactBeforeOverflow` (threshold lowered via the
+  new `NKLEIN_CONTEXT_COMPACT_RATIO` env knob, clamped 0.05–0.99, default 0.92 — the RATIO is policy, the
+  stop→compact→restart MECHANISM is the invariant) into its barrier → SIGKILL mid-compaction → restart → the
+  rescue review approves → delivered clean (receipt: 0 stuck, 0 orphan leases). TWO aimock truths hard-won on the
+  way: cycled turns index by the request's ASSISTANT-MESSAGE COUNT, so a post-crash rescue review (fresh session,
+  count 0) re-draws the round-1 verdict forever — round 2 must be keyed by its own needle (`the card "…" (review
+  round 2)` appears verbatim in the reviewer prompt); and the reactive overflow path CORRECTLY declines at smoke
+  scale (nothing to compact in a 5-message history) so its barrier is out of reach by design, not by defect.
+  **TRIGGER CELL (6/6, first-ever run) — NEXT OPEN:** the trigger-intake idem card
+  (`trigger-crash-matrix-idem-*`) drains its worker (turn-2 stall → card to Review, result branch captured) but
+  NO review ever runs (zero review_phase events) and the board-liveness watchdog classifies it "1 STARTABLE card"
+  (frozen-board sweep — which cannot start a review-lane card) instead of a stalled review ⇒ frozen forever.
+  Investigate (a) why the finalize's reviewer step never ran after capture (worker ended on a stall — summary
+  state?), (b) the watchdog's stalled-review classifier missing a verdict-less review-lane card with NO review
+  record, (c) whether the idem card needs its own worker/review aimock tracks (it currently pot-lucks the
+  fallback text track — its turn-2 stall may be the fixture, not the product). Retained HOME:
+  `…/nklein-verify-crash-matrix-trigger-ax0jvV`.
 - [ ] **N10.e2big — `write_files` large-content E2BIG (found by the compaction cell 2026-07-25):** the sandbox
   tool wrapper execs with the file content in argv (`kanbanExtraTool … argument list too long` at ~150KB), so a
   worker writing a legitimately large file fails. Route content via stdin or a tempfile handoff instead of argv;
