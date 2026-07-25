@@ -1243,6 +1243,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			providerId: string | null | undefined;
 			modelId: string | null | undefined;
 			endpoint: string | null | undefined;
+			freshSessionStart?: boolean;
 		},
 		run: () => Promise<T>,
 	): Promise<T> {
@@ -1262,6 +1263,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				providerId,
 				modelId,
 				endpoint: input.endpoint?.trim() || null,
+				...(input.freshSessionStart ? { freshSessionStart: true } : {}),
 				onWaiting: ({ reason }) => {
 					this.recordModelTurnAdmissionWait(input.taskId, reason);
 				},
@@ -1329,6 +1331,21 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private async startAuxiliaryRuntimeTaskSessionFromLaunchConfig(
 		input: StartRuntimeTaskSessionFromLaunchConfigInput,
 	): Promise<RuntimeTaskSessionStartResult> {
+		// F1.34c v5: the last un-instrumented span was "runner dispatched" → "first admission evaluation" — this
+		// stamp closes it from the service side (synthetic ids only; evaluate-entry is stamped server-side).
+		if (input.taskId.includes("::")) {
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "debug",
+					message: `Aux admission gate entered for ${input.taskId}.`,
+					taskId: input.taskId,
+					metadata: { category: "aux_session_start", phase: "admission gate entered" },
+				});
+			} catch {
+				// Telemetry must never break session start.
+			}
+		}
 		return await this.withModelTurnAdmission(
 			{
 				taskId: input.taskId,
@@ -1336,6 +1353,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				providerId: input.launchConfig.providerId,
 				modelId: input.launchConfig.modelId,
 				endpoint: input.launchConfig.baseUrl ?? null,
+				freshSessionStart: true,
 			},
 			() => this.startRuntimeTaskSessionFromLaunchConfig(input),
 		);

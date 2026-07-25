@@ -815,6 +815,28 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 		return null;
 	};
+	const lastKnownAdmissionRuntimeConfigByWorkspaceId = new Map<
+		string,
+		Awaited<ReturnType<typeof loadRuntimeConfig>>
+	>();
+	const auxAdmissionStamp = (
+		scope: RuntimeTrpcWorkspaceScope,
+		request: NKleinModelTurnAdmissionRequest,
+		phase: string,
+	): void => {
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "debug",
+				message: `Model-turn admission ${phase} for ${request.taskId}.`,
+				taskId: request.taskId,
+				workspacePath: scope.workspacePath,
+				metadata: { category: "aux_session_start", phase },
+			});
+		} catch {
+			// Telemetry must never break admission.
+		}
+	};
 	const evaluateModelTurnAdmission = async (
 		scope: RuntimeTrpcWorkspaceScope,
 		request: NKleinModelTurnAdmissionRequest,
@@ -822,13 +844,43 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		| { ok: true; reservation: NKleinEndpointSessionSnapshot }
 		| { ok: false; reason: string; retryAfterMs: number | null }
 	> => {
-		const runtimeConfig = await loadRuntimeConfig(scope.workspacePath);
+		// F1.34c v5: entry stamp for synthetic ids — pairs with the service-side "admission gate entered" stamp
+		// to split gate-wrapper hangs from evaluation/wait-loop hangs.
+		auxAdmissionStamp(scope, request, "admission evaluating");
+		// F1.34c: the LAST unbounded await in the serialized admission path. One evaluation pending here wedges
+		// the per-workspace chain for every task (observed as a global admission freeze at t+115s with all other
+		// awaits already bounded). A stale config beats a frozen workspace; the slot self-heals on the next poll.
+		const runtimeConfig = await Promise.race([
+			loadRuntimeConfig(scope.workspacePath),
+			new Promise<Awaited<ReturnType<typeof loadRuntimeConfig>> | null>((resolve) => {
+				const timer = setTimeout(() => resolve(null), 10_000);
+				timer.unref?.();
+			}),
+		]).then((config) => {
+			if (config) {
+				lastKnownAdmissionRuntimeConfigByWorkspaceId.set(scope.workspaceId, config);
+				return config;
+			}
+			deps.warn(
+				`Model-turn admission for ${request.taskId}: runtime-config load timed out — using last-known config.`,
+			);
+			return lastKnownAdmissionRuntimeConfigByWorkspaceId.get(scope.workspaceId) ?? null;
+		});
+		if (!runtimeConfig) {
+			return {
+				ok: false,
+				reason: "runtime config unavailable for admission (load timed out with no cached copy) — re-polling",
+				retryAfterMs: MODEL_TURN_ADMISSION_POLL_MS,
+			};
+		}
+		auxAdmissionStamp(scope, request, "config loaded");
 		// Shared snapshot at poll granularity: N waiting cards previously EACH fetched uncached every ~3s —
 		// the LM Studio catalog-hammering storm (David 2026-07-10). One fetch per poll window serves all waiters.
 		const freshPsModels = await fetchLmsPsModelsCached(
 			createDefaultLmsRunner(MODEL_TURN_LMS_PS_TIMEOUT_MS),
 			MODEL_TURN_ADMISSION_POLL_MS,
 		);
+		auxAdmissionStamp(scope, request, "ps snapshot fetched");
 		if (freshPsModels.length > 0) {
 			lastNonEmptyModelTurnPsModels = freshPsModels;
 		}
@@ -852,9 +904,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			override: runtimeConfig.concurrencyOverride,
 			hostFallback: resolveLegacyPerMachineCap(),
 		});
-		const modelRegistrySnapshot = await Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot()).catch(() =>
-			emptyModelRegistrySnapshot(),
-		);
+		// F1.34c: the registry snapshot's .catch guards REJECTION, but a pending-forever snapshot (a wedged
+		// discovery refresh behind it) hung the serialized admission mutex here — the micro-stamps showed every
+		// stuck evaluation stopping exactly between "ps snapshot fetched" and the decision. Bound it like the ps
+		// fetch: a stale-but-settled empty snapshot beats a frozen workspace.
+		const modelRegistrySnapshot = await Promise.race([
+			Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot()).catch(() => emptyModelRegistrySnapshot()),
+			new Promise<ReturnType<typeof emptyModelRegistrySnapshot>>((resolve) => {
+				const timer = setTimeout(() => resolve(emptyModelRegistrySnapshot()), 10_000);
+				timer.unref?.();
+			}),
+		]);
+		auxAdmissionStamp(scope, request, "registry snapshot resolved");
 		// F1.34c root cause (2026-07-25, phase-stamp forensics): an awaited auxiliary turn (::review/::critique)
 		// must NEVER queue behind its OWN parent's session — the aux turn runs on the parent's behalf, and the
 		// parent is by definition not streaming while its child is awaited. The nested-admission gate already
@@ -863,10 +924,20 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		// review queued behind the very session it was reviewing ("holder: <parent>"), and every dependent starved.
 		const admissionParentTaskId = request.admissionParentTaskId?.trim() || null;
 		const runningSessions = collectModelTurnSchedulingSessions(scope.workspaceId, request, freshPsModels).filter(
-			(session) => admissionParentTaskId === null || session.taskId !== admissionParentTaskId,
+			(session) =>
+				(admissionParentTaskId === null || session.taskId !== admissionParentTaskId) &&
+				// A FRESH START's own id in the view is a stale ghost (an abandoned prior round that never went
+				// terminal) — counting it deadlocks the task against itself (F1.34c: s15::review waited forever on
+				// its round-1 ghost). Send-turns keep the same-task hold below.
+				(!request.freshSessionStart || session.taskId !== request.taskId),
 		);
 		const sameTaskTurn = findActiveSameTaskModelTurn(request.taskId, runningSessions);
 		if (sameTaskTurn) {
+			// Previously a SILENT hold — the one admission branch with no logging, which cost a full forensic
+			// ladder to find. Keep it quiet for ordinary same-task send serialization, but say so for synthetics.
+			if (request.taskId.includes("::")) {
+				deps.warn(`Model-turn admission holding ${request.taskId}: same-task turn still active.`);
+			}
 			return {
 				ok: false,
 				reason: `Task "${request.taskId}" already has an active model turn; waiting before starting another turn for the same session.`,
@@ -894,6 +965,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		if (reservationHolder && reservationHolder !== request.taskId) {
 			const resourceId = modelTurnAdmissionWaitQueue.resourceFor(reservationHolder) ?? "model capacity";
 			modelTurnAdmissionWaitQueue.enqueue(request.taskId, resourceId);
+			// F1.34c: this was the LAST silent admission branch — a dead waiter's reservation held tasks here with
+			// zero log lines (reservations now also expire after 60s without a re-poll; see the wait queue).
+			if (request.taskId.includes("::")) {
+				deps.warn(
+					`Model-turn admission holding ${request.taskId}: resource "${resourceId}" reserved for earlier waiter "${reservationHolder}".`,
+				);
+			}
 			return {
 				ok: false,
 				reason: `Model-turn resource "${resourceId}" is reserved for earlier waiter "${reservationHolder}"; waiting fairly behind it.`,
@@ -939,9 +1017,25 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	): Promise<NKleinEndpointSessionSnapshot> => {
 		let nextWarnAt = Date.now() + MODEL_TURN_ADMISSION_WARN_MS;
 		for (;;) {
-			const decision = await runSerializedModelTurnAdmission(scope.workspaceId, () =>
-				evaluateModelTurnAdmission(scope, request),
-			);
+			// F1.34c: evaluation runs under the per-workspace serialization mutex, so a single wedged evaluation
+			// froze EVERY admission in the workspace with no signal. Bound it: expiry converts an infinite freeze
+			// into a named warn + normal re-poll (self-healing when the underlying wedge clears).
+			const decision = await Promise.race([
+				runSerializedModelTurnAdmission(scope.workspaceId, () => evaluateModelTurnAdmission(scope, request)),
+				new Promise<{ ok: false; reason: string; retryAfterMs: number | null }>((resolve) => {
+					const timer = setTimeout(
+						() =>
+							resolve({
+								ok: false,
+								reason:
+									"admission evaluation timed out under the workspace serialization mutex (F1.34c) — re-polling",
+								retryAfterMs: MODEL_TURN_ADMISSION_POLL_MS,
+							}),
+						30_000,
+					);
+					timer.unref?.();
+				}),
+			]);
 			if (decision.ok) {
 				return decision.reservation;
 			}

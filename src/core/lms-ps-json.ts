@@ -310,7 +310,24 @@ export async function fetchLmsPsModelsCached(run: LmsRunner, ttlOverrideMs?: num
 	const pending = fetchLmsPsModels(run);
 	psFetchInFlight = pending;
 	try {
-		const models = await pending;
+		// F1.34c (2026-07-25): this shared in-flight promise is awaited by EVERY admission evaluation, and those
+		// run under a per-workspace serialization mutex — one runner invocation that never settles (execFile's
+		// timeout kills the child, but an inherited-stdio grandchild keeps the promise pending) used to freeze the
+		// whole workspace's admissions forever. Bound the shared await: on expiry, clear the slot so the next poll
+		// retries with a fresh invocation, and serve the last snapshot (or empty) instead of blocking.
+		const models = await Promise.race([
+			pending,
+			new Promise<LmsPsModel[] | null>((resolve) => {
+				const timer = setTimeout(() => resolve(null), 15_000);
+				timer.unref?.();
+			}),
+		]);
+		if (models === null) {
+			if (psFetchInFlight === pending) {
+				psFetchInFlight = null;
+			}
+			return cachedPsSnapshot?.models ?? [];
+		}
 		cachedPsSnapshot = { at: Date.now(), models };
 		return models;
 	} finally {

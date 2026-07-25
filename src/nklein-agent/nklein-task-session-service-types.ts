@@ -122,6 +122,12 @@ export interface NKleinModelTurnAdmissionRequest {
 	taskId: string;
 	/** Awaited auxiliary turn whose active parent may cooperatively yield its reservation while this turn runs. */
 	admissionParentTaskId?: string | null;
+	/**
+	 * This admission wraps a FRESH session start (not a mid-session send-turn). The same-task-turn hold must not
+	 * apply: a start finding a `running` view-entry under its OWN id is by definition looking at a stale ghost
+	 * (an abandoned prior round that never went terminal) — waiting on it deadlocks the task forever (F1.34c).
+	 */
+	freshSessionStart?: boolean;
 	providerId: string;
 	modelId: string;
 	endpoint: string | null;
