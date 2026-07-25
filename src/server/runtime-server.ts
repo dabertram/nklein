@@ -855,7 +855,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		const modelRegistrySnapshot = await Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot()).catch(() =>
 			emptyModelRegistrySnapshot(),
 		);
-		const runningSessions = collectModelTurnSchedulingSessions(scope.workspaceId, request, freshPsModels);
+		// F1.34c root cause (2026-07-25, phase-stamp forensics): an awaited auxiliary turn (::review/::critique)
+		// must NEVER queue behind its OWN parent's session — the aux turn runs on the parent's behalf, and the
+		// parent is by definition not streaming while its child is awaited. The nested-admission gate already
+		// hands off an ACTIVE parent's reservation, but a LINGERING parent snapshot (a failed/churned worker whose
+		// summary never went terminal) still counted here, deadlocking the pair forever on a cap-1 resource: the
+		// review queued behind the very session it was reviewing ("holder: <parent>"), and every dependent starved.
+		const admissionParentTaskId = request.admissionParentTaskId?.trim() || null;
+		const runningSessions = collectModelTurnSchedulingSessions(scope.workspaceId, request, freshPsModels).filter(
+			(session) => admissionParentTaskId === null || session.taskId !== admissionParentTaskId,
+		);
 		const sameTaskTurn = findActiveSameTaskModelTurn(request.taskId, runningSessions);
 		if (sameTaskTurn) {
 			return {

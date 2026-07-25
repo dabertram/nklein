@@ -862,7 +862,51 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 						// Profile the BASELINE request outside recovery: every retry inherits it, while an explicit adaptive rung
 						// (notably thinking_disable) remains authoritative instead of being re-overridden by the profile decorator.
 						const profiledModel = createSkillApiProfileAgentModel(adaptiveModel, profileOptions);
-						if (request.executionMode !== "action_plan") return profiledModel;
+						// F1.34c stall forensics 2026-07-25: synthetic sessions were observed hanging AFTER "dispatching
+						// session runtime start" with their request never reaching the simulator. Bracket the model
+						// stream for synthetic ids (near-zero volume) so the next stall shows whether the stream was
+						// opened, produced a first event, or finished — splitting "hang before fetch" from "fetch never
+						// answered" without touching the vendored provider.
+						const observedModel: typeof profiledModel = !request.taskId.includes("::")
+							? profiledModel
+							: {
+									stream(streamRequest) {
+										const stampStream = (phase: string): void => {
+											try {
+												recordSelfObservation({
+													signal: "custom",
+													severity: "debug",
+													message: `Aux model stream ${phase} for ${request.taskId}.`,
+													taskId: request.taskId,
+													metadata: { category: "aux_model_stream", phase },
+												});
+											} catch {
+												// Telemetry must never alter streaming.
+											}
+										};
+										stampStream("opening");
+										const inner = profiledModel.stream(streamRequest);
+										return (async function* () {
+											let first = true;
+											try {
+												for await (const event of await inner) {
+													if (first) {
+														first = false;
+														stampStream("first event");
+													}
+													yield event;
+												}
+												stampStream("finished");
+											} catch (error) {
+												stampStream(
+													`errored: ${error instanceof Error ? error.message.slice(0, 80) : String(error)}`,
+												);
+												throw error;
+											}
+										})();
+									},
+								};
+						if (request.executionMode !== "action_plan") return observedModel;
 						if (!directClient) {
 							throw new Error("ActionPlan mode requires a configured local OpenAI-compatible endpoint.");
 						}

@@ -6645,6 +6645,17 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   assembled → waitUntilTaskResumed passed → session-runtime start) — the stall names its segment on the next
   repro. SAMPLER NOTE: `lsof -iTCP:<SIMFLOW_RUNTIME_PORT> -sTCP:LISTEN` finds no runtime listener (port model
   differs from assumption); find the pid via the harness's child tree instead.
+  **v5 (2026-07-25 evening, phase+stream stamps IN):** every review that runs at all passes ALL aux-start phases
+  and its model stream opens/finishes — the stuck review (s15) instead shows ZERO aux stamps and ZERO admission
+  evaluations: it hangs BETWEEN the runner's "starting reviewer turn" and the admission gate's first evaluation
+  (my parent-exemption fix in evaluateModelTurnAdmission is therefore necessary — the "holder: s15" self-block
+  WAS real in prior runs — but not sufficient: something even earlier now never lets s15::review's acquire run).
+  The un-instrumented remainder: withModelTurnAdmission entry → nested-gate wrapper → deps.acquire's wait-loop
+  first evaluation (incl. fetchLmsPsModelsCached / the fake-lms shell-out at evaluate entry). NEXT STAMP PAIR:
+  gate-entry (service withModelTurnAdmission, synthetic ids) + evaluate-entry (runtime-server
+  evaluateModelTurnAdmission) — then one repro names the final seam. Note the SAME card (s15) sticks across all
+  runs — whatever wedges is deterministic per card, likely tied to its worker's §5.AA churn residue (zombie
+  summary state also worth dumping at stall: service.listSummaries for s15).
 - [ ] **F1.34d — repeated-tool-call guard parks the INCREMENTAL decompose route (found 2026-07-25):** the seed's
   recorded flow makes 3 `decompose_project` calls (the documented F1.7 add_task/incremental COMPLETION route) and
   the repeated-tool-call guard parks it — "!Klein paused this task after 3 repeated decompose_project tool calls

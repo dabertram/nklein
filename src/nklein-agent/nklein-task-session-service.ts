@@ -1345,6 +1345,27 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		input: StartRuntimeTaskSessionFromLaunchConfigInput,
 	): Promise<RuntimeTaskSessionStartResult> {
 		const launchConfig = this.cacheLaunchConfig(input.taskId, input.launchConfig);
+		// F1.34c stall forensics 2026-07-25: synthetic (::review/::plan-critique/…) session starts were observed
+		// acquiring endpoint admission and then never emitting their model request, with no signal naming the
+		// stuck segment. Phase observations (synthetic ids only — near-zero volume) make the NEXT such stall name
+		// itself. Debug severity: invisible unless someone is looking.
+		const auxStamp = (phase: string): void => {
+			if (!input.taskId.includes("::")) {
+				return;
+			}
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "debug",
+					message: `Aux session start ${phase} for ${input.taskId}.`,
+					taskId: input.taskId,
+					metadata: { category: "aux_session_start", phase },
+				});
+			} catch {
+				// Telemetry must never break session start.
+			}
+		};
+		auxStamp("entered");
 		const communitySkillAdmission = this.communitySkillAdmissionByTaskId.get(input.taskId) ?? null;
 		const communitySkillSuggestionFragment = this.communitySkillSuggestionFragmentByTaskId.get(input.taskId) ?? null;
 		assertLocalProviderAllowed({
@@ -1376,6 +1397,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					});
 		const agentPerceivedCwd = sandboxWorkspace?.workdir ?? input.cwd;
 		const runtimeSetup = await this.runtimeSetupLeaseCache.ensure(hostWorkspaceRoot);
+		auxStamp("runtime-setup ensured");
 		const requestContextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(
 			input.taskId,
 			launchConfig.contextWindow,
@@ -1432,6 +1454,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				...(communitySkillAdmission?.fragments ?? []),
 			],
 		};
+		auxStamp("skill context built");
 		const attemptRetryContext = await this.buildAttemptRetryContext(
 			input.taskId,
 			launchConfig.providerId,
@@ -1485,7 +1508,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			// Telemetry must never break session start.
 		}
 
+		auxStamp("system prompt assembled; awaiting resume gate");
 		await this.waitUntilTaskResumed(input.taskId);
+		auxStamp("resume gate passed");
 		this.requestTimer.markStarted(input.taskId);
 		this.adaptiveBudgetController.refreshLearnedQualityBudgets();
 		// Sandbox-proxied tool executors / extra tools for the rebuilt session (or the caller's, if supplied).
@@ -1588,6 +1613,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// Telemetry must never break session start.
 			}
 		}
+		auxStamp("dispatching session runtime start");
 		const startResult = await this.sessionRuntime
 			.startTaskSession({
 				taskId: input.taskId,
