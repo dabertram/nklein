@@ -1102,9 +1102,35 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		// no live session was still auto-startable — and the failure guard below RELIES on a paused card staying
 		// down. One read per drain; fail-open to empty (an unreadable pause file must not block legitimate starts).
 		const pausedTaskIds = await readPausedTasks(scope.workspacePath).catch(() => new Set<string>());
+		// Durable fail-lease-fast (todo N10 follow-up, 2026-07-26): a durable dispatch that silently no-ops here used
+		// to burn its full 5-minute lease before the reclaim tick noticed — every mis-dispatch was a silent liveness
+		// tax (the W2.2 Review-parked orphans looped lease→reclaim@+300s with one log line per 5 minutes). When the
+		// controller's own dispatch (`bypassDurableGuard`) skips a card, settle the lease NOW with the reason:
+		// completed lane ⇒ the work is done (succeeded, cascades dependents); paused / vanished / unmet-deps ⇒ fail
+		// the lease immediately (visible, budgeted) instead of aging it out. Review/in-progress/active-session skips
+		// stay lease-neutral — delivery or the live session's own summaries settle those leases naturally.
+		const settleDurableDispatchNoop = (taskId: string, resolution: "delivered" | "failed", reason: string): void => {
+			if (!opts?.bypassDurableGuard || !durableRunWiring?.hasRun(scope.workspaceId)) {
+				return;
+			}
+			deps.warn(
+				`Durable dispatch no-op for ${taskId}: ${reason} — settling the lease as ${resolution} now instead of waiting out the 5-minute expiry.`,
+			);
+			if (resolution === "delivered") {
+				void durableRunWiring.observeDelivered(scope.workspaceId, taskId);
+			} else {
+				void durableRunWiring.observeSummary(
+					scope.workspaceId,
+					taskId,
+					"failed",
+					`durable dispatch no-op: ${reason}`,
+				);
+			}
+		};
 		for (const taskId of taskIds) {
 			try {
 				if (pausedTaskIds.has(taskId)) {
+					settleDurableDispatchNoop(taskId, "failed", "card is paused (operator hold / failure guard)");
 					continue;
 				}
 				const state = await loadWorkspaceState(scope.workspacePath);
@@ -1113,12 +1139,19 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				// Any other lane means it is no longer waiting (started elsewhere, completed, trashed).
 				if (sourceColumnId !== "backlog" && sourceColumnId !== "planning" && sourceColumnId !== "ready") {
 					deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(taskId);
+					if (sourceColumnId === "completed") {
+						settleDurableDispatchNoop(taskId, "delivered", "card already completed");
+					} else if (sourceColumnId === "trash") {
+						settleDurableDispatchNoop(taskId, "failed", "card was trashed");
+					}
+					// review / in_progress: the review pipeline or the live session settles the lease itself.
 					continue;
 				}
 				const task = state.board.columns
 					.flatMap((column) => column.cards)
 					.find((candidate) => candidate.id === taskId);
 				if (!task) {
+					settleDurableDispatchNoop(taskId, "failed", "card no longer exists on the board");
 					continue;
 				}
 				const liveNKleinSessions =
@@ -1146,6 +1179,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				// Never trust the caller here: re-read the live board above and refuse to start until every prerequisite is done.
 				if (listUnmetDependencyTaskIds(state.board, task.id).length > 0) {
 					deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(taskId);
+					// A durable dispatch is only issued for dependency-unblocked jobs, so unmet deps here means the
+					// controller decided against a stale board (or a dependency re-appeared) — fail the lease loudly
+					// so the graph is re-decided now rather than after a silent 5-minute age-out.
+					settleDurableDispatchNoop(taskId, "failed", "board shows unmet dependencies");
 					continue;
 				}
 				const sessions = {
