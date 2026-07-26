@@ -6341,6 +6341,18 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   not runtime faults — tool_argument_error-adjacent), or scope the invariant. (c) 4 flaky packs also miss a
   `must_fire` signal — enumerate which after (a). The double-run itself found NO flakes (quarantine empty, two
   passes per cell) — N13's mechanism works.
+  **(a) ANSWERED 2026-07-26 (solo 02×flaky, exit 0): REAL STRANDS, not derivation artifact — the BOARD ends
+  planning:5 / in_progress:2 / review:1 / completed:3 while the harness passes, because the strict lane
+  assertion in verify-simulated-flow is perfect-run-gated and flaky runs assert NOTHING about the final board.**
+  Two work items: (a1) HARNESS: flaky runs must also assert full drain (the flaky recordings are DESIGNED to
+  recover through the retry machinery — "all 20 sets drain clean" was true for both profiles on 2026-07-11);
+  add the lane check for flaky mode, then (a2) PRODUCT/FIXTURES: diagnose the actual flaky strand — pattern in
+  the 02 run: s07/s08 bounced review→in_progress and died mid-re-work, s09 died mid-first-work, their sessions
+  ended without terminal lane moves (cards marooned in_progress with no live session while the runtime stays
+  up — the board-liveness watchdog re-drives STARTABLE cards but not in_progress-lane residue; kinship with the
+  W2.2 startup split, which only runs at boot), and dependents s02–s06 starve in planning. Suspects: flaky
+  failure-path turns (429/stall/malformed) colliding with post-recording retry machinery, same drift family as
+  F1.34c. Retained HOME in scratchpad/flaky02-home.txt.
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,
