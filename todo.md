@@ -6327,6 +6327,29 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   after F11 releases Docker, run all 20 cells and audit the resulting journal/telemetry against every mechanism named
   above; any steering, park/resume, failover, budget/admission, taint, evidence, or syntax path without real proof gets
   an explicit profile/action and invariant rather than an inferred checkmark.
+  **MECHANISM AUDIT DONE 2026-07-26 (42 fresh journals from the full-green v3 double-run, all 10 cells × both
+  profiles × 2 runs; agent-swept telemetry + ledgers).** PROVEN with real events (counts in the audit): decompose
+  apply, card spawn/lanes (3,191 lane changes), worker + result-patch capture (696), review approve (778) AND
+  request_changes bounce (34, incl. ledger reviewing→implementing), delivery merge gate (662 "all gates passed")
+  AND its BLOCKING sub-gates live (insufficient_tests ×38, reward_hack_scan ×20, mutation_adequacy <60% enforced),
+  acceptance evidence (730 acceptance_passed), test-driven gate ENFORCED (72 bounces), retry ladder (2,268 ledger
+  retries across 4 strategies), re-drive restore (34), pre-send context capping (34), model-turn admission
+  (7,476 events), taint LABELS on every attempt, and flaky families 429 / empty-completion / stall / malformed-args.
+  **NO PROOF (each needs an explicit profile/action + invariant, per this item's own rule):** (1) steering/queued
+  steer input — no recorded steer turn exists; needs a scenario action + N5 must_fire; (2) loop guards — no
+  recording loops by design (the 4 that accidentally did are now fixed); needs a deliberate loop profile; (3)
+  park/resume — recordings are designed to recover, nothing parks; needs a park-then-resume profile; (4)
+  budget_wall / explicit token-budget event — needs a budget-exhaustion profile; (5) model_failover — single sim
+  model can't failover models (endpoint-level alternate_endpoint DID fire 732×); needs a two-model sim profile;
+  (6) taint GATE action (labels recorded, gate never blocked) — needs a tainted-influence-on-delivery profile;
+  (7) syntax guard — needs a syntax-broken write turn; (8) reasoning-only completion — the static integrity test
+  CLAIMS every flaky recording has this family, but zero journal events show it (reasoningTokens always null):
+  RECONCILE the integrity test's claim vs the wire truth first; (9) no fail_closed-NAMED signal (the blocking
+  behavior itself is proven via the sub-gates — decide whether a named signal is wanted or the sub-gate reasons
+  suffice). **BONUS ANOMALY (possible real instrumentation bug): all 2,268 retry ledger events carry
+  recovered=false — yet the drains completed, so post-retry turns DID succeed; the `recovered` flag looks
+  miscomputed on the sim path (or genuinely never set). Root-cause before trusting any strategy-effectiveness
+  learning built on it (F3.x strategy ledger consumers).**
   **N13 DOUBLE-RUN LIVE PASS 2026-07-26 (first full run post-F1.34c): 21/21 cells drain, embedded crash matrix
   6/6, quarantine empty, 0 unmatched — but overall `ok:false` on N5 PACK verdicts: 12/21 packs violated.**
   (a) ALL 10 ×flaky packs violate `terminal_lanes` (cards "ending" in planning/review) — the flaky recordings
