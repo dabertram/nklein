@@ -6346,10 +6346,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   CLAIMS every flaky recording has this family, but zero journal events show it (reasoningTokens always null):
   RECONCILE the integrity test's claim vs the wire truth first; (9) no fail_closed-NAMED signal (the blocking
   behavior itself is proven via the sub-gates — decide whether a named signal is wanted or the sub-gate reasons
-  suffice). **BONUS ANOMALY (possible real instrumentation bug): all 2,268 retry ledger events carry
-  recovered=false — yet the drains completed, so post-retry turns DID succeed; the `recovered` flag looks
-  miscomputed on the sim path (or genuinely never set). Root-cause before trusting any strategy-effectiveness
-  learning built on it (F3.x strategy ledger consumers).**
+  suffice). **BONUS ANOMALY — ROOT-CAUSED same day, NOT an instrumentation bug: recovered=false on all 2,268
+  retries is STRUCTURAL in sims.** aimock's cycled turns index by ASSISTANT-MESSAGE COUNT, and an in-turn retry
+  re-sends the same transcript (same count) → every retry of a faulted turn is served the SAME fault; in-turn
+  recovery is impossible by construction, and sim recovery happens one level up (session re-drive, proven ×34)
+  — which is exactly why drains complete while every in-turn retry reads "did not recover". The flag's
+  computation (`strategy !== null && outcome === "success"`, adaptive-swarm-recovery-model ~406) is correct for
+  live runs, and sim strategy-effectiveness learning is HOME-isolated (no production contamination). IF in-turn
+  recovery proof is ever wanted in sims, aimock needs serve-count-aware turn advancement for identical requests
+  (a deliberate new fixture feature — also the enabling mechanism for the reasoning-only-recovery no-proof
+  above). Until then: in-turn ladder firing is proven, in-turn recovery is live-only evidence.
   **N13 DOUBLE-RUN LIVE PASS 2026-07-26 (first full run post-F1.34c): 21/21 cells drain, embedded crash matrix
   6/6, quarantine empty, 0 unmatched — but overall `ok:false` on N5 PACK verdicts: 12/21 packs violated.**
   (a) ALL 10 ×flaky packs violate `terminal_lanes` (cards "ending" in planning/review) — the flaky recordings
