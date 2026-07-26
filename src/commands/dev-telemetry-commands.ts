@@ -44,7 +44,7 @@ import { fetchLmsLinkDevices } from "../core/lms-link-status";
 import { parseLmsLsCatalog } from "../core/lms-model-catalog";
 import { createDefaultLmsRunner, fetchLmsPsModels, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { auditMemoryFreshness } from "../core/memory-freshness-audit";
 import { classifyMemoryLifecycle } from "../core/memory-lifecycle";
 import {
@@ -317,7 +317,7 @@ export async function runDevFleetAdviceCommand(options: { json?: boolean; endpoi
 	// §5.AB gap 5 / §5.AL: advise what to ADD to the loaded fleet (family diversity + reasoning depth) so reviews and
 	// escalations get an uncorrelated, deep second opinion. Reads the loaded descriptors (real keys → lineage/catalog);
 	// best-effort — an unreachable endpoint yields the "no agentic model" advice, never a throw.
-	const base = options.endpoint?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
+	const base = options.endpoint?.trim() || resolveDefaultLocalModelBaseUrl();
 	const descriptors = await fetchLoadedModelDescriptors(base).catch(() => []);
 	const suggestions = adviseModelFleet(descriptors);
 	if (options.json) {
@@ -377,7 +377,7 @@ export async function runDevCapabilityCeilingCommand(
 	options: { json?: boolean; endpoint?: string } = {},
 ): Promise<void> {
 	const advice = buildModelCapabilityAdvice(await readAllAgentLedger());
-	const base = options.endpoint?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
+	const base = options.endpoint?.trim() || resolveDefaultLocalModelBaseUrl();
 	const descriptors = await fetchLoadedModelDescriptors(base).catch(() => []);
 	const loadedTokens = descriptors.flatMap((d) => [d.runtimeId, d.modelKey].filter((t): t is string => Boolean(t)));
 	const isLoaded = (modelId: string): boolean => loadedTokens.some((token) => modelId.includes(token));

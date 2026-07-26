@@ -65,7 +65,7 @@ import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { currentFocusChainStep, type FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import {
 	emptyModelBehaviorProfile,
 	type ModelBehaviorProfile,
@@ -2029,7 +2029,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			providerId !== UNCONFIGURED_PROVIDER_ID &&
 			modelId !== UNCONFIGURED_MODEL_ID
 		) {
-			const deliberationBaseUrl = endpoint ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+			const deliberationBaseUrl = endpoint ?? resolveDefaultLocalModelBaseUrl();
 			const deliberation = await runSpecDeliberation({
 				specText: taskPrompt,
 				difficulty: Math.max(0, Math.min(1, request.taskDifficulty ?? 0.5)),

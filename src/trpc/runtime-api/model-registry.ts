@@ -19,7 +19,7 @@ import {
 	fetchLoadedModelDescriptors as fetchLoadedModelDescriptorsDefault,
 	type LoadedModelDescriptor,
 } from "../../core/lmstudio-loaded-model-descriptors";
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../../core/local-model-endpoint";
+import { resolveDefaultLocalModelBaseUrl } from "../../core/local-model-endpoint";
 import {
 	getModelCapabilityRecommendationCatalog,
 	type ModelCapabilityEntry,
@@ -105,11 +105,11 @@ function resolveLmStudioFleetAdviceBaseUrl(input: {
 }): string | null {
 	const settingsProviderId = input.providerSettings?.providerId?.trim() ?? "";
 	if (settingsProviderId && isLiveOnlyProviderId(settingsProviderId)) {
-		return input.providerSettings?.baseUrl?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
+		return input.providerSettings?.baseUrl?.trim() || resolveDefaultLocalModelBaseUrl();
 	}
 	const launchProviderId = input.launchConfig?.providerId?.trim() ?? "";
 	if (launchProviderId && isLiveOnlyProviderId(launchProviderId)) {
-		return input.launchConfig?.baseUrl?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
+		return input.launchConfig?.baseUrl?.trim() || resolveDefaultLocalModelBaseUrl();
 	}
 	return null;
 }

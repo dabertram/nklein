@@ -79,7 +79,7 @@ import {
 } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached, fetchLoadedModelIdsStrict } from "../core/lmstudio-loaded-models";
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import {
 	buildLongMemoryStoreProfile,
 	decideMemoryScopeBroadening,
@@ -299,7 +299,7 @@ async function collectFitnessFleetContext(): Promise<FitnessFleetContext> {
 			.then((result) => result.stdout)
 			.catch(() => ""),
 		fetchLmsPsModelsCached(runner).catch(() => []),
-		fetchLoadedModelIdsCached(DEFAULT_LOCAL_MODEL_BASE_URL).catch(() => [] as string[]),
+		fetchLoadedModelIdsCached(resolveDefaultLocalModelBaseUrl()).catch(() => [] as string[]),
 		fetchLmsLinkDevices(runner),
 	]);
 	const localDeviceName = linkDevices.localMachineName ?? LOCAL_MACHINE_ID;
@@ -509,7 +509,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// profile is lexical; discovery never loads or downloads a model.
 			resolveMemoryEmbedder: () =>
 				resolveLoadedChatMemoryEmbedder({
-					baseUrl: nkleinProviderService.getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL,
+					baseUrl: nkleinProviderService.getLocalChatBaseUrl() ?? resolveDefaultLocalModelBaseUrl(),
 					preferredModelId: process.env.NKLEIN_CHAT_MEMORY_EMBEDDING_MODEL,
 				}),
 			// Cross-project MEMORY recall is independent from the all-projects tool posture: it opens only when the exact
@@ -1156,7 +1156,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope)?.getPromptWarmthLedger() ?? null,
 				getResources: async () => {
 					const service = deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope) ?? null;
-					const baseUrl = nkleinProviderService.getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+					const baseUrl = nkleinProviderService.getLocalChatBaseUrl() ?? resolveDefaultLocalModelBaseUrl();
 					const [host, residentModels, loadedDescriptors, config] = await Promise.all([
 						resourceSampler.sample(workspaceScope.workspacePath),
 						fetchLmsPsModelsCached(createDefaultLmsRunner()),
@@ -1318,7 +1318,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		},
 		getGlobalSetupPlan: async () => {
 			const globalConfig = await loadGlobalRuntimeConfig();
-			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? resolveDefaultLocalModelBaseUrl();
 			return await handleGetGlobalSetupPlan({
 				getHardware: () => ({ totalRamMb: Math.round(totalmem() / (1024 * 1024)), cpuCount: cpus().length }),
 				getLoadedModelIds: () => fetchLoadedModelIdsStrict(providerEndpoint),
@@ -1345,7 +1345,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		},
 		getProjectSetupPlan: async (workspaceScope) => {
 			const scopedConfig = await deps.loadScopedRuntimeConfig(workspaceScope);
-			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? resolveDefaultLocalModelBaseUrl();
 			return await handleGetProjectSetupPlan({
 				readPackageJson: async () => {
 					try {
@@ -1810,7 +1810,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// §5.AB "Evaluate connected models" (todo 6544): eval every ALREADY-LOADED model against the corpus and
 			// persist per-cell fitness. Deliberately scoped to LOADED models only — never loads anything, so the
 			// on-demand trigger can't overload the host (the deep, load-cycling sweep stays the CLI `verify-all-models`).
-			const endpoint = nkleinProviderService.getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+			const endpoint = nkleinProviderService.getLocalChatBaseUrl() ?? resolveDefaultLocalModelBaseUrl();
 			const repeats = 1; // on-demand = a fast single pass; the CLI sweep owns the N× stability run.
 			const loadedIds = await fetchLoadedModelIdsCached(endpoint).catch(() => [] as string[]);
 			if (loadedIds.length === 0) {

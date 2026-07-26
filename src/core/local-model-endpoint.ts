@@ -11,3 +11,16 @@
  * examples) and are intentionally left.
  */
 export const DEFAULT_LOCAL_MODEL_BASE_URL = "http://127.0.0.1:1234/v1";
+
+/**
+ * The default base URL, HERMETICITY-AWARE (N10 follow-up, 2026-07-26). A simulated/nightly runtime exports
+ * `NKLEIN_NIGHTLY_MODEL_GATEWAY_URL` (the in-process aimock origin); until now that env was only N4 hermetic
+ * EVIDENCE, not an actual override — so every "no configured endpoint → default gateway" fallback (reviewer
+ * resolution, loaded-model views, advisor completions) silently consulted the REAL LM Studio gateway from inside a
+ * supposedly hermetic run (live-found: a sim cell's rescue reviewer resolved to the real loaded `qwen/qwen3-8b`
+ * via `loaded_fallback`). Every runtime network fallback must resolve through this function; the bare constant
+ * remains only as the production default it resolves to.
+ */
+export function resolveDefaultLocalModelBaseUrl(): string {
+	return process.env.NKLEIN_NIGHTLY_MODEL_GATEWAY_URL?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
+}

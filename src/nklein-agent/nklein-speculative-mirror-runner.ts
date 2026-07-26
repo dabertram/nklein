@@ -1,5 +1,5 @@
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { applyTaskPatchToResultBranch, type TaskResultBranch } from "../workspace/task-result-branches";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
@@ -94,7 +94,7 @@ export function createSpeculativeMirrorRunner(deps: SpeculativeMirrorRunnerDeps)
 		// No-model-load directive (§5.AB): a mirror must never trigger an LM Studio JIT auto-load. Re-verify the
 		// mirror model is STILL resident at start time (the tick's snapshot can be a whole tick stale).
 		const workerLaunch = deps.getLaunchConfig(input.taskId) ?? null;
-		const residencyBaseUrl = workerLaunch?.baseUrl?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
+		const residencyBaseUrl = workerLaunch?.baseUrl?.trim() || resolveDefaultLocalModelBaseUrl();
 		const residentIds = await fetchLoadedModelIdsCached(residencyBaseUrl).catch(() => [] as string[]);
 		if (residentIds.length > 0 && !residentIds.includes(input.mirror.modelId)) {
 			recordSelfObservation({

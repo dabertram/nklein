@@ -1,6 +1,6 @@
 import type { PromptWarmthLedgerEntry } from "../core/cache-warmth";
 import { fetchLoadedModelDescriptors, pickReviewFallbackDescriptor } from "../core/lmstudio-loaded-model-descriptors";
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { isReasoningModel } from "../core/model-thinking-control";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { type AgentSandboxManager, createAgentSandboxToolExecutors } from "./nklein-agent-sandbox";
@@ -164,7 +164,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 			// model turn ever runs). Fall back to the first non-embedding LOADED model so the review can still run — this
 			// picks what's actually serving (avoids the trap of resolving a CONFIGURED role model that isn't loaded).
 			const loaded = await fetchLoadedModelDescriptors(
-				workerLaunch?.baseUrl?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL,
+				workerLaunch?.baseUrl?.trim() || resolveDefaultLocalModelBaseUrl(),
 			).catch(() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>);
 			const fallback = pickReviewFallbackDescriptor(loaded);
 			if (fallback) {
@@ -191,7 +191,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		// review. Union the name predicate with the loaded catalog's declared `reasoning` capability (the descriptors
 		// are already fetched in this resolution).
 		const reasoningDescriptors = await fetchLoadedModelDescriptors(
-			workerLaunch?.baseUrl?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL,
+			workerLaunch?.baseUrl?.trim() || resolveDefaultLocalModelBaseUrl(),
 		).catch(() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>);
 		const catalogDeclaresReasoning = reasoningDescriptors.some(
 			(descriptor) =>

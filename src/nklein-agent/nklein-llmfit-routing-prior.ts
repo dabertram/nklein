@@ -4,7 +4,7 @@ import { findLlmfitMatch } from "../core/llmfit-capability-prior";
 import { type LlmfitRoutingPrior, llmfitRoutingPrior } from "../core/llmfit-fitness-bridge";
 import { createLlmfitRunner } from "../core/llmfit-runner";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 
 export type LlmfitRoutingPriorResolver = (realName: string) => LlmfitRoutingPrior | null;
 export type LlmfitCapabilityPriorResolver = (realName: string) => number | null;
@@ -65,7 +65,7 @@ export async function resolveModelCapabilityIdsWithCatalog(
 ): Promise<readonly string[]> {
 	const ids = new Set(await resolveLlmfitModelCapabilityIds(modelId));
 	try {
-		const descriptors = await fetchLoadedModelDescriptors(options.baseUrl ?? DEFAULT_LOCAL_MODEL_BASE_URL);
+		const descriptors = await fetchLoadedModelDescriptors(options.baseUrl ?? resolveDefaultLocalModelBaseUrl());
 		const match = descriptors.find(
 			(descriptor) => descriptor.runtimeId === modelId || descriptor.modelKey === modelId,
 		);

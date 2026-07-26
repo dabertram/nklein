@@ -63,7 +63,7 @@ import { defaultLlmfitCatalogCachePath } from "../core/llmfit-catalog-update";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached, type LmsPsModel } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { type MemoryAuditCandidate, readMemoryAuditCandidates } from "../core/memory-audit-production";
 import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
@@ -1516,7 +1516,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
 								});
 								const deadSummary = service.getSummary(terminalTaskId);
-								const escalationBaseUrl = deadSummary?.endpoint ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+								const escalationBaseUrl = deadSummary?.endpoint ?? resolveDefaultLocalModelBaseUrl();
 								const loadedIds = await fetchLoadedModelIdsCached(escalationBaseUrl).catch(() => []);
 								const action = planTerminalRedriveEscalation({
 									events,
@@ -1641,7 +1641,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 	};
 	const getDurableAdmissionState = (workspaceId: string) => {
-		const endpoint = admissionEndpointByWorkspaceId.get(workspaceId) ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+		const endpoint = admissionEndpointByWorkspaceId.get(workspaceId) ?? resolveDefaultLocalModelBaseUrl();
 		const capacity = admissionEndpointCaps.get(endpoint);
 		if (capacity === undefined) {
 			return null;
@@ -1651,7 +1651,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			for (const summary of service.listSummaries()) {
 				if (
 					(summary.state === "running" || summary.state === "queued") &&
-					(summary.endpoint ?? DEFAULT_LOCAL_MODEL_BASE_URL) === endpoint
+					(summary.endpoint ?? resolveDefaultLocalModelBaseUrl()) === endpoint
 				) {
 					inUse += 1;
 				}
@@ -4044,7 +4044,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							}
 							const baseUrl =
 								runningWorkerSessions.find((session) => session.endpoint)?.endpoint ??
-								DEFAULT_LOCAL_MODEL_BASE_URL;
+								resolveDefaultLocalModelBaseUrl();
 							// Descriptor-derived facts (idle set, lineage keys) are only valid for sessions on the SAME
 							// endpoint they were fetched from — drop workers on other endpoints this tick.
 							const endpointConsistentWorkers = runningWorkerSessions.filter(
@@ -4332,7 +4332,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							}
 							// §5.AB re-eval budget: thin eval cells of the LOADED models (never loads anything). Fed only
 							// when nothing higher-value is available — the ranker keeps re_eval just above context_prep.
-							const evalEndpoint = DEFAULT_LOCAL_MODEL_BASE_URL;
+							const evalEndpoint = resolveDefaultLocalModelBaseUrl();
 							const loadedModelIds =
 								reviewCandidateTaskIds.length > 0 || memoryAuditCandidates.length > 0
 									? []
@@ -4449,7 +4449,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									try {
 										const [models, descriptors, registry, ledgerEvents] = await Promise.all([
 											fetchLmsPsModelsCached(createDefaultLmsRunner(MODEL_TURN_LMS_PS_TIMEOUT_MS)),
-											fetchLoadedModelDescriptors(DEFAULT_LOCAL_MODEL_BASE_URL).catch(() => []),
+											fetchLoadedModelDescriptors(resolveDefaultLocalModelBaseUrl()).catch(() => []),
 											Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot()).catch(() =>
 												emptyModelRegistrySnapshot(),
 											),
@@ -4734,7 +4734,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				.split(",")
 				.map((id) => id.trim())
 				.filter(Boolean);
-			const loadedIds = await fetchLoadedModelIdsCached(DEFAULT_LOCAL_MODEL_BASE_URL).catch(() => [] as string[]);
+			const loadedIds = await fetchLoadedModelIdsCached(resolveDefaultLocalModelBaseUrl()).catch(
+				() => [] as string[],
+			);
 			const modeRaw = process.env.NKLEIN_EVAL_RAIL_MODE ?? "evidence";
 			const mode =
 				modeRaw === "pinned" || modeRaw === "rotation" || modeRaw === "random" || modeRaw === "evidence"
@@ -4821,7 +4823,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					!isHomeAgentSessionId(session.taskId) &&
 					!session.taskId.startsWith("devtest-"),
 			);
-			const loadedIds = await fetchLoadedModelIdsCached(DEFAULT_LOCAL_MODEL_BASE_URL).catch(() => [] as string[]);
+			const loadedIds = await fetchLoadedModelIdsCached(resolveDefaultLocalModelBaseUrl()).catch(
+				() => [] as string[],
+			);
 			return {
 				hasInteractiveWork: runningWorker.length > 0,
 				loadedModelIdle: loadedIds.length > 0 && runningWorker.length === 0,

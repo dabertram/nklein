@@ -43,7 +43,7 @@ import {
 	shouldBlockUnloadedModel,
 } from "../../core/lmstudio-loaded-models";
 import { createLmStudioRestModelClient } from "../../core/lmstudio-rest-model-client";
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../../core/local-model-endpoint";
+import { resolveDefaultLocalModelBaseUrl } from "../../core/local-model-endpoint";
 import { parseModelAttributes } from "../../core/model-attributes";
 import {
 	assessModelSuitability,
@@ -363,7 +363,7 @@ export async function handleStartTaskSession(
 				: {}),
 		};
 		const providerBaseUrlForLoad =
-			deps.nkleinProviderService.getProviderSettingsSummary().baseUrl ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+			deps.nkleinProviderService.getProviderSettingsSummary().baseUrl ?? resolveDefaultLocalModelBaseUrl();
 		const taskPromptTokens = estimateNKleinStartPromptTokens({
 			prompt: body.prompt,
 			taskTitle: body.taskTitle,
@@ -481,7 +481,7 @@ export async function handleStartTaskSession(
 		// load. Fetch the loaded set ONCE (test-runner-skipped — no live endpoint to query) and reuse it for both the
 		// primary guard (error) and the role-pool filter (skip). Lenient: block only a positively-non-resident model.
 		const residencyCheckEnabled = !(process.env.VITEST || process.env.NODE_ENV === "test");
-		const residencyBaseUrl = nkleinLaunchConfig.baseUrl ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+		const residencyBaseUrl = nkleinLaunchConfig.baseUrl ?? resolveDefaultLocalModelBaseUrl();
 		const shouldReadLocalResidency =
 			residencyCheckEnabled && isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl);
 		const lmsPsModelsForResidency = shouldReadLocalResidency

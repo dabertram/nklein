@@ -1,6 +1,6 @@
 import { applyWarmthPreference, type PromptSessionKind, type PromptWarmthLedgerEntry } from "../core/cache-warmth";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
+import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { applyDiversityPreference } from "../core/model-diversity";
 import { resolveLineage } from "../core/model-lineage";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -63,7 +63,7 @@ export async function pickDiverseReviewerModel(
 	deps: ReviewerModelSelectionDeps,
 ): Promise<{ providerId: string; modelId: string } | null> {
 	const purpose = describeDiversePickPurpose(sessionKind);
-	const baseUrl = workerLaunch.baseUrl?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
+	const baseUrl = workerLaunch.baseUrl?.trim() || resolveDefaultLocalModelBaseUrl();
 	const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(
 		() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
 	);

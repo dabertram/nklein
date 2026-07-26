@@ -3,7 +3,7 @@
 import type { AgentLedgerEvent } from "../core/agent-attempt-ledger.js";
 import type { LmsPsModel } from "../core/lms-ps-json.js";
 import type { LoadedModelDescriptor } from "../core/lmstudio-loaded-model-descriptors.js";
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint.js";
+import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint.js";
 import { chooseMemoryAuditor } from "../core/memory-audit.js";
 import {
 	auditMemoryNote,
@@ -243,7 +243,7 @@ export async function runIdleMemoryAudit(input: {
 	const client = new LocalLlmClient({
 		providerId: "lmstudio",
 		modelId: auditor.modelId,
-		baseUrl: DEFAULT_LOCAL_MODEL_BASE_URL,
+		baseUrl: resolveDefaultLocalModelBaseUrl(),
 		timeoutMs: 180_000,
 	});
 	const analysis = await input.admissionGate(
@@ -251,7 +251,7 @@ export async function runIdleMemoryAudit(input: {
 			taskId: auditTaskId,
 			providerId: "lmstudio",
 			modelId: auditor.modelId,
-			endpoint: DEFAULT_LOCAL_MODEL_BASE_URL,
+			endpoint: resolveDefaultLocalModelBaseUrl(),
 		},
 		() =>
 			client.generateStructured({

@@ -9,7 +9,7 @@ import type { Command } from "commander";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config.js";
 import type { RuntimeSetupPlanResponse } from "../core/config-api-contract.js";
 import { fetchLoadedModelIdsStrict } from "../core/lmstudio-loaded-models.js";
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint.js";
+import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint.js";
 import { isKanbanRemoteHost } from "../core/runtime-endpoint.js";
 import { buildGlobalSetupPlan, buildProjectSetupPlan, type DesktopAccessFacts } from "../core/setup-detection.js";
 import { setupDeviceRamGbByMachine, setupModelRoleCounts } from "../core/setup-facts.js";
@@ -98,7 +98,7 @@ export async function buildCliSetupPlans(input: {
 		includeProject ? readPackageJson(input.projectPath) : Promise.resolve(null),
 		includeProject ? detectBaseBranch(input.projectPath) : Promise.resolve(null),
 	]);
-	const providerEndpoint = createNKleinProviderService().getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+	const providerEndpoint = createNKleinProviderService().getLocalChatBaseUrl() ?? resolveDefaultLocalModelBaseUrl();
 	let loadedModelIds: readonly string[] = [];
 	let providerReachable = false;
 	try {

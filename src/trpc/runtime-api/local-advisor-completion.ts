@@ -1,4 +1,4 @@
-import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../../core/local-model-endpoint";
+import { resolveDefaultLocalModelBaseUrl } from "../../core/local-model-endpoint";
 import type { ResolvedNKleinLaunchConfig } from "../../nklein-agent/nklein-provider-service";
 
 /**
@@ -37,7 +37,7 @@ export function resolveAdvisorOpenAiBaseUrl(launchConfig: ResolvedNKleinLaunchCo
 		}
 	}
 	if (launchConfig.providerId === "lmstudio" || launchConfig.providerId === "lm-studio") {
-		return DEFAULT_LOCAL_MODEL_BASE_URL;
+		return resolveDefaultLocalModelBaseUrl();
 	}
 	return "http://localhost:11434/v1";
 }
