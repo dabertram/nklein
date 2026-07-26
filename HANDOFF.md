@@ -1,64 +1,98 @@
-# Session handoff — 2026-07-25 (evening shutdown)
+# Session handoff — 2026-07-26 (going offline)
 
-Autonomous streak on `feat/nklein-upcoming` (continuation of the 2026-07-23 session). Everything below is
-committed; the working tree should be clean apart from this file. Full running history:
-`~/.claude/projects/-Users-david-GIT-nklein/memory/session-2026-07-23-streak.md` (per-milestone, with commits).
+Autonomous streak on `feat/nklein-upcoming` (continuation of the 07-23/07-25 sessions; legion + m4mini OFFLINE,
+local m5max only). Everything below is committed; working tree should be clean apart from this file. Full history:
+`~/.claude/projects/-Users-david-GIT-nklein/memory/session-2026-07-26-n5-close.md` + basic-memory note
+"N5 flaky violations root cause" (bugs folder).
 
-## Shipped this session (all committed + validated)
+## ★ Headline: N5/N13 nightly CLOSED — FULL GREEN
 
-- **★ N10 crash-recovery matrix 6/6 GREEN** ("6/6 SIGKILL phases recovered cleanly") — 13 real defects found and
-  fixed across worker lifecycle, delivery, durable scheduler, compaction, and trigger seams. Highlights:
-  - Detached rescue/idle reviews now re-enter `finalizeHeadlessAutoReviewTask` on a delivered verdict.
-  - W2.2 startup recovery splits orphans: result-branch keepers → Review, no-capture orphans → Ready (re-drive).
-  - `reportCompletion` accepts succeeded-on-ready (crash-recovery completion racing boot-reclaim).
-  - Compaction cell: proactive-path design + `NKLEIN_CONTEXT_COMPACT_RATIO` env knob (default 0.92 unchanged).
-  - Trigger templates: `autoReviewEnabled` (default TRUE) + optional `testability`/`testabilityReason`.
-- **★ F1.34c audit COMPLETE: 20/20 recorded scenario sets drain perfect-run green** under default-ON test-driven
-  mode (`238af0807` closes it in todo.md). The stack that got there:
-  - 53 upfront `not_testable` declarations patched into recorded decompose args (patcher:
-    `scratchpad/patch-scenario-testability.py`), plus 2 file-scope alignments (set 01).
-  - aimock review-classifier: anchored review-seed prefix (resume-based reviews without `submit_review`).
-  - Acceptance gate: run-level offline-verdict cache (setups 70s → ~30ms after first proven offline).
-  - Test-driven gate derives `not_testable` for decomposition sources via `generatedFromPlan` linkage.
-  - Sim concurrency levers: `NKLEIN_PER_MACHINE_MAX_CONCURRENCY=4` + new `NKLEIN_SHARED_ENDPOINT_MAX_CONCURRENCY=3`
-    in scenario mode (real-fleet defaults untouched).
-  - Admission hardenings (all keepers): every await under the per-workspace admission serialization mutex is
-    bounded with settled fallbacks; fair-queue reservations expire 60s after their waiter stops polling; the two
-    formerly-silent admission branches log; aux session starts + aux model streams stamp phases; parent-exemption
-    and fresh-start self-ghost exemption in admission.
-- **P16.7b field-report review UI** (`8ac9485b8`): `field-report-assembly` core + `runtime.fieldReportCandidates`
-  tRPC + Trust & Privacy raw-bytes review panel (51 tests).
-- **N10.e2big** resolved by the worktree chip session (large-file write policy; todo marked done).
+Final double-run v3: **21/21 cells passed, 0 violated packs (was 12/21), quarantine empty, embedded crash
+matrix 6/6, overall ok:true.** Both profiles, all 10 registered projects.
 
-## INTERRUPTED by shutdown — restart these
+ONE race manufactured every flaky-pack violation (forensics walked the retained planning:8 HOME):
+1. A delivered card's cleanup stop raced a late finalize (lost-heartbeat park flip) — capture hit
+   `workspace_disposed_before_capture`, the catch flipped the just-delivered card to FAILED + set
+   `infrastructureFailure`. Telemetry tell: `moved review → completed` → `"Lost session marked interrupted."`
+   → capture failure.
+2. The dev-test monitor breaks IMMEDIATELY on infrastructureFailure → harness stopped the in-process aimock
+   while the runtime was still dispatching fresh durable leases → ECONNREFUSED on first model turn → cards
+   stranded in planning (ledger silent right after `lease_acquired`), dependents starved.
 
-1. **N13 nightly `--double-run` live pass** was mid-soak (42 sequential cell drains). Re-run:
-   `npx tsx src/cli.ts dev nightly --double-run --json > nightly-double-run.json 2> nightly-double-run.log`
-   (hours; sequential; writes flake-quarantine verdicts). It was killed mid-run — check for leaked containers:
-   `docker ps --format '{{.Names}}' | grep simflow | xargs -I{} docker rm -f {}`.
-2. **Chip session task_1ca58cf7** ("Resolve large-file write ceiling") was running in a separate local session —
-   verify whether it finished/merged; its earlier sibling already landed `agent-write-guard.ts` +
-   `tool-runner-protocol.ts` (swept into my commits, green together).
+## Commits this session (all validated, pre-commit green)
 
-## Next queue (post-F11, in order)
+- `66e845fce` watchdog: runtime-alive marooned in-progress card reconcile (earlier in session)
+- `0a61e59e3` **delivery-settled contract** (the root fix): `TaskSandboxStateStore.markDeliverySettled` set by
+  `completeDeliveredTaskAndCascade` BEFORE its cleanup stop; finalizer entry/shouldFinalize/salvage refuse new
+  finalizations once settled; finalizer CATCH treats an in-flight capture failing after settle as benign
+  supersede (no failed summary, no capture-error status). Cleared only by a fresh `setSandbox`; survives
+  `deleteSandbox`. + sim replay models (`sim/` prefix) exempt from capability trims (`isSimulatorReplayModelId`
+  — "qwen" marker had disabled `editor` for sim/qwen-fast-coder → manufactured unavailable-tool errors). +
+  graph-quality classifier: file evidence beats domain-word title match ("coverage" dispatch cards writing
+  src/*.mjs were hard-rejected as floating verifiers). + scenario-01 recording drift (editor/apply_patch →
+  edit_file; s40 docs card + implementation dep). + harness: flaky runs now assert FULL DRAIN too.
+- `d0ffbfbf1` harness reaps its own `simflow-<pid>-*` containers on every exit path.
+- `4692dc290` **per-profile quiet exemptions**: packs carry `quietExemptionsByProfile`; core-invariants exempts
+  `runtime_error` for flaky ONLY (watchdog stays asserted both); runner applies via `applyProfileToPack`. +
+  flaky spec-coverage recording patches for 01/07/09/20 (their 10-card decompose graphs failed today's
+  spec-coverage validation; cycled replay can only re-serve the same turn → repeated-call guard parked the
+  seed — F1.34d's nightly face; patched per the gate's own remedy).
+- `35f674371` todo: N5 closure note.
+- `320d3a6dc` **hermeticity sweep**: `resolveDefaultLocalModelBaseUrl()` honors
+  `NKLEIN_NIGHTLY_MODEL_GATEWAY_URL`; all 28 default-gateway fallback sites (14 files) now resolve through it —
+  closes the "sim rescue reviewer consulted the real gateway (loaded_fallback qwen3-8b)" leak.
+- `e77c26b2c` **durable fail-lease-fast**: a controller dispatch that no-ops in `autoStartTaskIds` settles its
+  lease AT THE SKIP SITE with the reason (completed lane ⇒ delivered/cascade; paused/trashed/missing/unmet-deps
+  ⇒ failed now); review/in-progress/active-session skips stay lease-neutral. Ends the 5-minute silent lease burn.
+- `433812983`, + two docs commits: N2 audit ledger + recovered=false root-cause (see below).
 
-- **N2 cells** run.
-- **P17.1a mlx-serve trial on qwable** — authorized by David (reuse existing model files, NO new downloads;
-  fleet was released post-F11; check `lms ps` state first).
-- **F12.78b** paired harness on resident 8B/9B.
-- Small open hardenings: **F1.34d** (repeated-tool-call guard vs incremental decompose route — todo entry),
-  **N10 watchdog stalled-review classifier** (verdict-less review-lane card with no review record), scenario-mode
-  container reap on the harness throw path, sim reviewer hermeticity leak (loaded_fallback hit real gateway —
-  todo N10 follow-up).
-- Then the broader ready backlog top-down (P16.6b needs an idle model; P17.x interop; P18/P20/P22/P23…).
+## N2 mechanism audit — DONE (recorded in todo.md under N2)
 
-## Gotchas refreshed this session
+Agent-swept 42 fresh journals from the green v3 run. PROVEN: decompose/cards/worker/capture, review approve AND
+bounce, delivery merge gate + BLOCKING sub-gates live (insufficient_tests ×38, reward_hack ×20,
+mutation_adequacy enforced), acceptance evidence ×730, test-driven gate BOUNCING ×72, retry ladder ×2268,
+re-drive ×34, context capping, admission ×7476, taint labels, flaky families (429/empty/stall/malformed).
+**NO PROOF — each needs an explicit profile/action + invariant (list with details in todo.md N2):** steering,
+loop guards, park/resume, budget_wall, model_failover (endpoint-level DID fire), taint GATE action, syntax
+guard, reasoning-only recovery (integrity test CLAIMS it exists in recordings — reconcile!), fail_closed naming.
+**recovered=false on all 2,268 retries = STRUCTURAL sim limit, not a bug**: assistant-count-indexed cycled
+turns serve the SAME fault to every in-turn retry; sim recovery happens at session re-drive. If in-turn proof
+is wanted: aimock needs serve-count-aware turn advancement (also enables reasoning-only recovery proof).
 
-- aimock cycled turns index by the request's ASSISTANT-MESSAGE COUNT; a post-crash rescue review is a fresh
-  session (count 0) — key later rounds by needle (e.g. `the card "…" (review round 2)`).
-- The dev-test monitor's stagnation settle tears the runtime down — post-teardown silence looks like a freeze.
-- `git add -A`/-u sweeps concurrent worktree-session changes into your commit — stage explicitly.
-- Solo scenario drain: `HOME=$(mktemp -d) NKLEIN_SIMFLOW_SCENARIO=NN NKLEIN_SIMFLOW_RUNTIME_PORT=<port>
-  NKLEIN_SIMFLOW_TIMEOUT_MS=900000 npx tsx scripts/verify-simulated-flow.mts`.
-- The /goal Stop-hook loop was active (dynamic /loop, ~15-25 min wakeups) — restart it with
+## Next queue (in order)
+
+1. Turn N2 no-proofs into recording profiles/invariants (steering + budget_wall look cheapest; the
+   reasoning-only integrity-test discrepancy should be reconciled first — it may be a false claim in the
+   static test).
+2. F1.34d — repeated-tool-call guard vs the LIVE incremental decompose route (the nightly face is fixed via
+   recording patches; the live-model question stands). Retained HOMEs from 07-25 are gone; needs a fresh repro.
+3. Offline-acceptance decision (a3): flaky bounces re-run real `npm test` in the offline sandbox →
+   deterministic failure; options in todo.md (cell-mode acceptance stub / offline-aware verdicts /
+   recording-declared offline-safe acceptance). 01×perfect classifies "failed (acceptance failing)" for this
+   reason while lanes drain clean — cosmetic but misleading.
+4. mlx-serve perf curves (kv-quant/prefix-cache/PLD tokens-per-sec) + P17.1 runtime adapter — needs an idle
+   machine (don't benchmark under other load). Binary + models already on m5max from the passed trial.
+5. F12.78b paired harness; then broader ready backlog top-down.
+
+## Gotchas (new this session)
+
+- **The nightly double-run executes from the WORKING TREE** — per-cell children re-import src fresh; freeze
+  src/ edits while one runs (scripts/docs are safe if tsc-clean).
+- Cell HOMEs retained under `/var/folders/_k/…/T/nklein-nightly-<NN>-*`; the per-cell ledger is at
+  `<dir>/ledger/*.jsonl` (NOT .nklein/nklein/agent-attempt-ledger). ~127 accumulated dirs — safe to clean the
+  stale ones if disk matters.
+- Solo scenario drain command unchanged (HANDOFF 07-25 / §4A); flaky runs now MUST fully drain or the harness
+  throws (`<run> left cards undrained`).
+- Biome pre-commit: fix staged formatting with
+  `npx biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true --write` then re-add.
+- The /goal Stop-hook loop was active (dynamic /loop, ~20 min wakeups) — restart with
   `/loop until goal is reached, keep going and keep working through the backlog while waiting for background tasks`.
+
+## State to be aware of
+
+- Task list: #3 (backlog top-down) still in_progress — everything else completed. N5 = task #8 completed.
+- No background tasks left running; no leaked simflow containers (verified 0 before the last runs; the harness
+  now self-reaps).
+- basic-memory: "N5 flaky violations root cause…" (bugs) updated with the RESOLVED outcome.
+- todo.md carries the full N5 closure + N2 audit + all follow-up framing; done.md not yet updated with an N5
+  entry (todo.md checkpoint is authoritative per repo convention).
