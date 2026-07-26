@@ -6327,6 +6327,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   after F11 releases Docker, run all 20 cells and audit the resulting journal/telemetry against every mechanism named
   above; any steering, park/resume, failover, budget/admission, taint, evidence, or syntax path without real proof gets
   an explicit profile/action and invariant rather than an inferred checkmark.
+  **N13 DOUBLE-RUN LIVE PASS 2026-07-26 (first full run post-F1.34c): 21/21 cells drain, embedded crash matrix
+  6/6, quarantine empty, 0 unmatched — but overall `ok:false` on N5 PACK verdicts: 12/21 packs violated.**
+  (a) ALL 10 ×flaky packs violate `terminal_lanes` (cards "ending" in planning/review) — the flaky recordings
+  never got the F1.34c treatment AND the flaky cell verdict is lenient where the pack is strict; FIRST determine
+  whether these are REAL strands (gate/drift on failure-path turns) or a pack-derivation artifact (final lane
+  inferred from the last card_lane_change telemetry event — a card completing through a path that emits no
+  final lane event would read as stranded). Repro one: solo flaky drain of set 02
+  (NKLEIN_SIMFLOW_SCENARIO=02 NKLEIN_SIMFLOW_RUN=flaky …) and diff board.json truth vs pack derivation.
+  (b) 01×perfect + 05×perfect violate `must_stay_quiet:runtime_error` — recorded drift-era unavailable-tool
+  calls (`editor`, `apply_patch`) fire runtime_error then recover; decide: patch recordings to current tool
+  names, or reclassify recoverable unavailable-tool rejections under a softer signal (they are model mistakes,
+  not runtime faults — tool_argument_error-adjacent), or scope the invariant. (c) 4 flaky packs also miss a
+  `must_fire` signal — enumerate which after (a). The double-run itself found NO flakes (quarantine empty, two
+  passes per cell) — N13's mechanism works.
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,
