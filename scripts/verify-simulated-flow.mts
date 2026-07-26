@@ -1099,6 +1099,32 @@ async function main(): Promise<void> {
 		console.log(`Full runtime log: ${join(home, "runtime.log")}`);
 		stopRuntime();
 		await simulator.stop();
+		// Reap THIS run's sandbox containers on every exit path (37 leaked containers were reaped by hand on
+		// 2026-07-25 after failed runs). Scoped to this pid's namespace prefix so concurrent runs are untouched;
+		// docker being unavailable is fine — the runtime may not have used Docker sandboxes at all.
+		await new Promise<void>((settle) => {
+			const prefix = `nklein-agent-sandbox-simflow-${process.pid}-`;
+			const list = spawn("docker", ["ps", "-a", "--format", "{{.Names}}"]);
+			let out = "";
+			list.stdout?.on("data", (chunk: Buffer) => {
+				out += chunk.toString();
+			});
+			list.once("error", () => settle());
+			list.once("close", () => {
+				const mine = out
+					.split("\n")
+					.map((name) => name.trim())
+					.filter((name) => name.startsWith(prefix));
+				if (mine.length === 0) {
+					settle();
+					return;
+				}
+				console.log(`Reaping ${mine.length} leftover sandbox container(s): ${mine.join(", ")}`);
+				const rm = spawn("docker", ["rm", "-f", ...mine]);
+				rm.once("error", () => settle());
+				rm.once("close", () => settle());
+			});
+		});
 	}
 }
 
