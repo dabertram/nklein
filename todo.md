@@ -6397,6 +6397,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   `isSimulatorReplayModelId` (`sim/` prefix) now exempts replay models from capability trims and small-local
   defaults (replay fidelity: a sim model's capability IS its recording). Full 20-set double-run re-audit
   pending to confirm pack-wide green.
+  **DOUBLE-RUN RE-AUDIT ROUND 1 (2026-07-26, post-fix): 12 violated packs → 6; ALL terminal-lanes strands and
+  ALL must_fire misses GONE.** The remainder split two ways, both closed (commit 4692dc290): (1) the 6
+  surviving flaky `must_stay_quiet:runtime_error` "violations" were the flaky profile's own injected faults
+  recovering as designed on runs that now drain fully green — packs gained `quietExemptionsByProfile`
+  (core-invariants exempts `runtime_error` for flaky ONLY; `board_liveness_watchdog` stays asserted for both
+  profiles) and the runner specializes the resolved pack per cell. (2) the 4 cells failing the new strict
+  flaky drain gate (01/07/09/20×flaky) were F1.34d's nightly face: their 10-card recorded decompose graphs
+  fail today's specification-coverage validation and a cycled recording can only re-serve the identical turn,
+  so the repeated-call guard parks the seed after 3 tries — recordings patched the way the gate itself
+  prescribes (each uncovered spec statement appended verbatim to its best-matching card's prompt); solo 07/09
+  flaky re-drains fully complete. ALSO fixed en route: the graph-quality classifier now lets file evidence
+  beat a domain-word title match (set-05's dispatch "coverage" cards, writing `src/*.mjs`, were hard-rejected
+  as floating verifiers). NOTE for F1.34d: the guard behaved CORRECTLY here (a replay cannot vary its answer);
+  the remaining F1.34d question is only the live-model incremental route, unchanged.
+  **✅ CLOSED 2026-07-26 — FINAL DOUBLE-RUN (v3) FULL GREEN: 21/21 cells passed, 0 violated packs (was 12),
+  quarantine empty, embedded crash matrix 6/6, overall ok:true.** The whole N13/N5 chain now judges real board
+  state pack-wide green under both profiles. Remaining adjacent opens tracked separately: offline-acceptance
+  decision (a3), F1.34d live incremental route, durable fail-lease-fast, reviewer-resolve hermeticity sweep.
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,
