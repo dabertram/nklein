@@ -3779,6 +3779,73 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							}
 						}
 						autoLoadedModels.setWorkspaceNeededModels(scope.workspaceId, [...workspaceNeededModelIds]);
+						// Runtime-alive counterpart of the W2.2 boot reconcile (N5 flaky forensics 2026-07-26): a
+						// card marooned in the In Progress lane with NO live session (its worker/re-work died
+						// mid-flight) had no rescue while the runtime stayed up — the sweeps below only see
+						// startable lanes, and the boot reconcile only runs at startup, so the card and every
+						// dependent behind it froze until a restart. Same split as boot: a captured result branch
+						// is reviewable (→ Review; the stalled-review rescue below then owns it), no capture means
+						// re-drive (→ Ready; the ready-sweep starts it). One card per tick; the move itself is the
+						// dedup — next tick the card is no longer in this lane.
+						// Liveness for THIS check is running/queued only: a dead re-work session parks its summary at
+						// awaiting_review (reviewReason error, artifact never settled), which the finalize DECLINES and
+						// never revisits — counting that ghost as "active" hid every marooned card from the reconcile
+						// (live-found on the 02×flaky repro: zero firings while three cards sat dead in In Progress).
+						// `paused` is operator intent and is respected. The 90s lane-age grace protects a legitimate
+						// in-flight finalize: those move the card to Review within seconds of the summary edge.
+						const busySessionTaskIds = new Set(
+							trackedService
+								.listSummaries()
+								.filter((summary) => summary.state === "running" || summary.state === "queued")
+								.map((summary) => summary.taskId),
+						);
+						const pausedSessionTaskIds = new Set(
+							trackedService
+								.listSummaries()
+								.filter((summary) => summary.state === "paused")
+								.map((summary) => summary.taskId),
+						);
+						const maroonedCard = board.columns
+							.find((column) => column.id === "in_progress")
+							?.cards.find(
+								(card) =>
+									!busySessionTaskIds.has(card.id) &&
+									!pausedSessionTaskIds.has(card.id) &&
+									Date.now() - (card.updatedAt ?? 0) > 90_000,
+							);
+						if (maroonedCard) {
+							const maroonedResultCommit = await resolveTaskResultBranchCommit({
+								repoPath: scope.workspacePath,
+								taskId: maroonedCard.id,
+							}).catch(() => null);
+							const targetLane = maroonedResultCommit ? ("review" as const) : ("ready" as const);
+							await retryWorkspaceStateLock(() =>
+								mutateWorkspaceState(scope.workspacePath, (latestState) => {
+									const movement = moveTaskToColumn(latestState.board, maroonedCard.id, targetLane);
+									return { board: movement.board, save: movement.moved, value: null };
+								}),
+							).catch(() => null);
+							deps.warn(
+								`Board-liveness watchdog: ${maroonedCard.id} was marooned In Progress with no live session — moved to ${
+									targetLane === "review"
+										? "Review (result branch captured)"
+										: "Ready (no capture; re-driving)"
+								}.`,
+							);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Board-liveness watchdog reconciled marooned in-progress card ${maroonedCard.id} → ${targetLane}.`,
+								taskId: maroonedCard.id,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "board_liveness_watchdog",
+									reconciled: "marooned_in_progress",
+									targetLane,
+								},
+							});
+							return;
+						}
 						const startable = listStartableUnstartedTaskIds(board, activeSessionTaskIds);
 						// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending
 						// concurrency-deferral retry (run36: only the overlap set was checked).

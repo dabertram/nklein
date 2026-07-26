@@ -6363,6 +6363,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   failure; options: cell-mode acceptance stub, offline-aware acceptance verdicts (skipped_offline exists for
   SETUP but the command itself still runs), or recording-declared offline-safe acceptance. Retained HOME in
   scratchpad/flaky02-home.txt.
+  **(a2) PROGRESS 2026-07-26: the runtime-alive marooned-card reconcile is IN (watchdog: in_progress card whose
+  session is not running/queued and not paused, lane-age >90s → W2.2-style split; liveness deliberately EXCLUDES
+  awaiting_review ghosts — a dead re-work session parks its summary there and the finalize declines it forever).
+  Perfect-02 regression green with the reconcile live. BUT the flaky stall is NONDETERMINISTIC IN SHAPE across
+  identical repro commands (run A: planning5/inprog2/review1; run B: planning5/inprog1/review2; run C:
+  planning8/completed3 — cards never even started), consistent only in outcome: after the early flaky-injected
+  failures, the drain stops converging (release/start machinery quits retrying). Next forensics must therefore
+  compare the RELEASE side (why planning cards of completed prerequisites never start again: retry budgets
+  exhausted? deferred set stuck? durable-controller job states dead?) rather than chase per-run shapes. The
+  offline-acceptance question (a3, real npm test cannot pass without deps) remains a separate decision.**
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,
