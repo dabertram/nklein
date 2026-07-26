@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	applyProfileToPack,
 	type DrainedState,
 	evaluatePack,
 	type InvariantPack,
@@ -129,6 +130,53 @@ describe("evaluatePack", () => {
 		);
 		expect(result.passed).toBe(false);
 		expect(result.summary).toContain("card-2→in_progress");
+	});
+});
+
+describe("per-profile quiet exemptions (N5 2026-07-26 — flaky injected-fault noise)", () => {
+	const withExemptions: InvariantPack = {
+		...BASE,
+		quietExemptionsByProfile: { flaky: ["stall_guard"] },
+	};
+
+	it("drops only the exempted quiet signals for the exempting profile", () => {
+		const flaky = applyProfileToPack(withExemptions, "flaky");
+		expect(flaky.mustStayQuiet).toEqual(["runaway_guard"]);
+		// Everything else is untouched — lanes and mustFire are profile-independent.
+		expect(flaky.mustFire).toEqual(withExemptions.mustFire);
+		expect(flaky.expectedTerminalLanes).toEqual(withExemptions.expectedTerminalLanes);
+	});
+
+	it("leaves other profiles (and packs without exemptions) byte-identical", () => {
+		expect(applyProfileToPack(withExemptions, "perfect").mustStayQuiet).toEqual(["runaway_guard", "stall_guard"]);
+		expect(applyProfileToPack(BASE, "flaky")).toBe(BASE);
+	});
+
+	it("a fired-but-exempt signal no longer violates the flaky profile, and still violates perfect", () => {
+		const fired = healthyState({
+			firedSignals: new Set(["acceptance_evidence", "review_verdict", "stall_guard"]),
+		});
+		expect(evaluatePack(applyProfileToPack(withExemptions, "flaky"), fired).passed).toBe(true);
+		expect(evaluatePack(applyProfileToPack(withExemptions, "perfect"), fired).passed).toBe(false);
+	});
+
+	it("resolvePack merges exemptions across includes", () => {
+		const child: InvariantPack = {
+			id: "child",
+			expectedTerminalLanes: [],
+			mustFire: [],
+			mustStayQuiet: [],
+			quietExemptionsByProfile: { flaky: ["runaway_guard"] },
+			includes: ["core-invariants"],
+		};
+		const merged = resolvePack(
+			"child",
+			new Map([
+				["core-invariants", withExemptions],
+				["child", child],
+			]),
+		);
+		expect(merged?.quietExemptionsByProfile?.flaky).toEqual(["runaway_guard", "stall_guard"]);
 	});
 });
 

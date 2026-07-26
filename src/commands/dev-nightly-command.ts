@@ -20,7 +20,7 @@ import {
 	splitVerdictsByQuarantine,
 } from "../core/nightly-flake-quarantine";
 import { type NightlyHermeticEvidence, parseNightlyHermeticEvidence } from "../core/nightly-hermeticity";
-import { evaluatePack, resolvePack } from "../core/nightly-invariant-pack";
+import { applyProfileToPack, evaluatePack, resolvePack } from "../core/nightly-invariant-pack";
 import {
 	type CellVerdict,
 	enumerateNightlyCells,
@@ -623,13 +623,16 @@ export async function runDevNightlyCommand(options: {
 		quarantineSplit.gated
 			.filter((verdict) => verdict.outcome === "passed")
 			.map(async (verdict) => {
-				const pack = resolvePack(verdict.cell.invariantPack, NIGHTLY_PACK_REGISTRY);
-				if (!pack) {
+				const resolved = resolvePack(verdict.cell.invariantPack, NIGHTLY_PACK_REGISTRY);
+				if (!resolved) {
 					return {
 						passed: false,
 						text: `${nightlyCellName(verdict.cell)}: invariant pack "${verdict.cell.invariantPack}" is NOT REGISTERED — nothing was asserted for this cell`,
 					};
 				}
+				// N5: specialize for the cell's profile — a flaky cell's injected-fault noise is exempt from the
+				// quiet checks the pack declares exemptions for (see quietExemptionsByProfile).
+				const pack = applyProfileToPack(resolved, verdict.cell.modelProfile);
 				if (!verdict.teardownEvidence) {
 					return {
 						passed: false,

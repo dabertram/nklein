@@ -28,6 +28,15 @@ export interface InvariantPack {
 	readonly mustFire: readonly string[];
 	/** Signals that must NOT have fired (guards: runaway, stall, thrash — false positives on a healthy run). */
 	readonly mustStayQuiet: readonly string[];
+	/**
+	 * Per-model-profile EXEMPTIONS from `mustStayQuiet` (N5 2026-07-26). A profile whose recordings inject faults
+	 * on purpose (`flaky`) legitimately produces recoverable error signals while the run still drains green — the
+	 * quiet assertion for those signals is a perfect-profile claim, and keeping it on the flaky profile is the
+	 * "FALSE POSITIVE that teaches people to disable the guard" the quiet check itself warns about. Exemptions are
+	 * listed (not a replacement set) so the waiver names exactly what is being waived and everything else in
+	 * `mustStayQuiet` keeps asserting.
+	 */
+	readonly quietExemptionsByProfile?: Readonly<Record<string, readonly string[]>>;
 	/** Packs this one includes — composition is how a new project asserts by reference. */
 	readonly includes?: readonly string[];
 }
@@ -67,6 +76,7 @@ export function resolvePack(packId: string, registry: ReadonlyMap<string, Invari
 	const lanes = new Set<string>();
 	const mustFire = new Set<string>();
 	const mustStayQuiet = new Set<string>();
+	const quietExemptions = new Map<string, Set<string>>();
 
 	const visit = (id: string): boolean => {
 		if (seen.has(id)) {
@@ -86,6 +96,13 @@ export function resolvePack(packId: string, registry: ReadonlyMap<string, Invari
 		for (const signal of pack.mustStayQuiet) {
 			mustStayQuiet.add(signal);
 		}
+		for (const [profile, signals] of Object.entries(pack.quietExemptionsByProfile ?? {})) {
+			const merged = quietExemptions.get(profile) ?? new Set<string>();
+			for (const signal of signals) {
+				merged.add(signal);
+			}
+			quietExemptions.set(profile, merged);
+		}
 		return (pack.includes ?? []).every(visit);
 	};
 
@@ -97,6 +114,29 @@ export function resolvePack(packId: string, registry: ReadonlyMap<string, Invari
 		expectedTerminalLanes: [...lanes].sort(),
 		mustFire: [...mustFire].sort(),
 		mustStayQuiet: [...mustStayQuiet].sort(),
+		...(quietExemptions.size > 0
+			? {
+					quietExemptionsByProfile: Object.fromEntries(
+						[...quietExemptions.entries()].map(([profile, signals]) => [profile, [...signals].sort()]),
+					),
+				}
+			: {}),
+	};
+}
+
+/**
+ * Specialize a resolved pack for the cell's model profile: drop `mustStayQuiet` entries the pack explicitly
+ * exempts for that profile (see {@link InvariantPack.quietExemptionsByProfile}). Everything else is unchanged —
+ * lanes and `mustFire` are profile-independent claims about a finished drain.
+ */
+export function applyProfileToPack(pack: InvariantPack, modelProfile: string | null | undefined): InvariantPack {
+	const exempt = new Set(pack.quietExemptionsByProfile?.[modelProfile ?? ""] ?? []);
+	if (exempt.size === 0) {
+		return pack;
+	}
+	return {
+		...pack,
+		mustStayQuiet: pack.mustStayQuiet.filter((signal) => !exempt.has(signal)),
 	};
 }
 

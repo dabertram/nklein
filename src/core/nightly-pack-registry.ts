@@ -40,6 +40,11 @@ export const CORE_INVARIANTS: InvariantPack = {
 	// distinct from its routine `_tick`) firing means the board stalled — the exact N7d failure. Asserting it here
 	// means the nightly now CATCHES that class rather than only reporting a lane count.
 	mustStayQuiet: ["board_liveness_watchdog", "runtime_error"],
+	// N5 2026-07-26: the FLAKY profile's recordings inject faults on purpose (empty completions, malformed tool
+	// args, endpoint failures), so recoverable `runtime_error` events are that profile's expected working noise —
+	// the run's health is judged by full drain + mustFire instead. `board_liveness_watchdog` stays asserted for
+	// flaky too: even under injected faults the board must never freeze into the self-heal path.
+	quietExemptionsByProfile: { flaky: ["runtime_error"] },
 };
 
 /**

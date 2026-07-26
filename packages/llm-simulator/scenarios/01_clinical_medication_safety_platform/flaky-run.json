@@ -16,9 +16,9 @@
         "arguments": {
          "slug": "clinical-medication-safety-platform",
          "title": "Clinical Medication Safety and Adherence Platform",
-         "spec": "# Clinical Medication Safety and Adherence Platform \u2014 requirements\n\nDecision support for small clinics, home-care nurses, and family caregivers. NOT diagnosis or prescribing.\n- Typed domain model (patient, medication-as-concept, schedule, prescriber, pharmacy, caregiver, adherence event) with stable branded ids and an append-only audit history.\n- Medication reconciliation comparing imported, patient-reported, and clinician-approved lists; every input keeps source provenance and lands in accepted/rejected/unmatched (totality \u2014 nothing vanishes). Unresolvable free text is a first-class BLOCKING unmatched state.\n- Concept normalization over an RxNorm-shaped fixture graph (text/brand/NDC -> SCD -> IN); combination products (MIN) decompose to ingredients before any rule runs.\n- Rule engine: duplicate active ingredient, therapeutic-class duplication, max daily dose (unit-safe, frequency-folded), allergy with side-chain-graded beta-lactam cross-reactivity, contraindication. Alerts are typed, severity-tiered (interruptive vs passive), evidence-bearing, suppressible within a severity ceiling (contraindicated is never suppressible).\n- Suppression memory with provenance (who/when/scope/reason) and expiry on an injected clock.\n- Adherence calendar (taken/missed/skipped-by-instruction/held-by-clinician/unknown) and refill-exhaustion forecast, both timezone-deterministic on an injected Clock; clinician holds extend supply.\n- Task queue (caregiver follow-up / clinician review / refill request / patient education) where every task traces to facts and rule evidence.\n- Plain-language patient summary that never leaks raw scores or clinical directives (denylist-enforced).\n- Deterministic seed data: five patients with conflicting histories + the adversarial E4 fixtures. npm test green with zero network.",
+         "spec": "# Clinical Medication Safety and Adherence Platform — requirements\n\nDecision support for small clinics, home-care nurses, and family caregivers. NOT diagnosis or prescribing.\n- Typed domain model (patient, medication-as-concept, schedule, prescriber, pharmacy, caregiver, adherence event) with stable branded ids and an append-only audit history.\n- Medication reconciliation comparing imported, patient-reported, and clinician-approved lists; every input keeps source provenance and lands in accepted/rejected/unmatched (totality — nothing vanishes). Unresolvable free text is a first-class BLOCKING unmatched state.\n- Concept normalization over an RxNorm-shaped fixture graph (text/brand/NDC -> SCD -> IN); combination products (MIN) decompose to ingredients before any rule runs.\n- Rule engine: duplicate active ingredient, therapeutic-class duplication, max daily dose (unit-safe, frequency-folded), allergy with side-chain-graded beta-lactam cross-reactivity, contraindication. Alerts are typed, severity-tiered (interruptive vs passive), evidence-bearing, suppressible within a severity ceiling (contraindicated is never suppressible).\n- Suppression memory with provenance (who/when/scope/reason) and expiry on an injected clock.\n- Adherence calendar (taken/missed/skipped-by-instruction/held-by-clinician/unknown) and refill-exhaustion forecast, both timezone-deterministic on an injected Clock; clinician holds extend supply.\n- Task queue (caregiver follow-up / clinician review / refill request / patient education) where every task traces to facts and rule evidence.\n- Plain-language patient summary that never leaks raw scores or clinical directives (denylist-enforced).\n- Deterministic seed data: five patients with conflicting histories + the adversarial E4 fixtures. npm test green with zero network.",
          "plan": "# Implementation plan\n\nStrict dependency order; foundations before workflows, workflows before presentation.\n1. Scaffold + core types + injected Clock (s00-s02).\n2. Unit-safe dose arithmetic; RxNorm fixture graph; concept resolver with blocking unmatched state; versioned ReferencePack; append-only AuditLog (s03-s08).\n3. Shared rule contracts, then the five rules as separate pure modules, then the evaluateRules facade that filters to active items once (s09-s15).\n4. Suppression memory: ceiling, audit integration, expiry, fuzz invariant (s16-s19).\n5. Reconciliation with totality + property test (s20-s21).\n6. Adherence calendar + TZ determinism; refill forecast + held-medication scenario (s22-s25).\n7. Task queue + traceability; patient summary + denylist negatives (s26-s29).\n8. Seeded patients, adversarial fixtures, flagship integration test (s30-s32).\n9. Breadth per the spec recipes: class breadth (s33-s35), audit projections (s36), knowledge-debt ledger (s37), LASA rule (s38), FHIR-shaped import adapter (s39), README (s40).\nEvery card ships its own tests; npm test is the acceptance command everywhere; no Date.now(), no Math.random(), no network.",
-         "summary": "Build the safety spine first \u2014 types, clock, dose units, concept resolver, reference pack, audit log \u2014 then the five evidence-bearing rules and their facade, then suppression memory, reconciliation, adherence/refill projections, the task queue, and the guarded patient summary, finishing with seeded patients, adversarial fixtures, and a flagship integration test. Breadth cards extend classes, projections, LASA, and a FHIR-shaped import adapter.",
+         "summary": "Build the safety spine first — types, clock, dose units, concept resolver, reference pack, audit log — then the five evidence-bearing rules and their facade, then suppression memory, reconciliation, adherence/refill projections, the task queue, and the guarded patient summary, finishing with seeded patients, adversarial fixtures, and a flagship integration test. Breadth cards extend classes, projections, LASA, and a FHIR-shaped import adapter.",
          "defaultAcceptanceCommand": "node -e \"process.exit(0)\"",
          "tasks": [
           {
@@ -40,7 +40,7 @@
           {
            "id": "s05",
            "title": "MedicationConceptResolver with unmatched blocking state",
-           "prompt": "Create src/core/medication-concept-resolver.ts per S04: resolve(input) matches exact rxcui, then case-insensitive name, then substring; ambiguity or no match returns { unmatched: { inputText, reason, blocksReconciliation: true } } \u2014 never a silent drop. getIngredients decomposes MIN/SCD/SBD to IN-level rxcuis. Tests cover Tylenol -> SBD, case-insensitive SCD lookup, 'a water pill' -> unmatched, and MIN decomposition to both INs.",
+           "prompt": "Create src/core/medication-concept-resolver.ts per S04: resolve(input) matches exact rxcui, then case-insensitive name, then substring; ambiguity or no match returns { unmatched: { inputText, reason, blocksReconciliation: true } } — never a silent drop. getIngredients decomposes MIN/SCD/SBD to IN-level rxcuis. Tests cover Tylenol -> SBD, case-insensitive SCD lookup, 'a water pill' -> unmatched, and MIN decomposition to both INs.",
            "dependsOn": [],
            "complexity": 55,
            "filesLikelyTouched": [
@@ -70,7 +70,7 @@
           {
            "id": "s08",
            "title": "Append-only AuditLog",
-           "prompt": "Create src/core/audit-log.ts per S06: AuditEventType union, AuditEvent, and class AuditLog with append (deterministic counter ids), getAll, getByPatient \u2014 returned arrays are copies so callers cannot mutate history. Tests assert sequential ids '1'/'2', insertion order, patient filtering, and immutability of the returned array.",
+           "prompt": "Create src/core/audit-log.ts per S06: AuditEventType union, AuditEvent, and class AuditLog with append (deterministic counter ids), getAll, getByPatient — returned arrays are copies so callers cannot mutate history. Tests assert sequential ids '1'/'2', insertion order, patient filtering, and immutability of the returned array. Also cover end-to-end (specification statement, machine-auditable): Typed domain model (patient, medication-as-concept, schedule, prescriber, pharmacy, caregiver, adherence event) with stable branded ids and an append-only audit history.",
            "dependsOn": [],
            "complexity": 30,
            "filesLikelyTouched": [
@@ -123,7 +123,7 @@
           {
            "id": "s20",
            "title": "Reconciliation workflow with source provenance",
-           "prompt": "Create src/core/reconciliation.ts per S09: MedicationSource, ReconciliationItem (conceptId nullable, inputText, source, provenance), Discrepancy, and pure reconcile(items, resolver, clinicianApprovedIds, clock) -> { accepted, rejected, unmatched, discrepancies }. TOTALITY is the law: every input lands in exactly one of accepted/rejected/unmatched with provenance preserved \u2014 resolver-unmatched items go to unmatched (blocking), never dropped. Classify conservative 'unintentional' when in doubt; clinician-approved items absent from imports classify 'intentional-documented'.",
+           "prompt": "Create src/core/reconciliation.ts per S09: MedicationSource, ReconciliationItem (conceptId nullable, inputText, source, provenance), Discrepancy, and pure reconcile(items, resolver, clinicianApprovedIds, clock) -> { accepted, rejected, unmatched, discrepancies }. TOTALITY is the law: every input lands in exactly one of accepted/rejected/unmatched with provenance preserved — resolver-unmatched items go to unmatched (blocking), never dropped. Classify conservative 'unintentional' when in doubt; clinician-approved items absent from imports classify 'intentional-documented'.",
            "dependsOn": [
             "s05",
             "s08"
@@ -141,7 +141,7 @@
           {
            "id": "s22",
            "title": "Adherence calendar summary",
-           "prompt": "Create src/core/adherence-calendar.ts per S10: AdherenceEvent and summarizeAdherence(events, patientId, conceptId, periodStart, periodEnd) counting taken/missed/skippedByInstruction/heldByClinician/unknown over [periodStart, periodEnd) \u2014 pure counts, no percentages, no Date.now(). Tests: a 10-event set counts exactly, out-of-period events are excluded, and two identical calls are deeply equal.",
+           "prompt": "Create src/core/adherence-calendar.ts per S10: AdherenceEvent and summarizeAdherence(events, patientId, conceptId, periodStart, periodEnd) counting taken/missed/skippedByInstruction/heldByClinician/unknown over [periodStart, periodEnd) — pure counts, no percentages, no Date.now(). Tests: a 10-event set counts exactly, out-of-period events are excluded, and two identical calls are deeply equal.",
            "dependsOn": [],
            "complexity": 40,
            "filesLikelyTouched": [
@@ -260,12 +260,12 @@
     {
      "behavior": {
       "kind": "text",
-      "content": "s03 done: dose.ts implements toKg, frequencyToDailyMultiplier, and dailyDoseMg with an explicit UnitMismatchError default branch \u2014 no silent cross-unit coercion. Six deterministic assertions pass under npm test.",
+      "content": "s03 done: dose.ts implements toKg, frequencyToDailyMultiplier, and dailyDoseMg with an explicit UnitMismatchError default branch — no silent cross-unit coercion. Six deterministic assertions pass under npm test.",
       "finishReason": "stop"
      }
     }
    ],
-   "provenance": "failure-catalog c-stringified-json: args as a JSON string (weak-model classic \u2014 already recovered in decompose); harness must detect string-parses-as-expected-type and unwrap one level.",
+   "provenance": "failure-catalog c-stringified-json: args as a JSON string (weak-model classic — already recovered in decompose); harness must detect string-parses-as-expected-type and unwrap one level.",
    "repeatLastTurn": true
   },
   {
@@ -388,7 +388,7 @@
      }
     }
    ],
-   "provenance": "failure-catalog c-reasoning-only: content empty, answer in reasoning_content (R1/Gemma-style); harness must read the reasoning channel before declaring the turn empty, then re-prompt \u2014 turn 2 onward is the recovered flow.",
+   "provenance": "failure-catalog c-reasoning-only: content empty, answer in reasoning_content (R1/Gemma-style); harness must read the reasoning channel before declaring the turn empty, then re-prompt — turn 2 onward is the recovered flow.",
    "repeatLastTurn": true
   },
   {
@@ -567,7 +567,7 @@
      }
     }
    ],
-   "provenance": "failure-catalog t-sse-stall-mid: events stop with the connection open and no terminator \u2014 approximated with the `stall` behavior (TTFT-style dead stream) until the compiler grows a mid-stream stall knob; harness must abort on the inter-chunk idle timeout and retry. Turns 2+ are the recovered flow.",
+   "provenance": "failure-catalog t-sse-stall-mid: events stop with the connection open and no terminator — approximated with the `stall` behavior (TTFT-style dead stream) until the compiler grows a mid-stream stall knob; harness must abort on the inter-chunk idle timeout and retry. Turns 2+ are the recovered flow.",
    "repeatLastTurn": true
   },
   {
@@ -760,7 +760,7 @@
     {
      "behavior": {
       "kind": "text",
-      "content": "s28 done: the patient summary speaks only in dose counts and day counts, filters clinician-review tasks out of patient view, and self-checks every emitted string against SUMMARY_DENYLIST \u2014 a leaked raw score throws instead of shipping.",
+      "content": "s28 done: the patient summary speaks only in dose counts and day counts, filters clinician-review tasks out of patient view, and self-checks every emitted string against SUMMARY_DENYLIST — a leaked raw score throws instead of shipping.",
       "finishReason": "stop"
      }
     }
