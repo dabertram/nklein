@@ -6350,9 +6350,19 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   the 02 run: s07/s08 bounced review→in_progress and died mid-re-work, s09 died mid-first-work, their sessions
   ended without terminal lane moves (cards marooned in_progress with no live session while the runtime stays
   up — the board-liveness watchdog re-drives STARTABLE cards but not in_progress-lane residue; kinship with the
-  W2.2 startup split, which only runs at boot), and dependents s02–s06 starve in planning. Suspects: flaky
-  failure-path turns (429/stall/malformed) colliding with post-recording retry machinery, same drift family as
-  F1.34c. Retained HOME in scratchpad/flaky02-home.txt.
+  W2.2 startup split, which only runs at boot), and dependents s02–s06 starve in planning. DIAGNOSED (02×flaky telemetry): the marooned trio's sessions
+  burned swarm retries on the flaky-injected failures, captured result branches, then **acceptance failed
+  (`npm test` in the OFFLINE sandbox — deps never install, so real test commands fail regardless of the code)**
+  → bounce → re-work sessions died on further flaky turns → cards left in_progress with NO live session while
+  the runtime stayed up. TWO fixes: (1) **PRODUCT (the generalizable one): a runtime-alive counterpart of the
+  W2.2 boot reconcile** — the board-liveness watchdog should treat an in_progress-lane card with no live session
+  as residue (re-drive if no result branch, park to Review if captured), instead of only sweeping startable
+  lanes; today such cards self-heal ONLY via a runtime restart. (2) FIXTURE/ACCEPTANCE: decide how flaky
+  recordings' real acceptance commands should behave offline — the perfect profile passes because its workers'
+  final states satisfy the recorded flow, while flaky bounces re-run acceptance into deterministic offline
+  failure; options: cell-mode acceptance stub, offline-aware acceptance verdicts (skipped_offline exists for
+  SETUP but the command itself still runs), or recording-declared offline-safe acceptance. Retained HOME in
+  scratchpad/flaky02-home.txt.
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,
