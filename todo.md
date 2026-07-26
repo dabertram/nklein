@@ -6607,7 +6607,10 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   keepers → Review (salvage rebinds; genuinely reviewable), no-capture orphans → READY for a clean re-drive (the
   path the matrix proves works end-to-end). FOLLOW-UP (durable, small): a durable dispatch whose start silently
   no-ops (wrong lane, refused start) should fail the lease immediately instead of aging out the full
-  `leaseDurationMs` — the 5-minute silent burn is a liveness tax on every mis-dispatch. THIRD finding (run 9,
+  `leaseDurationMs` — the 5-minute silent burn is a liveness tax on every mis-dispatch. ✅ DONE 2026-07-26
+  (`e77c26b2c`): `autoStartTaskIds` settles a controller-dispatched lease at the skip site with the reason named
+  — completed lane ⇒ delivered (cascades), paused/trashed/missing/unmet-deps ⇒ failed now; review/in-progress/
+  active-session skips stay lease-neutral (delivery or the live session settles those). 02×flaky drain green. THIRD finding (run 9,
   2026-07-25, commit 4994cf932 landed fixes 1-3; decompose+worker+review+delivery cells ALL PASS): the COMPACTION
   cell ran for the first time and its barrier was NEVER REACHED — the scenario injects a mid-worker-session HTTP
   400 "maximum context length exceeded", but `recoverAfterOverflow` only wraps DISPATCH-time errors
