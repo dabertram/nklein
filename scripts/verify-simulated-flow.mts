@@ -999,14 +999,18 @@ async function main(): Promise<void> {
 				`captured replay outcome drifted: expected ${EXPECTED_OUTCOME}, observed ${observedOutcome || "<missing>"}`,
 			);
 		}
-		if (scenarioMode && SCENARIO_RUN === "perfect-run" && !EXPECTED_OUTCOME) {
-			// A perfect-run scenario must fully drain the board: anything parked in Review/failed means fixtures
-			// mis-matched (the monitor is lenient about "blocked_by_review_cards" — the harness must not be).
+		if (scenarioMode && !EXPECTED_OUTCOME) {
+			// BOTH scenario profiles must fully drain the board. Perfect-run: anything parked in Review/failed means
+			// fixtures mis-matched (the monitor is lenient about "blocked_by_review_cards" — the harness must not be).
+			// Flaky-run (N5 (a1), 2026-07-26): the flaky recordings are DESIGNED to recover through the retry
+			// machinery — "all 20 sets drain clean" held for both profiles on 2026-07-11 — so a flaky run that
+			// strands cards is a recovery regression, not an acceptable flaky outcome. The gate being perfect-only
+			// is how the N5 terminal-lanes violations (cards "ending" in planning) stayed invisible to this harness.
 			const counts = /"finalCounts":\s*{[^}]*}/.exec(seedOut)?.[0] ?? "";
 			const lane = (name: string): number => Number(new RegExp(`"${name}":\\s*(\\d+)`).exec(counts)?.[1] ?? "-1");
 			if (lane("review") !== 0 || lane("failed") !== 0 || lane("planning") !== 0 || lane("ready") > 0 || lane("inProgress") !== 0 || lane("completed") < 1) {
 				// throw (not fail/process.exit) so the finally block still tears children down + dumps runtime.log.
-				throw new Error(`perfect-run left cards undrained (${counts})`);
+				throw new Error(`${SCENARIO_RUN} left cards undrained (${counts})`);
 			}
 		}
 		if (CRASH_PHASE) {

@@ -22,6 +22,7 @@ function sandboxState(over: Record<string, unknown> = {}) {
 		clearRecaptureExpected: vi.fn(),
 		unmarkFinalizing: vi.fn(),
 		setResultBranch: vi.fn(),
+		isDeliverySettled: vi.fn(() => false),
 		...over,
 	};
 }
@@ -102,6 +103,47 @@ describe("finalizeSandboxReview early-return guards (§5.U extraction)", () => {
 		expect(ss.markFinalizing.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY).toBeLessThan(
 			ss.clearRecaptureExpected.mock.invocationCallOrder[0] ?? 0,
 		);
+	});
+
+	it("refuses to open a new finalization once the delivery settled (N5 flaky-02 late-capture race)", () => {
+		const settledSS = sandboxState({ isDeliverySettled: () => true });
+		const prev = summary({ state: "running" });
+		const next = summary({ state: "awaiting_review" });
+		const f = createSandboxReviewFinalizer(deps({}, settledSS));
+		expect(f.shouldFinalizeSandboxReview(prev, next)).toBe(false);
+		f.finalizeSandboxReview("t1");
+		expect(settledSS.markFinalizing).not.toHaveBeenCalled();
+	});
+
+	it("treats an in-flight capture failing after the delivery settled as benign supersede: no failed summary, no capture-error status", async () => {
+		// Settled flips DURING the flight: entry guard sees false (capture starts), the catch sees true.
+		const isDeliverySettled = vi.fn().mockReturnValueOnce(false).mockReturnValue(true);
+		const ss = sandboxState({ isDeliverySettled });
+		const disposeWorkspace = vi.fn(async () => {});
+		const emitSummary = vi.fn();
+		createSandboxReviewFinalizer(
+			deps(
+				{
+					getAgentSandboxManager: () =>
+						({
+							captureWorkspacePatch: vi.fn(async () => {
+								throw new Error("Agent sandbox is stopping; no workspace patch can be captured.");
+							}),
+							disposeWorkspace,
+							hasWorkspace: () => false,
+						}) as never,
+					emitSummary,
+				},
+				ss,
+			),
+		).finalizeSandboxReview("t1");
+
+		await vi.waitFor(() => {
+			expect(ss.unmarkFinalizing).toHaveBeenCalledWith("t1");
+		});
+		expect(disposeWorkspace).toHaveBeenCalledWith("t1");
+		// The just-delivered card must NOT be flipped to failed by the superseded capture.
+		expect(emitSummary).not.toHaveBeenCalled();
 	});
 
 	it("releases task-scoped sandbox MCP resources before disposing a parked workspace", async () => {

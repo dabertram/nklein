@@ -2994,6 +2994,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				if (completedBoard) {
 					planIntegrationGateRunner.runForCompletion(scope, service, taskId, completedBoard);
 				}
+				// N5 flaky-02: the delivery consumed the result — settle the capture obligation BEFORE the cleanup
+				// stop, so a racing late finalize (lost-heartbeat park flip) cannot capture against the retired
+				// workspace and flip this just-delivered card's summary to failed (+ a spurious infrastructure
+				// failure that aborts dev-test/nightly runs).
+				service.markTaskDeliverySettled?.(taskId);
 				await service.stopTaskSession(taskId).catch(() => null);
 				drainQueuedTaskStarts(scope, { force: true });
 				// §5.AA/§5.AI: retry cards deferred for file-overlap (this completion may have released the file lock)

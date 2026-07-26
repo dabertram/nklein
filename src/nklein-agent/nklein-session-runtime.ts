@@ -629,7 +629,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			...(hasMcpExtraTools ? { disableMcpSettingsTools: true } : {}),
 			providerConfig,
 			...(compaction ? { compaction } : {}),
-			toolRoutingRules: buildKanbanModelToolRoutingRules(),
+			toolRoutingRules: buildKanbanModelToolRoutingRules(request.modelId),
 			execution: {
 				maxConsecutiveMistakes: DEFAULT_NKLEIN_MAX_CONSECUTIVE_MISTAKES,
 			},

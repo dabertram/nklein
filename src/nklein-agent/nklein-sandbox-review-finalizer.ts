@@ -149,6 +149,10 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 		if (isHomeAgentSessionId(nextSummary.taskId) || deps.getSandboxState().isFinalizing(nextSummary.taskId)) {
 			return false;
 		}
+		// A settled delivery owes no further capture — a late awaiting_review flip must not re-open finalization.
+		if (deps.getSandboxState().isDeliverySettled(nextSummary.taskId)) {
+			return false;
+		}
 		return Boolean(deps.getAgentSandboxManager() && deps.getSandboxState().hasSandbox(nextSummary.taskId));
 	}
 
@@ -158,6 +162,20 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 		const baseRef = deps.getSandboxState().getBaseRef(taskId);
 		const entry = deps.getTaskEntry(taskId);
 		if (!manager || !repoPath || !baseRef || !entry || deps.getSandboxState().isFinalizing(taskId)) {
+			return;
+		}
+		// N5 flaky-02 root cause: after DELIVERY completed, no further capture is owed for this attempt — a late
+		// re-entry here (e.g. a lost-heartbeat park flip racing the post-delivery cleanup stop) would capture against
+		// the retired workspace and manufacture a spurious capture failure for a task that succeeded.
+		if (deps.getSandboxState().isDeliverySettled(taskId)) {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Late sandbox capture skipped for ${taskId}: delivery already settled this attempt; nothing further is owed.`,
+				taskId,
+				workspacePath: repoPath,
+				metadata: { category: "agent_sandbox_result_patch_superseded", reason: "delivery_settled" },
+			});
 			return;
 		}
 		deps.getSandboxState().markFinalizing(taskId);
@@ -266,6 +284,23 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 						taskId,
 						workspacePath: repoPath,
 						metadata: { category: "agent_sandbox_result_cleanup" },
+					});
+					return;
+				}
+				// N5 flaky-02: a capture that was already in flight when the task's DELIVERY settled fails against the
+				// retired workspace by design — the result it would have captured was already consumed by the merge.
+				// That is supersede noise, not a capture error: do NOT stamp `capture_failed`, do NOT flip the summary
+				// to failed (the card just completed), and do NOT surface an infrastructure failure.
+				if (deps.getSandboxState().isDeliverySettled(taskId)) {
+					await deps.releaseSandboxMcpResources(taskId).catch(() => undefined);
+					await manager.disposeWorkspace(taskId).catch(() => null);
+					recordSelfObservation({
+						signal: "custom",
+						severity: "info",
+						message: `In-flight sandbox capture superseded by completed delivery for ${taskId}: ${errorMessage}`,
+						taskId,
+						workspacePath: repoPath,
+						metadata: { category: "agent_sandbox_result_patch_superseded", reason: "delivery_settled" },
 					});
 					return;
 				}

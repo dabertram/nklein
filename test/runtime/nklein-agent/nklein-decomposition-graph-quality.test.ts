@@ -60,6 +60,29 @@ describe("assessNKleinPlanTaskGraphQuality", () => {
 		expect(result.violations.join("\n")).not.toContain("timebase-impl");
 	});
 
+	it("file evidence beats a domain-word title match: a 'coverage' card writing src files is implementation (N5 set-05)", () => {
+		// Emergency-dispatch domain language: "Routing and coverage approximation" matched \bcoverage\b and the
+		// whole 3-card routing chain was hard-rejected as floating verifiers, though each declares src writes.
+		const result = assessNKleinPlanTaskGraphQuality(
+			graph([
+				task({ id: "s01", title: "Core domain model", filesLikelyTouched: ["src/domain.mjs"] }),
+				task({
+					id: "s11",
+					title: "Routing and coverage approximation using deterministic",
+					dependsOn: ["s01"],
+					filesLikelyTouched: ["src/routing.mjs", "test/routing.test.mjs"],
+				}),
+				task({
+					id: "s12",
+					title: "Routing and coverage approximation using deterministic — core engine",
+					dependsOn: ["s11"],
+					filesLikelyTouched: ["src/routing-2.mjs", "test/routing-2.test.mjs"],
+				}),
+			]),
+		);
+		expect(result.violations).toHaveLength(0);
+	});
+
 	it("treats a card that only touches test files as a test card even with a neutral title", () => {
 		const result = assessNKleinPlanTaskGraphQuality(
 			graph([

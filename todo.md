@@ -6373,6 +6373,30 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   compare the RELEASE side (why planning cards of completed prerequisites never start again: retry budgets
   exhausted? deferred set stuck? durable-controller job states dead?) rather than chase per-run shapes. The
   offline-acceptance question (a3, real npm test cannot pass without deps) remains a separate decision.**
+  **ROOT CAUSE FOUND + FIXED 2026-07-26 (release-side forensics on the retained planning:8 HOME): ONE race
+  manufactured every flaky shape.** Chain: (1) a delivered card's cleanup stop raced a late finalize
+  (lost-heartbeat park flip / terminal salvage) because delivery left the sandbox store half-cleared — the late
+  capture hit `workspace_disposed_before_capture`; (2) the finalizer's catch then emitted a FAILED summary +
+  capture-error status + runtime_error for a card that had just delivered (telemetry tell: "moved review →
+  completed" → "Lost session marked interrupted." → capture failure), surfacing `infrastructureFailure`;
+  (3) the dev-test monitor breaks IMMEDIATELY on infrastructureFailure → the harness stops the in-process
+  aimock while the runtime is still dispatching the next durable leases → ECONNREFUSED on their first model
+  turn → cards strand in planning (scheduler ledger goes silent right after `lease_acquired`), dependents
+  starve, board reads planning:N/failed:1. Shape nondeterminism = where in the drain the race lands (early hit
+  ⇒ the 01/07/09/20×flaky `must_fire` misses; late hit ⇒ planning strands; the failed#1 lane violation is the
+  phantom failed summary itself). FIX (delivery-settled contract): `TaskSandboxStateStore.markDeliverySettled`
+  set by `completeDeliveredTaskAndCascade` BEFORE its cleanup stop (cleared only by a fresh `setSandbox` — a
+  redrive owes its own capture; survives `deleteSandbox` for straggler closures); finalizer entry +
+  `shouldFinalizeSandboxReview` + terminal-salvage hook refuse new finalizations once settled; the finalizer
+  CATCH treats an in-flight capture failing after settle as benign supersede (info, no failed summary, no
+  capture-error status). HARNESS (a1 done): the full-drain lane assertion now applies to flaky runs too (it
+  was perfect-only — that gate is how the strands stayed invisible). VALIDATED: solo 02×flaky ALL 11 cards
+  completed, zero ECONNREFUSED (was planning:8/failed:1); 02×perfect regression pair green. (b) ALSO FIXED:
+  `sim/qwen-fast-coder` matched the "qwen" small-local marker, so the kanban tool trim disabled `editor` and
+  the recorded editor/apply_patch calls fired unavailable-tool runtime_errors the recording never had —
+  `isSimulatorReplayModelId` (`sim/` prefix) now exempts replay models from capability trims and small-local
+  defaults (replay fidelity: a sim model's capability IS its recording). Full 20-set double-run re-audit
+  pending to confirm pack-wide green.
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,

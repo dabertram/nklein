@@ -95,4 +95,28 @@ describe("TaskSandboxStateStore", () => {
 		expect(store.isFinalizing("t1")).toBe(false);
 		expect(store.getRepoPath("t1")).toBeUndefined();
 	});
+
+	it("delivery-settled survives deleteSandbox (stragglers must read it) but resets on a fresh sandbox", () => {
+		const store = new TaskSandboxStateStore();
+		store.setSandbox("t1", "/repo/a", "HEAD");
+		store.markRecaptureExpected("t1", "bounce round 2");
+
+		store.markDeliverySettled("t1");
+		expect(store.isDeliverySettled("t1")).toBe(true);
+		// Settling the delivery cancels any owed recapture — the merge consumed the result.
+		expect(store.recaptureExpectedReason("t1")).toBeNull();
+
+		// A post-delivery cleanup forgets the placement, but a capture closure taken BEFORE the forget still needs
+		// to see the settled flag to classify its failure as benign supersede.
+		store.deleteSandbox("t1");
+		expect(store.isDeliverySettled("t1")).toBe(true);
+
+		// A redrive prepares a NEW sandbox: that attempt owes its own capture.
+		store.setSandbox("t1", "/repo/a", "HEAD");
+		expect(store.isDeliverySettled("t1")).toBe(false);
+
+		store.markDeliverySettled("t1");
+		store.clear();
+		expect(store.isDeliverySettled("t1")).toBe(false);
+	});
 });

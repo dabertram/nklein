@@ -110,8 +110,21 @@ function classifyTask(task: NKleinPlanTask): ClassifiedTask {
 	// forever (evidence: the DAW-foundation dev run where "Implement TempoMap class … timebase.test.js" — touching
 	// `src/timebase.ts` — was flagged as a test card). A card is a test/docs card only when its title declares that
 	// intent, or when *every* file it touches is itself a test/docs file.
-	const isTest = matchesAny(titleText, TEST_PATTERNS) || allFilesMatch(task.filesLikelyTouched, TEST_FILE_PATTERNS);
-	const isDocs = matchesAny(titleText, DOCS_PATTERNS) || allFilesMatch(task.filesLikelyTouched, DOCS_FILE_PATTERNS);
+	//
+	// File-evidence override (N5 set-05, 2026-07-26): title words are also DOMAIN language — an emergency-dispatch
+	// "Routing and coverage approximation" card matched \bcoverage\b and was hard-rejected as a floating verifier,
+	// though it declares `src/….mjs` implementation writes. When the card's own write intent includes a
+	// non-test/non-docs source file, the file evidence beats the title word: it is implementation work.
+	const declaresNonTestSource =
+		(task.filesLikelyTouched?.length ?? 0) > 0 && !allFilesMatch(task.filesLikelyTouched, TEST_FILE_PATTERNS);
+	const declaresNonDocsSource =
+		(task.filesLikelyTouched?.length ?? 0) > 0 && !allFilesMatch(task.filesLikelyTouched, DOCS_FILE_PATTERNS);
+	const isTest =
+		allFilesMatch(task.filesLikelyTouched, TEST_FILE_PATTERNS) ||
+		(matchesAny(titleText, TEST_PATTERNS) && !declaresNonTestSource);
+	const isDocs =
+		allFilesMatch(task.filesLikelyTouched, DOCS_FILE_PATTERNS) ||
+		(matchesAny(titleText, DOCS_PATTERNS) && !declaresNonDocsSource);
 	// A test/docs card is not also treated as the implementation/domain work it depends on.
 	const isUi = !isTest && !isDocs && matchesAny(text, UI_PATTERNS);
 	const isDomainCore = !isTest && !isDocs && matchesAny(text, DOMAIN_CORE_PATTERNS);

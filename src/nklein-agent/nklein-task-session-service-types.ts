@@ -154,6 +154,11 @@ export interface NKleinTaskSessionService {
 	onMessage(listener: (taskId: string, message: NKleinTaskMessage) => void): () => void;
 	onTeamProgress(listener: (taskId: string, event: RuntimeNKleinTeamProgressEvent) => void): () => void;
 	startTaskSession(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary>;
+	/**
+	 * N5 flaky-02: declare the task's capture obligations SETTLED (delivery consumed the result) before the
+	 * post-delivery cleanup stop, so a racing late finalize is benign supersede noise instead of a capture error.
+	 */
+	markTaskDeliverySettled?: (taskId: string) => void;
 	stopTaskSession(
 		taskId: string,
 		options?: { reviewReason?: RuntimeTaskSessionReviewReason; abortActiveTurn?: boolean },

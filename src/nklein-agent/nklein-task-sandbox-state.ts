@@ -31,11 +31,34 @@ export class TaskSandboxStateStore {
 	 * describes what is still owed.
 	 */
 	private readonly recaptureExpectedByTaskId = new Map<string, string>();
+	/**
+	 * N5 flaky-02 root cause (2026-07-26): tasks whose DELIVERY completed — the terminal success that consumes the
+	 * result branch. After this point no further capture is owed for the attempt, so (a) no new finalize may start
+	 * and (b) a capture already in flight that fails against the retired workspace is benign supersede noise, NOT a
+	 * capture error. Without this flag, a late lost-heartbeat flip re-entered finalize after the card completed,
+	 * the capture hit `workspace_disposed_before_capture`, and the catch emitted a FAILED summary + an
+	 * infrastructure-failure observation for a task that had just delivered successfully — which aborted the whole
+	 * dev-test run. Cleared when a NEW sandbox is prepared (a redrive owes its own capture), not on deleteSandbox
+	 * (stragglers holding pre-forget closures must still read it).
+	 */
+	private readonly deliverySettledTaskIds = new Set<string>();
 
 	/** Records the repo path and (already-resolved) base ref a task's sandbox was prepared against. */
 	setSandbox(taskId: string, repoPath: string, baseRef: string): void {
 		this.repoPathByTaskId.set(taskId, repoPath);
 		this.baseRefByTaskId.set(taskId, baseRef);
+		// A fresh sandbox is a fresh attempt: it owes its own capture regardless of any prior delivered round.
+		this.deliverySettledTaskIds.delete(taskId);
+	}
+
+	/** Mark the task's delivery as completed: the result was consumed; no further capture is owed this attempt. */
+	markDeliverySettled(taskId: string): void {
+		this.deliverySettledTaskIds.add(taskId);
+		this.recaptureExpectedByTaskId.delete(taskId);
+	}
+
+	isDeliverySettled(taskId: string): boolean {
+		return this.deliverySettledTaskIds.has(taskId);
 	}
 
 	getRepoPath(taskId: string): string | undefined {
@@ -117,6 +140,7 @@ export class TaskSandboxStateStore {
 
 	/** Drops all per-task sandbox state (used on full service disposal). */
 	clear(): void {
+		this.deliverySettledTaskIds.clear();
 		this.recaptureExpectedByTaskId.clear();
 		this.repoPathByTaskId.clear();
 		this.baseRefByTaskId.clear();

@@ -2606,6 +2606,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return cloneSummary(entry.summary);
 	}
 
+	/**
+	 * N5 flaky-02: the delivery seam declares the task's capture obligations SETTLED (the merge consumed the result)
+	 * BEFORE its cleanup stop, so a racing late finalize (e.g. a lost-heartbeat park flip) cannot capture against the
+	 * retired workspace and manufacture a failed summary + infrastructure failure for a card that just delivered.
+	 */
+	markTaskDeliverySettled(taskId: string): void {
+		this.sandboxState.markDeliverySettled(taskId);
+	}
+
 	async stopTaskSession(
 		taskId: string,
 		// F2.17b: the reviewReason to stamp on the interrupted summary (default "interrupted"). The delivery
@@ -2657,6 +2666,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			entry.summary.state !== "idle" &&
 			Boolean(this.agentSandboxManager) &&
 			this.sandboxState.hasSandbox(taskId) &&
+			// A settled delivery owes nothing further — dispose here even if a superseded capture is still in flight
+			// (its failure is benign, see the finalizer's delivery-settled catch branch). Without this, the retained
+			// placement let a post-delivery salvage re-enter capture against a workspace the merge already consumed.
+			!this.sandboxState.isDeliverySettled(taskId) &&
 			(this.sandboxState.isFinalizing(taskId) ||
 				!this.sandboxState.getResultBranch(taskId) ||
 				recaptureReason !== null);
@@ -3810,7 +3823,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (
 			isTerminalFailureSessionState(state) &&
 			this.sandboxState.hasSandbox(taskId) &&
-			!this.sandboxState.getResultBranch(taskId)
+			!this.sandboxState.getResultBranch(taskId) &&
+			// A settled delivery owes no salvage: the merge already consumed the result (N5 flaky-02 late-capture race).
+			!this.sandboxState.isDeliverySettled(taskId)
 		) {
 			this.sandboxReviewFinalizer.finalizeSandboxReview(taskId);
 		}
