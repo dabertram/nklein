@@ -6353,7 +6353,14 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   non-baseline profiles (their pack owns the lane assertion); (3)
   park/resume — recordings are designed to recover, nothing parks; needs a park-then-resume profile; (4)
   budget_wall / explicit token-budget event — needs a budget-exhaustion profile; (5) model_failover — single sim
-  model can't failover models (endpoint-level alternate_endpoint DID fire 732×); needs a two-model sim profile;
+  model can't failover models (endpoint-level alternate_endpoint DID fire 732×); needs a two-model sim profile.
+  **ENABLING PRIMITIVE SHIPPED 2026-07-27: `modelIncludes` track matcher** (case-insensitive substring on the
+  request's `model`; compiles most-specific tier; also the N3 matrix primitive) — a primary-model track can now
+  fail terminally while the failover candidate's track succeeds. REMAINING DESIGN QUESTION before the
+  recording: the F3.2 failover picks the "next untried ranked candidate" from `setTaskFailoverCandidates`
+  (Auto-routing populates it) — the scenario harness's pinned-role mode may leave candidates empty, so the
+  profile likely needs the harness's default/Auto mode with TWO loaded sim models (roster is already
+  multi-model-capable) — verify the candidate stash under sim routing before authoring failover-run.json;
   (6) taint GATE action (labels recorded, gate never blocked) — needs a tainted-influence-on-delivery profile;
   (7) ✅ syntax guard COVERED 2026-07-27 — `02×syntax_guard` cell (all 7 invariants, ok:true): after a valid
   write the recorded worker emits an unclosed-brace edit; the F12.63 guard rejects it and the run fully drains;
