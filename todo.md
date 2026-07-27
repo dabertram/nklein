@@ -6402,6 +6402,15 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   compare the RELEASE side (why planning cards of completed prerequisites never start again: retry budgets
   exhausted? deferred set stuck? durable-controller job states dead?) rather than chase per-run shapes. The
   offline-acceptance question (a3, real npm test cannot pass without deps) remains a separate decision.**
+  **(a3) DECIDED + SHIPPED 2026-07-27 — option "offline-aware", minimal form:** the monitor's post-drain
+  HOST-side acceptance re-run is skipped in hermetic sim runs (gated on the harness's
+  `NKLEIN_NIGHTLY_MODEL_GATEWAY_URL` export), so `acceptancePassed` stays null and the classifier reports the
+  honest `acceptance_not_run` ("Board complete but unverified") instead of the false "failed (acceptance
+  failing)" a deps-less fixture guarantees. Rejected alternatives: a cell-mode acceptance STUB (sim would stop
+  exercising the acceptance seam), recording-declared offline-safe commands (pushes a lie into 40 recordings).
+  Sandbox-side acceptance gates inside the drain are untouched (they run and are proven by the N2 audit:
+  acceptance_passed ×730); live/benchmark runs keep real host acceptance unchanged. Verified: 01×perfect now
+  classifies acceptance_not_run, harness PASS.
   **ROOT CAUSE FOUND + FIXED 2026-07-26 (release-side forensics on the retained planning:8 HOME): ONE race
   manufactured every flaky shape.** Chain: (1) a delivered card's cleanup stop raced a late finalize
   (lost-heartbeat park flip / terminal salvage) because delivery left the sandbox store half-cleared — the late

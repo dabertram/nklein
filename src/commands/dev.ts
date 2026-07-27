@@ -348,7 +348,19 @@ async function executeDevTestPreset(input: {
 			? { stablePollsUntilSettled: input.stablePollsUntilSettled }
 			: {}),
 		...(input.nullAgent ? { nullAgent: true } : {}),
-		runAcceptance: async () => (await runAcceptanceCommand(scenario.acceptanceCommand, input.projectPath)).passed,
+		// a3 decision (2026-07-27, N5 follow-up): in a HERMETIC sim run (the harness exports the aimock gateway
+		// env) the fixture's real acceptance command measures sandbox topology, not the work — deps are never
+		// installed offline, so `npm test` fails deterministically and the classification read "failed
+		// (acceptance failing)" on runs whose every card delivered. Skip host acceptance there: acceptancePassed
+		// stays null and the classifier reports the honest "acceptance_not_run". Live/benchmark runs (no hermetic
+		// gateway env) keep running real acceptance unchanged. Sandbox-side acceptance gates inside the drain are
+		// unaffected — this is only the monitor's post-drain host-side re-run.
+		...(process.env.NKLEIN_NIGHTLY_MODEL_GATEWAY_URL?.trim()
+			? {}
+			: {
+					runAcceptance: async () =>
+						(await runAcceptanceCommand(scenario.acceptanceCommand, input.projectPath)).passed,
+				}),
 	});
 }
 
