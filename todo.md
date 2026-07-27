@@ -6371,7 +6371,17 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   core-invariants + mustFire `model_failover` (the controller's category, nklein-model-failover-controller
   ~144) + quietExemptionsByProfile failover:[runtime_error]; (d) add `model_failover` to
   OBSERVABLE_DRAIN_SIGNALS + PROFILE_TO_SIMFLOW_RUN `failover:"failover"` + manifest 02 profile/pack entries;
-  (6) taint GATE action (labels recorded, gate never blocked) — needs a tainted-influence-on-delivery profile;
+  (6) taint GATE action (labels recorded, gate never blocked) — DESIGN READY 2026-07-27: the gate
+  (decideCapabilityBrokerGate at the delivery seam, runtime-server ~2599) correctly never fires in the sims
+  because every decompose card is plan-backed (`backedByTrustedPlan` relaxes the tainted-influence rule); the
+  profile needs a NON-plan-backed card reaching delivery — exactly what a TRIGGER-TEMPLATE card is (no
+  `generatedFromPlan`). Plan: `taint-gate-run` profile = standard 02 flow PLUS a harness action that POSTs a
+  trigger template card (reuse the N10 trigger driver's intake machinery, no crash) whose worker track
+  completes trivially; its worker attempt accrues `repo_instruction` taint (reading the repo does this
+  already), review approves, DELIVERY holds (`require_fresh_trusted_plan`) → card ends review+attention. Pack:
+  includes core-invariants is WRONG here (the held card never delivers) — dedicated pack with lanes
+  completed+review, mustFire `delivery_taint_gate` (the observation category at the hold site; add to
+  OBSERVABLE_DRAIN_SIGNALS), quiet exemption as needed;
   (7) ✅ syntax guard COVERED 2026-07-27 — `02×syntax_guard` cell (all 7 invariants, ok:true): after a valid
   write the recorded worker emits an unclosed-brace edit; the F12.63 guard rejects it and the run fully drains;
   NEW host-side `edit_syntax_guard` observable signal at the sandbox runTool seam (the rejection fires inside
