@@ -371,7 +371,7 @@ describe("LocalLlmClient.generateStructured", () => {
 			.mockResolvedValueOnce(jsonResponse('{"value":42}'));
 		const client = new LocalLlmClient({
 			providerId: "lmstudio",
-			modelId: "qwen3-8b",
+			modelId: "qwen3-4b",
 			baseUrl: "http://127.0.0.1:1234/v1",
 			fetchImpl: fetchImpl as unknown as typeof fetch,
 		});
@@ -400,7 +400,7 @@ describe("LocalLlmClient.generateStructured", () => {
 			.mockResolvedValueOnce(jsonResponse('{"value":7}'));
 		const client = new LocalLlmClient({
 			providerId: "lmstudio",
-			modelId: "qwen3-8b",
+			modelId: "qwen3-4b",
 			baseUrl: "http://127.0.0.1:1234/v1",
 			fetchImpl: fetchImpl as unknown as typeof fetch,
 		});
@@ -422,7 +422,7 @@ describe("LocalLlmClient.generateStructured", () => {
 		const fetchImpl = vi.fn(async () => jsonResponse('{"value":9}'));
 		const client = new LocalLlmClient({
 			providerId: "lmstudio",
-			modelId: "qwen3-8b",
+			modelId: "qwen3-4b",
 			baseUrl: "http://127.0.0.1:1234/v1",
 			fetchImpl: fetchImpl as unknown as typeof fetch,
 		});

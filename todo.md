@@ -5460,7 +5460,13 @@ verify-before-build caveat: confirm each against current code before implementin
   packaging pass that "improves" the answer reintroduces exactly the semantic risk the split exists to avoid.
   10 tests; suite green.
   **SPLIT MATERIALIZED 2026-07-20.**
-- [~] **F12.78b — Wire the two-phase turn *(split from F12.78 2026-07-20)*.** Run the reasoning turn
+- [x] **F12.78b — Wire the two-phase turn *(split from F12.78 2026-07-20)*.** ✅ CLOSED 2026-07-27: the paired
+  acceptance ran on the idle m5max (`eval:constraint-tax`, ABBA, 8 cards/arm, fleet idle, models loaded at 33k
+  then unloaded): **ZERO constraint tax at both 8B (qwen/qwen3-8b: 7/8 correct in BOTH arms, wrongButValid 1
+  both, delta 0) and 9B (ornith-1.0-9b-mlx: 8/8 both arms); packaging failures 0.** Verdict per the acceptance
+  rule ("keep, narrow, or retire"): **NARROWED — `CONSTRAINT_TAX_SIZE_B` 14 → 8** (direct-constrained wins on
+  equal accuracy at one call cheaper for ≥8B; two-phase stays ON below 8B — the paper shows tax at 3B and 4–7B
+  is unmeasured). Raw results in `.real-runs/constraint-tax/`; measured-accuracy override unchanged. Run the reasoning turn
   UNCONSTRAINED, then issue the packaging call with LM Studio's `response_format: json_schema` — the only
   constrained-decode lever that runtime honours (it silently ignores top-level `grammar`, §4A). Needs the
   turn-loop seam plus model time to confirm the packaging pass does not itself become a failure source on the

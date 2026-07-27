@@ -24,11 +24,15 @@
 import { parseModelAttributes } from "./model-attributes";
 
 /**
- * !Klein's provisional local-small-model boundary. The paper directly tests 0.5B–3B and still finds tax at 3B; it
- * does NOT establish 14B. We conservatively extend the two-phase policy through the current 8B/9B small-host tier
- * until paired local wrong-but-valid measurements replace this weak cutoff.
+ * !Klein's local-small-model boundary, NARROWED by measurement 2026-07-27 (F12.78b's paired acceptance, the
+ * exact evidence the previous 14B placeholder said must replace it): the `eval:constraint-tax` ABBA harness on
+ * an idle m5max measured ZERO constraint tax at both 8B (qwen3-8b: 7/8 correct in BOTH arms, wrongButValid 1
+ * both arms, delta 0) and 9B (ornith-1.0-9b-mlx: 8/8 both arms), with zero packaging failures — raw results in
+ * `.real-runs/constraint-tax/`. Direct-constrained is one call cheaper, so at ≥8B it wins on equal accuracy.
+ * The paper's tax evidence stops at 3B; 4–7B remains unmeasured, so the two-phase policy stays ON below 8B (the
+ * conservative side of the untested gap) until someone pairs a 4–7B model the fleet actually uses.
  */
-export const CONSTRAINT_TAX_SIZE_B = 14;
+export const CONSTRAINT_TAX_SIZE_B = 8;
 
 export type ConstraintStrategy = "free_text_then_package" | "direct_constrained";
 

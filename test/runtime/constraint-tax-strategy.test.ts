@@ -8,9 +8,15 @@ import {
 
 describe("decideConstraintStrategy", () => {
 	it("sends a small model down the free-text-then-package path", () => {
-		const decision = decideConstraintStrategy({ modelId: "qwen3-8b-q4_k_m" });
+		// Sub-8B: the measured 2026-07-27 boundary (8B/9B paired clean; the paper's tax evidence reaches 3B).
+		const decision = decideConstraintStrategy({ modelId: "qwen3-4b-q4_k_m" });
 		expect(decision.strategy).toBe("free_text_then_package");
 		expect(decision.reason).toContain("wrong-but-valid");
+	});
+
+	it("direct-constrains at the measured 8B boundary (F12.78b paired eval: zero tax at 8B/9B)", () => {
+		const decision = decideConstraintStrategy({ modelId: "qwen3-8b-q4_k_m" });
+		expect(decision.strategy).toBe("direct_constrained");
 	});
 
 	it("allows direct constraint at or above the paper's threshold, flagged as a weak basis", () => {
@@ -21,7 +27,7 @@ describe("decideConstraintStrategy", () => {
 
 	it("lets a MEASUREMENT override the size heuristic in both directions", () => {
 		const smallButCapable = decideConstraintStrategy({
-			modelId: "qwen3-8b-q4_k_m",
+			modelId: "qwen3-4b-q4_k_m",
 			measuredConstrainedAccuracy: 0.9,
 			observationCount: 20,
 		});
@@ -37,7 +43,7 @@ describe("decideConstraintStrategy", () => {
 
 	it("treats a thin measurement as unmeasured", () => {
 		const decision = decideConstraintStrategy({
-			modelId: "qwen3-8b-q4_k_m",
+			modelId: "qwen3-4b-q4_k_m",
 			measuredConstrainedAccuracy: 0.99,
 			observationCount: 2,
 		});
@@ -58,7 +64,8 @@ describe("decideConstraintStrategy", () => {
 	});
 
 	it("uses the documented constants", () => {
-		expect(CONSTRAINT_TAX_SIZE_B).toBe(14);
+		// Narrowed 14 → 8 on 2026-07-27 by the F12.78b paired measurement (zero tax at 8B and 9B).
+		expect(CONSTRAINT_TAX_SIZE_B).toBe(8);
 		expect(DIRECT_CONSTRAINT_BAR).toBeGreaterThan(0);
 	});
 
