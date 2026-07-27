@@ -65,7 +65,15 @@ import {
 } from "../src/core/nightly-hermeticity.js";
 
 const SCENARIO_SELECTOR = process.env.NKLEIN_SIMFLOW_SCENARIO?.trim() || "";
-const SCENARIO_RUN = process.env.NKLEIN_SIMFLOW_RUN === "flaky" ? "flaky-run" : "perfect-run";
+// N2 no-proof profiles: any lowercase-kebab run name resolves to its `<name>-run.json` recording file
+// ("flaky" → flaky-run.json, "loop-park" → loop-park-run.json); default stays perfect-run. A missing file
+// fails loudly at the existing scenario-load step, so a typo'd profile can't silently drain the default.
+const RAW_SIMFLOW_RUN = (process.env.NKLEIN_SIMFLOW_RUN ?? "perfect").trim().toLowerCase();
+const SCENARIO_RUN = /^[a-z0-9][a-z0-9-]*$/.test(RAW_SIMFLOW_RUN)
+	? RAW_SIMFLOW_RUN.endsWith("-run")
+		? RAW_SIMFLOW_RUN
+		: `${RAW_SIMFLOW_RUN}-run`
+	: "perfect-run";
 const REPLAY_SCRIPT_PATH = process.env.NKLEIN_SIMFLOW_SCRIPT?.trim() || "";
 const EXPECTED_OUTCOME = process.env.NKLEIN_SIMFLOW_EXPECT_OUTCOME?.trim() || "";
 const NIGHTLY_EXPECTED_FIXTURE = process.env.NKLEIN_NIGHTLY_EXPECTED_FIXTURE?.trim() || "";
@@ -999,8 +1007,10 @@ async function main(): Promise<void> {
 				`captured replay outcome drifted: expected ${EXPECTED_OUTCOME}, observed ${observedOutcome || "<missing>"}`,
 			);
 		}
-		if (scenarioMode && !EXPECTED_OUTCOME) {
-			// BOTH scenario profiles must fully drain the board. Perfect-run: anything parked in Review/failed means
+		if (scenarioMode && !EXPECTED_OUTCOME && (SCENARIO_RUN === "perfect-run" || SCENARIO_RUN === "flaky-run")) {
+			// BOTH baseline scenario profiles must fully drain the board (mechanism profiles like loop-park have
+			// DESIGNED non-drained terminal shapes — their per-profile N5 pack owns the lane assertion instead).
+			// Perfect-run: anything parked in Review/failed means
 			// fixtures mis-matched (the monitor is lenient about "blocked_by_review_cards" — the harness must not be).
 			// Flaky-run (N5 (a1), 2026-07-26): the flaky recordings are DESIGNED to recover through the retry
 			// machinery — "all 20 sets drain clean" held for both profiles on 2026-07-11 — so a flaky run that

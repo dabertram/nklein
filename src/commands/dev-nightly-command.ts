@@ -173,6 +173,9 @@ async function readPriorBaselines(): Promise<Map<string, PriorCellBaseline>> {
 const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	perfect: "perfect",
 	flaky: "flaky",
+	// N2 no-proof mechanism profiles (each maps to a `<value>-run.json` recording): loop_park proves the
+	// repeated-tool-call guard + budget_wall park with a parked-terminal pack.
+	loop_park: "loop-park",
 };
 
 async function runCell(cell: NightlyCell): Promise<CellVerdict> {

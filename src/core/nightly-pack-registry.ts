@@ -67,7 +67,24 @@ export const PARKED_TERMINAL: InvariantPack = {
 	includes: ["core-invariants"],
 };
 
+/**
+ * N2 `loop_park` mechanism profile: the recording makes a worker repeat one tool call with identical input
+ * until the repeated-tool-call guard parks the card — proving the loop guard AND `budget_wall` fire for real.
+ * Deliberately NOT composed from `core-invariants`: a parked run never reaches review/capture, so the core
+ * `mustFire` gates (second_opinion_review_session, agent_sandbox_result_patch) would be false failures here.
+ * The parked card sits in the `review` lane awaiting the operator (a session state, not a column — the same
+ * lesson PARKED_TERMINAL's bug comment records).
+ */
+export const LOOP_PARK_TERMINAL: InvariantPack = {
+	id: "loop-park-terminal",
+	expectedTerminalLanes: ["review"],
+	mustFire: ["budget_wall"],
+	// The park is a deliberate guard action on a stuck card, not a frozen board — the self-heal must stay quiet.
+	mustStayQuiet: ["board_liveness_watchdog"],
+};
+
 export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map([
 	[CORE_INVARIANTS.id, CORE_INVARIANTS],
 	[PARKED_TERMINAL.id, PARKED_TERMINAL],
+	[LOOP_PARK_TERMINAL.id, LOOP_PARK_TERMINAL],
 ]);

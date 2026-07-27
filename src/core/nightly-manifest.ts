@@ -33,6 +33,13 @@ export interface NightlyProjectEntry {
 	readonly recordingSet: string;
 	/** Invariant pack asserted after the drain. */
 	readonly invariantPack: string;
+	/**
+	 * N2 no-proof profiles: per-profile pack override. A mechanism profile whose DESIGNED terminal shape differs
+	 * from the project baseline (e.g. `loop_park` deliberately parks its card in Review) names its own pack here;
+	 * profiles not listed keep `invariantPack`. Registered pack names only — the runner still fails closed on an
+	 * unknown name.
+	 */
+	readonly invariantPackByProfile?: Readonly<Record<string, string>>;
 	/** Model profiles this project is exercised against. */
 	readonly modelProfiles: readonly string[];
 }
@@ -85,7 +92,7 @@ export function enumerateNightlyCells(manifest: NightlyManifest, filter: CellFil
 				fixture: project.fixture,
 				modelProfile,
 				recordingSet: project.recordingSet,
-				invariantPack: project.invariantPack,
+				invariantPack: project.invariantPackByProfile?.[modelProfile] ?? project.invariantPack,
 			});
 		}
 	}
@@ -98,7 +105,7 @@ export function enumerateNightlyCells(manifest: NightlyManifest, filter: CellFil
 				fixture: project.fixture,
 				modelProfile,
 				recordingSet: project.recordingSet,
-				invariantPack: project.invariantPack,
+				invariantPack: project.invariantPackByProfile?.[modelProfile] ?? project.invariantPack,
 				persistedStateFixture: project.persistedStateFixture,
 			});
 		}
