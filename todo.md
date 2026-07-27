@@ -8451,13 +8451,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   LIVE-VERIFIED against mlx-serve 26.7.11 (full descriptor incl. the active 33k window ⇒ reviewer fallback,
   32k-floor reads, and reasoning floors work unchanged); REMAINING in ②: live end-to-end with a configured
   mlxserve provider (needs the settings/UI surface to name it);
-  ② adapter for discovery+descriptors (classes 2/4/7 read paths); ③ machine identity via machineIdFor→"local"
-  (scheduler/host-map already tolerate unmapped); ④ ✅ DONE 2026-07-27: attemptAutonomousModelLoad consults the
+  ② adapter for discovery+descriptors (classes 2/4/7 read paths); ③ ✅ VERIFIED 2026-07-27 no code needed:
+  an mlxserve model has no lms ps entry ⇒ machineByModelId unmapped ⇒ existing LOCAL_MACHINE_ID degradation
+  (pinned by machine-concurrency-gate + concurrency-config tests) — one mlx-serve endpoint schedules as one
+  local host; ④ ✅ DONE 2026-07-27: attemptAutonomousModelLoad consults the
   capability record — a supportsLoad=false runtime degrades to the recommendation-only refusal instead of
   driving LM Studio's lms CLI at a foreign runtime (unknown providers keep today's behavior); ⑤ (only if
   mlx-serve grows a load API) the write path behind the same decideModelLoad* policy.
   Contracts to preserve: nightly-hermeticity fake-lms, multimodal id spellings, lms-ps-json parse semantics,
   the `provider:model:endpoint` key shape.
+  **READ-ONLY COEXISTENCE REACHED 2026-07-27 (phases ①②③④ done/verified same day). OPERATOR RUNBOOK to
+  connect an mlx-serve endpoint TODAY:** (1) `mlx-serve serve --model <mlx model dir> --port 11234 --ctx-size
+  33000` (binary: github ddalcu/mlx-serve; the `serve` subcommand is required — bare invocation self-tests and
+  exits); (2) Settings → Providers → add CUSTOM provider with id **`mlxserve`** (exactly — the capability
+  registry keys on it) and baseUrl `http://127.0.0.1:11234/v1`; (3) done — discovery lists the endpoint's
+  roster (probe ladder ends at /v1/models), loaded-model descriptors carry the ACTIVE context window +
+  capabilities (live-verified), the endpoint schedules as one local host, and the autonomous loader structurally
+  refuses to drive lms at it (recommendation-only). REMAINING for full closure: one live end-to-end smoke with
+  a real card (operator-gated — needs the provider actually added), and the ⑤ write path only if mlx-serve
+  grows a load API.
 - [ ] **P17.2 — ACP (Agent Client Protocol) agent-side support.** **Verified 2026-07-19:** ACP is JSON-RPC 2.0
   over **stdio** (the only stable transport — HTTP is a draft proposal, do not build against it),
   `protocolVersion` is the bare integer `1`, capabilities omitted at `initialize` MUST be treated as unsupported,
