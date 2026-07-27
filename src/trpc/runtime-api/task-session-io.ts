@@ -125,6 +125,20 @@ export async function handleSendTaskSessionInput(
 				// Telemetry must never break feedback delivery.
 			}
 		}
+		// N2 observability (2026-07-27): EVERY accepted operator input to a live session is recorded — a steer of
+		// a running worker or the answer that resumes a parked ask_question card was previously invisible unless
+		// marked a correction, so the nightly could not assert the park/resume or steering mechanisms at all.
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Operator input delivered to task session ${body.taskId} (${payloadText.length} chars).`,
+				taskId: body.taskId,
+				metadata: { category: "task_session_operator_input", textLength: payloadText.length },
+			});
+		} catch {
+			// Telemetry must never break input delivery.
+		}
 		await reconcileStartedTaskBoardLane({ workspacePath: workspaceScope.workspacePath, summary: nkleinSummary });
 		return { ok: true, summary: nkleinSummary };
 	} catch (error) {
