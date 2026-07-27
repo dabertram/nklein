@@ -8445,9 +8445,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   structural second id (supportsLoad=false ⇒ never-auto-load structural), no consumer routing yet;
   ② PARTIAL 2026-07-27: discovery slice done — a liveDiscoveryOnly runtime without an lms roster discovers via
   the shared probe ladder under its own provider id (fetchLmStudioBaseUrlModels gained a providerId param; new
-  capability-gated branch in loadProviderModelsWithFallbackForSettings); REMAINING in ②: descriptor reads
-  (loaded context length/capabilities for non-LMS runtimes) + live end-to-end with a configured mlxserve
-  provider (needs the settings/UI surface to name it);
+  capability-gated branch in loadProviderModelsWithFallbackForSettings); descriptor reads DONE same day —
+  fetchLoadedModelDescriptors falls back to plain /v1/models for runtimes that ANNOTATE residency
+  (loaded:true + capabilities + meta.context_length; bare rosters yield [] — never guess loaded),
+  LIVE-VERIFIED against mlx-serve 26.7.11 (full descriptor incl. the active 33k window ⇒ reviewer fallback,
+  32k-floor reads, and reasoning floors work unchanged); REMAINING in ②: live end-to-end with a configured
+  mlxserve provider (needs the settings/UI surface to name it);
   ② adapter for discovery+descriptors (classes 2/4/7 read paths); ③ machine identity via machineIdFor→"local"
   (scheduler/host-map already tolerate unmapped); ④ supportsLoad=false wiring so ensure-model-loaded degrades
   to advice; ⑤ (only if mlx-serve grows a load API) the write path behind the same decideModelLoad* policy.
