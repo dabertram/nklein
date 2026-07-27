@@ -67,6 +67,12 @@ export interface ScenarioTrack {
 	requestClass: RequestClass;
 	/** Optional user-message matcher (substring or regex source) narrowing within the class. */
 	userMessageIncludes?: string;
+	/**
+	 * Optional MODEL matcher (case-insensitive substring of the request's `model` field). Lets a scenario serve
+	 * different behavior per sim model — the enabling primitive for the N2 model-failover profile (primary model
+	 * fails terminally, the failover candidate succeeds) and the N3 per-model behavior matrix. Unset ⇒ any model.
+	 */
+	modelIncludes?: string;
 	/** The scripted turns, in order. `repeatLastTurn` keeps replaying the final turn (loops!). */
 	turns: ScenarioTurn[];
 	repeatLastTurn?: boolean;

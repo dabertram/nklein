@@ -124,10 +124,16 @@ export function compileTrack(track: ScenarioTrack, options: CompileOptions = {})
 	// OpenAI content-part ARRAYS ([{type:"text",text:…}]) and aimock's matcher only reads string content
 	// (live-found bringing up the fast path, 2026-07-10 — real worker requests silently missed their tracks).
 	const needle = track.userMessageIncludes?.toLowerCase();
+	const modelNeedle = track.modelIncludes?.toLowerCase();
 	const matchesTrack = (request: unknown): boolean => {
 		const shaped = request as Parameters<typeof classifyRequest>[0] & {
 			messages?: Array<{ role?: string; content?: unknown }>;
+			model?: unknown;
 		};
+		// Per-model conditioning (N2 model-failover / N3 matrix): the OpenAI request always carries `model`.
+		if (modelNeedle && !String(shaped.model ?? "").toLowerCase().includes(modelNeedle)) {
+			return false;
+		}
 		if (needle && !userText(shaped).toLowerCase().includes(needle)) {
 			return false;
 		}
@@ -171,8 +177,8 @@ export function compileTrack(track: ScenarioTrack, options: CompileOptions = {})
  * 02's no-needle `any` fallback swallow project 05's decompose request, stranding its board in Planning).
  */
 function trackSpecificity(track: ScenarioTrack): number {
-	if (track.userMessageIncludes) {
-		return 0; // needle-keyed — most specific
+	if (track.userMessageIncludes || track.modelIncludes) {
+		return 0; // needle- or model-keyed — most specific (a narrowing matcher must never be shadowed by a catch-all)
 	}
 	if (track.requestClass !== "any") {
 		return 1; // class-scoped

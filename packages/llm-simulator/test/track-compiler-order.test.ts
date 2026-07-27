@@ -178,3 +178,51 @@ describe("compileScenarioScript specificity ordering", () => {
 		expect(JSON.stringify(fixtures[matched]?.response ?? "")).toContain("first wins");
 	});
 });
+
+describe("modelIncludes conditioning (N2 model-failover / N3 matrix primitive)", () => {
+	const script: ScenarioScript = {
+		name: "per-model",
+		seed: 1,
+		tracks: [
+			{
+				id: "primary-fails",
+				requestClass: "any",
+				modelIncludes: "sim/primary",
+				turns: [{ behavior: { kind: "http_error", status: 500, message: "engine crash" } }],
+				repeatLastTurn: true,
+			},
+			{
+				id: "fallback-succeeds",
+				requestClass: "any",
+				modelIncludes: "sim/fallback",
+				turns: [{ behavior: { kind: "text", content: "recovered on the fallback model" } }],
+				repeatLastTurn: true,
+			},
+			{
+				id: "catch-all",
+				requestClass: "any",
+				turns: [{ behavior: { kind: "text", content: "any model" } }],
+				repeatLastTurn: true,
+			},
+		],
+	};
+
+	function modelRequest(model: string): { model: string; messages: Array<{ role: string; content: string }> } {
+		return { model, messages: [{ role: "user", content: "do the work" }] };
+	}
+
+	it("routes each model to its own track, case-insensitively, before the catch-all", () => {
+		const fixtures = compileScenarioScript(script);
+		const idx = (model: string) =>
+			fixtures.findIndex((fixture) => {
+				const predicate = (fixture.match as { predicate?: (r: unknown) => boolean }).predicate;
+				return predicate ? predicate(modelRequest(model)) : false;
+			});
+		// Model-keyed tracks compile in tier 0 (before the catch-all), so each model hits ITS track first.
+		expect(idx("sim/PRIMARY-coder")).toBeLessThan(2);
+		expect(idx("sim/fallback-coder")).toBeLessThan(2);
+		expect(idx("sim/primary-coder")).not.toBe(idx("sim/fallback-coder"));
+		// A third model matches only the catch-all (the last-compiled tier).
+		expect(idx("sim/other")).toBe(2);
+	});
+});
