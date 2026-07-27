@@ -8443,6 +8443,11 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `local-runtime-capability-registry.ts` (liveDiscoveryOnly/mergesLmsRoster/supportsLoad/aliases) now backs
   isLiveOnlyProviderId, LOCAL_PROVIDER_IDS, and the discovery lms-roster branch; `mlxserve` registered as the
   structural second id (supportsLoad=false ⇒ never-auto-load structural), no consumer routing yet;
+  ② PARTIAL 2026-07-27: discovery slice done — a liveDiscoveryOnly runtime without an lms roster discovers via
+  the shared probe ladder under its own provider id (fetchLmStudioBaseUrlModels gained a providerId param; new
+  capability-gated branch in loadProviderModelsWithFallbackForSettings); REMAINING in ②: descriptor reads
+  (loaded context length/capabilities for non-LMS runtimes) + live end-to-end with a configured mlxserve
+  provider (needs the settings/UI surface to name it);
   ② adapter for discovery+descriptors (classes 2/4/7 read paths); ③ machine identity via machineIdFor→"local"
   (scheduler/host-map already tolerate unmapped); ④ supportsLoad=false wiring so ensure-model-loaded degrades
   to advice; ⑤ (only if mlx-serve grows a load API) the write path behind the same decideModelLoad* policy.
