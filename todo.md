@@ -6342,7 +6342,14 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   retries across 4 strategies), re-drive restore (34), pre-send context capping (34), model-turn admission
   (7,476 events), taint LABELS on every attempt, and flaky families 429 / empty-completion / stall / malformed-args.
   **NO PROOF (each needs an explicit profile/action + invariant, per this item's own rule):** (1) steering +
-  (3) park/resume — SHARED PLAN READY 2026-07-27 (observability landed: every accepted operator input now emits
+  (3) ✅ park/resume COVERED 2026-07-27 — `02×park_resume` cell (all 9 invariants, ok:true): budget_wall park
+  (3 identical search_code calls) + the operator resume through the real tRPC sendTaskSessionInput seam; fully
+  quiet drain. **OPEN PRODUCT QUESTION for David (batched): worker sessions are NOT offered
+  `ask_followup_question` (v1's park attempt was rejected as an unavailable tool), yet
+  nklein-execution-clarification.ts + the onClarificationAsked wiring exist precisely to record WORKER-phase
+  asks — either the tool should join the worker toolset (making mid-implementation clarifications real, F2.x
+  intent) or the execution-clarification machinery is dead code for workers and should say so. Decide before
+  building anything on worker asks.** Original shared plan (executed for park/resume; steering remains): (observability landed: every accepted operator input now emits
   `task_session_operator_input`, the enabling signal): the driver builds a tRPC client against `/api/trpc`
   (pattern: createDevRuntimeClient in dev-project-execution.ts — httpBatchLink + workspace-scope headers).
   PARK/RESUME profile: modify s01's worker recording to call **`ask_followup_question`** (the attention tool —
