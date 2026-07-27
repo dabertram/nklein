@@ -1,3 +1,4 @@
+import { findLocalRuntimeCapability } from "./local-runtime-capability-registry";
 import type { ManagedNKleinOauthProviderId } from "./sdk-provider-boundary";
 
 /**
@@ -13,9 +14,10 @@ export function isManagedOauthProviderId(providerId: string): providerId is Mana
 	return providerId === "nklein" || providerId === "oca" || providerId === "openai-codex";
 }
 
-/** True for providers whose models exist only live at the endpoint (no persisted catalog) — LM Studio. */
+/** True for providers whose models exist only live at the endpoint (no persisted catalog) — P17.1: answered
+ *  by the local-runtime capability registry (LM Studio and, structurally, mlx-serve), not a hardcoded id. */
 export function isLiveOnlyProviderId(providerId: string): boolean {
-	return providerId.trim().toLowerCase() === "lmstudio";
+	return findLocalRuntimeCapability(providerId)?.liveDiscoveryOnly ?? false;
 }
 
 /** The human-facing display name for a managed-OAuth provider. */

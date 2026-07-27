@@ -72,7 +72,9 @@ async function collectTypeScriptSourceFiles(directory: string): Promise<string[]
 describe("nklein local-only policy", () => {
 	it("ships with cloud disabled", () => {
 		expect(CLOUD_ENABLED).toBe(false);
-		expect([...LOCAL_PROVIDER_IDS].sort()).toEqual(["lm-studio", "lmstudio", "ollama"]);
+		// P17.1 phase ①: membership now derives from the local-runtime capability registry — mlxserve is the
+		// structural second local runtime id (no consumer routes to it yet; discovery adapter is phase ②).
+		expect([...LOCAL_PROVIDER_IDS].sort()).toEqual(["lm-studio", "lmstudio", "mlx-serve", "mlxserve", "ollama"]);
 	});
 
 	it("allows local providers by id regardless of baseUrl", () => {

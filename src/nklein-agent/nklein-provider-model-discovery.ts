@@ -1,6 +1,7 @@
 import type { RuntimeNKleinEndpointModelDiscoveryResponse, RuntimeNKleinProviderModel } from "../core/api-contract";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached, type LmsPsModel } from "../core/lms-ps-json";
 import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
+import { findLocalRuntimeCapability } from "./local-runtime-capability-registry";
 import { fetchLiteLlmBaseUrlModels, fetchLmStudioBaseUrlModels } from "./nklein-baseurl-model-discovery";
 import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
 import { appendMissingModels } from "./nklein-litellm-model-list";
@@ -128,7 +129,7 @@ async function loadProviderModelsWithFallbackForSettings(
 		const liteLlmModels = await fetchLiteLlmBaseUrlModels(settings);
 		const mergedModels = mergeProviderModelsWithContextWindowFallback(providerModels, liteLlmModels);
 		resolved = appendMissingModels(mergedModels, liteLlmModels);
-	} else if (normalizedProviderId === "lmstudio") {
+	} else if (findLocalRuntimeCapability(normalizedProviderId)?.mergesLmsRoster) {
 		const lmStudioModels = await fetchLmStudioBaseUrlModels(settings);
 		const lmsPsModels = lmsPsModelsToRuntimeProviderModels(
 			await fetchLmsPsModelsCached(createDefaultLmsRunner()).catch(() => []),

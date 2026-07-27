@@ -5,14 +5,17 @@
 // a paid API, relentless retries against a $0 balance). Re-enabling cloud is a single, reviewed code
 // change *here* (flip CLOUD_ENABLED), never a runtime setting, env var, or UI toggle.
 
+import { localRuntimeProviderIds } from "./local-runtime-capability-registry";
+
 /**
  * Flip to `true` — in a deliberate, reviewed code change — to allow cloud providers again.
  * Keep `false`. This is the one and only switch.
  */
 export const CLOUD_ENABLED = false;
 
-/** Providers that are inherently local, on-device inference servers. */
-export const LOCAL_PROVIDER_IDS = new Set<string>(["ollama", "lmstudio", "lm-studio"]);
+/** Providers that are inherently local, on-device inference servers — P17.1: derived from the local-runtime
+ *  capability registry (lmstudio + aliases, ollama, and structurally mlxserve), not a hand-kept list. */
+export const LOCAL_PROVIDER_IDS = new Set<string>(localRuntimeProviderIds());
 
 /** Managed NKlein OAuth providers — keep in sync with web-ui/src/runtime/native-agent.ts cloud screen. */
 const MANAGED_CLOUD_PROVIDER_IDS = new Set<string>(["nklein", "oca", "openai-codex"]);
