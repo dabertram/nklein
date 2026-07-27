@@ -8439,8 +8439,10 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **Seams:** READ = nklein-provider-model-discovery.ts (where lms ps + REST roster + registry overlay already
   converge), backed by the existing LmsRunner/LmStudioRestModelClient as the lmstudio impl. WRITE =
   lms-model-runner.ts (CLI/REST twins already share one policy — generalize behind supportsLoad).
-  **Phase order (read-only coexistence of ONE mlx-serve endpoint beside LM Studio):** ① extract the class-3
-  classification set into a per-provider capability record (zero behavior change; unblocks a second local id);
+  **Phase order (read-only coexistence of ONE mlx-serve endpoint beside LM Studio):** ① ✅ DONE 2026-07-27:
+  `local-runtime-capability-registry.ts` (liveDiscoveryOnly/mergesLmsRoster/supportsLoad/aliases) now backs
+  isLiveOnlyProviderId, LOCAL_PROVIDER_IDS, and the discovery lms-roster branch; `mlxserve` registered as the
+  structural second id (supportsLoad=false ⇒ never-auto-load structural), no consumer routing yet;
   ② adapter for discovery+descriptors (classes 2/4/7 read paths); ③ machine identity via machineIdFor→"local"
   (scheduler/host-map already tolerate unmapped); ④ supportsLoad=false wiring so ensure-model-loaded degrades
   to advice; ⑤ (only if mlx-serve grows a load API) the write path behind the same decideModelLoad* policy.
