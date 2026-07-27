@@ -6809,13 +6809,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   serialization mutex, fair-queue expiry, parent + self-ghost exemptions, silent branches logged) — ALL TWENTY
   recorded scenario sets drain perfect-run green under default-ON test-driven mode. The default flip (F1.34b) is
   now validated against the entire recorded regression corpus.
-- [ ] **F1.34d — repeated-tool-call guard parks the INCREMENTAL decompose route (found 2026-07-25):** the seed's
-  recorded flow makes 3 `decompose_project` calls (the documented F1.7 add_task/incremental COMPLETION route) and
-  the repeated-tool-call guard parks it — "!Klein paused this task after 3 repeated decompose_project tool calls
-  with the same input" (budget_wall, two retained HOMEs). The guard must exempt (or fingerprint more precisely)
-  the incremental decompose protocol: repeated `decompose_project` calls whose incremental construction state
-  DIFFERS are progress, not a loop. The seed recovers via apply in these runs, but a live incremental architect
-  would be parked mid-construction.
+- [x] **F1.34d — repeated-tool-call guard parks the INCREMENTAL decompose route (found 2026-07-25).** ✅ CLOSED
+  2026-07-27 — NO PRODUCT BUG. Root-caused via the N5 nightly face (2026-07-26): the observed parks were
+  RECORDINGS re-serving the byte-identical decompose call after validation drift (spec-coverage/coherence rules
+  newer than the recordings) — cycled replay indexes by assistant count, so a retry can only get the same turn;
+  parking a non-progressing identical call is the guard working as designed (recordings patched, nightly full
+  green). The live incremental route was never at risk: the guard keys on the LOSSLESS full-input fingerprint,
+  so add_tasks batch 1 / batch 2 / completion never collide. Pinned by two regression tests
+  (repeated-tool-call-guard.test.ts): 4 differing decompose_project calls → never parked; 3 identical calls →
+  parked. Validation-failure parking after N varied-but-failing repairs (rule B) stays intended behavior — the
+  model-failover reset (`resetDecompositionFailures`) gives the next architect a fresh budget.
 - [x] **N10.e2big — large-file WRITE ceiling: replace the accidental argv limit with a deliberate policy (David
   2026-07-25).** ✅ RESOLVED 2026-07-25, all three steps. **(1) READ AUDIT VERDICT: solved-enough.** A 32k worker
   can work WITH a 1MB file today: whole-file reads of large files are hard-REFUSED with corrective guidance

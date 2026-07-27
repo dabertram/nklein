@@ -87,6 +87,102 @@ describe("RepeatedToolCallGuard periodic cycles", () => {
 	});
 });
 
+describe("F1.34d — the incremental decompose route must not trip the identical-call guard", () => {
+	it("allows 3+ decompose_project calls whose inputs DIFFER (add-tasks batches then completion)", () => {
+		// The F1.7 incremental route legitimately calls decompose_project several times while CONSTRUCTING the
+		// graph (batch 1, batch 2, completion). The 2026-07-25/26 parks were recordings re-serving the IDENTICAL
+		// call after validation drift — correct guard behavior. A live architect's varying inputs must never
+		// collide: the lossless full-input fingerprint is what guarantees that; this test pins it.
+		const taskId = "incremental-decompose";
+		const base = createDefaultSummary(taskId);
+		base.state = "running";
+		const entry = {
+			summary: base,
+			messages: [],
+			activeAssistantMessageId: null,
+			activeReasoningMessageId: null,
+			toolMessageIdByToolCallId: new Map(),
+			toolInputByToolCallId: new Map(),
+		} satisfies NKleinTaskSessionEntry;
+		const parked: Array<Record<string, unknown>> = [];
+		const guard = new RepeatedToolCallGuard({
+			getMaxRepeatedToolCallsPerTask: () => 3,
+			getTaskEntry: (id) => (id === taskId ? entry : null),
+			parkTaskForAutonomyBudget: (input) => {
+				parked.push(input.metadata);
+				return entry.summary as RuntimeTaskSessionSummary;
+			},
+		});
+		const inputs = [
+			'{"action":"add_tasks","tasks":["s00","s01","s02"]}',
+			'{"action":"add_tasks","tasks":["s03","s04"]}',
+			'{"action":"complete"}',
+			'{"action":"complete","confirm":true}',
+		];
+		for (const [index, fingerprint] of inputs.entries()) {
+			const summary = {
+				...base,
+				lastHookAt: index + 1,
+				latestHookActivity: {
+					activityText: "decompose_project",
+					toolName: "decompose_project",
+					toolInputSummary: `decompose batch ${index}`,
+					toolInputFingerprint: fingerprint,
+					finalMessage: null,
+					hookEventName: "tool_call",
+					notificationType: null,
+					source: "nklein-sdk",
+				},
+			} satisfies RuntimeTaskSessionSummary;
+			expect(guard.check(summary)).toBeNull();
+		}
+		expect(parked).toEqual([]);
+	});
+
+	it("still parks decompose_project when the SAME input repeats to the limit (non-progressing replay)", () => {
+		const taskId = "stuck-decompose";
+		const base = createDefaultSummary(taskId);
+		base.state = "running";
+		const entry = {
+			summary: base,
+			messages: [],
+			activeAssistantMessageId: null,
+			activeReasoningMessageId: null,
+			toolMessageIdByToolCallId: new Map(),
+			toolInputByToolCallId: new Map(),
+		} satisfies NKleinTaskSessionEntry;
+		const parked: Array<Record<string, unknown>> = [];
+		const guard = new RepeatedToolCallGuard({
+			getMaxRepeatedToolCallsPerTask: () => 3,
+			getTaskEntry: (id) => (id === taskId ? entry : null),
+			parkTaskForAutonomyBudget: (input) => {
+				parked.push(input.metadata);
+				return entry.summary as RuntimeTaskSessionSummary;
+			},
+		});
+		let lastResult: unknown = null;
+		for (let index = 0; index < 3; index += 1) {
+			const summary = {
+				...base,
+				lastHookAt: index + 1,
+				latestHookActivity: {
+					activityText: "decompose_project",
+					toolName: "decompose_project",
+					toolInputSummary: "same graph",
+					toolInputFingerprint: '{"action":"add_tasks","tasks":["s00"]}',
+					finalMessage: null,
+					hookEventName: "tool_call",
+					notificationType: null,
+					source: "nklein-sdk",
+				},
+			} satisfies RuntimeTaskSessionSummary;
+			lastResult = guard.check(summary);
+		}
+		expect(lastResult).toBe(entry.summary);
+		expect(parked).toHaveLength(1);
+	});
+});
+
 describe("getRepeatedToolCallLimit", () => {
 	it("gives read/command tools a higher park threshold (they legitimately repeat more)", () => {
 		expect(getRepeatedToolCallLimit("read_files", 3)).toBe(NKLEIN_EXTRA_TOOL_REPEATED_CALL_PARK_THRESHOLD);
