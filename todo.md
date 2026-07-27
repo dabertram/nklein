@@ -6537,6 +6537,8 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   the remaining F1.34d question is only the live-model incremental route, unchanged.
   **✅ CLOSED 2026-07-26 — FINAL DOUBLE-RUN (v3) FULL GREEN: 21/21 cells passed, 0 violated packs (was 12),
   quarantine empty, embedded crash matrix 6/6, overall ok:true.**
+  **✅ v5 2026-07-28: 26/26 FULL GREEN with ALL SIX mechanism cells (+park_resume) — the N2 profile epic is
+  fully validated under the doubled suite.**
   **✅ RE-CONFIRMED 2026-07-27 (double-run v4): 25/25 FULL GREEN — the 21 baseline cells PLUS the four new N2
   mechanism cells (02×loop_park/syntax_guard/failover/taint_gate), doubled, 0 violated packs, quarantine empty,
   crash 6/6 — including the durable-run disposal product fix that touches every drain.** The whole N13/N5 chain now judges real board
