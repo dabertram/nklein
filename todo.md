@@ -6341,8 +6341,18 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   acceptance evidence (730 acceptance_passed), test-driven gate ENFORCED (72 bounces), retry ladder (2,268 ledger
   retries across 4 strategies), re-drive restore (34), pre-send context capping (34), model-turn admission
   (7,476 events), taint LABELS on every attempt, and flaky families 429 / empty-completion / stall / malformed-args.
-  **NO PROOF (each needs an explicit profile/action + invariant, per this item's own rule):** (1) steering/queued
-  steer input — no recorded steer turn exists; needs a scenario action + N5 must_fire; (2) ✅ loop guards +
+  **NO PROOF (each needs an explicit profile/action + invariant, per this item's own rule):** (1) steering +
+  (3) park/resume — SHARED PLAN READY 2026-07-27 (observability landed: every accepted operator input now emits
+  `task_session_operator_input`, the enabling signal): the driver builds a tRPC client against `/api/trpc`
+  (pattern: createDevRuntimeClient in dev-project-execution.ts — httpBatchLink + workspace-scope headers).
+  PARK/RESUME profile: modify s01's worker recording to call **`ask_followup_question`** (the attention tool —
+  NOT "ask_question") after its read; the card parks awaiting the operator; the driver polls at ≤500ms for the
+  attention state and answers via `sendTaskSessionInput` — it must WIN the race against the monitor's 4s
+  attention-break (only relevant when nothing else is in progress; a chain-mid ask keeps siblings running);
+  the SAME session resumes (assistant count continues), later turns serve the work, full drain. Pack: composes
+  core-invariants + mustFire task_session_operator_input (+ add it to OBSERVABLE_DRAIN_SIGNALS). STEERING
+  profile: same driver, but sendTaskSessionInput to a RUNNING worker mid-turn; the recording keys a later turn
+  on a needle from the steer text (proves the input reached the model on the wire); (2) ✅ loop guards +
   budget_wall COVERED 2026-07-27 — the `02×loop_park` mechanism cell (all 5 invariants satisfied, ok:true):
   loop-park-run.json makes s01's worker re-issue a byte-identical search_code call; budget_wall fires twice
   (park + the bounded terminal-redrive escalation's one retry), the card ends failed, dependents starve by
