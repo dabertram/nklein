@@ -6352,7 +6352,8 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   OBSERVABLE_DRAIN_SIGNALS; the harness resolves any kebab run name and skips the full-drain gate for
   non-baseline profiles (their pack owns the lane assertion); (3)
   park/resume — recordings are designed to recover, nothing parks; needs a park-then-resume profile; (4)
-  budget_wall / explicit token-budget event — needs a budget-exhaustion profile; (5) model_failover — single sim
+  ✅ budget_wall COVERED 2026-07-27 via the loop_park cell (the guard park IS the budget_wall
+  signal, fired + asserted there); a separate token-budget-exhaustion profile remains optional; (5) model_failover — single sim
   model can't failover models (endpoint-level alternate_endpoint DID fire 732×); needs a two-model sim profile.
   **ENABLING PRIMITIVE SHIPPED 2026-07-27: `modelIncludes` track matcher** (case-insensitive substring on the
   request's `model`; compiles most-specific tier; also the N3 matrix primitive) — a primary-model track can now
