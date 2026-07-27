@@ -8350,6 +8350,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   authorized trial host) is unreachable too. The trial's natural target is now the LOCAL m5max (idle, Apple
   Silicon, models on disk). Needs David's go for (a) running it on m5max instead of qwable and (b) downloading
   the mlx-serve binary itself (the "no new downloads" grant covered model files).**
+  **FLEET UPDATE 2026-07-27 (David): legion5pro + m4mini are offline because of a FLAT MOVE, returning "in the
+  next days" specifically to continue hardening multi-host parallel serving. MULTI-HOST RETURN CHECKLIST (run
+  when they come online):** (1) P17.1 live smoke — an mlx-serve endpoint on one host beside LM Studio on
+  another (custom provider id `mlxserve`, runbook above); (2) F12.74 per-machine prefill tuning sweep; (3)
+  re-validate the LM-Link host-map + device-load-routing + machine-concurrency gates with 3 real machines
+  (the unmapped→local degradation must NOT swallow real remote hosts); (4) F12.110 loaded-fleet reads; (5)
+  cross-machine fan-out (F3.24-class) re-validation under the durable scheduler + admission stack that landed
+  since the fleet was last up (delivery-settled, fail-lease-fast, admission hardenings — none of it has seen
+  a REAL multi-host fleet yet).
   **★ FUNCTIONAL TRIAL PASSED on m5max, 2026-07-26 (v26.7.11, 61.5MB arm64 tarball — the "~7MB" research note
   was stale; David delegated the go). Served `Qwopus3.5-9B-Coder-MLX-4bit` straight from the LM Studio model
   dir. Verified live: `/v1/models` (capabilities incl. tool_use/streaming/reasoning), `/v1/chat/completions`
