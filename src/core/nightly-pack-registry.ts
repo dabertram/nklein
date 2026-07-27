@@ -118,10 +118,25 @@ export const FAILOVER_RECOVERY: InvariantPack = {
 	includes: ["core-invariants"],
 };
 
+/**
+ * N2 `taint_gate` mechanism profile: a trigger-template card — the one card class with NO `generatedFromPlan`,
+ * so `backedByTrustedPlan` cannot relax the broker — is injected mid-drain; its worker accrues repo taint,
+ * review APPROVES (the recording pins that), and the DELIVERY taint gate must hold it in Review
+ * (`delivery_taint_gate`). Deliberately not composed from core-invariants: the held card never completes, so
+ * the full-drain lane baseline would be a false failure; the review/capture must-fires are asserted directly.
+ */
+export const TAINT_GATE_HOLD: InvariantPack = {
+	id: "taint-gate-hold",
+	expectedTerminalLanes: ["completed", "review"],
+	mustFire: ["delivery_taint_gate", "second_opinion_review_session", "agent_sandbox_result_patch"],
+	mustStayQuiet: ["board_liveness_watchdog", "runtime_error"],
+};
+
 export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map([
 	[CORE_INVARIANTS.id, CORE_INVARIANTS],
 	[PARKED_TERMINAL.id, PARKED_TERMINAL],
 	[LOOP_PARK_TERMINAL.id, LOOP_PARK_TERMINAL],
 	[SYNTAX_GUARD_RECOVERY.id, SYNTAX_GUARD_RECOVERY],
 	[FAILOVER_RECOVERY.id, FAILOVER_RECOVERY],
+	[TAINT_GATE_HOLD.id, TAINT_GATE_HOLD],
 ]);

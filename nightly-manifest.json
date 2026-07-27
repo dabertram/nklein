@@ -10,12 +10,14 @@
     "flaky",
     "loop_park",
     "syntax_guard",
-    "failover"
+    "failover",
+    "taint_gate"
    ],
    "invariantPackByProfile": {
     "loop_park": "loop-park-terminal",
     "syntax_guard": "syntax-guard-recovery",
-    "failover": "failover-recovery"
+    "failover": "failover-recovery",
+    "taint_gate": "taint-gate-hold"
    }
   },
   {

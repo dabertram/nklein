@@ -58,6 +58,8 @@ export const OBSERVABLE_DRAIN_SIGNALS: readonly string[] = [
 	"edit_syntax_guard",
 	// N2 failover profile (2026-07-27): the F3.2 model-failover controller's re-drive decision record.
 	"model_failover",
+	// N2 taint_gate profile (2026-07-27): the delivery taint gate's hold record (capability broker, §5.L).
+	"delivery_taint_gate",
 ];
 
 interface TelemetryRecord {

@@ -1832,6 +1832,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					value: null,
 				};
 			});
+			// N2 taint-gate cell live-found 2026-07-27: the SEED card completes HERE (no delivery), so its durable
+			// job never terminal-reported and `isComplete()` stayed false FOREVER — the run never disposed, and
+			// every post-drain sweep handed candidates to a controller that owns a finished graph (31 handover
+			// lines; a post-run trigger card could never start). The decomposition applying IS the seed's
+			// delivered outcome — report it exactly like completeDeliveredTaskAndCascade reports a merge.
+			void durableRunWiring?.observeDelivered(scope.workspaceId, sourceTaskId);
 			drainQueuedTaskStarts(scope, { force: true });
 			// #25 (run27, maxConcurrent=1): a root card deferred on the CONCURRENCY limit at decompose time (the
 			// seed session held the only slot) was only retried "on the next completion" — but with one slot no

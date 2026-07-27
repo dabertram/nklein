@@ -613,6 +613,10 @@ async function main(): Promise<void> {
 		// legitimate admission guard (start-fit, difficulty, E2BIG, repetition) — so the cell lowers the
 		// threshold and exercises the identical code path, barrier included.
 		...(CRASH_PHASE === "compaction" ? { NKLEIN_CONTEXT_COMPACT_RATIO: "0.05" } : {}),
+		// N2 taint-gate profile: the injected trigger card lands in Ready AFTER the durable run disposed; only the
+		// board-liveness sweep starts it, and the default 30s tick loses the race against the monitor's stagnation
+		// settle (validated live: memo card ended ready#1, gate never fired). Fast ticks are test-timing only.
+		...(SCENARIO_RUN === "taint-gate-run" ? { NKLEIN_TEST_BOARD_LIVENESS_TICK_MS: "3000" } : {}),
 		...(POOLS
 			? {
 					NKLEIN_PER_MACHINE_MAX_CONCURRENCY: "1",
@@ -827,8 +831,124 @@ async function main(): Promise<void> {
 					console.log(`CRASH_MATRIX trigger retry deduplicated to ${body.taskId}`);
 				})()
 			: Promise.resolve();
+		// N2 taint-gate profile: inject ONE trigger-template card (the only card class WITHOUT `generatedFromPlan`,
+		// so `backedByTrustedPlan` cannot relax the broker) — its worker accrues repo taint, review approves, and
+		// the DELIVERY taint gate must hold it in Review (`delivery_taint_gate`). Same intake machinery as the N10
+		// trigger crash cell, minus the crash.
+		const taintDriver = SCENARIO_RUN === "taint-gate-run"
+			? (async () => {
+					const indexPath = join(home, ".nklein", "nklein", "workspaces", "index.json");
+					const deadline = Date.now() + TIMEOUT_MS;
+					let workspace: { workspaceId: string; repoPath: string } | null = null;
+					while (!workspace && Date.now() < deadline) {
+						try {
+							const index = JSON.parse(await readFile(indexPath, "utf8")) as {
+								entries?: Record<string, { workspaceId?: string; repoPath?: string }>;
+							};
+							const entry = Object.values(index.entries ?? {}).find(
+								(candidate) => candidate.workspaceId && candidate.repoPath,
+							);
+							if (entry?.workspaceId && entry.repoPath) {
+								workspace = { workspaceId: entry.workspaceId, repoPath: entry.repoPath };
+							}
+						} catch {
+							/* dev-test scaffold has not registered its workspace yet */
+						}
+						if (!workspace) await new Promise((settle) => setTimeout(settle, 100));
+					}
+					if (!workspace) throw new Error("taint-gate profile never observed a registered dev-test workspace");
+					// Inject only AFTER the main flow fully drains: the taint hold parks the card for the OPERATOR, and
+					// the dev-test monitor correctly treats attention as terminal — injecting up-front killed the run
+					// mid-flow (validated live: s00 stranded in review, 17 cards in planning, one orphan lease).
+					const boardPath = join(home, ".nklein", "nklein", "workspaces", workspace.workspaceId, "board.json");
+					let drained = false;
+					while (!drained && Date.now() < deadline) {
+						try {
+							const board = JSON.parse(await readFile(boardPath, "utf8")) as {
+								columns?: { id?: string; cards?: unknown[] }[];
+							};
+							const count = (id: string): number =>
+								(board.columns ?? []).find((column) => column.id === id)?.cards?.length ?? -1;
+							// NEARLY drained, with a card genuinely IN PROGRESS: every other shape lets the monitor exit
+							// first (full-complete settles it; review-only trips blocked_by_review_cards; attention
+							// breaks it — all three validated live in successive iterations of this profile). While a
+							// card is in_progress the monitor must keep polling; the memo card then lands in Ready,
+							// the durable run disposes at the last delivery, and the fast watchdog starts it.
+							drained =
+								count("completed") >= 10 &&
+								count("planning") === 0 &&
+								count("ready") === 0 &&
+								count("backlog") === 0 &&
+								count("in_progress") >= 1;
+						} catch {
+							/* board not written yet */
+						}
+						if (!drained) await new Promise((settle) => setTimeout(settle, 1000));
+					}
+					if (!drained) throw new Error("taint-gate profile: the main flow never drained before the deadline");
+					const triggerDirectory = join(workspace.repoPath, ".nklein", "triggers");
+					await mkdir(triggerDirectory, { recursive: true });
+					await writeFile(
+						join(triggerDirectory, "taint-gate.json"),
+						JSON.stringify({
+							title: "Security sweep memo",
+							prompt:
+								"Write docs/security-sweep-memo.md summarizing the repository's safety posture in three bullet points.",
+							lane: "ready",
+							front: true,
+							testability: "not_testable",
+							testabilityReason: "documentation memo without test scaffolding",
+						}),
+					);
+					// COMMIT the template (validated live: the untracked file dirtied the base tree and the next
+					// delivery refused to merge — "Base workspace has uncommitted changes"). A real trigger template
+					// is a committed repo file, so the committed form is also the product-faithful one.
+					await new Promise<void>((settle, rejectCommit) => {
+						const child = spawn(
+							"git",
+							["-C", workspace.repoPath, "add", ".nklein/triggers/taint-gate.json"],
+							{ stdio: "ignore" },
+						);
+						child.once("close", (code) =>
+							code === 0 ? settle() : rejectCommit(new Error("taint trigger git add failed")),
+						);
+						child.once("error", rejectCommit);
+					});
+					await new Promise<void>((settle, rejectCommit) => {
+						const child = spawn(
+							"git",
+							["-C", workspace.repoPath, "commit", "-m", "test: register taint-gate trigger template"],
+							{ stdio: "ignore" },
+						);
+						child.once("close", (code) =>
+							code === 0 ? settle() : rejectCommit(new Error("taint trigger git commit failed")),
+						);
+						child.once("error", rejectCommit);
+					});
+					let response: Response | null = null;
+					while (Date.now() < deadline) {
+						try {
+							response = await fetch(
+								`http://127.0.0.1:${activeRuntimePort}/api/triggers/taint-gate?workspaceId=${encodeURIComponent(workspace.workspaceId)}`,
+								{
+									method: "POST",
+									headers: { "content-type": "application/json", "idempotency-key": "taint-gate-event-1" },
+									body: '{"source":"n2-taint"}',
+								},
+							);
+							if (response.ok) break;
+						} catch {
+							/* runtime still booting */
+						}
+						await new Promise((settle) => setTimeout(settle, 100));
+					}
+					if (!response?.ok) throw new Error("taint-gate trigger intake never succeeded");
+					console.log("TAINT_GATE trigger card injected.");
+				})()
+			: Promise.resolve();
 		const seedExit: number = await new Promise((resolve) => seed.on("close", (code) => resolve(code ?? 1)));
 		await triggerDriver;
+		await taintDriver;
 		await crashCoordinator;
 		if (CRASH_PHASE && runtimeRestarts !== 1) {
 			throw new Error(`crash matrix expected exactly one restart, saw ${runtimeRestarts}`);
