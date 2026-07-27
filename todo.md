@@ -6504,7 +6504,10 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   as floating verifiers). NOTE for F1.34d: the guard behaved CORRECTLY here (a replay cannot vary its answer);
   the remaining F1.34d question is only the live-model incremental route, unchanged.
   **✅ CLOSED 2026-07-26 — FINAL DOUBLE-RUN (v3) FULL GREEN: 21/21 cells passed, 0 violated packs (was 12),
-  quarantine empty, embedded crash matrix 6/6, overall ok:true.** The whole N13/N5 chain now judges real board
+  quarantine empty, embedded crash matrix 6/6, overall ok:true.**
+  **✅ RE-CONFIRMED 2026-07-27 (double-run v4): 25/25 FULL GREEN — the 21 baseline cells PLUS the four new N2
+  mechanism cells (02×loop_park/syntax_guard/failover/taint_gate), doubled, 0 violated packs, quarantine empty,
+  crash 6/6 — including the durable-run disposal product fix that touches every drain.** The whole N13/N5 chain now judges real board
   state pack-wide green under both profiles. Remaining adjacent opens tracked separately: offline-acceptance
   decision (a3), F1.34d live incremental route, durable fail-lease-fast, reviewer-resolve hermeticity sweep.
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
