@@ -6371,7 +6371,13 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   core-invariants + mustFire `model_failover` (the controller's category, nklein-model-failover-controller
   ~144) + quietExemptionsByProfile failover:[runtime_error]; (d) add `model_failover` to
   OBSERVABLE_DRAIN_SIGNALS + PROFILE_TO_SIMFLOW_RUN `failover:"failover"` + manifest 02 profile/pack entries;
-  (6) taint GATE action (labels recorded, gate never blocked) — DESIGN READY 2026-07-27: the gate
+  (6) ✅ taint GATE COVERED 2026-07-27 — `02×taint_gate` cell (all 8 invariants, ok:true) after seven live
+  iterations that each found something real: the injection window must be while a card is IN_PROGRESS (full
+  drain loses the teardown race; review-only trips blocked_by_review_cards; attention breaks the monitor), the
+  template must be COMMITTED (untracked it dirtied the base tree → "Base workspace has uncommitted changes"
+  blocked the next merge), and — the big one — **PRODUCT BUG: the durable run NEVER disposed** (the decompose
+  seed completes without a delivery report → isComplete() false forever → post-drain starts handed to a dead
+  graph; fixed by observeDelivered at completeDecompositionSourceTask). Original design (executed): the gate
   (decideCapabilityBrokerGate at the delivery seam, runtime-server ~2599) correctly never fires in the sims
   because every decompose card is plan-backed (`backedByTrustedPlan` relaxes the tainted-influence rule); the
   profile needs a NON-plan-backed card reaching delivery — exactly what a TRIGGER-TEMPLATE card is (no
