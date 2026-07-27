@@ -6358,9 +6358,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   request's `model`; compiles most-specific tier; also the N3 matrix primitive) — a primary-model track can now
   fail terminally while the failover candidate's track succeeds. REMAINING DESIGN QUESTION before the
   recording: the F3.2 failover picks the "next untried ranked candidate" from `setTaskFailoverCandidates`
-  (Auto-routing populates it) — the scenario harness's pinned-role mode may leave candidates empty, so the
-  profile likely needs the harness's default/Auto mode with TWO loaded sim models (roster is already
-  multi-model-capable) — verify the candidate stash under sim routing before authoring failover-run.json;
+  (Auto-routing populates it) — VERIFIED 2026-07-27: the stash at start-task-session ~1193 uses the roster-wide
+  `allCandidatesByScore` unconditionally, so Auto mode with two loaded sim models populates both candidates.
+  READY-TO-EXECUTE PLAN for failover-run.json: (a) harness roster knob — when SCENARIO_RUN==="failover-run",
+  simulatedModels = [SIM_MODEL, "sim/zz-fallback-coder"] (no pins; cold-equal scores keep roster order via the
+  stable sort ⇒ primary picked first deterministically); (b) recording = flaky-run with flaky-worker-s01
+  replaced by TWO model-keyed tracks (modelIncludes "qwen-fast-coder" → repeated http_error 500 to terminal
+  failure; modelIncludes "zz-fallback" → the working s01 turns); (c) pack `failover-recovery` = includes
+  core-invariants + mustFire `model_failover` (the controller's category, nklein-model-failover-controller
+  ~144) + quietExemptionsByProfile failover:[runtime_error]; (d) add `model_failover` to
+  OBSERVABLE_DRAIN_SIGNALS + PROFILE_TO_SIMFLOW_RUN `failover:"failover"` + manifest 02 profile/pack entries;
   (6) taint GATE action (labels recorded, gate never blocked) — needs a tainted-influence-on-delivery profile;
   (7) ✅ syntax guard COVERED 2026-07-27 — `02×syntax_guard` cell (all 7 invariants, ok:true): after a valid
   write the recorded worker emits an unclosed-brace edit; the F12.63 guard rejects it and the run fully drains;
