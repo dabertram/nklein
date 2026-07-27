@@ -129,6 +129,19 @@ async function loadProviderModelsWithFallbackForSettings(
 		const liteLlmModels = await fetchLiteLlmBaseUrlModels(settings);
 		const mergedModels = mergeProviderModelsWithContextWindowFallback(providerModels, liteLlmModels);
 		resolved = appendMissingModels(mergedModels, liteLlmModels);
+	} else if (
+		findLocalRuntimeCapability(normalizedProviderId)?.liveDiscoveryOnly === true &&
+		findLocalRuntimeCapability(normalizedProviderId)?.mergesLmsRoster === false
+	) {
+		// P17.1 phase ②: a live-only local runtime WITHOUT an lms roster (mlx-serve) — the endpoint's own
+		// OpenAI-compatible roster is the complete truth; same probe ladder, no CLI merge.
+		const baseUrlModels = await fetchLmStudioBaseUrlModels(settings, normalizedProviderId);
+		resolved = appendMissingModels(
+			mergeProviderModelsWithContextWindowFallback(providerModels, baseUrlModels, {
+				preferFallbackContextWindow: true,
+			}),
+			baseUrlModels,
+		);
 	} else if (findLocalRuntimeCapability(normalizedProviderId)?.mergesLmsRoster) {
 		const lmStudioModels = await fetchLmStudioBaseUrlModels(settings);
 		const lmsPsModels = lmsPsModelsToRuntimeProviderModels(

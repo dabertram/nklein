@@ -102,8 +102,11 @@ export async function fetchLiteLlmBaseUrlModels(
 
 export async function fetchLmStudioBaseUrlModels(
 	settings: SdkProviderSettings | null,
+	// P17.1 phase ②: the same probe ladder ends at plain `/v1/models`, so any OpenAI-compatible local runtime
+	// (mlx-serve) discovers through this fetcher — only the settings-resolution provider id differs.
+	providerId = "lmstudio",
 ): Promise<RuntimeNKleinProviderModel[]> {
-	const resolvedSettings = await resolveModelListSettings("lmstudio", settings, listSdkProviderCatalog);
+	const resolvedSettings = await resolveModelListSettings(providerId, settings, listSdkProviderCatalog);
 	const baseUrl = resolvedSettings?.baseUrl?.trim() ?? "";
 	if (!resolvedSettings || !baseUrl) {
 		return [];

@@ -81,4 +81,11 @@ describe("fetchLmStudioBaseUrlModels", () => {
 		fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
 		expect(await fetchLmStudioBaseUrlModels({ baseUrl: "http://localhost:1234" } as never)).toEqual([]);
 	});
+
+	it("resolves settings under the CALLER's provider id (P17.1 phase ② — mlx-serve reuses the probe ladder)", async () => {
+		fetchMock.mockResolvedValue(okJson({ data: [{ id: "Qwopus3.5-9B-Coder-MLX-4bit" }] }));
+		const models = await fetchLmStudioBaseUrlModels({ baseUrl: "http://127.0.0.1:11234" } as never, "mlxserve");
+		expect(models).toEqual([{ id: "Qwopus3.5-9B-Coder-MLX-4bit", name: "Qwopus3.5-9B-Coder-MLX-4bit" }]);
+		expect(h.resolveModelListSettings).toHaveBeenCalledWith("mlxserve", expect.anything(), expect.anything());
+	});
 });
