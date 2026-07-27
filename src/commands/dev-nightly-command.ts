@@ -177,6 +177,7 @@ const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	// repeated-tool-call guard + budget_wall park with a parked-terminal pack.
 	loop_park: "loop-park",
 	syntax_guard: "syntax-guard",
+	failover: "failover",
 };
 
 async function runCell(cell: NightlyCell): Promise<CellVerdict> {

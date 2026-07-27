@@ -103,9 +103,25 @@ export const SYNTAX_GUARD_RECOVERY: InvariantPack = {
 	includes: ["core-invariants"],
 };
 
+/**
+ * N2 `failover` mechanism profile: the primary sim model hard-500s a worker card to a model-side terminal
+ * failure; the F3.2 failover controller must re-drive it on the next ranked candidate (`model_failover`), whose
+ * model-keyed tracks then serve the working flow — so the run fully drains and the whole core baseline holds.
+ * The injected 500s are the profile's designed noise (runtime_error exempted for this profile only).
+ */
+export const FAILOVER_RECOVERY: InvariantPack = {
+	id: "failover-recovery",
+	expectedTerminalLanes: [],
+	mustFire: ["model_failover"],
+	mustStayQuiet: [],
+	quietExemptionsByProfile: { failover: ["runtime_error"] },
+	includes: ["core-invariants"],
+};
+
 export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map([
 	[CORE_INVARIANTS.id, CORE_INVARIANTS],
 	[PARKED_TERMINAL.id, PARKED_TERMINAL],
 	[LOOP_PARK_TERMINAL.id, LOOP_PARK_TERMINAL],
 	[SYNTAX_GUARD_RECOVERY.id, SYNTAX_GUARD_RECOVERY],
+	[FAILOVER_RECOVERY.id, FAILOVER_RECOVERY],
 ]);

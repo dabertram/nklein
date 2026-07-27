@@ -464,7 +464,15 @@ async function main(): Promise<void> {
 					{ id: SWARM_MODELS.worker, state: "loaded" as const, family: "qwen", maxContextLength: 65536 },
 					{ id: SWARM_MODELS.reviewer, state: "loaded" as const, family: "qwen", maxContextLength: 65536 },
 				]
-			: [{ id: SIM_MODEL, state: "loaded" as const, family: "qwen", maxContextLength: 65536 }];
+			: SCENARIO_RUN === "failover-run"
+				? [
+						// N2 model_failover profile: TWO loaded models under Auto routing. Cold-equal scores keep the
+						// stable sort in roster order, so the primary is picked first deterministically; its recorded
+						// terminal failure re-drives the card on the fallback candidate (model-keyed tracks).
+						{ id: SIM_MODEL, state: "loaded" as const, family: "qwen", maxContextLength: 65536 },
+						{ id: "sim/zz-fallback-coder", state: "loaded" as const, family: "qwen", maxContextLength: 65536 },
+					]
+				: [{ id: SIM_MODEL, state: "loaded" as const, family: "qwen", maxContextLength: 65536 }];
 	const simulator = createSimulatorServer(scenarioMode?.scenario ?? script, { models: simulatedModels });
 	await simulator.start();
 	const simBase = simulator.url(); // http://127.0.0.1:<port>/v1

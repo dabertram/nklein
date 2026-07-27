@@ -56,6 +56,8 @@ export const OBSERVABLE_DRAIN_SIGNALS: readonly string[] = [
 	"budget_wall",
 	// N2 syntax_guard profile (2026-07-27): the F12.63 post-edit syntax guard's host-side rejection record.
 	"edit_syntax_guard",
+	// N2 failover profile (2026-07-27): the F3.2 model-failover controller's re-drive decision record.
+	"model_failover",
 ];
 
 interface TelemetryRecord {

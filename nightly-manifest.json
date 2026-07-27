@@ -9,11 +9,13 @@
     "perfect",
     "flaky",
     "loop_park",
-    "syntax_guard"
+    "syntax_guard",
+    "failover"
    ],
    "invariantPackByProfile": {
     "loop_park": "loop-park-terminal",
-    "syntax_guard": "syntax-guard-recovery"
+    "syntax_guard": "syntax-guard-recovery",
+    "failover": "failover-recovery"
    }
   },
   {
