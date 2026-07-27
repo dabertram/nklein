@@ -6342,8 +6342,15 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   retries across 4 strategies), re-drive restore (34), pre-send context capping (34), model-turn admission
   (7,476 events), taint LABELS on every attempt, and flaky families 429 / empty-completion / stall / malformed-args.
   **NO PROOF (each needs an explicit profile/action + invariant, per this item's own rule):** (1) steering/queued
-  steer input — no recorded steer turn exists; needs a scenario action + N5 must_fire; (2) loop guards — no
-  recording loops by design (the 4 that accidentally did are now fixed); needs a deliberate loop profile; (3)
+  steer input — no recorded steer turn exists; needs a scenario action + N5 must_fire; (2) ✅ loop guards +
+  budget_wall COVERED 2026-07-27 — the `02×loop_park` mechanism cell (all 5 invariants satisfied, ok:true):
+  loop-park-run.json makes s01's worker re-issue a byte-identical search_code call; budget_wall fires twice
+  (park + the bounded terminal-redrive escalation's one retry), the card ends failed, dependents starve by
+  design; `loop-park-terminal` pack + per-profile manifest override + budget_wall in the observable registry.
+  **THE TEMPLATE for the remaining mechanisms:** recording (`<profile>-run.json`) + PROFILE_TO_SIMFLOW_RUN
+  entry + manifest modelProfiles append + invariantPackByProfile + a dedicated pack + any new signal into
+  OBSERVABLE_DRAIN_SIGNALS; the harness resolves any kebab run name and skips the full-drain gate for
+  non-baseline profiles (their pack owns the lane assertion); (3)
   park/resume — recordings are designed to recover, nothing parks; needs a park-then-resume profile; (4)
   budget_wall / explicit token-budget event — needs a budget-exhaustion profile; (5) model_failover — single sim
   model can't failover models (endpoint-level alternate_endpoint DID fire 732×); needs a two-model sim profile;
