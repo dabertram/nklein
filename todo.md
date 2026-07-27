@@ -6342,9 +6342,12 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   budget_wall / explicit token-budget event — needs a budget-exhaustion profile; (5) model_failover — single sim
   model can't failover models (endpoint-level alternate_endpoint DID fire 732×); needs a two-model sim profile;
   (6) taint GATE action (labels recorded, gate never blocked) — needs a tainted-influence-on-delivery profile;
-  (7) syntax guard — needs a syntax-broken write turn; (8) reasoning-only completion — the static integrity test
-  CLAIMS every flaky recording has this family, but zero journal events show it (reasoningTokens always null):
-  RECONCILE the integrity test's claim vs the wire truth first; (9) no fail_closed-NAMED signal (the blocking
+  (7) syntax guard — needs a syntax-broken write turn; (8) reasoning-only completion — ✅ RECONCILED 2026-07-27:
+  the family IS exercised and handled — the recorded reasoning-only turns (empty content + reasoning, which the
+  integrity test asserts per recording) arrive as empty-content completions and fire as the 60 `model_stalled`
+  events whose message names reasoning exhaustion (context-focus-extension ~767), feeding the retry ladder and
+  recovering via session re-drive; the audit's "no proof" was a labeling gap (no dedicated reasoning_only
+  signal), not a coverage gap; (9) no fail_closed-NAMED signal (the blocking
   behavior itself is proven via the sub-gates — decide whether a named signal is wanted or the sub-gate reasons
   suffice). **BONUS ANOMALY — ROOT-CAUSED same day, NOT an instrumentation bug: recovered=false on all 2,268
   retries is STRUCTURAL in sims.** aimock's cycled turns index by ASSISTANT-MESSAGE COUNT, and an in-turn retry
