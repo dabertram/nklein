@@ -132,6 +132,24 @@ export const TAINT_GATE_HOLD: InvariantPack = {
 	mustStayQuiet: ["board_liveness_watchdog", "runtime_error"],
 };
 
+/**
+ * N2 `park_resume` mechanism profile: a worker parks with `ask_followup_question` (the operator-attention
+ * tool); the harness driver answers via the tRPC `sendTaskSessionInput` seam — the operator resume — and the
+ * SAME session continues to full completion. Composes the whole core baseline: an answered park must leave no
+ * residue at all, and the operator input is asserted via its own observable signal.
+ */
+export const PARK_RESUME_RECOVERY: InvariantPack = {
+	id: "park-resume-recovery",
+	expectedTerminalLanes: [],
+	// The PARK half is the budget_wall (three identical calls trip the guard); the RESUME half is the operator
+	// input. v1 tried an ask_followup_question park and found workers are not offered the ask tool at all —
+	// recorded as an open product question in todo (execution-clarification machinery exists but is unreachable
+	// from worker sessions).
+	mustFire: ["budget_wall", "task_session_operator_input"],
+	mustStayQuiet: [],
+	includes: ["core-invariants"],
+};
+
 export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map([
 	[CORE_INVARIANTS.id, CORE_INVARIANTS],
 	[PARKED_TERMINAL.id, PARKED_TERMINAL],
@@ -139,4 +157,5 @@ export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map
 	[SYNTAX_GUARD_RECOVERY.id, SYNTAX_GUARD_RECOVERY],
 	[FAILOVER_RECOVERY.id, FAILOVER_RECOVERY],
 	[TAINT_GATE_HOLD.id, TAINT_GATE_HOLD],
+	[PARK_RESUME_RECOVERY.id, PARK_RESUME_RECOVERY],
 ]);

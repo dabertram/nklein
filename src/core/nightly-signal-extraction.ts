@@ -60,6 +60,8 @@ export const OBSERVABLE_DRAIN_SIGNALS: readonly string[] = [
 	"model_failover",
 	// N2 taint_gate profile (2026-07-27): the delivery taint gate's hold record (capability broker, §5.L).
 	"delivery_taint_gate",
+	// N2 park_resume/steering profiles (2026-07-27): every accepted operator input to a live session.
+	"task_session_operator_input",
 ];
 
 interface TelemetryRecord {

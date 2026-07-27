@@ -11,13 +11,15 @@
     "loop_park",
     "syntax_guard",
     "failover",
-    "taint_gate"
+    "taint_gate",
+    "park_resume"
    ],
    "invariantPackByProfile": {
     "loop_park": "loop-park-terminal",
     "syntax_guard": "syntax-guard-recovery",
     "failover": "failover-recovery",
-    "taint_gate": "taint-gate-hold"
+    "taint_gate": "taint-gate-hold",
+    "park_resume": "park-resume-recovery"
    }
   },
   {

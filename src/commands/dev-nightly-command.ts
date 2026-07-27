@@ -179,6 +179,7 @@ const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	syntax_guard: "syntax-guard",
 	failover: "failover",
 	taint_gate: "taint-gate",
+	park_resume: "park-resume",
 };
 
 async function runCell(cell: NightlyCell): Promise<CellVerdict> {

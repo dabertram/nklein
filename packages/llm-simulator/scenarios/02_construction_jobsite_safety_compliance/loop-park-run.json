@@ -317,7 +317,7 @@
        {
         "name": "search_code",
         "arguments": {
-         "pattern": "stable identifiers audit trail"
+         "query": "stable identifiers audit trail"
         }
        }
       ]

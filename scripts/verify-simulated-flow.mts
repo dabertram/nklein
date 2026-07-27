@@ -34,6 +34,7 @@
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
+import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import { readdirSync } from "node:fs";
 import { access, chmod, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -835,6 +836,64 @@ async function main(): Promise<void> {
 		// so `backedByTrustedPlan` cannot relax the broker) — its worker accrues repo taint, review approves, and
 		// the DELIVERY taint gate must hold it in Review (`delivery_taint_gate`). Same intake machinery as the N10
 		// trigger crash cell, minus the crash.
+		// N2 park_resume profile: s01 parks with ask_followup_question; the driver is the OPERATOR — it watches
+		// the board for the parked card in the review lane and answers via the real tRPC sendTaskSessionInput
+		// seam (the same seam the UI uses), resuming the SAME session. Tight 400ms polling: when nothing else is
+		// in progress the monitor's attention-break polls at 4s, and the answer must land first.
+		const parkResumeDriver = SCENARIO_RUN === "park-resume-run"
+			? (async () => {
+					const indexPath = join(home, ".nklein", "nklein", "workspaces", "index.json");
+					const deadline = Date.now() + TIMEOUT_MS;
+					let workspace: { workspaceId: string } | null = null;
+					while (!workspace && Date.now() < deadline) {
+						try {
+							const index = JSON.parse(await readFile(indexPath, "utf8")) as {
+								entries?: Record<string, { workspaceId?: string }>;
+							};
+							const entry = Object.values(index.entries ?? {}).find((candidate) => candidate.workspaceId);
+							if (entry?.workspaceId) workspace = { workspaceId: entry.workspaceId };
+						} catch {
+							/* not registered yet */
+						}
+						if (!workspace) await new Promise((settle) => setTimeout(settle, 200));
+					}
+					if (!workspace) throw new Error("park-resume profile never observed a registered dev-test workspace");
+					const boardPath = join(home, ".nklein", "nklein", "workspaces", workspace.workspaceId, "board.json");
+					let parkedTaskId: string | null = null;
+					while (!parkedTaskId && Date.now() < deadline) {
+						try {
+							const board = JSON.parse(await readFile(boardPath, "utf8")) as {
+								columns?: { id?: string; cards?: { id?: string; title?: string }[] }[];
+							};
+							const review = (board.columns ?? []).find((column) => column.id === "review");
+							const parked = (review?.cards ?? []).find((card) =>
+								(card.title ?? "").includes("Core domain model"),
+							);
+							if (parked?.id) parkedTaskId = parked.id;
+						} catch {
+							/* board not written yet */
+						}
+						if (!parkedTaskId) await new Promise((settle) => setTimeout(settle, 400));
+					}
+					if (!parkedTaskId) throw new Error("park-resume profile: the ask_followup_question park never appeared");
+					const client = createTRPCProxyClient<import("../src/trpc/app-router.js").RuntimeAppRouter>({
+						links: [
+							httpBatchLink({
+								url: `http://127.0.0.1:${activeRuntimePort}/api/trpc`,
+								headers: () => ({ "x-nklein-workspace-id": workspace.workspaceId }),
+							}),
+						],
+					});
+					const answer = await client.runtime.sendTaskSessionInput.mutate({
+						taskId: parkedTaskId,
+						text: "Use ULIDs — they sort lexicographically by creation time, which the audit log relies on.",
+					});
+					if (!(answer as { ok?: boolean }).ok) {
+						throw new Error(`park-resume answer was rejected: ${JSON.stringify(answer).slice(0, 200)}`);
+					}
+					console.log(`PARK_RESUME answered the parked card ${parkedTaskId}.`);
+				})()
+			: Promise.resolve();
 		const taintDriver = SCENARIO_RUN === "taint-gate-run"
 			? (async () => {
 					const indexPath = join(home, ".nklein", "nklein", "workspaces", "index.json");
@@ -949,6 +1008,7 @@ async function main(): Promise<void> {
 		const seedExit: number = await new Promise((resolve) => seed.on("close", (code) => resolve(code ?? 1)));
 		await triggerDriver;
 		await taintDriver;
+		await parkResumeDriver;
 		await crashCoordinator;
 		if (CRASH_PHASE && runtimeRestarts !== 1) {
 			throw new Error(`crash matrix expected exactly one restart, saw ${runtimeRestarts}`);
