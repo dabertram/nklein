@@ -144,6 +144,12 @@ export function createEditFileTool(options: {
 	workspacePath: string;
 	maxFileLines?: number | null;
 	intentMergeCaller?: IntentMergeCaller;
+	/**
+	 * N2 observability (2026-07-27): fired when the F12.63 post-edit syntax guard REJECTS an edit that would
+	 * break the file. The rail was previously invisible outside the tool-error text — a safety gate that fires
+	 * without a trace can't be asserted by the nightly (`edit_syntax_guard` observable signal).
+	 */
+	onSyntaxGuardRejection?: (path: string, issue: string) => void;
 }): AgentTool {
 	const maxFileLines = normalizeMaxAgentWritableFileLines(options.maxFileLines);
 	return {
@@ -336,6 +342,11 @@ export function createEditFileTool(options: {
 			// The guard only rejects when the edit INTRODUCED the breakage (an already-broken file stays editable).
 			const syntaxAfter = checkEditSyntax(request.path, applied.content);
 			if (!syntaxAfter.ok && checkEditSyntax(request.path, original).ok) {
+				try {
+					options.onSyntaxGuardRejection?.(request.path, syntaxAfter.issue ?? "syntax check failed");
+				} catch {
+					// Observability must never alter the rejection semantics.
+				}
 				throw new Error(
 					`Blocked edit_file: the edit would break ${request.path} — ${syntaxAfter.issue} Re-check the search/replace boundaries and retry with the full surrounding block.`,
 				);

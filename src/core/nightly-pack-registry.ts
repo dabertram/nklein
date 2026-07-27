@@ -88,8 +88,24 @@ export const LOOP_PARK_TERMINAL: InvariantPack = {
 	mustStayQuiet: ["board_liveness_watchdog"],
 };
 
+/**
+ * N2 `syntax_guard` mechanism profile: the recording has a worker emit an edit that would leave its file with
+ * an unclosed brace; the F12.63 post-edit syntax guard must REJECT it (`edit_syntax_guard`) and the worker
+ * recovers by finishing without the broken edit — so unlike loop_park this run must FULLY drain, and the pack
+ * composes the whole core baseline on top of the mechanism assertion.
+ */
+export const SYNTAX_GUARD_RECOVERY: InvariantPack = {
+	id: "syntax-guard-recovery",
+	expectedTerminalLanes: [],
+	mustFire: ["edit_syntax_guard"],
+	mustStayQuiet: [],
+	quietExemptionsByProfile: { syntax_guard: ["runtime_error"] },
+	includes: ["core-invariants"],
+};
+
 export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map([
 	[CORE_INVARIANTS.id, CORE_INVARIANTS],
 	[PARKED_TERMINAL.id, PARKED_TERMINAL],
 	[LOOP_PARK_TERMINAL.id, LOOP_PARK_TERMINAL],
+	[SYNTAX_GUARD_RECOVERY.id, SYNTAX_GUARD_RECOVERY],
 ]);

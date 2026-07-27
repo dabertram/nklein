@@ -54,6 +54,8 @@ export const OBSERVABLE_DRAIN_SIGNALS: readonly string[] = [
 	// N2 loop_park profile (2026-07-27): the repeated-tool-call guard's park lands as a `budget_wall` telemetry
 	// signal — same self-observation feed as the rest; the loop-park-terminal pack asserts it must fire.
 	"budget_wall",
+	// N2 syntax_guard profile (2026-07-27): the F12.63 post-edit syntax guard's host-side rejection record.
+	"edit_syntax_guard",
 ];
 
 interface TelemetryRecord {

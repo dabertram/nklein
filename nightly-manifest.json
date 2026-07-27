@@ -8,10 +8,12 @@
    "modelProfiles": [
     "perfect",
     "flaky",
-    "loop_park"
+    "loop_park",
+    "syntax_guard"
    ],
    "invariantPackByProfile": {
-    "loop_park": "loop-park-terminal"
+    "loop_park": "loop-park-terminal",
+    "syntax_guard": "syntax-guard-recovery"
    }
   },
   {

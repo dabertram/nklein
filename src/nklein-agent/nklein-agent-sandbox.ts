@@ -810,13 +810,40 @@ export class AgentSandboxManager {
 			},
 		);
 		if (result.exitCode !== 0) {
+			this.observeSyntaxGuardRejection(taskId, tool, joinDockerOutput(result));
 			throw new AgentSandboxExecutionError(formatSandboxToolFailure(tool, joinDockerOutput(result)), result);
 		}
 		const parsed = parseToolRunnerResult(result.stdout);
 		if (!parsed.ok) {
+			this.observeSyntaxGuardRejection(taskId, tool, parsed.error);
 			throw new Error(formatSandboxToolFailure(tool, parsed.error));
 		}
 		return typeof parsed.result === "string" ? parsed.result : JSON.stringify(parsed.result);
+	}
+
+	/**
+	 * N2 observability (2026-07-27): the F12.63 post-edit syntax guard fires INSIDE the container's tool runner,
+	 * so its rejection was invisible to host telemetry — a safety rail the nightly could not assert. The guard's
+	 * message contract ("the edit would break <path>") is test-pinned in edit-file tool coverage; recognize it
+	 * host-side on a failed edit/write tool and record the `edit_syntax_guard` observable signal. Best-effort.
+	 */
+	private observeSyntaxGuardRejection(taskId: string, tool: string, failureText: string): void {
+		// Match on the guard's contract WORDING alone: the tool name here is often the generic proxy wrapper
+		// ("kanbanExtraTool"), not "edit_file" — the first cut gated on the name and missed a live rejection.
+		if (!/would break|left the file broken|syntactically broken/i.test(failureText)) {
+			return;
+		}
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "warning",
+				message: `Post-edit syntax guard rejected a ${tool} on ${taskId}: ${failureText.slice(0, 300)}`,
+				taskId,
+				metadata: { category: "edit_syntax_guard", tool },
+			});
+		} catch {
+			// Observability must never alter the failure path.
+		}
 	}
 
 	async captureWorkspacePatch(taskId: string, options: { baseRef?: string | null } = {}): Promise<string> {
