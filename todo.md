@@ -6355,7 +6355,11 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   budget_wall / explicit token-budget event — needs a budget-exhaustion profile; (5) model_failover — single sim
   model can't failover models (endpoint-level alternate_endpoint DID fire 732×); needs a two-model sim profile;
   (6) taint GATE action (labels recorded, gate never blocked) — needs a tainted-influence-on-delivery profile;
-  (7) syntax guard — needs a syntax-broken write turn; (8) reasoning-only completion — ✅ RECONCILED 2026-07-27:
+  (7) ✅ syntax guard COVERED 2026-07-27 — `02×syntax_guard` cell (all 7 invariants, ok:true): after a valid
+  write the recorded worker emits an unclosed-brace edit; the F12.63 guard rejects it and the run fully drains;
+  NEW host-side `edit_syntax_guard` observable signal at the sandbox runTool seam (the rejection fires inside
+  the container and was previously invisible — matched on the guard's contract wording, since the tool name at
+  that seam is the generic proxy wrapper); (8) reasoning-only completion — ✅ RECONCILED 2026-07-27:
   the family IS exercised and handled — the recorded reasoning-only turns (empty content + reasoning, which the
   integrity test asserts per recording) arrive as empty-content completions and fire as the 60 `model_stalled`
   events whose message names reasoning exhaustion (context-focus-extension ~767), feeding the retry ladder and
