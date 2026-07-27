@@ -69,6 +69,7 @@ import { resolveSwarmRoleModel } from "../../core/swarm-role-selection";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
 import { resolveTaskTitle } from "../../core/task-title";
 import { buildLedgerExemplarMessages } from "../../nklein-agent/ledger-exemplar-messages";
+import { findLocalRuntimeCapability } from "../../nklein-agent/local-runtime-capability-registry";
 import { recordBaselineProbe } from "../../nklein-agent/nklein-baseline-probe-registry";
 import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-agent/nklein-code-embeddings";
 import { isNKleinContextWindowPolicyError } from "../../nklein-agent/nklein-context-window-policy";
@@ -374,7 +375,17 @@ export async function handleStartTaskSession(
 		const taskNeededTokensForLoad = estimateNKleinStartFitBudgetTokens(taskPromptTokens, MIN_CONTEXT_WINDOW_TOKENS);
 		// §5.AB autonomous loader closure: LOAD a model on a linked device that FITS (opt-in NKLEIN_DEVICE_RAM_GB,
 		// fail-safe). Used both here (before resolveLaunchConfig's residency gate) and at the later start block.
-		const attemptAutonomousModelLoad = async (modelId: string) => {
+		const attemptAutonomousModelLoad = async (modelId: string, loadProviderId?: string | null) => {
+			// P17.1 phase ④: a runtime whose capability record says supportsLoad=false (mlx-serve) has no load API
+			// !Klein drives — the standing "production never auto-loads" rule is STRUCTURAL there. Degrade to the
+			// same recommendation-only refusal the disabled path uses; the lms CLI below is LM Studio's, not theirs.
+			const loadCapability = findLocalRuntimeCapability(loadProviderId);
+			if (loadCapability && !loadCapability.supportsLoad) {
+				return {
+					loaded: false as const,
+					reason: `The "${loadCapability.providerId}" runtime exposes no load API !Klein drives — load "${modelId}" in that runtime yourself (recommendation-only).`,
+				};
+			}
 			const outcome = await ensureModelLoadedOnFittingDevice(
 				{ modelId, taskNeededTokens: taskNeededTokensForLoad },
 				{
@@ -445,7 +456,7 @@ export async function handleStartTaskSession(
 			// resolveLaunchConfig ONCE so it now sees the model. Opt-in (NKLEIN_DEVICE_RAM_GB) + fail-safe: a failed load
 			// falls through to the original behavior (DEFAULT ⇒ loaded-fallback; EXPLICIT ⇒ rethrow).
 			const autoLoad = body.nkleinSettings?.modelId
-				? await attemptAutonomousModelLoad(body.nkleinSettings.modelId)
+				? await attemptAutonomousModelLoad(body.nkleinSettings.modelId, body.nkleinSettings.providerId)
 				: { loaded: false as const, reason: "no explicit model" };
 			if (autoLoad.loaded) {
 				clearProviderModelDiscoveryCache();
@@ -505,7 +516,7 @@ export async function handleStartTaskSession(
 			// LM-Link serves a loaded model from where it sits (dispatch-time steering was proven inert, 2026-07-12).
 			// Fail-safe + opt-in: disabled / no-fit / load-error ⇒ loaded:false ⇒ fall through to the original block.
 			// With NKLEIN_DEVICE_RAM_GB unset, the adapter returns immediately with NO fleet I/O ⇒ byte-identical.
-			const autoLoad = await attemptAutonomousModelLoad(nkleinLaunchConfig.modelId);
+			const autoLoad = await attemptAutonomousModelLoad(nkleinLaunchConfig.modelId, nkleinLaunchConfig.providerId);
 			if (!autoLoad.loaded) {
 				return {
 					ok: false,
