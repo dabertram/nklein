@@ -51,6 +51,9 @@ export const OBSERVABLE_DRAIN_SIGNALS: readonly string[] = [
 	"agent_sandbox_result_patch",
 	"board_liveness_watchdog",
 	"runtime_error",
+	// N2 loop_park profile (2026-07-27): the repeated-tool-call guard's park lands as a `budget_wall` telemetry
+	// signal — same self-observation feed as the rest; the loop-park-terminal pack asserts it must fire.
+	"budget_wall",
 ];
 
 interface TelemetryRecord {

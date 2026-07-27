@@ -84,9 +84,11 @@ describe("N2 smallest-ten nightly tranche", () => {
 				true,
 			);
 			expect(project.recordingSet).toBe(`sim-${project.id}`);
-			expect(project.modelProfiles).toEqual(["perfect", "flaky"]);
+			// Both BASELINE profiles are mandatory for every tranche project; N2 mechanism profiles (loop_park, …)
+			// may be added per project on top — each still needs its exact `<profile-with-dashes>-run.json` recording.
+			expect(project.modelProfiles.slice(0, 2)).toEqual(["perfect", "flaky"]);
 			for (const run of project.modelProfiles) {
-				expect(existsSync(join(SCENARIOS_DIR, project.fixture, `${run}-run.json`))).toBe(true);
+				expect(existsSync(join(SCENARIOS_DIR, project.fixture, `${run.replaceAll("_", "-")}-run.json`))).toBe(true);
 			}
 		}
 	});

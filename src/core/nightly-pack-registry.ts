@@ -77,7 +77,12 @@ export const PARKED_TERMINAL: InvariantPack = {
  */
 export const LOOP_PARK_TERMINAL: InvariantPack = {
 	id: "loop-park-terminal",
-	expectedTerminalLanes: ["review"],
+	// The DESIGNED shape (validated live 2026-07-27): the seed + pre-loop cards complete; the looping card parks
+	// (budget_wall), the bounded terminal-redrive escalation gives a swapped model one chance to break the loop —
+	// in a single-model sim that loops again → second park → attempts exhausted → the card ends FAILED; its
+	// dependents legitimately starve in planning. budget_wall fired twice in the validating run, proving both the
+	// guard AND the escalation's bounded retry.
+	expectedTerminalLanes: ["completed", "review", "planning", "failed"],
 	mustFire: ["budget_wall"],
 	// The park is a deliberate guard action on a stuck card, not a frozen board — the self-heal must stay quiet.
 	mustStayQuiet: ["board_liveness_watchdog"],

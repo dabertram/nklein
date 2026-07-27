@@ -24,7 +24,20 @@ describe("nightly pack registry", () => {
 		// The bug this catches, caught by hand hours before this test existed: the pack said `done` while the
 		// board's lane is `completed`. That fails EVERY cell spuriously, and the symptom reads as "the nightly is
 		// broken" rather than "the pack is wrong" — a confident wrong verdict, which is worse than silence.
-		const boardLanes = new Set(["backlog", "planning", "ready", "in_progress", "review", "completed", "trash"]);
+		//
+		// The vocabulary is the COLLECTOR's, not the board's: `parseTerminalLanes` derives lanes from the drain's
+		// `finalCounts` keys, so `inProgress` (camelCase, the counts key) and `failed` (the session-state pseudo
+		// lane real flaky violations reported as "failed#1→failed") are producible; `in_progress` never was.
+		const boardLanes = new Set([
+			"backlog",
+			"planning",
+			"ready",
+			"inProgress",
+			"review",
+			"completed",
+			"failed",
+			"trash",
+		]);
 		for (const [id, pack] of NIGHTLY_PACK_REGISTRY) {
 			for (const lane of pack.expectedTerminalLanes) {
 				expect(boardLanes.has(lane), `pack "${id}" expects lane "${lane}", which the board never produces`).toBe(
