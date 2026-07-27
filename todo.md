@@ -8411,10 +8411,41 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   wall-clock + tool-call reliability. If it holds up, it becomes the adapter that makes F12.72/73/69 buildable.
 - [ ] **P17.1 — Runtime-adapter boundary (LM Studio becomes one adapter, not an assumption).** Extract the
   provider/runtime seam so a second engine can be added. **This is the unblock for F12.72/73/74.** Candidate
-  second adapter: llama.cpp server (exposes every flag LM Studio hides) or Ollama. Guard rails: the existing
-  LM-Studio-specific knowledge (`/no_think` family handling, JIT behaviour, `loaded_instances` id shape, the
-  GBNF-ignored lesson, `@Nbit` vs `qN_k_m` id conventions) must move INTO the adapter, not stay threaded through
-  the core — the review's "over-specializing on LM Studio internals" point is correct and this is the fix.
+  second adapter: mlx-serve (P17.1a trial + perf curves PASSED — the front-runner), llama.cpp server, or Ollama.
+  Guard rails: the existing LM-Studio-specific knowledge (`/no_think` family handling, JIT behaviour,
+  `loaded_instances` id shape, the GBNF-ignored lesson, `@Nbit` vs `qN_k_m` id conventions) must move INTO the
+  adapter, not stay threaded through the core — the review's "over-specializing on LM Studio internals" point is
+  correct and this is the fix.
+  **★ SEAM INVENTORY + DESIGN DONE 2026-07-27 (full agent sweep; 7 assumption classes mapped to file:line).**
+  Assumption classes: (1) `lms` CLI — lms-ps-json.ts (the read feed: identifier/modelKey/deviceIdentifier→
+  machineId/contextLength via `lms ps --json`), lms-model-runner.ts (the ONLY load/unload executors),
+  lms-model-control/catalog/link-status, device-load-routing, resident-set-guidance (advice strings),
+  nightly-hermeticity's fake-lms contract; (2) REST beyond OpenAI — lmstudio-rest-model-client
+  (`/api/v1/models` + load/unload verbs), lmstudio-loaded-model-descriptors (v0+v1 parsing;
+  max_context_length/size/capabilities), baseurl-model-discovery's pathname probe list; (3) scattered
+  `"lmstudio"` string gates — isLiveOnlyProviderId, LOCAL_PROVIDER_IDS (host-cap + shared-endpoint
+  serialization), provider-model-discovery branch, provider-schema-profile, multimodal quirks, ~6 hardcoded
+  defaults; (4) registry — model-registry.json sole writer, stable key `provider:model:endpoint` (already
+  runtime-neutral ✓), sharedEndpointId `endpoint#modelId`; (5) load/residency — production default never
+  auto-loads (opt-in NKLEIN_DEVICE_RAM_GB path → loadModelExclusive), recommendation-only siblings; (6) machine
+  identity — `deviceIdentifier` (null→"local") keys machine-concurrency-gate, endpoint-scheduler host
+  resources, model-pool keys, host-map aliases; unmapped already degrades to local ✓; (7) 32k floor reads —
+  lms ps contextLength / REST maxContextLength / v0 max_context_length into load-context-plan +
+  max-tokens-clamp.
+  **Adapter contract (`RuntimeModelAdapter`):** listLoaded / listCatalog / listDevices / discoverModels /
+  machineIdFor / supportsLoad (false ⇒ callers degrade to recommendation strings — the standing never-auto-load
+  rule becomes STRUCTURAL for such runtimes) / loadExclusive / unload / loadedContextLength / providerIds.
+  mlx-serve impl needs only OpenAI `/v1/models` + machineId "local" + supportsLoad false.
+  **Seams:** READ = nklein-provider-model-discovery.ts (where lms ps + REST roster + registry overlay already
+  converge), backed by the existing LmsRunner/LmStudioRestModelClient as the lmstudio impl. WRITE =
+  lms-model-runner.ts (CLI/REST twins already share one policy — generalize behind supportsLoad).
+  **Phase order (read-only coexistence of ONE mlx-serve endpoint beside LM Studio):** ① extract the class-3
+  classification set into a per-provider capability record (zero behavior change; unblocks a second local id);
+  ② adapter for discovery+descriptors (classes 2/4/7 read paths); ③ machine identity via machineIdFor→"local"
+  (scheduler/host-map already tolerate unmapped); ④ supportsLoad=false wiring so ensure-model-loaded degrades
+  to advice; ⑤ (only if mlx-serve grows a load API) the write path behind the same decideModelLoad* policy.
+  Contracts to preserve: nightly-hermeticity fake-lms, multimodal id spellings, lms-ps-json parse semantics,
+  the `provider:model:endpoint` key shape.
 - [ ] **P17.2 — ACP (Agent Client Protocol) agent-side support.** **Verified 2026-07-19:** ACP is JSON-RPC 2.0
   over **stdio** (the only stable transport — HTTP is a draft proposal, do not build against it),
   `protocolVersion` is the bare integer `1`, capabilities omitted at `initialize` MUST be treated as unsupported,
