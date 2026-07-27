@@ -8361,6 +8361,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   q8K/q4V asymmetry finding; prefix-cache hit economics; PLD/MTP tokens/s on agentic loops) once the machine is
   quiet, then the P17.1 runtime-adapter boundary work to actually route !Klein traffic through it. Binary at
   scratchpad/mlx-serve/ (not vendored — adapter work decides packaging).**
+  **★ PERF CURVES MEASURED 2026-07-27 (idle m5max, Qwopus3.5-9B-Coder-MLX-4bit, ctx 33k, 24-point sweep:
+  {no-pld, pld, kv8, kv4} × {2k,8k,16k,30k} × {cold, hot-repeat}; driver + raw JSONL in session scratchpad
+  mlx-bench*).** Findings: (1) PREFILL 2,266 tok/s @2k → 1,329 tok/s @30k (uncached share) — a cold 30k agent
+  turn ≈ 12s wall; decode 100 → 86 tok/s over the same depths. (2) **HOT PREFIX CACHE is the headline: an
+  identical 30k re-serve is 1.5s wall vs 12.1s cold (~8×), and CROSS-REQUEST prefix sharing engages
+  automatically** (the 30k cold pass already reused 15.6k cached tokens from earlier same-head prompts) — this
+  is F12.73's cache-reuse delivered natively, no flag work; exactly the multi-turn agent pattern. (3) PLD:
+  +1.8–3% decode on this workload, self-disables via its yield gate when n-gram hits are sparse — free, keep
+  default-ON, don't expect much on fresh-code generation. (4) **kv-quant COSTS decode on this model/hardware:
+  −33% (q8) / −24% (q4) @30k, −11/13% @8k** — NOT a default; it remains a RAM lever for holding the 32k floor
+  on small hosts (F12.72's actual purpose), to be applied per-machine via the adapter, never fleet-wide on
+  big-RAM hosts. (Curious inversion: q4 decodes FASTER than q8 here — bandwidth-bound.) REMAINING for closure:
+  turbo2/turbo4 modes + quality deltas (needs an eval pass, not a perf pass) and the P17.1 adapter itself.
   **This is the strongest candidate found so far, and it directly unblocks levers LM Studio hides.** Zig-native
   MLX server for Apple Silicon, MIT, active (v26.7.9, July 2026), single ~7 MB signed binary, **no Python**.
   Serves OpenAI-compatible `/v1/chat/completions` + `/v1/embeddings`, **plus the Anthropic Messages API** and
