@@ -3,7 +3,9 @@ import {
 	fetchLoadedModelDescriptors,
 	lmStudioApiV1ModelsUrl,
 	mergeLoadedModelDescriptors,
+	openAiV1ModelsUrl,
 	parseLoadedModelDescriptors,
+	parseOpenAiLoadedModelDescriptors,
 	pickReviewFallbackDescriptor,
 } from "../../../src/core/lmstudio-loaded-model-descriptors";
 
@@ -274,5 +276,55 @@ describe("pickReviewFallbackDescriptor (deciding-seat fallback ranking)", () => 
 	it("keeps first-listed order within equal preference (stability)", () => {
 		const loaded = [d("a", { toolUse: true }), d("b", { toolUse: true })];
 		expect(pickReviewFallbackDescriptor(loaded)?.runtimeId).toBe("a");
+	});
+});
+
+describe("parseOpenAiLoadedModelDescriptors (P17.1 phase ② — mlx-serve plain /v1/models)", () => {
+	// Shaped after a real mlx-serve 26.7.11 /v1/models payload (verified live 2026-07-27).
+	const MLX_PAYLOAD = {
+		object: "list",
+		data: [
+			{
+				id: "Qwopus3.5-9B-Coder-MLX-4bit",
+				object: "model",
+				owned_by: "mlx-serve",
+				loaded: true,
+				state: "ready",
+				capabilities: ["chat", "tool_use", "streaming", "reasoning", "json_schema"],
+				input_modalities: ["text"],
+				meta: {
+					architecture: "qwen3_5_moe",
+					quantization: "4-bit",
+					context_length: 33000,
+					model_max_tokens: 262144,
+				},
+			},
+			{ id: "not-loaded-model", object: "model", loaded: false },
+		],
+	};
+
+	it("parses loaded entries with capabilities + the ACTIVE loaded window from meta", () => {
+		const descriptors = parseOpenAiLoadedModelDescriptors(MLX_PAYLOAD);
+		expect(descriptors).toEqual([
+			{
+				runtimeId: "Qwopus3.5-9B-Coder-MLX-4bit",
+				modelKey: "Qwopus3.5-9B-Coder-MLX-4bit",
+				isEmbedding: false,
+				toolUse: true,
+				reasoning: true,
+				architecture: "qwen3_5_moe",
+				maxContextLength: 262144,
+				loadedContextLength: 33000,
+			},
+		]);
+	});
+
+	it("yields [] for a bare OpenAI roster with no residency annotation (never guess loaded)", () => {
+		expect(parseOpenAiLoadedModelDescriptors({ object: "list", data: [{ id: "gpt-x" }] })).toEqual([]);
+	});
+
+	it("maps base URLs to the plain /v1/models URL", () => {
+		expect(openAiV1ModelsUrl("http://127.0.0.1:11234/v1")).toBe("http://127.0.0.1:11234/v1/models");
+		expect(openAiV1ModelsUrl("http://127.0.0.1:11234/")).toBe("http://127.0.0.1:11234/v1/models");
 	});
 });

@@ -218,13 +218,84 @@ export async function fetchLoadedModelDescriptors(
 		const fallback = await fetchImpl(lmStudioApiV0ModelsUrl(baseUrl), {
 			signal: AbortSignal.timeout(3_000),
 		});
-		if (!fallback.ok) {
+		if (fallback.ok) {
+			const descriptors = parseLoadedModelDescriptors(await fallback.json());
+			if (descriptors.length > 0) {
+				return descriptors;
+			}
+		}
+		// P17.1 phase ②: non-LMS local runtimes (mlx-serve) have neither /api/v1 nor /api/v0 — their plain
+		// OpenAI `/v1/models` carries the loaded truth instead (`loaded`, `capabilities` array,
+		// `meta.context_length` = the ACTIVE loaded window, `meta.model_max_tokens` = the model's max).
+		const openai = await fetchImpl(openAiV1ModelsUrl(baseUrl), {
+			signal: AbortSignal.timeout(3_000),
+		});
+		if (!openai.ok) {
 			return [];
 		}
-		return parseLoadedModelDescriptors(await fallback.json());
+		return parseOpenAiLoadedModelDescriptors(await openai.json());
 	} catch {
 		return [];
 	}
+}
+
+/** Map an OpenAI-style base URL (`http://host:port/v1` or bare origin) to its plain `/v1/models` URL. */
+export function openAiV1ModelsUrl(baseUrl: string): string {
+	const root = baseUrl.trim().replace(/\/+$/, "").replace(/\/v1$/, "");
+	return `${root}/v1/models`;
+}
+
+interface RawOpenAiModel {
+	id?: unknown;
+	loaded?: unknown;
+	capabilities?: unknown;
+	meta?: unknown;
+}
+
+/**
+ * Parse a plain OpenAI `/v1/models` payload from a runtime that annotates residency (mlx-serve): entries with
+ * `loaded === true` become descriptors. A payload WITHOUT any `loaded` annotation yields [] — a bare OpenAI
+ * roster says nothing about residency, and guessing "everything listed is loaded" would poison the loaded-fleet
+ * views this module feeds.
+ */
+export function parseOpenAiLoadedModelDescriptors(payload: unknown): LoadedModelDescriptor[] {
+	const list = (payload as { data?: unknown })?.data;
+	if (!Array.isArray(list)) {
+		return [];
+	}
+	const descriptors: LoadedModelDescriptor[] = [];
+	for (const entry of list as RawOpenAiModel[]) {
+		if (entry?.loaded !== true) {
+			continue;
+		}
+		const runtimeId = asString(entry.id);
+		if (!runtimeId) {
+			continue;
+		}
+		const capabilities = Array.isArray(entry.capabilities)
+			? entry.capabilities.filter((value): value is string => typeof value === "string")
+			: [];
+		const meta = (entry.meta ?? {}) as Record<string, unknown>;
+		const loadedContextLength =
+			typeof meta.context_length === "number" && Number.isFinite(meta.context_length)
+				? Math.trunc(meta.context_length)
+				: undefined;
+		const maxContextLength =
+			typeof meta.model_max_tokens === "number" && Number.isFinite(meta.model_max_tokens)
+				? Math.trunc(meta.model_max_tokens)
+				: undefined;
+		descriptors.push({
+			runtimeId,
+			modelKey: runtimeId,
+			isEmbedding: capabilities.includes("embeddings") && !capabilities.includes("chat"),
+			...(capabilities.length > 0 ? { toolUse: capabilities.includes("tool_use") } : {}),
+			...(capabilities.includes("reasoning") ? { reasoning: true } : {}),
+			...(typeof meta.architecture === "string" && meta.architecture ? { architecture: meta.architecture } : {}),
+			...(maxContextLength !== undefined ? { maxContextLength } : {}),
+			...(loadedContextLength !== undefined ? { loadedContextLength } : {}),
+		});
+	}
+	return descriptors;
 }
 
 /**
