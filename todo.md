@@ -8452,8 +8452,10 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   32k-floor reads, and reasoning floors work unchanged); REMAINING in ②: live end-to-end with a configured
   mlxserve provider (needs the settings/UI surface to name it);
   ② adapter for discovery+descriptors (classes 2/4/7 read paths); ③ machine identity via machineIdFor→"local"
-  (scheduler/host-map already tolerate unmapped); ④ supportsLoad=false wiring so ensure-model-loaded degrades
-  to advice; ⑤ (only if mlx-serve grows a load API) the write path behind the same decideModelLoad* policy.
+  (scheduler/host-map already tolerate unmapped); ④ ✅ DONE 2026-07-27: attemptAutonomousModelLoad consults the
+  capability record — a supportsLoad=false runtime degrades to the recommendation-only refusal instead of
+  driving LM Studio's lms CLI at a foreign runtime (unknown providers keep today's behavior); ⑤ (only if
+  mlx-serve grows a load API) the write path behind the same decideModelLoad* policy.
   Contracts to preserve: nightly-hermeticity fake-lms, multimodal id spellings, lms-ps-json parse semantics,
   the `provider:model:endpoint` key shape.
 - [ ] **P17.2 — ACP (Agent Client Protocol) agent-side support.** **Verified 2026-07-19:** ACP is JSON-RPC 2.0
