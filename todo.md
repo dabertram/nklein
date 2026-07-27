@@ -6341,8 +6341,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   acceptance evidence (730 acceptance_passed), test-driven gate ENFORCED (72 bounces), retry ladder (2,268 ledger
   retries across 4 strategies), re-drive restore (34), pre-send context capping (34), model-turn admission
   (7,476 events), taint LABELS on every attempt, and flaky families 429 / empty-completion / stall / malformed-args.
-  **NO PROOF (each needs an explicit profile/action + invariant, per this item's own rule):** (1) steering +
-  (3) ✅ park/resume COVERED 2026-07-27 — `02×park_resume` cell (all 9 invariants, ok:true): budget_wall park
+  **NO PROOF (each needs an explicit profile/action + invariant, per this item's own rule):** (1) ✅ steering
+  SUBSTANTIVELY COVERED 2026-07-27 from two directions — (a) the OPERATOR-STEER SEAM is proven by the
+  park_resume cell (sendTaskSessionInput → live session, `task_session_operator_input` fires in a nightly
+  cell), and (b) MID-SESSION INPUT REACHING THE MODEL ON THE WIRE is proven by the existing §12 turn-loop
+  regression (NKLEIN_SIMFLOW_TURNLOOP=1: a looping card, the guard injects an auto-resolve nudge, the recording
+  asserts the nudge text hit the model + full drain). A dedicated operator-mid-RUNNING-turn steer cell was
+  judged low-value + fragile: unlike park_resume's budget_wall PAUSE, a running turn gives the driver no
+  injection window, and the §12 guard competes for it. REMAINING UNIT (clean, filed): register the turn-loop
+  regression as a standing nightly cell (needs smoke-mode-as-profile plumbing — it currently runs only under
+  the env var), so the autonomous-steering assertion runs every night. (3) ✅ park/resume COVERED 2026-07-27 — `02×park_resume` cell (all 9 invariants, ok:true): budget_wall park
   (3 identical search_code calls) + the operator resume through the real tRPC sendTaskSessionInput seam; fully
   quiet drain. **OPEN PRODUCT QUESTION for David (batched): worker sessions are NOT offered
   `ask_followup_question` (v1's park attempt was rejected as an unavailable tool), yet
