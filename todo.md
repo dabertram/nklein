@@ -6360,7 +6360,10 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   recording: the F3.2 failover picks the "next untried ranked candidate" from `setTaskFailoverCandidates`
   (Auto-routing populates it) — VERIFIED 2026-07-27: the stash at start-task-session ~1193 uses the roster-wide
   `allCandidatesByScore` unconditionally, so Auto mode with two loaded sim models populates both candidates.
-  READY-TO-EXECUTE PLAN for failover-run.json: (a) harness roster knob — when SCENARIO_RUN==="failover-run",
+  ✅ COVERED same day — `02×failover` cell GREEN FIRST TRY (all 7 invariants, ok:true): the primary's
+  model-keyed track hard-500s s01 terminally, the F3.2 controller re-drives on the fallback candidate, full
+  drain; `failover-recovery` pack + `model_failover` observable signal + two-model harness roster knob.
+  EXECUTED PLAN (kept for the template): (a) harness roster knob — when SCENARIO_RUN==="failover-run",
   simulatedModels = [SIM_MODEL, "sim/zz-fallback-coder"] (no pins; cold-equal scores keep roster order via the
   stable sort ⇒ primary picked first deterministically); (b) recording = flaky-run with flaky-worker-s01
   replaced by TWO model-keyed tracks (modelIncludes "qwen-fast-coder" → repeated http_error 500 to terminal
