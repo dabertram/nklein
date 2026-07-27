@@ -3383,6 +3383,13 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
   exactly-once side effects and correct delivery.
 - [>] **G6.8 — C4 routing/recovery challenge** *(after F3.* and G6.2).* Route mixed difficulty by role/model and recover
   induced truncation, no-call, endpoint loss, and loop without user help.
+> **MULTI-MODEL ≠ MULTI-HOST (David 2026-07-28, planning correction):** most G6/H7 items tagged as if they
+> needed the fleet only need distinct MODELS, which m5max serves — 128 GB RAM runs 3 real models at once
+> (gemma-4-31b + qwopus3.5-27b + ministral-3-14b ≈ 49 GB; lighter mixes cheaper). G6.8a's precursors
+> (F3.18–F3.35) are ALL done, so it is runnable NOW on m5max, not fleet-blocked. Reserve the fleet ONLY for
+> cross-HOST topology proofs (cross-machine fan-out timing, LM-Link roster, per-machine prefill F12.74,
+> device-load-routing). See memory: multi-model-vs-multi-host-2026-07-28.
+
 - [>] **G6.8a — Prove a suitable-model three-role swarm** *(after F3.18–F3.35).* Assign distinct loaded architect/
   worker/reviewer models when beneficial, honor role fit and endpoint/pool caps, and complete a multi-card challenge.
 - [>] **G6.9 — C5 concurrency challenge** *(after F3.20–F3.24).* Saturate a wide DAG across pools without unsafe overlap,
