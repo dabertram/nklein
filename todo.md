@@ -3420,7 +3420,10 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > (coverage-gate calibration, invariant-echo guidance, parent-reacquire deadlock, forced-tool text-drop).
 > Models unloaded; marathons stopped (hours each, diminishing returns until the unit below lands).
 > **→ ARCHITECT-SUCCESS UNIT (next, fresh context; v12 corpus):** distinct failure classes to fix at the
-> root: (a) spec-coverage gate demands card-anchors for CONVENTION/LAYOUT bullets that are not work items —
+> root: (a) ✅ DONE 2026-07-29 — descriptive bullets (no imperative lead, no obligation marker, same
+> classification the prompt linter uses) now need 1 anchor instead of the full quota; normative bullets keep
+> the quota; never-mentioned conventions still surface; 3 regression tests from the live corpus.
+> ORIGINAL FINDING: spec-coverage gate demands card-anchors for CONVENTION/LAYOUT bullets that are not work items —
 > live examples: "No helper imports another helper (verifiable by inspecting imports) — fully parallelizable
 > (2/3 required anchors)", "Product source files are TypeScript under `src/**/*.ts` (1/2)", "Test files may
 > be plain JavaScript or TypeScript" — calibrate: statements describing repo layout/conventions/parallelism
