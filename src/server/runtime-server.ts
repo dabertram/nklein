@@ -923,13 +923,33 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		// summary never went terminal) still counted here, deadlocking the pair forever on a cap-1 resource: the
 		// review queued behind the very session it was reviewing ("holder: <parent>"), and every dependent starved.
 		const admissionParentTaskId = request.admissionParentTaskId?.trim() || null;
+		// G6.8a v9 (2026-07-28, 2.5h live wedge): a parent REACQUIRE finding its own id `running` in the view is a
+		// leaked reservation from a child-boundary race — the parent is the only legitimate turn for its task while
+		// its children run, so the ghost can never clear on its own and waiting on it deadlocks the parent forever.
+		// Purge it from the live map (the true owner's later identity-release is a harmless no-op) and admit.
+		if (request.parentReacquire) {
+			const activeTurns = activeModelTurnsByWorkspaceId.get(scope.workspaceId) ?? [];
+			const ghosts = activeTurns.filter((turn) => turn.taskId === request.taskId);
+			if (ghosts.length > 0) {
+				deps.warn(
+					`Model-turn admission purged ${ghosts.length} leaked same-task reservation(s) for ${request.taskId} during parent reacquire (nested-gate child-boundary race).`,
+				);
+				const nextTurns = activeTurns.filter((turn) => turn.taskId !== request.taskId);
+				if (nextTurns.length > 0) {
+					activeModelTurnsByWorkspaceId.set(scope.workspaceId, nextTurns);
+				} else {
+					activeModelTurnsByWorkspaceId.delete(scope.workspaceId);
+				}
+			}
+		}
 		const runningSessions = collectModelTurnSchedulingSessions(scope.workspaceId, request, freshPsModels).filter(
 			(session) =>
 				(admissionParentTaskId === null || session.taskId !== admissionParentTaskId) &&
 				// A FRESH START's own id in the view is a stale ghost (an abandoned prior round that never went
 				// terminal) — counting it deadlocks the task against itself (F1.34c: s15::review waited forever on
-				// its round-1 ghost). Send-turns keep the same-task hold below.
-				(!request.freshSessionStart || session.taskId !== request.taskId),
+				// its round-1 ghost). Send-turns keep the same-task hold below; a parent REACQUIRE just purged its
+				// ghosts above and must not re-block on any residual same-task view entry either.
+				((!request.freshSessionStart && !request.parentReacquire) || session.taskId !== request.taskId),
 		);
 		const sameTaskTurn = findActiveSameTaskModelTurn(request.taskId, runningSessions);
 		if (sameTaskTurn) {

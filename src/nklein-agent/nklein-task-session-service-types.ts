@@ -128,6 +128,14 @@ export interface NKleinModelTurnAdmissionRequest {
 	 * (an abandoned prior round that never went terminal) — waiting on it deadlocks the task forever (F1.34c).
 	 */
 	freshSessionStart?: boolean;
+	/**
+	 * This admission is the nested gate REACQUIRING a parent's yielded slot after its last awaited child settled
+	 * (G6.8a v9 wedge, 2026-07-28). A `running` view-entry under the parent's OWN id here is a leaked reservation
+	 * from a child-boundary race — the parent turn is by definition the only live turn for this task while it
+	 * awaits its children. Blocking on it deadlocks the parent's completion forever; admission must instead purge
+	 * the ghost and admit.
+	 */
+	parentReacquire?: boolean;
 	providerId: string;
 	modelId: string;
 	endpoint: string | null;

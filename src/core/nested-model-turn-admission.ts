@@ -5,6 +5,12 @@ export interface NestedModelTurnRequest {
 	 * parent's reservation, runs the child under the same caps, then reacquires the parent before its model loop resumes.
 	 */
 	admissionParentTaskId?: string | null;
+	/**
+	 * Stamped by THIS gate (never by callers) on the acquire that restores a parent's yielded slot. Admission uses it
+	 * to treat a lingering same-task reservation as a leaked ghost to purge rather than an active turn to wait on —
+	 * the parent is the only legitimate turn for its task while its children run (G6.8a v9 deadlock, 2026-07-28).
+	 */
+	parentReacquire?: boolean;
 }
 
 interface ActiveAdmissionLease<Request, Reservation> {
@@ -76,7 +82,19 @@ export function createNestedModelTurnAdmissionGate<Request extends NestedModelTu
 			if (parent) {
 				parent.nestedTurnCount = Math.max(0, parent.nestedTurnCount - 1);
 				if (parent.nestedTurnCount === 0 && !parent.closed) {
-					parent.reservation = await deps.acquire(parent.request);
+					const reacquired = await deps.acquire({ ...parent.request, parentReacquire: true });
+					// G6.8a v9 deadlock (2026-07-28, 2.5h live wedge): this acquire can pend for a long time, and the
+					// world can move on while it does — the parent may CLOSE (its run aborted), or a NEW child may
+					// start (its yield was a no-op on the still-null reservation). Assigning unconditionally then
+					// leaks a reservation nobody owns, and every later same-task admission blocks on the ghost
+					// forever. Re-check the lease after the await; if it is no longer the sole open parent with an
+					// empty slot, the reacquired reservation must be returned, not stored.
+					if (parent.closed || parent.nestedTurnCount > 0 || parent.reservation !== null) {
+						deps.release(reacquired);
+						deps.onCapacityFreed?.();
+					} else {
+						parent.reservation = reacquired;
+					}
 				} else if (parent.nestedTurnCount > 0) {
 					// Another sibling is waiting for the yielded slot; wake it without reacquiring the parent prematurely.
 					deps.onCapacityFreed?.();
