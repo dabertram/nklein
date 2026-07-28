@@ -3396,6 +3396,15 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > during the pending reacquire leaks/double-holds the slot. Fixed in the gate (recheck + release) and in
 > admission (`parentReacquire` requests purge same-task ghosts instead of waiting on them); deterministic
 > regression tests for both races. Third product fix from this campaign. v10 relaunched on the fixed build.
+> **v10 verdict (2026-07-28): DEADLOCK FIX VALIDATED LIVE** — the exact v9 wedge point (critic-revise →
+> budget_wall → decomposition failover) was traversed cleanly THREE times (gemma → ornith hop1 → qwopus hop2),
+> no admission freeze; the run ended in the DESIGNED terminal (bounded hops exhausted, card parked for the
+> operator, monitor settled, clean exit `acceptance_green_workflow_incomplete`). Role-fit evidence sharpened:
+> qwopus-27b produced the best graph (only quality warnings + critic bounces), ornith-9b architect-unfit
+> (immediate abandonment loops), gemma-31b architect stochastic (v8 passed, v9/v10 failed) AND its critic
+> sessions are fragile (submit_plan_critique invalid-input → 5×identical-call loop → abandoned). Also noted:
+> architect prompt lints at 116 instruction units vs cap 60 — a plausible small-model flail factor worth its
+> own look. v11 relaunched with the evidence roster: architect=qwopus, worker=gemma-31b, reviewer=ornith.
 > **G6.8a CAMPAIGN QUESTION for David (batched, 2026-07-28):** blocked duplicate-`read_files` rejections (the
 > anti-re-read guard's corrective nudges) COUNT toward the 3-consecutive-tool-failure abandonment — a
 > read-looping architect dies from the guard designed to steer it (v6/v7: 43 blocked re-reads → repeated fast
