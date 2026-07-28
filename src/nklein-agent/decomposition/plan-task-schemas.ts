@@ -10,7 +10,7 @@ export const MAX_SHARED_PLAN_SPEC_PROMPT_CHARS = 2_400;
 export const MAX_SHARED_PLAN_DECISIONS_PROMPT_CHARS = 1_600;
 
 export const DECOMPOSE_DEPENDENCY_GUIDANCE =
-	"dependsOn contains DIRECT prerequisite task ids. Hard rule: every test, verification, acceptance, coverage, or golden-output card must directly depend on at least one implementation card it verifies; every documentation card must directly depend on delivered implementation work. Example: tests.dependsOn = ['api-implementation']. Do not reverse the edge.";
+	"dependsOn contains DIRECT prerequisite task ids. Hard rule: every test, verification, acceptance, coverage, or golden-output card must directly depend on at least one implementation card it verifies; every documentation card must directly depend on delivered implementation work. Example: tests.dependsOn = ['api-implementation']. Do not reverse the edge. Coverage rule: every specification bullet must be named in at least one card's prompt or acceptance check, and when a bullet states an invariant with words like pure, deterministic, stable, every, all, never, exactly, or idempotent, ECHO that exact word verbatim in the covering card — paraphrases fail the machine-auditable coverage gate on short bullets.";
 
 export const decomposeProjectTaskJsonSchema = {
 	type: "object",
