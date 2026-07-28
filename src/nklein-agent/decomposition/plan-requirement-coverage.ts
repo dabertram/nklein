@@ -127,7 +127,16 @@ export function findUncoveredPlanRequirements(
 		if (tokens.length === 0) continue;
 		const matchedTokenCount = tokens.filter((token) => contractTokens.has(token)).length;
 		const requiredTokenCount = tokens.length <= 2 ? 1 : Math.max(2, Math.ceil(tokens.length * 0.25));
-		const missingExactTokens = exactCoverageTokens(requirement, tokens).filter((token) => !contractTokens.has(token));
+		// G6.8a live calibration (2026-07-28): the exact-invariant rule exists for bullets whose CONTENT is the
+		// invariant word ("exactly once", "never delete"). Demanding the literal token on a bullet a card already
+		// covers RICHLY (≥2× the required anchors) punished paraphrase, not omission — two real 27–31B architects
+		// (qwopus3.5-27b, gemma-4-31b) matched 7/2 and 6/3 anchors and were parked over the words "every"/"stable"
+		// while writing "all inputs" / "same input → same output (pure)". Exact terms now bind only when the
+		// bullet is weakly covered; strongly-covered bullets are already machine-auditable via their anchors.
+		const missingExactTokens =
+			matchedTokenCount >= requiredTokenCount * 2
+				? []
+				: exactCoverageTokens(requirement, tokens).filter((token) => !contractTokens.has(token));
 		if (matchedTokenCount < requiredTokenCount || missingExactTokens.length > 0) {
 			uncovered.push({ requirement, missingExactTokens, matchedTokenCount, requiredTokenCount });
 		}

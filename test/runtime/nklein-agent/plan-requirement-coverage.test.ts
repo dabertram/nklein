@@ -86,3 +86,31 @@ describe("plan requirement coverage", () => {
 		expect(findUncoveredPlanRequirements(spec, tasks)).toEqual([]);
 	});
 });
+
+describe("exact-invariant terms bind only on weakly-covered bullets (G6.8a live calibration 2026-07-28)", () => {
+	const spec = "- 0 <= score <= 100 for every input; a perfect week is exactly 100.";
+
+	it("does not fail a RICHLY-anchored card over a paraphrased quantifier", () => {
+		// Two real 27–31B architects matched 7/2 anchors and were parked over the literal word "every" while
+		// writing "all inputs" — paraphrase, not omission.
+		const task = {
+			id: "s1",
+			title: "Score bounds",
+			prompt:
+				"Clamp the score so 0 <= score <= 100 holds for all inputs; a perfect week scores exactly 100. Verify the perfect-week input yields 100.",
+			dependsOn: [],
+		} as never;
+		expect(findUncoveredPlanRequirements(spec, [task])).toEqual([]);
+	});
+
+	it("still demands the literal invariant on a weakly-covered bullet", () => {
+		const vague = {
+			id: "s1",
+			title: "Wire the CLI",
+			prompt: "Add the command-line entry point and print usage help.",
+			dependsOn: [],
+		} as never;
+		const uncovered = findUncoveredPlanRequirements(spec, [vague]);
+		expect(uncovered).toHaveLength(1);
+	});
+});
