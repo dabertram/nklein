@@ -3405,6 +3405,14 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > sessions are fragile (submit_plan_critique invalid-input → 5×identical-call loop → abandoned). Also noted:
 > architect prompt lints at 116 instruction units vs cap 60 — a plausible small-model flail factor worth its
 > own look. v11 relaunched with the evidence roster: architect=qwopus, worker=gemma-31b, reviewer=ornith.
+> **v11 verdict (2026-07-28, settled ~40min):** qwopus architect ALSO exhausted 4 decompose attempts
+> (spec-coverage + dependency-coherence + critic-revise), failover ornith (instant empty responses) → gemma
+> (stalls) — same DESIGNED terminal, zero wedges; bonus: the F3.10 anthropic_messages alternate endpoint
+> recovered a live turn. CAMPAIGN READING: on throttled m5max @33k, NO trio architect reliably clears the
+> mid_task decompose gates (v8's gemma pass was stochastic); machinery proof stands, full-completion proof
+> pending. CONCRETE LEAD filed: architect prompt is OVER the instruction-unit cap (116 vs 60, 50 bare
+> prohibitions) — trim/tier the architect prompt for small local models before blaming the models. v12
+> launched on the LIGHTER `many_small` preset (same roster) to land the full multi-card completion proof.
 > **G6.8a CAMPAIGN QUESTION for David (batched, 2026-07-28):** blocked duplicate-`read_files` rejections (the
 > anti-re-read guard's corrective nudges) COUNT toward the 3-consecutive-tool-failure abandonment — a
 > read-looping architect dies from the guard designed to steer it (v6/v7: 43 blocked re-reads → repeated fast
