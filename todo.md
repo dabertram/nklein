@@ -6388,21 +6388,23 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   injection window, and the §12 guard competes for it. REMAINING UNIT (clean, filed): register the turn-loop
   regression as a standing nightly cell (needs smoke-mode-as-profile plumbing — it currently runs only under
   the env var), so the autonomous-steering assertion runs every night.
-  **⚠ 2026-07-28 registration attempt found the regression is RED — TWO product bugs, cell blocked on the
-  first:** (1) **assistant TEXT accompanying tool calls is DROPPED from the transcript** — the greet worker's
-  3 question turns (`content` + `read_files` in one completion, exactly how real models explain themselves
-  mid-work) land in `.messages.json` as tool_use-only assistant messages with NO text block, so the model
-  never re-sees its own stated reasoning, the UI never shows it, and `collectCompletedAssistantTurns` returns
-  nothing → the §12 guard is structurally BLIND to text+tool-call loops (its live park at the F12.40 note was
-  a pure-text loop, which still works). Verified layer-by-layer: aimock streams the content deltas; the pure
-  core detects the loop when handed the text; the vendored agent-runtime keeps text-delta parts — the drop is
-  between the wire and the transcript (vendored ingest chain; `cd995fec7` responses-sessions adoption is the
-  prime suspect but unconfirmed — the gate may not even activate against aimock). NEXT: instrumented probe of
-  the ingest chain (serve one content+tool_calls completion, print AgentModelEvents at each seam). (2) minor,
-  fixed: the guard's null-cancel auto-resolve exit was silent — now records `turn_loop_auto_resolve_skipped`.
-  Also noted: the anti-re-read guard now BLOCKS the recording's repeated `read_files` (2 runtime_errors +
-  swarm-retry noise) — after (1) is fixed the recording may need distinct read targets per question turn so
-  both guards don't compete. (3) ✅ park/resume COVERED 2026-07-27 — `02×park_resume` cell (all 9 invariants, ok:true): budget_wall park
+  **✅ 2026-07-28 STANDING CELL REGISTERED (1f7d0ec79) — and the registration attempt found+fixed a deep
+  product bug first:** the regression was RED because **assistant TEXT accompanying tool calls was dropped
+  from the transcript**. Bisected live with layered probes (aimock streams the content; vendored gateway,
+  agent-runtime, and codec all preserve it; the responses-sessions gate is opt-in and eliminated): the drop
+  was !Klein's OWN forced-tool fast path — `skill-api-profile-agent-model` served profile-forced turns via
+  `directClient.completeWithTools(tool_choice:"required")` and emitted ONLY `toolCalls[0]`, discarding
+  `completion.content`. Every profile-forced worker turn lost its self-explanation: transcript, UI, the
+  model's own later context, and the §12 guard (structurally blind to text+tool-call loops; pure-text loops
+  still worked — the F12.40 live park stands). **Fixed 45d442790** (emit the content as the turn's text-delta
+  before the call; unit tests for kept-text, ordering, and empty-content). The regression is GREEN end-to-end
+  and now runs nightly: manifest project "smoke" (inline scenario as a first-class fixture — the evidence
+  digest binds the serialized in-code script), profile `turn_loop`, pack `turn-loop-recovery`
+  (core-invariants + mustFire `turn_loop_auto_resolve`). Question turns read distinct paths so the
+  anti-re-read guard stays out of the cell. Also fixed: the guard's silent null-cancel exit records
+  `turn_loop_auto_resolve_skipped` (82849d42b); integrity tests validate `invariantPackByProfile` names.
+  REMAINING (small, filed): the forced path still executes only `toolCalls[0]` — parallel calls past the
+  first are dropped by design there; revisit if a profile-forced model legitimately emits parallel calls. (3) ✅ park/resume COVERED 2026-07-27 — `02×park_resume` cell (all 9 invariants, ok:true): budget_wall park
   (3 identical search_code calls) + the operator resume through the real tRPC sendTaskSessionInput seam; fully
   quiet drain. **OPEN PRODUCT QUESTION for David (batched): worker sessions are NOT offered
   `ask_followup_question` (v1's park attempt was rejected as an unavailable tool), yet
