@@ -3383,6 +3383,14 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
   exactly-once side effects and correct delivery.
 - [>] **G6.8 — C4 routing/recovery challenge** *(after F3.* and G6.2).* Route mixed difficulty by role/model and recover
   induced truncation, no-call, endpoint loss, and loop without user help.
+> **G6.8a CAMPAIGN QUESTION for David (batched, 2026-07-28):** blocked duplicate-`read_files` rejections (the
+> anti-re-read guard's corrective nudges) COUNT toward the 3-consecutive-tool-failure abandonment — a
+> read-looping architect dies from the guard designed to steer it (v6/v7: 43 blocked re-reads → repeated fast
+> abandonments before any graph landed; same config succeeded in v5 — architect decompose success is
+> stochastic). Should policy-guard rejections carrying corrective guidance count as consecutive MISTAKES, or
+> only genuine execution/parse failures? Softening tolerates longer wandering (fits "generous on everything");
+> keeping it treats guidance-deafness as terminal. Evidence in memory: "G6.8a three-role swarm campaign".
+
 > **MULTI-MODEL ≠ MULTI-HOST (David 2026-07-28, planning correction):** most G6/H7 items tagged as if they
 > needed the fleet only need distinct MODELS, which m5max serves — 128 GB RAM runs 3 real models at once
 > (gemma-4-31b + qwopus3.5-27b + ministral-3-14b ≈ 49 GB; lighter mixes cheaper). G6.8a's precursors
