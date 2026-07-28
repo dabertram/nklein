@@ -3413,6 +3413,25 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > pending. CONCRETE LEAD filed: architect prompt is OVER the instruction-unit cap (116 vs 60, 50 bare
 > prohibitions) — trim/tier the architect prompt for small local models before blaming the models. v12
 > launched on the LIGHTER `many_small` preset (same roster) to land the full multi-card completion proof.
+> **CAMPAIGN CLOSED after v12 (2026-07-28): 12 runs, machinery FULLY PROVEN, full-completion proof
+> deliberately deferred to the architect-success unit below.** v12 (many_small) settled the same designed
+> terminal — architect gate-clearing is the sole remaining blocker across ALL 3 presets × 3 architects
+> (v8's full flow remains the stochastic existence proof). FOUR product fixes shipped from the campaign
+> (coverage-gate calibration, invariant-echo guidance, parent-reacquire deadlock, forced-tool text-drop).
+> Models unloaded; marathons stopped (hours each, diminishing returns until the unit below lands).
+> **→ ARCHITECT-SUCCESS UNIT (next, fresh context; v12 corpus):** distinct failure classes to fix at the
+> root: (a) spec-coverage gate demands card-anchors for CONVENTION/LAYOUT bullets that are not work items —
+> live examples: "No helper imports another helper (verifiable by inspecting imports) — fully parallelizable
+> (2/3 required anchors)", "Product source files are TypeScript under `src/**/*.ts` (1/2)", "Test files may
+> be plain JavaScript or TypeScript" — calibrate: statements describing repo layout/conventions/parallelism
+> observations should not require dedicated card coverage (or need 1 anchor, not N); (b) architect prompt is
+> OVER the instruction-unit cap (116 vs 60, 50 bare prohibitions) — trim/tier for small local models,
+> measured via lint + aimock decompose cells (byte-stability of the shell matters for §5.AQ warmth);
+> (c) qwopus repeatedly omits spec/plan fields DESPITE the incremental-protocol steer (5×) and emits
+> occasionally-unparseable JSON — consider making the incremental protocol the DEFAULT for over-cap prompts
+> or profile-forced architects rather than a recovery steer; (d) "Task helper-clamp is missing an
+> acceptanceCommand" is the gate working as designed (keep). Re-validate with ONE mid_task marathon after
+> (a)+(b) land.
 > **G6.8a CAMPAIGN QUESTION for David (batched, 2026-07-28):** blocked duplicate-`read_files` rejections (the
 > anti-re-read guard's corrective nudges) COUNT toward the 3-consecutive-tool-failure abandonment — a
 > read-looping architect dies from the guard designed to steer it (v6/v7: 43 blocked re-reads → repeated fast
