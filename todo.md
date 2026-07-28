@@ -3383,6 +3383,12 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
   exactly-once side effects and correct delivery.
 - [>] **G6.8 — C4 routing/recovery challenge** *(after F3.* and G6.2).* Route mixed difficulty by role/model and recover
   induced truncation, no-call, endpoint loss, and loop without user help.
+> **G6.8a CAMPAIGN STATUS (8 runs, 2026-07-28): machinery FULLY PROVEN live on 3 distinct real models** —
+> decompose w/ critic diversity, multi-card parallel flow, worker→review→bounce cycles, the complete
+> re-decompose chain (spawn→apply→narrower card), role pins honored, every budget/guard bounded. v8 ended
+> 2 completed / 6 in-flight / 0 failed at the 3h budget — a THROUGHPUT limit on the thermally-throttled
+> single machine, not a capability gap. Campaign fixes shipped: coverage-gate calibration + invariant-echo
+> guidance (v8's decompose passed first-park-free). v9 running with an 8h budget for full completion.
 > **G6.8a CAMPAIGN QUESTION for David (batched, 2026-07-28):** blocked duplicate-`read_files` rejections (the
 > anti-re-read guard's corrective nudges) COUNT toward the 3-consecutive-tool-failure abandonment — a
 > read-looping architect dies from the guard designed to steer it (v6/v7: 43 blocked re-reads → repeated fast
