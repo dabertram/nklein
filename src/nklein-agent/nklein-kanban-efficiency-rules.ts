@@ -20,8 +20,19 @@ export function buildKanbanEfficiencyRules(options: {
 	 * paying ~40 lines of rarely-used protocol out of its tiny window. Default `full` = the historical text.
 	 */
 	level?: SysPromptLevel;
+	/**
+	 * G6.8a campaign (2026-07-28/29): PLANNING seeds are read-only + decompose_project (§5.B) — no write tools, no
+	 * run_commands — yet they received the full worker rule text and linted at 116 instruction units against a cap
+	 * of 60 (50 bare prohibitions), with real 27–31B architects repeatedly failing decompose. Rules about tools the
+	 * session cannot call are pure budget noise, and bare "never X" lines about absent tools are actively harmful
+	 * (the pink-elephant effect the prompt linter documents). Planner scope drops the run_commands/write-tool rules
+	 * and the deep large-file protocol (keeping the LEAN one-liner with its anti-re-read rail) plus the optional
+	 * extraction packs; read/discovery rules and the budget numbers stay.
+	 */
+	plannerScope?: boolean;
 }): string {
 	const lean = options.level === "minimal" || options.level === "lean";
+	const planner = options.plannerScope === true;
 	const budgets = buildKanbanContextSafetyBudgets(options.contextWindow);
 	const chunkTokenBudgetText = Math.round(budgets.fileChunkTokenBudget / 1000);
 	const chunkContentTokenBudgetText = Math.round(budgets.fileChunkContentTokenBudget / 1000);
@@ -43,7 +54,7 @@ export function buildKanbanEfficiencyRules(options: {
 		"## Focus Chain (plan your steps and track them)",
 		"At the very start of the task, call `update_focus_chain` once to lay out your plan: a handful of concrete, ordered steps for completing this task. Then, as you work, call it again to update the list — mark the current step `in_progress`, completed steps `done`, and re-send the FULL list each time (keep exactly one step in progress). This keeps you on-task and shows the user your progress. It is lightweight bookkeeping, not the work itself; keep the steps short.",
 		"",
-		...(lean
+		...(lean || planner
 			? []
 			: [
 					"## Adaptive Prompt Selection",
@@ -61,15 +72,27 @@ export function buildKanbanEfficiencyRules(options: {
 				]),
 		"## Tool And Context Rules",
 		`Scope: ${options.contextScope}. Timeout: ${options.timeoutMode}. Use targeted discovery and focused excerpts; avoid generated/lock files unless needed.`,
-		'For `run_commands`, pass a real JSON array, never a JSON-encoded string. Prefer shell strings: {"commands":["npm test"]}. If using structured form, keep the executable separate from its arguments: {"commands":[{"command":"npm","args":["test"]}]}; never put `npm test` in the `command` field.',
+		...(planner
+			? []
+			: [
+					'For `run_commands`, pass a real JSON array, never a JSON-encoded string. Prefer shell strings: {"commands":["npm test"]}. If using structured form, keep the executable separate from its arguments: {"commands":[{"command":"npm","args":["test"]}]}; never put `npm test` in the `command` field.',
+				]),
 		"When the exact source file set is unclear, first use `list_files` or `find_files`, then `get_file_size` for candidate files before choosing `read_files` or `read_large_file`. Treat discovery output as metadata only, not source content.",
-		`File-size target: keep any single file under about ${maxAgentWritableFileLines.toLocaleString()} lines. This is a SOFT target you push to stay under, not a hard wall — you MAY exceed it when one larger file is genuinely more cohesive than splitting, but split across files by default and treat going over as a deliberate exception. A much larger hard backstop still blocks runaway/accidental writes. Use \`write_file\` for one artifact and \`write_files\` for batches.`,
-		"Keep files small and single-responsibility: decompose a growing file into cohesive modules EARLY — pull out a class, a related group of helpers, a config block, or a type set into its own file as soon as the file starts doing several jobs. Never let one file become a large monolith; prefer many small focused files over few large ones.",
-		"Every `write_file` and `write_files` request must include the destination path and the complete UTF-8 file content in the same tool-call JSON. Never call a write tool with only a path or as a placeholder before the content is ready.",
+		...(planner
+			? [
+					// The planner writes no files itself, but the file-size discipline still shapes the CARDS it cuts:
+					// one compact sentence replaces the three write-tool rules.
+					`When sizing cards, plan for small single-responsibility files (target under about ${maxAgentWritableFileLines.toLocaleString()} lines each) rather than monoliths.`,
+				]
+			: [
+					`File-size target: keep any single file under about ${maxAgentWritableFileLines.toLocaleString()} lines. This is a SOFT target you push to stay under, not a hard wall — you MAY exceed it when one larger file is genuinely more cohesive than splitting, but split across files by default and treat going over as a deliberate exception. A much larger hard backstop still blocks runaway/accidental writes. Use \`write_file\` for one artifact and \`write_files\` for batches.`,
+					"Keep files small and single-responsibility: decompose a growing file into cohesive modules EARLY — pull out a class, a related group of helpers, a config block, or a type set into its own file as soon as the file starts doing several jobs. Never let one file become a large monolith; prefer many small focused files over few large ones.",
+					"Every `write_file` and `write_files` request must include the destination path and the complete UTF-8 file content in the same tool-call JSON. Never call a write tool with only a path or as a placeholder before the content is ready.",
+				]),
 		"For ordinary code, small files, and focused excerpts, use `read_files` normally. Do not turn focused code inspection into a large-file workflow.",
 		"`read_files` line numbers are ONE-BASED: `start_line` and `end_line` must be integers of 1 or greater. To read from the start of a file, OMIT them or pass `null` — never pass `0` (a `0` line number is rejected as invalid input and wastes a turn). Read a whole small file by passing just the path with no line range.",
 		`Use \`read_large_file\` only when the file must be read completely and the whole file would not fit in the available context/read budget. A file being merely long by bytes or lines is not enough; if \`get_file_size\` recommends \`read_files\`, use \`read_files\` for the whole file or for focused excerpts instead.`,
-		...(lean
+		...(lean || planner
 			? [
 					'For an oversized full read, use `read_large_file` with the workflow cursor: start with {"cursor":"start"}, then reuse each result\'s `nextCursor`; ONE call per response, resume from the last confirmed line, never re-read covered ranges.',
 				]

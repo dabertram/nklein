@@ -136,6 +136,17 @@ export function createPromptWarmthLedger(): PromptWarmthLedger {
 		// F12.79/F12.80 pre-flight lint (record-only): every assembled session prompt passes the instruction-budget
 		// + bare-prohibition linters — an over-budget or prohibition-heavy prompt is telemetry the operator can act
 		// on, never a block. Both start paths funnel through here, so one wire covers the whole surface.
+		// Debug seam (G6.8a prompt forensics, 2026-07-29): NKLEIN_PROMPT_DUMP_DIR=<dir> writes every assembled
+		// session prompt to <dir>/<kind>-<model>-<task>.txt. This is how the 116-vs-cap-60 architect lint was
+		// turned into a ranked per-section breakdown offline; dev-only, inert unless the env var is set.
+		if (process.env.NKLEIN_PROMPT_DUMP_DIR) {
+			void import("node:fs").then((fs) =>
+				fs.writeFileSync(
+					`${process.env.NKLEIN_PROMPT_DUMP_DIR}/${input.sessionKind}-${modelKey.replace(/[^a-z0-9.-]/gi, "_")}-${input.taskId.replace(/[^a-z0-9.-]/gi, "_").slice(-30)}.txt`,
+					assembled.text,
+				),
+			);
+		}
 		const budget = lintInstructionBudget(assembled.text);
 		const prohibitions = lintProhibitions(assembled.text);
 		if (budget.overBudget || prohibitions.bareCount > 0) {

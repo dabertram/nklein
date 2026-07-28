@@ -1497,6 +1497,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					timeoutMode: input.timeoutMode ?? "normal",
 					maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
 					level: leanSyspromptLevel,
+					// G6.8a: decompose seeds are read-only + decompose_project (§5.B) — the worker write/run rules
+					// were 116-vs-cap-60 lint noise on every architect start. Same explicit-decomposition membership
+					// `derivePromptSessionKind` keys the "architect" kind on; opt out with NKLEIN_ARCHITECT_PROMPT_DIET=0
+					// (mirrors NKLEIN_JUDGE_PROMPT_DIET).
+					plannerScope:
+						this.explicitDecompositionTaskIds.has(input.taskId) &&
+						isEnabledByDefaultEnv(process.env.NKLEIN_ARCHITECT_PROMPT_DIET),
 				}),
 				skillFragments: sessionSkillContext.fragments,
 			}),
@@ -2375,6 +2382,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							contextWindow: requestContextWindow,
 							timeoutMode: request.timeoutMode ?? "normal",
 							maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
+							// G6.8a: this is the start path decompose seeds actually take (it carries the planning
+							// prompt) — same planner diet + opt-out as the sibling call site above.
+							plannerScope:
+								this.explicitDecompositionTaskIds.has(request.taskId) &&
+								isEnabledByDefaultEnv(process.env.NKLEIN_ARCHITECT_PROMPT_DIET),
 						}),
 						skillFragments: sessionSkillFragments,
 					}),
