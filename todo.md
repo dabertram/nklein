@@ -3389,6 +3389,13 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > 2 completed / 6 in-flight / 0 failed at the 3h budget — a THROUGHPUT limit on the thermally-throttled
 > single machine, not a capability gap. Campaign fixes shipped: coverage-gate calibration + invariant-echo
 > guidance (v8's decompose passed first-park-free). v9 running with an 8h budget for full completion.
+> **v9 verdict: PRODUCT DEADLOCK found+fixed (a978538a2)** — v9 froze 24min in and sat dead 2.5h: after the
+> plan-critique children settled, the nested admission gate's parent REACQUIRE blocked forever on a leaked
+> same-task reservation ("already has an active model turn" ×11,667). Root cause: no post-await recheck on
+> `parent.reservation = await acquire(...)` — a new child arriving (race A) or the parent closing (race B)
+> during the pending reacquire leaks/double-holds the slot. Fixed in the gate (recheck + release) and in
+> admission (`parentReacquire` requests purge same-task ghosts instead of waiting on them); deterministic
+> regression tests for both races. Third product fix from this campaign. v10 relaunched on the fixed build.
 > **G6.8a CAMPAIGN QUESTION for David (batched, 2026-07-28):** blocked duplicate-`read_files` rejections (the
 > anti-re-read guard's corrective nudges) COUNT toward the 3-consecutive-tool-failure abandonment — a
 > read-looping architect dies from the guard designed to steer it (v6/v7: 43 blocked re-reads → repeated fast
