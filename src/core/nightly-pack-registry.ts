@@ -150,6 +150,22 @@ export const PARK_RESUME_RECOVERY: InvariantPack = {
 	includes: ["core-invariants"],
 };
 
+/**
+ * N2 `turn_loop` mechanism profile (the standing §12 cell, 2026-07-28): the inline smoke scenario's greet worker
+ * re-raises the same clarifying question for 3 turns (each alongside a tool call — the exact shape the transcript
+ * used to DROP, which made the guard blind and this regression red); the TurnLoopGuard must ground the contested
+ * acceptance command and auto-resolve with a nudge (`turn_loop_auto_resolve`), after which the flow fully drains —
+ * so the whole core baseline composes on top. The harness's own TURNLOOP wire assertions (question recurred ≥3×,
+ * nudge text reached the model, lanes drained) run in the same cell and fail it independently of this pack.
+ */
+export const TURN_LOOP_RECOVERY: InvariantPack = {
+	id: "turn-loop-recovery",
+	expectedTerminalLanes: [],
+	mustFire: ["turn_loop_auto_resolve"],
+	mustStayQuiet: [],
+	includes: ["core-invariants"],
+};
+
 export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map([
 	[CORE_INVARIANTS.id, CORE_INVARIANTS],
 	[PARKED_TERMINAL.id, PARKED_TERMINAL],
@@ -158,4 +174,5 @@ export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map
 	[FAILOVER_RECOVERY.id, FAILOVER_RECOVERY],
 	[TAINT_GATE_HOLD.id, TAINT_GATE_HOLD],
 	[PARK_RESUME_RECOVERY.id, PARK_RESUME_RECOVERY],
+	[TURN_LOOP_RECOVERY.id, TURN_LOOP_RECOVERY],
 ]);

@@ -204,10 +204,13 @@ const script: ScenarioScript = {
 				// The TurnLoopGuard must fire on turn 3, ground the backticked acceptance command in the card's
 				// `Acceptance check:` line, and inject the auto-resolve nudge; turn 4 then progresses normally.
 				...(TURNLOOP && card.fn === "greet"
-					? Array.from({ length: 3 }, () => ({
+					? // Distinct read targets per question turn: the loop the guard must catch is the repeated TEXT —
+						// identical read_files would ALSO trip the anti-re-read guard (blocked calls + runtime_error
+						// noise), muddying which mechanism broke the loop and dirtying the nightly cell's quiet set.
+						[card.file, "package.json", "tsconfig.json"].map((path) => ({
 							behavior: {
 								kind: "tool_calls" as const,
-								calls: [{ name: "read_files", arguments: { paths: [card.file] } }],
+								calls: [{ name: "read_files", arguments: { paths: [path] } }],
 								content: TURNLOOP_QUESTION,
 							},
 						}))
@@ -350,6 +353,24 @@ async function resolveScenario(): Promise<ResolvedScenario | undefined> {
 		return { registryId: SCENARIO_SELECTOR, scenario };
 	}
 	if (!SCENARIO_SELECTOR) return undefined;
+	if (SCENARIO_SELECTOR === "smoke") {
+		// N2 standing turn-loop cell: the INLINE smoke scenario as a first-class nightly fixture. There is no
+		// recording file on disk — the served bytes are the in-code `script`, so the digest binds its serialized
+		// form (any drift in the inline scenario changes the receipt, exactly what the evidence contract wants).
+		// Returning undefined keeps the drain on the normal smoke path; only the receipt is nightly-specific.
+		const recordingEvidence = bindNightlyRecording({
+			selector: SCENARIO_SELECTOR,
+			resolvedFixture: "smoke-inline",
+			expectedFixture: NIGHTLY_EXPECTED_FIXTURE,
+			expectedRecordingSet: NIGHTLY_EXPECTED_RECORDING_SET,
+			runFile: `${SCENARIO_RUN}.json`,
+			rawScenario: JSON.stringify(script),
+		});
+		if (NIGHTLY_EXPECTED_FIXTURE || NIGHTLY_EXPECTED_RECORDING_SET) {
+			console.log(`NIGHTLY_RECORDING_EVIDENCE=${JSON.stringify(recordingEvidence)}`);
+		}
+		return undefined;
+	}
 	const scenariosDir = new URL("../packages/llm-simulator/scenarios/", import.meta.url).pathname;
 	const dirs = readdirSync(scenariosDir).sort();
 	const match = dirs.find((dir) => dir === SCENARIO_SELECTOR || dir.startsWith(`${SCENARIO_SELECTOR}_`));

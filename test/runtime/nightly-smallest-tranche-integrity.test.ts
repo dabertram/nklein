@@ -62,7 +62,10 @@ describe("N2 smallest-ten nightly tranche", () => {
 	const manifest = JSON.parse(readFileSync("nightly-manifest.json", "utf8")) as {
 		projects?: readonly ManifestProject[];
 	};
-	const projects = manifest.projects ?? [];
+	// The smallest-ten tranche contract applies to DISK-RECORDED scenario projects (perfect+flaky run files).
+	// Inline-scenario cells (the "smoke" turn_loop cell, 2026-07-28) have no recording on disk — their evidence
+	// digest binds the harness's in-code script — so they are outside this tranche's cost accounting by design.
+	const projects = (manifest.projects ?? []).filter((project) => project.modelProfiles?.includes("perfect"));
 	const lowerTwenty = readdirSync(SCENARIOS_DIR)
 		.filter((name) => /^(?:0[1-9]|1\d|20)_/.test(name))
 		.map(scriptedCost)

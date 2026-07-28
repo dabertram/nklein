@@ -1,6 +1,18 @@
 {
  "projects": [
   {
+   "id": "smoke",
+   "fixture": "smoke-inline",
+   "recordingSet": "sim-smoke-inline",
+   "invariantPack": "core-invariants",
+   "modelProfiles": [
+    "turn_loop"
+   ],
+   "invariantPackByProfile": {
+    "turn_loop": "turn-loop-recovery"
+   }
+  },
+  {
    "id": "02",
    "fixture": "02_construction_jobsite_safety_compliance",
    "recordingSet": "sim-02",

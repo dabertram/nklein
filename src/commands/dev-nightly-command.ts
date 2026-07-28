@@ -180,6 +180,16 @@ const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	failover: "failover",
 	taint_gate: "taint-gate",
 	park_resume: "park-resume",
+	// N2 standing §12 turn-loop cell (2026-07-28): runs the INLINE smoke scenario (projectId "smoke") — there is
+	// no recording file; the drain digests the serialized inline script as its evidence. The profile additionally
+	// needs NKLEIN_SIMFLOW_TURNLOOP=1 (see PROFILE_EXTRA_ENV) to activate the a-same-question worker + the
+	// harness's own wire assertions (question recurred, guard nudged, full drain).
+	turn_loop: "turnloop",
+};
+
+/** Per-profile env the drain needs beyond NKLEIN_SIMFLOW_RUN (kept beside the run map so they stay in sync). */
+const PROFILE_EXTRA_ENV: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+	turn_loop: { NKLEIN_SIMFLOW_TURNLOOP: "1" },
 };
 
 async function runCell(cell: NightlyCell): Promise<CellVerdict> {
@@ -230,6 +240,7 @@ async function runCell(cell: NightlyCell): Promise<CellVerdict> {
 				// N4: activates the runtime's deterministic clock/mtime/power/watchdog seams. The child emits a
 				// typed receipt and this parent refuses a clean exit without exactly one matching receipt.
 				NKLEIN_NIGHTLY_HERMETIC: "1",
+				...(PROFILE_EXTRA_ENV[cell.modelProfile] ?? {}),
 			},
 		});
 		// F11.4c: a drain that leaves unmatched aimock requests did not cover what the run did. The summary core

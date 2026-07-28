@@ -55,13 +55,22 @@ describe("nightly pack registry", () => {
 			return;
 		}
 		const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-			projects?: { id: string; invariantPack?: string }[];
+			projects?: { id: string; invariantPack?: string; invariantPackByProfile?: Record<string, string> }[];
 		};
 		for (const project of manifest.projects ?? []) {
 			if (project.invariantPack) {
 				expect(
 					NIGHTLY_PACK_REGISTRY.has(project.invariantPack),
 					`project "${project.id}" names pack "${project.invariantPack}", which is not registered`,
+				).toBe(true);
+			}
+			// The per-profile overrides carry the same dangling-name hazard as the project-level pack — a typo here
+			// silently judges that profile's cell against nothing (found as a coverage gap while registering the
+			// turn_loop cell, 2026-07-28).
+			for (const [profile, packId] of Object.entries(project.invariantPackByProfile ?? {})) {
+				expect(
+					NIGHTLY_PACK_REGISTRY.has(packId),
+					`project "${project.id}" profile "${profile}" names pack "${packId}", which is not registered`,
 				).toBe(true);
 			}
 		}

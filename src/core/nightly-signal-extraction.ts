@@ -62,6 +62,9 @@ export const OBSERVABLE_DRAIN_SIGNALS: readonly string[] = [
 	"delivery_taint_gate",
 	// N2 park_resume/steering profiles (2026-07-27): every accepted operator input to a live session.
 	"task_session_operator_input",
+	// N2 turn_loop profile (2026-07-28): the §12 TurnLoopGuard's auto-resolve nudge record — confirmed reaching
+	// the sink in the green TURNLOOP regression run the day the standing cell was registered.
+	"turn_loop_auto_resolve",
 ];
 
 interface TelemetryRecord {
