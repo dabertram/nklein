@@ -215,6 +215,17 @@ export class TurnLoopGuard {
 			// the review finalization); the budget stays unconsumed for a future loop in a later run.
 			const canceled = await this.callbacks.cancelTaskTurn(taskId).catch(() => null);
 			if (!canceled) {
+				// Previously a SILENT exit — the §12 nightly regression failed with zero telemetry and this was one
+				// of two indistinguishable causes. A skipped nudge is a guard decision; record it like every other.
+				this.callbacks.recordObservation({
+					taskId,
+					message: `Turn loop auto-resolve skipped: no active turn to cancel (${verdict.kind} ×${verdict.occurrences}) — run likely ended on its own.`,
+					metadata: {
+						category: "turn_loop_auto_resolve_skipped",
+						kind: verdict.kind,
+						occurrences: verdict.occurrences,
+					},
+				});
 				return;
 			}
 			state.autoResolveNudgesUsed += 1;
