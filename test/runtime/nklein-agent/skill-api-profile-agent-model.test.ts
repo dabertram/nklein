@@ -95,6 +95,55 @@ describe("createSkillApiProfileAgentModel (F4.15)", () => {
 		expect(baseCalls).toEqual([]);
 	});
 
+	it("keeps the assistant text that accompanies a forced tool call (§12 nightly regression)", async () => {
+		// 2026-07-28: the forced path emitted ONLY the tool call — `completion.content` (a model explaining
+		// itself, or re-raising a contested question, alongside its call) was silently dropped, so the transcript,
+		// the UI, and the turn-loop guard never saw it. The guard was structurally blind to text+tool-call loops.
+		const question = "Before I write the file — should I use vitest here, or keep the acceptance as specified?";
+		const direct: SkillApiProfileDirectClient = {
+			completeWithTools: async () => ({
+				content: question,
+				toolCalls: [{ id: "call_1", name: "read_file", arguments: { path: "todo.md" } }],
+				finishReason: "tool_calls",
+				raw: {},
+			}),
+			complete: async () => ({ content: "" }),
+		};
+		const model = createSkillApiProfileAgentModel(capturingBase([]), {
+			modelId: "deepseek-r1-0528-qwen3-8b",
+			profile: { structuredOutput: true },
+			directClient: direct,
+		});
+		const events = await collect(model, request());
+		const textEvent = events.find((event) => event.type === "text-delta");
+		expect(textEvent?.type === "text-delta" ? textEvent.text : "").toBe(question);
+		// The text must precede the tool call so the assembled assistant message reads text-then-action.
+		expect(events.findIndex((event) => event.type === "text-delta")).toBeLessThan(
+			events.findIndex((event) => event.type === "tool-call-delta"),
+		);
+		expect(events.find((event) => event.type === "tool-call-delta")).toMatchObject({ toolName: "read_file" });
+	});
+
+	it("emits no empty text event when a forced tool call has no accompanying content", async () => {
+		const direct: SkillApiProfileDirectClient = {
+			completeWithTools: async () => ({
+				content: "  ",
+				toolCalls: [{ id: "call_1", name: "read_file", arguments: { path: "todo.md" } }],
+				finishReason: "tool_calls",
+				raw: {},
+			}),
+			complete: async () => ({ content: "" }),
+		};
+		const model = createSkillApiProfileAgentModel(capturingBase([]), {
+			modelId: "deepseek-r1-0528-qwen3-8b",
+			profile: { structuredOutput: true },
+			directClient: direct,
+		});
+		const events = await collect(model, request());
+		expect(events.some((event) => event.type === "text-delta")).toBe(false);
+		expect(events.find((event) => event.type === "tool-call-delta")).toMatchObject({ toolName: "read_file" });
+	});
+
 	it("uses native tool_choice required for a reasoning model and falls back safely on an empty direct result", async () => {
 		const baseCalls: AgentModelRequest[] = [];
 		let toolChoice: string | undefined;

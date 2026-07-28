@@ -165,6 +165,15 @@ export function createSkillApiProfileAgentModel(
 							);
 							const call = completion.toolCalls[0];
 							if (call) {
+								// §12 nightly regression (2026-07-28): this path used to emit ONLY the tool call —
+								// `completion.content` (the model explaining itself alongside the call, exactly how real
+								// models re-raise a contested question mid-work) was silently dropped, so the transcript,
+								// the UI, and the turn-loop guard never saw it. Emit it as the turn's text first; the tool
+								// call keeps the turn's terminal shape. (toolCalls[1..] stay unexecuted by design — the
+								// forced path serves exactly one next step.)
+								if (completion.content.trim().length > 0) {
+									yield { type: "text-delta", text: completion.content };
+								}
 								for (const event of toolEvents({ id: call.id, name: call.name, arguments: call.arguments }))
 									yield event;
 								return;
