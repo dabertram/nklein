@@ -3442,6 +3442,14 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > forensics. Still over cap 60 — the remaining mass is the SDK static shell preamble (21 units): deliberate
 > stop; further cuts touch vendored text. **v13 re-validation marathon LAUNCHED (mid_task, evidence roster,
 > gates (a)+(b) live).** (c) stays open pending v13's texture.
+> **v13 VERDICT (2026-07-29): (a)+(b) VALIDATED — decompose CLEARED FIRST-SHOT** (v9–v12 all died
+> 4-attempts-deep at the same gates): real 6-card graph spawned, gemma workers delivered 2 cards to review,
+> seed completed. The run then settled on the monitor's stagnation window while BOTH reviews churned on
+> ornith-9b (reasoning-budget stalls, /v1/messages 500s, `run_commands` invalid input, re-read blocks) —
+> a REVIEWER role-fit failure, matching the sweep's verdict (gemma-4-31b = best fast reviewer 0.833@54s;
+> ornith = reviewer-weak at 33k on real diffs). v14 launched: architect=qwopus, worker=gemma-31b,
+> reviewer=gemma-31b — 2 distinct models across 3 roles per the challenge's own rule (distinct WHEN
+> BENEFICIAL, role fit unconditional).
 > **G6.8a CAMPAIGN QUESTION for David (batched, 2026-07-28):** blocked duplicate-`read_files` rejections (the
 > anti-re-read guard's corrective nudges) COUNT toward the 3-consecutive-tool-failure abandonment — a
 > read-looping architect dies from the guard designed to steer it (v6/v7: 43 blocked re-reads → repeated fast
