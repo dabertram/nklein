@@ -2,6 +2,26 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **A model's explanation alongside its tool calls is no longer lost.** On the profile-forced tool path (small local
+  models steered with a required tool call), the assistant text that accompanied the call — the model explaining
+  itself, or re-raising a clarifying question mid-work — was silently dropped from the transcript. The card's chat
+  never showed it, the model never re-saw its own reasoning in later turns, and the in-session loop guard could not
+  see a question being re-asked when it arrived alongside tool calls. The text now lands in the transcript ahead of
+  the call, restoring the chat view, the model's context, and the loop guard's sight on that turn shape.
+
+- **A parked architect hand-off can no longer freeze a board forever.** When a planning model exhausted its bounded
+  decomposition attempts and !Klein handed the work to the next loaded architect, a rare timing race could leak the
+  session's model-turn slot — every later turn then waited forever on a reservation nothing would ever release, and
+  the board sat idle until a restart. The hand-off window is now re-checked and leaked slots are reclaimed
+  automatically, so the escalation chain keeps moving (validated live through three consecutive architect
+  generations on one board).
+
+- **The in-session loop guard's steering is now proven nightly.** A standing nightly cell drives a worker that
+  re-raises the same clarifying question three turns in a row; the guard must ground the contested detail in the
+  card's own acceptance criteria, nudge the model with it mid-session, and the flow must fully drain. The guard also
+  records when it detects a loop but skips its nudge because the turn already ended, so a quiet miss is diagnosable
+  from telemetry instead of invisible.
+
 - **New "Stage only" delivery mode.** Cards can now deliver at a lower trust level: the reviewed result lands as
   staged, uncommitted changes in your workspace so YOU author the commit (adopted from container-use's `apply`;
   see docs/attributions.md). On a conflict nothing is machine-resolved — the card holds in Review and the result
