@@ -113,4 +113,46 @@ describe("exact-invariant terms bind only on weakly-covered bullets (G6.8a live 
 		const uncovered = findUncoveredPlanRequirements(spec, [vague]);
 		expect(uncovered).toHaveLength(1);
 	});
+
+	it("requires only one anchor for a DESCRIPTIVE convention bullet (G6.8a v12 calibration)", () => {
+		// Live v12 (many_small): these three layout/convention statements describe the world rather than demand
+		// work, yet the full anchor quota parked the architect over them ("2/3", "1/2 required anchors").
+		const conventionSpec = [
+			"- No helper imports another helper (verifiable by inspecting each file's imports) — they are fully parallelizable.",
+			"- Product source files are TypeScript under `src/**/*.ts`.",
+			"- Test files may be plain JavaScript (`test/**/*.test.js`) or TypeScript (`test/**/*.test.ts`).",
+		].join("\n");
+		const card = {
+			id: "helper-clamp",
+			title: "Clamp helper",
+			prompt: "Create src/clamp.ts exporting clamp(value). Add test/clamp.test.ts covering the bounds.",
+			dependsOn: [],
+		} as never;
+		// One anchor each (src / test / helper) is enough for a description; no dedicated convention card needed.
+		expect(findUncoveredPlanRequirements(conventionSpec, [card])).toEqual([]);
+	});
+
+	it("keeps the full anchor quota for NORMATIVE bullets even in convention-like phrasing", () => {
+		const normativeSpec =
+			"- All summaries must be deterministic and stable across repeated runs of the aggregation pipeline for identical input fixtures.";
+		const unrelated = {
+			id: "s1",
+			title: "Wire the CLI",
+			prompt: "Add the command-line entry point printing usage help for summaries.",
+			dependsOn: [],
+		} as never;
+		// "must" makes it normative: one incidental anchor (summaries) must NOT satisfy it.
+		expect(findUncoveredPlanRequirements(normativeSpec, [unrelated])).toHaveLength(1);
+	});
+
+	it("still surfaces a descriptive bullet the graph never mentions at all", () => {
+		const conventionSpec = "- Product source files are TypeScript under `src/**/*.ts`.";
+		const unrelated = {
+			id: "s1",
+			title: "Docs pass",
+			prompt: "Rewrite the README quickstart section.",
+			dependsOn: [],
+		} as never;
+		expect(findUncoveredPlanRequirements(conventionSpec, [unrelated])).toHaveLength(1);
+	});
 });

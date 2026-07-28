@@ -1,3 +1,4 @@
+import { extractInstructionUnits } from "../../core/prompt-fragment-lint";
 import { tokenizeForLexicalScore } from "../nklein-lexical-score";
 import type { NKleinPlanTask } from "../nklein-plan-artifacts";
 
@@ -126,7 +127,19 @@ export function findUncoveredPlanRequirements(
 		const tokens = significantTokens(requirement);
 		if (tokens.length === 0) continue;
 		const matchedTokenCount = tokens.filter((token) => contractTokens.has(token)).length;
-		const requiredTokenCount = tokens.length <= 2 ? 1 : Math.max(2, Math.ceil(tokens.length * 0.25));
+		// G6.8a v12 calibration (2026-07-28): DESCRIPTIVE bullets — repo layout, naming conventions, parallelism
+		// observations ("Product source files are TypeScript under src/**/*.ts", "Test files may be plain JavaScript
+		// or TypeScript", "No helper imports another helper — they are fully parallelizable") — describe the world
+		// rather than demand work, yet the full anchor quota parked two real architects over them. A bullet with no
+		// imperative lead and no obligation marker (the SAME classification the prompt linter uses for instruction
+		// units) needs only ONE anchor: enough to prove the graph acknowledges the convention, without forcing a
+		// dedicated card for a statement that is not a work item. Normative bullets keep the full quota.
+		const isNormative = extractInstructionUnits(requirement).length > 0;
+		const requiredTokenCount = !isNormative
+			? 1
+			: tokens.length <= 2
+				? 1
+				: Math.max(2, Math.ceil(tokens.length * 0.25));
 		// G6.8a live calibration (2026-07-28): the exact-invariant rule exists for bullets whose CONTENT is the
 		// invariant word ("exactly once", "never delete"). Demanding the literal token on a bullet a card already
 		// covers RICHLY (≥2× the required anchors) punished paraphrase, not omission — two real 27–31B architects
