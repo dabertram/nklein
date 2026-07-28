@@ -3435,6 +3435,13 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > or profile-forced architects rather than a recovery steer; (d) "Task helper-clamp is missing an
 > acceptanceCommand" is the gate working as designed (keep). Re-validate with ONE mid_task marathon after
 > (a)+(b) land.
+> **(b) ✅ DONE 2026-07-29 (8d6f0f678): architect planner-scope diet** — decompose seeds no longer receive
+> the worker write/run rules or the deep large-file protocol (read-only + decompose toolset per §5.B);
+> measured on live assembly: 116→84 units, 50→33 bare prohibitions, 23.6KB→17.1KB; workers byte-identical;
+> opt-out NKLEIN_ARCHITECT_PROMPT_DIET=0. NKLEIN_PROMPT_DUMP_DIR is now a documented debug seam for prompt
+> forensics. Still over cap 60 — the remaining mass is the SDK static shell preamble (21 units): deliberate
+> stop; further cuts touch vendored text. **v13 re-validation marathon LAUNCHED (mid_task, evidence roster,
+> gates (a)+(b) live).** (c) stays open pending v13's texture.
 > **G6.8a CAMPAIGN QUESTION for David (batched, 2026-07-28):** blocked duplicate-`read_files` rejections (the
 > anti-re-read guard's corrective nudges) COUNT toward the 3-consecutive-tool-failure abandonment — a
 > read-looping architect dies from the guard designed to steer it (v6/v7: 43 blocked re-reads → repeated fast
