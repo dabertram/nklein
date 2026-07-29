@@ -3502,6 +3502,19 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > the freeze; watch v16). **v16 LAUNCHED with SIX fixes live** (coverage gate, prompt diet, ghost-livelock
 > gate+chat guard, rescue-handover revival, mistake-streak softening, worker ask_question + name unification
 > — the last two are in-runtime for the FIRST time this run). v14/v15b evidence HOMEs still preserved.
+> **v16 VERDICT (2026-07-29, settled ~5.2h): 2 completed / 2 review / 5 planning / 1 failed — decompose
+> cleared first-shot for the 4th consecutive run. THREE fixes validated LIVE: `mistake_streak_softened` ×2
+> (guard-block streaks continued instead of abandoning), `concurrency_gate_ghost_excluded` ×1 (the v14
+> livelock class caught + stepped over), and the rescue handover's honest-naming path. FOURTH freeze class
+> found, and it is UPSTREAM of the handover: the stuck card's durable job shows
+> `lease_acquired → reclaimed(lease_expired)` ×3 → `cancelled(max_attempts)` — its attempt budget was burnt
+> by leases that EXPIRED WITHOUT A SESSION EVER RUNNING, so the reopen correctly refused (budget exhausted)
+> and named the residue. ROOT QUESTION for the next unit: why does a dispatched lease produce no live
+> session (start refused? dispatch→start gap? heartbeat never reached because no session existed?) — a lease
+> that never ran must not burn an attempt. Candidates: (a) don't count a reclaim with zero observed session
+> as an attempt, (b) verify dispatch→start actually created a session and fail the lease loudly if not.
+> EVIDENCE: HOME=/tmp/nklein-g68a-8m5Q1k (ledger scheduler events for
+> habit-score-clamping-tests-clamping; 397 watchdog fires; runtime.log 190 handover lines).**
 > **v13 VERDICT (2026-07-29): (a)+(b) VALIDATED — decompose CLEARED FIRST-SHOT** (v9–v12 all died
 > 4-attempts-deep at the same gates): real 6-card graph spawned, gemma workers delivered 2 cards to review,
 > seed completed. The run then settled on the monitor's stagnation window while BOTH reviews churned on
