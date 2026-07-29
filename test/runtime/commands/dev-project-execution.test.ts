@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { countPendingAutoReviews, findSandboxPatchCaptureFailure } from "../../../src/commands/dev-project-execution";
 
 describe("countPendingAutoReviews", () => {
-	it("keeps an unattended run active until its synthetic reviewer records a result", () => {
+	it("counts every auto-reviewed review-lane card, INCLUDING ones that already have a verdict", () => {
+		// Changed 2026-07-29 with live evidence: this previously required `review === undefined`, so a card
+		// stopped counting at its FIRST verdict — even though bounce → re-review → delivery → acceptance all
+		// happen after it. G6.8a v17 settled as "stagnant" at ~80 minutes with BOTH review cards holding
+		// `autoReviewEnabled: true` plus a verdict (counted 0), while telemetry showed a review model request
+		// finishing 100s earlier and a decomposition turn continuing at the final second. The old expectation
+		// (1) encoded that truncation as the contract.
 		expect(
 			countPendingAutoReviews({
 				columns: [
@@ -16,7 +22,16 @@ describe("countPendingAutoReviews", () => {
 					},
 				],
 			}),
-		).toBe(1);
+		).toBe(2);
+	});
+
+	it("still ignores cards that are not auto-reviewed, and boards with no review lane", () => {
+		// A human-reviewed card must not keep an unattended run alive forever; the parked-for-a-human case is
+		// tracked separately as attentionCardCount with its own terminal outcome.
+		expect(countPendingAutoReviews({ columns: [{ id: "review", cards: [{ autoReviewEnabled: false }] }] })).toBe(0);
+		expect(countPendingAutoReviews({ columns: [{ id: "in_progress", cards: [{ autoReviewEnabled: true }] }] })).toBe(
+			0,
+		);
 	});
 });
 

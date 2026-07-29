@@ -40,10 +40,28 @@ interface DevScenarioBoardForActivity {
 	}>;
 }
 
-/** Auto-review is synthetic work and is not represented by the primary task-session count. */
+/**
+ * Auto-review is synthetic work and is not represented by the primary task-session count, so it is added to
+ * `activeSessionCount` — the counter whose ONLY job is to suspend the stagnation settle while work is in flight.
+ *
+ * ⚠️ This used to require `card.review === undefined`, i.e. a card counted only until its FIRST verdict. But the
+ * verdict is the START of the expensive half, not the end: bounce → re-review → delivery → acceptance all happen
+ * after it. So the moment a reviewer returned anything, the card went invisible to the liveness counter and the
+ * monitor began counting the run as stagnant while it was demonstrably still working.
+ *
+ * G6.8a v17 (2026-07-29) is the proof: the run settled at ~80 minutes with two review-lane cards that both had
+ * `autoReviewEnabled: true` AND a verdict attached — counted 0 — while telemetry shows a review model request
+ * completing 100 seconds before the settle and a decomposition turn continuing at the final second. Several
+ * earlier campaign runs (v13/v15b/v16) ended the same way, so their "workflow incomplete" verdicts measured this
+ * counter rather than !Klein's throughput.
+ *
+ * A card in the `review` LANE is non-terminal by definition — only completed/trash/failed are terminal — so it
+ * counts as activity regardless of verdict. The genuinely stuck case (parked awaiting a human) does NOT hang the
+ * run: it is tracked independently as `attentionCardCount` and has its own terminal outcome bucket.
+ */
 export function countPendingAutoReviews(board: DevScenarioBoardForActivity): number {
 	const review = board.columns.find((column) => column.id === "review");
-	return review?.cards.filter((card) => card.autoReviewEnabled === true && card.review === undefined).length ?? 0;
+	return review?.cards.filter((card) => card.autoReviewEnabled === true).length ?? 0;
 }
 
 /** Identify a terminal sandbox result-capture failure without conflating ordinary model/session failures with infra. */
@@ -108,11 +126,18 @@ export async function executeDevTestScenario(
 			const state = await input.client.workspace.getState.query();
 			const sessions = Object.values(state.sessions ?? {});
 			const counts = countActiveAgentSessions(sessions);
+			// `countActiveAgentSessions` counts running + queued only — deliberately, because its OTHER caller
+			// (workspace-registry) means "occupying a slot" by it. For the stagnation settle the question is
+			// different and broader: "is anything still in flight?" A session handed to review is very much in
+			// flight (G6.8a v17: a review model request completed 100s before the monitor declared the run
+			// stagnant), so add it here rather than widening the shared counter and changing operator-facing
+			// numbers on the strength of harness evidence.
+			const awaitingReview = sessions.filter((summary) => summary.state === "awaiting_review").length;
 			return {
 				board: state.board,
 				runtimeReachable: true,
 				failedCardCount: sessions.filter((summary) => summary.state === "failed").length,
-				activeSessionCount: counts.running + counts.queued + countPendingAutoReviews(state.board),
+				activeSessionCount: counts.running + counts.queued + awaitingReview + countPendingAutoReviews(state.board),
 				attentionCardCount: countAttentionParkedSessions(sessions),
 				infrastructureFailure: findSandboxPatchCaptureFailure(sessions),
 			};
