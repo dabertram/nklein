@@ -3558,7 +3558,29 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > hash from the log before recording it.
 > ❌ **NOT SUPPORTED:** "fix stale CONTRIBUTING paths" — every file/dir path referenced in `CONTRIBUTING.md`
 > resolves on disk (checked exhaustively, zero missing). Do not act on this without a concrete example.
-> ⚠️ **NEEDS MEASUREMENT, DO NOT QUOTE:** "only 5 of 43 registered mechanisms have demonstrated live
+> ✅ **NOW MEASURED (2026-07-29) — the claim is settled, and its FRAMING was the problem, not its number.**
+> Measured `MECHANISM_REGISTRY` categories against real-model campaign telemetry (v14 + v16 + v17 HOMEs):
+> **7/43 registered mechanisms fired live; of the 24 declared `expectation: "every_run"`, 5 fired.** So the
+> audit's "5" is arithmetically reachable — but its denominator (43) is wrong and its implication (38 broken)
+> is false. Honest split: **19 of 43 are `expectation: "exceptional"`** — they fire only on a breach/drift/
+> pause, so silence on a healthy run is EVIDENCE OF HEALTH, exactly as the registry's header states; **18 of
+> the remaining silent ones sit behind opt-in flags that were OFF**, which the registry also calls correct
+> and expected. Genuine outliers after that filter: **ONE**.
+> **THE ONE OUTLIER IS A REGISTRY DEFECT, NOT A DEAD MECHANISM — and it is the exact false-alarm class the
+> registry's own header warns about.** `knows_today_injection` is declared `enabledBy: null` +
+> `expectation: "every_run"` while ALSO declaring `covers: ["NKLEIN_KNOWS_TODAY"]` — self-contradictory. The
+> code is unambiguous: `chat-turn-context.ts` emits only `if (temporal)`, and `temporal` exists only when the
+> §5.AC switch is on, which is **OFF BY DEFAULT** (`chat-agent-turn.ts`). FIX (after v17, src change): set
+> `enabledBy: "NKLEIN_KNOWS_TODAY"` so the audit reports "flag off ⇒ expected silence" instead of
+> "enabled but silent".
+> **METHODOLOGICAL FINDING worth more than the count — SURFACE-MATCHED DENOMINATORS.** `knows_today_injection`
+> lives in `src/chat/` and is reachable only from the CHAT surface; a task-drain cannot exercise it at any
+> flag setting. So "fired during a campaign run" is an unfair test for chat-path mechanisms, and my own 5/24
+> denominator is therefore still too generous a test of nothing-is-broken. Any honest coverage metric must
+> match each mechanism to the SURFACE that can reach it (chat turn / task drain / review / delivery) before
+> counting silence as a defect. Fold this into the audit's four-axis proposal (core exists / entrypoint
+> reaches it / enabled / live evidence) as a fifth axis: **which surface can reach it**.
+> (superseded) original wording: "only 5 of 43 registered mechanisms have demonstrated live
 > outcomes." This looks like a misread of the registry's own comment *"5 of 40 default-OFF FLAGS were
 > registered"* — which is about REGISTRY COVERAGE OF FLAGS before F4.8b added four, NOT about how many
 > mechanisms have live evidence. Different claim. Also note the registry's own caveat: absence from it does
