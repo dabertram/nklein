@@ -212,6 +212,26 @@ export class DurableRunController {
 	}
 
 	/**
+	 * G6.8a v15b (2026-07-29): the runtime's BOUNDED dead-card recovery (one fresh restart per card) sanctioned a
+	 * fresh attempt for a card whose durable job had already FAILED — and the legacy rescue handover was a warn the
+	 * controller never received, livelocking the board ("If the controller does not dispatch them, nothing will").
+	 * Mirror the late-success rule: accept the runtime's sanctioned redrive as external evidence and revive the
+	 * FAILED job to `ready` under the ordinary transient-retry attempt budget. Logged as the existing
+	 * `completed/transient_retry` entry so boot-replay derives the identical state. Returns true only when the job
+	 * actually revived (still-budgeted failed job); every other state is a no-op — the runtime's own one-shot
+	 * redrive bound prevents a reopen loop. Callers should `tick()` afterwards to lease the revived job.
+	 */
+	async reopenForRedispatch(jobId: string): Promise<boolean> {
+		const job = this.jobs.find((candidate) => candidate.jobId === jobId);
+		if (job?.state !== "failed") {
+			return false;
+		}
+		await this.ports.appendLog({ kind: "completed", jobId, outcome: "transient_retry" });
+		this.jobs = markDurableJob(this.jobs, jobId, "transient_retry", this.config.maxAttempts);
+		return this.jobs.find((candidate) => candidate.jobId === jobId)?.state === "ready";
+	}
+
+	/**
 	 * Heartbeat a running card: extend its lease by `leaseDurationMs` from now so the scheduler doesn't reclaim a
 	 * worker that is alive but slow (the §5.AF lease-expiry guard is for DEAD workers, not slow ones). In-memory only
 	 * (not logged) — a restart orphans the lease anyway and `resume` reclaims it. A no-op for a non-leased job.

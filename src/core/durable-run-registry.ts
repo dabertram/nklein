@@ -70,6 +70,28 @@ export class DurableRunRegistry {
 	}
 
 	/**
+	 * G6.8a v15b: the runtime's bounded dead-card recovery sanctioned fresh attempts for these cards — revive their
+	 * FAILED jobs (see `DurableRunController.reopenForRedispatch`) and tick once so revived jobs lease immediately.
+	 * Returns the task ids that actually revived, so the caller can name what was (and was not) rescued.
+	 */
+	async redispatchCandidates(workspaceId: string, taskIds: readonly string[]): Promise<string[]> {
+		const controller = this.runs.get(workspaceId);
+		if (!controller) {
+			return [];
+		}
+		const revived: string[] = [];
+		for (const taskId of taskIds) {
+			if (await controller.reopenForRedispatch(taskId)) {
+				revived.push(taskId);
+			}
+		}
+		if (revived.length > 0) {
+			await controller.tick();
+		}
+		return revived;
+	}
+
+	/**
 	 * F1.18: the DELIVERY completed (review approved + acceptance passed + merged/completed) — the job's real
 	 * success. This is the ONLY path that releases dependents; `awaiting_review` merely heartbeats (see
 	 * `mapTaskSessionStateToDurableRunReaction`).

@@ -325,7 +325,24 @@ export function markDurableJob(
 			// LATE SUCCESS (F1.18b live-found): the runtime's own retry ladder recovered the card after the durable
 			// budget gave up — the delivery seam then reports success here. Reality outranks bookkeeping: accept it
 			// (the scheduler's next tick resurrects dependency_failed dependents). A late FAILURE stays a no-op.
-			return outcome === "succeeded" ? { ...job, state: "succeeded", lease: null, failedReason: null } : job;
+			if (outcome === "succeeded") {
+				return { ...job, state: "succeeded", lease: null, failedReason: null };
+			}
+			// SANCTIONED REOPEN (G6.8a v15b live-found, 2026-07-29): the runtime's BOUNDED dead-card recovery decided
+			// a failed card deserves one fresh attempt, but a `failed` job was unrevivable here — the rescue handover
+			// was a warn ("If the controller does not dispatch them, nothing will") and the board livelocked for
+			// ~70 minutes. A `transient_retry` on a FAILED job — unreachable from `reportCompletion` (non-leased
+			// failures are dropped before classification), so producible only by the controller's explicit
+			// `reopenForRedispatch` — revives it to `ready` under the same attempt budget as an ordinary transient
+			// retry. Replay derives the identical state (the entry is the existing `completed/transient_retry`).
+			if (outcome === "transient_retry") {
+				const attempts = job.attempts + 1;
+				const budget = Number.isFinite(maxAttempts) ? Math.max(1, Math.trunc(maxAttempts)) : 1;
+				return attempts >= budget
+					? job
+					: { ...job, state: "ready", lease: null, attempts, nextEligibleAt: 0, failedReason: null };
+			}
+			return job;
 		}
 		if (outcome === "transient_retry") {
 			const attempts = job.attempts + 1;

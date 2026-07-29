@@ -873,3 +873,57 @@ describe("DurableRunController — DURABLE_DEPTH_PRIORITY lease ordering (§5.AF
 		});
 	});
 });
+
+describe("reopenForRedispatch (G6.8a v15b rescue handover)", () => {
+	it("revives a FAILED job to ready, ticks lease it again, and the log replays identically", async () => {
+		// Live v15b: a dead-card redrive candidate's job had FAILED; the rescue handover was a warn the
+		// controller never saw and the board livelocked for ~70 min. The handover is now this call.
+		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
+		const { ports, log, dispatches } = fakePorts();
+		const controller = new DurableRunController(graph, config, ports);
+		await controller.tick(); // attempts 1
+		await controller.reportCompletion("a", "failed", new Error("interrupted"));
+		expect(controller.jobsSnapshot()[0]).toMatchObject({ state: "failed" });
+
+		const revived = await controller.reopenForRedispatch("a");
+		expect(revived).toBe(true);
+		expect(controller.jobsSnapshot()[0]).toMatchObject({ state: "ready", attempts: 2, failedReason: null });
+
+		await controller.tick();
+		expect(dispatches.map((d) => d.jobId)).toEqual(["a", "a"]);
+		// Boot-replay derives the identical state from the persisted log (the reopen is a transient_retry entry).
+		expect(replayDurableJobs(graph, log, { reclaimBackoffMs: 0, maxAttempts: config.maxAttempts })).toEqual(
+			controller.jobsSnapshot(),
+		);
+	});
+
+	it("is a no-op for ready/leased/succeeded jobs and for an exhausted attempt budget", async () => {
+		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
+		const { ports } = fakePorts();
+		const controller = new DurableRunController(graph, config, ports);
+		// ready (never leased): no revival needed.
+		expect(await controller.reopenForRedispatch("a")).toBe(false);
+		await controller.tick();
+		// leased: the session may still be live — never yank it.
+		expect(await controller.reopenForRedispatch("a")).toBe(false);
+		await controller.reportCompletion("a", "succeeded");
+		// succeeded: nothing to do.
+		expect(await controller.reopenForRedispatch("a")).toBe(false);
+		// unknown job id: no-op.
+		expect(await controller.reopenForRedispatch("nope")).toBe(false);
+	});
+
+	it("respects the attempt budget: a reopen that would exceed maxAttempts is refused (bounded, no loop)", async () => {
+		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
+		const { ports, dispatches } = fakePorts();
+		// Budget 2: the first lease consumed attempt 1; a reopen would land at 2 >= budget → refused.
+		const tight: DurableRunConfig = { ...config, maxAttempts: 2 };
+		const controller = new DurableRunController(graph, tight, ports);
+		await controller.tick(); // attempts 1
+		await controller.reportCompletion("a", "failed", new Error("interrupted"));
+		expect(await controller.reopenForRedispatch("a")).toBe(false);
+		expect(controller.jobsSnapshot()[0]).toMatchObject({ state: "failed" });
+		await controller.tick();
+		expect(dispatches.map((d) => d.jobId)).toEqual(["a"]); // never re-dispatched
+	});
+});

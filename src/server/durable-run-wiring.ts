@@ -165,6 +165,13 @@ export interface DurableRunWiring {
 	/** F1.18: the task's DELIVERY completed — the only dependency-releasing success (review alone never releases). */
 	observeDelivered(workspaceId: string, taskId: string): Promise<void>;
 	/**
+	 * G6.8a v15b: the runtime's bounded rescue decided these startable-but-sessionless cards deserve a dispatch —
+	 * make the handover REAL by reviving their failed jobs and ticking (previously a warn the controller never saw:
+	 * "If the controller does not dispatch them, nothing will" — and it didn't, livelocking the board). Returns the
+	 * task ids actually revived; candidates in any non-failed job state are untouched.
+	 */
+	redispatchCandidates(workspaceId: string, taskIds: readonly string[]): Promise<string[]>;
+	/**
 	 * Tick every active run (the timer path) — reclaims dead-lease workers and dispatches freed dependents. `liveTaskIdsFor`
 	 * (when supplied) reports which of a workspace's leased cards STILL have a live session; those leases are HEARTBEATED
 	 * before the tick so a slow-but-alive worker (whose sparse summaries don't fire `observeSummary` within the lease window)
@@ -341,6 +348,13 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 			}
 			deps.reservations?.release(taskId);
 			await runSerial(workspaceId, () => registry.reportDelivered(workspaceId, taskId));
+		},
+
+		async redispatchCandidates(workspaceId, taskIds) {
+			if (!deps.enabled || taskIds.length === 0) {
+				return [];
+			}
+			return await runSerial(workspaceId, () => registry.redispatchCandidates(workspaceId, taskIds));
 		},
 
 		async tickAll(liveTaskIdsFor) {

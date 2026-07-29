@@ -1452,14 +1452,26 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		const durableOwnsDiscovery = durableRunWiring?.hasRun(scope.workspaceId) === true;
 		if (durableOwnsDiscovery) {
 			const deferred = [...new Set(deferredTaskIds)];
-			// N7d instrumentation (2026-07-20): three code-reading hypotheses about why a startable card is never
-			// rescued produced two wrong answers, so this records the actual branch taken instead of inviting a
-			// fourth. The handover to the controller is INVISIBLE today — that invisibility is why a card can be
-			// dropped between two components while both look healthy.
-			if (deferred.length === 0 && orderedCandidates.length > 0) {
-				deps.warn(
-					`Rescue HANDOVER: durable run owns discovery; ${orderedCandidates.length} candidate(s) [${orderedCandidates.slice(0, 5).join(", ")}] handed to the controller and NOT started here (deferred set empty). If the controller does not dispatch them, nothing will.`,
-				);
+			// G6.8a v15b (2026-07-29): the handover used to be a WARN the controller never received — a dead-card
+			// redrive candidate whose durable job had FAILED was unrevivable, and the board livelocked for ~70 min
+			// exactly as the old message predicted ("If the controller does not dispatch them, nothing will"). The
+			// handover is now REAL: revive the candidates' failed jobs (bounded by the ordinary attempt budget +
+			// the runtime's one-shot redrive key) and tick, so the controller leases them itself. Candidates whose
+			// jobs are not in a revivable state are named — that residue is the honest signal, not a warn for all.
+			const handedOver = [...new Set(orderedCandidates)].filter((taskId) => !deferred.includes(taskId));
+			if (handedOver.length > 0) {
+				const revived = (await durableRunWiring?.redispatchCandidates(scope.workspaceId, handedOver)) ?? [];
+				const dropped = handedOver.filter((taskId) => !revived.includes(taskId));
+				if (revived.length > 0) {
+					deps.warn(
+						`Rescue HANDOVER: revived ${revived.length} failed durable job(s) [${revived.slice(0, 5).join(", ")}] for controller redispatch.`,
+					);
+				}
+				if (dropped.length > 0) {
+					deps.warn(
+						`Rescue HANDOVER: ${dropped.length} candidate(s) [${dropped.slice(0, 5).join(", ")}] not revivable by the controller (job not failed, or attempt budget exhausted) — the controller's own discovery must dispatch them, or they park for the operator.`,
+					);
+				}
 			}
 			if (deferred.length > 0) {
 				await autoStartTaskIds(scope, deferred, { bypassDurableGuard: true });
