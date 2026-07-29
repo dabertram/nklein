@@ -3553,6 +3553,14 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > presence. The genuine "stalled forever" case (parked awaiting a human) is ALREADY tracked separately as
 > `attentionCardCount` with its own outcome bucket, so dropping the `review === undefined` condition does not
 > reintroduce a hang. Extend the same fix to count `awaiting_review` sessions.
+> **FIXED 2026-07-29 (64a9cf619)**: `countPendingAutoReviews` now counts every auto-reviewed review-lane card
+> regardless of verdict, and the monitor adds `awaiting_review` sessions locally (NOT by widening the shared
+> `countActiveAgentSessions`, whose other caller — workspace-registry — means "occupying a slot" by it;
+> harness evidence must not silently change operator-facing numbers). The prior unit test asserted the
+> truncating behaviour (`toBe(1)`) and was corrected to the real contract with the evidence recorded.
+> **v18 LAUNCHED (HOME=/tmp/nklein-g68a-HQaWB5) — the first campaign run whose duration is NOT capped by this
+> counter.** Its purpose is re-measurement: compare against v17 (1 completed / 2 review / 6 planning in
+> ~80 min) to find out what the swarm actually does when the monitor stops cutting it off.
 
 > **STACK REFRESHED 2026-07-29 (David request): LM Studio 0.4.19+2 → 0.4.20+1** (release notes: enterprise
 > internal network model endpoint; device models in Bionic over LM Link), app restarted so the fresh process
