@@ -6487,12 +6487,15 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   REMAINING (small, filed): the forced path still executes only `toolCalls[0]` — parallel calls past the
   first are dropped by design there; revisit if a profile-forced model legitimately emits parallel calls. (3) ✅ park/resume COVERED 2026-07-27 — `02×park_resume` cell (all 9 invariants, ok:true): budget_wall park
   (3 identical search_code calls) + the operator resume through the real tRPC sendTaskSessionInput seam; fully
-  quiet drain. **OPEN PRODUCT QUESTION for David (batched): worker sessions are NOT offered
-  `ask_followup_question` (v1's park attempt was rejected as an unavailable tool), yet
-  nklein-execution-clarification.ts + the onClarificationAsked wiring exist precisely to record WORKER-phase
-  asks — either the tool should join the worker toolset (making mid-implementation clarifications real, F2.x
-  intent) or the execution-clarification machinery is dead code for workers and should say so. Decide before
-  building anything on worker asks.** Original shared plan (executed for park/resume; steering remains): (observability landed: every accepted operator input now emits
+  quiet drain. **RESOLVED 2026-07-29 (David: clarifications "if absolutely
+  necessary; preferred is autonomous proceeding"): root cause was two-fold — the small-local-model tool trim
+  disabled `ask_question` for every swarm model AND every !Klein listener used the tool's DEAD legacy name
+  `ask_followup_question` (the live SDK tool is `ask_question`; v1's "unavailable tool" rejection was the
+  model obeying the write-guard prompt that named the dead tool). Shipped: trim removed, all listeners accept
+  the live name (legacy kept for old recordings), prompts corrected, autonomy-preference line in the
+  efficiency rules. Also shipped the same day: policy-guard mistake-streak SOFTENING (David: "do soften,
+  absolutely") — guard-block-only streaks get ≤3 guided continues (mistake_streak_softened) before the
+  abandonment proceeds; mixed/genuine streaks keep the teeth.** Original shared plan (executed for park/resume; steering remains): (observability landed: every accepted operator input now emits
   `task_session_operator_input`, the enabling signal): the driver builds a tRPC client against `/api/trpc`
   (pattern: createDevRuntimeClient in dev-project-execution.ts — httpBatchLink + workspace-scope headers).
   PARK/RESUME profile: modify s01's worker recording to call **`ask_followup_question`** (the attention tool —
