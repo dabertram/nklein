@@ -3492,6 +3492,16 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > receives them?) — the fix direction per the log's own admission: a handover the controller may ignore is
 > not a rescue; (2) the ::spec cross-hold tangle. v14 HOME also still preserved (/tmp/nklein-g68a-mbvx5t).
 > Do NOT relaunch v16 before (1) lands — the freeze reproduces at late-drain reliably.
+> **(1) FIXED (2026-07-29, 665248646): the handover now REVIVES** — startRescueCandidates →
+> DurableRunWiring.redispatchCandidates → controller.reopenForRedispatch: a FAILED job revives to ready
+> under the ordinary transient-retry attempt budget (mirrors the late-success rule; logged as the existing
+> completed/transient_retry entry so boot-replay is identical; the failed+transient_retry transition was
+> unreachable before, so existing behavior is byte-identical). Bounded by the one-shot redrive key + attempt
+> budget; non-revivable candidates are NAMED in the log. Tests: revive→tick→re-lease + replay determinism,
+> no-op states, budget-refusal. (2) ::spec cross-hold tangle remains open (it self-resolved in v15b before
+> the freeze; watch v16). **v16 LAUNCHED with SIX fixes live** (coverage gate, prompt diet, ghost-livelock
+> gate+chat guard, rescue-handover revival, mistake-streak softening, worker ask_question + name unification
+> — the last two are in-runtime for the FIRST time this run). v14/v15b evidence HOMEs still preserved.
 > **v13 VERDICT (2026-07-29): (a)+(b) VALIDATED — decompose CLEARED FIRST-SHOT** (v9–v12 all died
 > 4-attempts-deep at the same gates): real 6-card graph spawned, gemma workers delivered 2 cards to review,
 > seed completed. The run then settled on the monitor's stagnation window while BOTH reviews churned on
