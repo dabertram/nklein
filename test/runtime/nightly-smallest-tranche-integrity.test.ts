@@ -90,7 +90,16 @@ describe("N2 smallest-ten nightly tranche", () => {
 			// Both BASELINE profiles are mandatory for every tranche project; N2 mechanism profiles (loop_park, …)
 			// may be added per project on top — each still needs its exact `<profile-with-dashes>-run.json` recording.
 			expect(project.modelProfiles.slice(0, 2)).toEqual(["perfect", "flaky"]);
+			// A profile normally owns `<profile-with-dashes>-run.json`. Some deliberately REUSE a baseline recording
+			// instead of adding one — the N11 `flags_on` lane replays `perfect-run.json` with every opt-in flag
+			// enabled, so requiring a `flags-on-run.json` would force a pointless byte-identical copy whose only
+			// effect is a second file to keep in sync. Those profiles are listed here explicitly, so reuse stays a
+			// declared decision rather than a silently missing recording.
+			const REUSES_BASELINE_RECORDING = new Set(["flags_on"]);
 			for (const run of project.modelProfiles) {
+				if (REUSES_BASELINE_RECORDING.has(run)) {
+					continue;
+				}
 				expect(existsSync(join(SCENARIOS_DIR, project.fixture, `${run.replaceAll("_", "-")}-run.json`))).toBe(true);
 			}
 		}

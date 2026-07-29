@@ -166,6 +166,31 @@ export const TURN_LOOP_RECOVERY: InvariantPack = {
 	includes: ["core-invariants"],
 };
 
+/**
+ * N11 `flags_on` flag-matrix lane: the baseline `perfect` recording replayed with EVERY default-OFF opt-in
+ * enabled (see `PROFILE_EXTRA_ENV`). It exists because a measurement over three real campaign runs (2026-07-29)
+ * found 0 of the 29 flag-gated mechanisms firing — correctly so, since a default profile cannot reach them. This
+ * lane is the cheapest way to give all of them a chance at once.
+ *
+ * `mustFire` is EMPTY ON PURPOSE, and that is this registry's standing rule, not an oversight: a pack asserts what
+ * the collector is KNOWN to observe, never what we hope it will. 18 mechanisms declare `expectation: "every_run"`
+ * once their flag is on and are therefore the promotion CANDIDATES — but until a real drain shows which of them
+ * genuinely emit under this scenario, listing them would manufacture a wall of `indeterminate` that reads as rigour
+ * and asserts nothing. First run measures; proven signals then move into `mustFire` here.
+ *
+ * `runtime_error` is exempted for this profile only: switching on experimental mechanisms wholesale is expected to
+ * produce recoverable noise, and this lane's job is coverage, not a health verdict — the baseline `perfect` cell
+ * still owns that.
+ */
+export const FLAGS_ON_COVERAGE: InvariantPack = {
+	id: "flags-on-coverage",
+	expectedTerminalLanes: [],
+	mustFire: [],
+	mustStayQuiet: [],
+	quietExemptionsByProfile: { flags_on: ["runtime_error"] },
+	includes: ["core-invariants"],
+};
+
 export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map([
 	[CORE_INVARIANTS.id, CORE_INVARIANTS],
 	[PARKED_TERMINAL.id, PARKED_TERMINAL],
@@ -175,4 +200,5 @@ export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map
 	[TAINT_GATE_HOLD.id, TAINT_GATE_HOLD],
 	[PARK_RESUME_RECOVERY.id, PARK_RESUME_RECOVERY],
 	[TURN_LOOP_RECOVERY.id, TURN_LOOP_RECOVERY],
+	[FLAGS_ON_COVERAGE.id, FLAGS_ON_COVERAGE],
 ]);

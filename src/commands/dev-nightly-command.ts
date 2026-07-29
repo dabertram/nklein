@@ -185,11 +185,52 @@ const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	// needs NKLEIN_SIMFLOW_TURNLOOP=1 (see PROFILE_EXTRA_ENV) to activate the a-same-question worker + the
 	// harness's own wire assertions (question recurred, guard nudged, full drain).
 	turn_loop: "turnloop",
+	// N11 flag-matrix lane (2026-07-29): the SAME `perfect-run` recording, replayed with every default-OFF
+	// opt-in switched ON. Rationale: 29 of the 43 registered mechanisms are flag-gated, and a measurement over
+	// three real campaign runs found none of them firing — not because they are broken, but because a default
+	// profile can never exercise them. One profile gives all of them their chance in a single drain instead of
+	// 29 bespoke cells, and needs no new recording at all.
+	flags_on: "perfect",
 };
 
 /** Per-profile env the drain needs beyond NKLEIN_SIMFLOW_RUN (kept beside the run map so they stay in sync). */
 const PROFILE_EXTRA_ENV: Readonly<Record<string, Readonly<Record<string, string>>>> = {
 	turn_loop: { NKLEIN_SIMFLOW_TURNLOOP: "1" },
+	// Every flag that `MECHANISM_REGISTRY` names as gating a mechanism. Kept exhaustive on purpose and guarded by
+	// `nightly-flag-matrix-coverage.test.ts`, which fails when a newly registered flag is missing here — otherwise
+	// this lane would silently stop covering the very mechanisms it exists to surface.
+	flags_on: {
+		NKLEIN_ADAPTIVE_RETRY: "1",
+		NKLEIN_ARCHITECT_EDITOR: "1",
+		NKLEIN_BASELINE_PROBE: "1",
+		NKLEIN_DRIFT_CRITIC: "1",
+		NKLEIN_FEWSHOT_EXEMPLARS: "1",
+		NKLEIN_FLEET_AWARE_DECOMPOSE: "1",
+		NKLEIN_FOCUS_CHAIN_NUDGE: "1",
+		NKLEIN_GOAL_REANCHOR: "1",
+		NKLEIN_HISTORY_BLIND_CORRECTOR: "1",
+		NKLEIN_LEDGER_EXEMPLARS: "1",
+		NKLEIN_NATIVE_FORCE_TOOL_CALL: "1",
+		NKLEIN_OPPORTUNISTIC_IDLE_WORK: "1",
+		NKLEIN_PROCEDURAL_SKILLS: "1",
+		NKLEIN_QUEUE_AWARE_FREE_FIRST: "1",
+		NKLEIN_REASONING_BREACH: "1",
+		NKLEIN_RESIDENCY_HEARTBEAT: "1",
+		NKLEIN_REVIEW_LENSES: "1",
+		NKLEIN_REVIEW_PANEL: "1",
+		NKLEIN_RUNAWAY_ABORT: "1",
+		NKLEIN_SKILL_PROMPT_FRAGMENTS: "1",
+		NKLEIN_SPEC_LINT: "1",
+		NKLEIN_STALL_REPLAN: "1",
+		NKLEIN_TOOL_GATE_OBSERVE: "1",
+		NKLEIN_TWO_PHASE_TOOL_PICK: "1",
+		NKLEIN_TYPECHECK_FIRST: "1",
+		NKLEIN_UNIFIED_MEMORY: "1",
+		NKLEIN_VERIFICATION_FIRST: "1",
+		NKLEIN_SANDBOX_MCP: "1",
+		NKLEIN_TEST_DRIVEN_MODE: "1",
+		NKLEIN_TOOL_TRUST_DECAY: "1",
+	},
 };
 
 async function runCell(cell: NightlyCell): Promise<CellVerdict> {

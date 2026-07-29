@@ -24,14 +24,16 @@
     "syntax_guard",
     "failover",
     "taint_gate",
-    "park_resume"
+    "park_resume",
+    "flags_on"
    ],
    "invariantPackByProfile": {
     "loop_park": "loop-park-terminal",
     "syntax_guard": "syntax-guard-recovery",
     "failover": "failover-recovery",
     "taint_gate": "taint-gate-hold",
-    "park_resume": "park-resume-recovery"
+    "park_resume": "park-resume-recovery",
+    "flags_on": "flags-on-coverage"
    }
   },
   {
