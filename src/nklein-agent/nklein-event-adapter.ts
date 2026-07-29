@@ -92,7 +92,10 @@ function emitClarificationAsk(
 	toolCallId: string | null,
 	toolInput: unknown,
 ): void {
-	if (toolName?.trim().toLowerCase() !== "ask_followup_question") {
+	const askToolName = toolName?.trim().toLowerCase();
+	// `ask_question` is the live SDK name; the legacy `ask_followup_question` stays accepted for old recordings.
+	// Filtering on the legacy name alone left the execution-clarification machinery deaf to every real ask.
+	if (askToolName !== "ask_question" && askToolName !== "ask_followup_question") {
 		return;
 	}
 	const record = asRecord(toolInput);

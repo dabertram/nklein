@@ -195,7 +195,7 @@ export function formatProtectedTestBlockReason(input: {
 	const request = buildProtectedTestApprovalRequest(input);
 	return [
 		`Blocked ${input.toolName}: ${input.path} is part of the protected test suite.`,
-		"Default is deny. To request a one-edit human approval, ask the user through ask_followup_question with this exact JSON payload:",
+		"Default is deny. To request a one-edit human approval, ask the user through ask_question with this exact JSON payload:",
 		JSON.stringify(request),
 	].join(" ");
 }

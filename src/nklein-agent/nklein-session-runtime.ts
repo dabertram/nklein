@@ -1,6 +1,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { filterToolsByPolicyEnabled } from "../core/judge-tool-policy";
+import {
+	buildPolicyGuidanceContinueMessage,
+	classifyMistakeStreak,
+	POLICY_GUIDANCE_SOFT_CONTINUE_LIMIT,
+} from "../core/mistake-streak-classifier";
 import { normalizeProviderBaseUrl } from "../core/openai-compat-base-url";
 import { decideResearchFreshnessGate } from "../core/research-freshness-gate";
 import {
@@ -544,6 +549,8 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		const runInitialTurnInStart = Boolean(request.initialMessages?.length) && shouldSendInitialTurn;
 		const sdkApiTimeoutMs = resolveSdkApiTimeoutMs(request.apiTimeoutMs);
 		const compaction = buildNKleinContextCompactionConfig(request.contextWindow);
+		// Per-session guided-continue budget for policy-guard mistake streaks (see onConsecutiveMistakeLimitReached).
+		let policyGuidanceSoftContinues = 0;
 		const teamDelegation = resolveNKleinTeamDelegationPolicy({
 			taskId: request.taskId,
 			mode: resolvedMode,
@@ -634,6 +641,36 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				maxConsecutiveMistakes: DEFAULT_NKLEIN_MAX_CONSECUTIVE_MISTAKES,
 			},
 			onConsecutiveMistakeLimitReached: async (context) => {
+				// David 2026-07-29 ("do soften"): a streak made ENTIRELY of policy-guard blocks — the anti-re-read
+				// guard, workspace path fences, the syntax guard — is !Klein steering the model, not the model
+				// failing. Continue with corrective guidance, bounded per session so guidance-deafness still
+				// terminates (G6.8a v6/v7: read-looping architects were killed by the guard built to steer them).
+				if (
+					context.reason === "tool_execution_failed" &&
+					classifyMistakeStreak(context.details) === "policy_guidance" &&
+					policyGuidanceSoftContinues < POLICY_GUIDANCE_SOFT_CONTINUE_LIMIT
+				) {
+					policyGuidanceSoftContinues += 1;
+					await recordSelfObservation({
+						signal: "custom",
+						severity: "warning",
+						message: `!Klein softened a policy-guard mistake streak for ${request.taskId} (${policyGuidanceSoftContinues}/${POLICY_GUIDANCE_SOFT_CONTINUE_LIMIT} guided continues) instead of abandoning.`,
+						taskId: request.taskId,
+						providerId: request.providerId,
+						modelId: request.modelId,
+						workspacePath: agentPerceivedCwd,
+						metadata: {
+							category: "mistake_streak_softened",
+							softContinues: policyGuidanceSoftContinues,
+							limit: POLICY_GUIDANCE_SOFT_CONTINUE_LIMIT,
+							details: context.details?.slice(0, 300) ?? null,
+						},
+					});
+					return {
+						action: "continue",
+						guidance: buildPolicyGuidanceContinueMessage(),
+					};
+				}
 				await recordSelfObservation({
 					signal: "task_abandoned",
 					severity: "warning",

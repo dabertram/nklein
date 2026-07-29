@@ -3,7 +3,9 @@
 // mutations shared by the event adapter and the message repository.
 import type { RuntimeLostHeartbeatPolicy, RuntimeTaskImage, RuntimeTaskSessionSummary } from "../core/api-contract";
 
-const NKLEIN_USER_ATTENTION_TOOL_NAMES = new Set(["ask_followup_question", "plan_mode_respond"]);
+// `ask_question` is the SDK tool's LIVE name; `ask_followup_question` is its legacy name kept for old
+// transcripts/recordings (the mismatch left real asks unflagged as user-attention — found 2026-07-29).
+const NKLEIN_USER_ATTENTION_TOOL_NAMES = new Set(["ask_question", "ask_followup_question", "plan_mode_respond"]);
 const LOST_HEARTBEAT_RECOVERY_MESSAGE =
 	"!Klein session heartbeat was lost. Review the latest transcript, then resume the card or mark it interrupted.";
 let lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy = "park";

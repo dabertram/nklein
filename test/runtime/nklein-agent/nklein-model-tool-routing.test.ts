@@ -15,7 +15,7 @@ describe("nklein model tool routing", () => {
 				name: "kanban-small-local-model-tool-trim",
 				mode: "any",
 				modelIdIncludes: expect.arrayContaining(["qwen", "llama", "mistral"]),
-				disableTools: ["fetch_web_content", "skills", "ask_question", "editor"],
+				disableTools: ["fetch_web_content", "skills", "editor"],
 			}),
 		]);
 		expect(rules[0]).not.toHaveProperty("providerIdIncludes");

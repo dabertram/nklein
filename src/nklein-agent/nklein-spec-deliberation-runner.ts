@@ -114,7 +114,7 @@ export function renderSpecDeliberationGuidance(result: DeliberationResult): stri
 	const lines = [
 		"## Pre-implementation specification disagreements",
 		"Independent pre-code analysis found candidate ambiguities. Do not merge them into a guessed specification.",
-		"Use the existing ask_followup_question path and ask EXACTLY ONE unresolved question per turn before decomposition.",
+		"Use the existing ask_question path and ask EXACTLY ONE unresolved question per turn before decomposition.",
 	];
 	for (const [index, item] of result.disagreements.entries()) {
 		lines.push(

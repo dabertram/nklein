@@ -38,7 +38,11 @@ export function isSmallLocalModelId(modelId: string | null | undefined): boolean
 const SMALL_LOCAL_MODEL_DISABLED_TOOLS: NonNullable<ToolRoutingRule["disableTools"]> = [
 	"fetch_web_content",
 	"skills",
-	"ask_question",
+	// `ask_question` was trimmed here too, which made mid-implementation clarifications IMPOSSIBLE for every
+	// local swarm worker while the execution-clarification machinery waited for asks that could never come
+	// (found by the N2 park_resume cell; David 2026-07-29: clarifications may happen "if absolutely necessary,
+	// preferred is autonomous proceeding" — the autonomy preference lives in the efficiency rules, not in
+	// removing the tool).
 	"editor",
 ];
 

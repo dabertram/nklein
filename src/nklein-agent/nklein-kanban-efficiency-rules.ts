@@ -72,6 +72,8 @@ export function buildKanbanEfficiencyRules(options: {
 				]),
 		"## Tool And Context Rules",
 		`Scope: ${options.contextScope}. Timeout: ${options.timeoutMode}. Use targeted discovery and focused excerpts; avoid generated/lock files unless needed.`,
+		// David 2026-07-29: clarifications are allowed "if absolutely necessary; preferred is autonomous proceeding".
+		"`ask_question` is a last resort: prefer proceeding autonomously by deciding from the card's spec, acceptance criteria, and existing code. Ask only when genuinely blocked on a decision you cannot infer, and ask exactly one focused question.",
 		...(planner
 			? []
 			: [

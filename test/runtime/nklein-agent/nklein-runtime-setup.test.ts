@@ -255,7 +255,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 
 		expect(result.approved).toBe(false);
 		expect(result.reason).toContain("protected test suite");
-		expect(result.reason).toContain("ask_followup_question");
+		expect(result.reason).toContain("ask_question");
 		expect(result.reason).toContain(
 			'"intent":"Change protected test suite path test/protected/protected-tests.json via editor."',
 		);
