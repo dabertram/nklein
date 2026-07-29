@@ -3531,6 +3531,29 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > mid-review — fixed by the same change. REJECTED alternative: "don't burn an attempt on a reclaim that never
 > ran" — that loops forever on a card that genuinely cannot start; heartbeating the healthy case is the
 > correct layer. **v17 LAUNCHED with SEVEN fixes live.**
+> **v17 VERDICT (2026-07-29): THE LEASE FIX WORKED — and it exposed a HARNESS bug that has been silently
+> truncating this entire campaign.** Fix validation is unambiguous: board-liveness watchdog fires **397 → 10**,
+> rescue-handover lines **190 → 2**. The livelock class is gone. BUT the run settled after only ~80 min
+> (602 polls) on STAGNATION while the board was demonstrably still working — a review model request completed
+> at 22:05:29 and a decomposition turn continued at 22:07:09, the last event before settle.
+> **ROOT CAUSE (verified against the preserved final board, not inferred): a review-lane card stops counting
+> as activity the moment it gets its FIRST VERDICT.** `countPendingAutoReviews` (dev-project-execution.ts:44)
+> counts review cards matching `autoReviewEnabled === true && card.review === undefined`. Both of v17's review
+> cards had `autoReviewEnabled: true` and a verdict PRESENT → counted **0**. Meanwhile
+> `countActiveAgentSessions` counts only `running`/`queued` (not `awaiting_review`). So the entire
+> bounce → re-review → delivery → acceptance phase — which is exactly the work that happens AFTER a verdict —
+> is invisible to `activeSessionCount`, the counter whose whole job is to SUSPEND the stagnation settle.
+> **THIRD INSTANCE of the same drift** (after the lease heartbeat and the terminal-sweep predicate): a
+> subsystem inventing its own too-narrow answer to "is this still alive?".
+> ⚠️ **REFRAMES THE CAMPAIGN: v13/v15b/v16/v17 all ended `workflow_incomplete` with cards mid-review. Those
+> verdicts may be MONITOR TRUNCATION, not !Klein capability limits.** Do not cite them as throughput evidence
+> until re-measured with the fix.
+> **FIX (principled, uses machinery that already exists):** a card in the `review` LANE is non-terminal work by
+> definition — only completed/trash/failed are terminal — so it should count as activity regardless of verdict
+> presence. The genuine "stalled forever" case (parked awaiting a human) is ALREADY tracked separately as
+> `attentionCardCount` with its own outcome bucket, so dropping the `review === undefined` condition does not
+> reintroduce a hang. Extend the same fix to count `awaiting_review` sessions.
+
 > **STACK REFRESHED 2026-07-29 (David request): LM Studio 0.4.19+2 → 0.4.20+1** (release notes: enterprise
 > internal network model endpoint; device models in Bionic over LM Link), app restarted so the fresh process
 > picks up the current runtime binaries. Runtime extensions were ALREADY latest and unchanged —
