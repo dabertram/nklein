@@ -25,6 +25,16 @@ describe("countPendingAutoReviews", () => {
 		).toBe(2);
 	});
 
+	it("counts by BOARD LANE, which is what makes a parked terminal distinguishable from live work", () => {
+		// The counterpart to the regression above, learned the expensive way. A first attempt at the v17 fix ALSO
+		// added an `awaiting_review` SESSION term to activeSessionCount. That state conflates a review in flight
+		// with a card parked after failing: G6.8a v18's dead decompose seed sat `awaiting_review` with
+		// `reviewReason: "error"` (so not attention-parked either), which pinned the counter at 1 on a board where
+		// nothing could progress — the run burned 12 hours instead of settling in six minutes. Lane membership
+		// carries the distinction that session state loses: a card that failed out is NOT in the review lane.
+		expect(countPendingAutoReviews({ columns: [{ id: "planning", cards: [{ autoReviewEnabled: true }] }] })).toBe(0);
+	});
+
 	it("still ignores cards that are not auto-reviewed, and boards with no review lane", () => {
 		// A human-reviewed card must not keep an unattended run alive forever; the parked-for-a-human case is
 		// tracked separately as attentionCardCount with its own terminal outcome.

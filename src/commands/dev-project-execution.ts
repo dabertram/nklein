@@ -126,18 +126,19 @@ export async function executeDevTestScenario(
 			const state = await input.client.workspace.getState.query();
 			const sessions = Object.values(state.sessions ?? {});
 			const counts = countActiveAgentSessions(sessions);
-			// `countActiveAgentSessions` counts running + queued only — deliberately, because its OTHER caller
-			// (workspace-registry) means "occupying a slot" by it. For the stagnation settle the question is
-			// different and broader: "is anything still in flight?" A session handed to review is very much in
-			// flight (G6.8a v17: a review model request completed 100s before the monitor declared the run
-			// stagnant), so add it here rather than widening the shared counter and changing operator-facing
-			// numbers on the strength of harness evidence.
-			const awaitingReview = sessions.filter((summary) => summary.state === "awaiting_review").length;
+			// ⚠️ DO NOT add an `awaiting_review` SESSION term here. Added 2026-07-29, reverted 2026-07-30 after it
+			// hung a run for two hours: that state conflates a review genuinely IN FLIGHT with a card PARKED after
+			// failing. G6.8a v18's dead decompose seed sat in `awaiting_review` with `reviewReason: "error"` — so
+			// it was not attention-parked either, and no existing filter excluded it. Counting it pinned
+			// activeSessionCount at 1 on a board where nothing could ever progress, so the stagnation settle never
+			// fired and the run burned its full 12-hour budget instead of ending in six minutes.
+			// The in-flight case that motivated it is already covered correctly by BOARD-LANE membership below
+			// (`countPendingAutoReviews`), which cannot mistake a parked terminal for live work.
 			return {
 				board: state.board,
 				runtimeReachable: true,
 				failedCardCount: sessions.filter((summary) => summary.state === "failed").length,
-				activeSessionCount: counts.running + counts.queued + awaitingReview + countPendingAutoReviews(state.board),
+				activeSessionCount: counts.running + counts.queued + countPendingAutoReviews(state.board),
 				attentionCardCount: countAttentionParkedSessions(sessions),
 				infrastructureFailure: findSandboxPatchCaptureFailure(sessions),
 			};
