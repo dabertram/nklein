@@ -3383,6 +3383,15 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
   exactly-once side effects and correct delivery.
 - [>] **G6.8 — C4 routing/recovery challenge** *(after F3.* and G6.2).* Route mixed difficulty by role/model and recover
   induced truncation, no-call, endpoint loss, and loop without user help.
+  > **COVERAGE AUDIT 2026-07-29 (against nightly cells + G6.8a campaign live telemetry): 4 of 5 legs already
+  > PROVEN** — (2) truncation: `raise_token_budget` recovered live turns in v11/v13 (+ flaky nightly families);
+  > (3) no-call: `reduced_tool_set`/`prompt_variant:imperative` recovered live turns + narrated-call recovery;
+  > (4) endpoint loss: failover nightly cell (`model_failover` mustFire) + live hop chains v10/v11 + the F3.10
+  > `anthropic_messages` alternate endpoint recovering real turns; (5) loop: loop_park + turn_loop standing
+  > nightly cells + live guard parks. **THE OPEN SLIVER: (1) difficulty-MIXED routing chosen BY THE ROUTER**
+  > (not pins) — needs one m5max run with UNPINNED roles, ≥2 loaded models of different sizes, mixed-complexity
+  > cards, verified via the routing-decision log (easy→small, hard→large). Plan: v15 after v14 settles, same
+  > drive script with modelSelectionMode "auto".
 > **G6.8a CAMPAIGN STATUS (8 runs, 2026-07-28): machinery FULLY PROVEN live on 3 distinct real models** —
 > decompose w/ critic diversity, multi-card parallel flow, worker→review→bounce cycles, the complete
 > re-decompose chain (spawn→apply→narrower card), role pins honored, every budget/guard bounded. v8 ended
