@@ -3548,6 +3548,23 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > ⚠️ **REFRAMES THE CAMPAIGN: v13/v15b/v16/v17 all ended `workflow_incomplete` with cards mid-review. Those
 > verdicts may be MONITOR TRUNCATION, not !Klein capability limits.** Do not cite them as throughput evidence
 > until re-measured with the fix.
+> **⚠️ v18 VERDICT (2026-07-30): MY OWN HARNESS FIX REGRESSED IT — caught by the next run, reverted, both
+> directions now tested.** v18's decompose seed died at 23:26 (truncated turn → empty response → sandbox
+> disposed) and the board then sat IDLE FOR TWO HOURS emitting only watchdog ticks, on course to burn the full
+> 12h budget. Cause: yesterday's monitor fix made TWO changes and the second was wrong. Counting
+> `awaiting_review` SESSIONS in `activeSessionCount` conflates a review IN FLIGHT with a card PARKED after
+> failing — the dead seed sat `awaiting_review` with `reviewReason: "error"`, so it was not attention-parked
+> either and NO existing filter excluded it. The counter stayed pinned at 1 on a board where nothing could
+> progress, so the stagnation settle never fired (pre-fix it would have ended in ~6 min).
+> **REVERTED (cc2fbc340); the `countPendingAutoReviews` half STANDS** — that one is correct and is what fixes
+> v17. The in-flight case is already covered by BOARD-LANE membership, which carries the distinction session
+> state loses: a failed-out card is not in the review lane, a genuinely-reviewed one is.
+> **THE GENERAL LESSON (now the third time this exact shape has bitten): widening a liveness definition fixes
+> "in-flight looks dead" and introduces "parked looks alive".** Both directions must be pinned by a test
+> before landing, and the reason recorded at the site — otherwise the next person re-adds the term. The
+> earlier instances (lease heartbeat, terminal-sweep predicate) were too NARROW; this one was too BROAD.
+> NEXT: relaunch as v19 on the corrected harness. The seed-death itself is a separate open question — nothing
+> recovered a dead decompose seed, and the board-liveness watchdog never fired its self-heal for it.
 > **N11 FLAG-MATRIX LANE LANDED (2026-07-30) — answers "can we add tests for the unsurfaced mechanisms?"
 > with yes, and ONE lane covers 29 of them.** The `flags_on` profile replays the existing `perfect-run.json`
 > with EVERY registered flag on — no new recording needed. Pack `flags-on-coverage` deliberately declares
