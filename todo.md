@@ -3478,6 +3478,20 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > MODE (2026-07-29 ~08:00); models unloaded, runtime stopped, HOME cleaned. RELAUNCHED ~09:20 as v15b after
 > David cleared LLM use under low power (slower but MORE predictable than high-power throttling) — 12h budget
 > (43200000ms max-wait), port 47733, same roster/preset.**
+> **v15b VERDICT (2026-07-29, settled ~4.7h): decompose cleared FIRST-SHOT for the 3rd consecutive run
+> (gates (a)+(b) reproducibly effective); 6-card graph; then a THIRD distinct freeze mechanism ended it —
+> ⚠ DURABLE RESCUE HANDOVER DROPS CANDIDATES: after a dead-card redrive ("Dead card habit-insights-trend-
+> classifier left no captured work — attempting ONE fresh restart"), the sweep logged "Rescue HANDOVER:
+> durable run owns discovery; 1 candidate(s) handed to the controller and NOT started here (deferred set
+> empty). If the controller does not dispatch them, nothing will." — and the controller NEVER dispatCHED;
+> the self-heal repeated (startable=1, deferred=0) for ~70 min until stagnation settle. Also visible before
+> the freeze: an ADMISSION TANGLE — `::spec` aux sessions of two cards cross-holding the cap-1 host
+> reservation with their own parents ("reserved for earlier waiter" ping-pong). EVIDENCE PRESERVED:
+> HOME=/tmp/nklein-g68a-xBWubX (runtime.log line ~897+, telemetry). NEXT UNIT (fresh context): (1) why
+> startRescueCandidates' durable handover loses candidates (does the controller refuse burned leases? never
+> receives them?) — the fix direction per the log's own admission: a handover the controller may ignore is
+> not a rescue; (2) the ::spec cross-hold tangle. v14 HOME also still preserved (/tmp/nklein-g68a-mbvx5t).
+> Do NOT relaunch v16 before (1) lands — the freeze reproduces at late-drain reliably.
 > **v13 VERDICT (2026-07-29): (a)+(b) VALIDATED — decompose CLEARED FIRST-SHOT** (v9–v12 all died
 > 4-attempts-deep at the same gates): real 6-card graph spawned, gemma workers delivered 2 cards to review,
 > seed completed. The run then settled on the monitor's stagnation window while BOTH reviews churned on
