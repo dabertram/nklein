@@ -416,11 +416,19 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		// F4.8b 2026-07-20: the flag only makes the block ELIGIBLE — `decideTemporalContextInjection` then
 		// relevance-gates it, so a turn can have the feature ON and render nothing. Observing the flag would have
 		// answered the wrong question; this records the DECISION, at the decision.
-		covers: ["NKLEIN_KNOWS_TODAY"],
+		//
+		// 🐛 CORRECTED 2026-07-30 (found by measuring the registry against three real campaign runs): this declared
+		// `enabledBy: null` — which the audit reads as ALWAYS ON — while simultaneously listing the flag under
+		// `covers`, a self-contradiction. `covers` exists for flags whose effect an entry observes *when that
+		// differs from `enabledBy`*; here it does not differ, the flag IS the gate. The emission site settles it:
+		// `chat-turn-context.ts` records only `if (temporal)`, and `temporal` exists only when the §5.AC switch is
+		// on — and it is OFF BY DEFAULT. So the entry claimed "expected every run, nothing gates it" for a
+		// mechanism that cannot fire by default, making it the registry's ONLY false alarm out of 43. It was
+		// exactly the class this file's own header warns about.
 		category: "knows_today_injection",
 		item: "§5.AC",
 		observes: "whether the knows-today block was injected on a turn, distinct from whether it was enabled",
-		enabledBy: null,
+		enabledBy: "NKLEIN_KNOWS_TODAY",
 		expectation: "every_run",
 		firesWhen: "attempt_started",
 		addedOn: Date.UTC(2026, 6, 20),

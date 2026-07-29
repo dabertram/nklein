@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { MECHANISM_REGISTRY } from "../../src/core/mechanism-observation-audit";
 import { resolvePack } from "../../src/core/nightly-invariant-pack";
 import { NIGHTLY_PACK_REGISTRY } from "../../src/core/nightly-pack-registry";
 import { TRACKED_REQUIREMENTS } from "../../src/core/tracked-requirements";
@@ -74,6 +75,24 @@ describe("nightly pack registry", () => {
 				).toBe(true);
 			}
 		}
+	});
+});
+
+describe("mechanism registry self-consistency", () => {
+	// ⚠️ A CHECK DELIBERATELY NOT WRITTEN (attempted and withdrawn 2026-07-30). It looked obvious that an entry
+	// declaring `enabledBy: null` + `expectation: "every_run"` while listing a flag under `covers` must be
+	// self-contradictory — that shape is exactly what made `knows_today_injection` the registry's only false alarm.
+	// But running it flagged `review_path` and `sysprompt_level` too, and MEASUREMENT refutes the rule: both of
+	// those fired in three real campaign runs. They are the legitimate version of the shape — an observation that
+	// records unconditionally WHICH WAY a flag went, which is precisely what this file's `covers` doc describes.
+	// The true discriminator is behavioural: does the emission site gate on the flag? That is not visible from the
+	// registry, so a static check here would look thorough and prove nothing — the failure mode this whole file
+	// exists to prevent. `knows_today_injection` was corrected from its emission site instead.
+	it("every declared gate flag looks like a real NKLEIN env flag", () => {
+		const malformed = MECHANISM_REGISTRY.map((entry) => entry.enabledBy)
+			.filter((flag): flag is string => Boolean(flag))
+			.filter((flag) => !/^NKLEIN_[A-Z0-9_]+$/.test(flag));
+		expect(malformed, `not env-flag shaped: ${malformed.join(", ")}`).toEqual([]);
 	});
 });
 
