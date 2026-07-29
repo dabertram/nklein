@@ -3515,6 +3515,22 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > as an attempt, (b) verify dispatch→start actually created a session and fail the lease loudly if not.
 > EVIDENCE: HOME=/tmp/nklein-g68a-8m5Q1k (ledger scheduler events for
 > habit-score-clamping-tests-clamping; 397 watchdog fires; runtime.log 190 handover lines).**
+> **ROOT-CAUSED + FIXED (2026-07-29, 200e9af65) — and my first hypothesis was WRONG, which matters:** I
+> assumed "dispatched lease produced no session" meant the start was REFUSED. The ledger + runtime.log say
+> otherwise: the start was ACCEPTED-AND-QUEUED (`endpoint_busy` returns `summary: null` + enqueues), so the
+> card was healthy and waiting behind a cap-1 host for 27 min while a sibling's single turn ran 19:34→19:53.
+> With no session to look alive with, the lease-expiry guard — built for DEAD workers — reclaimed it 3× and
+> `max_attempts` cancelled it; it then started for real at 19:53:44, 11 min after being cancelled.
+> THE DEEPER FINDING: `liveTaskIdsForWorkspace` filtered `state === "running"` while
+> `hasLiveSessionForTerminalRedrive` used running|queued|paused|awaiting_review — TWO copies of one concept,
+> drifted. `session-state-predicates.ts` exists *because this exact concept drifted across ~5 files once
+> before*; it drifted again and this time cancelled healthy cards. Fix: canonical `hasLiveTaskSession` (both
+> call sites delegate; equivalence test fails on any future drift) + pure tested
+> `resolveDurableHeartbeatTaskIds` that also heartbeats QUEUED STARTS (no session yet). Note the second-order
+> catch: reviews ran ~10 min > the 5-min lease, so a card under review could be reclaimed and re-dispatched
+> mid-review — fixed by the same change. REJECTED alternative: "don't burn an attempt on a reclaim that never
+> ran" — that loops forever on a card that genuinely cannot start; heartbeating the healthy case is the
+> correct layer. **v17 LAUNCHED with SEVEN fixes live.**
 > **v13 VERDICT (2026-07-29): (a)+(b) VALIDATED — decompose CLEARED FIRST-SHOT** (v9–v12 all died
 > 4-attempts-deep at the same gates): real 6-card graph spawned, gemma workers delivered 2 cards to review,
 > seed completed. The run then settled on the monitor's stagnation window while BOTH reviews churned on
