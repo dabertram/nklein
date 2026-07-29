@@ -76,3 +76,24 @@ describe("createConcurrencyLimitStartError", () => {
 		expect(message.toLowerCase()).toContain("limit reached");
 	});
 });
+
+describe("terminal-lane ghost exclusion (G6.8a v14 livelock)", () => {
+	it("does not count a session whose card already sits in a terminal lane", () => {
+		// Live v14: a post-completion re-drive left `awaiting_review` on a completed-lane card; counting it starved
+		// every future start ("deferred for retry on the next completion" — which never comes) forever.
+		const out = countActiveProjectTaskSessions(
+			[summary("ghost", "awaiting_review"), summary("real", "running")],
+			"start",
+			{ terminalLaneTaskIds: new Set(["ghost"]) },
+		);
+		expect(out).toBe(1);
+	});
+
+	it("without the option the ghost still counts (callers opt in on the slow path only)", () => {
+		const out = countActiveProjectTaskSessions(
+			[summary("ghost", "awaiting_review"), summary("real", "running")],
+			"start",
+		);
+		expect(out).toBe(2);
+	});
+});

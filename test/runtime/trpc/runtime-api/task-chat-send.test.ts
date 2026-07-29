@@ -33,3 +33,58 @@ describe("handleSendTaskChatMessage — /clear teardown ordering", () => {
 		expect(resolveLaunchConfig).not.toHaveBeenCalled();
 	});
 });
+
+describe("handleSendTaskChatMessage — terminal-lane guard (G6.8a v14 ghost)", () => {
+	it("refuses guidance to a completed-lane card instead of starting a ghost session", async () => {
+		// Live v14 (2026-07-29): guidance delivered around completion restarted a fresh worker session on a
+		// COMPLETED card; its awaiting_review summary then held a concurrency slot forever (board livelock).
+		vi.resetModules();
+		vi.doMock("../../../../src/state/workspace-state", () => ({
+			loadWorkspaceState: async () => ({
+				board: {
+					columns: [
+						{ id: "completed", cards: [{ id: "t-done" }] },
+						{ id: "in_progress", cards: [] },
+					],
+				},
+			}),
+		}));
+		const { handleSendTaskChatMessage: handler } = await import("../../../../src/trpc/runtime-api/task-chat-send");
+		const sendTaskSessionInput = vi.fn();
+		const deps = {
+			getScopedNKleinTaskSessionService: async () => ({ sendTaskSessionInput }) as never,
+			nkleinProviderService: { resolveLaunchConfig: vi.fn() } as never,
+		} as unknown as TaskChatSendDeps;
+		const result = await handler(
+			{ workspaceId: "ws1", workspacePath: "/tmp/ws" } as unknown as RuntimeTrpcWorkspaceScope,
+			{ taskId: "t-done", text: "please tweak the output" } as never,
+			deps,
+		);
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain("completed");
+		expect(sendTaskSessionInput).not.toHaveBeenCalled();
+		vi.doUnmock("../../../../src/state/workspace-state");
+	});
+
+	it("refuses guidance to a trashed card with the trash wording", async () => {
+		vi.resetModules();
+		vi.doMock("../../../../src/state/workspace-state", () => ({
+			loadWorkspaceState: async () => ({
+				board: { columns: [{ id: "trash", cards: [{ id: "t-gone" }] }] },
+			}),
+		}));
+		const { handleSendTaskChatMessage: handler } = await import("../../../../src/trpc/runtime-api/task-chat-send");
+		const deps = {
+			getScopedNKleinTaskSessionService: async () => ({}) as never,
+			nkleinProviderService: { resolveLaunchConfig: vi.fn() } as never,
+		} as unknown as TaskChatSendDeps;
+		const result = await handler(
+			{ workspaceId: "ws1", workspacePath: "/tmp/ws" } as unknown as RuntimeTrpcWorkspaceScope,
+			{ taskId: "t-gone", text: "hello?" } as never,
+			deps,
+		);
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain("trash");
+		vi.doUnmock("../../../../src/state/workspace-state");
+	});
+});

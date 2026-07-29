@@ -317,20 +317,51 @@ export async function handleStartTaskSession(
 		});
 		if (!isHomeAgentSessionId(body.taskId)) {
 			const loadedNKleinTaskSessionService = deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope) ?? null;
-			const activeProjectTaskCount = countActiveProjectTaskSessions(
-				loadedNKleinTaskSessionService?.listSummaries() ?? [],
-				body.taskId,
-			);
+			const sessionSummaries = loadedNKleinTaskSessionService?.listSummaries() ?? [];
+			const activeProjectTaskCount = countActiveProjectTaskSessions(sessionSummaries, body.taskId);
 			if (activeProjectTaskCount >= scopedRuntimeConfig.effectiveMaxConcurrentTasks) {
-				return {
-					ok: false,
-					summary: null,
-					error: createConcurrencyLimitStartError(scopedRuntimeConfig.effectiveMaxConcurrentTasks),
-					// Live-found 2026-07-02 (runs 9/10): the auto-start cascade needs to RECOGNIZE this failure so it can
-					// defer + retry the card instead of orphaning it (a lingering just-finished session can transiently
-					// hold a slot — e.g. the decompose seed at root-start time).
-					errorCode: "concurrency_limit" as const,
-				};
+				// G6.8a v14 livelock (2026-07-29): before refusing, RECOUNT with sessions whose card already sits in a
+				// terminal lane excluded — such a session is a ghost (a post-completion re-drive left `awaiting_review`
+				// on a completed card), nothing will ever settle it, and refusing on its account starves every future
+				// start forever ("deferred for retry on the next completion" never fires again). Board load only on
+				// this slow path; the ordinary under-limit start stays I/O-free.
+				const terminalLaneTaskIds = await loadWorkspaceState(workspaceScope.workspacePath)
+					.then(
+						(state) =>
+							new Set(
+								state.board.columns
+									.filter((column) => column.id === "completed" || column.id === "trash")
+									.flatMap((column) => column.cards.map((card) => card.id)),
+							),
+					)
+					.catch(() => new Set<string>());
+				const ghostFreeCount = countActiveProjectTaskSessions(sessionSummaries, body.taskId, {
+					terminalLaneTaskIds,
+				});
+				if (ghostFreeCount < activeProjectTaskCount) {
+					recordSelfObservation({
+						signal: "custom",
+						severity: "warning",
+						message: `Concurrency gate ignored ${activeProjectTaskCount - ghostFreeCount} ghost session(s) on terminal-lane card(s) while starting ${body.taskId}.`,
+						taskId: body.taskId,
+						workspacePath: workspaceScope.workspacePath,
+						metadata: {
+							category: "concurrency_gate_ghost_excluded",
+							ghosts: activeProjectTaskCount - ghostFreeCount,
+						},
+					});
+				}
+				if (ghostFreeCount >= scopedRuntimeConfig.effectiveMaxConcurrentTasks) {
+					return {
+						ok: false,
+						summary: null,
+						error: createConcurrencyLimitStartError(scopedRuntimeConfig.effectiveMaxConcurrentTasks),
+						// Live-found 2026-07-02 (runs 9/10): the auto-start cascade needs to RECOGNIZE this failure so it can
+						// defer + retry the card instead of orphaning it (a lingering just-finished session can transiently
+						// hold a slot — e.g. the decompose seed at root-start time).
+						errorCode: "concurrency_limit" as const,
+					};
+				}
 			}
 		}
 		// Under the local-only lockdown every task runs on the NKlein agent path; terminal/CLI agents are

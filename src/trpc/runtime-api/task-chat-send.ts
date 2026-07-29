@@ -6,6 +6,7 @@ import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconc
 import type { createNKleinProviderService } from "../../nklein-agent/nklein-provider-service";
 import { isNKleinClearSlashCommand } from "../../nklein-agent/nklein-slash-commands";
 import type { NKleinTaskSessionService } from "../../nklein-agent/nklein-task-session-service";
+import { loadWorkspaceState } from "../../state/workspace-state";
 import { recordSelfObservation } from "../../telemetry/self-observation-sink";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 
@@ -36,6 +37,31 @@ export async function handleSendTaskChatMessage(
 		// selected model can't be resolved (e.g. an LM Studio model was unloaded), which is exactly the recovery
 		// state where a user reaches for /clear. Gating teardown behind model resolution made /clear fail when it is
 		// needed most; the clear branch reads none of the launch-config overrides.
+		// G6.8a v14 ghost (2026-07-29): guidance sent to a card whose work is DONE must not silently start a fresh
+		// worker session — a post-completion send left an `awaiting_review` ghost on a completed-lane card that
+		// occupied a concurrency slot forever (the gate now also excludes such ghosts, but the session itself is
+		// still wasted compute + repeated work). Reopening a finished card is an explicit restart affordance, not a
+		// chat side effect. A send racing the completion in the same instant can still slip through (the lane moves
+		// after the session accepts) — that residue is bounded by the gate's ghost exclusion.
+		if (!isHomeAgentSessionId(body.taskId) && !isNKleinClearSlashCommand(body.text)) {
+			const terminalLane = await loadWorkspaceState(workspaceScope.workspacePath)
+				.then(
+					(state) =>
+						state.board.columns.find(
+							(column) =>
+								(column.id === "completed" || column.id === "trash") &&
+								column.cards.some((card) => card.id === body.taskId),
+						)?.id ?? null,
+				)
+				.catch(() => null);
+			if (terminalLane) {
+				return {
+					ok: false,
+					summary: null,
+					error: `Task is already ${terminalLane === "trash" ? "in the trash" : "completed"} — chat guidance cannot restart it. Reopen or restart the card explicitly to continue work on it.`,
+				};
+			}
+		}
 		if (isNKleinClearSlashCommand(body.text)) {
 			const summary = await nkleinTaskSessionService.clearTaskSession(body.taskId);
 			deps.broadcastTaskChatCleared?.(workspaceScope.workspaceId, body.taskId);

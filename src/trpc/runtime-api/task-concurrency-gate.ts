@@ -16,10 +16,27 @@ function isActiveProjectTaskSession(summary: RuntimeTaskSessionSummary): boolean
 	);
 }
 
-export function countActiveProjectTaskSessions(summaries: RuntimeTaskSessionSummary[], startingTaskId: string): number {
+export function countActiveProjectTaskSessions(
+	summaries: RuntimeTaskSessionSummary[],
+	startingTaskId: string,
+	options?: {
+		/**
+		 * Task ids whose CARD already sits in a terminal board lane (completed/trash). A session summary lingering
+		 * active for such a card is a GHOST, not workload: nothing will ever settle it, so counting it starves every
+		 * future start. Live-found G6.8a v14 (2026-07-29): a post-completion re-drive left an `awaiting_review`
+		 * summary on a completed-lane card; auto-start then hit the concurrency limit every 30s for 6+ minutes
+		 * ("deferred for retry on the next completion" — which can never come) while the frozen-board self-heal
+		 * fired uselessly around it, until the drain's stagnation settle ended the run.
+		 */
+		terminalLaneTaskIds?: ReadonlySet<string>;
+	},
+): number {
 	const activeTaskIds = new Set<string>();
 	for (const summary of summaries) {
 		if (summary.taskId === startingTaskId || !isActiveProjectTaskSession(summary)) {
+			continue;
+		}
+		if (options?.terminalLaneTaskIds?.has(summary.taskId)) {
 			continue;
 		}
 		activeTaskIds.add(summary.taskId);
