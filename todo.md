@@ -3473,9 +3473,11 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > silently starting a session (same-instant race residue bounded by the gate fix). Regression tests both
 > layers. OPEN QUESTION (batched for David): WHAT sent that single `sendTaskChatMessage` at 05:45:34 — the
 > only callers are the web-ui/desktop app; if your desktop app auto-connects to port 47501 it was talking to
-> the TEST runtime (campaign drive script now uses port 47733 to rule this out). **v15 LAUNCHED — all three
-> campaign fixes live (coverage-gate calibration, architect prompt diet, ghost-livelock) — the full-green
-> multi-card attempt.**
+> the TEST runtime (campaign drive script now uses port 47733 to rule this out). **v15 (the full-green
+> attempt with all three fixes live) was ABORTED ~1h in with no verdict lost — David put m5max into LOW POWER
+> MODE (2026-07-29 ~08:00); models unloaded, runtime stopped, HOME cleaned. RELAUNCH v15 (drive script in
+> session scratchpad, port 47733, roster architect=qwopus / worker+reviewer=gemma-31b, preset mid_task) when
+> David clears GPU work again.**
 > **v13 VERDICT (2026-07-29): (a)+(b) VALIDATED — decompose CLEARED FIRST-SHOT** (v9–v12 all died
 > 4-attempts-deep at the same gates): real 6-card graph spawned, gemma workers delivered 2 cards to review,
 > seed completed. The run then settled on the monitor's stagnation window while BOTH reviews churned on
