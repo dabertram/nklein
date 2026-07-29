@@ -3548,6 +3548,19 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > ⚠️ **REFRAMES THE CAMPAIGN: v13/v15b/v16/v17 all ended `workflow_incomplete` with cards mid-review. Those
 > verdicts may be MONITOR TRUNCATION, not !Klein capability limits.** Do not cite them as throughput evidence
 > until re-measured with the fix.
+> **N11 FLAG-MATRIX LANE LANDED (2026-07-30) — answers "can we add tests for the unsurfaced mechanisms?"
+> with yes, and ONE lane covers 29 of them.** The `flags_on` profile replays the existing `perfect-run.json`
+> with EVERY registered flag on — no new recording needed. Pack `flags-on-coverage` deliberately declares
+> `mustFire: []` per this registry's standing rule (assert only what the collector is KNOWN to observe); the
+> **18 mechanisms declaring `expectation: "every_run"` once enabled are the promotion candidates**, to be
+> moved into `mustFire` from the FIRST measured drain. Anti-drift guard
+> `nightly-flag-matrix-coverage.test.ts` pins the flag set to the registry exactly, and earned its keep
+> immediately by catching 3 flags missing from the first draft (SANDBOX_MCP, TEST_DRIVEN_MODE,
+> TOOL_TRUST_DECAY) before it landed.
+> ⚠️ **UNVALIDATED — the cell has never been drained** (v18 owns the machine). NEXT: run project 02 with the
+> flags_on env to (a) confirm it still drains green with 30 opt-ins on, (b) MEASURE which of the 18
+> candidates emit, (c) promote those into `mustFire`. Expect some flags to disturb the recording's needle
+> matching — that is a finding to record, not a failure to hide.
 > **FIX (principled, uses machinery that already exists):** a card in the `review` LANE is non-terminal work by
 > definition — only completed/trash/failed are terminal — so it should count as activity regardless of verdict
 > presence. The genuine "stalled forever" case (parked awaiting a human) is ALREADY tracked separately as
