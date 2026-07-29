@@ -17,13 +17,20 @@ Naming, for consistency across docs, UI, and tooling: the **product** is `!Klein
 
 ### Install and Run
 
-```bash
-# Run directly
-npx nklein
+> **Prerelease (v0.0.1) — install from source.** `nklein` is **not published to npm yet**, so `npx nklein` and
+> `npm i -g nklein` do not work and will fail with a 404. Build it from this repository instead. This section will
+> change to the published commands once a release is actually pushed.
 
-# Or install globally
-npm i -g nklein
-nklein
+```bash
+# Clone, then install every workspace (root + vendored SDK + web UI + desktop)
+npm run install:all
+
+# Run it from source
+npm run dev
+
+# …or build once and use the `nklein` entry point from this checkout
+npm run build
+./dist/cli.js
 ```
 
 Run `nklein` from a git repository to open that project, or launch it without a project and add one from the UI.

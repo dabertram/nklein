@@ -3515,7 +3515,7 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > as an attempt, (b) verify dispatch→start actually created a session and fail the lease loudly if not.
 > EVIDENCE: HOME=/tmp/nklein-g68a-8m5Q1k (ledger scheduler events for
 > habit-score-clamping-tests-clamping; 397 watchdog fires; runtime.log 190 handover lines).**
-> **ROOT-CAUSED + FIXED (2026-07-29, 200e9af65) — and my first hypothesis was WRONG, which matters:** I
+> **ROOT-CAUSED + FIXED (2026-07-29, 167ada861) — and my first hypothesis was WRONG, which matters:** I
 > assumed "dispatched lease produced no session" meant the start was REFUSED. The ledger + runtime.log say
 > otherwise: the start was ACCEPTED-AND-QUEUED (`endpoint_busy` returns `summary: null` + enqueues), so the
 > card was healthy and waiting behind a cap-1 host for 27 min while a sibling's single turn ran 19:34→19:53.
@@ -3542,6 +3542,54 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > shape as the `model_stalled` / "Model turn truncated (max-tokens) with no tool call and no text" events in
 > v16, so treat gemma as reasoning-budgeted when sizing worker/reviewer token budgets. v17 relaunched on the
 > updated stack (HOME=/tmp/nklein-g68a-b5lT3F).
+
+> **EXTERNAL AUDIT (GPT-5.6 "sol ultra", 2026-07-29) — VERIFIED CLAIM-BY-CLAIM against the repo. Verdict:
+> largely accurate, one claim unsupported, one needing measurement. It also caught a real error of mine.**
+> ✅ **CONFIRMED (checked, not taken on trust):** (a) **17 production advisories — 3 high / 12 moderate /
+> 2 low**, exact match, and the three highs are named correctly: `@opentelemetry/otlp-transformer`,
+> `fast-uri`, `protobufjs`. (b) **43 registered mechanisms** in `MECHANISM_REGISTRY` — exact. (c) **README
+> shipped an install path that 404s**: it told users `npx nklein` / `npm i -g nklein` while the package is
+> NOT published (`npm view nklein` → E404). FIXED same day — README now states prerelease + from-source
+> install. (d) "G6.8a exposed four distinct liveness failures" — matches exactly (parent-reacquire deadlock,
+> ghost-session livelock, rescue-handover drop, lease-reclaim attempt burn). (e) 12,595 fast tests pass.
+> (f) **It cited my lease fix as `167ada861`, and it was RIGHT** — I had recorded `200e9af65`, the pre-amend
+> hash, which `git merge-base --is-ancestor` confirms is ORPHANED (not reachable from HEAD). All references
+> corrected. LESSON: after `git commit --amend`, any hash already written into docs is dead — re-read the
+> hash from the log before recording it.
+> ❌ **NOT SUPPORTED:** "fix stale CONTRIBUTING paths" — every file/dir path referenced in `CONTRIBUTING.md`
+> resolves on disk (checked exhaustively, zero missing). Do not act on this without a concrete example.
+> ⚠️ **NEEDS MEASUREMENT, DO NOT QUOTE:** "only 5 of 43 registered mechanisms have demonstrated live
+> outcomes." This looks like a misread of the registry's own comment *"5 of 40 default-OFF FLAGS were
+> registered"* — which is about REGISTRY COVERAGE OF FLAGS before F4.8b added four, NOT about how many
+> mechanisms have live evidence. Different claim. Also note the registry's own caveat: absence from it does
+> NOT mean unobservable (the agent ledger covers some mechanisms by tool name/outcome). Measure it properly
+> before repeating the number anywhere public.
+> **DEFERRED UNTIL v17 SETTLES (hard constraint): the campaign runs `npx tsx src/cli.ts` FROM THE WORKING
+> TREE**, so touching `src/` or `node_modules` mid-run can perturb a multi-hour drain. Doc-only fixes were
+> safe and are done; everything below waits.
+> **QUEUED, in the audit's own priority order:**
+> 1. **Dependency remediation (3 high).** Targeted upgrades per the audit: `@modelcontextprotocol/sdk`→1.30.0,
+>    the full compatible OpenTelemetry family→0.221.0, and verify resolved transitives clear the vulnerable
+>    ranges (`fast-uri`>3.1.3, `hono`>=4.12.27, `protobufjs`>7.6.4, `body-parser`>=2.3.0,
+>    `@ai-sdk/provider-utils`>3.0.97). **Never blind `npm audit fix`** — agreed; overrides only where the
+>    owning direct dep cannot resolve a fixed release. Gate: full typecheck + test:fast + re-audit to zero
+>    reachable high.
+> 2. **⭐ Admission attempts vs EXECUTION attempts (the audit's best idea — strictly better than my fix).**
+>    My `167ada861` stops the bleeding by heartbeating queued starts, but the attempt COUNTER still conflates
+>    "we tried to run this" with "we could not even get a slot". Separating them is the principled version:
+>    a healthy queued card may wait through unlimited lease intervals without consuming execution attempts,
+>    while permanently unstartable work still terminates via the bounded endpoint-queue policy. This also
+>    subsumes the alternative I explicitly rejected (never burning an attempt on a no-session reclaim), which
+>    on its own loops forever — the counter split is what makes it safe. Do it as scheduler events **v2**,
+>    replaying v1 jobs under legacy semantics (do NOT reinterpret historical `attempts`), and only after v17.
+> 3. Phase 20 evaluation integrity + the experiment capsule before ANY new performance claim (aligns with the
+>    existing P20 backlog; the audit adds `.git`-stripping and held-out execution as gates).
+> 4. Four-axis mechanism reporting (core exists / entrypoint reaches it / enabled / live evidence) instead of
+>    the current binary — this is what would let the "5 of 43" question be answered honestly.
+> **NEEDS DAVID'S CALL (not actionable autonomously):** the positioning claim ("reproducible systems lab"
+> vs coding agent), the 7-item small-local-model research queue and its ordering, the publication artifacts
+> (CITATION.cff / Zenodo / CycloneDX / SPDX-AI), and the 12-trial cross-platform setup study. These are
+> product-direction and multi-week commitments, not backlog items I should self-authorize.
 > **v13 VERDICT (2026-07-29): (a)+(b) VALIDATED — decompose CLEARED FIRST-SHOT** (v9–v12 all died
 > 4-attempts-deep at the same gates): real 6-card graph spawned, gemma workers delivered 2 cards to review,
 > seed completed. The run then settled on the monitor's stagnation window while BOTH reviews churned on
