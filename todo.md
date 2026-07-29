@@ -3475,9 +3475,9 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > only callers are the web-ui/desktop app; if your desktop app auto-connects to port 47501 it was talking to
 > the TEST runtime (campaign drive script now uses port 47733 to rule this out). **v15 (the full-green
 > attempt with all three fixes live) was ABORTED ~1h in with no verdict lost — David put m5max into LOW POWER
-> MODE (2026-07-29 ~08:00); models unloaded, runtime stopped, HOME cleaned. RELAUNCH v15 (drive script in
-> session scratchpad, port 47733, roster architect=qwopus / worker+reviewer=gemma-31b, preset mid_task) when
-> David clears GPU work again.**
+> MODE (2026-07-29 ~08:00); models unloaded, runtime stopped, HOME cleaned. RELAUNCHED ~09:20 as v15b after
+> David cleared LLM use under low power (slower but MORE predictable than high-power throttling) — 12h budget
+> (43200000ms max-wait), port 47733, same roster/preset.**
 > **v13 VERDICT (2026-07-29): (a)+(b) VALIDATED — decompose CLEARED FIRST-SHOT** (v9–v12 all died
 > 4-attempts-deep at the same gates): real 6-card graph spawned, gemma workers delivered 2 cards to review,
 > seed completed. The run then settled on the monitor's stagnation window while BOTH reviews churned on
