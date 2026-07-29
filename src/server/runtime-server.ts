@@ -54,6 +54,7 @@ import { assessDeliveryQuality } from "../core/delivery-quality-gate";
 import { assessDiffMinimality } from "../core/diff-minimality";
 import { createDispatchReservationLedger, reservationAwarePools } from "../core/dispatch-reservations";
 import { createAdmissionWakeCoordinator } from "../core/durable-admission";
+import { resolveDurableHeartbeatTaskIds } from "../core/durable-lease-heartbeat";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { EVAL_PROMPT_CORPUS } from "../core/eval-prompt-corpus";
 import { seedFocusChainFromPlanTask } from "../core/focus-chain";
@@ -1791,10 +1792,32 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// timer on the default path ⇒ byte-identical); cleared on server close.
 	// Report which of a workspace's cards still have a RUNNING session, so the tick heartbeats their leases (a
 	// slow-but-alive local worker emits sparse summaries; without this its lease would age out to a spurious reclaim).
+	// The leases the durable tick must HEARTBEAT rather than reclaim — i.e. every card the runtime is still on the
+	// hook for. Two populations, and G6.8a v16 (2026-07-29) proved BOTH were missing:
+	//
+	//   1. Cards with a live SESSION. This filtered `state === "running"` alone, silently disagreeing with
+	//      `hasLiveSessionForTerminalRedrive` (the sweep's identical concept) about queued/paused/awaiting_review.
+	//      A review that outlives the 5-minute lease (they ran ~10 minutes in v16) would have its card reclaimed
+	//      and re-dispatched mid-review. Both call sites now share `hasLiveTaskSession`.
+	//
+	//   2. Cards with NO session yet because their start is sitting in the TASK-START QUEUE (`endpoint_busy` returns
+	//      `summary: null` and enqueues). This is the population that actually broke v16:
+	//      `habit-score-clamping-tests-clamping` was leased at 19:26:55, its start re-queued behind a busy endpoint
+	//      every ~2s for 27 minutes, and — having no session to "look alive" — its lease was reclaimed at 19:31:55,
+	//      19:37:28 and 19:42:58, exhausting `max_attempts`. It then started for real at 19:53:44, eleven minutes
+	//      after the scheduler had already cancelled it, and the board sat frozen for ~70 minutes.
+	//
+	// A queued start is the runtime's own promise to start the card as soon as the endpoint frees; reclaiming its
+	// lease destroys the retry budget of a card that never got a turn. The queue bounds itself (`exhausted` drops an
+	// entry after maxAttempts), so this cannot hold a lease open forever on a card the queue has given up on.
 	const liveTaskIdsForWorkspace = (workspaceId: string): readonly string[] =>
-		(nkleinTaskSessionServiceByWorkspaceId.get(workspaceId)?.listSummaries() ?? [])
-			.filter((summary) => summary.state === "running")
-			.map((summary) => summary.taskId);
+		resolveDurableHeartbeatTaskIds({
+			sessions: nkleinTaskSessionServiceByWorkspaceId.get(workspaceId)?.listSummaries() ?? [],
+			queuedStartTaskIds: taskStartQueue
+				.snapshot()
+				.filter((queued) => queued.workspaceScope.workspaceId === workspaceId)
+				.map((queued) => queued.input.taskId),
+		});
 	const durableTickTimer: ReturnType<typeof setInterval> | null = durableSchedulerEnabled
 		? setInterval(() => {
 				void durableRunWiring?.tickAll(liveTaskIdsForWorkspace);

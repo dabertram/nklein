@@ -5,6 +5,9 @@
  * would strand that card permanently. So a redrive bypasses the debounce; otherwise the sweep only runs once the
  * debounce window has elapsed. Total + pure (no clock, no I/O): the caller passes `now`.
  */
+import { hasLiveTaskSession } from "../core/session-state-predicates";
+import type { RuntimeTaskSessionState } from "../core/task-session-api-contract";
+
 export interface TerminalRetrySweepGateInput {
 	/** The current time (ms). */
 	now: number;
@@ -31,9 +34,15 @@ export function shouldRunTerminalRetrySweep(input: TerminalRetrySweepGateInput):
 	return input.now - input.lastSweepAt >= input.debounceMs;
 }
 
-/** States in which a task already has a live/recovering session and must not receive a dead-card restart. */
+/**
+ * States in which a task already has a live/recovering session and must not receive a dead-card restart.
+ *
+ * Delegates to the canonical {@link hasLiveTaskSession} rather than restating the state list: this predicate and the
+ * durable lease heartbeat had SEPARATE copies of the same concept, they drifted (the heartbeat kept only `running`),
+ * and the drift cancelled a healthy queued card in G6.8a v16. One definition, two call sites, no third drift.
+ */
 export function hasLiveSessionForTerminalRedrive(state: string | null | undefined): boolean {
-	return state === "running" || state === "queued" || state === "paused" || state === "awaiting_review";
+	return hasLiveTaskSession(state as RuntimeTaskSessionState | null | undefined);
 }
 
 /**

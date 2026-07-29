@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { hasLiveTaskSession } from "../../../src/core/session-state-predicates";
 import {
 	excludeTriggeringTerminalTask,
 	hasLiveSessionForTerminalRedrive,
@@ -65,6 +66,26 @@ describe("hasLiveSessionForTerminalRedrive", () => {
 		}
 		for (const state of [undefined, null, "idle", "failed", "interrupted"]) {
 			expect(hasLiveSessionForTerminalRedrive(state)).toBe(false);
+		}
+	});
+
+	it("agrees with the canonical hasLiveTaskSession on EVERY state (anti-drift, G6.8a v16)", () => {
+		// This predicate and the durable lease heartbeat were separate copies of one concept. They drifted — the
+		// heartbeat kept only `running` — and the drift reclaimed a healthy queued card's lease until max_attempts
+		// cancelled it. Both now delegate here; this test fails the moment either side grows its own opinion again.
+		const states = [
+			"idle",
+			"queued",
+			"running",
+			"paused",
+			"awaiting_review",
+			"failed",
+			"interrupted",
+			null,
+			undefined,
+		] as const;
+		for (const state of states) {
+			expect(hasLiveSessionForTerminalRedrive(state)).toBe(hasLiveTaskSession(state ?? undefined));
 		}
 	});
 });
