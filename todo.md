@@ -3464,6 +3464,18 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > board.json, sessions). NEXT UNIT (fresh context): root-cause (1) why the self-heal's startable card never
 > starts (the watchdog claims healing it does not perform), (2) the post-completion guidance re-drive ghost,
 > (3) whether deferred-overlap release keys on the ghost. Then v15 (same roster) for the full-green proof.**
+> **ROOT-CAUSED + FIXED (2026-07-29, 5e5ddb233):** the self-heal DID sweep — runtime.log showed
+> "Auto-start … hit the concurrency limit; deferred for retry on the next completion" between every watchdog
+> warn: the GHOST session's `awaiting_review` summary on the completed-lane card counted as active in the
+> start-path concurrency gate forever, and "next completion" can never come = livelock. Fixes: (gate) on
+> limit-trip, recount excluding sessions whose card sits in completed/trash (`concurrency_gate_ghost_excluded`
+> observation; fast path stays I/O-free); (chat-send) guidance to a terminal-lane card is REFUSED instead of
+> silently starting a session (same-instant race residue bounded by the gate fix). Regression tests both
+> layers. OPEN QUESTION (batched for David): WHAT sent that single `sendTaskChatMessage` at 05:45:34 — the
+> only callers are the web-ui/desktop app; if your desktop app auto-connects to port 47501 it was talking to
+> the TEST runtime (campaign drive script now uses port 47733 to rule this out). **v15 LAUNCHED — all three
+> campaign fixes live (coverage-gate calibration, architect prompt diet, ghost-livelock) — the full-green
+> multi-card attempt.**
 > **v13 VERDICT (2026-07-29): (a)+(b) VALIDATED — decompose CLEARED FIRST-SHOT** (v9–v12 all died
 > 4-attempts-deep at the same gates): real 6-card graph spawned, gemma workers delivered 2 cards to review,
 > seed completed. The run then settled on the monitor's stagnation window while BOTH reviews churned on
