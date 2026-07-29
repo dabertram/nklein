@@ -3531,6 +3531,17 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > mid-review — fixed by the same change. REJECTED alternative: "don't burn an attempt on a reclaim that never
 > ran" — that loops forever on a card that genuinely cannot start; heartbeating the healthy case is the
 > correct layer. **v17 LAUNCHED with SEVEN fixes live.**
+> **STACK REFRESHED 2026-07-29 (David request): LM Studio 0.4.19+2 → 0.4.20+1** (release notes: enterprise
+> internal network model endpoint; device models in Bionic over LM Link), app restarted so the fresh process
+> picks up the current runtime binaries. Runtime extensions were ALREADY latest and unchanged —
+> llama.cpp-mac-arm64-apple-metal-advsimd@2.27.1 (GGUF) + mlx-llm-mac-arm64-apple-metal-nax-advsimd@1.11.0
+> (MLX); `lms runtime update` reported up-to-date both before and after the app update. Models reloaded at
+> identical contexts (gemma 33024, qwopus/ornith 33000) and inference smoke-tested per model.
+> **CALIBRATION DATUM from the smoke test: gemma-4-31b-qat emits REASONING TOKENS (47 for a 5-word prompt)**
+> — at max_tokens 16 it returns EMPTY content with finish=length; at 300 it answers cleanly. That is the same
+> shape as the `model_stalled` / "Model turn truncated (max-tokens) with no tool call and no text" events in
+> v16, so treat gemma as reasoning-budgeted when sizing worker/reviewer token budgets. v17 relaunched on the
+> updated stack (HOME=/tmp/nklein-g68a-b5lT3F).
 > **v13 VERDICT (2026-07-29): (a)+(b) VALIDATED — decompose CLEARED FIRST-SHOT** (v9–v12 all died
 > 4-attempts-deep at the same gates): real 6-card graph spawned, gemma workers delivered 2 cards to review,
 > seed completed. The run then settled on the monitor's stagnation window while BOTH reviews churned on
