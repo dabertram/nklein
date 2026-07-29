@@ -3451,6 +3451,19 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > forensics. Still over cap 60 — the remaining mass is the SDK static shell preamble (21 units): deliberate
 > stop; further cuts touch vendored text. **v13 re-validation marathon LAUNCHED (mid_task, evidence roster,
 > gates (a)+(b) live).** (c) stays open pending v13's texture.
+> **v14 VERDICT (2026-07-29, settled ~4h10m): deepest run yet — 4 completed / 3 review / 12-card board;
+> decompose cleared first-shot AGAIN; test-driven bounce → re-decompose → TEST-FIRST replanning all live;
+> gemma reviewer delivered verdicts (approve → completed at 05:45). THEN A NEW PRODUCT BUG ended it:
+> ⚠ FROZEN-BOARD SELF-HEAL IS INEFFECTIVE — from 05:48:34 to settle (05:54:46) the board-liveness watchdog
+> fired "frozen board self-heal (startable=1, deferred=2)" EVERY 30s for 6+ min and the startable ready-lane
+> card NEVER STARTED; the stagnation settle then (correctly) ended the run. Compounding: at 05:45:34 an
+> "Operator sent guidance to running task" event hit the JUST-COMPLETED card (review → completed same
+> second), a "Lost session marked interrupted" followed, and a GHOST session ran 11 fresh model requests on
+> the completed card until 05:48:34 — the deferred=2 cards plausibly wait on file-overlap release from that
+> ghost. EVIDENCE PRESERVED: HOME=/tmp/nklein-g68a-mbvx5t (telemetry 2026-07-29.jsonl 05:40–05:55 window,
+> board.json, sessions). NEXT UNIT (fresh context): root-cause (1) why the self-heal's startable card never
+> starts (the watchdog claims healing it does not perform), (2) the post-completion guidance re-drive ghost,
+> (3) whether deferred-overlap release keys on the ghost. Then v15 (same roster) for the full-green proof.**
 > **v13 VERDICT (2026-07-29): (a)+(b) VALIDATED — decompose CLEARED FIRST-SHOT** (v9–v12 all died
 > 4-attempts-deep at the same gates): real 6-card graph spawned, gemma workers delivered 2 cards to review,
 > seed completed. The run then settled on the monitor's stagnation window while BOTH reviews churned on
