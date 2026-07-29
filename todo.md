@@ -3568,7 +3568,25 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > TREE**, so touching `src/` or `node_modules` mid-run can perturb a multi-hour drain. Doc-only fixes were
 > safe and are done; everything below waits.
 > **QUEUED, in the audit's own priority order:**
-> 1. **Dependency remediation (3 high).** Targeted upgrades per the audit: `@modelcontextprotocol/sdk`→1.30.0,
+> 1. **Dependency remediation (3 high) — PLAN VERIFIED 2026-07-29, ready to execute the moment v17 settles.**
+>    All seven target versions confirmed to exist and to clear the advisory ranges (read-only `npm view`;
+>    nothing installed). Current → target: `@modelcontextprotocol/sdk` **1.29.0 → 1.30.0** (pinned exact);
+>    OpenTelemetry family **^0.214.0 → 0.221.0** (`api-logs`, `exporter-{logs,metrics,trace}-otlp-http`,
+>    `sdk-logs`; the 2.x `resources`/`sdk-metrics`/`sdk-trace-*` move in lockstep — upgrade the FAMILY
+>    together or the peer graph splits). Installed vulnerable transitives, with parents: `fast-uri@3.1.2`
+>    (need >3.1.3), `hono@4.12.25` (need ≥4.12.27), `body-parser@2.2.2` (need ≥2.3.0),
+>    `@ai-sdk/provider-utils@3.0.26` (need >3.0.97; a 4.0.29 copy also present and already safe).
+>    ⚠️ **BLOCKER FOUND — the OTel upgrade ALONE CANNOT fix protobufjs.** `package.json` carries
+>    `overrides: { "protobufjs": "7.5.8" }`, added by `cb1bf3dae` *"pin protobufjs to 7.5.8 to clear CVEs"* —
+>    a security pin that has since BECOME the vulnerability (the advisory now requires >7.6.4). The override
+>    forces 7.5.8 no matter what the tree resolves. Chain: `exporter-logs-otlp-http` → `otlp-transformer` →
+>    `protobufjs`. FIX: bump the override to **7.6.5** (newest 7.x; do NOT jump to 8.x — the OTel parent
+>    expects 7.x), then after the family upgrade CHECK WHETHER THE OVERRIDE IS STILL NEEDED AT ALL and delete
+>    it if the tree resolves ≥7.6.5 naturally — a stale pin is exactly what caused this. **Standing lesson:
+>    a version pin added for security is a liability with an expiry date; every override needs a re-check,
+>    not a set-and-forget.** Gate: full typecheck (root + web-ui) + test:fast + `npm audit --omit=dev` back
+>    to ZERO reachable high. Never blind `npm audit fix`.
+>    (superseded detail) original audit wording: `@modelcontextprotocol/sdk`→1.30.0,
 >    the full compatible OpenTelemetry family→0.221.0, and verify resolved transitives clear the vulnerable
 >    ranges (`fast-uri`>3.1.3, `hono`>=4.12.27, `protobufjs`>7.6.4, `body-parser`>=2.3.0,
 >    `@ai-sdk/provider-utils`>3.0.97). **Never blind `npm audit fix`** — agreed; overrides only where the
