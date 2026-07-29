@@ -8771,6 +8771,50 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > runtime-adapter boundary is no longer an architectural nicety — it is what unblocks measured wins. (b) Protocol
 > research (below) shows exactly one interop protocol whose transport model MATCHES a local-only product.
 
+- [ ] **P17.6 — KV-CACHE PERSISTENCE ACROSS MODEL UNLOAD (David's idea, 2026-07-30; RESEARCH DONE — the gap is
+  real and both engines already have most of the machinery).** David asked whether a persistent cache for
+  unloaded models could avoid recompute on fast model switching. Web research says YES, and names the exact
+  gap:
+  - **LM Studio's MLX engine ALREADY does disk-backed KV caching** — 256-token boundary checkpoints, safetensors
+    blobs, LRU eviction (lmstudio.ai/blog/mlx-engine-agentic-workloads). **But it is explicitly SCRATCH-ONLY:**
+    *"the cache is temporary and will not leave persistent files"*, and *"On model unload, the cache store clears
+    its in-memory index and closes the scratch file."* ⇒ **exactly David's hypothesis: every model switch throws
+    the cache away and pays full prefill again.** No configurable RAM/disk budget is exposed either.
+  - **llama.cpp HAS persistent slot save/restore** — `--slot-save-path <dir>` enables
+    `POST /slots/<id>?action=save|restore` with a binary KV blob; restore is near-instant vs reprocessing
+    (ggml-org/llama.cpp discussions #13606, #20572). **VERIFIED 2026-07-30: LM Studio does NOT pass that flag** —
+    its live `llama-server` argv has `--ctx-size --n-gpu-layers --cache-type-k/v --flash-attn --kv-unified …` and
+    NO `--slot-save-path`. So the capability exists in the engine and is switched off by the wrapper. Known
+    limitation: save/restore is manual (no auto-save), and it is documented as broken for vision-enabled models
+    (issue #19466) — check before enabling for a multimodal model.
+  - **Reference architecture: LMCache** (docs.lmcache.ai) — tiered KV store GPU→CPU→disk/Redis/S3, standalone
+    daemon so *"KV cache will not be lost even if the inference engine crashes"*, reuse across requests, sessions
+    AND engine instances. vLLM/CUDA-centric so NOT directly usable on m5max, but it is the design to copy: a
+    cache that outlives the engine process is the whole point.
+  - Directly on-topic prior art for our exact shape (multi-agent, edge, quantized): arXiv 2603.04428 *"Agent
+    Memory Below the Prompt: Persistent Q4 KV Cache for Multi-Agent LLM Inference on Edge Devices"*.
+  **WHY THIS MATTERS FOR !KLEIN SPECIFICALLY:** the G6.8a campaign runs three pinned models on ONE cap-1 host,
+  so the swarm serialises every turn and re-prefixes constantly; v16 showed a single worker turn taking 19
+  minutes and a card queued 27 minutes behind it. Prefill recompute is a first-order cost here, not a
+  micro-optimisation. Measure before building: instrument prefill-vs-decode time per turn (the usage payload
+  already reports prompt tokens) to size the prize.
+
+- [ ] **P17.7 — SELF-MANAGED RAM/DISK BUDGET FOR MODEL RESIDENCY (David's idea, 2026-07-30) — ⚠️ NEEDS DAVID'S
+  DECISION, because it directly contradicts a STANDING directive.** David asked whether !Klein should own a
+  defined RAM/disk budget and load bigger/smaller models on demand itself. Prior art exists and is mature:
+  **llama-swap** (github.com/mostlygeek/llama-swap) proxies a stable URL, starts a model on demand, stops
+  another when VRAM is needed, TTL-unloads idle models, and supports **groups** (`swap: false` = run
+  concurrently, `swap: true` = mutually exclusive) — i.e. precisely the budgeted residency manager described.
+  **THE CONFLICT:** memory `no-auto-load-unload-production` records David 2026-07-19: *"!Klein product never
+  auto-loads/unloads models (prompt-cache thrash, MLX); loader = dev-time tooling; production =
+  recommendation-only."* This request would reverse that.
+  **THE INTERESTING PART — the two ideas are linked, and P17.6 may dissolve the original objection.** The stated
+  reason for banning auto-swap was PROMPT-CACHE THRASH. A cache that survives unload (P17.6) is exactly the
+  mitigation for that. So the honest sequencing is: **land P17.6 first, MEASURE the reload-with-warm-cache cost,
+  and only then re-open the auto-swap decision with evidence.** Doing them in the other order re-creates the
+  thrash David banned. Do NOT implement residency management before that measurement exists.
+
+
 - [ ] **P17.1a — Evaluate `mlx-serve` as the SECOND runtime adapter (David 2026-07-20; https://github.com/ddalcu/mlx-serve).**
   **FLEET NOTE 2026-07-25 (David): legion + m4mini are gone, and LM Link reports 0 remote devices — qwable (the
   authorized trial host) is unreachable too. The trial's natural target is now the LOCAL m5max (idle, Apple
