@@ -9369,12 +9369,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **Still OBSERVE-ONLY on purpose** (F1.21 observe-before-enforce, same stance as the delivery-quality scan): both
   remedies discard or freeze real work, so an LLM drift critic's false-positive rate must be visible on real runs
   before it may act.
-  **⚠️ HONEST COVERAGE GAP FOUND WHILE DOING THIS: the drift-critic path has NO integration test AT ALL** — no
-  test anywhere drives `driftCriticCaller` through the extension, so neither F12.92's detection nor this wire is
-  exercised end-to-end. The decision core has 10 tests and the wire typechecks, but "it is registered and the
-  audit will notice silence" is the only live-fire detector today, and it cannot fire on a healthy sim run since
-  the mechanism is `exceptional`. **Follow-up: build a focus-extension test harness** — it would serve the whole
-  drift path, not just this, and that path is currently untested.
+  **✅ THE COVERAGE GAP IS CLOSED — `nklein-drift-critic-wire.test.ts`, 9 tests (2026-07-30).** Nothing anywhere
+  drove `driftCriticCaller` through the extension, so neither F12.92's detection nor this wire was exercised
+  end-to-end; only their pure cores were. The harness is small because the extension is inert without its opt-in
+  callbacks — supply just the two under test and every other feature stays off. It pins: the turn floor, the
+  cadence, **fire-and-forget** (a slow critic must not block `beforeModel` — the contract that lets an optional
+  nudge exist at all), on-track injecting NOTHING, an off-track verdict reaching the worker on the FOLLOWING
+  turn, inertness with no caller, a throwing critic not disturbing the run, and the remedy being computed with
+  and skipped without a signals provider. Mutation-checked: disabling the injection turns the key test red.
+  **TWO REAL BEHAVIOURS THE HARNESS DOCUMENTED, both learned by tests failing for the wrong reason:**
+    · **The extension keeps per-session drift state in MODULE-level maps.** Two tests sharing a session id leak
+      cadence into each other — the second sees `lastCheckTurn` already set, computes zero elapsed turns, and
+      silently never checks. Each test now uses a distinct id, and the reason is written down.
+    · **The `kanban-drift-critic` metadata marker does NOT survive the hook's exit.** The nudge is a `user`
+      message injected beside the task's own `user` turn, and `mergeConsecutiveSameRoleSdkMessages` merges
+      adjacent same-role messages (Mistral-family templates hard-500 on non-alternating roles). So the assertion
+      is on the nudge TEXT; a check looking for the marker would silently pass on an empty result.
   ── the original blocker, kept for the record; both signals are now sourced properly ──
   **Two of its four signals did not exist at this seam, and their natural defaults are the DANGEROUS ones:**
     · `hasCapturedWork` — no result-branch/diff signal reaches the focus extension. Defaulting it `false` is

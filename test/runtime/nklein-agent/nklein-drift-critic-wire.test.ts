@@ -1,0 +1,204 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createKanbanContextFocusExtension } from "../../../src/nklein-agent/nklein-context-focus-extension";
+
+/**
+ * P18.4b — the FIRST end-to-end coverage of the F12.92 drift-critic path.
+ *
+ * ── WHY THIS FILE EXISTS ──
+ * Found 2026-07-30 while wiring the off-track remedy: **nothing anywhere drove `driftCriticCaller` through the
+ * extension.** The critic's detection (F12.92) and everything hanging off it were exercised only by their pure
+ * cores, so the path from "a turn happens" → "the critic is consulted" → "its verdict becomes a worker nudge and
+ * a remedy observation" had no test at all. The decision cores are well covered; the WIRE between them was not,
+ * which is exactly the `enabled_but_silent` shape that P18.3b had just cost a fix to close.
+ *
+ * The extension is deliberately inert without its opt-in callbacks, so a harness only has to supply the two under
+ * test (`driftCriticCaller`, `offTrackSignalsProvider`); every other feature stays off and cannot interfere.
+ *
+ * Cadence facts this file depends on (`decideDriftCheck`): no check before turn 4, then every 8 turns. With
+ * `lastCheckTurn === null` the elapsed count is the turn itself, so **turn 8 is the first turn that checks**.
+ */
+
+const OFF_TRACK_REPLY = "DRIFT: rewriting unrelated modules | HINT: return to the card's acceptance criteria";
+const ON_TRACK_REPLY = "Looks fine to me.";
+
+function makeContext(iteration: number) {
+	// Minimal but REAL shape: `request.messages` feeds the repo-map pass, `request.tools` the offered-tool record,
+	// and `snapshot.iteration` drives the drift cadence. Everything else the extension touches sits behind an
+	// opt-in callback we deliberately leave undefined, which is what keeps this harness small.
+	return {
+		snapshot: { iteration, usage: undefined },
+		request: { messages: [{ role: "user", content: "build the thing" }], tools: [] },
+	} as never;
+}
+
+/**
+ * ⚠️ Each test MUST use a distinct session id. The extension keeps drift cadence state (`lastCheckTurn`, in-flight
+ * guards, pending notes) in MODULE-level maps keyed by session, so two tests sharing an id leak state into each
+ * other: the second one sees `lastCheckTurn = 8`, computes zero elapsed turns, and silently never checks. Learned
+ * by writing this file — two tests failed for exactly that reason, not for the behaviour they were asserting.
+ */
+let sessionCounter = 0;
+
+function buildExtension(options: {
+	driftReply: string;
+	hasCapturedWork?: boolean;
+	withSignals?: boolean;
+	onCall?: () => void;
+}) {
+	const driftCriticCaller = vi.fn(async () => {
+		options.onCall?.();
+		return options.driftReply;
+	});
+	sessionCounter += 1;
+	const extension = createKanbanContextFocusExtension(
+		`session-${sessionCounter}`,
+		"/workspaces/task-1",
+		"/repo",
+		200_000,
+		undefined, // twoPhasePickCaller
+		undefined, // resultHandleStore
+		driftCriticCaller as never,
+		undefined, // servingModel
+		undefined, // repoSummaryCaller
+		options.withSignals === false ? undefined : () => ({ hasCapturedWork: options.hasCapturedWork ?? false }),
+	);
+	return { extension, driftCriticCaller };
+}
+
+/** Let the critic's fire-and-forget promise chain settle — it is deliberately OFF the worker's critical path. */
+async function settle(): Promise<void> {
+	await new Promise((resolve) => setImmediate(resolve));
+	await new Promise((resolve) => setImmediate(resolve));
+}
+
+describe("F12.92 drift critic — the wire, end to end", () => {
+	beforeEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("does NOT consult the critic before the turn floor", async () => {
+		// A trajectory has to exist before it can be judged; checking at turn 1 would spend a model call on nothing.
+		const { extension, driftCriticCaller } = buildExtension({ driftReply: OFF_TRACK_REPLY });
+		await extension.hooks?.beforeModel?.(makeContext(1));
+		await settle();
+		expect(driftCriticCaller).not.toHaveBeenCalled();
+	});
+
+	it("consults the critic once the cadence is due", async () => {
+		const { extension, driftCriticCaller } = buildExtension({ driftReply: OFF_TRACK_REPLY });
+		await extension.hooks?.beforeModel?.(makeContext(8));
+		await settle();
+		expect(driftCriticCaller).toHaveBeenCalledTimes(1);
+	});
+
+	it("never blocks the worker on the critic — the call is fire-and-forget", async () => {
+		// The design contract: an OPTIONAL nudge may not tax every turn with a second model's latency. If
+		// `beforeModel` ever awaited the critic, this would hang for the pending duration instead of returning.
+		// Initialised to a no-op rather than null: TypeScript narrows a `| null` binding assigned only inside a
+		// promise callback down to `never`, which makes the later call a type error.
+		let release: () => void = () => undefined;
+		const slowCaller = vi.fn(
+			async () =>
+				await new Promise<string>((resolve) => {
+					release = () => resolve(OFF_TRACK_REPLY);
+				}),
+		);
+		const extension = createKanbanContextFocusExtension(
+			"session-slow",
+			"/workspaces/task-1",
+			"/repo",
+			200_000,
+			undefined,
+			undefined,
+			slowCaller as never,
+			undefined,
+			undefined,
+			() => ({ hasCapturedWork: false }),
+		);
+		await extension.hooks?.beforeModel?.(makeContext(8));
+		expect(slowCaller).toHaveBeenCalledTimes(1);
+		release();
+	});
+
+	it("an ON-TRACK verdict injects NOTHING on the following turn", async () => {
+		// A critic that always finds something trains the worker to ignore it, so silence is the correct output for
+		// a healthy run — and an unparseable reply must read as on-track rather than manufacture feedback.
+		const { extension } = buildExtension({ driftReply: ON_TRACK_REPLY });
+		await extension.hooks?.beforeModel?.(makeContext(8));
+		await settle();
+		const next = (await extension.hooks?.beforeModel?.(makeContext(9))) as
+			| { messages?: { metadata?: { kind?: string } }[] }
+			| undefined;
+		const injected = (next?.messages ?? []).some((message) => message.metadata?.kind === "kanban-drift-critic");
+		expect(injected).toBe(false);
+	});
+
+	it("an OFF-TRACK verdict becomes a worker nudge on the FOLLOWING turn, not this one", async () => {
+		// The two steps are deliberately ordered: inject what the PREVIOUS turn produced, then kick off the next
+		// check. A verdict therefore always lands one turn later — that ordering is the whole reason the critic can
+		// stay off the critical path.
+		//
+		// ASSERTED ON TEXT, NOT ON THE `kanban-drift-critic` METADATA MARKER, and that is a real behavioural fact
+		// rather than test convenience: the nudge is injected as a `user` message next to the task's own `user`
+		// turn, and `mergeConsecutiveSameRoleSdkMessages` at the hook's exit MERGES adjacent same-role messages to
+		// stop Mistral-family templates hard-500ing on non-alternating roles. The marker does not survive that
+		// merge — so any future check that looks for it would silently pass on an empty result.
+		const { extension } = buildExtension({ driftReply: OFF_TRACK_REPLY });
+		await extension.hooks?.beforeModel?.(makeContext(8));
+		await settle();
+		const next = (await extension.hooks?.beforeModel?.(makeContext(9))) as
+			| { messages?: { content?: unknown }[] }
+			| undefined;
+		expect(next?.messages, "the following turn produced no messages at all").toBeDefined();
+		expect(JSON.stringify(next?.messages ?? []), "the flagged verdict never reached the worker").toContain(
+			"Possible drift",
+		);
+	});
+
+	it("stays completely inert when no critic is injected (opt-in contract)", async () => {
+		// F12.92 is opt-in; with no caller the whole block must be byte-identical to not having it.
+		const extension = createKanbanContextFocusExtension("session-inert", "/workspaces/task-1", "/repo", 200_000);
+		await expect(extension.hooks?.beforeModel?.(makeContext(8))).resolves.not.toThrow();
+	});
+
+	it("tolerates a critic that throws — a failed nudge must never disturb the run", async () => {
+		const throwingCaller = vi.fn(async () => {
+			throw new Error("critic endpoint down");
+		});
+		const extension = createKanbanContextFocusExtension(
+			"session-throw",
+			"/workspaces/task-1",
+			"/repo",
+			200_000,
+			undefined,
+			undefined,
+			throwingCaller as never,
+			undefined,
+			undefined,
+			() => ({ hasCapturedWork: false }),
+		);
+		await expect(extension.hooks?.beforeModel?.(makeContext(8))).resolves.not.toThrow();
+		await settle();
+		expect(throwingCaller).toHaveBeenCalledTimes(1);
+	});
+
+	it("computes the off-track remedy WITHOUT the provider throwing the run (P18.4b observe-only)", async () => {
+		// The remedy is observation-only: it must never change what `beforeModel` returns. A card WITH captured work
+		// is the interesting case — that is the input that must steer the ladder toward park rather than restart.
+		const { extension } = buildExtension({ driftReply: OFF_TRACK_REPLY, hasCapturedWork: true });
+		await expect(extension.hooks?.beforeModel?.(makeContext(8))).resolves.not.toThrow();
+		await settle();
+	});
+
+	it("skips the remedy entirely when no signals provider is supplied", async () => {
+		// Without real signals the remedy is not computed at all, rather than computed from defaults — defaulting
+		// `hasCapturedWork` to false is precisely what would make the ladder prefer RESTART and discard a diff.
+		const { extension, driftCriticCaller } = buildExtension({
+			driftReply: OFF_TRACK_REPLY,
+			withSignals: false,
+		});
+		await expect(extension.hooks?.beforeModel?.(makeContext(8))).resolves.not.toThrow();
+		await settle();
+		expect(driftCriticCaller).toHaveBeenCalledTimes(1);
+	});
+});
