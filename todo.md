@@ -9353,8 +9353,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   verdict. That pair is the whole measurement P18.4 rests on: a derailed card and a merely-full one present the
   same symptom and need opposite remedies, so `(offTrack, utilisation)` is what makes the claim checkable on real
   runs rather than on paper — and it accumulates BEFORE any remedy is permitted to act.
-  **🔴 `decideOffTrackRemedy` is still NOT called, deliberately — two of its four signals do not exist at this
-  seam, and their natural defaults are the DANGEROUS ones:**
+  **✅ THE CORE IS NOW CALLED ON THE LIVE PATH 2026-07-30 — OBSERVE-ONLY.** The item's actual defect ("the LIVE
+  path never calls this at all") is closed. `offTrackSignalsProvider` threads service → runtime → extension as
+  one optional callback; when drift fires, `decideOffTrackRemedy` runs on real signals and the chosen remedy is
+  RECORDED as `off_track_remedy_observed` (registered mechanism, `exceptional`, gated by `NKLEIN_DRIFT_CRITIC`).
+  Undefined provider ⇒ byte-identical.
+  **Why a CALLBACK and not a request field:** `hasCapturedWork` flips PART-WAY through a session, the moment a
+  result branch is captured. A start-time snapshot would report `false` for exactly the cards that have work
+  worth preserving — and stale-false is the dangerous direction, because `false` is what makes the core prefer
+  RESTART (discarding the diff) over PARK.
+  **`restartsSoFar: 0` is TRUE today, not a placeholder:** it counts restarts performed by THIS remedy, and the
+  remedy has never run. **The acting half MUST introduce a real counter and increment it** — otherwise the
+  restart cap never binds, and unbounded restarting is the "loop that discards work while looking like progress"
+  P18.4 warned about.
+  **Still OBSERVE-ONLY on purpose** (F1.21 observe-before-enforce, same stance as the delivery-quality scan): both
+  remedies discard or freeze real work, so an LLM drift critic's false-positive rate must be visible on real runs
+  before it may act.
+  **⚠️ HONEST COVERAGE GAP FOUND WHILE DOING THIS: the drift-critic path has NO integration test AT ALL** — no
+  test anywhere drives `driftCriticCaller` through the extension, so neither F12.92's detection nor this wire is
+  exercised end-to-end. The decision core has 10 tests and the wire typechecks, but "it is registered and the
+  audit will notice silence" is the only live-fire detector today, and it cannot fire on a healthy sim run since
+  the mechanism is `exceptional`. **Follow-up: build a focus-extension test harness** — it would serve the whole
+  drift path, not just this, and that path is currently untested.
+  ── the original blocker, kept for the record; both signals are now sourced properly ──
+  **Two of its four signals did not exist at this seam, and their natural defaults are the DANGEROUS ones:**
     · `hasCapturedWork` — no result-branch/diff signal reaches the focus extension. Defaulting it `false` is
       exactly what makes the core choose **RESTART over PARK**, discarding a salvageable diff. That is the bound
       P18.4 called out as the whole reason park exists.

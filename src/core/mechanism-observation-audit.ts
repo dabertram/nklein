@@ -251,6 +251,20 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	{
+		// P18.4b 2026-07-30: the OBSERVE half of the off-track remedy. Registered with its wire, per the lesson from
+		// P18.3b — an unregistered mechanism cannot report that it never ran.
+		//
+		// `exceptional`: it fires only when the drift critic (itself opt-in, NKLEIN_DRIFT_CRITIC) FLAGS a card. A
+		// healthy run legitimately never emits this, so `every_run` would fail a cell for the system working.
+		category: "off_track_remedy_observed",
+		item: "P18.4b",
+		observes:
+			"the remedy the off-track ladder WOULD choose for a drifting card (continue / compact / restart / park), recorded without being applied",
+		enabledBy: "NKLEIN_DRIFT_CRITIC",
+		expectation: "exceptional",
+		addedOn: Date.UTC(2026, 6, 30),
+	},
+	{
 		// P18.3b 2026-07-30: registered AT THE MOMENT ITS WIRE LANDED, which is the point of the item's instruction
 		// to "verify with `dev mechanism-registry` after wiring, not by inspection". The pure core had no consumer
 		// and no registry entry, so nothing could have reported that it never ran — the `enabled_but_silent` shape

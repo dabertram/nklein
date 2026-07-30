@@ -2518,6 +2518,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						this.sessionRuntime.startTaskSession({
 							taskId: request.taskId,
 							cwd: agentPerceivedCwd,
+							// P18.4b: read LIVE at drift-check time, never sampled at start. A result branch is captured
+							// PART-WAY through a session, so a start-time snapshot would report `false` for exactly the
+							// cards that have work worth preserving — and stale-false is the dangerous direction, since
+							// it is what makes the remedy prefer RESTART (discarding the diff) over PARK.
+							offTrackSignalsProvider: () => ({
+								hasCapturedWork: this.sandboxState.getResultBranch(request.taskId) !== null,
+							}),
 							// Always hand the runtime a host workspace root so the trusted control-plane decomposition
 							// tools resolve plan artifacts + board mutations to the host owning workspace, never to the
 							// container workdir (agentPerceivedCwd points inside the sandbox volume when isolation is active).

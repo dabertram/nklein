@@ -988,6 +988,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 							undefined,
 							{ providerId: request.providerId, modelId: request.modelId },
 							repoSummaryCaller,
+							// P18.4b: live off-track signals, read at drift-check time. Undefined keeps the extension
+							// byte-identical (it records drift and computes no remedy).
+							request.offTrackSignalsProvider,
 						),
 					],
 					...(request.userInstructionService ? { userInstructionService: request.userInstructionService } : {}),

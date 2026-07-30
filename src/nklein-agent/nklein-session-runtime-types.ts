@@ -107,6 +107,16 @@ export interface StartNKleinSessionRuntimeRequest {
 	role?: RuntimeModelPerformanceRole;
 	/** F4.15: difficulty-modulated active-skill policy applied at every chat-completion request in this session. */
 	skillApiProfile?: SkillApiProfile;
+	/**
+	 * P18.4b — LIVE off-track signals, read at drift-check time rather than passed as a snapshot.
+	 *
+	 * It must be a callback: `hasCapturedWork` flips DURING a session (the moment a result branch is captured), so a
+	 * value sampled at start would be stale exactly when it matters — and stale-false is the dangerous direction,
+	 * since that is what makes the remedy prefer RESTART (discarding a diff) over PARK.
+	 *
+	 * Undefined ⇒ the extension records drift as before and computes no remedy, so omitting it is byte-identical.
+	 */
+	offTrackSignalsProvider?: () => { readonly hasCapturedWork: boolean };
 	/** F3.3: correlates a successful prompt-variation recovery with the task's terminal attempt ledger entry. */
 	onPromptStrategyApplied?: (strategy: string) => void;
 	/** F3.10: learned retry budget/profile snapshot used by the shared swarm adaptive loop. */

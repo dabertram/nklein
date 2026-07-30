@@ -17,6 +17,7 @@ import { estimateTextTokens } from "../core/eval-context-footprint";
 import type { FocusChain } from "../core/focus-chain";
 import { isNightlyHermeticEnvironment, NIGHTLY_HERMETIC_EPOCH_MS } from "../core/nightly-hermeticity";
 import { mergeConsecutiveSameRoleSdkMessages } from "../core/normalize-system-first";
+import { decideOffTrackRemedy } from "../core/off-track-intervention";
 import { assessProgressStall, type TurnProgressRecord } from "../core/progress-stall-detector";
 import {
 	assessWriteGrounding,
@@ -242,6 +243,8 @@ export function createKanbanContextFocusExtension(
 	servingModel?: { readonly providerId?: string | null; readonly modelId?: string | null },
 	// F11.2l local summary refresh. Undefined still serves an already-persisted artifact, but performs no inference.
 	repoSummaryCaller?: RepoSummaryModelCaller,
+	// P18.4b: reads LIVE off-track signals when drift fires. Undefined ⇒ no remedy is computed (byte-identical).
+	offTrackSignalsProvider?: () => { readonly hasCapturedWork: boolean },
 ): NKleinSdkRuntimeExtension {
 	const nightlyHermetic = isNightlyHermeticEnvironment();
 	const operationalNow = nightlyHermetic ? () => NIGHTLY_HERMETIC_EPOCH_MS : Date.now;
@@ -508,6 +511,39 @@ export function createKanbanContextFocusExtension(
 												: {}),
 										},
 									});
+									// P18.4b — compute the remedy the ladder WOULD choose, and record it. OBSERVE-ONLY,
+									// mirroring the F1.21 observe-before-enforce stance used by the delivery-quality scan:
+									// the remedies are restart and park, both of which discard or freeze real work, so the
+									// false-positive rate of an LLM drift critic must be visible on real runs BEFORE it is
+									// allowed to act. Recording it also closes the actual defect this item names — that the
+									// live path never called the core at all — while leaving the acting half a deliberate,
+									// separately-reviewable change.
+									const offTrackSignals = offTrackSignalsProvider?.();
+									if (offTrackSignals && driftUtilisation !== null) {
+										const remedy = decideOffTrackRemedy({
+											onTrack: false,
+											contextUtilisation: driftUtilisation,
+											hasCapturedWork: offTrackSignals.hasCapturedWork,
+											// TRUE today, not a placeholder: `restartsSoFar` counts restarts performed by
+											// THIS remedy, and the remedy has never run — it is observe-only. The acting
+											// half must introduce a real counter and increment it, or the restart cap
+											// (which exists because unbounded restarting "discards work while looking like
+											// progress") would never bind.
+											restartsSoFar: 0,
+										});
+										recordSelfObservation({
+											signal: "custom",
+											severity: "info",
+											message: `Off-track remedy (observed, not applied) at turn ${driftTurn}: ${remedy.remedy} — ${remedy.reason}`,
+											metadata: {
+												category: "off_track_remedy_observed",
+												remedy: remedy.remedy,
+												turn: driftTurn,
+												contextUtilisation: driftUtilisation.toFixed(3),
+												hasCapturedWork: String(offTrackSignals.hasCapturedWork),
+											},
+										});
+									}
 								} else {
 									recordSelfObservation({
 										signal: "custom",
