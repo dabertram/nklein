@@ -10187,9 +10187,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   scanner that has a documented bypass history. Publisher allow-listing and a pinned revision hash on top.
 
 - [ ] **P25.3 — PHASED PLAN (each phase independently useful; stop after any one).**
-  1. **Sizing core (pure, no network).** `estimateModelResidency({paramB, quant, contextTokens})` → RAM estimate
-     INCLUDING KV cache, plus a fit verdict against a declared budget. Testable now, and it is the piece every
-     later phase depends on. Pairs with **P17.7**'s RAM/disk budget settings, which David already asked for.
+  1. ✅ **Sizing core — SHIPPED 2026-07-31.** `model-residency-sizing.ts` + `nklein dev model-fit`, 12 tests.
+     Weights + **KV cache** + overhead, with a `fits`/`tight`/`exceeds` verdict against a declared budget.
+     **The KV half is the entire point, and the tool proved it on the first real run:** an 8B Q4 model at our 32k
+     floor needs 3.73 GiB of weights and **4.00 GiB of KV** — so a weights-only estimate under-reports by more
+     than half, and would keep picking models that fit on paper and then swap (the m4mini 14B crash).
+     Honesty properties: the estimate is labelled `declared_architecture` vs `anchored_heuristic`, and the
+     heuristic **assumes NO grouped-query attention**, which OVER-states KV by 4-8×. Over-stating is the
+     fail-safe direction — wrong-high passes on a model that would have fit, wrong-low wedges a host. `tight` is
+     a verdict of its own rather than folded into `fits`, because a bare fit invites loading and leaves nothing
+     for concurrent work. The anchor test checks KV against Llama-3-8B's PUBLISHED architecture (32 layers,
+     8 KV heads, head-dim 128 → exactly 4 GiB at 32k), so the arithmetic is validated against something outside
+     itself rather than merely being self-consistent.
+     Budget precedence reuses `NKLEIN_DEVICE_RAM_GB` — the same variable the existing machine-aware loader gates
+     on, so one declaration governs both — and reports total physical RAM as the weak fallback it is.
+     Still pairs with **P17.7**'s budget settings; this is the arithmetic those settings would drive.
   2. **Landscape query (network, read-only, operator-triggered).** `dev model-landscape` → HF Hub query, ranked by
      trending + fit against THIS host's budget. Read-only and prints a table: no downloads, no side effects. This
      alone answers "what should I be running?" and is the cheapest real value in the phase.

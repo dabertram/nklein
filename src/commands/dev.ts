@@ -49,6 +49,7 @@ import { runDevInterventionsCommand } from "./dev-interventions-command";
 import { runDevLedgerHealthCommand } from "./dev-ledger-health-command";
 import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
 import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
+import { runDevModelFitCommand } from "./dev-model-fit-command";
 import { runDevNightlyCommand } from "./dev-nightly-command";
 import { runDevOffTrackCommand } from "./dev-off-track-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
@@ -904,6 +905,20 @@ export function registerDevCommand(program: Command): void {
 		.option("--out <path>", "Output path (default docs/dev/mechanism-registry.md).")
 		.action(async (options: { out?: string }) => {
 			await runDevMechanismDocCommand(options);
+		});
+
+	dev.command("model-fit")
+		.description("P25.3: will a model fit this machine at the context we serve? (weights + KV cache + overhead)")
+		.option("--params <b>", "Parameter count in billions (default 8).")
+		.option("--quant <bits>", "Bits per weight: 4, 8, 16 (default 4).")
+		.option("--context <tokens>", "Served context length (default 32768).")
+		.option("--budget-gb <gb>", "RAM budget; else NKLEIN_DEVICE_RAM_GB, else total physical RAM.")
+		.option("--layers <n>", "Declared layer count (all three arch flags required for an exact KV figure).")
+		.option("--kv-heads <n>", "Declared key/value head count.")
+		.option("--head-dim <n>", "Declared head dimension.")
+		.option("--json", "Print machine-readable JSON.")
+		.action((options: Parameters<typeof runDevModelFitCommand>[0]) => {
+			runDevModelFitCommand(options);
 		});
 
 	dev.command("prefill-cost")
