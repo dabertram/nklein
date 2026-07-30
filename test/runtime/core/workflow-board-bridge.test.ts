@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeBoardColumnId } from "../../../src/core/runtime-config-api-contract";
 import { workflowPhaseToBoardColumn } from "../../../src/core/workflow-board-bridge";
-import type { WorkflowPhase } from "../../../src/core/workflow-kernel";
+import {
+	classifyWorkflowPhase,
+	isLiveWorkflowPhase,
+	isTerminalWorkflowPhase,
+	type WorkflowPhase,
+} from "../../../src/core/workflow-kernel";
 
 const EXPECTED: Record<WorkflowPhase, RuntimeBoardColumnId> = {
 	idle: "backlog",
@@ -48,5 +53,61 @@ describe("workflowPhaseToBoardColumn", () => {
 		expect(workflowPhaseToBoardColumn("completed")).toBe("completed");
 		expect(workflowPhaseToBoardColumn("cancelled")).toBe("trash");
 		expect(workflowPhaseToBoardColumn("failed")).toBe("in_progress");
+	});
+});
+
+/**
+ * P24.1 — CROSS-INVARIANTS between the kernel's classification and this projection.
+ *
+ * The table above is example-based: it asserts each mapping is what someone wrote down, which is true by
+ * construction and cannot catch a mapping that is internally INCONSISTENT with what the phase means. That is the
+ * method that let six liveness defects through, so these check the relationship instead of the entries.
+ *
+ * `EXPECTED` is reused deliberately as the phase enumeration: `Record<WorkflowPhase, …>` is exhaustive by type,
+ * so a newly added phase fails to compile here until it is both mapped AND classified.
+ */
+describe("phase classification agrees with the board projection", () => {
+	const ALL_PHASES = Object.keys(EXPECTED) as WorkflowPhase[];
+
+	it("NO live phase surfaces in a terminal column — the ghost-session class, pinned", () => {
+		// THE v14 DEFECT, stated structurally: a session was live (`awaiting_review`) while its card sat in the
+		// `completed` lane. The board said done, the runtime kept driving it, and the two disagreeing produced a
+		// livelock that took a real drain down. A card the runtime still owes work to must never READ as settled.
+		for (const phase of ALL_PHASES.filter(isLiveWorkflowPhase)) {
+			const column = workflowPhaseToBoardColumn(phase);
+			expect(
+				["completed", "trash"].includes(column),
+				`${phase} is live but surfaces in "${column}" — the board would show it settled while work continues`,
+			).toBe(false);
+		}
+	});
+
+	it("a card reads as COMPLETED only when it genuinely is", () => {
+		// The converse direction. If any non-completed phase projected to the completed column, delivery could be
+		// re-driven against an already-delivered branch (and `reopened` deliberately refuses to reopen `completed`,
+		// so such a card would also be unrecoverable).
+		for (const phase of ALL_PHASES) {
+			expect(workflowPhaseToBoardColumn(phase) === "completed", `${phase} projects to the completed column`).toBe(
+				phase === "completed",
+			);
+		}
+	});
+
+	it("documents the ONE deliberate divergence: a failed card is parked where the work was", () => {
+		// `failed` is terminal to the kernel but shows in `in_progress`, because the operator needs to SEE it rather
+		// than have it vanish into trash (§5.AG marks it stuck/risky). Left unstated this looks exactly like the
+		// classification/projection drift the tests above forbid, so it is pinned as intentional — and it is safe
+		// precisely because `failed` is NOT live, so no scheduler will re-drive it off the lane alone.
+		expect(isTerminalWorkflowPhase("failed")).toBe(true);
+		expect(isLiveWorkflowPhase("failed")).toBe(false);
+		expect(workflowPhaseToBoardColumn("failed")).toBe("in_progress");
+	});
+
+	it("every waiting-for-capacity phase surfaces as pre-implementation, never as in-progress work", () => {
+		// A card queued behind host capacity is not "in progress" — showing it there is what makes an operator (or a
+		// staleness monitor) conclude a worker is hung when nothing has started yet.
+		for (const phase of ALL_PHASES.filter((candidate) => classifyWorkflowPhase(candidate) === "waiting_capacity")) {
+			expect(workflowPhaseToBoardColumn(phase), `${phase} should surface as pre-implementation`).toBe("planning");
+		}
 	});
 });

@@ -8928,8 +8928,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   two-hour dead-board hang earlier today (reverted `cc2fbc340`). Current behaviour is pinned by tests so the
   resolution has to be deliberate enough to trip them. **This is the value being argued for, demonstrated: a
   latent resource-leak class found by enumeration in a module that has never run, instead of by a stack dump.**
-  **NEXT:** step 1 (one writer) remains the real work; step 2 can now begin migrating consumers onto
-  `isLiveWorkflowPhase` once phase is actually available at those call sites.
+  **▶ STEP 2 GROUNDWORK LANDED 2026-07-30 — and it answered "is migration even safe?" with evidence.**
+  Two pure test files, no production change:
+  (a) `workflow-board-bridge.test.ts` gained CROSS-INVARIANTS tying the classification to the board projection.
+      The headline one is the **v14 ghost-session class stated structurally**: *no live phase may surface in a
+      terminal column*, plus its converse (*a card reads as `completed` only when it genuinely is*). The one
+      deliberate divergence — `failed` is terminal but parks in `in_progress` so an operator can see it — is now
+      pinned as intentional, and is safe precisely because `failed` is not live.
+  (b) `workflow-phase-session-agreement.test.ts` — the SHADOW-MODE comparison, run as pure logic instead of
+      risky shadow wiring. It writes down the natural session-state → phase correspondence and checks the two
+      models agree. **They agree on liveness for all 7 session states**, which is what makes migrating consumers
+      onto `isLiveWorkflowPhase` a mechanical change rather than a semantic gamble.
+  **◆ AND IT FOUND A SECOND GAP — NEEDS DAVID (batched below).** The session model separates
+  `isBusySessionState` ("occupies a slot") from `isActiveWorkSessionState` ("work unfinished"), and `paused` is
+  the state that separates them: a paused card holds NO capacity but is not done. **The kernel has no `paused`
+  phase** — a paused card keeps `implementing`, which classifies as `running`. Liveness is unaffected (both call
+  it alive, which is why the agreement test passes), but a capacity consumer reading `running` as "holds a slot"
+  would OVER-COUNT a paused card and could starve the host — the v9 wedge family, from the opposite direction.
+  **⇒ `isLiveWorkflowPhase` is safe to migrate onto today. `classifyWorkflowPhase` is NOT yet a safe basis for
+  admission or occupancy accounting.** Fix is a kernel design choice (add a `paused` phase, or split `running`
+  into holds-capacity / work-unfinished) — recorded, not guessed. Gap pinned by a test so closing it is
+  deliberate.
+  **NEXT:** step 1 (one writer) remains the real work. Step 2 may now migrate LIVENESS consumers onto
+  `isLiveWorkflowPhase` — but only once phase is available at those call sites, which is step 1 again; and it
+  must stay off capacity decisions until the `paused` gap is closed.
 
 
 - [ ] **P17.6 — KV-CACHE PERSISTENCE ACROSS MODEL UNLOAD (David's idea, 2026-07-30; RESEARCH DONE — the gap is
