@@ -7,8 +7,12 @@ import {
 	fitnessKnowledgeUseRate,
 	fitnessRowSchema,
 	fitnessSuccessRate,
+	mergeFitnessRows,
 	recordFitnessOutcome,
 } from "../../../src/core/fitness-table-schema";
+
+/** The cell every depth test folds into — one key, so only depth behaviour varies. */
+const KEY = { modelKey: "m", role: "worker", difficultyTier: "medium" } as const;
 
 describe("fitnessRowSchema", () => {
 	it("parses a full row", () => {
@@ -161,5 +165,49 @@ describe("knowledge tallies (F1.1)", () => {
 
 	it("reports a null knowledge-use rate when no attempt answered either way", () => {
 		expect(fitnessKnowledgeUseRate(emptyFitnessRow(key))).toBeNull();
+	});
+});
+
+describe("P22.2 — depth-aware fitness evidence", () => {
+	it("files an attempt under the depth it was MEASURED at, not the loaded window", () => {
+		// The whole point: a model with a 32k window measured on a card that used 2k produced SHALLOW evidence,
+		// and shallow evidence does not predict deep-card behaviour, which is where failures are expensive.
+		const shallow = recordFitnessOutcome(emptyFitnessRow(KEY), { success: true, usedContextTokens: 2_000 });
+		expect(shallow.depthSamples).toEqual({ shallow: 1, medium: 0, deep: 0 });
+
+		const deep = recordFitnessOutcome(emptyFitnessRow(KEY), { success: true, usedContextTokens: 40_000 });
+		expect(deep.depthSamples).toEqual({ shallow: 0, medium: 0, deep: 1 });
+	});
+
+	it("advances NOTHING when the attempt did not report its context size", () => {
+		// Filing an unreported attempt as `shallow` would MANUFACTURE shallow evidence — the same "absent evidence
+		// read as evidence" error the depth work exists to prevent. Depth-unknown must stay unknown.
+		const row = recordFitnessOutcome(emptyFitnessRow(KEY), { success: true });
+		expect(row.depthSamples).toEqual({ shallow: 0, medium: 0, deep: 0 });
+		expect(row.sampleCount, "the attempt still counts as an attempt").toBe(1);
+	});
+
+	it("accumulates a DISTRIBUTION across attempts rather than a single bucket", () => {
+		// A cell legitimately gathers evidence at several depths; which depths is the thing worth knowing.
+		let row = emptyFitnessRow(KEY);
+		for (const tokens of [1_000, 8_000, 20_000, 30_000]) {
+			row = recordFitnessOutcome(row, { success: true, usedContextTokens: tokens });
+		}
+		expect(row.depthSamples).toEqual({ shallow: 1, medium: 1, deep: 2 });
+	});
+
+	it("SUMS depth counters when two cells merge", () => {
+		// Merging combines evidence, so it must combine depth evidence too. Taking one side would discard half the
+		// depth signal while keeping the full sample count — a row that looks better-sampled than it is.
+		const left = { ...emptyFitnessRow(KEY), sampleCount: 2, depthSamples: { shallow: 2, medium: 0, deep: 0 } };
+		const right = { ...emptyFitnessRow(KEY), sampleCount: 3, depthSamples: { shallow: 0, medium: 1, deep: 2 } };
+		expect(mergeFitnessRows(left, right).depthSamples).toEqual({ shallow: 2, medium: 1, deep: 2 });
+	});
+
+	it("parses a legacy row that predates depth tracking as all-zero", () => {
+		// Every stored row today lacks the field. All-zero is the honest reading — evidence gathered before depth
+		// was recorded is depth-UNKNOWN, not depth-shallow.
+		const legacy = fitnessRowSchema.parse({ modelKey: "m", role: "worker", difficultyTier: "medium" });
+		expect(legacy.depthSamples).toEqual({ shallow: 0, medium: 0, deep: 0 });
 	});
 });

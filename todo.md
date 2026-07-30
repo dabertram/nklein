@@ -10340,6 +10340,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   on short cards may be far worse on the deep ones — and deep cards are where failures are expensive. Add a
   context-depth dimension to the fitness fingerprint (it already carries context window + quant), and record
   observations at the depth they were taken.
+  **▶ STORE SIDE LANDED 2026-07-31 — the table can now HOLD depth evidence; the remaining gap is upstream.**
+  · `FitnessRow.depthSamples {shallow, medium, deep}` — counters, not a single bucket, because a cell legitimately
+    accumulates evidence across depths and the DISTRIBUTION is what matters. Additive with a zod default, so every
+    stored row parses unchanged and reads all-zero.
+  · `recordFitnessOutcome` files an attempt via `classifyContextDepth(usedContextTokens)`. **An attempt that does
+    not report its context size advances NOTHING** — filing it as `shallow` would manufacture shallow evidence,
+    the same absent-evidence-as-evidence error the depth work exists to prevent. All-zero means depth-UNKNOWN.
+  · `mergeFitnessRows` SUMS the counters; taking one side would discard half the depth signal while keeping the
+    full sample count, producing a row that looks better-sampled than it is. 6 tests.
+  **🔴 THE REMAINING GAP, and it is not a field — it is WHERE THE EVIDENCE COMES FROM.** Both live callers of
+  `recordTaskFitnessOutcome` (`runtime-server.ts`, `runtime-api.ts`) fold **EVAL cells**, and
+  `ModelEvalCellSummary` carries runs/passes/quality/latency/retries and **no context-usage field at all**. So
+  nothing can populate depth today without inventing it. **⇒ !Klein's fitness store is EVAL-FED, which means
+  "measure at depth" is not a store change at all — it requires the EVAL HARNESS to run cards at depth and to
+  propagate prompt tokens into the cell summary.** That reframes the item: the store is ready and correct; the
+  work is in the eval pipeline.
+  **Also still true (the ORIGINAL orphan):** `classifyContextDepth`, `fitnessDepthMismatch` and the fingerprint's
+  `contextDepthBucket` had ZERO consumers before today — a complete depth apparatus that never ran. The
+  classifier now has one; `fitnessDepthMismatch` still has none, and only becomes useful once cells carry real
+  depth counts, i.e. after the eval-side work above.
 - [x] **P22.3 — Correct the MoE assumptions in `inference-lever-planning.ts` and the roster notes.** Three
   corrections, all measured: **(a)** the naive roofline (bandwidth ÷ active-param bytes) is **optimistic by ~2×
   for MoE** — MoE realizes 45–79% of ceiling vs dense at 79–88%, and efficiency FALLS as the active fraction

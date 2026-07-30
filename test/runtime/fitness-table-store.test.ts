@@ -22,6 +22,7 @@ const row = (over: Partial<FitnessRow> = {}): FitnessRow => ({
 	modelKey: "prov:coder:default",
 	role: "worker",
 	difficultyTier: "medium",
+	depthSamples: { shallow: 0, medium: 0, deep: 0 },
 	sampleCount: 4,
 	successCount: 3,
 	retryBudget: 2,

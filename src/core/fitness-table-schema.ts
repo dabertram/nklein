@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod";
+import { classifyContextDepth } from "./model-fitness-freshness";
 
 /** Difficulty tiers — kept in lock-step with §5.AB `estimateTaskDifficulty`. */
 export const fitnessDifficultyTierSchema = z.enum(["easy", "medium", "hard"]);
@@ -48,6 +49,24 @@ export const fitnessRowSchema = fitnessKeySchema.extend({
 	knowledgeUseCount: z.number().int().nonnegative().default(0),
 	/** F1.1 — attempts KNOWN to have skipped knowledge tools ("unknown" attempts advance neither count). */
 	knowledgeSkipCount: z.number().int().nonnegative().default(0),
+	/**
+	 * P22.2 — how many of this cell's attempts were measured at each CONTEXT DEPTH.
+	 *
+	 * Every fitness number was previously a depth-blind average. A model that ranks well on shallow cards can be
+	 * far worse on deep ones, and deep cards are where failures are expensive — so a cell whose evidence is
+	 * entirely shallow must not read as evidence for a deep card. Counters rather than a single bucket, because a
+	 * cell legitimately accumulates evidence across depths and the DISTRIBUTION is the thing worth knowing.
+	 *
+	 * Additive with a default, so every existing row parses unchanged and reads as all-zero — i.e. depth-unknown,
+	 * which is the honest description of evidence gathered before this was recorded.
+	 */
+	depthSamples: z
+		.object({
+			shallow: z.number().int().nonnegative().default(0),
+			medium: z.number().int().nonnegative().default(0),
+			deep: z.number().int().nonnegative().default(0),
+		})
+		.default({ shallow: 0, medium: 0, deep: 0 }),
 	/** Last-updated timestamp (ms), or null. */
 	updatedAt: z.number().nullable().default(null),
 });
@@ -125,6 +144,13 @@ export interface FitnessOutcome {
 	tokensPerSec?: number | null;
 	/** F1.1 — whether the attempt consulted knowledge tools; null/undefined = unknown (advances neither tally). */
 	usedKnowledgeTools?: boolean | null;
+	/**
+	 * P22.2 — context tokens this attempt actually USED, which is not the loaded window. An attempt on a model
+	 * with a 32k window that only consumed 2k is a SHALLOW measurement. null/undefined advances no depth counter,
+	 * so an unreported attempt stays depth-unknown rather than being silently filed as shallow — filing it as
+	 * shallow would be the same "absent evidence read as evidence" error the depth work exists to prevent.
+	 */
+	usedContextTokens?: number | null;
 }
 
 /**
@@ -172,10 +198,17 @@ export function recordFitnessOutcome(row: FitnessRow, outcome: FitnessOutcome, n
 	const tps = foldMean(row.tokensPerSec, row.tokensPerSecSamples, outcome.tokensPerSec);
 	const knowledgeUseCount = row.knowledgeUseCount + (outcome.usedKnowledgeTools === true ? 1 : 0);
 	const knowledgeSkipCount = row.knowledgeSkipCount + (outcome.usedKnowledgeTools === false ? 1 : 0);
+	// P22.2: file this attempt under the depth it was actually measured at. An unreported context size advances
+	// NOTHING — a depth-unknown attempt must not be filed as shallow, which would manufacture shallow evidence.
+	const depthSamples = { ...row.depthSamples };
+	if (typeof outcome.usedContextTokens === "number" && Number.isFinite(outcome.usedContextTokens)) {
+		depthSamples[classifyContextDepth(outcome.usedContextTokens)] += 1;
+	}
 	return {
 		...row,
 		knowledgeUseCount,
 		knowledgeSkipCount,
+		depthSamples,
 		sampleCount: priorCount + 1,
 		successCount: row.successCount + (outcome.success ? 1 : 0),
 		failureModes,
@@ -223,10 +256,18 @@ export function mergeFitnessRows(left: FitnessRow, right: FitnessRow): FitnessRo
 		right.meanWallTimeSamples,
 	);
 	const tps = mergeMean(left.tokensPerSec, left.tokensPerSecSamples, right.tokensPerSec, right.tokensPerSecSamples);
+	// P22.2: depth counters SUM — merging two cells combines their evidence, so their depth distributions combine
+	// too. Taking one side would silently discard half the depth evidence while keeping its sample count.
+	const depthSamples = {
+		shallow: left.depthSamples.shallow + right.depthSamples.shallow,
+		medium: left.depthSamples.medium + right.depthSamples.medium,
+		deep: left.depthSamples.deep + right.depthSamples.deep,
+	};
 	return {
 		modelKey: left.modelKey,
 		role: left.role,
 		difficultyTier: left.difficultyTier,
+		depthSamples,
 		sampleCount: left.sampleCount + right.sampleCount,
 		successCount: left.successCount + right.successCount,
 		retryBudget: Math.max(left.retryBudget, right.retryBudget),
@@ -248,6 +289,7 @@ export function mergeFitnessRows(left: FitnessRow, right: FitnessRow): FitnessRo
 export function emptyFitnessRow(key: FitnessKey): FitnessRow {
 	return {
 		...key,
+		depthSamples: { shallow: 0, medium: 0, deep: 0 },
 		sampleCount: 0,
 		successCount: 0,
 		retryBudget: 0,

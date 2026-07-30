@@ -82,6 +82,7 @@ describe("P20.5b — the discipline has a LIVE consumer", () => {
 				modelKey: "qwen3-14b",
 				role: "worker",
 				difficultyTier: "medium",
+				depthSamples: { shallow: 0, medium: 0, deep: 0 },
 				sampleCount: 4,
 				successCount: 3,
 				retryBudget: 2,
