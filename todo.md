@@ -10073,14 +10073,40 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **CONCLUSION: no !Klein path returns NOTHING of the agent's produced work on timeout.** The chat loop forces a
   final answer, the sandbox/task path salvages captured work into review, and the mid-turn abort routes through
   that same salvage. Goose's total-loss failure mode does not exist here.
-- [ ] **P21.8 — Starve the orchestrator of tools + summary-only subagent returns.** Roo Code and Kilo Code
+- [x] **P21.8 — Starve the orchestrator of tools + summary-only subagent returns. ASSESSED + CLOSED 2026-07-31:
+  absorbed where it applies; ONE PART DOES NOT TRANSFER, and adopting it would BREAK decompose.**
+  · **Tool starvation — ALREADY LIVE, not aspirational.** F12.18's `gateToolCatalog` caps the offered catalog at
+    `DEFAULT_TOOL_CAP = 7`, and `role-always-keep-tools.ts` gives the architect an `alwaysKeep` set of exactly
+    `["decompose_project"]` — the minimum that prevents a deadlocked turn. Verified WIRED (imported at
+    `nklein-context-focus-extension.ts:32`, emits `tool_catalog_gate_observation`) and verified FIRING: that
+    signal is one of the 19 promoted into a nightly `mustFire` pack from a green drain on 2026-07-30. So the
+    starvation is measured, not assumed.
+  · **Isolated subtask history + summary-as-source-of-truth — already the card model.** Each card is its own
+    session in its own sandbox with its own history, and its deliverable is a result branch/patch rather than a
+    transcript the parent inherits.
+  · **🔴 "The orchestrator deliberately CANNOT read files" — DOES NOT TRANSFER. Do not adopt it.** Roo's
+    orchestrator cannot read because it delegates *everything*; **!Klein's architect reads the SPEC itself** and
+    pages through long ones via `read_large_file` (the `continue_read` branch of the decomposition stall nudger
+    exists precisely for that workflow). Denying file reads to the architect role would not tighten it — it would
+    break decomposition outright on any spec that does not fit in the prompt. Recorded so a future session cannot
+    "adopt the pattern" and discover this the expensive way.
+  · P21.8's own note already observed the industry moved orchestration from a user-visible MODE into a
+    capability/policy LAYER, *"which is where !Klein already has it"* — this closes on that assessment with the
+    wiring evidence attached.
+  ── original research note, kept for traceability ── Roo Code and Kilo Code
   converged INDEPENDENTLY on this: subtasks run "in complete isolation with its own conversation history", do NOT
   inherit parent context, and return a **single `attempt_completion` summary that becomes the source of truth**;
   and Roo's orchestrator mode **deliberately cannot read files, write files, call MCPs, or run commands.** Both
   are ideal for keeping a planner inside small-model competence. Note Kilo has since **deprecated** its
   orchestrator mode — "there's no need for a dedicated orchestrator" — i.e. the industry moved orchestration from
   a user-visible MODE into a capability/policy LAYER, which is where !Klein already has it.
-- [ ] **P21.9 — Aggressive tool-catalog pruning has a measured payoff (strengthens F12.18).** arXiv 2607.08938:
+- [x] **P21.9 — Aggressive tool-catalog pruning has a measured payoff (strengthens F12.18). ALREADY ABSORBED —
+  verified + closed 2026-07-31.** The evidence this item supplies is already IN the code: the gate's header cites
+  the same finding (*"cutting an offered set from 40+ tools down to 7 fixed 62% of observed tool-use failures"*)
+  and `DEFAULT_TOOL_CAP` is **7**, explicitly chosen over the ~10 that "under the choice-paralysis threshold"
+  would suggest — exactly the correction this item asked for. Verified wired AND firing (see P21.8 above; the
+  signal is in a nightly `mustFire` pack). Nothing left to do. Original research note kept below.
+  arXiv 2607.08938:
   filtering tools **from 40+ down to 7** fixed **62% of tool-use failures**; detailed contexts fixed 81% of
   instruction failures and externalized domain knowledge 81% of knowledge failures; headline **"89.7% of LLM
   performance at 4% of the cost."** F12.18 (retrieval-gate the tool catalog to ≤~8 schemas) is already the right
