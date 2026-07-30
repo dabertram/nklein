@@ -3,6 +3,7 @@ import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { RuntimeNKleinMcpServer } from "../core/api-contract";
+import { resolveSecretReferences } from "../core/secret-reference-resolution";
 import type { SdkMcpServerRegistration } from "./sdk-provider-boundary";
 
 /**
@@ -26,6 +27,10 @@ export type SdkTransport = StdioClientTransport | AuthCapableTransport;
 /** Map a runtime MCP server config onto the SDK's registration shape (stdio carries command/args/cwd/env; else url/headers). */
 export function toMcpRegistration(server: RuntimeNKleinMcpServer): SdkMcpServerRegistration {
 	if (server.type === "stdio") {
+		// P21.13b — the SECOND spawn door. `registerServer` hands this straight to the SDK's own process launcher,
+		// so a reference left unresolved here would reach the child as the literal string "env://VAR". Both doors
+		// must resolve; wiring only `createTransport` would have left this one silently broken, which is the same
+		// one-of-two-doors mistake the sibling-branch merge guard hit earlier.
 		return {
 			name: server.name,
 			disabled: server.disabled,
@@ -34,7 +39,7 @@ export function toMcpRegistration(server: RuntimeNKleinMcpServer): SdkMcpServerR
 				command: server.command,
 				args: server.args,
 				cwd: server.cwd,
-				env: server.env,
+				env: server.env ? resolveSecretReferences(server.env, process.env).env : server.env,
 			},
 		};
 	}
@@ -60,11 +65,22 @@ export function createTransport(input: {
 	oauthProvider?: OAuthClientProvider;
 }): SdkTransport {
 	if (input.server.type === "stdio") {
+		// P21.13b — THE ONLY PLACE A SECRET VALUE MATERIALISES. Config stores `env://VAR`; it is resolved here,
+		// host-side, at spawn. So the value exists solely in the child process environment and never in settings
+		// on disk, a prompt, a log line, or anything the model can read. That makes leak-prevention a property of
+		// the data rather than a filter that must catch every serialisation site — and filters are exactly what
+		// this codebase has seen fail in both directions (a redaction pattern that ate 19 legitimate measurement
+		// keys because `token` is a substring of `inputTokens`).
+		//
+		// Unset or malformed references are DROPPED, never forwarded as their literal text: handing a child the
+		// string "env://OPENAI_API_KEY" turns a missing variable into a confusing upstream auth rejection instead
+		// of a plainly absent one.
+		const resolution = resolveSecretReferences(input.server.env, process.env);
 		return new StdioClientTransport({
 			command: input.server.command,
 			...(input.server.args ? { args: input.server.args } : {}),
 			...(input.server.cwd ? { cwd: input.server.cwd } : {}),
-			...(input.server.env ? { env: input.server.env } : {}),
+			...(input.server.env ? { env: resolution.env } : {}),
 			stderr: "ignore",
 		});
 	}

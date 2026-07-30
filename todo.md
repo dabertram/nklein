@@ -10090,13 +10090,37 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   so two agents can safely edit different functions in the same file. !Klein currently serializes on FILE overlap,
   which is strictly coarser. Honest limitation in their implementation: **all conflicts are warnings, not
   blocks.** Relevant to the F12.64 LSP-symbol-tools item — the same symbol index serves both.
-- [ ] **P21.13b — Secrets as REFERENCES resolved at container exec (split 2026-07-24).** Store `env://`-style
-  references in card/sandbox config, resolve them into the container environment ONLY at execution, so the model
-  never sees actual secret values and values are strippable from every log by construction (the reference is the
-  only thing that appears). Scope for !Klein today: the sandbox env plumbing (`RuntimeNKleinMcpServer.env`, task
-  env) accepts `env://VAR` references resolved host-side at spawn; the S2 fence redaction gains "resolved-secret
-  values never serialize into prompts/logs" as a tested invariant. Rides the S-track seams; coordinate with the
-  Phase 7S final audit pass.
+- [x] **P21.13b — Secrets as REFERENCES resolved at container exec (split 2026-07-24). SHIPPED 2026-07-31 —
+  `secret-reference-resolution.ts` + both MCP spawn doors, 21 tests.**
+  Config stores `env://VAR`; it is resolved host-side at spawn, so the value exists ONLY in the child process
+  environment — never in settings on disk, a prompt, a log line, or anything the model can read. **That converts
+  leak-prevention from a FILTER into a property of the data**, which matters concretely here: a filter is only as
+  good as its pattern, and this repo watched one fail in both directions the day before (the `token` substring
+  ate 19 legitimate measurement keys). Not writing the secret down cannot be defeated by a bad regex.
+  **Design decisions that carry the weight:**
+    · An UNSET or MALFORMED reference is **DROPPED, never forwarded as its literal text.** Handing a child
+      `"env://OPENAI_API_KEY"` turns a missing variable into a puzzling upstream auth rejection instead of a
+      plainly absent one; dropping it makes the failure diagnosable. Empty host values count as unset — an empty
+      string is not a usable credential.
+    · Reference targets must match the portable env-var name pattern, so a reference can never smuggle shell
+      syntax (`env://$(whoami)` is malformed, not executed) even if the value later reaches a shell.
+    · Literals pass through untouched, so adoption is incremental and an unconverted config keeps working.
+    · The only diagnostic, `describeSecretReferenceResolution`, is **value-free BY CONSTRUCTION** — names only. A
+      helper that returned the resolved map "just for debugging" would be undone by the first person to log it;
+      a test asserts a successful resolution's summary contains neither secret.
+  **⚠️ CAUGHT WHILE WIRING: there are TWO spawn doors, not one.** `createTransport` builds the stdio transport,
+  but `toMcpRegistration` hands its shape straight to the SDK's own process launcher via `registerServer`.
+  Resolving in only the first would have left the second silently passing `env://VAR` to the child — the same
+  one-of-N-doors mistake as the sibling-branch merge guard (creation + auto-merge + stage). Both now resolve, and
+  a test asserts the serialized registration contains no `env://` at all.
+  **REMAINING (small, and belongs with the Phase 7S audit pass):** the same treatment for the TASK env plumbing,
+  and an S2-fence invariant test asserting resolved values never serialize into prompts/logs. The MCP surface —
+  where third-party servers actually take credentials — is the one that mattered most and is done.
+- [ ] **P21.13b-followup — task-env references + the S2-fence serialization invariant *(split 2026-07-31)*.**
+  Extend `env://` resolution to the task/sandbox env plumbing, and add the tested invariant that a resolved
+  secret value never appears in a prompt or log. Coordinate with the Phase 7S final audit pass, as originally
+  scoped. Lower value than the MCP surface just shipped: task env is !Klein-authored, whereas MCP server configs
+  are where third-party credentials genuinely live.
 ### Phase 22 — ⚠️ Parameter count is a BAD capability proxy at agent depth (researched 2026-07-19; challenges live code)
 
 > **This phase exists because the research directly contradicts an assumption threaded through !Klein's routing.**

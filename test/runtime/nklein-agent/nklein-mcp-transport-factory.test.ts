@@ -82,3 +82,41 @@ describe("isAuthCapableTransport (§5.U extraction)", () => {
 		expect(isAuthCapableTransport(createTransport({ server: stdioServer }))).toBe(false);
 	});
 });
+
+describe("P21.13b — secret references resolve at BOTH spawn doors", () => {
+	/**
+	 * The mechanism only holds if EVERY path that launches a child resolves. `createTransport` and
+	 * `toMcpRegistration` are two independent doors — the latter hands its shape straight to the SDK's own process
+	 * launcher — so wiring one and not the other would leave a child receiving the literal string "env://VAR",
+	 * which fails as a confusing upstream auth rejection rather than as a missing variable.
+	 */
+	const referencing: RuntimeNKleinMcpServer = {
+		...stdioServer,
+		env: { OPENAI_API_KEY: "env://P21_13B_TEST_SECRET", LOG_LEVEL: "debug" },
+	};
+
+	it("resolves through toMcpRegistration (the SDK-launcher door)", () => {
+		process.env.P21_13B_TEST_SECRET = "sk-live-from-host";
+		try {
+			const registration = toMcpRegistration(referencing) as { transport: { env?: Record<string, string> } };
+			expect(registration.transport.env?.OPENAI_API_KEY).toBe("sk-live-from-host");
+			// Literals still pass through untouched, so adoption stays incremental.
+			expect(registration.transport.env?.LOG_LEVEL).toBe("debug");
+		} finally {
+			delete process.env.P21_13B_TEST_SECRET;
+		}
+	});
+
+	it("DROPS an unset reference at that door rather than forwarding literal text", () => {
+		delete process.env.P21_13B_TEST_SECRET;
+		const registration = toMcpRegistration(referencing) as { transport: { env?: Record<string, string> } };
+		expect(registration.transport.env?.OPENAI_API_KEY).toBeUndefined();
+		// The decisive assertion: the child must never see a credential-shaped placeholder.
+		expect(JSON.stringify(registration)).not.toContain("env://");
+	});
+
+	it("leaves a server without env exactly as it was", () => {
+		const registration = toMcpRegistration(stdioServer) as { transport: { env?: Record<string, string> } };
+		expect(registration.transport.env).toEqual(stdioServer.env);
+	});
+});
