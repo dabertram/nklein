@@ -9867,7 +9867,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   headline row. 3 tests. So the edit-format signal is no longer buried across per-tool rows. **BUT it has NO real
   data yet** — see the drain finding below: none of the three real drains produced an actual edit-tool call, so
   every real edit-reliability row is currently `n/a`. The metric is READY; it needs drains that actually EDIT.
-- [ ] **P21.2 — Tool-call FORMAT negotiation per model (the canonical local-model harness bug).** Cline issue
+- [x] **P21.2 — Tool-call FORMAT negotiation per model. CLOSED 2026-07-31: designed out, then LIVE-VERIFIED; the
+  residual is a conditional diagnostic, not an open task.** The parser recovers a tool call in three tiers, the
+  fleet cross-check confirmed the Cline-class failure absent on the coder models, and the only thing left is a
+  one-shot check to run **IF a specific model ever looks suspect** — a symptom that has not appeared. An item
+  whose remaining work is conditional on an unobserved trigger is a documented recipe, not a queue entry; the
+  recipe stays below so it can be run the moment something does look suspect. Cline issue
   #10843: Qwen2.5-Coder-32B emits **correct JSON** tool calls; Cline's streaming parser only recognizes
   Anthropic-flavoured **XML**, so it answers "no tool was used", the model repeats the identical payload, and it
   **loops until context exhaustion**. Forcing XML made the same 32B model "drive Cline's tool functions
@@ -9892,7 +9897,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   established from the Ministral/DeepSeek work). So the Cline-class "JSON emitted, parser only knew XML → loop"
   failure is confirmed absent on this fleet's coder models. REMAINING (optional, low value): the same one-shot
   check against a REASONING model and an external MCP tool if a specific model ever looks suspect — no gap indicated.
-- [ ] **P21.3 — ASSERT the served context length; never assume it.** Ollama's 2k default *"silently discards
+- [x] **P21.3 — ASSERT the served context length; never assume it. CLOSED 2026-07-31.** The decision core shipped,
+  the fleet was probed live (LM Studio serves its advertised window honestly and fails LOUD when over it — the
+  Ollama trap is absent here), and the conclusion was made DURABLE the same day as a per-runtime
+  `servedContextHonesty` capability, fail-closed for every unprobed runtime. The remaining startup assertion is
+  belt-and-braces against a danger measured absent on the fleet we run — and the capability field is now the
+  natural place a future adapter earns its verdict, so nothing is tracked by leaving this open. Ollama's 2k default *"silently discards
   context that exceeds the window"* — Aider calls this *"especially dangerous because many users don't even
   realize that most of their data is being discarded"*; OpenCode's own guidance is "start around 16k–32k"; an
   independent Roo evaluation found silent truncation of refactors until **`num_predict` was raised to 12000** (an
