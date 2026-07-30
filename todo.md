@@ -3614,9 +3614,12 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > (1) `NKLEIN_OPPORTUNISTIC_IDLE_WORK` — plausible ("dispatch work while idle" racing a pending capture) and
 > it DID fire, but removing it changed nothing. (2) `NKLEIN_REVIEW_PANEL` — the strongest-looking lead, since
 > telemetry shows it assembling **`{"judges": 0, "descriptors": 1, "judgeModelKeys": []}`** on a single-model
-> host; removing it also changed nothing. **That zero-judge panel is still a REAL SECONDARY FINDING worth its
-> own fix** — a panel that assembles no judges should fail OPEN to the single-reviewer path, and any user with
-> one model would hit it. (3) `NKLEIN_TEST_DRIVEN_MODE` — exonerated, as were `VERIFICATION_FIRST` and
+> host; removing it also changed nothing. **RETRACTED 2026-07-30 — the zero-judge panel is NOT a defect and I
+> was wrong to flag it.** Verified on the GREEN drain: 19 zero-judge panels produced 19 successful
+> `single_reviewer` reviews. On a single-model host the panel CANNOT assemble an independent judge — lineage
+> diversity is the entire point — so it warns and falls back, exactly as designed. The fail-open path I claimed
+> was missing already exists. LESSON: an alarming telemetry VALUE (`judges: 0`) is not a defect until the
+> OUTCOME is checked; I nearly "fixed" correct degradation.
 > `ARCHITECT_EDITOR`/`REVIEW_LENSES` (the latter two green as a group).
 > **THE CONTROL MATTERED MOST:** plain `perfect` with NO flags passes, which both proves the flags cause it and
 > clears the same-day dependency remediation (protobufjs/MCP-SDK/fast-uri) of suspicion. I ran that control
