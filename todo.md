@@ -9821,6 +9821,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   protected-safety-path scan AND the write-scope scan both silently PASS on missing evidence, while every other
   missing-evidence case on that path fails closed. No audit trail is destroyed (the durable refs are untouched), so
   it is not the (c) shape, but it is the wrong default for a safety scan and should fail closed like its neighbours.
+  **✅ FIXED 2026-07-30.** An empty file list is a legitimate answer; a failed read is an ABSENCE of evidence, and
+  collapsing both into `[]` is what made the scans pass. The read now records readability separately, and
+  `hasProtectedPathChanges` is forced TRUE when the diff is unreadable — which HOLDS the card in Review, matching
+  the intent the surrounding comment already claimed ("Missing/unavailable evidence fails CLOSED"). The ledger's
+  `controllerDecision` string reports `protected=unreadable` so the projections can tell the three cases apart.
+  **The write-scope scan was deliberately NOT made to synthesize a violation:** doing so would bounce the worker
+  with a confidently wrong message ("you changed files outside your bounds") when the truth is only that the diff
+  could not be read. Its silence is documented in place as "unassessed, not clean", and safety is carried by the
+  upstream hold instead — an unassessed delivery can no longer auto-merge on the strength of that silence.
 - [ ] **P21.5 — ⚠️ Fusion's multi-node P0 is OUR failure surface too.** Their self-audit found **"Checkout CAS is
   local-row atomic, not central-distributed"** — with no central claim table, two nodes can each evaluate the
   local single-row precondition as true before either write is globally fenced, causing **double-checkout**.

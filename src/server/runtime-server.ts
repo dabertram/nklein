@@ -2365,15 +2365,24 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// only at the most-open tier). Any non-merge action (manual / commit) leaves the card
 						// in Review.
 						const deliveryConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
-						const changedFiles = deliveredResultCommit
+						// P21.4-adjacent (2026-07-30): this read used to `.catch(() => [])`, which made an UNREADABLE diff
+						// indistinguishable from a diff that touched nothing. Both safety scans below then passed
+						// silently — `hasProtectedPathChanges` read false and the write-scope scan reported no
+						// violations — directly contradicting the comment above ("Missing/unavailable evidence fails
+						// CLOSED"). An empty list is a legitimate answer; a failed read is an ABSENCE of evidence, and
+						// the two must not collapse into the same value on a safety path.
+						const changedFilesRead = deliveredResultCommit
 							? await getWorkspaceChangesBetweenRefs({
 									cwd: scope.workspacePath,
 									fromRef: `${deliveredResultCommit}^`,
 									toRef: deliveredResultCommit,
 								})
-									.then((changes) => changes.files.map((file) => file.path))
-									.catch(() => [] as string[])
-							: [];
+									.then((changes) => ({ files: changes.files.map((file) => file.path), readable: true }))
+									.catch(() => ({ files: [] as string[], readable: false }))
+							: { files: [] as string[], readable: true };
+						const changedFiles = changedFilesRead.files;
+						/** True when the delivered diff could not be read — every safety scan must treat this as "unsafe". */
+						const changedFilesUnreadable = !changedFilesRead.readable;
 						const deliveryDecision = decideDeliveryAction(
 							deliveryPolicyForTier(
 								resolveEffectiveDeliveryTier(deliveryConfig?.effectiveAgentRulesets?.delivery, "worker", {
@@ -2387,7 +2396,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								// delivered-green ⇒ 0; failed-but-pre-existing (the #39 waiver) ⇒ 0; failed-vs-green-base
 								// ⇒ -1; unmeasured ⇒ null. Un-deadens the more_open tier (null could never auto-merge).
 								regressionDelta: regressionDeltaFromAcceptanceRuns(acceptance, acceptanceBaseline),
-								hasProtectedPathChanges: changedFiles.some(isTrustedAutoMergeProtectedPath),
+								// Unreadable diff ⇒ assume protected paths WERE touched, which holds the card in Review.
+								// The alternative (assume clear) auto-merges on absent evidence.
+								hasProtectedPathChanges:
+									changedFilesUnreadable || changedFiles.some(isTrustedAutoMergeProtectedPath),
 							},
 						);
 						// §5.AF gate event: the delivery-gate verdict + its evidence, appended as a `transition` record so
@@ -2401,7 +2413,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								from: "review",
 								to: `delivery_${deliveryDecision.action}`,
 								reason: deliveryDecision.reason || null,
-								controllerDecision: `gates:review=${evidence.reviewApproved ? "pass" : "fail"},tests=${evidence.testsPassed ? "pass" : "fail"},protected=${changedFiles.some(isTrustedAutoMergeProtectedPath) ? "touched" : "clear"}`,
+								controllerDecision: `gates:review=${evidence.reviewApproved ? "pass" : "fail"},tests=${evidence.testsPassed ? "pass" : "fail"},protected=${changedFilesUnreadable ? "unreadable" : changedFiles.some(isTrustedAutoMergeProtectedPath) ? "touched" : "clear"}`,
 							}),
 						).catch(() => {});
 						// F1.9b review-seam boundary enforcement: the delivered result's ACTUAL changed files must respect
@@ -2419,6 +2431,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									changedFiles,
 								)
 							: [];
+						// NOTE on the unreadable-diff case: this scan reports NO violations, which here means
+						// "unassessed", not "clean". That is deliberate — synthesizing a violation would bounce the
+						// worker with a confidently WRONG message ("you changed files outside your bounds") when the
+						// truth is only that the diff could not be read. Safety is preserved upstream instead:
+						// `changedFilesUnreadable` forces `hasProtectedPathChanges`, which HOLDS the card in Review, so
+						// an unassessed delivery can never auto-merge on the strength of this scan's silence.
 						// Delivery-quality scan (opencode-swarm ports: placeholder + quality budget) over the delivered
 						// diff's ADDED lines. RECORD-ONLY for now (mirrors the F1.21 observe-before-enforce stance): a
 						// hold is appended to the ledger as evidence but never blocks the merge, so behavior is unchanged
