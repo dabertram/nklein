@@ -10223,6 +10223,17 @@ Mirrored by a manifest-level test so the data cannot drift back.
   pins (`protobufjs`, `fast-uri`) are debt needing a re-check for upstream fixes.
 
 **4. Questions batched for David (do not act on these unilaterally):**
+- **NEW — `dify-ai-provider` is an unused CLOUD provider in a LOCAL-ONLY product, and it is the last HIGH
+  advisory.** Evidence: (1) it is a **production** dependency in `package.json`; (2) **zero** first-party
+  imports — `dify-ai-provider`/`createDify`/`difyProvider` appear nowhere in `src/`, `packages/*/src`, or
+  `web-ui` (the only hits are inside `packages/desktop/cli/cli.js`, a **pre-bundled vendored artifact** that has
+  the provider INLINED, complete with `https://api.dify.ai/v1`, so it does not resolve the npm package at all);
+  (3) Dify is a hosted cloud service, which sits awkwardly against the `CLOUD_ENABLED=false` prime directive;
+  (4) it drags in a second, older **undici 5.29.0**, which is now the ONLY remaining high advisory (the other
+  two were cleared without it). **RECOMMENDATION: drop the dependency.** NOT done unilaterally — it is a
+  production dep of a vendored subsystem I did not author, and the standing rule is to surface rather than work
+  around. If it must stay, the fallback is an `overrides` pin on undici, which adds to the override debt above.
+  Cheap way to settle it: remove, reinstall, run the suite + a desktop-CLI smoke.
 - **NEW — `release_resources` semantics (§5 P24.1):** is it "ensure nothing is held" (IDEMPOTENT) or "give back
   what you took" (PAIRED)? Three kernel sites disagree with PAIRED; under PAIRED one of them drives a
   counter-based consumer's host occupancy NEGATIVE (the v9 wedge shape). **Recommendation: IDEMPOTENT.**
