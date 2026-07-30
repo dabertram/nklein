@@ -10401,6 +10401,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   "measure at depth" is not a store change at all — it requires the EVAL HARNESS to run cards at depth and to
   propagate prompt tokens into the cell summary.** That reframes the item: the store is ready and correct; the
   work is in the eval pipeline.
+  **🔴 THE GAP IS NOW QUANTIFIED, AND IT IS WORSE THAN THE ITEM'S HEDGE (measured 2026-07-31).** P22.2 says every
+  fitness number is *"effectively"* a shallow measurement. Measured against the actual corpus:
+  **ALL 15 prompts in `EVAL_PROMPT_CORPUS` are SHALLOW — the largest is ~420 tokens — against a ≥32k context
+  floor.** So every measured judgement !Klein holds about a model's fitness was taken at roughly **1-2% of the
+  depth a real card runs at**, and Phase 22's own research is that capability at depth is NOT predicted by
+  capability at depth 0. This is not a caveat on the fitness store; it is the fitness store's entire evidence base.
+  **⇒ THE FIX IS CORPUS WORK, NOT PLUMBING.** Populating depth counters from today's corpus would faithfully
+  record "shallow" fifteen times — honest, and worth nothing. What is needed is DEEP eval prompts (a card-sized
+  spec, a long transcript to review, a real repo context) so the store has deep evidence to hold. The store side
+  is ready and waiting.
+  **A test now pins the distribution EXACTLY** (`eval-corpus-depth.test.ts`) rather than asserting the corpus
+  *should* have deep prompts — a red test in the suite is one people learn to skip. The day a deep prompt is
+  added the assertion trips and is updated deliberately, so this gap cannot be closed by accident or widened
+  unnoticed. Also useful: eval depth is a property of the PROMPT, not the response, so it needs no chat-layer
+  plumbing at all — the earlier "gated on the eval harness" reading was wrong.
   **Also still true (the ORIGINAL orphan):** `classifyContextDepth`, `fitnessDepthMismatch` and the fingerprint's
   `contextDepthBucket` had ZERO consumers before today — a complete depth apparatus that never ran. The
   classifier now has one; `fitnessDepthMismatch` still has none, and only becomes useful once cells carry real
