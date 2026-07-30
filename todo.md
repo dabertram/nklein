@@ -10423,7 +10423,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   clarified in-spec. The candidate may be cold, remote on an owned machine, replay-only, or loaded only during an
   explicit evaluation window. Requiring simultaneous residency contradicts the project's own consumer-memory
   thesis AND !Klein's standing no-auto-load/unload production constraint.
-- [ ] **P23.9 — Keep the Dschinn/!Klein boundary strict (review confirmed it is mostly right).** Dschinn owns
+- [x] **P23.9 — Keep the Dschinn/!Klein boundary strict. MECHANICAL CHECK SHIPPED 2026-07-31 —
+  `test/runtime/dschinn-boundary.test.ts`.** The item asked for a lint so the leak is caught mechanically rather
+  than by reviewer memory. The boundary was already CLEAN (zero violations), which makes this a RATCHET rather
+  than a cleanup — the cheapest moment to add one, and the only moment it costs nothing.
+  **It matches DECLARED IDENTIFIERS, not raw text, because leakage is structural rather than lexical.** A
+  `PortfolioDecision` interface is the boundary breaking; the word "marketing" inside a comment is not — and two
+  such comments exist today, both legitimate. A text scan would flag those, and a check that cries wolf on prose
+  gets an allow-list bolted on until it means nothing.
+  **⚠️ TWO OF THE FIRST ELEVEN CANDIDATE TERMS WERE FALSE POSITIVES, and both are recorded in the file:**
+    · **"campaign"** flagged eight symbols in `aider-polyglot-campaign.ts` — !Klein runs BENCHMARK campaigns; the
+      word is core vocabulary here (the whole G6.8a effort is "the campaign"). It reads as marketing only in
+      Dschinn's dialect.
+    · **"ownerPolicy"** flagged `model-research-policy.ts`, where it means the primary-source policy for a model
+      PUBLISHER's namespace (a GitHub/HF owner) — ordinary software vocabulary. No identifier-level rule can
+      separate that from business owner-governance, so the term cannot be a boundary signal at all.
+  A meta-test pins both as terms that must NEVER be re-added, alongside `cost`/`budget`/`spend`/`token`, which are
+  legitimate !Klein concerns. **The list stays short and unambiguous rather than thorough:** each bad term costs
+  either a real symbol its name or the check its credibility.
+  The item's other half — *Dschinn must CONSUME !Klein's evidence rather than reconstruct its execution
+  internals* — is a constraint on DSCHINN's side and is not checkable from this repo. Dschinn owns
   portfolio decisions, business operations, financial governance, owner policy, opportunity research and tool
   selection; !Klein owns software planning, implementation, review, testing and delivery; `KleinAdapter`
   translates. **Finance/marketing/"universal agent" machinery must never leak into !Klein's core, and Dschinn must
