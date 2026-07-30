@@ -8843,6 +8843,46 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > `overridden` next to a pinned transitive, which is the tell. The 12 remaining moderates are unaddressed and
 > untriaged; they are NOT claimed as clean.
 
+- [ ] **P24.1 — MAKE THE WORKFLOW KERNEL AUTHORITATIVE (David's question 2026-07-30: "can we make board state
+  management more professional, with proven state machines, so transitions are deterministic and we avoid race
+  conditions instead of hunting for them?"). ANSWER: yes — and the machine ALREADY EXISTS; it just is not in
+  charge.**
+  `src/core/workflow-kernel.ts` is exactly the thing being asked for: a PURE, TOTAL reducer
+  `(phase, command) → {phase, effects}` over 14 phases, with effects as data and every command defined in every
+  phase (unhandled = hold, so it cannot throw on an unexpected event). Its own header says the quiet part:
+  *"**No behavior change and NOT yet wired** … the board mutation helpers remain the single source of truth."*
+  It is an advisory observer that records phases into the ledger while OTHER components decide reality.
+  **THE REAL DIAGNOSIS — these were never "races" in the mutex sense.** !Klein has FOUR parallel state spaces:
+  (1) board lane (backlog/planning/ready/in_progress/review/completed/trash), (2) session state
+  (idle/queued/running/paused/awaiting_review/failed/interrupted), (3) durable job state
+  (ready/leased/succeeded/failed), (4) workflow phase (the kernel). **Every liveness defect fixed on 2026-07-29/30
+  was two of those DISAGREEING about what a state means, not a torn read:** lease reclaim = job "dead" vs session
+  "queued"; monitor truncation = lane "review" vs session "awaiting_review" vs a counter that saw neither; ghost
+  livelock = session "awaiting_review" vs lane "completed"; rescue-handover drop = job "failed" vs board
+  "startable"; parent-reacquire deadlock = admission's private reservation table vs session reality.
+  **⇒ LOCKING WOULD HAVE FIXED NONE OF THEM.** They are model-consistency defects. The session even produced
+  FIVE competing definitions of "is this alive?" — two were collapsed into `hasLiveTaskSession`, but the root fix
+  is that "alive" should be `phase ∈ {…}` derived ONCE from the machine.
+  **THE FIX, in dependency order (incremental — this is a refactor, not a rewrite):**
+  1. **One writer.** Card state changes only by dispatching a COMMAND to the kernel; board lane becomes a
+     PROJECTION of phase, never an independent mutation. `workflow-board-bridge.ts` already exists as the seam.
+  2. **Derive every predicate from the machine.** No component may define its own "alive"/"busy"/"terminal" —
+     they become pure functions of phase. This is what structurally prevents the drift class that bit five times.
+  3. **Persist-before-effect, everywhere.** The durable scheduler already does this correctly (`appendLog`
+     awaited before `dispatch`); generalise it so every effect is replayable and crash-safe.
+  4. **Model-based testing — the actual answer to "stop hunting races".** With an explicit total reducer you can
+     exhaustively check transition legality and run PROPERTY tests over random command sequences, asserting
+     invariants like "a card in a terminal phase never dispatches", "lane always equals the projection of phase",
+     "no two components disagree about liveness". That converts race-hunting into a proof obligation. Consider
+     fast-check for the sequence generation; the reducer is already pure, so it needs no test doubles.
+  **COST/RISK:** touching the mutation path is the highest-blast-radius change in the system, so it must land
+  behind the existing projection tests + a nightly cell, one decision at a time (start with liveness, which has
+  the most evidence). **The foundations are already right** — pure reducer, effects as data, persist-before-
+  dispatch, replay determinism. What is missing is authority, not design. NOTE the external audit (GPT-5.6)
+  converged on the same direction independently: *"Map the existing workflow phases into waiting_capacity,
+  running, terminal or absent for scheduler decisions."*
+
+
 - [ ] **P17.6 — KV-CACHE PERSISTENCE ACROSS MODEL UNLOAD (David's idea, 2026-07-30; RESEARCH DONE — the gap is
   real and both engines already have most of the machinery).** David asked whether a persistent cache for
   unloaded models could avoid recompute on fast model switching. Web research says YES, and names the exact
