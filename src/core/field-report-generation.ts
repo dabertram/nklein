@@ -114,3 +114,57 @@ export function checkLayerAAlwaysProducible(input: {
 	}
 	return { ok: true, reason: `Layer A produced ${input.structuralFieldCount} field(s) without needing a model.` };
 }
+
+/** What a completed narrative pass actually yielded — the POST-call half of the ladder. */
+export type NarrativeCompletionOutcome =
+	/** Usable prose came back; grounding (P16.2) filters it next. */
+	| "narrative"
+	/** Nothing usable. Layer A stands alone, exactly as for an unreachable model. */
+	| "empty_degrade_to_layer_a";
+
+export interface NarrativeCompletionVerdict {
+	readonly outcome: NarrativeCompletionOutcome;
+	readonly narrative: string;
+	readonly reason: string;
+}
+
+/**
+ * P16.6b — decide what a narrative completion actually produced, BEFORE anything treats it as prose.
+ *
+ * ── THE FAILURE THIS EXISTS TO PREVENT ──
+ * A reasoning model answers a free-text call with an EMPTY `message.content` and its thinking in
+ * `reasoning_content`. `nklein-local-llm-client.ts` has a `reasoning_content` fallback, but it is gated on
+ * `request.format` — structured calls only — so a free-text narrative pass receives exactly `""`. A caller that
+ * takes that at face value emits a report whose narrative section is blank while every status says the pass ran.
+ *
+ * **A blank narrative that reads as success is worse than no narrative**, because Layer A is pure aggregation and
+ * is *"complete and correct without a model — nothing is degraded except the prose"*. Reporting the degradation
+ * loses nothing real; hiding it makes an empty section look like the model's considered opinion.
+ *
+ * ── WHY REASONING TEXT IS NOT PROMOTED TO PROSE ──
+ * The tempting fix is to fall back to `reasoningContent` here. It is refused: on a free-text call that field holds
+ * the model's THINKING, not its answer, and publishing it would put a chain of thought into a user-facing report —
+ * a different and worse failure than an empty section. It is accepted only as EVIDENCE that the model responded at
+ * all, which sharpens the reason string and nothing else.
+ */
+export function interpretNarrativeCompletion(input: {
+	readonly content: string | null | undefined;
+	readonly reasoningContent?: string | null;
+}): NarrativeCompletionVerdict {
+	const narrative = (input.content ?? "").trim();
+	if (narrative.length > 0) {
+		return {
+			outcome: "narrative",
+			narrative,
+			reason: "the model returned narrative prose; grounding filters it next",
+		};
+	}
+	const thoughtOnly = (input.reasoningContent ?? "").trim().length > 0;
+	return {
+		outcome: "empty_degrade_to_layer_a",
+		narrative: "",
+		reason: thoughtOnly
+			? "the model replied in its REASONING channel only and produced no prose — its thinking is not an answer and is never published, so the report is Layer A alone (complete and correct without a narrative)"
+			: "the model returned no narrative content, so the report is Layer A alone (complete and correct without a narrative)",
+	};
+}

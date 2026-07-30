@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	checkLayerAAlwaysProducible,
+	interpretNarrativeCompletion,
 	NARRATIVE_GROUNDING_BAR,
 	planFieldReportGeneration,
 } from "../../src/core/field-report-generation";
@@ -86,5 +87,49 @@ describe("checkLayerAAlwaysProducible", () => {
 		});
 		expect(check.ok).toBe(false);
 		expect(check.reason).toContain("never optional");
+	});
+});
+
+describe("P16.6b — interpretNarrativeCompletion (the POST-call half of the ladder)", () => {
+	/**
+	 * The failure this guards: a reasoning model answers a FREE-TEXT call with empty `message.content` and its
+	 * thinking in `reasoning_content`. The local client's reasoning fallback is gated on `request.format`, i.e.
+	 * structured calls only, so a narrative pass receives exactly "". Taken at face value that emits a report whose
+	 * narrative section is blank while every status says the pass ran.
+	 */
+	it("passes real prose through for grounding", () => {
+		const verdict = interpretNarrativeCompletion({ content: "The run completed with two bounces." });
+		expect(verdict.outcome).toBe("narrative");
+		expect(verdict.narrative).toBe("The run completed with two bounces.");
+	});
+
+	it("DEGRADES to Layer A when a reasoning model answers with thinking only", () => {
+		// The exact P16.6b case. Layer A is pure aggregation and is complete without a model, so degrading loses
+		// nothing real — whereas a blank section that reads as success looks like the model's considered opinion.
+		const verdict = interpretNarrativeCompletion({
+			content: "",
+			reasoningContent: "Let me consider the report structure... I should summarise the bounces.",
+		});
+		expect(verdict.outcome).toBe("empty_degrade_to_layer_a");
+		expect(verdict.reason).toContain("REASONING channel only");
+	});
+
+	it("NEVER promotes reasoning text into the narrative", () => {
+		// The tempting fix, deliberately refused: on a free-text call that field is the model's thinking, and
+		// publishing it would put a chain of thought into a user-facing report — worse than an empty section.
+		const thinking = "internal deliberation that must never be published";
+		const verdict = interpretNarrativeCompletion({ content: "", reasoningContent: thinking });
+		expect(verdict.narrative).toBe("");
+		expect(verdict.reason).not.toContain(thinking);
+	});
+
+	it("degrades on whitespace-only content — a blank line is not prose", () => {
+		expect(interpretNarrativeCompletion({ content: "   \n  " }).outcome).toBe("empty_degrade_to_layer_a");
+	});
+
+	it("degrades on null/undefined without throwing into the report path", () => {
+		for (const content of [null, undefined]) {
+			expect(interpretNarrativeCompletion({ content }).outcome).toBe("empty_degrade_to_layer_a");
+		}
 	});
 });
