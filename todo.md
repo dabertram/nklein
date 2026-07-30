@@ -3562,10 +3562,24 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > preset, opposite outcomes. v19's failures were graph-validation rejections plus a second-opinion critic
 > rejection, not infrastructure.
 > **DO NOT simply relaunch v20 — that is re-flipping the same coin for ~90 minutes.** The next campaign run
-> should carry a CHANGE aimed at architect success: the open item (c) — make the incremental `add_task`
-> protocol the DEFAULT for profile-forced/over-cap architects rather than a recovery steer — is the
-> highest-value candidate, since the observed failures are graph-shape failures rather than tool-call
-> failures.
+> should carry a CHANGE aimed at architect success.
+> **✅ ITEM (c) — RESOLVED 2026-07-30, AND MY FRAMING OF IT WAS WRONG.** I had recorded (c) as "make the
+> incremental `add_task` protocol the DEFAULT rather than a recovery steer". Reading the code refutes that: it
+> is ALREADY the default — `createIncrementalDagTools()` is registered unconditionally
+> (`nklein-decomposition-tool.ts:816`) and the system prompt says *"Build the candidate graph with the
+> incremental protocol by default"* (`nklein-decomposition-workflow.ts:17`). Leaving the item as written would
+> have sent the next session chasing work already shipped.
+> **The REAL gap was one inconsistent sentence, and it was in the worst possible branch.** The stall nudger's
+> `continue_read` recovery — which by construction fires ONLY while paging through a LARGE spec — closed with
+> *"Once the spec is fully read, call `decompose_project` with the full task graph."* That steered exactly the
+> population most likely to emit a malformed giant graph toward the riskiest call, contradicting the default.
+> Now steers to `add_task` → `add_dependency` → `decompose_project` WITHOUT `tasks`, pinned by a test.
+> The `finalLooksLikeDecompositionJson` branch DELIBERATELY stays one-shot: there the model has already written
+> the graph, and re-deriving it risks the documented restart spiral (#30/run31).
+> **⚠️ This is a PROMPT-STEER change, so its effect is unmeasured.** It is a defensible improvement, not a
+> proven fix for the graph-shape failures. Whether it moves the architect success rate is exactly what the next
+> campaign run would measure — but see the coin-flip warning above: a single run cannot separate this change
+> from the stochasticity, and the same roster has passed and failed on identical presets.
 > **⚠️ v18 VERDICT (2026-07-30): MY OWN HARNESS FIX REGRESSED IT — caught by the next run, reverted, both
 > directions now tested.** v18's decompose seed died at 23:26 (truncated turn → empty response → sandbox
 > disposed) and the board then sat IDLE FOR TWO HOURS emitting only watchdog ticks, on course to burn the full
@@ -10172,4 +10186,51 @@ Bottom-up uncertainty is still dominated by scheduler/recovery wiring, routing/r
 desktop updates/migrations, and defects found by C3–C8. A defensible forecast for the repository's continuous autonomous
 workflow is **11–18 weeks probable**, **7–10 weeks optimistic**, and **5–9 months conservative**, plus roughly **5–14
 low-power machine-days** for the final model campaign. A conventional single full-time engineer is more like **10–20
-months**. Re-estimate after every phase; these are planning ranges, not promises.
+months**. Re-estimate after every phase; these are planning ranges, not promises.## ▶ RESUME HERE — session handoff 2026-07-30 ~17:0x (network interruption, David)
+
+**Everything below is committed; nothing is in flight in the working tree.**
+
+**1. Background job that was RUNNING when the session cut — check it first.**
+A full nightly (`npx tsx src/cli.ts dev nightly --json`) was started to validate the day's changes and was at
+**cell 5/28** at the cut. Log: `<session-scratchpad>/nightly-full.log` (session-scoped path — if the session is
+gone, just re-run it). It is the validation gate for everything committed today, so **re-run it before trusting
+today's work**:
+```
+npx tsx src/cli.ts dev nightly --json
+```
+⚠️ Its preflight printed *"1 registered project(s) match NO scenario …: smoke — These cells cannot pass."*
+The `smoke×turn_loop` cell is INLINE-by-design (it has no on-disk recording; see the comment in
+`nightly-smallest-tranche-integrity.test.ts`), so this warning is likely a FALSE alarm from a preflight that
+does not know about inline cells. **Check whether that cell actually failed.** If it passed, the preflight
+check needs to exempt inline cells — otherwise it cries wolf on every nightly. If it failed, that is a real
+registration bug. Do not "fix" it before knowing which.
+
+**2. What landed today, in order (all committed, all green at commit time):**
+- `dd9011813` — P24.1 step 1: `classifyWorkflowPhase()`/`isLiveWorkflowPhase()` + 17 EXHAUSTIVE kernel
+  properties. Found a latent contract question (see §5 P24.1) — **needs a David decision**, batched below.
+- (this commit) — the `continue_read` incremental steer + test (see the campaign verdict block above).
+- Earlier: the zero-judge review-panel finding was RETRACTED (19 zero-judge panels → 19 successful
+  `single_reviewer` reviews; correct degradation, not a defect).
+
+**3. Next actions, highest value first:**
+- Resolve the nightly `smoke` preflight question above (cheap, and it is currently noise on every run).
+- **P24.1 step 2** — migrate consumers onto `isLiveWorkflowPhase`. Blocked on phase being available at those
+  call sites, which is step 1 ("one writer") — the real work, highest blast radius, must go one decision at a
+  time behind the projection tests.
+- The 12 remaining MODERATE npm advisories are untriaged and explicitly NOT claimed clean; both `overrides`
+  pins (`protobufjs`, `fast-uri`) are debt needing a re-check for upstream fixes.
+
+**4. Questions batched for David (do not act on these unilaterally):**
+- **NEW — `release_resources` semantics (§5 P24.1):** is it "ensure nothing is held" (IDEMPOTENT) or "give back
+  what you took" (PAIRED)? Three kernel sites disagree with PAIRED; under PAIRED one of them drives a
+  counter-based consumer's host occupancy NEGATIVE (the v9 wedge shape). **Recommendation: IDEMPOTENT.**
+  Must be settled BEFORE the kernel is wired.
+- Previously batched and still open: the audit's positioning claim; its 7-item research queue + ordering;
+  publication artifacts (CITATION.cff / Zenodo / CycloneDX / SPDX-AI); the 12-trial cross-platform setup study;
+  and P17.7 residency (sequenced behind P17.6 measurement).
+
+**5. Standing constraint that still applies:** DO NOT relaunch a real-model campaign run just to "see if it
+works" — the binding constraint is architect decompose quality and it is stochastic (same roster, same preset,
+opposite outcomes). A run costs ~90 minutes and a single run cannot separate a change from the noise.
+
+

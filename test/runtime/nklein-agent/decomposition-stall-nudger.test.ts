@@ -160,6 +160,30 @@ describe("DecompositionStallNudger.maybeContinueStalledDecomposition (#30 turn-e
 		expect(sent[0]).not.toContain("exactly that JSON");
 	});
 
+	it("steers the LARGE-SPEC read stall to the incremental protocol, not a one-shot graph", async () => {
+		// This branch fires only while paging through a long spec, so it addresses exactly the population most
+		// likely to emit a malformed giant graph. It used to close with "call `decompose_project` with the full
+		// task graph", contradicting the system prompt's incremental default and steering the worst case toward
+		// the riskiest call (found reviewing the G6.8a campaign, 2026-07-30 — the campaign's binding constraint
+		// was architect graph SHAPE, not tool-call mechanics).
+		const { nudger, sent, observed } = makeNudger({
+			finalMessage: "Let me continue reading the specification.",
+			toolName: "read_large_file",
+		});
+		nudger.maybeContinueStalledDecomposition("t1");
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(sent).toHaveLength(1);
+		expect(observed[0]?.category).toBe("decomposition_read_workflow_stall");
+		// Still the primary instruction: finish the read before decomposing at all.
+		expect(sent[0]).toContain("nextCursor");
+		expect(sent[0]).toContain("add_task");
+		expect(sent[0]).toContain("add_dependency");
+		expect(sent[0]).toContain("decompose_project` WITHOUT `tasks`");
+		expect(sent[0], "must not steer a long spec back to a single giant call").not.toContain(
+			"with the full task graph",
+		);
+	});
+
 	it("claims an SDK exit for targeted recovery before the generic loop guard can park it", async () => {
 		const { nudger, sent } = makeNudger({
 			finalMessage: "The tool arguments were incomplete.",

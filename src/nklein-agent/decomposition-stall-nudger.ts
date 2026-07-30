@@ -252,7 +252,13 @@ export class DecompositionStallNudger {
 						"Your previous turn ran read_large_file and then stopped without making another real tool call.",
 						"Writing a tool call as text — for example a `<tool_call>{...}</tool_call>` block in your reasoning — does NOT execute anything; you must emit it as an actual tool call.",
 						"If the file you were reading is not fully read yet, call read_large_file again now with the `nextCursor` value from your last read_large_file result to continue. Do not summarize or decompose until the file is fully read.",
-						"Once the spec is fully read, call `decompose_project` with the full task graph.",
+						// This branch fires only while paging through a LARGE spec, so it steers exactly the population
+						// most likely to emit a malformed giant graph. Steering it to a one-shot `decompose_project`
+						// contradicted the system prompt's incremental default (G6.8a review, 2026-07-30) — the
+						// `finalLooksLikeDecompositionJson` branch below stays one-shot on purpose, because there the
+						// model has ALREADY written the graph and re-deriving it risks the restart spiral.
+						"Once the spec is fully read, build the graph incrementally: one `add_task` call per card, then one `add_dependency` call per edge, then `decompose_project` WITHOUT `tasks`.",
+						"Do not emit the whole graph as a single large `decompose_project` call — on a spec this long that is the call that most often comes back malformed.",
 					].join(" "),
 					"act",
 				)
