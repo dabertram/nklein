@@ -3548,6 +3548,24 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > ⚠️ **REFRAMES THE CAMPAIGN: v13/v15b/v16/v17 all ended `workflow_incomplete` with cards mid-review. Those
 > verdicts may be MONITOR TRUNCATION, not !Klein capability limits.** Do not cite them as throughput evidence
 > until re-measured with the fix.
+> **v19 VERDICT (2026-07-30) — HARNESS FIX VALIDATED, and the campaign's real bottleneck is now unmistakable.**
+> The seed's decompose died at 03:06:54 (truncated → empty response → sandbox disposed) and the drain ended
+> ~03:13 — i.e. the ~6.4-minute stagnation window firing exactly as designed. v18, with my bad
+> `awaiting_review` term, would have sat on that same dead board for 12 hours. The revert is proven.
+> The STALENESS MONITOR also proved out: it reported the run's end within ~60s instead of at the next hourly
+> check (David's ask, 2026-07-30).
+> **THE CONCLUSION AFTER 19 RUNS: the infrastructure failures are gone and the binding constraint is ARCHITECT
+> DECOMPOSE QUALITY, which is STOCHASTIC.** Every liveness/scheduling defect this campaign surfaced has been
+> root-caused and fixed (parent-reacquire deadlock, ghost-session livelock, rescue-handover drop, lease
+> reclaim on healthy cards, monitor truncation). What remains is a model-capability limit: gemma-31b passed
+> decompose in v8 and failed v9/v10; qwopus passed v13/v15b/v16/v17 and failed v18/v19 — same roster, same
+> preset, opposite outcomes. v19's failures were graph-validation rejections plus a second-opinion critic
+> rejection, not infrastructure.
+> **DO NOT simply relaunch v20 — that is re-flipping the same coin for ~90 minutes.** The next campaign run
+> should carry a CHANGE aimed at architect success: the open item (c) — make the incremental `add_task`
+> protocol the DEFAULT for profile-forced/over-cap architects rather than a recovery steer — is the
+> highest-value candidate, since the observed failures are graph-shape failures rather than tool-call
+> failures.
 > **⚠️ v18 VERDICT (2026-07-30): MY OWN HARNESS FIX REGRESSED IT — caught by the next run, reverted, both
 > directions now tested.** v18's decompose seed died at 23:26 (truncated turn → empty response → sandbox
 > disposed) and the board then sat IDLE FOR TWO HOURS emitting only watchdog ticks, on course to burn the full
