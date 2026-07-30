@@ -9644,7 +9644,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Second: the ablated run must reuse the SAME test selection as the baseline. `assessNoOpAblation` already
   attributes a non-overlapping run to the harness rather than to the artifact, so a mismatch surfaces as the
   harness bug it is — but only if the runner does not silently narrow the suite between passes.
-- [ ] **P20.4 — Reuse the egress fence as the EVAL sandbox + strip `.git`.** Cursor audited 731 Opus 4.8 Max
+- [x] **P20.4 — Reuse the egress fence as the EVAL sandbox + strip `.git`. ALREADY IMPLEMENTED — verified and
+  closed 2026-07-31, and the implementation is STRICTER than this item asked for.**
+  Both benchmark workspace planners were read end to end:
+  · **`.git` sealing — SWE-bench (`swebench-workspace-plan.ts`)**: clones the mirror, checks out the base commit,
+    then `rm -rf /workspace/.git` and `git init --initial-branch=benchmark-baseline` with a *"sealed upstream
+    baseline"* commit. **The upstream history — including the future fix commit the audit found 9% of
+    trajectories mining — is physically gone before the agent starts.**
+  · **`.git` sealing — aider-polyglot (`aider-polyglot-workspace-plan.ts`)**: never has upstream history at all.
+    It copies ONLY the task's `solutionFiles` out of a read-only `/source` mount into a fresh workspace, then
+    `git init`. Nothing to strip, by construction.
+  · **Internet — stricter than the egress fence this item proposed reusing.** Every workspace step runs
+    `--network none`, plus `--read-only`, `--cap-drop ALL`, `--security-opt no-new-privileges` and a pids limit.
+    A filtering proxy allows *some* traffic; `none` allows none, so the "57% found the merged PR on the public
+    web" contamination channel is closed rather than narrowed.
+  **"Restore-at-scoring" is not needed here:** the sealed baseline commit means scoring diffs against that
+  baseline, which is exactly what it needs — there is no state to put back.
+  **SCOPE NOTE:** this covers the BENCHMARK surfaces the item's research is about. The `dev test-project`
+  simulation drains run against synthetic fixture projects that have no upstream fix to find, so the
+  contamination class does not apply there. Cursor audited 731 Opus 4.8 Max
   trajectories: **57% found the merged PR or fixed source on the public web** and reproduced it near-verbatim;
   **9% searched the bundled `.git` history for the future fix commit**. Sealing git history + restricting internet
   moved scores **87.1% → 73.0%** (−14.1) and **74.7% → 54.0%** (−20.7). Notably an older model declined <1 point —
