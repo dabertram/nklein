@@ -10258,15 +10258,36 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   and auditable in plain code. Handing it to a small local model adds a hallucination surface to the one step
   whose output decides what gets DOWNLOADED AND EXECUTED. Prefer: code queries the Hub, model summarises/explains.
 
-- [ ] **P25.2 — 🔴 THE TWO BLOCKING CONSTRAINTS. Neither is a detail; both need David's call.**
-  **(a) EGRESS vs the local-only prime directive.** !Klein is `CLOUD_ENABLED=false` with an egress fence
-  (§10c, S2). *Researching the model landscape and downloading weights are both network operations* — the first
-  to huggingface.co, the second to a CDN. This does not kill the feature, but it means the feature CANNOT be
-  described as local-only, and it needs an explicit, narrow, allow-listed egress lane with recorded receipts
-  (the egress-receipt machinery already exists). **Decision needed: is a model-acquisition egress lane acceptable,
-  and must it be operator-triggered rather than autonomous?**
-  **(b) 🔴 SUPPLY CHAIN — auto-download means AUTO-EXECUTING THIRD-PARTY ARTEFACTS.** This is the serious one and
-  the research is unambiguous:
+- [x] **P25.2a — ✅ RESOLVED BY DAVID 2026-07-31. Model ACQUISITION is a SETUP-TIME activity, never a runtime one.**
+  Verbatim: *"this would not be part of running autonomous !Klein sessions .. it would be part of initial !Klein
+  setup, with user explicitly acknowledging downloading and using the selected models. Downloading new models
+  shall never be part of standard !Klein workflows, except for initial or re-triggered setup."*
+  **THE DISTINCTION THIS DRAWS, which the earlier write-up had blurred:** *routing and loading models that are
+  ALREADY PRESENT* is legitimate autonomous behaviour and stays in scope for full-auto; *acquiring new models* is
+  a separate, consent-gated activity that an autonomous session must never perform. Those had been treated as one
+  feature; they are two, with different trust models.
+  **CONSEQUENCES, and the first is the one that matters:**
+    1. **The runtime must be STRUCTURALLY unable to download, not merely disinclined to.** A rule honoured by
+       convention is honoured until someone adds a call site — the same reasoning that put P21.13b's secrets
+       behind references rather than behind a redaction filter. Acquisition belongs to a setup entry point the
+       autonomous runtime cannot reach, so "an autonomous session downloaded a model" becomes unreachable rather
+       than merely unusual.
+    2. **Consent is PER MODEL and explicit** — the user acknowledges downloading *and using* each selected model,
+       so the P25.2(b) supply-chain risk is carried by an informed human decision rather than by a heuristic.
+       This is what makes the safetensors/GGUF-only rule a backstop instead of the sole defence.
+    3. **Setup is RE-TRIGGERABLE**, so refreshing the roster as the landscape moves is a deliberate act with the
+       same consent gate — not a background drift in what !Klein is running.
+    4. **The local-only posture of autonomous sessions is preserved exactly.** Egress for model research and
+       acquisition exists only in a mode the user invoked; a running session's network posture is unchanged, and
+       nothing in the earlier plan needs a runtime egress lane after all.
+  ⇒ The P25.3 phased plan is re-scoped below. Phase 5 "full auto" now means **fully automatic ROUTING and
+  RESIDENCY of present models**, which is the part that needs P17.6's swap-cost evidence; acquisition is out of
+  that phase entirely and lives in setup.
+- [ ] **P25.2b — 🔴 SUPPLY CHAIN remains the open constraint (acquisition is now consent-gated, which HELPS but
+  does not remove it).**
+  Auto-download means executing third-party artefacts. David's setup-time gate means a HUMAN approves each model,
+  which is a real mitigation — but consent does not make a pickle file safe, so the format rule below still holds.
+  The research is unambiguous:
     · Pickle-based weights (`.bin`/`.pt`) execute arbitrary code on load. Real malicious models have been found on
       Hugging Face repeatedly (JFrog, ReversingLabs).
     · **`PickleScan` — the main open-source scanner — carried three bypass CVEs (CVE-2025-10155/10156/10157, all
