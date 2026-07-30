@@ -69,6 +69,66 @@ export function isTerminalWorkflowPhase(phase: WorkflowPhase): boolean {
 }
 
 /**
+ * The CANONICAL coarse classification of a phase — the vocabulary every consumer should DERIVE its predicates
+ * from instead of inventing another one (P24.1 step 2).
+ *
+ * ── WHY THIS EXISTS (evidence, 2026-07-29/30) ──
+ * !Klein carries four parallel state spaces: board lane, session state, durable job state, and this phase. Every
+ * liveness defect found in the G6.8a campaign was two of them DISAGREEING about what a state means, never a torn
+ * read — so no amount of locking would have prevented any of them:
+ *   • the durable lease heartbeat counted only `running`, while the terminal-retry sweep counted
+ *     running|queued|paused|awaiting_review — so a card waiting its turn was "alive" to one and "a dead worker"
+ *     to the other, and its retry budget was burned until `max_attempts` cancelled it;
+ *   • the dev-test monitor counted a review-lane card only until its FIRST verdict, so the entire
+ *     bounce → re-review → delivery phase read as an idle board;
+ *   • widening that same monitor to trust `awaiting_review` then made a card PARKED after failing look alive,
+ *     hanging a dead board for two hours. Too narrow and too broad are the same bug.
+ * The session produced FIVE competing answers to "is this alive?". The durable fix is not another predicate but
+ * ONE classification that predicates are computed from.
+ *
+ * `waiting_capacity` — admitted and queued for a resource; nothing is executing, but the runtime OWES it a start,
+ * so it must never be reclaimed as a dead worker. `running` — work is genuinely in flight, including the review
+ * and delivery tail, which is where the monitor bug lived. `terminal` — settled; safe to reclaim and release.
+ *
+ * Exhaustive by construction: the switch has no `default`, so adding a phase without classifying it is a compile
+ * error rather than a silent misclassification.
+ */
+export type WorkflowPhaseClass = "idle" | "waiting_capacity" | "running" | "terminal";
+
+export function classifyWorkflowPhase(phase: WorkflowPhase): WorkflowPhaseClass {
+	switch (phase) {
+		case "idle":
+			return "idle";
+		case "queued_for_board_capacity":
+		case "queued_for_endpoint":
+		case "queued_for_sandbox":
+			return "waiting_capacity";
+		case "planning":
+		case "implementing":
+		case "awaiting_acceptance":
+		case "awaiting_review":
+		case "reviewing":
+		case "ready_for_delivery":
+		case "delivering":
+			return "running";
+		case "completed":
+		case "failed":
+		case "cancelled":
+			return "terminal";
+	}
+}
+
+/**
+ * Whether the runtime still owes this card work — the ONE definition of "alive" (P24.1). A card is alive while it
+ * is queued for a resource or actively working; `idle` and terminal phases are not. Consumers that today hand-roll
+ * a session-state or lane check should migrate onto this once the kernel is authoritative.
+ */
+export function isLiveWorkflowPhase(phase: WorkflowPhase): boolean {
+	const phaseClass = classifyWorkflowPhase(phase);
+	return phaseClass === "waiting_capacity" || phaseClass === "running";
+}
+
+/**
  * Apply one command to the current phase. Pure + total. `cancel_requested` and `failed` are honored from any
  * non-terminal phase (releasing resources); otherwise each phase advances only on its expected command, and any other
  * command is a no-op that holds the phase (so out-of-order/duplicate events are safe to replay).

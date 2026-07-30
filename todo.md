@@ -8885,6 +8885,38 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   converged on the same direction independently: *"Map the existing workflow phases into waiting_capacity,
   running, terminal or absent for scheduler decisions."*
 
+  **▶ STEP 1 LANDED 2026-07-30 (step 4's method, applied first — cheapest and it already paid).** Two additions,
+  both pure and unwired, so blast radius is zero:
+  (a) `classifyWorkflowPhase()` + `isLiveWorkflowPhase()` in the kernel — the CANONICAL vocabulary step 2 needs.
+      The switch has no `default`, so a new phase cannot be added without classifying it. This is the audit's
+      `waiting_capacity`/`running`/`terminal` mapping, built where the phases actually live.
+  (b) `test/runtime/core/workflow-kernel-properties.test.ts` — 17 EXHAUSTIVE properties. fast-check was NOT
+      needed and was not added: 14 phases × 17 commands = 238 transitions is small enough to ENUMERATE, which is
+      strictly stronger than random sampling. Proven for every input the machine can receive: totality,
+      determinism, **duplicate delivery is a no-op**, **stale/out-of-order events emit nothing**, **no
+      double-release**, every phase reachable, **completion reachable from EVERY phase (no dead end)**, terminal
+      absorption, and both directions of liveness (queued+review-tail alive; idle+terminal not) pinned against
+      the exact defects of 2026-07-29/30.
+  **◆ IT IMMEDIATELY FOUND SOMETHING — ONE UNRESOLVED CONTRACT QUESTION, NEEDS DAVID (batched).** The first
+  draft asserted the self-evident "a release is never emitted for a card holding nothing"; the exhaustive walk
+  refuted it in milliseconds and led to three sites that are really one question:
+  **is `release_resources` "ensure nothing is held" (IDEMPOTENT) or "give back what you took" (PAIRED)?**
+    (a) `idle` + `failed`/`cancel_requested` → emits a release having never enqueued.
+    (b) `implementing` + `reopened` → back to `idle` with NO release, then re-enqueues and re-acquires.
+        (From a terminal phase this is correct — the release already fired at the cancel/fail edge.)
+    (c) `delivering` + `delivered` → emits `mark_done`, no release.
+  Under IDEMPOTENT, (a) is fail-safe and right. Under PAIRED, (a) drives a counter-based consumer's occupancy
+  NEGATIVE — the exact wedge shape of the v9 parent-reacquire deadlock — and (b) leaks a sandbox + endpoint
+  reservation on every reopen of a live card. **RECOMMENDATION: adopt IDEMPOTENT and say so in the effect-type
+  doc** (fail-safe: a redundant release is recoverable, a leaked reservation wedges a host); then either document
+  `reopened`/`mark_done` as implying teardown, or add an explicit release to (b)/(c). NOT fixed unilaterally —
+  the kernel is unwired, both readings are defensible, and guessing a liveness contract is what caused the
+  two-hour dead-board hang earlier today (reverted `cc2fbc340`). Current behaviour is pinned by tests so the
+  resolution has to be deliberate enough to trip them. **This is the value being argued for, demonstrated: a
+  latent resource-leak class found by enumeration in a module that has never run, instead of by a stack dump.**
+  **NEXT:** step 1 (one writer) remains the real work; step 2 can now begin migrating consumers onto
+  `isLiveWorkflowPhase` once phase is actually available at those call sites.
+
 
 - [ ] **P17.6 — KV-CACHE PERSISTENCE ACROSS MODEL UNLOAD (David's idea, 2026-07-30; RESEARCH DONE — the gap is
   real and both engines already have most of the machinery).** David asked whether a persistent cache for
