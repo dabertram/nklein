@@ -65,6 +65,29 @@ export const OBSERVABLE_DRAIN_SIGNALS: readonly string[] = [
 	// N2 turn_loop profile (2026-07-28): the §12 TurnLoopGuard's auto-resolve nudge record — confirmed reaching
 	// the sink in the green TURNLOOP regression run the day the standing cell was registered.
 	"turn_loop_auto_resolve",
+	// N11 flags_on lane (2026-07-30): every one of these was OBSERVED emitting on a GREEN `02×flags_on` drain and
+	// declares `expectation: "every_run"` once its flag is on. Listing them here is what lets the pack assert them
+	// — the same "confirmed to reach this sink first" rule the header states, applied to 19 mechanisms that had
+	// never once been proven live before this lane existed.
+	"architect_editor_phase",
+	"fewshot_exemplars",
+	"goal_reanchor",
+	"history_blind_corrector_agreed",
+	"ledger_exemplars",
+	"procedural_skill_distillation",
+	"queue_aware_free_first",
+	"review_effort_scaling",
+	"review_lenses",
+	"review_panel_assembly",
+	"review_path",
+	"sandbox_mcp_offer",
+	"skill_prompt_fragments",
+	"spec_lint",
+	"sysprompt_level",
+	"test_driven_gate",
+	"tool_catalog_gate_observation",
+	"two_phase_tool_pick",
+	"verification_first_gate",
 ];
 
 interface TelemetryRecord {

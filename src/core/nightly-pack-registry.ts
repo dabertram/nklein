@@ -172,11 +172,16 @@ export const TURN_LOOP_RECOVERY: InvariantPack = {
  * found 0 of the 29 flag-gated mechanisms firing — correctly so, since a default profile cannot reach them. This
  * lane is the cheapest way to give all of them a chance at once.
  *
- * `mustFire` is EMPTY ON PURPOSE, and that is this registry's standing rule, not an oversight: a pack asserts what
- * the collector is KNOWN to observe, never what we hope it will. 18 mechanisms declare `expectation: "every_run"`
- * once their flag is on and are therefore the promotion CANDIDATES — but until a real drain shows which of them
- * genuinely emit under this scenario, listing them would manufacture a wall of `indeterminate` that reads as rigour
- * and asserts nothing. First run measures; proven signals then move into `mustFire` here.
+ * `mustFire` was EMPTY when this landed, on purpose — a pack asserts what the collector is KNOWN to observe, never
+ * what we hope it will. **2026-07-30: the first GREEN drain measured it, so the 19 below are now asserted.** Every
+ * one was observed emitting on a passing `02×flags_on` run AND declares `expectation: "every_run"`, so its absence
+ * is a real regression rather than a scenario quirk. Mechanisms that fired but declare `exceptional`
+ * (`baseline_probe`, `opportunistic_idle_dispatch`, `typecheck_first`) are deliberately NOT here: they are
+ * condition-triggered, so asserting them would fail the cell whenever the condition simply did not arise.
+ *
+ * The first drain of this lane was NOT green — it exposed `NKLEIN_TYPECHECK_FIRST` blocking every card (see
+ * nklein-acceptance-gate.ts). Promoting from that failed run would have baked a broken run's signal shape into the
+ * contract; the rule "promote only from green" is what prevented that.
  *
  * `runtime_error` is exempted for this profile only: switching on experimental mechanisms wholesale is expected to
  * produce recoverable noise, and this lane's job is coverage, not a health verdict — the baseline `perfect` cell
@@ -185,7 +190,27 @@ export const TURN_LOOP_RECOVERY: InvariantPack = {
 export const FLAGS_ON_COVERAGE: InvariantPack = {
 	id: "flags-on-coverage",
 	expectedTerminalLanes: [],
-	mustFire: [],
+	mustFire: [
+		"architect_editor_phase",
+		"fewshot_exemplars",
+		"goal_reanchor",
+		"history_blind_corrector_agreed",
+		"ledger_exemplars",
+		"procedural_skill_distillation",
+		"queue_aware_free_first",
+		"review_effort_scaling",
+		"review_lenses",
+		"review_panel_assembly",
+		"review_path",
+		"sandbox_mcp_offer",
+		"skill_prompt_fragments",
+		"spec_lint",
+		"sysprompt_level",
+		"test_driven_gate",
+		"tool_catalog_gate_observation",
+		"two_phase_tool_pick",
+		"verification_first_gate",
+	],
 	mustStayQuiet: [],
 	quietExemptionsByProfile: { flags_on: ["runtime_error"] },
 	includes: ["core-invariants"],

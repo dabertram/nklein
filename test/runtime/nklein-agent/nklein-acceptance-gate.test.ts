@@ -669,6 +669,30 @@ describe("type-check-first micro-loop (F12.86)", () => {
 		}
 	});
 
+	it("DEGRADES when the checker could not run: non-zero exit with no parseable diagnostics", async () => {
+		// Live-found 2026-07-30 by the N11 flags_on lane. In a sandbox without the toolchain, `npm run typecheck`
+		// exits non-zero and prints nothing a compiler-diagnostic parser can anchor to. The gate treated that as
+		// "this code has type errors" and bounced the card with an unactionable hint ("fix the reported type
+		// errors" — none were reported). It never self-clears: scenario 02 recorded exitCode 1 / diagnosticCount 0
+		// four times and ended 1 completed / 1 review / 17 PLANNING, the 17 blocked dependents being the real cost.
+		const before = process.env.NKLEIN_TYPECHECK_FIRST;
+		process.env.NKLEIN_TYPECHECK_FIRST = "1";
+		try {
+			// Exits non-zero, but the output is a toolchain error rather than compiler diagnostics.
+			const runCommand = makeRunner("sh: tsc: command not found\nnpm ERR! code 127");
+			const result = await runNKleinAcceptanceGate({ workspacePath: "/tmp/p", taskPrompt: PROMPT, runCommand });
+			// The card's fate is decided by the ACCEPTANCE command, not by a checker that never ran.
+			expect(result.passed).toBe(true);
+			expect(runCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "npm test" }));
+		} finally {
+			if (before === undefined) {
+				delete process.env.NKLEIN_TYPECHECK_FIRST;
+			} else {
+				process.env.NKLEIN_TYPECHECK_FIRST = before;
+			}
+		}
+	});
+
 	it("bounces with ANCHORED diagnostics before the acceptance command runs", async () => {
 		const before = process.env.NKLEIN_TYPECHECK_FIRST;
 		process.env.NKLEIN_TYPECHECK_FIRST = "1";

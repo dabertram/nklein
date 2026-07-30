@@ -276,36 +276,65 @@ export async function runNKleinAcceptanceGate(
 					joinOutput(checkRun.stdout, checkRun.stderr),
 					typeCheck.language,
 				);
-				const plan = planTypeCheckRepair({ diagnostics, attempt: 0 });
-				const checkOutput = joinOutput(checkRun.stdout, checkRun.stderr);
-				const finishedTypeCheckAt = now();
-				(options.recordObservation ?? recordSelfObservation)({
-					signal: "verification_failed",
-					severity: "error",
-					message: `Type check failed before acceptance: ${typeCheck.command}`,
-					taskId: options.taskId,
-					workspacePath: options.workspacePath,
-					metadata: {
-						command: typeCheck.command,
+				// 🐛 "COULD NOT RUN" IS NOT "HAS TYPE ERRORS" (live-found 2026-07-30, N11 flags_on lane).
+				// A non-zero exit with ZERO parseable diagnostics is the signature of a checker that never ran —
+				// missing toolchain, absent node_modules, `tsc: not found`, a script that shells to something the
+				// sandbox lacks. A genuine type failure PRODUCES diagnostics; a broken invocation produces an exit
+				// code and nothing to anchor on. Bouncing the card on that is unactionable ("fix the reported type
+				// errors" when none were reported) and it never self-clears, so the card bounces forever and every
+				// dependent starves behind it.
+				// Evidence: scenario 02 with this flag on recorded `{command: "npm run typecheck", exitCode: 1,
+				// diagnosticCount: 0}` four times; the board ended 1 completed / 1 review / 17 PLANNING, and the
+				// 17 blocked dependents were the real severity. Removing this one flag turned the same run green.
+				// This mirrors the gate's own existing stance on a degraded package.json READ ("any degraded read
+				// yields no check and the normal path runs untouched") — degraded EXECUTION deserves the same
+				// treatment. Recorded, never silent, then the normal acceptance path decides the card's fate.
+				if (diagnostics.length === 0) {
+					(options.recordObservation ?? recordSelfObservation)({
+						signal: "custom",
+						severity: "warning",
+						message: `Type-check-first skipped: \`${typeCheck.command}\` exited ${checkRun.exitCode} with no parseable diagnostics — treating as a toolchain failure, not a type failure.`,
+						taskId: options.taskId,
+						workspacePath: options.workspacePath,
+						metadata: {
+							category: "typecheck_first_unavailable",
+							command: typeCheck.command,
+							exitCode: checkRun.exitCode,
+							outputPreview: joinOutput(checkRun.stdout, checkRun.stderr).slice(0, 500),
+						},
+					});
+				} else {
+					const plan = planTypeCheckRepair({ diagnostics, attempt: 0 });
+					const checkOutput = joinOutput(checkRun.stdout, checkRun.stderr);
+					const finishedTypeCheckAt = now();
+					(options.recordObservation ?? recordSelfObservation)({
+						signal: "verification_failed",
+						severity: "error",
+						message: `Type check failed before acceptance: ${typeCheck.command}`,
+						taskId: options.taskId,
+						workspacePath: options.workspacePath,
+						metadata: {
+							command: typeCheck.command,
+							exitCode: checkRun.exitCode,
+							category: "typecheck_first",
+							diagnosticCount: diagnostics.length,
+						},
+						createdAt: finishedTypeCheckAt,
+					});
+					return {
+						present: true,
+						command,
+						passed: false,
 						exitCode: checkRun.exitCode,
-						category: "typecheck_first",
-						diagnosticCount: diagnostics.length,
-					},
-					createdAt: finishedTypeCheckAt,
-				});
-				return {
-					present: true,
-					command,
-					passed: false,
-					exitCode: checkRun.exitCode,
-					output: `[type check: ${typeCheck.command}] exit ${checkRun.exitCode ?? "?"}\n${checkOutput.slice(0, 4_000)}`,
-					durationMs: Math.max(0, finishedTypeCheckAt - startedAt),
-					failureCategory: "lint_error",
-					// Anchored instruction when the output parsed; otherwise say so honestly rather than inventing anchors.
-					failureHint:
-						plan.instruction ??
-						`The repo's \`${typeCheck.command}\` failed before the acceptance command ran. Fix the reported type errors first, then re-run.`,
-				};
+						output: `[type check: ${typeCheck.command}] exit ${checkRun.exitCode ?? "?"}\n${checkOutput.slice(0, 4_000)}`,
+						durationMs: Math.max(0, finishedTypeCheckAt - startedAt),
+						failureCategory: "lint_error",
+						// Anchored instruction when the output parsed; otherwise say so honestly rather than inventing anchors.
+						failureHint:
+							plan.instruction ??
+							`The repo's \`${typeCheck.command}\` failed before the acceptance command ran. Fix the reported type errors first, then re-run.`,
+					};
+				}
 			}
 		}
 	}

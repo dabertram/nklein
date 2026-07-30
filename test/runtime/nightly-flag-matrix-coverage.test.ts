@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { MECHANISM_REGISTRY } from "../../src/core/mechanism-observation-audit";
 import { NIGHTLY_PACK_REGISTRY } from "../../src/core/nightly-pack-registry";
+import { OBSERVABLE_DRAIN_SIGNALS } from "../../src/core/nightly-signal-extraction";
 
 /**
  * N11 flag-matrix lane — the guard that keeps it HONEST.
@@ -46,12 +47,28 @@ describe("N11 flags_on lane covers every flag-gated mechanism", () => {
 		expect(unknown, `flags_on enables flags no registered mechanism claims: ${unknown.join(", ")}`).toEqual([]);
 	});
 
-	it("registers the lane's pack, and that pack asserts nothing it has not yet observed", () => {
+	it("only asserts signals that are OBSERVABLE and declared every_run — the promotion rule, enforced", () => {
+		// This started life as `expect(mustFire).toEqual([])` while the lane was unvalidated, and it correctly
+		// failed the moment 19 signals were promoted from the first GREEN drain (2026-07-30). Rather than relaxing
+		// it, it now pins the RULE that made the promotion legitimate, so the next promotion has to earn it too:
+		//   (a) the collector must actually watch the signal — otherwise the pack reports `indeterminate` forever
+		//       while looking strict, which is the failure the pack registry's header is about;
+		//   (b) the mechanism must declare `expectation: "every_run"` — a condition-triggered (`exceptional`)
+		//       mechanism would fail the cell on every run where its condition simply did not arise.
 		const pack = NIGHTLY_PACK_REGISTRY.get("flags-on-coverage");
 		expect(pack, "flags-on-coverage pack is not registered").toBeDefined();
-		// Deliberate: 18 mechanisms are promotion CANDIDATES, but until a real drain shows which of them emit under
-		// this scenario, asserting them would manufacture `indeterminate` results that read as rigour. First run
-		// measures; proven signals are promoted into mustFire afterwards.
-		expect(pack?.mustFire).toEqual([]);
+		const observable = new Set(OBSERVABLE_DRAIN_SIGNALS);
+		const everyRun = new Set(
+			MECHANISM_REGISTRY.filter((entry) => entry.expectation === "every_run").map((entry) => entry.category),
+		);
+		const unobservable = (pack?.mustFire ?? []).filter((signal) => !observable.has(signal));
+		expect(unobservable, `mustFire names signals the collector never watches: ${unobservable.join(", ")}`).toEqual(
+			[],
+		);
+		const notEveryRun = (pack?.mustFire ?? []).filter((signal) => !everyRun.has(signal));
+		expect(
+			notEveryRun,
+			`mustFire names condition-triggered mechanisms, which will fail whenever the condition does not arise: ${notEveryRun.join(", ")}`,
+		).toEqual([]);
 	});
 });
