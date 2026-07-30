@@ -27,6 +27,28 @@ export interface LocalRuntimeCapability {
 	readonly mergesLmsRoster: boolean;
 	/** The runtime has a load/unload API !Klein's dev/opt-in paths may drive. */
 	readonly supportsLoad: boolean;
+	/**
+	 * P17.6 — can !Klein get KV/prompt cache state that SURVIVES A MODEL UNLOAD out of this runtime?
+	 *
+	 * FAIL-CLOSED: `false` unless verified true against the running engine. A wrong `true` here would have
+	 * !Klein skip prefill it actually still owes, so the default must be the pessimistic one.
+	 *
+	 * Why every entry is currently `false` (researched + verified 2026-07-30):
+	 *  - **lmstudio** — BOTH of its engines discard it. Its MLX engine does disk-cache KV at 256-token
+	 *    boundaries with LRU eviction, but LM Studio documents the store as scratch-only: the cache "will not
+	 *    leave persistent files", and "On model unload, the cache store clears its in-memory index and closes
+	 *    the scratch file." Its llama.cpp engine COULD persist — upstream supports `--slot-save-path` with
+	 *    `POST /slots/<id>?action=save|restore` — but LM Studio does not pass that flag (verified against the
+	 *    live `llama-server` argv, which carries ctx-size/n-gpu-layers/cache-type/flash-attn and no slot path).
+	 *    So the capability exists in the engine and is switched off above it; !Klein cannot reach it through
+	 *    this provider.
+	 *  - **ollama / mlxserve** — NOT INVESTIGATED YET. They are `false` because that is the fail-closed default,
+	 *    NOT because either was tested and found lacking. Flip only with a probe against a running instance.
+	 *
+	 * This field is deliberately a static capability claim, not a live probe: it answers "is it worth asking?"
+	 * The actual save/restore round-trip must still be verified at runtime before any prefill is skipped.
+	 */
+	readonly persistsKvCacheAcrossUnload: boolean;
 }
 
 export const LOCAL_RUNTIME_CAPABILITIES: readonly LocalRuntimeCapability[] = [
@@ -36,6 +58,7 @@ export const LOCAL_RUNTIME_CAPABILITIES: readonly LocalRuntimeCapability[] = [
 		liveDiscoveryOnly: true,
 		mergesLmsRoster: true,
 		supportsLoad: true,
+		persistsKvCacheAcrossUnload: false,
 	},
 	{
 		providerId: "ollama",
@@ -43,6 +66,7 @@ export const LOCAL_RUNTIME_CAPABILITIES: readonly LocalRuntimeCapability[] = [
 		liveDiscoveryOnly: false,
 		mergesLmsRoster: false,
 		supportsLoad: false,
+		persistsKvCacheAcrossUnload: false,
 	},
 	{
 		providerId: "mlxserve",
@@ -50,6 +74,7 @@ export const LOCAL_RUNTIME_CAPABILITIES: readonly LocalRuntimeCapability[] = [
 		liveDiscoveryOnly: true,
 		mergesLmsRoster: false,
 		supportsLoad: false,
+		persistsKvCacheAcrossUnload: false,
 	},
 ];
 

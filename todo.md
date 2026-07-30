@@ -8793,6 +8793,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     cache that outlives the engine process is the whole point.
   - Directly on-topic prior art for our exact shape (multi-agent, edge, quantized): arXiv 2603.04428 *"Agent
     Memory Below the Prompt: Persistent Q4 KV Cache for Multi-Agent LLM Inference on Edge Devices"*.
+  **SEQUENCING REALITY CHECK (do not skip): !Klein CANNOT get persistence through LM Studio's API** — the MLX
+  engine clears its cache on unload and the llama.cpp wrapper omits `--slot-save-path`. So P17.6 is gated on
+  talking to an engine !Klein controls, i.e. the runtime-adapter work (P17.1 / P17.1a mlx-serve). FIRST
+  INCREMENT that is useful regardless of which engine wins: **detect and record whether the configured runtime
+  can persist KV state at all**, in the existing local-runtime-capability-registry — a fail-closed capability
+  probe, so every later decision (and the budget settings) keys off measured truth instead of an assumption.
   **WHY THIS MATTERS FOR !KLEIN SPECIFICALLY:** the G6.8a campaign runs three pinned models on ONE cap-1 host,
   so the swarm serialises every turn and re-prefixes constantly; v16 showed a single worker turn taking 19
   minutes and a card queued 27 minutes behind it. Prefill recompute is a first-order cost here, not a
@@ -8808,6 +8814,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **THE CONFLICT:** memory `no-auto-load-unload-production` records David 2026-07-19: *"!Klein product never
   auto-loads/unloads models (prompt-cache thrash, MLX); loader = dev-time tooling; production =
   recommendation-only."* This request would reverse that.
+  **✅ DAVID DECIDED 2026-07-30: "land cache persistence, measure warm-reload cost, then re-open the swap
+  decision on evidence" — that sequence is APPROVED. Plus a hard requirement he added: IF we go the residency
+  route, disk AND RAM budgets must be user-DEFINABLE SETTINGS, not hardcoded.** Budget settings therefore
+  belong to whichever step first spends the resource: the cache's DISK budget lands with P17.6 (it is the
+  thing writing blobs), the residency RAM budget lands with P17.7. Both must be real settings on the existing
+  config surface with sane defaults, surfaced in the UI, and honoured by an eviction/refusal path — never an
+  unwired knob (see P15.3: a setting with no enforcing consumer is worse than none).
   **THE INTERESTING PART — the two ideas are linked, and P17.6 may dissolve the original objection.** The stated
   reason for banning auto-swap was PROMPT-CACHE THRASH. A cache that survives unload (P17.6) is exactly the
   mitigation for that. So the honest sequencing is: **land P17.6 first, MEASURE the reload-with-warm-cache cost,

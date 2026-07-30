@@ -63,5 +63,11 @@ describe("context-integrity eval harness", () => {
 		} finally {
 			await simulator.stop();
 		}
-	});
+		// Generous on purpose. This test SPAWNS THE REAL CLI, so its wall time tracks machine load, not the
+		// behaviour under test — and it timed out twice on 2026-07-30 at the 15s default purely because a
+		// real-model campaign was saturating the box (it passed in isolation both times). A timing gate that
+		// false-trips under load trains people to ignore the suite, and the standing project rule for exactly
+		// this shape is a MORE generous timeout rather than a faster test. The assertions below are about
+		// content, not speed; nothing here regresses if it takes longer.
+	}, 120_000);
 });
