@@ -16,6 +16,8 @@
  * adapter; nothing consumes the id yet — registering it is deliberately behavior-neutral for existing ids).
  */
 
+import type { ServedContextVerdict } from "../core/served-context-assertion";
+
 export interface LocalRuntimeCapability {
 	/** Canonical provider id (lowercase). */
 	readonly providerId: string;
@@ -49,6 +51,27 @@ export interface LocalRuntimeCapability {
 	 * The actual save/restore round-trip must still be verified at runtime before any prefill is skipped.
 	 */
 	readonly persistsKvCacheAcrossUnload: boolean;
+	/**
+	 * P21.3 — is this runtime's ADVERTISED context window honestly SERVED, or does it silently discard the
+	 * overflow? Shares `ServedContextVerdict`'s vocabulary (`served-context-assertion.ts`) so a probe result
+	 * drops straight in.
+	 *
+	 * ── WHY THIS BECAME A PER-RUNTIME FIELD (2026-07-30) ──
+	 * P21.3 exists because Ollama's 2k default *"silently discards context that exceeds the window"* — a failure
+	 * that errors NOWHERE; the model just answers from half a prompt. P21.3b then probed the fleet live
+	 * (2026-07-20) and found LM Studio does NOT have the trap: a fitting prompt was fully ingested and the needle
+	 * recalled, and an OVER-window prompt failed LOUD rather than truncating. The conclusion recorded was
+	 * "prime-directive #3's fear is unfounded" — but that conclusion is scoped to **LM Studio, which was then the
+	 * whole fleet**. As a prose note it silently EXPIRES the moment P17.1a lands a second adapter: nothing would
+	 * re-ask the question for mlx-serve, and the danger P21.3 was built for is exactly the kind that reports
+	 * nothing when it bites. Recording it per-runtime is what keeps the measurement attached to the thing it
+	 * measured.
+	 *
+	 * FAIL-CLOSED: `"unverified"` unless probed against a running engine — same direction as
+	 * `persistsKvCacheAcrossUnload` and as `assessServedContext` itself, where absent evidence resolves to "no".
+	 * A false `"verified"` costs a silent truncation in production; a false `"unverified"` costs one probe.
+	 */
+	readonly servedContextHonesty: ServedContextVerdict;
 }
 
 export const LOCAL_RUNTIME_CAPABILITIES: readonly LocalRuntimeCapability[] = [
@@ -59,6 +82,10 @@ export const LOCAL_RUNTIME_CAPABILITIES: readonly LocalRuntimeCapability[] = [
 		mergesLmsRoster: true,
 		supportsLoad: true,
 		persistsKvCacheAcrossUnload: false,
+		// PROBED LIVE 2026-07-20 (P21.3b): `qwen/qwen3-8b` at an 8192 window. A 3498-token prompt reported
+		// `prompt_tokens: 3498` — fully ingested, not clamped — and the needle planted at position 0 was recalled
+		// verbatim. A ~16.8k over-window prompt ERRORED LOUDLY rather than truncating. Honest on both sides.
+		servedContextHonesty: "verified",
 	},
 	{
 		providerId: "ollama",
@@ -67,6 +94,10 @@ export const LOCAL_RUNTIME_CAPABILITIES: readonly LocalRuntimeCapability[] = [
 		mergesLmsRoster: false,
 		supportsLoad: false,
 		persistsKvCacheAcrossUnload: false,
+		// The runtime P21.3 was WRITTEN about: its 2k default silently discards the overflow. Still "unverified"
+		// rather than "silently_truncated" because !Klein has never probed an actual instance — the trap is
+		// documented upstream, not measured here, and this field records OUR evidence.
+		servedContextHonesty: "unverified",
 	},
 	{
 		providerId: "mlxserve",
@@ -75,6 +106,10 @@ export const LOCAL_RUNTIME_CAPABILITIES: readonly LocalRuntimeCapability[] = [
 		mergesLmsRoster: false,
 		supportsLoad: false,
 		persistsKvCacheAcrossUnload: false,
+		// NOT PROBED. This is the entry that makes the field worth having: when P17.1a lands mlx-serve, its
+		// context honesty is an OPEN question, and the fail-closed default says so instead of inheriting
+		// LM Studio's verdict by silence.
+		servedContextHonesty: "unverified",
 	},
 ];
 

@@ -43,3 +43,53 @@ describe("local runtime KV-cache persistence capability", () => {
 		);
 	});
 });
+
+/**
+ * P21.3 — guards for the served-context honesty claim.
+ *
+ * The danger this field tracks is SILENT: a runtime that advertises 32k and serves 2k discards most of the
+ * prompt and errors nowhere — the model simply answers from a fraction of its input. So the invariant is not
+ * "the values are right today" but "only a real probe can produce `verified`, and everything else stays
+ * pessimistic."
+ */
+describe("local runtime served-context honesty capability", () => {
+	it("marks ONLY the runtime that was actually probed as verified", () => {
+		// LM Studio earned `verified` from a live needle probe (P21.3b, 2026-07-20): a fitting prompt was fully
+		// ingested and recalled, an over-window prompt failed loud. Nothing else has been probed.
+		expect(findLocalRuntimeCapability("lmstudio")?.servedContextHonesty).toBe("verified");
+		for (const providerId of ["ollama", "mlxserve"]) {
+			expect(
+				findLocalRuntimeCapability(providerId)?.servedContextHonesty,
+				`${providerId} claims a context-honesty verdict it never earned by probe`,
+			).toBe("unverified");
+		}
+	});
+
+	it("resolves through aliases too, so a spelling cannot inherit the wrong verdict", () => {
+		for (const capability of LOCAL_RUNTIME_CAPABILITIES) {
+			for (const alias of capability.aliases) {
+				expect(findLocalRuntimeCapability(alias)?.servedContextHonesty).toBe(capability.servedContextHonesty);
+			}
+		}
+	});
+
+	it("treats an unknown runtime as UNVERIFIED rather than assuming it is honest", () => {
+		// The whole point: when a new adapter appears, it must not inherit LM Studio's verdict by silence.
+		expect(findLocalRuntimeCapability("some-runtime-we-have-never-seen")?.servedContextHonesty ?? "unverified").toBe(
+			"unverified",
+		);
+	});
+
+	it("never records `silently_truncated` from documentation alone — this field holds OUR measurements", () => {
+		// Ollama's 2k-default trap is documented upstream and is the reason P21.3 exists, but !Klein has never
+		// probed an instance. Recording a verdict we did not measure would make the registry look evidential while
+		// carrying hearsay — the same failure the nightly pack registry warns about.
+		for (const capability of LOCAL_RUNTIME_CAPABILITIES) {
+			if (capability.servedContextHonesty === "silently_truncated") {
+				throw new Error(
+					`${capability.providerId} records silently_truncated — only a real probe may set that, update this test with the evidence`,
+				);
+			}
+		}
+	});
+});

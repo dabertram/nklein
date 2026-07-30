@@ -9766,9 +9766,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   CONCLUSION: on LM Studio (our whole fleet), prime-directive #3's fear — trusting an advertised window that is
   silently under-served — is UNFOUNDED: the advertised window is honestly served for a fitting prompt, and an
   over-window prompt fails loud rather than truncating. So `assessServedContext` for an LM Studio endpoint resolves
-  `verified` at its advertised length. REMAINING (low value): the same one-shot probe wired as a startup assertion
-  that auto-feeds `assessServedContext` per endpoint — nice-to-have, but the danger it was built to catch is now
-  measured absent on the fleet we actually run, so it is a belt-and-braces check, not a live exposure.
+  `verified` at its advertised length.
+  **▶ THE CONCLUSION IS NOW DURABLE INSTEAD OF PROSE (2026-07-30).** The finding above was scoped to *"LM Studio,
+  which was then the whole fleet"* — and as a paragraph in a backlog file it would silently EXPIRE the moment
+  P17.1a lands mlx-serve: nothing re-asks the question for a new adapter, and this failure reports nothing when
+  it bites. `servedContextHonesty: ServedContextVerdict` now lives on the per-runtime capability record
+  (`local-runtime-capability-registry.ts`), sharing `assessServedContext`'s vocabulary so a probe result drops
+  straight in. **lmstudio = `verified`** (carrying the 2026-07-20 needle-probe evidence in the comment);
+  **ollama and mlxserve = `unverified`**, fail-closed. Note ollama is deliberately NOT `silently_truncated`
+  despite being the runtime P21.3 was written about: its trap is documented upstream, not measured by us, and a
+  test enforces that only a real probe may record that verdict — the registry holds OUR evidence, not hearsay.
+  REMAINING (low value, unchanged): the one-shot probe wired as a startup assertion that auto-feeds
+  `assessServedContext` per endpoint. Still belt-and-braces for LM Studio — but it is now the obvious way to
+  earn a verdict for whichever adapter lands next, rather than a check with no live exposure.
 - [ ] **P21.4 — Adopt Fusion's incident invariants directly (they lost 9 tasks; we can skip that).** From their
   published postmortem (2026-05-23, 14 tasks marked complete but absent from main): **(a)** reject sibling
   branches as merge targets — theirs squashed onto a sibling `fusion/fn-*` branch inherited from a parent;
@@ -10266,6 +10276,11 @@ Mirrored by a manifest-level test so the data cannot drift back.
   **Verification recipe (cheap and conclusive):** remove → `npm install` → `npx tsc --noEmit` → `npm run
   test:fast` → a desktop-CLI smoke. If green, the deps were dead and 10 advisories go with them.
   ── superseded detail kept for reference ──
+- **NEW — kernel has no `paused` phase (§5 P24.1).** A paused card holds no slot but is not done; the kernel
+  classifies it `running`. Liveness is fine, but capacity/admission decisions must NOT use
+  `classifyWorkflowPhase` until this is closed. **Options: add a `paused` phase, or split `running` into
+  holds-capacity / work-unfinished.** Recommendation: add the phase — it is the smaller change and it keeps the
+  class vocabulary aligned with the audit's `waiting_capacity`/`running`/`terminal` mapping.
 - **NEW — `release_resources` semantics (§5 P24.1):** is it "ensure nothing is held" (IDEMPOTENT) or "give back
   what you took" (PAIRED)? Three kernel sites disagree with PAIRED; under PAIRED one of them drives a
   counter-based consumer's host occupancy NEGATIVE (the v9 wedge shape). **Recommendation: IDEMPOTENT.**
