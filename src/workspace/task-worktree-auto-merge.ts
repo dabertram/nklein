@@ -328,9 +328,38 @@ export async function stageTaskResultUncommitted(input: {
 	repoPath: string;
 	taskId: string;
 	resultCommit: string;
+	/**
+	 * P21.4c — the card's declared base. When supplied, staging refuses unless the workspace is actually checked
+	 * out there, and refuses outright if that base is another card's deliverable.
+	 *
+	 * This path had NO target check at all — it squash-merges into whatever happens to be checked out, gated only
+	 * by the clean-tree test below — while its auto-merge sibling verified the checkout. So the P21.4a
+	 * sibling-branch incident was reachable here through a second door even after creation and auto-merge were
+	 * guarded. Optional so existing callers stay byte-identical; the runtime supplies it.
+	 */
+	expectedBaseRef?: string | null;
 	runGit?: RunGit;
 }): Promise<StageTaskResultOutcome> {
 	const runGit = input.runGit ?? defaultRunGit;
+	const expectedBaseRef = input.expectedBaseRef?.trim();
+	if (expectedBaseRef) {
+		if (isTaskResultBranchRef(expectedBaseRef)) {
+			return {
+				ok: false,
+				conflict: false,
+				reason: `Task "${input.taskId}" declares base "${expectedBaseRef}", which is another task's result branch. Staging there would put this work on a sibling task instead of the base branch.`,
+			};
+		}
+		const branch = await runGit(input.repoPath, ["branch", "--show-current"]);
+		const currentBranch = branch.ok ? branch.stdout.trim() : null;
+		if (currentBranch !== expectedBaseRef) {
+			return {
+				ok: false,
+				conflict: false,
+				reason: `Base workspace must be checked out on "${expectedBaseRef}" before staging task "${input.taskId}" (currently on "${currentBranch ?? "unknown"}").`,
+			};
+		}
+	}
 	const status = await runGit(input.repoPath, ["status", "--porcelain", "--", ".", ":(exclude).nklein/nklein"]);
 	if (!status.ok || status.stdout.trim()) {
 		return {

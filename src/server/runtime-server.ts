@@ -2913,6 +2913,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									repoPath: scope.workspacePath,
 									taskId: deliveredBranchTaskId,
 									resultCommit: deliveredResultCommit,
+									// P21.4c: staging previously merged into whatever was checked out, with no target
+									// check at all. Passing the card's base makes this path refuse a sibling deliverable
+									// and a wrong checkout, matching the auto-merge seam.
+									expectedBaseRef: deliveryCard?.baseRef ?? null,
 								}),
 							);
 							try {

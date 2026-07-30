@@ -869,3 +869,68 @@ describe("stageTaskResultUncommitted (P21.13a — container-use `apply`)", () =>
 		expect(calls.some((args) => args[0] === "reset" && args[1] === "--merge")).toBe(true);
 	});
 });
+
+describe("P21.4c — stageTaskResultUncommitted target guard", () => {
+	it("REFUSES to stage onto another card's result branch", () => {
+		// The second door into the P21.4a incident: this path squash-merges into whatever is checked out and, before
+		// this guard, performed NO target check whatsoever — not even the consistency check its auto-merge sibling
+		// had. Creation and auto-merge were guarded; staging was not.
+		return stageTaskResultUncommitted({
+			repoPath: "/repo",
+			taskId: "ui",
+			resultCommit: "abc123",
+			expectedBaseRef: "nklein/tasks/card-a-0123456789",
+			runGit: async () => gitOk(""),
+		}).then((outcome) => {
+			expect(outcome.ok).toBe(false);
+			expect(outcome.reason).toContain("another task's result branch");
+		});
+	});
+
+	it("REFUSES to stage when the workspace is on the wrong branch", async () => {
+		const outcome = await stageTaskResultUncommitted({
+			repoPath: "/repo",
+			taskId: "ui",
+			resultCommit: "abc123",
+			expectedBaseRef: "main",
+			runGit: async (_cwd, args) => (args[0] === "branch" ? gitOk("some-other-branch") : gitOk("")),
+		});
+		expect(outcome.ok).toBe(false);
+		expect(outcome.reason).toContain("must be checked out");
+	});
+
+	it("stages normally when the base is legitimate and checked out", async () => {
+		const outcome = await stageTaskResultUncommitted({
+			repoPath: "/repo",
+			taskId: "ui",
+			resultCommit: "abc123",
+			expectedBaseRef: "main",
+			runGit: async (_cwd, args) => {
+				if (args[0] === "branch") {
+					return gitOk("main");
+				}
+				if (args[0] === "diff") {
+					return gitOk("src/app.ts");
+				}
+				return gitOk("");
+			},
+		});
+		expect(outcome.ok).toBe(true);
+	});
+
+	it("stays byte-identical for callers that supply no base — the guard is opt-in", async () => {
+		// Existing callers and tests must not change behaviour just because the parameter exists.
+		const calls: string[][] = [];
+		const outcome = await stageTaskResultUncommitted({
+			repoPath: "/repo",
+			taskId: "ui",
+			resultCommit: "abc123",
+			runGit: async (_cwd, args) => {
+				calls.push([...args]);
+				return gitOk("");
+			},
+		});
+		expect(outcome.ok).toBe(true);
+		expect(calls.some((call) => call[0] === "branch")).toBe(false);
+	});
+});

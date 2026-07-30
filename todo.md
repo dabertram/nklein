@@ -9830,7 +9830,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   REMAINING (low value, unchanged): the one-shot probe wired as a startup assertion that auto-feeds
   `assessServedContext` per endpoint. Still belt-and-braces for LM Studio — but it is now the obvious way to
   earn a verdict for whichever adapter lands next, rather than a check with no live exposure.
-- [ ] **P21.4 — Adopt Fusion's incident invariants directly (they lost 9 tasks; we can skip that).** From their
+- [x] **P21.4 — Adopt Fusion's incident invariants directly (they lost 9 tasks; we can skip that).** From their
   published postmortem (2026-05-23, 14 tasks marked complete but absent from main): **(a)** reject sibling
   branches as merge targets — theirs squashed onto a sibling `fusion/fn-*` branch inherited from a parent;
   **(b)** commit attribution must be **line-anchored** (trailers or conventional-commit subject), never
@@ -9881,7 +9881,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   with a confidently wrong message ("you changed files outside your bounds") when the truth is only that the diff
   could not be read. Its silence is documented in place as "unassessed, not clean", and safety is carried by the
   upstream hold instead — an unassessed delivery can no longer auto-merge on the strength of that silence.
-- [ ] **P21.5 — ⚠️ Fusion's multi-node P0 is OUR failure surface too.** Their self-audit found **"Checkout CAS is
+- [x] **P21.5 — ⚠️ Fusion's multi-node P0 is OUR failure surface too.** Their self-audit found **"Checkout CAS is
   local-row atomic, not central-distributed"** — with no central claim table, two nodes can each evaluate the
   local single-row precondition as true before either write is globally fenced, causing **double-checkout**.
   SQLite WAL guarantees do not cross database files. They also found stale ownership after node failure has no
@@ -9933,6 +9933,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   rather than fabricating a precise-looking number from it, and never returns 0 (which would read as "do not do
   it" rather than "no split needed").
   The wire is P21.6b.
+- [x] **P21.4c — Add the missing merge-target guard to the STAGE path *(split from P21.4a 2026-07-30)*. DONE
+  same day.** `expectedBaseRef` is now an optional input: supplied, staging refuses a sibling deliverable AND a
+  wrong checkout; omitted, the path is byte-identical (pinned by a test asserting no `branch` call is issued), so
+  existing callers are untouched. The runtime passes the card's `baseRef`. 4 tests.
+  `stageTaskResultUncommitted` runs `git merge --squash <resultCommit>` against whatever is checked out, gated
+  ONLY by a clean-tree check — it has no `branch --show-current` comparison at all, unlike the auto-merge path
+  (reached when `autoReviewMode === "stage"`). The P21.4a sibling-branch guard now blocks the illegitimate BASE
+  at both card creation and the auto-merge seam, so the dangerous value can no longer be persisted; this path is
+  the remaining one that never checks WHERE it is merging. Small and well-understood: assert the checkout matches
+  the card's `baseRef` (which is now guaranteed not to be a sibling deliverable) before staging.
+- [ ] **P21.5b — Refuse a SECOND runtime server on the same ledger root *(split from P21.5 2026-07-30)*.**
+  The board/claim path is properly fenced (one state file, real cross-process lock, precondition evaluated inside
+  it, OCC on top). The durable scheduler is a different surface: it is a PURE in-process brain whose leases live
+  in the append-only ledger, so two orchestrators replaying one ledger would each build their own job graph and
+  could both lease the same job. Runs are isolated today by HOME + `NKLEIN_AGENT_LEDGER_ROOT` — that is how the
+  nightly runs 28 cells — but that is a CONVENTION of how runs are launched, not an enforced fence. A startup
+  guard refusing a second server on an already-claimed ledger root converts it into a structural guarantee.
+  ⚠️ Decide the intended semantics first: the desktop app plus a CLI `dev` command on one workspace is a real
+  usage pattern today, and a naive guard would refuse it. Scope the lock to the SCHEDULER, not the process.
 - [ ] **P21.6b — Enforce the sizing invariant at decompose time.** *(Split from P21.6 2026-07-20; David resolved
   the reviewer source 2026-07-21.)* Feed real diff-size estimates and a fleet-derived review capacity into
   `decideTaskSizing`, and split when it says to. Composes with F12.110's depth-target work, supplying the ceiling
