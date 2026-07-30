@@ -4,49 +4,66 @@ import { EVAL_PROMPT_CORPUS } from "../../../src/core/eval-prompt-corpus";
 import { classifyContextDepth } from "../../../src/core/model-fitness-freshness";
 
 /**
- * P22.2 — the DEPTH of the evidence every fitness number is built from, measured rather than assumed.
+ * P22.2 — the DEPTH of the evidence every fitness number is built from.
  *
- * P22.2 states that "every fitness number we hold is effectively a shallow-context measurement". That was a
- * hypothesis. This file makes it a fact, and the fact is stronger than the hedge: **all 15 corpus prompts are
- * shallow, the largest at ~420 tokens, against !Klein's ≥32k context floor.** Every measured judgement about a
- * model's fitness was therefore taken at roughly 1-2% of the depth a real card runs at — and the depth research
- * in Phase 22 is precisely that capability at depth is not predicted by capability at depth 0.
+ * ⚠️ **THIS FILE'S FIRST VERSION WAS WRONG, and the way it was wrong is worth keeping.** It measured
+ * `estimateTextTokens(JSON.stringify(prompt))` and concluded the corpus was ENTIRELY shallow. But a
+ * `context_probe` prompt is a compact SPEC — `{contextTokens, needle, needleDepth}` — whose haystack is generated
+ * at run time, so its stored size says nothing about the context the model actually sees. Measuring the spec of a
+ * 24k probe as ~200 tokens is measuring the recipe instead of the meal.
  *
- * ── WHY THIS TEST PINS THE CURRENT STATE RATHER THAN DEMANDING A BETTER ONE ──
- * A test asserting "the corpus contains deep prompts" would fail today, and a red test in the suite is a test
- * people learn to skip. This instead pins the distribution EXACTLY, so the day someone adds a deep prompt the
- * assertion trips and they update it deliberately — turning an invisible property of the corpus into a decision.
- * The gap is recorded in todo P22.2; this makes it impossible to close by accident or to widen unnoticed.
+ * The corrected measurement is below, and the real finding survives in a sharper form: **depth is covered ONLY
+ * for needle retrieval.** Every family that represents actual agent work — decompose, implement, review, tool_use
+ * — is measured exclusively at shallow depth. Phase 22's own research is that retrieval at depth and agent work at
+ * depth are different capabilities, so a 24k needle probe does not license any claim about decomposing at 24k.
  */
+
+/** Runtime context a prompt actually puts in front of the model — the generated haystack, not the stored spec. */
+function runtimeContextTokens(prompt: (typeof EVAL_PROMPT_CORPUS)[number]): number {
+	return prompt.family === "context_probe" ? prompt.contextTokens : estimateTextTokens(JSON.stringify(prompt));
+}
+
 describe("eval corpus context depth", () => {
-	const depths = EVAL_PROMPT_CORPUS.map((prompt) => estimateTextTokens(JSON.stringify(prompt)));
+	const rows = EVAL_PROMPT_CORPUS.map((prompt) => ({
+		id: prompt.id,
+		family: prompt.family,
+		depth: classifyContextDepth(runtimeContextTokens(prompt)),
+	}));
 
-	it("is measured, not assumed — every prompt is classified", () => {
-		expect(depths).toHaveLength(EVAL_PROMPT_CORPUS.length);
-		expect(EVAL_PROMPT_CORPUS.length).toBeGreaterThan(0);
+	it("measures the RUNTIME context, not the stored spec", () => {
+		// The bug this pins: a context_probe's spec is tiny while its haystack is huge. Measuring the spec made a
+		// 24k probe look like a ~200-token prompt and produced a confidently wrong "entirely shallow" verdict.
+		const deepProbe = EVAL_PROMPT_CORPUS.find((prompt) => prompt.id === "context-probe-24k");
+		expect(deepProbe, "the 24k probe is the case that exposes spec-vs-runtime").toBeDefined();
+		expect(runtimeContextTokens(deepProbe as never)).toBe(24_000);
+		expect(estimateTextTokens(JSON.stringify(deepProbe)), "its stored spec is tiny").toBeLessThan(1_000);
 	});
 
-	it("⚠️ is ENTIRELY SHALLOW today — this is P22.2's gap, quantified", () => {
-		const distribution = { shallow: 0, medium: 0, deep: 0 };
-		for (const tokens of depths) {
-			distribution[classifyContextDepth(tokens)] += 1;
+	it("has graduated depth coverage for RETRIEVAL", () => {
+		const probeDepths = rows.filter((row) => row.family === "context_probe").map((row) => row.depth);
+		expect(new Set(probeDepths)).toEqual(new Set(["shallow", "medium", "deep"]));
+	});
+
+	it("⚠️ every AGENT-WORK family is measured at SHALLOW depth ONLY — P22.2's real gap", () => {
+		// This is the finding that survived the correction. Phase 22's research is that capability at depth is not
+		// predicted by capability at depth 0 — and decompose/review/implement/tool_use, the families that decide
+		// routing for real cards, have no evidence above the shallow band at all. A needle probe at 24k measures
+		// retrieval, which is a different capability from decomposing a spec at 24k.
+		const agentWorkFamilies = ["decompose", "implement", "review", "tool_use"] as const;
+		for (const family of agentWorkFamilies) {
+			const depths = new Set(rows.filter((row) => row.family === family).map((row) => row.depth));
+			expect(
+				depths,
+				`${family} gained non-shallow coverage — update this deliberately and make sure the fitness store records it (todo P22.2)`,
+			).toEqual(new Set(["shallow"]));
 		}
-		// When this trips because a deep prompt was added: that is PROGRESS. Update the expectation, and make sure
-		// the fitness store actually records the new depth (P22.2's store side is ready and waiting for it).
-		expect(distribution, "the corpus depth distribution changed — update this deliberately, see todo P22.2").toEqual({
-			shallow: EVAL_PROMPT_CORPUS.length,
-			medium: 0,
-			deep: 0,
-		});
 	});
 
-	it("⚠️ the largest prompt is ORDERS OF MAGNITUDE below the context floor", () => {
-		// The number that makes the gap concrete: a few hundred tokens of evidence backing every routing decision
-		// for cards that run at 32k+.
-		const largest = Math.max(...depths);
-		expect(largest).toBeLessThan(1_000);
-		// Guard against the reverse mistake too — if this ever reads 0, the estimator or the corpus broke and the
-		// "all shallow" finding above would be an artefact rather than a measurement.
-		expect(largest).toBeGreaterThan(100);
+	it("pins the overall distribution so a change is deliberate", () => {
+		const distribution = { shallow: 0, medium: 0, deep: 0 };
+		for (const row of rows) {
+			distribution[row.depth] += 1;
+		}
+		expect(distribution, "corpus depth changed — see todo P22.2").toEqual({ shallow: 13, medium: 1, deep: 1 });
 	});
 });
