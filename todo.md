@@ -8803,6 +8803,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   worse than no narrative, because Layer A (pure aggregation, needs no model) is *"complete and correct without
   one — nothing is degraded except the prose"*. Pin it with a test: a fake completion returning empty content and
   non-empty `reasoning_content` must produce the Layer-A report, not an empty narrative.
+  **▶ THE CALLER-SIDE GUARD LANDED 2026-07-31 — `interpretNarrativeCompletion`, 5 tests. No model needed.**
+  `planFieldReportGeneration` decided whether to ATTEMPT a narrative; nothing decided what a completion actually
+  PRODUCED. This is that post-call half: prose passes through to grounding, and anything else — empty,
+  whitespace-only, null, or reasoning-channel-only — degrades to Layer A with a reason naming which case it was.
+  **It explicitly REFUSES to promote `reasoningContent` into the narrative**, accepting it only as evidence that
+  the model responded at all; publishing a chain of thought in a user-facing report is a worse failure than an
+  empty section, and a test asserts the thinking text never appears in the output.
+  **REMAINING (genuinely effectful, needs a loaded model):** call the model, route the completion through this
+  guard, and feed the observed grounded-rate back so the ladder has real input. The endpoint was up with ZERO
+  models loaded when this was written, so the live half is a load-and-run, not a design question.
 - [x] **P16.7 — Transport: GitHub issue draft (user submits).** Render to markdown, open a prefilled issue draft,
   and stop. !Klein never submits. **No telemetry endpoint, no phone-home, not even opt-in, at this stage** — the
   backend question is deferred until adoption makes it real, and deferring it costs nothing.
