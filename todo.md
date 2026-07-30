@@ -9337,6 +9337,29 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **So as things stand P18.4's core IS decorative** — precisely the risk written into this item before checking.
   A derailed card gets its conversation compacted by the SDK on token pressure, laundering the bad commitment,
   while `decideOffTrackRemedy` never runs on that path.
+  **▶ OBSERVATION HALF LANDED 2026-07-30, AND THE REMAINING BLOCKER IS NOW EXACT.**
+  The drift critic (`nklein-context-focus-extension.ts`) already runs live and, on a flagged verdict, sets a
+  worker NOTE and records `drift_critic_flagged`. It now ALSO records **live context utilisation** alongside that
+  verdict. That pair is the whole measurement P18.4 rests on: a derailed card and a merely-full one present the
+  same symptom and need opposite remedies, so `(offTrack, utilisation)` is what makes the claim checkable on real
+  runs rather than on paper — and it accumulates BEFORE any remedy is permitted to act.
+  **🔴 `decideOffTrackRemedy` is still NOT called, deliberately — two of its four signals do not exist at this
+  seam, and their natural defaults are the DANGEROUS ones:**
+    · `hasCapturedWork` — no result-branch/diff signal reaches the focus extension. Defaulting it `false` is
+      exactly what makes the core choose **RESTART over PARK**, discarding a salvageable diff. That is the bound
+      P18.4 called out as the whole reason park exists.
+    · `restartsSoFar` — **no per-card restart counter exists anywhere** (`crash-recovery-matrix.restartCount` is
+      about RUNTIME restarts, unrelated). Defaulting it `0` defeats the restart cap, and P18.4 named unbounded
+      restarting "a loop that discards work while looking like progress".
+  Feeding invented values would produce confident decisions about **destroying user work**, so the wire stops
+  here rather than looking finished. **THE REMAINING WORK IS PLUMBING, NOT DESIGN:** thread a captured-work flag
+  and a per-card restart counter from the session service (which knows the task id and can resolve the result
+  branch) into the extension, then call the core and act. Both are cross-layer and belong in one deliberate
+  change with the ladder visible — which is what this item asked for in the first place.
+  **NOTE the SDK path is still unconditional** and unchanged by the above: `buildNKleinContextCompactionConfig`
+  is built once at session start from the context window alone, so no mid-session drift verdict can reach it.
+  Acting on drift when it is DETECTED (restart/park) is what keeps a derailed card from ever reaching the
+  SDK's compaction threshold — which is why the remedy, not an SDK hook, is the right lever.
   Two adjacent cores are ALSO not in the loop, which is why this was invisible: `context-compaction.ts`'s
   `shouldCompact` has **no real consumer** (a docblock mention only — it is one of P15.7c's 21 newly-dead
   modules), and `compactionTriggerRatio` is referenced **only from a test**. Three compaction deciders exist and

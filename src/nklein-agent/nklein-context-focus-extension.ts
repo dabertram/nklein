@@ -40,7 +40,7 @@ import {
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
 import { buildKanbanContextPressurePolicy } from "./nklein-context-budgets";
-import { focusKanbanReadFilesForNextRequest } from "./nklein-context-focus-policy";
+import { countKanbanPersistedMessagesTokens, focusKanbanReadFilesForNextRequest } from "./nklein-context-focus-policy";
 import { reanchorFocusChainMessages } from "./nklein-focus-chain-rail";
 import {
 	type RepoSummaryModelCaller,
@@ -60,7 +60,7 @@ import {
 import { handleLargeToolResult } from "./nklein-result-handle-tool";
 import { reviewNKleinAfterModelCompletion } from "./nklein-self-review-hook";
 import type { AgentAfterToolContext, AgentBeforeModelContext, AgentBeforeModelResult } from "./sdk-agent-types";
-import type { NKleinSdkStartSessionInput } from "./sdk-runtime-boundary";
+import type { NKleinSdkPersistedMessage, NKleinSdkStartSessionInput } from "./sdk-runtime-boundary";
 import { buildStallReplanMessage } from "./stall-replan-message";
 import { decideTaskReanchorForRequest, firstUserGoalText, PAYLOAD_REANCHOR_TOKENS } from "./task-reanchor-before-model";
 import { latestStepText, narrowToolsForStep } from "./two-phase-before-model";
@@ -468,6 +468,33 @@ export function createKanbanContextFocusExtension(
 								// than none, and a critic that always finds something trains the worker to ignore it.
 								if (!verdict.onTrack && verdict.workerNote) {
 									driftCriticPendingNoteBySessionId.set(sessionId, verdict.workerNote);
+									// P18.4b (observation half, 2026-07-30): pair the drift verdict with LIVE context
+									// utilisation. P18.4's claim is that a derailed card and a merely-full one present the
+									// same symptom (a large conversation) and need OPPOSITE remedies — so the pair
+									// (offTrack, utilisation) is exactly the measurement that makes the claim checkable on
+									// real runs instead of on paper. Recording it now also means the data exists BEFORE any
+									// remedy is allowed to act.
+									//
+									// ⚠️ `decideOffTrackRemedy` is deliberately NOT called here. It needs two further
+									// signals that do not exist at this seam — `restartsSoFar` and `hasCapturedWork` — and
+									// their natural defaults are the DANGEROUS ones: `hasCapturedWork: false` is precisely
+									// what makes the core choose RESTART over PARK, discarding a salvageable diff, and
+									// `restartsSoFar: 0` defeats the restart cap that exists because unbounded restarting is
+									// "a loop that discards work while looking like progress". Feeding it invented inputs
+									// would produce confident decisions about destroying user work. See todo P18.4b.
+									const driftUtilisation =
+										contextWindow && contextWindow > 0
+											? Math.min(
+													1,
+													// The cast is safe and narrow: `AgentMessage` and `MessageWithMetadata` differ ONLY in the
+													// breadth of their `role` union, and the counter reads `content` exclusively —
+													// never `role`. Verified at `estimateMessageTokens`.
+													countKanbanPersistedMessagesTokens(
+														(finalResult?.messages ??
+															baseMessages) as unknown as NKleinSdkPersistedMessage[],
+													) / contextWindow,
+												)
+											: null;
 									recordSelfObservation({
 										signal: "custom",
 										severity: "info",
@@ -476,6 +503,9 @@ export function createKanbanContextFocusExtension(
 											category: "drift_critic_flagged",
 											flags: verdict.flags.length,
 											turn: driftTurn,
+											...(driftUtilisation !== null
+												? { contextUtilisation: driftUtilisation.toFixed(3) }
+												: {}),
 										},
 									});
 								} else {
