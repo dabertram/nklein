@@ -3592,10 +3592,29 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > `nightly-flag-matrix-coverage.test.ts` pins the flag set to the registry exactly, and earned its keep
 > immediately by catching 3 flags missing from the first draft (SANDBOX_MCP, TEST_DRIVEN_MODE,
 > TOOL_TRUST_DECAY) before it landed.
-> ⚠️ **UNVALIDATED — the cell has never been drained** (v18 owns the machine). NEXT: run project 02 with the
-> flags_on env to (a) confirm it still drains green with 30 opt-ins on, (b) MEASURE which of the 18
-> candidates emit, (c) promote those into `mustFire`. Expect some flags to disturb the recording's needle
-> matching — that is a finding to record, not a failure to hide.
+> ✅ **FIRST DRAIN DONE 2026-07-30 — the lane works, and it found a real defect on run one.**
+> **(b) MEASUREMENT — coverage nearly TRIPLED: 20/43 registered mechanisms fired, vs 7 across three real
+> campaign runs. 18 FLAG-GATED MECHANISMS ARE NOW PROVEN LIVE FOR THE FIRST TIME:** architect_editor_phase,
+> baseline_probe, fewshot_exemplars, goal_reanchor, ledger_exemplars, opportunistic_idle_dispatch,
+> procedural_skill_distillation, queue_aware_free_first, review_lenses, review_panel_assembly,
+> sandbox_mcp_offer, skill_prompt_fragments, spec_lint, test_driven_gate, tool_catalog_gate_observation,
+> two_phase_tool_pick, typecheck_first, verification_first_gate. This is the direct, MEASURED answer to the
+> external audit's "mechanisms have no live evidence" criticism.
+> **(a) THE CELL DID NOT DRAIN — a genuine product finding, not a harness wobble.** With all 30 opt-ins on,
+> card `…-s00` hit **OPERATOR HOLD (`workspace_disposed_before_capture`)**: its sandbox workspace was disposed
+> BEFORE the result patch was captured. Final counts 1 completed / 1 review / **17 planning** — the severity
+> is the 17 blocked dependents, not the one card. Work SURVIVED on result branch
+> `nklein/tasks/…-s00-2287d3728b`, so any remedy must not re-do it. Retained HOME
+> `/var/folders/…/nklein-nightly-02-c6OnRk`, seed 7, 490s.
+> **LEADING HYPOTHESIS (untested): `NKLEIN_OPPORTUNISTIC_IDLE_WORK`** — it is one of the mechanisms that DID
+> fire, and "dispatch other work while the box looks idle" is exactly the shape that races a pending result
+> capture. `runaway_generation_interrupted` did NOT fire, so NKLEIN_RUNAWAY_ABORT is unlikely. Test by
+> re-running with that ONE flag off before bisecting all 30.
+> **(c) PROMOTION DEFERRED ON PURPOSE.** 15 of the 18 declare `expectation: every_run` and are the mustFire
+> candidates, but they were observed on a FAILED drain, and a failure changes the run's shape. Per this
+> registry's own rule, promote only from a GREEN run: fix the disposal race, re-run, then promote. The other
+> 3 (baseline_probe, opportunistic_idle_dispatch, typecheck_first) are declared `exceptional` and must NEVER
+> become mustFire even though they fired here.
 > **FIX (principled, uses machinery that already exists):** a card in the `review` LANE is non-terminal work by
 > definition — only completed/trash/failed are terminal — so it should count as activity regardless of verdict
 > presence. The genuine "stalled forever" case (parked awaiting a human) is ALREADY tracked separately as
