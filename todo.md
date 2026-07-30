@@ -8822,6 +8822,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   unwired is the part that matters most — an ungrounded narrative is exactly what P16.6 forbids ("a weak model
   must degrade to the STRUCTURED report, never to a hallucinated narrative"), so the model call must NOT be wired
   before the filter it depends on.
+  **▶ THE ORCHESTRATOR LANDED 2026-07-31 — `field-report-narrative-pass.ts`, 7 tests, NO MODEL NEEDED.**
+  `runFieldReportNarrativePass` is plan → call → interpret → **ground**, with the model call as an INJECTED PORT.
+  That de-orphans both `field-report-generation` and `field-report-grounding` — the two modules that held the
+  entire safety argument between them and had zero consumers each.
+  **The safety property is STRUCTURAL, not procedural: there is no path out of this function that publishes model
+  prose without grounding it.** A test states that as one assertion across every degradation path, so an outcome
+  added later without a grounding step cannot slip through by being covered only in its own happy-path test.
+  **Three distinct ways a narrative legitimately yields nothing**, deliberately NOT collapsed into one: the ladder
+  declined · the model produced no prose (the reasoning-channel case) · every claim cited evidence that does not
+  exist. Same result for the report (Layer A alone), different meanings — the first is policy, the second a
+  model/format mismatch, the third is the model INVENTING CITATIONS, which is the only one that should change
+  whether it is asked again.
+  **`observedDropRate` is NULL, not 0, when nothing was generated.** A model never asked has not demonstrated a
+  0% drop rate, and feeding a fabricated 0 back would promote an unproven model on the strength of a call it
+  never made — the ladder's own "a thin history counts as no evidence" rule only holds if absence stays absence.
+  All-ungrounded reports a REAL 1.0, because there the model did answer and every citation was invented.
+  **REMAINING:** supply a real `NarrativeModelPort` + claim parser, and fold `observedDropRate` back into the
+  ladder's `recentGroundedRate`. The logic is now testable and tested without a model; the effectful half is
+  genuinely "supply a caller" — which is what I wrongly claimed the whole remainder was, before checking.
 - [x] **P16.7 — Transport: GitHub issue draft (user submits).** Render to markdown, open a prefilled issue draft,
   and stop. !Klein never submits. **No telemetry endpoint, no phone-home, not even opt-in, at this stage** — the
   backend question is deferred until adoption makes it real, and deferring it costs nothing.
