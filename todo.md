@@ -10121,6 +10121,87 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   secret value never appears in a prompt or log. Coordinate with the Phase 7S final audit pass, as originally
   scoped. Lower value than the MCP surface just shipped: task env is !Klein-authored, whereas MCP server configs
   are where third-party credentials genuinely live.
+### Phase 25 — FULL-AUTO MODEL LIFECYCLE (David 2026-07-31: research → download → route, self-managed)
+
+> **David's proposal, verbatim in substance:** auto load/unload models as needed on runtimes that suit !Klein
+> (potentially with persistent caching), and build a FULL-AUTO capability on top: bootstrap a sufficiently good
+> model → have it do **online research on the current LLM model landscape** → **auto-download** the models that
+> best fit the available hardware → **auto-assign the best-fitting model to each agent role, even per task/card**.
+> *"might need more than those few points, but you can figure out what is needed and implement it."*
+>
+> **⚠️ THIS REVERSES A STANDING DECISION, AND THE REVERSAL LOOKS JUSTIFIED — but it is David's to make.**
+> 2026-07-19 standing rule: *"!Klein product never auto-loads/unloads models (prompt-cache thrash, MLX); loader =
+> dev-time tooling; production = recommendation-only."* The stated REASON was prompt-cache thrash — which is
+> exactly what **P17.6 (persistent KV cache) would remove**, and David's own message anticipates this
+> ("potentially supporting persistent caching"). So the rule and the proposal are not in conflict so much as
+> **sequenced**: auto-swap becomes defensible once a swap stops costing a full re-prefill. Recorded explicitly so
+> the flip is a decision with a date, not a drift.
+
+- [ ] **P25.1 — FEASIBILITY: what already exists, what is genuinely new.** ⚠️ **Most of the hard machinery is
+  already built** — anyone starting here should read this before proposing a design.
+  **ALREADY SHIPPED (do not rebuild):**
+    · `ensure-model-loaded.ts` — machine-aware AUTONOMOUS load: picks a device that FITS and loads there (chosen
+      2026-07-12 over dispatch-time steering, which live tests proved inert because LM Studio decides placement at
+      LOAD time). Opt-in via `NKLEIN_DEVICE_RAM_GB`, degrades to a no-op on any error or no-fit.
+    · `auto-loaded-model-registry.ts` — tracks ONLY models !Klein itself loaded, so idle-TTL eviction can reclaim
+      exactly those and nothing else. Operator-loaded models never enter it — *"resident models are sacred"* — and
+      a restart forgets the set, so it reclaims LESS rather than more. The unload half is already fail-safe.
+    · `device-load-routing.ts`, `attempt-model-selection.ts`, the measured fitness store (`benchmark-fitness`,
+      `fitness-projections`, `model-fitness-freshness`), and `recommendModelFloor` language routing.
+  **⇒ The auto load/unload half of David's ask is ~80% built and gated OFF by policy, not by missing code.**
+  **GENUINELY NEW, in dependency order:**
+    1. **Hardware-fit sizing for a model !Klein does not have yet.** Today's fit check reasons about models
+       already present. Downloading needs an a-priori estimate: `RAM ≈ params × bytes-per-param × ~1.2`, plus KV
+       cache, which at agent context lengths **can exceed the weights** — and !Klein's ≥32k floor is exactly that
+       regime. Sizing that ignores KV will systematically under-estimate and pick models that swap.
+    2. **Model-landscape discovery.** The HF Hub API (`list_models`) supports filter + sort by `downloads` /
+       `likes7d`, which is a usable trending signal. This is the one leg that needs the network.
+    3. **Auto-download.** `lms get <model>@<quant>` downloads programmatically into LM Studio's model directory,
+       with `--mlx`/`--gguf` architecture filters. So the download leg is a CLI call, not an integration project.
+    4. **Per-role/per-card assignment from measured fitness** — partially present; the gap is making it automatic
+       and per-card rather than advisory.
+  **NOT a blocker but worth stating:** the bootstrap step ("load a sufficiently good model, then let IT research")
+  is optional and probably inverted. The research leg is a structured API query plus ranking — cheap, deterministic
+  and auditable in plain code. Handing it to a small local model adds a hallucination surface to the one step
+  whose output decides what gets DOWNLOADED AND EXECUTED. Prefer: code queries the Hub, model summarises/explains.
+
+- [ ] **P25.2 — 🔴 THE TWO BLOCKING CONSTRAINTS. Neither is a detail; both need David's call.**
+  **(a) EGRESS vs the local-only prime directive.** !Klein is `CLOUD_ENABLED=false` with an egress fence
+  (§10c, S2). *Researching the model landscape and downloading weights are both network operations* — the first
+  to huggingface.co, the second to a CDN. This does not kill the feature, but it means the feature CANNOT be
+  described as local-only, and it needs an explicit, narrow, allow-listed egress lane with recorded receipts
+  (the egress-receipt machinery already exists). **Decision needed: is a model-acquisition egress lane acceptable,
+  and must it be operator-triggered rather than autonomous?**
+  **(b) 🔴 SUPPLY CHAIN — auto-download means AUTO-EXECUTING THIRD-PARTY ARTEFACTS.** This is the serious one and
+  the research is unambiguous:
+    · Pickle-based weights (`.bin`/`.pt`) execute arbitrary code on load. Real malicious models have been found on
+      Hugging Face repeatedly (JFrog, ReversingLabs).
+    · **`PickleScan` — the main open-source scanner — carried three bypass CVEs (CVE-2025-10155/10156/10157, all
+      CVSS 9.3, Dec 2025)**: extension renaming, ZIP CRC abuse, and subclassed module paths that dodge the
+      blocklist. So "we scan them" is NOT a sufficient answer on its own.
+    · **`safetensors` is safe BY DESIGN** — loading it executes no logic, and it passed independent audit with no
+      critical ACE findings.
+  **⇒ PROPOSED HARD RULE (recommended): auto-download is restricted to `safetensors`/GGUF; pickle-format weights
+  are NEVER auto-downloaded, only ever operator-approved.** That is the same shape as this codebase's other
+  fail-closed gates and it removes the entire arbitrary-code-execution class rather than trying to detect it with a
+  scanner that has a documented bypass history. Publisher allow-listing and a pinned revision hash on top.
+
+- [ ] **P25.3 — PHASED PLAN (each phase independently useful; stop after any one).**
+  1. **Sizing core (pure, no network).** `estimateModelResidency({paramB, quant, contextTokens})` → RAM estimate
+     INCLUDING KV cache, plus a fit verdict against a declared budget. Testable now, and it is the piece every
+     later phase depends on. Pairs with **P17.7**'s RAM/disk budget settings, which David already asked for.
+  2. **Landscape query (network, read-only, operator-triggered).** `dev model-landscape` → HF Hub query, ranked by
+     trending + fit against THIS host's budget. Read-only and prints a table: no downloads, no side effects. This
+     alone answers "what should I be running?" and is the cheapest real value in the phase.
+  3. **Assisted download (operator-approved).** Show the pick, its size, its licence, its format, and the fit
+     verdict; download on confirmation via `lms get`. Format allow-list enforced here.
+  4. **Auto-assignment from measured fitness** (no network): make per-role/per-card model choice automatic where
+     the fitness store has evidence, and explicitly abstain where it does not.
+  5. **Full auto** — only after (1)-(4) are proven AND P17.6 has measured that a swap is affordable. Gated on
+     evidence, per David's own "re-open the swap decision on evidence" sequencing.
+  **Note the ordering is deliberately capability-last:** every phase before 5 is useful standing alone, and none
+  of them can wedge a host or execute a downloaded artefact.
+
 ### Phase 22 — ⚠️ Parameter count is a BAD capability proxy at agent depth (researched 2026-07-19; challenges live code)
 
 > **This phase exists because the research directly contradicts an assumption threaded through !Klein's routing.**
