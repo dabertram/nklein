@@ -10233,14 +10233,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
        already present. Downloading needs an a-priori estimate: `RAM ≈ params × bytes-per-param × ~1.2`, plus KV
        cache, which at agent context lengths **can exceed the weights** — and !Klein's ≥32k floor is exactly that
        regime. Sizing that ignores KV will systematically under-estimate and pick models that swap.
-    2. ~~**Model-landscape discovery.**~~ **⚠️ CORRECTION 2026-07-31 — F3.34 ALREADY DOES THIS, and it is WIRED.**
-       I wrote "nothing exists" above and was wrong; found while building the P23.9 boundary check, which flagged
-       `model-research-policy.ts` as a false positive and thereby surfaced the module. `nklein-model-research.ts`
-       + `model-research-policy.ts` already provide: a SearxNG web-search client, `resolvePrimaryModelSourcePolicy`
-       (per-publisher primary-source restriction, so an aggregator host cannot stand in for the real publisher),
-       `validateModelResearchCitations`, `screenUntrustedContent` (prompt-injection prescreen on fetched pages),
-       `buildSsrfGuardedPageFetcher`, and a model-registry snapshot — exposed via tRPC `runNKleinModelResearch`
-       and a `dev` command.
+    2. **Model-landscape DISCOVERY — genuinely missing, but most of its INFRASTRUCTURE exists (F3.34).**
+       ⚠️ Corrected twice; this is the accurate version, from reading `runNKleinModelResearch` itself.
+       **F3.34 is a per-model CAPABILITY researcher, not a discovery tool.** It takes a `targetModelId` you
+       already name and researches what that model is like (toolUse / kind / chaining / structuredOutput, each
+       with citations). It cannot answer "what models exist that would suit this hardware" — the question this
+       leg is about. My previous correction claimed it did; that was too strong.
+       **What F3.34 DOES supply, and it is the expensive part:** an egress lane with an explicit assertion gate
+       (`assertModelResearchEgressAllowed`), `resolvePrimaryModelSourcePolicy` (per-publisher primary-source
+       restriction, so an aggregator host cannot stand in for the real publisher), `validateModelResearchCitations`,
+       `screenUntrustedContent` (prompt-injection prescreen on fetched pages), `buildSsrfGuardedPageFetcher`, and a
+       SearxNG client — wired through tRPC and a `dev` command. **Discovery should reuse all of it rather than
+       open a second network path**, which also keeps the P25.2a setup-time boundary in one place.
        **⇒ This also substantially ANSWERS P25.2(a).** The "is a model-acquisition egress lane acceptable?"
        question is not open in the abstract: a model-RESEARCH egress lane already exists, already asserts its own
        allow-list (`assertModelResearchEgressAllowed`), and already treats fetched pages as untrusted. The
