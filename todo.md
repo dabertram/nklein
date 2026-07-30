@@ -3606,10 +3606,24 @@ Run these after phases 0–5. Fix findings by inserting concrete packages above 
 > is the 17 blocked dependents, not the one card. Work SURVIVED on result branch
 > `nklein/tasks/…-s00-2287d3728b`, so any remedy must not re-do it. Retained HOME
 > `/var/folders/…/nklein-nightly-02-c6OnRk`, seed 7, 490s.
-> **LEADING HYPOTHESIS (untested): `NKLEIN_OPPORTUNISTIC_IDLE_WORK`** — it is one of the mechanisms that DID
-> fire, and "dispatch other work while the box looks idle" is exactly the shape that races a pending result
-> capture. `runaway_generation_interrupted` did NOT fire, so NKLEIN_RUNAWAY_ABORT is unlikely. Test by
-> re-running with that ONE flag off before bisecting all 30.
+> **✅ CULPRIT ISOLATED BY CONTROLLED BISECTION (8 runs, 2026-07-30): `NKLEIN_TYPECHECK_FIRST`.**
+> Enabling it alone on top of an otherwise-passing 26-flag set reproduces the undrained board exactly
+> (1 completed / 1 review / 17 planning); removing it turns the same set green. Reproduce with
+> `NKLEIN_SIMFLOW_SCENARIO=02 NKLEIN_SIMFLOW_RUN=perfect NKLEIN_TYPECHECK_FIRST=1 …`.
+> **THREE HYPOTHESES WERE REFUTED ALONG THE WAY — recorded so nobody re-walks them:**
+> (1) `NKLEIN_OPPORTUNISTIC_IDLE_WORK` — plausible ("dispatch work while idle" racing a pending capture) and
+> it DID fire, but removing it changed nothing. (2) `NKLEIN_REVIEW_PANEL` — the strongest-looking lead, since
+> telemetry shows it assembling **`{"judges": 0, "descriptors": 1, "judgeModelKeys": []}`** on a single-model
+> host; removing it also changed nothing. **That zero-judge panel is still a REAL SECONDARY FINDING worth its
+> own fix** — a panel that assembles no judges should fail OPEN to the single-reviewer path, and any user with
+> one model would hit it. (3) `NKLEIN_TEST_DRIVEN_MODE` — exonerated, as were `VERIFICATION_FIRST` and
+> `ARCHITECT_EDITOR`/`REVIEW_LENSES` (the latter two green as a group).
+> **THE CONTROL MATTERED MOST:** plain `perfect` with NO flags passes, which both proves the flags cause it and
+> clears the same-day dependency remediation (protobufjs/MCP-SDK/fast-uri) of suspicion. I ran that control
+> LATE — it should have been the FIRST experiment, before any single-flag elimination.
+> NEXT: root-cause why the typecheck-first gate blocks completion in a sandbox scenario (does the gate demand
+> a typecheck the fixture cannot run, and does it fail closed forever rather than degrading?), fix, then
+> re-run the lane for a GREEN drain and promote the 15 every_run signals into `mustFire`.
 > **(c) PROMOTION DEFERRED ON PURPOSE.** 15 of the 18 declare `expectation: every_run` and are the mustFire
 > candidates, but they were observed on a FAILED drain, and a failure changes the run's shape. Per this
 > registry's own rule, promote only from a GREEN run: fix the disposal race, re-run, then promote. The other
