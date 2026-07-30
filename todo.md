@@ -8788,6 +8788,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   narrative pass and feed the observed grounded-rate back so the ladder has real input. **Honour the
   `reasoning_content` contract** (F12.92): a reasoning model returns empty `message.content`, and a caller reading
   only `.content` would make the narrative pass silently produce nothing while looking healthy.
+  **🔴 THE CONSTRAINT IS SHARPER THAN THAT, AND THE CLIENT WILL NOT SAVE YOU (read before implementing,
+  2026-07-31).** `nklein-local-llm-client.ts` does have a `reasoning_content` fallback, but it is **gated on
+  `request.format`**:
+  `content: message.content?.trim() || (request.format ? message.reasoning_content?.trim() : "") || ""`.
+  So the recovery applies to STRUCTURED calls only. **The narrative pass is free text, so a reasoning model
+  returns exactly `""` — and the client is RIGHT to do that**: on a free-text call `reasoning_content` holds the
+  model's THINKING, not its answer, and surfacing it would publish a chain of thought as the report's prose.
+  Skimming the client's comment gives the opposite impression ("reasoning_content is handled"), which is how this
+  gets implemented wrong.
+  **⇒ The fix belongs to the CALLER, not the client.** The narrative pass must treat empty content as *the model
+  produced nothing* and **degrade to Layer A**, exactly as the P16.6 ladder specifies for an unreachable model —
+  never as "a narrative was generated and it happened to be blank". A blank narrative that reads as success is
+  worse than no narrative, because Layer A (pure aggregation, needs no model) is *"complete and correct without
+  one — nothing is degraded except the prose"*. Pin it with a test: a fake completion returning empty content and
+  non-empty `reasoning_content` must produce the Layer-A report, not an empty narrative.
 - [x] **P16.7 — Transport: GitHub issue draft (user submits).** Render to markdown, open a prefilled issue draft,
   and stop. !Klein never submits. **No telemetry endpoint, no phone-home, not even opt-in, at this stage** — the
   backend question is deferred until adoption makes it real, and deferring it costs nothing.
