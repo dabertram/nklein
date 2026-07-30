@@ -10223,17 +10223,27 @@ Mirrored by a manifest-level test so the data cannot drift back.
   pins (`protobufjs`, `fast-uri`) are debt needing a re-check for upstream fixes.
 
 **4. Questions batched for David (do not act on these unilaterally):**
-- **NEW — `dify-ai-provider` is an unused CLOUD provider in a LOCAL-ONLY product, and it is the last HIGH
-  advisory.** Evidence: (1) it is a **production** dependency in `package.json`; (2) **zero** first-party
-  imports — `dify-ai-provider`/`createDify`/`difyProvider` appear nowhere in `src/`, `packages/*/src`, or
-  `web-ui` (the only hits are inside `packages/desktop/cli/cli.js`, a **pre-bundled vendored artifact** that has
-  the provider INLINED, complete with `https://api.dify.ai/v1`, so it does not resolve the npm package at all);
-  (3) Dify is a hosted cloud service, which sits awkwardly against the `CLOUD_ENABLED=false` prime directive;
-  (4) it drags in a second, older **undici 5.29.0**, which is now the ONLY remaining high advisory (the other
-  two were cleared without it). **RECOMMENDATION: drop the dependency.** NOT done unilaterally — it is a
-  production dep of a vendored subsystem I did not author, and the standing rule is to surface rather than work
-  around. If it must stay, the fallback is an `overrides` pin on undici, which adds to the override debt above.
-  Cheap way to settle it: remove, reinstall, run the suite + a desktop-CLI smoke.
+- **NEW — ~12 UNIMPORTED production dependencies account for 10 of the 13 remaining advisories.** Two clusters,
+  one pattern. **Evidence (each verified, not inferred):**
+    · **`@opentelemetry/*` (11 deps, 9 moderates).** No first-party `.ts`/`.tsx` file imports ANY
+      `@opentelemetry/` package — the only tree-wide hits are lockfiles and a source map. F12.47
+      (`otel-genai-export.ts` / `dev dev otel-export`) genuinely does OTel work but **hand-builds the OTLP
+      payload** and imports none of the SDK. Fix would be a coordinated `0.214 → 0.221` bump (semver-major for
+      0.x), which is only worth doing if the deps are actually kept.
+    · **`dify-ai-provider` (1 dep, the last HIGH).** Zero first-party imports; Dify is a hosted cloud service,
+      which sits awkwardly against the `CLOUD_ENABLED=false` prime directive; it drags in a second, older
+      **undici 5.29.0** — the sole remaining high advisory after the other two were cleared without it.
+  **Neither is needed by the vendored desktop CLI, which was the obvious counter-hypothesis and was tested:**
+  `packages/desktop/cli/cli.js` has **zero external `require("@opentelemetry/…")`** (the 1520 textual hits are
+  the INLINED implementation, and the dify provider is likewise inlined with its `https://api.dify.ai/v1` base
+  URL), and `packages/desktop/package.json` declares neither. So the bundle resolves nothing from the root tree.
+  **RECOMMENDATION: drop `dify-ai-provider` outright; decide the OTel cluster deliberately** — the plausible
+  reason it exists is anticipated groundwork for a fuller OTel integration beyond F12.47's hand-rolled payload,
+  and that is a product call, not a cleanup. **NOT done unilaterally:** removing 12 production dependencies is
+  not mechanical, and one reading is that it would undo intentional scaffolding.
+  **Verification recipe (cheap and conclusive):** remove → `npm install` → `npx tsc --noEmit` → `npm run
+  test:fast` → a desktop-CLI smoke. If green, the deps were dead and 10 advisories go with them.
+  ── superseded detail kept for reference ──
 - **NEW — `release_resources` semantics (§5 P24.1):** is it "ensure nothing is held" (IDEMPOTENT) or "give back
   what you took" (PAIRED)? Three kernel sites disagree with PAIRED; under PAIRED one of them drives a
   counter-based consumer's host occupancy NEGATIVE (the v9 wedge shape). **Recommendation: IDEMPOTENT.**
