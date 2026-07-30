@@ -8784,7 +8784,32 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   means the observations were never read. Misattributing that to "the model was weak" would send the fix to the
   wrong subsystem entirely. 10 tests; suite green (11,193).
   **SPLIT MATERIALIZED 2026-07-20.**
-- [ ] **P16.6b — The effectful generation call *(split from P16.6 2026-07-20)*.** Call the local model for the
+- [x] **P16.6b — The effectful generation call. DONE + LIVE-VERIFIED 2026-07-31.**
+  Full chain shipped: `field-report-narrative-pass.ts` (plan → call → interpret → ground, model call as an
+  injected PORT) + `nklein-field-report-narrator.ts` (the real port over `LocalLlmClient`, prompt, and claim
+  parser). 19 tests, and then **exercised against real models on the live endpoint**, which is what turned three
+  assumptions into facts:
+  · **A real bug the unit tests could not reach.** The first live call was rejected by !Klein's OWN schema
+    validator — `strict_missing_additional_properties`. A strict `json_schema` request needs
+    `additionalProperties: false` on every object; without it the call never reaches the model. Fixed, and the
+    reason is now in the schema's comment because it reads as stylistic and is not.
+  · **STRUCTURED output instead of free prose**, decided during the build: it sidesteps the `reasoning_content`
+    trap entirely (the client's fallback is gated on `request.format`), and grounding needs claims WITH citations
+    anyway — parsing those back out of prose is a parse that fails silently and looks like a model with nothing
+    to say.
+  · **HAPPY PATH proven** (gemma-4-26b-a4b-qat): `narrative_grounded`, drop rate 0, both claims carrying resolved
+    evidence ids.
+  · **🔴 SAFETY PATH PROVEN WITH REAL MODEL OUTPUT — the part that actually matters.** The model was offered
+    THREE evidence ids while grounding knew only two. It duly cited the third, and grounding DROPPED those claims
+    as `unknown_evidence` (drop rates 0.33 and 0.67 across runs) — **no unknown evidence reached the report in any
+    run.** That is P16.6's core promise ("never degrade to a hallucinated narrative") demonstrated against a real
+    model inventing a real citation, not against a synthetic fixture.
+  · **Degradation proven too:** gemma-4-e2b (2B) returned `{"claims": []}` on most attempts — it CAN do the task
+    (one run produced two valid claims) but usually declines. Every time, the pass degraded to Layer A with a
+    stated reason. Exactly the ladder's purpose, and a useful datum: **a 2B model is not a usable narrator for
+    this task**, while a 26B MoE is.
+  Models were loaded one at a time and UNLOADED after — no residual load.
+  ── original item text ── Call the local model for the
   narrative pass and feed the observed grounded-rate back so the ladder has real input. **Honour the
   `reasoning_content` contract** (F12.92): a reasoning model returns empty `message.content`, and a caller reading
   only `.content` would make the narrative pass silently produce nothing while looking healthy.
