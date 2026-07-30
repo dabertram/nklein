@@ -8810,9 +8810,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **It explicitly REFUSES to promote `reasoningContent` into the narrative**, accepting it only as evidence that
   the model responded at all; publishing a chain of thought in a user-facing report is a worse failure than an
   empty section, and a test asserts the thinking text never appears in the output.
-  **REMAINING (genuinely effectful, needs a loaded model):** call the model, route the completion through this
-  guard, and feed the observed grounded-rate back so the ladder has real input. The endpoint was up with ZERO
-  models loaded when this was written, so the live half is a load-and-run, not a design question.
+  **⚠️ CORRECTION, same day: I first wrote that the rest was "a load-and-run, not a design question". THAT WAS
+  WRONG, and checking took one command.** Consumer counts across the field-report modules:
+  `field-report-assembly` 1 · `field-report-content` 2 · `field-report-redaction` 1 · **`field-report-grounding`
+  0 · `field-report-generation` 0** (`planFieldReportGeneration` has no caller anywhere).
+  **⇒ The STRUCTURED half of the field report is wired and working; the entire MODEL-FACING half — the generation
+  ladder AND the P16.2 grounding filter that makes a narrative safe to publish — is orphaned.** So the remaining
+  work is not "load a model": it is building the orchestration that assembles Layer A, consults the ladder, makes
+  the call, routes the completion through `interpretNarrativeCompletion`, filters the result through grounding,
+  and folds the observed grounded-rate back into the ladder's input. That is a feature, and grounding being
+  unwired is the part that matters most — an ungrounded narrative is exactly what P16.6 forbids ("a weak model
+  must degrade to the STRUCTURED report, never to a hallucinated narrative"), so the model call must NOT be wired
+  before the filter it depends on.
 - [x] **P16.7 — Transport: GitHub issue draft (user submits).** Render to markdown, open a prefilled issue draft,
   and stop. !Klein never submits. **No telemetry endpoint, no phone-home, not even opt-in, at this stage** — the
   backend question is deferred until adoption makes it real, and deferring it costs nothing.
