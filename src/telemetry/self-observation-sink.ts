@@ -64,6 +64,15 @@ export interface ReadSelfObservationEventsOptions {
 	rootDir?: string;
 	taskId?: string | null;
 	workspacePath?: string | null;
+	/**
+	 * Keep only records whose `metadata.category` matches. Applied BEFORE the limit, so the cap counts MATCHING
+	 * records rather than being consumed by unrelated traffic.
+	 *
+	 * Without this, any caller after a specific category on a busy log gets nothing back and cannot tell "the
+	 * mechanism never fired" from "its records were crowded out of the window" — two very different conclusions
+	 * (found 2026-07-30 building `dev prefill-cost`, which read 500 events and matched zero).
+	 */
+	category?: string | null;
 	limit?: number;
 	now?: number;
 }
@@ -71,6 +80,28 @@ export interface ReadSelfObservationEventsOptions {
 const DEFAULT_SELF_OBSERVATION_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "telemetry");
 const DEFAULT_RETENTION_DAYS = 30;
 const SECRET_KEY_PATTERN = /(api[_-]?key|authorization|bearer|cookie|password|secret|token)/i;
+/**
+ * Keys that are token COUNTS, not credentials — narrowly exempted from {@link SECRET_KEY_PATTERN}.
+ *
+ * ── THE BUG THIS FIXES (found 2026-07-30 building `dev prefill-cost`) ──
+ * `SECRET_KEY_PATTERN` contains the substring `token`, which matches `inputTokens`, `outputTokens`,
+ * `cacheReadTokens`, `reasoningTokenCount` … so **every token count !Klein has ever written to telemetry was
+ * stored as `"[REDACTED]"`**. Nothing failed; the numbers just silently became a string. It surfaced only when an
+ * analysis tried to USE them and found nine per-request records with no usable usage — which reads as "the
+ * provider reported nothing", not "our own redaction ate it". Any future token-based measurement would have hit
+ * the same wall and drawn the same wrong conclusion.
+ *
+ * ── WHY THIS IS SAFE, AND WHY IT IS TWO CONDITIONS AND NOT ONE ──
+ * Redaction is a security control, so this exempts as little as possible. A value is preserved ONLY when BOTH:
+ *   1. the key has the camelCase COUNT shape — a lowercase letter immediately before a capitalised `Tokens`, or a
+ *      `TokenCount` suffix, or exactly `tokens`. Credential spellings (`token`, `access_token`, `auth_token`,
+ *      `bearer_token`) do not match, because they lack the compound-word boundary; AND
+ *   2. the value is a FINITE NUMBER. An API key is never a number, so even if some future key slipped through
+ *      condition 1, a secret STRING under it would still be redacted.
+ * Either condition alone would be weaker: the key shape alone could expose a numeric-looking secret string, and
+ * "numbers are never secrets" alone would expose a numeric PIN under a key like `password`.
+ */
+const TOKEN_COUNT_KEY_PATTERN = /(?:[a-z]Tokens|TokenCount|^tokens)$/;
 const PROMPT_KEY_PATTERN =
 	/^(prompt|systemPrompt|userPrompt|assistantPrompt|spec|plan|summary|questionsMarkdown|decisionsMarkdown|revisionsMarkdown|transcript|messages|content)$/i;
 const SECRET_VALUE_PATTERN =
@@ -123,7 +154,8 @@ function redactValue(value: unknown): unknown {
 	if (value && typeof value === "object") {
 		const entries = Object.entries(value as Record<string, unknown>).map(([key, entryValue]) => [
 			key,
-			SECRET_KEY_PATTERN.test(key)
+			SECRET_KEY_PATTERN.test(key) &&
+			!(TOKEN_COUNT_KEY_PATTERN.test(key) && typeof entryValue === "number" && Number.isFinite(entryValue))
 				? "[REDACTED]"
 				: PROMPT_KEY_PATTERN.test(key)
 					? "[REDACTED_TEXT]"
@@ -353,6 +385,7 @@ export async function readSelfObservationEvents(
 	const limit = Math.max(1, Math.min(500, Math.trunc(options.limit ?? 50)));
 	const normalizedTaskId = normalizeOptionalString(options.taskId);
 	const workspacePathHash = hashWorkspacePath(normalizeRawOptionalString(options.workspacePath));
+	const normalizedCategory = normalizeOptionalString(options.category);
 	const entries = await readdir(rootDir, { withFileTypes: true }).catch(() => []);
 	const logFiles = entries
 		.filter((entry) => entry.isFile() && /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(entry.name))
@@ -369,6 +402,11 @@ export async function readSelfObservationEvents(
 			.filter((record): record is SelfObservationEventRecord => record !== null)
 			.filter((record) => !normalizedTaskId || record.taskId === normalizedTaskId)
 			.filter((record) => !workspacePathHash || record.workspacePathHash === workspacePathHash)
+			.filter(
+				(record) =>
+					!normalizedCategory ||
+					(record.metadata as { category?: unknown } | undefined)?.category === normalizedCategory,
+			)
 			// F2.21 (David 2026-07-14): relabel each event's modelId to its STABLE identity so self-observation views
 			// group by one model (no-op when the shared runtime-id→modelKey map has no entry for the id).
 			.map((record) =>

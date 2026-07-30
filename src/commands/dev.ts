@@ -52,6 +52,7 @@ import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command
 import { runDevNightlyCommand } from "./dev-nightly-command";
 import { runDevOffTrackCommand } from "./dev-off-track-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
+import { runDevPrefillCostCommand } from "./dev-prefill-cost-command";
 import { createDevRuntimeClient, executeDevTestScenario } from "./dev-project-execution";
 import { runDevRequirementCoverageCommand } from "./dev-requirement-coverage-command";
 import { runDevResidentSetCommand } from "./dev-resident-set-command";
@@ -903,6 +904,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--out <path>", "Output path (default docs/dev/mechanism-registry.md).")
 		.action(async (options: { out?: string }) => {
 			await runDevMechanismDocCommand(options);
+		});
+
+	dev.command("prefill-cost")
+		.description("P17.6: how much time goes into re-prefilling prompt tokens a persistent KV cache could keep?")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevPrefillCostCommand(options);
 		});
 
 	dev.command("mechanism-registry")

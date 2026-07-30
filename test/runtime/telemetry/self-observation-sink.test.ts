@@ -206,3 +206,80 @@ describe("self observation sink", () => {
 		await expect(readdir(rootDir)).resolves.toEqual(["2026-01-10.jsonl"]);
 	});
 });
+
+describe("token COUNTS are preserved while token CREDENTIALS stay redacted", () => {
+	/**
+	 * The bug (2026-07-30): `SECRET_KEY_PATTERN` contains the substring `token`, so `inputTokens`,
+	 * `outputTokens`, `cacheReadTokens` and friends were all written as `"[REDACTED]"`. Every token count !Klein
+	 * had ever recorded was unusable, and nothing failed loudly — it surfaced only when an analysis tried to use
+	 * them and concluded, wrongly, that the provider had reported nothing.
+	 *
+	 * These tests are weighted toward the SECURITY side: the exemption must be narrow, so most of what follows
+	 * asserts that credentials are still destroyed.
+	 */
+	async function writeAndRead(metadata: Record<string, unknown>) {
+		const rootDir = await createTelemetryRoot();
+		const sink = new LocalSelfObservationSink({ rootDir, now: () => Date.UTC(2026, 6, 30, 12) });
+		await sink.record({ signal: "custom", severity: "info", message: "usage", metadata });
+		const [event] = await readSelfObservationEvents({ rootDir, limit: 10 });
+		return (event?.metadata ?? {}) as Record<string, unknown>;
+	}
+
+	it("preserves NUMERIC token counts so they can actually be measured", async () => {
+		const metadata = await writeAndRead({
+			inputTokens: 4231,
+			outputTokens: 512,
+			cacheReadTokens: 3000,
+			cacheWriteTokens: 0,
+			reasoningTokenCount: 88,
+			tokens: 17,
+		});
+		expect(metadata.inputTokens).toBe(4231);
+		expect(metadata.outputTokens).toBe(512);
+		expect(metadata.cacheReadTokens).toBe(3000);
+		expect(metadata.cacheWriteTokens).toBe(0);
+		expect(metadata.reasoningTokenCount).toBe(88);
+		expect(metadata.tokens).toBe(17);
+	});
+
+	it("STILL redacts every credential spelling of token", async () => {
+		// The exemption keys off a camelCase COUNT shape; credential spellings have no compound-word boundary.
+		const metadata = await writeAndRead({
+			token: "sk-live-abcdef",
+			access_token: "ya29.abcdef",
+			refresh_token: "1//abcdef",
+			auth_token: "Bearer abcdef",
+			apiToken: "abcdef",
+		});
+		for (const key of ["token", "access_token", "refresh_token", "auth_token", "apiToken"]) {
+			expect(metadata[key], `${key} leaked a credential`).toBe("[REDACTED]");
+		}
+	});
+
+	it("STILL redacts a count-shaped key whose value is a STRING — the second condition earning its keep", async () => {
+		// Key shape alone is not enough: a secret smuggled under a count-shaped key must not survive.
+		const metadata = await writeAndRead({ inputTokens: "sk-live-not-a-number", outputTokens: 12 });
+		expect(metadata.inputTokens).toBe("[REDACTED]");
+		expect(metadata.outputTokens).toBe(12);
+	});
+
+	it("STILL redacts non-finite numbers under a count-shaped key", async () => {
+		// NaN/Infinity are not measurements; they are also not credentials, but preserving them would mean the
+		// exemption is looser than "a real count".
+		const metadata = await writeAndRead({ inputTokens: Number.NaN, outputTokens: Number.POSITIVE_INFINITY });
+		expect(metadata.inputTokens).toBe("[REDACTED]");
+		expect(metadata.outputTokens).toBe("[REDACTED]");
+	});
+
+	it("leaves the OTHER secret families completely untouched", async () => {
+		const metadata = await writeAndRead({
+			apiKey: "abc",
+			password: "hunter2",
+			secret: "s",
+			authorization: "Bearer x",
+		});
+		for (const key of ["apiKey", "password", "secret", "authorization"]) {
+			expect(metadata[key], `${key} must remain redacted`).toBe("[REDACTED]");
+		}
+	});
+});

@@ -8987,6 +8987,33 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   minutes and a card queued 27 minutes behind it. Prefill recompute is a first-order cost here, not a
   micro-optimisation. Measure before building: instrument prefill-vs-decode time per turn (the usage payload
   already reports prompt tokens) to size the prize.
+  **▶ THE MEASUREMENT HALF LANDED 2026-07-30 — `analysePrefillCost` + `nklein dev prefill-cost`, 10 tests.**
+  This is the evidence gate for David's approved sequence, built BEFORE the engine work because "not worth it"
+  is a legitimate and much cheaper answer. It fits `durationMs ≈ a·input + b·output + c` by least squares from
+  real telemetry and prices the prize as `uncachedInputTokens × a`. Design choices that keep the number honest:
+  the intercept `c` is modelled EXPLICITLY (folding fixed per-request overhead into `a` would inflate the cost of
+  every prompt token and overstate the prize — the wrong direction when the figure justifies an investment); the
+  prize counts only prompt tokens the provider did NOT already serve from its own cache; and it returns `null`
+  with a stated reason on too few samples, a degenerate system, or a physically impossible negative coefficient.
+  A test recovers PLANTED coefficients, because a slipped solve would still return plausible milliseconds.
+  **🔴 AND IT IMMEDIATELY FOUND A REAL DEFECT THAT MADE THE MEASUREMENT IMPOSSIBLE — now fixed.**
+  Running it returned nine per-request records with "no usage payload", which reads as *the provider reported
+  nothing*. It was not. **`SECRET_KEY_PATTERN` in the self-observation sink contains the substring `token`, so
+  `inputTokens` / `outputTokens` / `cacheReadTokens` / `reasoningTokenCount` were ALL written to telemetry as the
+  string `"[REDACTED]"`.** Every token count !Klein has ever recorded was destroyed at write time, silently —
+  nothing failed, the numbers just became a string, and any token-based analysis would have hit the same wall and
+  drawn the same wrong conclusion. `durationMs` survived, which is why the records looked half-populated rather
+  than obviously broken.
+  **The fix exempts as little as possible, and needs BOTH conditions:** a key must have the camelCase COUNT shape
+  (`[a-z]Tokens$` / `TokenCount$` / exactly `tokens` — credential spellings like `token`, `access_token`,
+  `auth_token` have no compound-word boundary and do NOT match) **AND** its value must be a finite NUMBER, since
+  an API key is never a number. Either alone is weaker: key-shape alone could expose a secret string smuggled
+  under a count-shaped key, and "numbers are never secrets" alone would expose a numeric PIN under `password`.
+  12 sink tests, weighted toward proving credentials are still destroyed.
+  ⚠️ **The historical telemetry is unrecoverable** — those counts were never written. Sizing the prize therefore
+  needs a FRESH campaign run; `dev prefill-cost` will have real data from the next one.
+  **NEXT (unchanged and still gated):** persistence itself needs an engine !Klein controls (P17.1/P17.1a), and
+  the budget settings are P17.7.
 
 - [ ] **P17.7 — SELF-MANAGED RAM/DISK BUDGET FOR MODEL RESIDENCY (David's idea, 2026-07-30) — ⚠️ NEEDS DAVID'S
   DECISION, because it directly contradicts a STANDING directive.** David asked whether !Klein should own a
