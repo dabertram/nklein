@@ -10508,6 +10508,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   first-slice packet · per-capability packets loaded on demand · historical v2/v3/v4 rationale moved OUT of the
   active execution spec. Base+v2+v3+v4+small-model-guide currently carry repetition and some conflicting
   abstractions.
+  **▶ THE DISCLOSURE MECHANISM LANDED 2026-07-31 — `spec-section-index.ts` + `nklein dev spec-index`, 11 tests.**
+  An INDEX rather than a rewrite, deliberately: that spec is a TEST FIXTURE whose size is part of what it measures
+  ("this specification is itself a context benchmark", recorded in the spec), so restructuring it would change the
+  test instead of passing it. The index is additive — the fixture is untouched and the agent gains a way to
+  RETRIEVE sections instead of swallowing 25k words.
+  **Measured on the real file:** 84 sections, 24,206 words; at a 4,000-word retrieval budget **21 sections fit and
+  63 are deferred**. So the spec's own instruction to *"read the entire specification before planning"* is not
+  merely inadvisable at the ≥32k floor — it is arithmetically impossible to follow and still leave room for
+  system instructions, repo evidence, reasoning and a plan.
+  **AND IT TURNED P23.7's BIGGEST JUDGEMENT INTO A MEASUREMENT:** the item asserts the historical v2/v3/v4
+  rationale should move OUT. The five heaviest sections in the document are v3/v4 rationale (1310, 957, 922, 919,
+  886 words — ~5k words, a fifth of the whole spec). A test pins that, so the claim now has evidence behind it.
+  **🔴 THE REQUIREMENT INDEX — the "traceability spine" this item asks for FIRST — CANNOT BE EXTRACTED.** The
+  document contains **ZERO RFC-2119 keywords**: not one MUST, SHALL, SHOULD or MAY across 25,059 words. There is
+  no mechanical way to distinguish a requirement from a paragraph of rationale, and a keyword extractor would
+  return an empty index while looking like it worked. **The spine has to be AUTHORED, not derived** — that is
+  spec-writing work, not tooling, and it is the remaining half of this item.
 - [x] **P23.8 — "Two brains" = two versioned deployment SLOTS, not two resident stacks.** DONE 2026-07-20:
   clarified in-spec. The candidate may be cold, remote on an owned machine, replay-only, or loaded only during an
   explicit evaluation window. Requiring simultaneous residency contradicts the project's own consumer-memory
