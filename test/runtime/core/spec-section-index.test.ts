@@ -74,7 +74,7 @@ describe("planSpecRetrieval", () => {
 
 	it("DEFERS an over-budget section rather than truncating it", () => {
 		// Half a requirement is worse than a pointer to the whole one, because the half reads as complete.
-		const index = buildSpecSectionIndex("# Huge\n" + "word ".repeat(500));
+		const index = buildSpecSectionIndex(`# Huge\n${"word ".repeat(500)}`);
 		const plan = planSpecRetrieval(index, 10);
 		expect(plan.included).toEqual([]);
 		expect(plan.deferred).toHaveLength(1);
