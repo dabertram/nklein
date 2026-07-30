@@ -9276,8 +9276,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   CONTENT becomes a one-line stub naming what superseded it, so the model is TOLD the output is gone rather than
   inferring it from a suspicious silence. Multi-file calls are skipped outright: supersession is not provable from
   paths alone there, and a wrong prune is silent and unrecoverable. Idempotent — a marker prefix stops a second
-  overflow re-stubbing its own work and double-counting the savings. Both crude fallbacks now return the pruned
-  transcript rather than "couldn't compact", so real progress is never discarded.
+  overflow re-stubbing its own work and double-counting the savings.
+  **⚠️ AND A REGRESSION I INTRODUCED IN THE SAME CHANGE, CAUGHT BY READING THE CONSUMER (not by a red test).**
+  The fallbacks originally returned the pruned transcript whenever ANYTHING was pruned. But a non-null result
+  tells `nklein-context-overflow-controller` to **RE-DRIVE the task**, while `null` is a terminating "cannot
+  compact" — so a prune freeing a handful of tokens would have re-driven with a barely-smaller prompt that
+  overflows again, converting a clean stop into a **retry loop**. Stubbing preserves message COUNT, so no
+  length-based check downstream could have caught it. Fixed with `MEANINGFUL_PRUNE_TOKEN_RATIO` (10%): only a
+  substantial prune substitutes for compaction; a marginal one keeps the old terminating answer.
+  **A second thing fell out of testing it:** the FOCUSED compaction pass legitimately returns a SAME-LENGTH
+  transcript (it shrinks content, not count), so "did the list get shorter?" was never a valid safety signal at
+  this boundary — which is why the guard is a token-share threshold and not a length comparison. My first test
+  asserted length and was wrong; it was replaced rather than loosened.
   **◆ THE `dev mechanism-registry` VERIFICATION EARNED ITS KEEP — TWICE.**
   (1) I first registered the mechanism with `firesWhen: "context_overflow_compaction"`. **That category does not
   exist** — the overflow controller emits no telemetry — which would have made `triggerNeverObserved` permanently

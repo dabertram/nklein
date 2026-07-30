@@ -1,5 +1,8 @@
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
-import { compactKanbanMessagesForContextTarget } from "./nklein-context-focus-policy";
+import {
+	compactKanbanMessagesForContextTarget,
+	countKanbanPersistedMessagesTokens,
+} from "./nklein-context-focus-policy";
 import { pruneSupersededToolResults } from "./nklein-transcript-distractor-wire";
 import type { NKleinSdkPersistedMessage } from "./sdk-runtime-boundary";
 
@@ -36,6 +39,17 @@ const CONTEXT_OVERFLOW_ERROR_PATTERNS = [
 ];
 const CONTEXT_COMPACTION_PREVIEW_CHARS = 300;
 const CONTEXT_OVERFLOW_RECOVERY_TARGET_TOKENS = 60_000;
+/**
+ * Minimum share of the transcript a prune must free before it counts as compaction PROGRESS on the fallback paths.
+ *
+ * ── WHY A THRESHOLD AND NOT "any prune counts" (2026-07-30) ──
+ * Returning a non-null result tells `nklein-context-overflow-controller` to RE-DRIVE the task. Before pruning
+ * existed, the fallbacks returned `null` — "cannot compact" — which is a TERMINATING outcome. Treating any prune,
+ * however small, as progress would re-drive with a barely-smaller prompt that overflows again: a retry loop where
+ * there used to be a clean stop. Stubbing also preserves message COUNT, so the usual "did it get shorter?" check
+ * cannot catch it. A prune must therefore be big enough to plausibly change the outcome before it earns a retry.
+ */
+const MEANINGFUL_PRUNE_TOKEN_RATIO = 0.1;
 
 export function isContextOverflowError(error: unknown): boolean {
 	if (!(error instanceof Error)) {
@@ -127,6 +141,12 @@ export function compactPersistedMessagesForContextOverflow(
 	// provider rejects the request outright, the same 400 hazard the turn-start snapping below guards against.
 	const pruned = pruneSupersededToolResults(messages);
 	const workingMessages = pruned?.messages ?? messages;
+	// Only a SUBSTANTIAL prune may stand in for compaction on the fallback paths below (see the constant).
+	const totalTokensBeforePrune = countKanbanPersistedMessagesTokens(messages);
+	const prunedMeaningfully =
+		pruned !== null &&
+		totalTokensBeforePrune > 0 &&
+		pruned.tokensFreed / totalTokensBeforePrune >= MEANINGFUL_PRUNE_TOKEN_RATIO;
 	if (pruned) {
 		recordSelfObservation({
 			signal: "custom",
@@ -150,9 +170,9 @@ export function compactPersistedMessagesForContextOverflow(
 
 	const firstUserMessage = workingMessages.find((message) => message.role === "user");
 	if (!firstUserMessage) {
-		// Same rule as the tail below: no safe cut is available, but pruning may still have freed real tokens, and
-		// reporting "couldn't compact" would throw that away.
-		return pruned ? pruned.messages : null;
+		// No safe cut is available. A SUBSTANTIAL prune still counts as progress worth re-driving on; a small one
+		// must keep the old terminating answer rather than trigger a retry that will overflow again.
+		return prunedMeaningfully && pruned ? pruned.messages : null;
 	}
 	const firstUserMessagePreview = readMessagePreview(firstUserMessage);
 
@@ -172,9 +192,9 @@ export function compactPersistedMessagesForContextOverflow(
 	const rewrittenFirstMessage = prependCompactionNotice(retained[0], firstUserMessagePreview);
 	const compactedMessages = [rewrittenFirstMessage, ...retained.slice(1)];
 	if (compactedMessages.length >= workingMessages.length) {
-		// The halving achieved nothing — but if pruning DID free tokens, that is still real progress and must be
-		// returned rather than discarded as "couldn't compact".
-		return pruned ? pruned.messages : null;
+		// The halving achieved nothing. A SUBSTANTIAL prune is still real progress; a marginal one is not, and
+		// returning it would re-drive into the same overflow.
+		return prunedMeaningfully && pruned ? pruned.messages : null;
 	}
 	return compactedMessages;
 }
