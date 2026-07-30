@@ -34,8 +34,28 @@ export interface ReviewLens {
 export const REVIEW_LENSES: readonly ReviewLens[] = [
 	{
 		id: "spec_fit",
+		// P20.12 (2026-07-31) — RESTRUCTURED from requirement-enumeration to BEHAVIOURAL COMPARISON.
+		//
+		// The previous stance was "re-read the spec, LIST EACH REQUIREMENT, and verify the diff satisfies it —
+		// flag anything missing, extra, or misinterpreted". arXiv 2508.12358 (ASE'25) measured exactly that shape
+		// on spec-conformance judging and found it fails in ONE direction — **over-correction: flagging CORRECT
+		// code as defective** — with a three-step decomposition collapsing GPT-4o from 52.4% to 11.0%, and MORE
+		// chain-of-thought making it worse. "Behavioural Comparison" recovered it to 85.4%.
+		//
+		// Two things made the old wording the bad case rather than a neutral one: the step-by-step enumeration
+		// itself, and "flag anything missing, EXTRA, or misinterpreted", which primes a reviewer to treat any
+		// difference from its own imagined implementation as a defect. This lens carries `minReviewerTier: "weak"`
+		// — it is assigned to the smallest models on the fleet, which is precisely the population the study
+		// measured degrading, and it is eye #1 on EVERY panel including single-eye reviews of trivial cards.
+		//
+		// The replacement asks what the code DOES and compares that to what was asked, and requires a nameable
+		// input or situation before anything counts as a defect — the same "failure scenario or it did not happen"
+		// discipline the rest of this codebase's review surface already uses.
+		//
+		// ⚠️ UNMEASURED HERE: this is an evidence-backed prompt change, not a locally verified improvement. Its
+		// effect on !Klein's own bounce rate is exactly what the review-quality telemetry should show next.
 		stance:
-			"Judge ONLY whether the change does what was ASKED: re-read the task/spec, list each requirement, and verify the diff satisfies it — flag anything missing, extra, or misinterpreted.",
+			"Judge ONLY whether the change does what was ASKED, by comparing BEHAVIOUR. For each thing the task asks for, state what the code now does in that situation, then say whether that matches what was asked. Report a defect only when you can name the specific input or situation where the behaviour differs from the request — if you cannot name one, it is not a finding. Do not flag style, structure, naming, or code that merely differs from how you would have written it.",
 		minReviewerTier: "weak",
 	},
 	{

@@ -9767,7 +9767,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Per P18.5, `GRADIENT_FLOOR_PERCENT = 5` is an **OPERATIONAL DEFAULT**, chosen above SWE-bench Pro's 3.4% and
   below Aider's "low but rankable" ~8%. **The boundary between those two IS the judgement**, and it is labelled
   as a judgement rather than a finding.
-- [ ] **P20.12 — Spec-conformance judging: prompt structure dominates model choice.** arXiv 2508.12358 (ASE'25):
+- [x] **P20.12 — Spec-conformance judging: prompt structure dominates model choice. APPLIED 2026-07-31 — and
+  !Klein's live `spec_fit` lens WAS the measured-bad shape.**
+  The stance read *"re-read the task/spec, LIST EACH REQUIREMENT, and verify the diff satisfies it — flag anything
+  missing, extra, or misinterpreted"*. That is the three-step decomposition the study collapsed GPT-4o with
+  (52.4% → 11.0%), plus a phrase (*"flag anything … extra …"*) that primes a reviewer to treat any difference from
+  its own imagined implementation as a defect — the over-correction direction exactly.
+  **Why this lens and not another:** `spec_fit` is `minReviewerTier: "weak"`, i.e. assigned to the SMALLEST models
+  on the fleet — the population the study measured degrading — and it is eye #1 on every panel, so on a trivial
+  single-eye card it is the ONLY judgement made.
+  **Restructured to Behavioural Comparison** (the structure that recovered to 85.4%): state what the code now DOES
+  in each asked-for situation and compare, and **report a defect only when a specific input or situation can be
+  named** — the same "failure scenario or it did not happen" discipline the rest of the review surface uses, which
+  is also the direct counter to over-correction. 5 tests pin both the new shape and the ABSENCE of the old one.
+  ⚠️ **UNMEASURED locally:** an evidence-backed prompt change, not a verified improvement here. Its effect on
+  !Klein's own spurious-bounce rate is what the review telemetry should show next — and spurious bounces are
+  expensive, since each one costs a full re-work cycle on a cap-1 host.
+  The item's second half (CodeSpecBench: executable specs are much harder than code — best repo-level 20.2%, so
+  strong code performance MASKS semantic misalignment) is a measurement charter §5 already states; no code change. arXiv 2508.12358 (ASE'25):
   LLM-as-judge for spec conformance fails in a SPECIFIC direction — **over-correction bias, flagging CORRECT code
   as defective**. A three-step prompt collapsed GPT-4o from **52.4% → 11.0%** on HumanEval, and *more*
   chain-of-thought made it WORSE. Two structures recovered it: "Behavioral Comparison" (→85.4%) and "Two-Phase
