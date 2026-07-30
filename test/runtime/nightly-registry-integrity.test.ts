@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { NIGHTLY_SIMULATION_SCOPE_NOTE } from "../../src/commands/dev-nightly-command";
 import { MECHANISM_REGISTRY } from "../../src/core/mechanism-observation-audit";
 import { resolvePack } from "../../src/core/nightly-invariant-pack";
 import { NIGHTLY_PACK_REGISTRY } from "../../src/core/nightly-pack-registry";
@@ -160,5 +161,28 @@ describe("tracked-requirement map", () => {
 		for (const requirement of TRACKED_REQUIREMENTS) {
 			expect(requirement.elements.length, `${requirement.id} declares no elements`).toBeGreaterThan(0);
 		}
+	});
+});
+
+describe("P20.13 — a green nightly states its own scope", () => {
+	it("the scope note travels WITH the verdict and names the limit", () => {
+		// The failure this prevents is social, not technical: "28/28 passed" gets quoted as evidence of quality.
+		// Research on τ-bench retail found success swings ~9pp purely from which LLM plays the counterpart (plus a
+		// fairness failure: AAVE speakers 11.2pp lower, 19pp for speakers 55+), so a simulated counterpart can
+		// only establish that a MECHANISM fires. Asserting on the exported constant — rather than trusting a
+		// comment — is what keeps the caveat from being quietly dropped from the output.
+		expect(NIGHTLY_SIMULATION_SCOPE_NOTE).toContain("SIMULATED");
+		expect(NIGHTLY_SIMULATION_SCOPE_NOTE).toContain("MECHANISM");
+		expect(NIGHTLY_SIMULATION_SCOPE_NOTE).toContain("not a user-facing success rate");
+	});
+
+	it("is actually PRINTED alongside the summary, not merely defined", () => {
+		// A constant nobody emits is documentation nobody reads. This pins the emission site.
+		const source = readFileSync("src/commands/dev-nightly-command.ts", "utf8");
+		const references = source.split("NIGHTLY_SIMULATION_SCOPE_NOTE").length - 1;
+		// Declaration, the header's {@link}, and at least one emission — a constant referenced only where it is
+		// defined would mean the caveat stopped being printed.
+		expect(references, "the scope note is defined but never emitted").toBeGreaterThanOrEqual(3);
+		expect(source).toContain("process.stdout.write(`");
 	});
 });

@@ -9774,7 +9774,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Reflective". Relevant to F12.95/the review lenses. Also CodeSpecBench (arXiv 2604.12268): generating executable
   specs is much harder than generating code — best repo-level score **20.2%** — so **strong code performance
   masks misalignment with intended semantics**, which is charter §5 stated as a measurement.
-- [ ] **P20.13 — Simulated users are unreliable proxies (bounds what Phase 13 can claim).** arXiv 2601.17087: on
+- [x] **P20.13 — Simulated users are unreliable proxies (bounds what Phase 13 can claim). DONE 2026-07-31.**
+  `NIGHTLY_SIMULATION_SCOPE_NOTE` is exported, stated in the nightly command's module header, and — the part that
+  matters — **PRINTED with every verdict**: *"these cells drive SIMULATED models. A pass proves the MECHANISM
+  fires end-to-end; it is not a user-facing success rate."*
+  **Printed rather than documented, deliberately.** The failure this guards is social, not technical: nobody
+  misreads a red run, but "28/28 passed" gets quoted as evidence of QUALITY, and a caveat living in a doc nobody
+  opens does not travel with the number. So the caveat travels with the number.
+  Two tests pin it: the note names its own limit, and the constant is referenced at ≥3 sites — a constant
+  referenced only where it is DEFINED would mean the caveat had quietly stopped being emitted. arXiv 2601.17087: on
   τ-bench retail, agent success swings **~9 pp purely from which LLM plays the user**, with systematic
   miscalibration and a fairness failure (**AAVE speakers see 11.2 pp lower success**, compounding to 19 pp for
   speakers 55+). Implication for the aimock/nightly layer: **a simulated user validates MECHANISM, never

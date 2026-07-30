@@ -57,7 +57,28 @@ const execFileAsync = promisify(execFile);
  *     previous cell gets "already running"-reused and reads as unreachable.
  *  3. **Isolated HOME per cell** (fresh `.nklein` + `NKLEIN_AGENT_LEDGER_ROOT`), so one cell's ledger and config
  *     cannot leak into the next and make a failure look like a different cell's problem.
+ *
+ * ── WHAT A GREEN RUN DOES AND DOES NOT LICENSE (P20.13) ──
+ * Every cell drives a SIMULATED model. That is what makes the suite fast, hermetic and worth running — and it is
+ * also its ceiling: a simulated counterpart establishes that a MECHANISM fires end-to-end, never a user-facing
+ * success rate. See {@link NIGHTLY_SIMULATION_SCOPE_NOTE}, which is PRINTED with every verdict rather than left
+ * here, because the over-reading happens when someone quotes "28/28 passed" without the caveat attached.
  */
+
+/**
+ * P20.13 — the SCOPE of every verdict this suite produces.
+ *
+ * Research on τ-bench retail found agent success swings ~9pp purely from which LLM plays the counterpart, with
+ * systematic miscalibration and a fairness failure (AAVE speakers 11.2pp lower, compounding to 19pp for speakers
+ * 55+). A simulated counterpart can therefore establish that a MECHANISM fires end-to-end; it cannot establish a
+ * user-facing success rate.
+ *
+ * Exported and printed rather than left in a comment: the over-reading happens when someone quotes "28/28 passed",
+ * so the caveat has to travel with the number.
+ */
+export const NIGHTLY_SIMULATION_SCOPE_NOTE =
+	"SCOPE: these cells drive SIMULATED models. A pass proves the MECHANISM fires end-to-end; it is not a " +
+	"user-facing success rate, and no green run here licenses a claim about real-model quality.";
 
 const DEFAULT_MANIFEST_PATH = "nightly-manifest.json";
 /** N13: repo-visible quarantine data (excluding a cell from the gate must survive machines and show up in diffs). */
@@ -853,6 +874,17 @@ export async function runDevNightlyCommand(options: {
 		);
 	} else {
 		process.stdout.write(`\n${summary.summary}${overallOk ? "" : " Overall nightly verdict: FAILED."}\n`);
+		// P20.13 — SCOPE, printed where the number is read rather than buried in a doc nobody opens.
+		//
+		// Every cell here drives a SIMULATED model. Research on τ-bench retail found agent success swings ~9pp
+		// purely from which LLM plays the counterpart, with systematic miscalibration and a fairness failure
+		// (AAVE speakers 11.2pp lower, compounding to 19pp for speakers 55+). So a simulated counterpart can
+		// establish that a MECHANISM fires, and cannot establish a user-facing success rate.
+		//
+		// This is printed on a GREEN run specifically. A red run is already read as bad news; it is "28/28
+		// passed" that quietly invites the stronger claim, and the whole suite's honesty rests on that claim not
+		// being made.
+		process.stdout.write(`${NIGHTLY_SIMULATION_SCOPE_NOTE}\n`);
 	}
 	// Write the baseline through the SAME constant readPriorDurations reads (not a re-spelled literal): if the two
 	// paths ever drifted, the write would land elsewhere, every read would miss, and detectDurationRegressions would
