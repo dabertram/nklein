@@ -10316,17 +10316,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
      Budget precedence reuses `NKLEIN_DEVICE_RAM_GB` — the same variable the existing machine-aware loader gates
      on, so one declaration governs both — and reports total physical RAM as the weak fallback it is.
      Still pairs with **P17.7**'s budget settings; this is the arithmetic those settings would drive.
-  2. **Landscape query (network, read-only, operator-triggered).** `dev model-landscape` → HF Hub query, ranked by
-     trending + fit against THIS host's budget. Read-only and prints a table: no downloads, no side effects. This
-     alone answers "what should I be running?" and is the cheapest real value in the phase.
-  3. **Assisted download (operator-approved).** Show the pick, its size, its licence, its format, and the fit
-     verdict; download on confirmation via `lms get`. Format allow-list enforced here.
-  4. **Auto-assignment from measured fitness** (no network): make per-role/per-card model choice automatic where
-     the fitness store has evidence, and explicitly abstain where it does not.
-  5. **Full auto** — only after (1)-(4) are proven AND P17.6 has measured that a swap is affordable. Gated on
-     evidence, per David's own "re-open the swap decision on evidence" sequencing.
-  **Note the ordering is deliberately capability-last:** every phase before 5 is useful standing alone, and none
-  of them can wedge a host or execute a downloaded artefact.
+  2. **Landscape query — SETUP-MODE, read-only.** Largely EXISTS as F3.34 (see the correction in P25.1); the work
+     is to rank its findings by the phase-1 fit verdict against this host's budget, so "what is new" becomes
+     "what is new AND runnable here". No downloads, no side effects.
+  3. **SETUP-MODE acquisition, per-model consent (P25.2a).** Lives in the setup entry point, NEVER the autonomous
+     runtime. Show the pick, its size, licence, format and fit verdict; download on explicit confirmation via
+     `lms get`, format allow-list enforced. Re-triggerable, so refreshing the roster stays a deliberate act.
+     **Build the structural boundary FIRST:** the download capability must live where the autonomous runtime
+     cannot call it, so "an autonomous session downloaded a model" is unreachable rather than merely unusual —
+     the same reasoning that put P21.13b's secrets behind references instead of behind a redaction filter.
+  4. **Auto-assignment from measured fitness** (no network, autonomous-safe): make per-role/per-card model choice
+     automatic where the fitness store has evidence, and explicitly abstain where it does not. ⚠️ Depends on
+     **P22.2's eval-side depth work** — the store now records depth but nothing populates it, and a depth-blind
+     fitness number is the wrong basis for routing a deep card.
+  5. **Full auto ROUTING + RESIDENCY of models already present** — explicitly NOT acquisition, which is setup-only
+     per P25.2a. Gated on P17.6 having measured that a swap is affordable ("re-open the swap decision on evidence").
+  **Ordering is deliberately capability-last:** every phase before 5 is useful standing alone, none can wedge a
+  host, and after P25.2a none of them can execute a downloaded artefact during an autonomous session at all.
 
 ### Phase 22 — ⚠️ Parameter count is a BAD capability proxy at agent depth (researched 2026-07-19; challenges live code)
 
