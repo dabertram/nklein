@@ -1,4 +1,6 @@
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { compactKanbanMessagesForContextTarget } from "./nklein-context-focus-policy";
+import { pruneSupersededToolResults } from "./nklein-transcript-distractor-wire";
 import type { NKleinSdkPersistedMessage } from "./sdk-runtime-boundary";
 
 /**
@@ -116,14 +118,41 @@ export function compactPersistedMessagesForContextOverflow(
 		return null;
 	}
 
-	const focusedMessages = compactKanbanMessagesForContextTarget(messages, CONTEXT_OVERFLOW_RECOVERY_TARGET_TOKENS);
+	// P18.3b — PRUNE BEFORE COMPACTING. Superseded tool output (a file read three times, only the last read still
+	// true) is pure noise: summarizing it preserves stale content in a tidier form, and the blind halving below
+	// discards good and stale content alike. Removing it FIRST can drop the pressure enough that the cruder stages
+	// never run, and when they do run they operate on a transcript that no longer carries dead weight.
+	//
+	// Superseded results are STUBBED, never deleted — dropping a `tool_result` orphans its `tool_use` and the
+	// provider rejects the request outright, the same 400 hazard the turn-start snapping below guards against.
+	const pruned = pruneSupersededToolResults(messages);
+	const workingMessages = pruned?.messages ?? messages;
+	if (pruned) {
+		recordSelfObservation({
+			signal: "custom",
+			severity: "info",
+			message: `!Klein pruned superseded tool output before compaction: ${pruned.summary}`,
+			metadata: {
+				category: "transcript_distractor_prune",
+				prunedCount: String(pruned.prunedCount),
+				tokensFreed: String(pruned.tokensFreed),
+			},
+		});
+	}
+
+	const focusedMessages = compactKanbanMessagesForContextTarget(
+		workingMessages,
+		CONTEXT_OVERFLOW_RECOVERY_TARGET_TOKENS,
+	);
 	if (focusedMessages) {
 		return focusedMessages;
 	}
 
-	const firstUserMessage = messages.find((message) => message.role === "user");
+	const firstUserMessage = workingMessages.find((message) => message.role === "user");
 	if (!firstUserMessage) {
-		return null;
+		// Same rule as the tail below: no safe cut is available, but pruning may still have freed real tokens, and
+		// reporting "couldn't compact" would throw that away.
+		return pruned ? pruned.messages : null;
 	}
 	const firstUserMessagePreview = readMessagePreview(firstUserMessage);
 
@@ -132,7 +161,7 @@ export function compactPersistedMessagesForContextOverflow(
 	// was dropped in the first half, keeping the tool_result orphans it and the provider rejects the request (HTTP 400),
 	// defeating the overflow recovery. If no clean turn-start exists in the retained slice, return null (no safe cut) —
 	// the caller already handles a null (couldn't-compact) result. Mirrors the SDK's isTurnStartMessage guard.
-	let retained = messages.slice(Math.floor(messages.length / 2));
+	let retained = workingMessages.slice(Math.floor(workingMessages.length / 2));
 	while (retained.length > 0 && (retained[0]?.role !== "user" || isToolResultOnlyUserMessage(retained[0]))) {
 		retained = retained.slice(1);
 	}
@@ -142,8 +171,10 @@ export function compactPersistedMessagesForContextOverflow(
 
 	const rewrittenFirstMessage = prependCompactionNotice(retained[0], firstUserMessagePreview);
 	const compactedMessages = [rewrittenFirstMessage, ...retained.slice(1)];
-	if (compactedMessages.length >= messages.length) {
-		return null;
+	if (compactedMessages.length >= workingMessages.length) {
+		// The halving achieved nothing — but if pruning DID free tokens, that is still real progress and must be
+		// returned rather than discarded as "couldn't compact".
+		return pruned ? pruned.messages : null;
 	}
 	return compactedMessages;
 }

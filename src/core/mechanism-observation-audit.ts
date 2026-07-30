@@ -250,6 +250,31 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  * — the observation counts that judge it are always read live, so the part that would rot is generated.
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
+	{
+		// P18.3b 2026-07-30: registered AT THE MOMENT ITS WIRE LANDED, which is the point of the item's instruction
+		// to "verify with `dev mechanism-registry` after wiring, not by inspection". The pure core had no consumer
+		// and no registry entry, so nothing could have reported that it never ran — the `enabled_but_silent` shape
+		// twice over.
+		//
+		// `expectation: "exceptional"` is load-bearing and NOT hedging. This fires only when context overflow is hit
+		// AND the transcript actually contains a superseded tool result. Declaring `every_run` would fail a cell on
+		// every run where the context simply never overflowed — and it would be ineligible for a `mustFire` pack
+		// under the promotion rule, which is exactly right.
+		category: "transcript_distractor_prune",
+		item: "P18.3b",
+		observes:
+			"superseded tool output removed ahead of context-overflow compaction — how many results were stubbed and the tokens reclaimed",
+		enabledBy: null,
+		expectation: "exceptional",
+		// NO `firesWhen`, deliberately. The obvious value — a "context overflow happened" category — DOES NOT EXIST:
+		// the overflow controller emits no telemetry of its own. Naming it anyway would make `triggerNeverObserved`
+		// permanently true, pinning this entry at `too_new_to_judge` FOREVER — silently exempt from the audit even
+		// after it fires. That is the registry header's own warning ("registering a guessed category would make the
+		// registry report on a mechanism that does not emit it") turned on itself. Omitted, the audit falls back to
+		// overall telemetry recency, and `expectation: "exceptional"` already carries the right reading: this fires
+		// only on overflow WITH a superseded result, so silence is plausibly health rather than a defect.
+		addedOn: Date.UTC(2026, 6, 30),
+	},
 	// F4.8b 2026-07-20: registering four opt-in mechanisms that the registry had never heard of.
 	//
 	// 5 of 40 default-OFF flags were registered, so for 35 nothing could report whether they run — the hole F4.8

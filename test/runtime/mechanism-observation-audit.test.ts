@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
 	auditMechanismObservations,
@@ -259,5 +260,30 @@ describe("a trigger that has NEVER fired is proof of no chance, not evidence of 
 			knownEnabledFlags: new Set<string>(),
 		});
 		expect(result.findings[0]?.status).toBe("enabled_but_silent");
+	});
+});
+
+describe("the CLI renderer prints EVERY audit status", () => {
+	it("has no status the report silently drops", () => {
+		// `too_new_to_judge` was computed by the audit and omitted from the renderer's `order` array, so a
+		// freshly-wired mechanism appeared in NO section — not healthy, not flagged, simply absent (found
+		// 2026-07-30 registering `transcript_distractor_prune`). An audit whose own report can silently swallow a
+		// finding is the failure it exists to prevent, so the ordering list is checked against the source of truth
+		// rather than trusted.
+		const auditSource = readFileSync("src/core/mechanism-observation-audit.ts", "utf8");
+		const declaredStatuses = new Set(
+			[...auditSource.matchAll(/status:\s*"([a-z_]+)"/gu)].map((match) => match[1] as string),
+		);
+		expect(declaredStatuses.size, "no statuses found — the extraction regex has drifted").toBeGreaterThan(3);
+
+		const rendererSource = readFileSync("src/commands/dev-mechanism-registry-command.ts", "utf8");
+		const orderBlock = /const order: MechanismFinding\["status"\]\[\] = \[([\s\S]*?)\];/u.exec(rendererSource);
+		expect(orderBlock, "renderer order array not found").not.toBeNull();
+		const rendered = new Set(
+			[...(orderBlock?.[1] ?? "").matchAll(/"([a-z_]+)"/gu)].map((match) => match[1] as string),
+		);
+
+		const missing = [...declaredStatuses].filter((status) => !rendered.has(status)).sort();
+		expect(missing, `statuses the report would never print: ${missing.join(", ")}`).toEqual([]);
 	});
 });

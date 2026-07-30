@@ -9258,12 +9258,40 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   distractor costs some retrieval quality; dropping a live constraint costs a wasted loop and gets blamed on the
   model. 11 tests.
   **SPLIT MATERIALIZED 2026-07-20.**
-- [ ] **P18.3b — Wire the transcript pruner ahead of compaction *(split from P18.3 2026-07-20)*.** Run
+- [x] **P18.3b — Wire the transcript pruner ahead of compaction *(split from P18.3 2026-07-20)*.** Run
   `pruneTranscriptDistractors` BEFORE `planCompaction` so stale content is removed rather than summarized, and
   **populate `target` from real tool-call arguments** (file path / query / URL). **The target extraction IS the
   wire:** without a target supersession cannot be proven, so an unwired pruner correctly does nothing — it will
   look installed and change nothing, which is precisely the `enabled_but_silent` shape P15.1b was built to catch.
   Verify with `dev mechanism-registry` after wiring, not by inspection.
+  **✅ WIRED 2026-07-30 — `nklein-transcript-distractor-wire.ts`, 6 tests.** Runs ahead of the LIVE compaction path
+  (`compactPersistedMessagesForContextOverflow`), not the unwired `planCompaction` the item named — that pure core
+  still has no consumer, so wiring "before" it would have been wiring before something that never runs.
+  **Target extraction reuses `deriveToolCallFilePaths`** — the attempt ledger's own extractor — so "what did this
+  call act on" keeps ONE definition instead of a second, subtly different one.
+  **THE SAFETY DECISION: superseded results are STUBBED, NEVER DELETED.** A `tool_result` pairs with a `tool_use`
+  in the assistant turn before it; dropping one orphans the other and the provider rejects the whole request with
+  a 400 — the same hazard the surrounding turn-start snapping already guards against. Deleting would have turned
+  context pressure into a hard API failure. The block, its `tool_use_id` and its position all survive; only the
+  CONTENT becomes a one-line stub naming what superseded it, so the model is TOLD the output is gone rather than
+  inferring it from a suspicious silence. Multi-file calls are skipped outright: supersession is not provable from
+  paths alone there, and a wrong prune is silent and unrecoverable. Idempotent — a marker prefix stops a second
+  overflow re-stubbing its own work and double-counting the savings. Both crude fallbacks now return the pruned
+  transcript rather than "couldn't compact", so real progress is never discarded.
+  **◆ THE `dev mechanism-registry` VERIFICATION EARNED ITS KEEP — TWICE.**
+  (1) I first registered the mechanism with `firesWhen: "context_overflow_compaction"`. **That category does not
+  exist** — the overflow controller emits no telemetry — which would have made `triggerNeverObserved` permanently
+  true and pinned the entry at `too_new_to_judge` FOREVER, silently exempt from the audit even after it fired.
+  That is the registry header's own warning ("registering a guessed category would make the registry report on a
+  mechanism that does not emit it") turned on itself. `firesWhen` omitted; `expectation: "exceptional"` already
+  carries the right reading.
+  (2) With that fixed the mechanism STILL did not appear — because **`too_new_to_judge` was computed by the audit
+  and then never printed**: it was missing from the renderer's `order` array, so a freshly-wired mechanism was
+  absent from every section, neither healthy nor flagged. An audit whose own report can swallow a finding is the
+  failure it exists to prevent. Fixed, and a test now checks the renderer's list against the statuses the audit
+  actually produces (verified to FAIL with the entry removed) so the next added status cannot vanish the same way.
+  It now reports honestly: *"no observations, but the newest telemetry PREDATES this mechanism's emission site —
+  it has not had a chance to fire, so silence says nothing."*
 - [x] **P18.4 — Recovery-over-compaction when a card is off-track.** The multi-turn paper's mechanism is premature
   commitment WITHOUT recovery. **Compacting a lost conversation preserves the wrong early commitment.** So the
   right intervention for a stuck card is RESTART WITH CLEAN RESTATEMENT, not summarize-and-continue. Reconcile

@@ -67,10 +67,16 @@ export async function runDevMechanismRegistryCommand(options: { json?: boolean }
 	}
 
 	process.stdout.write(`${result.summary}\n\n`);
+	// ⚠️ EVERY status must appear here. `too_new_to_judge` was computed by the audit and then never printed, so a
+	// freshly-wired mechanism was absent from the report entirely — not healthy, not flagged, just gone (found
+	// 2026-07-30 while registering `transcript_distractor_prune`). That is the exact "looks like nothing to see"
+	// silence this audit exists to eliminate, reproduced in its own renderer. A test pins the completeness of this
+	// list so the next added status cannot vanish the same way.
 	const order: MechanismFinding["status"][] = [
 		"enabled_but_silent",
 		"unknown_enablement",
 		"silent_but_exceptional",
+		"too_new_to_judge",
 		"never_enabled",
 		"healthy",
 	];
