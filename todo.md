@@ -10190,20 +10190,22 @@ months**. Re-estimate after every phase; these are planning ranges, not promises
 
 **Everything below is committed; nothing is in flight in the working tree.**
 
-**1. Background job that was RUNNING when the session cut — check it first.**
-A full nightly (`npx tsx src/cli.ts dev nightly --json`) was started to validate the day's changes and was at
-**cell 5/28** at the cut. Log: `<session-scratchpad>/nightly-full.log` (session-scoped path — if the session is
-gone, just re-run it). It is the validation gate for everything committed today, so **re-run it before trusting
-today's work**:
-```
-npx tsx src/cli.ts dev nightly --json
-```
-⚠️ Its preflight printed *"1 registered project(s) match NO scenario …: smoke — These cells cannot pass."*
-The `smoke×turn_loop` cell is INLINE-by-design (it has no on-disk recording; see the comment in
-`nightly-smallest-tranche-integrity.test.ts`), so this warning is likely a FALSE alarm from a preflight that
-does not know about inline cells. **Check whether that cell actually failed.** If it passed, the preflight
-check needs to exempt inline cells — otherwise it cries wolf on every nightly. If it failed, that is a real
-registration bug. Do not "fix" it before knowing which.
+**1. ✅ The background nightly FINISHED, fully GREEN — today's work is validated.**
+`28 cell(s): 28 passed, 0 failed, 0 skipped` · `ok: true` · 28/28 packs ok · 0 problems · 0 unmatched
+violations · 0 regressions · 0 cost regressions · crash-recovery matrix 6/6.
+
+**◆ AND IT EXPOSED A REAL BUG IN THE NIGHTLY'S OWN PREFLIGHT (fixed).** The preflight printed
+*"1 registered project(s) match NO scenario …: smoke — These cells cannot pass"* — about `smoke×turn_loop`,
+which **passed** as cell 2/28. Two defects, both live on every single run:
+  (a) it matched on projectId prefix and knew nothing about INLINE cells, which have no on-disk recording by
+      design (their evidence digest binds the harness's in-code script). A confident wrong verdict — precisely
+      the failure this check exists to prevent, aimed at itself.
+  (b) worse: it also set `process.exitCode = 1`, so a nightly reporting `ok: true, 28 passed, 0 failed` **exited
+      NON-ZERO**. Anything gating on exit status — CI, a wrapper script — read a fully green suite as red.
+Fixed: matching moved to the FIXTURE (the exact directory name, strictly more precise — it also catches a
+project whose id matches a directory but whose fixture does not, previously invisible), inline fixtures
+exempted, exit code now tracks only genuine misses. Verified: `dev nightly --dry-run` is silent and exits 0.
+Mirrored by a manifest-level test so the data cannot drift back.
 
 **2. What landed today, in order (all committed, all green at commit time):**
 - `dd9011813` — P24.1 step 1: `classifyWorkflowPhase()`/`isLiveWorkflowPhase()` + 17 EXHAUSTIVE kernel

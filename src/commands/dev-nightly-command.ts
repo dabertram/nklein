@@ -484,15 +484,30 @@ export async function runDevNightlyCommand(options: {
 	} catch {
 		scenarioNames = [];
 	}
+	// Two corrections, both from a fully GREEN 28/28 run on 2026-07-30 that this check nonetheless failed:
+	//
+	// (1) INLINE cells have no on-disk recording BY DESIGN — their evidence digest binds the harness's in-code
+	//     script instead (the `smoke×turn_loop` cell, registered 2026-07-28; the same category is documented in
+	//     `nightly-smallest-tranche-integrity.test.ts`, which excludes them from the tranche cost accounting).
+	//     Reporting "these cells cannot pass" about a cell that PASSED is the confident-wrong-verdict failure this
+	//     very check exists to prevent, and it fired on every single run.
+	// (2) It also set `process.exitCode = 1`, so a nightly reporting `ok: true, 28 passed, 0 failed` still EXITED
+	//     NON-ZERO. Any CI step or script gating on exit status read a green suite as a red one. The exit code now
+	//     tracks only genuinely unmatched registrations.
+	//
+	// Matching moved from projectId-prefix to the FIXTURE, which is the exact directory name — strictly more
+	// precise (it would also catch a project whose id matches a directory but whose fixture does not, previously
+	// invisible), and verified to flag nothing new against the current manifest.
+	const isInlineScenarioFixture = (fixture: string): boolean => fixture.endsWith("-inline");
 	const unmatched =
 		scenarioNames.length === 0
 			? []
-			: [...new Set(cells.map((cell) => cell.projectId))].filter(
-					(id) => !scenarioNames.some((name) => name === id || name.startsWith(`${id}_`)),
-				);
+			: [...new Set(cells.filter((cell) => !isInlineScenarioFixture(cell.fixture)).map((cell) => cell.fixture))]
+					.filter((fixture) => !scenarioNames.includes(fixture))
+					.sort();
 	if (unmatched.length > 0) {
 		process.stdout.write(
-			`⚠️ ${unmatched.length} registered project(s) match NO scenario under ${scenarioDir}: ${unmatched.join(", ")}\n` +
+			`⚠️ ${unmatched.length} registered cell(s) name a fixture with NO scenario under ${scenarioDir}: ${unmatched.join(", ")}\n` +
 				`   These cells cannot pass. Registration is data, and this is the check that the data is real.\n\n`,
 		);
 		process.exitCode = 1;

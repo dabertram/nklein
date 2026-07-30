@@ -76,6 +76,27 @@ describe("nightly pack registry", () => {
 			}
 		}
 	});
+
+	it("every cell's FIXTURE exists on disk, unless it is an inline-scenario cell", () => {
+		// Mirrors the nightly's preflight. That preflight used to match on projectId prefix and knew nothing about
+		// inline cells, so it declared "these cells cannot pass" about `smoke×turn_loop` — which PASSED — on every
+		// run, AND set a non-zero exit code, making a green 28/28 suite look red to anything reading exit status
+		// (both found 2026-07-30 from a fully green run). Inline cells legitimately have no recording on disk: their
+		// evidence digest binds the harness's in-code script.
+		const manifestPath = "nightly-manifest.json";
+		if (!existsSync(manifestPath)) {
+			return;
+		}
+		const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+			projects?: { id: string; fixture: string }[];
+		};
+		const scenarioDir = "packages/llm-simulator/scenarios";
+		const missing = (manifest.projects ?? [])
+			.filter((project) => !project.fixture.endsWith("-inline"))
+			.filter((project) => !existsSync(join(scenarioDir, project.fixture)))
+			.map((project) => `${project.id}→${project.fixture}`);
+		expect(missing, `fixtures with no scenario directory: ${missing.join(", ")}`).toEqual([]);
+	});
 });
 
 describe("mechanism registry self-consistency", () => {
