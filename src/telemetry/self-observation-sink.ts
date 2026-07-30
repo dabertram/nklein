@@ -81,27 +81,41 @@ const DEFAULT_SELF_OBSERVATION_ROOT = join(resolveNkleinRuntimeHomePath(homedir(
 const DEFAULT_RETENTION_DAYS = 30;
 const SECRET_KEY_PATTERN = /(api[_-]?key|authorization|bearer|cookie|password|secret|token)/i;
 /**
- * Keys that are token COUNTS, not credentials — narrowly exempted from {@link SECRET_KEY_PATTERN}.
+ * The secret families where a NUMERIC value is still not safe to keep — a PIN or numeric passcode is plausible
+ * under any of these, so they stay strict regardless of value type.
+ */
+const STRICT_SECRET_KEY_PATTERN = /(api[_-]?key|authorization|bearer|cookie|password|secret)/i;
+const TOKEN_KEY_PATTERN = /token/i;
+
+/**
+ * Is this a token MEASUREMENT (a count, budget, or timestamp) rather than a token CREDENTIAL?
  *
  * ── THE BUG THIS FIXES (found 2026-07-30 building `dev prefill-cost`) ──
- * `SECRET_KEY_PATTERN` contains the substring `token`, which matches `inputTokens`, `outputTokens`,
- * `cacheReadTokens`, `reasoningTokenCount` … so **every token count !Klein has ever written to telemetry was
- * stored as `"[REDACTED]"`**. Nothing failed; the numbers just silently became a string. It surfaced only when an
- * analysis tried to USE them and found nine per-request records with no usable usage — which reads as "the
- * provider reported nothing", not "our own redaction ate it". Any future token-based measurement would have hit
- * the same wall and drawn the same wrong conclusion.
+ * `SECRET_KEY_PATTERN` contains the substring `token`, so `inputTokens`, `outputTokens`, `cacheReadTokens`,
+ * `max_tokens`, `tokensFreed`, `maxTokensPerTurn` … **19 distinct measurement keys** were written to telemetry as
+ * the string `"[REDACTED]"`. Every token count !Klein ever recorded was destroyed at write time. Nothing failed;
+ * the numbers simply became a string, and `durationMs` survived alongside them, so records looked half-populated
+ * rather than broken. It surfaced only when an analysis tried to USE them and read the absence as "the provider
+ * reported nothing" — the wrong conclusion, one layer above the actual fault.
  *
- * ── WHY THIS IS SAFE, AND WHY IT IS TWO CONDITIONS AND NOT ONE ──
- * Redaction is a security control, so this exempts as little as possible. A value is preserved ONLY when BOTH:
- *   1. the key has the camelCase COUNT shape — a lowercase letter immediately before a capitalised `Tokens`, or a
- *      `TokenCount` suffix, or exactly `tokens`. Credential spellings (`token`, `access_token`, `auth_token`,
- *      `bearer_token`) do not match, because they lack the compound-word boundary; AND
- *   2. the value is a FINITE NUMBER. An API key is never a number, so even if some future key slipped through
- *      condition 1, a secret STRING under it would still be redacted.
- * Either condition alone would be weaker: the key shape alone could expose a numeric-looking secret string, and
- * "numbers are never secrets" alone would expose a numeric PIN under a key like `password`.
+ * ── WHY VALUE TYPE IS THE RIGHT DISCRIMINATOR, BUT ONLY FOR THIS FAMILY ──
+ * Every credential spelling of token is a STRING (`token`, `access_token`, `auth_token`, `egressIdentityToken`),
+ * and every measurement spelling is a NUMBER. So within the token family, "is it a finite number?" separates them
+ * exactly, and it needs no list of blessed key names to keep in sync — the failure mode of an allow-list is that
+ * a new key silently rejoins the redacted set, which is precisely how this bug would recur.
+ *
+ * The other secret families do NOT get this treatment: a numeric PIN under `password` is entirely plausible, so
+ * {@link STRICT_SECRET_KEY_PATTERN} redacts them whatever the value type. Narrowing the exemption to the one
+ * family where the type argument actually holds is what keeps this a bug fix rather than a loosened control.
  */
-const TOKEN_COUNT_KEY_PATTERN = /(?:[a-z]Tokens|TokenCount|^tokens)$/;
+function isTokenMeasurement(key: string, value: unknown): boolean {
+	return (
+		TOKEN_KEY_PATTERN.test(key) &&
+		!STRICT_SECRET_KEY_PATTERN.test(key) &&
+		typeof value === "number" &&
+		Number.isFinite(value)
+	);
+}
 const PROMPT_KEY_PATTERN =
 	/^(prompt|systemPrompt|userPrompt|assistantPrompt|spec|plan|summary|questionsMarkdown|decisionsMarkdown|revisionsMarkdown|transcript|messages|content)$/i;
 const SECRET_VALUE_PATTERN =
@@ -154,8 +168,7 @@ function redactValue(value: unknown): unknown {
 	if (value && typeof value === "object") {
 		const entries = Object.entries(value as Record<string, unknown>).map(([key, entryValue]) => [
 			key,
-			SECRET_KEY_PATTERN.test(key) &&
-			!(TOKEN_COUNT_KEY_PATTERN.test(key) && typeof entryValue === "number" && Number.isFinite(entryValue))
+			SECRET_KEY_PATTERN.test(key) && !isTokenMeasurement(key, entryValue)
 				? "[REDACTED]"
 				: PROMPT_KEY_PATTERN.test(key)
 					? "[REDACTED_TEXT]"

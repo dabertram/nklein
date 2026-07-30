@@ -225,7 +225,11 @@ describe("token COUNTS are preserved while token CREDENTIALS stay redacted", () 
 		return (event?.metadata ?? {}) as Record<string, unknown>;
 	}
 
-	it("preserves NUMERIC token counts so they can actually be measured", async () => {
+	it("preserves NUMERIC token measurements in every spelling the codebase uses", async () => {
+		// These names were taken from an exhaustive sweep of 521 telemetry metadata keys: 19 distinct measurement
+		// keys were being destroyed, not the four the bug was first noticed through. The spellings vary wildly
+		// (camelCase, snake_case, plural, suffixed, a timestamp), which is exactly why the rule keys off VALUE TYPE
+		// rather than a list of blessed names — an allow-list would silently drop the next new one.
 		const metadata = await writeAndRead({
 			inputTokens: 4231,
 			outputTokens: 512,
@@ -233,6 +237,11 @@ describe("token COUNTS are preserved while token CREDENTIALS stay redacted", () 
 			cacheWriteTokens: 0,
 			reasoningTokenCount: 88,
 			tokens: 17,
+			max_tokens: 8192,
+			maxTokensPerTurn: 4096,
+			tokensFreed: 1200,
+			lastTokenAt: 1_785_369_600_000,
+			compactedHistoryTokens: 60_000,
 		});
 		expect(metadata.inputTokens).toBe(4231);
 		expect(metadata.outputTokens).toBe(512);
@@ -240,6 +249,11 @@ describe("token COUNTS are preserved while token CREDENTIALS stay redacted", () 
 		expect(metadata.cacheWriteTokens).toBe(0);
 		expect(metadata.reasoningTokenCount).toBe(88);
 		expect(metadata.tokens).toBe(17);
+		expect(metadata.max_tokens).toBe(8192);
+		expect(metadata.maxTokensPerTurn).toBe(4096);
+		expect(metadata.tokensFreed).toBe(1200);
+		expect(metadata.lastTokenAt).toBe(1_785_369_600_000);
+		expect(metadata.compactedHistoryTokens).toBe(60_000);
 	});
 
 	it("STILL redacts every credential spelling of token", async () => {
@@ -250,14 +264,17 @@ describe("token COUNTS are preserved while token CREDENTIALS stay redacted", () 
 			refresh_token: "1//abcdef",
 			auth_token: "Bearer abcdef",
 			apiToken: "abcdef",
+			// A REAL credential in this codebase, confirmed by the key sweep — it must not be rescued.
+			egressIdentityToken: "eyJhbGciOi",
 		});
-		for (const key of ["token", "access_token", "refresh_token", "auth_token", "apiToken"]) {
+		for (const key of ["token", "access_token", "refresh_token", "auth_token", "apiToken", "egressIdentityToken"]) {
 			expect(metadata[key], `${key} leaked a credential`).toBe("[REDACTED]");
 		}
 	});
 
-	it("STILL redacts a count-shaped key whose value is a STRING — the second condition earning its keep", async () => {
-		// Key shape alone is not enough: a secret smuggled under a count-shaped key must not survive.
+	it("STILL redacts a count-shaped key whose value is a STRING — value type earning its keep", async () => {
+		// A secret smuggled under a measurement-shaped key must not survive: every credential spelling is a string,
+		// so a string under ANY token key is treated as one.
 		const metadata = await writeAndRead({ inputTokens: "sk-live-not-a-number", outputTokens: 12 });
 		expect(metadata.inputTokens).toBe("[REDACTED]");
 		expect(metadata.outputTokens).toBe(12);

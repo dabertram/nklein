@@ -9004,12 +9004,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   nothing failed, the numbers just became a string, and any token-based analysis would have hit the same wall and
   drawn the same wrong conclusion. `durationMs` survived, which is why the records looked half-populated rather
   than obviously broken.
-  **The fix exempts as little as possible, and needs BOTH conditions:** a key must have the camelCase COUNT shape
-  (`[a-z]Tokens$` / `TokenCount$` / exactly `tokens` — credential spellings like `token`, `access_token`,
-  `auth_token` have no compound-word boundary and do NOT match) **AND** its value must be a finite NUMBER, since
-  an API key is never a number. Either alone is weaker: key-shape alone could expose a secret string smuggled
-  under a count-shaped key, and "numbers are never secrets" alone would expose a numeric PIN under `password`.
-  12 sink tests, weighted toward proving credentials are still destroyed.
+  **BLAST RADIUS, measured not guessed:** an exhaustive sweep of **521 telemetry metadata keys** found **19
+  distinct measurement keys** being destroyed — not the four the bug was noticed through. The spellings vary
+  wildly (`inputTokens`, `max_tokens`, `tokensFreed`, `maxTokensPerTurn`, `lastTokenAt`,
+  `compactedHistoryTokens`, …), which is why the first fix — a camelCase shape rule — was itself too narrow and
+  still left four numeric false positives, including `tokensFreed`, telemetry added the SAME DAY.
+  **THE FIX, sharpened: within the token family, VALUE TYPE is the exact discriminator.** Every credential
+  spelling of token is a STRING (`token`, `access_token`, `auth_token`, `egressIdentityToken` — the last a real
+  one in this codebase); every measurement spelling is a NUMBER. So a token-family key holding a finite number is
+  preserved, and anything else is redacted. No allow-list of blessed names to keep in sync — an allow-list's
+  failure mode is that the next new key silently rejoins the redacted set, which is exactly how this recurs.
+  **The other secret families are deliberately NOT given this treatment:** a numeric PIN under `password` is
+  entirely plausible, so `api_key|authorization|bearer|cookie|password|secret` stay strict whatever the value
+  type. Scoping the exemption to the one family where the type argument actually holds is what keeps this a bug
+  fix rather than a loosened security control. Re-audited after the fix: `apiKey` is the only metadata key left
+  unconditionally redacted. 12 sink tests, weighted toward proving credentials are still destroyed.
   ⚠️ **The historical telemetry is unrecoverable** — those counts were never written. Sizing the prize therefore
   needs a FRESH campaign run; `dev prefill-cost` will have real data from the next one.
   **NEXT (unchanged and still gated):** persistence itself needs an engine !Klein controls (P17.1/P17.1a), and
