@@ -10205,8 +10205,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
        already present. Downloading needs an a-priori estimate: `RAM ≈ params × bytes-per-param × ~1.2`, plus KV
        cache, which at agent context lengths **can exceed the weights** — and !Klein's ≥32k floor is exactly that
        regime. Sizing that ignores KV will systematically under-estimate and pick models that swap.
-    2. **Model-landscape discovery.** The HF Hub API (`list_models`) supports filter + sort by `downloads` /
-       `likes7d`, which is a usable trending signal. This is the one leg that needs the network.
+    2. ~~**Model-landscape discovery.**~~ **⚠️ CORRECTION 2026-07-31 — F3.34 ALREADY DOES THIS, and it is WIRED.**
+       I wrote "nothing exists" above and was wrong; found while building the P23.9 boundary check, which flagged
+       `model-research-policy.ts` as a false positive and thereby surfaced the module. `nklein-model-research.ts`
+       + `model-research-policy.ts` already provide: a SearxNG web-search client, `resolvePrimaryModelSourcePolicy`
+       (per-publisher primary-source restriction, so an aggregator host cannot stand in for the real publisher),
+       `validateModelResearchCitations`, `screenUntrustedContent` (prompt-injection prescreen on fetched pages),
+       `buildSsrfGuardedPageFetcher`, and a model-registry snapshot — exposed via tRPC `runNKleinModelResearch`
+       and a `dev` command.
+       **⇒ This also substantially ANSWERS P25.2(a).** The "is a model-acquisition egress lane acceptable?"
+       question is not open in the abstract: a model-RESEARCH egress lane already exists, already asserts its own
+       allow-list (`assertModelResearchEgressAllowed`), and already treats fetched pages as untrusted. The
+       remaining question is narrower and much easier to answer: *may that established lane extend from reading
+       model information to DOWNLOADING weights?* Downloading is a different risk class (see P25.2(b)), but the
+       precedent, the gate, and the SSRF/prescreen machinery are in place.
+       **What is genuinely left for this leg:** rank F3.34's findings by the P25.3-phase-1 FIT verdict against
+       this host's budget, so "what's new" becomes "what's new AND runnable here".
     3. **Auto-download.** `lms get <model>@<quant>` downloads programmatically into LM Studio's model directory,
        with `--mlx`/`--gguf` architecture filters. So the download leg is a CLI call, not an integration project.
     4. **Per-role/per-card assignment from measured fitness** — partially present; the gap is making it automatic
