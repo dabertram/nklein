@@ -562,3 +562,36 @@ describe("getReadyLinkedTaskIdsForTaskInTrash", () => {
 		expect(getReadyLinkedTaskIdsForTaskInTrash(createBoard(), "ghost")).toEqual([]);
 	});
 });
+
+describe("P21.4a — a card may not be based on another card's deliverable", () => {
+	function createBoard(): RuntimeBoardData {
+		return { columns: [{ id: "backlog", title: "Backlog", cards: [] }] } as unknown as RuntimeBoardData;
+	}
+
+	it("REJECTS a result branch as baseRef at creation — the root of the sibling-merge incident", () => {
+		// Reachable without doing anything unusual: `baseRef` is taken verbatim from the host's checked-out branch,
+		// and branch detection offers result branches like any other. Creating a card while sitting on a delivered
+		// card's branch used to persist that branch as this card's base; the later merge guard only checked that the
+		// checkout MATCHED the declared base, so it passed, and the work merged onto the sibling instead of the
+		// trunk. Rejecting at creation stops the bad value from ever being stored.
+		expect(() =>
+			addTaskToColumn(
+				createBoard(),
+				"backlog",
+				{ prompt: "B", baseRef: "nklein/tasks/card-a-0123456789" },
+				() => "bbbbb111",
+			),
+		).toThrow(/another task's result branch/u);
+	});
+
+	it("still accepts an ordinary base branch", () => {
+		const created = addTaskToColumn(createBoard(), "backlog", { prompt: "B", baseRef: "main" }, () => "bbbbb111");
+		expect(created.task.baseRef).toBe("main");
+	});
+
+	it("keeps the EMPTY baseRef error distinct — the new guard must not swallow it", () => {
+		expect(() => addTaskToColumn(createBoard(), "backlog", { prompt: "B", baseRef: "  " }, () => "bbbbb111")).toThrow(
+			/baseRef is required/u,
+		);
+	});
+});

@@ -1,6 +1,7 @@
 import { lstat, writeFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeBoardData } from "../core/api-contract";
+import { isTaskResultBranchRef } from "../core/task-result-branch-naming";
 import type { WorkPackage } from "../core/work-package-dispatch";
 import { integrationMergeOrder } from "../core/work-package-integration-order";
 import { runGit as defaultRunGit, type RunGitOptions } from "./git-utils";
@@ -409,6 +410,20 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 	);
 	for (const candidate of candidates) {
 		const task = candidate.task;
+		// P21.4a — LEGITIMACY before consistency. The check below verifies the host is checked out on the card's
+		// declared base, which says nothing about whether that base is a REAL base: a card created while the host sat
+		// on a sibling's result branch carries that branch as `baseRef`, and the consistency check then passes
+		// happily while the merge lands on the sibling. Creation now rejects such a baseRef, but cards persisted
+		// before that guard existed still carry one, so this seam refuses them too rather than trusting stored data.
+		if (isTaskResultBranchRef(task.baseRef)) {
+			const blocked: TaskWorktreeAutoMergeBlocked = {
+				type: "blocked",
+				taskId: task.id,
+				reason: `Task "${task.id}" declares base "${task.baseRef}", which is another task's result branch. Merging would land this work on a sibling task instead of the base branch, where it would look delivered without reaching it.`,
+			};
+			steps.push(blocked);
+			return { ok: false, steps, mergedTaskIds, skippedTaskIds, blocked };
+		}
 		const branch = await runGit(input.repoPath, ["branch", "--show-current"]);
 		if (!branch.ok || branch.stdout.trim() !== task.baseRef) {
 			const blocked: TaskWorktreeAutoMergeBlocked = {

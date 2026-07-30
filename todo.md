@@ -9787,6 +9787,40 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   mentioned them in prose"; **(c)** **NEVER clear `modifiedFiles` when a task claims real work** — their no-op
   finalize silently destroyed the audit trail; move the task back to `todo` with progress preserved and emit a
   typed audit event. Audit !Klein's merge/finalize path against all three.
+  **✅ AUDITED 2026-07-30. (b) and (c) are SAFE — stronger than the invariants ask. (a) WAS REAL and is now FIXED.**
+  · **(b) attribution — SAFE, and better than a trailer.** !Klein never greps commit messages: a card's commits are
+    reached through a DERIVED REF, `nklein/tasks/<slug>-<sha256(taskId)[0:10]>`, resolved by exact
+    `git show-ref --verify` (`task-result-branches.ts`), with the SHA additionally pinned to
+    `refs/nklein/evidence/*` and onto the card's immutable `resultArtifact` receipt before any pruning. A repo-wide
+    search for `--grep` returns exactly ONE hit — the line in this file describing the other project's bug — and
+    zero in product code. Fusion's failure (attributing a task to a commit "merely because its body mentioned it in
+    prose") is not expressible here.
+  · **(c) evidence preservation — SAFE.** Every no-work path returns BEFORE touching the record: an empty patch
+    returns `null` prior to any git call, and an unchanged tree returns before the `update-ref`, so a later no-op
+    round cannot rewind a branch that already holds work. The known no-op-worker path re-drives the worker once
+    with an explicit "the task is NOT done", then holds FAIL-CLOSED in Review — it never auto-completes and never
+    clears. Round-2 capture is a SUPERSET (`git diff --staged <baseRef>`), not a replacement. Deletion is confined
+    to explicit trash / replay / project-removal and to post-merge losing-candidate pruning that runs only after
+    the evidence ref is pinned.
+  · **(a) sibling-branch merge targets — VULNERABLE, VERIFIED, FIXED.** The exact incident was reachable. Chain,
+    each link read directly: card creation validated `baseRef` for NON-EMPTINESS ONLY; `baseRef` is taken verbatim
+    from the host's current branch; `detectGitBranches` lists ALL of `refs/heads` unfiltered, so a `nklein/tasks/*`
+    result branch is offered and checkout-able like any other; and the auto-merge guard compared the checkout to
+    `task.baseRef` — **consistency, not legitimacy**. So: card A delivers → host is switched onto
+    `nklein/tasks/card-a-<hash>` → card B is created there and inherits it as its base → at delivery the guard sees
+    checkout == baseRef and **passes** → card B merges onto card A. Card B reads completed, its dependents cascade,
+    nothing reaches the base. **FIX:** pure `isTaskResultBranchRef` in `src/core/task-result-branch-naming.ts`
+    (segment-matched, accepts short AND `refs/heads/`-qualified spellings, since baseRef is stored short while git
+    reports qualified), enforced at BOTH seams — rejected at card creation so the value is never persisted, and
+    blocked again at the merge seam because cards created before the guard still carry one. 11 tests; the merge
+    test was verified to FAIL with the guard disabled. Scoped to the result namespace only, not all of `nklein/`,
+    so a legitimate base is never refused.
+  **◆ ADJACENT FAIL-OPEN FOUND, NOT YET FIXED — needs its own item.** In `runtime-server.ts` (~2368) the delivered
+  changed-file list is computed with `.catch(() => [] as string[])`. An unreadable diff therefore yields an EMPTY
+  file list, so `hasProtectedPathChanges` reads false and `findWorkPackageBoundaryViolations` reports none — the
+  protected-safety-path scan AND the write-scope scan both silently PASS on missing evidence, while every other
+  missing-evidence case on that path fails closed. No audit trail is destroyed (the durable refs are untouched), so
+  it is not the (c) shape, but it is the wrong default for a safety scan and should fail closed like its neighbours.
 - [ ] **P21.5 — ⚠️ Fusion's multi-node P0 is OUR failure surface too.** Their self-audit found **"Checkout CAS is
   local-row atomic, not central-distributed"** — with no central claim table, two nodes can each evaluate the
   local single-row precondition as true before either write is globally fenced, causing **double-checkout**.

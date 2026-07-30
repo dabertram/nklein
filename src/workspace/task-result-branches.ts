@@ -7,8 +7,6 @@ import { createGitProcessEnv } from "../core/git-process-env";
 import { runGit as defaultRunGit, type RunGitOptions } from "./git-utils";
 import { classifyTaskPatchCaptureFailure, TaskPatchCaptureError } from "./task-patch-capture-diagnostics";
 
-const TASK_RESULT_BRANCH_PREFIX = "nklein/tasks";
-
 type RunGit = (cwd: string, args: string[], options?: RunGitOptions) => ReturnType<typeof defaultRunGit>;
 
 export interface TaskResultBranch {
@@ -32,6 +30,8 @@ export type TaskResultBranchProbe =
 	| { status: "found"; commit: string }
 	| { status: "missing"; commit: null }
 	| { status: "error"; commit: null; message: string };
+
+import { TASK_RESULT_BRANCH_PREFIX } from "../core/task-result-branch-naming";
 
 export function createTaskResultBranchName(taskId: string): string {
 	const normalizedTaskId = taskId.trim();

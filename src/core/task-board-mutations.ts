@@ -20,6 +20,7 @@ import {
 	normalizeTaskTestabilityFields,
 } from "./task-field-normalization";
 import { createUniqueTaskId } from "./task-id";
+import { isTaskResultBranchRef } from "./task-result-branch-naming";
 import { resolveTaskTitle } from "./task-title";
 
 /**
@@ -313,6 +314,17 @@ export function addTaskToColumn(
 	const baseRef = input.baseRef.trim();
 	if (!baseRef) {
 		throw new Error("Task baseRef is required.");
+	}
+	// P21.4a — a card may never be based on ANOTHER CARD'S deliverable. `baseRef` is taken verbatim from whatever
+	// the host repo has checked out, and result branches are offered by branch detection like any other, so this is
+	// reachable by simply creating a card while sitting on a delivered card's branch. Left unchecked, the card's
+	// work merges onto its sibling instead of the base: it reads as completed, its dependents cascade, and nothing
+	// lands on the trunk. Rejected HERE, at the root, because the bad value is otherwise persisted onto the card and
+	// every later consumer inherits it.
+	if (isTaskResultBranchRef(baseRef)) {
+		throw new Error(
+			`Task baseRef "${baseRef}" is another task's result branch. Check the workspace out on a real base branch before creating this task — basing a card on a sibling's deliverable silently keeps its work off the base branch.`,
+		);
 	}
 	const existingIds = collectTaskIds(board);
 	const explicitTaskId = input.taskId?.trim();

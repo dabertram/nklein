@@ -135,6 +135,42 @@ describe("task worktree auto merge", () => {
 		]);
 	});
 
+	it("P21.4a: BLOCKS a card whose declared base is another card's result branch", async () => {
+		// The published incident, reproduced: card `ui` was created while the host sat on card A's result branch, so
+		// it carries that branch as `baseRef`. Note the checkout MATCHES the declared base here — which is precisely
+		// why the old guard passed: it verified consistency, never legitimacy. Without this block the merge lands on
+		// the sibling, the card reads as completed, its dependents cascade, and nothing reaches the base branch.
+		const siblingBranch = "nklein/tasks/card-a-0123456789";
+		const board = createBoard();
+		const reviewColumn = board.columns.find((column) => column.id === "review");
+		if (reviewColumn) {
+			reviewColumn.cards = [createTask("ui", siblingBranch)];
+		}
+		const runGit = vi.fn(async (_cwd: string, args: string[]) => {
+			if (args[0] === "status") {
+				return gitOk(""); // clean tree, so the dirty-tree guard cannot be what blocks
+			}
+			if (args[0] === "branch") {
+				return gitOk(siblingBranch); // checked out on the sibling: the consistency check WOULD pass
+			}
+			return gitOk("");
+		});
+
+		const result = await mergeTaskWorktreesInDependencyOrder({
+			repoPath: "/repo",
+			board,
+			columns: ["review"],
+			runGit,
+		});
+
+		expect(result.ok).toBe(false);
+		expect(result.blocked?.taskId).toBe("ui");
+		expect(result.blocked?.reason).toContain("another task's result branch");
+		expect(result.mergedTaskIds).toEqual([]);
+		// The decisive assertion: no merge was even attempted.
+		expect(runGit.mock.calls.some((call) => call[1][0] === "merge")).toBe(false);
+	});
+
 	it("blocks when the base worktree is dirty", async () => {
 		const runGit = vi.fn(async (_cwd: string, _args: string[]) => ({
 			ok: true,
