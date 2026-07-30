@@ -8789,6 +8789,27 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > runtime-adapter boundary is no longer an architectural nicety — it is what unblocks measured wins. (b) Protocol
 > research (below) shows exactly one interop protocol whose transport model MATCHES a local-only product.
 
+> **🔒 SECURITY REMEDIATION DONE 2026-07-30 — production advisories 17 → 14, HIGH 3 → 0.** Executed the audit's
+> P0 item once v19 freed the machine. Sequence and evidence:
+> 1. **`overrides.protobufjs` 7.5.8 → 7.6.5.** This single change cleared TWO of the three highs — `protobufjs`
+>    itself AND `@opentelemetry/otlp-transformer`, which was high only *because of* it. Confirms the diagnosis:
+>    `cb1bf3dae` pinned 7.5.8 "to clear CVEs" and that pin had become the vulnerability, silently overriding
+>    whatever the tree resolved. **The OpenTelemetry family upgrade was NOT needed** — the audit assumed it was,
+>    but the override was the whole blocker, so we avoided a large peer-graph change for nothing.
+> 2. **`@modelcontextprotocol/sdk` 1.29.0 → 1.30.0.** Did NOT fix `fast-uri`: 1.30.0 still resolves
+>    `ajv@8.20.0 → fast-uri@3.1.2`. Kept anyway (it is the current release), but recorded honestly — the audit
+>    expected this to be the fix and it was not.
+> 3. **`overrides.fast-uri` → 3.1.4.** Justified precisely by the audit's own rule (override only when the owning
+>    direct dep cannot resolve a fixed release): the owner is already at latest and still pulls 3.1.2. 3.1.4 is
+>    the newest 3.x and satisfies ajv's `^3.0.1`, so no range is violated.
+> Verified: root tsc clean, **web-ui tsc clean** (the check pre-commit skips — see the §10c slip), test:fast
+> 12,604 green, `npm audit --omit=dev` reports **zero high**. No blind `npm audit fix` was used.
+> ⚠️ **TWO OVERRIDES ARE NOW DEBT WITH AN EXPIRY DATE** (`protobufjs` 7.6.5, `fast-uri` 3.1.4). The protobufjs
+> incident is exactly what an unreviewed security pin becomes. RE-CHECK BOTH whenever their owners are
+> upgraded, and DELETE each the moment the tree resolves a safe version on its own — `npm ls <pkg>` prints
+> `overridden` next to a pinned transitive, which is the tell. The 12 remaining moderates are unaddressed and
+> untriaged; they are NOT claimed as clean.
+
 - [ ] **P17.6 — KV-CACHE PERSISTENCE ACROSS MODEL UNLOAD (David's idea, 2026-07-30; RESEARCH DONE — the gap is
   real and both engines already have most of the machinery).** David asked whether a persistent cache for
   unloaded models could avoid recompute on fast model switching. Web research says YES, and names the exact
