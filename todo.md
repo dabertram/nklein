@@ -9794,6 +9794,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   deterministic handoff, and peer gossip at a **120 s default** with no assignment-specific fallback. **!Klein's
   multi-machine fleet routing has the same shape. Audit for double-claim before it bites.** Their fix: a central
   claim table with `INSERT … ON CONFLICT … WHERE <precondition>` plus epoch bumping.
+  **✅ AUDITED 2026-07-30 — !Klein does NOT have Fusion's shape. The board/claim path is properly fenced.**
+  Their root cause was *per-node database files*: "SQLite WAL guarantees do not cross database files", so each
+  node's local-row CAS was never globally fenced and two nodes could both pass the precondition. !Klein's shared
+  state is **one state file per workspace**, guarded by a real cross-process advisory lock (`proper-lockfile`,
+  `src/fs/locked-file-system.ts`), and — the property that actually matters — **the precondition is evaluated
+  INSIDE the fence**: `mutateWorkspaceState` (`src/state/workspace-state.ts:798`) takes the workspace lock, then
+  reads board+sessions+meta, runs the caller's decision, and writes, ALL within one `withLock`. That is exactly
+  what Fusion lacked.
+  There is a second, independent layer: `saveWorkspaceState` supports **OCC** — `expectedRevision` is compared
+  against the on-disk revision *inside the same lock* and throws `WorkspaceStateConflictError` on mismatch
+  (`workspace-state.ts:731-741`), so it is enforced, not advisory. And the monotonic `revision` bumped on every
+  write IS the "epoch bumping" Fusion prescribed as part of their own fix. Both fenced write paths were checked;
+  the `saveWorkspaceState` callers that do not pass `expectedRevision` are full-board REPLACEMENTS (dev-test
+  board creation, shutdown), not read-modify-write of live claims.
+  **⚠️ RESIDUAL, stated honestly — a DIFFERENT surface, not this one.** The durable scheduler is a PURE in-process
+  brain whose leases live in the append-only ledger, not the fenced board file. Two orchestrator processes
+  replaying the SAME ledger would each build their own in-memory job graph, and nothing described above would
+  stop both from leasing the same job — the file lock protects the board, not two schedulers' independent
+  decisions. Whether that is reachable depends on whether a second runtime server can start against one
+  workspace+ledger, which this audit did NOT establish. Concurrent runs are normally isolated by HOME +
+  `NKLEIN_AGENT_LEDGER_ROOT` (that is how the nightly runs 28 cells), so the isolation is real but is a
+  CONVENTION of how runs are launched rather than an enforced fence. **Follow-up (small): decide whether a
+  second runtime server on the same ledger root should be refused outright** — a startup guard would convert
+  that convention into a structural guarantee.
 - [x] **P21.6 — "One task = one context window = one PR" as a hard sizing invariant.**
   **CORE SHIPPED 2026-07-20: `task-sizing-invariant.ts`, 11 tests.** `decideTaskSizing` takes both ceilings and
   reports which one BINDS; `requiredSplitCount` says how many pieces satisfy both.
