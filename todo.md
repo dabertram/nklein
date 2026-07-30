@@ -10509,6 +10509,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   journey, human-answerable situation-report questions, and live-adapter contract trials outside deterministic CI.
   **Gate: run a NULL AGENT against it first (P20.1) — if it scores above zero the oracle is forgeable — plus the
   no-op ablation (P20.3).**
+  **▶ SYNTHESIS 2026-07-31 — P20.2 AND P23.5 ARE THE SAME PROBLEM. Build the artefact once.**
+  P20.2 wants a compositional suite the agent NEVER SEES (the visible/held-out gap is its reward-hacking
+  measurement). P23.5 wants a protected oracle BECAUSE the agent writes its own tests. **That is one artefact
+  under two names**, and building them separately would be the fourth duplication this backlog has caught. The
+  entry for P20.2 should be read as "the fixture split = P23.5's oracle".
+  **🔴 AND THE OBVIOUS HOME FOR IT DOES NOT WORK.** P23.5 says *"`test/protected/**` is human-gated, so the
+  oracle lives there"*. That mechanism is real and proven — a manifest with per-entry rationales, its own
+  `vitest.protected.config.ts`, and a default-deny human-approval rule — **but it protects !KLEIN'S OWN test
+  suite from agents editing !Klein.** A dev-test project runs in a sandbox workspace where the agent has write
+  access to everything, so an oracle placed *in the workspace* is not protected at all: the agent can edit the
+  file that grades it. Human-gating a path in !Klein's repo does nothing for a file inside a container.
+  **⇒ THE ORACLE MUST LIVE OUTSIDE THE AGENT'S WRITABLE WORKSPACE and be applied at SCORING time. !Klein already
+  has that pattern, proven, in the benchmark planners:** `aider-polyglot-workspace-plan.ts` mounts `/source:ro`
+  and copies only selected files into the writable workspace, and `swebench-workspace-plan.ts` seals history the
+  same way (see P20.4). So the shape is: oracle in a read-only mount or held entirely host-side, applied after
+  the agent finishes, never present in the workspace the agent can reach. That is the design constraint both
+  items were missing, and it is what makes the null-agent gate meaningful — an oracle the agent could edit would
+  pass a null-agent check and still be forgeable in a real run.
 - [ ] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle.** Today's spec tells the agent
   the SPEC does the thinking and the model follows — a valid test of faithful execution, retrieval and dependency
   extraction, but NOT of architecture discovery. Keep the prescriptive benchmark and add a discovery variant
