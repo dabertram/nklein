@@ -47,6 +47,7 @@ import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
 import { runDevGatesCommand } from "./dev-gates-command";
 import { runDevInterventionsCommand } from "./dev-interventions-command";
+import { runDevLedgerFieldsCommand } from "./dev-ledger-fields-command";
 import { runDevLedgerHealthCommand } from "./dev-ledger-health-command";
 import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
 import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
@@ -939,6 +940,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { minCalls?: string; tools?: string; json?: boolean }) => {
 			await runDevEditReliabilityCommand(options);
+		});
+
+	dev.command("ledger-fields")
+		.description("Which attempt-ledger fields carry data, and which are silently dead (evidence-substrate audit).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevLedgerFieldsCommand(options);
 		});
 
 	dev.command("prefill-cost")

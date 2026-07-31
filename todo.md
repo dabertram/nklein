@@ -10422,6 +10422,27 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   One ledger read now serves both the rung index and the watermark, so the two cannot disagree about which
   attempts exist. Verified: 238 legacy lines still parse (the field defaults to null) and the nightly
   persisted-state compatibility guard is green.
+- [ ] **P21.15 — FOUR ledger fields have a consumer and no writer.** *(Found 2026-07-31 by the new
+  `dev ledger-fields` audit; each is a separate small fix.)*
+  **`ttftMs` 0/238** — `summarizeModelSpeed` computes `medianTtftMs` from it, and its own doc claims *"the ttftMs
+  the terminal writer computes"*. The terminal writer's input type has no such field, and
+  `parseLmStudioRequestStats` — which does parse `time_to_first_token` — is reachable **only from a dev command**.
+  So there is no production path from the provider's TTFT to the ledger, and `medianTtftMs` is null for every
+  model, forever. `tokensPerSec` beside it works, which is why the gap is invisible.
+  **`qualityScore` 0/238** — read by `stubborn-failure-escalation`. `qualityOk` is derived and populated; the
+  numeric score is absent from the terminal writer's input entirely.
+  **`endpointStrategy` 0/238** — read by `agent-ledger-projections` as a **GROUPING KEY**, so every row collapses
+  into a single bucket rather than splitting by strategy.
+  **`toolSetOffered` 0/238** — read by `agent-ledger-projections` and the §5.AA model-behaviour profile for
+  `toolCount`, so **every behaviour profile is missing its tool-count dimension**.
+  **⚠️ NONE OF THESE FAIL.** A projection over an all-null field returns a clean empty result: `summarizeModelSpeed`
+  reports "no timing samples" and looks correct while being structurally incapable of ever reporting one. That is
+  the same confident-green class as a reachability walk whose closure quietly shrank.
+  **Fix each at the writer's input type, or DELETE the consumer's claim** — a stated capability that cannot happen
+  is worse than an absent one. `ttftMs` specifically needs a production observation path first, so it is the
+  largest of the four and should not be faked from the registry's EWMA (that is a cross-attempt average, not this
+  attempt's TTFT).
+  Also open: **`parentAttemptId` 0/238**, undeclared — nobody has traced its writer or reader.
 - [ ] **P21.12 — Symbol-level conflict detection (the one idea nobody has shipped properly).** `wit`
   (github.com/amaar-mc/wit) locks **Tree-sitter AST symbols — functions, classes, types, exports — not files**,
   so two agents can safely edit different functions in the same file. !Klein currently serializes on FILE overlap,
@@ -11248,6 +11269,25 @@ the same path. What is refused is only the claim that *some model* made this att
 ledger is destructive and his call. Instead `computeEditReliability` EXCLUDES them and reports the count:
 *"⚠️ 70 attempt(s) named no model and were EXCLUDED"*. Verified live: the phantom row is gone and the three real
 models' rates are unchanged (29.4 / 63.4 / 85.4%), so the P21.1 finding stands.
+
+**3d. Tool shipped 2026-07-31 — `dev ledger-fields`: the EVIDENCE SUBSTRATE now audits itself.**
+!Klein's discipline is evidence over intuition — `insufficient_data`, `no_held_out_measurement`,
+`unknown_enablement`. **Every one of those honest refusals is computed from the attempt ledger, and the ledger had
+never been audited.** Three defects were found in it in one day (phantom model, duplicated tool calls, and now
+four write-less fields), all by accident, none with a test.
+**THE CASE THAT MADE IT A TOOL RATHER THAN A JUDGEMENT:** `flow` and `ttftMs` are BOTH 0/238. `flow` is correct —
+null IS the encoding for `board`, and the consumer reads `attempt.flow ?? "board"`. `ttftMs` is broken. **Same
+number, opposite meanings**, and eyeballing it got `flow` wrong on the first pass — that error is recorded in the
+module header rather than quietly corrected.
+So each field DECLARES its expectation next to the consumer that gives it a reason to exist: `always`,
+`exceptional`, `provider_reported`, `null_encodes_default`, `flag_gated`, `newly_added`. Statuses mirror the
+mechanism registry deliberately, including **`unknown_enablement`** (a flag-gated field proves nothing unless the
+flag's state at WRITE time is known — the current process env only proves what is on now) and
+**`too_new_to_judge`** (without it, a field added today is indistinguishable from one broken for months, and the
+only options are a false alarm or quietly not checking it).
+Exit is non-zero ONLY on `silent`. An explained emptiness must never fail a script, or the check gets ignored
+exactly like a linter that cries wolf — which is also why UNDECLARED fields are reported only when EMPTY (listing
+all 27 buried the real findings).
 
 **4. Questions batched for David (do not act on these unilaterally):**
 - **🆕 2026-07-31 — does a card AWAITING REVIEW hold runtime capacity?** The last blocker on migrating capacity
