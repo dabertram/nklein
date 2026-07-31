@@ -56,8 +56,8 @@ export function buildImplementHarnessScript(input: { code: string; tests: readon
 		// A definition-time throw is reported as every test failing for that reason, which is accurate: nothing was
 		// defined, so nothing could pass. Handled via `uncaughtException` rather than a `try` block — see below.
 		"process.on('uncaughtException', (error) => {",
-		"  __write('\\n' + " + JSON.stringify(IMPLEMENT_RESULT_SENTINEL) + " + JSON.stringify({",
-		"    passed: 0, total: " + String(input.tests.length) + ",",
+		`  __write('\\n' + ${JSON.stringify(IMPLEMENT_RESULT_SENTINEL)} + JSON.stringify({`,
+		`    passed: 0, total: ${String(input.tests.length)},`,
 		"    failures: [{ name: '(definition)', error: String((error && error.message) || error) }],",
 		"  }) + '\\n');",
 		"  process.exit(0);",
@@ -88,8 +88,8 @@ export function buildImplementHarnessScript(input: { code: string; tests: readon
 				"}",
 			].join("\n"),
 		),
-		"__write('\\n' + " + JSON.stringify(IMPLEMENT_RESULT_SENTINEL) + " + JSON.stringify({",
-		"  passed: __passed, total: " + String(input.tests.length) + ", failures: __failures,",
+		`__write('\\n' + ${JSON.stringify(IMPLEMENT_RESULT_SENTINEL)} + JSON.stringify({`,
+		`  passed: __passed, total: ${String(input.tests.length)}, failures: __failures,`,
 		"}) + '\\n');",
 		// `process.exit` rather than falling off the end: a candidate may have left a pending timer or handle
 		// (a debounce test necessarily does), and waiting for the event loop to drain would hit the timeout and
