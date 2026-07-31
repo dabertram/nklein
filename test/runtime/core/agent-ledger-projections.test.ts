@@ -527,3 +527,51 @@ describe("buildQuantErrorRates", () => {
 		expect(rows[0]?.failedSteps).toBe(0);
 	});
 });
+
+/**
+ * P21.15 — the do-not-repeat note must not mislabel a CROSS-MODEL retry.
+ *
+ * `inferAttemptStrategy` feeds the *"Already attempted this task (do NOT repeat these — try something
+ * different)"* line the NEXT attempt reads. A misclassification does not merely mislabel a row; it tells the
+ * model it already tried something it did not.
+ */
+describe("buildAttemptRetryNoteFromLedger — strategy attribution", () => {
+	function strategyAttempt(promptStrategy: string | null, recordedAt: number) {
+		return buildAttemptEvent({
+			...base,
+			attemptId: `a-${recordedAt}`,
+			modelId: "model-A",
+			outcome: "other_failure",
+			recordedAt,
+			...(promptStrategy === null ? {} : { promptStrategy }),
+		});
+	}
+
+	it("names a CROSS-MODEL retry as cross_model_carry, not same_model_retry", () => {
+		// `noteNextAttemptStrategy(taskId, "cross_model_empty_patch")` is what the review runner records. That
+		// string matched none of the substring tests and fell through to `endpointStrategy` — a field with no
+		// producer anywhere in src/ — so the one rung that genuinely changed model was described to the next
+		// attempt as the rung that changed nothing.
+		const note = buildAttemptRetryNoteFromLedger([strategyAttempt("cross_model_empty_patch", 1)]);
+		expect(note).toContain("cross_model_carry");
+		expect(note).not.toContain("same_model_retry");
+	});
+
+	it("still reports a plain re-drive as a same-model retry", () => {
+		// The other direction: a re-drive really does re-run the same model, so widening the cross-model test
+		// must not swallow it.
+		const note = buildAttemptRetryNoteFromLedger([strategyAttempt("redrive_empty_patch", 1)]);
+		expect(note).toContain("same_model_retry");
+	});
+
+	it("keeps recognising the prompt-shaped rungs", () => {
+		expect(buildAttemptRetryNoteFromLedger([strategyAttempt("constrained_schema_retry", 1)])).toContain(
+			"constrained_schema",
+		);
+		expect(buildAttemptRetryNoteFromLedger([strategyAttempt("prompt_variant_b", 1)])).toContain("prompt_variant");
+	});
+
+	it("reports an unlabelled failed attempt as a same-model retry", () => {
+		expect(buildAttemptRetryNoteFromLedger([strategyAttempt(null, 1)])).toContain("same_model_retry");
+	});
+});

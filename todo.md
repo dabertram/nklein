@@ -10499,8 +10499,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   model, forever. `tokensPerSec` beside it works, which is why the gap is invisible.
   **`qualityScore` 0/238** — read by `stubborn-failure-escalation`. `qualityOk` is derived and populated; the
   numeric score is absent from the terminal writer's input entirely.
-  **`endpointStrategy` 0/238** — read by `agent-ledger-projections` as a **GROUPING KEY**, so every row collapses
-  into a single bucket rather than splitting by strategy.
+  **`endpointStrategy` 0/238 — INVESTIGATED 2026-08-01, and the honest fix was NOT to invent a producer.**
+  It has no producer anywhere in `src/`. Tracing its two consumers found something better than a dead field:
+  **🔴 A LIVE MISCLASSIFICATION THAT FEEDS THE MODEL'S PROMPT.** `inferAttemptStrategy` builds the
+  *"Already attempted this task (do NOT repeat these — try something different)"* line the NEXT attempt reads.
+  A cross-model retry is recorded as `cross_model_empty_patch` (via `noteNextAttemptStrategy`, from the review
+  runner), that string matched none of its substring tests, and it fell through to the always-null
+  `endpointStrategy` check — so **the one rung that genuinely changed model was described to the next attempt as
+  `same_model_retry`, the rung that changed nothing.** Fixed by reading the strategy from where it actually lives:
+  `cross_model` → `cross_model_carry` (a real rung in `RETRY_STRATEGIES`), tested and mutation-verified.
+  The cross-model test is FIRST so a later broadening of the generic substring tests cannot shadow it again.
+  ⇒ **`endpointStrategy` stays without a producer, and that is now fine**: the branch is retained as a redundant
+  fallback rather than deleted (it would work if a producer ever appears), but nothing depends on it. The lesson
+  is that a dead field's real cost was not the missing dimension — it was the reader silently taking a wrong
+  branch because the right information was somewhere else.
   **`toolSetOffered` 0/238 — ✅ FIXED 2026-08-01, live-verified.** Read by `agent-ledger-projections` and the
   §5.AA behaviour profile for `toolCount`, so every profile was missing its tool-count dimension.
   **THE SOURCE HAD TO BE THE EXTENSION, NOT THE TOOL-ASSEMBLY SITE — and picking the obvious one would have

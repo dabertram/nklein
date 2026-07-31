@@ -710,18 +710,38 @@ function attemptToFailureCapsule(attempt: AgentAttemptEvent): FailureCapsule {
 	});
 }
 
-/** Best-effort map an attempt's recorded levers to the retry rung it represents (for the do-not-repeat note). */
+/**
+ * Best-effort map an attempt's recorded levers to the retry rung it represents (for the do-not-repeat note).
+ *
+ * ⚠️ **THIS FEEDS A PROMPT, NOT A REPORT.** The result becomes the *"Already attempted this task (do NOT repeat
+ * these — try something different)"* line the next attempt reads, so a misclassification does not merely mislabel
+ * a row — it tells the model it already tried something it did not.
+ *
+ * ── THE MISCLASSIFICATION FIXED 2026-08-01 ──
+ * A CROSS-MODEL retry is recorded as `cross_model_empty_patch` via `noteNextAttemptStrategy`, and that string
+ * matches none of the substring tests below. It then fell through to the `endpointStrategy` check — a field with
+ * **no producer anywhere in `src/`**, so always null — and was reported as `same_model_retry`. The one rung that
+ * genuinely changed model was described to the next attempt as the rung that changed nothing.
+ *
+ * The cross-model test is FIRST so a later broadening of the generic substring tests cannot shadow it again.
+ */
 function inferAttemptStrategy(attempt: AgentAttemptEvent): RetryStrategy {
 	if (attempt.simplificationLevel > 0) {
 		return "reduced_tool_set";
 	}
 	const prompt = (attempt.promptStrategy ?? "").toLowerCase();
+	if (prompt.includes("cross_model")) {
+		return "cross_model_carry";
+	}
 	if (prompt.includes("constrain") || prompt.includes("schema")) {
 		return "constrained_schema";
 	}
 	if (prompt.includes("variant") || prompt.includes("prompt")) {
 		return "prompt_variant";
 	}
+	// Retained as a fallback rather than deleted: `endpointStrategy` has no producer today, so this branch is
+	// unreachable — but it is now merely redundant instead of load-bearing, and it would start working if one
+	// ever appears. See P21.15.
 	if (attempt.endpointStrategy) {
 		return "alternate_endpoint";
 	}
