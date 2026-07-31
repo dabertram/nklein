@@ -1099,8 +1099,9 @@ export function registerDevCommand(program: Command): void {
 		.description("Turn a task's test results into a diagnosis, not pass/fail (P20.2 / diagnostic-oracles).")
 		.option("--splits <file>", "{failToPass,passToPass} of {id,passed} — which failure mode occurred.")
 		.option("--repeats <file>", "One {passed,terminalState?} JSON per line — reliability/flakiness.")
+		.option("--oracle <file>", "Oracle plan — is it actually held out from the agent, and what is the gap?")
 		.option("--json", "Print machine-readable JSON.")
-		.action(async (options: { splits?: string; repeats?: string; json?: boolean }) => {
+		.action(async (options: { splits?: string; repeats?: string; oracle?: string; json?: boolean }) => {
 			await runDevDiagnoseCommand(options);
 		});
 	dev.command("rounds-budget")

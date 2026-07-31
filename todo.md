@@ -9679,6 +9679,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   F12.82 nearly duplicating F12.28's optimizer). Wiring this core also UN-ORPHANS it — see
   `docs/dev/orphan-core-triage.md`. **NOTE the LOC-scaling result lands exactly on fleet-aware decomposition's territory
   (F12.110): the gap is worst on large multi-card builds, which is what we are optimizing.**
+  **▶ THE GUARD + THE METRIC SHIPPED 2026-07-31 — `held-out-oracle.ts` + `dev diagnose --oracle`, 33 tests.** See
+  P23.5 for the full record; the two items are one artefact. What landed here is P20.2's *"report the gap as a
+  first-class metric"*: `measureVisibleHeldOutGap` names the 97/0 memorization signature, blames the VISIBLE suite
+  when held-out scores higher, and — the load-bearing bit — **refuses to judge a gap it has no envelope for.**
+  **THE LOC NUMBERS IN THIS ENTRY ARE TWO INCOMPATIBLE STATISTICS AND MUST NOT BE JOINED INTO ONE CURVE.**
+  "~27–28 pp per tenfold" is an average TREND; "21 pp under 10K / 100 pp above 25K" are band MAXIMA. Interpolating
+  the two anchors implies ~198 pp/decade — seven times the reported trend. So `worstCaseGapEnvelopePoints` returns
+  **null between 10K and 25K LOC**, and the trend is exposed only as `trendGapIncreasePoints(from, to)` — a slope
+  with no intercept can answer a DIFFERENCE ("how much more gap as the codebase grows?") and cannot answer an
+  absolute. A number produced any other way would look like a measurement and behave like a guess.
+  **STILL OPEN: the fixture split itself** — authoring real probes per project. That is content, not tooling.
 - [x] **P20.3 — NO-OP ABLATION in card acceptance (cheap, devastating).** Stub out the artifact the agent claims
   to have built and re-run the tests. **If they still pass, the artifact is decorative.** "Building to the Test"
   (arXiv 2606.28430) demonstrated production agents scoring **222/222 on a hidden oracle while the library they
@@ -10689,6 +10700,29 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   the agent finishes, never present in the workspace the agent can reach. That is the design constraint both
   items were missing, and it is what makes the null-agent gate meaningful — an oracle the agent could edit would
   pass a null-agent check and still be forgeable in a real run.
+  **▶ THE STRUCTURAL GUARANTEE SHIPPED 2026-07-31 — `src/core/held-out-oracle.ts` + `dev diagnose --oracle`,
+  33 tests.** `assessOracleIndependence` decides whether an oracle is held out at all; the item's design
+  constraint above is now a check rather than a paragraph.
+  **THE CLAIM IS NOW A COUNT: 46/46 dev-test projects declare `acceptanceCommand: "npm test"`.** Every one. A test
+  reads the real manifests and asserts every one is REFUSED as an oracle runner, so P23.5's *"`npm test` is not an
+  independent oracle"* stopped being a judgement.
+  **CONTAINMENT REUSES `confineToolPath` — THE AGENT'S OWN FILE-TOOL GUARD — RATHER THAN A SECOND PATH COMPARISON.**
+  "Held out" is exactly the negation of "the agent's tools may touch this", so the oracle asks the code that
+  actually enforces the boundary. A private reimplementation could drift from the enforcement it claims to
+  describe, and the drift would be invisible: both halves would keep passing their own tests while disagreeing
+  about the same path. Pinned in both directions — a traversal resolving back inside the workspace is a leak; a
+  sibling sharing a prefix (`/sandbox/workspace-oracle` vs `/sandbox/workspace`) is NOT.
+  **🔴 HOLDING THE PROBE FILES OUT IS NOT SUFFICIENT, AND THIS IS THE PART THAT IS EASY TO SHIP WITHOUT.** BenchJack
+  forged ~100% on four benchmarks partly with a **10-line `conftest.py` hook forcing every outcome to "passed"**.
+  If the held-out probes are executed by a runner that loads agent-authored config, the agent still owns the
+  verdict without ever touching a probe — and `npm test` dispatches through the `package.json` the agent wrote.
+  **Any indirection through an agent-authored file is agent-controlled**, so the runner check refuses
+  npm/pnpm/yarn/bun/npx/make/just/task/rake/tox. That list is a RATCHET, not a proof: passing it means the known
+  launchers were avoided, not that independence was demonstrated.
+  **STILL OPEN — and it is authoring, not tooling:** real probes per project. The tooling now refuses to accept a
+  fake one (empty oracle → `no_probes`; no fail_to_pass → the same `inconclusive` diagnostic-oracles would return),
+  so the remaining work cannot be quietly skipped. Same shape as P23.7's requirement spine: **must be AUTHORED,
+  not extracted.**
 - [ ] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle.** Today's spec tells the agent
   the SPEC does the thinking and the model follows — a valid test of faithful execution, retrieval and dependency
   extraction, but NOT of architecture discovery. Keep the prescriptive benchmark and add a discovery variant

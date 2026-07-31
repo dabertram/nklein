@@ -5,9 +5,14 @@
  * "exactly P20.2's visible/held-out gap measurement." Both are pure over injected results, so this command applies
  * them to captured test outcomes — the harness wires the real commands, but the DIAGNOSIS is checkable here.
  *
- * Two modes:
+ * Three modes:
  *  --splits   {failToPass:[{id,passed}], passToPass:[{id,passed}]} JSON → which failure mode occurred
  *  --repeats  [{passed, terminalState?}] JSONL         → pass_all / pass_any / flaky / terminal states
+ *  --oracle   an oracle plan JSON                      → is it HELD OUT at all, and what is the visible gap
+ *
+ * `--oracle` runs BEFORE a task, not after: it answers "can this oracle grade anything?" — the question that has
+ * to be settled before the other two modes' numbers mean anything. An oracle the agent can edit produces
+ * confident-looking splits that measure nothing.
  */
 
 import { readFile } from "node:fs/promises";
@@ -17,6 +22,18 @@ import {
 	type RepeatRunResult,
 	summarizeRepeatRuns,
 } from "../core/diagnostic-oracles";
+import { assessOracleIndependence, type HeldOutProbe, measureVisibleHeldOutGap } from "../core/held-out-oracle";
+
+/** The on-disk oracle plan. Scores are optional: an oracle can be VALIDATED long before it is ever run. */
+interface OraclePlanFile {
+	probes?: readonly HeldOutProbe[];
+	agentWritableRoots?: readonly string[];
+	runner?: readonly string[];
+	projectAcceptanceCommand?: string;
+	visibleScore?: number;
+	heldOutScore?: number | null;
+	linesOfCode?: number | null;
+}
 
 async function readJson(path: string): Promise<unknown> {
 	const text = await readFile(path, "utf8");
@@ -48,8 +65,52 @@ function parseRepeatRuns(text: string): RepeatRunResult[] {
 export async function runDevDiagnoseCommand(options: {
 	splits?: string;
 	repeats?: string;
+	oracle?: string;
 	json?: boolean;
 }): Promise<void> {
+	if (options.oracle) {
+		const plan = (await readJson(options.oracle).catch(() => null)) as OraclePlanFile | null;
+		if (!plan || typeof plan !== "object") {
+			process.stdout.write(`Could not read an oracle plan object from ${options.oracle}.\n`);
+			process.exitCode = 1;
+			return;
+		}
+		const independence = assessOracleIndependence({
+			probes: plan.probes ?? [],
+			agentWritableRoots: plan.agentWritableRoots ?? [],
+			runner: plan.runner ?? [],
+			projectAcceptanceCommand: plan.projectAcceptanceCommand ?? "",
+		});
+		// The gap is only reported when a visible score exists. Validating a plan before any run is the normal
+		// case, and printing a "no held-out measurement" verdict for it would read as a failure rather than as
+		// "you have not run it yet".
+		const gap =
+			typeof plan.visibleScore === "number"
+				? measureVisibleHeldOutGap({
+						visibleScore: plan.visibleScore,
+						heldOutScore: plan.heldOutScore ?? null,
+						linesOfCode: plan.linesOfCode ?? null,
+					})
+				: null;
+		if (options.json) {
+			process.stdout.write(`${JSON.stringify({ independence, gap }, null, 2)}\n`);
+		} else {
+			process.stdout.write(`ORACLE INDEPENDENCE: ${independence.independent ? "HELD OUT" : "NOT INDEPENDENT"}\n`);
+			process.stdout.write(`  ${independence.reason}\n`);
+			for (const finding of independence.findings) {
+				process.stdout.write(`  - ${finding.code}: ${finding.detail}\n`);
+			}
+			if (gap) {
+				process.stdout.write(`VISIBLE/HELD-OUT GAP: ${gap.verdict}\n  ${gap.reason}\n`);
+			}
+		}
+		// Exit tracks the two questions independently: a plan with no scores is judged only on independence, so
+		// "validate before running" does not always fail and train an operator to ignore the exit code.
+		process.exitCode =
+			independence.independent && (gap === null || gap.verdict === "gap_within_worst_case_envelope") ? 0 : 1;
+		return;
+	}
+
 	if (options.splits) {
 		const results = (await readJson(options.splits).catch(() => null)) as HiddenSplitResults | null;
 		if (!results || !Array.isArray(results.failToPass) || !Array.isArray(results.passToPass)) {
@@ -99,7 +160,8 @@ export async function runDevDiagnoseCommand(options: {
 
 	process.stdout.write(
 		"usage: dev diagnose --splits <file>   ({failToPass,passToPass} of {id,passed})\n" +
-			"       dev diagnose --repeats <file>  (one {passed,terminalState?} JSON per line)\n",
+			"       dev diagnose --repeats <file>  (one {passed,terminalState?} JSON per line)\n" +
+			"       dev diagnose --oracle <file>   (oracle plan: is it held out, and what is the gap)\n",
 	);
 	process.exitCode = 2;
 }
