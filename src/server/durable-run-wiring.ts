@@ -33,6 +33,7 @@ import { DurableRunRegistry } from "../core/durable-run-registry";
 import { buildDurableJobGraph, type DurableJobDependencyEdge } from "../core/durable-scheduler";
 import { type DurableLedgerEnvelope, readDurableSchedulerLog } from "../core/durable-scheduler-ledger";
 import type { RuntimeTaskSessionState } from "../core/task-session-api-contract";
+import type { DurableSchedulerClaim, DurableSchedulerClaimResult } from "../state/durable-scheduler-claim";
 
 /** The minimal, structural board view the wiring reads (a subset of the runtime board so the module stays store-light). */
 export interface DurableRunBoardView {
@@ -119,6 +120,14 @@ export interface DurableRunWiringDeps {
 	 * the runtime's own endpoint gates still apply downstream).
 	 */
 	reservations?: DispatchReservationLedger;
+	/**
+	 * P21.5b: take EXCLUSIVE scheduler ownership of the workspace's ledger before building a run.
+	 *
+	 * Optional so every existing construction stays byte-identical — but the runtime server supplies it, so the
+	 * fence is live in production. **Absent means UNFENCED, which is the pre-P21.5b behaviour**, not a safe default:
+	 * two orchestrators replaying one ledger each build their own job graph and can both lease the same job.
+	 */
+	claimLedger?: (input: { workspaceId: string; workspacePathHash: string }) => Promise<DurableSchedulerClaimResult>;
 }
 
 /** Conservative defaults (align with the §5.T long-wall-time posture: slow local workers are alive, not dead). */
@@ -255,10 +264,29 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 		return ports;
 	}
 
+	/**
+	 * P21.5b claims, held for the LIFETIME of a run and released on every disposal path.
+	 *
+	 * A claim that outlived its run would fence the ledger against the very restart meant to recover it — the
+	 * failure mode is a board that never resumes, which is worse than the double-scheduling this prevents because
+	 * nothing about it looks wrong. Every `registry.dispose` below is paired with a release for that reason.
+	 */
+	const claimByWorkspace = new Map<string, DurableSchedulerClaim>();
+
+	function releaseClaim(workspaceId: string): void {
+		const claim = claimByWorkspace.get(workspaceId);
+		if (!claim) {
+			return;
+		}
+		claimByWorkspace.delete(workspaceId);
+		void claim.release();
+	}
+
 	function disposeIfComplete(workspaceId: string): void {
 		const controller = registry.get(workspaceId);
 		if (controller?.isComplete()) {
 			registry.dispose(workspaceId);
+			releaseClaim(workspaceId);
 		}
 	}
 
@@ -309,6 +337,22 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 				// decompose's real cards. The fresh run is built at decompose-apply (resumeOnly false), full DAG in hand.
 				if (options?.resumeOnly && priorLog.length === 0) {
 					return false;
+				}
+				// P21.5b: take exclusive ownership BEFORE replaying the ledger into a controller. Placed after every
+				// early return so a call that was never going to build a run does not take a lock, and before the
+				// replay so a second scheduler never constructs a job graph it has no right to drive.
+				if (deps.claimLedger && !claimByWorkspace.has(workspaceId)) {
+					const claimed = await deps.claimLedger({
+						workspaceId,
+						workspacePathHash: deps.hashWorkspacePath(workspacePath),
+					});
+					if (!claimed.ok) {
+						// Refusing is the POINT, so it is logged rather than swallowed: a runtime that silently
+						// schedules nothing is indistinguishable from one with no work to do.
+						deps.warn?.(`Durable scheduler NOT started for ${workspaceId} — ${claimed.message}`);
+						return false;
+					}
+					claimByWorkspace.set(workspaceId, claimed.claim);
 				}
 				// Review #5: align this run's lease cap with the board's own concurrency cap when the caller supplies it, so
 				// the controller never leases more cards than the runtime will actually start (over-leasing → concurrency_limit).
@@ -389,6 +433,7 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 		dispose(workspaceId) {
 			registry.dispose(workspaceId);
 			chainByWorkspace.delete(workspaceId);
+			releaseClaim(workspaceId);
 		},
 	};
 }

@@ -10195,7 +10195,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   at both card creation and the auto-merge seam, so the dangerous value can no longer be persisted; this path is
   the remaining one that never checks WHERE it is merging. Small and well-understood: assert the checkout matches
   the card's `baseRef` (which is now guaranteed not to be a sibling deliverable) before staging.
-- [ ] **P21.5b — Refuse a SECOND runtime server on the same ledger root *(split from P21.5 2026-07-30)*.**
+- [x] **P21.5b — Refuse a SECOND runtime server on the same ledger root *(split from P21.5 2026-07-30)*. DONE 2026-07-31.**
   The board/claim path is properly fenced (one state file, real cross-process lock, precondition evaluated inside
   it, OCC on top). The durable scheduler is a different surface: it is a PURE in-process brain whose leases live
   in the append-only ledger, so two orchestrators replaying one ledger would each build their own job graph and
@@ -10204,6 +10204,34 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   guard refusing a second server on an already-claimed ledger root converts it into a structural guarantee.
   ⚠️ Decide the intended semantics first: the desktop app plus a CLI `dev` command on one workspace is a real
   usage pattern today, and a naive guard would refuse it. Scope the lock to the SCHEDULER, not the process.
+  **▶ SHIPPED 2026-07-31 — `durable-scheduler-claim.ts` + wired through `createDurableRunWiring` into
+  `runtime-server.ts`, 16 tests.** The convention is now a fence.
+  **SCOPED TO THE LEDGER, NOT THE ROOT — a deliberate narrowing of this item's own phrasing.** The root holds ONE
+  FILE PER WORKSPACE (`<root>/<workspacePathHash>.jsonl`). Two servers driving DIFFERENT workspaces under a shared
+  root cannot corrupt each other's job graph; only two schedulers replaying the SAME workspace's ledger can.
+  Locking the root would refuse a legitimate arrangement while adding no safety. Pinned by a test that two
+  workspaces under one root both claim successfully.
+  **THE LOCK PATH COMES FROM THE LEDGER STORE (`agentLedgerLogPath`, newly exported), NEVER RE-DERIVED.** A lock
+  computed from its own `join(root, hash + ".jsonl")` would drift the moment the layout changed — and drift
+  SILENTLY: the lock would still be acquired, just on a path nothing writes to, so every server would claim
+  successfully and the fence would protect nothing while looking healthy. A test asserts the locked path equals the
+  store's.
+  **REFUSES RATHER THAN QUEUES.** No retries: a second server that waited would sit silent at startup and then
+  begin scheduling whenever the first released, turning "someone else owns this" into a delayed surprise. It
+  declines and `warn`s — **a runtime that silently schedules nothing is indistinguishable from one with no work to
+  do**, which is exactly how a fenced-out server would present as a hung board.
+  **STALE WINDOW 60s / REFRESH 20s, NOT THE LIBRARY'S 10s DEFAULT.** A crashed owner must not wedge the ledger
+  forever, but this host thermally throttles under sustained model load, and a live-but-slow server losing its
+  claim to an impatient second one is strictly worse than a crashed one being reclaimed late: the first is two
+  schedulers on one ledger (the defect), the second is a board that resumes a minute later. A test pins
+  refresh < stale/2 so a live owner can never age out.
+  **⚠️ THE RELEASE PATH IS THE PART THAT COULD HAVE BEEN WORSE THAN THE BUG.** A claim outliving its run fences
+  the ledger against the very restart meant to recover it — a board that never resumes, and nothing about it looks
+  wrong. Every `registry.dispose` is paired with a release (explicit dispose AND `disposeIfComplete`), release is
+  idempotent, and the pairing is pinned by a test.
+  The dep is OPTIONAL so every existing construction stays byte-identical, and absent is documented as UNFENCED
+  (the pre-P21.5b behaviour) rather than dressed up as a safe default; the runtime server supplies it, so the fence
+  is live in production.
 - [ ] **P21.6b — Enforce the sizing invariant at decompose time.** *(Split from P21.6 2026-07-20; David resolved
   the reviewer source 2026-07-21.)* Feed real diff-size estimates and a fleet-derived review capacity into
   `decideTaskSizing`, and split when it says to. Composes with F12.110's depth-target work, supplying the ceiling

@@ -53,6 +53,19 @@ function resolveLogPath(workspacePathHash: string, rootDir?: string): string {
 	return join(resolveRootDir(rootDir), `${key}.jsonl`);
 }
 
+/**
+ * The on-disk path of one workspace's ledger — exported so the durable-scheduler CLAIM (P21.5b) locks the EXACT
+ * file it is fencing.
+ *
+ * Deliberately not re-derived by the caller: a lock computed from its own `join(root, hash + ".jsonl")` would
+ * drift the moment this layout changed, and it would drift SILENTLY — the lock would still be acquired, just on a
+ * path nothing writes to, so every server would claim successfully and the fence would protect nothing while
+ * looking healthy.
+ */
+export function agentLedgerLogPath(workspacePathHash: string, rootDir?: string): string {
+	return resolveLogPath(workspacePathHash, rootDir);
+}
+
 /** Append one validated ledger event to its workspace's log. Best-effort (never throws on a write failure). */
 export async function appendAgentLedgerEvent(event: AgentLedgerEvent, options?: { rootDir?: string }): Promise<void> {
 	// Validate at the boundary so a malformed event can never be persisted (would later be skipped on read anyway).

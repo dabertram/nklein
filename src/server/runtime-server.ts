@@ -197,6 +197,7 @@ import {
 	readAgentLedger,
 } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote } from "../state/card-mailbox-store";
+import { claimDurableSchedulerLedger } from "../state/durable-scheduler-claim";
 import { recordMergeHistory } from "../state/merge-history-store";
 import { appendModelEvalRuns, readAllModelEvalRuns } from "../state/model-eval-run-store";
 import { appendRailRunHistory, readRailRunHistory } from "../state/rail-run-history-store";
@@ -1766,6 +1767,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		workflowIdFor: (workspaceId) => `durable-run:${workspaceId}`,
 		getAdmissionState: getDurableAdmissionState,
 		reservations: dispatchReservations,
+		// P21.5b: a SECOND runtime server must not replay this workspace's ledger. Isolation was previously a
+		// convention of how runs are launched (HOME + NKLEIN_AGENT_LEDGER_ROOT — how the nightly runs 28 cells);
+		// this makes it a fence. Scoped to the scheduler, so a CLI `dev` command that starts no scheduler is
+		// unaffected, and to the workspace's own ledger file, so two servers on different workspaces coexist.
+		claimLedger: ({ workspacePathHash }) =>
+			claimDurableSchedulerLedger({
+				workspacePathHash,
+				onCompromised: (error) =>
+					deps.warn(`Durable scheduler ledger claim COMPROMISED (${workspacePathHash}): ${error.message}`),
+			}),
 	});
 	// Build/resume the workspace's durable run from its current board (idempotent; no-op when disabled or already running).
 	const ensureDurableRunForScope = async (

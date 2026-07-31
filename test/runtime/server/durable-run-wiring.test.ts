@@ -399,3 +399,105 @@ describe("createDurableRunWiring", () => {
 		expect(dispatched).toEqual(["a"]); // only ws1's own card, never the foreign x
 	});
 });
+
+/**
+ * P21.5b — the ledger claim, exercised through `ensureRun`.
+ *
+ * The claim itself is tested against real locks in `test/runtime/durable-scheduler-claim.test.ts`. What matters
+ * here is the WIRE: that a refusal actually stops a run being built, that the refusal is audible, and — the one
+ * that would be worse than the bug it prevents — that a claim is RELEASED when its run goes away.
+ */
+describe("createDurableRunWiring — P21.5b ledger claim", () => {
+	function claimHarness(overrides: Partial<DurableRunWiringDeps> = {}) {
+		const released: string[] = [];
+		const warnings: string[] = [];
+		const claimed: Array<{ workspaceId: string; workspacePathHash: string }> = [];
+		const base = harness({
+			warn: (message) => {
+				warnings.push(message);
+			},
+			claimLedger: async (input) => {
+				claimed.push(input);
+				return {
+					ok: true,
+					claim: {
+						ledgerPath: `/ledger/${input.workspacePathHash}.jsonl`,
+						release: async () => {
+							released.push(input.workspaceId);
+						},
+					},
+				};
+			},
+			...overrides,
+		});
+		return { ...base, released, warnings, claimed };
+	}
+
+	it("claims the ledger before building a run, keyed by the SAME hash the envelope uses", async () => {
+		const { wiring, claimed } = claimHarness();
+		expect(await wiring.ensureRun("ws-1", "/repo", board({ backlog: ["t1"] }))).toBe(true);
+		expect(claimed).toEqual([{ workspaceId: "ws-1", workspacePathHash: "hash:/repo" }]);
+	});
+
+	it("REFUSES to build a run when the ledger is already claimed, and says so out loud", async () => {
+		// A runtime that silently schedules nothing is indistinguishable from one with no work to do — which is
+		// precisely how a fenced-out second server would look like a hung board.
+		const { wiring, warnings, dispatches } = claimHarness({
+			claimLedger: async () => ({
+				ok: false,
+				reason: "already_claimed",
+				ledgerPath: "/ledger/x.jsonl",
+				message: "another durable scheduler already owns /ledger/x.jsonl",
+			}),
+		});
+		expect(await wiring.ensureRun("ws-1", "/repo", board({ backlog: ["t1"] }))).toBe(false);
+		expect(dispatches, "a fenced-out server must not dispatch a single card").toEqual([]);
+		expect(warnings.join(" ")).toMatch(/Durable scheduler NOT started for ws-1/u);
+	});
+
+	it("refuses on an infrastructure failure too — no exclusive ownership, no scheduler", async () => {
+		const { wiring, dispatches } = claimHarness({
+			claimLedger: async () => ({
+				ok: false,
+				reason: "unavailable",
+				ledgerPath: "/ledger/x.jsonl",
+				message: "disk on fire",
+			}),
+		});
+		expect(await wiring.ensureRun("ws-1", "/repo", board({ backlog: ["t1"] }))).toBe(false);
+		expect(dispatches).toEqual([]);
+	});
+
+	it("RELEASES the claim on dispose — a claim outliving its run fences the restart meant to recover it", async () => {
+		const { wiring, released } = claimHarness();
+		await wiring.ensureRun("ws-1", "/repo", board({ backlog: ["t1"] }));
+		expect(released).toEqual([]);
+		wiring.dispose("ws-1");
+		expect(released).toEqual(["ws-1"]);
+	});
+
+	it("does not re-claim a workspace it already owns", async () => {
+		// `ensureRun` is idempotent; taking a second lock on a ledger this process already holds would fail with
+		// ELOCKED and fence the server out of its own run.
+		const { wiring, claimed } = claimHarness();
+		await wiring.ensureRun("ws-1", "/repo", board({ backlog: ["t1"] }));
+		await wiring.ensureRun("ws-1", "/repo", board({ backlog: ["t1"] }));
+		expect(claimed).toHaveLength(1);
+	});
+
+	it("does not claim for a call that was never going to build a run", async () => {
+		// `resumeOnly` with no persisted ledger returns early. Claiming there would take a lock for a run that
+		// does not exist, and the boot path runs on every workspace.
+		const { wiring, claimed } = claimHarness();
+		expect(await wiring.ensureRun("ws-1", "/repo", board({ backlog: ["t1"] }), { resumeOnly: true })).toBe(false);
+		expect(claimed).toEqual([]);
+	});
+
+	it("stays byte-identical when no claim port is supplied", async () => {
+		// Every existing construction omits it; the fence is opt-in at the wiring level and supplied by the
+		// runtime server. Absent must therefore mean "exactly as before", not "refuse".
+		const { wiring, dispatches } = harness();
+		expect(await wiring.ensureRun("ws-1", "/repo", board({ backlog: ["t1"] }))).toBe(true);
+		expect(dispatches.length).toBeGreaterThan(0);
+	});
+});
