@@ -8989,6 +8989,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
       double-release**, every phase reachable, **completion reachable from EVERY phase (no dead end)**, terminal
       absorption, and both directions of liveness (queued+review-tail alive; idle+terminal not) pinned against
       the exact defects of 2026-07-29/30.
+  **◆ ✅ RESOLVED BY DAVID 2026-07-31 → shipped as `3e4551ef5`: `release_resources` is IDEMPOTENT ("ensure
+  nothing is held"), and the kernel gained a real `paused` phase.** The effect type now carries the consumer
+  contract — a release must be a no-op when nothing is held and must NOT be a counter decrement, because it fires
+  from any non-terminal phase including `idle`. Pausing emits the release on the way IN, so `paused` is
+  non-capacity-holding by construction rather than by label, and resuming re-enters the admission ladder instead
+  of jumping back to work. The original question is preserved below because the reasoning is what makes the answer
+  re-derivable.
   **◆ IT IMMEDIATELY FOUND SOMETHING — ONE UNRESOLVED CONTRACT QUESTION, NEEDS DAVID (batched).** The first
   draft asserted the self-evident "a release is never emitted for a card holding nothing"; the exhaustive walk
   refuted it in milliseconds and led to three sites that are really one question:
@@ -9030,6 +9037,31 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **NEXT:** step 1 (one writer) remains the real work. Step 2 may now migrate LIVENESS consumers onto
   `isLiveWorkflowPhase` — but only once phase is available at those call sites, which is step 1 again; and it
   must stay off capacity decisions until the `paused` gap is closed.
+
+  **▶ THE CAPACITY VOCABULARY LANDED 2026-07-31 — `holdsWorkflowCapacity` + `reservesWorkflowCapacity` +
+  `ALL_WORKFLOW_PHASES`, 34 tests across the two kernel files.** And **closing the `paused` gap turned out to be
+  NECESSARY BUT NOT SUFFICIENT** for capacity migration: asking the question properly surfaced two more things.
+  **◆ FINDING 1 — `isBusySessionState` IS A RESERVATION PREDICATE, NOT AN OCCUPANCY ONE, AND ITS OWN DOC SAYS
+  BOTH.** Three lines apart: *"actively occupies a runtime/model slot"* and *"holding (**or about to hold**)
+  capacity"*. It returns true for `queued`. A consumer migrating on the strength of the first sentence would stop
+  counting queued cards and hand the same slot out twice. ⇒ the kernel names the two readings APART:
+  `holdsWorkflowCapacity` (consuming a slot NOW — `running` only) vs `reservesWorkflowCapacity` (holds or is
+  committed to take — `waiting_capacity` + `running`). Containment `holds ⊆ reserves ⊆ live` is pinned over every
+  phase, each inclusion proven STRICT somewhere so three accidentally-identical predicates could not pass.
+  **◆ FINDING 2 — `awaiting_review` GENUINELY DISAGREES. NEEDS DAVID (batched).** `reservesWorkflowCapacity`
+  agrees with `isBusySessionState` on **six of seven** session states; the exception is `awaiting_review`, and it
+  is a design question rather than a bug. **The two models count DIFFERENT RESOURCES:** the session means "no
+  worker session is running" (false), the kernel's `running` class means "the runtime still has work in flight"
+  (true — a review really is executing on a model endpoint). Both are internally coherent.
+  ⇒ **Liveness consumers may migrate; CAPACITY consumers still may not** — no longer for want of vocabulary, but
+  because one phase means two different things and only a decision fixes that. Pinned by a test, so resolving it
+  has to be deliberate. Same restraint as the release-contract and `paused` questions, for the same reason: the
+  two-hour dead-board hang (reverted `cc2fbc340`) came from guessing a liveness contract.
+  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
+  `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
+  properties test — where an under-enumerated list would not have failed a single property, it would have quietly
+  narrowed what they covered.
 
 
 - [ ] **P17.6 — KV-CACHE PERSISTENCE ACROSS MODEL UNLOAD (David's idea, 2026-07-30; RESEARCH DONE — the gap is

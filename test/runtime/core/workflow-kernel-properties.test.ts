@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+	ALL_WORKFLOW_PHASES,
 	applyWorkflowCommand,
 	classifyWorkflowPhase,
+	holdsWorkflowCapacity,
 	isLiveWorkflowPhase,
 	isTerminalWorkflowPhase,
+	reservesWorkflowCapacity,
 	type WorkflowCommand,
 	type WorkflowPhase,
 } from "../../../src/core/workflow-kernel";
@@ -30,23 +33,14 @@ import {
  * with a real incident behind it; a failure means the reducer regressed into that class.
  */
 
-const ALL_PHASES: readonly WorkflowPhase[] = [
-	"idle",
-	"queued_for_board_capacity",
-	"queued_for_endpoint",
-	"queued_for_sandbox",
-	"planning",
-	"implementing",
-	"awaiting_acceptance",
-	"paused",
-	"awaiting_review",
-	"reviewing",
-	"ready_for_delivery",
-	"delivering",
-	"completed",
-	"failed",
-	"cancelled",
-];
+/**
+ * Derived from the kernel's own exhaustive export rather than re-listed here.
+ *
+ * The export is built from a `Record<WorkflowPhase, true>`, so it cannot omit a phase without failing to compile.
+ * A duplicate list in this file would have no such guarantee — and a list that silently missed a phase would not
+ * fail any property below, it would quietly stop covering one.
+ */
+const ALL_PHASES: readonly WorkflowPhase[] = ALL_WORKFLOW_PHASES;
 
 const ALL_COMMANDS: readonly WorkflowCommand["kind"][] = [
 	"start_requested",
@@ -324,5 +318,42 @@ describe("workflow kernel — what `release_resources` MEANS (one unresolved con
 
 	it("(c) completion emits mark_done and no release", () => {
 		expect(apply("delivering", "delivered")).toEqual({ phase: "completed", effects: [{ kind: "mark_done" }] });
+	});
+});
+
+describe("capacity predicates, over every phase", () => {
+	it("holds ⊆ reserves ⊆ live, with each containment STRICT somewhere", () => {
+		for (const phase of ALL_PHASES) {
+			if (holdsWorkflowCapacity(phase)) {
+				expect(reservesWorkflowCapacity(phase), `${phase} holds capacity but does not reserve it`).toBe(true);
+			}
+			if (reservesWorkflowCapacity(phase)) {
+				expect(isLiveWorkflowPhase(phase), `${phase} reserves capacity but is not live`).toBe(true);
+			}
+		}
+		// Without these, three predicates that happened to be identical would satisfy every assertion above.
+		expect(ALL_PHASES.some((phase) => reservesWorkflowCapacity(phase) && !holdsWorkflowCapacity(phase))).toBe(true);
+		expect(ALL_PHASES.some((phase) => isLiveWorkflowPhase(phase) && !reservesWorkflowCapacity(phase))).toBe(true);
+	});
+
+	it("never counts a TERMINAL phase as holding or reserving anything", () => {
+		for (const phase of ALL_PHASES.filter(isTerminalWorkflowPhase)) {
+			expect(holdsWorkflowCapacity(phase)).toBe(false);
+			expect(reservesWorkflowCapacity(phase)).toBe(false);
+		}
+	});
+
+	it("releases capacity on the way INTO paused — the phase is non-holding by construction, not by label", () => {
+		const transition = applyWorkflowCommand("implementing", { kind: "pause_requested" });
+		expect(transition.phase).toBe("paused");
+		expect(transition.effects.some((effect) => effect.kind === "release_resources")).toBe(true);
+		expect(holdsWorkflowCapacity(transition.phase)).toBe(false);
+		expect(reservesWorkflowCapacity(transition.phase)).toBe(false);
+	});
+
+	it("re-enters the admission ladder on resume rather than jumping straight back to holding", () => {
+		const resumed = applyWorkflowCommand("paused", { kind: "resume_requested" });
+		expect(reservesWorkflowCapacity(resumed.phase), "a resumed card is committed to a slot").toBe(true);
+		expect(holdsWorkflowCapacity(resumed.phase), "but does not hold one until admitted").toBe(false);
 	});
 });

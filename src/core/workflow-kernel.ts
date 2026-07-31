@@ -127,6 +127,34 @@ export function isTerminalWorkflowPhase(phase: WorkflowPhase): boolean {
  * Exhaustive by construction: the switch has no `default`, so adding a phase without classifying it is a compile
  * error rather than a silent misclassification.
  */
+/**
+ * Every phase, as data — for exhaustive tests and for any consumer that must enumerate rather than switch.
+ *
+ * Built from a `Record<WorkflowPhase, true>` on purpose: TypeScript requires that record to name every member of
+ * the union, so **adding a phase without adding it here is a compile error.** A hand-maintained array would have
+ * no such guarantee, and an under-enumerated list is the worst possible failure here — it does not break the
+ * exhaustive property tests, it silently narrows what they cover.
+ */
+const PHASE_MEMBERSHIP: Record<WorkflowPhase, true> = {
+	idle: true,
+	queued_for_board_capacity: true,
+	queued_for_endpoint: true,
+	queued_for_sandbox: true,
+	planning: true,
+	implementing: true,
+	awaiting_acceptance: true,
+	paused: true,
+	awaiting_review: true,
+	reviewing: true,
+	ready_for_delivery: true,
+	delivering: true,
+	completed: true,
+	failed: true,
+	cancelled: true,
+};
+
+export const ALL_WORKFLOW_PHASES = Object.keys(PHASE_MEMBERSHIP) as readonly WorkflowPhase[];
+
 export type WorkflowPhaseClass = "idle" | "waiting_capacity" | "running" | "paused" | "terminal";
 
 export function classifyWorkflowPhase(phase: WorkflowPhase): WorkflowPhaseClass {
@@ -166,6 +194,54 @@ export function isLiveWorkflowPhase(phase: WorkflowPhase): boolean {
 	// `paused` counts as LIVE: the runtime still owes the card work, and reclaiming its lease would burn the
 	// retry budget of a card that was deliberately held — the v16 defect with a different trigger.
 	return phaseClass === "waiting_capacity" || phaseClass === "running" || phaseClass === "paused";
+}
+
+/**
+ * Whether this card currently OCCUPIES a runtime slot — the phase-side counterpart of `isBusySessionState`.
+ *
+ * ── WHY THIS IS A SECOND PREDICATE AND NOT A SYNONYM FOR LIVENESS ──
+ * "The runtime owes this card work" and "this card is consuming a slot right now" are different questions, and
+ * the phases where they DISAGREE are the ones that cause wedges:
+ *   • `queued_for_endpoint` — alive, holds nothing. Counting it as occupancy would have the scheduler refuse to
+ *     admit the very card it is waiting to start.
+ *   • `paused` — alive, holds nothing (pausing emits `release_resources` on the way in). Counting it as occupancy
+ *     over-counts a card that gave its slot back, and can starve a host of capacity that is genuinely free.
+ * Collapsing the two into one predicate is how a system ends up with five competing definitions of "busy"; this
+ * is the second half of the canonical vocabulary P24.1 step 2 migrates consumers onto.
+ *
+ * **This was NOT safe to define before the `paused` phase existed.** A paused card used to sit in `implementing`
+ * and classify as `running`, so any occupancy predicate built on the classification would have counted it — the
+ * v9 parent-reacquire wedge family, approached from the opposite direction. The gap was recorded rather than
+ * guessed at, and this closes it.
+ */
+export function holdsWorkflowCapacity(phase: WorkflowPhase): boolean {
+	return classifyWorkflowPhase(phase) === "running";
+}
+
+/**
+ * Whether this card holds a slot OR is committed to taking one — the ADMISSION-facing predicate.
+ *
+ * ── WHY BOTH THIS AND `holdsWorkflowCapacity` EXIST ──
+ * "How many slots are consumed right now?" and "how many more cards may I admit?" are different questions, and
+ * answering the second with the first over-admits: a queued card is going to take the slot it is waiting for, so
+ * an admission check that ignores it hands the same slot out twice.
+ *
+ * **The session model's `isBusySessionState` is THIS predicate, not `holdsWorkflowCapacity` — despite its name.**
+ * Its own doc-comment carries both readings in three lines: *"actively occupies a runtime/model slot"* and then
+ * *"holding (**or about to hold**) capacity"*. A consumer migrating on the strength of the first sentence would
+ * silently stop counting queued cards. That ambiguity, sitting in the definition itself, is the drift class P24.1
+ * exists to end — so the kernel names the two readings apart instead of inheriting one word for both.
+ *
+ * ⚠️ **This agrees with `isBusySessionState` on six of seven session states. The exception is `awaiting_review`,
+ * and it is a real design question rather than an oversight** — see `workflow-phase-session-agreement.test.ts`.
+ * The two models count DIFFERENT RESOURCES there: the session means "no worker session is running", the kernel's
+ * `running` class means "the runtime still has work in flight", and a review IS in flight on a model endpoint.
+ * Until that is resolved deliberately, neither predicate is a mechanical drop-in for the other at a capacity
+ * call site.
+ */
+export function reservesWorkflowCapacity(phase: WorkflowPhase): boolean {
+	const phaseClass = classifyWorkflowPhase(phase);
+	return phaseClass === "waiting_capacity" || phaseClass === "running";
 }
 
 /**

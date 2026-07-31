@@ -5,7 +5,14 @@ import {
 	isBusySessionState,
 } from "../../../src/core/session-state-predicates";
 import type { RuntimeTaskSessionState } from "../../../src/core/task-session-api-contract";
-import { classifyWorkflowPhase, isLiveWorkflowPhase, type WorkflowPhase } from "../../../src/core/workflow-kernel";
+import {
+	ALL_WORKFLOW_PHASES,
+	classifyWorkflowPhase,
+	holdsWorkflowCapacity,
+	isLiveWorkflowPhase,
+	reservesWorkflowCapacity,
+	type WorkflowPhase,
+} from "../../../src/core/workflow-kernel";
 
 /**
  * P24.1 — does the KERNEL's classification actually agree with the SESSION model it would replace?
@@ -101,5 +108,82 @@ describe("✅ the representation gap is CLOSED (was: the kernel could not expres
 		expect(classifyWorkflowPhase(NATURAL_PHASE.paused)).not.toBe("running");
 		// Liveness was never the problem and must stay unchanged.
 		expect(isLiveWorkflowPhase(NATURAL_PHASE.paused)).toBe(hasLiveTaskSession("paused"));
+	});
+});
+
+/**
+ * The OCCUPANCY half of the same argument — and it does NOT come out like the liveness half did.
+ *
+ * Liveness agreed across all seven session states, which is what made migrating `hasLiveTaskSession` consumers a
+ * mechanical change. Capacity was held back pending the `paused` gap. **Closing `paused` turned out to be
+ * necessary but not sufficient:** asking the question properly surfaces a second, deeper mismatch, and these
+ * tests record the true correspondence rather than asserting the agreement that was hoped for.
+ *
+ * ── FINDING 1: `isBusySessionState` IS A RESERVATION PREDICATE, NOT AN OCCUPANCY ONE ──
+ * Its doc says *"actively occupies a runtime/model slot"* and, three lines later, *"holding (or about to hold)
+ * capacity"* — both readings, in the same definition. It returns true for `queued`. So its kernel counterpart is
+ * `reservesWorkflowCapacity`, and a consumer that migrated to `holdsWorkflowCapacity` on the strength of the
+ * first sentence would stop counting queued cards and hand the same slot out twice.
+ *
+ * ── FINDING 2: `awaiting_review` GENUINELY DISAGREES, BECAUSE THE MODELS COUNT DIFFERENT RESOURCES ──
+ * Session `awaiting_review` means the WORKER session has ended → not busy. The kernel puts `awaiting_review` in
+ * `running` because the runtime still has work in flight — and a review really is executing on a model endpoint.
+ * Both are internally coherent; they are answering different questions. **NEEDS DAVID (batched)**, and is
+ * deliberately not resolved here: guessing a capacity contract is what produced the two-hour dead-board hang
+ * (reverted `cc2fbc340`), and the same restraint applied to the release-contract and `paused` questions.
+ *
+ * ⇒ Liveness consumers may migrate. **Capacity consumers may not, yet** — not because the vocabulary is missing
+ * now, but because one phase means two different things and only a decision can fix that.
+ */
+describe("kernel capacity vs the session model's `isBusySessionState`", () => {
+	it("RESERVATION is the right counterpart — it agrees everywhere occupancy does not", () => {
+		// Six of seven. The single exception is asserted separately below so it cannot be lost in a count.
+		for (const state of ALL_SESSION_STATES.filter((candidate) => candidate !== "awaiting_review")) {
+			const phase = NATURAL_PHASE[state];
+			expect(
+				reservesWorkflowCapacity(phase),
+				`session "${state}" (busy=${isBusySessionState(state)}) vs phase "${phase}"`,
+			).toBe(isBusySessionState(state));
+		}
+	});
+
+	it("pins the ONE genuine disagreement instead of hiding it", () => {
+		// If this ever starts passing as agreement, someone has resolved the question — and this test should be
+		// rewritten deliberately, not deleted.
+		expect(isBusySessionState("awaiting_review"), "session: the worker session has ended").toBe(false);
+		expect(reservesWorkflowCapacity("awaiting_review"), "kernel: a review is in flight on an endpoint").toBe(true);
+	});
+
+	it("distinguishes HOLDS from RESERVES — a queued card is committed but consuming nothing", () => {
+		// Answering "how many more may I admit?" with the occupancy predicate hands the same slot out twice.
+		for (const phase of ["queued_for_board_capacity", "queued_for_endpoint", "queued_for_sandbox"] as const) {
+			expect(holdsWorkflowCapacity(phase)).toBe(false);
+			expect(reservesWorkflowCapacity(phase)).toBe(true);
+		}
+	});
+
+	it("counts a PAUSED card as live but as neither holding nor reserving", () => {
+		// The gap that blocked this whole half. Pausing emits `release_resources` on the way in, so a paused card
+		// really has given its slot back — counting it either way would starve the host.
+		expect(isLiveWorkflowPhase("paused")).toBe(true);
+		expect(holdsWorkflowCapacity("paused")).toBe(false);
+		expect(reservesWorkflowCapacity("paused")).toBe(false);
+	});
+
+	it("keeps holds ⊆ reserves ⊆ live across EVERY phase", () => {
+		// The containment that makes three predicates safe to reason about. Checked over every phase the kernel
+		// has, not only the ones a session state happens to map to.
+		const everyPhase = ALL_WORKFLOW_PHASES;
+		for (const phase of everyPhase) {
+			if (holdsWorkflowCapacity(phase)) {
+				expect(reservesWorkflowCapacity(phase), `${phase} holds but does not reserve`).toBe(true);
+			}
+			if (reservesWorkflowCapacity(phase)) {
+				expect(isLiveWorkflowPhase(phase), `${phase} reserves but is not live`).toBe(true);
+			}
+		}
+		// Non-degenerate: each containment is STRICT somewhere, so the three are genuinely different predicates.
+		expect(everyPhase.some((phase) => reservesWorkflowCapacity(phase) && !holdsWorkflowCapacity(phase))).toBe(true);
+		expect(everyPhase.some((phase) => isLiveWorkflowPhase(phase) && !reservesWorkflowCapacity(phase))).toBe(true);
 	});
 });
