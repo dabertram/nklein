@@ -10412,6 +10412,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   2. **Landscape query — SETUP-MODE, read-only.** Largely EXISTS as F3.34 (see the correction in P25.1); the work
      is to rank its findings by the phase-1 fit verdict against this host's budget, so "what is new" becomes
      "what is new AND runnable here". No downloads, no side effects.
+     **▶ THE RANKING SHIPPED 2026-07-31 — `model-candidate-ranking.ts` + `dev model-fit --shortlist`, 15 tests.**
+     Reuses the single-model path's budget precedence, so a shortlist and a one-off check can never disagree about
+     how much memory this machine has.
+     **🔴 THE PHASE-1 HEURISTIC'S BIAS POINTS THE WRONG WAY FOR A SHOPPING LIST, AND RANKING NAIVELY WOULD HAVE
+     HIDDEN THE BEST CANDIDATES.** `estimateModelResidency` assumes NO grouped-query attention when architecture is
+     undeclared — deliberately, because for a LOAD decision over-stating is fail-safe. For ACQUISITION it is not:
+     nearly every modern model uses GQA, so a heuristic `exceeds` is usually a model that WOULD run. Live proof on
+     a 48 GiB budget: `qwen3-next-80b` estimates **154 GiB** without declared geometry — absurd for an 80B at Q4 —
+     so a naive ranking would bury it under models that genuinely do not fit.
+     ⇒ Four tiers, not three: a heuristic overflow is **`undetermined_needs_architecture`**, ranked ABOVE
+     `exceeds_budget`, and its action is *fetch the layer/kv-head/head-dim geometry*, never *discard*. A declared-
+     architecture overflow is a real refusal and ranks last.
+     **NO QUALITY SCORE, DELIBERATELY.** Fit is the only axis this module can measure; within a tier the SOURCE's
+     order is preserved. A fabricated quality ranking of models to download would be indistinguishable from a real
+     one by inspection — and it decides what gets executed on this machine.
+     Also cross-checks catalogue size against the weights estimate (>35% apart ⇒ the stated parameter count or
+     quantisation does not describe the artefact that would download).
   3. **SETUP-MODE acquisition, per-model consent (P25.2a).** Lives in the setup entry point, NEVER the autonomous
      runtime. Show the pick, its size, licence, format and fit verdict; download on explicit confirmation via
      `lms get`, format allow-list enforced. Re-triggerable, so refreshing the roster stays a deliberate act.

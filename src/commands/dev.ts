@@ -925,6 +925,7 @@ export function registerDevCommand(program: Command): void {
 		.option("--layers <n>", "Declared layer count (all three arch flags required for an exact KV figure).")
 		.option("--kv-heads <n>", "Declared key/value head count.")
 		.option("--head-dim <n>", "Declared head dimension.")
+		.option("--shortlist <file>", "JSON array of research candidates — rank them by what this host can run.")
 		.option("--json", "Print machine-readable JSON.")
 		.action((options: Parameters<typeof runDevModelFitCommand>[0]) => {
 			runDevModelFitCommand(options);

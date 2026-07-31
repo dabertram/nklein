@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { totalmem } from "node:os";
+import { type ModelCandidate, rankModelCandidatesByFit } from "../core/model-candidate-ranking";
 import { estimateModelResidency, fitModelResidency, type ModelArchitecture } from "../core/model-residency-sizing";
 
 /**
@@ -23,6 +25,7 @@ export interface DevModelFitOptions {
 	layers?: string;
 	kvHeads?: string;
 	headDim?: string;
+	shortlist?: string;
 	json?: boolean;
 }
 
@@ -46,7 +49,51 @@ function resolveBudget(options: DevModelFitOptions): { bytes: number; source: st
 	};
 }
 
+/**
+ * P25.3 phase 2 — rank a research shortlist by what this host can actually run.
+ *
+ * Reuses the SAME budget precedence as the single-model path, so a shortlist and a one-off check can never
+ * disagree about how much memory this machine has.
+ */
+function runShortlist(options: DevModelFitOptions & { shortlist: string }): void {
+	let candidates: ModelCandidate[];
+	try {
+		const parsed: unknown = JSON.parse(readFileSync(options.shortlist, "utf8"));
+		if (!Array.isArray(parsed)) {
+			throw new Error("expected a JSON array of candidates");
+		}
+		candidates = parsed as ModelCandidate[];
+	} catch (error) {
+		process.stdout.write(`Could not read a candidate array from ${options.shortlist}: ${String(error)}\n`);
+		process.exitCode = 1;
+		return;
+	}
+
+	const contextTokens = positiveNumber(options.context, 32_768);
+	const budget = resolveBudget(options);
+	const result = rankModelCandidatesByFit({ candidates, budgetBytes: budget.bytes, contextTokens });
+
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ ...result, budgetSource: budget.source }, null, 2)}\n`);
+		return;
+	}
+	const gib = (bytes: number) => `${(bytes / BYTES_PER_GIB).toFixed(2)} GiB`;
+	process.stdout.write(`budget: ${gib(budget.bytes)} via ${budget.source}\n`);
+	process.stdout.write(`${result.summary}\n\n`);
+	for (const entry of result.ranked) {
+		process.stdout.write(`${entry.tier.toUpperCase().padEnd(32)} ${entry.candidate.key}\n`);
+		process.stdout.write(`  ${gib(entry.fit.estimate.totalBytes)} total — ${entry.fit.reason}\n`);
+		for (const note of entry.notes) {
+			process.stdout.write(`  ⚠️ ${note}\n`);
+		}
+	}
+}
+
 export function runDevModelFitCommand(options: DevModelFitOptions = {}): void {
+	if (options.shortlist) {
+		runShortlist({ ...options, shortlist: options.shortlist });
+		return;
+	}
 	const paramB = positiveNumber(options.params, 8);
 	const weightBitsPerParam = positiveNumber(options.quant, 4);
 	const contextTokens = positiveNumber(options.context, 32_768);
