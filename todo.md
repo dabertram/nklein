@@ -10378,6 +10378,31 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   instruction failures and externalized domain knowledge 81% of knowledge failures; headline **"89.7% of LLM
   performance at 4% of the cost."** F12.18 (retrieval-gate the tool catalog to ≤~8 schemas) is already the right
   shape — this supplies the external evidence for it and suggests ~7 as the target, not ~8-12.
+- [ ] **P21.14 — An attempt's `toolCalls` is the WHOLE TASK TRANSCRIPT, not that attempt's calls.** *(Found
+  2026-07-31 while root-causing the phantom-model defect; distinct root cause, deliberately not bundled into that
+  fix.)*
+  `captureTerminalRunSummary` builds every attempt event from `readPersistedTaskSession(taskId)` and runs
+  `extractTerminalToolCalls` over the **entire** transcript. The transcript accumulates across a task's attempts,
+  so each terminal event re-records everything that came before it.
+  **MEASURED ON THE LIVE LEDGER — this affects RESOLVED attempts too, not just the unattributable ones:**
+  · `habit-score-extensions-card-4` — **11 attempts, every one carrying exactly the same 11 tool calls**, on the
+    same model, alternating aborted/success.
+  · `habit-insights-buildout-parse` — 3 attempts × 56 tool calls each.
+  · `17bd026…` — one identical tool-call fingerprint (`0d2cb014a5a1fc41`) recorded **12 times**.
+  **WHY IT MATTERS MORE THAN A COUNT BEING WRONG.** Any per-model metric that SUMS tool calls over-counts by the
+  number of terminal events per task. Ratios survive (the same calls are duplicated on both sides), but **sample
+  SIZE does not** — so an evidence floor like `computeEditReliability`'s 20-call minimum can be satisfied by ~2
+  real calls duplicated ten times. **A floor that can be cleared by duplication is not a floor**, and its whole
+  job is to stop a confident number being computed from noise.
+  It also inflates `retriesBefore` (observed: **14** on a card that succeeded on its first attempt), which feeds
+  trajectory-quality scoring, the memory-layer narration (*"after 14 retries"*) and the efficiency projections.
+  **LIKELY FIX — a durable per-attempt watermark**, not a diff: record the transcript message count on each
+  attempt event and slice from the previous attempt's mark. It must be DURABLE (in the ledger) rather than
+  in-process, because the duplication is restart-driven and any in-memory boundary is empty exactly when it is
+  needed. Absent on legacy lines ⇒ treat as 0, which reproduces today's behaviour for old data instead of
+  silently reinterpreting it.
+  **⚠️ It is a schema addition to a widely-projected durable stream, so it wants its own change and its own
+  review** — which is why the phantom-model fix did not carry it.
 - [ ] **P21.12 — Symbol-level conflict detection (the one idea nobody has shipped properly).** `wit`
   (github.com/amaar-mc/wit) locks **Tree-sitter AST symbols — functions, classes, types, exports — not files**,
   so two agents can safely edit different functions in the same file. !Klein currently serializes on FILE overlap,
