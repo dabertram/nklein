@@ -10933,7 +10933,14 @@ Mirrored by a manifest-level test so the data cannot drift back.
   pins (`protobufjs`, `fast-uri`) are debt needing a re-check for upstream fixes.
 
 **4. Questions batched for David (do not act on these unilaterally):**
-- **NEW — ~12 UNIMPORTED production dependencies account for 10 of the 13 remaining advisories.** Two clusters,
+- **✅ DECIDED + PARTLY DONE 2026-07-31 (David): drop `dify-ai-provider` now, decide the OTel cluster separately.**
+  `dify-ai-provider` REMOVED. Result: **13 → 11 advisories, and 0 HIGH** (was 1). The desktop CLI is unaffected —
+  re-verified it has no external `require("dify-ai-provider")`, it inlines the provider — and the full suite is
+  green. **The 11 `@opentelemetry/*` packages STAY for now**: they may be deliberate groundwork for an
+  integration beyond F12.47's hand-rolled OTLP, which is a product call rather than cleanup. The 9 OTel moderates
+  therefore remain, clearable by a coordinated `0.214 → 0.221` bump whenever that call is made.
+  ── original finding ──
+- **~12 UNIMPORTED production dependencies account for 10 of the 13 remaining advisories.** Two clusters,
   one pattern. **Evidence (each verified, not inferred):**
     · **`@opentelemetry/*` (11 deps, 9 moderates).** No first-party `.ts`/`.tsx` file imports ANY
       `@opentelemetry/` package — the only tree-wide hits are lockfiles and a source map. F12.47

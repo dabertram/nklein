@@ -152,7 +152,6 @@
     "ai-sdk-provider-codex-cli": "^1.1.0",
     "ai-sdk-provider-opencode-sdk": "^3.0.1",
     "commander": "^14.0.3",
-    "dify-ai-provider": "^1.1.0",
     "gpt-tokenizer": "^3.4.0",
     "jiti": "^1.21.7",
     "jsonrepair": "^3.13.2",
