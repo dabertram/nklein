@@ -963,9 +963,20 @@ export interface ModelSpeedRollup {
 /** Mean of a non-empty numeric list, or null when empty. */
 /**
  * Roll up per-model SPEED from the ledger's attempt records (todo §5.AF — a pure projection over the same one stream,
- * not a parallel store). Uses the `ttftMs` + `tokensPerSec` the terminal writer computes; only attempts that carried a
- * datum count toward each stat (a model with no timing samples reports null, not a misleading 0). Speed is a §5.AB
- * selection signal — slow-but-capable vs fast-but-weak is a real routing trade-off. Sorted by samples desc, then modelId.
+ * not a parallel store). Only attempts that carried a datum count toward each stat (a model with no timing samples
+ * reports null, not a misleading 0). Speed is a §5.AB selection signal — slow-but-capable vs fast-but-weak is a real
+ * routing trade-off. Sorted by samples desc, then modelId.
+ *
+ * ⚠️ **`medianTtftMs` IS ALWAYS NULL TODAY, AND THIS DOC USED TO CLAIM OTHERWISE** (P21.15, corrected 2026-08-01).
+ * It said *"the `ttftMs` + `tokensPerSec` the terminal writer computes"*. `tokensPerSec` really is computed there;
+ * **`ttftMs` is not, and cannot be with what the runtime exposes**: the extension's hook set has only
+ * `beforeModel`/`afterModel`, so the measurable quantity is the FULL request duration, not time-to-first-token;
+ * the SDK's `assistantMessage.metrics` carries token counts only; and `parseLmStudioRequestStats` — which does
+ * parse `time_to_first_token` — is reachable solely from a dev command.
+ *
+ * **A stated capability that cannot happen is worse than an absent one**: the null reads as "this fleet reported no
+ * timing" rather than "nothing ever supplies this". Populating it needs a first-token signal that does not exist
+ * yet — a feature, not a wire. The split-coverage comment below is therefore hypothetical for TTFT today.
  */
 export function summarizeModelSpeed(events: readonly AgentLedgerEvent[]): ModelSpeedRollup[] {
 	const ttftByModel = new Map<string, number[]>();

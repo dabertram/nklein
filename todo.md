@@ -10490,15 +10490,37 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   One ledger read now serves both the rung index and the watermark, so the two cannot disagree about which
   attempts exist. Verified: 238 legacy lines still parse (the field defaults to null) and the nightly
   persisted-state compatibility guard is green.
-- [ ] **P21.15 — FOUR ledger fields have a consumer and no writer.** *(Found 2026-07-31 by the new
+- [x] **P21.15 — FOUR ledger fields have a consumer and no writer. CLOSED 2026-08-01: 1 populated, 1 fixed at the reader, 2 verdicted as needing capability that does not exist.** *(Found 2026-07-31 by the new
   `dev ledger-fields` audit; each is a separate small fix.)*
-  **`ttftMs` 0/238** — `summarizeModelSpeed` computes `medianTtftMs` from it, and its own doc claims *"the ttftMs
-  the terminal writer computes"*. The terminal writer's input type has no such field, and
-  `parseLmStudioRequestStats` — which does parse `time_to_first_token` — is reachable **only from a dev command**.
-  So there is no production path from the provider's TTFT to the ledger, and `medianTtftMs` is null for every
-  model, forever. `tokensPerSec` beside it works, which is why the gap is invisible.
-  **`qualityScore` 0/238** — read by `stubborn-failure-escalation`. `qualityOk` is derived and populated; the
-  numeric score is absent from the terminal writer's input entirely.
+  **`ttftMs` 0/238 — INVESTIGATED 2026-08-01: UNMEASURABLE with what the runtime exposes. Doc claim corrected;
+  no fabricated producer.**
+  `summarizeModelSpeed` computes `medianTtftMs` from it and its doc claimed *"the `ttftMs` + `tokensPerSec` the
+  terminal writer computes"*. `tokensPerSec` really is; **`ttftMs` is not, and cannot be**:
+  · the extension's hook set is `beforeModel`/`afterModel` only, so the measurable quantity is the FULL request
+    duration (`durationMs`), not time-to-first-token;
+  · the SDK's `assistantMessage.metrics` carries token counts only — no TTFT;
+  · `parseLmStudioRequestStats` DOES parse `time_to_first_token`, and is reachable **solely from a dev command**.
+  ⇒ populating it needs a first-token signal that does not exist yet — a FEATURE, not a wire. **Explicitly did NOT
+  fake it from the model registry's `ttftMsEwma`**: that is a cross-attempt average, not this attempt's TTFT, and
+  writing it per-attempt would manufacture a measurement.
+  **WHAT WAS FIXED IS THE CLAIM.** A stated capability that cannot happen is worse than an absent one — the null
+  read as *"this fleet reported no timing"* rather than *"nothing ever supplies this"*, which is why the gap
+  survived. The doc now says so at the consumer.
+  **`qualityScore` 0/238 — INVESTIGATED 2026-08-01: needs a real EVALUATOR, not a wire. NO CODE CHANGE, on
+  purpose.**
+  Read by `stubborn-failure-escalation`'s `pickBestPartial` — which partial result to surface when a task
+  stubbornly fails. **An outcome-derived score would be worthless here**: `qualityOk` is literally
+  `outcome === "success"`, and `pickBestPartial` matters precisely in the branch where EVERY attempt failed, so an
+  outcome-derived number is constant across the candidates it is meant to rank. A genuine score has to grade
+  *how much of the task got done*, which is an evaluator, not a field to plumb.
+  **THE DEGRADATION IS SENSIBLE, NOT BROKEN** (unlike `endpointStrategy`, whose null made a reader take a wrong
+  branch): with every score null, `qualityOf`'s `?? 0` makes all candidates tie and the documented fallbacks
+  decide — prefer an attempt that produced an artifact, then earliest for stability.
+  **⚠️ CONSIDERED AND REJECTED: "fix `?? 0` so unknown is not ranked as worst".** It is the same conflation this
+  session has been fixing elsewhere — but there is **no defensible place to put UNKNOWN in that ordering**: it
+  should not beat a measured 0.9, and it should not lose to a measured 0.0. Inventing a position would be exactly
+  the manufactured precision being refused everywhere else, in a path that currently has no data to be wrong
+  about. Recorded instead, so whoever adds the evaluator decides it WITH the scores in hand.
   **`endpointStrategy` 0/238 — INVESTIGATED 2026-08-01, and the honest fix was NOT to invent a producer.**
   It has no producer anywhere in `src/`. Tracing its two consumers found something better than a dead field:
   **🔴 A LIVE MISCLASSIFICATION THAT FEEDS THE MODEL'S PROMPT.** `inferAttemptStrategy` builds the
@@ -10540,6 +10562,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   largest of the four and should not be faked from the registry's EWMA (that is a cross-attempt average, not this
   attempt's TTFT).
   Also open: **`parentAttemptId` 0/238**, undeclared — nobody has traced its writer or reader.
+  **▶ CLOSING SUMMARY 2026-08-01 — and the pattern is worth more than the four fixes.** Each field wanted a
+  different answer, and only ONE of them was "wire it up":
+  · `toolSetOffered` → **populated** (extension source; the obvious source would have produced a WRONG count).
+  · `endpointStrategy` → **fixed at the READER**: its null was making a live classifier take a wrong branch and
+    tell the model it had tried something it had not. The dead field was the symptom, not the defect.
+  · `qualityScore` → **no change, deliberately**: needs an evaluator, and there is no defensible ordering for
+    "unknown" to invent in the meantime.
+  · `ttftMs` → **unmeasurable today**; the false doc CLAIM was the fixable part.
+  **⇒ "A field has no writer" is a SYMPTOM with at least four distinct diseases**, and reflexively wiring all four
+  would have shipped one wrong number, one unnecessary evaluator-shaped guess, and left the actual live defect —
+  the misclassified retry note — untouched.
 - [ ] **P21.12 — Symbol-level conflict detection (the one idea nobody has shipped properly).** `wit`
   (github.com/amaar-mc/wit) locks **Tree-sitter AST symbols — functions, classes, types, exports — not files**,
   so two agents can safely edit different functions in the same file. !Klein currently serializes on FILE overlap,
