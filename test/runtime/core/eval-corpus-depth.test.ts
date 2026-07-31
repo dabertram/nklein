@@ -1,6 +1,12 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { estimateTextTokens } from "../../../src/core/eval-context-footprint";
-import { buildDecomposeInput, buildReviewInput, EVAL_PROMPT_CORPUS } from "../../../src/core/eval-prompt-corpus";
+import {
+	buildDecomposeInput,
+	buildReviewInput,
+	buildToolCatalog,
+	EVAL_PROMPT_CORPUS,
+} from "../../../src/core/eval-prompt-corpus";
 import { classifyContextDepth } from "../../../src/core/model-fitness-freshness";
 
 /**
@@ -87,9 +93,10 @@ describe("eval corpus context depth", () => {
 		// predicted by capability at depth 0 — and decompose/review/implement/tool_use, the families that decide
 		// routing for real cards, have no evidence above the shallow band at all. A needle probe at 24k measures
 		// retrieval, which is a different capability from decomposing a spec at 24k.
-		// `review` and `decompose` were REMOVED from this list on 2026-07-31 as depth-padded rows landed
-		// (~16.6k and ~22.8k tokens). `implement` and `tool_use` are the remaining gap.
-		const agentWorkFamilies = ["implement", "tool_use"] as const;
+		// EMPTY as of 2026-07-31: `review` (~16.6k), `decompose` (~22.8k) and `tool_use` (40-tool catalog) all
+		// gained depth rows. `implement` is deliberately NOT listed — see the test below; it is never executed at
+		// all, so calling it "shallow-only" would describe the wrong problem.
+		const agentWorkFamilies: readonly string[] = [];
 		for (const family of agentWorkFamilies) {
 			const depths = new Set(rows.filter((row) => row.family === family).map((row) => row.depth));
 			expect(
@@ -99,11 +106,39 @@ describe("eval corpus context depth", () => {
 		}
 	});
 
+	it("TOOL_USE depth is CATALOG SIZE, and the real tool is not first", () => {
+		// Depth for this family is the number of competing tools, which is the dimension the evidence is about:
+		// filtering 40+ down to 7 fixed 62% of tool-use failures. !Klein's gate caps the offered set at 7, so this
+		// row measures what that gate protects against rather than re-measuring the protected case.
+		const deep = EVAL_PROMPT_CORPUS.find((p) => p.id === "tooluse-simple-weather-deep-catalog");
+		const shallow = EVAL_PROMPT_CORPUS.find((p) => p.id === "tooluse-simple-weather");
+		expect(deep?.family === "tool_use" ? buildToolCatalog(deep).length : 0).toBe(40);
+		expect(
+			deep?.family === "tool_use" ? deep.expected : null,
+			"the pair must expect the identical call or it measures difficulty, not catalog size",
+		).toEqual(shallow?.family === "tool_use" ? shallow.expected : undefined);
+		// A model that always picks the first offered tool must not score by accident.
+		const first = deep?.family === "tool_use" ? buildToolCatalog(deep)[0]?.name : "";
+		expect(first).not.toBe("get_weather");
+	});
+
+	it("⚠️ IMPLEMENT prompts are in the corpus but NEVER EXECUTED", () => {
+		// Found 2026-07-31 while adding depth coverage. `model-eval-runner` skips the whole family with a bare
+		// `continue`, because scoring it needs code executed against its tests in a sandbox and the runner does not
+		// do that. So implement contributes NOTHING to any fitness measurement — describing it as "shallow-only"
+		// would name the wrong problem entirely. Pinned here so the family's status is visible rather than
+		// discoverable only by reading the runner's control flow.
+		const implementPrompts = EVAL_PROMPT_CORPUS.filter((p) => p.family === "implement");
+		expect(implementPrompts.length, "the family exists...").toBeGreaterThan(0);
+		const runnerSource = readFileSync("src/nklein-agent/model-eval-runner.ts", "utf8");
+		expect(runnerSource, "...and is skipped wholesale").toContain('prompt.family === "implement"');
+	});
+
 	it("pins the overall distribution so a change is deliberate", () => {
 		const distribution = { shallow: 0, medium: 0, deep: 0 };
 		for (const row of rows) {
 			distribution[row.depth] += 1;
 		}
-		expect(distribution, "corpus depth changed — see todo P22.2").toEqual({ shallow: 13, medium: 1, deep: 3 });
+		expect(distribution, "corpus depth changed — see todo P22.2").toEqual({ shallow: 14, medium: 1, deep: 3 });
 	});
 });

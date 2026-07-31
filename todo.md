@@ -10519,9 +10519,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **Why decompose specifically:** it was the G6.8a campaign's BINDING CONSTRAINT, and every decompose measurement
   until now was taken on a two-sentence prompt. `buildDecomposeInput` is wired into both chat paths in
   `scoreDecompose`.
-  **CORPUS DEPTH NOW: 13 shallow · 1 medium · 3 deep**, with `decompose`, `review` and `context_probe` covering
-  depth. **REMAINING: `implement` and `tool_use` are still shallow-only**; a test pins that list so removing a
-  family from it is deliberate.
+  **▶ TOOL_USE DEPTH LANDED — and for this family depth is CATALOG SIZE, not prose.**
+  `tooluse-simple-weather-deep-catalog` offers the identical task and expected call inside a **40-tool catalog**
+  (39 generated distractors + the real tool). 40 is the ungated size the evidence is about — filtering 40+ down to
+  7 fixed 62% of tool-use failures — and !Klein's own gate caps the offered set at `DEFAULT_TOOL_CAP = 7`, so this
+  row measures **what the gate protects against** rather than re-measuring the protected case. Distractors are
+  plausible but unambiguously irrelevant (a near-miss would make a wrong pick defensible and turn a selection
+  measurement into a judgement call), and the real tool is placed LAST so a model that always picks the first
+  offered tool cannot score by accident.
+  **🔴 AND A FINDING THAT REFRAMES THE LAST FAMILY: `implement` PROMPTS ARE NEVER EXECUTED.**
+  `model-eval-runner` skips the entire family with a bare `continue` — scoring it requires running code against
+  its tests in a sandbox, which that runner does not do. So implement contributes **nothing** to any fitness
+  measurement, and calling it "shallow-only" would name the wrong problem: adding depth to a family that never
+  runs buys nothing. Pinned by a test so the status is visible rather than discoverable only by reading the
+  runner's control flow. **The real question for `implement` is whether it should run at all** (it needs the
+  sandbox execution P20.2/P20.3b also want) or be removed from the corpus so it stops implying coverage it does
+  not provide — a decision, not a gap.
+  **CORPUS DEPTH NOW: 14 shallow · 1 medium · 3 deep.** Every family that is actually EXECUTED — `decompose`,
+  `review`, `tool_use`, `context_probe` — now has depth coverage.
   **A test now pins the distribution EXACTLY** (`eval-corpus-depth.test.ts`) rather than asserting the corpus
   *should* have deep prompts — a red test in the suite is one people learn to skip. The day a deep prompt is
   added the assertion trips and is updated deliberately, so this gap cannot be closed by accident or widened

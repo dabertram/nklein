@@ -122,6 +122,17 @@ export const toolUseEvalPromptSchema = z.object({
 		.min(1),
 	/** The call a correct answer requires, or `null` for an irrelevance probe (no call expected). */
 	expected: z.object({ name: z.string().min(1), args: z.record(z.string(), z.unknown()) }).nullable(),
+	/**
+	 * P22.2 — plausible IRRELEVANT tools generated at run time and offered alongside the real ones, so tool
+	 * selection can be measured at catalog depth. Omitted ⇒ only the declared tools are offered.
+	 *
+	 * Depth for this family is CATALOG SIZE, not prose volume — that is the dimension the evidence is about.
+	 * Filtering an offered set from 40+ tools down to 7 fixed 62% of observed tool-use failures (arXiv 2607.08938),
+	 * and RAG-MCP tripled selection accuracy by retrieval-gating the catalog. !Klein caps the offered set at 7
+	 * (`DEFAULT_TOOL_CAP`), so this measures what the gate is PROTECTING AGAINST — the ungated case — rather than
+	 * re-measuring the protected one.
+	 */
+	distractorToolCount: z.number().int().positive().optional(),
 });
 
 /**
@@ -319,6 +330,44 @@ export function buildDecomposeInput(prompt: DecomposeEvalPrompt): string {
 		"TASK:",
 		prompt.prompt,
 	].join("\n");
+}
+
+/** Plausible, clearly-irrelevant tools used to pad a tool-use probe's catalog to depth. */
+const TOOL_DISTRACTOR_TEMPLATES: readonly { suffix: string; description: string }[] = [
+	{ suffix: "list_invoices", description: "List billing invoices for an account within a date range." },
+	{ suffix: "rotate_log", description: "Rotate a server log file and compress the previous segment." },
+	{ suffix: "resize_image", description: "Resize an image to the requested pixel dimensions." },
+	{ suffix: "geocode_address", description: "Convert a postal address into latitude and longitude." },
+	{ suffix: "send_sms", description: "Send a short text message to a verified phone number." },
+];
+
+/**
+ * P22.2 — the tool catalog actually offered for a probe, padded with distractors when configured.
+ *
+ * The distractors are plausible but UNAMBIGUOUSLY irrelevant to any probe's task: the question is whether a model
+ * can still find the right tool in a crowd, not whether it can disambiguate two reasonable candidates. A
+ * near-miss distractor would make a wrong pick defensible and turn a selection measurement into a judgement call.
+ */
+export function buildToolCatalog(prompt: ToolUseEvalPrompt): ToolUseEvalPrompt["tools"] {
+	if (!prompt.distractorToolCount) {
+		return prompt.tools;
+	}
+	const distractors = Array.from({ length: prompt.distractorToolCount }, (_, index) => {
+		const template = TOOL_DISTRACTOR_TEMPLATES[index % TOOL_DISTRACTOR_TEMPLATES.length] as {
+			suffix: string;
+			description: string;
+		};
+		return {
+			name: `${template.suffix}_${index + 1}`,
+			description: template.description,
+			parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } as Record<
+				string,
+				unknown
+			>,
+		};
+	});
+	// Real tools LAST: a model that simply picks the first offered tool must not score by accident.
+	return [...distractors, ...prompt.tools];
 }
 
 // ── The corpus ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -625,6 +674,39 @@ const TOOL_USE_PROMPTS: readonly ToolUseEvalPrompt[] = [
 			},
 		],
 		expected: { name: "get_weather", args: { location: "Berlin", unit: "celsius" } },
+	},
+	{
+		// P22.2 — the SAME task, tool and expected call as `tooluse-simple-weather`, offered inside a 40-tool
+		// catalog. The pair isolates CATALOG DEPTH: identical request, identical correct answer, only the number of
+		// competing tools differs.
+		//
+		// 40 is not arbitrary — it is the ungated size the evidence is about (filtering 40+ down to 7 fixed 62% of
+		// tool-use failures). !Klein's own gate caps the offered set at `DEFAULT_TOOL_CAP = 7`, so this row measures
+		// what that gate PROTECTS AGAINST rather than re-measuring the protected case.
+		id: "tooluse-simple-weather-deep-catalog",
+		role: "worker",
+		family: "tool_use",
+		difficulty: "hard",
+		prompt: "What is the current temperature in Berlin in celsius? Use the tool.",
+		guidance:
+			"Call get_weather with location=Berlin and unit=celsius, exactly as in the shallow variant. A model that " +
+			"succeeds there and fails here is losing the task to CATALOG SIZE, not to difficulty.",
+		tools: [
+			{
+				name: "get_weather",
+				description: "Get the current weather for a location.",
+				parameters: {
+					type: "object",
+					properties: {
+						location: { type: "string", description: "City name" },
+						unit: { type: "string", enum: ["celsius", "fahrenheit"] },
+					},
+					required: ["location"],
+				},
+			},
+		],
+		expected: { name: "get_weather", args: { location: "Berlin", unit: "celsius" } },
+		distractorToolCount: 39,
 	},
 	{
 		id: "tooluse-multi-select",

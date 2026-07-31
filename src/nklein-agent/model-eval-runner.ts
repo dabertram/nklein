@@ -17,6 +17,7 @@ import {
 	buildContextProbeInput,
 	buildDecomposeInput,
 	buildReviewInput,
+	buildToolCatalog,
 	type ContextProbeEvalPrompt,
 	EVAL_PROMPT_CORPUS,
 	type EvalPrompt,
@@ -172,7 +173,9 @@ async function scoreDecompose(
  * for an irrelevance probe, so — unlike the other families — a no-call is NOT a "no answer": it is scored directly.
  */
 async function scoreToolUse(prompt: ToolUseEvalPrompt, maxTokens: number, chat: ModelEvalChat): Promise<number | null> {
-	const tools = prompt.tools.map((tool) => ({
+	// P22.2: `buildToolCatalog` adds distractors when the row configures them, and returns the declared tools
+	// unchanged otherwise — so existing probes offer exactly the same catalog as before.
+	const tools = buildToolCatalog(prompt).map((tool) => ({
 		type: "function",
 		function: { name: tool.name, description: tool.description, parameters: tool.parameters },
 	}));
