@@ -7420,6 +7420,28 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
 - [ ] **N11 — Flag-matrix lanes.** Three nightly lanes over the same cells: (a) defaults, (b) all safe opt-ins ON
   (the dark flags shipped observe-first), (c) kill-switches OFF — so flag INTERACTIONS are exercised, not just
   each flag alone. New flags register here at ship time.
+  **▶ 2026-07-31 — N11 IS THE ANSWER TO THE PHASE-15 DEADLOCK, and lane (b) has a missing precondition.**
+  The deadlock looks like this: 31 of 45 registered mechanisms have never been enabled; P15.3 flips defaults only
+  where P15.2 produced a verdict; P15.2 needs ≥30 observations; observations need enabling. Left alone, those 31
+  stay dark forever.
+  **🔴 THE OBVIOUS ESCAPE — "just turn on OBSERVATION, not enforcement, since they shipped observe-first" — DOES
+  NOT EXIST, and I proposed it before checking.** These flags gate the ACTING half. Verified by reading three:
+  `NKLEIN_STALL_REPLAN` is labelled in-source *"F12.22 **enforcing half**"* with *"default OFF = **record-only**
+  stays byte-identical"* — the observing half is already on; `NKLEIN_FOCUS_CHAIN_NUDGE` injects a nudge into the
+  turn; `NKLEIN_REVIEW_LENSES` force-enables lenses. **For these, the observation IS an observation of the
+  action** (`stall_replan_INJECTED`), so it cannot be gathered without taking the action. That is inherent, not a
+  tooling gap — which is exactly why N11's lane (b) is the vehicle: a controlled nightly lane, not a production
+  umbrella switch.
+  **⇒ THE ACTIONABLE PRECONDITION: nothing declares which flags are "safe opt-ins".** Lane (b)'s own description
+  assumes that list exists. `dev env-gated` reports per-FILE gating heuristically and says so
+  (*"VERIFY BY READING — this check cannot prove the guard wraps the call"*); it cannot answer *"is THIS flag safe
+  to turn on?"*. F4.8b already measured the coverage gap from the other side: **5 of 40 default-OFF flags are in
+  `MECHANISM_REGISTRY`; 38 are not.**
+  **Build it the way the mechanism registry and `ledger-field-audit` were built:** declare `mode`
+  (`observe_only` | `enforcing` | `unclassified`) per flag, next to what it gates. **`unclassified` must never
+  count as safe** — lane (b) may enable only verified `observe_only` flags, so the list can be grown one honest
+  reading at a time instead of guessed in bulk. A bulk guess here silently flips behaviour in the autonomous
+  runtime, which is the one failure this whole phase exists to avoid.
 - [x] **F4.8b — 38 of 40 opt-in mechanisms are UNREGISTERED, so nothing can say whether they run *(found 2026-07-20)*.**
   **`dev env-gated` SHIPPED.** F4.8 exposed the shape: the goal re-anchor had a complete import chain to the
   session runtime, every audit reported the requirement satisfied, and its injection site sat behind
