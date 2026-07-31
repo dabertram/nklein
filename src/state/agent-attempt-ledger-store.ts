@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { type AgentLedgerEvent, agentLedgerEventSchema } from "../core/agent-attempt-ledger";
+import { isAttributableModelKey } from "../core/model-identity";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { parseValidatedJsonl } from "./jsonl-store";
 
@@ -66,10 +67,32 @@ export function agentLedgerLogPath(workspacePathHash: string, rootDir?: string):
 	return resolveLogPath(workspacePathHash, rootDir);
 }
 
-/** Append one validated ledger event to its workspace's log. Best-effort (never throws on a write failure). */
+/**
+ * Append one validated ledger event to its workspace's log. Best-effort (never throws on a write failure).
+ *
+ * ── AN ATTEMPT THAT NAMES NO MODEL IS REFUSED HERE (2026-07-31) ──
+ * The attempt ledger exists to be projected PER MODEL — fitness, the §5.AA behaviour profile, edit reliability,
+ * and the routing evidence the start path looks up by model key. An attempt whose model could not be resolved is
+ * therefore not a weak record, it is a **phantom model**: `normalizeModelId("")` yields the well-formed key
+ * `lmstudio:unknown:default`, which then forms its own row in every per-model rollup and looks exactly like a
+ * real one.
+ *
+ * **Measured on the live ledger before the fix: 70 of 238 attempts (29%) were unattributable, carrying 1074 tool
+ * calls that belong to other models.** They also arrived in bursts with identical timestamps across workspaces —
+ * a restart re-terminating tasks that had already finished — so the same transcript was re-recorded up to 12
+ * times, inflating `retriesBefore` to 14 on a card that succeeded on its first attempt.
+ *
+ * The guard lives at this door rather than at the writer because this is the ONE door: no present or future
+ * caller can route around it. The terminal state itself is NOT lost — `recordTaskRunSummary` writes it to its own
+ * durable store unconditionally, on the same path. What is refused is only the claim that some model made this
+ * attempt.
+ */
 export async function appendAgentLedgerEvent(event: AgentLedgerEvent, options?: { rootDir?: string }): Promise<void> {
 	// Validate at the boundary so a malformed event can never be persisted (would later be skipped on read anyway).
 	const parsed = agentLedgerEventSchema.parse(event);
+	if (parsed.kind === "attempt" && !isAttributableModelKey(parsed.modelId)) {
+		return;
+	}
 	const logPath = resolveLogPath(parsed.workspacePathHash, options?.rootDir);
 	try {
 		await mkdir(resolveRootDir(options?.rootDir), { recursive: true });

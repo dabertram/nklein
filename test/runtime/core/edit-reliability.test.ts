@@ -142,6 +142,30 @@ describe("computeEditReliability", () => {
 		expect(report.summary).toMatch(/not 'struggles with DIFF FORMAT'/u);
 	});
 
+	it("EXCLUDES an attempt that names no model, and reports the count", () => {
+		// A key whose model segment is the `unknown` sentinel is not a model. Folding it into a row creates a
+		// phantom competitor in a ranking that decides model routing — measured at 70/238 attempts on the live
+		// ledger, carrying 1074 tool calls that belong to real models.
+		const report = computeEditReliability({
+			attempts: [
+				attempt("lmstudio:qwen/qwen3-8b:http://localhost:1234/v1", calls("edit_file", "success", 20)),
+				attempt("lmstudio:unknown:default", calls("edit_file", "error", 100)),
+			],
+		});
+		expect(report.ranked.map((row) => row.modelId)).toEqual(["lmstudio:qwen/qwen3-8b:http://localhost:1234/v1"]);
+		expect(report.unmeasured).toEqual([]);
+		expect(report.unattributableAttempts).toBe(1);
+		expect(report.summary).toMatch(/named no model and were EXCLUDED/u);
+	});
+
+	it("says nothing about attribution when every attempt names a model", () => {
+		const report = computeEditReliability({
+			attempts: [attempt("lmstudio:m:1", calls("edit_file", "success", 20))],
+		});
+		expect(report.unattributableAttempts).toBe(0);
+		expect(report.summary).not.toMatch(/EXCLUDED/u);
+	});
+
 	it("covers the edit tools actually registered today", () => {
 		// A stale list silently measures nothing: every edit call would be skipped and every model would look
 		// unmeasured, which reads as "no data yet" rather than "the list is wrong".

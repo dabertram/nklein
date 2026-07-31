@@ -32,6 +32,8 @@
  * choosing how far down that list to act is a policy decision made with the rates visible.
  */
 
+import { isAttributableModelKey } from "./model-identity";
+
 /** Edit-class tools as registered today. Overridable, because tool names drift and a stale list silently measures nothing. */
 export const DEFAULT_EDIT_TOOL_NAMES: readonly string[] = [
 	"apply_patch",
@@ -68,6 +70,15 @@ export interface EditReliabilityRow {
 }
 
 export interface EditReliabilityReport {
+	/**
+	 * Attempts whose model could not be resolved, EXCLUDED from every row above.
+	 *
+	 * These are historical: the ledger door now refuses them ({@link ../state/agent-attempt-ledger-store}), but
+	 * 70 of 238 attempts on the live ledger predate that fix and carry 1074 tool calls belonging to other models.
+	 * Reported as a data-quality figure rather than folded into a `unknown` row, because a phantom model with a
+	 * plausible success rate is worse than a visible gap.
+	 */
+	readonly unattributableAttempts: number;
 	/** Models with enough data, WORST FIRST — the order P21.1's routing half would walk. */
 	readonly ranked: readonly EditReliabilityRow[];
 	/** Models seen but not measurable yet. Kept separate so "no data" is never mistaken for "no problem". */
@@ -83,8 +94,15 @@ export function computeEditReliability(input: {
 	const editTools = new Set(input.editToolNames ?? DEFAULT_EDIT_TOOL_NAMES);
 	const minCalls = input.minCalls ?? MIN_EDIT_CALLS_FOR_RATE;
 	const byModel = new Map<string, { successes: number; errors: number; unknown: number }>();
+	let unattributableAttempts = 0;
 
 	for (const attempt of input.attempts) {
+		// A key whose model segment is the `unknown` sentinel names NO model. Folding it into a row would create a
+		// phantom competitor in a ranking that decides model routing.
+		if (!isAttributableModelKey(attempt.modelId)) {
+			unattributableAttempts += 1;
+			continue;
+		}
 		for (const call of attempt.toolCalls) {
 			if (!editTools.has(call.name)) {
 				continue;
@@ -130,14 +148,20 @@ export function computeEditReliability(input: {
 	const unmeasured = rows.filter((row) => row.verdict === "insufficient_data");
 
 	const worst = ranked[0];
+	const unattributableNote =
+		unattributableAttempts > 0
+			? ` ⚠️ ${unattributableAttempts} attempt(s) named no model and were EXCLUDED — their tool calls belong to models that are not being credited for them`
+			: "";
 	return {
 		ranked,
 		unmeasured,
+		unattributableAttempts,
 		summary:
 			ranked.length === 0
-				? `no model has ${minCalls}+ classified edit calls yet — ${unmeasured.length} model(s) seen but unmeasured. This is NOT evidence that editing is reliable`
+				? `no model has ${minCalls}+ classified edit calls yet — ${unmeasured.length} model(s) seen but unmeasured. This is NOT evidence that editing is reliable${unattributableNote}`
 				: `${ranked.length} model(s) measured; weakest is ${worst?.modelId} at ${((worst?.reliability ?? 0) * 100).toFixed(1)}% of ${worst?.classifiedCalls} edit calls` +
 					(unmeasured.length > 0 ? `; ${unmeasured.length} more seen but below the ${minCalls}-call floor` : "") +
-					". Measures 'struggles to EDIT', not 'struggles with DIFF FORMAT' — the ledger cannot tell those apart",
+					". Measures 'struggles to EDIT', not 'struggles with DIFF FORMAT' — the ledger cannot tell those apart" +
+					unattributableNote,
 	};
 }

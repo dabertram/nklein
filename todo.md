@@ -11178,6 +11178,33 @@ override reads identically to the error (*"`sandboxMcpServersEnabled` (ON by def
 `NKLEIN_SANDBOX_MCP` env override"*), and a check that flags correct code gets an allow-list bolted on until it
 means nothing.
 
+**3c. Defect found + fixed 2026-07-31 — THE LEDGER CARRIED A PHANTOM MODEL (`lmstudio:unknown:default`).**
+Surfaced by the P21.1 edit-reliability run, then root-caused on David's live ledger.
+**ROOT CAUSE:** `normalizeModelId("")` returns the `"unknown"` sentinel, so an attempt recorded without a resolved
+model produced a **perfectly well-formed key** — indistinguishable by shape from a real one. It then behaved like
+a real model everywhere downstream: its own row in per-model fitness, behaviour-profile and edit-reliability
+rollups. **A phantom model with a plausible success rate is worse than a gap, because a gap is visibly a gap.**
+**MEASURED: 70 of 238 attempts (29%) were unattributable, carrying 1074 tool calls that belong to real models.**
+**HOW IT WAS DIAGNOSED — the legacy hypothesis was tested FIRST and refuted.** The obvious read is "old lines from
+before the field existed". The timestamps say the opposite: unknown attempts span **07-09 → 07-22** while resolved
+ones stop at **07-15**. The unknowns are the NEWEST records, so this was live, not historical.
+**THE SHAPE THAT NAMED THE CAUSE:** every affected workspace has ~1 resolved attempt then all-unknown; all 70 are
+`role=worker, flow=null, endpoint=null` with **zero** session-derived data (endpoint 0/70, contextTokens 0/70)
+yet a median of **14 tool calls** — because tool calls come from the persisted TRANSCRIPT, which survives when the
+live session does not. Identical timestamps across different workspaces ⇒ a restart re-terminating tasks that had
+already finished. The per-process dedupe (`lastRecordedRunStateByTaskId`) is empty after a restart, so it cannot
+see that the ledger already holds that task's attempts.
+**FIX — AT THE DOOR, NOT AT THE WRITER.** `appendAgentLedgerEvent` now refuses an `attempt` whose model segment is
+the sentinel (`isAttributableModelKey`, in `model-identity.ts` next to the normalizer that creates it). It is the
+ONE durable door, so no present or future caller can route around it — the same reasoning that put the secrets
+behind references and the acquisition capability outside the runtime's import closure.
+**NOT DATA LOSS:** `recordTaskRunSummary` writes the terminal state to its own durable store unconditionally on
+the same path. What is refused is only the claim that *some model* made this attempt.
+**EXISTING RECORDS DELIBERATELY NOT DELETED** — they are evidence of the bug, and deleting from David's live
+ledger is destructive and his call. Instead `computeEditReliability` EXCLUDES them and reports the count:
+*"⚠️ 70 attempt(s) named no model and were EXCLUDED"*. Verified live: the phantom row is gone and the three real
+models' rates are unchanged (29.4 / 63.4 / 85.4%), so the P21.1 finding stands.
+
 **4. Questions batched for David (do not act on these unilaterally):**
 - **🆕 2026-07-31 — does a card AWAITING REVIEW hold runtime capacity?** The last blocker on migrating capacity
   consumers onto the kernel. `reservesWorkflowCapacity` agrees with the session model's `isBusySessionState` on
