@@ -98,9 +98,9 @@ export const LEDGER_FIELD_REGISTRY: readonly LedgerFieldSpec[] = [
 	},
 	{
 		field: "toolSetOffered",
-		expectation: "always",
+		expectation: "newly_added",
 		consumer: "agent-ledger-projections + the §5.AA model-behaviour profile (toolCount)",
-		note: "absent from the terminal writer's input type, so every behaviour profile is missing its tool-count dimension",
+		note: "WRITER ADDED 2026-08-01 (P21.15): the extension records the post-transform, SDK-complete offered set; the runtime translates task→session; the terminal write reads it. Zero until the first attempt written after that change",
 	},
 	{
 		field: "transcriptToolCallCount",

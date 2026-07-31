@@ -109,6 +109,28 @@ const testMisinterpretationFlaggedSessionIds = new Set<string>();
 const TEST_MISINTERPRETATION_EVENT_CAP = 60;
 // F12.19 read-before-write watch (record-only): per-session paths the agent has READ (or written — its own write
 // counts as knowing the content) + the once-per-session+path flag for ungrounded writes.
+/**
+ * P21.15: the tool names actually OFFERED to the model on the latest request, per session.
+ *
+ * ── WHY HERE AND NOT AT THE TOOL-ASSEMBLY SITE ──
+ * `nklein-session-runtime` assembles `sessionExtraTools`, but that is only the EXTENSION-registered set — the SDK
+ * adds its own, and a live run showed the model offered 27 tools where that variable held far fewer. The attempt
+ * ledger's consumer computes `toolCount` and the F12.18 research is entirely about count THRESHOLDS (~7 target,
+ * accuracy craters past 10–15, 40+ → 7 fixed 62% of tool-use failures). **An understated count is not a weaker
+ * measurement there, it is a wrong one**, and worse than the null it replaces. This hook sees what the model sees.
+ *
+ * ── AND WHY IT IS CAPTURED UNCONDITIONALLY ──
+ * The neighbouring `NKLEIN_TOOL_GATE_OBSERVE` block reads the same value, but it is default-OFF; capturing there
+ * would leave the ledger field at 0/238 exactly as it is today. Recording a name list costs nothing and changes
+ * nothing, so it is not gated.
+ */
+const offeredToolNamesBySessionId = new Map<string, readonly string[]>();
+
+/** P21.15: what the model was offered on this session's latest request; null when never observed. */
+export function getOfferedToolNamesForSession(sessionId: string): readonly string[] | null {
+	return offeredToolNamesBySessionId.get(sessionId) ?? null;
+}
+
 const readPathsBySessionId = new Map<string, Set<string>>();
 /** F12.19: per-session read/write mtime history for the stale-read half of write grounding. */
 const readBeforeWriteStateBySessionId = new Map<string, ReadBeforeWriteState>();
@@ -740,6 +762,15 @@ export function createKanbanContextFocusExtension(
 				if (normalized !== outgoing) {
 					finalResult = { ...(finalResult ?? {}), messages: normalized };
 				}
+				// P21.15: record the offered tool set HERE — after every transform above may have reordered or
+				// filtered it — so the ledger records what was actually dispatched rather than what was proposed.
+				const dispatchedTools = (finalResult?.tools ?? context.request.tools ?? []) as readonly {
+					name?: unknown;
+				}[];
+				offeredToolNamesBySessionId.set(
+					sessionId,
+					dispatchedTools.map((tool) => (typeof tool.name === "string" ? tool.name : "")).filter(Boolean),
+				);
 				// This is the closest hook-visible point to provider dispatch: exclude repo-map/tool-selection preparation
 				// from inference latency, while retaining the complete stream wait through afterModel.
 				modelRequestStartedAtMs = Date.now();

@@ -10501,8 +10501,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   numeric score is absent from the terminal writer's input entirely.
   **`endpointStrategy` 0/238** — read by `agent-ledger-projections` as a **GROUPING KEY**, so every row collapses
   into a single bucket rather than splitting by strategy.
-  **`toolSetOffered` 0/238** — read by `agent-ledger-projections` and the §5.AA model-behaviour profile for
-  `toolCount`, so **every behaviour profile is missing its tool-count dimension**.
+  **`toolSetOffered` 0/238 — ✅ FIXED 2026-08-01, live-verified.** Read by `agent-ledger-projections` and the
+  §5.AA behaviour profile for `toolCount`, so every profile was missing its tool-count dimension.
+  **THE SOURCE HAD TO BE THE EXTENSION, NOT THE TOOL-ASSEMBLY SITE — and picking the obvious one would have
+  produced a WRONG number rather than a missing one.** `nklein-session-runtime` builds `sessionExtraTools`, which
+  looks like the offered set and is only the EXTENSION-REGISTERED part; the SDK adds its own. A live run showed
+  the model offered **27** tools where that variable held far fewer. The consumer exists entirely to reason about
+  count THRESHOLDS (F12.18: ~7 target, selection accuracy craters past 10–15, 40+ → 7 fixed 62% of tool-use
+  failures), so an understated count is **worse than the null it replaces**.
+  ⇒ captured in `nklein-context-focus-extension` at the hook's unconditional return — **after** every transform
+  that may reorder or filter the list, so it records what was DISPATCHED rather than what was proposed — and
+  **not** inside the neighbouring `NKLEIN_TOOL_GATE_OBSERVE` block, which is default-OFF and would have left the
+  field at 0/238 exactly as before. The extension keys by SESSION and the terminal write knows only the TASK, so
+  the translation lives in the runtime that owns that binding (`getSessionOfferedToolNames`, mirroring
+  `getSessionTaintLabels`).
+  **LIVE-VERIFIED on a simulated drain: `toolSetOffered: 27`, matching the 27 tools the run showed being offered.**
+  **⚠️ KNOWN GAP, stated rather than glossed: REVIEW-phase attempts capture nothing** (they run as a separate
+  session that does not reach this hook). That is safe, not silently wrong — both consumers use
+  `toolSetOffered.length > 0 ? { toolCount } : {}`, so an empty array OMITS the dimension instead of reporting a
+  toolCount of zero. Worker attempts carry it; reviewer attempts read as absent.
   **⚠️ NONE OF THESE FAIL.** A projection over an all-null field returns a clean empty result: `summarizeModelSpeed`
   reports "no timing samples" and looks correct while being structurally incapable of ever reporting one. That is
   the same confident-green class as a reachability walk whose closure quietly shrank.

@@ -143,3 +143,58 @@ describe("the attempt event carries the watermark", () => {
 		expect(buildTerminalAttemptEvent(base).transcriptToolCallCount).toBeNull();
 	});
 });
+
+/**
+ * P21.15 — `toolSetOffered` now has a writer.
+ *
+ * The field is read by `agent-ledger-projections` and the §5.AA behaviour profile for `toolCount`, and was
+ * 0/238 because the terminal writer's input type had no such field.
+ *
+ * **The source had to be the EXTENSION, not the tool-assembly site.** `nklein-session-runtime` builds
+ * `sessionExtraTools`, but that is only the extension-registered set — a live run showed the model offered 27
+ * tools where that variable held far fewer. The consumer's whole point is count THRESHOLDS (F12.18: ~7 target,
+ * accuracy craters past 10–15), so an understated count is not a weaker measurement — it is a wrong one, and
+ * worse than the null it replaces.
+ */
+describe("toolSetOffered on the attempt event", () => {
+	const base = {
+		taskId: "t-1",
+		workspacePath: "/repo",
+		state: "awaiting_review" as const,
+		role: "worker",
+		providerId: "lmstudio",
+		modelId: "qwen/qwen3-8b",
+		endpoint: "http://127.0.0.1:1234/v1",
+		startedAt: 1_000,
+		endedAt: 5_000,
+		promptTokens: 10,
+		completionTokens: 10,
+		timeoutReason: null,
+	};
+
+	it("carries the offered tool names when supplied", () => {
+		const event = buildTerminalAttemptEvent({ ...base, toolSetOffered: ["read_files", "write_files", "editor"] });
+		expect(event.toolSetOffered).toEqual(["read_files", "write_files", "editor"]);
+	});
+
+	it("gives the behaviour profile a real toolCount", () => {
+		expect(buildTerminalAttemptEvent({ ...base, toolSetOffered: Array(27).fill("t") }).toolSetOffered).toHaveLength(
+			27,
+		);
+	});
+
+	it("defaults to [] when never observed — and NULL input must not become a false zero-count", () => {
+		// The schema stores an array, so absence lands as []. The distinction that matters is upstream: the
+		// runtime accessor returns NULL when no request was seen, and null must never be written as a claim that
+		// the model was offered nothing.
+		expect(buildTerminalAttemptEvent(base).toolSetOffered).toEqual([]);
+		expect(buildTerminalAttemptEvent({ ...base, toolSetOffered: null }).toolSetOffered).toEqual([]);
+	});
+
+	it("COPIES the array, so a later mutation cannot reach the persisted event", () => {
+		const offered = ["read_files"];
+		const event = buildTerminalAttemptEvent({ ...base, toolSetOffered: offered });
+		offered.push("mutated");
+		expect(event.toolSetOffered).toEqual(["read_files"]);
+	});
+});

@@ -3995,6 +3995,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						promptStrategy: attemptStrategy,
 						difficulty,
 						taintLabels: this.sessionRuntime.getSessionTaintLabels(taskId),
+						// P21.15: what the model was OFFERED. Read from the runtime's session binding, since only the
+						// extension sees the post-transform, SDK-complete list.
+						toolSetOffered: this.sessionRuntime.getSessionOfferedToolNames(taskId),
 					}),
 					{ rootDir: this.diagnosticStoreRoot },
 				);

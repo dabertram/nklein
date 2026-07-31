@@ -12,6 +12,7 @@ import {
 	clearAllSessionFocusState,
 	createKanbanContextFocusExtension,
 	forgetSessionFocusState,
+	getOfferedToolNamesForSession,
 	recordSessionFocusChain,
 } from "./nklein-context-focus-extension";
 import { KANBAN_SESSION_METADATA_KEY, toPersistedLaunchConfig } from "./nklein-session-launch-config";
@@ -1252,6 +1253,18 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 	/** F1.21: the taint labels the task's session accumulated (broker state), or null when unknown. */
 	getSessionTaintLabels(taskId: string): readonly string[] | null {
 		return this.swarmBrokerStateByTaskId.get(taskId)?.taintLabels ?? null;
+	}
+
+	/**
+	 * P21.15: the tool set the model was actually OFFERED, for the attempt ledger's `toolSetOffered`.
+	 *
+	 * The extension observes it (it is the only layer that sees the post-transform, SDK-complete list) and keys by
+	 * SESSION; the terminal write knows only the TASK. This runtime owns that binding, so the translation lives
+	 * here rather than being re-derived by a caller that would have to guess it.
+	 */
+	getSessionOfferedToolNames(taskId: string): readonly string[] | null {
+		const sessionId = this.sessionIdByTaskId.get(taskId);
+		return sessionId ? getOfferedToolNamesForSession(sessionId) : null;
 	}
 
 	/** F2.2b: the active hard broker refusal that can explain a worker's subsequent turn loop. */

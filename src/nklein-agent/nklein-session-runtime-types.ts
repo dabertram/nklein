@@ -240,6 +240,13 @@ export interface NKleinSessionRuntime {
 	canRestartTaskSession(taskId: string): boolean;
 	/** F1.21: the taint labels the task's session accumulated (broker state), or null when unknown. */
 	getSessionTaintLabels(taskId: string): readonly string[] | null;
+	/**
+	 * P21.15: the tool set the model was OFFERED, for the attempt ledger's `toolSetOffered`.
+	 *
+	 * Null when no request has been observed for the task yet — distinct from `[]`, which would claim the model
+	 * was offered nothing and give the behaviour profile a toolCount of zero it never measured.
+	 */
+	getSessionOfferedToolNames(taskId: string): readonly string[] | null;
 	/** F2.2b: latest hard broker refusal for turn-loop attribution, or null when none remains active. */
 	getSessionCapabilityBrokerHardDenial(
 		taskId: string,

@@ -82,6 +82,8 @@ export interface TerminalAttemptInput {
 	retriesBefore?: number;
 	/** F1.21: taint labels the session accumulated (the delivery gate reads them from the ledger). */
 	taintLabels?: readonly string[] | null;
+	/** P21.15: tool names the model was OFFERED — the behaviour profile's toolCount dimension. */
+	toolSetOffered?: readonly string[] | null;
 	/** The recovery rung that produced this attempt (redrive_empty_patch, steer_no_progress, …); null = baseline. */
 	promptStrategy?: string | null;
 	/** F1.15a: the task's difficulty tier — the SAME derivation the §5.AB fitness fold uses (deriveTaskDifficultyTier). */
@@ -168,6 +170,7 @@ export function buildTerminalAttemptEvent(input: TerminalAttemptInput): AgentAtt
 		salvage: input.timeoutReason,
 		toolCalls: input.toolCalls,
 		transcriptToolCallCount: input.transcriptToolCallCount ?? null,
+		...(input.toolSetOffered ? { toolSetOffered: [...input.toolSetOffered] } : {}),
 		knowledge: input.knowledge ?? null,
 		focusStep: input.focusStep ?? null,
 		artifacts: input.resultBranch ? { resultBranch: input.resultBranch, patchRef: null, evidenceBundle: null } : null,
