@@ -7464,6 +7464,30 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **3 UNCLASSIFIED ARE LEFT UNCLASSIFIED ON PURPOSE** (`NKLEIN_ADAPTIVE_RETRY`, `NKLEIN_RESIDENCY_HEARTBEAT`,
   `NKLEIN_N_EYES_REVIEW`) — each names what was ambiguous, a test enforces that they do, and `safeObserveOnlyFlags`
   excludes them by construction rather than by a reviewer remembering.
+  **▶ COMPLETED 2026-08-01 — REGISTRY NOW COVERS EVERY BOOLEAN FLAG: 60 declared, 5 observe-only, 51 ENFORCING,
+  4 dev-only, 0 unclassified. Lane (b) may enable FIVE OF SIXTY.**
+  All three previously-unclassified flags were traced and all three are ENFORCING: `NKLEIN_ADAPTIVE_RETRY` gates a
+  **re-send with a larger budget**; `NKLEIN_RESIDENCY_HEARTBEAT` probes AND acts (`onModelLost` fails the send —
+  observing was only half of it); `NKLEIN_N_EYES_REVIEW` runs `runNEyesReviewPanel` **instead of** the plain panel,
+  a different procedure producing a different verdict. Tracing moved the safe set by zero.
+  **🔴 AND THE RATCHET ITSELF WAS BLIND — the registry inherited the error.** Its extractor matched only the
+  `isTruthyEnv` idiom, so it passed green while **NINE behaviour-changing boolean flags were invisible**, among
+  them `NKLEIN_ALLOW_UNSUITABLE_MODEL` (`=== "1"`, **disables the model-suitability guard**) and
+  `NKLEIN_FITNESS_ROUTING` (`/^(0|false|off)$/i`, a **default-ON kill switch for routing**). The registry claimed
+  to cover "every default-OFF flag" and covered every flag read ONE WAY.
+  **That is verbatim the limitation `env-gated-delivery.ts` states about its own checker** — *"a flag read another
+  way is invisible to it"* — reproduced by a check written to prevent exactly that class of gap. **A completeness
+  ratchet whose extractor is narrower than the thing it audits does not report a smaller number; it reports a
+  clean one.** Now matches four idioms, with a test asserting each is seen so the narrowing cannot silently
+  return.
+  **LANE (c) IS NOW EXPLICIT TOO: 10 DEFAULT-ON KILL SWITCHES** (`defaultOnKillSwitches()`), including
+  `NKLEIN_DURABLE_SCHEDULER`, `NKLEIN_MODEL_FAILOVER`, `NKLEIN_FITNESS_ROUTING` and `NKLEIN_REPO_VERIFY`. Kept on
+  the SAME registry as lane (b)'s set, with a test that no flag is in both — splitting them is how a flag ends up
+  in neither.
+  **⚠️ SCOPE, STATED: this covers BOOLEAN-shaped flags.** `src/` holds **108** `NKLEIN_*` env vars; the rest are
+  paths, URLs, model ids and numeric knobs (e.g. `NKLEIN_N_EYES_MAX`, `NKLEIN_CONTEXT_COMPACT_RATIO`). Those are
+  configuration rather than feature flags and no lane flips them — but they DO change behaviour, and nothing
+  audits them.
 - [x] **F4.8b — 38 of 40 opt-in mechanisms are UNREGISTERED, so nothing can say whether they run *(found 2026-07-20)*.**
   **`dev env-gated` SHIPPED.** F4.8 exposed the shape: the goal re-anchor had a complete import chain to the
   session runtime, every audit reported the requirement satisfied, and its injection site sat behind

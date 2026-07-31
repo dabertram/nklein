@@ -6,12 +6,19 @@
  * small, and everything else changes what the product does for a card.
  */
 
-import { auditFlagCoverage, FEATURE_FLAG_REGISTRY, safeObserveOnlyFlags } from "../core/feature-flag-registry";
+import {
+	auditFlagCoverage,
+	defaultOnKillSwitches,
+	FEATURE_FLAG_REGISTRY,
+	safeObserveOnlyFlags,
+} from "../core/feature-flag-registry";
 
 export function runDevFlagsCommand(options: { json?: boolean } = {}): void {
 	const report = auditFlagCoverage(FEATURE_FLAG_REGISTRY.map((spec) => spec.flag));
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify({ ...report, safe: safeObserveOnlyFlags() }, null, 2)}\n`);
+		process.stdout.write(
+			`${JSON.stringify({ ...report, safe: safeObserveOnlyFlags(), killSwitches: defaultOnKillSwitches() }, null, 2)}\n`,
+		);
 		return;
 	}
 	process.stdout.write(`${report.summary}\n\n`);
@@ -19,6 +26,14 @@ export function runDevFlagsCommand(options: { json?: boolean } = {}): void {
 	for (const flag of safeObserveOnlyFlags()) {
 		const spec = FEATURE_FLAG_REGISTRY.find((entry) => entry.flag === flag);
 		process.stdout.write(`  ${flag}${spec?.note ? `\n     ⚠️ ${spec.note}` : ""}\n`);
+	}
+	const killSwitches = defaultOnKillSwitches();
+	if (killSwitches.length > 0) {
+		// Lane (c) is "kill-switches OFF". Printed beside lane (b) so a flag cannot fall between the two lanes.
+		process.stdout.write(`\nDEFAULT-ON — N11 LANE (c) turns these OFF (${killSwitches.length}):\n`);
+		for (const flag of killSwitches) {
+			process.stdout.write(`  ${flag}\n`);
+		}
 	}
 	const unclassified = FEATURE_FLAG_REGISTRY.filter((spec) => spec.mode === "unclassified");
 	if (unclassified.length > 0) {

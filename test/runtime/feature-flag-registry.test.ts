@@ -1,6 +1,11 @@
 import { globSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { auditFlagCoverage, FEATURE_FLAG_REGISTRY, safeObserveOnlyFlags } from "../../src/core/feature-flag-registry";
+import {
+	auditFlagCoverage,
+	defaultOnKillSwitches,
+	FEATURE_FLAG_REGISTRY,
+	safeObserveOnlyFlags,
+} from "../../src/core/feature-flag-registry";
 
 /**
  * The default-OFF flag registry, and the ratchet that keeps it complete.
@@ -14,21 +19,37 @@ import { auditFlagCoverage, FEATURE_FLAG_REGISTRY, safeObserveOnlyFlags } from "
  */
 
 /**
- * Every `isTruthyEnv(process.env.…)` flag actually present in the source.
+ * Every BOOLEAN-SHAPED `NKLEIN_*` env flag present in the source.
  *
- * `\s*` spans newlines deliberately — one flag is read across a line break, and the single-line sweep that
- * built the registry by hand missed it. The ratchet caught it on its first run.
+ * ── 🔴 THIS EXTRACTOR WAS WRONG ONCE, AND THE REGISTRY INHERITED THE ERROR ──
+ * The first version matched only the `isTruthyEnv` idiom, so the ratchet passed green while **nine
+ * behaviour-changing boolean flags were invisible to it** — including `NKLEIN_ALLOW_UNSUITABLE_MODEL`, which
+ * disables a model-suitability guard, and `NKLEIN_FITNESS_ROUTING`, a default-ON kill switch for routing. The
+ * registry claimed to cover "every default-OFF flag" and covered every flag read ONE WAY.
  *
- * Restricted to the `NKLEIN_` prefix, and that restriction is load-bearing rather than cosmetic: without it this
- * matches the literal text `isTruthyEnv(process.env.X)` inside a MESSAGE STRING in `env-gated-delivery.ts` that
- * describes this very idiom. Matching prose that talks about code is the third instance of that failure found
- * today, and the project's own convention (asserted separately) is that every flag is `NKLEIN_*`.
+ * That is precisely the limitation `env-gated-delivery.ts` states about its own checker — *"a flag read another
+ * way is invisible to it"* — reproduced by a check written to prevent exactly that class of gap. A completeness
+ * ratchet whose extractor is narrower than the thing it audits does not report a smaller number; it reports a
+ * clean one.
+ *
+ * Four idioms are matched: the two helpers, `=== "1"`-style comparisons, and `/^(0|false|off)$/i`-style tests.
+ *
+ * The `NKLEIN_` prefix is required, and that is also load-bearing: without it the scan matches the literal text
+ * `isTruthyEnv(process.env.X)` inside a MESSAGE STRING in `env-gated-delivery.ts` describing this very idiom.
  */
 function flagsInSource(): string[] {
 	const found = new Set<string>();
+	const patterns = [
+		/(?:isTruthyEnv|isEnabledByDefaultEnv)\(\s*process\.env\.(NKLEIN_[A-Z0-9_]*)/gu,
+		/process\.env\.(NKLEIN_[A-Z0-9_]*)\s*(?:===|!==)\s*"(?:1|0|true|false|on|off|smallest)"/gu,
+		/\/\^?\([^)]*(?:0|false|off|1|true|on)[^)]*\)[^/]*\/i?\u002etest\(\s*process\.env\.(NKLEIN_[A-Z0-9_]*)/gu,
+	];
 	for (const file of globSync("src/**/*.{ts,tsx}")) {
-		for (const match of readFileSync(file, "utf8").matchAll(/isTruthyEnv\(\s*process\.env\.(NKLEIN_[A-Z0-9_]*)/gu)) {
-			found.add(match[1] as string);
+		const text = readFileSync(file, "utf8");
+		for (const pattern of patterns) {
+			for (const match of text.matchAll(pattern)) {
+				found.add(match[1] as string);
+			}
 		}
 	}
 	return [...found].sort();
@@ -39,6 +60,16 @@ describe("flag registry coverage — the F4.8b ratchet", () => {
 		// A broken extractor yields an empty list, and every assertion below passes by vacuity — the same
 		// confident-green failure this registry exists to prevent.
 		expect(flagsInSource().length).toBeGreaterThan(30);
+	});
+
+	it("SEES the non-helper idioms — the gap that made the first ratchet green while blind", () => {
+		// Guarding the guard. If the extractor narrows back to `isTruthyEnv` only, the coverage test above keeps
+		// passing while nine behaviour-changing flags go unaudited again. Each of these is read a different way.
+		const found = new Set(flagsInSource());
+		expect(found.has("NKLEIN_ALLOW_UNSUITABLE_MODEL"), 'read as === "1"').toBe(true);
+		expect(found.has("NKLEIN_FITNESS_ROUTING"), "read via a /^(0|false|off)$/i test").toBe(true);
+		expect(found.has("NKLEIN_MODEL_SENSITIVE_PRUNE"), 'read as !== "off"').toBe(true);
+		expect(found.has("NKLEIN_DURABLE_SCHEDULER"), "read via isEnabledByDefaultEnv").toBe(true);
 	});
 
 	it("DECLARES every default-OFF flag present in the source", () => {
@@ -74,6 +105,17 @@ describe("the registry's own invariants", () => {
 		// Otherwise `unclassified` degrades into "nobody got round to it" and stops being informative.
 		for (const spec of FEATURE_FLAG_REGISTRY.filter((entry) => entry.mode === "unclassified")) {
 			expect(spec.note, `${spec.flag} is unclassified without saying why`).toBeTruthy();
+		}
+	});
+});
+
+describe("defaultOnKillSwitches", () => {
+	it("exposes the lane (c) set, and none of them is in the lane (b) safe set", () => {
+		// A flag must not fall between the two lanes, and must never be in both.
+		const kill = new Set(defaultOnKillSwitches());
+		expect(kill.size).toBeGreaterThan(0);
+		for (const flag of safeObserveOnlyFlags()) {
+			expect(kill.has(flag), `${flag} is both a safe opt-in and a kill switch`).toBe(false);
 		}
 	});
 });

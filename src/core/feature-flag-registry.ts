@@ -49,6 +49,14 @@ export interface FeatureFlagSpec {
 	readonly mode: FeatureFlagMode;
 	/** Where the gate was read, so the classification is checkable rather than trusted. */
 	readonly gate: string;
+	/**
+	 * True when the flag is ON unless explicitly disabled — a KILL SWITCH, which is N11's lane (c).
+	 *
+	 * Kept on the same registry rather than a separate one: lane (b) turns things on and lane (c) turns things
+	 * off, and a reader deciding either needs to see both in one place. Splitting them is how a flag ends up in
+	 * neither.
+	 */
+	readonly defaultOn?: true;
 	readonly note?: string;
 }
 
@@ -122,26 +130,96 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		note: "FOUND BY THE COVERAGE RATCHET, not by the hand sweep that built this registry: it is read across a line break, so a single-line grep missed it. That is the F4.8b failure verbatim, caught mechanically",
 	},
 
-	// ── unclassified: read but genuinely ambiguous. NEVER treated as safe. ──
+	// ── traced 2026-08-01: all three previously-unclassified flags turned out to be ENFORCING ──
 	{
 		flag: "NKLEIN_ADAPTIVE_RETRY",
-		mode: "unclassified",
-		gate: "nklein-adaptive-budget-controller.ts (passed as adaptiveRetryEnabled)",
-		note: "fed into a controller decision; whether the decision only RECORDS or also retries was not traced",
+		mode: "enforcing",
+		gate: "nklein-adaptive-budget-controller.ts",
+		note: "gates shouldAttemptAdaptiveBudgetRetry; when it passes the controller RE-SENDS the task with a larger budget",
 	},
 	{
 		flag: "NKLEIN_RESIDENCY_HEARTBEAT",
-		mode: "unclassified",
+		mode: "enforcing",
 		gate: "nklein-model-residency-watcher.ts",
-		note: "a heartbeat may merely OBSERVE residency loss or actively KEEP a model resident; not traced",
+		note: "it probes AND acts: onModelLost fails the send with 'Model is no longer resident'. Observing is only half of it",
 	},
 	{
 		flag: "NKLEIN_N_EYES_REVIEW",
-		mode: "unclassified",
-		gate: "second-opinion-review-runner.ts",
-		note: "only a log line was read at the grep site; its effect on panel assembly was not traced",
+		mode: "enforcing",
+		gate: "second-opinion-review-runner.ts:949",
+		note: "runs runNEyesReviewPanel INSTEAD of the plain panel — a different review procedure producing a different verdict",
 	},
+
+	// ── boolean flags read WITHOUT a standard helper (found 2026-08-01 — see the ratchet note) ──
+	{
+		flag: "NKLEIN_ALLOW_UNSUITABLE_MODEL",
+		mode: "enforcing",
+		gate: 'chat-service.ts / start-task-session.ts (=== "1")',
+		note: "DISABLES the model-suitability guard — an override, not an observation",
+	},
+	{
+		flag: "NKLEIN_CHAT_MEMORY_WRITE",
+		mode: "enforcing",
+		gate: 'chat-service.ts (!== "1" early return)',
+		note: "gates memory EXTRACTION and writes",
+	},
+	{ flag: "NKLEIN_CRASH_RECOVERY_MATRIX", mode: "dev_only", gate: 'crash-recovery-matrix.ts (=== "1" + PHASE)' },
+	{
+		flag: "NKLEIN_FITNESS_ROUTING",
+		mode: "enforcing",
+		defaultOn: true,
+		gate: "start-task-session.ts (/^(0|false|off)$/i)",
+		note: "a KILL SWITCH for fitness-based routing — disabling it empties the fitness table rows",
+	},
+	{
+		flag: "NKLEIN_FLEET_DECOMPOSE_MODE",
+		mode: "enforcing",
+		gate: 'start-task-session.ts (=== "smallest" | "capability_weighted" | "fixed_target" | "off")',
+		note: "an ENUM knob, not a boolean; listed because one of its values is a disable and it changes decompose",
+	},
+	{
+		flag: "NKLEIN_FRAMEWORK_PREAMBLE",
+		mode: "enforcing",
+		defaultOn: true,
+		gate: "nklein-framework-preamble-reader.ts (/^(0|false|off)$/i)",
+		note: "kill switch — disabling it returns an empty preamble, changing prompt content",
+	},
+	{
+		flag: "NKLEIN_MODEL_SENSITIVE_PRUNE",
+		mode: "enforcing",
+		defaultOn: true,
+		gate: 'nklein-session-skill-fragments.ts (!== "off")',
+		note: "kill switch — prunes skill fragments per model/role",
+	},
+	{
+		flag: "NKLEIN_SANDBOX_SKIP_STARTUP_REAP",
+		mode: "enforcing",
+		gate: 'runtime-server.ts (=== "1")',
+		note: "skips orphan-sandbox reaping at startup (also implied by VITEST=true)",
+	},
+	{
+		flag: "NKLEIN_STRUCTURED_INGESTION",
+		mode: "enforcing",
+		gate: "nklein-web-research-tool.ts (/^(1|true|on)$/i)",
+		note: "changes how fetched web content is parsed and delivered to the model",
+	},
+
+	// ── DEFAULT-ON kill switches read via isEnabledByDefaultEnv — N11 lane (c) turns these OFF ──
+	{ flag: "NKLEIN_DURABLE_SCHEDULER", mode: "enforcing", defaultOn: true, gate: "runtime-server.ts" },
+	{ flag: "NKLEIN_MODEL_FAILOVER", mode: "enforcing", defaultOn: true, gate: "nklein-task-session-service.ts" },
+	{ flag: "NKLEIN_REPO_VERIFY", mode: "enforcing", defaultOn: true, gate: "acceptance/verify path" },
+	{ flag: "NKLEIN_STABLE_ROUTING_KEY", mode: "enforcing", defaultOn: true, gate: "nklein-task-session-service.ts" },
+	{ flag: "NKLEIN_ARCHITECT_PROMPT_DIET", mode: "enforcing", defaultOn: true, gate: "prompt builders" },
+	{ flag: "NKLEIN_JUDGE_PROMPT_DIET", mode: "enforcing", defaultOn: true, gate: "review prompt builders" },
+	{ flag: "NKLEIN_SWARM_PROMPT_VARIATION", mode: "enforcing", defaultOn: true, gate: "swarm prompt builder" },
 ];
+
+/** N11 lane (c) turns these OFF. Exposed alongside the safe set so a flag cannot fall between the two lanes. */
+export function defaultOnKillSwitches(): readonly string[] {
+	return FEATURE_FLAG_REGISTRY.filter((spec) => spec.defaultOn === true)
+		.map((spec) => spec.flag)
+		.sort();
+}
 
 /** The flags lane (b) may enable. `unclassified` is excluded BY CONSTRUCTION, not by omission. */
 export function safeObserveOnlyFlags(): readonly string[] {
