@@ -44,6 +44,7 @@ import { runDevEditReliabilityCommand } from "./dev-edit-reliability-command";
 import { runDevEnvGatedCommand } from "./dev-env-gated-command";
 import { runDevEvidenceCommand } from "./dev-evidence-command";
 import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
+import { runDevFlagsCommand } from "./dev-flags-command";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
 import { runDevGatesCommand } from "./dev-gates-command";
 import { runDevInterventionsCommand } from "./dev-interventions-command";
@@ -940,6 +941,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { minCalls?: string; tools?: string; json?: boolean }) => {
 			await runDevEditReliabilityCommand(options);
+		});
+
+	dev.command("flags")
+		.description("What each default-OFF flag DOES, and which ones N11 lane (b) may safely enable.")
+		.option("--json", "Print machine-readable JSON.")
+		.action((options: { json?: boolean }) => {
+			runDevFlagsCommand(options);
 		});
 
 	dev.command("ledger-fields")

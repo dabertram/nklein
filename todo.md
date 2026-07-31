@@ -7442,6 +7442,28 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   count as safe** — lane (b) may enable only verified `observe_only` flags, so the list can be grown one honest
   reading at a time instead of guessed in bulk. A bulk guess here silently flips behaviour in the autonomous
   runtime, which is the one failure this whole phase exists to avoid.
+  **▶ BUILT 2026-07-31 — `feature-flag-registry.ts` + `dev flags`, 12 tests. EVERY GATE SITE WAS READ.**
+  **🔴 THE NUMBER REFRAMES LANE (b): 44 flags — 5 observe-only, 33 ENFORCING, 3 dev-only, 3 unclassified.
+  Lane (b) may safely enable FIVE of forty-four.** The item's phrase *"all safe opt-ins ON (the dark flags shipped
+  observe-first)"* does not describe this population: three quarters of them change prompt content, tool set,
+  routing, gating or review outcome. ⇒ **lane (b) is a deliberate behaviour-changing configuration whose
+  INTERACTIONS need testing, not a harmless flip** — still worth running, and still the right vehicle, but it
+  must be planned as an experiment.
+  The criterion is stated so it can be argued with: *does turning this ON change what the product does for a
+  user's CARD?* Only recording that no decision reads is `observe_only`; eval/dev-only surfaces are their own
+  mode, since they can neither help nor hurt a card.
+  **◆ THE COVERAGE RATCHET PAID FOR ITSELF ON ITS FIRST RUN — and it caught F4.8b's exact failure.** A test scans
+  `src/` for the idiom and fails if any flag is undeclared. It immediately found **`NKLEIN_FLEET_AWARE_DECOMPOSE`,
+  which the hand sweep that built the registry had missed** because it is read across a line break. That is
+  precisely *"hand-maintained, so it can only report on what someone remembered to add"*, caught mechanically
+  within minutes of the registry existing.
+  It also matched the literal text `isTruthyEnv(process.env.X)` inside a MESSAGE STRING describing this very
+  idiom — **the third time today a scan has matched prose that talks about code** (after the import-closure
+  `"where from". */` case and the mechanism-gate circular grep). Fixed by requiring the `NKLEIN_` prefix, with the
+  reason recorded at the extractor.
+  **3 UNCLASSIFIED ARE LEFT UNCLASSIFIED ON PURPOSE** (`NKLEIN_ADAPTIVE_RETRY`, `NKLEIN_RESIDENCY_HEARTBEAT`,
+  `NKLEIN_N_EYES_REVIEW`) — each names what was ambiguous, a test enforces that they do, and `safeObserveOnlyFlags`
+  excludes them by construction rather than by a reviewer remembering.
 - [x] **F4.8b — 38 of 40 opt-in mechanisms are UNREGISTERED, so nothing can say whether they run *(found 2026-07-20)*.**
   **`dev env-gated` SHIPPED.** F4.8 exposed the shape: the goal re-anchor had a complete import chain to the
   session runtime, every audit reported the requirement satisfied, and its injection site sat behind
