@@ -17,6 +17,7 @@ function perfectChat(): ModelEvalChat {
 	const decomposeById = new Map<string, { nodes: string[]; edges: { from: string; to: string }[] }>();
 	const toolUseById = new Map<string, { name: string; args: Record<string, unknown> } | null>();
 	const contextProbeById = new Map<string, string>();
+	const implementById = new Map<string, string>();
 	for (const row of EVAL_PROMPT_CORPUS) {
 		if (row.family === "review") {
 			reviewById.set(row.prompt.slice(0, 40), row);
@@ -26,6 +27,11 @@ function perfectChat(): ModelEvalChat {
 			toolUseById.set(row.prompt.slice(0, 40), row.expected);
 		} else if (row.family === "context_probe") {
 			contextProbeById.set(row.prompt.slice(0, 40), row.expectedFragments[0] ?? "");
+		} else if (row.family === "implement") {
+			// P22.2: the family now RUNS, so the perfect chat must answer it too. Any non-empty reply works here —
+			// the injected `perfectImplement` port decides the score — but returning nothing would make the cell
+			// unscored, which is a different outcome and would silently weaken this test.
+			implementById.set(row.prompt.slice(0, 40), "function __answer(){ return true; }");
 		}
 	}
 	return async (messages) => {
@@ -33,6 +39,11 @@ function perfectChat(): ModelEvalChat {
 			.filter((message) => message.role === "user")
 			.map((message) => message.content)
 			.join("\n");
+		for (const [needle, code] of implementById) {
+			if (userText.includes(needle)) {
+				return { message: { content: code } } as never;
+			}
+		}
 		for (const [needle, reference] of decomposeById) {
 			if (userText.includes(needle)) {
 				const depsByNode = new Map<string, string[]>();
@@ -72,15 +83,29 @@ function perfectChat(): ModelEvalChat {
 }
 
 describe("runModelEval", () => {
-	it("scores every non-implement cell 1.0 against the answer keys and folds per-role fitness", async () => {
+	/**
+	 * P22.2 — a fake implement port so these tests never spawn a process.
+	 *
+	 * The real port forks a `node --permission` child, which would make this suite slow and dependent on a permission
+	 * model whose flags differ by platform — neither of which is what these tests check. The sandbox itself is covered
+	 * by `implement-eval-harness.test.ts` and was verified end-to-end against real candidates.
+	 */
+	const perfectImplement = async (input: { tests: readonly unknown[] }) => ({
+		passed: input.tests.length,
+		total: input.tests.length,
+		failures: [],
+	});
+
+	it("scores every cell 1.0 against the answer keys and folds per-role fitness", async () => {
 		let clock = 0;
 		const result = await runModelEval(
 			{ modelId: "coder-test", repeats: 1, passBar: 0.6 },
-			{ chat: perfectChat(), now: () => (clock += 5) },
+			{ chat: perfectChat(), now: () => (clock += 5), runImplement: perfectImplement as never },
 		);
 		expect(result.scoredAttempts).toBeGreaterThan(0);
 		expect(result.meanScore).toBe(1);
-		// implement cells are skipped ⇒ architect (decompose) + reviewer (review) + worker (tool_use) roles fold.
+		// P22.2: implement cells now RUN (through the injected fake here), so the worker role folds their outcomes
+		// alongside tool_use and the context probes.
 		expect(Object.keys(result.fitnessByRole).sort()).toEqual(["architect", "reviewer", "worker"]);
 		expect(result.fitnessByRole.architect?.reliability).toBe(1);
 		expect(result.cells.every((cell) => cell.score === 1)).toBe(true);
@@ -88,7 +113,10 @@ describe("runModelEval", () => {
 
 	it("produces settled_pass stability once repeats reach the target and thin below the minimum", async () => {
 		const chat = perfectChat();
-		const settled = await runModelEval({ modelId: "coder-test", repeats: 6 }, { chat, now: () => 1 });
+		const settled = await runModelEval(
+			{ modelId: "coder-test", repeats: 6 },
+			{ chat, now: () => 1, runImplement: perfectImplement as never },
+		);
 		expect(settled.stability.length).toBeGreaterThan(0);
 		expect(settled.stability.every((cell) => cell.verdict === "settled_pass")).toBe(true);
 

@@ -552,10 +552,30 @@ const IMPLEMENT_PROMPTS: readonly ImplementEvalPrompt[] = [
 			"Track a single timer; each call clears + reschedules it; the fire uses the most recent args. `.cancel()` clears " +
 			"the timer without firing. Rapid calls collapse to one trailing invocation.",
 		tests: [
-			{ name: "trailing-only", assertion: "3 rapid calls within ms → fn called once after ms" },
-			{ name: "latest-args", assertion: "the single invocation receives the arguments of the LAST call" },
-			{ name: "reschedule", assertion: "a call within the window pushes the fire time out by ms" },
-			{ name: "cancel", assertion: "calling .cancel() before the timer fires suppresses the invocation" },
+			// P22.2 (2026-07-31): these were PROSE until the family became executable — descriptions of the intended
+			// behaviour rather than runnable checks. Left as prose they would have thrown on every candidate and
+			// scored 0, which reads as "the model cannot implement debounce" when nothing was ever measured. They
+			// are now real assertions, async because a debounce only proves itself once its timer fires.
+			{
+				name: "trailing-only",
+				assertion:
+					"(async()=>{let n=0;const d=debounce(()=>{n++;},20);d();d();d();const early=n===0;await new Promise(r=>setTimeout(r,60));return early&&n===1;})()",
+			},
+			{
+				name: "latest-args",
+				assertion:
+					"(async()=>{let seen=null;const d=debounce(v=>{seen=v;},20);d('first');d('last');await new Promise(r=>setTimeout(r,60));return seen==='last';})()",
+			},
+			{
+				name: "reschedule",
+				assertion:
+					"(async()=>{let n=0;const d=debounce(()=>{n++;},40);d();await new Promise(r=>setTimeout(r,25));d();await new Promise(r=>setTimeout(r,25));const notYet=n===0;await new Promise(r=>setTimeout(r,40));return notYet&&n===1;})()",
+			},
+			{
+				name: "cancel",
+				assertion:
+					"(async()=>{let n=0;const d=debounce(()=>{n++;},20);d();d.cancel();await new Promise(r=>setTimeout(r,60));return n===0;})()",
+			},
 		],
 	},
 	{
@@ -570,11 +590,34 @@ const IMPLEMENT_PROMPTS: readonly ImplementEvalPrompt[] = [
 			"A Map preserves insertion order; on get/put delete-then-set to move the key to the most-recent end; evict the " +
 			"first Map key when size exceeds capacity. Handle capacity 0 (nothing is ever retained) without throwing.",
 		tests: [
-			{ name: "hit-miss", assertion: "put(a,1); get(a)===1; get(b)===undefined" },
-			{ name: "evict-lru", assertion: "capacity 2; put a,b,c → a evicted, b and c present" },
-			{ name: "get-is-a-use", assertion: "capacity 2; put a,b; get(a); put(c) → b evicted (a was just used)" },
-			{ name: "update-existing", assertion: "put(a,1); put(a,2); get(a)===2; size unchanged" },
-			{ name: "capacity-zero", assertion: "capacity 0; put(a,1); get(a)===undefined; no throw" },
+			// P22.2 (2026-07-31): converted from prose to runnable checks for the same reason as `implement-debounce`.
+			// ⚠️ The class name here MUST match the prompt (`LruCache`). My first draft asserted `LRUCache` and the
+			// self-test still passed — because I had written the reference implementation to match my ASSERTIONS
+			// rather than the PROMPT. An answer key validated against itself proves nothing; it must be validated
+			// against the contract the model is actually given.
+			{
+				name: "hit-miss",
+				assertion: "(()=>{const c=new LruCache(2);c.put('a',1);return c.get('a')===1&&c.get('b')===undefined;})()",
+			},
+			{
+				name: "evict-lru",
+				assertion:
+					"(()=>{const c=new LruCache(2);c.put('a',1);c.put('b',2);c.put('c',3);return c.get('a')===undefined&&c.get('b')===2&&c.get('c')===3;})()",
+			},
+			{
+				name: "get-is-a-use",
+				assertion:
+					"(()=>{const c=new LruCache(2);c.put('a',1);c.put('b',2);c.get('a');c.put('c',3);return c.get('b')===undefined&&c.get('a')===1;})()",
+			},
+			{
+				name: "update-existing",
+				assertion:
+					"(()=>{const c=new LruCache(2);c.put('a',1);c.put('a',2);c.put('b',3);return c.get('a')===2&&c.get('b')===3;})()",
+			},
+			{
+				name: "capacity-zero",
+				assertion: "(()=>{const c=new LruCache(0);c.put('a',1);return c.get('a')===undefined;})()",
+			},
 		],
 	},
 ];

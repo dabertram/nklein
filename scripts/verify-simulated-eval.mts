@@ -46,13 +46,44 @@ function reviewAnswerText(row: ReviewEvalPrompt): string {
 	return `Review findings:\n${findings.join("\n")}`;
 }
 
+/**
+ * P22.2 — reference implementations served to the simulated eval for the `implement` family.
+ *
+ * These ARE the answer key: they are the same code used to self-test the corpus assertions, and each scores full
+ * marks. Serving anything less would make this script's "every family passes through the real path" claim depend
+ * on a candidate that does not actually work.
+ */
+const IMPLEMENT_FIXTURE_CODE: Record<string, string> = {
+	"implement-slugify":
+		"function slugify(t){return String(t).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');}",
+	"implement-debounce":
+		"function debounce(fn, ms){let t=null;let lastArgs=null;const wrapped=(...args)=>{lastArgs=args;if(t)clearTimeout(t);t=setTimeout(()=>{t=null;fn(...lastArgs);},ms);};wrapped.cancel=()=>{if(t){clearTimeout(t);t=null;}};return wrapped;}",
+	"implement-lru-cache":
+		"class LruCache{constructor(capacity){this.cap=capacity;this.m=new Map();}get(k){if(!this.m.has(k))return undefined;const v=this.m.get(k);this.m.delete(k);this.m.set(k,v);return v;}put(k,v){if(this.cap<=0)return;if(this.m.has(k))this.m.delete(k);this.m.set(k,v);if(this.m.size>this.cap){this.m.delete(this.m.keys().next().value);}}}",
+};
+
 function buildTracks(): ScenarioTrack[] {
 	const tracks: ScenarioTrack[] = [];
 	for (const row of EVAL_PROMPT_CORPUS) {
-		if (row.family === "implement") {
-			continue; // the harness skips implement cells (content-only scoring)
-		}
 		const needle = row.prompt.slice(0, 60);
+		if (row.family === "implement") {
+			// P22.2 (2026-07-31): the harness now EXECUTES implement cells in a permission-restricted child, so a
+			// fixture must serve real code. Each corpus row's own reference implementation is served, keeping this
+			// script's contract intact: every family is exercised through the real repeated-eval path.
+			tracks.push({
+				id: `eval-${row.id}`,
+				requestClass: "any",
+				// ⚠️ `userMessageIncludes`, NOT `match: { contains }` — the latter is a field the track compiler does
+				// not read. With no needle the track matched EVERY request, and since aimock serves the FIRST
+				// matching fixture, every implement prompt received `implement-slugify`'s code. Slugify therefore
+				// scored 1 while debounce and lru-cache scored 0, which surfaced as two "flaky" stability cells
+				// rather than as a broken fixture — the verdict aggregates a whole (role, tier) cell, and their
+				// cell-mates were passing.
+				userMessageIncludes: needle,
+				turns: [{ behavior: { kind: "text", content: IMPLEMENT_FIXTURE_CODE[row.id] ?? "" } }],
+			});
+			continue;
+		}
 		if (row.family === "decompose") {
 			// Serve the row's OWN reference graph in the tasks/dependsOn shape the extractor rebuilds losslessly:
 			// an edge {from: dep, to: task} means `task.dependsOn` includes `dep`.

@@ -124,16 +124,18 @@ describe("eval corpus context depth", () => {
 		expect(first).not.toBe("get_weather");
 	});
 
-	it("⚠️ IMPLEMENT prompts are in the corpus but NEVER EXECUTED", () => {
-		// Found 2026-07-31 while adding depth coverage. `model-eval-runner` skips the whole family with a bare
-		// `continue`, because scoring it needs code executed against its tests in a sandbox and the runner does not
-		// do that. So implement contributes NOTHING to any fitness measurement — describing it as "shallow-only"
-		// would name the wrong problem entirely. Pinned here so the family's status is visible rather than
-		// discoverable only by reading the runner's control flow.
+	it("✅ IMPLEMENT prompts are now EXECUTED (was: skipped wholesale)", () => {
+		// INVERTED 2026-07-31. This previously pinned that `model-eval-runner` skipped the entire family with a
+		// bare `continue`, so implement contributed nothing to any fitness measurement. David chose to build the
+		// sandbox rather than delete the prompts: candidates now run in a `node --permission` child (fs,
+		// child_process, net and process.binding all denied) under a wall-clock timeout.
 		const implementPrompts = EVAL_PROMPT_CORPUS.filter((p) => p.family === "implement");
-		expect(implementPrompts.length, "the family exists...").toBeGreaterThan(0);
+		expect(implementPrompts.length).toBeGreaterThan(0);
 		const runnerSource = readFileSync("src/nklein-agent/model-eval-runner.ts", "utf8");
-		expect(runnerSource, "...and is skipped wholesale").toContain('prompt.family === "implement"');
+		expect(runnerSource, "the family must be dispatched, not skipped").toContain("scoreImplement");
+		expect(runnerSource, "the bare skip must be gone").not.toMatch(
+			/if \(prompt\.family === "implement"\) \{\s*continue;/u,
+		);
 	});
 
 	it("the DEPTH CHAIN is complete: prompt → run → fitness row", () => {

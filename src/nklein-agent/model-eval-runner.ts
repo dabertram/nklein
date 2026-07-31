@@ -22,11 +22,13 @@ import {
 	EVAL_PROMPT_CORPUS,
 	type EvalPrompt,
 	evalPromptContextTokens,
+	type ImplementEvalPrompt,
 	type ReviewEvalPrompt,
 	scoreEvalAnswer,
 	type ToolUseEvalPrompt,
 } from "../core/eval-prompt-corpus.js";
 import type { FitnessDifficultyTier } from "../core/fitness-table-schema.js";
+import { extractImplementCode } from "../core/implement-eval-harness";
 import type { ModelEvalRun } from "../core/model-eval-aggregation.js";
 import { type EvalCellStability, scoreModelEvalStability } from "../core/model-eval-stability.js";
 import type { ModelFitnessRecord } from "../core/model-fitness.js";
@@ -34,6 +36,7 @@ import type { ToolCallAttempt } from "../core/prompt-family-scorers.js";
 import { selectStructuredOutputStrategy } from "../core/structured-output-strategy.js";
 import type { StoredDistractorObservation } from "../state/distractor-observation-store.js";
 import type { StoredReasoningObservation } from "../state/reasoning-observation-store.js";
+import { runImplementCandidate } from "./nklein-implement-sandbox";
 
 /** Map the corpus difficulty tier to a 0..1 number for the fitness fold (mirrors the CLI harness). */
 const DIFFICULTY_NUM: Readonly<Record<string, number>> = { easy: 0.33, medium: 0.66, hard: 1 };
@@ -223,6 +226,43 @@ async function scoreReview(prompt: ReviewEvalPrompt, maxTokens: number, chat: Mo
 	return scoreEvalAnswer(prompt, extractReviewEvalAnswer(text, prompt.seededDefects));
 }
 
+/**
+ * P22.2 — the `implement` family, EXECUTED. Ask for code, extract it, run it against the prompt's assertions in a
+ * permission-restricted child, and score passed/total.
+ *
+ * The only family that measures whether code actually WORKS rather than whether a model can describe, review or
+ * select it — which is why building the sandbox beat deleting the prompts.
+ */
+async function scoreImplement(
+	prompt: ImplementEvalPrompt,
+	maxTokens: number,
+	chat: ModelEvalChat,
+	runImplement: typeof runImplementCandidate,
+): Promise<number | null> {
+	const choice = await chat(
+		[
+			{
+				role: "user",
+				content: `${prompt.prompt}\n\nReply with ONLY the implementation code. No explanation, no markdown fence.`,
+			},
+		],
+		{ max_tokens: maxTokens },
+	);
+	const text = readText(choice);
+	if (text.trim().length === 0) {
+		return null;
+	}
+	// Fences are stripped rather than counted as failures: an unstripped fence is a definition-time syntax error,
+	// which would score 0 and read as "cannot implement" when the model merely formatted its reply.
+	const result = await runImplement({ code: extractImplementCode(text), tests: prompt.tests });
+	if (result === null) {
+		// Timeout, crash, or nothing reported. NOT 0/N — the model produced no measurable evidence, and the runner
+		// treats null as "no scorable answer" rather than as a zero it did not earn.
+		return null;
+	}
+	return scoreEvalAnswer(prompt, { family: "implement", passed: result.passed, total: result.total });
+}
+
 /** §5.AD context probe: deterministic needle-in-haystack input; scored by fragment presence in the reply. */
 async function scoreContextProbe(
 	prompt: ContextProbeEvalPrompt,
@@ -264,6 +304,15 @@ export async function runModelEval(
 		noisyChat?: ModelEvalChat;
 		noiseFraction?: number;
 		recordDistractorSensitivity?: (observations: readonly StoredDistractorObservation[]) => void;
+		/**
+		 * P22.2 — how an `implement` candidate is executed. Defaults to the real permission-restricted child.
+		 *
+		 * Injected for the same reason `chat` is: a unit test must not spawn processes. Without this port the
+		 * runner's own tests would fork a Node child per implement cell, making them slow, environment-dependent,
+		 * and dependent on a permission model whose flags differ across platforms — none of which is what those
+		 * tests are checking.
+		 */
+		runImplement?: typeof runImplementCandidate;
 	},
 ): Promise<ModelEvalResult> {
 	const repeats = Math.max(1, Math.trunc(config.repeats ?? 1) || 1);
@@ -281,9 +330,6 @@ export async function runModelEval(
 
 	const promptIdFilter = config.promptIds && config.promptIds.length > 0 ? new Set(config.promptIds) : null;
 	for (const prompt of EVAL_PROMPT_CORPUS) {
-		if (prompt.family === "implement") {
-			continue;
-		}
 		if (promptIdFilter && !promptIdFilter.has(prompt.id)) {
 			continue;
 		}
@@ -296,7 +342,14 @@ export async function runModelEval(
 						? scoreToolUse(prompt as ToolUseEvalPrompt, maxTokens, chat)
 						: prompt.family === "context_probe"
 							? scoreContextProbe(prompt as ContextProbeEvalPrompt, maxTokens, chat)
-							: scoreReview(prompt as ReviewEvalPrompt, maxTokens, chat);
+							: prompt.family === "implement"
+								? scoreImplement(
+										prompt as ImplementEvalPrompt,
+										maxTokens,
+										chat,
+										deps.runImplement ?? runImplementCandidate,
+									)
+								: scoreReview(prompt as ReviewEvalPrompt, maxTokens, chat);
 			const score = await scoreWith(deps.chat);
 			const latencyMs = Math.max(0, now() - start);
 			// F3.16 opt-in A/B: re-score this cell through the enforced-reasoning chat and record both outcomes so
