@@ -59,12 +59,58 @@ export type LmStudioRestFetch = (
 	init?: { method?: string; headers?: Record<string, string>; body?: string },
 ) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
+/** A POST-and-parse transport bound to one origin. Shared so acquisition and the runtime speak one dialect. */
+export type LmStudioRestPoster = <T>(
+	path: string,
+	body: Record<string, unknown>,
+	read: (payload: unknown) => T,
+) => Promise<LmStudioRestResult<T>>;
+
+/**
+ * Build the POST transport.
+ *
+ * Exported so `lmstudio-model-acquisition.ts` reuses this exact error handling instead of copying it. The import
+ * runs acquisition → client, never client → acquisition, so sharing the transport does NOT put the download
+ * capability back into the runtime's reach: import closure is directional, and the boundary test walks it forward.
+ */
+export function createLmStudioRestPoster(options: { origin: string; doFetch: LmStudioRestFetch }): LmStudioRestPoster {
+	// Params annotated explicitly: a generic function expression is not contextually typed by a generic type
+	// alias, so leaving them bare makes all three implicitly `any` under `noImplicitAny`.
+	return async function post<T>(
+		path: string,
+		body: Record<string, unknown>,
+		read: (payload: unknown) => T,
+	): Promise<LmStudioRestResult<T>> {
+		try {
+			const response = await options.doFetch(`${options.origin}${path}`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(body),
+			});
+			const payload = await response.json().catch(() => null);
+			if (!response.ok || asRecord(payload)?.error !== undefined) {
+				return { ok: false, error: readError(payload, response.status) };
+			}
+			return { ok: true, value: read(payload) };
+		} catch {
+			return { ok: false, error: NETWORK_ERROR };
+		}
+	};
+}
+
+/**
+ * The RUNTIME model surface: inspect and manage models that are ALREADY on this host.
+ *
+ * **`downloadModel` deliberately does not live here.** It moved to `lmstudio-model-acquisition.ts` (P25.3 phase 3,
+ * David's 2026-07-31 decision that acquisition is setup-time only). Keeping it on this interface put a
+ * tens-of-gigabytes network fetch on the same object the autonomous runtime already holds — reachable by anything
+ * that could reach a client, and prevented only by nobody having called it yet. `test/runtime/model-acquisition-boundary.test.ts`
+ * now proves the acquisition module is absent from the runtime's import closure.
+ */
 export interface LmStudioRestModelClient {
 	listModels(): Promise<LmStudioRestResult<LmStudioRestModel[]>>;
 	loadModel(input: { model: string; contextLength?: number }): Promise<LmStudioRestResult<LmStudioLoadResponse>>;
 	unloadModel(input: { instanceId: string }): Promise<LmStudioRestResult<{ instanceId: string }>>;
-	/** Long-running for real models — callers must opt in deliberately (downloads can be tens of GB). */
-	downloadModel(input: { model: string }): Promise<LmStudioRestResult<{ model: string }>>;
 }
 
 const NETWORK_ERROR: LmStudioRestError = { type: "network_error", message: "LM Studio REST endpoint unreachable." };
@@ -122,26 +168,7 @@ export function createLmStudioRestModelClient(options: {
 	const origin = options.baseUrl.replace(/\/+$/, "").replace(/\/v1$/, "");
 	const doFetch: LmStudioRestFetch = options.fetch ?? (fetch as unknown as LmStudioRestFetch);
 
-	async function post<T>(
-		path: string,
-		body: Record<string, unknown>,
-		read: (payload: unknown) => T,
-	): Promise<LmStudioRestResult<T>> {
-		try {
-			const response = await doFetch(`${origin}${path}`, {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify(body),
-			});
-			const payload = await response.json().catch(() => null);
-			if (!response.ok || asRecord(payload)?.error !== undefined) {
-				return { ok: false, error: readError(payload, response.status) };
-			}
-			return { ok: true, value: read(payload) };
-		} catch {
-			return { ok: false, error: NETWORK_ERROR };
-		}
-	}
+	const post = createLmStudioRestPoster({ origin, doFetch });
 
 	return {
 		async listModels() {
@@ -181,9 +208,6 @@ export function createLmStudioRestModelClient(options: {
 						? (asRecord(payload)?.instance_id as string)
 						: input.instanceId,
 			}));
-		},
-		downloadModel(input) {
-			return post("/api/v1/models/download", { model: input.model }, () => ({ model: input.model }));
 		},
 	};
 }

@@ -10418,6 +10418,29 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
      **Build the structural boundary FIRST:** the download capability must live where the autonomous runtime
      cannot call it, so "an autonomous session downloaded a model" is unreachable rather than merely unusual —
      the same reasoning that put P21.13b's secrets behind references instead of behind a redaction filter.
+     **▶ THE BOUNDARY SHIPPED 2026-07-31 — `lmstudio-model-acquisition.ts` + `module-import-closure.ts` +
+     `test/runtime/model-acquisition-boundary.test.ts`, 27 tests.** Phase 3's remaining work is the setup UI and
+     `lms get` roster refresh; the capability it drives is now fenced.
+     **🔴 THE BOUNDARY WAS ALREADY BREACHED WHEN THIS WAS WRITTEN, AND THE ITEM DID NOT KNOW IT.** `downloadModel`
+     was a method on `LmStudioRestModelClient` — *the same object `start-task-session.ts` constructs during a
+     normal task run*. Nothing called it, so nothing was broken; but "no caller today" is a fact about the present,
+     not a property of the design. It now lives in its own module and is **absent from the runtime's import
+     closure** (walked from `start-task-session.ts`: 934 files reached, acquisition not among them).
+     **A GREP WOULD HAVE CERTIFIED THE BROKEN STATE AS FINE** — nobody called `downloadModel` before or after, so
+     "no caller" was true the entire time the capability sat on the runtime's own client. Reachability is the
+     property the rule is about, so the check walks the graph.
+     **⚠️ EVERY WAY OF GETTING A REACHABILITY CHECK WRONG MAKES IT PASS.** A dropped edge shrinks the closure, and
+     a smaller closure makes "not reachable" true. So the walker REPORTS unresolved relative imports instead of
+     skipping them, over-approximates on purpose (a specifier in a comment still becomes an edge — over-approximation
+     can only make the assertion stricter), and the boundary test pins positive controls at one hop and several
+     plus a closure-size floor. **The unresolved-import assertion paid for itself on its first run**, catching a
+     `.js`→`.ts` rewrite gap and a prose false positive (`"why recalled / where from". */` matches
+     `from`-then-quote and captures the rest of the file) that would otherwise have silently deleted edges.
+     **CONSENT IS BOUND AT CONSTRUCTION, NOT PASSED TO THE CALL:** one client instance carries one approved model.
+     A consent *argument* would be supplied by the same code that picks the model, so the two could drift in
+     silence; binding it means approval and request come from different code at different moments and a mismatch
+     is detectable. This is a boundary against DRIFT, not against a hostile caller — anything that can import the
+     module can construct its own consent, and the header says so rather than implying more than it delivers.
   4. **Auto-assignment from measured fitness** (no network, autonomous-safe): make per-role/per-card model choice
      automatic where the fitness store has evidence, and explicitly abstain where it does not. ⚠️ Depends on
      **P22.2's eval-side depth work** — the store now records depth but nothing populates it, and a depth-blind

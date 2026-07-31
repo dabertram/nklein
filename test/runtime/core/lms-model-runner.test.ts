@@ -578,9 +578,6 @@ function fakeRestClient(models: LmStudioRestModel[]) {
 			calls.push({ kind: "unload", payload: { ...input } });
 			return { ok: true, value: { instanceId: input.instanceId } };
 		},
-		async downloadModel(input) {
-			return { ok: true, value: { model: input.model } };
-		},
 	};
 	return { client, calls };
 }
@@ -659,9 +656,6 @@ describe("loadModelExclusiveViaRest (§5.AN — same guardrails, REST transport)
 				throw new Error("unused");
 			},
 			async unloadModel() {
-				throw new Error("unused");
-			},
-			async downloadModel() {
 				throw new Error("unused");
 			},
 		};
