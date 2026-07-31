@@ -60,7 +60,12 @@ describe("runRetrievalLoop", () => {
 		// {claim,cite[]} contract; the loop's `answer` is the rendered cited answer with [n] markers + a sources list.
 		const fakeModel = async () =>
 			'[{"claim":"X is powered by A","cite":["a"]},{"claim":"X also uses B","cite":["b"]}]';
-		const { deps } = makeDeps({ synthesize: citedSynthesisAdapter(fakeModel) });
+		// The adapter's freshness verdict is relative to NOW. Injecting the test's fixed clock is what makes this
+		// deterministic: without it the adapter reads the REAL time, the fixture's 2026-07-01 date ages past the
+		// "current" window, and the assertion fails on a date unrelated to any code change. It failed exactly that
+		// way on 2026-07-31 — a time bomb armed the day the fixture was written. The injection point already
+		// existed and simply was not used.
+		const { deps } = makeDeps({ synthesize: citedSynthesisAdapter(fakeModel, { now: () => NOW }) });
 		const result = await runRetrievalLoop("what is X", deps);
 		// Contract updated 2026-07-08: dated sources now carry their publication date + freshness verdict inline.
 		expect(result.answer).toBe(

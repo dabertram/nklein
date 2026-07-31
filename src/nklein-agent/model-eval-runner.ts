@@ -15,6 +15,7 @@ import { extractDecomposeEvalAnswer, extractReviewEvalAnswer } from "../core/eva
 import { type EvalCellOutcome, foldEvalOutcomes } from "../core/eval-fitness-fold.js";
 import {
 	buildContextProbeInput,
+	buildReviewInput,
 	type ContextProbeEvalPrompt,
 	EVAL_PROMPT_CORPUS,
 	type EvalPrompt,
@@ -196,7 +197,10 @@ async function scoreToolUse(prompt: ToolUseEvalPrompt, maxTokens: number, chat: 
 }
 
 async function scoreReview(prompt: ReviewEvalPrompt, maxTokens: number, chat: ModelEvalChat): Promise<number | null> {
-	const choice = await chat([{ role: "user", content: `${prompt.prompt}\n\n\`\`\`js\n${prompt.code}\n\`\`\`` }], {
+	// P22.2: `buildReviewInput` expands a depth-padded prompt into the file the reviewer actually reads, and
+	// returns `prompt.code` unchanged when no padding is configured — so shallow rows are byte-identical.
+	const code = buildReviewInput(prompt);
+	const choice = await chat([{ role: "user", content: `${prompt.prompt}\n\n\`\`\`js\n${code}\n\`\`\`` }], {
 		max_tokens: maxTokens,
 	});
 	const text = readText(choice);

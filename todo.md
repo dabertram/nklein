@@ -10498,6 +10498,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **⇒ THE FIX IS STILL CORPUS WORK, but a narrower one than I first wrote:** the corpus does not need depth added
   from scratch — the graduated `context_probe` ladder shows the pattern. It needs deep prompts for the AGENT-WORK
   families (a card-sized spec to decompose, a long diff to review). The store side is ready and waiting.
+  **▶ FIRST AGENT-WORK DEPTH PROMPT LANDED 2026-07-31 — `review-null-and-unhandled-rejection-deep` (~16.6k tokens).**
+  Built the same way as the context probes rather than by pasting a huge file into the corpus: `surroundingTokens`
+  + `snippetDepth` on the review schema, expanded at run time by `buildReviewInput`, which returns the snippet
+  UNCHANGED when no padding is set — so every existing row is byte-identical. **Wired into `scoreReview`**, so it
+  is not another orphan builder.
+  **It is a MATCHED PAIR with the shallow row, and that is the whole design:** both seed the identical defects
+  (`null-deref`, `unhandled-rejection`), so the score DIFFERENCE isolates DEPTH from difficulty. Two prompts of
+  different difficulty at different depths would confound exactly the variable Phase 22 is about. The snippet sits
+  MID-file (`snippetDepth: 0.5`) because a defect at the start or end is found by a model that only reads the
+  edges — the lost-in-the-middle effect this is meant to expose rather than dodge. The filler is deliberately
+  boring and correct: its job is volume to read past, and any defect in it would score as a miss the prompt never
+  seeded.
+  **REMAINING:** `decompose`, `implement` and `tool_use` still have shallow-only coverage; a test pins that list
+  so removing a family from it is deliberate.
   **A test now pins the distribution EXACTLY** (`eval-corpus-depth.test.ts`) rather than asserting the corpus
   *should* have deep prompts — a red test in the suite is one people learn to skip. The day a deep prompt is
   added the assertion trips and is updated deliberately, so this gap cannot be closed by accident or widened

@@ -76,6 +76,18 @@ export const reviewEvalPromptSchema = z.object({
 	code: z.string().min(1),
 	/** Canonical defect ids a correct review must surface. The harness maps the model's free-text findings onto these. */
 	seededDefects: z.array(z.string().min(1)),
+	/**
+	 * P22.2 — approximate size of SURROUNDING, defect-free code generated at run time, so a review can be measured
+	 * AT DEPTH. Omitted ⇒ the snippet is reviewed alone, exactly as before.
+	 *
+	 * Generated rather than stored, following the `context_probe` pattern: a 24k-token file in the corpus would
+	 * bloat the source for no benefit, and the corpus is deliberately compact. The generated code is deliberately
+	 * BORING and correct — its job is to be volume the reviewer must read past, not a second puzzle. Any defect it
+	 * contained would be scored as a miss the prompt never seeded.
+	 */
+	surroundingTokens: z.number().int().positive().optional(),
+	/** Fraction 0..1 through the padded file where the real snippet sits. Ignored without `surroundingTokens`. */
+	snippetDepth: z.number().min(0).max(1).optional(),
 });
 
 /**
@@ -221,6 +233,44 @@ export function buildContextProbeInput(prompt: ContextProbeEvalPrompt): string {
 		lines.push(template.replace("%N", String(index + 1)));
 	}
 	return `Read the following operations log carefully. A question follows at the end.\n\n${lines.join("\n")}\n\nQuestion: ${prompt.prompt}\nAnswer concisely using only the log above.`;
+}
+
+/** Filler functions for a depth-padded review: correct, unremarkable, and deliberately not a second puzzle. */
+const REVIEW_FILLER_TEMPLATES: readonly string[] = [
+	"function formatLabel%N(value) {\n  return String(value ?? '').trim();\n}",
+	"function clampPercent%N(value) {\n  if (value < 0) return 0;\n  if (value > 100) return 100;\n  return value;\n}",
+	"function sumField%N(rows, field) {\n  let total = 0;\n  for (const row of rows) total += row[field] ?? 0;\n  return total;\n}",
+	"function uniqueIds%N(rows) {\n  return Array.from(new Set(rows.map((row) => row.id)));\n}",
+];
+/** Rough tokens per generated filler function; only the resulting SIZE matters, not the estimate's precision. */
+const REVIEW_FILLER_TOKENS_PER_FUNCTION = 30;
+
+/**
+ * P22.2 — build the code a reviewer actually sees, padding the seeded snippet to `surroundingTokens` when asked.
+ *
+ * Without padding this returns the snippet unchanged, so existing rows are byte-identical. With it, the snippet is
+ * buried among correct, boring functions at `snippetDepth` — measuring whether a model can still FIND a defect
+ * once it has to read past volume, which is what reviewing a real diff demands and what a 6-line snippet cannot
+ * measure.
+ */
+export function buildReviewInput(prompt: ReviewEvalPrompt): string {
+	if (!prompt.surroundingTokens) {
+		return prompt.code;
+	}
+	const count = Math.max(2, Math.round(prompt.surroundingTokens / REVIEW_FILLER_TOKENS_PER_FUNCTION));
+	const insertAt = Math.min(count, Math.max(0, Math.round(count * (prompt.snippetDepth ?? 0.5))));
+	const blocks: string[] = [];
+	for (let index = 0; index < count; index += 1) {
+		if (index === insertAt) {
+			blocks.push(prompt.code);
+		}
+		const template = REVIEW_FILLER_TEMPLATES[index % REVIEW_FILLER_TEMPLATES.length] as string;
+		blocks.push(template.replaceAll("%N", String(index + 1)));
+	}
+	if (insertAt >= count) {
+		blocks.push(prompt.code);
+	}
+	return blocks.join("\n\n");
 }
 
 // ── The corpus ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -417,6 +467,39 @@ const REVIEW_PROMPTS: readonly ReviewEvalPrompt[] = [
 			"}",
 		].join("\n"),
 		seededDefects: ["null-deref", "unhandled-rejection"],
+	},
+	{
+		// P22.2 — the SAME defect as `review-null-and-unhandled-rejection`, buried mid-file at ~20k tokens.
+		//
+		// A matched pair is the point: the shallow row and this one seed the identical defects, so the score
+		// DIFFERENCE isolates depth from difficulty. Two prompts of different difficulty at different depths would
+		// confound exactly the variable Phase 22 is about.
+		//
+		// This is the first agent-work prompt in the corpus above the shallow band. Until it existed, every
+		// decompose/implement/review/tool_use measurement was shallow, and the only depth coverage was needle
+		// RETRIEVAL — a different capability, so it licensed no claim about reviewing a real diff.
+		id: "review-null-and-unhandled-rejection-deep",
+		role: "reviewer",
+		family: "review",
+		difficulty: "hard",
+		prompt: "Review this file for defects. List each one. Most of the file is correct.",
+		guidance:
+			"The same two defects as the shallow variant — a null dereference of `user.profile` and an unawaited " +
+			"`fetch` whose rejection is unhandled — but surrounded by ~20k tokens of correct code. A model that " +
+			"scores well shallow and poorly here is losing the defect to VOLUME, not to difficulty.",
+		code: [
+			"async function notify(userId, db) {",
+			"  const user = await db.findUser(userId);",
+			"  const email = user.profile.email;",
+			"  fetch('https://mail.local/send', { method: 'POST', body: email });",
+			"  return email;",
+			"}",
+		].join("\n"),
+		seededDefects: ["null-deref", "unhandled-rejection"],
+		surroundingTokens: 20_000,
+		// Mid-file: the hardest position. A defect at the very start or end is found by a model that only reads
+		// the edges, which is the "lost in the middle" effect this is meant to expose rather than dodge.
+		snippetDepth: 0.5,
 	},
 	{
 		id: "review-race-leak-injection",

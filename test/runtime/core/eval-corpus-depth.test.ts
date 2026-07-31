@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { estimateTextTokens } from "../../../src/core/eval-context-footprint";
-import { EVAL_PROMPT_CORPUS } from "../../../src/core/eval-prompt-corpus";
+import { buildReviewInput, EVAL_PROMPT_CORPUS } from "../../../src/core/eval-prompt-corpus";
 import { classifyContextDepth } from "../../../src/core/model-fitness-freshness";
 
 /**
@@ -20,7 +20,14 @@ import { classifyContextDepth } from "../../../src/core/model-fitness-freshness"
 
 /** Runtime context a prompt actually puts in front of the model — the generated haystack, not the stored spec. */
 function runtimeContextTokens(prompt: (typeof EVAL_PROMPT_CORPUS)[number]): number {
-	return prompt.family === "context_probe" ? prompt.contextTokens : estimateTextTokens(JSON.stringify(prompt));
+	if (prompt.family === "context_probe") {
+		return prompt.contextTokens;
+	}
+	// A depth-padded review expands at run time too — same spec-vs-runtime trap, different family.
+	if (prompt.family === "review") {
+		return estimateTextTokens(buildReviewInput(prompt));
+	}
+	return estimateTextTokens(JSON.stringify(prompt));
 }
 
 describe("eval corpus context depth", () => {
@@ -39,6 +46,19 @@ describe("eval corpus context depth", () => {
 		expect(estimateTextTokens(JSON.stringify(deepProbe)), "its stored spec is tiny").toBeLessThan(1_000);
 	});
 
+	it("REVIEW now has a depth-padded prompt — the first agent-work family above shallow", () => {
+		// The matched pair is what makes it useful: the deep row seeds the SAME defects as its shallow twin, so a
+		// score difference isolates depth from difficulty rather than confounding them.
+		const deep = rows.find((row) => row.id === "review-null-and-unhandled-rejection-deep");
+		expect(deep?.depth).toBe("deep");
+		const shallowTwin = EVAL_PROMPT_CORPUS.find((p) => p.id === "review-null-and-unhandled-rejection");
+		const deepPrompt = EVAL_PROMPT_CORPUS.find((p) => p.id === "review-null-and-unhandled-rejection-deep");
+		expect(
+			deepPrompt?.family === "review" ? deepPrompt.seededDefects : null,
+			"the pair must seed identical defects or the comparison measures difficulty, not depth",
+		).toEqual(shallowTwin?.family === "review" ? shallowTwin.seededDefects : undefined);
+	});
+
 	it("has graduated depth coverage for RETRIEVAL", () => {
 		const probeDepths = rows.filter((row) => row.family === "context_probe").map((row) => row.depth);
 		expect(new Set(probeDepths)).toEqual(new Set(["shallow", "medium", "deep"]));
@@ -49,7 +69,9 @@ describe("eval corpus context depth", () => {
 		// predicted by capability at depth 0 — and decompose/review/implement/tool_use, the families that decide
 		// routing for real cards, have no evidence above the shallow band at all. A needle probe at 24k measures
 		// retrieval, which is a different capability from decomposing a spec at 24k.
-		const agentWorkFamilies = ["decompose", "implement", "review", "tool_use"] as const;
+		// `review` was REMOVED from this list on 2026-07-31 when the first depth-padded agent-work prompt landed
+		// (`review-null-and-unhandled-rejection-deep`, ~16.6k tokens). The remaining three are the live gap.
+		const agentWorkFamilies = ["decompose", "implement", "tool_use"] as const;
 		for (const family of agentWorkFamilies) {
 			const depths = new Set(rows.filter((row) => row.family === family).map((row) => row.depth));
 			expect(
@@ -64,6 +86,6 @@ describe("eval corpus context depth", () => {
 		for (const row of rows) {
 			distribution[row.depth] += 1;
 		}
-		expect(distribution, "corpus depth changed — see todo P22.2").toEqual({ shallow: 13, medium: 1, deep: 1 });
+		expect(distribution, "corpus depth changed — see todo P22.2").toEqual({ shallow: 13, medium: 1, deep: 2 });
 	});
 });
