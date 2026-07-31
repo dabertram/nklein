@@ -4688,6 +4688,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 												success: cell.score >= 0.6,
 												wallTimeMs: cell.latencyMs,
 												failureMode: cell.score >= 0.6 ? undefined : "eval_below_bar",
+												// P22.2: file this outcome under the DEPTH it was measured at. Undefined when the
+												// cell reported none, which leaves the row depth-unknown rather than filing it as
+												// shallow — absent evidence must not become shallow evidence.
+												usedContextTokens: cell.contextTokens,
 											},
 											{ now: Date.now() },
 										).catch(() => undefined);

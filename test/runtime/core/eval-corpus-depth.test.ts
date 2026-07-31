@@ -6,7 +6,9 @@ import {
 	buildReviewInput,
 	buildToolCatalog,
 	EVAL_PROMPT_CORPUS,
+	evalPromptContextTokens,
 } from "../../../src/core/eval-prompt-corpus";
+import { emptyFitnessRow, recordFitnessOutcome } from "../../../src/core/fitness-table-schema";
 import { classifyContextDepth } from "../../../src/core/model-fitness-freshness";
 
 /**
@@ -132,6 +134,25 @@ describe("eval corpus context depth", () => {
 		expect(implementPrompts.length, "the family exists...").toBeGreaterThan(0);
 		const runnerSource = readFileSync("src/nklein-agent/model-eval-runner.ts", "utf8");
 		expect(runnerSource, "...and is skipped wholesale").toContain('prompt.family === "implement"');
+	});
+
+	it("the DEPTH CHAIN is complete: prompt → run → fitness row", () => {
+		// P22.2's whole point. Each link was verified separately while building; this asserts they compose, because
+		// a chain that is correct at every step and broken at one join records nothing while every unit test passes
+		// — the exact shape of the orphan cores this session kept finding.
+		const deepPrompt = EVAL_PROMPT_CORPUS.find((p) => p.id === "decompose-cli-version-flag-deep");
+		const tokens = evalPromptContextTokens(deepPrompt as never);
+		expect(tokens, "1. the prompt reports a deep runtime context").toBeGreaterThan(16_000);
+
+		const row = recordFitnessOutcome(emptyFitnessRow({ modelKey: "m", role: "architect", difficultyTier: "hard" }), {
+			success: true,
+			usedContextTokens: tokens,
+		});
+		expect(row.depthSamples, "2. the fitness fold files it as DEEP evidence").toEqual({
+			shallow: 0,
+			medium: 0,
+			deep: 1,
+		});
 	});
 
 	it("pins the overall distribution so a change is deliberate", () => {

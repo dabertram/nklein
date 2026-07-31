@@ -370,6 +370,32 @@ export function buildToolCatalog(prompt: ToolUseEvalPrompt): ToolUseEvalPrompt["
 	return [...distractors, ...prompt.tools];
 }
 
+/**
+ * P22.2 — the context a prompt actually puts in front of the model.
+ *
+ * Depth is a property of the PROMPT, not the response: `context_probe` haystacks, padded reviews and padded
+ * decompose preambles all expand at run time from a compact spec. Measuring the STORED row instead of the
+ * expanded one is the trap that produced a confidently wrong "the corpus is entirely shallow" reading on
+ * 2026-07-31 — a 24k probe stores as a few hundred bytes.
+ */
+export function evalPromptContextTokens(prompt: EvalPrompt): number {
+	switch (prompt.family) {
+		case "context_probe":
+			return prompt.contextTokens;
+		case "review":
+			return estimateEvalTextTokens(buildReviewInput(prompt));
+		case "decompose":
+			return estimateEvalTextTokens(buildDecomposeInput(prompt));
+		default:
+			return estimateEvalTextTokens(prompt.prompt);
+	}
+}
+
+/** Rough token estimate — only the DEPTH BAND it lands in matters, never the exact figure. */
+function estimateEvalTextTokens(text: string): number {
+	return Math.ceil(text.length / 4);
+}
+
 // ── The corpus ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const DECOMPOSE_PROMPTS: readonly DecomposeEvalPrompt[] = [

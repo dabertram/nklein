@@ -65,6 +65,14 @@ export interface ModelEvalRun {
 	latencyMs: number;
 	/** §5.AA retries this run needed to reach its outcome (0 = first try). Negative/NaN treated as 0. */
 	retries: number;
+	/**
+	 * P22.2 — the context this run actually put in front of the model, so fitness can be recorded AT DEPTH.
+	 *
+	 * A property of the PROMPT, not the response: a depth-padded row expands at run time, so this is known before
+	 * the call. Optional because a caller that cannot determine it must leave the measurement depth-UNKNOWN rather
+	 * than defaulting to a number — filing an unmeasured run as shallow would manufacture shallow evidence.
+	 */
+	contextTokens?: number;
 }
 
 export interface AggregateModelEvalPolicy {
@@ -102,6 +110,14 @@ export interface ModelEvalCellSummary {
 	meanRetries: number;
 	/** True when `runs >= minRunsPerCell && passRate >= reliabilityBar` (well-sampled AND reliable). */
 	cleared: boolean;
+	/**
+	 * P22.2 — the LARGEST context any run in this cell used, or null when no run reported one.
+	 *
+	 * MAX rather than mean: the question a fitness consumer asks is "has this model been measured at the depth my
+	 * card needs?", and an average over a deep and a shallow run answers neither. Null (not 0) when unknown, so
+	 * absence stays absence.
+	 */
+	maxContextTokens: number | null;
 }
 
 interface CellAccumulator {
@@ -114,6 +130,8 @@ interface CellAccumulator {
 	latencySum: number;
 	latencyCount: number;
 	retriesSum: number;
+	/** P22.2 — deepest context any run in this cell reported; null while no run has reported one. */
+	maxContextTokens: number | null;
 }
 
 function clamp01(value: number): number {
@@ -155,8 +173,14 @@ export function summarizeModelEvalCells(
 			latencySum: 0,
 			latencyCount: 0,
 			retriesSum: 0,
+			maxContextTokens: null,
 		};
 		cell.runs += 1;
+		// P22.2: track the deepest run in the cell. A run that reported no context leaves this untouched, so an
+		// unmeasured run cannot drag a cell's recorded depth down to zero.
+		if (typeof run.contextTokens === "number" && Number.isFinite(run.contextTokens)) {
+			cell.maxContextTokens = Math.max(cell.maxContextTokens ?? 0, run.contextTokens);
+		}
 		if (run.passed) {
 			cell.passes += 1;
 		}
@@ -177,6 +201,7 @@ export function summarizeModelEvalCells(
 				modelId: cell.modelId,
 				role: cell.role,
 				difficulty: cell.difficulty,
+				maxContextTokens: cell.maxContextTokens,
 				runs: cell.runs,
 				passes: cell.passes,
 				passRate,

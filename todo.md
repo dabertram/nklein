@@ -10462,7 +10462,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     "unmeasured" honestly rather than implying the size is a verdict. No change needed.
   **P22.1 COMPLETE — all four proxy sites audited; the one that could mislead (`recommendModelFloor`) is fixed,
   the other three were already sound.**
-- [ ] **P22.2 — Measure fitness AT DEPTH, not at depth 0 (highest-value change to the fitness store).** Every
+- [x] **P22.2 — Measure fitness AT DEPTH, not at depth 0. DONE 2026-07-31 — the chain is complete end to end.**
+  **prompt → run → fitness row**, each link built and then verified to COMPOSE (a chain correct at every step and
+  broken at one join records nothing while every unit test passes — the orphan shape this session kept finding):
+  `evalPromptContextTokens` reports a prompt's RUNTIME context · `ModelEvalCellScore.contextTokens` carries it
+  per-attempt (exact, no aggregation) · both `recordTaskFitnessOutcome` sites pass it · `recordFitnessOutcome`
+  files it into `depthSamples`. A test walks the whole chain.
+  **Depth coverage now exists for every family that is actually EXECUTED** — decompose (~22.8k), review (~16.6k),
+  tool_use (40-tool catalog), context_probe (2k/8k/24k) — each as a MATCHED PAIR sharing its shallow twin's exact
+  answer key, so a score difference isolates depth from difficulty.
+  **Absence stays absence throughout:** an attempt that reports no context advances no depth counter, `null`
+  rather than `0` where nothing was measured, and merges SUM counters rather than picking a side.
+  ── original item + the full build/correction history below ── Every
   fitness number we hold is effectively a shallow-context measurement. Given (1) above, a model that ranks well
   on short cards may be far worse on the deep ones — and deep cards are where failures are expensive. Add a
   context-depth dimension to the fitness fingerprint (it already carries context window + quant), and record

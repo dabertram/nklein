@@ -1882,6 +1882,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							success: cell.score >= 0.6,
 							wallTimeMs: cell.latencyMs,
 							failureMode: cell.score >= 0.6 ? undefined : "eval_below_bar",
+							// P22.2: file under the measured depth; undefined leaves the row depth-unknown rather than
+							// filing an unmeasured run as shallow.
+							usedContextTokens: cell.contextTokens,
 						},
 						{ now: Date.now() },
 					).catch(() => undefined);

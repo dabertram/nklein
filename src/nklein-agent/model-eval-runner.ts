@@ -21,6 +21,7 @@ import {
 	type ContextProbeEvalPrompt,
 	EVAL_PROMPT_CORPUS,
 	type EvalPrompt,
+	evalPromptContextTokens,
 	type ReviewEvalPrompt,
 	scoreEvalAnswer,
 	type ToolUseEvalPrompt,
@@ -80,6 +81,11 @@ export interface ModelEvalCellScore {
 	score: number | null;
 	latencyMs: number;
 	attempt: number;
+	/**
+	 * P22.2 — the context this attempt put in front of the model, so the fitness fold can file the outcome at the
+	 * DEPTH it was measured at. Per-attempt and therefore exact: no aggregation, no representative value.
+	 */
+	contextTokens: number;
 }
 
 export interface ModelEvalResult {
@@ -344,8 +350,19 @@ export async function runModelEval(
 				qualityScore: effectiveScore,
 				latencyMs,
 				retries: 0,
+				// P22.2: the context this run put in front of the model — a property of the PROMPT (depth-padded
+				// rows expand at run time), so it is known without inspecting the response.
+				contextTokens: evalPromptContextTokens(prompt),
 			});
-			cells.push({ id: prompt.id, role: prompt.role, difficulty: prompt.difficulty, score, latencyMs, attempt });
+			cells.push({
+				id: prompt.id,
+				role: prompt.role,
+				difficulty: prompt.difficulty,
+				score,
+				latencyMs,
+				attempt,
+				contextTokens: evalPromptContextTokens(prompt),
+			});
 			if (score === null) {
 				continue;
 			}
