@@ -10543,9 +10543,34 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   its tests in a sandbox, which that runner does not do. So implement contributes **nothing** to any fitness
   measurement, and calling it "shallow-only" would name the wrong problem: adding depth to a family that never
   runs buys nothing. Pinned by a test so the status is visible rather than discoverable only by reading the
-  runner's control flow. **The real question for `implement` is whether it should run at all** (it needs the
-  sandbox execution P20.2/P20.3b also want) or be removed from the corpus so it stops implying coverage it does
-  not provide — a decision, not a gap.
+  runner's control flow.
+  **✅ DECIDED + DONE 2026-07-31 — David chose to BUILD the sandbox rather than remove the prompts.** The family
+  now EXECUTES: `implement-eval-harness.ts` (pure) builds the script, `nklein-implement-sandbox.ts` runs it in a
+  child under Node's permission model. **Verified that the flag denies `ERR_ACCESS_DENIED` for filesystem,
+  `child_process`, outbound `net` and `process.binding`** — probed with a deliberately hostile candidate, which
+  was denied AND scored as a definition failure rather than crashing the harness. A wall-clock timeout covers
+  non-termination. Scope stated honestly in the module: this contains a local model's honest attempt at a pure
+  function, not a targeted escape — that threat model needs the Docker isolation !Klein already has.
+  **FOUR REAL BUGS, EVERY ONE FOUND BY EXECUTING RATHER THAN READING:**
+  1. **macOS symlink.** `tmpdir()` returns `/var/folders/...`, a symlink to `/private/var/...`, and the permission
+     model matches the RESOLVED path — the child was denied its own script and every run returned "no evidence".
+     Found by capturing the child's stderr.
+  2. **Block-scoped candidates.** Wrapping the code in `try {}` made `class`/`let`/`const` invisible to the
+     assertions; `function` survived by hoisting, which is why the simple prompts passed and hid it. Found by
+     running the corpus's OWN reference implementations — 5/5, 4/4, **0/5** for the class-based prompt — while a
+     unit test asserting the script TEXT contained the candidate passed throughout.
+  3. **Prose assertions.** Two of three rows held DESCRIPTIONS, not runnable checks. Executed as-is they throw and
+     score 0, reading as "the model cannot implement debounce" when nothing was measured. Rewritten as real
+     assertions, and the harness now AWAITS them since a debounce only proves itself once its timer fires.
+  4. **A field name I invented.** Tracks used `match: { contains }`, which the track compiler does not read. With
+     no needle and `requestClass: "any"` the FIRST track matched everything, so every implement prompt received
+     `implement-slugify`'s code. It surfaced as two "flaky" stability cells rather than a broken fixture, because
+     the verdict aggregates a whole (role, tier) cell.
+  **AND A LESSON ABOUT THE ANSWER KEY:** my first LruCache assertions used `LRUCache` while the prompt specifies
+  `LruCache`. The self-test passed because I had written the reference to match my ASSERTIONS rather than the
+  PROMPT. **An answer key validated against itself proves nothing.**
+  The eval port is injectable so unit tests never spawn processes. End-to-end: `verify-simulated-eval` reports
+  **mean=1.000 over 108 cells, all stability cells settled**, with implement included for the first time.
   **CORPUS DEPTH NOW: 14 shallow · 1 medium · 3 deep.** Every family that is actually EXECUTED — `decompose`,
   `review`, `tool_use`, `context_probe` — now has depth coverage.
   **A test now pins the distribution EXACTLY** (`eval-corpus-depth.test.ts`) rather than asserting the corpus
