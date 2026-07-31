@@ -11290,6 +11290,18 @@ exactly like a linter that cries wolf — which is also why UNDECLARED fields ar
 all 27 buried the real findings).
 
 **4. Questions batched for David (do not act on these unilaterally):**
+- **✅ RESOLVED 2026-07-31 (David: "go autonomously" on the recommendation) — `awaiting_review` got its OWN phase
+  class, and the two models now agree on ALL SEVEN session states.** `reviewing` stays capacity-holding (a review
+  really is executing on a model endpoint); `awaiting_review` is a card parked for a verdict it cannot produce
+  itself, so it is LIVE but holds and reserves nothing. **The split was possible only because the kernel already
+  distinguished waiting-for-a-verdict from performing one** — the disagreement was one phase wearing two meanings,
+  not a judgement call between them.
+  **The two tests that PINNED the disagreement failed on the change, which is exactly what they were for** — one
+  carried the note *"if this ever starts passing as agreement, someone has resolved the question, and this test
+  should be rewritten deliberately, not deleted"*. Rewritten, not deleted.
+  ⇒ **Capacity consumers may now migrate onto `reservesWorkflowCapacity`** (the remaining blocker is step 1, "one
+  writer", which is the same blocker liveness has).
+  ── original question ──
 - **🆕 2026-07-31 — does a card AWAITING REVIEW hold runtime capacity?** The last blocker on migrating capacity
   consumers onto the kernel. `reservesWorkflowCapacity` agrees with the session model's `isBusySessionState` on
   **six of seven** session states; `awaiting_review` is the exception, and both answers are internally coherent

@@ -203,9 +203,10 @@ describe("workflow kernel — the canonical classification", () => {
 		// Two answers to "is this settled?" is precisely the drift this classification exists to end.
 		for (const phase of ALL_PHASES) {
 			const phaseClass = classifyWorkflowPhase(phase);
-			expect(["idle", "waiting_capacity", "running", "paused", "terminal"], `${phase} unclassified`).toContain(
-				phaseClass,
-			);
+			expect(
+				["idle", "waiting_capacity", "running", "paused", "awaiting_verdict", "terminal"],
+				`${phase} unclassified`,
+			).toContain(phaseClass);
 			expect(phaseClass === "terminal", `${phase}: classification and isTerminalWorkflowPhase disagree`).toBe(
 				isTerminalWorkflowPhase(phase),
 			);

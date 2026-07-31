@@ -137,8 +137,8 @@ describe("✅ the representation gap is CLOSED (was: the kernel could not expres
  */
 describe("kernel capacity vs the session model's `isBusySessionState`", () => {
 	it("RESERVATION is the right counterpart — it agrees everywhere occupancy does not", () => {
-		// Six of seven. The single exception is asserted separately below so it cannot be lost in a count.
-		for (const state of ALL_SESSION_STATES.filter((candidate) => candidate !== "awaiting_review")) {
+		// Was six of seven; `awaiting_review` was resolved 2026-07-31 and is asserted separately below too.
+		for (const state of ALL_SESSION_STATES) {
 			const phase = NATURAL_PHASE[state];
 			expect(
 				reservesWorkflowCapacity(phase),
@@ -147,11 +147,27 @@ describe("kernel capacity vs the session model's `isBusySessionState`", () => {
 		}
 	});
 
-	it("pins the ONE genuine disagreement instead of hiding it", () => {
-		// If this ever starts passing as agreement, someone has resolved the question — and this test should be
-		// rewritten deliberately, not deleted.
+	it("AGREES on `awaiting_review` too — the last disagreement, now resolved", () => {
+		// This test previously PINNED the disagreement, with a note that resolving it should rewrite the test
+		// rather than delete it. Resolved 2026-07-31 (David): `awaiting_review` got its own class.
+		//
+		// The split was possible because the kernel already separates waiting-for-a-verdict from performing one.
+		// `reviewing` stays capacity-holding — a review really is executing on a model endpoint — while
+		// `awaiting_review` is a card parked for a verdict it cannot produce itself.
 		expect(isBusySessionState("awaiting_review"), "session: the worker session has ended").toBe(false);
-		expect(reservesWorkflowCapacity("awaiting_review"), "kernel: a review is in flight on an endpoint").toBe(true);
+		expect(reservesWorkflowCapacity("awaiting_review"), "kernel: parked for a verdict, holding nothing").toBe(false);
+		expect(isLiveWorkflowPhase("awaiting_review"), "still ALIVE — the runtime owes this card a verdict").toBe(true);
+		expect(reservesWorkflowCapacity("reviewing"), "but PERFORMING a review does hold an endpoint").toBe(true);
+	});
+
+	it("now agrees on ALL SEVEN session states, which is what unblocks capacity migration", () => {
+		for (const state of ALL_SESSION_STATES) {
+			const phase = NATURAL_PHASE[state];
+			expect(
+				reservesWorkflowCapacity(phase),
+				`session "${state}" (busy=${isBusySessionState(state)}) vs phase "${phase}"`,
+			).toBe(isBusySessionState(state));
+		}
 	});
 
 	it("distinguishes HOLDS from RESERVES — a queued card is committed but consuming nothing", () => {

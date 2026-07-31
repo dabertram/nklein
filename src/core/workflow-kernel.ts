@@ -155,7 +155,7 @@ const PHASE_MEMBERSHIP: Record<WorkflowPhase, true> = {
 
 export const ALL_WORKFLOW_PHASES = Object.keys(PHASE_MEMBERSHIP) as readonly WorkflowPhase[];
 
-export type WorkflowPhaseClass = "idle" | "waiting_capacity" | "running" | "paused" | "terminal";
+export type WorkflowPhaseClass = "idle" | "waiting_capacity" | "running" | "paused" | "awaiting_verdict" | "terminal";
 
 export function classifyWorkflowPhase(phase: WorkflowPhase): WorkflowPhaseClass {
 	switch (phase) {
@@ -169,10 +169,25 @@ export function classifyWorkflowPhase(phase: WorkflowPhase): WorkflowPhaseClass 
 			// NOT `running`: the card is alive and unfinished, but holds no slot. Collapsing it into `running`
 			// is exactly the over-count that could starve a host.
 			return "paused";
+		case "awaiting_review":
+			// DECIDED 2026-07-31 (David): its own class, NOT `running`.
+			//
+			// The kernel and the session model disagreed on exactly this one phase out of seven, because they were
+			// counting DIFFERENT RESOURCES: the session means "no worker session is running" (so not busy), while
+			// `running` meant "the runtime still has work in flight". Both were internally coherent, which is why
+			// the disagreement survived — one phase wearing two meanings.
+			//
+			// The split is possible because the kernel ALREADY distinguishes waiting-for-a-verdict from
+			// performing one: `reviewing` stays `running` (a review really is executing on a model endpoint),
+			// while `awaiting_review` is a card parked for a verdict it cannot produce itself.
+			//
+			// Getting it wrong in either direction is a known wedge shape: count it as capacity and cards awaiting
+			// a HUMAN verdict starve the board forever; count `reviewing` as free and a saturated board admits
+			// more work while every endpoint is busy reviewing.
+			return "awaiting_verdict";
 		case "planning":
 		case "implementing":
 		case "awaiting_acceptance":
-		case "awaiting_review":
 		case "reviewing":
 		case "ready_for_delivery":
 		case "delivering":
@@ -191,9 +206,16 @@ export function classifyWorkflowPhase(phase: WorkflowPhase): WorkflowPhaseClass 
  */
 export function isLiveWorkflowPhase(phase: WorkflowPhase): boolean {
 	const phaseClass = classifyWorkflowPhase(phase);
-	// `paused` counts as LIVE: the runtime still owes the card work, and reclaiming its lease would burn the
-	// retry budget of a card that was deliberately held — the v16 defect with a different trigger.
-	return phaseClass === "waiting_capacity" || phaseClass === "running" || phaseClass === "paused";
+	// `paused` and `awaiting_verdict` count as LIVE: the runtime still owes the card work, and reclaiming the
+	// lease of a card that was deliberately held — or that is waiting on a verdict — would burn the retry budget
+	// of work nobody abandoned. That is the v16 defect with a different trigger, and it is also the exact bug
+	// that hung a dead board for two hours when the monitor was widened the OTHER way.
+	return (
+		phaseClass === "waiting_capacity" ||
+		phaseClass === "running" ||
+		phaseClass === "paused" ||
+		phaseClass === "awaiting_verdict"
+	);
 }
 
 /**
