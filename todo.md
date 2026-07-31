@@ -10020,6 +10020,36 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   a `dev` command consumer (buildable + testable NOW, non-orphan); (2) apply-site failure-KIND tagging for
   format-specific attribution; (3) the routing half (weak model → whole-file), fleet-gated behind the measured
   signal.
+  **▶ STEP 1 SHIPPED 2026-07-31 — `edit-reliability.ts` + `nklein dev edit-reliability`, 18 tests. AND IT
+  PRODUCED A REAL MEASUREMENT ON DAVID'S LIVE LEDGER (238 attempt events, 9 models seen, 4 measurable):**
+  | model | edit reliability | classified calls |
+  |---|---|---|
+  | `openai/gpt-oss-120b` | **29.4%** | 34 |
+  | `qwen/qwen3-8b` | 63.4% | 41 |
+  | `unknown:default` | 75.3% | 146 |
+  | `qwopus3.5-9b-coder-mtp` | **85.4%** | 233 |
+  **THE 120B GENERAL MODEL EDITS FAR WORSE THAN THE 9B CODER MODEL** — three times the failure rate. That is
+  P21.1's own thesis showing up in our data, and it lands squarely on **Phase 22's finding that parameter count
+  is a bad capability proxy at agent depth**.
+  **⚠️ THREE CONFOUNDS, STATED SO THE NUMBER IS NOT OVER-READ.** (a) OBSERVATIONAL, not controlled: each model
+  edited whatever cards it happened to draw, so a model given harder work looks worse at editing without being
+  worse at editing — this ranks models AS DEPLOYED, not models per se. (b) 34 calls clears the 20-call floor but
+  is still small; the 9B's 233 calls are far better evidence than the 120B's 34. (c) it measures *"struggles to
+  EDIT"*, NOT *"struggles with DIFF FORMAT"* — the ledger's `is_error` cannot separate a malformed diff from a
+  context mismatch or a missing file, and only the second justifies switching a model to whole-file edits.
+  ⇒ A controlled A/B is still required before routing on this. What step 1 delivers is a signal worth running
+  that A/B against, plus the finding that the obvious "bigger model = better edits" prior is wrong here.
+  **TWO WAYS THIS METRIC COULD HAVE LIED, BOTH CLOSED.** An UNRECORDED outcome is not a success: `outcome` is
+  nullable and *"absent on legacy lines"*, so the obvious `outcome !== "error"` would report near-100% for a model
+  whose data merely predates the field — unknowns are excluded from the denominator and reported separately (the
+  live run shows this matters: several rows carry unrecorded calls). And a rate from a handful of calls reports
+  `insufficient_data` with a NULL rate, never a confident fraction. Unmeasured models are PRINTED, so the measured
+  list is never mistaken for the whole fleet.
+  **NO ABSOLUTE "UNRELIABLE" THRESHOLD, DELIBERATELY** — nothing in this project establishes one, and an invented
+  cutoff would decide model routing on a number nobody derived. It RANKS worst-first, which is all the routing
+  half actually needs.
+  **🔎 INCIDENTAL:** 146 of the classified calls are attributed to `lmstudio:unknown:default` — a real chunk of the
+  ledger carries no resolved model identity. Not chased here; worth a look before this metric is used for routing.
   **🎯 AND THE CORE INSIGHT IS ALREADY SHIPPED VIA A DIFFERENT (BETTER-EVIDENCED) MECHANISM — found 2026-07-20.**
   P21.1's thesis is "a small model splits attention between SOLVING and CONFORMING to the edit format and loses
   both." `architect-editor-split.ts` (F12.62) implements exactly that: `decideArchitectEditorSplit` runs an

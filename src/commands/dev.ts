@@ -40,6 +40,7 @@ import { runDevChurnCommand } from "./dev-churn-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import { runDevCompactionFormatCommand } from "./dev-compaction-format-command";
 import { runDevDiagnoseCommand } from "./dev-diagnose-command";
+import { runDevEditReliabilityCommand } from "./dev-edit-reliability-command";
 import { runDevEnvGatedCommand } from "./dev-env-gated-command";
 import { runDevEvidenceCommand } from "./dev-evidence-command";
 import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
@@ -929,6 +930,15 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action((options: Parameters<typeof runDevModelFitCommand>[0]) => {
 			runDevModelFitCommand(options);
+		});
+
+	dev.command("edit-reliability")
+		.description("P21.1: which models struggle to EDIT? (ledger success/error rate per model, worst first)")
+		.option("--min-calls <n>", "Classified edit calls needed before a rate is reported (default 20).")
+		.option("--tools <names>", "Comma-separated edit tool names, if the registered set has drifted.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { minCalls?: string; tools?: string; json?: boolean }) => {
+			await runDevEditReliabilityCommand(options);
 		});
 
 	dev.command("prefill-cost")
