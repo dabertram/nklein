@@ -321,7 +321,8 @@ export interface RuntimeServer {
 }
 
 // C3 (§5.AF): how often the durable-run reclaim/dispatch timer fires. Long enough not to busy-loop, short enough to
-// re-dispatch a reclaimed orphan (30s backoff) promptly. Only armed when NKLEIN_DURABLE_SCHEDULER is set.
+// re-dispatch a reclaimed orphan (30s backoff) promptly. Armed unless NKLEIN_DURABLE_SCHEDULER is explicitly
+// disabled — the flag is DEFAULT-ON (`isEnabledByDefaultEnv`), so this timer runs on an ordinary boot.
 const DURABLE_RUN_TICK_INTERVAL_MS = 15_000;
 
 export async function createRuntimeServer(deps: CreateRuntimeServerDependencies): Promise<RuntimeServer> {

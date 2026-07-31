@@ -1,6 +1,12 @@
 /**
  * The C3 durable-scheduler LIVE-WIRING composition layer (todo §5.AF) — the single seam that ties the built-but-dark
- * durable-run substrate to the runtime, behind the `NKLEIN_DURABLE_SCHEDULER` flag (default OFF = byte-identical).
+ * durable-run substrate to the runtime, gated by `NKLEIN_DURABLE_SCHEDULER`.
+ *
+ * ⚠️ **THAT FLAG IS DEFAULT-ON, NOT OPT-IN.** It is read with `isEnabledByDefaultEnv`, so an UNSET variable means
+ * ENABLED; only an explicit `0`/`false`/`no`/`off` turns the scheduler off. It was promoted deliberately in
+ * `cda009684` ("durable scheduler DEFAULT-ON — live restart-mid-run validation complete") and this header went on
+ * saying "default OFF = byte-identical" for months afterwards. That phrase is the one a reviewer relies on to
+ * conclude a change here cannot affect a normal run, and on this subsystem it was exactly backwards.
  *
  * The substrate is complete and unit-tested in isolation: the pure {@link DurableRunController} (lease/tick/reclaim
  * brain), {@link createLedgerDurableRunPorts} (persist-before-dispatch ledger bridge), {@link DurableRunRegistry}
@@ -82,7 +88,10 @@ export function durableJobGraphInputFromBoard(board: DurableRunBoardView): {
 }
 
 export interface DurableRunWiringDeps {
-	/** Master switch (NKLEIN_DURABLE_SCHEDULER). When false, every method is inert and the runtime is byte-identical. */
+	/**
+	 * Master switch. When false every method is inert; the runtime server derives it from
+	 * `NKLEIN_DURABLE_SCHEDULER`, which is **DEFAULT-ON** — unset means enabled. See the header.
+	 */
 	enabled: boolean;
 	/** Append one mapped `scheduler` ledger event (the runtime's ledger-store append). Awaited before dispatch by the ports. */
 	appendEvent: (event: AgentSchedulerEvent) => void | Promise<void>;

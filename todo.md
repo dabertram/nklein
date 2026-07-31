@@ -11126,6 +11126,28 @@ Mirrored by a manifest-level test so the data cannot drift back.
 - The 12 remaining MODERATE npm advisories are untriaged and explicitly NOT claimed clean; both `overrides`
   pins (`protobufjs`, `fast-uri`) are debt needing a re-check for upstream fixes.
 
+**3b. Defect found + fixed 2026-07-31 — THE DURABLE SCHEDULER IS DEFAULT-ON AND THREE COMMENTS SAID OTHERWISE.**
+`NKLEIN_DURABLE_SCHEDULER` is read with `isEnabledByDefaultEnv`, so an UNSET variable means ENABLED; only an
+explicit `0`/`false`/`no`/`off` disables it. It was promoted deliberately in `cda009684` ("durable scheduler
+DEFAULT-ON — live restart-mid-run validation complete") and the comments were never updated:
+  · `durable-run-wiring.ts` header — *"behind the `NKLEIN_DURABLE_SCHEDULER` flag (default OFF = byte-identical)"*
+  · `DurableRunWiringDeps.enabled` — *"When false … the runtime is byte-identical"*, with no statement of the default
+  · `runtime-server.ts` — *"Only armed when NKLEIN_DURABLE_SCHEDULER is set"* — simply false
+**WHY THIS IS WORSE THAN A STALE COMMENT.** *"Default OFF = byte-identical"* is the exact phrase a reviewer relies
+on to conclude a change cannot affect a normal run — and this is the component that decides which cards get
+dispatched. **It misled the agent editing that subsystem, in this session, minutes before the fix.**
+**HOW IT SURFACED:** an end-to-end `verify-simulated-flow` run with the scheduler enabled, checking whether the
+P21.5b ledger claim was really exercised. The runtime LOG showed zero durable activity — which looked like proof
+the scheduler had not run, and was wrong: the durable path logs only exceptions. **The LEDGER was the real
+evidence (4 `scheduler` events).** Reading absence-of-logs as absence-of-execution would have produced a confident
+false conclusion in both directions at once.
+**AUDITED THE WHOLE CLASS:** seven flags are default-ON; only this one was mis-described. Ratchet added —
+`test/runtime/default-on-flags-documented-honestly.test.ts` (mutation-verified). The MIRROR check (an
+`isTruthyEnv` flag described as default-ON) is deliberately NOT implemented: a default-ON config bit with an env
+override reads identically to the error (*"`sandboxMcpServersEnabled` (ON by default; …) OR the
+`NKLEIN_SANDBOX_MCP` env override"*), and a check that flags correct code gets an allow-list bolted on until it
+means nothing.
+
 **4. Questions batched for David (do not act on these unilaterally):**
 - **🆕 2026-07-31 — does a card AWAITING REVIEW hold runtime capacity?** The last blocker on migrating capacity
   consumers onto the kernel. `reservesWorkflowCapacity` agrees with the session model's `isBusySessionState` on
