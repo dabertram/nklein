@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { estimateTextTokens } from "../../../src/core/eval-context-footprint";
-import { buildReviewInput, EVAL_PROMPT_CORPUS } from "../../../src/core/eval-prompt-corpus";
+import { buildDecomposeInput, buildReviewInput, EVAL_PROMPT_CORPUS } from "../../../src/core/eval-prompt-corpus";
 import { classifyContextDepth } from "../../../src/core/model-fitness-freshness";
 
 /**
@@ -26,6 +26,9 @@ function runtimeContextTokens(prompt: (typeof EVAL_PROMPT_CORPUS)[number]): numb
 	// A depth-padded review expands at run time too — same spec-vs-runtime trap, different family.
 	if (prompt.family === "review") {
 		return estimateTextTokens(buildReviewInput(prompt));
+	}
+	if (prompt.family === "decompose") {
+		return estimateTextTokens(buildDecomposeInput(prompt));
 	}
 	return estimateTextTokens(JSON.stringify(prompt));
 }
@@ -59,6 +62,21 @@ describe("eval corpus context depth", () => {
 		).toEqual(shallowTwin?.family === "review" ? shallowTwin.seededDefects : undefined);
 	});
 
+	it("DECOMPOSE has a depth-padded prompt whose TASK is unchanged", () => {
+		// Decompose quality was the G6.8a campaign's binding constraint, and every decompose measurement until now
+		// was taken on a two-sentence prompt. The padding is context, never extra requirements: the deep row keeps
+		// the shallow row's exact reference graph, so a score difference isolates depth rather than difficulty.
+		const shallow = EVAL_PROMPT_CORPUS.find((p) => p.id === "decompose-cli-version-flag");
+		const deep = EVAL_PROMPT_CORPUS.find((p) => p.id === "decompose-cli-version-flag-deep");
+		expect(rows.find((row) => row.id === "decompose-cli-version-flag-deep")?.depth).toBe("deep");
+		expect(
+			deep?.family === "decompose" ? deep.reference : null,
+			"the pair must share a reference graph or the comparison measures difficulty",
+		).toEqual(shallow?.family === "decompose" ? shallow.reference : undefined);
+		// The request must survive the padding — a preamble that buried the task would test truncation, not depth.
+		expect(buildDecomposeInput(deep as never).trimEnd()).toMatch(/dependencies\.$/u);
+	});
+
 	it("has graduated depth coverage for RETRIEVAL", () => {
 		const probeDepths = rows.filter((row) => row.family === "context_probe").map((row) => row.depth);
 		expect(new Set(probeDepths)).toEqual(new Set(["shallow", "medium", "deep"]));
@@ -69,9 +87,9 @@ describe("eval corpus context depth", () => {
 		// predicted by capability at depth 0 — and decompose/review/implement/tool_use, the families that decide
 		// routing for real cards, have no evidence above the shallow band at all. A needle probe at 24k measures
 		// retrieval, which is a different capability from decomposing a spec at 24k.
-		// `review` was REMOVED from this list on 2026-07-31 when the first depth-padded agent-work prompt landed
-		// (`review-null-and-unhandled-rejection-deep`, ~16.6k tokens). The remaining three are the live gap.
-		const agentWorkFamilies = ["decompose", "implement", "tool_use"] as const;
+		// `review` and `decompose` were REMOVED from this list on 2026-07-31 as depth-padded rows landed
+		// (~16.6k and ~22.8k tokens). `implement` and `tool_use` are the remaining gap.
+		const agentWorkFamilies = ["implement", "tool_use"] as const;
 		for (const family of agentWorkFamilies) {
 			const depths = new Set(rows.filter((row) => row.family === family).map((row) => row.depth));
 			expect(
@@ -86,6 +104,6 @@ describe("eval corpus context depth", () => {
 		for (const row of rows) {
 			distribution[row.depth] += 1;
 		}
-		expect(distribution, "corpus depth changed — see todo P22.2").toEqual({ shallow: 13, medium: 1, deep: 2 });
+		expect(distribution, "corpus depth changed — see todo P22.2").toEqual({ shallow: 13, medium: 1, deep: 3 });
 	});
 });

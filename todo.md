@@ -10510,8 +10510,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   edges — the lost-in-the-middle effect this is meant to expose rather than dodge. The filler is deliberately
   boring and correct: its job is volume to read past, and any defect in it would score as a miss the prompt never
   seeded.
-  **REMAINING:** `decompose`, `implement` and `tool_use` still have shallow-only coverage; a test pins that list
-  so removing a family from it is deliberate.
+  **▶ DECOMPOSE DEPTH LANDED TOO — `decompose-cli-version-flag-deep` (~22.8k tokens).** Same matched-pair design:
+  identical request AND identical reference graph as the shallow row, so a score difference isolates depth.
+  **The padding is CONTEXT, never extra requirements** — adding requirements would make a bigger graph the
+  correct answer, and the pair would then measure difficulty, the exact confound Phase 22 is about. A test
+  asserts the two rows share a reference graph and that the task still survives at the END of the preamble (a
+  preamble that buried the request would test truncation, not depth).
+  **Why decompose specifically:** it was the G6.8a campaign's BINDING CONSTRAINT, and every decompose measurement
+  until now was taken on a two-sentence prompt. `buildDecomposeInput` is wired into both chat paths in
+  `scoreDecompose`.
+  **CORPUS DEPTH NOW: 13 shallow · 1 medium · 3 deep**, with `decompose`, `review` and `context_probe` covering
+  depth. **REMAINING: `implement` and `tool_use` are still shallow-only**; a test pins that list so removing a
+  family from it is deliberate.
   **A test now pins the distribution EXACTLY** (`eval-corpus-depth.test.ts`) rather than asserting the corpus
   *should* have deep prompts — a red test in the suite is one people learn to skip. The day a deep prompt is
   added the assertion trips and is updated deliberately, so this gap cannot be closed by accident or widened

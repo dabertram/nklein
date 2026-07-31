@@ -56,6 +56,17 @@ export const decomposeEvalPromptSchema = z.object({
 	 * beyond what `scoreValidDag`'s validity-only check measures.
 	 */
 	reference: taskGraphSchema,
+	/**
+	 * P22.2 — approximate size of a CODEBASE-OVERVIEW preamble generated at run time, so decomposition can be
+	 * measured AT DEPTH. Omitted ⇒ the prompt is sent alone, exactly as before.
+	 *
+	 * The padding is deliberately CONTEXT, never extra requirements. Adding requirements would change the task —
+	 * a bigger graph is correctly a different answer — and the matched shallow/deep pair would then measure
+	 * difficulty instead of depth, which is precisely the confound Phase 22 is about. The preamble is plausible
+	 * repository description the architect must read past to find the request, which is what a real card looks
+	 * like and what a two-sentence prompt cannot measure.
+	 */
+	contextPreambleTokens: z.number().int().positive().optional(),
 });
 
 /** Coding family (worker): the model must implement code; the harness runs `tests` → passed/total → {@link scorePassingCode}. */
@@ -273,6 +284,43 @@ export function buildReviewInput(prompt: ReviewEvalPrompt): string {
 	return blocks.join("\n\n");
 }
 
+/** Plausible, irrelevant repository description used to pad a decompose prompt to depth. */
+const DECOMPOSE_PREAMBLE_TEMPLATES: readonly string[] = [
+	"Module %N (`src/services/module%N.ts`) exposes a small façade over the persistence layer and is covered by unit tests.",
+	"Package %N ships a CLI entry point that reads configuration from the environment and validates it at start-up.",
+	"Directory %N contains generated API clients; they are regenerated on release and should not be edited by hand.",
+	"Component %N renders a read-only summary view and has no side effects beyond fetching its own data.",
+];
+const DECOMPOSE_PREAMBLE_TOKENS_PER_LINE = 22;
+
+/**
+ * P22.2 — build the decomposition request the architect actually receives, prepending a codebase overview when
+ * `contextPreambleTokens` is set. Returns `prompt.prompt` unchanged otherwise, so existing rows are untouched.
+ *
+ * The overview is irrelevant to the task ON PURPOSE. The question is whether a model can still produce the same
+ * graph once the request is buried in repository context — not whether it can decompose a harder problem.
+ */
+export function buildDecomposeInput(prompt: DecomposeEvalPrompt): string {
+	if (!prompt.contextPreambleTokens) {
+		return prompt.prompt;
+	}
+	const count = Math.max(2, Math.round(prompt.contextPreambleTokens / DECOMPOSE_PREAMBLE_TOKENS_PER_LINE));
+	const lines = Array.from({ length: count }, (_, index) =>
+		(DECOMPOSE_PREAMBLE_TEMPLATES[index % DECOMPOSE_PREAMBLE_TEMPLATES.length] as string).replaceAll(
+			"%N",
+			String(index + 1),
+		),
+	);
+	return [
+		"Repository overview (context only — the task follows at the end):",
+		"",
+		...lines,
+		"",
+		"TASK:",
+		prompt.prompt,
+	].join("\n");
+}
+
 // ── The corpus ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const DECOMPOSE_PROMPTS: readonly DecomposeEvalPrompt[] = [
@@ -296,6 +344,32 @@ const DECOMPOSE_PROMPTS: readonly DecomposeEvalPrompt[] = [
 				{ from: "wire-into-main", to: "add-test" },
 			],
 		},
+	},
+	{
+		// P22.2 — the SAME task and reference graph as `decompose-cli-version-flag`, buried under ~18k tokens of
+		// repository overview. The pair isolates DEPTH: identical request, identical answer key, only the
+		// surrounding context differs. Decompose quality was the G6.8a campaign's binding constraint, and every
+		// decompose measurement until now was taken on a two-sentence prompt.
+		id: "decompose-cli-version-flag-deep",
+		role: "architect",
+		family: "decompose",
+		difficulty: "hard",
+		prompt:
+			"Decompose the work to add a `--version` flag to an existing CLI that prints the package version and exits 0. " +
+			"Return a task graph: nodes are concrete steps, edges are 'must precede' dependencies.",
+		guidance:
+			"The same 3–5 steps as the shallow variant. A model that produces a valid graph shallow and a malformed " +
+			"or truncated one here is losing the task to CONTEXT VOLUME, not to difficulty.",
+		reference: {
+			nodes: ["read-version", "add-flag-parse", "print-and-exit", "wire-into-main", "add-test"],
+			edges: [
+				{ from: "read-version", to: "print-and-exit" },
+				{ from: "add-flag-parse", to: "wire-into-main" },
+				{ from: "print-and-exit", to: "wire-into-main" },
+				{ from: "wire-into-main", to: "add-test" },
+			],
+		},
+		contextPreambleTokens: 18_000,
 	},
 	{
 		id: "decompose-rest-pagination",

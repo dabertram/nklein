@@ -15,6 +15,7 @@ import { extractDecomposeEvalAnswer, extractReviewEvalAnswer } from "../core/eva
 import { type EvalCellOutcome, foldEvalOutcomes } from "../core/eval-fitness-fold.js";
 import {
 	buildContextProbeInput,
+	buildDecomposeInput,
 	buildReviewInput,
 	type ContextProbeEvalPrompt,
 	EVAL_PROMPT_CORPUS,
@@ -135,6 +136,9 @@ async function scoreDecompose(
 	chat: ModelEvalChat,
 ): Promise<number | null> {
 	const strategy = selectStructuredOutputStrategy(modelId).strategy;
+	// P22.2: expands a depth-padded decompose row into the request the architect actually sees; returns the raw
+	// prompt unchanged when no preamble is configured, so shallow rows are byte-identical.
+	const userPrompt = prompt.family === "decompose" ? buildDecomposeInput(prompt) : prompt.prompt;
 	const systemPrompt =
 		'Decompose the task into 3-6 subtasks with dependencies. Output ONLY JSON: {"tasks":[{"id":string,"title":string,"dependsOn":[id]}]}.';
 	if (strategy === "native_tool_call") {
@@ -143,7 +147,7 @@ async function scoreDecompose(
 		const choice = await chat(
 			[
 				{ role: "system", content: "Decompose via the tool." },
-				{ role: "user", content: prompt.prompt },
+				{ role: "user", content: userPrompt },
 			],
 			{ tools: [DECOMPOSE_TOOL], tool_choice: "required", max_tokens: Math.max(maxTokens, 4000) },
 		);
@@ -154,7 +158,7 @@ async function scoreDecompose(
 	const choice = await chat(
 		[
 			{ role: "system", content: systemPrompt },
-			{ role: "user", content: prompt.prompt },
+			{ role: "user", content: userPrompt },
 		],
 		{ max_tokens: maxTokens },
 	);
