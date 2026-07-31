@@ -11064,6 +11064,23 @@ Mirrored by a manifest-level test so the data cannot drift back.
   pins (`protobufjs`, `fast-uri`) are debt needing a re-check for upstream fixes.
 
 **4. Questions batched for David (do not act on these unilaterally):**
+- **🆕 2026-07-31 — does a card AWAITING REVIEW hold runtime capacity?** The last blocker on migrating capacity
+  consumers onto the kernel. `reservesWorkflowCapacity` agrees with the session model's `isBusySessionState` on
+  **six of seven** session states; `awaiting_review` is the exception, and both answers are internally coherent
+  because **the two models count different resources**:
+    · **Session model says NO** — `awaiting_review` means the worker session has ENDED, so no worker slot is held.
+    · **Kernel says YES** — `awaiting_review` is in the `running` class because the runtime still has work in
+      flight, and a review really is executing on a model endpoint.
+  **Why it matters both ways:** answer NO and a board saturated with review-tail cards will admit more work while
+  every endpoint is busy reviewing (endpoint thrash, the shape that produced the v14 ghost-session livelock).
+  Answer YES and cards awaiting a HUMAN verdict count against capacity forever, starving the board — the
+  monitor-truncation bug's cousin.
+  **RECOMMENDATION: split the question rather than answer it.** "Reviewing on an endpoint" and "parked for a
+  human verdict" are different states wearing one name; the kernel already distinguishes `awaiting_review` from
+  `reviewing`, so the honest mapping is *`reviewing` reserves capacity, `awaiting_review` does not* — which also
+  makes the kernel agree with the session model on all seven states. Not applied unilaterally: it changes what
+  `classifyWorkflowPhase` returns for a phase, and current behaviour is pinned by tests so the change must be
+  deliberate.
 - **✅ DECIDED + PARTLY DONE 2026-07-31 (David): drop `dify-ai-provider` now, decide the OTel cluster separately.**
   `dify-ai-provider` REMOVED. Result: **13 → 11 advisories, and 0 HIGH** (was 1). The desktop CLI is unaffected —
   re-verified it has no external `require("dify-ai-provider")`, it inlines the provider — and the full suite is
