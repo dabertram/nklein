@@ -38,6 +38,7 @@ const ALL_PHASES: readonly WorkflowPhase[] = [
 	"planning",
 	"implementing",
 	"awaiting_acceptance",
+	"paused",
 	"awaiting_review",
 	"reviewing",
 	"ready_for_delivery",
@@ -56,6 +57,8 @@ const ALL_COMMANDS: readonly WorkflowCommand["kind"][] = [
 	"implementation_finished",
 	"acceptance_passed",
 	"acceptance_failed",
+	"pause_requested",
+	"resume_requested",
 	"review_started",
 	"review_passed",
 	"review_changes_requested",
@@ -137,28 +140,31 @@ describe("workflow kernel — the race classes that actually bit us", () => {
 		}
 	});
 
-	it("never emits release_resources TWICE in a life — the double-release class, checked over every sequence ≤ 3", () => {
-		// The defect class that produced the v9 wedge: a resource released once by the child and again by the parent,
-		// dropping the host's occupancy below zero and permanently wedging admission. `reopened` legitimately starts
-		// a NEW life (the card re-enters the ladder and re-acquires), so sequences containing it are excluded here and
-		// covered by the contract block at the end of this file.
-		const withoutReopen = ALL_COMMANDS.filter((kind) => kind !== "reopened");
-		for (const start of ALL_PHASES) {
-			for (const first of withoutReopen) {
-				for (const second of withoutReopen) {
-					for (const third of withoutReopen) {
-						let phase = start;
-						let releases = 0;
-						for (const kind of [first, second, third]) {
-							const result = apply(phase, kind);
-							releases += result.effects.filter((effect) => effect.kind === "release_resources").length;
-							phase = result.phase;
-						}
-						expect(releases, `${start} + ${first},${second},${third} released ${releases}×`).toBeLessThanOrEqual(
-							1,
-						);
-					}
-				}
+	it("MAY emit release_resources more than once — superseded by the IDEMPOTENT decision", () => {
+		// ⚠️ THIS PROPERTY WAS INVERTED ON 2026-07-31, and the reason matters.
+		//
+		// It originally asserted a release is never emitted twice in a life, which was the right guard while the
+		// semantics were undecided: under a PAIRED reading a second release drives a counter-based consumer's host
+		// occupancy negative — the v9 parent-reacquire wedge. David decided IDEMPOTENT ("ensure nothing is held"),
+		// which moves that protection from the kernel to the consumer contract: duplicates are explicitly safe
+		// because a consumer must implement release as a no-op when nothing is held.
+		//
+		// The `paused` phase made this concrete rather than theoretical: pausing releases the slot, and a later
+		// `failed` releases again. That sequence is CORRECT under the decided semantics and would have been a
+		// defect under the other one. Asserted here so the dependency between the two decisions stays visible.
+		const paused = apply("implementing", "pause_requested");
+		expect(paused.phase).toBe("paused");
+		expect(paused.effects).toEqual([{ kind: "release_resources" }]);
+		expect(apply(paused.phase, "failed").effects).toEqual([{ kind: "release_resources" }]);
+	});
+
+	it("still never emits release on a HOLD — a stale event is side-effect free either way", () => {
+		// What survives the semantics change: idempotence excuses duplicate releases from real transitions, not
+		// releases from events that changed nothing. A hold that emitted anything would fire on every late event.
+		for (const { phase, kind } of everyTransition()) {
+			const result = apply(phase, kind);
+			if (result.phase === phase) {
+				expect(result.effects, `${phase} + ${kind} held but emitted`).toEqual([]);
 			}
 		}
 	});
@@ -203,7 +209,9 @@ describe("workflow kernel — the canonical classification", () => {
 		// Two answers to "is this settled?" is precisely the drift this classification exists to end.
 		for (const phase of ALL_PHASES) {
 			const phaseClass = classifyWorkflowPhase(phase);
-			expect(["idle", "waiting_capacity", "running", "terminal"], `${phase} unclassified`).toContain(phaseClass);
+			expect(["idle", "waiting_capacity", "running", "paused", "terminal"], `${phase} unclassified`).toContain(
+				phaseClass,
+			);
 			expect(phaseClass === "terminal", `${phase}: classification and isTerminalWorkflowPhase disagree`).toBe(
 				isTerminalWorkflowPhase(phase),
 			);
@@ -224,6 +232,29 @@ describe("workflow kernel — the canonical classification", () => {
 		for (const phase of ["awaiting_review", "reviewing", "ready_for_delivery", "delivering"] as const) {
 			expect(isLiveWorkflowPhase(phase), `${phase} must be alive or the board reads as dead mid-review`).toBe(true);
 		}
+	});
+
+	it("PAUSED is alive but NOT capacity-holding — the distinction the kernel previously could not express", () => {
+		// Before `paused` existed a held card classified as `running`, so a capacity consumer counted a slot the
+		// card had already released and could starve the host. It must be LIVE (the runtime still owes it work —
+		// reclaiming its lease would burn the retry budget of a card someone deliberately held, the v16 defect
+		// with a different trigger) while sitting in its own class, so capacity logic can exclude it.
+		expect(isLiveWorkflowPhase("paused")).toBe(true);
+		expect(classifyWorkflowPhase("paused")).toBe("paused");
+		expect(classifyWorkflowPhase("paused")).not.toBe("running");
+	});
+
+	it("pausing RELEASES the slot, and resuming re-enters the ladder", () => {
+		// What makes `paused` genuinely non-capacity-holding rather than merely labelled so: the slot is given
+		// back on the way in, and resuming re-acquires like any other card instead of jumping back to work.
+		expect(apply("implementing", "pause_requested")).toEqual({
+			phase: "paused",
+			effects: [{ kind: "release_resources" }],
+		});
+		expect(apply("paused", "resume_requested")).toEqual({
+			phase: "queued_for_endpoint",
+			effects: [{ kind: "enqueue", queue: "endpoint" }],
+		});
 	});
 
 	it("treats idle and every terminal phase as NOT alive — the other half of the same bug", () => {
@@ -255,8 +286,7 @@ describe("workflow kernel — what `release_resources` MEANS (one unresolved con
 	 * occupancy NEGATIVE — the precise wedge shape of the v9 parent-reacquire deadlock — and (b) leaks a sandbox and
 	 * an endpoint reservation on every reopen of a live card.
 	 *
-	 * RECOMMENDATION (for David, recorded in todo.md §5 P24.1): adopt the IDEMPOTENT reading and state it in the
-	 * effect-type doc. It makes (a) correct as written, costs one line of consumer discipline, and fails safe — a
+	 * ✅ DECIDED 2026-07-31 (David): the IDEMPOTENT reading, now stated in the effect-type doc. It makes (a) correct as written, costs one line of consumer discipline, and fails safe — a
 	 * redundant release is recoverable, a leaked endpoint reservation is what wedges a host. Under it, (b) and (c)
 	 * still need `reopened`/`mark_done` documented as implying teardown, or an explicit release added.
 	 *
@@ -264,6 +294,15 @@ describe("workflow kernel — what `release_resources` MEANS (one unresolved con
 	 * at a liveness contract is exactly what caused the two-hour dead-board hang earlier today (reverted, cc2fbc340).
 	 * These tests pin TODAY's behaviour so the resolution has to be deliberate enough to trip them.
 	 */
+
+	it('RESOLVED (David 2026-07-31): `release_resources` is IDEMPOTENT — "ensure nothing is held"', () => {
+		// The question this block was written to surface is now decided, so the tests below stop being "pinned
+		// ambiguity" and become the specification. Consumers must treat release as a no-op when nothing is held,
+		// and must NOT implement it as a counter decrement — under the paired reading the `idle` emission below
+		// would drive host occupancy negative, which is the v9 wedge shape.
+		expect(apply("idle", "failed").effects).toEqual([{ kind: "release_resources" }]);
+		expect(apply("implementing", "failed").effects).toEqual([{ kind: "release_resources" }]);
+	});
 
 	it("(a) emits a fail-safe release from `idle`, where nothing was ever acquired", () => {
 		for (const kind of ["failed", "cancel_requested"] as const) {
@@ -285,24 +324,5 @@ describe("workflow kernel — what `release_resources` MEANS (one unresolved con
 
 	it("(c) completion emits mark_done and no release", () => {
 		expect(apply("delivering", "delivered")).toEqual({ phase: "completed", effects: [{ kind: "mark_done" }] });
-	});
-
-	it("whichever reading wins, a release is never emitted twice in a row without re-acquiring", () => {
-		// This is the part that is TRUE under both readings, and it is the one that actually prevents the v9 wedge.
-		// Proven exhaustively over every phase and every command pair.
-		for (const phase of ALL_PHASES) {
-			for (const first of ALL_COMMANDS) {
-				const step = apply(phase, first);
-				if (!step.effects.some((effect) => effect.kind === "release_resources")) {
-					continue;
-				}
-				for (const second of ALL_COMMANDS.filter((kind) => kind !== "reopened")) {
-					expect(
-						apply(step.phase, second).effects.filter((effect) => effect.kind === "release_resources"),
-						`${phase} + ${first} then ${second} released twice`,
-					).toEqual([]);
-				}
-			}
-		}
 	});
 });

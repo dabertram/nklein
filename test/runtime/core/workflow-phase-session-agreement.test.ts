@@ -26,9 +26,9 @@ const NATURAL_PHASE: Record<RuntimeTaskSessionState, WorkflowPhase> = {
 	// A queued session is somewhere on the admission ladder; board capacity is the first rung.
 	queued: "queued_for_board_capacity",
 	running: "implementing",
-	// The kernel has NO paused phase: a paused session HOLDS its prior phase. `implementing` is the representative
-	// case (a session is overwhelmingly paused mid-implementation).
-	paused: "implementing",
+	// ✅ 2026-07-31: the kernel gained a real `paused` phase (David's decision), so this maps directly instead of
+	// borrowing `implementing` and mis-classifying as `running`.
+	paused: "paused",
 	awaiting_review: "awaiting_review",
 	failed: "failed",
 	// An interrupted session was torn down rather than having errored — `cancelled` is its kernel analogue.
@@ -65,7 +65,7 @@ describe("kernel classification vs the session model it would replace", () => {
 	});
 });
 
-describe("⚠️ a REPRESENTATION GAP the kernel must close before it owns capacity decisions", () => {
+describe("✅ the representation gap is CLOSED (was: the kernel could not express `paused`)", () => {
 	/**
 	 * FOUND 2026-07-30 by writing the agreement check above, not from a failure.
 	 *
@@ -91,13 +91,15 @@ describe("⚠️ a REPRESENTATION GAP the kernel must close before it owns capac
 		expect(hasLiveTaskSession("paused")).toBe(true);
 	});
 
-	it("the kernel cannot express that distinction today — paused classifies as `running`", () => {
-		// Pins the gap so closing it is a deliberate change that trips this test, rather than a silent redefinition.
-		// The divergence in one line: the session model says a paused card holds NO slot, while the kernel's class
-		// for its phase says `running` — which any capacity consumer would read as "holds a slot".
-		expect(isBusySessionState("paused")).toBe(false);
-		expect(classifyWorkflowPhase(NATURAL_PHASE.paused)).toBe("running");
-		// Liveness is unaffected, which is exactly why the agreement test above passes and this one is still needed.
+	it("the kernel NOW expresses it — `paused` is its own class, not `running`", () => {
+		// ⚠️ THIS TEST WAS INVERTED ON 2026-07-31. It previously pinned the GAP: a paused card classified as
+		// `running`, so a capacity consumer would count a slot the card had released. David's decision added a real
+		// `paused` phase, so the kernel now draws the same line the session model always did.
+		expect(isBusySessionState("paused"), "the session model: holds no slot").toBe(false);
+		expect(isActiveWorkSessionState("paused"), "the session model: work unfinished").toBe(true);
+		expect(classifyWorkflowPhase(NATURAL_PHASE.paused), "the kernel now agrees").toBe("paused");
+		expect(classifyWorkflowPhase(NATURAL_PHASE.paused)).not.toBe("running");
+		// Liveness was never the problem and must stay unchanged.
 		expect(isLiveWorkflowPhase(NATURAL_PHASE.paused)).toBe(hasLiveTaskSession("paused"));
 	});
 });

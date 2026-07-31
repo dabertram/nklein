@@ -16,6 +16,15 @@ export type WorkflowPhase =
 	| "planning"
 	| "implementing"
 	| "awaiting_acceptance"
+	/**
+	 * Deliberately held: work is UNFINISHED but the card holds no runtime slot (David's decision, 2026-07-31).
+	 *
+	 * Added because the kernel could not express what the session model already distinguished —
+	 * `isBusySessionState` ("occupies a slot") vs `isActiveWorkSessionState` ("work unfinished"). Without it a
+	 * paused card classified as `running`, so a capacity consumer would count a slot the card had released and
+	 * could starve the host. It is LIVE (the runtime still owes it work) but NOT capacity-holding.
+	 */
+	| "paused"
 	| "awaiting_review"
 	| "reviewing"
 	| "ready_for_delivery"
@@ -36,6 +45,10 @@ export type WorkflowCommand =
 	| { kind: "implementation_finished" }
 	| { kind: "acceptance_passed" }
 	| { kind: "acceptance_failed" }
+	/** Hold an in-flight card without discarding its work; it releases its slot and keeps its place. */
+	| { kind: "pause_requested" }
+	/** Resume a held card back into implementation. */
+	| { kind: "resume_requested" }
 	| { kind: "review_started" }
 	| { kind: "review_passed" }
 	| { kind: "review_changes_requested" }
@@ -54,6 +67,27 @@ export type WorkflowEffect =
 	| { kind: "request_review" }
 	| { kind: "capture_result_branch" }
 	| { kind: "mark_done" }
+	/**
+	 * Release whatever this card holds. **SEMANTICS: IDEMPOTENT — "ensure nothing is held", NOT "give back what
+	 * you took"** (David's decision, 2026-07-31).
+	 *
+	 * ── THE CONTRACT THIS PLACES ON CONSUMERS ──
+	 * A consumer MUST implement release so that releasing something it does not hold is a no-op. It must NOT be a
+	 * counter decrement. This effect is emitted from any non-terminal phase, INCLUDING `idle`, where nothing was
+	 * ever acquired — a card cancelled before it enqueued still emits one.
+	 *
+	 * ── WHY THIS READING AND NOT THE PAIRED ONE ──
+	 * Under paired semantics that `idle` emission is a bug: a counter-based consumer would drop host occupancy
+	 * below zero and permanently wedge admission — the exact shape of the v9 parent-reacquire deadlock. The
+	 * asymmetry decides it: **a redundant release is recoverable; a leaked endpoint reservation wedges a host.**
+	 * So the effect fires whenever release *might* be needed, and consumers absorb the duplicates.
+	 *
+	 * ── WHAT THIS DOES NOT EXCUSE ──
+	 * Idempotence is not a licence to skip releasing. `reopened` from an ACTIVE phase currently emits no release
+	 * while the card re-enters the ladder and re-acquires; under this reading that is safe only if the consumer
+	 * tears down on `reopened` anyway. Same for `mark_done`. Both are noted in the kernel's property tests, and
+	 * an explicit release should be added if either consumer turns out not to tear down.
+	 */
 	| { kind: "release_resources" };
 
 export interface WorkflowTransition {
@@ -93,7 +127,7 @@ export function isTerminalWorkflowPhase(phase: WorkflowPhase): boolean {
  * Exhaustive by construction: the switch has no `default`, so adding a phase without classifying it is a compile
  * error rather than a silent misclassification.
  */
-export type WorkflowPhaseClass = "idle" | "waiting_capacity" | "running" | "terminal";
+export type WorkflowPhaseClass = "idle" | "waiting_capacity" | "running" | "paused" | "terminal";
 
 export function classifyWorkflowPhase(phase: WorkflowPhase): WorkflowPhaseClass {
 	switch (phase) {
@@ -103,6 +137,10 @@ export function classifyWorkflowPhase(phase: WorkflowPhase): WorkflowPhaseClass 
 		case "queued_for_endpoint":
 		case "queued_for_sandbox":
 			return "waiting_capacity";
+		case "paused":
+			// NOT `running`: the card is alive and unfinished, but holds no slot. Collapsing it into `running`
+			// is exactly the over-count that could starve a host.
+			return "paused";
 		case "planning":
 		case "implementing":
 		case "awaiting_acceptance":
@@ -125,7 +163,9 @@ export function classifyWorkflowPhase(phase: WorkflowPhase): WorkflowPhaseClass 
  */
 export function isLiveWorkflowPhase(phase: WorkflowPhase): boolean {
 	const phaseClass = classifyWorkflowPhase(phase);
-	return phaseClass === "waiting_capacity" || phaseClass === "running";
+	// `paused` counts as LIVE: the runtime still owes the card work, and reclaiming its lease would burn the
+	// retry budget of a card that was deliberately held — the v16 defect with a different trigger.
+	return phaseClass === "waiting_capacity" || phaseClass === "running" || phaseClass === "paused";
 }
 
 /**
@@ -172,8 +212,19 @@ export function applyWorkflowCommand(phase: WorkflowPhase, command: WorkflowComm
 		case "planning":
 			return command.kind === "begin_implementation" ? { phase: "implementing", effects: [] } : hold;
 		case "implementing":
+			if (command.kind === "pause_requested") {
+				// Releases the slot on the way in — which is what makes `paused` non-capacity-holding rather than
+				// merely labelled so.
+				return { phase: "paused", effects: [{ kind: "release_resources" }] };
+			}
 			return command.kind === "implementation_finished"
 				? { phase: "awaiting_acceptance", effects: [{ kind: "run_acceptance" }] }
+				: hold;
+		case "paused":
+			// Resuming re-enters the admission ladder rather than jumping straight back to work: the slot was
+			// released, so it must be re-acquired like any other card.
+			return command.kind === "resume_requested"
+				? { phase: "queued_for_endpoint", effects: [{ kind: "enqueue", queue: "endpoint" }] }
 				: hold;
 		case "awaiting_acceptance":
 			if (command.kind === "acceptance_passed") {

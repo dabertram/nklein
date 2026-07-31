@@ -10961,12 +10961,31 @@ Mirrored by a manifest-level test so the data cannot drift back.
   **Verification recipe (cheap and conclusive):** remove → `npm install` → `npx tsc --noEmit` → `npm run
   test:fast` → a desktop-CLI smoke. If green, the deps were dead and 10 advisories go with them.
   ── superseded detail kept for reference ──
-- **NEW — kernel has no `paused` phase (§5 P24.1).** A paused card holds no slot but is not done; the kernel
+- **✅ DECIDED + DONE 2026-07-31 (David): ADD a `paused` phase.** Shipped with `pause_requested` /
+  `resume_requested` commands and its own `paused` class. Pausing **RELEASES the slot** on the way in (so it is
+  genuinely non-capacity-holding rather than merely labelled so) and resuming **re-enters the admission ladder**
+  rather than jumping back to work. It stays LIVE — reclaiming a held card's lease would burn the retry budget of
+  a card someone deliberately held, the v16 defect with a different trigger.
+  **THE EXHAUSTIVE PROPERTIES EARNED THEIR KEEP HERE.** Adding the phase broke the board projection at COMPILE
+  time (the no-`default` switch), and three properties failed — including one that turned out to be *superseded by
+  the release_resources decision rather than violated*: pausing releases, a later `failed` releases again, and
+  under IDEMPOTENT semantics that is correct where under PAIRED it would have been a defect. The two decisions
+  interact, and the test suite is what surfaced it. That property is now inverted with the reasoning attached, and
+  the session-agreement file's "representation gap" test is inverted too.
+  ── original finding ──
+- **kernel has no `paused` phase (§5 P24.1).** A paused card holds no slot but is not done; the kernel
   classifies it `running`. Liveness is fine, but capacity/admission decisions must NOT use
   `classifyWorkflowPhase` until this is closed. **Options: add a `paused` phase, or split `running` into
   holds-capacity / work-unfinished.** Recommendation: add the phase — it is the smaller change and it keeps the
   class vocabulary aligned with the audit's `waiting_capacity`/`running`/`terminal` mapping.
-- **NEW — `release_resources` semantics (§5 P24.1):** is it "ensure nothing is held" (IDEMPOTENT) or "give back
+- **✅ DECIDED + DONE 2026-07-31 (David): IDEMPOTENT — "ensure nothing is held".** Stated in the effect type,
+  which now carries the consumer contract: release MUST be a no-op when nothing is held and MUST NOT be a counter
+  decrement, because the effect fires from any non-terminal phase INCLUDING `idle`. Rationale recorded: a
+  redundant release is recoverable, a leaked endpoint reservation wedges a host. Noted explicitly that idempotence
+  does NOT excuse `reopened`-from-active and `mark_done` emitting no release — those are safe only if their
+  consumers tear down anyway, and an explicit release should be added if either turns out not to.
+  ── original finding ──
+- **`release_resources` semantics (§5 P24.1):** is it "ensure nothing is held" (IDEMPOTENT) or "give back
   what you took" (PAIRED)? Three kernel sites disagree with PAIRED; under PAIRED one of them drives a
   counter-based consumer's host occupancy NEGATIVE (the v9 wedge shape). **Recommendation: IDEMPOTENT.**
   Must be settled BEFORE the kernel is wired.

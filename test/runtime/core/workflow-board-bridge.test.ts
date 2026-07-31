@@ -16,6 +16,7 @@ const EXPECTED: Record<WorkflowPhase, RuntimeBoardColumnId> = {
 	planning: "planning",
 	implementing: "in_progress",
 	awaiting_acceptance: "in_progress",
+	paused: "in_progress",
 	awaiting_review: "review",
 	reviewing: "review",
 	ready_for_delivery: "review",

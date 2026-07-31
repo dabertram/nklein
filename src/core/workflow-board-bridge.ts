@@ -20,6 +20,10 @@ export function workflowPhaseToBoardColumn(phase: WorkflowPhase): RuntimeBoardCo
 		case "implementing":
 		case "awaiting_acceptance":
 			return "in_progress";
+		// A deliberately held card stays WHERE THE WORK IS, for the same reason `failed` does: the operator needs
+		// to see it. Moving it to its own lane would hide a card someone paused and meant to come back to.
+		case "paused":
+			return "in_progress";
 		// In or past review (review → delivery all surface in the Review lane until merged).
 		case "awaiting_review":
 		case "reviewing":
