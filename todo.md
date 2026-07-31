@@ -8398,6 +8398,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   the `taskId` filter then finds nothing in — **that would be a reader/writer hash mismatch, a real bug affecting
   every ledger consumer in this path, not just F12.35**; or (b) the second-opinion review path simply has not run
   on this machine in the logged period. Filed as F12.35b.
+  **▶ GATE-RESOLUTION RATCHET ADDED 2026-07-31 — `test/runtime/mechanism-registry-gates-resolve.test.ts`.**
+  The registry tells an operator that a zero-observation mechanism is fine: *"zero is the CORRECT result, not a
+  smell"*. **That sentence is only true while the named flag can still turn the mechanism on.** Rename or delete
+  the flag and the registry keeps issuing the same reassurance forever about a mechanism nobody can enable — the
+  one tool built to notice silence would be asserting the silence is fine. Same shape as `too_new_to_judge`
+  pinning a mechanism at "not yet judgeable" permanently: **a check whose failure mode is a confident green.**
+  Audited first: all 45 entries resolve, 0 unread — so this is a RATCHET on a clean registry, not a cleanup.
+  **⚠️ THE FIRST VERSION OF THE AUDIT WAS CIRCULAR AND "PASSED" 45/45.** Every flag is a string literal in the
+  registry's own declaration, so grepping `src/` matched the declaration itself. Excluding
+  `mechanism-observation-audit.ts` IS the substance of the check, and the test now guards that exclusion (asserts
+  the file exists, is out of the corpus, and that the corpus is non-trivial) so the guard cannot silently become
+  vacuous. **Mutation-verified**: renaming one flag makes it fail with that flag named.
 - [x] **P15.1d — Generate `docs/dev/mechanism-registry.md` from both scans *(split 2026-07-20)*.** Combine
   `dev unwired-cores` (nothing calls it) and `dev mechanism-registry` (it runs but never fires) into one
   generated document so the two failure modes appear side by side and neither can be mistaken for the other.
