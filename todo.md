@@ -9765,6 +9765,29 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Second: the ablated run must reuse the SAME test selection as the baseline. `assessNoOpAblation` already
   attributes a non-overlapping run to the harness rather than to the artifact, so a mismatch surfaces as the
   harness bug it is — but only if the runner does not silently narrow the suite between passes.
+  **▶ THE STUB SHIPPED 2026-07-31 — `no-op-stub-generation.ts`, 14 tests.** The rule this item flags is now
+  mechanism-independent code: every stubbed entry point THROWS, and the tests **import and CALL** the generated
+  stub rather than asserting on its text. That distinction has already cost this codebase once — the
+  implement-sandbox harness had a passing unit test asserting the generated script *contained* the candidate while
+  block-scoping made every class-based candidate score 0. A stub that reads correctly and does not throw is the
+  same failure, and here it produces the FALSE ACCUSATION this item warns about.
+  **THE ASYMMETRY IS APPLIED ONE LEVEL UP TOO: AN UNRECOGNISED EXPORT ABORTS, IT IS NOT SKIPPED.** An export the
+  generator fails to stub stays REAL, so tests exercising it keep passing and the ablation reports `decorative`
+  for an artifact it never removed. **A partial stub is not a weaker measurement, it is a wrong one** — so
+  `export *`, re-export-from and `export default` are refusals naming the line, and any unrecognised `export`
+  form is a refusal too. (Doc comments are tracked, because this codebase's headers are full of `export *`
+  examples and aborting on prose would refuse a perfectly stubbable module.)
+  Three details that each fix a way the stub would otherwise fail wrong: a plain value gets a **throwing getter**
+  (a `const` holding a throwing function silently passes any test that merely READS it — the exact
+  plausible-default hole); a class throws from its **constructor** (an undefined binding throws a TypeError that
+  reads like a harness bug rather than a stub report); and TYPE exports are **preserved** by re-export, because
+  dropping them fails the build and turns the ablated run into `inconclusive` — no measurement instead of a
+  verdict. **Verified the emitted stub compiles under `tsc --strict` (exit 0)**, not merely that it runs.
+  **🔴 STILL OPEN — and it is a DECISION, not a rush: how the stub REPLACES the real module in a running suite.**
+  Three viable mechanisms (source swap, Node loader hook, test-framework mock) that differ per project and per
+  runner; `npm test` in a generated project may not even be vitest. Picking one silently would bake a guess into
+  the measurement. Plus the effectful loop itself: run the suite twice with the SAME selection and emit the two
+  `{testId,passed}` JSONL files `dev ablation` already judges.
 - [x] **P20.4 — Reuse the egress fence as the EVAL sandbox + strip `.git`. ALREADY IMPLEMENTED — verified and
   closed 2026-07-31, and the implementation is STRICTER than this item asked for.**
   Both benchmark workspace planners were read end to end:
