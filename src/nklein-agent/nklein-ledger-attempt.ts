@@ -67,6 +67,8 @@ export interface TerminalAttemptInput {
 	timeoutReason: string | null;
 	/** Per-tool-call detail from the persisted transcript (`extractTerminalToolCalls`); omit for the coarse seam. */
 	toolCalls?: AttemptToolCall[];
+	/** P21.14: total tool calls in the transcript at capture time (the delta watermark). Omit for the coarse seam. */
+	transcriptToolCallCount?: number | null;
 	/** F12.29: procedural-skill ids surfaced into the session prompt (for paired-trajectory auditing). */
 	surfacedSkillIds?: readonly string[];
 	knowledge?: AttemptKnowledgeUsage | null;
@@ -84,6 +86,48 @@ export interface TerminalAttemptInput {
 	promptStrategy?: string | null;
 	/** F1.15a: the task's difficulty tier — the SAME derivation the §5.AB fitness fold uses (deriveTaskDifficultyTier). */
 	difficulty?: string | null;
+}
+
+/**
+ * P21.14 — reduce a task's FULL transcript tool calls to just THIS attempt's, using the watermark its
+ * predecessors recorded. Pure.
+ *
+ * ── WHY THE WATERMARK COUNTS TOOL CALLS AND NOT MESSAGES ──
+ * The obvious design slices the message list and extracts from the slice. It is wrong: `extractTerminalToolCalls`
+ * pairs a `tool_use` with its `tool_result` by id **within the list it is given**, so a slice boundary falling
+ * between the two leaves the call unresolved in one attempt and **silently drops the result in the next** — the
+ * id has no match in the new slice's map. Extracting over the WHOLE transcript keeps every pair intact; the
+ * delta is then taken on the already-correct call list.
+ *
+ * ── WHY A DURABLE WATERMARK AND NOT AN IN-PROCESS BOUNDARY ──
+ * The duplication is restart-driven: a fresh process re-terminates tasks that already finished, and any in-memory
+ * mark is empty exactly when it is needed. The watermark therefore lives on the attempt events themselves.
+ *
+ * ── LEGACY ──
+ * Attempts written before the field carry `null`. Those are treated as 0 rather than guessed at, so the first
+ * capture after this change re-records what today's code would have recorded — one more duplicate, once per task
+ * — and every capture after it is a true delta. Reinterpreting a historical cumulative count as a delta would
+ * silently rewrite the meaning of data already on disk.
+ */
+export function resolveAttemptToolCallDelta(input: {
+	/** Tool calls extracted from the ENTIRE transcript, in order. */
+	readonly allToolCalls: readonly AttemptToolCall[];
+	/** Watermarks recorded by prior attempts of this task (`transcriptToolCallCount`), nulls included. */
+	readonly priorWatermarks: readonly (number | null)[];
+}): { toolCalls: AttemptToolCall[]; transcriptToolCallCount: number } {
+	const consumed = input.priorWatermarks.reduce<number>(
+		(highest, mark) => (typeof mark === "number" && Number.isFinite(mark) && mark > highest ? mark : highest),
+		0,
+	);
+	// A watermark ABOVE the current call count means the transcript SHRANK (a compaction, or a fresh session
+	// reusing the task id). Restart from 0 rather than clamping to the end: clamping slices past everything and
+	// reports zero calls for the rest of the task's life, whereas starting over records one duplicate — the
+	// recoverable direction, and the same fail-safe choice the legacy-null case makes.
+	const start = consumed > input.allToolCalls.length ? 0 : Math.max(0, consumed);
+	return {
+		toolCalls: input.allToolCalls.slice(start).map((call) => ({ ...call })),
+		transcriptToolCallCount: input.allToolCalls.length,
+	};
 }
 
 /** Build the `attempt` ledger event for one terminal task run. Pure (no I/O); the caller appends it best-effort. */
@@ -123,6 +167,7 @@ export function buildTerminalAttemptEvent(input: TerminalAttemptInput): AgentAtt
 		retriesBefore: input.retriesBefore ?? 0,
 		salvage: input.timeoutReason,
 		toolCalls: input.toolCalls,
+		transcriptToolCallCount: input.transcriptToolCallCount ?? null,
 		knowledge: input.knowledge ?? null,
 		focusStep: input.focusStep ?? null,
 		artifacts: input.resultBranch ? { resultBranch: input.resultBranch, patchRef: null, evidenceBundle: null } : null,

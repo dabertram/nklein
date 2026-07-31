@@ -10378,7 +10378,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   instruction failures and externalized domain knowledge 81% of knowledge failures; headline **"89.7% of LLM
   performance at 4% of the cost."** F12.18 (retrieval-gate the tool catalog to ≤~8 schemas) is already the right
   shape — this supplies the external evidence for it and suggests ~7 as the target, not ~8-12.
-- [ ] **P21.14 — An attempt's `toolCalls` is the WHOLE TASK TRANSCRIPT, not that attempt's calls.** *(Found
+- [x] **P21.14 — An attempt's `toolCalls` is the WHOLE TASK TRANSCRIPT, not that attempt's calls. FIXED 2026-07-31.** *(Found
   2026-07-31 while root-causing the phantom-model defect; distinct root cause, deliberately not bundled into that
   fix.)*
   `captureTerminalRunSummary` builds every attempt event from `readPersistedTaskSession(taskId)` and runs
@@ -10403,6 +10403,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   silently reinterpreting it.
   **⚠️ It is a schema addition to a widely-projected durable stream, so it wants its own change and its own
   review** — which is why the phantom-model fix did not carry it.
+  **▶ FIXED 2026-07-31 — `transcriptToolCallCount` watermark + `resolveAttemptToolCallDelta`, 12 tests.**
+  **🔴 THE OBVIOUS DESIGN — SLICE THE MESSAGE LIST — IS WRONG, AND WRONG SILENTLY.** `extractTerminalToolCalls`
+  pairs a `tool_use` with its `tool_result` **by id within the list it is given**. A slice boundary between the
+  two leaves the call unresolved in one attempt and **drops the result entirely in the next**, because the id has
+  no match in the new slice's map. Pinned by a test that runs the extractor over a deliberately split transcript
+  and shows the orphaned result vanishing. ⇒ extract over the WHOLE transcript (pairing always intact) and take
+  the delta on the already-correct CALL list. The watermark therefore counts TOOL CALLS, not messages.
+  **DURABLE, NOT IN-PROCESS:** the duplication is restart-driven, so any in-memory boundary is empty exactly when
+  it is needed. The watermark rides on the attempt events themselves.
+  **LEGACY `null` IS TREATED AS 0, NOT GUESSED AT.** Historical lines recorded a cumulative count in `toolCalls`;
+  reinterpreting that as a delta would silently rewrite the meaning of data already on disk. The price is one more
+  duplicate, once per task, and then true deltas forever.
+  **◆ THE TESTS CAUGHT MY OWN IMPLEMENTATION BUG.** For the transcript-SHRANK case (a compaction, or a fresh
+  session reusing a task id) the first draft clamped the start index to the array length — which slices past
+  everything and reports **zero calls for the rest of the task's life**. The comment above it already said to
+  restart from 0 as "the recoverable direction"; the code did the opposite. Fixed to restart from 0.
+  One ledger read now serves both the rung index and the watermark, so the two cannot disagree about which
+  attempts exist. Verified: 238 legacy lines still parse (the field defaults to null) and the nightly
+  persisted-state compatibility guard is green.
 - [ ] **P21.12 — Symbol-level conflict detection (the one idea nobody has shipped properly).** `wit`
   (github.com/amaar-mc/wit) locks **Tree-sitter AST symbols — functions, classes, types, exports — not files**,
   so two agents can safely edit different functions in the same file. !Klein currently serializes on FILE overlap,

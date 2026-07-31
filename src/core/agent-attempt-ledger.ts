@@ -169,6 +169,19 @@ const attemptEventSchema = z.object({
 	ttftMs: z.number().nullable(),
 	tokensPerSec: z.number().nullable(),
 	toolCalls: z.array(attemptToolCallSchema),
+	/**
+	 * P21.14: total tool calls in the task's transcript AT CAPTURE TIME — the watermark that makes `toolCalls`
+	 * above THIS attempt's calls rather than the whole task's.
+	 *
+	 * The transcript accumulates across a task's attempts and every terminal capture re-read all of it, so the
+	 * same calls were recorded once per attempt (measured: one fingerprint 12x, `retriesBefore` reaching 14 on a
+	 * card that succeeded first try). The next attempt slices from the highest watermark its predecessors
+	 * recorded.
+	 *
+	 * NULL on lines written before this field existed — treated as 0, which reproduces the old behaviour for one
+	 * more capture per task rather than silently reinterpreting historical counts as deltas.
+	 */
+	transcriptToolCallCount: z.number().nullable().default(null),
 	/** F12.29: procedural-skill ids surfaced into this attempt's prompt (from the F4.19 fragment keys); [] = none. */
 	surfacedSkillIds: z.array(z.string()).default([]),
 	outcome: modelOutcomeKindSchema,
@@ -448,6 +461,8 @@ export interface BuildAttemptEventInput extends LedgerEnvelopeInput {
 	tokensPerSec?: number | null;
 	reasoningTokens?: number | null;
 	toolCalls?: AttemptToolCall[];
+	/** P21.14: total tool calls in the transcript at capture time; null = unknown (legacy-shaped write). */
+	transcriptToolCallCount?: number | null;
 	surfacedSkillIds?: readonly string[];
 	outcome: ModelOutcomeKind;
 	qualityScore?: number | null;
@@ -483,6 +498,7 @@ export function buildAttemptEvent(input: BuildAttemptEventInput): AgentAttemptEv
 		tokensPerSec: input.tokensPerSec ?? null,
 		reasoningTokens: input.reasoningTokens ?? null,
 		toolCalls: input.toolCalls ? input.toolCalls.map((call) => ({ ...call })) : [],
+		transcriptToolCallCount: input.transcriptToolCallCount ?? null,
 		surfacedSkillIds: input.surfacedSkillIds ? [...input.surfacedSkillIds] : [],
 		outcome: input.outcome,
 		qualityScore: input.qualityScore ?? null,

@@ -36,7 +36,7 @@ import {
 	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
 	DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL,
 } from "../config/runtime-config-retrieval-resolver";
-import { buildRetryStrategyEvent, buildTransitionEvent } from "../core/agent-attempt-ledger";
+import { type AgentLedgerEvent, buildRetryStrategyEvent, buildTransitionEvent } from "../core/agent-attempt-ledger";
 import {
 	buildAttemptRetryNoteFromLedger,
 	buildModelBehaviorProfilesFromLedger,
@@ -131,6 +131,7 @@ import {
 import {
 	buildTerminalAttemptEvent,
 	hashWorkspacePathForLedger,
+	resolveAttemptToolCallDelta,
 	resolveTaskKnowledgeDebtPresent,
 } from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
@@ -3933,12 +3934,26 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							.catch(() => null)
 					: null;
 				const difficulty = deriveTaskDifficultyTier(taskId, difficultyCard);
-				const priorAttempts = await readAgentLedger({
+				// P21.14: ONE ledger read serves both the rung index and the tool-call watermark. Reading twice would
+				// let the two disagree about which attempts exist for this task.
+				const priorTaskAttempts = await readAgentLedger({
 					workspacePathHash: hashWorkspacePathForLedger(hostWorkspacePath),
 					rootDir: this.diagnosticStoreRoot,
 				})
-					.then((events) => events.filter((event) => event.kind === "attempt" && event.taskId === taskId).length)
-					.catch(() => 0);
+					.then((events) =>
+						events.filter(
+							(event): event is Extract<AgentLedgerEvent, { kind: "attempt" }> =>
+								event.kind === "attempt" && event.taskId === taskId,
+						),
+					)
+					.catch(() => [] as Extract<AgentLedgerEvent, { kind: "attempt" }>[]);
+				const priorAttempts = priorTaskAttempts.length;
+				// The transcript accumulates across a task's attempts; without this delta every terminal capture
+				// re-records the whole history as if it were this attempt's work.
+				const { toolCalls: attemptToolCalls, transcriptToolCallCount } = resolveAttemptToolCallDelta({
+					allToolCalls: toolCalls,
+					priorWatermarks: priorTaskAttempts.map((event) => event.transcriptToolCallCount ?? null),
+				});
 				await appendAgentLedgerEvent(
 					buildTerminalAttemptEvent({
 						taskId,
@@ -3970,7 +3985,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						// breakdown — the fitness rollups keep null and 0 apart.
 						reasoningTokens: usage?.reasoningTokens ?? null,
 						timeoutReason,
-						toolCalls,
+						toolCalls: attemptToolCalls,
+						transcriptToolCallCount,
 						knowledge,
 						focusStep,
 						resultBranch: this.sandboxState.getResultBranch(taskId)?.refName ?? null,
