@@ -142,6 +142,18 @@ export function buildSpecRequirementSpine(markdown: string): SpecRequirementSpin
 		.map(parseCardBlock)
 		.filter((card): card is SpecRequirementCard => card !== null);
 
+	// Which conventions THIS document actually establishes — by MAJORITY, not by existence.
+	//
+	// Measured across the 18 card-grammar specs in `dev-test-projects/`: judging every document by one document's
+	// style reported 441 "gaps", nearly all of them specs that never adopted `invariant:` at all. Relaxing to
+	// "any card uses it" still mis-read two specs where 2-of-38 and 1-of-18 cards carry the field — those two are
+	// outliers, not evidence that the other 36 are deficient. A convention is established when MOST cards follow
+	// it; below that, the odd card carrying a field is an extra, and its absence elsewhere is not a defect.
+	const establishes = (has: (card: SpecRequirementCard) => boolean): boolean =>
+		cards.length > 0 && cards.filter(has).length * 2 > cards.length;
+	const usesInvariants = establishes((card) => card.invariant !== null);
+	const usesAcceptance = establishes((card) => card.acceptance !== null);
+
 	const issues: SpecSpineIssue[] = [];
 	const byId = new Map<string, SpecRequirementCard>();
 	for (const card of cards) {
@@ -169,10 +181,13 @@ export function buildSpecRequirementSpine(markdown: string): SpecRequirementSpin
 				detail: `${card.id} declares dependsOn: "${card.unparseableDependsOn}" — not \`none\` and not a list of ids, so its dependencies are UNKNOWN rather than absent`,
 			});
 		}
-		if (card.acceptance === null) {
+		// A field is only MISSING if this document uses it elsewhere. Reporting every card of a spec that never
+		// adopted the `invariant:` convention would flag 441 non-defects across the dev-test set — one document's
+		// grammar imposed on seventeen others. The gap that matters is a card omitting what its OWN spec establishes.
+		if (card.acceptance === null && usesAcceptance) {
 			issues.push({ kind: "missing_acceptance", cardId: card.id, detail: `${card.id} declares no acceptance test` });
 		}
-		if (card.invariant === null) {
+		if (card.invariant === null && usesInvariants) {
 			issues.push({ kind: "missing_invariant", cardId: card.id, detail: `${card.id} names no invariant` });
 		}
 	}

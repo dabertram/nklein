@@ -80,9 +80,34 @@ describe("buildSpecRequirementSpine", () => {
 		expect(buildSpecRequirementSpine(doc).issues.map((issue) => issue.kind)).toContain("duplicate_id");
 	});
 
-	it("flags a card with no acceptance test — a requirement nothing discharges", () => {
-		const spine = buildSpecRequirementSpine("**`S01` — A.** dependsOn: none. invariant: **I.**");
-		expect(spine.issues.map((issue) => issue.kind)).toContain("missing_acceptance");
+	it("flags a card with no acceptance test when the document ESTABLISHES acceptance", () => {
+		const doc = `
+**\`S01\` — A.** dependsOn: none. acceptance: x. invariant: **I.**
+**\`S02\` — B.** dependsOn: none. acceptance: y. invariant: **I.**
+**\`S03\` — C.** dependsOn: none. invariant: **I.**
+`;
+		const issues = buildSpecRequirementSpine(doc).issues.filter((issue) => issue.kind === "missing_acceptance");
+		expect(issues.map((issue) => issue.cardId)).toEqual(["S03"]);
+	});
+
+	it("does NOT flag a document that never established the convention", () => {
+		// Judging every spec by one spec's style reported 441 "gaps" across `dev-test-projects/`, nearly all of them
+		// documents that simply never adopted `invariant:`. A field is missing only where its own document expects it.
+		const doc = "**`S01` — A.** dependsOn: none.\n**`S02` — B.** dependsOn: none.";
+		const kinds = buildSpecRequirementSpine(doc).issues.map((issue) => issue.kind);
+		expect(kinds).not.toContain("missing_acceptance");
+		expect(kinds).not.toContain("missing_invariant");
+	});
+
+	it("treats a lone outlier as an EXTRA, not as evidence the other cards are deficient", () => {
+		// Measured: two specs carry `invariant:` on 2-of-38 and 1-of-18 cards. Under an "any card uses it" rule
+		// those became 36 and 17 false gaps. A convention is established by MAJORITY.
+		const doc = `
+**\`S01\` — A.** dependsOn: none. acceptance: x. invariant: **I.**
+**\`S02\` — B.** dependsOn: none. acceptance: y.
+**\`S03\` — C.** dependsOn: none. acceptance: z.
+`;
+		expect(buildSpecRequirementSpine(doc).issues.filter((issue) => issue.kind === "missing_invariant")).toEqual([]);
 	});
 
 	it("orders cards by dependency", () => {

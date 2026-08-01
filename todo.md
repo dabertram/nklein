@@ -10081,6 +10081,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   with no intercept can answer a DIFFERENCE ("how much more gap as the codebase grows?") and cannot answer an
   absolute. A number produced any other way would look like a measurement and behave like a guess.
   **STILL OPEN: the fixture split itself** — authoring real probes per project. That is content, not tooling.
+  **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
+  extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
+  chooses every path and signature and no independent test can be written in advance. Checked, after first getting
+  it wrong: a narrow grep of project 02 found only prose and I concluded the specs pin no contract — **02 in fact
+  declares 15 `interface:` blocks**, and every one of the 36 numbered dev-test specs declares between 10 and 44.
+  So the content work is unblocked, and `spec-requirement-spine.ts` (built for P23.7) supplies its raw material:
+  **18 of the 46 specs use the same `**\`Sxx\` —` card grammar — 460 cards** whose `files:` / `interface:` /
+  `acceptance:` fields are exactly what a probe needs to target. Sweeping all 18 also hardened the tool: judging
+  every document by project 36's style reported **441 "gaps"**, nearly all of them specs that never adopted
+  `invariant:`. A field is now only MISSING where its own document ESTABLISHES it by majority — relaxing merely to
+  "any card uses it" still mis-read two specs carrying the field on 2-of-38 and 1-of-18 cards, where the odd card
+  is an extra rather than proof the other 36 are deficient. **441 → 22 real issues** across 460 cards: 09 (10
+  cards), 15 (9), 19 (1) omit an acceptance test their own spec establishes, plus 36's known S49 pair. Those 20
+  acceptance gaps are genuine and worth fixing before probes are authored against those specs — a card with no
+  acceptance test has nothing to hold a probe to.
 - [x] **P20.3 — NO-OP ABLATION in card acceptance (cheap, devastating).** Stub out the artifact the agent claims
   to have built and re-run the tests. **If they still pass, the artifact is decorative.** "Building to the Test"
   (arXiv 2606.28430) demonstrated production agents scoring **222/222 on a hidden oracle while the library they
