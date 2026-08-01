@@ -138,6 +138,52 @@ describe("createDurableRunWiring", () => {
 		expect(dispatches.map((d) => d.taskId)).toEqual(["a", "c"]);
 	});
 
+	/**
+	 * The other half of F1.24 — the path the SIMULATED layer cannot reach.
+	 *
+	 * The test above covers a dispatch whose session appears. A dispatch whose session dies BEFORE its first
+	 * summary released nothing (`dispose` does not release either, and there was no expiry), and because
+	 * `reservationAwarePools` folds `reserved()` into `inUse` UNCONDITIONALLY, the pool stayed permanently
+	 * shrunk — the runtime stopped starting sessions at all.
+	 *
+	 * **No simulated drain can produce this**: the simulator always answers, so every dispatched session
+	 * summarises and the release path always fires. Verified 2026-08-01 by running set-01 with the expiry
+	 * disabled — it drained 42/42 exactly as with it. So this class needs a test HERE, at the wiring, or it has
+	 * no coverage anywhere.
+	 */
+	it("F1.24: a dispatch whose session NEVER summarises does not hold the pool forever", async () => {
+		const { createDispatchReservationLedger } = await import("../../../src/core/dispatch-reservations");
+		const clock = { t: 0 };
+		const reservations = createDispatchReservationLedger([], { holdTtlMs: 1_000, now: () => clock.t });
+		const { wiring, dispatches } = harness({
+			config: { maxConcurrentLeases: 4 },
+			reservations,
+			getAdmissionState: () => ({
+				pools: [{ poolKey: "http://ep", capacity: 1, inUse: 0 }],
+				poolKeyForTask: () => "http://ep",
+			}),
+		});
+		await wiring.ensureRun("ws1", "/w", board({ backlog: ["a", "c"] }));
+		expect(dispatches.map((entry) => entry.taskId)).toEqual(["a"]);
+		expect(reservations.reserved("endpoint_slot", "http://ep")).toBe(1);
+
+		// The session dies before producing anything: no observeSummary, no observeDelivered, ever.
+		await wiring.tickAll(() => []);
+		expect(
+			dispatches.map((entry) => entry.taskId),
+			"still wedged inside the hold's window",
+		).toEqual(["a"]);
+
+		// Past the window the hold is leaked BY DEFINITION, and the board recovers on its own.
+		clock.t += 1_001;
+		expect(reservations.reserved("endpoint_slot", "http://ep")).toBe(0);
+		await wiring.tickAll(() => []);
+		expect(
+			dispatches.map((entry) => entry.taskId),
+			"the freed slot admits the waiting card",
+		).toEqual(["a", "c"]);
+	});
+
 	it("F1.19b admission: a null admission state falls open to the depth-priority default (everything leases)", async () => {
 		const { wiring, dispatches } = harness({
 			config: { maxConcurrentLeases: 4 },

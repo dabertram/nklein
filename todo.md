@@ -99,6 +99,17 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+> **⚠️ THE SIMULATED LAYER CANNOT REACH "THE SESSION DIED BEFORE PRODUCING ANYTHING" (2026-08-01, proven).** The
+> LLM simulator always answers, so every dispatched session emits a first summary and every release path keyed on
+> that summary always fires. **A whole defect class is therefore invisible to every aimock/simflow drain by
+> construction** — resources acquired at dispatch and released on the session's first sign of life: reservations,
+> leases, single-flight entries, workspace holds. F1.24's dispatch-reservation leak froze the runtime permanently
+> and set-01 drained 42/42 *with the fix disabled*, because the simulator cannot produce the trigger.
+> **⇒ For any acquire/release pair keyed on a session PRODUCING something, the test belongs at the WIRING level
+> (inject the ledger, dispatch, never summarise, assert recovery) — a simulated drain will report green forever.**
+> Corollary worth remembering when reading a green run: **`PASS` from a simulated drain is evidence about the
+> paths the simulator can drive, and silent about the rest.**
+
 > **⚠️ REPOSITORY BENCHMARK TRUST HAS THREE SEPARATE BOUNDARIES (F11.3, 2026-07-22).** Acquisition is an explicit,
 > revision-pinned egress step; the agent sees a history-sealed, networkless workspace plus `problem_statement` only;
 > grading runs outside that workspace through the pinned official parser. Never put gold, hints, `test_patch`, or oracle
