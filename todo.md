@@ -10936,20 +10936,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **REMAINING (small, and belongs with the Phase 7S audit pass):** the same treatment for the TASK env plumbing,
   and an S2-fence invariant test asserting resolved values never serialize into prompts/logs. The MCP surface —
   where third-party servers actually take credentials — is the one that mattered most and is done.
-- [ ] **P21.16 — the ownership/liveness audit's one remaining find: a DETACHED preview process outlives a crash.**
-  *(Raised 2026-08-01 by the audit David prioritised; the other finds are fixed — see `b06a25971`, `894122e1c`,
-  `df462961d`.)* `visual-capture` spawns its preview server with `detached: true` and reaps it only via
-  `terminateProcessTree` (SIGTERM then SIGKILL to the process GROUP). That teardown is the sole release path, so a
-  runtime SIGKILL during a capture strands the whole group — a dev server holding its port, indefinitely.
-  **Deliberately ranked below the three fixed today, with the reasoning recorded so it is not re-litigated:** the
-  exposure window is one capture (≤120s, hard-capped), the feature is dev-only, and unlike a container or an
-  `--internal` network the orphan is visible in `ps` and dies on reboot. It does NOT accumulate silently the way the
-  sandbox and egress leaks did. `update.ts`'s `detached: true` is correct by design and out of scope — the updater
-  must outlive the process it replaces.
-  **The fix shape is already proven here:** stamp ownership and reclaim on proof of death. A capture could record its
-  child's pgid in a small sidecar and have the next capture (or startup) kill any recorded group whose leader is gone
-  via `isProcessAlive` — the same primitive as `src/core/process-identity.ts`, no new concept.
-  **AUDIT SCOPE, for whoever picks this up:** the external-resource sweep is otherwise COMPLETE. Verified sound and
+- [x] **P21.16 — the detached preview process. NOT A DEFECT — CLOSED BY VERIFICATION 2026-08-01, same day it was
+  raised.** *(Raised by the audit David prioritised; the three real finds are fixed — `b06a25971`, `894122e1c`,
+  `df462961d`.)* The claim was that `visual-capture` spawns its preview with `detached: true` and reaps it only via
+  `terminateProcessTree`, so a runtime SIGKILL would strand a dev server holding its port indefinitely.
+  **That was filed on an assumption about WHERE the code runs, and the assumption was wrong.**
+  `src/nklein-agent/agent-sandbox/tool-runner.ts` — the only importer of `visual-capture` — is the esbuild
+  ENTRY POINT for `tool-runner.cjs` (`scripts/build-agent-sandbox.mjs` ~17), which `docker/agent-sandbox/Dockerfile`
+  ~160 copies to `/opt/nklein/tool-runner.cjs`. The capture therefore runs INSIDE the sandbox container, and its
+  detached child is confined to that container's PID namespace: `docker rm -f` on the container kills it, so the
+  orphan-container reaping shipped today already collects it. There is nothing to leak on the host.
+  **The proposed fix was also backwards**, which is its own lesson: "kill any recorded group whose leader is gone"
+  reclaims nothing — a stranded preview's leader is precisely what is still ALIVE. The correct predicate is always
+  "is the OWNER gone?", never "is the resource gone?".
+  **Bounded residual, deliberately not worth a mechanism:** a capture interrupted inside a *pooled* container can
+  leave its preview running there until that container is retired (idle timeout ≤10min, or pool teardown). Bounded
+  and self-healing — categorically unlike the three real finds, which accumulated forever.
+  `update.ts`'s `detached: true` is correct by design: the updater must outlive the process it replaces.
+  **LESSON (the reason this entry is kept rather than deleted): "runs in a container" is not a property you can read
+  off the calling code.** Both call sites look identical to host code; only the BUILD graph — which file is an
+  esbuild entry point, and where the Dockerfile copies the bundle — settles it. Check the build graph before judging
+  any process-lifetime or filesystem claim in `agent-sandbox/`.
+  **AUDIT SCOPE, for whoever picks this up:** the external-resource sweep is COMPLETE. Verified sound and
   needing no change — file locks (`locked-file-system` retries 200×, records a `runtime_error` on compromise, and its
   temp-file+rename writes make a lost lock cost an update, never corruption; `workspace-state` fences with OCC),
   temp HOMEs (0 leftovers on the host, empirically), capability grants + model idle (both already TTL'd), dispatch
