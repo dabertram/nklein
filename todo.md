@@ -2635,6 +2635,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (evidence bar: consult-then-success rate vs the cross_model_carry baseline). CLOUD consultant (the article's
   literal setup) is Phase 14 — do not make it reachable. Avoids `cross_model_carry`'s overhead: session, prompt
   cache, and completed work all survive the escalation.
+  **⚠️ PRECONDITION CHECKED 2026-08-01 — the data EXISTS, but the obvious filter would MIS-GATE. Read this before
+  wiring `decideConsultAdmission`.** The gate needs a ledger-derived failed-attempt count per CARD. That is
+  derivable: attempts carry `taskId`, and `buildAttemptRetryNoteFromLedger` already does the workflow-scoped
+  version with `attempt.outcome !== "success"`. **Do not reuse that predicate here.** Measured on the live ledger
+  (238 attempts): **`aborted` 132 · `success` 89 · `other_failure` 17.** An abort is a CANCELLATION, not the model
+  failing to solve the card — and `!== "success"` counts every one of them. With a stuck-gate of just ≥2, any card
+  cancelled twice would admit a consult on evidence of cancellation rather than of being stuck, burning a
+  consultant's turn and the per-card budget on a card nobody was working on. **Gate on genuine failure outcomes
+  (`other_failure` and its siblings), never on the complement of success** — and note the schema permits
+  `outcome: null`, which must not count either: a missing classification is not evidence of failure.
+  This is the same shape as P15.3's join: the count is easy to compute and easy to compute WRONGLY, and the wrong
+  version fires more often, which reads as the mechanism working.
   **VISIBILITY IS AN ACCEPTANCE CRITERION (David 2026-07-23: "details properly shown — in chat and wherever it
   makes sense"). Presentation cores SHIPPED (`src/core/model-consult-visibility.ts`, 5 tests); the wire must emit
   them at all four surfaces, reusing existing streams (no new UI chrome):** (1) CHAT — the start notice fires the
