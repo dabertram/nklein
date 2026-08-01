@@ -319,6 +319,22 @@ gap remains.
 > (no record, torn record, another host), and keep every uncertain case on the refuse/keep side. Note the direction
 > this improves: a slow-but-live owner is now MORE protected than under pure timing, because its claim survives on
 > proof rather than on refresh scheduling beating a deadline.
+> **⚠️ A REAP LABEL THAT NOTHING QUERIES IS DOCUMENTATION, NOT A MECHANISM (egress proxy, 2026-08-01).** The audit's
+> third find, and the one that would have been hardest to notice: `EGRESS_PROXY_CONTAINER_LABEL` was defined, stamped
+> on every proxy container, and **read by nothing** — no `--filter label=nklein.kind=egress-proxy` existed anywhere in
+> the tree. Two separate comments nevertheless stated the proxy "is reaped … by the `nklein.kind=egress-proxy` startup
+> reap", so every reader who checked was told the mechanism existed. In reality `teardownEgressProxy` was reachable
+> from ONE call site — `stopNow`, gated on an in-memory `egressProxyEnsured` flag — so any non-graceful exit stranded
+> the proxy container **and its `--internal` network**, under a namespaced name no later runtime would ever reclaim.
+> **The network is the worse half:** Docker's default address pool is finite, so accumulating leaked internal networks
+> eventually makes `docker network create` fail for the WHOLE HOST — every project on the machine, not just !Klein.
+> The leak was invisible because egress is DEFAULT-OFF, which is exactly the condition under which a latent defect
+> ships: nobody exercises the path until the flag is turned on, and then it degrades slowly and globally.
+> **Two rules.** (1) When a label exists *for* cleanup, grep for a reader before believing the cleanup happens —
+> writing a label and querying it are separate edits, and only the first one is visible at the creation site.
+> (2) `docker network rm` REFUSES a network with attached endpoints, so a label-wide network sweep is safe by
+> CONSTRUCTION where a label-wide `rm -f` of containers is not — reach for the operation whose failure mode is the
+> safety check, and remove containers before networks so the freed endpoints let the sweep succeed.
 > **A READ-ONLY POLYGLOT IMAGE STILL NEEDS PER-TASK WRITABLE TOOLCHAIN HOMES (F12.84b, 2026-07-23):** merely baking
 > `cargo`, Go, Maven, Gradle, Python and JS package managers into the image is not an executable environment. Cargo
 > writes its registry under `CARGO_HOME`, Go writes module/build caches, Maven/Gradle derive user homes, npm writes a

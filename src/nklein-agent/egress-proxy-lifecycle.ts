@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { AgentRulesetRole } from "../core/agent-rulesets";
 import { buildTaskProxyUrl } from "../core/egress-task-identity";
 import { isTruthyEnv } from "../core/env-flag";
+import { CURRENT_PROCESS_IDENTITY } from "../core/process-identity";
 import type { EgressConfirmControlEndpoint } from "./egress-confirm-control-client";
 import {
 	EGRESS_CONFIRM_CONTROL_PORT,
@@ -15,7 +16,12 @@ import {
 	EGRESS_REQUIRE_TASK_IDENTITY_ENV,
 	parseEgressConfirmRoles,
 } from "./egress-proxy-entrypoint";
-import { type AgentSandboxEgressWiring, resolveAgentSandboxImageName } from "./nklein-agent-sandbox-docker";
+import {
+	AGENT_SANDBOX_OWNER_NONCE_LABEL_KEY,
+	AGENT_SANDBOX_OWNER_PID_LABEL_KEY,
+	type AgentSandboxEgressWiring,
+	resolveAgentSandboxImageName,
+} from "./nklein-agent-sandbox-docker";
 
 /**
  * Host-side Docker LIFECYCLE for the §5.L egress proxy (docs/dev/egress-proxy-design.md §4 topology, §6 I2, risk
@@ -186,6 +192,14 @@ export async function startEgressProxyContainer(
 		options.containerName,
 		"--label",
 		EGRESS_PROXY_CONTAINER_LABEL,
+		// Ownership, for the same reason the sandbox carries it: `stopNow` is the ONLY teardown, so a SIGKILLed
+		// runtime leaves the proxy AND its `--internal` network behind, and a namespaced name never recurs to be
+		// reclaimed. A leaked internal network is worse than a leaked container — Docker's default address pool is
+		// finite, and exhausting it makes `docker network create` fail host-wide, for every project.
+		"--label",
+		`${AGENT_SANDBOX_OWNER_PID_LABEL_KEY}=${CURRENT_PROCESS_IDENTITY.pid}`,
+		"--label",
+		`${AGENT_SANDBOX_OWNER_NONCE_LABEL_KEY}=${CURRENT_PROCESS_IDENTITY.nonce}`,
 		"--network",
 		options.networkName,
 		// Same unconditional hardening as the sandbox — only outbound reachability differs (design §4, R1/Q5).
@@ -352,6 +366,73 @@ export async function isEgressProxyRunning(runDocker: EgressProxyRunDocker, cont
 		timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS,
 	});
 	return result.exitCode === 0 && result.stdout.trim() === "true";
+}
+
+/**
+ * Collect egress proxies whose owning runtime is GONE, plus every unused egress network.
+ *
+ * ── WHY THIS HAD TO BE WRITTEN (2026-08-01 ownership audit) ──
+ * `teardownEgressProxy` was reachable from exactly ONE place — `stopNow`, gated on an in-memory `egressProxyEnsured`
+ * flag. A SIGKILLed runtime therefore left both the proxy container and its `--internal` network behind forever, and
+ * because the names are namespaced (`nklein-egress-proxy-<ns>`) with ephemeral, port-derived namespaces, no later
+ * runtime ever reclaimed them. Two comments in the codebase asserted that a `nklein.kind=egress-proxy` "startup reap"
+ * handled this; the label was written and **never queried by anything**. The mechanism was documentation only.
+ *
+ * A leaked `--internal` network is the worse half: Docker's default address pool is finite, so enough of them make
+ * `docker network create` fail for the WHOLE HOST — every project, not just !Klein.
+ *
+ * ── WHY NETWORKS NEED NO OWNERSHIP CHECK ──
+ * `docker network rm` REFUSES a network that still has endpoints attached. That refusal is a structural guarantee,
+ * not a heuristic: a live peer's network cannot be removed even if this runtime misjudges who owns it. So networks
+ * are swept label-wide and best-effort, while CONTAINERS — which `rm -f` would happily destroy — go through the same
+ * ownership proof the sandbox pool uses.
+ */
+export async function reapOrphanEgressProxies(
+	runDocker: EgressProxyRunDocker,
+	deps: {
+		readonly plan: (records: readonly { name: string; ownerPid: string | null; ownerNonce: string | null }[]) => {
+			readonly reapNames: readonly string[];
+		};
+		readonly warn?: (message: string) => void;
+	},
+): Promise<void> {
+	const format = `{{.Names}}\t{{.Label "${AGENT_SANDBOX_OWNER_PID_LABEL_KEY}"}}\t{{.Label "${AGENT_SANDBOX_OWNER_NONCE_LABEL_KEY}"}}`;
+	const listed = await runDocker(
+		["ps", "-a", "--format", format, "--filter", `label=${EGRESS_PROXY_CONTAINER_LABEL}`],
+		{ timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS },
+	).catch(() => null);
+	if (listed?.exitCode === 0) {
+		const records = listed.stdout
+			.split(/\r?\n/)
+			.map((line) => line.trim())
+			.filter(Boolean)
+			.flatMap((line) => {
+				const [name, ownerPid, ownerNonce] = line.split("\t");
+				return name ? [{ name, ownerPid: ownerPid ?? null, ownerNonce: ownerNonce ?? null }] : [];
+			});
+		const { reapNames } = deps.plan(records);
+		if (reapNames.length > 0) {
+			deps.warn?.(`Egress orphan reap — removing ${reapNames.length} abandoned proxy container(s).`);
+		}
+		for (const name of reapNames) {
+			await runDocker(["rm", "-f", name], { timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS }).catch(() => null);
+		}
+	}
+
+	// Networks last: removing the containers first is what makes an abandoned network removable at all.
+	const networks = await runDocker(["network", "ls", "-q", "--filter", `label=${EGRESS_NETWORK_LABEL}`], {
+		timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS,
+	}).catch(() => null);
+	if (networks?.exitCode !== 0) {
+		return;
+	}
+	for (const id of networks.stdout
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter(Boolean)) {
+		// A live peer's network still has endpoints and docker declines; that refusal IS the safety check.
+		await runDocker(["network", "rm", id], { timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS }).catch(() => null);
+	}
 }
 
 /** Best-effort teardown (startup/shutdown reaping): remove the proxy container and its `--internal` network. */

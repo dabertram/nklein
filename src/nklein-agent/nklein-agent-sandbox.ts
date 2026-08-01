@@ -42,6 +42,7 @@ import {
 	egressProxyContainerName,
 	ensureEgressProxyAvailable,
 	isEgressProxyEnabled,
+	reapOrphanEgressProxies,
 	resolveEgressProxyBundleHostPath,
 	resolveSandboxEgressWiring,
 	teardownEgressProxy,
@@ -479,8 +480,10 @@ export class AgentSandboxManager {
 		// (re)create — clear the memo so a re-enabled tier re-probes (fail-closed) instead of reusing a stale verdict.
 		// A switch AWAY from `allowlist` deliberately does NOT tear the proxy down here: occupied containers started on
 		// the egress network are aging out and STILL route through it, so an eager teardown would break their in-flight
-		// egress. The proxy is reaped at stopNow (and by the `nklein.kind=egress-proxy` startup reap) — the `Ensured`
-		// flag stays set so that cleanup still fires. Idle egress containers are retired below like any policy change.
+		// egress. The proxy is reaped at stopNow, and — since 2026-08-01 — by a startup reap that genuinely queries the
+		// `nklein.kind=egress-proxy` label. This comment previously asserted that reap already existed; it did not, and
+		// the crash path leaked the proxy plus its `--internal` network. The `Ensured` flag stays set so that cleanup
+		// still fires. Idle egress containers are retired below like any policy change.
 		if (policy === "allowlist") {
 			this.egressEnsurePromise = null;
 		}
@@ -591,6 +594,22 @@ export class AgentSandboxManager {
 		for (const volumeName of volumeNames) {
 			await this.runDocker(["volume", "rm", volumeName], { timeoutMs: 30_000 }).catch(() => null);
 		}
+
+		// The egress proxy had the same leak and no reaper at all: `teardownEgressProxy` was reachable only from
+		// `stopNow`, so a SIGKILL stranded the proxy container AND its `--internal` network permanently. Two comments
+		// claimed a `nklein.kind=egress-proxy` startup reap existed; the label was written and never queried.
+		await reapOrphanEgressProxies((argv, options) => this.runDocker(argv, options), {
+			plan: (records) =>
+				planSandboxOrphanReaping({
+					records,
+					self: CURRENT_SANDBOX_OWNER,
+					isPidAlive: isProcessAlive,
+					// Egress proxies predating ownership labels carry no claim and cannot be judged; they are left
+					// for `dev sandbox-reap --include-unowned`, exactly as unowned sandbox containers are.
+					matchesOwnNamespace: () => false,
+				}),
+			...(this.warn ? { warn: this.warn } : {}),
+		});
 	}
 
 	async acquireSlot(input: AgentSandboxAcquireSlotInput): Promise<TaskPlacement> {
