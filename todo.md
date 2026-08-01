@@ -7267,6 +7267,25 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   wall-clock-driven state is exactly what makes a drain irreproducible.
   Mutation-verified: disabling the expiry fails 4 tests, including "stops a leak from permanently shrinking the
   ADMISSION view".
+  **⚠️ BUT THE LEAK IS NOT WHAT CAUSED THIS ITEM'S STALL — I CLAIMED IT WAS, THEN TESTED IT, AND WAS WRONG.**
+  Ran set-01 end to end (`NKLEIN_SIMFLOW_SCENARIO=01`, no Docker needed), then re-ran it with the expiry
+  DISABLED as a control:
+  ```
+  with fix:  42/42 completed   planning:0 ready:0 in_progress:0 review:0
+  control:   42/42 completed   planning:0 ready:0 in_progress:0 review:0
+  ```
+  **Identical.** So the reservation leak does not manifest in this drain, and the earlier fixes (2026-07-23 root
+  fix, the three 2026-07-25 fixes) are what resolved it. Why the leak stays dormant here is instructive: **the
+  simulator always answers, so every dispatched session produces a summary and the release path always fires.**
+  The leak needs a session that dies BEFORE its first summary — a real model crash, an endpoint failure, a
+  container death — which a deterministic simulator cannot produce.
+  ⇒ The fix is still correct and worth keeping (the leak is real, confirmed by reading the seams), but it is a
+  **latent** defect closed, not the cause of anything observed here. **Attributing it would have been a
+  plausible-sounding causal claim that one control run refutes** — and the item would have been closed against the
+  wrong root cause.
+  **▶ AND THE REAL NEWS: SET-01 NOW DRAINS 42/42, against the 24/41 recorded on 2026-07-25 with 16 planning
+  dependents starving.** Verified twice today, 0 unmatched simulator requests both times. The recorded-drift and
+  stall work landed. This item's remaining scope is a re-read against current behaviour, not a live bug.
   ── original theory ──
   **STALL THEORY v2 (2026-07-25 afternoon, 4 reproductions — supersedes "recorded-drift churn" as the stall
   mechanism):** the terminal shape is IDENTICAL every run (24/41 completed; s15 review frozen at the new
