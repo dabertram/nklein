@@ -10471,7 +10471,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   envelope shape — the bare message only ever appears in tests.
   **REMAINING: the ROUTING half** — feed `formatFailures` into model selection so a model with a high format-failure
   rate is routed to whole-file edits. That is the 2× swing. ⚠️ It needs attributable data first: today's format
-  numerator is zero for a data-quality reason, not because models do not fail on format. Correct build
+  numerator is zero for a data-quality reason, not because models do not fail on format.
+  **THE DATA GAP IS HISTORICAL AND ALREADY CLOSED, so this unblocks itself on the next real-model run.** Date-bucketed
+  the 70 unattributable attempts: they run **2026-07-10 → 07-22 and then stop**, all of them predating the ledger
+  door that now refuses an unattributable attempt outright. Nothing has written to the PRODUCTION ledger since
+  07-22, so there is no post-fix production evidence either way — but the door is exercised by every nightly cell
+  against its isolated ledger root, and those are green (N9's receipt counts 389 attributable current-generation
+  events from one drain). So: no new unattributable attempts can be written, and the next real-model drain that
+  produces edit refusals will populate the format numerator on its own. Do NOT build routing against the current
+  zero — wait for that data, or the rule will be fitted to an artifact. Correct build
   order: (1) pure `computeEditReliabilityRate(attempts, editToolNames)` over the existing success/error outcomes +
   a `dev` command consumer (buildable + testable NOW, non-orphan); (2) apply-site failure-KIND tagging for
   format-specific attribution; (3) the routing half (weak model → whole-file), fleet-gated behind the measured
