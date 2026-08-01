@@ -6781,7 +6781,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   nonexistent PROJECT and proved nothing — the cell failed for the wrong reason. Worth remembering: a negative
   test must fail for the reason under test.)
   NICE-TO-HAVE (not blocking): an `npm run test:nightly` alias for `dev nightly`.
-- [ ] **N2 — Smallest-10 dev-test-projects fully covered (the first tranche).** Pick the 10 smallest of the 20
+- [x] **N2 — Smallest-10 dev-test-projects fully covered (the first tranche).** Pick the 10 smallest of the 20
   dev-test scenario projects (by fixture size/steps at build time), and for each: record/curate the aimock set that
   drains it end-to-end (0 unmatched requests — the F11.4c invariant), covering EVERY !Klein codepath the project can
   exercise: decompose → planning/refinement → worker → acceptance → review (approve AND request_changes bounce) →
@@ -7026,6 +7026,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   crash 6/6 — including the durable-run disposal product fix that touches every drain.** The whole N13/N5 chain now judges real board
   state pack-wide green under both profiles. Remaining adjacent opens tracked separately: offline-acceptance
   decision (a3), F1.34d live incremental route, durable fail-lease-fast, reviewer-resolve hermeticity sweep.
+  **✅ CLOSED 2026-08-01 — the stated criterion ("run all 20 cells and audit") executed against a now-open Docker
+  gate, TWICE.** Gate verified open first (no F11 campaign process alive, `~/.nklein/nklein` idle since 07-24), so
+  the wait recorded in this item was no longer real. Run 1: **28/28 cells passed, 0 failed, 0 unmatched, quarantine
+  empty** — which also retires the stale `(a)/(b)/(c)` paragraph above (the 12/21 violated packs from the 2026-07-26
+  N13 double-run are gone; the flaky `terminal_lanes` and perfect `runtime_error` violations were resolved by the
+  N5 pack green-up). The crash-recovery matrix FAILED in that same run and is written up under N10 — it caught a
+  real regression (the durable-scheduler claim could not see its own SIGKILLed owner, 894122e1c).
+  **Run 2 after that fix: 28/28 cells + crash matrix 6/6, fully green.** The re-run was not ceremony: the ledger
+  claim is taken at EVERY cell's startup, so N2's evidence had to come from a run containing the changed code
+  rather than from the run that exposed it. The cell count is 28 rather than the item's original "20" because the
+  tranche's 10 sets × 2 profiles have since been joined by the mechanism cells this item itself demanded
+  (loop_park, park_resume, failover, taint_gate, syntax_guard, turn_loop, flags_on, home-0.0.0).
+  **SCOPE, restated because a green run invites the wrong claim:** these cells drive SIMULATED models. This proves
+  the MECHANISM fires end-to-end; it is not a user-facing success rate and licenses nothing about real-model quality.
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,
@@ -7189,7 +7203,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   tracked fixture and merges a synthetic current event. **Concrete remainder:** after the active F11 campaign releases
   Docker, run `02×perfect@home-0.0.0` through `dev nightly`, retain its N4/N6/N9 receipts, inspect the migrated HOME and
   recovery backup, and close only after the real drain supplies the required current-generation events.
-- [~] **N10 — Crash/kill recovery MATRIX.** Kill the runtime (SIGKILL) at every phase — mid-decompose,
+- [x] **N10 — Crash/kill recovery MATRIX.** Kill the runtime (SIGKILL) at every phase — mid-decompose,
   **LIVE DRAIN 2026-07-25 (post-F11, 3 runs — the matrix is earning its keep):** run 1 caught the F1.34c
   interaction (testless smoke deliveries bounce→identical-feedback→park under the default-ON gate ⇒ stuck cards +
   orphan leases; FIXED — fixtures declare `not_testable` through the scripted decompose, drain delivers clean);
@@ -7546,6 +7560,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **Concrete remainder:** after the immutable F11 campaign releases Docker, run `npm run test:crash-recovery-matrix`,
   retain all six phase receipts, inspect any retained failed HOME at the first non-green residue, and close only when
   every phase reports one marker, one SIGKILL restart, a terminal board, no duplicate effect, and zero teardown residue.
+  **✅ REMAINDER EXECUTED 2026-08-01 — and it earned its keep by failing first.** The Docker gate was verified open
+  (no campaign process alive; `~/.nklein/nklein` idle since 07-24), the matrix ran inside the full nightly, and the
+  `worker` phase FAILED with post-teardown lease residue: two `lease_acquired` events and no terminal event. The
+  retained HOME was inspected exactly as this remainder prescribes and gave the root cause in one line of
+  `runtime.log` — **"Durable scheduler NOT started … another durable scheduler already owns …"** on the RESTART.
+  P21.5b's ledger fence (19ddcfa7f, same session) tested for a dead owner with a 60s staleness window, so a runtime
+  SIGKILLed and restarted ~1s later saw its own corpse's lock as fresh and refused to start a scheduler at all — for
+  up to a minute after any crash: no lease reclamation, no completion recording. The board drained only because the
+  board-liveness watchdog swept it, which is why nothing user-visible broke and why only the residue check caught it.
+  Fixed at the root (894122e1c) by recording owner identity (pid + per-process nonce + host) and breaking a claim
+  only on proof of death — the timeout stays as the fallback for what liveness cannot settle; see the §4A rule.
+  **RE-RUN VERDICT: 6/6 phases green** (decompose, worker, review, delivery, compaction, trigger), each reporting one
+  marker, one SIGKILL restart, a terminal board, no duplicate effect and zero teardown residue — all five of this
+  item's stated closure conditions, on every phase — with the refusal message now appearing 0 times.
 - [ ] **N11 — Flag-matrix lanes.** Three nightly lanes over the same cells: (a) defaults, (b) all safe opt-ins ON
   (the dark flags shipped observe-first), (c) kill-switches OFF — so flag INTERACTIONS are exercised, not just
   each flag alone. New flags register here at ship time.
@@ -10600,6 +10628,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   The dep is OPTIONAL so every existing construction stays byte-identical, and absent is documented as UNFENCED
   (the pre-P21.5b behaviour) rather than dressed up as a safe default; the runtime server supplies it, so the fence
   is live in production.
+  **⚠️ CORRECTION 2026-08-01 — "a board that resumes a minute later" WAS THE WRONG THING TO ACCEPT, and the nightly
+  crash-recovery matrix proved it (fixed 894122e1c).** The trade above weighed an impatient second scheduler against
+  a patient one and picked patience. The case it did not weigh is the one crash recovery is FOR: SIGKILL the runtime
+  mid-lease, restart ~1s later, and the dead owner's lock is a second old — indistinguishable, to a staleness check,
+  from a healthy one. The restart logged "Durable scheduler NOT started" and ran with NO durable scheduler for up to
+  a minute: no lease reclamation, no completion recording. The `worker` phase board drained only because the
+  board-liveness watchdog swept it, so nothing looked wrong; the only evidence was two `lease_acquired` events with
+  no terminal event, caught by the post-teardown residue check. **The real error was epistemic, not numeric: the
+  window that protects a slow-but-live owner is the same window that blinds a restart to a dead one, because time is
+  only ever a PROXY for liveness.** No value of `stale` fixes that. The claim now records who holds it (pid +
+  per-process nonce + host, `src/core/process-identity.ts`) and is broken only on proof the owner is gone, with the
+  60s window kept as the fallback for what liveness cannot settle. Note this made the ORIGINAL concern safer too: a
+  live-but-slow owner is now protected by proof rather than by its refresh beating a deadline. The refresh < stale/2
+  test still stands, and is now a backstop rather than the whole guarantee.
 - [ ] **P21.6b — Enforce the sizing invariant at decompose time.** *(Split from P21.6 2026-07-20; David resolved
   the reviewer source 2026-07-21.)* Feed real diff-size estimates and a fleet-derived review capacity into
   `decideTaskSizing`, and split when it says to. Composes with F12.110's depth-target work, supplying the ceiling
@@ -11769,7 +11811,12 @@ looked identical.
   makes the kernel agree with the session model on all seven states. Not applied unilaterally: it changes what
   `classifyWorkflowPhase` returns for a phase, and current behaviour is pinned by tests so the change must be
   deliberate.
-- **🟡 OPEN FOR DAVID (raised 2026-08-01): is the immutable F11 campaign finished — may the sandbox image be rebuilt?**
+- **✅ ANSWERED 2026-08-01 (David): "Closed — rebuild freely."** The F11 campaign is finished; its results stand on
+  what is recorded in `done.md` (F11.3/F11.4 and the campaign forensics), not on the pinned image. **The Docker gate
+  is therefore fully lifted — cycles AND image rebuilds.** Every "after F11 releases Docker" remainder in this file is
+  now runnable; F12.84b's polyglot toolchain-home work and its rebuild-sharing neighbour are unblocked. Do not add new
+  items gated on this phrase. ── the question as raised ──
+- **🟡 was: is the immutable F11 campaign finished — may the sandbox image be rebuilt?**
   Six open items defer to "after F11 releases Docker", but that gate has two different meanings and only one of them
   is still shut. **Docker CYCLES are demonstrably free** — no campaign process is alive, `~/.nklein/nklein` last
   changed 2026-07-24 (8 days idle), and the only trace left is 16 stopped `aider-1b25b1e1-*` containers. So the
@@ -11780,6 +11827,11 @@ looked identical.
   about whether the campaign's results still need to be reproducible, which is David's, not an engineering judgement.
   Answer either "campaign is closed, rebuild freely" or "keep the pinned image" and the image-gated items unblock or
   stay parked accordingly.
+- **✅ OTel CLUSTER DECIDED 2026-08-01 (David): "No — remove all 11 packages."** No real OTel SDK integration is
+  planned, so the packages are dead weight rather than groundwork: F12.47's hand-rolled OTLP export stays the only
+  exporter. Removing them clears the remaining **9 moderate advisories** and matches the `dify-ai-provider` call.
+  Verify the same way that one was verified: confirm nothing actually imports `@opentelemetry/*` (the desktop CLI
+  included — it inlines providers), then remove and re-run the full suite + audit.
 - **✅ DECIDED + PARTLY DONE 2026-07-31 (David): drop `dify-ai-provider` now, decide the OTel cluster separately.**
   `dify-ai-provider` REMOVED. Result: **13 → 11 advisories, and 0 HIGH** (was 1). The desktop CLI is unaffected —
   re-verified it has no external `require("dify-ai-provider")`, it inlines the provider — and the full suite is
