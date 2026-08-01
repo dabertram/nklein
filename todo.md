@@ -110,6 +110,13 @@ gap remains.
 > Corollary worth remembering when reading a green run: **`PASS` from a simulated drain is evidence about the
 > paths the simulator can drive, and silent about the rest.**
 >
+> **⚠️ CLOSING AN ITEM BY PREPENDING A NEW `- [x] **ID —` HEADER DUPLICATES THE ID (hit 3× on 2026-08-01 alone).**
+> The tempting shape when superseding a finding is to write a new headed entry and keep the old one below it — but
+> both lines start `- [x] **<ID> —`, and `todo-id-uniqueness` fails because every later reference to that id
+> becomes ambiguous. **Keep the superseding text under the EXISTING header and demote the original to a plain
+> `── original … ──` continuation line with no `- [ ]`/`- [x]` and no bolded id.** The ratchet catches it every
+> time, which is the only reason it has never reached a commit — but it costs a cycle each time.
+
 > **⚠️ WHAT ACTUALLY PREDICTS A LEAK IS THE RELEASE'S SHAPE, NOT THE RESOURCE (audited 2026-08-01: all four
 > holds).** Only one of the four leaked, and the difference is mechanical:
 > · **same scope + `try/finally`** → SAFE. The review single-flight, whose docblock already names the
@@ -7236,7 +7243,18 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   can't start review-lane cards) — moot for auto-review cards after fix (1), but a MANUAL-review card orphaned by
   a crash would still freeze silently; extend the classifier to include review-lane cards without any review
   record whose session is dead.
-- [ ] **F1.34c-drift — audit finding v2 (2026-07-25, supersedes the incremental-path hypothesis, which was WRONG:
+- [x] **F1.34c-drift — RESOLVED 2026-08-01: the drift is gone. 3 sets sampled across the range, all drain
+  FULLY with 0 unmatched simulator requests — 01: 42/42 · 02: 19/19 · 20: 31/31.** The item's headline claim was
+  *"0/20 sets drain this way"* and the recorded stall was 24/41 with 16 planning dependents starving; the
+  classifier hardening, the not_testable declarations and the offline-verdict cache did their job.
+  **⚠️ 3 OF 20 IS A SAMPLE, NOT A SWEEP** — and the full sweep is deliberately NOT run here, because **N2 already
+  owns it** ("Smallest-10 dev-test-projects fully covered"). Re-running all 20 under this item would duplicate
+  that work and leave two places claiming the same coverage.
+  ◆ Also refuted along the way: the F1.24 reservation leak was this item's prime suspect and is REAL, but a
+  control run with the fix disabled drained 42/42 identically — see the F1.24 entry. The leak cannot fire under a
+  simulator that always answers.
+  ── original finding, kept for the reasoning (2026-07-25 audit v2; it superseded the incremental-path
+  hypothesis, which was WRONG:
   the incremental apply DOES stamp `generatedFromPlan` and DOES complete the source — the "stuck seed" was a
   misread; `…-s00` is a generated CHILD, and the devtest seed completes fine).** TRUE chain, journal-proven on
   set 01: child s00's worker drains normally; its REVIEW request then matches the recorded WORKER track (fixture
