@@ -8951,6 +8951,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     `spectrum-fault-localization.ts`, `work-package-merge-readiness.ts`.
   **NOTHING DELETED, DELIBERATELY.** 79 modules is a large, hard-to-reverse decision, and the charter's standard
   is LEARNING value rather than consumer count — a core that taught its lesson may be worth keeping even unwired.
+  **▶ 2026-08-01 — THOSE NUMBERS ARE STALE, AND THE DECISION IS NOW SMALL. Regenerated `dev mechanism-doc`:
+  102 fully-orphaned modules · 97 TRACKED · **5 UNTRACKED** — not 119/40/79.** The untracked set shrank by 74
+  because backlog items written since 2026-07-20 now NAME those modules, which is the triage working exactly as
+  designed: "untracked" measures *"nobody wrote down why this exists"*, and writing it down is a legitimate way to
+  leave the set. (One of them left it today — `mechanism-decision-report.ts` was TRACKED-but-unwired and is now
+  wired by `dev mechanism-decision`.)
+  **So P15.4b is no longer "79 modules, hard to reverse". It is a FIVE-module call:**
+  `action-plan-producer-eval.ts` · `fleet-host-cap-config.ts` · `fleet-host-observation.ts` ·
+  `long-memory-live-eval.ts` · `persisted-prompt-session-models.ts`
+  Worth noting before deciding: **two of the five are FLEET modules** (`fleet-host-cap-config`,
+  `fleet-host-observation`) and the fleet is deferred-but-returning, not retired — so "no consumer" there reflects
+  hardware being offline rather than a dead idea, and deleting them would discard work the fleet's return needs.
+  Two more are EVAL harnesses (`action-plan-producer-eval`, `long-memory-live-eval`), which the charter's
+  LEARNING-value standard treats generously. That leaves one genuinely ordinary candidate.
   So the deliverable here is the ranked, regenerable list plus the tracked/untracked split; **the deletions are
   DAVID'S call.** Regenerate the list any time with `nklein dev mechanism-doc` rather than trusting this snapshot.
   **⚠️ TRIAGE CORRECTED 2026-07-20 (David asked for purpose + git-blame origin): the "79 untracked" figure was

@@ -13,15 +13,39 @@ direction, so they are kept side by side:
 
 ## 1. Mechanism firing status
 
-Tallied **49062** observation(s) across **28** categories — exhaustive, not a capped window.
+Tallied **51559** observation(s) across **39** categories — exhaustive, not a capped window.
 
 | category | item | enabled by | expectation | observations | status |
 | --- | --- | --- | --- | ---: | --- |
+| `acceptance_baseline_waiver` | P15.1e | _(always on)_ | exceptional | 43 | **healthy** |
+| `memory_freshness_audit` | P15.1e | NKLEIN_BASIC_MEMORY | exceptional | 4 | **healthy** |
+| `narrated_tool_call_recovered` | P15.1e | _(always on)_ | exceptional | 7 | **healthy** |
+| `plan_integration_gate` | P15.1e | _(always on)_ | exceptional | 1 | **healthy** |
+| `review_effort_scaling_skipped` | F12.35 | _(always on)_ | exceptional | 15 | **healthy** |
+| `reviewer_warmth_batched` | P15.1e | _(always on)_ | exceptional | 11 | **healthy** |
+| `speculative_mirror_started` | P15.1e | _(always on)_ | exceptional | 23 | **healthy** |
+| `speculative_mirror_captured` | P15.1e | _(always on)_ | exceptional | 2 | **healthy** |
+| `escalation_worker_auto_diverse` | P15.1e | _(always on)_ | exceptional | 47 | **healthy** |
+| `escalation_worker_auto_diverse_waived` | P15.1e | _(always on)_ | exceptional | 35 | **healthy** |
+| `file_overlap_parallel_start` | P15.1e | _(always on)_ | exceptional | 11 | **healthy** |
+| `prompt_preflight_lint` | P15.1e | _(always on)_ | every_run | 4 | **healthy** |
+| `tool_input_rejection` | §5.BD | _(always on)_ | exceptional | 6 | **healthy** |
+| `stream_inactivity_timeout` | P15.1e | _(always on)_ | exceptional | 3 | **healthy** |
+| `task_trouble_signal` | P15.1e | _(always on)_ | exceptional | 2 | **healthy** |
+| `prompt_prefix_reuse` | P15.1e | _(always on)_ | every_run | 207 | **healthy** |
+| `reviewer_auto_diverse` | P15.1e | _(always on)_ | every_run | 45 | **healthy** |
+| `reviewer_auto_diverse_waived` | P15.1e | _(always on)_ | exceptional | 31 | **healthy** |
+| `turn_loop_escalate_model` | P15.1e | _(always on)_ | exceptional | 1 | **healthy** |
+| `model_stalled` | P15.1e | _(always on)_ | exceptional | 53 | **healthy** |
+| `off_track_remedy_observed` | P18.4b | NKLEIN_DRIFT_CRITIC | exceptional | 0 | **never_enabled** |
+| `transcript_distractor_prune` | P18.3b | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |
 | `focus_chain_nudge` | §5.N | NKLEIN_FOCUS_CHAIN_NUDGE | every_run | 0 | **too_new_to_judge** |
-| `sandbox_mcp_offer` | §5.AR | NKLEIN_SANDBOX_MCP | every_run | 0 | **too_new_to_judge** |
+| `sandbox_mcp_offer` | §5.AR | NKLEIN_SANDBOX_MCP | every_run | 9 | **healthy** |
 | `unified_memory_recall` | F2.9b | NKLEIN_UNIFIED_MEMORY | every_run | 0 | **never_enabled** |
 | `goal_reanchor` | F4.8 | NKLEIN_GOAL_REANCHOR | every_run | 0 | **too_new_to_judge** |
 | `adaptive_budget_retry` | §5.AA | NKLEIN_ADAPTIVE_RETRY | exceptional | 0 | **never_enabled** |
+| `auto_start_paused` | §5.AA | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |
+| `reasoning_budget_breach` | F3.36 | NKLEIN_REASONING_BREACH | exceptional | 0 | **never_enabled** |
 | `model_lost_residency` | §5.AL | NKLEIN_RESIDENCY_HEARTBEAT | exceptional | 0 | **never_enabled** |
 | `native_force_tool_call` | §5.AA | NKLEIN_NATIVE_FORCE_TOOL_CALL | exceptional | 0 | **never_enabled** |
 | `review_lenses` | §5.AW | NKLEIN_REVIEW_LENSES | every_run | 0 | **too_new_to_judge** |
@@ -29,12 +53,12 @@ Tallied **49062** observation(s) across **28** categories — exhaustive, not a 
 | `opportunistic_idle_dispatch` | F1.36 | NKLEIN_OPPORTUNISTIC_IDLE_WORK | exceptional | 0 | **never_enabled** |
 | `ledger_exemplars` | F12.81 | NKLEIN_LEDGER_EXEMPLARS | every_run | 0 | **never_enabled** |
 | `fewshot_exemplars` | F11.2h | NKLEIN_FEWSHOT_EXEMPLARS | every_run | 0 | **never_enabled** |
-| `knows_today_injection` | §5.AC | _(always on)_ | every_run | 4 | **healthy** |
-| `review_path` | §5.AB | _(always on)_ | every_run | 0 | **too_new_to_judge** |
+| `knows_today_injection` | §5.AC | NKLEIN_KNOWS_TODAY | every_run | 4 | **healthy** |
+| `review_path` | §5.AB | _(always on)_ | every_run | 19 | **healthy** |
 | `skill_prompt_fragments` | §5.AE | NKLEIN_SKILL_PROMPT_FRAGMENTS | every_run | 0 | **never_enabled** |
 | `stall_replan_injected` | F12.22 | NKLEIN_STALL_REPLAN | exceptional | 0 | **never_enabled** |
 | `procedural_skill_distillation` | F4.19 | NKLEIN_PROCEDURAL_SKILLS | every_run | 0 | **never_enabled** |
-| `sysprompt_level` | §5.AQ | _(always on)_ | every_run | 0 | **too_new_to_judge** |
+| `sysprompt_level` | §5.AQ | _(always on)_ | every_run | 4 | **healthy** |
 | `fleet_aware_decompose` | F12.110 | NKLEIN_FLEET_AWARE_DECOMPOSE | every_run | 0 | **never_enabled** |
 | `architect_editor_phase` | §5.AV | NKLEIN_ARCHITECT_EDITOR | every_run | 0 | **never_enabled** |
 | `spec_lint` | F12.10 | NKLEIN_SPEC_LINT | every_run | 0 | **never_enabled** |
@@ -51,7 +75,7 @@ Tallied **49062** observation(s) across **28** categories — exhaustive, not a 
 | `language_floor_breach` | F12.83 | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |
 | `adaptive_thinking_recommendation` | F12.27 | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |
 | `scaffold_profile_recommendation` | F12.14 | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |
-| `review_effort_scaling` | F12.35 | _(always on)_ | every_run | 0 | **too_new_to_judge** |
+| `review_effort_scaling` | F12.35 | _(always on)_ | every_run | 9 | **healthy** |
 | `mcp_tool_surface_drift` | F12.31 | _(always on)_ | exceptional | 0 | **silent_but_exceptional** |
 | `history_blind_corrector_override` | F12.91 | NKLEIN_HISTORY_BLIND_CORRECTOR | exceptional | 0 | **never_enabled** |
 | `history_blind_corrector_agreed` | F12.91 | NKLEIN_HISTORY_BLIND_CORRECTOR | every_run | 0 | **never_enabled** |
@@ -59,7 +83,7 @@ Tallied **49062** observation(s) across **28** categories — exhaustive, not a 
 | `drift_critic_on_track` | F12.92 | NKLEIN_DRIFT_CRITIC | every_run | 0 | **never_enabled** |
 | `tool_catalog_gate_observation` | F12.18 | NKLEIN_TOOL_GATE_OBSERVE | every_run | 0 | **never_enabled** |
 
-**No enabled-but-silent mechanisms. 1 of 41 are demonstrably firing; the rest are either not enabled or fire only on exceptional conditions.**
+**No enabled-but-silent mechanisms. 25 of 65 are demonstrably firing; the rest are either not enabled or fire only on exceptional conditions.**
 
 Status meanings — note that only ONE of these is actionable:
 - `healthy` — demonstrably fires.
@@ -70,48 +94,43 @@ Status meanings — note that only ONE of these is actionable:
 
 ## 2. Unwired cores
 
-947 of 2366 exported core symbol(s) have NO non-test consumer. 56 of those are referenced ONLY from comments — a naive grep would report them as wired. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
+1047 of 2727 exported core symbol(s) have NO non-test consumer. 55 of those are referenced ONLY from comments — a naive grep would report them as wired. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
 
-### Modules where EVERY export is orphaned (109)
+### Modules where EVERY export is orphaned (102)
 
+- `aider-polyglot-campaign.ts` (10 export(s))
+- `model-consult.ts` (10 export(s))
+- `context-integrity-experiment.ts` (9 export(s))
 - `lms-session-stall.ts` (8 export(s))
+- `model-consult-visibility.ts` (8 export(s))
 - `enforced-reasoning-learning.ts` (7 export(s))
 - `fleet-review-observation.ts` (7 export(s))
-- `memory-freshness-schedule.ts` (7 export(s))
 - `cache-prefix-retention.ts` (6 export(s))
-- `fast-memory-fit.ts` (6 export(s))
 - `model-pool.ts` (6 export(s))
-- `skill-import-decision.ts` (6 export(s))
 - `judge-calibration.ts` (5 export(s))
 - `memory-governance.ts` (5 export(s))
 - `reanchor-quality-ab.ts` (5 export(s))
-- `spec-deliberation.ts` (5 export(s))
 - `cache-aware-prompt-layout.ts` (4 export(s))
 - `cache-stable-prefix-order.ts` (4 export(s))
 - `codeact-gating.ts` (4 export(s))
-- `constraint-tax-strategy.ts` (4 export(s))
 - `decompose-span-ab-eval.ts` (4 export(s))
 - `discriminative-tiebreak.ts` (4 export(s))
 - `model-online-lookup.ts` (4 export(s))
+- `module-import-closure.ts` (4 export(s))
 - `prompt-evolution-gate.ts` (4 export(s))
 - `repair-validation-gates.ts` (4 export(s))
 - `richer-card-schema.ts` (4 export(s))
-- `skill-execution-gate.ts` (4 export(s))
+- `action-plan-producer-eval.ts` (3 export(s))
 - `audio-vst-rubric.ts` (3 export(s))
 - `cache-health.ts` (3 export(s))
 - `cache-warmup-amortization.ts` (3 export(s))
 - `candidate-tournament.ts` (3 export(s))
 - `confidence-scorer.ts` (3 export(s))
 - `deliberation-loop.ts` (3 export(s))
-- `field-report-generation.ts` (3 export(s))
-- `field-report-grounding.ts` (3 export(s))
-- `field-report-transport.ts` (3 export(s))
 - `lmstudio-max-tokens-clamp.ts` (3 export(s))
 - `localization-provider.ts` (3 export(s))
 - `long-memory-live-eval.ts` (3 export(s))
-- `mechanism-decision-report.ts` (3 export(s))
-- `mutation-adequacy.ts` (3 export(s))
-- `skill-pin-drift.ts` (3 export(s))
+- `retry-baseline-experiment.ts` (3 export(s))
 - `synthesis-evidence-quality-eval.ts` (3 export(s))
 - `task-sizing-invariant.ts` (3 export(s))
 - `vlm-screenshot-lens.ts` (3 export(s))
@@ -121,27 +140,28 @@ Status meanings — note that only ONE of these is actionable:
 - `adaptive-decomposition-decision.ts` (2 export(s))
 - `citation-conflict-authority.ts` (2 export(s))
 - `clarification-count.ts` (2 export(s))
+- `constraint-tax-eval.ts` (2 export(s))
 - `context-position-salience-risk.ts` (2 export(s))
 - `context-smart-zone.ts` (2 export(s))
 - `durable-lease-renewal.ts` (2 export(s))
+- `fleet-endpoint-loss-proof.ts` (2 export(s))
 - `fleet-host-cap-config.ts` (2 export(s))
 - `lmstudio-log-anomalies.ts` (2 export(s))
+- `lmstudio-model-acquisition.ts` (2 export(s))
 - `narration-dialect.ts` (2 export(s))
+- `no-op-stub-generation.ts` (2 export(s))
 - `persisted-prompt-session-models.ts` (2 export(s))
 - `portable-continuation-selector.ts` (2 export(s))
 - `reason-then-act.ts` (2 export(s))
 - `relative-date-resolver.ts` (2 export(s))
 - `retrieved-evidence.ts` (2 export(s))
-- `skill-source-trust.ts` (2 export(s))
-- `spec-invariant-derivation.ts` (2 export(s))
+- `spec-deliberation-eval.ts` (2 export(s))
 - `spectrum-fault-localization.ts` (2 export(s))
 - `stateful-responses-gate.ts` (2 export(s))
 - `swarm-roster-load-plan.ts` (2 export(s))
 - `sweep-resource-governance.ts` (2 export(s))
 - `test-regression-verdict.ts` (2 export(s))
 - `turn-thinking-directive.ts` (2 export(s))
-- `visual-verification-gate.ts` (2 export(s))
-- `action-plan-executor.ts` (1 export(s))
 - `admissible-cited-synthesis.ts` (1 export(s))
 - `background-eval-runner-signals.ts` (1 export(s))
 - `cache-friendly-route.ts` (1 export(s))
@@ -159,39 +179,37 @@ Status meanings — note that only ONE of these is actionable:
 - `durable-scheduler-backpressure.ts` (1 export(s))
 - `enforced-reasoning-round-stop.ts` (1 export(s))
 - `failure-hopelessness-from-errors.ts` (1 export(s))
-- `field-report-redaction.ts` (1 export(s))
+- `field-report-narrative-pass.ts` (1 export(s))
 - `flake-quarantine.ts` (1 export(s))
 - `fleet-host-observation.ts` (1 export(s))
+- `fleet-wide-fanout-board.ts` (1 export(s))
 - `focus-chain-diff.ts` (1 export(s))
 - `hard-stuck-escalation.ts` (1 export(s))
 - `kv-prefix-audit.ts` (1 export(s))
 - `llmfit-roster.ts` (1 export(s))
-- `lmstudio-keep-alive-ttl.ts` (1 export(s))
 - `machine-concurrency-gate.ts` (1 export(s))
-- `model-residency-planner.ts` (1 export(s))
 - `patch-candidate-parser.ts` (1 export(s))
 - `patch-generation-prompt.ts` (1 export(s))
 - `procedural-skill-lifecycle.ts` (1 export(s))
 - `repair-controller-decision.ts` (1 export(s))
 - `repair-kernel-ledger.ts` (1 export(s))
 - `request-economy-plan.ts` (1 export(s))
-- `scoped-override-resolution.ts` (1 export(s))
 - `skill-compat.ts` (1 export(s))
 - `skill-variation-rung.ts` (1 export(s))
 - `structured-output-request-plan.ts` (1 export(s))
 - `test-selection-priority.ts` (1 export(s))
 - `topic-aware-freshness.ts` (1 export(s))
-- `transcript-distractor-pruning.ts` (1 export(s))
 - `workflow-board-bridge.ts` (1 export(s))
 
-### Orphan triage — tracked vs untracked (109 fully-orphaned modules)
+### Orphan triage — tracked vs untracked (102 fully-orphaned modules)
 
-- **105 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
-- **4 UNTRACKED** — built, tested, unwired, and mentioned in NO backlog item.
+- **97 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
+- **5 UNTRACKED** — built, tested, unwired, and mentioned in NO backlog item.
 
 The untracked group is the strongest kill-list input (P15.4): it is the only group where the question
 "why does this exist?" has no recorded answer anywhere in the project.
 
+- `action-plan-producer-eval.ts`
 - `fleet-host-cap-config.ts`
 - `fleet-host-observation.ts`
 - `long-memory-live-eval.ts`
@@ -206,7 +224,6 @@ A plain `grep -c` reports these as wired. They are not — every reference is a 
 - `adaptive-decomposition-decision.ts` :: `decideCardDecomposition`
 - `agent-attempt-ledger.ts` :: `SCHEDULER_EVENT_NAMES`
 - `agent-ledger-selectors.ts` :: `latestRunState`
-- `agent-rulesets.ts` :: `resolveEffectiveAgentRuleset`
 - `architect-editor-split.ts` :: `decideArchitectEditorSplit`
 - `architect-editor-split.ts` :: `extractImplementationBrief`
 - `assumption-safety.ts` :: `decideAssumptionSafety`
@@ -231,29 +248,29 @@ A plain `grep -c` reports these as wired. They are not — every reference is a 
 - `context-smart-zone.ts` :: `renderSmartZoneContext`
 - `distractor-pruning.ts` :: `pruneDistractors`
 - `fast-memory-fit.ts` :: `kvCacheBudgetBytes`
+- `feature-flag-registry.ts` :: `FLAGS_ON_LANE_EXCLUSIONS`
+- `field-report-generation.ts` :: `checkLayerAAlwaysProducible`
 - `inference-levers.ts` :: `shouldUseSpeculativeDecoding`
 - `klein-self-corpus-provenance.ts` :: `buildKleinCorpusProvenance`
 - `knowledge-volatility-ttl.ts` :: `isKnowledgeStale`
 - `llmfit-adapter.ts` :: `llmfitPredictedWallTimeMs`
 - `lmstudio-max-tokens-clamp.ts` :: `clampMaxTokens`
+- `model-consult.ts` :: `decideConsultAdmission`
 - `model-eval-aggregation.ts` :: `DIFFICULTY_TIER_SCORE`
 - `model-fitness-freshness.ts` :: `selectFitnessCellsToReeval`
 - `model-fitness.ts` :: `selectModelForTask`
 - `model-load-headroom.ts` :: `refineLoadDecisionWithLlmfit`
+- `no-op-ablation.ts` :: `assessOracleScore`
 - `patch-candidate-parser.ts` :: `parseNPatchCandidates`
 - `retrieved-evidence.ts` :: `verifyCitations`
 - `retrieved-evidence.ts` :: `retrievedEvidenceSchema`
 - `run-attention-signals.ts` :: `assessRunBudgetPressure`
 - `run-state-machine.ts` :: `selectPhaseTools`
-- `skill-import-decision.ts` :: `decideSkillImport`
-- `skill-pin-drift.ts` :: `detectPinDrift`
-- `skill-source-trust.ts` :: `classifySkillSourceTrust`
+- `sandbox-orphan-ownership.ts` :: `classifySandboxContainer`
 - `task-board-mutations.ts` :: `wouldCreateDependencyCycle`
 - `temporal-awareness.ts` :: `resolveTemporalAwareness`
 - `temporal-claim-consistency.ts` :: `checkClaimsTemporalConsistency`
 - `test-regression-verdict.ts` :: `classifyTestRegression`
-- `tool-capability-manifest.ts` :: `KANBAN_TOOL_MANIFESTS`
-- `visual-verification-gate.ts` :: `comparePixels`
 - `work-package-dispatch.ts` :: `validateWorkPackages`
 - `work-package-dispatch.ts` :: `resolveDispatchWaves`
 - `work-package-integration-order.ts` :: `planIntegrationOrder`
