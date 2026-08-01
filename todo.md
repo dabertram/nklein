@@ -11211,6 +11211,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   IS the evidence — which is precisely what N9's closure needed. Lesson for the next sweep: an emptiness result
   deserves a second, differently-shaped measurement before it becomes a conclusion. In-memory registries were deliberately excluded: they die with the process, so they
   cannot leak ACROSS restarts, which is the property that made the other three dangerous.
+- [ ] **P21.17 — MANAGED-SEARCH containers have the same unread-label leak the egress proxy had.** *(Found
+  2026-08-01 by applying §4A's "a claim that asserts more than its measurement" rule as a SWEEP rather than a
+  principle: every `*_LABEL` constant was checked for a READER, which is how the egress bug was found.)*
+  `MANAGED_SEARCH_CONTAINER_LABEL = "nklein.kind=managed-search"` is defined (`managed-search-backend.ts` ~15) and
+  stamped onto the container (~265). **Nothing queries it** — no `--filter`, no reap, anywhere in the tree.
+  Disposal runs only from `stop()`, reachable from an explicit tRPC call and from the idle timer, and **a SIGKILL
+  skips both**, so a crash strands a SearxNG container holding its port and memory with nothing able to reclaim it.
+  **Currently ZERO on this host, which is exactly how the egress leak stayed invisible:** the feature is unused, so
+  the path is never exercised until someone turns it on — and then it degrades quietly.
+  **FIX SHAPE IS ALREADY PROVEN — reuse it rather than inventing a third variant:** stamp the same owner claim
+  (`nklein.owner-pid` / `nklein.owner-nonce`, `src/core/process-identity.ts`) at creation and reap on proof of
+  death, exactly as `reapOrphanEgressProxies` does. The ownership plan (`planSandboxOrphanReaping`) is
+  container-kind-agnostic and already takes the records; only the listing filter and the call site are new.
+  ⚠️ Do NOT reap this label kind-wide: §4A's 2026-07-23 incident is precisely that mistake.
+  Deliberately filed rather than built in the session that found it — the two live container kinds were fixed and
+  verified first, and a third subsystem deserves its own focused pass rather than a tired one.
 - [ ] **P21.13b-followup — task-env references + the S2-fence serialization invariant *(split 2026-07-31)*.**
   Extend `env://` resolution to the task/sandbox env plumbing, and add the tested invariant that a resolved
   secret value never appears in a prompt or log. Coordinate with the Phase 7S final audit pass, as originally
