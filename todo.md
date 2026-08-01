@@ -11827,11 +11827,19 @@ looked identical.
   about whether the campaign's results still need to be reproducible, which is David's, not an engineering judgement.
   Answer either "campaign is closed, rebuild freely" or "keep the pinned image" and the image-gated items unblock or
   stay parked accordingly.
-- **✅ OTel CLUSTER DECIDED 2026-08-01 (David): "No — remove all 11 packages."** No real OTel SDK integration is
-  planned, so the packages are dead weight rather than groundwork: F12.47's hand-rolled OTLP export stays the only
-  exporter. Removing them clears the remaining **9 moderate advisories** and matches the `dify-ai-provider` call.
-  Verify the same way that one was verified: confirm nothing actually imports `@opentelemetry/*` (the desktop CLI
-  included — it inlines providers), then remove and re-run the full suite + audit.
+- **✅ OTel CLUSTER DECIDED + DONE 2026-08-01 (David): "No — remove all 11 packages."** No real OTel SDK integration
+  is planned, so they were dead weight rather than groundwork: F12.47's hand-rolled OTLP export stays the only
+  exporter (`otel-genai-export.ts` imports only `agent-attempt-ledger` + `merkle-file-tree`). All 11 removed; zero
+  real `import`/`require` of `@opentelemetry/*` existed anywhere (the only textual hits were package.json's own
+  dependency list embedded in a BUILT desktop artifact under `packages/desktop/out/`, which is not an import).
+  **⚠️ THE ITEM'S PREMISE WAS WRONG ABOUT WHERE THE ADVISORIES CAME FROM, and removing the 11 proved it:** the audit
+  went 11 → 9, not to 1. All 8 remaining moderates rooted in `@opentelemetry/core`, pulled in transitively by
+  **`@langfuse/otel`** — itself also declared and NEVER imported. F12.47 treats Langfuse as the *receiving server*
+  (a local Docker container), so the client SDK was never needed. Removing it too took the audit to **1 low**
+  (esbuild's Windows-only dev-server read, which needs a breaking major). **Net: 11 advisories → 1 low, 12 packages
+  gone.** Lesson worth keeping: "package X accounts for advisory Y" is a claim about the dependency GRAPH, and only
+  `npm ls <vulnerable-pkg>` settles it — a direct dependency sharing a name with the advisory is not evidence it is
+  the source. Backend + web-ui + desktop typecheck clean, full suite 13,075 green.
 - **✅ DECIDED + PARTLY DONE 2026-07-31 (David): drop `dify-ai-provider` now, decide the OTel cluster separately.**
   `dify-ai-provider` REMOVED. Result: **13 → 11 advisories, and 0 HIGH** (was 1). The desktop CLI is unaffected —
   re-verified it has no external `require("dify-ai-provider")`, it inlines the provider — and the full suite is
