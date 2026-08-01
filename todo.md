@@ -109,6 +109,20 @@ gap remains.
 > (inject the ledger, dispatch, never summarise, assert recovery) — a simulated drain will report green forever.**
 > Corollary worth remembering when reading a green run: **`PASS` from a simulated drain is evidence about the
 > paths the simulator can drive, and silent about the rest.**
+>
+> **⚠️ WHAT ACTUALLY PREDICTS A LEAK IS THE RELEASE'S SHAPE, NOT THE RESOURCE (audited 2026-08-01: all four
+> holds).** Only one of the four leaked, and the difference is mechanical:
+> · **same scope + `try/finally`** → SAFE. The review single-flight, whose docblock already names the
+>   2026-07-02 adversarial finding that forced it: *"the wrapper owns ONLY the flag, so no early return or
+>   pre-`try` throw can leak it and permanently wedge the card's reviews."*
+> · **cross scope + expiry/reclaim** → SAFE. Durable leases; reclaim IS the release.
+> · **cross scope + explicit lifecycle disposal** → SAFE in practice. Sandbox slots (`sandbox_workspace_disposed`
+>   is the 2nd-most-recorded category at 2,032 events, so disposal genuinely runs).
+> · **cross scope + released ONLY by a future event that may never arrive** → **LEAKS.** F1.24 reservations,
+>   released solely on the task's first summary. A session that died first held the slot forever.
+> **⇒ The review question is not "is this released?" but "what guarantees the releasing event ever happens?"** If
+> the answer is "the happy path", the hold needs an expiry — and expiry beats adding another release path, since
+> it closes every path that was never enumerated rather than the one that was noticed.
 
 > **⚠️ REPOSITORY BENCHMARK TRUST HAS THREE SEPARATE BOUNDARIES (F11.3, 2026-07-22).** Acquisition is an explicit,
 > revision-pinned egress step; the agent sees a history-sealed, networkless workspace plus `problem_statement` only;
