@@ -7420,6 +7420,25 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
 - [ ] **N11 — Flag-matrix lanes.** Three nightly lanes over the same cells: (a) defaults, (b) all safe opt-ins ON
   (the dark flags shipped observe-first), (c) kill-switches OFF — so flag INTERACTIONS are exercised, not just
   each flag alone. New flags register here at ship time.
+  **▶ 2026-08-01 — THE `flags_on` LANE DOES NOT DO WHAT ITS DOC SAYS: it enables 32 of 46 default-OFF opt-ins.**
+  Its header says *"the baseline `perfect` recording replayed with EVERY default-OFF opt-in"*. Checked against the
+  new flag registry: **15 are missing.** The existing `nightly-flag-matrix-coverage` ratchet only requires flags the
+  MECHANISM REGISTRY names as a gate — a subset — so the broader claim was never checked.
+  **⚠️ NOT FIXED BY ADDING ALL 15, and that is the point.** At least three are omitted for good reasons:
+  `NKLEIN_ALLOW_UNSUITABLE_MODEL` **disables a safety guard** (enabling it in a lane would mask suitability
+  failures), `NKLEIN_SANDBOX_SKIP_STARTUP_REAP` skips cleanup and would leak sandboxes, and
+  **`NKLEIN_FLEET_DECOMPOSE_MODE` is an ENUM (`smallest`/`capability_weighted`/`fixed_target`/`off`) where the
+  lane's `"1"` is not a valid value at all.** So the fix is to make the CLAIM match the contents and justify each
+  exclusion — not to bulk-enable.
+  The remaining candidates worth adding are the three pure observers (`NKLEIN_DEBUG_STREAM_EVENTS`,
+  `NKLEIN_TRUNCATION_DIAGNOSTICS`, `NKLEIN_REASONING_CAPTURE`) plus the enforcing ones a replay lane can safely
+  carry. **Deliberately not done unilaterally: this changes a nightly lane that cannot be validated without
+  running the nightly.**
+  ◆ Found only because `memory_freshness_audit`'s registration tripped the existing ratchet — *"a newly registered
+  mechanism would go uncovered while the lane still claims to cover it"* — which is that guard working exactly as
+  written. `NKLEIN_BASIC_MEMORY` was added to the lane (same class as `NKLEIN_SANDBOX_MCP` and
+  `NKLEIN_UNIFIED_MEMORY`, already there).
+
   **▶ 2026-07-31 — N11 IS THE ANSWER TO THE PHASE-15 DEADLOCK, and lane (b) has a missing precondition.**
   The deadlock looks like this: 31 of 45 registered mechanisms have never been enabled; P15.3 flips defaults only
   where P15.2 produced a verdict; P15.2 needs ≥30 observations; observations need enabling. Left alone, those 31
@@ -8478,7 +8497,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `mechanism-observation-audit.ts` IS the substance of the check, and the test now guards that exclusion (asserts
   the file exists, is out of the corpus, and that the corpus is non-trivial) so the guard cannot silently become
   vacuous. **Mutation-verified**: renaming one flag makes it fail with that flag named.
-- [ ] **P15.1e — Register the 20 mechanisms that are FIRING but unregistered *(opened 2026-08-01)*.**
+- [x] **P15.1e — Register the 20 mechanisms that are FIRING but unregistered. DONE 2026-08-01 — all 20; uncovered is 0.**
   `dev mechanism-registry` prints both numbers one line apart: *"5 of 45 are demonstrably firing"* and *"20
   categories are firing that no audit can judge"*. **The registry was watching mechanisms that do not run while
   blind to ones that run constantly** — and several of the 20 carry real volume: `prompt_prefix_reuse` (207
@@ -8488,6 +8507,37 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **⚠️ REGISTER BY READING THE EMISSION SITE, NEVER BY NAME.** A wrong `expectation` mis-classifies silence, which
   is the one thing the registry exists to get right — and most of these categories have **no owning backlog item
   at all**, so there is nothing to copy a description from. This item is their owner.
+  **✅ ALL 20 REGISTERED 2026-08-01 — `dev mechanism-registry` went from "5 of 45 demonstrably firing" to
+  "25 of 65", and UNCOVERED is now 0.** Registering enabled nothing and changed no behaviour; it turned
+  observations that were already accumulating into evidence the P15.3 campaign can judge.
+  **Judgement calls worth preserving:**
+  · `memory_freshness_audit` is enabled by config OR flag (`basicMemoryEnabled || NKLEIN_BASIC_MEMORY`). Naming the
+    FLAG makes the audit UNDER-alarm when config enabled it — the safe direction, because `enabledBy: null` would
+    report a config-disabled install as `enabled_but_silent`, a false alarm of exactly the class this registry
+    protects against.
+  · The paired `_waived` categories (reviewer / escalation diversity) are registered ALONGSIDE their positive
+    counterpart — together they cover every review/escalation, so neither one alone would make silence readable.
+  · `review_effort_scaling_skipped` uses `firesWhen: "second_opinion_review_session"`: without the skip variant
+    registered, a scaling decision that never happened is indistinguishable from one that did nothing.
+  · `speculative_mirror_started` vs `_captured` — **the GAP between the two is how often speculation was wasted**,
+    which is only measurable because both are registered.
+  · Almost none of the 20 had an owning backlog item, so this item is their owner rather than inventing
+    attributions.
+  **🔴 AND THE RATCHET FOUND THE GAP IS BIGGER THAN THE TELEMETRY SHOWED: 111 emitters in `src/`, 45 uncovered.**
+  The live measurement saw 39 categories because **telemetry only reveals what happened to fire in one 18-day
+  window**; the source knows about every emitter regardless. So "20 unregistered" was itself an under-count taken
+  from the wrong side.
+  **Registering 45 in one pass was REFUSED**: it means guessing 45 `expectation` values, and a wrong `expectation`
+  mis-classifies silence — the single judgement the registry exists to make. **A registry of guesses is worse than
+  a short one.** Instead `KNOWN_UNREGISTERED_EMITTERS` freezes today's debt (dated), the ratchet fails on anything
+  NEW, and a second test keeps the baseline honest — an entry that is since registered or no longer emitted must
+  be removed, so the list can only shrink and cannot hide a regression behind a stale name.
+  **⚠️ THE SOURCE SCAN NEEDED NARROWING, FOR THE THIRD TIME TODAY.** A bare `category:` match reported 142/69,
+  pulling in `category:` fields on unrelated types (`compile_error`, `lint_error`, `correctness` — lint and review
+  findings, not observations). It now walks `recordSelfObservation(` call sites. After prose matching
+  `from"`-shaped text and a message string containing `isTruthyEnv(process.env.X)`, the rule is settled: **in this
+  codebase a source scan must positively identify its target, never match a bare field name.**
+  ── original batch note ──
   **BATCH 1 DONE 2026-08-01 (5 of 20):** `prompt_prefix_reuse`, `reviewer_auto_diverse`,
   `reviewer_auto_diverse_waived`, `turn_loop_escalate_model`, `model_stalled`. Each read at its site; the
   diverse-reviewer pair uses `firesWhen: "second_opinion_review_session"` so silence is only judged when a review

@@ -251,6 +251,132 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	{
+		// ── P15.1e batch 3 (2026-08-01) — completes the recorded-but-unregistered set ──
+		category: "acceptance_baseline_waiver",
+		item: "P15.1e",
+		observes:
+			"acceptance WAIVED because the command fails identically on the BASE tree — the card is not being blamed for a pre-existing break",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
+		category: "memory_freshness_audit",
+		item: "P15.1e",
+		observes: "a Basic Memory freshness audit completing, with its finding count",
+		// Enablement is config-OR-flag (`basicMemoryEnabled || NKLEIN_BASIC_MEMORY`). Naming the flag makes the
+		// audit UNDER-alarm when config enabled it, which is the safe direction: `enabledBy: null` would report a
+		// config-disabled install as `enabled_but_silent` — a false alarm, and the class this registry protects.
+		enabledBy: "NKLEIN_BASIC_MEMORY",
+		expectation: "exceptional",
+	},
+	{
+		category: "narrated_tool_call_recovered",
+		item: "P15.1e",
+		observes:
+			"tool calls the model emitted as `<tool_call>` TEXT being recovered into structured calls — a small-model formatting failure that !Klein salvaged rather than lost",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
+		category: "plan_integration_gate",
+		item: "P15.1e",
+		observes: "the plan-integration gate's outcome, including the skip when a plan declares no acceptance command",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
+		category: "review_effort_scaling_skipped",
+		item: "F12.35",
+		observes:
+			"review-effort scaling declining to scale, and WHY (e.g. no attempt records). The skip counterpart of the registered `review_effort_scaling` — without it a scaling decision that never happened is indistinguishable from one that did nothing",
+		enabledBy: null,
+		firesWhen: "second_opinion_review_session",
+		expectation: "exceptional",
+	},
+	{
+		category: "reviewer_warmth_batched",
+		item: "P15.1e",
+		observes:
+			"cache-warmth kind-batching picking a reviewer WITHIN the lineage-diverse set — warmth honoured without giving up diversity",
+		enabledBy: null,
+		firesWhen: "second_opinion_review_session",
+		expectation: "exceptional",
+	},
+	{
+		category: "speculative_mirror_started",
+		item: "P15.1e",
+		observes: "a speculative mirror run beginning, with the decision reason",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
+		category: "speculative_mirror_captured",
+		item: "P15.1e",
+		observes:
+			"a speculative mirror's result actually being taken — paired with `speculative_mirror_started`, the gap between the two is how often speculation was wasted",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+
+	{
+		// ── P15.1e batch 2 (2026-08-01) ── each read at its emission site.
+		category: "escalation_worker_auto_diverse",
+		item: "P15.1e",
+		observes:
+			"an escalation worker chosen with lineage diversity from the stuck model — the escalation actually changing model family rather than retrying the same lineage",
+		enabledBy: null,
+		// An escalation is itself exceptional: no escalations is a HEALTHY board, not a silent mechanism.
+		expectation: "exceptional",
+	},
+	{
+		category: "escalation_worker_auto_diverse_waived",
+		item: "P15.1e",
+		observes:
+			"escalation diversity WAIVED — the best available worker used without lineage diversity. Paired with escalation_worker_auto_diverse; together they cover every escalation",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
+		category: "file_overlap_parallel_start",
+		item: "P15.1e",
+		observes:
+			"a card starting ALONGSIDE an active card it shares paths with — the coarse/yellow overlap that deliberately does NOT serialize. The live counterpart of `dev serialization-cost` (P21.12): that measures what the rule would cost, this records what it actually let through",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
+		category: "prompt_preflight_lint",
+		item: "P15.1e",
+		observes:
+			"the instruction-budget and bare-prohibition lint of every assembled session prompt (F12.79/F12.80, record-only) — an over-budget prompt is telemetry, never a block",
+		enabledBy: null,
+		expectation: "every_run",
+	},
+	{
+		category: "tool_input_rejection",
+		item: "§5.BD",
+		observes:
+			"a boundary schema rejecting a tool call BEFORE execute — the model emitting a structurally invalid call, per model",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
+		category: "stream_inactivity_timeout",
+		item: "P15.1e",
+		observes: "a task turn aborted because the provider stream went inactive past its bounded window",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
+		category: "task_trouble_signal",
+		item: "P15.1e",
+		observes:
+			"a running card classified stuck/at-risk by the trouble detector, with the verdict kind — the signal the steer and escalation rungs read",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+
+	{
 		// P15.1e batch 1 — FIRING but unregistered until 2026-08-01. Read at the emission site, not inferred from
 		// the name: registering with a wrong `expectation` mis-classifies silence, which is the one judgement the
 		// registry exists to make.
@@ -857,3 +983,65 @@ export function auditObservationCoverage(recordedCategories: readonly string[]):
 						: ""),
 	};
 }
+
+/**
+ * Emitters that exist in `src/` and are neither registered nor operational — a DATED DEBT LIST, not an exemption.
+ *
+ * ── WHY A BASELINE RATHER THAN 45 RUSHED REGISTRATIONS ──
+ * The source scan found **111 `recordSelfObservation` emitters, 45 uncovered** — far more than the 20 the live
+ * telemetry showed, because telemetry only reveals what happened to fire in one 18-day window. Registering all 45
+ * in one pass would mean guessing 45 `expectation` values, and **a wrong `expectation` mis-classifies silence,
+ * which is the single judgement the registry exists to make**. A registry of guesses is worse than a short one.
+ *
+ * So this freezes today's gap and lets the ratchet fail on anything NEW. Every entry removed from this list is a
+ * mechanism becoming judgeable; the list only shrinks.
+ *
+ * Baseline taken 2026-08-01, after P15.1e registered the 20 categories that had actually fired.
+ */
+export const KNOWN_UNREGISTERED_EMITTERS: readonly string[] = [
+	"action_plan_checkpoint",
+	"action_plan_produced",
+	"agent_sandbox_result_patch_superseded",
+	"aux_model_stream",
+	"aux_session_start",
+	"capability_ceiling_advisory",
+	"concurrency_gate_ghost_excluded",
+	"delivery_crash_recovery",
+	"delivery_taint_gate",
+	"edit_syntax_guard",
+	"edit_thrash",
+	"empty_patch_model_failover",
+	"explore_query_failed",
+	"explorer_smaller_model_routed",
+	"fleet_change_reshard",
+	"focus_chain_repair",
+	"mcp_server_prepick",
+	"memory_freshness_audit_error",
+	"mistake_streak_softened",
+	"native_lmstudio_session",
+	"pinned_model_auto_heal",
+	"predicted_execution_divergence",
+	"progress_stall",
+	"result_handle_created",
+	"runaway_budget",
+	"sandbox_workspace_retained",
+	"second_opinion_review_single_flight",
+	"self_compaction_request",
+	"self_improvement_gate",
+	"spec_deliberation",
+	"speculative_arbitration",
+	"speculative_arbitration_fallback",
+	"speculative_mirror_residency_skip",
+	"stage_delivery",
+	"stateful_responses_capability",
+	"stateful_responses_session",
+	"stubborn_failure_exhausted",
+	"swarm_alternate_endpoint",
+	"task_session_operator_input",
+	"task_worktree_merge",
+	"test_misinterpretation",
+	"trigger_intake",
+	"visual_delivery_gate",
+	"work_package_boundary_violation",
+	"write_grounding",
+];

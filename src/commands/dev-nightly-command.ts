@@ -224,6 +224,9 @@ const PROFILE_EXTRA_ENV: Readonly<Record<string, Readonly<Record<string, string>
 		NKLEIN_ADAPTIVE_RETRY: "1",
 		NKLEIN_ARCHITECT_EDITOR: "1",
 		NKLEIN_BASELINE_PROBE: "1",
+		// Added 2026-08-01 with the memory_freshness_audit registration. Same class as NKLEIN_SANDBOX_MCP and
+		// NKLEIN_UNIFIED_MEMORY, already in this lane: it adds agent tooling rather than altering the drain shape.
+		NKLEIN_BASIC_MEMORY: "1",
 		NKLEIN_DRIFT_CRITIC: "1",
 		NKLEIN_FEWSHOT_EXEMPLARS: "1",
 		NKLEIN_FLEET_AWARE_DECOMPOSE: "1",
