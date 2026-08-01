@@ -256,3 +256,108 @@ export function auditFlagCoverage(flagsFoundInSource: readonly string[]): FlagCo
 			`. Lane (b) may enable ${byMode.observe_only} of ${FEATURE_FLAG_REGISTRY.length} — the rest change what the product does for a card`,
 	};
 }
+
+export type LaneExclusionKind =
+	/** Must NEVER be in the lane — enabling it would defeat the lane's own purpose or damage the run. */
+	| "permanent"
+	/** Belongs in the lane; not added yet because doing so needs a nightly run to validate. */
+	| "pending_validation";
+
+export interface FlagsOnLaneExclusion {
+	readonly flag: string;
+	readonly kind: LaneExclusionKind;
+	readonly reason: string;
+}
+
+/**
+ * Default-OFF opt-ins the N11 `flags_on` lane does NOT enable, and why.
+ *
+ * ── WHY THIS EXISTS ──
+ * The lane's own header says it replays the baseline recording *"with EVERY default-OFF opt-in enabled"*. Checked
+ * against this registry on 2026-08-01 it enabled **32 of 46**. The existing `nightly-flag-matrix-coverage` ratchet
+ * only requires flags the MECHANISM registry names as a gate — a subset — so the broader claim went unchecked.
+ *
+ * **Bulk-enabling the other 14 would be wrong, which is exactly why the gap needs declaring rather than closing.**
+ * Some must never be enabled; others simply have not been validated. Both are legitimate, and they are different,
+ * so each is stated with its kind — a flat "known exceptions" list would let a temporary omission calcify into an
+ * apparent rule.
+ */
+export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
+	{
+		flag: "NKLEIN_ALLOW_UNSUITABLE_MODEL",
+		kind: "permanent",
+		reason:
+			"DISABLES the model-suitability guard. A lane that enables it stops testing the guard and masks exactly the failures the drain should surface",
+	},
+	{
+		flag: "NKLEIN_SANDBOX_SKIP_STARTUP_REAP",
+		kind: "permanent",
+		reason: "skips orphan-sandbox reaping — a nightly lane that leaks sandboxes every run degrades the host",
+	},
+	{
+		flag: "NKLEIN_FLEET_DECOMPOSE_MODE",
+		kind: "permanent",
+		reason:
+			'an ENUM ("smallest" | "capability_weighted" | "fixed_target" | "off"), not a boolean — the lane\'s "1" is not a valid value for it at all',
+	},
+	{
+		flag: "NKLEIN_CHAT_MEMORY_WRITE",
+		kind: "permanent",
+		reason: "gates the CHAT surface; this lane replays a board drain, which never reaches it",
+	},
+	{
+		flag: "NKLEIN_STRUCTURED_INGESTION",
+		kind: "permanent",
+		reason: "changes how fetched WEB content is parsed; the drain runs without egress, so it is unreachable here",
+	},
+	{
+		flag: "NKLEIN_DEBUG_STREAM_EVENTS",
+		kind: "permanent",
+		reason: "pure debug logging at high volume; no mechanism reads it, so it adds noise and no evidence",
+	},
+	{
+		flag: "NKLEIN_TRUNCATION_DIAGNOSTICS",
+		kind: "pending_validation",
+		reason: "observe-only — should be in the lane; adding it needs one nightly run to confirm it stays green",
+	},
+	{
+		flag: "NKLEIN_REASONING_CAPTURE",
+		kind: "pending_validation",
+		reason: "observe-only — should be in the lane; adding it needs one nightly run to confirm it stays green",
+	},
+	{
+		flag: "NKLEIN_EXPLORER_SUBAGENT",
+		kind: "pending_validation",
+		reason: "adds an explore handler; changes the drain shape, so it needs a validating run",
+	},
+	{
+		flag: "NKLEIN_LEAN_SYSPROMPT",
+		kind: "pending_validation",
+		reason: "swaps the system prompt below a context threshold; would change every replayed request",
+	},
+	{
+		flag: "NKLEIN_PROPERTY_GATE",
+		kind: "pending_validation",
+		reason: "gates acceptance; could block cards the way NKLEIN_TYPECHECK_FIRST did on this lane's first drain",
+	},
+	{
+		flag: "NKLEIN_SPEC_DELIBERATION",
+		kind: "pending_validation",
+		reason: "adds a plan-mode deliberation step; changes the drain shape",
+	},
+	{
+		flag: "NKLEIN_STATEFUL_RESPONSES",
+		kind: "pending_validation",
+		reason: "changes the provider transport; a replay lane is the wrong place to first exercise that",
+	},
+	{
+		flag: "NKLEIN_VISUAL_GATE",
+		kind: "pending_validation",
+		reason: "adds a review gate; could block cards, so it needs a validating run",
+	},
+	{
+		flag: "NKLEIN_N_EYES_REVIEW",
+		kind: "pending_validation",
+		reason: "runs an entirely different review procedure; needs its own validating run",
+	},
+];

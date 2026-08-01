@@ -7430,10 +7430,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **`NKLEIN_FLEET_DECOMPOSE_MODE` is an ENUM (`smallest`/`capability_weighted`/`fixed_target`/`off`) where the
   lane's `"1"` is not a valid value at all.** So the fix is to make the CLAIM match the contents and justify each
   exclusion — not to bulk-enable.
-  The remaining candidates worth adding are the three pure observers (`NKLEIN_DEBUG_STREAM_EVENTS`,
-  `NKLEIN_TRUNCATION_DIAGNOSTICS`, `NKLEIN_REASONING_CAPTURE`) plus the enforcing ones a replay lane can safely
-  carry. **Deliberately not done unilaterally: this changes a nightly lane that cannot be validated without
-  running the nightly.**
+  **▶ RESOLVED THE CLAIM (not the contents) 2026-08-01 — `FLAGS_ON_LANE_EXCLUSIONS`, 4 tests.** The lane's header
+  no longer says "EVERY default-OFF opt-in"; all 14 gaps are declared with a reason AND a KIND:
+  · **`permanent` (6)** — must never be enabled here: `NKLEIN_ALLOW_UNSUITABLE_MODEL` disables the very guard the
+    drain exists to exercise; `NKLEIN_SANDBOX_SKIP_STARTUP_REAP` would leak sandboxes every nightly run;
+    `NKLEIN_FLEET_DECOMPOSE_MODE` is an enum whose valid values do not include `"1"`; `NKLEIN_CHAT_MEMORY_WRITE`
+    gates a surface a board drain never reaches; `NKLEIN_STRUCTURED_INGESTION` needs egress the drain does not
+    have; `NKLEIN_DEBUG_STREAM_EVENTS` is high-volume debug logging no mechanism reads.
+  · **`pending_validation` (8)** — belong in the lane, but adding them needs one nightly run to confirm green.
+  **The two kinds are kept DISTINCT on purpose: a flat "known exceptions" list lets a temporary omission calcify
+  into an apparent rule.** Tests pin that nothing excluded is also enabled (a stale note reads as a standing reason
+  not to enable something that IS enabled — worse than no note), that every exclusion carries a reason, and that a
+  NEW opt-in must either join the lane or declare itself.
+  **Still not done unilaterally: enabling the 8 pending ones changes a nightly lane that cannot be validated
+  without running the nightly** — and this lane's first drain was NOT green precisely because
+  `NKLEIN_TYPECHECK_FIRST` blocked every card.
   ◆ Found only because `memory_freshness_audit`'s registration tripped the existing ratchet — *"a newly registered
   mechanism would go uncovered while the lane still claims to cover it"* — which is that guard working exactly as
   written. `NKLEIN_BASIC_MEMORY` was added to the lane (same class as `NKLEIN_SANDBOX_MCP` and

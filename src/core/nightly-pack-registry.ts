@@ -167,10 +167,18 @@ export const TURN_LOOP_RECOVERY: InvariantPack = {
 };
 
 /**
- * N11 `flags_on` flag-matrix lane: the baseline `perfect` recording replayed with EVERY default-OFF opt-in
- * enabled (see `PROFILE_EXTRA_ENV`). It exists because a measurement over three real campaign runs (2026-07-29)
- * found 0 of the 29 flag-gated mechanisms firing — correctly so, since a default profile cannot reach them. This
- * lane is the cheapest way to give all of them a chance at once.
+ * N11 `flags_on` flag-matrix lane: the baseline `perfect` recording replayed with the default-OFF opt-ins enabled
+ * (see `PROFILE_EXTRA_ENV`). It exists because a measurement over three real campaign runs (2026-07-29) found 0 of
+ * the 29 flag-gated mechanisms firing — correctly so, since a default profile cannot reach them. This lane is the
+ * cheapest way to give them a chance at once.
+ *
+ * ⚠️ **NOT "every" opt-in, and this header said so until 2026-08-01.** Checked against `feature-flag-registry` the
+ * lane enables **32 of 46**, and bulk-enabling the rest would be wrong: some must NEVER be on here (one disables
+ * the model-suitability guard the drain exists to exercise, one leaks sandboxes every run, one is an ENUM whose
+ * valid values do not include the lane's `"1"`), while others simply have not had a validating run. Both gaps are
+ * legitimate and they are different, so each is declared in `FLAGS_ON_LANE_EXCLUSIONS` with a reason and a kind
+ * (`permanent` vs `pending_validation`) — a flat exceptions list would let a temporary omission calcify into an
+ * apparent rule. A ratchet keeps that declaration complete.
  *
  * `mustFire` was EMPTY when this landed, on purpose — a pack asserts what the collector is KNOWN to observe, never
  * what we hope it will. **2026-07-30: the first GREEN drain measured it, so the 19 below are now asserted.** Every

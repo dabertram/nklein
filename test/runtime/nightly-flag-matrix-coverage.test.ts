@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { FEATURE_FLAG_REGISTRY, FLAGS_ON_LANE_EXCLUSIONS } from "../../src/core/feature-flag-registry";
 import { MECHANISM_REGISTRY } from "../../src/core/mechanism-observation-audit";
 import { NIGHTLY_PACK_REGISTRY } from "../../src/core/nightly-pack-registry";
 import { OBSERVABLE_DRAIN_SIGNALS } from "../../src/core/nightly-signal-extraction";
@@ -70,5 +71,52 @@ describe("N11 flags_on lane covers every flag-gated mechanism", () => {
 			notEveryRun,
 			`mustFire names condition-triggered mechanisms, which will fail whenever the condition does not arise: ${notEveryRun.join(", ")}`,
 		).toEqual([]);
+	});
+});
+
+/**
+ * The lane's BROADER claim — "replayed with EVERY default-OFF opt-in".
+ *
+ * The test above only requires flags the MECHANISM registry names as a gate, which is a subset. Checked against
+ * the flag registry on 2026-08-01 the lane enabled **32 of 46**, so the broader claim had gone unchecked since it
+ * was written. Every gap is now declared with a reason and a kind, and this keeps that declaration complete: a new
+ * opt-in flag must either join the lane or say why it does not.
+ */
+describe("N11 flags_on lane — every default-OFF opt-in is enabled or declared", () => {
+	const laneCandidates = () => FEATURE_FLAG_REGISTRY.filter((spec) => !spec.defaultOn && spec.mode !== "dev_only");
+
+	it("has candidates to check", () => {
+		// A broken filter yields an empty list and everything below passes by vacuity.
+		expect(laneCandidates().length).toBeGreaterThan(30);
+	});
+
+	it("ENABLES or DECLARES every default-OFF opt-in", () => {
+		const lane = readFlagsOnEnv();
+		const declared = new Set(FLAGS_ON_LANE_EXCLUSIONS.map((entry) => entry.flag));
+		const undeclared = laneCandidates()
+			.map((spec) => spec.flag)
+			.filter((flag) => !lane.has(flag) && !declared.has(flag))
+			.sort();
+		expect(
+			undeclared,
+			`these default-OFF opt-ins are neither enabled by the lane nor declared as exclusions, so the lane's "EVERY default-OFF opt-in" claim is false for them:\n  ${undeclared.join("\n  ")}`,
+		).toEqual([]);
+	});
+
+	it("keeps the exclusion list HONEST — nothing excluded is also enabled", () => {
+		// An entry that stays after the flag joins the lane reads as a standing reason not to enable something
+		// that IS enabled, which is worse than no note at all.
+		const lane = readFlagsOnEnv();
+		for (const entry of FLAGS_ON_LANE_EXCLUSIONS) {
+			expect(lane.has(entry.flag), `${entry.flag} is both enabled by the lane and listed as excluded`).toBe(false);
+		}
+	});
+
+	it("gives every exclusion a reason, and every pending one is a real opt-in", () => {
+		const candidates = new Set(laneCandidates().map((spec) => spec.flag));
+		for (const entry of FLAGS_ON_LANE_EXCLUSIONS) {
+			expect(entry.reason.length, `${entry.flag} is excluded without a reason`).toBeGreaterThan(20);
+			expect(candidates.has(entry.flag), `${entry.flag} is excluded but is not a default-OFF opt-in`).toBe(true);
+		}
 	});
 });
