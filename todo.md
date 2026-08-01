@@ -8881,6 +8881,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   metadata at the emit site, so a later pass can join each observation to that card's terminal outcome. Only then
   does wiring the report produce something that can ever become a verdict. Building the `dev` command first would
   produce a facade that looks like the campaign is running and can never conclude.
+  **✅ JOIN KEY SHIPPED 2026-08-01.** `taskId: sessionId` now travels with the gate observation — a one-line change
+  using the pattern a NEIGHBOURING `recordSelfObservation` in the same function already used, so nothing new had to
+  be plumbed. A source-level ratchet pins it, scoped to the slice between that call and its own metadata so a
+  `taskId` on a different observation in this 1000-line file cannot satisfy it (that would be the guard passing on
+  evidence from the wrong site). **The ratchet was verified by REMOVING the key and watching it fail, then
+  restoring** — an unverified guard is the failure mode this whole item is about.
+  **NEXT, now genuinely unblocked:** join observations to terminal outcomes by `taskId`, adapt them into
+  `MechanismObservation` triples, and only then wire `dev`. Expect `insufficient_data` until a real-model drain
+  accumulates ≥30 observations with ≥12 evaluable disagreements — and that will now be a statement about VOLUME,
+  which more running can fix, rather than about structure, which it could not.
 - [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.

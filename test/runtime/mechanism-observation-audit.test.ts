@@ -287,3 +287,30 @@ describe("the CLI renderer prints EVERY audit status", () => {
 		expect(missing, `statuses the report would never print: ${missing.join(", ")}`).toEqual([]);
 	});
 });
+
+/**
+ * P15.3 — the tool-gate counterfactual must carry a JOIN KEY.
+ *
+ * `mechanism-decision-report` needs {recommended, actual, succeeded}, and `succeeded` can only come from how the
+ * card ENDED. Without a task id on the observation there is nothing to join it to, so the report returns
+ * `insufficient_data` forever with `evaluable: 0` — which a reader takes as "not enough samples yet, keep running"
+ * when no amount of running could ever change it. A structurally unanswerable question must not look like a
+ * pending one, so the key is pinned here rather than left to survive by luck.
+ */
+describe("the tool-catalog gate observation carries a task join key", () => {
+	const source = readFileSync("src/nklein-agent/nklein-context-focus-extension.ts", "utf8");
+
+	it("emits the observation at all — a renamed category would make this vacuous", () => {
+		expect(source).toContain("tool_catalog_gate_observation");
+	});
+
+	it("passes taskId on the same recordSelfObservation call", () => {
+		// Scoped to the slice between the call and its metadata, so a `taskId` on some OTHER observation in this
+		// large file cannot satisfy it — that would be the guard passing on evidence from the wrong site.
+		const start = source.indexOf("Tool gate (observe):");
+		expect(start, "the gate's message must still be findable").toBeGreaterThan(0);
+		const callStart = source.lastIndexOf("recordSelfObservation({", start);
+		const slice = source.slice(callStart, source.indexOf("tool_catalog_gate_observation", callStart));
+		expect(slice).toMatch(/taskId:\s*sessionId/u);
+	});
+});

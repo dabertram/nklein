@@ -689,6 +689,13 @@ export function createKanbanContextFocusExtension(
 							recordSelfObservation({
 								signal: "custom",
 								severity: "info",
+								// P15.3: the JOIN KEY, and without it this observation can never become a verdict.
+								// `mechanism-decision-report` needs {recommended, actual, succeeded}; `succeeded` has to
+								// come from how the card ENDED, and nothing here linked the counterfactual to a task.
+								// The report would have returned `insufficient_data` forever with `evaluable: 0` — read
+								// by a human as "not enough samples yet, keep running" when no amount of running could
+								// change it. A structurally unanswerable question must not look like a pending one.
+								taskId: sessionId,
 								message: `Tool gate (observe): ${gateOffered.length} offered → would keep ${gated.selected.length}${gated.arbitrary ? " (ARBITRARY — task vocabulary did not discriminate)" : ""}.`,
 								metadata: {
 									category: "tool_catalog_gate_observation",
