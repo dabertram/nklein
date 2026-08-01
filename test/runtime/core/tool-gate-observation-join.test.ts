@@ -154,3 +154,67 @@ describe("buildTaskOutcomeIndex", () => {
 		expect(index.size).toBe(0);
 	});
 });
+
+/**
+ * The SESSION/CARD id namespace boundary — live-found 2026-08-02 on the first real drain.
+ *
+ * The gate emits from a task session whose id is the CARD id plus a per-session suffix, while the scheduler's
+ * terminal records carry the card id. An exact-match join intersected in zero rows and always would have — the
+ * "structurally zero" failure again, one level deeper, and invisible to fixtures that match ids by construction.
+ * These ids are copied from the real drain, not invented.
+ */
+describe("joining across the session/card id boundary", () => {
+	const CARD = "devtest-habit-insights-mid-1785625582977";
+	const SESSION = "devtest-habit-insights-mid-1785625582977-1785625755525-5mmhsijz";
+
+	it("joins a SESSION-suffixed observation to its card's outcome", () => {
+		const report = joinToolGateObservations({
+			records: [{ taskId: SESSION, offered: 28, wouldKeep: 7, wouldDrop: 21 }],
+			outcomeByTaskId: new Map([[CARD, true]]),
+		});
+		expect(report.observations[0]?.succeeded).toBe(true);
+		expect(report.unjoinedOutcomes).toBe(0);
+	});
+
+	it("prefers an EXACT match over any prefix", () => {
+		const report = joinToolGateObservations({
+			records: [{ taskId: SESSION, offered: 28, wouldKeep: 7, wouldDrop: 21 }],
+			outcomeByTaskId: new Map([
+				[CARD, false],
+				[SESSION, true],
+			]),
+		});
+		expect(report.observations[0]?.succeeded).toBe(true);
+	});
+
+	it("prefers the LONGEST card prefix when one card id prefixes another", () => {
+		// Card ids end in timestamps, so one CAN be a proper prefix of another. Longest wins, deterministically —
+		// the most specific card is the one the session actually belongs to.
+		const report = joinToolGateObservations({
+			records: [{ taskId: "card-12-99-suffix", offered: 10, wouldKeep: 7, wouldDrop: 3 }],
+			outcomeByTaskId: new Map([
+				["card-12", false],
+				["card-12-99", true],
+			]),
+		});
+		expect(report.observations[0]?.succeeded).toBe(true);
+	});
+
+	it("requires the prefix to end at a `-` boundary, never mid-token", () => {
+		// "devtest-habit-1" must not claim sessions of "devtest-habit-10".
+		const report = joinToolGateObservations({
+			records: [{ taskId: "devtest-habit-10-555-abc", offered: 10, wouldKeep: 7, wouldDrop: 3 }],
+			outcomeByTaskId: new Map([["devtest-habit-1", true]]),
+		});
+		expect(report.observations[0]?.succeeded).toBeNull();
+		expect(report.unjoinedOutcomes).toBe(1);
+	});
+
+	it("still reports UNKNOWN when nothing matches", () => {
+		const report = joinToolGateObservations({
+			records: [{ taskId: SESSION, offered: 28, wouldKeep: 7, wouldDrop: 21 }],
+			outcomeByTaskId: new Map([["some-other-card", true]]),
+		});
+		expect(report.observations[0]?.succeeded).toBeNull();
+	});
+});

@@ -9005,9 +9005,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   longer "no outcome can ever join"; it is "the drain has not reached terminal cards yet", because a single loaded
   model serves one session at a time and later cards queue behind a busy endpoint. That is a statement about
   VOLUME and TIME, which more running fixes.
-  **NEXT:** let a drain reach ≥12 terminal cards so `evaluable` clears the floor, then read the verdict. Note the
-  100% disagreement rate means evaluable disagreements accrue as fast as cards finish — the binding constraint is
-  card throughput on one model, not observation volume.
+  **🔴 AND THE FIRST REAL VERDICT READ EXPOSED DEFECT #12 — the join was crossing an ID NAMESPACE BOUNDARY.**
+  At 11 scheduler completions the report still said `evaluable: 0`. Cause: the gate emits from a TASK SESSION,
+  whose id is the card id plus a per-session suffix (`…-1785625582977-1785625755525-5mmhsijz`), while the
+  scheduler's terminal records carry the CARD id (`…-1785625582977`). Exact-match intersection: **zero, forever** —
+  so my note above ("more running can change it") was WRONG AGAIN until this was fixed; running cannot fix a
+  namespace mismatch. Invisible to the unit tests because their fixtures matched ids by construction; only real
+  drain traffic could surface it. FIXED in the join core: exact match first, then LONGEST card-id prefix ending at
+  a `-` boundary (longest, because card ids end in timestamps and one CAN prefix another; boundary, so
+  `…-habit-1` never claims `…-habit-10`'s sessions). 5 tests pinned with the REAL ids from the drain.
+  **After the fix `evaluable: 0` is finally honest:** the only scheduler-terminal card is the stale `db38c`; the
+  observed cards are still working/awaiting review behind one loaded model. That is now genuinely volume+time.
+  **NEXT:** let the runtime finish its cards (runtime is still up on 4599), re-read the verdict, then tear down
+  the temp HOME + runtime and unload the model.
 - [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.
