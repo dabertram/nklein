@@ -10936,6 +10936,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **REMAINING (small, and belongs with the Phase 7S audit pass):** the same treatment for the TASK env plumbing,
   and an S2-fence invariant test asserting resolved values never serialize into prompts/logs. The MCP surface —
   where third-party servers actually take credentials — is the one that mattered most and is done.
+- [ ] **P21.16 — the ownership/liveness audit's one remaining find: a DETACHED preview process outlives a crash.**
+  *(Raised 2026-08-01 by the audit David prioritised; the other finds are fixed — see `b06a25971`, `894122e1c`,
+  `df462961d`.)* `visual-capture` spawns its preview server with `detached: true` and reaps it only via
+  `terminateProcessTree` (SIGTERM then SIGKILL to the process GROUP). That teardown is the sole release path, so a
+  runtime SIGKILL during a capture strands the whole group — a dev server holding its port, indefinitely.
+  **Deliberately ranked below the three fixed today, with the reasoning recorded so it is not re-litigated:** the
+  exposure window is one capture (≤120s, hard-capped), the feature is dev-only, and unlike a container or an
+  `--internal` network the orphan is visible in `ps` and dies on reboot. It does NOT accumulate silently the way the
+  sandbox and egress leaks did. `update.ts`'s `detached: true` is correct by design and out of scope — the updater
+  must outlive the process it replaces.
+  **The fix shape is already proven here:** stamp ownership and reclaim on proof of death. A capture could record its
+  child's pgid in a small sidecar and have the next capture (or startup) kill any recorded group whose leader is gone
+  via `isProcessAlive` — the same primitive as `src/core/process-identity.ts`, no new concept.
+  **AUDIT SCOPE, for whoever picks this up:** the external-resource sweep is otherwise COMPLETE. Verified sound and
+  needing no change — file locks (`locked-file-system` retries 200×, records a `runtime_error` on compromise, and its
+  temp-file+rename writes make a lost lock cost an update, never corruption; `workspace-state` fences with OCC),
+  temp HOMEs (0 leftovers on the host, empirically), capability grants + model idle (both already TTL'd), dispatch
+  reservations (TTL'd by F1.24). In-memory registries were deliberately excluded: they die with the process, so they
+  cannot leak ACROSS restarts, which is the property that made the other three dangerous.
 - [ ] **P21.13b-followup — task-env references + the S2-fence serialization invariant *(split 2026-07-31)*.**
   Extend `env://` resolution to the task/sandbox env plumbing, and add the tested invariant that a resolved
   secret value never appears in a prompt or log. Coordinate with the Phase 7S final audit pass, as originally
