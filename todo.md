@@ -8478,6 +8478,27 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `mechanism-observation-audit.ts` IS the substance of the check, and the test now guards that exclusion (asserts
   the file exists, is out of the corpus, and that the corpus is non-trivial) so the guard cannot silently become
   vacuous. **Mutation-verified**: renaming one flag makes it fail with that flag named.
+- [ ] **P15.1e — Register the 20 mechanisms that are FIRING but unregistered *(opened 2026-08-01)*.**
+  `dev mechanism-registry` prints both numbers one line apart: *"5 of 45 are demonstrably firing"* and *"20
+  categories are firing that no audit can judge"*. **The registry was watching mechanisms that do not run while
+  blind to ones that run constantly** — and several of the 20 carry real volume: `prompt_prefix_reuse` (207
+  observations), `escalation_worker_auto_diverse` (47), `reviewer_auto_diverse` (45), `model_stalled` (53).
+  **This is the cheapest path from "data exists" to "EVIDENCE exists" for the P15.3 flip campaign**: registering
+  changes no behaviour and enables nothing, it just makes accumulated observations judgeable.
+  **⚠️ REGISTER BY READING THE EMISSION SITE, NEVER BY NAME.** A wrong `expectation` mis-classifies silence, which
+  is the one thing the registry exists to get right — and most of these categories have **no owning backlog item
+  at all**, so there is nothing to copy a description from. This item is their owner.
+  **BATCH 1 DONE 2026-08-01 (5 of 20):** `prompt_prefix_reuse`, `reviewer_auto_diverse`,
+  `reviewer_auto_diverse_waived`, `turn_loop_escalate_model`, `model_stalled`. Each read at its site; the
+  diverse-reviewer pair uses `firesWhen: "second_opinion_review_session"` so silence is only judged when a review
+  actually happened — the field that exists precisely because silence from an activity that never occurred is not
+  evidence.
+  **REMAINING 15:** `acceptance_baseline_waiver`, `escalation_worker_auto_diverse` (+`_waived`),
+  `file_overlap_parallel_start`, `memory_freshness_audit`, `narrated_tool_call_recovered`, `plan_integration_gate`,
+  `prompt_preflight_lint`, `review_effort_scaling_skipped`, `reviewer_warmth_batched`,
+  `speculative_mirror_captured`/`_started`, `stream_inactivity_timeout`, `task_trouble_signal`,
+  `tool_input_rejection`.
+
 - [x] **P15.1d — Generate `docs/dev/mechanism-registry.md` from both scans *(split 2026-07-20)*.** Combine
   `dev unwired-cores` (nothing calls it) and `dev mechanism-registry` (it runs but never fires) into one
   generated document so the two failure modes appear side by side and neither can be mistaken for the other.

@@ -251,6 +251,53 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	{
+		// P15.1e batch 1 — FIRING but unregistered until 2026-08-01. Read at the emission site, not inferred from
+		// the name: registering with a wrong `expectation` mis-classifies silence, which is the one judgement the
+		// registry exists to make.
+		category: "prompt_prefix_reuse",
+		item: "P15.1e",
+		observes:
+			"how much of a newly assembled system prompt is byte-shared with the previous start for that model (prefix-cache warmth), and whether the shell was byte-identical",
+		enabledBy: null,
+		expectation: "every_run",
+	},
+	{
+		category: "reviewer_auto_diverse",
+		item: "P15.1e",
+		observes:
+			"a reviewer chosen with lineage diversity from the worker — the non-self-review path actually being taken",
+		enabledBy: null,
+		// Silence is only meaningful once a REVIEW happened; a board with no reviews is not a mechanism failing.
+		firesWhen: "second_opinion_review_session",
+		expectation: "every_run",
+	},
+	{
+		category: "reviewer_auto_diverse_waived",
+		item: "P15.1e",
+		observes:
+			"diversity being WAIVED — the best available non-worker reviewer used without lineage diversity. The paired counterpart of reviewer_auto_diverse; together they cover every review",
+		enabledBy: null,
+		firesWhen: "second_opinion_review_session",
+		expectation: "exceptional",
+	},
+	{
+		category: "turn_loop_escalate_model",
+		item: "P15.1e",
+		observes:
+			"§12 turn-loop guard escalating to a different model after a repeated-turn verdict — fires only when a loop was detected AND an escalation target existed",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
+		category: "model_stalled",
+		item: "P15.1e",
+		observes:
+			"a model turn ending without usable output (truncation / stop-reason stall) — the signal the adaptive-retry and salvage paths read",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+
+	{
 		// P18.4b 2026-07-30: the OBSERVE half of the off-track remedy. Registered with its wire, per the lesson from
 		// P18.3b — an unregistered mechanism cannot report that it never ran.
 		//
