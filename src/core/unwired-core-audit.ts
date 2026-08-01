@@ -101,7 +101,7 @@ export function auditUnwiredCores(input: AuditInput): AuditResult {
 			: [
 					`${orphans.length} of ${input.symbols.length} exported core symbol(s) have NO non-test consumer.`,
 					commentOnly.length > 0
-						? `${commentOnly.length} of those are referenced ONLY from comments — a naive grep would report them as wired.`
+						? `${commentOnly.length} of those are referenced ONLY from comments OUTSIDE their own module — a naive grep would report them as wired. Use INSIDE the defining module is not examined, so this is not a deletion licence.`
 						: "",
 					"An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.",
 				]

@@ -94,7 +94,7 @@ Status meanings — note that only ONE of these is actionable:
 
 ## 2. Unwired cores
 
-1047 of 2727 exported core symbol(s) have NO non-test consumer. 55 of those are referenced ONLY from comments — a naive grep would report them as wired. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
+1045 of 2727 exported core symbol(s) have NO non-test consumer. 53 of those are referenced ONLY from comments OUTSIDE their own module — a naive grep would report them as wired. Use INSIDE the defining module is not examined, so this is not a deletion licence. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
 
 ### Modules where EVERY export is orphaned (102)
 
@@ -203,23 +203,25 @@ Status meanings — note that only ONE of these is actionable:
 
 ### Orphan triage — tracked vs untracked (102 fully-orphaned modules)
 
-- **97 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
-- **5 UNTRACKED** — built, tested, unwired, and mentioned in NO backlog item.
+- **102 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
+- **0 UNTRACKED** — built, tested, unwired, and mentioned in NO backlog item.
 
 The untracked group is the strongest kill-list input (P15.4): it is the only group where the question
 "why does this exist?" has no recorded answer anywhere in the project.
 
-- `action-plan-producer-eval.ts`
-- `fleet-host-cap-config.ts`
-- `fleet-host-observation.ts`
-- `long-memory-live-eval.ts`
-- `persisted-prompt-session-models.ts`
+_None untracked._
 
-### Referenced ONLY from comments
+### Referenced ONLY from comments (outside their own module)
 
-A plain `grep -c` reports these as wired. They are not — every reference is a docblock mention.
+A plain `grep -c` reports these as wired. Every reference **from another module** is a docblock mention.
 
-- `action-plan-ir.ts` :: `actionPlanStepSchema`
+⚠️ **This says nothing about use INSIDE the defining module**, which the scan deliberately skips — an
+orphan audit asks whether anything ELSE consumes a symbol, and a module using its own export does not make
+it externally wired. Several entries here are composed into neighbouring schemas in their own file
+(`runtimeChatSessionScopeSchema`, `actionPlanStepSchema`). **Deleting one on the strength of this list
+alone would break its own module** — check the defining file first; what this list justifies is asking
+whether the symbol should still be EXPORTED.
+
 - `adaptive-attempt-loop.ts` :: `classifyTurnOutcome`
 - `adaptive-decomposition-decision.ts` :: `decideCardDecomposition`
 - `agent-attempt-ledger.ts` :: `SCHEDULER_EVENT_NAMES`
@@ -232,7 +234,6 @@ A plain `grep -c` reports these as wired. They are not — every reference is a 
 - `cache-health.ts` :: `classifyCacheHealth`
 - `cache-prefix-retention.ts` :: `shouldAdmitPrefix`
 - `cache-warmth.ts` :: `classifyShellWarmth`
-- `chat-api-contract.ts` :: `runtimeChatSessionScopeSchema`
 - `citation-conflict-authority.ts` :: `resolveClaimConflictsByAuthorityBatch`
 - `citation-conflict-batch.ts` :: `resolveClaimConflictsBatch`
 - `citation-conflict-detection.ts` :: `detectClaimConflicts`

@@ -89,3 +89,30 @@ describe("auditUnwiredCores", () => {
 		expect(result.summary).toContain("at least one non-test consumer");
 	});
 });
+
+/**
+ * The scan skips the DEFINING file, so `commentOnlyOrphans` means "no non-comment reference from ANOTHER module".
+ *
+ * The generated doc used to state it as "every reference is a docblock mention", full stop. That is false for a
+ * symbol composed into a neighbouring schema in its own file — `runtimeChatSessionScopeSchema` and
+ * `actionPlanStepSchema` are both used at several points in their defining modules — and a reader who trusted the
+ * stronger claim and deleted one would break that module. The summary has to say what was actually measured.
+ */
+describe("the comment-only summary does not overclaim", () => {
+	it("scopes the claim to references from OUTSIDE the defining module", () => {
+		const result = auditUnwiredCores({
+			symbols: [{ module: "a.ts", name: "thing" }],
+			referenceLines: new Map([["a.ts::thing", [" * see `thing` for the rationale"]]]),
+		});
+		expect(result.commentOnlyOrphans).toHaveLength(1);
+		expect(result.summary).toMatch(/OUTSIDE their own module/u);
+	});
+
+	it("says outright that this is not a deletion licence", () => {
+		const result = auditUnwiredCores({
+			symbols: [{ module: "a.ts", name: "thing" }],
+			referenceLines: new Map([["a.ts::thing", ["// mentions thing"]]]),
+		});
+		expect(result.summary).toMatch(/not a deletion licence/u);
+	});
+});

@@ -220,9 +220,16 @@ export async function runDevMechanismDocCommand(options: { out?: string }): Prom
 			? ["_None untracked._"]
 			: untrackedModules.sort().map((module) => `- \`${module}\``)),
 		"",
-		"### Referenced ONLY from comments",
+		"### Referenced ONLY from comments (outside their own module)",
 		"",
-		"A plain `grep -c` reports these as wired. They are not — every reference is a docblock mention.",
+		"A plain `grep -c` reports these as wired. Every reference **from another module** is a docblock mention.",
+		"",
+		"⚠️ **This says nothing about use INSIDE the defining module**, which the scan deliberately skips — an",
+		"orphan audit asks whether anything ELSE consumes a symbol, and a module using its own export does not make",
+		"it externally wired. Several entries here are composed into neighbouring schemas in their own file",
+		"(`runtimeChatSessionScopeSchema`, `actionPlanStepSchema`). **Deleting one on the strength of this list",
+		"alone would break its own module** — check the defining file first; what this list justifies is asking",
+		"whether the symbol should still be EXPORTED.",
 		"",
 		...(unwired.commentOnlyOrphans.length === 0
 			? ["_None._"]
