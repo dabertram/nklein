@@ -10095,7 +10095,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   is an extra rather than proof the other 36 are deficient. **441 → 22 real issues** across 460 cards: 09 (10
   cards), 15 (9), 19 (1) omit an acceptance test their own spec establishes, plus 36's known S49 pair. Those 20
   acceptance gaps are genuine and worth fixing before probes are authored against those specs — a card with no
-  acceptance test has nothing to hold a probe to.
+  acceptance test has nothing to hold a probe to. Spot-checked rather than assumed: spec 19's `S03` ("Raft log entry
+  + node types") spans 48 lines carrying `files:`, `interface:` and `how to implement:`, and the word *acceptance*
+  appears nowhere in it. Note also that these specs use a DIFFERENT card layout from project 36 — one field per
+  line rather than packed inline — and the spine reads both.
+  **⚠️ DO NOT JUST EDIT THE SPECS TO CLOSE THESE GAPS.** They are dev-test FIXTURES, and **spec 09 is in the
+  nightly tranche** (`02,03,04,05,06,07,08,20,09,01`): changing a fixture changes what the harness measures and can
+  invalidate the recorded aimock sets that drain it, which the F11.4c 0-unmatched invariant then fails on. Any fix
+  here is a fixture change that must be paired with re-recording its set and a nightly re-run — not a docs edit.
 - [x] **P20.3 — NO-OP ABLATION in card acceptance (cheap, devastating).** Stub out the artifact the agent claims
   to have built and re-run the tests. **If they still pass, the artifact is decorative.** "Building to the Test"
   (arXiv 2606.28430) demonstrated production agents scoring **222/222 on a hidden oracle while the library they
