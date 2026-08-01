@@ -43,7 +43,9 @@ function walkSources(dir: string, out: string[] = []): string[] {
 		}
 		if (stat.isDirectory()) {
 			walkSources(path, out);
-		} else if ((path.endsWith(".ts") || path.endsWith(".tsx")) && !path.includes(".test.")) {
+			// `.mts` matters: every harness under `scripts/` uses it, and those are REAL consumers for the
+			// kill-list question — deleting a module a verification script imports breaks that script.
+		} else if ((path.endsWith(".ts") || path.endsWith(".tsx") || path.endsWith(".mts")) && !path.includes(".test.")) {
 			out.push(path);
 		}
 	}
@@ -70,7 +72,11 @@ export async function runDevMechanismDocCommand(options: { out?: string }): Prom
 		byName.set(symbol.name, bucket);
 	}
 	const referenceLines = new Map<string, string[]>();
-	for (const file of ["src", "web-ui/src", "packages"].flatMap((root) => walkSources(root))) {
+	// `scripts` is in this list because omitting it produced a FALSE KILL-LIST ENTRY: `persisted-prompt-session-models`
+	// was reported as having no consumer while `scripts/verify-fleet-swarm.mts` imports and calls it, so acting on
+	// that entry would have broken the script. A scan that cannot see a consumer reports its absence with the same
+	// confidence as a real one.
+	for (const file of ["src", "web-ui/src", "packages", "scripts"].flatMap((root) => walkSources(root))) {
 		let text: string;
 		try {
 			text = readFileSync(file, "utf8");

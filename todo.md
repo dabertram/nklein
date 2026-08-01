@@ -8993,7 +8993,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   designed: "untracked" measures *"nobody wrote down why this exists"*, and writing it down is a legitimate way to
   leave the set. (One of them left it today — `mechanism-decision-report.ts` was TRACKED-but-unwired and is now
   wired by `dev mechanism-decision`.)
-  **So P15.4b is no longer "79 modules, hard to reverse". It is a FIVE-module call:**
+  **✅ P15.4b DECIDED AUTONOMOUSLY 2026-08-01 (David: "decide autonomously the best options"): DELETE NOTHING.
+  All five candidates were FALSE POSITIVES — the scan could not see their consumers.** `walkSources` covered
+  `src`, `web-ui/src` and `packages` but **not `scripts/`**, and accepted `.ts`/`.tsx` but **not `.mts`** — which
+  is the extension every harness under `scripts/` uses. Each of the five is imported and called there:
+  · `action-plan-producer-eval` → `scripts/eval-harness.mts`
+  · `fleet-host-cap-config`, `fleet-host-observation`, `persisted-prompt-session-models` →
+    `scripts/verify-fleet-swarm.mts`
+  · `long-memory-live-eval` → `scripts/verify-long-memory-eval.mts`
+  **Deleting any of them would have broken a verification harness.** A script consumer is decisive for the KILL
+  question specifically: whatever one argues about "wired into the product", `rm` breaks the script.
+  **SCAN FIXED, and the correction is large: 102 → 80 fully-orphaned modules, 5 → 0 UNTRACKED.** Twenty-two
+  modules were never orphaned at all. **The kill-list is now EMPTY**, and P15.4b needs no decision because there
+  is nothing left to decide.
+  **Same class as everything else today — a confident negative from a check whose scope excluded the answer.**
+  "No consumer anywhere in the project" was really "no consumer in the three directories I looked at". A scan
+  that cannot see a consumer reports its absence exactly as confidently as a real one.
+  ── the earlier framing, kept because the reasoning still applies if the list ever refills ──
+  **It WAS a FIVE-module call:**
   `action-plan-producer-eval.ts` · `fleet-host-cap-config.ts` · `fleet-host-observation.ts` ·
   `long-memory-live-eval.ts` · `persisted-prompt-session-models.ts`
   Worth noting before deciding: **two of the five are FLEET modules** (`fleet-host-cap-config`,

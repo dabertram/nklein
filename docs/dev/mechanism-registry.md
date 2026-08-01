@@ -94,44 +94,33 @@ Status meanings — note that only ONE of these is actionable:
 
 ## 2. Unwired cores
 
-1045 of 2727 exported core symbol(s) have NO non-test consumer. 53 of those are referenced ONLY from comments OUTSIDE their own module — a naive grep would report them as wired. Use INSIDE the defining module is not examined, so this is not a deletion licence. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
+961 of 2727 exported core symbol(s) have NO non-test consumer. 51 of those are referenced ONLY from comments OUTSIDE their own module — a naive grep would report them as wired. Use INSIDE the defining module is not examined, so this is not a deletion licence. An orphan is a QUESTION, not a verdict: it may be a core built ahead of its wire, a deliberate public API, or a core whose lesson was the point. This scan is text-level and can miss re-exports or dynamic lookups.
 
-### Modules where EVERY export is orphaned (102)
+### Modules where EVERY export is orphaned (80)
 
-- `aider-polyglot-campaign.ts` (10 export(s))
 - `model-consult.ts` (10 export(s))
-- `context-integrity-experiment.ts` (9 export(s))
-- `lms-session-stall.ts` (8 export(s))
 - `model-consult-visibility.ts` (8 export(s))
 - `enforced-reasoning-learning.ts` (7 export(s))
-- `fleet-review-observation.ts` (7 export(s))
 - `cache-prefix-retention.ts` (6 export(s))
 - `model-pool.ts` (6 export(s))
 - `judge-calibration.ts` (5 export(s))
 - `memory-governance.ts` (5 export(s))
-- `reanchor-quality-ab.ts` (5 export(s))
 - `cache-aware-prompt-layout.ts` (4 export(s))
 - `cache-stable-prefix-order.ts` (4 export(s))
 - `codeact-gating.ts` (4 export(s))
-- `decompose-span-ab-eval.ts` (4 export(s))
 - `discriminative-tiebreak.ts` (4 export(s))
 - `model-online-lookup.ts` (4 export(s))
 - `module-import-closure.ts` (4 export(s))
 - `prompt-evolution-gate.ts` (4 export(s))
 - `repair-validation-gates.ts` (4 export(s))
 - `richer-card-schema.ts` (4 export(s))
-- `action-plan-producer-eval.ts` (3 export(s))
 - `audio-vst-rubric.ts` (3 export(s))
-- `cache-health.ts` (3 export(s))
 - `cache-warmup-amortization.ts` (3 export(s))
 - `candidate-tournament.ts` (3 export(s))
 - `confidence-scorer.ts` (3 export(s))
 - `deliberation-loop.ts` (3 export(s))
 - `lmstudio-max-tokens-clamp.ts` (3 export(s))
 - `localization-provider.ts` (3 export(s))
-- `long-memory-live-eval.ts` (3 export(s))
-- `retry-baseline-experiment.ts` (3 export(s))
-- `synthesis-evidence-quality-eval.ts` (3 export(s))
 - `task-sizing-invariant.ts` (3 export(s))
 - `vlm-screenshot-lens.ts` (3 export(s))
 - `work-package-conflict-resolution.ts` (3 export(s))
@@ -140,30 +129,21 @@ Status meanings — note that only ONE of these is actionable:
 - `adaptive-decomposition-decision.ts` (2 export(s))
 - `citation-conflict-authority.ts` (2 export(s))
 - `clarification-count.ts` (2 export(s))
-- `constraint-tax-eval.ts` (2 export(s))
 - `context-position-salience-risk.ts` (2 export(s))
 - `context-smart-zone.ts` (2 export(s))
 - `durable-lease-renewal.ts` (2 export(s))
-- `fleet-endpoint-loss-proof.ts` (2 export(s))
-- `fleet-host-cap-config.ts` (2 export(s))
-- `lmstudio-log-anomalies.ts` (2 export(s))
 - `lmstudio-model-acquisition.ts` (2 export(s))
 - `narration-dialect.ts` (2 export(s))
 - `no-op-stub-generation.ts` (2 export(s))
-- `persisted-prompt-session-models.ts` (2 export(s))
 - `portable-continuation-selector.ts` (2 export(s))
 - `reason-then-act.ts` (2 export(s))
 - `relative-date-resolver.ts` (2 export(s))
 - `retrieved-evidence.ts` (2 export(s))
-- `spec-deliberation-eval.ts` (2 export(s))
 - `spectrum-fault-localization.ts` (2 export(s))
-- `stateful-responses-gate.ts` (2 export(s))
-- `swarm-roster-load-plan.ts` (2 export(s))
 - `sweep-resource-governance.ts` (2 export(s))
 - `test-regression-verdict.ts` (2 export(s))
 - `turn-thinking-directive.ts` (2 export(s))
 - `admissible-cited-synthesis.ts` (1 export(s))
-- `background-eval-runner-signals.ts` (1 export(s))
 - `cache-friendly-route.ts` (1 export(s))
 - `citation-conflict-annotation.ts` (1 export(s))
 - `citation-conflict-batch.ts` (1 export(s))
@@ -181,8 +161,6 @@ Status meanings — note that only ONE of these is actionable:
 - `failure-hopelessness-from-errors.ts` (1 export(s))
 - `field-report-narrative-pass.ts` (1 export(s))
 - `flake-quarantine.ts` (1 export(s))
-- `fleet-host-observation.ts` (1 export(s))
-- `fleet-wide-fanout-board.ts` (1 export(s))
 - `focus-chain-diff.ts` (1 export(s))
 - `hard-stuck-escalation.ts` (1 export(s))
 - `kv-prefix-audit.ts` (1 export(s))
@@ -201,9 +179,9 @@ Status meanings — note that only ONE of these is actionable:
 - `topic-aware-freshness.ts` (1 export(s))
 - `workflow-board-bridge.ts` (1 export(s))
 
-### Orphan triage — tracked vs untracked (102 fully-orphaned modules)
+### Orphan triage — tracked vs untracked (80 fully-orphaned modules)
 
-- **102 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
+- **80 TRACKED** — named in `todo.md`/`done.md`, so a wire or decision exists.
 - **0 UNTRACKED** — built, tested, unwired, and mentioned in NO backlog item.
 
 The untracked group is the strongest kill-list input (P15.4): it is the only group where the question
@@ -231,7 +209,6 @@ whether the symbol should still be EXPORTED.
 - `assumption-safety.ts` :: `decideAssumptionSafety`
 - `cache-aware-prompt-layout.ts` :: `prefixesAreCacheEquivalent`
 - `cache-aware-prompt-layout.ts` :: `assembleCacheAwarePrompt`
-- `cache-health.ts` :: `classifyCacheHealth`
 - `cache-prefix-retention.ts` :: `shouldAdmitPrefix`
 - `cache-warmth.ts` :: `classifyShellWarmth`
 - `citation-conflict-authority.ts` :: `resolveClaimConflictsByAuthorityBatch`
@@ -269,7 +246,6 @@ whether the symbol should still be EXPORTED.
 - `run-state-machine.ts` :: `selectPhaseTools`
 - `sandbox-orphan-ownership.ts` :: `classifySandboxContainer`
 - `task-board-mutations.ts` :: `wouldCreateDependencyCycle`
-- `temporal-awareness.ts` :: `resolveTemporalAwareness`
 - `temporal-claim-consistency.ts` :: `checkClaimsTemporalConsistency`
 - `test-regression-verdict.ts` :: `classifyTestRegression`
 - `work-package-dispatch.ts` :: `validateWorkPackages`
