@@ -302,6 +302,30 @@ gap remains.
 > identical from the outside, and only the second one silently accumulates.** Pre-existing unlabeled containers cannot
 > be proven abandoned and are deliberately NOT swept automatically; that is a one-time operator action
 > (`docker rm -f $(docker ps -aq --filter label=nklein.kind=agent-sandbox)` with no runtime live).
+> **⚠️⚠️ THE SESSION'S DOMINANT DEFECT CLASS: A CLAIM THAT ASSERTS MORE THAN ITS MEASUREMENT SUPPORTS (2026-08-01).**
+> Nine defects in one day, in nine unrelated subsystems, all the same shape — which is why this is a rule and not
+> nine notes. In every case the machinery existed, the tests were green, and a *sentence* (in a comment, a summary,
+> a backlog item, or a verdict) claimed something the code or data did not actually establish:
+> · a reap label written and **never queried**, with two comments asserting the reap existed (egress proxy);
+> · a metric whose caller **dropped the field it classifies**, so `formatFailures` would have been 0 forever while
+>   the core's own tests passed — they never traversed the mapping (P21.1);
+> · counterfactual observations with **no join key**, so the verdict would have said `insufficient_data` forever
+>   and a reader would have waited for volume that could never help (P15.3);
+> · a false-wiring detector making a **false wiring claim** — "every reference is a docblock mention" was true only
+>   outside the defining module, and acting on it would delete load-bearing code (P15.4);
+> · "the spine cannot be derived" (true of RFC-2119 modality, false of the document);
+> · "13 invariants are undefined" (four times, each from a narrower grammar than the document used);
+> · "the specs pin no callable contract" (they pin 10–44 each);
+> · "the Docker gate is real" (idle 8 days);
+> · **and my own "temp HOMEs: 0 leftovers, empirically" — 331 of them, holding 6.3 GB.**
+> **THE TELL IS ALWAYS THE SAME: a confident negative.** "Never fires", "no consumer", "not derivable", "nothing
+> left", "0 found". A positive claim gets checked because someone has to produce the thing; a negative one is
+> accepted because absence looks like completion. **So: when a check reports NOTHING, verify the check can still
+> report SOMETHING** — remove the key and watch the ratchet fail, grep for a reader before believing a label
+> implies cleanup, feed the pipeline one known-positive record before trusting its zero. Every one of today's nine
+> was found that way, and the two I nearly shipped (a vacuous ratchet, a facade command) were caught by exactly
+> that step. **A measurement's WORDING is part of the measurement**: if the scan skipped the defining file, the
+> sentence must say so, because the next reader will act on the sentence and not on the code.
 > **⚠️ A TIMEOUT IS A PROXY FOR LIVENESS — WHEN THE OWNER IS LOCAL, ASK THE OS INSTEAD (2026-08-01).** Found TWICE in
 > one day, in unrelated subsystems, which is why it is a rule and not a footnote: the sandbox pool decided a container
 > was abandoned by NAME, and the P21.5b durable-ledger fence decided a scheduler claim was abandoned by AGE (60s
