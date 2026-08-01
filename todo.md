@@ -10984,8 +10984,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > **sequenced**: auto-swap becomes defensible once a swap stops costing a full re-prefill. Recorded explicitly so
 > the flip is a decision with a date, not a drift.
 
-- [ ] **P25.1 — FEASIBILITY: what already exists, what is genuinely new.** ⚠️ **Most of the hard machinery is
-  already built** — anyone starting here should read this before proposing a design.
+- [x] **P25.1 — FEASIBILITY: what already exists, what is genuinely new. CLOSED 2026-08-01 — the assessment IS the
+  deliverable, and it has since been overtaken by its own conclusions.** A feasibility item is done when it can
+  tell you what to build; this one did, and three of the four legs it identified shipped as P25.3 phases:
+  · leg 1 (a-priori hardware fit including KV cache) → **P25.3 phase 1**, `model-residency-sizing.ts` +
+    `dev model-fit`. Its headline number is this item's own warning made concrete: an 8B Q4 model at the 32k floor
+    needs 3.73 GiB of weights and **4.00 GiB of KV**, so the weights-only estimate this item cautioned against
+    under-reports by more than half.
+  · leg 2 (rank findings by fit) → **P25.3 phase 2**, `model-candidate-ranking.ts`. This item wrote the remainder
+    as *"rank F3.34's findings by the P25.3-phase-1 FIT verdict … so 'what's new' becomes 'what's new AND runnable
+    here'"*; the module's header states that purpose verbatim. It also carries the asymmetry this item did not
+    foresee: the no-architecture heuristic over-states KV by 4–8× (fail-safe for a LOAD decision, backwards for a
+    SHOPPING list), so `undetermined_needs_architecture` ranks ABOVE `exceeds_budget`.
+  · leg 3 (auto-download) → **P25.3 phase 3**, `lmstudio-model-acquisition.ts`, quarantined from the autonomous
+    runtime with consent bound at construction, per David's 2026-07-31 setup-time-only decision (P25.2a).
+  · leg 4 (per-role/per-card assignment from measured fitness) → **tracked as P25.3 phase 4**, not orphaned here.
+  **Kept as an [x] rather than deleted, because its NEGATIVE findings are the durable part** and nothing else
+  records them: most of the machinery was already built and gated OFF by policy rather than missing (so the ask
+  was ~80% done before any code was written); F3.34 is a per-model CAPABILITY researcher and NOT a discovery tool
+  (a claim this item had to correct twice); and the bootstrap step is inverted — handing model discovery to a small
+  local model adds a hallucination surface to the one decision that determines what gets DOWNLOADED AND EXECUTED,
+  so code should query and the model should summarise. ⚠️ **Most of the hard machinery is already built** — anyone
+  starting here should read this before proposing a design.
   **ALREADY SHIPPED (do not rebuild):**
     · `ensure-model-loaded.ts` — machine-aware AUTONOMOUS load: picks a device that FITS and loads there (chosen
       2026-07-12 over dispatch-time steering, which live tests proved inert because LM Studio decides placement at
