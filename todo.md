@@ -8865,6 +8865,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **So the honest order is: wire the report → run it after a real-model drain → expect mostly INSUFFICIENT DATA at
   first, and treat that as the correct answer rather than a reason to lower the bar.** The core is "mostly about
   refusing to answer" by design; a campaign that flips anything on its first run has misread it.
+  **🔴 …AND THE REAL BLOCKER IS DEEPER THAN THE WIRE: THE OBSERVATIONS CARRY NO OUTCOME JOIN.** Traced the one
+  genuine observe-first emitter, the F12.18 tool-catalog gate (`NKLEIN_TOOL_GATE_OBSERVE`,
+  `nklein-context-focus-extension` ~661). It records a real counterfactual —
+  `{category: "tool_catalog_gate_observation", offered, wouldKeep, wouldDrop, arbitrary, alwaysKeepCount,
+  alwaysKeepPresent}` — but **no taskId, cardId or any other join key.** `MechanismObservation` needs
+  `{recommended, actual, succeeded}`, and `succeeded` is exactly what cannot be recovered: nothing links the
+  observation to how that card ended.
+  **⚠️ The failure mode this creates is a MISREAD, not an error.** `buildMechanismDecision` would dutifully return
+  `insufficient_data` forever with `evaluable: 0`, and a reader would conclude "not enough samples yet" and wait —
+  when the truth is that `evaluable` is structurally ZERO and no amount of running changes it. The counterfactual
+  the whole campaign turns on ("had this been enforcing, would outcomes have been BETTER?") is unanswerable from
+  the data as recorded, however much of it accumulates.
+  **CONCRETE FIX, and it belongs before any command:** add a join key (taskId / cardId) to the observation
+  metadata at the emit site, so a later pass can join each observation to that card's terminal outcome. Only then
+  does wiring the report produce something that can ever become a verdict. Building the `dev` command first would
+  produce a facade that looks like the campaign is running and can never conclude.
 - [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.
