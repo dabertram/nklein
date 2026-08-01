@@ -11211,22 +11211,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   IS the evidence — which is precisely what N9's closure needed. Lesson for the next sweep: an emptiness result
   deserves a second, differently-shaped measurement before it becomes a conclusion. In-memory registries were deliberately excluded: they die with the process, so they
   cannot leak ACROSS restarts, which is the property that made the other three dangerous.
-- [ ] **P21.17 — MANAGED-SEARCH containers have the same unread-label leak the egress proxy had.** *(Found
-  2026-08-01 by applying §4A's "a claim that asserts more than its measurement" rule as a SWEEP rather than a
-  principle: every `*_LABEL` constant was checked for a READER, which is how the egress bug was found.)*
-  `MANAGED_SEARCH_CONTAINER_LABEL = "nklein.kind=managed-search"` is defined (`managed-search-backend.ts` ~15) and
-  stamped onto the container (~265). **Nothing queries it** — no `--filter`, no reap, anywhere in the tree.
-  Disposal runs only from `stop()`, reachable from an explicit tRPC call and from the idle timer, and **a SIGKILL
-  skips both**, so a crash strands a SearxNG container holding its port and memory with nothing able to reclaim it.
-  **Currently ZERO on this host, which is exactly how the egress leak stayed invisible:** the feature is unused, so
-  the path is never exercised until someone turns it on — and then it degrades quietly.
-  **FIX SHAPE IS ALREADY PROVEN — reuse it rather than inventing a third variant:** stamp the same owner claim
-  (`nklein.owner-pid` / `nklein.owner-nonce`, `src/core/process-identity.ts`) at creation and reap on proof of
-  death, exactly as `reapOrphanEgressProxies` does. The ownership plan (`planSandboxOrphanReaping`) is
-  container-kind-agnostic and already takes the records; only the listing filter and the call site are new.
-  ⚠️ Do NOT reap this label kind-wide: §4A's 2026-07-23 incident is precisely that mistake.
-  Deliberately filed rather than built in the session that found it — the two live container kinds were fixed and
-  verified first, and a third subsystem deserves its own focused pass rather than a tired one.
+- [x] **P21.17 — MANAGED-SEARCH containers. RETRACTED 2026-08-01, the same day it was filed — NOT a leak.**
+  I filed this from a sweep for `*_LABEL` constants with no reader, and the sweep produced a **false positive**
+  that I then confirmed with a grep too narrow to see the answer. Both errors are the class §4A now names, so the
+  entry is kept rather than deleted.
+  **What is actually true:** `MANAGED_SEARCH_CONTAINER_LABEL` IS read — by
+  `docker inspect -f '{{index .Config.Labels "nklein.kind"}} …'` (`managed-search-backend` ~241), not by a
+  `--filter`, which is the only form my sweep looked for. And the container carries a FIXED name with a proper
+  adopt-or-replace lifecycle (~244-255): on boot it inspects that name, **REFUSES if the label does not match**
+  (`Docker name … is occupied by an unmanaged container` — an ownership check, not a clobber), ADOPTS it when
+  already running, and `rm -f`s and recreates it when stale. A crash therefore leaves at most ONE container, and
+  the next boot reclaims it. Nothing accumulates.
+  **Why the analogy to the egress bug failed:** egress containers are NAMESPACED per run, so each crash stranded a
+  *new* one forever and no future runtime matched its name. A FIXED name is self-limiting — the same name is the
+  reclaim key. I reasoned from the label alone and skipped the lifecycle, which is where the answer lived.
+  **THE SWEEP'S LESSON, worth more than the false finding:** "does anything read this label?" is the wrong
+  question. The right one is **"can this resource be reclaimed?"** — a label is one way, a stable name is another,
+  and an idle timer a third. A grep for `--filter|reap|rm |orphan` on the LABEL could never see a lifecycle keyed
+  on the NAME. When a sweep flags something, read the resource's whole lifecycle before filing.
 - [ ] **P21.13b-followup — task-env references + the S2-fence serialization invariant *(split 2026-07-31)*.**
   Extend `env://` resolution to the task/sandbox env plumbing, and add the tested invariant that a resolved
   secret value never appears in a prompt or log. Coordinate with the Phase 7S final audit pass, as originally
