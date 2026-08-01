@@ -33,7 +33,7 @@ function walkSources(dir: string, out: string[] = []): string[] {
 		}
 		if (stat.isDirectory()) {
 			walkSources(path, out);
-		} else if ((path.endsWith(".ts") || path.endsWith(".tsx")) && !path.includes(".test.")) {
+		} else if ((path.endsWith(".ts") || path.endsWith(".tsx") || path.endsWith(".mts")) && !path.includes(".test.")) {
 			out.push(path);
 		}
 	}
@@ -76,7 +76,10 @@ export function scanCoreSymbolReferences(options: {
 		byName.set(symbol.name, bucket);
 	}
 
-	const roots = options.roots ?? ["src", "web-ui/src", "packages"];
+	// `scripts` and `.mts` are load-bearing here: without them this command — whose entire purpose is answering
+	// "does anything consume this?" — reported five modules as unwired while `scripts/verify-fleet-swarm.mts` and
+	// friends imported and called them. Deleting one on that answer would have broken a verification harness.
+	const roots = options.roots ?? ["src", "web-ui/src", "packages", "scripts"];
 	// ALWAYS exclude the tracked-requirement map. It names core symbols as STRINGS to describe which module
 	// provides which requirement element — that is documentation, not consumption. Counting it inflates the wired
 	// count repo-wide, and it inflated an orphan audit of this very session's output by 2 before being caught.
