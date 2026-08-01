@@ -87,3 +87,94 @@ describe("reservationAwarePools", () => {
 		expect(plan.excludedJobIds).toEqual(["j-1"]);
 	});
 });
+
+/**
+ * F1.34c-drift / F1.24 — a leaked dispatch hold used to freeze the runtime permanently.
+ *
+ * The wiring released on exactly two paths (first observed summary, delivery). A dispatch whose session died
+ * BEFORE any summary never released, `dispose` did not release, and nothing expired. And it was not harmless:
+ * `tryReserve` fails OPEN on an undeclared capacity but still RECORDS the hold, and `reservationAwarePools` adds
+ * `reserved()` to `inUse` unconditionally — so every leak permanently shrank the pool admission could see.
+ */
+describe("hold expiry — the permanent-freeze fix", () => {
+	function ledgerAt(clock: { t: number }, holdTtlMs = 1_000) {
+		return createDispatchReservationLedger([], { holdTtlMs, now: () => clock.t });
+	}
+
+	it("a hold that is never released EXPIRES instead of holding forever", () => {
+		const clock = { t: 0 };
+		const ledger = ledgerAt(clock);
+		ledger.tryReserve("dead-session", [{ kind: "endpoint_slot", key: "pool-a", amount: 1 }]);
+		expect(ledger.reserved("endpoint_slot", "pool-a")).toBe(1);
+		clock.t += 1_001;
+		expect(ledger.reserved("endpoint_slot", "pool-a"), "the leaked hold must not survive its window").toBe(0);
+		expect(ledger.holders()).toEqual([]);
+	});
+
+	it("stops a leak from permanently shrinking the ADMISSION view — the actual freeze", () => {
+		// reservationAwarePools adds reserved() to inUse unconditionally. Before expiry, a pool of capacity 2 with
+		// two dead dispatches read as fully occupied forever and nothing ever started again.
+		const clock = { t: 0 };
+		const ledger = ledgerAt(clock);
+		ledger.tryReserve("dead-1", [{ kind: "endpoint_slot", key: "pool-a", amount: 1 }]);
+		ledger.tryReserve("dead-2", [{ kind: "endpoint_slot", key: "pool-a", amount: 1 }]);
+		const pools = [{ poolKey: "pool-a", capacity: 2, inUse: 0 }] as never;
+		expect(reservationAwarePools(pools, ledger)[0]?.inUse, "saturated by the leak").toBe(2);
+		clock.t += 1_001;
+		expect(reservationAwarePools(pools, ledger)[0]?.inUse, "recovered once the holds expired").toBe(0);
+	});
+
+	it("does NOT expire a hold that is still inside its window", () => {
+		// The failure direction that matters in the other direction: expiring a live hold re-opens the TOCTOU
+		// window the reservation exists to close.
+		const clock = { t: 0 };
+		const ledger = ledgerAt(clock);
+		ledger.tryReserve("live", [{ kind: "endpoint_slot", key: "pool-a", amount: 1 }]);
+		clock.t += 999;
+		expect(ledger.reserved("endpoint_slot", "pool-a")).toBe(1);
+	});
+
+	it("RESTARTS the clock on an idempotent re-reserve — the dispatch is still in flight", () => {
+		const clock = { t: 0 };
+		const ledger = ledgerAt(clock);
+		ledger.tryReserve("t", [{ kind: "endpoint_slot", key: "pool-a", amount: 1 }]);
+		clock.t += 900;
+		ledger.tryReserve("t", [{ kind: "endpoint_slot", key: "pool-a", amount: 1 }]);
+		clock.t += 900;
+		expect(ledger.reserved("endpoint_slot", "pool-a"), "re-reserved at 900, so still live at 1800").toBe(1);
+	});
+
+	it("expires on a READ, not only on the next write", () => {
+		// reservationAwarePools only ever READS. Expiring on writes alone would leave the admission view shrunk
+		// until some unrelated dispatch happened to come along.
+		const clock = { t: 0 };
+		const ledger = ledgerAt(clock);
+		ledger.tryReserve("dead", [{ kind: "endpoint_slot", key: "pool-a", amount: 1 }]);
+		clock.t += 5_000;
+		expect(ledger.snapshot()).toEqual([]);
+	});
+
+	it("releases explicitly without waiting for the TTL", () => {
+		const clock = { t: 0 };
+		const ledger = ledgerAt(clock);
+		ledger.tryReserve("t", [{ kind: "endpoint_slot", key: "pool-a", amount: 1 }]);
+		ledger.release("t");
+		expect(ledger.reserved("endpoint_slot", "pool-a")).toBe(0);
+	});
+
+	it("keeps a declared capacity honest across an expiry", () => {
+		const clock = { t: 0 };
+		const ledger = createDispatchReservationLedger([{ kind: "endpoint_slot", key: "p", capacity: 1 }], {
+			holdTtlMs: 1_000,
+			now: () => clock.t,
+		});
+		expect(ledger.tryReserve("a", [{ kind: "endpoint_slot", key: "p", amount: 1 }]).ok).toBe(true);
+		expect(ledger.tryReserve("b", [{ kind: "endpoint_slot", key: "p", amount: 1 }]).ok, "capacity 1 is full").toBe(
+			false,
+		);
+		clock.t += 1_001;
+		expect(ledger.tryReserve("b", [{ kind: "endpoint_slot", key: "p", amount: 1 }]).ok, "a's hold leaked out").toBe(
+			true,
+		);
+	});
+});

@@ -7239,6 +7239,35 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   (`npm run scenario:rerecord -- NN`, fleet-gated). Set-01 command with the longer budget:
   HOME=$(mktemp -d) NKLEIN_SIMFLOW_SCENARIO=01 NKLEIN_SIMFLOW_TIMEOUT_MS=900000 NKLEIN_SIMFLOW_RUNTIME_PORT=…
   npx tsx scripts/verify-simulated-flow.mts.
+  **✅ STALL THEORY v2 CONFIRMED AND FIXED 2026-08-01 — the F1.24 dispatch-reservation leak is REAL, and it froze
+  the runtime PERMANENTLY. `dispatch-reservations.ts` hold expiry, 12 tests, mutation-verified.**
+  Confirmed by reading the seams the theory named, no Docker needed:
+  · **TAKE** — `enqueueStart` calls `tryReserve` before `startCard`.
+  · **RELEASE** — exactly TWO paths, `observeSummary` and `observeDelivered`. Both need the session to have
+    produced something. **`dispose` does not release. There was no TTL, no sweep, no prune.**
+  ⇒ a dispatch whose session died before any summary held its slot **forever**.
+  **🔴 AND THE WIRING'S OWN COMMENT SAID IT WAS HARMLESS — IT WAS WRONG.** *"With no declared capacities the ledger
+  never blocks (pure bookkeeping folded into the admission view via `reservationAwarePools`)"*. The fail-open
+  applies to `tryReserve` (an undeclared capacity `continue`s, so the grant succeeds) — **but the hold is still
+  RECORDED**, `reserved()` counts it regardless of any declared capacity, and `reservationAwarePools` does
+  `inUse: pool.inUse + ledger.reserved(...)` **unconditionally**. So every leak permanently shrank the pool
+  admission could see. Enough leaks and nothing starts again — **exactly the observed terminal shape** ("after the
+  one worker-session failure, the runtime stops STARTING sessions entirely; ready:1 NEVER starts; planning stops
+  releasing"). The folding into the admission view is precisely what made it block.
+  **THE FIX IS AN EXPIRY, NOT ANOTHER RELEASE CALL.** The hold covers dispatch → "the session shows in live
+  occupancy", which is seconds; a hold outliving that by minutes is leaked BY DEFINITION, whatever path failed to
+  release it. **Expiry fixes the whole class rather than the one path that happened to be found** — and the
+  header already claimed release "on EVERY terminal/error path", so patching one more path would have restored the
+  same false claim.
+  **THE FAILURE DIRECTIONS ARE NOT SYMMETRIC, WHICH IS WHY EXPIRING IS SAFE:** expiring a still-live hold reopens
+  a brief TOCTOU window that the runtime's own endpoint gates still catch downstream; never expiring freezes the
+  board forever. TTL 120s (operational default) with an injected clock; expiry is LAZY on every operation
+  including reads — `reservationAwarePools` only ever READS, so write-only expiry would leave the admission view
+  shrunk until some unrelated dispatch arrived. A background timer was rejected for the same reason N7d records:
+  wall-clock-driven state is exactly what makes a drain irreproducible.
+  Mutation-verified: disabling the expiry fails 4 tests, including "stops a leak from permanently shrinking the
+  ADMISSION view".
+  ── original theory ──
   **STALL THEORY v2 (2026-07-25 afternoon, 4 reproductions — supersedes "recorded-drift churn" as the stall
   mechanism):** the terminal shape is IDENTICAL every run (24/41 completed; s15 review frozen at the new
   "starting reviewer turn" stamp; s06 frozen pre-turn; ready:1 NEVER starts; planning stops releasing) — i.e.
