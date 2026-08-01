@@ -8990,9 +8990,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     answer it, which is worse than having none.
   So the two reasons agree, and neither is a defect to fix: **the evidence must come from a REAL-MODEL, non-isolated
   drain.** Do not "solve" this by mining nightly HOMEs or by widening the lane.
-  **NEXT:** run a real-model drain with `NKLEIN_TOOL_GATE_OBSERVE=1` against the production HOME, accumulate ≥30
-  observations with ≥12 evaluable disagreements, then `nklein dev mechanism-decision`. From here
-  `insufficient_data` is a statement about VOLUME.
+  **▶ REAL-MODEL DRAIN RUN 2026-08-02 (David: "why not use fleet? it is acknowledged to always use fleet as
+  needed" — a fair correction; I had been treating this as blocked when the fleet was simply idle).** Loaded
+  `qwopus3.5-9b-coder-mlx@4bit` (4.71 GiB, 5.8s) at the 32k floor on an otherwise-empty LM Studio, ran a
+  `dev test-project mid_task` drain against an ISOLATED HOME with `NKLEIN_TOOL_GATE_OBSERVE=1`.
+  **THE CHAIN WORKS END TO END ON REAL DATA, and the join key is confirmed in production traffic: 35 observations,
+  35 carrying `taskId`.** Before today that field did not exist and no verdict was reachable at any volume.
+  **THE COUNTERFACTUAL IS FAR STRONGER THAN EXPECTED — the gate disagrees on EVERY turn.** A representative
+  record: `offered: 28 · wouldKeep: 7 · wouldDrop: 21 · alwaysKeepPresent: 2`. Across the run the disagreement
+  rate is **100% (31/31 at first read)** — this is not a marginal mechanism that occasionally trims a catalogue;
+  enforcing it would change every single worker turn, dropping three quarters of the offered tools to land on
+  F12.18's ~7 target. That makes the counterfactual worth resolving properly rather than waving through.
+  **Verdict at this point: `insufficient_data` with `evaluable: 0` — and the reason has CHANGED CLASS.** It is no
+  longer "no outcome can ever join"; it is "the drain has not reached terminal cards yet", because a single loaded
+  model serves one session at a time and later cards queue behind a busy endpoint. That is a statement about
+  VOLUME and TIME, which more running fixes.
+  **NEXT:** let a drain reach ≥12 terminal cards so `evaluable` clears the floor, then read the verdict. Note the
+  100% disagreement rate means evaluable disagreements accrue as fast as cards finish — the binding constraint is
+  card throughput on one model, not observation volume.
 - [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.
