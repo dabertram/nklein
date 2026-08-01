@@ -7928,7 +7928,22 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   `drainStartedAt`, so an invented timestamp would place an event inside or outside the drain window arbitrarily
   and yield a confident, meaningless verdict. Unparseable lines are counted and the summary says the total is a
   **floor**, not a complete count.
-- [ ] **N7d — `01 × perfect` LEAVES 14 OF 42 CARDS UNDRAINED — a real product finding, not a stale assertion.**
+- [x] **N7d — `01 × perfect` LEAVES 14 OF 42 CARDS UNDRAINED. CLOSED 2026-08-01 — the pending live re-proof RAN,
+  TWICE, and the board drains.** The item's own remaining closure was *"one real `01 × perfect` drain after the
+  campaign releases Docker, then move this item to `done.md`"*. The Docker gate was verified open and lifted by
+  David the same day, and `01×perfect` is a standing nightly cell: it passed in BOTH full nightly runs
+  (28/28 cells each), reporting **all 7 core invariants satisfied over 5,994 telemetry signal events**, with its
+  fixture + recording receipt bound by SHA-256.
+  **Why that specific green is the proof, and not merely a green:** the violated assertion was `terminal_lanes`,
+  and its verdict is `satisfied` only when EVERY observed card ended in an expected terminal lane. Its zero-card
+  case reports `indeterminate` rather than passing vacuously — the empty-pack hazard, guarded one level down in the
+  STATE — and N5 makes a violated OR indeterminate pack fail the whole nightly verdict. So "all 7 satisfied" inside
+  a passing run cannot be an empty board or a skipped check; it is 42 cards in terminal lanes. The 2026-07-20
+  evidence (`completed: 28 · planning: 13 · ready: 1`) is now unreproducible.
+  The root fix is the 2026-07-23 bounce-obligation rework recorded below; this closure is its live re-proof.
+  ⚠️ The **nondeterminism** finding below is NOT closed by this and is not a regression: it was separately diagnosed
+  2026-08-01 as WALL-CLOCK scheduling, which a fixed seed cannot reach by construction. Two green runs are two
+  samples, not a proof of determinism.
   **ROOT FIX IMPLEMENTED 2026-07-23; LIVE CELL RE-PROOF PENDING THE ACTIVE F11 CAMPAIGN'S DOCKER RELEASE.** The
   earlier option-B marker was correctly motivated but attached after `runSecondOpinionReviewForTask` returned — after
   its bounce callback had already persisted `review -> in_progress` and attempted the next send. It also retained the
