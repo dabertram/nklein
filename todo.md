@@ -7693,6 +7693,26 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **Still not done unilaterally: enabling the 8 pending ones changes a nightly lane that cannot be validated
   without running the nightly** — and this lane's first drain was NOT green precisely because
   `NKLEIN_TYPECHECK_FIRST` blocked every card.
+  **▶ 2026-08-02 — WORKED THROUGH THE 8 INDIVIDUALLY (David: "why not just do it?"). THEY ARE NOT ONE CLASS, AND
+  NOT ONE OF THEM WAS ACTUALLY BLOCKED ON "one more nightly run".**
+  · **2 reclassified `pending_validation` → `permanent`**, because their own stated reasons are structural, not
+    temporal: `NKLEIN_LEAN_SYSPROMPT` "would change every replayed request" — in a REPLAY lane that is a guaranteed
+    unmatched-request failure, so no run can ever green it; `NKLEIN_STATEFUL_RESPONSES` "a replay lane is the wrong
+    place to first exercise that" is an argument about WHERE it belongs. **Calling a structural impossibility
+    "pending" invites someone to keep attempting it** — the mirror of this item's own warning that a temporary
+    omission must not calcify into an apparent rule.
+  · **2 had the WRONG REASON RECORDED, and only attempting it revealed that.** I added
+    `NKLEIN_TRUNCATION_DIAGNOSTICS` and `NKLEIN_REASONING_CAPTURE` to the lane on their note ("observe-only —
+    should be in the lane; adding it needs one nightly run") and **the lane ratchet refused them**: the lane may
+    only enable flags a REGISTERED MECHANISM claims, and no mechanism reads either. So they are excluded for the
+    same reason as `NKLEIN_DEBUG_STREAM_EVENTS` — recording nothing consumes — and **a nightly run could never have
+    changed that.** Reverted the lane, corrected both reasons to name the real precondition: register a consuming
+    mechanism first.
+  · **5 remain genuinely pending a validating run** (`EXPLORER_SUBAGENT`, `PROPERTY_GATE`, `SPEC_DELIBERATION`,
+    `VISUAL_GATE`, `N_EYES_REVIEW`) — each changes the drain shape or gates acceptance, which is exactly the
+    `TYPECHECK_FIRST` failure mode, so they want one-at-a-time drains rather than a batch.
+  **The ratchet earning its keep is the point:** it refused a change I made on the strength of a written note, and
+  the note was wrong. 8 "pending a run" was really 2 permanent + 2 mis-recorded + 5 real.
   ◆ Found only because `memory_freshness_audit`'s registration tripped the existing ratchet — *"a newly registered
   mechanism would go uncovered while the lane still claims to cover it"* — which is that guard working exactly as
   written. `NKLEIN_BASIC_MEMORY` was added to the lane (same class as `NKLEIN_SANDBOX_MCP` and

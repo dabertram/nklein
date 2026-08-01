@@ -318,12 +318,14 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 	{
 		flag: "NKLEIN_TRUNCATION_DIAGNOSTICS",
 		kind: "pending_validation",
-		reason: "observe-only — should be in the lane; adding it needs one nightly run to confirm it stays green",
+		reason:
+			"NOT blocked on a nightly run — corrected 2026-08-02 after trying to add it and being refused by the lane ratchet. NO REGISTERED MECHANISM READS IT, so enabling it here adds recording nothing consumes: exactly the reason NKLEIN_DEBUG_STREAM_EVENTS is permanently excluded. The precondition is registering the mechanism that consumes truncation diagnostics, not another run.",
 	},
 	{
 		flag: "NKLEIN_REASONING_CAPTURE",
 		kind: "pending_validation",
-		reason: "observe-only — should be in the lane; adding it needs one nightly run to confirm it stays green",
+		reason:
+			"Same correction as NKLEIN_TRUNCATION_DIAGNOSTICS (2026-08-02): no registered mechanism reads it, so the lane ratchet refuses it and a nightly run cannot change that. Register a consuming mechanism first.",
 	},
 	{
 		flag: "NKLEIN_EXPLORER_SUBAGENT",
@@ -332,8 +334,9 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 	},
 	{
 		flag: "NKLEIN_LEAN_SYSPROMPT",
-		kind: "pending_validation",
-		reason: "swaps the system prompt below a context threshold; would change every replayed request",
+		kind: "permanent",
+		reason:
+			"swaps the system prompt below a context threshold, so it would change EVERY replayed request — and aimock matches on the request. In a REPLAY lane that is not a validation risk, it is a guaranteed unmatched-request failure, so no run can ever green it. Reclassified from pending_validation 2026-08-02: labelling a structural impossibility as 'pending' invites someone to keep attempting it.",
 	},
 	{
 		flag: "NKLEIN_PROPERTY_GATE",
@@ -347,8 +350,9 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 	},
 	{
 		flag: "NKLEIN_STATEFUL_RESPONSES",
-		kind: "pending_validation",
-		reason: "changes the provider transport; a replay lane is the wrong place to first exercise that",
+		kind: "permanent",
+		reason:
+			"changes the provider TRANSPORT, and its own stated reason — 'a replay lane is the wrong place to first exercise that' — is an argument about where this belongs, not about needing one more run. Reclassified from pending_validation 2026-08-02: it needs a REAL-transport exercise, which this lane structurally is not.",
 	},
 	{
 		flag: "NKLEIN_VISUAL_GATE",
