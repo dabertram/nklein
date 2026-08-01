@@ -8920,8 +8920,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **LIVE RUN: `0 observations`, verdict `insufficient_data` — and that is CORRECT, not a defect.**
   `NKLEIN_TOOL_GATE_OBSERVE` is default-OFF, so the gate has never recorded anything on this host. The whole chain
   is now proven end-to-end and blocked only on turning the observe flag on during a real-model drain.
-  **NEXT:** enable `NKLEIN_TOOL_GATE_OBSERVE` for a real-model drain, accumulate ≥30 observations with ≥12
-  evaluable disagreements, then read the verdict. From here `insufficient_data` is a statement about VOLUME.
+  **⚠️ AND THE NIGHTLY CANNOT SUPPLY THIS EVIDENCE, for two independent reasons — checked, because "just turn the
+  flag on in the lane" is the obvious wrong answer.** `NKLEIN_TOOL_GATE_OBSERVE: "1"` is ALREADY in the N11
+  `flags_on` lane (`dev-nightly-command` ~250), so the `02×flags_on` cell does record gate observations. They still
+  never become a verdict:
+  · **HOME ISOLATION.** Every cell runs under its own isolated HOME, so its telemetry is written there and goes
+    away with it — by design, and the same isolation that makes the suite trustworthy. (Today's HOME-cleanup fix
+    makes that explicit rather than accidental; `--keep-home` retains one deliberately if a cell's observations
+    are ever the object of study.)
+  · **SIMULATION SCOPE.** Even retained, they could not license a flip: `NIGHTLY_SIMULATION_SCOPE_NOTE` is exactly
+    the rule that a sim pass proves a MECHANISM FIRES and never that it is RIGHT — and "is it right often enough
+    to enforce?" is the entire question here. Sim observations would inflate the sample with data that cannot
+    answer it, which is worse than having none.
+  So the two reasons agree, and neither is a defect to fix: **the evidence must come from a REAL-MODEL, non-isolated
+  drain.** Do not "solve" this by mining nightly HOMEs or by widening the lane.
+  **NEXT:** run a real-model drain with `NKLEIN_TOOL_GATE_OBSERVE=1` against the production HOME, accumulate ≥30
+  observations with ≥12 evaluable disagreements, then `nklein dev mechanism-decision`. From here
+  `insufficient_data` is a statement about VOLUME.
 - [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.
