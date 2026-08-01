@@ -145,3 +145,57 @@ describe("every refusal site in the edit tool is classifiable", () => {
 		expect(formatSites[0]).toMatch(/edit block/u);
 	});
 });
+
+/**
+ * The FORMAT cut wired into the existing metric — over data the ledger ALREADY carries.
+ *
+ * `resultSummary` is populated for every tool result including errors, so no new instrumentation was needed.
+ * Verified against the live ledger, which contains `Blocked edit_file: edit block 2 did not match src/index.ts`.
+ * The item's own history warns that "a false gap is as corrosive as a false claim" — this was one.
+ */
+describe("computeEditReliability — the format cut", () => {
+	it("counts a context mismatch as a FORMAT failure and a guard block as not", async () => {
+		const { computeEditReliability } = await import("../../../src/core/edit-reliability");
+		const report = computeEditReliability({
+			minCalls: 1,
+			attempts: [
+				{
+					modelId: "lmstudio:qwen:coder:v1:http://x",
+					toolCalls: [
+						{
+							name: "edit_file",
+							outcome: "error",
+							resultSummary: "Blocked edit_file: edit block 2 did not match a.ts",
+						},
+						{
+							name: "edit_file",
+							outcome: "error",
+							resultSummary: "Blocked edit_file: potential token detected in b.ts",
+						},
+						{ name: "edit_file", outcome: "success", resultSummary: "ok" },
+					],
+				},
+			],
+		});
+		const row = report.ranked[0];
+		expect(row?.errors).toBe(2);
+		expect(row?.formatFailures, "only the context mismatch is a format failure").toBe(1);
+	});
+
+	it("does not invent format failures from a legacy line with no resultSummary", async () => {
+		// Absent on legacy lines. An unclassifiable error must not be counted as a format failure — that would
+		// inflate exactly the number the cut exists to measure, and older ledgers are the common case.
+		const { computeEditReliability } = await import("../../../src/core/edit-reliability");
+		const report = computeEditReliability({
+			minCalls: 1,
+			attempts: [
+				{
+					modelId: "lmstudio:qwen:coder:v1:http://x",
+					toolCalls: [{ name: "edit_file", outcome: "error" }],
+				},
+			],
+		});
+		expect(report.ranked[0]?.errors).toBe(1);
+		expect(report.ranked[0]?.formatFailures).toBe(0);
+	});
+});

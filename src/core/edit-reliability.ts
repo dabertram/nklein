@@ -32,6 +32,7 @@
  * choosing how far down that list to act is a policy decision made with the rates visible.
  */
 
+import { classifyEditFailure, isEditFormatSkillFailure } from "./edit-failure-kind";
 import { isAttributableModelKey } from "./model-identity";
 
 /** Edit-class tools as registered today. Overridable, because tool names drift and a stale list silently measures nothing. */
@@ -53,7 +54,16 @@ export const MIN_EDIT_CALLS_FOR_RATE = 20;
 /** The slice of a ledger attempt this core needs. */
 export interface EditReliabilityAttempt {
 	readonly modelId: string;
-	readonly toolCalls: readonly { readonly name: string; readonly outcome: string | null }[];
+	readonly toolCalls: readonly {
+		readonly name: string;
+		readonly outcome: string | null;
+		/**
+		 * P21.1 step 2: the tool result's bounded preview. Already captured for EVERY result including errors, so
+		 * the FORMAT-specific rate needs no new instrumentation — verified on the live ledger, which carries
+		 * `Blocked edit_file: edit block 2 did not match …`. Absent on legacy lines.
+		 */
+		readonly resultSummary?: string | null;
+	}[];
 }
 
 export interface EditReliabilityRow {
@@ -67,6 +77,12 @@ export interface EditReliabilityRow {
 	/** successes / classifiedCalls, or null below the floor. */
 	readonly reliability: number | null;
 	readonly verdict: "measured" | "insufficient_data";
+	/**
+	 * P21.1 step 2 — errors attributable to edit FORMAT (a search block that did not match), as opposed to the six
+	 * guard/environment refusals. This is the number Aider's 2x whole-vs-diff swing is about; `errors` alone is a
+	 * proxy for "struggles to edit" and would be moved by whichever guard happens to fire most.
+	 */
+	readonly formatFailures: number;
 }
 
 export interface EditReliabilityReport {
@@ -94,6 +110,10 @@ export function computeEditReliability(input: {
 	const editTools = new Set(input.editToolNames ?? DEFAULT_EDIT_TOOL_NAMES);
 	const minCalls = input.minCalls ?? MIN_EDIT_CALLS_FOR_RATE;
 	const byModel = new Map<string, { successes: number; errors: number; unknown: number }>();
+	// P21.1 step 2 — the FORMAT cut, kept beside the coarse rate rather than replacing it. Six of the edit tool's
+	// seven refusals are guards or environment and say nothing about a model's edit-format skill; only a
+	// context mismatch does. See `edit-failure-kind.ts`.
+	const formatFailuresByModel = new Map<string, number>();
 	let unattributableAttempts = 0;
 
 	for (const attempt of input.attempts) {
@@ -115,6 +135,9 @@ export function computeEditReliability(input: {
 				bucket.successes += 1;
 			} else if (call.outcome === "error") {
 				bucket.errors += 1;
+				if (isEditFormatSkillFailure(classifyEditFailure(call.resultSummary))) {
+					formatFailuresByModel.set(attempt.modelId, (formatFailuresByModel.get(attempt.modelId) ?? 0) + 1);
+				}
 			} else {
 				bucket.unknown += 1;
 			}
@@ -134,6 +157,7 @@ export function computeEditReliability(input: {
 				unknownOutcome: counts.unknown,
 				reliability: measured ? counts.successes / classifiedCalls : null,
 				verdict: measured ? ("measured" as const) : ("insufficient_data" as const),
+				formatFailures: formatFailuresByModel.get(modelId) ?? 0,
 			};
 		})
 		// Stable, deterministic order before partitioning, so equal rates never shuffle between runs.

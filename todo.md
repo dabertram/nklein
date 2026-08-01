@@ -10438,7 +10438,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   captured — corrected here; a false gap is as corrosive as a false claim.) The genuine limit is GRANULARITY:
   `is_error` lumps a malformed-diff-FORMAT failure together with a context-mismatch or file-not-found error, so the
   coarse rate is a proxy for "this model struggles to edit," not specifically "…struggles with DIFF format vs
-  whole-file" — the precise attribution Aider tracks needs the apply site to tag the failure KIND. Correct build
+  whole-file" — the precise attribution Aider tracks needs the apply site to tag the failure KIND.
+  **▶ STEP 2 SHIPPED 2026-08-01 — `edit-failure-kind.ts` + the `formatFailures` cut on every row, 14 tests. AND IT
+  NEEDED NO INSTRUMENTATION, which is this item's second false gap.** The note above says the attribution "needs
+  the apply site to tag the failure KIND". It does not: `resultSummary` is already captured for EVERY tool result
+  INCLUDING errors, so the refusal text is in the ledger today. Verified on David's live ledger, which carries
+  `Blocked edit_file: edit block 2 did not match src/index.ts. Closest match was 2…`. No schema change was made.
+  **Reading the apply site settled the taxonomy: of SEVEN refusal sites in `nklein-edit-file-tool`, exactly ONE is
+  an edit-format failure.** "edit block N did not match" = the model could not reproduce context verbatim, which is
+  precisely the diff-vs-whole-file skill. The other six — path containment, realpath escape, unreadable file, size
+  backstop, secret detection, post-edit syntax breakage — are guards or environment; a secret-scanner block is
+  arguably the model editing CORRECTLY and failing policy. Counting all seven moves the metric by whichever guard
+  fires most, which is exactly the granularity complaint above.
+  Classification is on message text, safe here because the strings are OURS, from one file, behind a stable prefix
+  — and a ratchet reads the tool's source and fails if any site classifies `unknown`, pinning that exactly one site
+  maps to the format signal so the metric cannot silently widen. The ratchet caught itself twice: a naive
+  `[^\`$]` capture saw only 2 of 7 sites (five BEGIN with an interpolation — a guard passing over most of what it
+  claims to cover), and two sites delegate wholly to a helper's message, so their COUNT is pinned rather than
+  silently filtered. A legacy line with no `resultSummary` counts as zero format failures, never as one.
+  **REMAINING: the ROUTING half** — feed `formatFailures` into model selection so a model with a high format-failure
+  rate is routed to whole-file edits. That is the 2× swing; the measurement now exists to justify it per-model. Correct build
   order: (1) pure `computeEditReliabilityRate(attempts, editToolNames)` over the existing success/error outcomes +
   a `dev` command consumer (buildable + testable NOW, non-orphan); (2) apply-site failure-KIND tagging for
   format-specific attribution; (3) the routing half (weak model → whole-file), fleet-gated behind the measured
