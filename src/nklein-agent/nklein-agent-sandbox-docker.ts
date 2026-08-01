@@ -3,7 +3,7 @@
 // on normalize-number, agent-rulesets, and node:crypto), so the `docker run` argv, container/volume naming, and
 // the deterministic per-task uid are unit-testable away from the effectful AgentSandboxManager. The sandbox
 // module re-exports this surface so existing importers (runtime-config, server, task-session-service) are unchanged.
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { type SandboxNetworkPolicy, sandboxNetworkHasEgress } from "../core/agent-rulesets";
 import {
@@ -11,6 +11,7 @@ import {
 	normalizePositiveInteger,
 	normalizePositiveNumber,
 } from "../core/normalize-number";
+import { CURRENT_PROCESS_IDENTITY } from "../core/process-identity";
 import type { SandboxOwnerIdentity } from "../core/sandbox-orphan-ownership";
 
 export const DEFAULT_AGENT_SANDBOX_IMAGE = "nklein/agent-sandbox:0.0.1";
@@ -25,10 +26,11 @@ export const AGENT_SANDBOX_CONTAINER_LABEL = "nklein.kind=agent-sandbox";
 export const AGENT_SANDBOX_OWNER_PID_LABEL_KEY = "nklein.owner-pid";
 export const AGENT_SANDBOX_OWNER_NONCE_LABEL_KEY = "nklein.owner-nonce";
 /**
- * This process's identity, fixed once at module load. The nonce must be per-PROCESS: pid alone cannot tell our own
- * live pool from a dead owner whose pid the OS recycled onto us, and those two demand opposite actions.
+ * This process's identity. Deliberately the SHARED one — the durable-scheduler ledger claim answers the same
+ * "is that owner still alive?" question about a different resource, and one nonce per process keeps both answers
+ * consistent instead of letting a process disagree with itself about who it is.
  */
-export const CURRENT_SANDBOX_OWNER: SandboxOwnerIdentity = { pid: process.pid, nonce: randomUUID() };
+export const CURRENT_SANDBOX_OWNER: SandboxOwnerIdentity = CURRENT_PROCESS_IDENTITY;
 export const AGENT_SANDBOX_VOLUME_PREFIX = "nklein-agent-ws";
 export const AGENT_SANDBOX_CONTAINER_PREFIX = "nklein-agent-sandbox";
 export const AGENT_SANDBOX_WORKSPACES_DIR = "/workspaces";

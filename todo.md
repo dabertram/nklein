@@ -302,6 +302,23 @@ gap remains.
 > identical from the outside, and only the second one silently accumulates.** Pre-existing unlabeled containers cannot
 > be proven abandoned and are deliberately NOT swept automatically; that is a one-time operator action
 > (`docker rm -f $(docker ps -aq --filter label=nklein.kind=agent-sandbox)` with no runtime live).
+> **⚠️ A TIMEOUT IS A PROXY FOR LIVENESS — WHEN THE OWNER IS LOCAL, ASK THE OS INSTEAD (2026-08-01).** Found TWICE in
+> one day, in unrelated subsystems, which is why it is a rule and not a footnote: the sandbox pool decided a container
+> was abandoned by NAME, and the P21.5b durable-ledger fence decided a scheduler claim was abandoned by AGE (60s
+> stale / 20s refresh). The second one was caught by the nightly's crash-recovery matrix (`worker` phase): SIGKILL the
+> runtime mid-lease and restart it a second later — the textbook crash case — and the dead owner's lock is ~1s old, so
+> the restart logs "Durable scheduler NOT started" and runs for up to a MINUTE with no durable scheduler: no lease
+> reclamation, no completion recording. That board only drained because the board-liveness watchdog swept it, and the
+> ledger kept two `lease_acquired` events with no terminal event (the post-teardown lease residue the matrix asserts
+> against). **The window that protects a slow-but-live owner is the same window that blinds a restart to a dead one —
+> one number cannot serve both, because it is answering the wrong question.** A resource that can be taken from its
+> owner should record WHO owns it (pid + per-process nonce + host: `src/core/process-identity.ts`) and be taken only
+> on proof the owner is gone. The nonce is load-bearing in both cases: two live processes cannot share a pid, so the
+> same pid under a different nonce is positive proof of death by pid recycling — the one case a liveness probe alone
+> gets backwards, since our own pid is always alive. Keep the timeout as the FALLBACK for what liveness cannot settle
+> (no record, torn record, another host), and keep every uncertain case on the refuse/keep side. Note the direction
+> this improves: a slow-but-live owner is now MORE protected than under pure timing, because its claim survives on
+> proof rather than on refresh scheduling beating a deadline.
 > **A READ-ONLY POLYGLOT IMAGE STILL NEEDS PER-TASK WRITABLE TOOLCHAIN HOMES (F12.84b, 2026-07-23):** merely baking
 > `cargo`, Go, Maven, Gradle, Python and JS package managers into the image is not an executable environment. Cargo
 > writes its registry under `CARGO_HOME`, Go writes module/build caches, Maven/Gradle derive user homes, npm writes a
@@ -11752,6 +11769,17 @@ looked identical.
   makes the kernel agree with the session model on all seven states. Not applied unilaterally: it changes what
   `classifyWorkflowPhase` returns for a phase, and current behaviour is pinned by tests so the change must be
   deliberate.
+- **🟡 OPEN FOR DAVID (raised 2026-08-01): is the immutable F11 campaign finished — may the sandbox image be rebuilt?**
+  Six open items defer to "after F11 releases Docker", but that gate has two different meanings and only one of them
+  is still shut. **Docker CYCLES are demonstrably free** — no campaign process is alive, `~/.nklein/nklein` last
+  changed 2026-07-24 (8 days idle), and the only trace left is 16 stopped `aider-1b25b1e1-*` containers. So the
+  cycle-only remainders (N2's cells, the crash-recovery matrix, `02×perfect@home-0.0.0`, the N6b double-run) are
+  runnable NOW and no longer need to wait — the 2026-08-01 nightly was launched on exactly that basis.
+  **What is still genuinely gated is the IMAGE REBUILD** (F12.84b's polyglot toolchain-home work and its neighbour),
+  because the campaign is commit- AND image-pinned and a rebuild would destroy its reproducibility. That is a call
+  about whether the campaign's results still need to be reproducible, which is David's, not an engineering judgement.
+  Answer either "campaign is closed, rebuild freely" or "keep the pinned image" and the image-gated items unblock or
+  stay parked accordingly.
 - **✅ DECIDED + PARTLY DONE 2026-07-31 (David): drop `dify-ai-provider` now, decide the OTel cluster separately.**
   `dify-ai-provider` REMOVED. Result: **13 → 11 advisories, and 0 HIGH** (was 1). The desktop CLI is unaffected —
   re-verified it has no external `require("dify-ai-provider")`, it inlines the provider — and the full suite is

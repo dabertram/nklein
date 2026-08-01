@@ -1661,6 +1661,21 @@
       ([src/workspace/task-patch-capture-diagnostics.ts](src/workspace/task-patch-capture-diagnostics.ts))
 - [x] **Host-worktree creation retirement baseline:** no live path creates/reads a task worktree; task work is captured
       from Docker into result branches. The distinct migrated-board cleanup/module-removal follow-up is `todo.md` P0.9.
+- [x] **Orphan reaping by OWNERSHIP, not by name** *(found + fixed 2026-08-01, not from the backlog)*. The 2026-07-23
+      destructive-cleanup fix (a simulator `rm -f`'d a live campaign container through a kind-wide label query)
+      narrowed reaping to namespace-exact — correctly, and to the point where it could collect nothing. A simulator
+      pool's namespace comes from its port (`simflow-58219-ephemeral-ws-<hash>`), so it never recurs and the future
+      runtime that would reclaim its leftovers never boots; the startup reaper is unnamespaced besides, and its
+      `^nklein-agent-sandbox-\d+$` regex cannot match the `-ws-<hash>-<slot>` shape the live pool always produces.
+      **Measured on the dev host before the fix: 22 containers (6 still RUNNING, oldest up 6 days) and 105 volumes of
+      which 22 were active — 83 leaked workspaces — with no !Klein process alive to own any of them.** Containers now
+      carry an owner claim (`nklein.owner-pid` + `nklein.owner-nonce`); cleanup asks whether the owner is gone instead
+      of whether the name looks familiar. The nonce is load-bearing — same pid + different nonce is positive proof of
+      death, since two live processes cannot share a pid. Volume cleanup rides on the container's verdict (implicit
+      `docker run -v` volumes can carry no labels, and a dangling-volume scan would race a concurrent pool boot — the
+      2026-07-23 shape again). Every uncertain case keeps; unlabeled legacy containers keep the old namespace-exact
+      treatment untouched. +24 tests.
+      ([src/core/sandbox-orphan-ownership.ts](src/core/sandbox-orphan-ownership.ts))
 
 ### 6.10 Polyglot core, native agent core & local-model SOTA *(postdates the predecessor docs)*
 - [x] **Python core sidecar** (`core-py/`, FastAPI, local-only): constrained generation (`/v1/generate`,

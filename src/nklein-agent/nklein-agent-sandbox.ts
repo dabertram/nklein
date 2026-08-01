@@ -20,6 +20,7 @@ import type {
 } from "../core/egress-confirm-queue";
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { isProcessAlive } from "../core/process-identity";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import {
 	planSandboxOrphanReaping,
@@ -98,19 +99,6 @@ export {
 	DEFAULT_AGENT_SANDBOX_SHELL,
 	type TaskShellSpawnSpec,
 };
-
-/**
- * Is the process holding a sandbox owner claim still running? Signal 0 performs the existence/permission check
- * without delivering anything. EPERM means it EXISTS but belongs to another user — alive, and the answer that keeps.
- */
-function isProcessAlive(pid: number): boolean {
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch (error) {
-		return (error as NodeJS.ErrnoException).code === "EPERM";
-	}
-}
 
 const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
 const PATCH_CAPTURE_EXEC_TIMEOUT_MS = 120_000;
