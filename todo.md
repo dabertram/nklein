@@ -7081,6 +7081,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   the kernel-assigned port is adopted only after a real bind. **Remaining before closure:** after F11 releases Docker,
   run one registered cell while the real fleet remains busy, retain its structured receipt in the verdict artifact,
   and confirm runtime logs contain no `pmset`, real `lms`, update, egress, or stale-server contact.
+  **▶ 2026-08-01 — THREE OF THE FOUR CLAUSES ARE DISCHARGED, and by STRONGER evidence than the clause asked for.**
+  The gate was lifted and the nightly ran twice; **all 28 verdicts carry a structured hermetic receipt**, retained
+  in the verdict artifact: `modelGateway: aimock_loopback` · `loadedModels: fake_lms_cli` · `webEgress` and
+  `gitRemotes: sandbox_network_none` · `updateFeeds: disabled` · `powerMode: fixed_unknown` (the `pmset` seam) ·
+  `triggerClock: fixed_epoch` · trigger/watchdog ticks `disabled_periodic` · `reviewDedupTimer: disabled`.
+  **That is a positive declaration of posture, not the log-absence check the clause describes — and the difference
+  matters.** "The runtime log contains no `pmset`" is satisfied equally by a hermetic run and by a run that
+  contacted `pmset` without logging it; absence of a line is not absence of contact. The receipt instead names what
+  each seam WAS bound to, so it cannot be satisfied by silence.
+  **REMAINING: only *"while the real fleet remains busy"*, and its value is now marginal** — it is a BEHAVIOURAL
+  probe (if the cell reached the fleet, contention would surface) standing in for a STRUCTURAL guarantee the
+  receipt already provides (the cell was bound to a loopback mock and a fake `lms` CLI, so it *could not* reach the
+  fleet). Left open rather than waved through, because a behavioural cross-check can still catch a seam the receipt
+  does not model; but it should be scheduled as a deliberate load test, not waited on as a blocker.
 - [x] **N5 — Invariant packs (what "finishes properly" MEANS, asserted).** Per project a reusable assertion pack over
   the drained state: board reaches the expected terminal lanes; ledger carries the expected attempt/transition
   shapes; ZERO unmatched aimock requests; zero orphan sessions/worktrees/leases after teardown; the gates that MUST
