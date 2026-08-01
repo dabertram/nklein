@@ -1,5 +1,6 @@
 import {
 	auditMechanismObservations,
+	auditObservationCoverage,
 	MECHANISM_REGISTRY,
 	type MechanismFinding,
 } from "../core/mechanism-observation-audit";
@@ -59,14 +60,24 @@ export async function runDevMechanismRegistryCommand(options: { json?: boolean }
 		windowSaturated: false,
 	});
 
+	// 2026-08-01: the INVERSE question. Everything above walks the registry and reports on mechanisms someone
+	// remembered to add. This walks the DATA and reports what nobody did — the only direction that can find an
+	// omission. Measured on first run: 20 categories were firing that no audit could judge, while 31 registry
+	// entries had never fired at all.
+	const coverage = auditObservationCoverage([...countsByCategory.keys()]);
+
 	if (options.json) {
 		process.stdout.write(
-			`${JSON.stringify({ ...result, totalObservations, categoriesSeen: countsByCategory.size }, null, 2)}\n`,
+			`${JSON.stringify({ ...result, totalObservations, categoriesSeen: countsByCategory.size, coverage }, null, 2)}\n`,
 		);
 		return;
 	}
 
-	process.stdout.write(`${result.summary}\n\n`);
+	process.stdout.write(`${result.summary}\n`);
+	if (coverage.uncovered.length > 0) {
+		process.stdout.write(`\n⚠️  ${coverage.summary}\n`);
+	}
+	process.stdout.write("\n");
 	// ⚠️ EVERY status must appear here. `too_new_to_judge` was computed by the audit and then never printed, so a
 	// freshly-wired mechanism was absent from the report entirely — not healthy, not flagged, just gone (found
 	// 2026-07-30 while registering `transcript_distractor_prune`). That is the exact "looks like nothing to see"

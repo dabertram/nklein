@@ -742,3 +742,71 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "every_run",
 	},
 ];
+
+/**
+ * Categories that are OPERATIONAL LOGGING, not mechanisms — deliberately outside the registry.
+ *
+ * ── WHY THIS LIST HAS TO EXIST ──
+ * The registry judges shipped MECHANISMS: behaviour whose firing (or silence) is evidence about whether to
+ * enforce it. Plenty of telemetry is not that — a sandbox being disposed, a card changing lane, a watchdog tick.
+ * Without a way to say so, every one of them reads as an unregistered mechanism and the coverage gap is pure
+ * noise; with it, what remains is the actionable list.
+ *
+ * ── THE GAP THIS EXPOSED (measured 2026-08-01) ──
+ * **34 of 39 categories actually being RECORDED were unregistered**, while 31 of the registry's 45 entries have
+ * never fired at all. The registry was watching mechanisms that do not run and blind to categories that run
+ * constantly — F4.8b's *"hand-maintained, so it can only report on mechanisms someone remembered to add"*, on the
+ * observation side rather than the flag side.
+ */
+export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
+	"agent_sandbox_result_cleanup",
+	"agent_sandbox_result_patch",
+	"attempt_started",
+	"auto_start_exception",
+	"auto_start_failed",
+	"board_liveness_watchdog",
+	"board_liveness_watchdog_error",
+	"board_liveness_watchdog_tick",
+	"card_lane_change",
+	"model_usage",
+	"review_phase",
+	"sandbox_workspace_disposed",
+	"sandbox_workspace_redrive_restore",
+	"second_opinion_review_session",
+];
+
+export interface ObservationCoverageReport {
+	readonly recorded: number;
+	readonly registered: number;
+	readonly operational: number;
+	/** Recorded, not registered, and not declared operational — a firing mechanism no audit can judge. */
+	readonly uncovered: readonly string[];
+	readonly summary: string;
+}
+
+/**
+ * Which RECORDED observation categories does no audit cover?
+ *
+ * The inverse of what the registry usually asks. `auditMechanismObservations` walks the registry and reports on
+ * mechanisms someone remembered to add; this walks the DATA and reports what nobody did — the only direction that
+ * can find an omission.
+ */
+export function auditObservationCoverage(recordedCategories: readonly string[]): ObservationCoverageReport {
+	const registered = new Set(MECHANISM_REGISTRY.map((entry) => entry.category));
+	const operational = new Set(OPERATIONAL_OBSERVATION_CATEGORIES);
+	const recorded = [...new Set(recordedCategories)].sort();
+	const uncovered = recorded.filter((category) => !registered.has(category) && !operational.has(category));
+	return {
+		recorded: recorded.length,
+		registered: registered.size,
+		operational: operational.size,
+		uncovered,
+		summary:
+			recorded.length === 0
+				? "no categories recorded — this says nothing about coverage"
+				: `${recorded.length} category/categories recorded; ${uncovered.length} are neither registered nor declared operational` +
+					(uncovered.length > 0
+						? ` — each is a mechanism FIRING that no audit can judge: ${uncovered.join(", ")}`
+						: ""),
+	};
+}

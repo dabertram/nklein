@@ -11458,6 +11458,31 @@ Exit is non-zero ONLY on `silent`. An explained emptiness must never fail a scri
 exactly like a linter that cries wolf — which is also why UNDECLARED fields are reported only when EMPTY (listing
 all 27 buried the real findings).
 
+**3e. Finding 2026-08-01 — THE REGISTRY WAS WATCHING MECHANISMS THAT DO NOT RUN, AND BLIND TO ONES THAT DO.**
+Chasing why the anti-decomposition guard (F12.37) never showed up in any audit produced a bigger measurement.
+**`dev mechanism-registry` now prints both numbers one line apart: "5 of 45 are demonstrably firing" and
+"20 categories are firing that no audit can judge."**
+· 39 observation categories are actually RECORDED; 34 were unregistered.
+· 14 of those are genuine operational logging (sandbox disposal, lane change, watchdog tick) and are now DECLARED
+  as such — without that escape hatch the actionable list drowns and the check gets ignored.
+· **20 remain: mechanisms firing, with data, that no audit covers** — including `prompt_prefix_reuse` (207
+  observations), `model_stalled` (53), `reviewer_auto_diverse` (45), `escalation_worker_auto_diverse` (47),
+  `turn_loop_escalate_model`, `task_trouble_signal`, `tool_input_rejection`, `stream_inactivity_timeout`.
+**⇒ THIS PARTLY INVERTS THE PHASE-15 DEADLOCK.** The campaign is not only short of evidence — **there IS evidence,
+for mechanisms nobody registered.** 31 registry entries have never fired while 20 unregistered categories fire
+constantly. Registering the 20 is cheap and turns accumulated data into judgeable evidence, without enabling
+anything or changing any behaviour.
+**WHY IT WAS INVISIBLE:** `auditMechanismObservations` walks the REGISTRY and reports on mechanisms someone
+remembered to add — **a direction that can never find an omission**. `auditObservationCoverage` walks the DATA and
+asks what nobody registered. Same shape as the flag-coverage ratchet, on the observation side. This is F4.8b's
+*"hand-maintained, so it can only report on mechanisms someone remembered to add"* measured for the third time
+today, in a third place.
+**◆ ALSO: the anti-decomposition guard (F12.37) is WIRED but record-only ("the applied split stands") and has
+ZERO observations in 18 days of telemetry** — and its category was not registered either, so nothing would have
+noticed. Related: `board_liveness_watchdog_tick` is **47,809 of ~51,000 events (94%)** of the whole observation
+stream; the tick is the routine heartbeat (`board_liveness_watchdog` proper is 417, errors 60). Worth asking
+whether the healthy case needs recording 47k times into the same store the evidence campaign reads.
+
 **4. Questions batched for David (do not act on these unilaterally):**
 - **✅ RESOLVED 2026-07-31 (David: "go autonomously" on the recommendation) — `awaiting_review` got its OWN phase
   class, and the two models now agree on ALL SEVEN session states.** `reviewing` stays capacity-holding (a review
