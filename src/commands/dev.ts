@@ -889,6 +889,7 @@ export function registerDevCommand(program: Command): void {
 		.option("--model <profile>", "Only this model profile.")
 		.option("--manifest <path>", "Manifest path (default nightly-manifest.json).")
 		.option("--dry-run", "List the cells that would run, with their ports.")
+		.option("--keep-home", "Retain a PASSING cell's isolated HOME (failures always retain theirs).")
 		.option("--json", "Machine-readable verdicts.")
 		.option(
 			"--double-run",
@@ -902,6 +903,7 @@ export function registerDevCommand(program: Command): void {
 				dryRun?: boolean;
 				json?: boolean;
 				doubleRun?: boolean;
+				keepHome?: boolean;
 			}) => {
 				await runDevNightlyCommand(options);
 			},

@@ -7201,7 +7201,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   vendored grading core + instance fetcher (dataset-vendoring footprint = the David green-light already attached
   to F11.3); aimock recordings per model profile exactly like N2/N3 — the SAME four-step growth recipe applies,
   so "add nightly coverage for SWE-bench instance X" needs no further explanation either.
-- [~] **N9 — Upgrade-path / persisted-state compatibility cells.** Freeze a fixture-HOME per release; nightly
+- [x] **N9 — Upgrade-path / persisted-state compatibility cells.** Freeze a fixture-HOME per release; nightly
   boots each on the CURRENT build and asserts: clean boot (corrupt-file recovery paths included), a full drain,
   and the LEARNING stores (fitness/behavior/ledger) folding mixed-generation data into sane routing (the
   tolerant-reader skips are logged today but nothing asserts survival). Composes with F5.6b's migration runner —
@@ -7219,6 +7219,19 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   tracked fixture and merges a synthetic current event. **Concrete remainder:** after the active F11 campaign releases
   Docker, run `02×perfect@home-0.0.0` through `dev nightly`, retain its N4/N6/N9 receipts, inspect the migrated HOME and
   recovery backup, and close only after the real drain supplies the required current-generation events.
+  **✅ ALL FOUR CLAUSES DISCHARGED 2026-08-01.** The Docker gate was lifted the same day, `02×perfect@home-0.0.0`
+  ran as a normal cell in BOTH full nightly runs, and its receipt was emitted and retained:
+  `v1→v2 · 1+389 ledger events · 2 corrupt record(s) skipped · sha256:ff230498…`.
+  **The migrated HOME and its recovery backup were then inspected on disk, and the receipt CROSS-CHECKS against the
+  bytes rather than against itself** — which is the property that makes this evidence instead of bookkeeping:
+  · `.nklein/migrations/backups/nklein-projects-1-to-2-1785571253950/` holds the pre-migration `config.json`,
+    `workspaces/index.json`, `nklein-provider-selection.json`, `model-behavior/1970-01-01.jsonl` and
+    `migration-backup.json` — `backupRetained: true` is a real directory, not a flag.
+  · the legacy `ledger/compat-v0.jsonl` survives migration intact at **3 lines** = 1 valid + 2 deliberately corrupt,
+    matching the receipt's "1 legacy event, 2 corrupt skipped" (the fixture seeds one unparseable and one
+    schema-invalid record, so the tolerant reader is exercised on both failure modes).
+  · the drain's own ledger carries **389 events**, exactly the receipt's `currentEvents` — the required
+    current-generation data, counted from disk.
 - [x] **N10 — Crash/kill recovery MATRIX.** Kill the runtime (SIGKILL) at every phase — mid-decompose,
   **LIVE DRAIN 2026-07-25 (post-F11, 3 runs — the matrix is earning its keep):** run 1 caught the F1.34c
   interaction (testless smoke deliveries bounce→identical-feedback→park under the default-ON gate ⇒ stuck cards +
@@ -10997,8 +11010,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **AUDIT SCOPE, for whoever picks this up:** the external-resource sweep is COMPLETE. Verified sound and
   needing no change — file locks (`locked-file-system` retries 200×, records a `runtime_error` on compromise, and its
   temp-file+rename writes make a lost lock cost an update, never corruption; `workspace-state` fences with OCC),
-  temp HOMEs (0 leftovers on the host, empirically), capability grants + model idle (both already TTL'd), dispatch
-  reservations (TTL'd by F1.24). In-memory registries were deliberately excluded: they die with the process, so they
+  capability grants + model idle (both already TTL'd), dispatch reservations (TTL'd by F1.24).
+  **❌ CORRECTION 2026-08-01 — this note originally also cleared "temp HOMEs (0 leftovers on the host, empirically)".
+  THAT WAS WRONG.** A later inspection found **331 `nklein-nightly-*` HOMEs holding 6.3 GB**: `dev nightly` creates
+  one isolated HOME per cell with `mkdtemp` and had NO removal path at all — not on pass, not on failure, no
+  `finally`. The earlier check returned 0 and I could not reproduce it; whatever it measured, it was not this.
+  **The audit conclusion was published on a single unreproduced measurement, which is exactly the failure the audit
+  itself was about** — a resource whose release depends on an event that never comes, missed because one green
+  reading was taken as proof. FIXED: a passing cell now removes its HOME, failures still retain theirs (every
+  failure return already carried `homePath` for diagnosis), and `--keep-home` retains a passing one when the HOME
+  IS the evidence — which is precisely what N9's closure needed. Lesson for the next sweep: an emptiness result
+  deserves a second, differently-shaped measurement before it becomes a conclusion. In-memory registries were deliberately excluded: they die with the process, so they
   cannot leak ACROSS restarts, which is the property that made the other three dangerous.
 - [ ] **P21.13b-followup — task-env references + the S2-fence serialization invariant *(split 2026-07-31)*.**
   Extend `env://` resolution to the task/sandbox env plumbing, and add the tested invariant that a resolved

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -258,7 +258,7 @@ const PROFILE_EXTRA_ENV: Readonly<Record<string, Readonly<Record<string, string>
 	},
 };
 
-async function runCell(cell: NightlyCell): Promise<CellVerdict> {
+async function runCell(cell: NightlyCell, keepHome = false): Promise<CellVerdict> {
 	const started = Date.now();
 	let home: string;
 	try {
@@ -433,6 +433,13 @@ async function runCell(cell: NightlyCell): Promise<CellVerdict> {
 				};
 			}
 		}
+		// A PASSED cell's isolated HOME has nothing left to diagnose, and nothing ever removed it: measured
+		// 2026-08-01, 331 of them had accumulated in tmpdir holding 6.3 GB. Failures still retain theirs (every
+		// failure return above keeps `homePath` for exactly that reason), and `--keep-home` retains a passing one
+		// when it IS the evidence — N9's closure needed to inspect a migrated HOME and its recovery backup.
+		if (!keepHome) {
+			await rm(home, { recursive: true, force: true }).catch(() => undefined);
+		}
 		return {
 			cell,
 			outcome: "passed",
@@ -470,6 +477,8 @@ export async function runDevNightlyCommand(options: {
 	dryRun?: boolean;
 	/** N13 (pre-release): run every cell twice; a verdict flip quarantines the cell until root-caused. */
 	doubleRun?: boolean;
+	/** Retain a PASSING cell's isolated HOME. Failures always retain theirs. */
+	keepHome?: boolean;
 }): Promise<void> {
 	const manifestPath = options.manifest ?? DEFAULT_MANIFEST_PATH;
 	const manifest = await loadManifest(manifestPath);
@@ -573,16 +582,17 @@ export async function runDevNightlyCommand(options: {
 	}
 
 	const verdicts: CellVerdict[] = [];
+	const keepHome = options.keepHome === true;
 	const doubleRunPairs: PairedCellRun[] = [];
 	for (const [index, cell] of cells.entries()) {
 		process.stderr.write(`== ${nightlyCellName(cell)} (${index + 1}/${cells.length}) ==\n`);
 		// SEQUENTIAL: awaited inside the loop, deliberately. See the docblock.
-		const first = await runCell(cell);
+		const first = await runCell(cell, keepHome);
 		verdicts.push(first);
 		if (options.doubleRun) {
 			// N13: the second, identical run. A deterministic cell repeats its verdict; a flip is the finding.
 			process.stderr.write(`== ${nightlyCellName(cell)} (${index + 1}/${cells.length}) — double-run pass 2 ==\n`);
-			const second = await runCell(cell);
+			const second = await runCell(cell, keepHome);
 			doubleRunPairs.push({
 				cellId: nightlyCellName(cell),
 				first: { outcome: first.outcome, reason: first.reason ?? null },
