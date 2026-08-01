@@ -10573,6 +10573,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **⇒ "A field has no writer" is a SYMPTOM with at least four distinct diseases**, and reflexively wiring all four
   would have shipped one wrong number, one unnecessary evaluator-shaped guess, and left the actual live defect —
   the misclassified retry note — untouched.
+  **▶ AND THE AUDIT ITSELF NEEDED A NEW STATE — otherwise closing P21.15 would have BROKEN the tool.** With three
+  fields verdicted as needing a capability nobody can add this week, leaving them `silent` pins the exit code at
+  non-zero forever, **and a check that fails permanently is a check people stop reading** — the same cries-wolf
+  failure the command already guards against by printing only EMPTY undeclared fields. Added
+  `needs_capability` → `blocked_on_capability`: it still prints, still names what is missing, still shows 0/N — it
+  just stops claiming someone forgot to plug something in, and it auto-promotes to `healthy` the moment data
+  appears. **`dev ledger-fields` now reports 0 SILENT and exits 0**, with every gap accounted for.
+  A test pins that re-verdicting the known three did NOT disarm the class for a future field.
+  `parentAttemptId` classified too: consumed only by the OTel export (a dev command) which already guards on null,
+  so zero is correct for a root attempt — but nothing records retry PARENTAGE either, so retry chains render as
+  flat sibling spans. Left alone pending the OTel cluster decision; building span parentage on an undecided
+  dependency is premature.
 - [ ] **P21.12 — Symbol-level conflict detection (the one idea nobody has shipped properly).** `wit`
   (github.com/amaar-mc/wit) locks **Tree-sitter AST symbols — functions, classes, types, exports — not files**,
   so two agents can safely edit different functions in the same file. !Klein currently serializes on FILE overlap,

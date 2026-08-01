@@ -25,22 +25,24 @@ function statusOf(report: ReturnType<typeof auditLedgerFields>, field: string): 
 
 describe("auditLedgerFields", () => {
 	it("calls an `always` field with no data SILENT — the actionable class", () => {
+		// `endpoint` is the exemplar because it is still classified `always`. `ttftMs` used to be, and was
+		// re-verdicted once its gap was traced to a missing capability — see the blocked_on_capability test.
 		const report = auditLedgerFields({ attempts: [attempt(), attempt()] });
-		expect(statusOf(report, "ttftMs")).toBe("silent");
+		expect(statusOf(report, "endpoint")).toBe("silent");
 		expect(report.summary).toMatch(/SILENT/u);
 	});
 
 	it("names the CONSUMER of a silent field, because that is why it matters", () => {
 		const report = auditLedgerFields({ attempts: [attempt()] });
-		const finding = report.findings.find((entry) => entry.field === "ttftMs");
-		expect(finding?.detail).toMatch(/Read by: summarizeModelSpeed/u);
+		const finding = report.findings.find((entry) => entry.field === "endpoint");
+		expect(finding?.detail).toMatch(/Read by: endpoint-scoped rollups/u);
 	});
 
 	it("does NOT call a null-encodes-default field silent, at the same zero count", () => {
-		// The whole reason this is a tool. `flow` and `ttftMs` are both 0/N; only one is broken.
+		// The whole reason this is a tool. `flow` and `endpoint` are both 0/N here; only one is broken.
 		const report = auditLedgerFields({ attempts: [attempt(), attempt()] });
 		expect(statusOf(report, "flow")).toBe("correctly_empty");
-		expect(statusOf(report, "ttftMs")).toBe("silent");
+		expect(statusOf(report, "endpoint")).toBe("silent");
 	});
 
 	it("treats an EXCEPTIONAL field's sparseness as health, not as a gap", () => {
@@ -75,6 +77,29 @@ describe("auditLedgerFields", () => {
 	it("promotes a newly-added field to healthy the moment it carries data", () => {
 		const report = auditLedgerFields({ attempts: [attempt({ transcriptToolCallCount: 4 })] });
 		expect(statusOf(report, "transcriptToolCallCount")).toBe("healthy");
+	});
+
+	it("reports an INVESTIGATED-but-unpopulated field as blocked_on_capability, not silent", () => {
+		// The actionable class must stay small enough to act on. Leaving a verdicted field as `silent` keeps the
+		// exit code non-zero forever over gaps nobody can close this week, and a check that fails permanently is
+		// a check people stop reading.
+		// Populate the two `always` fields, mirroring the real ledger, so the summary reflects the state that
+		// actually matters: with every gap verdicted, the ACTIONABLE class is empty and a script can pass.
+		const real = { modelId: "lmstudio:m:1", endpoint: "http://x" };
+		const report = auditLedgerFields({ attempts: [attempt(real), attempt(real)] });
+		expect(statusOf(report, "ttftMs")).toBe("blocked_on_capability");
+		expect(statusOf(report, "qualityScore")).toBe("blocked_on_capability");
+		expect(report.summary).toMatch(/0 field\(s\) SILENT/u);
+	});
+
+	it("promotes a needs-capability field to healthy the moment the capability arrives", () => {
+		expect(statusOf(auditLedgerFields({ attempts: [attempt({ ttftMs: 120 })] }), "ttftMs")).toBe("healthy");
+	});
+
+	it("still calls a NEW unpopulated always-field silent — the class stays live", () => {
+		// Guarding the guard: re-verdicting the three known ones must not disarm the check for a future field.
+		const report = auditLedgerFields({ attempts: [attempt()] });
+		expect(statusOf(report, "endpoint")).toBe("silent");
 	});
 
 	it("distinguishes PARTIAL from healthy and from silent", () => {

@@ -34,6 +34,7 @@ const STATUS_ORDER: Record<LedgerFieldStatus, number> = {
 	undeclared: 2,
 	unknown_enablement: 3,
 	too_new_to_judge: 3,
+	blocked_on_capability: 3,
 	healthy: 4,
 	sparse_as_expected: 5,
 	correctly_empty: 6,
@@ -63,7 +64,11 @@ export async function runDevLedgerFieldsCommand(options: DevLedgerFieldsOptions 
 		process.stdout.write(
 			`${marker} ${finding.status.toUpperCase().padEnd(20)} ${finding.field.padEnd(20)} ${finding.populated}/${finding.total}\n`,
 		);
-		if (finding.status === "silent" || finding.status === "undeclared") {
+		if (
+			finding.status === "silent" ||
+			finding.status === "undeclared" ||
+			finding.status === "blocked_on_capability"
+		) {
 			process.stdout.write(`     ${finding.detail}\n`);
 		}
 	}

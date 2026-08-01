@@ -34,6 +34,18 @@ export type LedgerFieldExpectation =
 	/** Populated only when a named flag is on. Zero with the flag off is the CORRECT result. */
 	| "flag_gated"
 	/**
+	 * INVESTIGATED and confirmed unpopulated, but the fix needs a capability that does not exist — an evaluator,
+	 * a first-token signal — rather than a wire.
+	 *
+	 * ── WHY THIS IS NOT JUST `always` WITH A SAD NOTE ──
+	 * Leaving a verdicted field as `silent` keeps the exit code non-zero forever over gaps nobody can close this
+	 * week, and **a check that fails permanently is a check people stop reading** — the same cries-wolf failure
+	 * this module's command guards against by reporting only EMPTY undeclared fields. The actionable class must
+	 * stay small enough to act on. `blocked_on_capability` still prints, still says what is missing, and still
+	 * shows the count; it just stops claiming someone forgot to plug something in.
+	 */
+	| "needs_capability"
+	/**
 	 * Added so recently that no attempt has been written since. Zero says nothing yet.
 	 *
 	 * Mirrors the mechanism registry's `too_new_to_judge`, and exists for the same reason: without it a field
@@ -80,21 +92,21 @@ export const LEDGER_FIELD_REGISTRY: readonly LedgerFieldSpec[] = [
 	},
 	{
 		field: "ttftMs",
-		expectation: "always",
+		expectation: "needs_capability",
 		consumer: "summarizeModelSpeed (medianTtftMs)",
-		note: "its consumer's doc claims 'the ttftMs the terminal writer computes' — the terminal writer's input type has no such field, and `parseLmStudioRequestStats` (which does parse time_to_first_token) is reachable only from a dev command",
+		note: "UNMEASURABLE with what the runtime exposes: the extension has only beforeModel/afterModel so the measurable quantity is FULL request duration, not time-to-first-token; the SDK's assistantMessage.metrics carries token counts only; and parseLmStudioRequestStats (which does parse time_to_first_token) is reachable solely from a dev command. Needs a first-token signal — a feature, not a wire. Its consumer's doc CLAIMED the terminal writer computed it; that false claim was corrected 2026-08-01",
 	},
 	{
 		field: "qualityScore",
-		expectation: "always",
+		expectation: "needs_capability",
 		consumer: "stubborn-failure-escalation",
-		note: "`qualityOk` is derived and populated; the numeric score is absent from the terminal writer's input type entirely",
+		note: 'needs a real EVALUATOR: `qualityOk` is literally `outcome === "success"`, and the consumer (pickBestPartial) matters precisely where EVERY attempt failed — so an outcome-derived number is constant across the candidates it must rank. Grading how much of the task got done is not a field to plumb',
 	},
 	{
 		field: "endpointStrategy",
-		expectation: "always",
-		consumer: "agent-ledger-projections (a GROUPING KEY, so every row collapses into one bucket)",
-		note: "absent from the terminal writer's input type",
+		expectation: "needs_capability",
+		consumer: "agent-ledger-projections — retained as a redundant fallback; NOTHING depends on it since 2026-08-01",
+		note: "no producer anywhere in src/. Its null used to make `inferAttemptStrategy` take a wrong branch and report a cross-model retry as `same_model_retry` INTO THE MODEL'S PROMPT; that reader now reads the strategy from where it actually lives, so this field is redundant rather than load-bearing",
 	},
 	{
 		field: "toolSetOffered",
@@ -128,6 +140,12 @@ export const LEDGER_FIELD_REGISTRY: readonly LedgerFieldSpec[] = [
 		note: "stamped only when procedural skills are surfaced into the prompt",
 	},
 	{
+		field: "parentAttemptId",
+		expectation: "exceptional",
+		consumer: "otel-genai-export (parentSpanId) — reachable only from `dev otel-export`",
+		note: "null is CORRECT for a root attempt, and the consumer guards on it. But nothing records retry PARENTAGE either, so a retry chain renders as flat sibling spans rather than a chain. Left alone pending the OTel cluster decision (11 packages, zero first-party imports) — building span parentage on an undecided dependency is premature",
+	},
+	{
 		field: "promptStrategy",
 		expectation: "exceptional",
 		consumer: "recovery-rung analysis",
@@ -156,6 +174,8 @@ export type LedgerFieldStatus =
 	| "unknown_enablement"
 	/** Declared, but added too recently for emptiness to mean anything yet. */
 	| "too_new_to_judge"
+	/** Investigated: genuinely unpopulated, and closing it needs a capability that does not exist yet. */
+	| "blocked_on_capability"
 	/** Present in the data but not declared here — nobody has traced its writer and reader. */
 	| "undeclared";
 
@@ -257,6 +277,10 @@ function classify(
 			: enabledFlags.has(spec.flag ?? "")
 				? "healthy"
 				: "correctly_empty";
+	}
+	if (spec.expectation === "needs_capability") {
+		// If it ever starts carrying data the capability arrived, and the entry should be re-classified.
+		return populated > 0 ? "healthy" : "blocked_on_capability";
 	}
 	if (spec.expectation === "newly_added") {
 		// Once it starts carrying data the entry should be re-classified; until then, silence is uninformative.
