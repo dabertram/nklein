@@ -11468,11 +11468,32 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **AND IT TURNED P23.7's BIGGEST JUDGEMENT INTO A MEASUREMENT:** the item asserts the historical v2/v3/v4
   rationale should move OUT. The five heaviest sections in the document are v3/v4 rationale (1310, 957, 922, 919,
   886 words — ~5k words, a fifth of the whole spec). A test pins that, so the claim now has evidence behind it.
-  **🔴 THE REQUIREMENT INDEX — the "traceability spine" this item asks for FIRST — CANNOT BE EXTRACTED.** The
-  document contains **ZERO RFC-2119 keywords**: not one MUST, SHALL, SHOULD or MAY across 25,059 words. There is
-  no mechanical way to distinguish a requirement from a paragraph of rationale, and a keyword extractor would
-  return an empty index while looking like it worked. **The spine has to be AUTHORED, not derived** — that is
-  spec-writing work, not tooling, and it is the remaining half of this item.
+  **🔴 was: THE REQUIREMENT INDEX CANNOT BE EXTRACTED.** The document contains **ZERO RFC-2119 keywords**: not one
+  MUST, SHALL, SHOULD or MAY across 25,059 words. There is no mechanical way to distinguish a requirement from a
+  paragraph of rationale, and a keyword extractor would return an empty index while looking like it worked. The
+  spine has to be AUTHORED, not derived.
+  **✅ SHIPPED 2026-08-01 — IT WAS DERIVABLE, AND THE MEASUREMENT ABOVE IS WHY THAT WAS MISSED.**
+  `spec-requirement-spine.ts` + `nklein dev spec-spine`, 23 tests. The RFC-2119 count was correct; the conclusion
+  drawn from it was too broad. **The requirement UNIT in this document is not a sentence — it is a CARD**, and the
+  card grammar is perfectly regular: **51 cards (`S01`…`S51`), 100% carrying `dependsOn:`**, plus `files:`,
+  `acceptance:` and a named `invariant:`. That is a *stronger* spine than RFC-2119 prose would have given, because
+  the dependency edges and the discharging test arrive as DATA, not narrative. Verified on the real fixture: every
+  dependency resolves, no duplicate ids, no cycles, and a full 51-card build order.
+  **GENERAL RULE: "this cannot be derived" is a claim about the grammar you looked for, not about the document.**
+  Before concluding a spec is unstructured, ask what its author used as the unit of work.
+  **The spine immediately found two real gaps in the spec, both on S49** ("Index barrel + public API surface") —
+  the only card of 51 that names NO invariant, and the only one whose `dependsOn: most prior.` is prose where ids
+  were expected. The second one nearly became a defect in the TOOL: prose parses to zero ids, so plain Kahn read
+  S49 as a ROOT and emitted it **second** in the build order — advising an agent to build the public API surface
+  before the code behind it. Unknown dependencies are now a reported issue and are deferred to the end of the
+  order rather than rendered as *no* dependencies. Same lesson as today's ownership work: an unreadable input must
+  never present as a clean answer.
+  **What this buys, concretely:** `dev spec-spine --card S12` returns S12 plus its 9 transitive dependencies —
+  each with its invariant and acceptance test — instead of the 24,206 words the spec's own prose instructs an
+  agent to read. Progressive disclosure WITH traceability. Additive: the fixture is untouched.
+  **REMAINING (small):** the authored half is now optional rather than blocking — a charter-level statement of the
+  handful of cross-cutting invariants (`E11.*` / `V8.*`) that the per-card `invariant:` fields reference by name
+  but never define in one place.
 - [x] **P23.8 — "Two brains" = two versioned deployment SLOTS, not two resident stacks.** DONE 2026-07-20:
   clarified in-spec. The candidate may be cold, remote on an owned machine, replay-only, or loaded only during an
   explicit evaluation window. Requiring simultaneous residency contradicts the project's own consumer-memory

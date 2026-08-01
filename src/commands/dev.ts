@@ -68,6 +68,7 @@ import { runDevServedContextCommand } from "./dev-served-context-command";
 import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
 import { runDevSpecIndexCommand } from "./dev-spec-index-command";
 import { runDevSpecReviewCommand } from "./dev-spec-review-command";
+import { runDevSpecSpineCommand } from "./dev-spec-spine-command";
 import { runDevSynthesisSavingCommand } from "./dev-synthesis-saving-command";
 import {
 	runDevAdviceCommand,
@@ -919,6 +920,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action((file: string, options: { budgetWords?: string; json?: boolean }) => {
 			runDevSpecIndexCommand(file, options);
+		});
+
+	dev.command("spec-spine <file>")
+		.description("P23.7: the requirement spine — cards, dependencies, invariants, and one card's retrieval closure.")
+		.option("--card <id>", "Print only this card and its transitive dependencies (dependencies first).")
+		.option("--json", "Print machine-readable JSON.")
+		.action((file: string, options: { card?: string; json?: boolean }) => {
+			runDevSpecSpineCommand(file, options);
 		});
 
 	dev.command("model-fit")
