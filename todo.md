@@ -8904,8 +8904,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     parsing gap must never delete a mechanism.
   The report's summary also distinguishes a DATA GAP from a no-op gate in words, because `evaluable: 0` reads as
   "the gate never mattered" unless something says otherwise.
-  **NEXT:** supply `outcomeByTaskId` from the board/ledger and wire `dev`; then accumulate observations from a
-  real-model drain. `insufficient_data` from here on is a statement about VOLUME, which more running fixes.
+  **✅ WIRED SAME DAY — `nklein dev mechanism-decision`, 8 more tests (22 across the chain). P15.2's core finally
+  has a caller**, which also un-orphans it. Outcomes come from the durable scheduler's own terminal records
+  (`kind: scheduler`, `event: completed`, `detail: succeeded|failed`); **`transient_retry` is deliberately NOT an
+  outcome** — it is a job returning to `ready` after a transient fault, and scoring it as failure would blame the
+  mechanism under test for an infrastructure hiccup. A task with several terminal records keeps the LAST, because
+  `reportCompletion` documents accepting succeeded-on-failed when the bounce ladder recovers a card the durable
+  budget already failed.
+  **⚠️ AND THE READER'S WINDOW IS A TRAP THAT WAS ALMOST WALKED INTO.** `readSelfObservationEvents` defaults to
+  **50** events and hard-caps at **500** — the same clamp P15.1c live-found when one chatty category crowded every
+  other mechanism's count to zero. Inheriting the default would have decided a FLIP on ~50 samples against a
+  30-sample floor. The limit is now raised explicitly, and hitting the ceiling is REPORTED: a verdict computed on a
+  saturated window looks exactly like one computed on all the data, and this verdict's only job is to license
+  changing a default.
+  **LIVE RUN: `0 observations`, verdict `insufficient_data` — and that is CORRECT, not a defect.**
+  `NKLEIN_TOOL_GATE_OBSERVE` is default-OFF, so the gate has never recorded anything on this host. The whole chain
+  is now proven end-to-end and blocked only on turning the observe flag on during a real-model drain.
+  **NEXT:** enable `NKLEIN_TOOL_GATE_OBSERVE` for a real-model drain, accumulate ≥30 observations with ≥12
+  evaluable disagreements, then read the verdict. From here `insufficient_data` is a statement about VOLUME.
 - [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.

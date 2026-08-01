@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildMechanismDecision, MIN_OBSERVATIONS_FOR_VERDICT } from "../../../src/core/mechanism-decision-report";
 import {
+	buildTaskOutcomeIndex,
 	GATE_KEEP_ALL,
 	GATE_RECOMMENDED_WITHHOLD,
 	joinToolGateObservations,
@@ -112,5 +113,44 @@ describe("the join feeds the decision core end to end", () => {
 
 		expect(report.unjoinedOutcomes).toBe(0);
 		expect(buildMechanismDecision(report.observations).verdict).not.toBe("insufficient_data");
+	});
+});
+
+describe("buildTaskOutcomeIndex", () => {
+	it("reads succeeded/failed from the scheduler's terminal records", () => {
+		const index = buildTaskOutcomeIndex([
+			{ kind: "scheduler", event: "completed", taskId: "t1", detail: "succeeded" },
+			{ kind: "scheduler", event: "completed", taskId: "t2", detail: "failed" },
+		]);
+		expect(index.get("t1")).toBe(true);
+		expect(index.get("t2")).toBe(false);
+	});
+
+	it("does NOT treat transient_retry as an outcome", () => {
+		// It is the scheduler returning a job to `ready` after a transient fault. Recording it as a failure would
+		// blame the mechanism under test for an infrastructure hiccup — and the campaign's whole question is
+		// whether the MECHANISM helps.
+		const index = buildTaskOutcomeIndex([
+			{ kind: "scheduler", event: "completed", taskId: "t1", detail: "transient_retry" },
+		]);
+		expect(index.has("t1")).toBe(false);
+	});
+
+	it("keeps the LAST terminal record, so a late success supersedes an earlier failure", () => {
+		// `reportCompletion` documents accepting succeeded-on-failed: the runtime's bounce ladder can recover a
+		// card after the durable budget already failed the job.
+		const index = buildTaskOutcomeIndex([
+			{ kind: "scheduler", event: "completed", taskId: "t1", detail: "failed" },
+			{ kind: "scheduler", event: "completed", taskId: "t1", detail: "succeeded" },
+		]);
+		expect(index.get("t1")).toBe(true);
+	});
+
+	it("ignores non-scheduler and non-completed events", () => {
+		const index = buildTaskOutcomeIndex([
+			{ kind: "attempt", event: "completed", taskId: "t1", detail: "succeeded" },
+			{ kind: "scheduler", event: "lease_acquired", taskId: "t2", detail: "succeeded" },
+		]);
+		expect(index.size).toBe(0);
 	});
 });

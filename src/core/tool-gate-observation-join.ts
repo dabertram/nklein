@@ -103,3 +103,37 @@ export function joinToolGateObservations(input: {
 					(unusableRecords > 0 ? ` (${unusableRecords} malformed record(s) excluded)` : ""),
 	};
 }
+
+/** The slice of a `scheduler` ledger event this index needs. */
+export interface SchedulerOutcomeEvent {
+	readonly kind?: string;
+	readonly event?: string;
+	readonly taskId?: string | null;
+	readonly detail?: string | null;
+}
+
+/**
+ * Per-task success, from the durable scheduler's own terminal records.
+ *
+ * `completed` carries `detail` = `succeeded` | `failed` | `transient_retry`. **`transient_retry` is deliberately
+ * NOT an outcome** — it is the scheduler returning a job to `ready` after a transient fault, and recording it as a
+ * failure would blame the mechanism under test for an infrastructure hiccup. A task that only ever retried stays
+ * ABSENT from the index, which the join reads as "unknown" rather than as failure.
+ *
+ * A task with several terminal records keeps the LAST, because a late `succeeded` legitimately supersedes an
+ * earlier `failed` — that exact late-success path is a documented behaviour of `reportCompletion`.
+ */
+export function buildTaskOutcomeIndex(events: readonly SchedulerOutcomeEvent[]): Map<string, boolean> {
+	const index = new Map<string, boolean>();
+	for (const event of events) {
+		if (event.kind !== "scheduler" || event.event !== "completed") {
+			continue;
+		}
+		const taskId = typeof event.taskId === "string" && event.taskId.length > 0 ? event.taskId : null;
+		if (taskId === null || (event.detail !== "succeeded" && event.detail !== "failed")) {
+			continue;
+		}
+		index.set(taskId, event.detail === "succeeded");
+	}
+	return index;
+}

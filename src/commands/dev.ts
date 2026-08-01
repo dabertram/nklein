@@ -50,6 +50,7 @@ import { runDevGatesCommand } from "./dev-gates-command";
 import { runDevInterventionsCommand } from "./dev-interventions-command";
 import { runDevLedgerFieldsCommand } from "./dev-ledger-fields-command";
 import { runDevLedgerHealthCommand } from "./dev-ledger-health-command";
+import { runDevMechanismDecisionCommand } from "./dev-mechanism-decision-command";
 import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
 import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
 import { runDevModelFitCommand } from "./dev-model-fit-command";
@@ -908,6 +909,13 @@ export function registerDevCommand(program: Command): void {
 				await runDevNightlyCommand(options);
 			},
 		);
+
+	dev.command("mechanism-decision")
+		.description("P15.3: is the observe-first tool gate right often enough to ENFORCE? (expects insufficient_data)")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevMechanismDecisionCommand(options);
+		});
 
 	dev.command("mechanism-doc")
 		.description("P15.1d: generate docs/dev/mechanism-registry.md from BOTH scans (unwired + silent).")
