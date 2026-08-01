@@ -62,6 +62,7 @@ import { runDevRequirementCoverageCommand } from "./dev-requirement-coverage-com
 import { runDevResidentSetCommand } from "./dev-resident-set-command";
 import { runDevRoundsBudgetCommand } from "./dev-rounds-budget-command";
 import { runDevSbomCommand } from "./dev-sbom-command";
+import { runDevSerializationCostCommand } from "./dev-serialization-cost-command";
 import { runDevServedContextCommand } from "./dev-served-context-command";
 import { runDevSkillAuditCommand } from "./dev-skill-audit-command";
 import { runDevSpecIndexCommand } from "./dev-spec-index-command";
@@ -955,6 +956,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevLedgerFieldsCommand(options);
+		});
+
+	dev.command("serialization-cost")
+		.description("P21.12: what is FILE-level conflict serialization costing? (real projects vs benchmark katas)")
+		.option("--root <dir>", "Root to scan for board.json (default: the runtime home).")
+		.option("--json", "Print machine-readable JSON.")
+		.action((options: { root?: string; json?: boolean }) => {
+			runDevSerializationCostCommand(options);
 		});
 
 	dev.command("prefill-cost")

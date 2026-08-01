@@ -10585,11 +10585,38 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   so zero is correct for a root attempt — but nothing records retry PARENTAGE either, so retry chains render as
   flat sibling spans. Left alone pending the OTel cluster decision; building span parentage on an undecided
   dependency is premature.
-- [ ] **P21.12 — Symbol-level conflict detection (the one idea nobody has shipped properly).** `wit`
+- [x] **P21.12 — Symbol-level conflict detection. CLOSED BY MEASUREMENT 2026-08-01 — NOT WORTH BUILDING. The
+  proposal is real and better; the payoff on real work is ~4%.** `wit`
   (github.com/amaar-mc/wit) locks **Tree-sitter AST symbols — functions, classes, types, exports — not files**,
   so two agents can safely edit different functions in the same file. !Klein currently serializes on FILE overlap,
   which is strictly coarser. Honest limitation in their implementation: **all conflicts are warnings, not
   blocks.** Relevant to the F12.64 LSP-symbol-tools item — the same symbol index serves both.
+  **▶ MEASURED FIRST, over 14 real boards / 207 card pairs, using the PRODUCTION classifier
+  (`classifyCardPairConflict`) rather than a re-implementation. `serialization-cost.ts` + `dev serialization-cost`,
+  8 tests — so the number is re-checkable as data grows, not a one-off claim.**
+  | board kind | pairs serialized |
+  |---|---|
+  | single-file benchmark katas (`aider-*`) | **82%** (47/57) |
+  | real dev-test projects | **4%** (6/150) |
+  | aggregate | 26% |
+  **🔴 THE AGGREGATE WOULD HAVE JUSTIFIED BUILDING IT. THE SPLIT IS THE MEASUREMENT.** 26% reads as a strong case.
+  But an aider kata is ONE FILE by construction, so every card necessarily collides — symbol-level detection would
+  unlock a lot of parallelism there and **that parallelism is an artifact of the fixture**. On real multi-file work
+  the coarse file rule is already ~96% precise, and 4% is an **UPPER BOUND**: some of those 6 pairs would collide
+  at symbol level too.
+  **AND THE PREDICTION PROBLEM MAKES IT WORSE THAN 4%.** Symbol-level gating needs `symbolsLikelyTouched` per card,
+  which the DECOMPOSE model must predict. Predicting symbols is strictly harder than predicting files, and it fails
+  in the dangerous direction: under-declare and two agents corrupt the same function. Trading a 4% parallelism gain
+  for a new correctness risk carried by the weakest component in the chain is a bad trade.
+  ⇒ **Do not build.** Revisit if `dev serialization-cost` ever shows the real-projects figure climbing — a large
+  shared codebase (rather than these small dev-test projects) is exactly where it could.
+  **◆ INCIDENTAL FINDING WORTH ITS OWN LOOK: the katas are decomposed into 5–7 cards that are ~100% mutually
+  serialized**, i.e. the decomposition yields no parallelism at all on single-file work. That is a question about
+  DECOMPOSING single-file tasks, not about conflict detection.
+  **⚠️ THE FIRST RUN REPORTED 0% AND WAS VACUOUS** — the verdict field was read as `klass` instead of
+  `conflictClass`, so every comparison was false. Caught by asking why a plausible number was suspiciously clean;
+  the core now reports CLASS COUNTS so a mis-read field can never again look like "the classifier ran and found
+  nothing".
 - [x] **P21.13b — Secrets as REFERENCES resolved at container exec (split 2026-07-24). SHIPPED 2026-07-31 —
   `secret-reference-resolution.ts` + both MCP spawn doors, 21 tests.**
   Config stores `env://VAR`; it is resolved host-side at spawn, so the value exists ONLY in the child process
