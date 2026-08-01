@@ -11491,9 +11491,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **What this buys, concretely:** `dev spec-spine --card S12` returns S12 plus its 9 transitive dependencies —
   each with its invariant and acceptance test — instead of the 24,206 words the spec's own prose instructs an
   agent to read. Progressive disclosure WITH traceability. Additive: the fixture is untouched.
-  **REMAINING (small):** the authored half is now optional rather than blocking — a charter-level statement of the
-  handful of cross-cutting invariants (`E11.*` / `V8.*`) that the per-card `invariant:` fields reference by name
-  but never define in one place.
+  **▶ AND THE INVARIANT HALF CLOSED THE SAME DAY — all 33 cited invariants resolve.** `buildInvariantCatalog` +
+  `citedInvariantIds`, 32 tests total. Getting there took FOUR wrong answers in a row, each confidently produced by
+  a narrower grammar — **28 of 33 undefined, then 13, then 2, then 1, then 0** — which is the lesson restated: an
+  extractor reports what its grammar can see, not what the document contains. The document defines invariants in
+  four different forms, and every intermediate count was a false alarm:
+  · `## E1. …` — section heading WITH a trailing dot
+  · `### V3.3 …` — subsection heading with NO dot (a dot-requiring regex misses every one)
+  · `- **V6.2 The … detector.**` — id inline at the head of a bolded bullet (the earlier grammar wanted
+    `- **Name (ID):**` and so saw none of these)
+  · `7. **Determinism**` under `## E11` — **ORDINAL POSITION, where the id appears nowhere at its own definition**
+  **🔴 THE REAL FINDING, and the strongest argument for the charter this item asks for: 13 of the 33 invariant ids
+  are POSITIONAL.** `E11.7` means "the 7th item under `## E11`"; `## V8` ("Global invariants, v3 — extends E11")
+  continues the same list from 8, which is why cards cite `V8.8`…`V8.14`. **Inserting one list item renumbers every
+  invariant below it and silently re-points every card that cites them** — no test fails, no link breaks, the
+  references just quietly start meaning something else. Catalog sections are detected by the heading SAYING
+  "invariants" rather than by id shape, because `## E12.` matches the same shape and its ordinary numbered list
+  would mint a phantom `E12.1` nothing cites.
+  **REMAINING (small, and now well-specified):** give the 13 positional invariants written, stable ids in a charter
+  so a card's citation survives an edit to the list. The catalog makes the current state navigable until then.
 - [x] **P23.8 — "Two brains" = two versioned deployment SLOTS, not two resident stacks.** DONE 2026-07-20:
   clarified in-spec. The candidate may be cold, remote on an owned machine, replay-only, or loaded only during an
   explicit evaluation window. Requiring simultaneous residency contradicts the project's own consumer-memory

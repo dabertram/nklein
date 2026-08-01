@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildSpecRequirementSpine, requirementClosure } from "../../../src/core/spec-requirement-spine";
+import {
+	buildInvariantCatalog,
+	buildSpecRequirementSpine,
+	citedInvariantIds,
+	requirementClosure,
+} from "../../../src/core/spec-requirement-spine";
 
 /**
  * P23.7's "traceability spine", which the item recorded as impossible to derive.
@@ -178,5 +183,99 @@ describe("the real specification — the spine P23.7 said could not be derived",
 		const closure = requirementClosure(spine, "S12");
 		expect(closure.at(-1)).toBe("S12");
 		expect(closure.length).toBeLessThan(12);
+	});
+});
+
+/**
+ * The invariant catalog — the half of traceability that no text search can reach.
+ *
+ * A card cites `invariant: **Determinism (E11.7 / V1)**`. Searching the document for "E11.7" near a definition
+ * finds nothing, because THE ID NEVER APPEARS AT ITS OWN DEFINITION SITE: `## E11` holds a numbered list and the
+ * sub-id is the list POSITION. `## V8` ("extends E11") continues the same list from 8. An earlier pass concluded
+ * 13 of 33 cited invariants were "undefined" purely because every textual grammar misses an implied identifier.
+ */
+describe("buildInvariantCatalog", () => {
+	const SECTIONS = `
+## E11. The meta-test harness: global invariants
+
+1. **Conservation of money** — sums balance.
+2. **Totality of audit** — every side effect has one audit event.
+7. **Determinism** — same seed, same log.
+
+## V8. Global invariants, v3 (extends E11)
+
+8. **Capability soundness (V5).** Every side effect traces to a valid token.
+
+## E12. Something else
+
+1. **Not an invariant** — a numbered list in an unrelated section.
+`;
+
+	it("composes the id from SECTION + ORDINAL, never from the text", () => {
+		const catalog = buildInvariantCatalog(SECTIONS);
+		expect(catalog.find((entry) => entry.id === "E11.7")?.name).toBe("Determinism");
+		expect(catalog.find((entry) => entry.id === "E11.2")?.name).toBe("Totality of audit");
+	});
+
+	it("continues the numbering into V8, which is why cards cite V8.8 and not V8.1", () => {
+		expect(buildInvariantCatalog(SECTIONS).find((entry) => entry.id === "V8.8")?.name).toBe("Capability soundness");
+	});
+
+	it("does NOT harvest numbered lists from unrelated sections", () => {
+		// `## E12` is prose with a list; treating it as a catalog would mint a phantom `E12.1` invariant. Catalogs
+		// are recognised by the heading SAYING "invariants", not by the id shape — `E12.` matches that shape too.
+		expect(buildInvariantCatalog(SECTIONS).some((entry) => entry.id === "E12.1")).toBe(false);
+	});
+
+	it("resolves a BOLDED-BULLET id, the fourth form", () => {
+		// `- **V6.2 The reward-hacking / objective-hacking detector.**` — id inline, no parentheses. The earlier
+		// "definition bullet" grammar required `- **Name (ID):**` and so missed every one of these.
+		const catalog = buildInvariantCatalog("- **V6.2 The reward-hacking detector.** Because DGM fabricated a log.\n");
+		expect(catalog.find((entry) => entry.id === "V6.2")?.name).toContain("reward-hacking");
+	});
+
+	it("also resolves a SUBSECTION-heading id, which has no trailing dot", () => {
+		// `### V3.3 The deterministic !Klein fixture` — a dot-requiring heading regex misses these entirely, which
+		// is why V3.3 and V6.2 previously read as undefined.
+		const catalog = buildInvariantCatalog("### V3.3 The deterministic !Klein fixture\n");
+		expect(catalog.find((entry) => entry.id === "V3.3")?.name).toContain("deterministic");
+	});
+
+	it("strips a trailing citation from the name", () => {
+		expect(buildInvariantCatalog(SECTIONS).find((entry) => entry.id === "V8.8")?.name).not.toContain("V5");
+	});
+});
+
+describe("the real specification — every cited invariant resolves", () => {
+	const markdown = readFileSync(SPEC_PATH, "utf8");
+	const spine = buildSpecRequirementSpine(markdown);
+	const catalog = buildInvariantCatalog(markdown);
+
+	it("resolves the ordinal invariants the cards actually cite", () => {
+		const byId = new Map(catalog.map((entry) => [entry.id, entry]));
+		expect(byId.get("E11.7")?.name).toBe("Determinism");
+		expect(byId.get("E11.2")?.name).toBe("Totality of audit");
+		expect(byId.get("E11.5")?.name).toContain("Taint monotonicity");
+		expect(byId.get("V8.8")?.name).toContain("Capability soundness");
+	});
+
+	it("covers EVERY sub-numbered invariant the 51 cards cite — the 13 previously called undefined", () => {
+		// Sub-ids (`E11.7`, `V8.8`) are the ones only this convention reaches; top-level ids (`E1`, `V1`) are
+		// ordinary section headings and were never the gap.
+		const byId = new Set(catalog.map((entry) => entry.id));
+		const citedSubIds = new Set(
+			spine.cards.flatMap((card) => citedInvariantIds(card)).filter((id) => id.includes(".")),
+		);
+		expect([...citedSubIds].filter((id) => !byId.has(id))).toEqual([]);
+		expect(citedSubIds.size).toBeGreaterThanOrEqual(13);
+	});
+
+	it("shows the ids are POSITIONAL — the fragility worth acting on", () => {
+		// Each ordinal id is section + list position, so inserting one item renumbers everything below it and
+		// silently re-points every card that cites them. No test fails; the references quietly mean something else.
+		const determinism = catalog.find((entry) => entry.id === "E11.7");
+		expect(determinism?.name).toBe("Determinism");
+		expect(determinism?.ordinal).toBe(7);
+		expect(determinism?.id).toBe(`${determinism?.sectionId}.${determinism?.ordinal}`);
 	});
 });

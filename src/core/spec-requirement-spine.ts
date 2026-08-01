@@ -222,6 +222,121 @@ export function buildSpecRequirementSpine(markdown: string): SpecRequirementSpin
 }
 
 /**
+ * One globally-numbered invariant, e.g. `E11.7` = "Determinism".
+ *
+ * ── THE CONVENTION, AND WHY NO SEARCH FINDS IT ──
+ * A card says `invariant: **Determinism (E11.7 / V1)**`. Grepping the document for "E11.7" near a definition finds
+ * nothing, because **the id never appears at its own definition site**. `## E11` contains a NUMBERED LIST, and the
+ * sub-id is the list POSITION: item 7 is "Determinism". `## V8` ("Global invariants, v3 — extends E11") continues
+ * the same list from 8, which is why its items are cited as `V8.8`…`V8.14`.
+ *
+ * That is why the earlier pass concluded 13 of 33 referenced invariants were "undefined": every textual grammar
+ * misses an identifier that is implied by ordinal position rather than written down.
+ *
+ * ── ⚠️ AND IT IS FRAGILE, WHICH IS THE FINDING WORTH ACTING ON ──
+ * Because the ids are POSITIONAL, inserting one list item renumbers every invariant below it and silently
+ * invalidates every card that cites them — no test fails, no link breaks, the references just quietly mean
+ * something else. A charter with written, stable ids is the fix; this resolver is what makes the current state
+ * navigable until then.
+ */
+export interface SpecInvariantDefinition {
+	/** The cited id, e.g. `E11.7` — composed from the section id and the ordinal, never read from the text. */
+	readonly id: string;
+	readonly name: string;
+	readonly sectionId: string;
+	readonly ordinal: number;
+}
+
+/**
+ * A section whose NUMBERED LIST carries globally-cited invariants — recognised by the heading SAYING SO
+ * ("global invariants"), not by its id shape. `## E12.` is also `[EV]\d+.` and holds an ordinary numbered list;
+ * harvesting it would mint a phantom `E12.1` invariant that no card cites and no section defines.
+ */
+const INVARIANT_CATALOG_HEADING = /^#{2,4}\s+([EV]\d+)\.\s+(.*invariant.*)$/iu;
+/** Any section heading that carries an id, with or without a trailing dot: `## E1. …` and `### V3.3 …`. */
+const ID_HEADING = /^#{2,4}\s+([EV]\d+(?:\.\d+)*)\.?\s+(.+)$/u;
+/** `7. **Determinism** — …` — the ordinal is the identity; the bolded lead is the name. */
+const NUMBERED_INVARIANT = /^(\d+)\.\s+\*\*(.+?)\*\*/u;
+/** `- **V6.2 The reward-hacking detector.**` — id inline at the head of a bolded bullet, no parentheses. */
+const BULLET_ID_DEFINITION = /^[-*]\s+\*\*([EV]\d+(?:\.\d+)*)\s+(.+?)\.?\*\*/u;
+
+/** "Capability soundness (V5)." → "Capability soundness" — the trailing citation is not part of the name. */
+function invariantName(raw: string): string {
+	return raw
+		.replace(/\s*\([^)]*\)\s*\.?$/u, "")
+		.replace(/\.$/u, "")
+		.trim();
+}
+
+/**
+ * Every invariant a card can cite, from all FOUR forms the document uses.
+ *
+ * Each narrower grammar produced a confident, wrong "undefined" count on the way here — 28/33, then 13/33, then
+ * 1/33 — which is the whole lesson: an extractor reports what its grammar can see, not what the document contains.
+ *   · `## E1. …`                          — section heading, WITH a trailing dot
+ *   · `### V3.3 …`                        — subsection heading, NO dot (a dot-requiring regex misses these)
+ *   · `- **V6.2 The … detector.**`        — id inline at the head of a bolded bullet
+ *   · `7. **Determinism**` under `## E11` — ORDINAL position; the id appears NOWHERE at its own definition
+ */
+export function buildInvariantCatalog(markdown: string): readonly SpecInvariantDefinition[] {
+	const definitions: SpecInvariantDefinition[] = [];
+	const seen = new Set<string>();
+	let catalogSectionId: string | null = null;
+
+	for (const line of markdown.split(/\r?\n/)) {
+		const catalogHeading = INVARIANT_CATALOG_HEADING.exec(line);
+		const idHeading = ID_HEADING.exec(line);
+		if (idHeading && !seen.has(idHeading[1] as string)) {
+			const id = idHeading[1] as string;
+			seen.add(id);
+			definitions.push({
+				id,
+				name: invariantName(idHeading[2] as string),
+				sectionId: id.split(".")[0] as string,
+				ordinal: Number(id.split(".")[1] ?? 0),
+			});
+		}
+		const bulletDefinition = BULLET_ID_DEFINITION.exec(line);
+		if (bulletDefinition && !seen.has(bulletDefinition[1] as string)) {
+			const id = bulletDefinition[1] as string;
+			seen.add(id);
+			definitions.push({
+				id,
+				name: invariantName(bulletDefinition[2] as string),
+				sectionId: id.split(".")[0] as string,
+				ordinal: Number(id.split(".")[1] ?? 0),
+			});
+		}
+		if (catalogHeading) {
+			catalogSectionId = catalogHeading[1] as string;
+			continue;
+		}
+		if (line.startsWith("## ")) {
+			// Any other top-level section ends the numbered run.
+			catalogSectionId = null;
+			continue;
+		}
+		const item = catalogSectionId === null ? null : NUMBERED_INVARIANT.exec(line);
+		if (!item || catalogSectionId === null) {
+			continue;
+		}
+		const ordinal = Number(item[1]);
+		const id = `${catalogSectionId}.${ordinal}`;
+		if (seen.has(id)) {
+			continue;
+		}
+		seen.add(id);
+		definitions.push({ id, name: invariantName(item[2] as string), sectionId: catalogSectionId, ordinal });
+	}
+	return definitions;
+}
+
+/** Invariant ids a card cites, e.g. `Determinism (E11.7 / V1)` → ["E11.7", "V1"]. */
+export function citedInvariantIds(card: SpecRequirementCard): readonly string[] {
+	return [...(card.invariant ?? "").matchAll(/\b([EV]\d+(?:\.\d+)*)\b/gu)].map((match) => match[1] as string);
+}
+
+/**
  * The transitive dependency closure of a card, in dependency order, INCLUDING the card itself.
  *
  * This is the retrieval unit that makes the spine worth having: working `S12` means reading S12 and what it rests
