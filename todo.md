@@ -7780,6 +7780,30 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **⚠️ AND A SECOND, SHARPER FINDING: THE RUN IS NOT DETERMINISTIC.** Two runs of the identical cell gave
   `completed: 30` and `completed: 28`. The seed is FIXED at 7 — so **a fixed seed does not make this drain
   reproducible**, and the scheduling/concurrency path carries nondeterminism the seed does not reach.
+  **▶ DIAGNOSED 2026-08-01 — "whatever varies between them is unmodelled" is now MODELLED: it is WALL-CLOCK
+  scheduling, and a fixed seed cannot reach it BY CONSTRUCTION.**
+  The seed controls the LLM SIMULATOR's responses. It does not control the machine's clock, and the drain gates on
+  real elapsed time in at least six places:
+  `leaseDurationMs: 300_000` · `reclaimBackoffMs: 30_000` · `DURABLE_RUN_TICK_INTERVAL_MS = 15_000` ·
+  `BOARD_LIVENESS_SNAPSHOT_TIMEOUT_MS = 10_000` · `MODEL_TURN_LMS_PS_TIMEOUT_MS = 15_000` · per-turn/stream
+  inactivity timeouts. Whether a lease expires, whether a watchdog tick lands before or after a state transition,
+  whether a turn crosses an inactivity window — each depends on how fast the machine happened to be. **On this host
+  that is not a small effect: the m5max throttles under sustained load, so wall-clock timing varies substantially
+  run to run.** ⇒ `completed: 30` vs `28` is the EXPECTED consequence of the current design, not a mystery.
+  **RULED OUT BY INSPECTION:** no `Math.random` anywhere in the scheduling/dispatch/admission path, and the durable
+  cores (`durable-run-controller`, `durable-admission`, `coalescing-scheduler`) contain **zero direct `Date.now()`**
+  — they take an injected `now()`. The nondeterminism is not in the pure brains; it is in the effectful layer's use
+  of real time.
+  **◆ AND THE SEAM ALREADY EXISTS, UNUSED: `DurableRunWiringDeps.now?: () => number` is injectable, and
+  `runtime-server.ts` passes nothing**, so production and the nightly drain both run on `Date.now()`.
+  ⇒ **Fix shape, in order:** (1) pass a controllable clock at the durable-scheduler seam that already accepts one;
+  (2) make the remaining gates (watchdog, inactivity, snapshot) injectable too — determinism needs EVERY gate, so
+  doing only (1) buys nothing measurable. **Deliberately not started: it is a production-wiring change whose payoff
+  is only verifiable on the Docker drain this item is already blocked on.**
+  **⇒ AND IT CORRECTS THIS ITEM'S OWN FRAMING:** repeat runs are not "neither independent samples NOR identical
+  replays" by accident — they are the SAME simulator responses replayed under DIFFERENT real-time conditions. That
+  is a well-defined thing, and it means repeat runs are usable as timing-variation samples even today, as long as
+  nobody reads them as replays.
   **This corrects what `docs/dev/pre-release-checklist.md` claimed earlier the same day** ("excellent for
   reproducibility"). It is worse than that: repeat runs are neither independent samples NOR identical replays.
   Whatever varies between them is unmodelled.
