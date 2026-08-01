@@ -7182,6 +7182,18 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   risk for a rounding error; mutable scaffold reuse would violate isolation. **Concrete remainder:** after F11 releases
   Docker, run one N2 cell twice, prove the first run persists the exact receipt and the second loads it as baseline,
   then deliberately expand a fixture/prompt enough to trip the cost oracle before reverting the probe and closing N6b.
+  **▶ 2026-08-01 — TWO OF THE THREE CLAUSES ARE DISCHARGED; only the cost-oracle probe remains.** The Docker gate
+  was lifted and the full nightly ran TWICE, so every N2 cell ran twice rather than one cell twice — a superset.
+  · *"the first run persists the exact receipt"* — `nklein-nightly-last.json` holds all **28 cell verdicts**.
+  · *"the second loads it as baseline"* — proven by the ORDER CHANGING between runs, which is what a
+    fastest-first re-sort from measured durations looks like: run 1 opened `02×loop_park, 07×flaky, 04×flaky,
+    smoke×turn_loop, 08×flaky`, run 2 opened `02×loop_park, 04×flaky, 07×flaky, 08×flaky, 05×flaky`. A run that
+    ignored the baseline would have repeated run 1's order exactly, so this is a positive signal rather than an
+    absence of complaint.
+  **REMAINING: the deliberate cost-oracle trip** — expand a fixture/prompt until `detectNightlyCostRegressions`
+  fires, then revert. Deliberately NOT done opportunistically: it is a temporary FIXTURE mutation, and per the
+  P20.2 note a dev-test fixture change can invalidate the recorded aimock set that drains it. Do it as its own
+  scoped step, on a set outside the nightly tranche, with the revert verified before the next run.
   **⚠️ "WHERE HERMETICALLY SAFE" IS THE WHOLE ITEM, and it is the one phrase that can silently undo N6.** A reused
   scaffold that carries ANY state between cells — a warm store, a leftover worktree, a cached fitness row — makes
   cell B pass because cell A ran first. That is not a faster suite, it is **a suite with hidden ordering
