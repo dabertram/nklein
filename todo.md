@@ -281,6 +281,27 @@ gap remains.
 > unnamespaced slots, never `*-ws-<hash>-<slot>`. Hermetic simulator runtimes additionally set a unique process
 > namespace and skip startup reaping. Labels identify resource kind, not ownership—never use a kind-wide query as a
 > destructive multi-runtime cleanup boundary.
+> **…AND THE SAFE BOUNDARY THEN COLLECTED NOTHING — GIVE THE LABEL THE OWNERSHIP IT LACKED (2026-08-01):** the rule
+> above is right and its fix was incomplete in a way that hid for nine days, because a *leak* has no failing test and
+> no error message. Namespace-exact reaping only ever collects what a FUTURE runtime with the SAME namespace would
+> claim; simulator pools derive their namespace from the port (`simflow-58219-ephemeral-ws-<hash>`), so that runtime
+> never boots. Worse, the startup reaper is unnamespaced and its regex (`^nklein-agent-sandbox-\d+$`) cannot match the
+> `-ws-<hash>-<slot>` shape the live pool ALWAYS produces — so it reaped nothing at all, ever. Measured on the dev host
+> before the fix: **22 containers (6 still RUNNING, oldest up 6 days) and 105 volumes of which 22 were active — 83
+> leaked workspaces — with no !Klein process alive to own any of them.** The fix is the primitive the old rule named in
+> its own last sentence: containers now carry an OWNER claim (`nklein.owner-pid` + `nklein.owner-nonce`), so cleanup
+> asks "is the owner gone?" instead of "does the name look like mine?". The nonce is load-bearing — pid alone cannot
+> separate "our own live pool" from "a dead owner whose pid the OS recycled onto us", and those demand opposite
+> actions; same pid + different nonce is positive proof of death, since two live processes cannot share a pid.
+> Volumes are created implicitly by `docker run -v` and can carry no labels, so volume cleanup RIDES ON the
+> container's verdict (same namespace+slot, different prefix) rather than on a dangling-volume scan, which would race
+> a concurrent pool boot — the 2026-07-23 shape all over again. Every uncertain case KEEPS (unparseable pid,
+> half-written claim, live-but-unknown owner, foreign legacy name): wrongly reaping destroys a live agent's workspace,
+> wrongly keeping leaks a container, and those costs are not symmetric. **GENERAL RULE: when you narrow a destructive
+> boundary after an incident, check what the narrowed version can still collect — "safe" and "does nothing" look
+> identical from the outside, and only the second one silently accumulates.** Pre-existing unlabeled containers cannot
+> be proven abandoned and are deliberately NOT swept automatically; that is a one-time operator action
+> (`docker rm -f $(docker ps -aq --filter label=nklein.kind=agent-sandbox)` with no runtime live).
 > **A READ-ONLY POLYGLOT IMAGE STILL NEEDS PER-TASK WRITABLE TOOLCHAIN HOMES (F12.84b, 2026-07-23):** merely baking
 > `cargo`, Go, Maven, Gradle, Python and JS package managers into the image is not an executable environment. Cargo
 > writes its registry under `CARGO_HOME`, Go writes module/build caches, Maven/Gradle derive user homes, npm writes a

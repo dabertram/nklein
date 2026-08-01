@@ -21,6 +21,11 @@ import type {
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
+import {
+	planSandboxOrphanReaping,
+	type SandboxContainerRecord,
+	siblingWorkspaceVolumeName,
+} from "../core/sandbox-orphan-ownership";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { TOOL_RUNNER_STDIN_INPUT_ARG, TOOL_RUNNER_STDIN_THRESHOLD_BYTES } from "./agent-sandbox/tool-runner-protocol";
 import {
@@ -43,6 +48,9 @@ import {
 import { parseEgressAllowlist } from "./egress-proxy-role-snapshot";
 import {
 	AGENT_SANDBOX_CONTAINER_LABEL,
+	AGENT_SANDBOX_CONTAINER_PREFIX,
+	AGENT_SANDBOX_OWNER_NONCE_LABEL_KEY,
+	AGENT_SANDBOX_OWNER_PID_LABEL_KEY,
 	AGENT_SANDBOX_VOLUME_PREFIX,
 	AGENT_SANDBOX_WORKSPACES_DIR,
 	type AgentSandboxEgressWiring,
@@ -50,6 +58,7 @@ import {
 	type AgentSandboxProjectMount,
 	type AgentSandboxWritableMount,
 	buildAgentSandboxDockerRunArgs,
+	CURRENT_SANDBOX_OWNER,
 	createAgentSandboxContainerName,
 	createAgentSandboxProjectKey,
 	createAgentSandboxTaskUid,
@@ -89,6 +98,19 @@ export {
 	DEFAULT_AGENT_SANDBOX_SHELL,
 	type TaskShellSpawnSpec,
 };
+
+/**
+ * Is the process holding a sandbox owner claim still running? Signal 0 performs the existence/permission check
+ * without delivering anything. EPERM means it EXISTS but belongs to another user — alive, and the answer that keeps.
+ */
+function isProcessAlive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return (error as NodeJS.ErrnoException).code === "EPERM";
+	}
+}
 
 const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
 const PATCH_CAPTURE_EXEC_TIMEOUT_MS = 120_000;
@@ -534,10 +556,47 @@ export class AgentSandboxManager {
 		}
 	}
 
+	/**
+	 * Collect sandbox resources whose OWNING RUNTIME IS GONE.
+	 *
+	 * Before ownership labels this was namespace-exact, which is safe (that boundary came from a real incident —
+	 * §4A, 2026-07-23) and, for the port-derived ephemeral namespaces the simulator uses, collected nothing: the
+	 * namespace never recurs, so the future runtime that would reclaim it never boots. Measured 2026-08-01: 22
+	 * containers (6 running, oldest 6 days) and 83 leaked volumes with no !Klein process alive to own them.
+	 *
+	 * Every delete now needs a positive reason — see `classifySandboxContainer`. Legacy containers with no owner
+	 * claim keep exactly the old namespace-exact treatment, so the 2026-07-23 boundary is unchanged for them.
+	 *
+	 * KNOWN RESIDUE (deliberate): pid liveness assumes one pid namespace and no reboot in between. After a host
+	 * reboot a recycled pid can read as "alive" and hold one stale container until the pid is free again. That
+	 * errs toward leaking rather than deleting, which is the side of the trade we want.
+	 */
 	async reapOrphanResources(): Promise<void> {
-		const containerNames = await this.listOrphanContainerNames();
-		for (const containerName of containerNames) {
+		const plan = planSandboxOrphanReaping({
+			records: await this.listSandboxContainerRecords(),
+			self: CURRENT_SANDBOX_OWNER,
+			isPidAlive: isProcessAlive,
+			matchesOwnNamespace: (name) => isAgentSandboxContainerNameForNamespace(name, this.poolConfig.namespace),
+		});
+		if (plan.reapNames.length > 0) {
+			// A destructive cleanup that cannot say what it deleted, and why, is how the 2026-07-23 incident stayed
+			// invisible until someone noticed a live campaign container had vanished.
+			this.warn?.(`Sandbox orphan reap — ${plan.summary}`);
+		}
+
+		for (const containerName of plan.reapNames) {
 			await this.runDocker(["rm", "-f", containerName], { timeoutMs: 30_000 }).catch(() => null);
+			// The workspace volume is created implicitly by `docker run -v`, so it carries no labels of its own and
+			// cannot be judged directly. Riding on the container's ownership verdict avoids inventing a second
+			// liveness heuristic (a dangling-volume scan races a concurrent pool boot — the 2026-07-23 shape).
+			const volumeName = siblingWorkspaceVolumeName({
+				containerName,
+				containerPrefix: AGENT_SANDBOX_CONTAINER_PREFIX,
+				volumePrefix: AGENT_SANDBOX_VOLUME_PREFIX,
+			});
+			if (volumeName) {
+				await this.runDocker(["volume", "rm", volumeName], { timeoutMs: 30_000 }).catch(() => null);
+			}
 		}
 
 		const volumeNames = await this.listOrphanWorkspaceVolumeNames();
@@ -1355,17 +1414,27 @@ export class AgentSandboxManager {
 		return this.poolConfig.agentsPerContainer === 0 || container.occupancy.size < this.poolConfig.agentsPerContainer;
 	}
 
-	private async listOrphanContainerNames(): Promise<string[]> {
+	/**
+	 * Every sandbox container plus its owner claim, in ONE docker call — `{{.Label "k"}}` reads a label straight
+	 * out of the listing, so this does not degrade into an `inspect` per container. A missing label prints as an
+	 * empty string, which the classifier reads as absent rather than as a claim.
+	 *
+	 * The kind-wide filter is only a *listing* boundary here; the destructive boundary is ownership. That
+	 * distinction is the whole content of the §4A rule this implements.
+	 */
+	private async listSandboxContainerRecords(): Promise<SandboxContainerRecord[]> {
+		const format = `{{.Names}}\t{{.Label "${AGENT_SANDBOX_OWNER_PID_LABEL_KEY}"}}\t{{.Label "${AGENT_SANDBOX_OWNER_NONCE_LABEL_KEY}"}}`;
 		const result = await this.runDocker(
-			["ps", "-a", "--format", "{{.Names}}", "--filter", `label=${AGENT_SANDBOX_CONTAINER_LABEL}`],
+			["ps", "-a", "--format", format, "--filter", `label=${AGENT_SANDBOX_CONTAINER_LABEL}`],
 			{ timeoutMs: 10_000 },
 		);
 		if (result.exitCode !== 0) {
 			return [];
 		}
-		return parseDockerOutputLines(result.stdout).filter((name) =>
-			isAgentSandboxContainerNameForNamespace(name, this.poolConfig.namespace),
-		);
+		return parseDockerOutputLines(result.stdout).flatMap((line) => {
+			const [name, ownerPid, ownerNonce] = line.split("\t");
+			return name ? [{ name, ownerPid: ownerPid ?? null, ownerNonce: ownerNonce ?? null }] : [];
+		});
 	}
 
 	private async listOrphanWorkspaceVolumeNames(): Promise<string[]> {

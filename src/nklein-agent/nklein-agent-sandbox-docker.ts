@@ -3,7 +3,7 @@
 // on normalize-number, agent-rulesets, and node:crypto), so the `docker run` argv, container/volume naming, and
 // the deterministic per-task uid are unit-testable away from the effectful AgentSandboxManager. The sandbox
 // module re-exports this surface so existing importers (runtime-config, server, task-session-service) are unchanged.
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { type SandboxNetworkPolicy, sandboxNetworkHasEgress } from "../core/agent-rulesets";
 import {
@@ -11,10 +11,24 @@ import {
 	normalizePositiveInteger,
 	normalizePositiveNumber,
 } from "../core/normalize-number";
+import type { SandboxOwnerIdentity } from "../core/sandbox-orphan-ownership";
 
 export const DEFAULT_AGENT_SANDBOX_IMAGE = "nklein/agent-sandbox:0.0.1";
 export const AGENT_SANDBOX_IMAGE_ENV = "NKLEIN_AGENT_SANDBOX_IMAGE";
 export const AGENT_SANDBOX_CONTAINER_LABEL = "nklein.kind=agent-sandbox";
+/**
+ * OWNERSHIP labels. §4A's destructive-cleanup rule ends "Labels identify resource kind, not ownership—never use a
+ * kind-wide query as a destructive multi-runtime cleanup boundary." These are that missing primitive: with an owner
+ * claim on the container, cleanup can ask "is the owner gone?" instead of "does the name look like mine?" — the
+ * latter being safe but, for never-recurring ephemeral namespaces, unable to collect anything at all.
+ */
+export const AGENT_SANDBOX_OWNER_PID_LABEL_KEY = "nklein.owner-pid";
+export const AGENT_SANDBOX_OWNER_NONCE_LABEL_KEY = "nklein.owner-nonce";
+/**
+ * This process's identity, fixed once at module load. The nonce must be per-PROCESS: pid alone cannot tell our own
+ * live pool from a dead owner whose pid the OS recycled onto us, and those two demand opposite actions.
+ */
+export const CURRENT_SANDBOX_OWNER: SandboxOwnerIdentity = { pid: process.pid, nonce: randomUUID() };
 export const AGENT_SANDBOX_VOLUME_PREFIX = "nklein-agent-ws";
 export const AGENT_SANDBOX_CONTAINER_PREFIX = "nklein-agent-sandbox";
 export const AGENT_SANDBOX_WORKSPACES_DIR = "/workspaces";
@@ -86,6 +100,8 @@ export interface AgentSandboxDockerRunOptions {
 	/** RW bind mounts (default none) — a host-persistent store the sandbox may write (§5.AR basic-memory). */
 	writableMounts?: readonly AgentSandboxWritableMount[];
 	config: AgentSandboxPoolConfig;
+	/** Owner claim stamped on the container. Defaults to this process; injectable so the argv stays unit-testable. */
+	owner?: SandboxOwnerIdentity;
 	/**
 	 * Sandbox network posture from the resolved capability ruleset. Defaults to `"none"` (the historical,
 	 * fully-isolated behavior). Docker isolation itself (cap-drop, read-only rootfs, etc.) is unconditional and
@@ -221,6 +237,12 @@ export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOpt
 		AGENT_SANDBOX_CONTAINER_LABEL,
 		"--label",
 		`nklein.slot=${options.slot}`,
+		// The owner claim travels with the container so a later runtime can prove abandonment instead of inferring
+		// it from a name. Both labels are written together — the classifier treats a half-written claim as legacy.
+		"--label",
+		`${AGENT_SANDBOX_OWNER_PID_LABEL_KEY}=${(options.owner ?? CURRENT_SANDBOX_OWNER).pid}`,
+		"--label",
+		`${AGENT_SANDBOX_OWNER_NONCE_LABEL_KEY}=${(options.owner ?? CURRENT_SANDBOX_OWNER).nonce}`,
 		...resolveAgentSandboxNetworkArgs(options.networkPolicy ?? "none", options.egress),
 		// §4 DNS-exfil closure: pin the proxied `allowlist` container's resolver at the proxy's NXDOMAIN stub so the
 		// Docker embedded resolver can't forward external names upstream. Absent ⇒ no `--dns` (byte-identical pre-proxy).

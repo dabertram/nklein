@@ -103,7 +103,9 @@ function createExecFileStub(options?: ExecFileStubOptions): {
 			return {} as ReturnType<typeof execFile>;
 		}
 		let stdout = "";
-		if (args.join(" ") === `ps -a --format {{.Names}} --filter label=${AGENT_SANDBOX_CONTAINER_LABEL}`) {
+		// Matched on the FILTER, not the format string: the listing now also asks for the owner labels, and pinning
+		// the exact format made the stub return nothing the moment that changed — which reads as "reaped nothing".
+		if (args[0] === "ps" && args.includes(`label=${AGENT_SANDBOX_CONTAINER_LABEL}`)) {
 			stdout = options?.psOutput ?? "";
 		} else if (args.join(" ") === `volume ls -q --filter name=${AGENT_SANDBOX_VOLUME_PREFIX}`) {
 			stdout = options?.volumeLsOutput ?? "";
@@ -624,14 +626,12 @@ describe("AgentSandboxManager", () => {
 
 		await manager.reapOrphanResources();
 
-		expect(calls).toContainEqual([
-			"ps",
-			"-a",
-			"--format",
-			"{{.Names}}",
-			"--filter",
-			`label=${AGENT_SANDBOX_CONTAINER_LABEL}`,
-		]);
+		// The listing must carry the owner labels, or every container reads as legacy and the ownership path is dead
+		// code that silently degrades to the namespace-exact rule.
+		const psCall = calls.find((call) => call[0] === "ps");
+		expect(psCall?.[3]).toContain('{{.Label "nklein.owner-pid"}}');
+		expect(psCall?.[3]).toContain('{{.Label "nklein.owner-nonce"}}');
+		expect(psCall).toContainEqual(`label=${AGENT_SANDBOX_CONTAINER_LABEL}`);
 		expect(calls).toContainEqual(["rm", "-f", "nklein-agent-sandbox-1"]);
 		expect(calls).not.toContainEqual(["rm", "-f", "nklein-agent-sandbox-live-ws-aabbccddeeff-1"]);
 		expect(calls).not.toContainEqual(["rm", "-f", "foreign-container"]);
@@ -641,6 +641,40 @@ describe("AgentSandboxManager", () => {
 		expect(calls).not.toContainEqual(["volume", "rm", "other-volume"]);
 		expect(calls).not.toContainEqual(["volume", "rm", "nklein-agent-ws-backup"]);
 		expect(calls).not.toContainEqual(["volume", "rm", "nklein-agent-ws-live-ws-aabbccddeeff-1"]);
+	});
+
+	it("reaps a FOREIGN-namespace container whose owner process is dead, plus its workspace volume", async () => {
+		// The leak the namespace-exact rule could not reach. A simflow pool's namespace is derived from its port, so
+		// it never recurs and no future runtime ever claims its leftovers. Measured on this host 2026-08-01: 22
+		// containers (6 running, oldest 6 days) and 83 leaked volumes with no !Klein process alive to own them.
+		const deadPid = 999_999; // No such process — the reaper must prove that, not assume it.
+		const { execFile: execFileStub, calls } = createExecFileStub({
+			psOutput: `nklein-agent-sandbox-simflow-58219-ephemeral-ws-abc-1\t${deadPid}\tboot-dead\n`,
+			volumeLsOutput: "",
+		});
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+
+		await manager.reapOrphanResources();
+
+		expect(calls).toContainEqual(["rm", "-f", "nklein-agent-sandbox-simflow-58219-ephemeral-ws-abc-1"]);
+		// The volume is created implicitly by `docker run -v`, carries no labels, and is reachable only through the
+		// container's verdict. Reaping the container alone would leave the workspace behind — half the measured leak.
+		expect(calls).toContainEqual(["volume", "rm", "nklein-agent-ws-simflow-58219-ephemeral-ws-abc-1"]);
+	});
+
+	it("NEVER reaps a container whose owner is alive, even when the name is in our own namespace", async () => {
+		// The 2026-07-23 incident, inverted: ownership outranks naming — an explicit live claim beats a name pattern
+		// this manager would otherwise sweep. The owner must be a real, live, FOREIGN pid: our own pid under another
+		// nonce is the opposite case (proof of reuse, so proof the claimant died), so the parent process is used.
+		const { execFile: execFileStub, calls } = createExecFileStub({
+			psOutput: `nklein-agent-sandbox-1\t${process.ppid}\tsome-other-live-runtime\n`,
+			volumeLsOutput: "",
+		});
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+
+		await manager.reapOrphanResources();
+
+		expect(calls).not.toContainEqual(["rm", "-f", "nklein-agent-sandbox-1"]);
 	});
 
 	it("reaps only the exact requested namespace", async () => {

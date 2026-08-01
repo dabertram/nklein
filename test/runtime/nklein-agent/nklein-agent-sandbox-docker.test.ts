@@ -15,6 +15,14 @@ function hasAdjacent(args: string[], flag: string, value: string): boolean {
 	return i >= 0 && args[i + 1] === value;
 }
 
+/**
+ * Values of EVERY `--label`. `hasAdjacent` only inspects the first occurrence of a flag, so it reports a false
+ * negative for any repeated flag — fine for the one-shot isolation flags, useless for labels now that there are four.
+ */
+function labelValues(args: string[]): string[] {
+	return args.flatMap((arg, index) => (arg === "--label" ? [args[index + 1] ?? ""] : []));
+}
+
 describe("resolveAgentSandboxNetworkArgs (fail-closed egress)", () => {
 	it("maps full→bridge and none→none", () => {
 		expect(resolveAgentSandboxNetworkArgs("full")).toEqual(["--network", "bridge"]);
@@ -93,6 +101,26 @@ describe("buildAgentSandboxDockerRunArgs (isolation invariants)", () => {
 		expect(hasAdjacent(args, "--memory", "2048m")).toBe(true);
 		expect(hasAdjacent(args, "--memory-reservation", "682m")).toBe(true);
 		expect(hasAdjacent(args, "--memory-swap", "2048m")).toBe(true);
+	});
+
+	it("stamps a COMPLETE owner claim, without which orphan cleanup can never prove abandonment", () => {
+		// §4A's rule ends "Labels identify resource kind, not ownership". These labels are that primitive. Both must
+		// be present: the classifier deliberately treats a half-written claim as legacy, so stamping only one would
+		// leave the ownership path unreachable and silently restore the leak.
+		const args = buildAgentSandboxDockerRunArgs({
+			...options,
+			owner: { pid: 4242, nonce: "boot-a" },
+		} as never);
+		expect(labelValues(args)).toContain("nklein.owner-pid=4242");
+		expect(labelValues(args)).toContain("nklein.owner-nonce=boot-a");
+	});
+
+	it("defaults the owner claim to THIS process rather than omitting it", () => {
+		// An unstamped container is indistinguishable from a pre-ownership one and falls back to namespace-exact —
+		// which is precisely what leaks. The default must never be "no claim".
+		const labels = labelValues(buildAgentSandboxDockerRunArgs(options as never));
+		expect(labels).toContain(`nklein.owner-pid=${process.pid}`);
+		expect(labels.some((label) => /^nklein\.owner-nonce=.+$/u.test(label))).toBe(true);
 	});
 
 	it("mounts project repos read-only", () => {
