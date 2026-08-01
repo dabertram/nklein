@@ -65,7 +65,7 @@ describe("classifyEditFailure", () => {
 		// JSON string. Classification is a substring match and survives that, but it is pinned here because the
 		// envelope is what real data looks like — the bare message only ever appears in tests.
 		const real =
-			'{"error":"Sandbox tool kanbanExtraTool failed.\n{\"ok\":false,\"error\":\"Blocked edit_file: edit block 2 did not match src/index.ts.\"}"}';
+			'{"error":"Sandbox tool kanbanExtraTool failed.\n{"ok":false,"error":"Blocked edit_file: edit block 2 did not match src/index.ts."}"}';
 		expect(classifyEditFailure(real)).toBe("context_mismatch");
 	});
 
