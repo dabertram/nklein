@@ -8853,6 +8853,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   rollback. Mechanisms whose evidence says "this never fired / never disagreed" get DELETED, not defaulted —
   removing an unproven mechanism is a legitimate and preferred outcome, and reduces the maintenance surface the
   review correctly flagged.
+  **▶ 2026-08-01 — THIS IS BLOCKED ON TWO CONCRETE THINGS, neither of them judgement. Checked rather than assumed:**
+  1. **`mechanism-decision-report.ts` IS UNWIRED** — its only importer is its own test; no `dev` command, no
+     runtime caller. P15.2 shipped the core and its header says "the per-mechanism data arrives with P15.3", so
+     there is currently **no way to produce a verdict at all**, and P15.3's own rule is "flip ONLY where P15.2
+     produced a verdict". Wiring it to a `dev` command is the first step and is small; it also un-orphans a core
+     that P15.4's triage lists as TRACKED (named in the backlog ⇒ explicitly not a kill candidate).
+  2. **The verdicts need REAL-MODEL observation data.** A flip decided from simulated drains would be precisely the
+     over-reading `NIGHTLY_SIMULATION_SCOPE_NOTE` exists to prevent: a sim pass proves a MECHANISM FIRES, never that
+     it is RIGHT often enough to enforce — which is the exact question a default flip turns on.
+  **So the honest order is: wire the report → run it after a real-model drain → expect mostly INSUFFICIENT DATA at
+  first, and treat that as the correct answer rather than a reason to lower the bar.** The core is "mostly about
+  refusing to answer" by design; a campaign that flips anything on its first run has misread it.
 - [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.
