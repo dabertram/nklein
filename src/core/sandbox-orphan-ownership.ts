@@ -73,7 +73,13 @@ export type SandboxOrphanVerdict =
 	/** No owner claim and not our namespace — the 2026-07-23 boundary. */
 	| "keep_legacy_foreign_namespace"
 	/** A malformed or half-written owner claim. Never guess at ownership. */
-	| "keep_owner_unparseable";
+	| "keep_owner_unparseable"
+	/**
+	 * No owner claim, and an operator explicitly asked for unowned containers too (`dev sandbox-reap
+	 * --include-unowned`). This is the ONE verdict not backed by proof, which is why it is opt-in, separately named,
+	 * and reachable only for containers carrying NO claim — never for one whose owner is alive.
+	 */
+	| "reap_unowned_operator_forced";
 
 export interface SandboxOrphanDecision {
 	readonly name: string;
@@ -85,6 +91,7 @@ const REAPING_VERDICTS: ReadonlySet<SandboxOrphanVerdict> = new Set<SandboxOrpha
 	"reap_owner_dead",
 	"reap_owner_pid_reused",
 	"reap_legacy_namespace_match",
+	"reap_unowned_operator_forced",
 ]);
 
 /** True when this verdict authorises deletion. Single source, so a new verdict cannot become destructive silently. */
@@ -105,6 +112,12 @@ export interface ClassifySandboxContainerInput {
 	readonly isPidAlive: (pid: number) => boolean;
 	/** Whether the name matches this manager's exact namespace — the pre-ownership rule, kept for legacy containers. */
 	readonly matchesOwnNamespace: (containerName: string) => boolean;
+	/**
+	 * Operator override for containers created BEFORE ownership labels existed. Those carry no claim, so nothing can
+	 * prove they are abandoned — only a human who knows no runtime is live can say so. Deliberately cannot reach a
+	 * container whose owner is alive: this widens the set to "unprovable", never to "provably in use".
+	 */
+	readonly treatUnownedAsAbandoned?: boolean;
 }
 
 export function classifySandboxContainer(input: ClassifySandboxContainerInput): SandboxOrphanDecision {
@@ -115,9 +128,11 @@ export function classifySandboxContainer(input: ClassifySandboxContainerInput): 
 	// A COMPLETE claim or none at all. A half-written claim (one label, not the other) is treated as legacy rather
 	// than half-trusted: partial evidence of ownership is not evidence of abandonment.
 	if (rawPid === null || nonce === null) {
-		const verdict: SandboxOrphanVerdict = input.matchesOwnNamespace(record.name)
-			? "reap_legacy_namespace_match"
-			: "keep_legacy_foreign_namespace";
+		const verdict: SandboxOrphanVerdict = input.treatUnownedAsAbandoned
+			? "reap_unowned_operator_forced"
+			: input.matchesOwnNamespace(record.name)
+				? "reap_legacy_namespace_match"
+				: "keep_legacy_foreign_namespace";
 		return { name: record.name, verdict, reap: verdictReaps(verdict) };
 	}
 
@@ -150,6 +165,7 @@ export function planSandboxOrphanReaping(input: {
 	readonly self: SandboxOwnerIdentity;
 	readonly isPidAlive: (pid: number) => boolean;
 	readonly matchesOwnNamespace: (containerName: string) => boolean;
+	readonly treatUnownedAsAbandoned?: boolean;
 }): SandboxOrphanPlan {
 	const decisions = input.records.map((record) =>
 		classifySandboxContainer({
@@ -157,6 +173,9 @@ export function planSandboxOrphanReaping(input: {
 			self: input.self,
 			isPidAlive: input.isPidAlive,
 			matchesOwnNamespace: input.matchesOwnNamespace,
+			...(input.treatUnownedAsAbandoned === undefined
+				? {}
+				: { treatUnownedAsAbandoned: input.treatUnownedAsAbandoned }),
 		}),
 	);
 	const reapNames = decisions.filter((decision) => decision.reap).map((decision) => decision.name);

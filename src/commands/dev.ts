@@ -61,6 +61,7 @@ import { createDevRuntimeClient, executeDevTestScenario } from "./dev-project-ex
 import { runDevRequirementCoverageCommand } from "./dev-requirement-coverage-command";
 import { runDevResidentSetCommand } from "./dev-resident-set-command";
 import { runDevRoundsBudgetCommand } from "./dev-rounds-budget-command";
+import { runDevSandboxReapCommand } from "./dev-sandbox-reap-command";
 import { runDevSbomCommand } from "./dev-sbom-command";
 import { runDevSerializationCostCommand } from "./dev-serialization-cost-command";
 import { runDevServedContextCommand } from "./dev-served-context-command";
@@ -942,6 +943,18 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { minCalls?: string; tools?: string; json?: boolean }) => {
 			await runDevEditReliabilityCommand(options);
+		});
+
+	dev.command("sandbox-reap")
+		.description("Collect abandoned agent-sandbox containers + workspace volumes (ownership-proven by default).")
+		.option(
+			"--include-unowned",
+			"Also remove containers with NO owner claim (pre-ownership). Run with no runtime live.",
+		)
+		.option("--dry-run", "Print the plan and remove nothing.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { includeUnowned?: boolean; dryRun?: boolean; json?: boolean }) => {
+			await runDevSandboxReapCommand(options);
 		});
 
 	dev.command("flags")
