@@ -60,6 +60,15 @@ describe("classifyEditFailure", () => {
 		}
 	});
 
+	it("sees through the sandbox-tool JSON ENVELOPE the ledger actually stores", () => {
+		// Taken from David's live ledger: the refusal is nested inside a tool-failure envelope, itself inside a
+		// JSON string. Classification is a substring match and survives that, but it is pinned here because the
+		// envelope is what real data looks like — the bare message only ever appears in tests.
+		const real =
+			'{"error":"Sandbox tool kanbanExtraTool failed.\n{\"ok\":false,\"error\":\"Blocked edit_file: edit block 2 did not match src/index.ts.\"}"}';
+		expect(classifyEditFailure(real)).toBe("context_mismatch");
+	});
+
 	it("classifies WITHOUT the prefix too — the ledger may not preserve it", () => {
 		expect(classifyEditFailure("edit block 1 did not match src/a.ts.")).toBe("context_mismatch");
 	});

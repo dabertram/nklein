@@ -185,7 +185,12 @@ export function computeEditReliability(input: {
 				? `no model has ${minCalls}+ classified edit calls yet — ${unmeasured.length} model(s) seen but unmeasured. This is NOT evidence that editing is reliable${unattributableNote}`
 				: `${ranked.length} model(s) measured; weakest is ${worst?.modelId} at ${((worst?.reliability ?? 0) * 100).toFixed(1)}% of ${worst?.classifiedCalls} edit calls` +
 					(unmeasured.length > 0 ? `; ${unmeasured.length} more seen but below the ${minCalls}-call floor` : "") +
-					". Measures 'struggles to EDIT', not 'struggles with DIFF FORMAT' — the ledger cannot tell those apart" +
+					// The FORMAT split is real now (P21.1 step 2), but only where `resultSummary` was captured. Saying
+					// "N attributable to edit FORMAT" over a ledger that mostly predates that capture would read as
+					// "the rest were guards" when it means "the rest are unclassifiable".
+					(ranked.some((row) => row.formatFailures > 0)
+						? ". EDIT-FORMAT failures (a search block that did not match) are split out per row; errors without a captured result summary are not classifiable and are NOT counted as format failures"
+						: ". Measures 'struggles to EDIT'; no row carried a classifiable refusal message, so the DIFF-FORMAT split is unavailable on this data") +
 					unattributableNote,
 	};
 }

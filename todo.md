@@ -10456,8 +10456,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `[^\`$]` capture saw only 2 of 7 sites (five BEGIN with an interpolation — a guard passing over most of what it
   claims to cover), and two sites delegate wholly to a helper's message, so their COUNT is pinned rather than
   silently filtered. A legacy line with no `resultSummary` counts as zero format failures, never as one.
+  **⚠️ THE WIRE WAS THE BUG, AND ONLY A LIVE RUN FOUND IT.** The command's ledger mapping built `{name, outcome}`
+  and dropped `resultSummary`, so `formatFailures` would have been **silently 0 on every real run** while the core's
+  own tests stayed green — they construct attempts directly and never traverse that mapping. A correct core fed
+  nothing by its caller is still a broken metric. Fixed, with a regression test that goes THROUGH the command.
+  **WHAT THE LIVE LEDGER ACTUALLY SAYS (238 attempts, 7 models measured):** reliability ranges 0.0% (deepseek-r1-8b,
+  8 calls) to 85.4% (qwopus3.5-9b-coder-mtp, 233 calls), with gpt-oss-120b at 29.4% — consistent with the earlier
+  finding that a 120B edits far worse than a 9B coder. **The DIFF-FORMAT split is 0 on this data, and the reason is
+  known and separate:** the only captured refusals belong to the 70 UNATTRIBUTABLE attempts
+  (`lmstudio:unknown:default`) that `isAttributableModelKey` correctly excludes. The summary now says exactly that
+  rather than printing a confident "0 format failures", which would read as "no model ever fails on format".
+  Also pinned: the refusal reaches the ledger wrapped in a sandbox-tool JSON envelope
+  (`{"error":"Sandbox tool … failed.\n{\"ok\":false,\"error\":\"Blocked edit_file: …`), so a test uses the real
+  envelope shape — the bare message only ever appears in tests.
   **REMAINING: the ROUTING half** — feed `formatFailures` into model selection so a model with a high format-failure
-  rate is routed to whole-file edits. That is the 2× swing; the measurement now exists to justify it per-model. Correct build
+  rate is routed to whole-file edits. That is the 2× swing. ⚠️ It needs attributable data first: today's format
+  numerator is zero for a data-quality reason, not because models do not fail on format. Correct build
   order: (1) pure `computeEditReliabilityRate(attempts, editToolNames)` over the existing success/error outcomes +
   a `dev` command consumer (buildable + testable NOW, non-orphan); (2) apply-site failure-KIND tagging for
   format-specific attribution; (3) the routing half (weak model → whole-file), fleet-gated behind the measured

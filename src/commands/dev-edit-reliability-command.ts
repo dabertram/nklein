@@ -45,7 +45,14 @@ export async function runDevEditReliabilityCommand(options: DevEditReliabilityOp
 		.filter((event): event is Extract<AgentLedgerEvent, { kind: "attempt" }> => event.kind === "attempt")
 		.map((event) => ({
 			modelId: event.modelId,
-			toolCalls: event.toolCalls.map((call) => ({ name: call.name, outcome: call.outcome })),
+			// `resultSummary` carries the refusal text the FORMAT cut classifies. Dropping it here would leave
+			// `formatFailures` silently 0 on every real run while the core's own tests kept passing — they build
+			// attempts directly and never traverse this mapping.
+			toolCalls: event.toolCalls.map((call) => ({
+				name: call.name,
+				outcome: call.outcome,
+				resultSummary: call.resultSummary ?? null,
+			})),
 		}));
 
 	const parsedMin = Number(options.minCalls);
@@ -74,7 +81,10 @@ export async function runDevEditReliabilityCommand(options: DevEditReliabilityOp
 			const percent = ((row.reliability ?? 0) * 100).toFixed(1);
 			process.stdout.write(
 				`  ${percent.padStart(6)}%  ${row.modelId}  (${row.successes}/${row.classifiedCalls} edit calls` +
-					`${row.unknownOutcome > 0 ? `, ${row.unknownOutcome} unrecorded` : ""})\n`,
+					`${row.unknownOutcome > 0 ? `, ${row.unknownOutcome} unrecorded` : ""}` +
+					// The FORMAT numerator, printed only when it is non-zero: a bare ", 0 format" on every legacy row
+					// would read as "this model never fails on format" when it means "these lines predate capture".
+					`${row.formatFailures > 0 ? `, ${row.formatFailures} EDIT-FORMAT` : ""})\n`,
 			);
 		}
 	}

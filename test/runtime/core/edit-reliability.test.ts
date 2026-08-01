@@ -139,7 +139,10 @@ describe("computeEditReliability", () => {
 		const report = computeEditReliability({
 			attempts: [attempt("lm:m:1", [...calls("edit_file", "success", 20)])],
 		});
-		expect(report.summary).toMatch(/not 'struggles with DIFF FORMAT'/u);
+		// The limit is now CONDITIONAL, and stating it accurately matters more than stating it loudly: these
+		// attempts carry no refusal message, so the DIFF-FORMAT split genuinely is unavailable on this data.
+		// Claiming "0 format failures" here would read as "this model never fails on format".
+		expect(report.summary).toMatch(/DIFF-FORMAT split is unavailable on this data/u);
 	});
 
 	it("EXCLUDES an attempt that names no model, and reports the count", () => {
@@ -222,7 +225,7 @@ describe("dev edit-reliability", () => {
 
 	it("carries the metric's limit into the printed output", async () => {
 		const out = await run([attemptEvent("lm:m:1", calls("edit_file", "success", 20))]);
-		expect(out).toMatch(/not 'struggles with DIFF FORMAT'/u);
+		expect(out).toMatch(/DIFF-FORMAT split is unavailable on this data/u);
 	});
 
 	it("emits JSON on demand", async () => {
@@ -250,5 +253,45 @@ describe("dev edit-reliability", () => {
 		}
 		expect(out).toContain("0 attempt event(s) read.");
 		expect(out).toMatch(/NOT evidence that editing is reliable/u);
+	});
+});
+
+/**
+ * The command must FORWARD the field the format cut reads.
+ *
+ * Caught live: the mapping built `{name, outcome}` and dropped `resultSummary`, so `formatFailures` would have been
+ * silently 0 on every real run while the core's own tests kept passing — they construct attempts directly and never
+ * traverse the command's mapping. A core that is correct and a caller that feeds it nothing is still a broken metric.
+ */
+describe("dev edit-reliability — the format cut survives the command's mapping", () => {
+	it("classifies a refusal that arrives through the ledger reader", async () => {
+		const originalWrite = process.stdout.write.bind(process.stdout);
+		let out = "";
+		process.stdout.write = ((chunk: string) => {
+			out += chunk;
+			return true;
+		}) as typeof process.stdout.write;
+		try {
+			await runDevEditReliabilityCommand({
+				minCalls: "1",
+				readLedger: async () =>
+					[
+						{
+							kind: "attempt",
+							modelId: "lmstudio:qwen:coder:v1:http://x",
+							toolCalls: [
+								{
+									name: "edit_file",
+									outcome: "error",
+									resultSummary: "Blocked edit_file: edit block 2 did not match src/index.ts.",
+								},
+							],
+						},
+					] as never,
+			});
+		} finally {
+			process.stdout.write = originalWrite;
+		}
+		expect(out).toMatch(/EDIT-FORMAT/u);
 	});
 });
