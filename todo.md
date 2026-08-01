@@ -11565,6 +11565,27 @@ noticed. Related: `board_liveness_watchdog_tick` is **47,809 of ~51,000 events (
 stream; the tick is the routine heartbeat (`board_liveness_watchdog` proper is 417, errors 60). Worth asking
 whether the healthy case needs recording 47k times into the same store the evidence campaign reads.
 
+**3f. END-TO-END VERIFICATION 2026-08-01 — today's ledger changes confirmed live on a simulated drain.**
+`verify-simulated-flow` PASS, **0 unmatched simulator requests**, after a day of changes to the extension hook,
+the ledger write path and the workflow kernel. The resulting ledger is the evidence:
+```
+model=qwen-fast-coder  toolSetOffered=27  watermark=1  toolCalls=1  outcome=success
+model=qwen-fast-coder  toolSetOffered=27  watermark=1  toolCalls=1  outcome=success
+model=qwen-fast-coder  toolSetOffered= 0  watermark=1  toolCalls=0  outcome=aborted
+model=qwen-fast-coder  toolSetOffered= 0  watermark=1  toolCalls=0  outcome=aborted
+total attempts=4   PHANTOM (unknown model)=0
+```
+· **P21.15 live:** `toolSetOffered=27` — the real offered tool count, from the extension (the tool-assembly site
+  would have under-reported it).
+· **P21.14 live, and visibly working:** the two later attempts record `toolCalls=0` against `watermark=1`. The
+  transcript held ONE call, the first attempt recorded it, and the rest correctly recorded nothing new —
+  **before the fix each of those attempts would have re-recorded the same call**, which is precisely how one
+  fingerprint came to appear 12 times on the real ledger.
+· **0 PHANTOM attempts** — the attribution door held; every attempt names a real model.
+Worth keeping as the shape of a useful verification: the PASS alone proves the drain works, but the ledger DUMP
+is what proves the three fixes actually took effect. A green run with a silently-unchanged ledger would have
+looked identical.
+
 **4. Questions batched for David (do not act on these unilaterally):**
 - **✅ RESOLVED 2026-07-31 (David: "go autonomously" on the recommendation) — `awaiting_review` got its OWN phase
   class, and the two models now agree on ALL SEVEN session states.** `reviewing` stays capacity-holding (a review
