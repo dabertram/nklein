@@ -8887,10 +8887,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `taskId` on a different observation in this 1000-line file cannot satisfy it (that would be the guard passing on
   evidence from the wrong site). **The ratchet was verified by REMOVING the key and watching it fail, then
   restoring** — an unverified guard is the failure mode this whole item is about.
-  **NEXT, now genuinely unblocked:** join observations to terminal outcomes by `taskId`, adapt them into
-  `MechanismObservation` triples, and only then wire `dev`. Expect `insufficient_data` until a real-model drain
-  accumulates ≥30 observations with ≥12 evaluable disagreements — and that will now be a statement about VOLUME,
-  which more running can fix, rather than about structure, which it could not.
+  **✅ THE ADAPTER SHIPPED SAME DAY — `tool-gate-observation-join.ts`, 10 tests.** It maps the gate's
+  `{offered, wouldKeep, wouldDrop}` records onto `MechanismObservation` triples: `recommended` is `withhold` when
+  `wouldDrop > 0` else `keep_all`, `actual` is ALWAYS `keep_all` (the gate is record-only, so it has never
+  influenced the world it is being compared against — which is what makes this a clean counterfactual), and
+  `succeeded` is joined by `taskId`. Proven end to end: below the floor the decision core says `insufficient_data`,
+  and **with ≥30 joined observations it reaches a real verdict** — the property that shows the pipeline is no
+  longer structurally blocked. Before the `taskId` landed, no volume could have produced one.
+  Three honesty properties, each guarding a way this could quietly produce a wrong campaign decision:
+  · an unjoinable outcome stays `null` — `false` would manufacture evidence that enforcement was needed, `true`
+    that it was not, and both invent the answer the campaign exists to find;
+  · a LEGACY record with no `taskId` is kept as an observation but is unevaluable — it is real evidence the gate
+    FIRED, and dropping it would under-report firing;
+  · a MALFORMED record is EXCLUDED rather than read as agreement — counting it as agreement dilutes the
+    disagreement rate toward zero, and a gate that never disagrees earns `no_op`, whose outcome is DELETION. A
+    parsing gap must never delete a mechanism.
+  The report's summary also distinguishes a DATA GAP from a no-op gate in words, because `evaluable: 0` reads as
+  "the gate never mattered" unless something says otherwise.
+  **NEXT:** supply `outcomeByTaskId` from the board/ledger and wire `dev`; then accumulate observations from a
+  real-model drain. `insufficient_data` from here on is a statement about VOLUME, which more running fixes.
 - [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.
