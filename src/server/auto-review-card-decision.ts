@@ -78,3 +78,29 @@ export function decideAutoReviewCardAction(record: AutoReviewCardRecord | undefi
 	}
 	return { shouldAutoComplete, moveToReview: true };
 }
+
+/**
+ * The observation the finalizer records when it SKIPS a review-lane card because the card opted out of
+ * auto-review (N20). Skipping is correct — manual review belongs to an operator — but before this record the
+ * skip was a bare `return`, and the difference between "waiting for an operator" and "review machinery dead"
+ * was invisible: the N20 dead-stop produced a five-minute run with ZERO log lines, diagnosed only from board
+ * archaeology. One record per hold (the caller dedups per card) makes the wait state a fact in telemetry and
+ * the N18 timeline instead of an inference from silence.
+ */
+export function buildManualReviewHoldObservation(taskId: string): {
+	signal: "custom";
+	severity: "info";
+	message: string;
+	taskId: string;
+	metadata: { category: "manual_review_hold" };
+} {
+	return {
+		signal: "custom",
+		severity: "info",
+		message:
+			`Card ${taskId} is in Review with auto-review OFF — holding for a MANUAL operator verdict. ` +
+			"In a headless run this card will wait forever; seed it with autoReviewEnabled if that is not intended.",
+		taskId,
+		metadata: { category: "manual_review_hold" },
+	};
+}

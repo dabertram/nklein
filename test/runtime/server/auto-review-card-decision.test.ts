@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	type AutoReviewCardRecord,
+	buildManualReviewHoldObservation,
 	decideAutoReviewCardAction,
 	isAutoReviewCommitCard,
 	selectHeadlessAutoReviewReconcileCandidates,
@@ -95,5 +96,19 @@ describe("selectHeadlessAutoReviewReconcileCandidates", () => {
 				columns: [{ id: "review", cards: [card("x", { autoReviewEnabled: false })] }],
 			}),
 		).toHaveLength(0);
+	});
+});
+
+describe("buildManualReviewHoldObservation (N20)", () => {
+	// The dead-stop this record exists for produced a five-minute run with ZERO log lines — the difference
+	// between "waiting for an operator" and "review machinery dead" was invisible until board archaeology.
+	it("names the card, the hold reason, and the headless consequence", () => {
+		const observation = buildManualReviewHoldObservation("card-9");
+		expect(observation.taskId).toBe("card-9");
+		expect(observation.metadata.category).toBe("manual_review_hold");
+		expect(observation.message).toMatch(/auto-review OFF/u);
+		expect(observation.message).toMatch(/MANUAL operator verdict/u);
+		expect(observation.message).toMatch(/headless run this card will wait forever/u);
+		expect(observation.severity).toBe("info");
 	});
 });

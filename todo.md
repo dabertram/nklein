@@ -7973,8 +7973,28 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
   (feeds the trust-center posture table). DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
-- [ ] **N20 — 🐛 Review-lane dead stop on a real ACT drain: card enters review, review never starts, no hold
-  message, no trigger events (live-hit 2026-08-02; evidence preserved `.real-runs/20260802-220538`).** The
+- [~] **N20 — 🐛 Review-lane dead stop on a real ACT drain: card enters review, review never starts, no hold
+  message, no trigger events (live-hit 2026-08-02; evidence preserved `.real-runs/20260802-220538`).**
+  **✅ ROOT-CAUSED + FIXED same night (proof drain pending).** The chain, each link verified against the
+  preserved board: (1) `dev test-project` never passes `autoReviewEnabled`; (2) the seed builder forwards it
+  only "when boolean"; (3) **`addTaskToColumn` coerces the ABSENT flag to an explicit `false`**
+  (`task-board-mutations.ts:342`, `Boolean(input.autoReviewEnabled)`) — the stalled card's persisted fields
+  read `autoReviewEnabled: False`; (4) `finalizeHeadlessAutoReviewTask` → `decideAutoReviewCardAction` →
+  `shouldAutoComplete: false` → **bare `return`, zero log lines** — CORRECT behavior for a manual-review card,
+  in a headless run that has no operator. The seeming contradiction that nightly drains complete reviews
+  resolves cleanly: plan-mode children opt IN themselves (`plan-task-board-apply.ts:241` sets
+  `autoReviewEnabled: true`), and the benchmark harness already passed `true` explicitly — **ACT-mode dev-test
+  seeds were the one headless caller that never opted in, and were therefore undrainable since inception**, not
+  a regression. FIX (two layers, product default untouched): (a) `executeDevTestScenario` seeds
+  `autoReviewEnabled: input.autoReviewEnabled ?? true` — the harness matching its own headless execution mode
+  (pass `false` deliberately to exercise the manual path); (b) the finalizer's skip now records ONE
+  `manual_review_hold` observation per held card (dedup'd across rescue re-calls) — "waiting for an operator"
+  is a telemetry fact instead of an inference from silence. 369/369 server tests green. **REMAINING: the
+  post-fix proof drain** — an ACT run where the seed reaches review AND the review session actually runs
+  (review request observable in the dev-log; verdict lands; bounce or delivery follows). Note the flag-OFF
+  clean-room repro (launched before the fix) took a different weak-model path (30 tool errors, stalled
+  in_progress — a separate shape to read when it lands); N20's own chain needed no repro to close, every link
+  being board-archaeology-verifiable. The
   F3.37 pilot's seed card (`mid_task`, worker forced to gemma-4-e2b, fleet e2b+31b-qat) completed its attempt
   cleanly (`outcome: "success"`, 18/18 tool results, transitions `wf:implementing → wf:awaiting_acceptance`,
   board `running → awaiting_review`), telemetry recorded `card_lane_change` then `sandbox_workspace_disposed` —

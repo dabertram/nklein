@@ -176,9 +176,14 @@ export async function executeDevTestScenario(
 								title: payload.taskTitle,
 								baseRef: payload.baseRef,
 								startInPlanMode: payload.startInPlanMode,
-								...(typeof input.autoReviewEnabled === "boolean"
-									? { autoReviewEnabled: input.autoReviewEnabled }
-									: {}),
+								// N20 (live-hit 2026-08-02): default TRUE. Dev-test drains are HEADLESS — a seed
+								// without auto-review waits for an operator that does not exist, and the omission
+								// is not even neutral: `addTaskToColumn` coerces an absent flag to an explicit
+								// `false` opt-OUT. An ACT-mode seed therefore dead-stopped in Review with zero log
+								// lines. Plan-mode drains only ever completed because decompose CHILDREN opt in
+								// themselves (plan-task-board-apply.ts); the benchmark harness already passed
+								// `true` explicitly. Pass `false` deliberately to exercise the manual-review path.
+								autoReviewEnabled: input.autoReviewEnabled ?? true,
 								...(input.autoReviewMode ? { autoReviewMode: input.autoReviewMode } : {}),
 								...(input.testEvidencePolicy ? { testEvidencePolicy: input.testEvidencePolicy } : {}),
 								...(payload.nkleinSettings ? { nkleinSettings: payload.nkleinSettings } : {}),

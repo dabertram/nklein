@@ -247,7 +247,12 @@ import {
 	createCheckingAgentSandboxStatus,
 } from "./agent-sandbox-runtime-config";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
-import { decideAutoReviewCardAction, selectHeadlessAutoReviewReconcileCandidates } from "./auto-review-card-decision";
+import {
+	buildManualReviewHoldObservation,
+	decideAutoReviewCardAction,
+	isAutoReviewCommitCard,
+	selectHeadlessAutoReviewReconcileCandidates,
+} from "./auto-review-card-decision";
 import { type BackgroundEvalRailWiring, wireBackgroundEvalRail } from "./background-eval-rail-wiring";
 import { type BoardLivenessWatchdogHandle, startBoardLivenessWatchdog } from "./board-liveness-watchdog";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
@@ -557,6 +562,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// Requests that arrive mid-drain are remembered here and re-run when the in-flight drain finishes.
 	const queuedStartDrainRerunRequestByWorkspaceId = new Map<string, { force: boolean }>();
 	const autoReviewFinalizationInFlightTaskIds = new Set<string>();
+	// N20: review-lane cards holding for a MANUAL verdict get ONE visible observation each (not one per finalize
+	// attempt — rescues re-call the finalizer periodically, and a repeating "still waiting" row is noise).
+	const manualReviewHoldNotifiedKeys = new Set<string>();
 	// Campaign forensics 2026-07-24: consecutive auto-start failures per card; at the threshold the card is
 	// paused-with-reason instead of retried forever (see the failure branch in the auto-start drain).
 	const autoStartFailureGuard = createAutoStartFailureGuard();
@@ -1948,6 +1956,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				// could return no_verdict and strand already-merged work in Review.
 				await (async () => {
 					let shouldAutoComplete = false;
+					let heldForManualReview = false;
 					await retryWorkspaceStateLock(() =>
 						mutateWorkspaceState(scope.workspacePath, (latestState) => {
 							const record = latestState.board.columns
@@ -1955,6 +1964,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								.find((candidate) => candidate.card.id === taskId);
 							const action = decideAutoReviewCardAction(record);
 							shouldAutoComplete = action.shouldAutoComplete;
+							// N20: a review-lane card that opted OUT of auto-review is about to be skipped —
+							// correctly (manual review belongs to an operator), but the skip below was a bare
+							// `return` and a headless run dead-stopped with ZERO log lines. Capture the state
+							// here so the skip is recorded as a visible fact rather than inferred from silence.
+							heldForManualReview =
+								record !== undefined &&
+								record.columnId === "review" &&
+								record.card.startInPlanMode !== true &&
+								!isAutoReviewCommitCard(record.card);
 							if (!action.moveToReview) {
 								return { board: latestState.board, save: false, value: null };
 							}
@@ -1967,6 +1985,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						}),
 					);
 					if (!shouldAutoComplete) {
+						if (heldForManualReview && !manualReviewHoldNotifiedKeys.has(inFlightKey)) {
+							manualReviewHoldNotifiedKeys.add(inFlightKey);
+							recordSelfObservation({
+								...buildManualReviewHoldObservation(taskId),
+								workspacePath: scope.workspacePath,
+							});
+						}
 						return;
 					}
 					// N10 delivery-phase recovery (live-found by the crash matrix): a SIGKILL between the merge and
