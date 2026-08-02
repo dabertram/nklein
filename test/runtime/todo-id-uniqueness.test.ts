@@ -41,4 +41,37 @@ describe("todo.md item ids", () => {
 		const ids = lines.filter((line) => /^- \[[ x~?>]\] \*\*([A-Za-z0-9.]+)(?=[ —.])/.test(line));
 		expect(ids.length).toBeGreaterThan(300);
 	});
+
+	it("does not reuse an id that DONE.md already shipped", () => {
+		// Live-hit 2026-08-02, twice in one filing: a new item took `N16` (caught by the ratchet above) and was
+		// renamed to `N18` — which passed HERE while done.md already carried an N18. A shipped id stays reserved
+		// forever: "N18" in a commit message or a cross-reference must never mean two different items depending on
+		// which file the reader opens. New ids must be fresh across BOTH files.
+		const idsIn = (path: string): Map<string, number[]> => {
+			const seen = new Map<string, number[]>();
+			readFileSync(path, "utf8")
+				.split("\n")
+				.forEach((line, index) => {
+					const match = /^- \[[ x~?>]\] \*\*([A-Za-z0-9.]+)(?=[ —.])/.exec(line);
+					if (match?.[1]) {
+						seen.set(match[1], [...(seen.get(match[1]) ?? []), index + 1]);
+					}
+				});
+			return seen;
+		};
+		const todoIds = idsIn("todo.md");
+		const doneIds = idsIn("done.md");
+		// Only OPEN todo items are checked: an item legitimately appears in both files mid-migration when its
+		// completed half moves to done.md while a residue line remains in todo.md.
+		const openCollisions = [...todoIds.entries()]
+			.filter(([id]) => doneIds.has(id))
+			.filter(([, lines]) =>
+				lines.some((line) => {
+					const text = readFileSync("todo.md", "utf8").split("\n")[line - 1] ?? "";
+					return text.startsWith("- [ ]");
+				}),
+			)
+			.map(([id]) => id);
+		expect(openCollisions, "an OPEN todo item reuses an id done.md already shipped").toEqual([]);
+	});
 });
