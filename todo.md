@@ -10243,8 +10243,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   refuses to drive lms at it (recommendation-only). REMAINING for full closure: one live end-to-end smoke with
   a real card (operator-gated — needs the provider actually added), and the ⑤ write path only if mlx-serve
   grows a load API.
-- [ ] **P17.8 — A2A (Agent2Agent) protocol evaluation + receive-side pilot (David asked 2026-08-03: "a2a
-  protocols?").** **Researched 2026-08-03: A2A hit v1.0 April 2026 under the Linux Foundation (150+ orgs;
+- [~] **P17.8 — A2A (Agent2Agent) protocol evaluation + receive-side pilot (David asked 2026-08-03: "a2a
+  protocols?").** **🟢 GREENLIT by David 2026-08-03: "lets try a2a for the agent interactions and where ever
+  applicable and suitable." SCOPE STANCE (the 'applicable and suitable' judgment, recorded):** A2A is adopted
+  as the protocol AT PROCESS/HOST BOUNDARIES — (1) external ingress: !Klein serves A2A now (receive-side);
+  (2) cross-host fan-out: standardizes on A2A when the fleet returns (send-side); (3) IN-PROCESS seams
+  (second-opinion handoff, plan critique, F3.37 consult, explorer delegation) STAY in-process — converting
+  working function calls into loopback HTTP loops adds latency + failure surface for zero interop gain. Same
+  adapter-boundary philosophy as P17.1: A2A is a skin over the kernel/scheduler, never a rewrite of internals.
+  Build order: exact v1.0 wire shapes from the spec FIRST (method names, TaskState enum, AgentCard fields,
+  well-known path — never guess a wire shape), then pure cores (state mapping, card builder, task↔seed-card
+  translation) + tests, then the flag-gated loopback HTTP wire, then a live smoke (card GET + task create →
+  board card → status reflect). **Researched 2026-08-03: A2A hit v1.0 April 2026 under the Linux Foundation (150+ orgs;
   Google-donated mid-2025), v1.0.1 May 2026 added a formal extensions mechanism.** The third protocol leg:
   MCP = agent→tool (already used), Zed ACP = client→agent (P17.2), **A2A = agent→agent task delegation** —
   today served by in-house swarm/team/fleet fan-out. v1.0 shape: signable multi-interface Agent Cards (each
