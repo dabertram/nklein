@@ -9027,8 +9027,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   (flag → observation → join key → namespace join → outcome index → decision → command), the evidence points at
   enforcement, and the remaining step is exactly what the evidence bar always was — a paired A/B.
   Teardown complete per the runbook: runtime on 4599 stopped, model unloaded, temp HOME + logs removed, no
-  containers left. **NEXT (the real flip gate):** design the paired A/B — same cards, gate ON vs OFF, compare
-  card success rates; only that licenses flipping `NKLEIN_TOOL_GATE_OBSERVE`'s enforcing sibling.
+  containers left.
+  **▶ A/B PILOT RUN 2026-08-02, same day the enforce arm was built. Two findings, kept strictly apart:**
+  **(1) THE MECHANISM IS PROVEN LIVE.** Arm B ran `mid_task` with `NKLEIN_TOOL_GATE_ENFORCE=1`:
+  **77/77 turns enforced (zero skips), every one narrowing 28 → 7 tools — and the drain completed 8 cards with 0
+  failures.** Models genuinely saw a quarter of the catalog and nothing broke: no refusal path fired, no
+  turn-level failures attributable to a missing tool. The asymmetric-refusal design never had to intervene.
+  **(2) THE COMPARISON IS CONTAMINATED AND IS NOT EVIDENCE.** Arm A (observe-only) completed 7; arm B completed
+  8 — but arm B's seed failed with `Workspace state revision mismatch: expected 109, current 110`, which is proof
+  of cross-arm interference: **the BOARD lives in the PROJECT directory, not the HOME**, so both arms shared
+  `/Users/david/GIT/nklein`'s board and arm B partly re-drove arm A's leftover cards (13 planning vs 8). The
+  8-vs-7 delta is NOT attributable to enforcement and is not claimed.
+  **DESIGN CORRECTION for the real A/B:** isolated HOMEs are NOT arm isolation. Each arm needs its own
+  `--project-path` (a scratch checkout per arm), because workspace board state rides with the project. Also
+  surfaced: dev-test drains ACCUMULATE residue cards on the shared repo board across sessions (`db38c` predates
+  today and is the "unrevivable ghost" in every server log) — cleaning the repo board of devtest cards is an
+  explicit follow-up, deliberately not done silently since the board also carries real cards.
+  **NEXT:** re-run the A/B with per-arm scratch projects; ≥3 paired runs before reading a delta (the wall-clock
+  nondeterminism finding applies); then the flip decision.
 - [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.
