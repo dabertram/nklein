@@ -9045,6 +9045,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   explicit follow-up, deliberately not done silently since the board also carries real cards.
   **NEXT:** re-run the A/B with per-arm scratch projects; ≥3 paired runs before reading a delta (the wall-clock
   nondeterminism finding applies); then the flip decision.
+  **⚠️ SCRATCH-PROJECT FIXTURE MATTERS, live-hit on the first clean-A/B attempt (2026-08-02):** an arm built on
+  `scripts/dev-fixtures/ts-starter` STALLED AT DECOMPOSE — `decomposition_no_tool_call_stall` ×2,
+  `context_overflow` ×2, `budget_wall`, `task_abandoned`; the seed card never left planning. ts-starter's own
+  header says why: it intentionally contains NO habit domain code, while `habit-insights-mid` is a habit-tracker
+  scenario. **The right per-arm fixture for the habit presets is `scripts/dev-fixtures/smoke-ts-cli`** (carries
+  `src/habit-score.ts` + `habit-insights.ts`). This is the same dschinn default-fixture lesson from 2026-07-11,
+  now confirmed in the opposite direction — the scenario/fixture pairing is load-bearing BOTH ways.
 - [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.
