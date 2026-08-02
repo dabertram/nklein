@@ -1218,6 +1218,7 @@ export function forgetSessionFocusState(sessionId: string): void {
 
 /** Runtime hook: drop all sessions' re-anchor state on runtime dispose. */
 export function clearAllSessionFocusState(): void {
+	sessionRoleBySessionId.clear();
 	focusChainBySessionId.clear();
 	goalReanchorLastTurnBySessionId.clear();
 }
