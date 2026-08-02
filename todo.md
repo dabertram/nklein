@@ -9076,6 +9076,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   bypasses the flaky planning stage entirely — workers do the work, workers-only enforcement applies, and the
   comparison isolates the WORKER stage, which is precisely where the counterfactual's 141/213 came from. Fresh
   rigs per arm as established; ≥3 pairs before reading a delta.
+  **▶ ROUND 3 (ACT mode) INVALIDATED MY OWN PLANNING MARKER — the exemption swallows EVERYTHING.** Enforce arm:
+  `skipped:planning_session` **×80, zero turns enforced** — in ACT mode, where planning was supposedly bypassed.
+  The "structural" premise was wrong on the facts: **`decompose_project` is offered in ordinary ACT/worker
+  catalogs too** (both arms' ACT seeds spawned planning child-cards, so those sessions genuinely carry spawn
+  tools). Tool-presence is NOT a role signal, exactly as the seam's original comment warned ("this seam does not
+  know the card's role"). With the marker in place, `NKLEIN_TOOL_GATE_ENFORCE` currently NO-OPS everywhere —
+  safe, but measuring nothing; round 3's small arm differences are pure noise and are not claimed.
+  **CAMPAIGN STATE, honestly:** enforcement was truly exercised only in the contaminated pilot (77/77, 0 failures
+  — still the only live evidence that narrowing does not break worker turns). The clean rounds measured: planning
+  flakiness (R1–R2, arm-independent) and a no-op exemption (R3).
+  **THE REAL PREREQUISITE, now unambiguous: thread the session ROLE into the extension seam** (the F12.18b(a)
+  per-role plumbing), then scope enforcement to `role === "worker"` directly and drop the tool-presence heuristic.
+  That is a runtime wire, not a heuristic — and it is the third time this session a proxy for identity (name, age,
+  tool-presence) failed where the real attribute was needed.
   **⚠️ SCRATCH-PROJECT FIXTURE MATTERS, live-hit on the first clean-A/B attempt (2026-08-02):** an arm built on
   `scripts/dev-fixtures/ts-starter` STALLED AT DECOMPOSE — `decomposition_no_tool_call_stall` ×2,
   `context_overflow` ×2, `budget_wall`, `task_abandoned`; the seed card never left planning. ts-starter's own
