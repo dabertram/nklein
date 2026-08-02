@@ -34,7 +34,12 @@ import type { SwarmRole } from "./role-model-class";
  */
 const TERMINAL_TOOLS_BY_ROLE: Record<SwarmRole, readonly string[]> = {
 	architect: ["decompose_project"],
-	worker: ["attempt_completion", "mark_task_complete"],
+	// `decompose_project` is worker-terminal-class BY DECISION (David, 2026-08-02), not by oversight of the
+	// union warning above. The A/B replicated 2/2: with workers narrowed to ~7 tools, decompose_project scored
+	// out, the ACT seed stopped fanning out entirely (0 children vs 5–7), and enforcement silently became a
+	// decomposition-suppressor. Fan-out is the swarm's core shape, so a worker that decides to split must always
+	// be ABLE to — the gate's job is dropping distractors, not changing the product's topology.
+	worker: ["attempt_completion", "mark_task_complete", "decompose_project"],
 	reviewer: ["submit_review"],
 };
 

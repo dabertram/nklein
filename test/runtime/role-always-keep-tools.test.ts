@@ -36,8 +36,12 @@ describe("alwaysKeepToolsForRole", () => {
 
 	it("stays SMALL — an alwaysKeep set that grows reinstates the problem it guards against", () => {
 		// The gate targets ~7 offered tools. A floor approaching that defeats the gate while looking like safety.
+		// Cap raised 4 → 5 for exactly one deliberate growth: David's 2026-08-02 decision that workers may always
+		// decompose (the A/B showed enforcement otherwise suppresses fan-out entirely — 0 children vs 5–7, 2/2).
+		// A worker floor of 5 against a ~7 target leaves 2 scored slots, which is thin; the NEXT candidate has to
+		// argue with this ratchet again rather than ride in quietly.
 		for (const role of SWARM_ROLES) {
-			expect(alwaysKeepToolsForRole(role).length).toBeLessThanOrEqual(4);
+			expect(alwaysKeepToolsForRole(role).length).toBeLessThanOrEqual(5);
 		}
 	});
 });
