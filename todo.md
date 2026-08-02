@@ -7092,7 +7092,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   (loop_park, park_resume, failover, taint_gate, syntax_guard, turn_loop, flags_on, home-0.0.0).
   **SCOPE, restated because a green run invites the wrong claim:** these cells drive SIMULATED models. This proves
   the MECHANISM fires end-to-end; it is not a user-facing success rate and licenses nothing about real-model quality.
-- [ ] **N18 — 🔴 FLAKY PACK VIOLATION: `agent_sandbox_result_patch` + `second_opinion_review_session` intermittently
+- [ ] **N19 — 🔴 FLAKY PACK VIOLATION: `agent_sandbox_result_patch` + `second_opinion_review_session` intermittently
   do not fire on a BYTE-IDENTICAL recording (found 2026-08-02; gates trust in green nightlies — take this FIRST).**
   Observed on `02×perfect` + `02×perfect@home-0.0.0` (recording sha256 `da9d0b71…`, unchanged): **2 runs violated
   both must_fire invariants, then a third run was fully green** — same code, same bytes, minutes apart. In the
