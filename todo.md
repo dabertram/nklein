@@ -7208,7 +7208,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   absolute alone misses a fast cell degrading badly. A cell with no baseline reports nothing — a first observation
   is not a comparison, and treating it as one would manufacture a regression on every newly-added cell.
   The effectful half is N6b.
-- [~] **N6b — Scaffold reuse, fixture-parse caching, per-cell cost emission *(split from N6 2026-07-20)*.**
+- [x] **N6b — Scaffold reuse, fixture-parse caching, per-cell cost emission *(split from N6 2026-07-20)*.**
   Reuse scaffolds where hermetically safe, cache aimock fixture parsing, and emit per-cell wall/cost from a real
   run so `detectDurationRegressions` has a baseline to compare against. Rides N7's runner.
   **✅ THE WALL-TIME BASELINE HALF IS ALREADY COMPLETE (verified 2026-07-20) — and had a silent-death hazard, now
@@ -7240,10 +7240,15 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     smoke×turn_loop, 08×flaky`, run 2 opened `02×loop_park, 04×flaky, 07×flaky, 08×flaky, 05×flaky`. A run that
     ignored the baseline would have repeated run 1's order exactly, so this is a positive signal rather than an
     absence of complaint.
-  **REMAINING: the deliberate cost-oracle trip** — expand a fixture/prompt until `detectNightlyCostRegressions`
-  fires, then revert. Deliberately NOT done opportunistically: it is a temporary FIXTURE mutation, and per the
-  P20.2 note a dev-test fixture change can invalidate the recorded aimock set that drains it. Do it as its own
-  scoped step, on a set outside the nightly tranche, with the revert verified before the next run.
+  **✅ COST-ORACLE TRIP EXECUTED 2026-08-02 — with a better probe design than the one recorded here.** Rather than
+  mutating a fixture (which risks invalidating its recorded aimock set — this item's own warning), the probe
+  SHRANK THE STORED BASELINE: divide 02×perfect's `modelIoCost` + `durationMs` by 3 in `nklein-nightly-last.json`
+  (backed up first), then run the real cell. Equivalent for proving the alarm rings, and zero fixture risk.
+  **RESULT — the oracle is ENFORCING, not advisory:** the run reported `model_requests grew 3.00× (55 → 165)` and
+  `model_io_bytes grew 3.00×` on both 02-perfect variants plus 2 duration regressions — and the overall nightly
+  verdict was **FAILED with exit 1 even though both cells PASSED**. A cost regression alone gates the verdict,
+  which is a stronger property than the surfacing code's warning-print suggested. Baseline restored from backup
+  and verified (real request count 165 back in place); backup and probe log removed.
   **⚠️ "WHERE HERMETICALLY SAFE" IS THE WHOLE ITEM, and it is the one phrase that can silently undo N6.** A reused
   scaffold that carries ANY state between cells — a warm store, a leftover worktree, a cached fitness row — makes
   cell B pass because cell A ran first. That is not a faster suite, it is **a suite with hidden ordering
