@@ -9116,6 +9116,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   per-turn benefit thesis gets its clean test (pair 3 with spawn-in-alwaysKeep). If no → enforcement is also a
   de-facto decomposition-suppressor, which is a product decision far beyond F12.18's scope and needs David.
   Next concrete step: pair 3 with worker spawn tools in alwaysKeep, then the graders' verdict on both shapes.
+  **▶ PAIR 3 RUN 2026-08-02 (decompose_project in worker alwaysKeep per David's decision) — AND IT IS A TIE THAT
+  KEEPS THE CAMPAIGN HONEST.** Enforce: single-card to review in 9 turns, `decompose_project` SURVIVED on all 9
+  enforced turns — the model had fan-out available and chose direct execution. Observe: **also single-card to
+  review, 0 children** — the fan-out that appeared in every prior observe arm did not replicate.
+  **3-PAIR CONCLUSION, stated with its limits:**
+  · Fan-out by arm: observe 2/3, enforce 0/3 — suggestive, NOT significant at n=3 (and pair 3's observe arm shows
+    single-card flow occurs with no enforcement at all). The topology claim survives only as "possible, weaker
+    than it looked"; the tool-starvation mechanism from pairs 1–2 is FIXED regardless (alwaysKeep).
+  · **Safety is the solid result: 87 worker turns enforced across three arms (25+53+9), 28→7 narrowing, ZERO
+    failures, acceptance green in every arm.** Enforcement demonstrably does not break worker turns.
+  · **No benefit is demonstrated either** — no arm completed the workflow in-window, and no metric separates the
+    arms beyond the unreplicated topology shape.
+  **FLIP DECISION (per the campaign's own evidence bar): `NKLEIN_TOOL_GATE_ENFORCE` STAYS DEFAULT-OFF.** Safe to
+  opt into, no demonstrated win, and the original 141/213 counterfactual now has a live null beside it. The
+  honest path to a real answer is more pairs on a faster host or a stronger preset-completion signal — recorded
+  here so the next session starts from the conclusion, not the campaign.
   **⚠️ SCRATCH-PROJECT FIXTURE MATTERS, live-hit on the first clean-A/B attempt (2026-08-02):** an arm built on
   `scripts/dev-fixtures/ts-starter` STALLED AT DECOMPOSE — `decomposition_no_tool_call_stall` ×2,
   `context_overflow` ×2, `budget_wall`, `task_abandoned`; the seed card never left planning. ts-starter's own
