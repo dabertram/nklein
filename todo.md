@@ -10243,6 +10243,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   refuses to drive lms at it (recommendation-only). REMAINING for full closure: one live end-to-end smoke with
   a real card (operator-gated — needs the provider actually added), and the ⑤ write path only if mlx-serve
   grows a load API.
+- [ ] **P17.8 — A2A (Agent2Agent) protocol evaluation + receive-side pilot (David asked 2026-08-03: "a2a
+  protocols?").** **Researched 2026-08-03: A2A hit v1.0 April 2026 under the Linux Foundation (150+ orgs;
+  Google-donated mid-2025), v1.0.1 May 2026 added a formal extensions mechanism.** The third protocol leg:
+  MCP = agent→tool (already used), Zed ACP = client→agent (P17.2), **A2A = agent→agent task delegation** —
+  today served by in-house swarm/team/fleet fan-out. v1.0 shape: signable multi-interface Agent Cards (each
+  interface declares url + binding: JSON-RPC 2.0 | gRPC | HTTP+JSON), stateful task lifecycle
+  `submitted→working→input-required→completed/failed/canceled` (maps ~1:1 onto card lifecycle;
+  `input-required`≈attention/park), Messages/Parts + Artifacts, SSE/gRPC streaming, push notifications.
+  **LOCAL-ONLY CLEAN:** transport-level HTTP between hosts WE choose; loopback/LAN serving is the LM Link
+  gateway's class; the egress fence stays the enforcement point (A2A client allowlisted to fleet hosts only).
+  **PLAN, two halves:** (a) RECEIVE-SIDE PILOT (buildable now): serve an Agent Card + map the A2A task API
+  onto seed-card creation/status/artifacts via the existing tRPC runtime semantics — default-OFF flag,
+  loopback-only, so any A2A orchestrator can delegate cards to a !Klein board; (b) SEND-SIDE delegation
+  (FLEET-GATED): standardize cross-host fan-out on A2A when legion5pro/m4mini return — a cross-host topology
+  proof per the standing fleet note. **Cautions recorded:** spec churned to the last minute (Agent Card
+  transport fields reshaped AT 1.0 — pin the version, expect migrations); signed cards/multi-tenancy are
+  enterprise surface we skip; **peer-agent output is UNTRUSTED input** — same S6 peer-fence + taint rules as
+  reviewer output (A2A artifacts are a textbook injection vector); F3.37's consult stays complementary
+  (model-level, one completion, cache preserved — vs agent-level delegation with cross_model_carry
+  economics); IBM's "ACP" (folded into the A2A orbit) is UNRELATED to Zed's ACP in P17.2 — do not conflate.
 - [ ] **P17.2 — ACP (Agent Client Protocol) agent-side support.** **Verified 2026-07-19:** ACP is JSON-RPC 2.0
   over **stdio** (the only stable transport — HTTP is a draft proposal, do not build against it),
   `protocolVersion` is the bare integer `1`, capabilities omitted at `initialize` MUST be treated as unsupported,
