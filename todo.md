@@ -7973,6 +7973,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
   (feeds the trust-center posture table). DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
+- [ ] **N21 — 🐛 Second distinct ACT-drain stall shape: card frozen `in_progress`, model idle, 3 sessions but
+  only ONE terminal attempt record (`success`) and no lane move (live-hit 2026-08-02 on the N20 clean-room
+  repro; evidence preserved `.real-runs/20260802-224900`).** Facts from the run: 82 tool uses / 30 errors
+  across 3 sessions (`aimockSupersededSessions: 2`), a single attempt event with `outcome: "success"`, 14
+  transitions, board stuck `in_progress`, `active=[idle]` for the final ~2 minutes until the stall reactor
+  aborted at 564s. Open questions, in order: why did two sessions end with NO terminal attempt record (the
+  §5.AA classifier should stamp every session — superseded sessions excepted, but then what superseded them
+  and why did the survivor's `success` not move the card?); is the missing lane move the summary-edge/capture
+  race the finalize path already documents ("A later capture marker re-emits the summary and retries
+  finalization" — did the capture marker never come?), or an attempt-vs-session accounting gap. NOTE: run
+  under the PRE-fix tree (seed still `autoReviewEnabled: false`), but that flag only gates the REVIEW
+  continuation — this card never reached review. The N20-fix proof drain doubles as this bug's repro: if the
+  card reaches review and the review runs, N20 is proven AND this shape needs its own targeted repro; if it
+  re-freezes in_progress, this gets fresh post-fix evidence. Weak-worker ACT drains are the F3.37 A/B
+  substrate — every stall shape here blocks that campaign.
 - [~] **N20 — 🐛 Review-lane dead stop on a real ACT drain: card enters review, review never starts, no hold
   message, no trigger events (live-hit 2026-08-02; evidence preserved `.real-runs/20260802-220538`).**
   **✅ ROOT-CAUSED + FIXED same night (proof drain pending).** The chain, each link verified against the
