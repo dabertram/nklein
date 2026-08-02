@@ -9043,8 +9043,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   surfaced: dev-test drains ACCUMULATE residue cards on the shared repo board across sessions (`db38c` predates
   today and is the "unrevivable ghost" in every server log) — cleaning the repo board of devtest cards is an
   explicit follow-up, deliberately not done silently since the board also carries real cards.
-  **NEXT:** re-run the A/B with per-arm scratch projects; ≥3 paired runs before reading a delta (the wall-clock
-  nondeterminism finding applies); then the flip decision.
+  **▶ CLEAN A/B ROUND 1 RUN 2026-08-02 (per-arm scratch smoke-ts-cli projects, per-arm fresh HOMEs — after two
+  self-inflicted isolation failures taught the protocol: wrong fixture stalls decompose; a PARTIALLY-reset HOME
+  resurrects a stale session that steals the model's one concurrent slot. Full-fresh everything, every attempt).**
+  **RESULT — A REVERSAL, and exactly the kind the counterfactual could never see:**
+  · **Arm A (observe):** decomposed into 7 cards, **1 completed** in-window, 0 failed, 94 gate observations.
+  · **Arm B (ENFORCE):** **the seed never left planning** — 0 cards spawned, 14 gated turns, then
+    `runtime_error ×7 · tool_input_rejection ×2 · budget_wall · task_abandoned`.
+  `decompose_project` IS in the architect's alwaysKeep (so the terminal tool survived); the plausible mechanism is
+  AUXILIARY-tool starvation at planning — spec-reading tools scored out of the 7 — with the model then calling
+  something withheld (the two `tool_input_rejection`s) until abandonment.
+  **WHY THE VERDICT MISSED THIS: a SELECTION EFFECT.** The counterfactual's `succeeded` was joined from cards that
+  EXIST; a board whose decompose fails under enforcement produces no cards to evaluate, so planning-stage harm is
+  structurally invisible to that measurement. The verdict remains true for what it measured (worker-turn-heavy
+  data) and is NOT a licence to enforce at planning.
+  **TWO CONCRETE FOLLOW-UPS:** (1) enforcement observability — the record logs counts only; it must log WHICH
+  alwaysKeep names survived and what was kept, or the next debugging session re-derives this from stalls;
+  (2) the obvious next design is ROLE-SCOPED enforcement (workers only, planning exempt), which the per-role
+  alwaysKeep sets were already built for. One paired run is one sample — but a 7-cards-vs-0 asymmetry with a
+  mechanistic explanation is enough to fence planning off before any further enforce-arm runs.
+  ≥3 paired runs (workers-only enforcement) before reading any delta; then the flip decision.
   **⚠️ SCRATCH-PROJECT FIXTURE MATTERS, live-hit on the first clean-A/B attempt (2026-08-02):** an arm built on
   `scripts/dev-fixtures/ts-starter` STALLED AT DECOMPOSE — `decomposition_no_tool_call_stall` ×2,
   `context_overflow` ×2, `budget_wall`, `task_abandoned`; the seed card never left planning. ts-starter's own
