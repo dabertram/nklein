@@ -166,14 +166,35 @@ export type ToolGateEnforcementDecision =
 	| { readonly enforce: true; readonly keepNames: readonly string[] }
 	| {
 			readonly enforce: false;
-			readonly reason: "under_cap" | "arbitrary_selection" | "empty_selection" | "selection_not_smaller";
+			readonly reason:
+				| "under_cap"
+				| "arbitrary_selection"
+				| "empty_selection"
+				| "selection_not_smaller"
+				| "planning_session";
 	  };
 
 export function decideToolGateEnforcement(input: {
 	readonly offeredCount: number;
 	readonly verdict: Pick<ToolGateResult, "selected" | "arbitrary">;
 	readonly cap?: number;
+	/** Names actually offered this turn — needed only when `planningMarkers` is supplied. */
+	readonly offeredNames?: readonly string[];
+	/**
+	 * Tool names whose PRESENCE marks a planning/decompose session — enforcement is refused outright there.
+	 *
+	 * Live A/B round 1 (2026-08-02): with enforcement applied to every session, the OBSERVE arm decomposed into 7
+	 * cards while the ENFORCE arm's seed NEVER LEFT PLANNING (14 gated turns → runtime_error ×7,
+	 * tool_input_rejection ×2, abandonment). `decompose_project` itself survived via alwaysKeep; what starved was
+	 * the AUXILIARY set planning needs (spec reading). And the counterfactual verdict could never have seen this:
+	 * its outcomes join from cards that EXIST, and a board that fails to decompose produces no cards — a selection
+	 * effect. The marker is local and structural: only planning sessions are offered a decompose terminal at all.
+	 */
+	readonly planningMarkers?: readonly string[];
 }): ToolGateEnforcementDecision {
+	if (input.planningMarkers?.length && input.offeredNames?.some((name) => input.planningMarkers?.includes(name))) {
+		return { enforce: false, reason: "planning_session" };
+	}
 	if (input.offeredCount <= Math.max(1, input.cap ?? DEFAULT_TOOL_CAP)) {
 		return { enforce: false, reason: "under_cap" };
 	}

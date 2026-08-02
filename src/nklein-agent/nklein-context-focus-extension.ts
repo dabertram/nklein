@@ -27,7 +27,7 @@ import {
 	recordFileWrite,
 } from "../core/read-before-write-guard";
 import type { ResultHandleStore } from "../core/result-handle";
-import { allAlwaysKeepToolNames } from "../core/role-always-keep-tools";
+import { allAlwaysKeepToolNames, alwaysKeepToolsForRole } from "../core/role-always-keep-tools";
 import { assessTestMisinterpretation, type TestMisinterpretationEvent } from "../core/test-misinterpretation-detector";
 import { DEFAULT_TOOL_CAP, decideToolGateEnforcement, gateToolCatalog } from "../core/tool-catalog-retrieval-gate";
 import {
@@ -719,6 +719,10 @@ export function createKanbanContextFocusExtension(
 								const enforcement = decideToolGateEnforcement({
 									offeredCount: gateOffered.length,
 									verdict: gated,
+									offeredNames: gateOffered.map((tool) => tool.name),
+									// A/B round 1: enforcement at PLANNING stranded the board (0 cards decomposed vs 7).
+									// The architect's terminal tools mark a planning session structurally.
+									planningMarkers: alwaysKeepToolsForRole("architect"),
 								});
 								if (enforcement.enforce) {
 									const keep = new Set(enforcement.keepNames);
@@ -747,7 +751,15 @@ export function createKanbanContextFocusExtension(
 										offered: gateOffered.length,
 										enforced: enforcement.enforce,
 										...(enforcement.enforce
-											? { kept: enforcement.keepNames.length }
+											? {
+													kept: enforcement.keepNames.length,
+													// Round-1 debugging had to re-derive "what did the model actually see?"
+													// from stall telemetry. Bounded: 7 by construction (the cap).
+													keptNames: [...enforcement.keepNames].slice(0, 16),
+													alwaysKeepSurvived: alwaysKeep.filter((name) =>
+														enforcement.keepNames.includes(name),
+													),
+												}
 											: { skippedReason: enforcement.reason }),
 									},
 								});

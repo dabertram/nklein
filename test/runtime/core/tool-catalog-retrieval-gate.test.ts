@@ -48,4 +48,28 @@ describe("decideToolGateEnforcement", () => {
 		});
 		expect(decision).toEqual({ enforce: false, reason: "selection_not_smaller" });
 	});
+
+	it("refuses a PLANNING session outright — A/B round 1's board-stranding lesson", () => {
+		// With enforcement applied everywhere, the enforce arm's seed never left planning (0 cards decomposed vs 7
+		// in the observe arm). The counterfactual verdict could not see that harm: its outcomes join from cards
+		// that exist, and a board that fails to decompose produces none — a selection effect. The marker is
+		// structural: only planning sessions are offered a decompose terminal at all.
+		const decision = decideToolGateEnforcement({
+			offeredCount: 28,
+			verdict: { selected: tools(7), arbitrary: false },
+			offeredNames: ["read_files", "decompose_project", "write_files"],
+			planningMarkers: ["decompose_project"],
+		});
+		expect(decision).toEqual({ enforce: false, reason: "planning_session" });
+	});
+
+	it("still enforces a WORKER session when the planning marker is absent", () => {
+		const decision = decideToolGateEnforcement({
+			offeredCount: 28,
+			verdict: { selected: tools(7), arbitrary: false },
+			offeredNames: ["read_files", "write_files", "edit_file"],
+			planningMarkers: ["decompose_project"],
+		});
+		expect(decision.enforce).toBe(true);
+	});
 });
