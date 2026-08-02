@@ -7988,6 +7988,29 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   card reaches review and the review runs, N20 is proven AND this shape needs its own targeted repro; if it
   re-freezes in_progress, this gets fresh post-fix evidence. Weak-worker ACT drains are the F3.37 A/B
   substrate — every stall shape here blocks that campaign.
+  **▶ 2026-08-02 LATER — ROOT-CAUSED FROM THE PRESERVED LEDGER ALONE; fix designed, application waiting only
+  for the in-flight drain to release the tree.** The smoking gun is one transition row: `awaiting_review →
+  running` at T+357ms, `reason:` **the MCP-server-withheld ADVISORY text** ("Sandbox MCP server \"Codebase
+  Memory\" is OFF … withheld — container 4096MB < …"). Chain, every link read from code: (1) start warnings
+  (MCP bundle) ride the `startTaskSession` RESULT, which resolves only AFTER the full turn (`await
+  sessionHost.send` runs the whole turn) — so they always land in a continuation racing the adapter's terminal
+  summary; (2) the continuation emits them via `updateSummary(entry, {warningMessage})`, which SPREADS
+  `entry.summary` wholesale — state included; (3) **`InMemoryNKleinMessageRepository.emitSummary` fans out to
+  listeners but never writes `entry.summary`, and `getSummary` READS `entry.summary`** — so the adapter's
+  `awaiting_review` reached the board/recorder but never the entry, whose state still said `running` from turn
+  start; (4) the warning emit therefore RESURRECTS `running`, the recorder logs the regression with the
+  advisory as `reason`, board machinery re-drives the card, and the re-work churn produces the frozen
+  `in_progress` end-state (the 2-sessions-without-attempt-records question is downstream of the spurious
+  re-drive). **The race explains BOTH live shapes**: run 1's warning emit happened to land BEFORE the terminal
+  emit (harmless `running→running`, card stayed in review → N20's manual-hold surfaced); run 2's landed AFTER
+  (yank-back → this bug). ~350ms window, ordering-random — and fast aimock nightlies never sit in it, which is
+  why 28 cells stayed green for weeks. The `/clear`-race comment at the second warning site names this exact
+  failure class ("emit stale running state to listeners, resurrecting the just-cleared card") for a different
+  trigger. **FIX (single choke point, P24.1-aligned): make `repository.emitSummary` WRITE-THROUGH** —
+  `entry.summary = cloneSummary(summary)` when the task's entry exists, before fanout — so emitted summaries
+  become read-your-writes consistent, `getSummary` stops lying, and every stale-spread site heals at once; the
+  repository's own boundary comment already claims it "owns … summary". Plus a repository unit test pinning
+  emit→get consistency and the adapter-terminal-then-warning sequence.
 - [~] **N20 — 🐛 Review-lane dead stop on a real ACT drain: card enters review, review never starts, no hold
   message, no trigger events (live-hit 2026-08-02; evidence preserved `.real-runs/20260802-220538`).**
   **✅ ROOT-CAUSED + FIXED same night (proof drain pending).** The chain, each link verified against the
