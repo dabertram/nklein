@@ -9090,6 +9090,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   per-role plumbing), then scope enforcement to `role === "worker"` directly and drop the tool-presence heuristic.
   That is a runtime wire, not a heuristic — and it is the third time this session a proxy for identity (name, age,
   tool-presence) failed where the real attribute was needed.
+  **✅ ROLE WIRE SHIPPED + ROUND 4 RUN SAME DAY — THE FIRST VALID PAIR, and it found a TOPOLOGY effect.**
+  `recordSessionRole` at session bind (from `request.role`, the field telemetry already reports);
+  `decideToolGateEnforcement` enforces only `worker`, refuses `non_worker_role` and `role_unknown` BY NAME so a
+  broken registration shows up as counts, never as silent non-enforcement. Round 4 (ACT mode, fresh rigs):
+  · **enforce:** 25 worker turns narrowed 28→7 · 6 reviewer turns exempted (`non_worker_role`) · board ended
+    **1 card in review, acceptance green, 0 children spawned**.
+  · **observe:** seed spawned **7 planning children** + 1 completed + 1 in-progress.
+  **The signal (n=1): workers-only narrowing SUPPRESSED CARD SPAWNING ENTIRELY** — the seed's spawn tools scored
+  out of the top 7, so it carried the task single-card to review instead of fanning out. A macro-flow effect no
+  per-turn metric could see, and mechanistic enough to expect it to repeat. Whether single-card-to-review is
+  BETTER or WORSE than a 7-child fan-out is exactly what the remaining pairs + the graders have to decide — and it
+  reframes the flip question from "does narrowing help turns?" to "should spawn tools be alwaysKeep for workers?"
+  **CAMPAIGN STATE: rig proven end-to-end, one valid pair captured, ≥2 more pairs wanted.** Each pair ≈ 1h on this
+  host. The topology question suggests a cheap next probe: add worker spawn tools to alwaysKeep and re-pair.
   **⚠️ SCRATCH-PROJECT FIXTURE MATTERS, live-hit on the first clean-A/B attempt (2026-08-02):** an arm built on
   `scripts/dev-fixtures/ts-starter` STALLED AT DECOMPOSE — `decomposition_no_tool_call_stall` ×2,
   `context_overflow` ×2, `budget_wall`, `task_abandoned`; the seed card never left planning. ts-starter's own
