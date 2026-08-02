@@ -9063,6 +9063,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   alwaysKeep sets were already built for. One paired run is one sample — but a 7-cards-vs-0 asymmetry with a
   mechanistic explanation is enough to fence planning off before any further enforce-arm runs.
   ≥3 paired runs (workers-only enforcement) before reading any delta; then the flip decision.
+  **▶ ROUND 2 (2026-08-02, planning exemption live) — AND IT OVERTURNS ROUND 1'S ATTRIBUTION.** The enforce arm
+  ran with the exemption working exactly as designed — **`skipped:planning_session` ×13, zero narrowing applied**
+  — and the seed STILL never left planning. So the planning stall occurs WITHOUT enforcement: across the
+  fresh-board runs so far, decompose has stalled in 3 of 4 (one with the wrong fixture, one under enforcement,
+  one under NO enforcement) and succeeded once. **Round 1's "enforcement strands the board" was an
+  over-attribution** — the reversal is better explained by the 9B's high baseline decompose-failure rate at
+  plan-first `mid_task` (the wall-clock nondeterminism finding, again). The SELECTION-EFFECT critique of the
+  `enforce` verdict still stands on its own; the causal claim against enforcement-at-planning does not, though the
+  exemption stays (it is free, and planning demonstrably gains nothing from narrowing).
+  **REDESIGN, so the A/B measures what the verdict was actually about:** seed in ACT mode (`--no-plan`), which
+  bypasses the flaky planning stage entirely — workers do the work, workers-only enforcement applies, and the
+  comparison isolates the WORKER stage, which is precisely where the counterfactual's 141/213 came from. Fresh
+  rigs per arm as established; ≥3 pairs before reading a delta.
   **⚠️ SCRATCH-PROJECT FIXTURE MATTERS, live-hit on the first clean-A/B attempt (2026-08-02):** an arm built on
   `scripts/dev-fixtures/ts-starter` STALLED AT DECOMPOSE — `decomposition_no_tool_call_stall` ×2,
   `context_overflow` ×2, `budget_wall`, `task_abandoned`; the seed card never left planning. ts-starter's own
