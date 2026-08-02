@@ -10254,7 +10254,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Build order: exact v1.0 wire shapes from the spec FIRST (method names, TaskState enum, AgentCard fields,
   well-known path — never guess a wire shape), then pure cores (state mapping, card builder, task↔seed-card
   translation) + tests, then the flag-gated loopback HTTP wire, then a live smoke (card GET + task create →
-  board card → status reflect). **Researched 2026-08-03: A2A hit v1.0 April 2026 under the Linux Foundation (150+ orgs;
+  board card → status reflect).
+  **✅ RECEIVE-SIDE PILOT SHIPPED + LIVE-SMOKED 2026-08-03 (`NKLEIN_A2A_SERVER`, default-OFF).** The
+  shapes-first rule paid immediately: the rendered-site extraction invented an `a2a.` method prefix AND a
+  wrong well-known path, and training-data recall produced v0.2 shapes — the truth (unprefixed methods,
+  proto-name enums, `/.well-known/agent-card.json`, errors -32001…-32006, `params` = the request object) was
+  pinned from `a2a.proto` + `docs/specification.md` with line citations, and the core test suite asserts the
+  pins ("changing one is a spec migration, not a refactor"). Shipped: 3 pure cores + `a2a-http-handler` (deps
+  -injected, trigger-intake pattern) + runtime-server routes (loopback-only, never remote mode) + flag/
+  mechanism/lane registrations; 33 new tests. **Live smoke, all green on a fresh HOME:** agent card served
+  (Host-derived interface URL — ephemeral-port-safe); `SendMessage` → `TASK_STATE_SUBMITTED` + real board
+  card in READY with `autoReviewEnabled: true`/ACT/baseRef main (the N10/N20 unattended-card policy);
+  `GetTask` projects lane truth; ledger `external → a2a_seeded` + `a2a_task_ingress` observation (path
+  -redacted) recorded; live error codes verified (`CancelTask` → -32004, `url` part → -32005, unknown method
+  → -32601). **REMAINING (deliberate follow-ups, not gaps):** send-side fleet delegation (fleet-gated);
+  CancelTask semantics (interrupt vs trash vs park — its own decision); completion ARTIFACTS from delivery
+  evidence; summary-state refinement on GetTask (lane-only today, correct per the projection's design);
+  per-workspace `tenant` entries on the card + non-main default branches; and an A2A client conformance
+  check against a real external A2A SDK when one is on-host. **Researched 2026-08-03: A2A hit v1.0 April 2026 under the Linux Foundation (150+ orgs;
   Google-donated mid-2025), v1.0.1 May 2026 added a formal extensions mechanism.** The third protocol leg:
   MCP = agent→tool (already used), Zed ACP = client→agent (P17.2), **A2A = agent→agent task delegation** —
   today served by in-house swarm/team/fleet fan-out. v1.0 shape: signable multi-interface Agent Cards (each
