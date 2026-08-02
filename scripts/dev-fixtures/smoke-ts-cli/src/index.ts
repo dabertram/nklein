@@ -9,3 +9,4 @@ const summary = summarizeHabitWeek({
 
 console.log(`habit score: ${summary.score}`);
 console.log(`trend: ${summary.trend}`);
+console.log(`recommendation: ${summary.recommendation}`);
