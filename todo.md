@@ -9104,6 +9104,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   reframes the flip question from "does narrowing help turns?" to "should spawn tools be alwaysKeep for workers?"
   **CAMPAIGN STATE: rig proven end-to-end, one valid pair captured, ≥2 more pairs wanted.** Each pair ≈ 1h on this
   host. The topology question suggests a cheap next probe: add worker spawn tools to alwaysKeep and re-pair.
+  **▶ PAIR 2 (2026-08-02, identical config — replicate before modify): THE TOPOLOGY EFFECT REPLICATES 2/2.**
+  · enforce: **1 card in review, 0 children spawned, 53 worker turns narrowed 28→7** — same shape as pair 1.
+  · observe: 1 completed + 5 planning children + 1 in-progress — fan-out, same as every observe arm (7, 5).
+  Zero failures in all four arms across both pairs. **The finding is now stable: workers-only ~7-tool narrowing
+  reliably converts mid_task from a fan-out flow into a single-card-to-review flow**, because spawn tools score
+  out of the top 7. Neither shape completed the full workflow inside the monitor window, so the value judgement
+  between them belongs to the graders/delivery gates, not to this harness.
+  **THE FLIP QUESTION IS NOW PRECISE, and smaller than it started:** not "enforce the gate?" but
+  **"are spawn tools alwaysKeep-class for workers?"** If yes → enforcement preserves fan-out and the original
+  per-turn benefit thesis gets its clean test (pair 3 with spawn-in-alwaysKeep). If no → enforcement is also a
+  de-facto decomposition-suppressor, which is a product decision far beyond F12.18's scope and needs David.
+  Next concrete step: pair 3 with worker spawn tools in alwaysKeep, then the graders' verdict on both shapes.
   **⚠️ SCRATCH-PROJECT FIXTURE MATTERS, live-hit on the first clean-A/B attempt (2026-08-02):** an arm built on
   `scripts/dev-fixtures/ts-starter` STALLED AT DECOMPOSE — `decomposition_no_tool_call_stall` ×2,
   `context_overflow` ×2, `budget_wall`, `task_abandoned`; the seed card never left planning. ts-starter's own
