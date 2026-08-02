@@ -2622,7 +2622,34 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 #### 3A. Adaptive recovery controller *(legacy §5.O, §5.AA)*
 
-- [ ] **F3.37 — Wire model-initiated peer consultation (`consult_stronger_model`; adopted pattern, docs/attributions.md; David 2026-07-23).**
+- [~] **F3.37 — Wire model-initiated peer consultation (`consult_stronger_model`; adopted pattern, docs/attributions.md; David 2026-07-23).**
+  **▶ 2026-08-02 — THE WIRE IS LIVE (default-OFF), flag `NKLEIN_MODEL_CONSULT`.** Shipped: (1)
+  `consult-failed-attempts.ts` — the stuck-gate counter over GENUINE failure outcomes only (`no_tool_call`,
+  `narrated`, `loop`, `timeout`, `malformed`, `other_failure`; never `!== "success"` — the 132 live aborts stay
+  invisible to the gate; a compiler-enforced `Record<ModelOutcomeKind,…>` ratchet forces every future §5.AA kind
+  to be classified deliberately). (2) `nklein-consult-tool.ts` — the tool with the gate run TWICE (registration
+  admits the schema only for already-stuck workers; execute re-derives from live state), decline paths all
+  VISIBLE (`🤝 Consult declined: …` as the tool reply), a failed completion spends NO budget (usage derives from
+  recorded observations; a failure records none), and the answer always advisory-wrapped. (3) Session-runtime
+  tail registration (§5.AQ(e): last = fastest-churning gate) with the §5.AB veto measured from the runtime's OWN
+  session registry — a candidate is idle iff no ACTIVE sibling session runs on it; scope stated: non-!Klein
+  gateway traffic is invisible, and **wire-verified 2026-08-02: `/api/v1/models` `loaded_instances` is
+  byte-identical idle vs mid-generation**, so the sibling registry is the only honest in-process idle source
+  (`lms ps`'s GENERATING comes from a different channel). Consultant executor = one bounded `LocalLlmClient`
+  completion (300s timeout, m5max rule), never a nested agent session. (4) Budget: ONE consult/card. (5)
+  Telemetry: `recordSelfObservation(buildConsultObservation(…))` — the N18 timeline renders it (source
+  `observation`), `followUpOutcome` recorded null ALWAYS and joined at analysis time (P15.3 pattern; append-only
+  stream). `MECHANISM_REGISTRY` entry `model_consult` (expectation `exceptional`) + flag registered `enforcing`
+  + `FLAGS_ON_LANE_EXCLUSIONS` **permanent** (mirror of NKLEIN_TOOL_GATE_ENFORCE: enforcement narrows the tool
+  tail, an admitted consult EXTENDS it — either way replayed requests change, so the replay lane can never
+  validate it). 13 new tests. **REMAINING for closure:** (a) the A/B evidence campaign (aimock + fleet drain
+  with the flag ON; evidence bar: consult-then-success vs `cross_model_carry` baseline) — its first check is
+  the registration-gate composition itself (stuck card's session offers the tool, un-stuck doesn't), which is
+  deliberately NOT unit-tested (the real runtime class has no light harness; the parts are). (b) Chat-notice
+  polish: notices currently ride the tool result + observation timeline; a dedicated interstitial chat channel
+  (the moment-it-starts notice of the visibility core's docblock) needs a channel decision in the event adapter.
+  (c) Ledger `model_consult` event kind NOT added (closed union; observation stream serves P15.3) — revisit only
+  if the F12.55 action trail must render consults.
   Pure core SHIPPED 2026-07-23 (`src/core/model-consult.ts`): harness-enforced stuck-gate (≥2 recorded failed
   attempts + per-card consult budget), strongest-eligible-LOCAL-consultant selection (loaded + idle + ≥10
   capability points stronger + never the asker; declines rather than load/unload), capped four-field request,

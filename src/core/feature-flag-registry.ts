@@ -73,6 +73,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 	{ flag: "NKLEIN_TRUNCATION_DIAGNOSTICS", mode: "observe_only", gate: "chat-local-llm-adapter.ts (early return)" },
 	{ flag: "NKLEIN_TOOL_GATE_OBSERVE", mode: "observe_only", gate: "nklein-context-focus-extension.ts" },
 	{ flag: "NKLEIN_TOOL_GATE_ENFORCE", mode: "enforcing", gate: "nklein-context-focus-extension.ts" },
+	{
+		flag: "NKLEIN_MODEL_CONSULT",
+		mode: "enforcing",
+		gate: "nklein-session-runtime.ts (admits consult_stronger_model into stuck worker sessions + runs a consultant completion)",
+		note: "F3.37, default-OFF until the aimock+fleet A/B shows consults convert failed cards (evidence bar: consult-then-success vs cross_model_carry).",
+	},
 	{ flag: "NKLEIN_REASONING_CAPTURE", mode: "observe_only", gate: "runtime-api.ts (captureReasoning)" },
 	{
 		flag: "NKLEIN_BASELINE_PROBE",
@@ -332,6 +338,12 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 		flag: "NKLEIN_EXPLORER_SUBAGENT",
 		kind: "pending_validation",
 		reason: "adds an explore handler; changes the drain shape, so it needs a validating run",
+	},
+	{
+		flag: "NKLEIN_MODEL_CONSULT",
+		kind: "permanent",
+		reason:
+			"F3.37: structurally excluded for the SAME reason as NKLEIN_TOOL_GATE_ENFORCE, mirrored — where enforcement NARROWS the tools array, an admitted consult EXTENDS the tool tail of every stuck worker session, which changes those replayed requests and guarantees unmatched-request failures on any recording containing genuine failures. Its validation is the dedicated aimock+fleet A/B (consult-then-success vs cross_model_carry), not this lane.",
 	},
 	{
 		flag: "NKLEIN_TOOL_GATE_ENFORCE",

@@ -924,6 +924,16 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		// the tools array changes replayed requests), so no standing lane can promise this fires every run.
 		expectation: "exceptional",
 	},
+	{
+		category: "model_consult",
+		item: "F3.37",
+		observes:
+			"each completed peer consult: asker→consultant, admission reason, request/answer bytes, duration; followUpOutcome joins at analysis time (P15.3 pattern)",
+		enabledBy: "NKLEIN_MODEL_CONSULT",
+		// `exceptional` twice over: the flag is default-OFF, and even ON the stuck-gate (≥2 genuine failures +
+		// budget) makes a consult a rare event on a healthy board.
+		expectation: "exceptional",
+	},
 ];
 
 /**

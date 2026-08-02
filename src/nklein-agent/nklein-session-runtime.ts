@@ -37,12 +37,17 @@ import {
 	type RuntimeTaskImage,
 	type RuntimeTaskSessionMode,
 } from "../core/api-contract";
+import { deriveCapabilityPrior } from "../core/capability-prior-from-catalog";
+import { countGenuineFailedAttempts } from "../core/consult-failed-attempts";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
+import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { preferredEndpointKind } from "../core/model-behavior-profile";
+import { decideConsultAdmission } from "../core/model-consult";
+import { MODEL_CONSULT_CATEGORY } from "../core/model-consult-visibility";
 import { isMeasuredRetrievalDiscriminatorModel } from "../core/retrieval-discriminator";
 import { StatefulResponsesCapabilityCache } from "../core/stateful-responses-gate";
-import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
-import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { createAdaptiveSwarmRecoveryModel } from "./adaptive-swarm-recovery-model";
 import { createLocalAlternateEndpointModel } from "./local-alternate-endpoint-model";
 import {
@@ -53,6 +58,7 @@ import {
 import { resolveNKleinAgentPerceivedCwd } from "./nklein-agent-sandbox";
 import { createNKleinArchitectBriefTool } from "./nklein-architect-tool";
 import { createNKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
+import { createConsultTool } from "./nklein-consult-tool";
 import { compactKanbanFocusedMessages } from "./nklein-context-focus-policy";
 import { createNKleinDecompositionTools } from "./nklein-decomposition-tool";
 import { createEditFileTool } from "./nklein-edit-file-tool";
@@ -98,9 +104,18 @@ import {
 } from "./nklein-swarm-tool-broker";
 import { resolveNKleinTeamDelegationPolicy } from "./nklein-team-delegation";
 import { createWebResearchTool } from "./nklein-web-research-tool";
+
 import { createWriteFilesTool, createWriteFileTool } from "./nklein-write-files-tool";
 import { createRunawayInterruptModel } from "./runaway-interrupt-model";
 import type { AgentTool } from "./sdk-agent-types";
+
+// F3.37: per-card consult budget — ONE consult per card. The article's own pattern; more than one converts
+// consultation into the loop the budget exists to prevent. Raised only with A/B evidence, never casually.
+const CONSULT_BUDGET_PER_CARD = 1;
+// Consultants are the STRONGER (slower) local models and m5max low-power throttling is normal operation —
+// a truncated consult wastes the whole per-card budget, so the timeout errs long.
+const CONSULT_COMPLETION_TIMEOUT_MS = 300_000;
+
 import { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 import {
 	createNKleinSdkSessionHost,
@@ -246,6 +261,108 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		this.createSessionHost = options.createSessionHost ?? createNKleinSdkSessionHost;
 		const createMcpRuntimeService = options.createMcpRuntimeService ?? createNKleinMcpRuntimeService;
 		this.nkleinMcpRuntimeService = createMcpRuntimeService();
+	}
+
+	/**
+	 * F3.37: sibling-busy view for the consult tool's §5.AB veto — a model id is "busy" when any OTHER active
+	 * session was started on it. Measured from the runtime's own registries (the same maps session start/stop
+	 * maintain), so the veto sees exactly the sibling card work it exists to protect. Traffic !Klein did not
+	 * start is out of scope by design (the veto's contract is siblings, not the gateway's global queue).
+	 */
+	private listActiveSiblingModelIds(excludeTaskId: string): Set<string> {
+		const busy = new Set<string>();
+		for (const taskId of this.sessionIdByTaskId.keys()) {
+			if (taskId === excludeTaskId) {
+				continue;
+			}
+			const modelId = this.lastStartRequestByTaskId.get(taskId)?.modelId?.trim();
+			if (modelId) {
+				busy.add(modelId);
+			}
+		}
+		return busy;
+	}
+
+	/**
+	 * F3.37 registration-time stuck-gate: the consult tool is built ONLY for a worker session whose card already
+	 * shows enough GENUINE failed attempts (never `!== "success"` — see consult-failed-attempts.ts) with budget
+	 * remaining, so an un-stuck model never sees the schema. Execute re-derives the same gate from live state;
+	 * this build-time copy is what makes the gate harness-enforced rather than prompt-advisory.
+	 */
+	private async buildConsultToolIfAdmitted(request: StartNKleinSessionRuntimeRequest): Promise<AgentTool[]> {
+		if (!isTruthyEnv(process.env.NKLEIN_MODEL_CONSULT)) {
+			return [];
+		}
+		const baseUrl = request.baseUrl?.trim();
+		const askerModelId = request.modelId?.trim();
+		if (request.role !== "worker" || !baseUrl || !askerModelId) {
+			return [];
+		}
+		const countFailedAttempts = async (): Promise<number> =>
+			countGenuineFailedAttempts(await readAllAgentLedger().catch(() => []), request.taskId);
+		const countConsultsUsed = async (): Promise<number> =>
+			(
+				await readSelfObservationEvents({
+					category: MODEL_CONSULT_CATEGORY,
+					taskId: request.taskId,
+					limit: 100,
+				}).catch(() => [])
+			).length;
+		const [failedAttempts, consultsUsed] = await Promise.all([countFailedAttempts(), countConsultsUsed()]);
+		const admission = decideConsultAdmission({
+			failedAttempts,
+			consultsUsed,
+			consultBudget: CONSULT_BUDGET_PER_CARD,
+		});
+		if (!admission.admitted) {
+			return [];
+		}
+		return [
+			createConsultTool({
+				taskId: request.taskId,
+				askerModelId,
+				// One derivation for BOTH sides of the ≥margin comparison — mixing the provider contract's
+				// effectiveScore for one side with a derived prior for the other would corrupt the margin.
+				askerCapability: deriveCapabilityPrior(askerModelId),
+				consultBudget: CONSULT_BUDGET_PER_CARD,
+				countFailedAttempts,
+				countConsultsUsed,
+				gatherCandidates: async () => {
+					const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(
+						() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+					);
+					const siblingBusy = this.listActiveSiblingModelIds(request.taskId);
+					return descriptors
+						.filter((descriptor) => !descriptor.isEmbedding)
+						.map((descriptor) => ({
+							key: descriptor.modelKey,
+							modelId: descriptor.runtimeId,
+							capability: deriveCapabilityPrior(descriptor.modelKey),
+							loadedAndIdle: !siblingBusy.has(descriptor.runtimeId),
+						}));
+				},
+				runConsultCompletion: async ({ consultantModelId, prompt }) => {
+					try {
+						const client = new LocalLlmClient({
+							providerId: request.providerId,
+							modelId: consultantModelId,
+							baseUrl,
+							apiKey: request.apiKey,
+							// Generous by design: consultants are the STRONGER (slower) local models, and the
+							// m5max rule is generous timeouts everywhere — a truncated consult wastes the budget.
+							timeoutMs: CONSULT_COMPLETION_TIMEOUT_MS,
+						});
+						const completion = await client.complete({ messages: [{ role: "user", content: prompt }] });
+						return completion.content;
+					} catch {
+						return null;
+					}
+				},
+				recordObservation: (observation) => {
+					void recordSelfObservation(observation);
+				},
+			}),
+		];
 	}
 
 	async startTaskSession(request: StartNKleinSessionRuntimeRequest): Promise<StartNKleinSessionRuntimeResult> {
@@ -404,6 +521,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		// session kind gets, in a fixed order) and every CONDITIONALLY-ATTACHED tool appended at the TAIL. Serialized
 		// tool schemas are part of the prompt bytes local endpoints prefix-cache, so a worker-vs-reviewer (etc.)
 		// toolset must diverge only at the end — never interleave a conditional tool between the stable ones.
+		const consultTools = await this.buildConsultToolIfAdmitted(request);
 		const rawExtraTools: AgentTool[] = [
 			// ---- STABLE SHELL (attached for every session on this path, fixed relative order) ----
 			// Decomposition / board / plan tools are TRUSTED CONTROL-PLANE: they mutate only !Klein-owned
@@ -498,6 +616,11 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 						}),
 					]
 				: []),
+			// F3.37 `consult_stronger_model`: flag-gated (NKLEIN_MODEL_CONSULT, default-OFF), worker-only, and
+			// admitted only when the card's GENUINE failed-attempt count already satisfies the stuck-gate — an
+			// un-stuck session never sees the schema. Last in the tail: it is the fastest-churning gate here
+			// (per-card ledger state), and §5.AQ(e) wants slow-churning gates first.
+			...consultTools,
 		];
 		const mcpToolNames = new Set((mcpToolBundle?.tools ?? []).map((tool) => tool.name));
 		// S9: a GENEROUS session-total outward-action backstop is default-ON (only trips on egregious injection-driven
