@@ -7137,7 +7137,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   properly per combination, and encode each family's known quirks as fixtures (reasoning-channel-only output, empty
   content on json_schema, no-verdict reviewers, Jinja alternation 500s) so a regression in a quirk-handling path
   fails the matrix loudly.
-- [~] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
+- [x] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
   git remotes, update feeds, web/egress (already hard-gated), clock-driven damping. INTERNAL flaky sources (the
   proven ones, extend as found): the host-capacity view that reads the REAL LM Studio gateway even in sims (memory:
   sweep needs an IDLE gateway — must be injectable/mocked for nightly), `lms ps`/loaded-model discovery, Date.now
@@ -7168,6 +7168,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   receipt already provides (the cell was bound to a loopback mock and a fake `lms` CLI, so it *could not* reach the
   fleet). Left open rather than waved through, because a behavioural cross-check can still catch a seam the receipt
   does not model; but it should be scheduled as a deliberate load test, not waited on as a blocker.
+  **✅ CLOSED 2026-08-02 — the fleet-busy clause ran as that deliberate load test, and the previous attempt's
+  self-void is why this one is believable.** The earlier probe put `--max-time 5` on its own "busy" generation and
+  killed it in 5s, so the fleet was idle during the cell and the probe proved nothing. This run: a driver loop of
+  real generations against the live gateway (gemma-4-e2b, NO kill-timeout, 6000-token budget) ran 32 back-to-back
+  iterations, each a genuine `finish=stop` completion of ~4.5k tokens; `lms ps` reported GENERATING throughout.
+  **15 iterations blanket the 777s cell window with a measured max gap of 0s** — the driver started 722s before
+  the cell and outlived it. Under that load, `dev nightly --project 02 --model perfect` (regular + v1→v2
+  compatibility cell) passed 2/2 with **all 7 invariants each (~2975 signals) and the structured
+  `hermeticEvidence` receipt retained in the verdict artifact** — no verdict flip from a busy gateway, the exact
+  property N4 names. Behavioural cross-check on the kept HOMEs, with a positive control proving the grep could
+  match at all (first attempt was VOID — an unsplit shell variable grepped a nonexistent path; §4A's
+  confident-negative again): **zero hits for `gemma-4-e2b`** — the one tracer that cannot pre-exist in any
+  fixture, since it names the model the driver loaded today — zero `pmset`, and every `localhost:1234`/
+  `127.0.0.1:1234` hit byte-provenanced to the checked-in migration fixture's persisted fitness rows (data ABOUT
+  an endpoint, seeded by design, not contact WITH one). Timing note for future load tests: under contention +
+  low-power the cell pair took ~13 min (a first foreground attempt was SIGTERMed at a 10-min HARNESS cap — my
+  cap, not the nightly's; the 45-min cell budget was never close). Teardown verified: driver stopped, model
+  unloaded, HOMEs removed, gateway idle.
 - [x] **N5 — Invariant packs (what "finishes properly" MEANS, asserted).** Per project a reusable assertion pack over
   the drained state: board reaches the expected terminal lanes; ledger carries the expected attempt/transition
   shapes; ZERO unmatched aimock requests; zero orphan sessions/worktrees/leases after teardown; the gates that MUST
