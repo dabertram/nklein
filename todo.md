@@ -7973,9 +7973,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
   (feeds the trust-center posture table). DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
-- [ ] **N21 — 🐛 Second distinct ACT-drain stall shape: card frozen `in_progress`, model idle, 3 sessions but
+- [~] **N21 — 🐛 Second distinct ACT-drain stall shape: card frozen `in_progress`, model idle, 3 sessions but
   only ONE terminal attempt record (`success`) and no lane move (live-hit 2026-08-02 on the N20 clean-room
-  repro; evidence preserved `.real-runs/20260802-224900`).** Facts from the run: 82 tool uses / 30 errors
+  repro; evidence preserved `.real-runs/20260802-224900`).**
+  **✅ FIX APPLIED 2026-08-02: `InMemoryNKleinMessageRepository.emitSummary` is now WRITE-THROUGH** (persists
+  the emitted summary into the task's entry before fanout), so `getSummary` stops lying and a warning-only
+  `updateSummary(entry, …)` spread can no longer resurrect a pre-terminal state — the yank-back class dies at
+  the single choke point rather than per call site. Regression tests pin emit→get consistency AND the exact
+  adapter-terminal-then-warning sequence; **proven to fire** (write-through disabled → 2 tests fail; restored
+  → 9/9; nklein-agent suite 2,956 green). The N20 proof drain reproduced the yank-back TWICE more pre-fix with
+  two different warning texts (MCP advisory, architect-pause notice) — class confirmed, not an MCP quirk.
+  **REMAINING before [x]:** one post-fix live drain whose ledger shows NO `awaiting_review → running |
+  <warning-text>` regression row (the terminal state survives the warning emit), plus the residual
+  attempt-accounting question (2 of 3 sessions without terminal attempt records) re-checked on that run —
+  expected to be downstream churn of the now-dead re-drive, but verify rather than assume. Facts from the run: 82 tool uses / 30 errors
   across 3 sessions (`aimockSupersededSessions: 2`), a single attempt event with `outcome: "success"`, 14
   transitions, board stuck `in_progress`, `active=[idle]` for the final ~2 minutes until the stall reactor
   aborted at 564s. Open questions, in order: why did two sessions end with NO terminal attempt record (the
@@ -8011,8 +8022,15 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   become read-your-writes consistent, `getSummary` stops lying, and every stale-spread site heals at once; the
   repository's own boundary comment already claims it "owns … summary". Plus a repository unit test pinning
   emit→get consistency and the adapter-terminal-then-warning sequence.
-- [~] **N20 — 🐛 Review-lane dead stop on a real ACT drain: card enters review, review never starts, no hold
+- [x] **N20 — 🐛 Review-lane dead stop on a real ACT drain: card enters review, review never starts, no hold
   message, no trigger events (live-hit 2026-08-02; evidence preserved `.real-runs/20260802-220538`).**
+  **✅ PROVEN FIXED 2026-08-02 (`.real-runs/20260802-232342`):** with the seed opted in, the kernel ran the
+  FULL review sequence on a live drain — `acceptance_passed → review_started → review_changes_requested` —
+  the 31B auto-diverse reviewer generated (19 review telemetry rows), the verdict was a genuine BOUNCE, and
+  the card returned to rework. The run then ended at the 20-minute wall clock with transitions still flowing:
+  a weak-worker timeout, not a stall. (Same run also reproduced N21 twice more and supplied the first live
+  `review_changes_requested` ledger row, which confirmed the F3.37 bounce counter's card-taskId join against
+  real data.)
   **✅ ROOT-CAUSED + FIXED same night (proof drain pending).** The chain, each link verified against the
   preserved board: (1) `dev test-project` never passes `autoReviewEnabled`; (2) the seed builder forwards it
   only "when boolean"; (3) **`addTaskToColumn` coerces the ABSENT flag to an explicit `false`**

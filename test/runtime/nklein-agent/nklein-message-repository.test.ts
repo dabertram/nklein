@@ -218,3 +218,40 @@ describe("InMemoryNKleinMessageRepository", () => {
 		expect(loadPersistedSession).toHaveBeenCalledTimes(2);
 	});
 });
+
+describe("emitSummary write-through (N21)", () => {
+	// Live-hit 2026-08-02, twice, two different warning texts: emitSummary was fanout-only, so the event
+	// adapter's terminal `awaiting_review` reached every listener while `entry.summary` still said `running`
+	// from turn start. The next warning-only `updateSummary(entry, …)` spread the stale state wholesale and
+	// RESURRECTED `running` — yanking the card out of review with the warning text as the transition reason.
+	it("persists the emitted summary so getSummary returns it", () => {
+		const repository = createInMemoryNKleinMessageRepository();
+		const entry = createEntry("task-n21");
+		repository.setTaskEntry("task-n21", entry);
+		repository.emitSummary({ ...entry.summary, state: "awaiting_review", reviewReason: "hook" });
+		expect(repository.getSummary("task-n21")?.state).toBe("awaiting_review");
+	});
+
+	it("survives the adapter-terminal-then-warning sequence without resurrecting the stale state", () => {
+		const repository = createInMemoryNKleinMessageRepository();
+		const entry = createEntry("task-n21");
+		repository.setTaskEntry("task-n21", entry);
+		updateSummary(entry, { state: "running" });
+
+		// The adapter's terminal emit (it builds its summary elsewhere — only the emit reaches this store).
+		repository.emitSummary({ ...entry.summary, state: "awaiting_review", reviewReason: "hook" });
+
+		// The start-warning continuation, ~350ms later: a warning-only patch onto the SAME entry. Before the
+		// write-through, entry.summary still said "running" and this spread re-emitted it.
+		const emitted = updateSummary(entry, { warningMessage: "Sandbox MCP server withheld …" });
+		expect(emitted.state).toBe("awaiting_review");
+		expect(emitted.warningMessage).toBe("Sandbox MCP server withheld …");
+	});
+
+	it("ignores an emit for a task with no entry (no phantom entries)", () => {
+		const repository = createInMemoryNKleinMessageRepository();
+		const orphan = createEntry("task-elsewhere");
+		expect(() => repository.emitSummary(orphan.summary)).not.toThrow();
+		expect(repository.getSummary("task-elsewhere")).toBeNull();
+	});
+});

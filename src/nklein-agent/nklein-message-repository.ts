@@ -111,6 +111,19 @@ export class InMemoryNKleinMessageRepository implements NKleinMessageRepository 
 
 	emitSummary(summary: RuntimeTaskSessionSummary): void {
 		const snapshot = cloneSummary(summary);
+		// N21 (live-hit 2026-08-02, twice, two different warning texts): WRITE-THROUGH before fanout. This
+		// method used to be fanout-only, so an emitted summary reached every listener but never the entry —
+		// while `getSummary`/`updateSummary` read `entry.summary`. The two stores diverged for a ~350ms window
+		// after each turn: the event adapter's terminal `awaiting_review` went to the board, the entry still
+		// said `running` from turn start, and the next warning-only `updateSummary(entry, …)` spread the stale
+		// state wholesale — RESURRECTING `running`, yanking the card out of review, and stamping the warning
+		// text as the transition reason. Ordering-random, so live drains hit it and fast replay cells never
+		// did. Owning the entries (this class's stated boundary) means the last EMITTED summary is the one a
+		// reader gets back.
+		const entry = this.entries.get(summary.taskId);
+		if (entry) {
+			entry.summary = cloneSummary(snapshot);
+		}
 		for (const listener of this.summaryListeners) {
 			listener(snapshot);
 		}
