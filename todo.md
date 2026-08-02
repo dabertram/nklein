@@ -7973,9 +7973,32 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
   (feeds the trust-center posture table). DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
-- [~] **N21 — 🐛 Second distinct ACT-drain stall shape: card frozen `in_progress`, model idle, 3 sessions but
+- [ ] **N22 — 🧹 Turn-end summary-emit interleave + transition-reason misattribution (split from N21's
+  confirmation run, 2026-08-03; low severity — self-healed live).** Two residuals, one evidence base
+  (`.real-runs/20260802-235233`): (a) **same-instant emit interleave** — the repeated-decompose guard's PARK
+  (`awaiting_review`/attention) and the turn's terminal emit raced 3ms apart; the terminal payload was built
+  before the park landed, so the park's attention state was overwritten (recorder: `awaiting_review → running`).
+  Material only if something depends on the ATTENTION state persisting — in the run, the workflow kernel drove
+  acceptance+review regardless, which is direct evidence FOR P24.1 (make the kernel authoritative; the summary
+  stream is presentation, and last-writer-wins races are inherent to it). Consider fixing as part of P24.1
+  rather than patching emit ordering. (b) **recorder reason misattribution** — `createSessionTransitionRecorder`
+  stamps `reviewReason ?? warningMessage` as the transition reason, and `warningMessage` PERSISTS across
+  summary patches, so unrelated transitions carry stale advisory texts as their "reason" (e.g. `running → idle
+  | Sandbox MCP server …`). Cheap fix: clear `warningMessage` on state-changing patches, or record reason only
+  when the patch that caused the transition set it. Evidence-reading hazard meanwhile: a transition's `reason`
+  is the newest reviewReason/warning at emit time, NOT necessarily the cause of the move.
+- [x] **N21 — 🐛 Second distinct ACT-drain stall shape: card frozen `in_progress`, model idle, 3 sessions but
   only ONE terminal attempt record (`success`) and no lane move (live-hit 2026-08-02 on the N20 clean-room
   repro; evidence preserved `.real-runs/20260802-224900`).**
+  **✅ CONFIRMED FIXED 2026-08-03 (`.real-runs/20260802-235233`), criterion applied as pre-registered:** the
+  stale-spread class is DEAD — zero MCP-advisory yank-backs (the vector that fired 3× across the two pre-fix
+  runs), and the drain drove `acceptance_passed → review_started → review_changes_requested` end-to-end.
+  Attempt accounting also looked healthy on this run (an interrupt recorded its `aborted` honestly). ONE
+  `awaiting_review → running` row survived, but with DIFFERENT anatomy — 3ms between park and resurrect, i.e.
+  two same-instant emits at turn end whose payloads were both built before the other landed (write-through
+  fixes read-side staleness; it cannot retro-edit an emit already constructed). Cosmetic in this run: the
+  workflow KERNEL, not the summary stream, drove acceptance+review to completion 3 minutes later — filed
+  precisely as N22 rather than stretched under this id.
   **✅ FIX APPLIED 2026-08-02: `InMemoryNKleinMessageRepository.emitSummary` is now WRITE-THROUGH** (persists
   the emitted summary into the task's entry before fanout), so `getSummary` stops lying and a warning-only
   `updateSummary(entry, …)` spread can no longer resurrect a pre-terminal state — the yank-back class dies at
