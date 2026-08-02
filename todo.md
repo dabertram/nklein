@@ -7092,7 +7092,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   (loop_park, park_resume, failover, taint_gate, syntax_guard, turn_loop, flags_on, home-0.0.0).
   **SCOPE, restated because a green run invites the wrong claim:** these cells drive SIMULATED models. This proves
   the MECHANISM fires end-to-end; it is not a user-facing success rate and licenses nothing about real-model quality.
-- [ ] **N19 — 🔴 FLAKY PACK VIOLATION: `agent_sandbox_result_patch` + `second_opinion_review_session` intermittently
+- [x] **N19 — 🔴 "FLAKY" PACK VIOLATION — ROOT-CAUSED + FIXED same day: NOT flaky, MY OWN HOME-cleanup bug. `agent_sandbox_result_patch` + `second_opinion_review_session` intermittently
   do not fire on a BYTE-IDENTICAL recording (found 2026-08-02; gates trust in green nightlies — take this FIRST).**
   Observed on `02×perfect` + `02×perfect@home-0.0.0` (recording sha256 `da9d0b71…`, unchanged): **2 runs violated
   both must_fire invariants, then a third run was fully green** — same code, same bytes, minutes apart. In the
@@ -7114,6 +7114,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   the reuse path is confirmed crossing HOME boundaries, that is a hermeticity bug in the fingerprint keying. Also
   read whether my N6b probe run (2026-08-02 ~17:05) already carried these violations — its exit 1 was attributed
   wholly to the deliberate cost regressions and pack lines were never read.
+  **✅ RESOLVED 2026-08-02, hours after filing. The full violation line ended
+  "[No signal events were readable from telemetry]", and the "flake" correlated PERFECTLY with one variable:
+  every violated run lacked `--keep-home`, every green run had it.** Root cause: the 2026-08-01 HOME-leak fix put
+  the passing cell's `rm` INSIDE `runCell` — but N5 pack evaluation happens in the PARENT afterwards and re-reads
+  `readTelemetryText(verdict.homePath)`. So every passing non-keep-home run deleted the telemetry the packs were
+  about to read: the two must_fire signals that live only in telemetry violated, while lanes (fed from stdout
+  emission) and must_stay_quiets (vacuous on empty) stayed green — precisely the observed "2 violated, 0
+  indeterminate" shape. Deterministic, not flaky; the alternating flag made it LOOK intermittent, and the filing's
+  evidence-reuse hypothesis was wrong. **FIX:** cleanup moved to the parent, AFTER pack evaluation; verified live
+  (all 7 invariants satisfied, ~2988 signals extracted, no HOME accumulation). The original leak stays closed one
+  phase later. My N6b probe's exit 1 almost certainly carried these same violations misattributed to the
+  deliberate cost regressions — its pack lines were never read and its log was deleted; treated as unproven.
+  **Defect #13, and its lesson compounds the set: my cleanup commit CLAIMED "a PASSED cell's isolated HOME has
+  nothing left to diagnose" — false; the pack evaluator still needed it.** A cleanup's correct phase is defined by
+  the LAST reader, not by the writer's view of doneness.
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,

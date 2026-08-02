@@ -258,7 +258,7 @@ const PROFILE_EXTRA_ENV: Readonly<Record<string, Readonly<Record<string, string>
 	},
 };
 
-async function runCell(cell: NightlyCell, keepHome = false): Promise<CellVerdict> {
+async function runCell(cell: NightlyCell): Promise<CellVerdict> {
 	const started = Date.now();
 	let home: string;
 	try {
@@ -433,13 +433,6 @@ async function runCell(cell: NightlyCell, keepHome = false): Promise<CellVerdict
 				};
 			}
 		}
-		// A PASSED cell's isolated HOME has nothing left to diagnose, and nothing ever removed it: measured
-		// 2026-08-01, 331 of them had accumulated in tmpdir holding 6.3 GB. Failures still retain theirs (every
-		// failure return above keeps `homePath` for exactly that reason), and `--keep-home` retains a passing one
-		// when it IS the evidence — N9's closure needed to inspect a migrated HOME and its recovery backup.
-		if (!keepHome) {
-			await rm(home, { recursive: true, force: true }).catch(() => undefined);
-		}
 		return {
 			cell,
 			outcome: "passed",
@@ -587,12 +580,12 @@ export async function runDevNightlyCommand(options: {
 	for (const [index, cell] of cells.entries()) {
 		process.stderr.write(`== ${nightlyCellName(cell)} (${index + 1}/${cells.length}) ==\n`);
 		// SEQUENTIAL: awaited inside the loop, deliberately. See the docblock.
-		const first = await runCell(cell, keepHome);
+		const first = await runCell(cell);
 		verdicts.push(first);
 		if (options.doubleRun) {
 			// N13: the second, identical run. A deterministic cell repeats its verdict; a flip is the finding.
 			process.stderr.write(`== ${nightlyCellName(cell)} (${index + 1}/${cells.length}) — double-run pass 2 ==\n`);
-			const second = await runCell(cell, keepHome);
+			const second = await runCell(cell);
 			doubleRunPairs.push({
 				cellId: nightlyCellName(cell),
 				first: { outcome: first.outcome, reason: first.reason ?? null },
@@ -786,6 +779,21 @@ export async function runDevNightlyCommand(options: {
 	);
 	const packVerdicts = packEvaluations.map((evaluation) => evaluation.text);
 	const invariantPacksOk = packEvaluations.every((evaluation) => evaluation.passed);
+	// A PASSED cell's isolated HOME is removed only NOW — after pack evaluation, which re-reads the HOME's
+	// telemetry (extractDrainSignalEvents above). The first version of this cleanup lived inside runCell, and
+	// deleting the HOME there silently destroyed the telemetry the packs were about to read: every passing
+	// non-`--keep-home` run violated `must_fire:agent_sandbox_result_patch` + `second_opinion_review_session`
+	// with "[No signal events were readable from telemetry]", masquerading as a flaky pack (filed as N19 before
+	// the root cause surfaced — the "flake" was exactly correlated with the --keep-home flag). Failures always
+	// retain their HOME for diagnosis; the leak this cleanup exists for (331 HOMEs / 6.3 GB, 2026-08-01) is
+	// still closed, one phase later.
+	if (!keepHome) {
+		for (const verdict of verdicts) {
+			if (verdict.outcome === "passed" && verdict.homePath) {
+				await rm(verdict.homePath, { recursive: true, force: true }).catch(() => undefined);
+			}
+		}
+	}
 	const overallOk = isNightlyOverallOk({
 		cellsOk: summary.ok,
 		crashRecoveryOk: crashRecoveryMatrix.outcome !== "failed",
