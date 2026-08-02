@@ -14,6 +14,7 @@ import {
 	forgetSessionFocusState,
 	getOfferedToolNamesForSession,
 	recordSessionFocusChain,
+	recordSessionRole,
 } from "./nklein-context-focus-extension";
 import { KANBAN_SESSION_METADATA_KEY, toPersistedLaunchConfig } from "./nklein-session-launch-config";
 import { createTaskToolApprovalWrapper } from "./nklein-task-tool-approval";
@@ -274,6 +275,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			requestToolApproval: request.requestToolApproval,
 		});
 		this.bindTaskSession(request.taskId, requestedSessionId);
+		// F12.18b: record the role this session was ASKED to run, so the tool-gate seam can scope enforcement to
+		// workers with the real attribute — three proxies (name, age, tool-presence) each failed where this is used.
+		recordSessionRole(requestedSessionId, request.role ?? null);
 
 		let mcpToolBundle: NKleinMcpToolBundle | null = null;
 		let startWarnings: string[] = [];

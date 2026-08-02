@@ -171,29 +171,31 @@ export type ToolGateEnforcementDecision =
 				| "arbitrary_selection"
 				| "empty_selection"
 				| "selection_not_smaller"
-				| "planning_session";
+				| "non_worker_role"
+				| "role_unknown";
 	  };
 
 export function decideToolGateEnforcement(input: {
 	readonly offeredCount: number;
 	readonly verdict: Pick<ToolGateResult, "selected" | "arbitrary">;
 	readonly cap?: number;
-	/** Names actually offered this turn — needed only when `planningMarkers` is supplied. */
-	readonly offeredNames?: readonly string[];
 	/**
-	 * Tool names whose PRESENCE marks a planning/decompose session — enforcement is refused outright there.
+	 * The session's REAL role, recorded by the session runtime. Enforcement applies to WORKERS only.
 	 *
-	 * Live A/B round 1 (2026-08-02): with enforcement applied to every session, the OBSERVE arm decomposed into 7
-	 * cards while the ENFORCE arm's seed NEVER LEFT PLANNING (14 gated turns → runtime_error ×7,
-	 * tool_input_rejection ×2, abandonment). `decompose_project` itself survived via alwaysKeep; what starved was
-	 * the AUXILIARY set planning needs (spec reading). And the counterfactual verdict could never have seen this:
-	 * its outcomes join from cards that EXIST, and a board that fails to decompose produces no cards — a selection
-	 * effect. The marker is local and structural: only planning sessions are offered a decompose terminal at all.
+	 * History, because it is three lessons deep: round 1 blamed enforcement for a planning stall (the verdict's
+	 * outcomes join from cards that exist, so planning harm is a selection-effect blind spot); round 2 showed the
+	 * stall occurs WITHOUT enforcement; round 3 showed the tool-presence "planning marker" over-fires
+	 * (`decompose_project` is offered in ordinary ACT catalogs) and silently no-oped enforcement everywhere. The
+	 * role is the attribute the proxies kept approximating. `null`/unknown REFUSES — an unattributed session must
+	 * not be narrowed on a guess, and the refusal is its own named reason so the A/B can count it.
 	 */
-	readonly planningMarkers?: readonly string[];
+	readonly sessionRole?: string | null;
 }): ToolGateEnforcementDecision {
-	if (input.planningMarkers?.length && input.offeredNames?.some((name) => input.planningMarkers?.includes(name))) {
-		return { enforce: false, reason: "planning_session" };
+	if (input.sessionRole == null || input.sessionRole.length === 0) {
+		return { enforce: false, reason: "role_unknown" };
+	}
+	if (input.sessionRole !== "worker") {
+		return { enforce: false, reason: "non_worker_role" };
 	}
 	if (input.offeredCount <= Math.max(1, input.cap ?? DEFAULT_TOOL_CAP)) {
 		return { enforce: false, reason: "under_cap" };

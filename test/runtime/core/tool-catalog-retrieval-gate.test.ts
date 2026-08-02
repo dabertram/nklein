@@ -14,6 +14,7 @@ describe("decideToolGateEnforcement", () => {
 		const decision = decideToolGateEnforcement({
 			offeredCount: 28,
 			verdict: { selected: tools(7), arbitrary: false },
+			sessionRole: "worker",
 		});
 		expect(decision.enforce).toBe(true);
 		expect(decision.enforce && decision.keepNames).toHaveLength(7);
@@ -23,6 +24,7 @@ describe("decideToolGateEnforcement", () => {
 		const decision = decideToolGateEnforcement({
 			offeredCount: 7,
 			verdict: { selected: tools(7), arbitrary: false },
+			sessionRole: "worker",
 		});
 		expect(decision).toEqual({ enforce: false, reason: "under_cap" });
 	});
@@ -32,12 +34,17 @@ describe("decideToolGateEnforcement", () => {
 		const decision = decideToolGateEnforcement({
 			offeredCount: 28,
 			verdict: { selected: tools(7), arbitrary: true },
+			sessionRole: "worker",
 		});
 		expect(decision).toEqual({ enforce: false, reason: "arbitrary_selection" });
 	});
 
 	it("refuses an EMPTY selection rather than offering the model nothing", () => {
-		const decision = decideToolGateEnforcement({ offeredCount: 28, verdict: { selected: [], arbitrary: false } });
+		const decision = decideToolGateEnforcement({
+			offeredCount: 28,
+			verdict: { selected: [], arbitrary: false },
+			sessionRole: "worker",
+		});
 		expect(decision).toEqual({ enforce: false, reason: "empty_selection" });
 	});
 
@@ -45,31 +52,43 @@ describe("decideToolGateEnforcement", () => {
 		const decision = decideToolGateEnforcement({
 			offeredCount: 28,
 			verdict: { selected: tools(28), arbitrary: false },
+			sessionRole: "worker",
 		});
 		expect(decision).toEqual({ enforce: false, reason: "selection_not_smaller" });
 	});
 
-	it("refuses a PLANNING session outright — A/B round 1's board-stranding lesson", () => {
-		// With enforcement applied everywhere, the enforce arm's seed never left planning (0 cards decomposed vs 7
-		// in the observe arm). The counterfactual verdict could not see that harm: its outcomes join from cards
-		// that exist, and a board that fails to decompose produces none — a selection effect. The marker is
-		// structural: only planning sessions are offered a decompose terminal at all.
-		const decision = decideToolGateEnforcement({
+	it("enforces ONLY a worker session — the real role, after three proxies failed", () => {
+		// Round 3 proved tool-presence is not a role signal: decompose_project is offered in ordinary ACT
+		// catalogs, so a "planning marker" exemption swallowed every session and enforcement measured nothing.
+		const worker = decideToolGateEnforcement({
 			offeredCount: 28,
 			verdict: { selected: tools(7), arbitrary: false },
-			offeredNames: ["read_files", "decompose_project", "write_files"],
-			planningMarkers: ["decompose_project"],
+			sessionRole: "worker",
 		});
-		expect(decision).toEqual({ enforce: false, reason: "planning_session" });
+		expect(worker.enforce).toBe(true);
 	});
 
-	it("still enforces a WORKER session when the planning marker is absent", () => {
-		const decision = decideToolGateEnforcement({
-			offeredCount: 28,
-			verdict: { selected: tools(7), arbitrary: false },
-			offeredNames: ["read_files", "write_files", "edit_file"],
-			planningMarkers: ["decompose_project"],
-		});
-		expect(decision.enforce).toBe(true);
+	it("refuses every NON-worker role by name, so the A/B can count them", () => {
+		for (const role of ["architect", "reviewer", "planner"]) {
+			const decision = decideToolGateEnforcement({
+				offeredCount: 28,
+				verdict: { selected: tools(7), arbitrary: false },
+				sessionRole: role,
+			});
+			expect(decision, role).toEqual({ enforce: false, reason: "non_worker_role" });
+		}
+	});
+
+	it("refuses an UNKNOWN role rather than narrowing on a guess", () => {
+		// An unattributed session must not be narrowed; the refusal is its own reason so a run where role
+		// registration silently broke shows up as role_unknown counts, not as mysterious non-enforcement.
+		for (const role of [null, undefined, ""]) {
+			const decision = decideToolGateEnforcement({
+				offeredCount: 28,
+				verdict: { selected: tools(7), arbitrary: false },
+				sessionRole: role,
+			});
+			expect(decision).toEqual({ enforce: false, reason: "role_unknown" });
+		}
 	});
 });

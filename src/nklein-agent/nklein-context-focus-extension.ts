@@ -27,7 +27,7 @@ import {
 	recordFileWrite,
 } from "../core/read-before-write-guard";
 import type { ResultHandleStore } from "../core/result-handle";
-import { allAlwaysKeepToolNames, alwaysKeepToolsForRole } from "../core/role-always-keep-tools";
+import { allAlwaysKeepToolNames } from "../core/role-always-keep-tools";
 import { assessTestMisinterpretation, type TestMisinterpretationEvent } from "../core/test-misinterpretation-detector";
 import { DEFAULT_TOOL_CAP, decideToolGateEnforcement, gateToolCatalog } from "../core/tool-catalog-retrieval-gate";
 import {
@@ -101,6 +101,12 @@ const stallReplanPendingSessionIds = new Set<string>();
 // F12.24 per-tool trust decay: per-session consecutive-failure streaks (record-only observation always;
 // demote-hint injection + dropped-tool filtering only under NKLEIN_TOOL_TRUST_DECAY).
 const toolTrustBySessionId = new Map<string, ToolTrustState>();
+/**
+ * F12.18b role scoping, done with the REAL attribute after three proxies failed. The session runtime records the
+ * role it was ASKED to run; tool-presence was tried first and over-fired (`decompose_project` is offered in
+ * ordinary ACT catalogs, so the "planning marker" exemption swallowed every session and enforcement no-oped).
+ */
+const sessionRoleBySessionId = new Map<string, string>();
 const toolTrustObservedBySessionId = new Map<string, Set<string>>();
 const toolTrustPendingGuidanceBySessionId = new Map<string, string[]>();
 // F12.15b test-misinterpretation watch (record-only): per-session red-run/edit events, one observation per session.
@@ -719,10 +725,10 @@ export function createKanbanContextFocusExtension(
 								const enforcement = decideToolGateEnforcement({
 									offeredCount: gateOffered.length,
 									verdict: gated,
-									offeredNames: gateOffered.map((tool) => tool.name),
-									// A/B round 1: enforcement at PLANNING stranded the board (0 cards decomposed vs 7).
-									// The architect's terminal tools mark a planning session structurally.
-									planningMarkers: alwaysKeepToolsForRole("architect"),
+									// The REAL role, recorded by the session runtime at start. Round 3 proved the
+									// tool-presence proxy wrong: decompose_project appears in ordinary ACT catalogs, so
+									// the "planning marker" swallowed every session and enforcement measured nothing.
+									sessionRole: sessionRoleBySessionId.get(sessionId) ?? null,
 								});
 								if (enforcement.enforce) {
 									const keep = new Set(enforcement.keepNames);
@@ -1177,6 +1183,12 @@ function getCurrentFocusStepForSession(sessionId: string): string | null {
  * Either may be null — a card without acceptance criteria is a real state, and the block omits the line rather
  * than emitting an empty "DONE MEANS:", which would read as "done means nothing".
  */
+export function recordSessionRole(sessionId: string, role: string | null | undefined): void {
+	if (typeof role === "string" && role.length > 0) {
+		sessionRoleBySessionId.set(sessionId, role);
+	}
+}
+
 export function recordSessionCardContract(
 	sessionId: string,
 	contract: { constraints: string | null; acceptanceCriteria: string | null },
@@ -1185,6 +1197,7 @@ export function recordSessionCardContract(
 }
 
 export function forgetSessionFocusState(sessionId: string): void {
+	sessionRoleBySessionId.delete(sessionId);
 	cardContractBySessionId.delete(sessionId);
 	editHistoryBySessionId.delete(sessionId);
 	editThrashFlaggedBySessionId.delete(sessionId);
