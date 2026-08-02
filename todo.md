@@ -9016,8 +9016,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `…-habit-1` never claims `…-habit-10`'s sessions). 5 tests pinned with the REAL ids from the drain.
   **After the fix `evaluable: 0` is finally honest:** the only scheduler-terminal card is the stale `db38c`; the
   observed cards are still working/awaiting review behind one loaded model. That is now genuinely volume+time.
-  **NEXT:** let the runtime finish its cards (runtime is still up on 4599), re-read the verdict, then tear down
-  the temp HOME + runtime and unload the model.
+  **✅ 2026-08-02 — THE FIRST REAL VERDICT OF THE CAMPAIGN: `enforce`, with every honesty rail firing.** The drain
+  reached terminal cards (including a failed→succeeded LATE SUCCESS on card-01 — `reportCompletion`'s documented
+  path, observed live) and `dev mechanism-decision` read: **500 observations · 100% disagreement · 213 EVALUABLE ·
+  the path actually taken succeeded only 141/213 (66%)** on turns where the gate would have trimmed 28→7 tools.
+  The prefix join proved itself in production (287 unjoined = sessions of cards not yet terminal, correctly
+  UNKNOWN). The core's own recommendation is the right one: **worth a trial flip, gated by a PAIRED A/B — not a
+  unilateral default change.** And the saturation guard fired (read capped at 500), which per its own wording
+  means this verdict "must not be used to flip a default as-is". So: the CHAIN is proven end-to-end
+  (flag → observation → join key → namespace join → outcome index → decision → command), the evidence points at
+  enforcement, and the remaining step is exactly what the evidence bar always was — a paired A/B.
+  Teardown complete per the runbook: runtime on 4599 stopped, model unloaded, temp HOME + logs removed, no
+  containers left. **NEXT (the real flip gate):** design the paired A/B — same cards, gate ON vs OFF, compare
+  card success rates; only that licenses flipping `NKLEIN_TOOL_GATE_OBSERVE`'s enforcing sibling.
 - [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.
