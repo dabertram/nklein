@@ -29,11 +29,20 @@ function readFlagsOnEnv(): Set<string> {
 }
 
 describe("N11 flags_on lane covers every flag-gated mechanism", () => {
-	it("enables every flag the mechanism registry names as a gate", () => {
+	it("enables every flag the mechanism registry names as a gate, unless PERMANENTLY excluded with a reason", () => {
+		// The two registries COMPOSE rather than conflict: FLAGS_ON_LANE_EXCLUSIONS `permanent` entries are flags
+		// this replay lane structurally cannot run (first case: NKLEIN_TOOL_GATE_ENFORCE narrows the tools array,
+		// which changes every affected replayed request). A `pending_validation` exclusion still FAILS here — that
+		// kind claims the flag belongs in the lane, so the registry naming it as a gate makes the gap real.
+		const permanentlyExcluded = new Set(
+			FLAGS_ON_LANE_EXCLUSIONS.filter((entry) => entry.kind === "permanent").map((entry) => entry.flag),
+		);
 		const registryFlags = new Set(
 			MECHANISM_REGISTRY.map((entry) => entry.enabledBy).filter((flag): flag is string => Boolean(flag)),
 		);
-		const missing = [...registryFlags].filter((flag) => !readFlagsOnEnv().has(flag)).sort();
+		const missing = [...registryFlags]
+			.filter((flag) => !readFlagsOnEnv().has(flag) && !permanentlyExcluded.has(flag))
+			.sort();
 		expect(
 			missing,
 			`flags_on does not enable: ${missing.join(", ")} — a newly registered mechanism would go uncovered while the lane still claims to cover it`,

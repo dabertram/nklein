@@ -29,7 +29,7 @@ import {
 import type { ResultHandleStore } from "../core/result-handle";
 import { allAlwaysKeepToolNames } from "../core/role-always-keep-tools";
 import { assessTestMisinterpretation, type TestMisinterpretationEvent } from "../core/test-misinterpretation-detector";
-import { DEFAULT_TOOL_CAP, gateToolCatalog } from "../core/tool-catalog-retrieval-gate";
+import { DEFAULT_TOOL_CAP, decideToolGateEnforcement, gateToolCatalog } from "../core/tool-catalog-retrieval-gate";
 import {
 	createToolTrustState,
 	orderOfferedToolsByTrust,
@@ -658,7 +658,11 @@ export function createKanbanContextFocusExtension(
 				// ~10-15 tools and 40+ → 7 fixed 62% of tool-use failures in the harness study, so the drop rate
 				// is worth measuring before anything is actually withheld — withholding a tool the model needed is
 				// a turn-level failure, and this runs BEFORE the two-phase pick that would otherwise mask it.
-				if (isTruthyEnv(process.env.NKLEIN_TOOL_GATE_OBSERVE)) {
+				const toolGateObserve = isTruthyEnv(process.env.NKLEIN_TOOL_GATE_OBSERVE);
+				// F12.18b: the ENFORCE arm of the paired A/B the observe arm's verdict demanded (P15.3, 2026-08-02:
+				// 500 turns, 100% disagreement, keep-all succeeded 141/213 — `enforce`, gated on exactly this A/B).
+				const toolGateEnforce = isTruthyEnv(process.env.NKLEIN_TOOL_GATE_ENFORCE);
+				if (toolGateObserve || toolGateEnforce) {
 					try {
 						const gateOffered = (finalResult?.tools ?? context.request.tools ?? []) as readonly {
 							name: string;
@@ -711,6 +715,43 @@ export function createKanbanContextFocusExtension(
 									).length,
 								},
 							});
+							if (toolGateEnforce) {
+								const enforcement = decideToolGateEnforcement({
+									offeredCount: gateOffered.length,
+									verdict: gated,
+								});
+								if (enforcement.enforce) {
+									const keep = new Set(enforcement.keepNames);
+									// Filter the ORIGINAL array so full tool definitions (inputSchema etc.) survive; gateOffered
+									// is only a name/description view of the same objects.
+									finalResult = {
+										...(finalResult ?? {}),
+										tools: gateOffered.filter((tool) => keep.has(tool.name)),
+									} as unknown as typeof finalResult;
+								}
+								// Recorded on EVERY enforce-arm turn, including refusals: the A/B compares arms by card
+								// outcome, and an arm whose skipped turns are invisible would credit enforcement with
+								// turns it never touched. Separate category from the observe arm on purpose — the
+								// counterfactual join reads `tool_catalog_gate_observation`, whose `actual` is
+								// keep-everything BY CONSTRUCTION; mixing enforced turns in would corrupt exactly the
+								// independence that makes it a counterfactual.
+								recordSelfObservation({
+									signal: "custom",
+									severity: "info",
+									taskId: sessionId,
+									message: enforcement.enforce
+										? `Tool gate (ENFORCE): ${gateOffered.length} offered → kept ${enforcement.keepNames.length}.`
+										: `Tool gate (ENFORCE): skipped — ${enforcement.reason}.`,
+									metadata: {
+										category: "tool_catalog_gate_enforcement",
+										offered: gateOffered.length,
+										enforced: enforcement.enforce,
+										...(enforcement.enforce
+											? { kept: enforcement.keepNames.length }
+											: { skippedReason: enforcement.reason }),
+									},
+								});
+							}
 						}
 					} catch {
 						// Observation only — never disturbs a turn.

@@ -72,6 +72,7 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 	{ flag: "NKLEIN_DEBUG_STREAM_EVENTS", mode: "observe_only", gate: "nklein-task-session-service.ts (debug log)" },
 	{ flag: "NKLEIN_TRUNCATION_DIAGNOSTICS", mode: "observe_only", gate: "chat-local-llm-adapter.ts (early return)" },
 	{ flag: "NKLEIN_TOOL_GATE_OBSERVE", mode: "observe_only", gate: "nklein-context-focus-extension.ts" },
+	{ flag: "NKLEIN_TOOL_GATE_ENFORCE", mode: "enforcing", gate: "nklein-context-focus-extension.ts" },
 	{ flag: "NKLEIN_REASONING_CAPTURE", mode: "observe_only", gate: "runtime-api.ts (captureReasoning)" },
 	{
 		flag: "NKLEIN_BASELINE_PROBE",
@@ -331,6 +332,12 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 		flag: "NKLEIN_EXPLORER_SUBAGENT",
 		kind: "pending_validation",
 		reason: "adds an explore handler; changes the drain shape, so it needs a validating run",
+	},
+	{
+		flag: "NKLEIN_TOOL_GATE_ENFORCE",
+		kind: "permanent",
+		reason:
+			"The ENFORCE arm of F12.18's paired A/B (built 2026-08-02 after the observe arm's real-drain verdict said `enforce`). Structurally excluded from the replay lane for the SAME reason as NKLEIN_LEAN_SYSPROMPT: when it fires it narrows the tools array, which changes every affected replayed request and guarantees unmatched-request failures — no run can green it here. Its validation is the paired A/B on REAL drains, not this lane.",
 	},
 	{
 		flag: "NKLEIN_LEAN_SYSPROMPT",

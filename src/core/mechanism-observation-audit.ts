@@ -914,6 +914,16 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		enabledBy: "NKLEIN_TOOL_GATE_OBSERVE",
 		expectation: "every_run",
 	},
+	{
+		category: "tool_catalog_gate_enforcement",
+		item: "F12.18b",
+		observes:
+			"each enforce-arm turn of the paired A/B: whether the catalog was actually narrowed, or why enforcement was refused (arbitrary/empty/not-smaller selections all keep every tool)",
+		enabledBy: "NKLEIN_TOOL_GATE_ENFORCE",
+		// `exceptional`, not `every_run`: the flag is PERMANENTLY excluded from the flags_on replay lane (narrowing
+		// the tools array changes replayed requests), so no standing lane can promise this fires every run.
+		expectation: "exceptional",
+	},
 ];
 
 /**

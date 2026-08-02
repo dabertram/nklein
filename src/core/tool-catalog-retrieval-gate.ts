@@ -149,3 +149,45 @@ export function gateToolCatalog(input: ToolGateInput): ToolGateResult {
 			: `no tool matched the task vocabulary — kept the first ${picked.length} in DECLARATION ORDER, which is arbitrary, not relevance-ranked`,
 	};
 }
+
+/**
+ * Should this turn's catalog ACTUALLY be narrowed? PURE — the enforce half of F12.18, split from the flag wire so
+ * the refusal conditions are testable without a runtime.
+ *
+ * The observe arm measured (P15.3, 2026-08-02, real drain): 500 turns, the gate disagreed on every one, and the
+ * keep-everything path succeeded only 141/213 (66%). That earned `enforce` — explicitly GATED on a paired A/B,
+ * which is what `NKLEIN_TOOL_GATE_ENFORCE` exists to run. This function decides one turn inside the ENFORCE arm.
+ *
+ * Every refusal errs toward the model seeing MORE tools, because the failure modes are asymmetric: withholding
+ * the one tool a turn needs is a turn-level failure the A/B would mis-attribute to "enforcement", while offering
+ * too many is only the baseline everyone has been living with.
+ */
+export type ToolGateEnforcementDecision =
+	| { readonly enforce: true; readonly keepNames: readonly string[] }
+	| {
+			readonly enforce: false;
+			readonly reason: "under_cap" | "arbitrary_selection" | "empty_selection" | "selection_not_smaller";
+	  };
+
+export function decideToolGateEnforcement(input: {
+	readonly offeredCount: number;
+	readonly verdict: Pick<ToolGateResult, "selected" | "arbitrary">;
+	readonly cap?: number;
+}): ToolGateEnforcementDecision {
+	if (input.offeredCount <= Math.max(1, input.cap ?? DEFAULT_TOOL_CAP)) {
+		return { enforce: false, reason: "under_cap" };
+	}
+	// An ARBITRARY selection means the ranker had nothing to rank on and took the first N in declaration order.
+	// Enforcing that is not "the gate choosing" — it is dropping tools blindly, and any A/B delta it produced
+	// would be noise attributed to the mechanism.
+	if (input.verdict.arbitrary) {
+		return { enforce: false, reason: "arbitrary_selection" };
+	}
+	if (input.verdict.selected.length === 0) {
+		return { enforce: false, reason: "empty_selection" };
+	}
+	if (input.verdict.selected.length >= input.offeredCount) {
+		return { enforce: false, reason: "selection_not_smaller" };
+	}
+	return { enforce: true, keepNames: input.verdict.selected.map((tool) => tool.name) };
+}
