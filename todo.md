@@ -2650,6 +2650,24 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (the moment-it-starts notice of the visibility core's docblock) needs a channel decision in the event adapter.
   (c) Ledger `model_consult` event kind NOT added (closed union; observation stream serves P15.3) — revisit only
   if the F12.55 action trail must render consults.
+  **▶ 2026-08-02 LATER — FIRST PILOT RAN, INCONCLUSIVE FOR THE GATE BUT IT PAID FOR ITSELF TWICE.** Setup:
+  `real-model-run.sh mid_task --act --worker google/gemma-4-e2b`, fleet e2b+31b-qat, flag ON, criteria
+  pre-registered (≥2 genuine failures → tool appears in the card's NEXT session request, dev-log-observable).
+  What actually happened: the 2B COMPLETED its attempt protocol-correctly (`outcome: "success"`, 18/18 tool
+  results) and the card entered review — where it stalled (see N20) before any bounce could occur. Findings:
+  **(1) The stuck-gate as first shipped implemented only the "failed" half of the core's documented
+  "Failed/bounced attempts"** — a quality-stuck card (work→review-reject→rework, the confidently-wrong case a
+  stronger consultant exists FOR) would never have armed it. FIXED same day: `countReviewRejectionBounces`
+  (kernel command-queue transitions, `reason: "review_changes_requested"`, matched on the event's CARD `taskId`
+  — the workflow's own id sits in `workflowId`; namespace lesson at write-shape level) +
+  `countConsultStuckEvidence` = protocol failures + bounces (disjoint by construction: a protocol-failed attempt
+  never reaches review; a rejected one records success + exactly one bounce). Parked/escalated deliberately NOT
+  counted (operator-held / harness-already-remedying). Both wire gates switched to the combined count. (2) The
+  capability-margin structural-death check ran BEFORE the pilot: `deriveCapabilityPrior` differentiates (e2b 30
+  vs 31b-qat 53 — margin 23 clears the ≥10 bar); flat-prior selection-death ruled out. (3) Pilot v2 is BLOCKED
+  on N20 (the review stall) for the bounce arm; the protocol-failure arm could run on a preset the 2B fails at
+  protocol level (deep_chain empty-patch class), but the full A/B needs review working. Evidence preserved:
+  `.real-runs/20260802-220538`.
   Pure core SHIPPED 2026-07-23 (`src/core/model-consult.ts`): harness-enforced stuck-gate (≥2 recorded failed
   attempts + per-card consult budget), strongest-eligible-LOCAL-consultant selection (loaded + idle + ≥10
   capability points stronger + never the asker; declines rather than load/unload), capped four-field request,
@@ -7955,6 +7973,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
   (feeds the trust-center posture table). DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
+- [ ] **N20 — 🐛 Review-lane dead stop on a real ACT drain: card enters review, review never starts, no hold
+  message, no trigger events (live-hit 2026-08-02; evidence preserved `.real-runs/20260802-220538`).** The
+  F3.37 pilot's seed card (`mid_task`, worker forced to gemma-4-e2b, fleet e2b+31b-qat) completed its attempt
+  cleanly (`outcome: "success"`, 18/18 tool results, transitions `wf:implementing → wf:awaiting_acceptance`,
+  board `running → awaiting_review`), telemetry recorded `card_lane_change` then `sandbox_workspace_disposed` —
+  **and then nothing for 184s** until the runbook's stall reactor aborted: `active=[idle]`, zero further
+  telemetry, **zero trigger events in the entire run**, and the "held in Review before reviewer/delivery"
+  message of the result-capture gate (runtime-server ~:2030) appears NOWHERE — so the review continuation
+  apparently never ran at all, which is upstream of reviewer resolution (the auto-diverse reviewer had a loaded
+  31B available). Suspicious neighbors, none confirmed: the sandbox was disposed AT review entry while the
+  workflow sat at `wf:awaiting_acceptance` (result capture needs the result branch — race with disposal?); the
+  role-preflight warned `worker=qwen/qwen2.5-coder-14b NOT loaded` (but the seed was model-forced and the board
+  had one card); `runtime.log` captured only npm notices (13 lines — where did the server's stdout go? A
+  5-minute run that logs NOTHING is itself a finding). Root-cause with a fresh session: reproduce with the same
+  command, watch the review continuation's entry conditions live, and check whether the N10 rescue (which now
+  sees verdict-less review-lane cards) is expected to catch this class outside nightly — if yes, why didn't
+  anything re-drive here; if no, the production trigger path has a hole the nightly's manual driving masks.
+  **BLOCKS: F3.37 pilot v2 (bounce arm) and any A/B whose evidence bar includes review outcomes on real drains.**
 - [x] **N7 — Nightly/pre-release wiring + the growth loop.** *(Also owns the N5b real-drain adapter:
   board/ledger/aimock report → `CollectorInput`. Its `subscriptions` must come from listeners the runner actually
   registers — see N5b for why deriving them any other way silently voids every `indeterminate`.)* A `test:nightly` CI/cron entry (local nightly run +

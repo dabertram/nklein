@@ -38,7 +38,7 @@ import {
 	type RuntimeTaskSessionMode,
 } from "../core/api-contract";
 import { deriveCapabilityPrior } from "../core/capability-prior-from-catalog";
-import { countGenuineFailedAttempts } from "../core/consult-failed-attempts";
+import { countConsultStuckEvidence } from "../core/consult-failed-attempts";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { preferredEndpointKind } from "../core/model-behavior-profile";
@@ -299,7 +299,8 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			return [];
 		}
 		const countFailedAttempts = async (): Promise<number> =>
-			countGenuineFailedAttempts(await readAllAgentLedger().catch(() => []), request.taskId);
+			// Protocol failures + review-rejection bounces — the "Failed/bounced" the admission core documents.
+			countConsultStuckEvidence(await readAllAgentLedger().catch(() => []), request.taskId);
 		const countConsultsUsed = async (): Promise<number> =>
 			(
 				await readSelfObservationEvents({
