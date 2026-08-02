@@ -79,7 +79,7 @@ export type A2aRole = z.infer<typeof a2aRoleSchema>;
 
 /**
  * a2a.proto `Part` — a oneof over {text|raw|url|data} plus part-wide metadata/filename/mediaType. Modeled as
- * an object with all optional content fields; {@link readSingleTextPart} enforces the oneof discipline where
+ * an object with all optional content fields; {@link readTextFromParts} enforces the oneof discipline where
  * the pilot consumes parts. `raw` is base64 in JSON (proto3 bytes mapping).
  */
 export const a2aPartSchema = z
