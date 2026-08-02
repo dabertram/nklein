@@ -7092,6 +7092,28 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   (loop_park, park_resume, failover, taint_gate, syntax_guard, turn_loop, flags_on, home-0.0.0).
   **SCOPE, restated because a green run invites the wrong claim:** these cells drive SIMULATED models. This proves
   the MECHANISM fires end-to-end; it is not a user-facing success rate and licenses nothing about real-model quality.
+- [ ] **N18 — 🔴 FLAKY PACK VIOLATION: `agent_sandbox_result_patch` + `second_opinion_review_session` intermittently
+  do not fire on a BYTE-IDENTICAL recording (found 2026-08-02; gates trust in green nightlies — take this FIRST).**
+  Observed on `02×perfect` + `02×perfect@home-0.0.0` (recording sha256 `da9d0b71…`, unchanged): **2 runs violated
+  both must_fire invariants, then a third run was fully green** — same code, same bytes, minutes apart. In the
+  violated runs the cells still PASS (full drain, 0 unmatched), so without N5's packs this would read as green;
+  that is exactly the "skipped a control and still looked green" case the packs exist for — and a pack that FLAKES
+  is nearly as corrosive as no pack.
+  **Facts pinned:** · not fleet-load-related (one violated run had the gateway busy-ish, one had it fully idle
+  after `lms unload --all`) · not the recording (sha identical across all runs) · suspect window = commits after
+  the 2026-08-01 run-2 full green (join key, enforce arm, role wire — all flag-gated OFF in these cells; plus the
+  worker-alwaysKeep change, whose only consumer is the flag-gated gate block — statically exonerated) · the GREEN
+  run's log shows `Acceptance evidence reused … work fingerprint unchanged since the last acceptance` — so an
+  EVIDENCE-REUSE path exists that can skip worker/review work, and if any of its keys persist OUTSIDE the isolated
+  HOME, back-to-back runs of the same cell could reuse across runs and skip patch-capture + review entirely.
+  That is the leading hypothesis and it fits the shape (violated runs were back-to-back; sequencing varies).
+  **Diagnosis kit ready:** a green retained HOME sits at the path recorded in the 2026-08-02 session
+  (`nklein-nightly-02-MJa1vX` under tmpdir) for comparison; the next violated run needs `--keep-home` and a diff
+  of its runtime.log against the green one (the violated runs' HOMEs were auto-removed on pass — by design).
+  **Protocol:** run `dev nightly --project 02 --model perfect --keep-home` repeatedly until it violates; diff; if
+  the reuse path is confirmed crossing HOME boundaries, that is a hermeticity bug in the fingerprint keying. Also
+  read whether my N6b probe run (2026-08-02 ~17:05) already carried these violations — its exit 1 was attributed
+  wholly to the deliberate cost regressions and pack lines were never read.
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,
