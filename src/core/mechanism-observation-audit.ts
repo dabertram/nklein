@@ -934,6 +934,15 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		// budget) makes a consult a rare event on a healthy board.
 		expectation: "exceptional",
 	},
+	{
+		category: "a2a_task_ingress",
+		item: "P17.8",
+		observes: "each accepted A2A SendMessage that seeded a board card (taskId, sourceMessageId, prompt bytes)",
+		enabledBy: "NKLEIN_A2A_SERVER",
+		// `exceptional`: ingress fires only when an external A2A client actually delegates — no standing lane
+		// produces that traffic (the flags_on lane merely opens the quiet listener route).
+		expectation: "exceptional",
+	},
 ];
 
 /**

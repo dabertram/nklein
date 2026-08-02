@@ -79,6 +79,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		gate: "nklein-session-runtime.ts (admits consult_stronger_model into stuck worker sessions + runs a consultant completion)",
 		note: "F3.37, default-OFF until the aimock+fleet A/B shows consults convert failed cards (evidence bar: consult-then-success vs cross_model_carry).",
 	},
+	{
+		flag: "NKLEIN_A2A_SERVER",
+		mode: "enforcing",
+		gate: "runtime-server.ts (serves the A2A v1.0 agent card + JSON-RPC ingress, loopback-only, never in remote mode)",
+		note: "P17.8 receive-side pilot: SendMessage seeds a ready-lane card (trigger-intake semantics with a standard protocol).",
+	},
 	{ flag: "NKLEIN_REASONING_CAPTURE", mode: "observe_only", gate: "runtime-api.ts (captureReasoning)" },
 	{
 		flag: "NKLEIN_BASELINE_PROBE",

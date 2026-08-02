@@ -18,6 +18,7 @@ import {
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import { effectiveRetrievalSearchBackendUrl } from "../config/runtime-config-retrieval-resolver";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { A2A_WELL_KNOWN_AGENT_CARD_PATH } from "../core/a2a-wire-shapes";
 import { buildTransitionEvent } from "../core/agent-attempt-ledger";
 import {
 	capabilitiesForTier,
@@ -121,6 +122,7 @@ import { readSwarmStopSignal } from "../core/swarm-guardrails";
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { TAINT_LABELS, type TaintLabel } from "../core/taint-labels";
 import {
+	addTaskToColumn,
 	completeTaskAndGetReadyLinkedTaskIds,
 	findBoardCardWithColumn,
 	getTaskColumnId,
@@ -240,6 +242,7 @@ import {
 	resolveTaskResultBranchCommit,
 } from "../workspace/task-result-branches";
 import { mergeTaskWorktreesInDependencyOrder, stageTaskResultUncommitted } from "../workspace/task-worktree-auto-merge";
+import { A2A_RPC_PATH, handleA2aHttpRequest } from "./a2a-http-handler";
 import { acceptancePresentAndFailed } from "./acceptance-waiver-decision";
 import {
 	buildAgentSandboxPoolConfig,
@@ -5205,6 +5208,92 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		randomUuid: () => randomUUID(),
 	};
 
+	// ── A2A v1.0 receive-side deps (P17.8) — the trigger-intake pattern, speaking a standard protocol. A2A
+	// SendMessage seeds a READY-lane card with autoReviewEnabled (the N10/N20 unattended-card lesson) and warms
+	// the scoped service so the board-liveness ready-sweep starts it — byte-for-byte the trigger flow's start
+	// semantics, because A2A ingress IS external trigger intake with a spec instead of a template.
+	const buildA2aDeps = (requestHost: string | undefined): Parameters<typeof handleA2aHttpRequest>[1] => ({
+		listWorkspaces: async () =>
+			(await listWorkspaceIndexEntries()).map((entry) => ({
+				workspaceId: entry.workspaceId,
+				repoPath: entry.repoPath,
+			})),
+		readBoardRecord: async (entry, taskId) => {
+			const state = await loadWorkspaceState(entry.repoPath);
+			for (const column of state.board.columns) {
+				const card = column.cards.find((candidate) => candidate.id === taskId);
+				if (card) {
+					return { columnId: column.id, title: card.title ?? "" };
+				}
+			}
+			return null;
+		},
+		seedCard: async (entry, seed) => {
+			const mutation = await mutateWorkspaceState(entry.repoPath, (latestState) => {
+				if (
+					latestState.board.columns.some((column) =>
+						column.cards.some((candidate) => candidate.id === seed.taskId),
+					)
+				) {
+					return { board: latestState.board, save: false, value: "existing" as const };
+				}
+				const applied = addTaskToColumn(
+					latestState.board,
+					"ready",
+					{
+						taskId: seed.taskId,
+						title: seed.title,
+						prompt: seed.prompt,
+						// Same default the external-trigger template schema uses (trigger-intake.ts). A
+						// non-"main" default branch is a template/config concern there and a follow-up here.
+						baseRef: "main",
+						startInPlanMode: false,
+						autoReviewEnabled: true,
+					},
+					() => randomUUID(),
+					nightlyHermetic ? NIGHTLY_HERMETIC_EPOCH_MS : Date.now(),
+				);
+				return { board: applied.board, value: "created" as const };
+			});
+			return mutation.value;
+		},
+		audit: async ({ entry, taskId, sourceMessageId, promptBytes }) => {
+			const ledgerAppended = await appendAgentLedgerEventOnce(
+				buildTransitionEvent({
+					eventId: `a2a-ingress-${createHash("sha256").update(taskId).digest("hex")}`,
+					workflowId: taskId,
+					taskId,
+					workspacePathHash: hashWorkspacePathForLedger(entry.repoPath),
+					from: "external",
+					to: "a2a_seeded",
+					reason: `a2a:${sourceMessageId}`,
+					controllerDecision: "a2a_task_ingress",
+				}),
+			);
+			if (ledgerAppended) {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `A2A SendMessage seeded card ${taskId} (${promptBytes} prompt bytes).`,
+					taskId,
+					workspacePath: entry.repoPath,
+					metadata: { category: "a2a_task_ingress", sourceMessageId },
+				});
+			}
+			// Arm the board machinery for a possibly-headless workspace so the seeded card is swept.
+			await getScopedNKleinTaskSessionService({
+				workspaceId: entry.workspaceId,
+				workspacePath: entry.repoPath,
+			}).catch(() => undefined);
+		},
+		nowIso: () => new Date(nightlyHermetic ? NIGHTLY_HERMETIC_EPOCH_MS : Date.now()).toISOString(),
+		randomUuid: () => randomUUID(),
+		productVersion: process.env.npm_package_version?.trim() || "0.0.1",
+		// The card must advertise the URL the CLIENT actually reached (ephemeral ports make a config-derived
+		// URL a lie); the Host header is that truth for a loopback caller.
+		rpcUrl: `http://${requestHost ?? "127.0.0.1"}${A2A_RPC_PATH}`,
+	});
+
 	const requestHandler = async (req: IncomingMessage, res: ServerResponse) => {
 		try {
 			if (handleHttpRequest(req, res).end) {
@@ -5333,6 +5422,44 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// ready-sweep starts it). LOCAL-ONLY INVARIANT: loopback callers only, regardless of passcode
 			// state — the intake is a factory doorbell, never a remote API. Every fire is audited (one
 			// self-observation + one ledger transition).
+			// ── A2A v1.0 receive-side (P17.8): flag-gated, loopback-only, never in remote mode ────────────
+			if (
+				isTruthyEnv(process.env.NKLEIN_A2A_SERVER) &&
+				!isRemoteMode &&
+				(pathname === A2A_WELL_KNOWN_AGENT_CARD_PATH || pathname === A2A_RPC_PATH)
+			) {
+				const a2aHeaders = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
+				if (!isLoopbackAddress(req.socket.remoteAddress)) {
+					res.writeHead(403, a2aHeaders);
+					res.end(JSON.stringify({ error: "A2A intake is loopback-only in the pilot (local-only invariant)." }));
+					return;
+				}
+				let a2aBody = "";
+				if (req.method === "POST") {
+					try {
+						a2aBody = await readRequestBody(req);
+					} catch {
+						res.writeHead(400, a2aHeaders);
+						res.end(JSON.stringify({ error: "Invalid request body." }));
+						return;
+					}
+				}
+				const a2aResult = await handleA2aHttpRequest(
+					{
+						method: req.method ?? "GET",
+						pathname,
+						bodyText: a2aBody,
+						workspaceIdParam: requestUrl.searchParams.get("workspaceId"),
+					},
+					buildA2aDeps(typeof req.headers.host === "string" ? req.headers.host : undefined),
+				);
+				if (a2aResult) {
+					res.writeHead(a2aResult.status, a2aHeaders);
+					res.end(JSON.stringify(a2aResult.body));
+					return;
+				}
+			}
+			// ── End A2A receive-side ────────────────────────────────────────────
 			if (req.method === "POST" && pathname.startsWith("/api/triggers/")) {
 				const triggerHeaders = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
 				if (!isLoopbackAddress(req.socket.remoteAddress)) {

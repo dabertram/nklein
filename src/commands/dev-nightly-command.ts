@@ -221,6 +221,10 @@ const PROFILE_EXTRA_ENV: Readonly<Record<string, Readonly<Record<string, string>
 	// `nightly-flag-matrix-coverage.test.ts`, which fails when a newly registered flag is missing here — otherwise
 	// this lane would silently stop covering the very mechanisms it exists to surface.
 	flags_on: {
+		// Added 2026-08-03 with the a2a_task_ingress registration (P17.8). Opens a QUIET loopback listener
+		// route only — no replay traffic reaches it, so the drain shape is untouched; coverage here just
+		// proves the flag-ON posture boots and drains clean.
+		NKLEIN_A2A_SERVER: "1",
 		NKLEIN_ADAPTIVE_RETRY: "1",
 		NKLEIN_ARCHITECT_EDITOR: "1",
 		NKLEIN_BASELINE_PROBE: "1",
