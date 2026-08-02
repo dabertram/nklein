@@ -44,10 +44,24 @@ export type EditFailureKind =
 	| "size_guard"
 	/** The edit would leave the file syntactically broken (F12.63). */
 	| "syntax_guard"
+	/**
+	 * The model emitted tool-call arguments that could not be parsed as JSON. Live-found 2026-08-02 on a real 9B
+	 * drain, where this — not context mismatch — was the DOMINANT edit-failure kind (2 of 3 errors). It is a
+	 * failure to EMIT the call, distinct from failing to reproduce file content.
+	 */
+	| "invalid_tool_arguments"
+	/** Arguments parsed but failed the tool's schema (rejected before execution). Same family, later stage. */
+	| "schema_rejection"
 	/** Recognised as an edit failure, but not as any known kind. NEVER counted as a format failure. */
 	| "unknown";
 
-/** Kinds that reflect the MODEL's edit-format skill. Only one qualifies, and that is the point. */
+/**
+ * Kinds that reflect the MODEL's edit-format skill. Only context_mismatch qualifies TODAY, and deliberately:
+ * `invalid_tool_arguments` is plausibly format-adjacent (whole-file edits mean simpler args than structured
+ * search/replace blocks), but widening the routing numerator on plausibility is exactly what this module's own
+ * header forbids. If args failures should route models to whole-file, that is a measured decision for later —
+ * the kinds are now SPLIT OUT so the measurement exists to make it.
+ */
 const FORMAT_SKILL_KINDS: ReadonlySet<EditFailureKind> = new Set<EditFailureKind>(["context_mismatch"]);
 
 export function isEditFormatSkillFailure(kind: EditFailureKind): boolean {
@@ -60,6 +74,8 @@ export function isEditFormatSkillFailure(kind: EditFailureKind): boolean {
  */
 const PATTERNS: readonly { readonly kind: EditFailureKind; readonly test: RegExp }[] = [
 	{ kind: "context_mismatch", test: /edit block\s+\d+\s+did not match/iu },
+	{ kind: "invalid_tool_arguments", test: /emitted invalid JSON arguments|could not be parsed as JSON/iu },
+	{ kind: "schema_rejection", test: /rejected before execution|Type validation failed/iu },
 	{ kind: "syntax_guard", test: /the edit would break/iu },
 	{ kind: "size_guard", test: /would grow .* exceeding|exceeding the .*-line|byte ceiling/iu },
 	{ kind: "secret_guard", test: /potential .* detected/iu },
@@ -92,6 +108,8 @@ export interface EditFailureBreakdown {
 export function summarizeEditFailures(messages: readonly (string | null | undefined)[]): EditFailureBreakdown {
 	const byKind: Record<EditFailureKind, number> = {
 		context_mismatch: 0,
+		invalid_tool_arguments: 0,
+		schema_rejection: 0,
 		file_unreadable: 0,
 		path_guard: 0,
 		secret_guard: 0,

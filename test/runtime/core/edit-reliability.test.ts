@@ -142,7 +142,7 @@ describe("computeEditReliability", () => {
 		// The limit is now CONDITIONAL, and stating it accurately matters more than stating it loudly: these
 		// attempts carry no refusal message, so the DIFF-FORMAT split genuinely is unavailable on this data.
 		// Claiming "0 format failures" here would read as "this model never fails on format".
-		expect(report.summary).toMatch(/DIFF-FORMAT split is unavailable on this data/u);
+		expect(report.summary).toMatch(/no FORMAT-attributable refusal/u);
 	});
 
 	it("EXCLUDES an attempt that names no model, and reports the count", () => {
@@ -225,7 +225,7 @@ describe("dev edit-reliability", () => {
 
 	it("carries the metric's limit into the printed output", async () => {
 		const out = await run([attemptEvent("lm:m:1", calls("edit_file", "success", 20))]);
-		expect(out).toMatch(/DIFF-FORMAT split is unavailable on this data/u);
+		expect(out).toMatch(/no FORMAT-attributable refusal/u);
 	});
 
 	it("emits JSON on demand", async () => {

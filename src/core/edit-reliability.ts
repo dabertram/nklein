@@ -190,7 +190,7 @@ export function computeEditReliability(input: {
 					// "the rest were guards" when it means "the rest are unclassifiable".
 					(ranked.some((row) => row.formatFailures > 0)
 						? ". EDIT-FORMAT failures (a search block that did not match) are split out per row; errors without a captured result summary are not classifiable and are NOT counted as format failures"
-						: ". Measures 'struggles to EDIT'; no row carried a classifiable refusal message, so the DIFF-FORMAT split is unavailable on this data") +
+						: ". Measures 'struggles to EDIT'; no FORMAT-attributable refusal (search-block mismatch) appears in this data — errors may still classify as other kinds, e.g. args-emission failures") +
 					unattributableNote,
 	};
 }

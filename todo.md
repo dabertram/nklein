@@ -10789,6 +10789,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **REMAINING: the ROUTING half** — feed `formatFailures` into model selection so a model with a high format-failure
   rate is routed to whole-file edits. That is the 2× swing. ⚠️ It needs attributable data first: today's format
   numerator is zero for a data-quality reason, not because models do not fail on format.
+  **▶ PROBE DRAIN RUN 2026-08-02 (attributable 9B, scratch rig): the format numerator works end-to-end — and it
+  found the ledger's real dominant failure family.** 8 attributable edit calls, 3 errors, **0 format failures** —
+  because on real 9B traffic the errors are ARGS-EMISSION failures, not search-block mismatches:
+  `emitted invalid JSON arguments` ×2 and `rejected before execution: Type validation failed` ×1 (real strings,
+  now pinned in tests). Added `invalid_tool_arguments` + `schema_rejection` as distinct kinds; **deliberately NOT
+  counted toward the format numerator** — whole-file edits plausibly mean simpler args, but widening a routing
+  numerator on plausibility is what the module's own header forbids. The kinds are split so the measured decision
+  can be made when routing is built. Summary wording corrected: "no FORMAT-attributable refusal" rather than
+  "no classifiable refusal", since args failures classify fine.
   **THE DATA GAP IS HISTORICAL AND ALREADY CLOSED, so this unblocks itself on the next real-model run.** Date-bucketed
   the 70 unattributable attempts: they run **2026-07-10 → 07-22 and then stop**, all of them predating the ledger
   door that now refuses an unattributable attempt outright. Nothing has written to the PRODUCTION ledger since

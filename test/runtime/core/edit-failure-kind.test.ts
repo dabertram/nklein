@@ -208,3 +208,28 @@ describe("computeEditReliability — the format cut", () => {
 		expect(report.ranked[0]?.formatFailures).toBe(0);
 	});
 });
+
+/**
+ * The ARGS-EMISSION family — live-found 2026-08-02 on a real 9B drain, where it (not context mismatch) was the
+ * dominant edit-failure kind. These strings are copied from the probe ledger, not invented.
+ */
+describe("args-emission failures classify distinctly and do NOT widen the format numerator", () => {
+	it("classifies unparseable tool-call arguments", () => {
+		const real =
+			'{"error":"Tool call write_files emitted invalid JSON arguments: Tool call arguments could not be parsed as JSON."}';
+		expect(classifyEditFailure(real)).toBe("invalid_tool_arguments");
+	});
+
+	it("classifies a pre-execution schema rejection", () => {
+		const real =
+			'{"error":"Tool call write_file was rejected before execution: Invalid input for tool write_file: Type validation failed"}';
+		expect(classifyEditFailure(real)).toBe("schema_rejection");
+	});
+
+	it("counts neither as a format-skill failure — plausibility is not measurement", () => {
+		// Whole-file edits plausibly mean simpler args, but widening the routing numerator on plausibility is what
+		// this module's own header forbids. The kinds are split out so a MEASURED decision can be made later.
+		expect(isEditFormatSkillFailure("invalid_tool_arguments")).toBe(false);
+		expect(isEditFormatSkillFailure("schema_rejection")).toBe(false);
+	});
+});
