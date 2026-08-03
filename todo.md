@@ -10161,6 +10161,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   because one phase means two different things and only a decision fixes that. Pinned by a test, so resolving it
   has to be deliberate. Same restraint as the release-contract and `paused` questions, for the same reason: the
   two-hour dead-board hang (reverted `cc2fbc340`) came from guessing a liveness contract.
+  **◆ ✅ RESOLVED BY DAVID 2026-08-03: "Split the phase" — `reviewing` gets its OWN capacity class; neither
+  existing model bends.** Implementation contract (mechanical against the pinned tests, kernel still unwired
+  so blast radius zero): the kernel already HAS `reviewing` as a phase (live `wf:` streams show
+  `awaiting_review → reviewing → implementing`); the change is CLASSIFICATION, not transitions. Split the
+  capacity vocabulary by RESOURCE: `holdsWorkerCapacity(phase)` — a WORKER slot consumed now (`reviewing` →
+  FALSE, matching the session model's "no worker session is running") — vs a new
+  `holdsEndpointCapacity(phase)` — model-endpoint work in flight (`reviewing` → TRUE, matching the kernel's
+  truth that a review executes on an endpoint; live-confirmed: cards queue behind the 31B reviewer). With the
+  split, the 7/7 session-agreement resolves cleanly instead of 6/7-with-an-exception: each model maps onto
+  the predicate that names ITS resource. Update the containment proofs per chain (worker: holds ⊆ reserves ⊆
+  live; endpoint: holds ⊆ live) with each inclusion strict somewhere, and flip the pinned-disagreement test
+  into a pinned-RESOLUTION test. THEN capacity consumers may migrate (liveness consumers already may).
   **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
