@@ -10204,7 +10204,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   (`implementation_finished` fired at the same edge), i.e. the FIRST writer to convert. Zero
   `unknown_to_kernel` rows on this drain — the start/review/bounce paths all dispatch commands already, which
   makes the conversion list shorter than feared.
-  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  **▶ SECOND INVENTORY (2026-08-03, `.real-runs/20260803-182847`, decompose trajectory): the convicted row
+  family is GONE (no awaiting_acceptance/review, no implementing/review) — and the richer path exposed the
+  REAL work list, 10 rows in three groups.** (1) **Child cards are UNKNOWN TO THE KERNEL — 8 of 10 rows**
+  (idle/planning ×4, idle/in_progress ×2, idle/review ×2): `plan-task-board-apply` adds decompose children to
+  the board with no kernel dispatch, so their entire lifecycle runs invisible — the largest single conversion
+  (seed a kernel workflow per child at apply time, or dispatch start_requested when each starts). (2)
+  **planning/completed ×1**: the decompose-SOURCE completion path (`completeDecompositionSourceTask`) moves
+  the seed to completed without a terminal dispatch — needs `delivered`/`mark_done`. (3)
+  **queued_for_endpoint/ready ×1**: the DELIBERATE ready-lane park (todo 11116: dep-free-but-waiting cards
+  SHOW in Ready) vs the projection's queued_*→planning — data-informed row question #2: `queued_for_endpoint`
+  should likely project to `ready` (the product's own queue-visible lane); decide row-vs-writer next.
+  Conversion order by evidence: (1) children, (2) source completion, (3) the ready row. Each lands with the
+  shadow as its verifier — the rhythm is now: convert, drain, expect the group silent.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly
