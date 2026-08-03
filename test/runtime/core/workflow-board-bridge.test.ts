@@ -129,3 +129,11 @@ describe("laneMoveForAppliedTransition (P24.1 one-writer increment, edge allowli
 		}
 	});
 });
+
+describe("conversion 2: begin_implementation drives the in_progress move", () => {
+	it("moves the card to in_progress from the applied implementing phase", () => {
+		expect(laneMoveForAppliedTransition({ command: { kind: "begin_implementation" }, phase: "implementing" })).toBe(
+			"in_progress",
+		);
+	});
+});

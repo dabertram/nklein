@@ -10279,7 +10279,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   tests green. **REMAINING near-list:** (a) the CHILD-COMPOSITION model question — does the kernel own board
   composition (created-but-unstarted children have no phase to project from; needs a `created`-class phase
   or a declared pre-kernel boundary) — **BATCHED FOR DAVID** (the arc's third genuine fork, same restraint
-  as paused/reviewing); (b) more reconciler edges after the next shadow inventory.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  as paused/reviewing); (b) more reconciler edges after the next shadow inventory.
+  **✅ FOURTH INVENTORY (2026-08-03, `.real-runs/20260803-222922`): slices 2+3 VERIFIED (planning/completed
+  and queued_for_endpoint/ready both gone). Residue = 2 rows: the batched child fork (idle/planning) + one
+  new convertible edge (planning/in_progress — the begin_implementation window), converted same hour
+  (allowlist + test). The inventory is now expected to reduce to ONLY the David fork on the next decompose
+  drain — at which point the shadow is clean modulo one deliberate model decision, four working days ahead
+  of the item's own risk estimate.**  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly

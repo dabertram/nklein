@@ -63,7 +63,12 @@ export function workflowPhaseToBoardColumn(phase: WorkflowPhase): RuntimeBoardCo
  * `moveTaskToColumn` calls on a converted edge become redundant (same destination, idempotent move) and are
  * retired once the shadow stays silent for the pair.
  */
-const KERNEL_DRIVEN_LANE_COMMANDS: ReadonlySet<string> = new Set(["implementation_finished"]);
+const KERNEL_DRIVEN_LANE_COMMANDS: ReadonlySet<string> = new Set([
+	"implementation_finished",
+	// Conversion 2 (fourth inventory, 2026-08-03): the started-card window — lane moved to in_progress while
+	// begin_implementation was still in flight. Same anatomy as conversion 1, same cure.
+	"begin_implementation",
+]);
 
 /** The lane an applied transition should move the card to, or null when the edge is not (yet) converted. */
 export function laneMoveForAppliedTransition(transition: {
