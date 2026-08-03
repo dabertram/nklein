@@ -38,11 +38,11 @@ import {
 	type RuntimeTaskSessionMode,
 } from "../core/api-contract";
 import { deriveCapabilityPrior } from "../core/capability-prior-from-catalog";
-import { countConsultStuckEvidence } from "../core/consult-failed-attempts";
+import { countConsultStuckEvidenceWithFallback } from "../core/consult-failed-attempts";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { preferredEndpointKind } from "../core/model-behavior-profile";
-import { decideConsultAdmission } from "../core/model-consult";
+import { CONSULT_MIN_CAPABILITY_MARGIN, decideConsultAdmission } from "../core/model-consult";
 import { MODEL_CONSULT_CATEGORY } from "../core/model-consult-visibility";
 import { isMeasuredRetrievalDiscriminatorModel } from "../core/retrieval-discriminator";
 import { StatefulResponsesCapabilityCache } from "../core/stateful-responses-gate";
@@ -298,9 +298,44 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		if (request.role !== "worker" || !baseUrl || !askerModelId) {
 			return [];
 		}
-		const countFailedAttempts = async (): Promise<number> =>
-			// Protocol failures + review-rejection bounces — the "Failed/bounced" the admission core documents.
-			countConsultStuckEvidence(await readAllAgentLedger().catch(() => []), request.taskId);
+		const askerCapability = deriveCapabilityPrior(askerModelId);
+		const gatherLoadedCandidates = async () => {
+			const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(
+				() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+			);
+			const siblingBusy = this.listActiveSiblingModelIds(request.taskId);
+			return descriptors
+				.filter((descriptor) => !descriptor.isEmbedding)
+				.map((descriptor) => ({
+					key: descriptor.modelKey,
+					modelId: descriptor.runtimeId,
+					capability: deriveCapabilityPrior(descriptor.modelKey),
+					loadedAndIdle: !siblingBusy.has(descriptor.runtimeId),
+				}));
+		};
+		const countFailedAttempts = async (): Promise<number> => {
+			// Protocol failures + review-rejection bounces, PLUS (David 2026-08-03, "only if failover
+			// unavailable") qualifying guard-parks when no materially stronger model is LOADED for the
+			// architect-pause to hand off to — consult as the fallback remedy, never the competing one.
+			// Availability ignores idleness: the hand-off waits for a busy stronger model; it cannot wait
+			// for one that is not resident at all.
+			const [events, observations, candidates] = await Promise.all([
+				readAllAgentLedger().catch(() => []),
+				readSelfObservationEvents({ taskId: request.taskId, limit: 50 }).catch(() => []),
+				gatherLoadedCandidates(),
+			]);
+			const failoverAvailable = candidates.some(
+				(candidate) =>
+					candidate.modelId !== askerModelId &&
+					candidate.capability >= askerCapability + CONSULT_MIN_CAPABILITY_MARGIN,
+			);
+			return countConsultStuckEvidenceWithFallback({
+				events,
+				guardParkObservations: observations,
+				cardTaskId: request.taskId,
+				failoverAvailable,
+			});
+		};
 		const countConsultsUsed = async (): Promise<number> =>
 			(
 				await readSelfObservationEvents({
@@ -324,24 +359,11 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				askerModelId,
 				// One derivation for BOTH sides of the ≥margin comparison — mixing the provider contract's
 				// effectiveScore for one side with a derived prior for the other would corrupt the margin.
-				askerCapability: deriveCapabilityPrior(askerModelId),
+				askerCapability,
 				consultBudget: CONSULT_BUDGET_PER_CARD,
 				countFailedAttempts,
 				countConsultsUsed,
-				gatherCandidates: async () => {
-					const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(
-						() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
-					);
-					const siblingBusy = this.listActiveSiblingModelIds(request.taskId);
-					return descriptors
-						.filter((descriptor) => !descriptor.isEmbedding)
-						.map((descriptor) => ({
-							key: descriptor.modelKey,
-							modelId: descriptor.runtimeId,
-							capability: deriveCapabilityPrior(descriptor.modelKey),
-							loadedAndIdle: !siblingBusy.has(descriptor.runtimeId),
-						}));
-				},
+				gatherCandidates: gatherLoadedCandidates,
 				runConsultCompletion: async ({ consultantModelId, prompt }) => {
 					try {
 						const client = new LocalLlmClient({

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { buildAttemptEvent, buildTransitionEvent } from "../../../src/core/agent-attempt-ledger";
 import {
 	countConsultStuckEvidence,
+	countConsultStuckEvidenceWithFallback,
 	countGenuineFailedAttempts,
+	countGuardParkEvidence,
 	countReviewRejectionBounces,
 	GENUINE_FAILURE_OUTCOMES,
 	REVIEW_REJECTION_REASON,
@@ -138,5 +140,44 @@ describe("the genuine-set ratchet", () => {
 			.filter(([, verdict]) => verdict === "genuine")
 			.map(([kind]) => kind);
 		expect([...GENUINE_FAILURE_OUTCOMES].sort()).toEqual(expected.sort());
+	});
+});
+
+describe("guard-park evidence (David 2026-08-03: only if failover unavailable)", () => {
+	const park = (taskId: string, guardrail: string) => ({ taskId, metadata: { guardrail } });
+
+	it("counts qualifying guard-parks for the card", () => {
+		const rows = [
+			park("card-1", "repeated_decomposition_failures"),
+			park("card-1", "repeated_plan_artifact_failures"),
+			park("card-2", "repeated_decomposition_failures"),
+		];
+		expect(countGuardParkEvidence(rows, "card-1")).toBe(2);
+	});
+
+	it("ignores operator pauses and budget walls — a hold is not the model being stuck", () => {
+		const rows = [park("card-1", "operator_pause"), { taskId: "card-1", metadata: {} }, { taskId: "card-1" }];
+		expect(countGuardParkEvidence(rows, "card-1")).toBe(0);
+	});
+
+	it("adds guard-parks ONLY when failover is unavailable — consult is the fallback remedy", () => {
+		const events = [attempt("other_failure", "card-1", 1)];
+		const parks = [park("card-1", "repeated_decomposition_failures")];
+		expect(
+			countConsultStuckEvidenceWithFallback({
+				events,
+				guardParkObservations: parks,
+				cardTaskId: "card-1",
+				failoverAvailable: true,
+			}),
+		).toBe(1);
+		expect(
+			countConsultStuckEvidenceWithFallback({
+				events,
+				guardParkObservations: parks,
+				cardTaskId: "card-1",
+				failoverAvailable: false,
+			}),
+		).toBe(2);
 	});
 });

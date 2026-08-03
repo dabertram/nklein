@@ -2736,6 +2736,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (which would arm on decompose-spirals — the DOMINANT observed stuckness) and/or (b) a longer-window
   design (mains power, 60-90min bound, or a preset whose reviews bounce fast). No more organic mid_task
   lottery tickets.
+  **✅ 2026-08-03 ~10:45 — DAVID DECIDED ALL FOUR (batch): (1) guard-parks count ONLY IF FAILOVER
+  UNAVAILABLE — implemented same hour** (`countGuardParkEvidence` over the park controller's verified
+  emit shape + `countConsultStuckEvidenceWithFallback`; wire computes `failoverAvailable` = a loaded
+  non-asker model ≥ margin stronger, idleness ignored — the hand-off waits for busy models but cannot wait
+  for absent ones; qualifying guardrails: repeated_decomposition_failures + repeated_plan_artifact_failures;
+  operator_pause/budget walls deliberately excluded; 14 core tests green). **(2) Conversion A/B runs on
+  LONGER MAINS-POWER WINDOWS (60-90min)** — run when the machine is on mains; no more low-power 30-40min
+  lottery. **(3) Next major arc: P24.1 kernel-authoritative.** **(4) P17.7: single-host version now**
+  (m5max-only RAM budget with the existing loader governor) — queued behind P24.1's opening.
   Pure core SHIPPED 2026-07-23 (`src/core/model-consult.ts`): harness-enforced stuck-gate (≥2 recorded failed
   attempts + per-card consult budget), strongest-eligible-LOCAL-consultant selection (loaded + idle + ≥10
   capability points stronger + never the asker; declines rather than load/unload), capped four-field request,

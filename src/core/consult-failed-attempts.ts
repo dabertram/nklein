@@ -83,3 +83,53 @@ export function countReviewRejectionBounces(events: readonly AgentLedgerEvent[],
 export function countConsultStuckEvidence(events: readonly AgentLedgerEvent[], cardTaskId: string): number {
 	return countGenuineFailedAttempts(events, cardTaskId) + countReviewRejectionBounces(events, cardTaskId);
 }
+
+/**
+ * The guardrails whose park counts as consult stuck-evidence — the harness's own "this model is stuck"
+ * declarations from the repeated-tool-call guard. `operator_pause` and budget walls deliberately do NOT
+ * qualify: an operator hold or a spent budget is not the model being stuck.
+ */
+export const CONSULT_GUARD_PARK_GUARDRAILS: ReadonlySet<string> = new Set([
+	"repeated_decomposition_failures",
+	"repeated_plan_artifact_failures",
+]);
+
+/** The slice of a self-observation row this counter reads (the park controller records taskId + metadata). */
+export interface GuardParkObservationRow {
+	readonly taskId?: string | null;
+	readonly metadata?: { readonly guardrail?: unknown } | null;
+}
+
+/** Count a card's qualifying guard-parks from the self-observation stream (shape verified at the emit site). */
+export function countGuardParkEvidence(observations: readonly GuardParkObservationRow[], cardTaskId: string): number {
+	return observations.filter(
+		(observation) =>
+			observation.taskId === cardTaskId &&
+			typeof observation.metadata?.guardrail === "string" &&
+			CONSULT_GUARD_PARK_GUARDRAILS.has(observation.metadata.guardrail),
+	).length;
+}
+
+/**
+ * DAVID'S DECISION 2026-08-03 ("Only if failover unavailable"): guard-parks count as stuck-evidence ONLY when
+ * no stronger architect is loaded to fail over to — **consult is the FALLBACK remedy, never the competing
+ * one.** Rationale recorded with the fork in F3.37: counting parks unconditionally double-remedies (the
+ * architect-pause already routes to a stronger model when one exists); never counting them leaves the
+ * DOMINANT observed stuckness (decompose-spirals, 2 of 4 live e2b drains) invisible to the gate. The middle
+ * path arms the consult exactly where the harness has no answer of its own.
+ *
+ * `failoverAvailable` is the WIRE's live judgment (a stronger loaded model exists for the asker) — passed in
+ * so this stays pure and the availability predicate lives beside the fleet read that feeds it.
+ */
+export function countConsultStuckEvidenceWithFallback(input: {
+	readonly events: readonly AgentLedgerEvent[];
+	readonly guardParkObservations: readonly GuardParkObservationRow[];
+	readonly cardTaskId: string;
+	readonly failoverAvailable: boolean;
+}): number {
+	const base = countConsultStuckEvidence(input.events, input.cardTaskId);
+	if (input.failoverAvailable) {
+		return base;
+	}
+	return base + countGuardParkEvidence(input.guardParkObservations, input.cardTaskId);
+}
