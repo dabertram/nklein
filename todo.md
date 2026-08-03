@@ -7991,6 +7991,26 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
   (feeds the trust-center posture table). DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
+- [ ] **N23 — 🐛 Ready-sweep silent no-op loop: the board-liveness watchdog logs "1 startable … — sweeping
+  (frozen-board self-heal)" every cycle FOREVER while the card never starts and nothing records why
+  (live-hit 2026-08-03 ~04:50; evidence `.real-runs/consult-proof-20260803/`).** Rig: bare isolated HOME +
+  registered scratch workspace + an A2A-seeded ready-lane card (`consult-proof-1`, autoReviewEnabled, ACT,
+  baseRef main) + both models loaded ≥32k. The sweep fired continuously for ~20 minutes across TWO runtime
+  launches — first with NO modelRoles config, then WITH `worker`/`reviewer` roles configured
+  (config.json preserved) — identical behavior both times: zero model requests (devlog flatlined at 31
+  bytes), zero start-refusal logs, board state pinned `ready`/`TASK_STATE_SUBMITTED`. **The self-heal
+  message claims action; the action silently fails; the failure is invisible** — the same
+  confident-claim-vs-silent-reality genus as N20's bare-return and N21's fanout-only emit, now in the
+  sweep→start seam. Root-cause questions, in order: what does the sweep's start call actually DO in a
+  headless bare-HOME runtime (vs the nightly cells where sweeps are live-proven and vs UI-started boards);
+  which precondition fails silently (baseRef resolution? sandbox provisioning? role-model readiness gate
+  swallowing its own refusal? git identity in the scratch repo?); and why does the refusal not reach the log
+  even at the watchdog's own severity. NOTE: the external-trigger intake relies on this exact seam
+  ("warming the workspace's scoped service arms the board-liveness watchdog whose ready-sweep starts it") —
+  if the gap is environmental-but-plausible (e.g. missing git identity), REAL trigger deployments can strand
+  the same way, silently. **BLOCKS: the F3.37 deterministic composition proof** (the pre-seeded-ledger +
+  A2A-chosen-card-id design is sound and staged in the evidence dir; it resumes the moment a swept card
+  actually starts).
 - [ ] **N22 — 🧹 Turn-end summary-emit interleave + transition-reason misattribution (split from N21's
   confirmation run, 2026-08-03; low severity — self-healed live).** Two residuals, one evidence base
   (`.real-runs/20260802-235233`): (a) **same-instant emit interleave** — the repeated-decompose guard's PARK
