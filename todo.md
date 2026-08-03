@@ -2728,6 +2728,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   decision) + the guard-park design fork awaiting David's batch + chat-notice polish. The A/B's
   infrastructure debt is now PAID: deterministic arming exists (this rig), the review pipeline works, and
   baseUrl-gated extras are alive on server-initiated starts.
+  **▶ 2026-08-03 ~10:25 — ORGANIC-ARM EXPERIMENT CLOSED (design verdict, not more grinding).** First
+  genuinely consult-capable organic drain (post-baseUrl fix): stuck-evidence 0 (4 protocol-clean attempts, 0
+  bounces in the 35-min window), consult correctly absent, 916 control hits. Five-run tally: the gate armed
+  organically in ZERO runs — low-power 30-40min windows rarely fit TWO review cycles, so mid_task+e2b is the
+  wrong A/B vehicle. The behavioral/conversion half now properly waits on (a) David's guard-park fork
+  (which would arm on decompose-spirals — the DOMINANT observed stuckness) and/or (b) a longer-window
+  design (mains power, 60-90min bound, or a preset whose reviews bounce fast). No more organic mid_task
+  lottery tickets.
   Pure core SHIPPED 2026-07-23 (`src/core/model-consult.ts`): harness-enforced stuck-gate (≥2 recorded failed
   attempts + per-card consult budget), strongest-eligible-LOCAL-consultant selection (loaded + idle + ≥10
   capability points stronger + never the asker; declines rather than load/unload), capped four-field request,
