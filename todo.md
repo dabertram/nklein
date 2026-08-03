@@ -10230,7 +10230,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   taskId = a child id? PRESENT ⇒ queue-instance/keying mismatch between dispatch and the watchdog's
   `phaseOf` (fix = unify instance/key); ABSENT ⇒ the success path genuinely skips dispatch (fix = dispatch
   the granted-chain on the SUCCESS branch too — the actual step-1 conversion, benefiting seeds AND
-  children). Then re-drain and expect the child group silent.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  children). Then re-drain and expect the child group silent.
+  **✅ DECIDED BY THE GREP SAME HOUR: PRESENT — 17 child `wf:` chains in the ledger.** The success path
+  dispatches fine; the cause was a **SPLIT QUEUE REGISTRY**: `getWorkspaceWorkflowQueue` keyed its map by
+  `workspacePath` STRING, so callers holding aliased spellings of the same directory (macOS
+  /tmp↔/private/tmp, symlinked scaffold roots) got TWO queue instances — the start path filled one with
+  phase chains while the watchdog's `phaseOf` read the other and saw every child as kernel-idle. **FIXED:
+  keyed by `workspaceId`** (the stable name; the path is a spelling of it) — the same identity-vs-spelling
+  disease class as the whole P24.1 quartet, this time inside the kernel's own mount. 339 trpc tests green.
+  Verification: next drain's child group should go SILENT except the genuinely-unconverted writers
+  (planning/completed source-completion bypass + the ready-lane row decision).  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly

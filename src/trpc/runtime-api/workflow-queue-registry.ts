@@ -11,10 +11,15 @@ import { appendAgentLedgerEvent } from "../../state/agent-attempt-ledger-store";
  * PARTIAL by design — consumers must treat it as an audit/observation stream, not the board's source of truth.
  */
 
-const queueByWorkspacePath = new Map<string, WorkflowCommandQueue>();
+// P24.1 shadow, second inventory (2026-08-03): keyed by workspaceId, NOT workspacePath. Path-keying split one
+// workspace into TWO queue instances when callers held aliased path strings for the same directory (macOS
+// /tmp↔/private/tmp, symlinked scaffold roots): the start path dispatched full phase chains into one instance
+// while the watchdog's `phaseOf` read the other and saw every child card as kernel-idle. The id is the stable
+// name for the workspace; the path is a spelling of it.
+const queueByWorkspaceId = new Map<string, WorkflowCommandQueue>();
 
 export function getWorkspaceWorkflowQueue(workspacePath: string, workspaceId: string): WorkflowCommandQueue {
-	const existing = queueByWorkspacePath.get(workspacePath);
+	const existing = queueByWorkspaceId.get(workspaceId);
 	if (existing) {
 		return existing;
 	}
@@ -23,7 +28,7 @@ export function getWorkspaceWorkflowQueue(workspacePath: string, workspaceId: st
 		workspacePathHash: hashWorkspacePathForLedger(workspacePath),
 		appendEvent: (event) => appendAgentLedgerEvent(event),
 	});
-	queueByWorkspacePath.set(workspacePath, queue);
+	queueByWorkspaceId.set(workspaceId, queue);
 	return queue;
 }
 
@@ -47,5 +52,5 @@ export function dispatchWorkflowCommands(
 
 /** Test-only: drop all cached queues so isolated HOMEs never share a mirror across test files. */
 export function resetWorkspaceWorkflowQueuesForTest(): void {
-	queueByWorkspacePath.clear();
+	queueByWorkspaceId.clear();
 }
