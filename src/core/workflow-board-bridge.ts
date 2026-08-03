@@ -46,3 +46,27 @@ export function workflowPhaseToBoardColumn(phase: WorkflowPhase): RuntimeBoardCo
 			return "in_progress";
 	}
 }
+
+/**
+ * P24.1 step 1, first one-writer increment: which applied kernel transitions DRIVE a board lane move.
+ *
+ * The kernel becomes the single writer for lane moves EDGE-BY-EDGE — an allowlist, not a blanket, so each
+ * conversion's blast radius is one edge and the shadow verifies it before the next joins. The first converted
+ * edge is `implementation_finished` (the transient review-entry window: the summary-edge listener dispatched
+ * the phase while a separate finalize path moved the lane — two async writers racing every sampler; deriving
+ * the move FROM the applied transition makes phase and lane change from one cause). Legacy direct
+ * `moveTaskToColumn` calls on a converted edge become redundant (same destination, idempotent move) and are
+ * retired once the shadow stays silent for the pair.
+ */
+const KERNEL_DRIVEN_LANE_COMMANDS: ReadonlySet<string> = new Set(["implementation_finished"]);
+
+/** The lane an applied transition should move the card to, or null when the edge is not (yet) converted. */
+export function laneMoveForAppliedTransition(transition: {
+	readonly command: { readonly kind: string };
+	readonly phase: WorkflowPhase;
+}): RuntimeBoardColumnId | null {
+	if (!KERNEL_DRIVEN_LANE_COMMANDS.has(transition.command.kind)) {
+		return null;
+	}
+	return workflowPhaseToBoardColumn(transition.phase);
+}

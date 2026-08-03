@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeBoardColumnId } from "../../../src/core/runtime-config-api-contract";
-import { workflowPhaseToBoardColumn } from "../../../src/core/workflow-board-bridge";
+import { laneMoveForAppliedTransition, workflowPhaseToBoardColumn } from "../../../src/core/workflow-board-bridge";
 import {
 	classifyWorkflowPhase,
 	isLiveWorkflowPhase,
@@ -110,6 +110,20 @@ describe("phase classification agrees with the board projection", () => {
 		// staleness monitor) conclude a worker is hung when nothing has started yet.
 		for (const phase of ALL_PHASES.filter((candidate) => classifyWorkflowPhase(candidate) === "waiting_capacity")) {
 			expect(workflowPhaseToBoardColumn(phase), `${phase} should surface as pre-implementation`).toBe("planning");
+		}
+	});
+});
+
+describe("laneMoveForAppliedTransition (P24.1 one-writer increment, edge allowlist)", () => {
+	it("drives the lane on the converted implementation_finished edge, from the applied phase", () => {
+		expect(
+			laneMoveForAppliedTransition({ command: { kind: "implementation_finished" }, phase: "awaiting_acceptance" }),
+		).toBe("review");
+	});
+
+	it("returns null for every unconverted edge — blast radius stays one edge per conversion", () => {
+		for (const kind of ["start_requested", "review_started", "review_changes_requested", "delivered", "failed"]) {
+			expect(laneMoveForAppliedTransition({ command: { kind }, phase: "implementing" })).toBeNull();
 		}
 	});
 });

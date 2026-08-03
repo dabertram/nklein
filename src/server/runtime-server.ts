@@ -148,6 +148,7 @@ import { DELIVERY_ACTION_MANIFEST } from "../core/tool-capability-manifest";
 import { parseAddedLinesFromUnifiedDiff } from "../core/unified-diff-added-lines";
 import { combineVerifierVerdicts } from "../core/verifier-ensemble";
 import { findWorkPackageBoundaryViolations } from "../core/work-package-card-shape";
+import { laneMoveForAppliedTransition } from "../core/workflow-board-bridge";
 import { buildDecompositionRoutingCandidates } from "../nklein-agent/decomposition/build-decomposition-routing-candidates";
 import {
 	advanceStableFleetObservation,
@@ -4242,6 +4243,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					},
 				}),
 			);
+			// P24.1 step-1 first one-writer increment: on CONVERTED kernel edges the applied transition drives
+			// the lane move (kernel = the writer; the legacy direct move on the same edge becomes a redundant
+			// idempotent no-op and is retired once the shadow stays silent for the pair). Edge allowlist lives in
+			// the bridge (`laneMoveForAppliedTransition`); the shadow remains the live verifier either way.
+			getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId).subscribe((transition) => {
+				const targetLane = laneMoveForAppliedTransition(transition);
+				if (!targetLane) {
+					return;
+				}
+				void retryWorkspaceStateLock(() =>
+					mutateWorkspaceState(scope.workspacePath, (latestState) => {
+						const movement = moveTaskToColumn(latestState.board, transition.taskId, targetLane);
+						return { board: movement.board, save: movement.moved, value: null };
+					}),
+				).catch(() => {});
+			});
 			speculativeConfigByWorkspaceId.set(scope.workspaceId, {
 				enabled: runtimeConfig.speculativeBestOfNEnabled,
 				maxConcurrentSpecs: runtimeConfig.speculativeMaxConcurrentSpecs,
@@ -4875,6 +4892,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			service.setAgentMcpAccess(agentMcpAccess);
 			service.setModelStatsTrackingLevel(runtimeConfig.modelStatsTrackingLevel);
 			service.setModelTurnAdmissionGate(createModelTurnAdmissionGate(scope));
+			// P24.1 step-1 first one-writer increment: on CONVERTED kernel edges the applied transition drives
+			// the lane move (kernel = the writer; the legacy direct move on the same edge becomes a redundant
+			// idempotent no-op and is retired once the shadow stays silent for the pair). Edge allowlist lives in
+			// the bridge (`laneMoveForAppliedTransition`); the shadow remains the live verifier either way.
+			getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId).subscribe((transition) => {
+				const targetLane = laneMoveForAppliedTransition(transition);
+				if (!targetLane) {
+					return;
+				}
+				void retryWorkspaceStateLock(() =>
+					mutateWorkspaceState(scope.workspacePath, (latestState) => {
+						const movement = moveTaskToColumn(latestState.board, transition.taskId, targetLane);
+						return { board: movement.board, save: movement.moved, value: null };
+					}),
+				).catch(() => {});
+			});
 			speculativeConfigByWorkspaceId.set(scope.workspaceId, {
 				enabled: runtimeConfig.speculativeBestOfNEnabled,
 				maxConcurrentSpecs: runtimeConfig.speculativeMaxConcurrentSpecs,
