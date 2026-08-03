@@ -8011,6 +8011,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   the same way, silently. **BLOCKS: the F3.37 deterministic composition proof** (the pre-seeded-ledger +
   A2A-chosen-card-id design is sound and staged in the evidence dir; it resumes the moment a swept card
   actually starts).
+  **▶ 2026-08-03 ~05:45 — CHAIN MAPPED TO THE SEAM (static read; fresh-session live trace remains).** The
+  sweep path: watchdog → `retryWaitingCardsAfterTerminal` (debounced; timer-armed) → `startRescueCandidates`
+  (off-durable → plain union) → `autoStartTaskIds` → per-card gates. EVERY pre-start gate either logs or
+  visibly settles (pause, wrong-lane, active-session, unmet-deps, overlap-defer, concurrency-defer,
+  pinned-model self-heal). The terminal call is `runtimeApi.startTaskSession(scope, {…,
+  queueOnEndpointBusy: true})` — and **a `queued` result is treated as fully handled with NO log line**
+  (`if (!started.ok && !started.queued)` guards all failure handling). Two candidate mechanisms, in order:
+  (1) the start QUEUES on endpoint admission every sweep and the queue never drains in this environment —
+  perpetual, silent, matches the observed forever-loop exactly (check `drainQueuedTaskStarts` + what the
+  §5.AB endpoint scheduler computes for a bare-HOME runtime with a default localhost gateway: capacity 0 =
+  queue forever); (2) an errorCode outside {concurrency_limit, pinned_model_unavailable} falls through to a
+  tail branch that may be quiet — read the fallthrough after the visible handlers. Either way the FIX shape
+  is already clear: a queued/failed swept start must be VISIBLE (one dedup'd observation per card, the N20
+  manual-hold pattern) — silence is the bug even before the queue-drain question is answered.
 - [ ] **N22 — 🧹 Turn-end summary-emit interleave + transition-reason misattribution (split from N21's
   confirmation run, 2026-08-03; low severity — self-healed live).** Two residuals, one evidence base
   (`.real-runs/20260802-235233`): (a) **same-instant emit interleave** — the repeated-decompose guard's PARK
