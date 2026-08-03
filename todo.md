@@ -10216,7 +10216,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   SHOW in Ready) vs the projection's queued_*→planning — data-informed row question #2: `queued_for_endpoint`
   should likely project to `ready` (the product's own queue-visible lane); decide row-vs-writer next.
   Conversion order by evidence: (1) children, (2) source completion, (3) the ready row. Each lands with the
-  shadow as its verifier — the rhythm is now: convert, drain, expect the group silent.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  shadow as its verifier — the rhythm is now: convert, drain, expect the group silent.
+  **▶ IDENTITY CHECK DONE (2026-08-03 ~19:35) — and it sharpened the conversion design question.** All 8
+  unknown rows are decompose children (`habit-insight-summary-decomposition-*-impl`); the seed card is the
+  planning/completed row. TWIST: the trend-classifier child has BOTH a dispatched-phase row
+  (queued_for_endpoint/ready) AND kernel-idle rows while sitting in in_progress/review lanes — one card,
+  kernel-aware at the queue edge yet idle during work. Both kernel dispatch sites I have read in
+  `start-task-session.ts` sit inside `if (body.queueOnEndpointBusy)` guards (the QUEUED branch), so the
+  SUCCESS-path start plausibly never dispatches anything — which would mean earlier runs' full
+  `start_requested → …granted → planning → implementing` chains came from a DIFFERENT caller (durable
+  scheduler? another dispatch site further down the handler). **DECISIVE CHECK for the fresh session (one
+  grep):** in `.real-runs/20260803-182847/evidence/agent-ledger.jsonl`, do `wf:` transition rows exist with
+  taskId = a child id? PRESENT ⇒ queue-instance/keying mismatch between dispatch and the watchdog's
+  `phaseOf` (fix = unify instance/key); ABSENT ⇒ the success path genuinely skips dispatch (fix = dispatch
+  the granted-chain on the SUCCESS branch too — the actual step-1 conversion, benefiting seeds AND
+  children). Then re-drain and expect the child group silent.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly
