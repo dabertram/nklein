@@ -973,6 +973,10 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"model_usage",
 	"review_phase",
 	"sandbox_workspace_disposed",
+	// N23 (2026-08-03): the two zero-trace forever-waits a swept card can enter, made visible. Diagnostics
+	// on the sweep path — not flag-gated mechanisms, and a healthy board emits neither.
+	"sweep_skip_active_session",
+	"swept_start_unresolved",
 	"sandbox_workspace_redrive_restore",
 	"second_opinion_review_session",
 ];

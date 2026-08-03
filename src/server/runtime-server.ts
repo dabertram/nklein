@@ -1114,6 +1114,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// F1.31b: the background-eval rail wiring (service + control coordinator), built just before `createRuntimeApi` so
 	// its coordinator can be injected. Held here so `close()` can stop the service. Null until built.
 	let backgroundEvalRailWiring: BackgroundEvalRailWiring | null = null;
+	// N23: dedup for the two sweep-visibility observations below (skip-on-active-session and unresolved-start).
+	// Keyed per card+state / per card, so a healthy board emits nothing and a stuck one emits exactly once.
+	const sweepSkipNotifiedKeys = new Set<string>();
+	const unresolvedStartNotifiedTaskKeys = new Set<string>();
+	/** How long a swept start may stay unresolved before it is REPORTED (not aborted — visibility only). */
+	const SWEPT_START_UNRESOLVED_REPORT_MS = 60_000;
+
 	const autoStartTaskIds = async (
 		scope: RuntimeTrpcWorkspaceScope,
 		taskIds: readonly string[],
@@ -1205,6 +1212,21 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				);
 				if (activeSessionForTask) {
 					deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(taskId);
+					// N23: this skip used to be SILENT, and it is one of the two ways a swept card can wait forever
+					// with zero trace (a stuck `queued` session parks here on every sweep while the watchdog keeps
+					// counting the card startable). One dedup'd observation per card+state makes the wait a fact.
+					const skipKey = `${scope.workspaceId}:${taskId}:${activeSessionForTask.state}`;
+					if (!sweepSkipNotifiedKeys.has(skipKey)) {
+						sweepSkipNotifiedKeys.add(skipKey);
+						recordSelfObservation({
+							signal: "custom",
+							severity: "info",
+							message: `Sweep skipped ${taskId}: an existing session is ${activeSessionForTask.state} — not starting a duplicate. If this card never progresses, that session is the thing to investigate.`,
+							taskId,
+							workspacePath: scope.workspacePath,
+							metadata: { category: "sweep_skip_active_session", sessionState: activeSessionForTask.state },
+						});
+					}
 					continue;
 				}
 				// Final dependency gate. Candidate lists can be stale by the time they reach this effectful seam (a terminal
@@ -1268,6 +1290,29 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(task.id);
 				// Every started card enters the Planning/Refinement lane first (todo §5.B), work or decompose alike.
 				const targetColumnId = STARTED_CARD_ENTRY_LANE;
+				// N23: a swept start that never RESOLVES is the other zero-trace forever-wait (no error, no queue
+				// log, the sweep's IIFE just never finishes — live-hit 2026-08-03 on an A2A-seeded bare-HOME board,
+				// where the watchdog kept claiming "sweeping" while nothing ever reached the kernel). This watch
+				// does not abort anything; it makes the hang a named fact after 60s, once per card.
+				const unresolvedWatch = setTimeout(() => {
+					const watchKey = `${scope.workspaceId}:${task.id}`;
+					if (unresolvedStartNotifiedTaskKeys.has(watchKey)) {
+						return;
+					}
+					unresolvedStartNotifiedTaskKeys.add(watchKey);
+					deps.warn(
+						`Swept start of ${task.id} is still UNRESOLVED after ${Math.round(SWEPT_START_UNRESOLVED_REPORT_MS / 1000)}s — startTaskSession has neither returned nor thrown. The card will look frozen; the hang inside the start path is the thing to investigate.`,
+					);
+					recordSelfObservation({
+						signal: "runtime_error",
+						severity: "warning",
+						message: `Swept start of ${task.id} unresolved after ${Math.round(SWEPT_START_UNRESOLVED_REPORT_MS / 1000)}s (startTaskSession neither returned nor threw).`,
+						taskId: task.id,
+						workspacePath: scope.workspacePath,
+						metadata: { category: "swept_start_unresolved" },
+					});
+				}, SWEPT_START_UNRESOLVED_REPORT_MS);
+				unresolvedWatch.unref?.();
 				const started = await runtimeApi.startTaskSession(scope, {
 					taskId: task.id,
 					prompt: task.prompt,
@@ -1282,6 +1327,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					nkleinSettings: task.nkleinSettings,
 					queueOnEndpointBusy: true,
 				});
+				clearTimeout(unresolvedWatch);
 				if (!started.ok && !started.queued) {
 					// Live-found 2026-07-02 (runs 9/10 cascade deadlock): a CONCURRENCY-limit block is transient — a
 					// just-finished session (e.g. the decompose seed at root-start time) can hold a slot for a moment —
