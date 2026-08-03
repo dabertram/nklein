@@ -10259,7 +10259,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   proper's first real increment: one focused fresh session, starting with THIS edge (implementation_finished
   → review-family lane), the finalize's own move becoming redundant-then-removed. Guard rails already in
   place: kernel duplicate-delivery is a proven no-op, the registry is identity-keyed, and the projection
-  table is data-corrected — the reconciler lands on foundations every prior slice of this arc hardened.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  table is data-corrected — the reconciler lands on foundations every prior slice of this arc hardened.
+  **✅ CONVERSION-1 VERIFIED (2026-08-03, `.real-runs/20260803-211843`): the awaiting_acceptance/in_progress
+  window is GONE from live traffic — phase and lane now change from one cause on the implementation_finished
+  edge.** The run's decompose trajectory re-exposed the two KNOWN unconverted writers with sharper shape:
+  (1) **children between APPLY and START are kernel-idle in planning/ready lanes** (the start path dispatches
+  fine once a child starts; the gap is apply-time — dispatch `start_requested`-family creation commands when
+  `plan-task-board-apply` lands the cards, so created-but-unstarted children are kernel-known), plus one
+  child sampled planning/review (its later lifecycle dispatches raced its lane — expected to collapse as
+  more edges convert); (2) the seed's planning/completed source-completion bypass recurred (needs the
+  terminal dispatch in `completeDecompositionSourceTask`). Next fresh slices, in order: child-creation
+  dispatch at apply; source-completion terminal dispatch; ready-lane row decision; then more edges onto the
+  reconciler allowlist, shadow-verified each.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly
