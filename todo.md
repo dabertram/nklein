@@ -10192,6 +10192,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   migration complete; today's firings ARE the migration work list). Next: run real traffic (any drain /
   nightly) and read the divergence inventory — each distinct pair names a writer to convert to kernel
   commands; convert in evidence order.
+  **▶ FIRST INVENTORY (2026-08-03, `.real-runs/20260803-150124`): 2 divergences, ONE family, TWO fixes.**
+  Both `projection_mismatch`, both at review entry: lane=`review` while phase=`implementing` (1x) and
+  `awaiting_acceptance` (1x). Reading: the terminal-hook path MOVES THE BOARD to review immediately at turn
+  end, while the kernel advances minutes later in the finalize continuation (acceptance_passed →
+  review_started) — the board writer runs ahead of the kernel, on exactly the summary-edge N21 lived on.
+  Fix (a) — projection row, data-informed: the REAL flow parks acceptance-phase cards in the review lane, so
+  `workflowPhaseToBoardColumn(awaiting_acceptance)` should project to `review` (bridge currently says
+  `in_progress`); update row + cross-invariants next iteration. Fix (b) — the implementing/review residue is
+  step-1 proper: the hook path's `moveTaskToColumn(review)` becomes the projection of a kernel dispatch
+  (`implementation_finished` fired at the same edge), i.e. the FIRST writer to convert. Zero
+  `unknown_to_kernel` rows on this drain — the start/review/bounce paths all dispatch commands already, which
+  makes the conversion list shorter than feared.
   **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
