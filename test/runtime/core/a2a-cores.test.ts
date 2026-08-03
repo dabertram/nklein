@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildA2aAgentCard } from "../../../src/core/a2a-agent-card";
-import { buildA2aTaskView, buildSeedCardRequestFromA2a, projectA2aTaskState } from "../../../src/core/a2a-task-mapping";
+import {
+	buildA2aTaskView,
+	buildSeedCardRequestFromA2a,
+	projectA2aTaskState,
+	selectA2aStatusNote,
+} from "../../../src/core/a2a-task-mapping";
 import {
 	A2A_ERROR_CODES,
 	A2A_METHODS,
@@ -170,5 +175,31 @@ describe("buildA2aAgentCard", () => {
 		expect(card.capabilities).toEqual({ streaming: false, pushNotifications: false, extendedAgentCard: false });
 		expect(card.skills.length).toBeGreaterThan(0);
 		expect(card.version).toBe("0.9.0");
+	});
+});
+
+describe("selectA2aStatusNote (N23 residue: actionable notes reach the delegating client)", () => {
+	const note = (category: string, message: string, createdAt: number) => ({ category, message, createdAt });
+
+	it("returns the NEWEST actionable note — remedies supersede stale failures", () => {
+		const picked = selectA2aStatusNote([
+			note("auto_start_failed", "No native !Klein provider is configured.", 100),
+			note("context_floor_unmet", "Model loaded below the 32k floor — reload at >=32k.", 200),
+		]);
+		expect(picked).toBe("Model loaded below the 32k floor — reload at >=32k.");
+	});
+
+	it("ignores non-allowlisted categories — internal telemetry vocabulary is not a client API", () => {
+		expect(
+			selectA2aStatusNote([
+				note("board_liveness_watchdog_tick", "tick 47", 500),
+				note("card_lane_change", "moved", 400),
+			]),
+		).toBeNull();
+	});
+
+	it("returns null for empty or unusable input", () => {
+		expect(selectA2aStatusNote([])).toBeNull();
+		expect(selectA2aStatusNote([{ category: "auto_start_failed", message: "  ", createdAt: 1 }])).toBeNull();
 	});
 });

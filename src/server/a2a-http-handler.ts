@@ -50,6 +50,13 @@ export interface A2aHttpDeps {
 		sourceMessageId: string;
 		promptBytes: number;
 	}) => Promise<void>;
+	/**
+	 * Newest ACTIONABLE status note for the card (auto-start failures, manual holds, …) — surfaces as
+	 * TaskStatus.message so a delegating client can see WHY a card is not progressing (N23: "no provider
+	 * configured" was logged six times server-side while A2A reported bare SUBMITTED forever). Optional so
+	 * tests and minimal wires stay small; absent ⇒ no status message.
+	 */
+	readStatusNote?: (entry: A2aWorkspaceEntry, taskId: string) => Promise<string | null>;
 	nowIso: () => string;
 	randomUuid: () => string;
 	productVersion: string;
@@ -194,9 +201,15 @@ export async function handleA2aHttpRequest(
 				`No task ${params.data.id} on workspace ${workspace.workspaceId}.`,
 			);
 		}
+		const statusText = (await deps.readStatusNote?.(workspace, params.data.id).catch(() => null)) ?? null;
 		return rpcResult(
 			id,
-			buildA2aTaskView({ cardId: params.data.id, columnId: record.columnId, timestamp: deps.nowIso() }),
+			buildA2aTaskView({
+				cardId: params.data.id,
+				columnId: record.columnId,
+				timestamp: deps.nowIso(),
+				...(statusText ? { statusText } : {}),
+			}),
 		);
 	}
 

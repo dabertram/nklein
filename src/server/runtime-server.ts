@@ -18,6 +18,7 @@ import {
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import { effectiveRetrievalSearchBackendUrl } from "../config/runtime-config-retrieval-resolver";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { selectA2aStatusNote } from "../core/a2a-task-mapping";
 import { A2A_WELL_KNOWN_AGENT_CARD_PATH } from "../core/a2a-wire-shapes";
 import { buildTransitionEvent } from "../core/agent-attempt-ledger";
 import {
@@ -217,7 +218,7 @@ import {
 	mutateWorkspaceState,
 } from "../state/workspace-state";
 import { readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
-import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { createTerminalWebSocketBridge } from "../terminal/ws-server";
 import { type RuntimeTrpcContext, type RuntimeTrpcWorkspaceScope, runtimeAppRouter } from "../trpc/app-router";
@@ -5331,6 +5332,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				workspaceId: entry.workspaceId,
 				workspacePath: entry.repoPath,
 			}).catch(() => undefined);
+		},
+		readStatusNote: async (_entry, taskId) => {
+			const observations = await readSelfObservationEvents({ taskId, limit: 25 }).catch(() => []);
+			return selectA2aStatusNote(
+				observations.map((observation) => ({
+					category:
+						typeof observation.metadata?.category === "string" ? (observation.metadata.category as string) : null,
+					message: observation.message,
+					createdAt: observation.createdAt,
+				})),
+			);
 		},
 		nowIso: () => new Date(nightlyHermetic ? NIGHTLY_HERMETIC_EPOCH_MS : Date.now()).toISOString(),
 		randomUuid: () => randomUUID(),

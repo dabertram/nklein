@@ -178,3 +178,27 @@ describe("handleA2aHttpRequest — GetTask", () => {
 		expect(body.result.status.timestamp).toBe("2026-08-03T01:00:00.000Z");
 	});
 });
+
+describe("handleA2aHttpRequest — status note surfacing (N23 residue)", () => {
+	it("carries the actionable note as the task status message on GetTask", async () => {
+		const d = deps({
+			readStatusNote: async () => "No native !Klein provider is configured. Open Settings, choose a provider.",
+		});
+		await post(d, rpc("SendMessage", SEND_PARAMS));
+		const result = await post(d, rpc("GetTask", { id: "a2a-fixed-uuid" }, 5));
+		const body = result?.body as { result: { status: { message?: { parts: { text?: string }[] } } } };
+		expect(body.result.status.message?.parts[0]?.text).toMatch(/No native !Klein provider/u);
+	});
+
+	it("omits the status message when the note reader is absent or errors", async () => {
+		const erroring = deps({
+			readStatusNote: async () => {
+				throw new Error("telemetry unavailable");
+			},
+		});
+		await post(erroring, rpc("SendMessage", SEND_PARAMS));
+		const result = await post(erroring, rpc("GetTask", { id: "a2a-fixed-uuid" }, 6));
+		const body = result?.body as { result: { status: { message?: unknown } } };
+		expect(body.result.status.message).toBeUndefined();
+	});
+});

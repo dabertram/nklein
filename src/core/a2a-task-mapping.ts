@@ -92,6 +92,43 @@ export function buildA2aTaskView(input: A2aTaskProjectionInput): A2aTask {
 	};
 }
 
+/**
+ * The observation categories whose message is worth SHOWING to a delegating A2A client — each one names a
+ * reason the card is not progressing that the client (or its operator) can act on. Live-motivated (N23): a
+ * card unstartable for want of provider config reported `TASK_STATE_SUBMITTED` forever while the runtime
+ * logged the actionable error six times — the A2A surface was the one place the message never reached.
+ */
+const A2A_STATUS_NOTE_CATEGORIES: ReadonlySet<string> = new Set([
+	"auto_start_failed",
+	"auto_start_paused",
+	"context_floor_unmet",
+	"manual_review_hold",
+	"sweep_skip_active_session",
+	"swept_start_unresolved",
+]);
+
+/**
+ * Pick the newest actionable status note from a card's observations, for TaskStatus.message. Newest wins
+ * because remedies supersede (a `context_floor_unmet` after a reload beats a stale `auto_start_failed`).
+ * Categories outside the allowlist are ignored — internal telemetry vocabulary is not a client API.
+ */
+export function selectA2aStatusNote(
+	observations: readonly { category?: string | null; message?: string | null; createdAt?: number | null }[],
+): string | null {
+	let best: { message: string; createdAt: number } | null = null;
+	for (const observation of observations) {
+		const message = observation.message?.trim();
+		if (!message || !observation.category || !A2A_STATUS_NOTE_CATEGORIES.has(observation.category)) {
+			continue;
+		}
+		const createdAt = observation.createdAt ?? 0;
+		if (best === null || createdAt >= best.createdAt) {
+			best = { message, createdAt };
+		}
+	}
+	return best?.message ?? null;
+}
+
 /** What an accepted SendMessage becomes: exactly a seed-card request, nothing more. */
 export interface A2aSeedCardRequest {
 	title: string;
