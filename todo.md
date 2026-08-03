@@ -8005,6 +8005,14 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   | Sandbox MCP server …`). Cheap fix: clear `warningMessage` on state-changing patches, or record reason only
   when the patch that caused the transition set it. Evidence-reading hazard meanwhile: a transition's `reason`
   is the newest reviewReason/warning at emit time, NOT necessarily the cause of the move.
+  **✅ (b) FIXED 2026-08-03:** the recorder now uses `reviewReason ?? null` — NEVER the persistent
+  `warningMessage` overlay (every misattributed row in the N20/N21 forensics was a warning; every causal one
+  was a reviewReason, which is set alongside the state change it explains). A reason-less transition is now
+  honestly `null` instead of decorated with a stale advisory. Regression tests pin both directions; the F3.37
+  bounce counter is UNAFFECTED (its `review_changes_requested` rows come from the workflow command queue's
+  writer, which stamps `command.kind` — different writer, verified against the live row's kernel workflowId).
+  **(a) remains open** (same-instant emit interleave), deliberately parked with P24.1 — last-writer-wins races
+  are inherent to a presentation stream; the kernel-authoritative refactor is the real fix.
 - [x] **N21 — 🐛 Second distinct ACT-drain stall shape: card frozen `in_progress`, model idle, 3 sessions but
   only ONE terminal attempt record (`success`) and no lane move (live-hit 2026-08-02 on the N20 clean-room
   repro; evidence preserved `.real-runs/20260802-224900`).**

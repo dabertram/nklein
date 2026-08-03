@@ -108,7 +108,13 @@ export function createSessionTransitionRecorder(
 				workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
 				from: previous,
 				to: summary.state,
-				reason: summary.reviewReason ?? summary.warningMessage ?? null,
+				// N22(b), live-found 2026-08-03: reviewReason ONLY — never warningMessage. `warningMessage` is a
+				// PERSISTENT overlay that rides every later summary patch, so using it as a fallback stamped
+				// unrelated lane moves with stale advisory texts ("Sandbox MCP server … withheld" as the "reason"
+				// a card left review), and one N21 forensics pass initially read an advisory as a cause.
+				// `reviewReason` is set alongside the state changes it explains ("hook", "attention",
+				// "interrupted") — causal by construction; a transition without one honestly has reason null.
+				reason: summary.reviewReason ?? null,
 			}),
 		).catch(() => {});
 	};

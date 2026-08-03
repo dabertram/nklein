@@ -60,3 +60,35 @@ describe("createSessionTransitionRecorder (§5.AF transition events from session
 		expect(events.map((event) => event.taskId)).toEqual(["b"]);
 	});
 });
+
+describe("transition reason causality (N22b)", () => {
+	// Live-found 2026-08-03: warningMessage is a PERSISTENT overlay riding every later patch, so using it as
+	// a reason fallback stamped unrelated lane moves with stale advisory texts — one N21 forensics pass
+	// initially read "Sandbox MCP server … withheld" as the cause of a card leaving review. reviewReason is
+	// set alongside the state change it explains; a transition without one honestly has reason null.
+	it("uses reviewReason as the reason when present", async () => {
+		const events: AgentTransitionEvent[] = [];
+		const record = createSessionTransitionRecorder(async (event) => {
+			events.push(event);
+		});
+		record(scope, { ...summary("t1", "running") });
+		record(scope, { ...summary("t1", "awaiting_review"), reviewReason: "hook" });
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(events[1]?.reason).toBe("hook");
+	});
+
+	it("NEVER falls back to the persistent warningMessage — reason is null instead", async () => {
+		const events: AgentTransitionEvent[] = [];
+		const record = createSessionTransitionRecorder(async (event) => {
+			events.push(event);
+		});
+		record(scope, { ...summary("t2", "running") });
+		record(scope, {
+			...summary("t2", "idle"),
+			warningMessage: "Sandbox MCP server withheld — stale advisory that did NOT cause this move",
+		} as RuntimeTaskSessionSummary);
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(events[1]?.to).toBe("idle");
+		expect(events[1]?.reason).toBeNull();
+	});
+});
