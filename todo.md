@@ -2714,6 +2714,20 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (start-task-session.ts assembles the launch config; the service request must carry both), then re-run the
   mechanical rig — expect BOTH the consult tool AND the repo-summary tool to appear, which double-proves the
   fix at zero extra cost.
+  **✅ 2026-08-03 ~09:10 — COMPOSITION PROVEN, BOTH ARMS, WIRE-LEVEL, DETERMINISTIC (evidence:
+  `.real-runs/consult-proof-20260803/proof3-{positive,negative}-window.txt`).** With the baseUrl fallback fix
+  (`b1ceb8433`) the mechanical rig delivered in one pass: POSITIVE arm — card `consult-proof-3` (ledger
+  pre-seeded with 2 genuine failures, A2A-delegated at that id, flag ON) started a worker session whose
+  serialized catalog CONTAINS `consult_stronger_model` (declaration + full stuck-gate description visible in
+  the devlog under `Working Directory: /workspaces/consult-proof-3`), alongside the repo-summary tool the
+  same fix restored. NEGATIVE arm — card `unstuck-neg-1` (no failures) started a session whose 27KB devlog
+  window shows consult **0** while repo-summary (3) and other tools (2) are present — in-window positive
+  controls on BOTH arms. The registration gate therefore does exactly what F3.37 specified: an un-stuck
+  worker never sees the schema; a genuinely stuck one does. **REMAINING for F3.37 closure (unchanged):** the
+  behavioral/conversion A/B (does a consult convert stuck cards — needs bounce-path drains or the guard-park
+  decision) + the guard-park design fork awaiting David's batch + chat-notice polish. The A/B's
+  infrastructure debt is now PAID: deterministic arming exists (this rig), the review pipeline works, and
+  baseUrl-gated extras are alive on server-initiated starts.
   Pure core SHIPPED 2026-07-23 (`src/core/model-consult.ts`): harness-enforced stuck-gate (≥2 recorded failed
   attempts + per-card consult budget), strongest-eligible-LOCAL-consultant selection (loaded + idle + ≥10
   capability points stronger + never the asker; declines rather than load/unload), capped four-field request,
