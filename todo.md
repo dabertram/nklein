@@ -8025,6 +8025,23 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   tail branch that may be quiet — read the fallthrough after the visible handlers. Either way the FIX shape
   is already clear: a queued/failed swept start must be VISIBLE (one dedup'd observation per card, the N20
   manual-hold pattern) — silence is the bug even before the queue-drain question is answered.
+  **▶ 2026-08-03 ~06:30 — STATICS EXHAUSTED; the seam is NARROWER than first mapped and needs ONE
+  instrumented live repro.** Corrections to the map above, each verified in source: the queued branch in
+  `autoStartTaskIds` is LOUD (run14's own fix: "Auto-start of … queued behind a busy endpoint"), the per-card
+  catch is loud, the failure tail is loud, the debounce core runs first-call (last=0), and the preserved
+  repro ledger shows **zero kernel `wf:` transitions for the card** — so `startTaskSession` never reached
+  even its first `dispatchWorkflowStartCommands`. Everything visible is loud, and nothing was heard.
+  Surviving hypotheses (both fit ALL evidence; one repro separates them): **(H1) an early `await` inside the
+  first swept `startTaskSession` call HANGS forever** (pre-kernel-dispatch: launch-config/role resolution,
+  baseRef/git probing, or sandbox provisioning in the bare-HOME env) — no timeout wraps the swept start, the
+  sweep's async IIFE never resolves, no error ever surfaces, and later sweeps skip silently; **(H2) attempt
+  #1 leaves a `queued`-state summary**, and every later sweep's `activeSessionForTask` guard
+  ({running,queued,paused,awaiting_review}) silently `continue`s while the watchdog counts the card
+  startable via a liveness set that classifies `queued` differently (`hasLiveTaskSession` vs the inline
+  list — G6.8a v16 fixed one such drift; check for a second). Instrumented repro: same rig
+  (`.real-runs/consult-proof-20260803/` has config + ledger), wrap the swept start in a timed race +
+  log-on-entry, and dump `listSummaries()` states each watchdog tick. FIX SHAPE unchanged (visibility
+  first), plus whichever of {start timeout, liveness-set unification} the repro convicts.
 - [ ] **N22 — 🧹 Turn-end summary-emit interleave + transition-reason misattribution (split from N21's
   confirmation run, 2026-08-03; low severity — self-healed live).** Two residuals, one evidence base
   (`.real-runs/20260802-235233`): (a) **same-instant emit interleave** — the repeated-decompose guard's PARK
