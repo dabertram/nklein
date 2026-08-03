@@ -93,6 +93,11 @@ import {
 	type OpportunisticWorkOutcome,
 } from "../core/opportunistic-work-value";
 import { resolveRuntimeSwarmGuardrailsForModelRoles } from "../core/parallel-swarm-guardrails";
+import {
+	assessPhaseLaneDivergence,
+	buildPhaseLaneDivergenceObservation,
+	phaseLaneDivergenceKey,
+} from "../core/phase-lane-divergence";
 import { detectSystemPowerMode } from "../core/power-aware-timeout";
 import { assessRewardHackSignals } from "../core/reward-hack-signals";
 import type { RuntimeBuildIdentity } from "../core/runtime-build-identity";
@@ -1119,6 +1124,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// F1.31b: the background-eval rail wiring (service + control coordinator), built just before `createRuntimeApi` so
 	// its coordinator can be injected. Held here so `close()` can stop the service. Null until built.
 	let backgroundEvalRailWiring: BackgroundEvalRailWiring | null = null;
+	// P24.1 shadow dedup: one divergence observation per (workspace, card, phase, lane) — repeat ticks silent.
+	const phaseLaneDivergenceNotifiedKeys = new Set<string>();
 	// N23: dedup for the two sweep-visibility observations below (skip-on-active-session and unresolved-start).
 	// Keyed per card+state / per card, so a healthy board emits nothing and a stuck one emits exactly once.
 	const sweepSkipNotifiedKeys = new Set<string>();
@@ -4060,6 +4067,34 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								},
 							});
 							return;
+						}
+						// P24.1 step-1 SHADOW: sample every card's lane against the kernel-phase projection. Read-only;
+						// one observation per NOVEL divergence triple. Today this MEASURES how far reality sits from
+						// the projection (each distinct pair is a bypassing writer = the migration work list); after
+						// migration it is the regression tripwire for new bypassing writers.
+						{
+							const workflowQueue = getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId);
+							for (const column of board.columns) {
+								for (const card of column.cards) {
+									const divergence = assessPhaseLaneDivergence({
+										taskId: card.id,
+										phase: workflowQueue.phaseOf(card.id),
+										lane: column.id,
+									});
+									if (!divergence) {
+										continue;
+									}
+									const divergenceKey = `${scope.workspaceId}:${phaseLaneDivergenceKey(divergence)}`;
+									if (phaseLaneDivergenceNotifiedKeys.has(divergenceKey)) {
+										continue;
+									}
+									phaseLaneDivergenceNotifiedKeys.add(divergenceKey);
+									recordSelfObservation({
+										...buildPhaseLaneDivergenceObservation(divergence),
+										workspacePath: scope.workspacePath,
+									});
+								}
+							}
 						}
 						const startable = listStartableUnstartedTaskIds(board, activeSessionTaskIds);
 						// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending

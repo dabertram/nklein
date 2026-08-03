@@ -10183,6 +10183,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   drift on a NEEDS-DAVID marker cost one redundant question — when marking a fork resolved in code, update
   the filing in the SAME commit. **Capacity consumers may now migrate; next P24.1 front: step 1 (one
   writer).**
+  **▶ STEP 1 OPENED 2026-08-03 with the strangler-fig move: a READ-ONLY phase↔lane SHADOW on every
+  board-liveness tick.** `assessPhaseLaneDivergence` (pure, tested) compares each card's lane to
+  `workflowPhaseToBoardColumn(phaseOf(card))`; one dedup'd `phase_lane_divergence` observation per novel
+  (card, phase, lane) triple, two kinds with different fixes: `unknown_to_kernel` (a writer that never
+  dispatched ANY command — the common pre-migration case) vs `projection_mismatch` (bypassing mutation or a
+  wrong projection row). Registered in MECHANISM_REGISTRY (always-on, end-state expectation: silence =
+  migration complete; today's firings ARE the migration work list). Next: run real traffic (any drain /
+  nightly) and read the divergence inventory — each distinct pair names a writer to convert to kernel
+  commands; convert in evidence order.
   **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the

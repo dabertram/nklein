@@ -935,6 +935,16 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 	},
 	{
+		category: "phase_lane_divergence",
+		item: "P24.1",
+		observes:
+			"one card whose board lane disagrees with the kernel-phase projection (unknown_to_kernel = a writer that never dispatched; projection_mismatch = bypassing mutation or wrong projection row) — the step-1 migration work list, then the regression tripwire",
+		enabledBy: null,
+		// `exceptional` FOR NOW is wrong on purpose-reversal grounds: pre-migration this fires OFTEN (that is
+		// the measurement); post-migration silence is success. `exceptional` states the END-STATE contract.
+		expectation: "exceptional",
+	},
+	{
 		category: "a2a_task_ingress",
 		item: "P17.8",
 		observes: "each accepted A2A SendMessage that seeded a board card (taskId, sourceMessageId, prompt bytes)",
