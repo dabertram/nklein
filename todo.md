@@ -10173,6 +10173,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   the predicate that names ITS resource. Update the containment proofs per chain (worker: holds ⊆ reserves ⊆
   live; endpoint: holds ⊆ live) with each inclusion strict somewhere, and flip the pinned-disagreement test
   into a pinned-RESOLUTION test. THEN capacity consumers may migrate (liveness consumers already may).
+  **✅ LANDED same day (`1ce879575`): `reviewing` is its own `WorkflowPhaseClass`; capacity split by resource**
+  (`holdsWorkerCapacity` / `reservesWorkerCapacity` vs `holdsEndpointCapacity`); pinned-disagreement test
+  flipped to pinned-RESOLUTION; endpoint containment proven strict at `reviewing`; class-list exhaustiveness
+  held by compiler; 6,662 core tests green. **HONEST CORRECTION recorded:** the FINDING-2 paragraph above had
+  gone STALE — the 07-31 `awaiting_verdict` decision had already resolved the awaiting_review half in code,
+  and today's question re-asked it in that framing; David's answer chose the SAME design a second time and
+  extended it to the reviewing/capacity half, which is the part that genuinely remained open. Todo-vs-code
+  drift on a NEEDS-DAVID marker cost one redundant question — when marking a fork resolved in code, update
+  the filing in the SAME commit. **Capacity consumers may now migrate; next P24.1 front: step 1 (one
+  writer).**
   **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
