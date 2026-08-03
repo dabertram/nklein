@@ -10285,7 +10285,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   new convertible edge (planning/in_progress — the begin_implementation window), converted same hour
   (allowlist + test). The inventory is now expected to reduce to ONLY the David fork on the next decompose
   drain — at which point the shadow is clean modulo one deliberate model decision, four working days ahead
-  of the item's own risk estimate.**  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  of the item's own risk estimate.**
+  **▶ FIFTH INVENTORY (2026-08-04 00:01, `.real-runs/20260803-233227`, non-decompose trajectory): 1 row —
+  awaiting_acceptance/in_progress, SAME PAIR as conversion-1 but DIFFERENT anatomy.** The two-independent-
+  writers race is dead; the residue is the RECONCILER'S OWN LAG (the applied transition's board mutate is
+  async; a watchdog sample between apply and mutate-landing sees the old lane). One sample, dedup-bounded,
+  self-healing — acceptable as observation noise for now, and it is precisely the motivation for **step 3
+  (persist-before-effect / apply-then-project ordering)** rather than a new writer to convert. No child rows
+  (no decompose this run). Day-one arc totals for step 1: 5 inventories, 2 projection rows corrected, 2
+  edges converted, 1 split-brain registry fixed, 1 kernel success-terminal added — residue = the batched
+  child fork + reconciler lag (step 3's charter).  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly
