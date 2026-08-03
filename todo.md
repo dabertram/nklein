@@ -10247,7 +10247,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   WRITER CONVERSION collapses (the hook's `moveTaskToColumn(review)` becomes the projection of the dispatch
   — then phase and lane change in one place and no window exists). Remaining work list: (1) that conversion;
   (2) the source-completion terminal dispatch; (3) the ready-lane row decision — each a one-sitting slice
-  with the shadow as verifier.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  with the shadow as verifier.
+  **▶ CONVERSION-1 DESIGN SETTLED (2026-08-03 ~20:35; deliberately NOT half-coded).** The window's anatomy:
+  `onSummary` (runtime-server ~:3646) dispatches `implementation_finished` and `finalizeHeadlessAutoReviewTask`
+  moves the lane — TWO async consumers of ONE summary edge; co-locating or projection-deriving the finalize's
+  literal "review" shrinks nothing structurally (the dispatch and the move remain separate writers racing the
+  sampler). **The real collapse is the QUEUE-SUBSCRIBER LANE RECONCILER**: a `queue.subscribe` listener that,
+  on every applied transition, moves the card to `workflowPhaseToBoardColumn(next.phase)` — making the kernel
+  the ONE writer for lane moves on kernel-known edges, with direct `moveTaskToColumn` calls retired
+  edge-by-edge behind it (each retirement verified by the shadow going silent for that pair). That is step-1
+  proper's first real increment: one focused fresh session, starting with THIS edge (implementation_finished
+  → review-family lane), the finalize's own move becoming redundant-then-removed. Guard rails already in
+  place: kernel duplicate-delivery is a proven no-op, the registry is identity-keyed, and the projection
+  table is data-corrected — the reconciler lands on foundations every prior slice of this arc hardened.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly
