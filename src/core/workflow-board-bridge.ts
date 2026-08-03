@@ -16,10 +16,17 @@ export function workflowPhaseToBoardColumn(phase: WorkflowPhase): RuntimeBoardCo
 		case "queued_for_sandbox":
 		case "planning":
 			return "planning";
-		// Actively working or verifying acceptance.
+		// Actively working.
 		case "implementing":
-		case "awaiting_acceptance":
 			return "in_progress";
+		// DATA-INFORMED ROW CHANGE (P24.1 shadow, first inventory 2026-08-03): the REAL flow parks
+		// acceptance-phase cards in the Review lane — the terminal hook moves the board to `review` at turn
+		// end, and acceptance verification runs there as the review pipeline's first step (live drains show
+		// `review-phase: acceptance-verify` under the review lane). Projecting to `in_progress` made every
+		// healthy review entry read as a divergence; the projection now matches the flow the product actually
+		// has, and the shadow verifies it stays matched.
+		case "awaiting_acceptance":
+			return "review";
 		// A deliberately held card stays WHERE THE WORK IS, for the same reason `failed` does: the operator needs
 		// to see it. Moving it to its own lane would hide a card someone paused and meant to come back to.
 		case "paused":

@@ -15,7 +15,8 @@ const EXPECTED: Record<WorkflowPhase, RuntimeBoardColumnId> = {
 	queued_for_sandbox: "planning",
 	planning: "planning",
 	implementing: "in_progress",
-	awaiting_acceptance: "in_progress",
+	// Data-informed row (P24.1 first inventory): acceptance verifies in the Review lane in the real flow.
+	awaiting_acceptance: "review",
 	paused: "in_progress",
 	awaiting_review: "review",
 	reviewing: "review",
