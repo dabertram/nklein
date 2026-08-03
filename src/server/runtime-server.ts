@@ -1957,6 +1957,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		// Causal ordering (todo §5.U S5): the caller already awaits autoStartDecompositionRootTasks before this, so the
 		// source-task completion runs after the root starts deterministically — no arbitrary settle delay needed. Errors
 		// stay non-fatal (warn) so a failed completion can't break the decomposition-applied handler.
+		// P24.1 (third inventory): the seed's SUCCESS-terminal — the kernel learns the completion the product
+		// already performs, so decompose runs stop ending with the seed kernel-stuck at `planning` while the
+		// board says `completed`. Fire-and-forget like every dispatch site; the kernel holds duplicates.
+		dispatchWorkflowCommands(scope.workspacePath, scope.workspaceId, sourceTaskId, [
+			{ kind: "decomposition_complete" },
+		]);
 		try {
 			const service = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
 			await service?.completeTaskSessionAfterDecomposition(sourceTaskId);

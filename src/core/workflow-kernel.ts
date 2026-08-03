@@ -58,7 +58,13 @@ export type WorkflowCommand =
 	| { kind: "failed" }
 	| { kind: "cancel_requested" }
 	/** F1.27b: re-admit a dead/parked card (failed/cancelled/any active phase → idle). `completed` never reopens. */
-	| { kind: "reopened" };
+	| { kind: "reopened" }
+	// DECIDED BY THE FLOW ITSELF (P24.1 second/third inventories, 2026-08-03): a decompose SEED's planning
+	// session concludes SUCCESSFULLY by decomposing — the product completes the seed and cascades dependents
+	// (`completeDecompositionSourceTask`, deliberate since §5.B). The kernel had no success-terminal edge from
+	// `planning`, so every decompose run ended with the seed kernel-stuck at `planning` while the board said
+	// `completed`. One reading only — the kernel learns to say what the product already does.
+	| { kind: "decomposition_complete" };
 
 export type WorkflowEffect =
 	| { kind: "enqueue"; queue: "board_capacity" | "endpoint" | "sandbox" }
@@ -154,6 +160,34 @@ const PHASE_MEMBERSHIP: Record<WorkflowPhase, true> = {
 };
 
 export const ALL_WORKFLOW_PHASES = Object.keys(PHASE_MEMBERSHIP) as readonly WorkflowPhase[];
+
+/**
+ * Exhaustive-by-compiler command list — the same drift guard ALL_WORKFLOW_PHASES uses: omitting a member of
+ * the union fails to compile, so an under-enumerated property test cannot quietly narrow its own coverage.
+ */
+const COMMAND_MEMBERSHIP: Record<WorkflowCommand["kind"], true> = {
+	start_requested: true,
+	board_capacity_granted: true,
+	endpoint_granted: true,
+	sandbox_granted: true,
+	begin_implementation: true,
+	implementation_finished: true,
+	acceptance_passed: true,
+	acceptance_failed: true,
+	pause_requested: true,
+	resume_requested: true,
+	review_started: true,
+	review_passed: true,
+	review_changes_requested: true,
+	delivery_requested: true,
+	delivered: true,
+	failed: true,
+	cancel_requested: true,
+	reopened: true,
+	decomposition_complete: true,
+};
+
+export const ALL_WORKFLOW_COMMANDS = Object.keys(COMMAND_MEMBERSHIP) as readonly WorkflowCommand["kind"][];
 
 export type WorkflowPhaseClass =
 	| "idle"
@@ -336,6 +370,12 @@ export function applyWorkflowCommand(phase: WorkflowPhase, command: WorkflowComm
 		case "queued_for_sandbox":
 			return command.kind === "sandbox_granted" ? { phase: "planning", effects: [{ kind: "start_session" }] } : hold;
 		case "planning":
+			if (command.kind === "decomposition_complete") {
+				// The seed's work WAS the decomposition; it completes without ever implementing. `mark_done`
+				// carries the same consumer contract as the delivered edge (the card is finished; cascade owners
+				// react to the effect, not to lane archaeology).
+				return { phase: "completed", effects: [{ kind: "mark_done" }] };
+			}
 			return command.kind === "begin_implementation" ? { phase: "implementing", effects: [] } : hold;
 		case "implementing":
 			if (command.kind === "pause_requested") {

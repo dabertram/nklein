@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	ALL_WORKFLOW_COMMANDS,
 	ALL_WORKFLOW_PHASES,
 	applyWorkflowCommand,
 	classifyWorkflowPhase,
@@ -42,26 +43,8 @@ import {
  */
 const ALL_PHASES: readonly WorkflowPhase[] = ALL_WORKFLOW_PHASES;
 
-const ALL_COMMANDS: readonly WorkflowCommand["kind"][] = [
-	"start_requested",
-	"board_capacity_granted",
-	"endpoint_granted",
-	"sandbox_granted",
-	"begin_implementation",
-	"implementation_finished",
-	"acceptance_passed",
-	"acceptance_failed",
-	"pause_requested",
-	"resume_requested",
-	"review_started",
-	"review_passed",
-	"review_changes_requested",
-	"delivery_requested",
-	"delivered",
-	"failed",
-	"cancel_requested",
-	"reopened",
-];
+// Derived from the kernel so a new command cannot be quietly missing from these properties.
+const ALL_COMMANDS = ALL_WORKFLOW_COMMANDS;
 
 function apply(phase: WorkflowPhase, kind: WorkflowCommand["kind"]) {
 	return applyWorkflowCommand(phase, { kind } as WorkflowCommand);
@@ -356,5 +339,21 @@ describe("capacity predicates, over every phase", () => {
 		const resumed = applyWorkflowCommand("paused", { kind: "resume_requested" });
 		expect(reservesWorkerCapacity(resumed.phase), "a resumed card is committed to a slot").toBe(true);
 		expect(holdsWorkerCapacity(resumed.phase), "but does not hold one until admitted").toBe(false);
+	});
+});
+
+describe("decomposition_complete (the seed's success-terminal from planning)", () => {
+	it("moves planning → completed with mark_done — the flow the product already had", () => {
+		const result = applyWorkflowCommand("planning", { kind: "decomposition_complete" });
+		expect(result.phase).toBe("completed");
+		expect(result.effects).toEqual([{ kind: "mark_done" }]);
+	});
+
+	it("holds silently from every OTHER phase — only a planning seed completes by decomposing", () => {
+		for (const phase of ALL_PHASES) {
+			if (phase === "planning") continue;
+			const result = applyWorkflowCommand(phase, { kind: "decomposition_complete" });
+			expect(result.phase, `${phase} must hold`).toBe(phase);
+		}
 	});
 });
