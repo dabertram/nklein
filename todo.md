@@ -10239,7 +10239,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   keyed by `workspaceId`** (the stable name; the path is a spelling of it) — the same identity-vs-spelling
   disease class as the whole P24.1 quartet, this time inside the kernel's own mount. 339 trpc tests green.
   Verification: next drain's child group should go SILENT except the genuinely-unconverted writers
-  (planning/completed source-completion bypass + the ready-lane row decision).  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  (planning/completed source-completion bypass + the ready-lane row decision).
+  **✅ CONFIRMED (2026-08-03, `.real-runs/20260803-193757`): 10 → 1.** Child group SILENT (registry fix
+  verified on live traffic); the single survivor is `awaiting_acceptance/in_progress` on the seed — the
+  TRANSIENT ordering window between the kernel's `implementation_finished` dispatch and the hook's board
+  move, sampled from the other side than inventory #1 saw it. That window is exactly what the queued FIRST
+  WRITER CONVERSION collapses (the hook's `moveTaskToColumn(review)` becomes the projection of the dispatch
+  — then phase and lane change in one place and no window exists). Remaining work list: (1) that conversion;
+  (2) the source-completion terminal dispatch; (3) the ready-lane row decision — each a one-sitting slice
+  with the shadow as verifier.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly
