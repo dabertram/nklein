@@ -2668,6 +2668,24 @@ These are known defects or incomplete migrations. Clear them before widening cap
   on N20 (the review stall) for the bounce arm; the protocol-failure arm could run on a preset the 2B fails at
   protocol level (deep_chain empty-patch class), but the full A/B needs review working. Evidence preserved:
   `.real-runs/20260802-220538`.
+  **▶ 2026-08-03 ~02:30 — PILOT v3 (post-N20/N21 fixes, flag ON, 30 min): INCONCLUSIVE per the pre-registered
+  guard (stuck-evidence never reached 2), and it exposed a THIRD weak-model trajectory the gate cannot see.**
+  The 2B chose to DECOMPOSE (decompose_project is worker-alwaysKeep by David's 2026-08-02 decision), failed
+  graph validation 4×, hit the `repeated_decomposition_failures` architect-pause, and was auto-failed-over to
+  a fresh workflow that burned ~7 low-power minutes in planning before the wall clock. Ledger arithmetic:
+  attempts end `outcome: success`, zero bounces → **stuck-evidence 0 while the harness itself declared the
+  model stuck.** Trajectory tally across the four e2b/mid_task drains so far: 2× work→review (bounce path,
+  gate-visible), 2× decompose-spiral (gate-invisible) — temperature decides which. **OPEN DESIGN FORK for the
+  next David decision batch (deliberately NOT decided unilaterally): should harness guard-parks
+  (`repeated_decomposition_failures` / `repeated_plan_artifact_failures`) count as consult stuck-evidence?**
+  FOR: they are the harness's own strongest "this model is stuck" declaration, and the article's pattern is
+  consult-BEFORE-the-harness-rips-the-session (failover = cross_model_carry economics, exactly what consult
+  exists to undercut). AGAINST: failover already remedies the spiral — counting it double-remedies (the same
+  argument that excluded escalations), and a consult mid-spiral would fire while the pause is already routing
+  to a stronger architect. MIDDLE OPTION: count guard-parks only when failover is NOT available (no eligible
+  stronger architect loaded) — the consult as the fallback remedy, never the competing one. Until decided,
+  the campaign's composition proof should use the BOUNCE path: either repeat mid_task runs (variance-bound)
+  or pin a scenario that keeps weak workers implementing instead of decomposing.
   Pure core SHIPPED 2026-07-23 (`src/core/model-consult.ts`): harness-enforced stuck-gate (≥2 recorded failed
   attempts + per-card consult budget), strongest-eligible-LOCAL-consultant selection (loaded + idle + ≥10
   capability points stronger + never the asker; declines rather than load/unload), capped four-field request,
