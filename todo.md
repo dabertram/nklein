@@ -10270,7 +10270,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   more edges convert); (2) the seed's planning/completed source-completion bypass recurred (needs the
   terminal dispatch in `completeDecompositionSourceTask`). Next fresh slices, in order: child-creation
   dispatch at apply; source-completion terminal dispatch; ready-lane row decision; then more edges onto the
-  reconciler allowlist, shadow-verified each.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  reconciler allowlist, shadow-verified each.
+  **✅ SLICES 2+3 LANDED same evening (`f65ec0658` + this commit): `decomposition_complete`** — the seed's
+  success-terminal from planning (one reading: the kernel learns what `completeDecompositionSourceTask`
+  already does), dispatched at that site, command list now Record-derived compiler-exhaustive like the phase
+  list; **and the `queued_for_endpoint → ready` projection row** (the product's deliberate queue-visible
+  lane), with the waiting-lane cross-invariant updated to "planning or ready, never in_progress". 6,672 core
+  tests green. **REMAINING near-list:** (a) the CHILD-COMPOSITION model question — does the kernel own board
+  composition (created-but-unstarted children have no phase to project from; needs a `created`-class phase
+  or a declared pre-kernel boundary) — **BATCHED FOR DAVID** (the arc's third genuine fork, same restraint
+  as paused/reviewing); (b) more reconciler edges after the next shadow inventory.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly

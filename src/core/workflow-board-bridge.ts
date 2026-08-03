@@ -12,10 +12,15 @@ export function workflowPhaseToBoardColumn(phase: WorkflowPhase): RuntimeBoardCo
 			return "backlog";
 		// Started but pre-implementation (queued for resources, or refining) — the §5.B Planning/Refinement lane.
 		case "queued_for_board_capacity":
-		case "queued_for_endpoint":
 		case "queued_for_sandbox":
 		case "planning":
 			return "planning";
+		// DATA-INFORMED ROW (P24.1 second inventory, 2026-08-03): the product deliberately parks a dep-free
+		// card waiting on an endpoint in the READY lane ("dep-free but no slot ⇒ show in Ready", todo 11116) —
+		// the queue-visible lane. Board-capacity/sandbox waits stay in planning (no product lane exists for
+		// them); the projection matches the flow the product actually has.
+		case "queued_for_endpoint":
+			return "ready";
 		// Actively working.
 		case "implementing":
 			return "in_progress";

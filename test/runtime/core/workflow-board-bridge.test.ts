@@ -11,7 +11,8 @@ import {
 const EXPECTED: Record<WorkflowPhase, RuntimeBoardColumnId> = {
 	idle: "backlog",
 	queued_for_board_capacity: "planning",
-	queued_for_endpoint: "planning",
+	// Data-informed row (P24.1 second inventory): endpoint-queued dep-free cards park in Ready by design.
+	queued_for_endpoint: "ready",
 	queued_for_sandbox: "planning",
 	planning: "planning",
 	implementing: "in_progress",
@@ -34,15 +35,13 @@ describe("workflowPhaseToBoardColumn", () => {
 		}
 	});
 
-	it("groups the pre-implementation phases (queue ladder + planning) into the Planning lane", () => {
-		for (const phase of [
-			"queued_for_board_capacity",
-			"queued_for_endpoint",
-			"queued_for_sandbox",
-			"planning",
-		] as WorkflowPhase[]) {
+	it("groups the pre-implementation phases into Planning — except the deliberate Ready park", () => {
+		for (const phase of ["queued_for_board_capacity", "queued_for_sandbox", "planning"] as WorkflowPhase[]) {
 			expect(workflowPhaseToBoardColumn(phase)).toBe("planning");
 		}
+		// Data-informed row (P24.1 second inventory): a dep-free card waiting on an ENDPOINT parks in the
+		// Ready lane by product design (todo 11116) — the queue-visible lane, not hidden inside Planning.
+		expect(workflowPhaseToBoardColumn("queued_for_endpoint")).toBe("ready");
 	});
 
 	it("surfaces the whole review→delivery span in the Review lane", () => {
@@ -105,11 +104,14 @@ describe("phase classification agrees with the board projection", () => {
 		expect(workflowPhaseToBoardColumn("failed")).toBe("in_progress");
 	});
 
-	it("every waiting-for-capacity phase surfaces as pre-implementation, never as in-progress work", () => {
+	it("every waiting-for-capacity phase surfaces as WAITING (planning or ready), never as in-progress work", () => {
 		// A card queued behind host capacity is not "in progress" — showing it there is what makes an operator (or a
-		// staleness monitor) conclude a worker is hung when nothing has started yet.
+		// staleness monitor) conclude a worker is hung when nothing has started yet. Planning and Ready are both
+		// honest waiting lanes; in_progress is the lie this invariant forbids.
 		for (const phase of ALL_PHASES.filter((candidate) => classifyWorkflowPhase(candidate) === "waiting_capacity")) {
-			expect(workflowPhaseToBoardColumn(phase), `${phase} should surface as pre-implementation`).toBe("planning");
+			expect(["planning", "ready"], `${phase} should surface as a waiting lane`).toContain(
+				workflowPhaseToBoardColumn(phase),
+			);
 		}
 	});
 });
