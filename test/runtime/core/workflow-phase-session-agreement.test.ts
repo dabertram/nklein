@@ -8,9 +8,10 @@ import type { RuntimeTaskSessionState } from "../../../src/core/task-session-api
 import {
 	ALL_WORKFLOW_PHASES,
 	classifyWorkflowPhase,
-	holdsWorkflowCapacity,
+	holdsEndpointCapacity,
+	holdsWorkerCapacity,
 	isLiveWorkflowPhase,
-	reservesWorkflowCapacity,
+	reservesWorkerCapacity,
 	type WorkflowPhase,
 } from "../../../src/core/workflow-kernel";
 
@@ -122,18 +123,20 @@ describe("✅ the representation gap is CLOSED (was: the kernel could not expres
  * ── FINDING 1: `isBusySessionState` IS A RESERVATION PREDICATE, NOT AN OCCUPANCY ONE ──
  * Its doc says *"actively occupies a runtime/model slot"* and, three lines later, *"holding (or about to hold)
  * capacity"* — both readings, in the same definition. It returns true for `queued`. So its kernel counterpart is
- * `reservesWorkflowCapacity`, and a consumer that migrated to `holdsWorkflowCapacity` on the strength of the
+ * `reservesWorkerCapacity`, and a consumer that migrated to `holdsWorkerCapacity` on the strength of the
  * first sentence would stop counting queued cards and hand the same slot out twice.
  *
- * ── FINDING 2: `awaiting_review` GENUINELY DISAGREES, BECAUSE THE MODELS COUNT DIFFERENT RESOURCES ──
- * Session `awaiting_review` means the WORKER session has ended → not busy. The kernel puts `awaiting_review` in
- * `running` because the runtime still has work in flight — and a review really is executing on a model endpoint.
- * Both are internally coherent; they are answering different questions. **NEEDS DAVID (batched)**, and is
- * deliberately not resolved here: guessing a capacity contract is what produced the two-hour dead-board hang
- * (reverted `cc2fbc340`), and the same restraint applied to the release-contract and `paused` questions.
+ * ── FINDING 2 (RESOLVED in two steps): the models counted DIFFERENT RESOURCES with one word ──
+ * 2026-07-31 (David): `awaiting_review` became `awaiting_verdict` — parked for a verdict, holding nothing.
+ * 2026-08-03 (David, "split the phase — its own capacity class"): `reviewing` became its OWN class, and
+ * capacity split BY RESOURCE — `holdsWorkerCapacity`/`reservesWorkerCapacity` (worker slots; a review holds
+ * none: the worker session ended at review entry) vs `holdsEndpointCapacity` (model-endpoint work in flight;
+ * a review holds one — live-confirmed by cards queueing behind the busy reviewer). Each model now maps onto
+ * the predicate that names ITS resource, and the assertions below pin the RESOLUTION instead of the
+ * disagreement they used to pin.
  *
- * ⇒ Liveness consumers may migrate. **Capacity consumers may not, yet** — not because the vocabulary is missing
- * now, but because one phase means two different things and only a decision can fix that.
+ * ⇒ Liveness consumers may migrate, and CAPACITY consumers now may too — worker-slot decisions read the
+ * worker predicates, endpoint decisions read the endpoint one.
  */
 describe("kernel capacity vs the session model's `isBusySessionState`", () => {
 	it("RESERVATION is the right counterpart — it agrees everywhere occupancy does not", () => {
@@ -141,7 +144,7 @@ describe("kernel capacity vs the session model's `isBusySessionState`", () => {
 		for (const state of ALL_SESSION_STATES) {
 			const phase = NATURAL_PHASE[state];
 			expect(
-				reservesWorkflowCapacity(phase),
+				reservesWorkerCapacity(phase),
 				`session "${state}" (busy=${isBusySessionState(state)}) vs phase "${phase}"`,
 			).toBe(isBusySessionState(state));
 		}
@@ -155,16 +158,21 @@ describe("kernel capacity vs the session model's `isBusySessionState`", () => {
 		// `reviewing` stays capacity-holding — a review really is executing on a model endpoint — while
 		// `awaiting_review` is a card parked for a verdict it cannot produce itself.
 		expect(isBusySessionState("awaiting_review"), "session: the worker session has ended").toBe(false);
-		expect(reservesWorkflowCapacity("awaiting_review"), "kernel: parked for a verdict, holding nothing").toBe(false);
+		expect(reservesWorkerCapacity("awaiting_review"), "kernel: parked for a verdict, holding nothing").toBe(false);
 		expect(isLiveWorkflowPhase("awaiting_review"), "still ALIVE — the runtime owes this card a verdict").toBe(true);
-		expect(reservesWorkflowCapacity("reviewing"), "but PERFORMING a review does hold an endpoint").toBe(true);
+		// DECIDED 2026-08-03 (David, split-by-resource): PERFORMING a review holds an ENDPOINT but no WORKER
+		// slot — the two resources now have separate predicates instead of one word wearing two meanings.
+		expect(reservesWorkerCapacity("reviewing"), "a review reserves no WORKER slot").toBe(false);
+		expect(holdsEndpointCapacity("reviewing"), "but it DOES hold a model endpoint").toBe(true);
+		expect(holdsWorkerCapacity("implementing"), "a working card holds its worker slot").toBe(true);
+		expect(holdsEndpointCapacity("implementing"), "and its endpoint (the worker generates on one)").toBe(true);
 	});
 
 	it("now agrees on ALL SEVEN session states, which is what unblocks capacity migration", () => {
 		for (const state of ALL_SESSION_STATES) {
 			const phase = NATURAL_PHASE[state];
 			expect(
-				reservesWorkflowCapacity(phase),
+				reservesWorkerCapacity(phase),
 				`session "${state}" (busy=${isBusySessionState(state)}) vs phase "${phase}"`,
 			).toBe(isBusySessionState(state));
 		}
@@ -173,8 +181,8 @@ describe("kernel capacity vs the session model's `isBusySessionState`", () => {
 	it("distinguishes HOLDS from RESERVES — a queued card is committed but consuming nothing", () => {
 		// Answering "how many more may I admit?" with the occupancy predicate hands the same slot out twice.
 		for (const phase of ["queued_for_board_capacity", "queued_for_endpoint", "queued_for_sandbox"] as const) {
-			expect(holdsWorkflowCapacity(phase)).toBe(false);
-			expect(reservesWorkflowCapacity(phase)).toBe(true);
+			expect(holdsWorkerCapacity(phase)).toBe(false);
+			expect(reservesWorkerCapacity(phase)).toBe(true);
 		}
 	});
 
@@ -182,8 +190,8 @@ describe("kernel capacity vs the session model's `isBusySessionState`", () => {
 		// The gap that blocked this whole half. Pausing emits `release_resources` on the way in, so a paused card
 		// really has given its slot back — counting it either way would starve the host.
 		expect(isLiveWorkflowPhase("paused")).toBe(true);
-		expect(holdsWorkflowCapacity("paused")).toBe(false);
-		expect(reservesWorkflowCapacity("paused")).toBe(false);
+		expect(holdsWorkerCapacity("paused")).toBe(false);
+		expect(reservesWorkerCapacity("paused")).toBe(false);
 	});
 
 	it("keeps holds ⊆ reserves ⊆ live across EVERY phase", () => {
@@ -191,15 +199,31 @@ describe("kernel capacity vs the session model's `isBusySessionState`", () => {
 		// has, not only the ones a session state happens to map to.
 		const everyPhase = ALL_WORKFLOW_PHASES;
 		for (const phase of everyPhase) {
-			if (holdsWorkflowCapacity(phase)) {
-				expect(reservesWorkflowCapacity(phase), `${phase} holds but does not reserve`).toBe(true);
+			if (holdsWorkerCapacity(phase)) {
+				expect(reservesWorkerCapacity(phase), `${phase} holds but does not reserve`).toBe(true);
 			}
-			if (reservesWorkflowCapacity(phase)) {
+			if (reservesWorkerCapacity(phase)) {
 				expect(isLiveWorkflowPhase(phase), `${phase} reserves but is not live`).toBe(true);
 			}
 		}
 		// Non-degenerate: each containment is STRICT somewhere, so the three are genuinely different predicates.
-		expect(everyPhase.some((phase) => reservesWorkflowCapacity(phase) && !holdsWorkflowCapacity(phase))).toBe(true);
-		expect(everyPhase.some((phase) => isLiveWorkflowPhase(phase) && !reservesWorkflowCapacity(phase))).toBe(true);
+		expect(everyPhase.some((phase) => reservesWorkerCapacity(phase) && !holdsWorkerCapacity(phase))).toBe(true);
+		expect(everyPhase.some((phase) => isLiveWorkflowPhase(phase) && !reservesWorkerCapacity(phase))).toBe(true);
+	});
+});
+
+describe("the endpoint-capacity chain (split-by-resource, 2026-08-03)", () => {
+	it("keeps holdsWorker ⊂ holdsEndpoint ⊆ live, with `reviewing` as the strictness witness", () => {
+		for (const phase of ALL_WORKFLOW_PHASES) {
+			if (holdsWorkerCapacity(phase)) {
+				expect(holdsEndpointCapacity(phase), `${phase} holds a worker slot but no endpoint?`).toBe(true);
+			}
+			if (holdsEndpointCapacity(phase)) {
+				expect(isLiveWorkflowPhase(phase), `${phase} holds an endpoint but is not alive?`).toBe(true);
+			}
+		}
+		// Strict at exactly the phase the decision split: endpoint without worker slot.
+		expect(holdsWorkerCapacity("reviewing")).toBe(false);
+		expect(holdsEndpointCapacity("reviewing")).toBe(true);
 	});
 });

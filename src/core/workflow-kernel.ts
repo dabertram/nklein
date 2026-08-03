@@ -155,7 +155,14 @@ const PHASE_MEMBERSHIP: Record<WorkflowPhase, true> = {
 
 export const ALL_WORKFLOW_PHASES = Object.keys(PHASE_MEMBERSHIP) as readonly WorkflowPhase[];
 
-export type WorkflowPhaseClass = "idle" | "waiting_capacity" | "running" | "paused" | "awaiting_verdict" | "terminal";
+export type WorkflowPhaseClass =
+	| "idle"
+	| "waiting_capacity"
+	| "running"
+	| "reviewing"
+	| "paused"
+	| "awaiting_verdict"
+	| "terminal";
 
 export function classifyWorkflowPhase(phase: WorkflowPhase): WorkflowPhaseClass {
 	switch (phase) {
@@ -185,10 +192,16 @@ export function classifyWorkflowPhase(phase: WorkflowPhase): WorkflowPhaseClass 
 			// a HUMAN verdict starve the board forever; count `reviewing` as free and a saturated board admits
 			// more work while every endpoint is busy reviewing.
 			return "awaiting_verdict";
+		case "reviewing":
+			// DECIDED 2026-08-03 (David, "split the phase — its own capacity class"; consistent with his
+			// 2026-07-31 awaiting_verdict split): a review in flight occupies a MODEL ENDPOINT but no WORKER
+			// slot — the worker session ended when the card entered review. Sharing the `running` class made
+			// one class answer two different capacity questions; the resource-split predicates below need the
+			// distinction to exist here, where phases are classified, not at every call site.
+			return "reviewing";
 		case "planning":
 		case "implementing":
 		case "awaiting_acceptance":
-		case "reviewing":
 		case "ready_for_delivery":
 		case "delivering":
 			return "running";
@@ -213,6 +226,7 @@ export function isLiveWorkflowPhase(phase: WorkflowPhase): boolean {
 	return (
 		phaseClass === "waiting_capacity" ||
 		phaseClass === "running" ||
+		phaseClass === "reviewing" ||
 		phaseClass === "paused" ||
 		phaseClass === "awaiting_verdict"
 	);
@@ -236,19 +250,33 @@ export function isLiveWorkflowPhase(phase: WorkflowPhase): boolean {
  * v9 parent-reacquire wedge family, approached from the opposite direction. The gap was recorded rather than
  * guessed at, and this closes it.
  */
-export function holdsWorkflowCapacity(phase: WorkflowPhase): boolean {
+export function holdsWorkerCapacity(phase: WorkflowPhase): boolean {
 	return classifyWorkflowPhase(phase) === "running";
+}
+
+/**
+ * Whether MODEL-ENDPOINT work is in flight for this card — the OTHER resource (David 2026-08-03, the
+ * split-by-resource decision). A `reviewing` card holds an endpoint (the reviewer is generating —
+ * live-confirmed: cards queue behind the busy reviewer) while holding NO worker slot; every worker-running
+ * phase holds its endpoint too (the worker generates on one). Admission for model endpoints reads THIS;
+ * admission for worker slots reads {@link holdsWorkerCapacity}/{@link reservesWorkerCapacity}. One phase no
+ * longer wears two meanings — the 6-of-7 agreement gap this replaces was two models counting different
+ * resources with one word.
+ */
+export function holdsEndpointCapacity(phase: WorkflowPhase): boolean {
+	const phaseClass = classifyWorkflowPhase(phase);
+	return phaseClass === "running" || phaseClass === "reviewing";
 }
 
 /**
  * Whether this card holds a slot OR is committed to taking one — the ADMISSION-facing predicate.
  *
- * ── WHY BOTH THIS AND `holdsWorkflowCapacity` EXIST ──
+ * ── WHY BOTH THIS AND `holdsWorkerCapacity` EXIST ──
  * "How many slots are consumed right now?" and "how many more cards may I admit?" are different questions, and
  * answering the second with the first over-admits: a queued card is going to take the slot it is waiting for, so
  * an admission check that ignores it hands the same slot out twice.
  *
- * **The session model's `isBusySessionState` is THIS predicate, not `holdsWorkflowCapacity` — despite its name.**
+ * **The session model's `isBusySessionState` is THIS predicate, not `holdsWorkerCapacity` — despite its name.**
  * Its own doc-comment carries both readings in three lines: *"actively occupies a runtime/model slot"* and then
  * *"holding (**or about to hold**) capacity"*. A consumer migrating on the strength of the first sentence would
  * silently stop counting queued cards. That ambiguity, sitting in the definition itself, is the drift class P24.1
@@ -261,7 +289,7 @@ export function holdsWorkflowCapacity(phase: WorkflowPhase): boolean {
  * Until that is resolved deliberately, neither predicate is a mechanical drop-in for the other at a capacity
  * call site.
  */
-export function reservesWorkflowCapacity(phase: WorkflowPhase): boolean {
+export function reservesWorkerCapacity(phase: WorkflowPhase): boolean {
 	const phaseClass = classifyWorkflowPhase(phase);
 	return phaseClass === "waiting_capacity" || phaseClass === "running";
 }

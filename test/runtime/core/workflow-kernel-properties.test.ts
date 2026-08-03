@@ -3,10 +3,10 @@ import {
 	ALL_WORKFLOW_PHASES,
 	applyWorkflowCommand,
 	classifyWorkflowPhase,
-	holdsWorkflowCapacity,
+	holdsWorkerCapacity,
 	isLiveWorkflowPhase,
 	isTerminalWorkflowPhase,
-	reservesWorkflowCapacity,
+	reservesWorkerCapacity,
 	type WorkflowCommand,
 	type WorkflowPhase,
 } from "../../../src/core/workflow-kernel";
@@ -204,7 +204,7 @@ describe("workflow kernel — the canonical classification", () => {
 		for (const phase of ALL_PHASES) {
 			const phaseClass = classifyWorkflowPhase(phase);
 			expect(
-				["idle", "waiting_capacity", "running", "paused", "awaiting_verdict", "terminal"],
+				["idle", "waiting_capacity", "running", "reviewing", "paused", "awaiting_verdict", "terminal"],
 				`${phase} unclassified`,
 			).toContain(phaseClass);
 			expect(phaseClass === "terminal", `${phase}: classification and isTerminalWorkflowPhase disagree`).toBe(
@@ -325,22 +325,22 @@ describe("workflow kernel — what `release_resources` MEANS (one unresolved con
 describe("capacity predicates, over every phase", () => {
 	it("holds ⊆ reserves ⊆ live, with each containment STRICT somewhere", () => {
 		for (const phase of ALL_PHASES) {
-			if (holdsWorkflowCapacity(phase)) {
-				expect(reservesWorkflowCapacity(phase), `${phase} holds capacity but does not reserve it`).toBe(true);
+			if (holdsWorkerCapacity(phase)) {
+				expect(reservesWorkerCapacity(phase), `${phase} holds capacity but does not reserve it`).toBe(true);
 			}
-			if (reservesWorkflowCapacity(phase)) {
+			if (reservesWorkerCapacity(phase)) {
 				expect(isLiveWorkflowPhase(phase), `${phase} reserves capacity but is not live`).toBe(true);
 			}
 		}
 		// Without these, three predicates that happened to be identical would satisfy every assertion above.
-		expect(ALL_PHASES.some((phase) => reservesWorkflowCapacity(phase) && !holdsWorkflowCapacity(phase))).toBe(true);
-		expect(ALL_PHASES.some((phase) => isLiveWorkflowPhase(phase) && !reservesWorkflowCapacity(phase))).toBe(true);
+		expect(ALL_PHASES.some((phase) => reservesWorkerCapacity(phase) && !holdsWorkerCapacity(phase))).toBe(true);
+		expect(ALL_PHASES.some((phase) => isLiveWorkflowPhase(phase) && !reservesWorkerCapacity(phase))).toBe(true);
 	});
 
 	it("never counts a TERMINAL phase as holding or reserving anything", () => {
 		for (const phase of ALL_PHASES.filter(isTerminalWorkflowPhase)) {
-			expect(holdsWorkflowCapacity(phase)).toBe(false);
-			expect(reservesWorkflowCapacity(phase)).toBe(false);
+			expect(holdsWorkerCapacity(phase)).toBe(false);
+			expect(reservesWorkerCapacity(phase)).toBe(false);
 		}
 	});
 
@@ -348,13 +348,13 @@ describe("capacity predicates, over every phase", () => {
 		const transition = applyWorkflowCommand("implementing", { kind: "pause_requested" });
 		expect(transition.phase).toBe("paused");
 		expect(transition.effects.some((effect) => effect.kind === "release_resources")).toBe(true);
-		expect(holdsWorkflowCapacity(transition.phase)).toBe(false);
-		expect(reservesWorkflowCapacity(transition.phase)).toBe(false);
+		expect(holdsWorkerCapacity(transition.phase)).toBe(false);
+		expect(reservesWorkerCapacity(transition.phase)).toBe(false);
 	});
 
 	it("re-enters the admission ladder on resume rather than jumping straight back to holding", () => {
 		const resumed = applyWorkflowCommand("paused", { kind: "resume_requested" });
-		expect(reservesWorkflowCapacity(resumed.phase), "a resumed card is committed to a slot").toBe(true);
-		expect(holdsWorkflowCapacity(resumed.phase), "but does not hold one until admitted").toBe(false);
+		expect(reservesWorkerCapacity(resumed.phase), "a resumed card is committed to a slot").toBe(true);
+		expect(holdsWorkerCapacity(resumed.phase), "but does not hold one until admitted").toBe(false);
 	});
 });
