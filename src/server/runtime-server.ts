@@ -112,7 +112,11 @@ import {
 	isSelfImprovementPlanSlug,
 	readRetainedReplayEvalVerdict,
 } from "../core/self-improvement-gate";
-import { isBusySessionState, isTerminalFailureSessionState } from "../core/session-state-predicates";
+import {
+	hasLiveTaskSession,
+	isBusySessionState,
+	isTerminalFailureSessionState,
+} from "../core/session-state-predicates";
 import { DEFAULT_ZERO_TOKEN_WEDGE_MS, listZeroTokenWedgedSessions } from "../core/session-turn-liveness";
 import { assessShortcutBehaviors } from "../core/shortcut-behavior-monitor";
 import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-target";
@@ -1203,13 +1207,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				// re-queued the card behind the busy endpoint and the queue ran it AGAIN after the first session
 				// finished (two full worker sessions, second produced an empty duplicate patch → not_reviewable).
 				// An already-active session for the card means there is nothing to start.
+				// P24.1 step 2: derived from the CANONICAL liveness predicate instead of a private inline list.
+				// The two were byte-identical when unified (2026-08-03) — which is precisely when to unify, not
+				// after they drift (the G6.8a v16 lease-heartbeat drift cancelled a healthy queued card because a
+				// second copy of this exact set had quietly kept only `running`).
 				const activeSessionForTask = liveNKleinSessions.find(
-					(summary) =>
-						summary.taskId === taskId &&
-						(summary.state === "running" ||
-							summary.state === "queued" ||
-							summary.state === "paused" ||
-							summary.state === "awaiting_review"),
+					(summary) => summary.taskId === taskId && hasLiveTaskSession(summary.state),
 				);
 				if (activeSessionForTask) {
 					deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(taskId);
