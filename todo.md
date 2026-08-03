@@ -2686,6 +2686,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   stronger architect loaded) — the consult as the fallback remedy, never the competing one. Until decided,
   the campaign's composition proof should use the BOUNCE path: either repeat mid_task runs (variance-bound)
   or pin a scenario that keeps weak workers implementing instead of decomposing.
+  **▶ 2026-08-03 ~07:40 — COMPOSITION PROOF: one precise question left, rig now mechanical.** The N23 rig
+  (post provider fix) ran the full deterministic design: ledger pre-seeded with 2 genuine failures for
+  `consult-proof-2`, card A2A-delegated at that exact id, flag ON, session started and ran — **and the
+  catalog did NOT contain `consult_stronger_model`, with a PASSING positive control** (122 hits for other
+  tool names in the same devlog stream, so the absence is real, not a capture artifact). Everything else in
+  the gate chain is verified live; the one untested premise is `request.role === "worker"` on THIS start
+  path: the ready-sweep's `startTaskSession` → runtime request may not stamp `role`, and the registration
+  gate refuses non-worker roles by design. NEXT (one sitting): trace role threading from the start-task
+  handler's role-pool candidate (`role: candidate.role`, start-task-session.ts ~:1264) to the session-runtime
+  request; if the sweep path drops it, stamp it (that is a bugfix on F12.18b's own contract, not a consult
+  special case), then re-run the mechanical rig: scratch HOME+WS+git, config.json roles + provider-selection
+  lmstudio, model ≥32k, runtime with A2A+consult flags, seed ledger, A2A send, grep devlog for the tool.
   Pure core SHIPPED 2026-07-23 (`src/core/model-consult.ts`): harness-enforced stuck-gate (≥2 recorded failed
   attempts + per-card consult budget), strongest-eligible-LOCAL-consultant selection (loaded + idle + ≥10
   capability points stronger + never the asker; declines rather than load/unload), capped four-field request,
@@ -7991,9 +8003,25 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
   (feeds the trust-center posture table). DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
-- [ ] **N23 — 🐛 Ready-sweep silent no-op loop: the board-liveness watchdog logs "1 startable … — sweeping
+- [x] **N23 — 🐛 Ready-sweep silent no-op loop: the board-liveness watchdog logs "1 startable … — sweeping
   (frozen-board self-heal)" every cycle FOREVER while the card never starts and nothing records why
-  (live-hit 2026-08-03 ~04:50; evidence `.real-runs/consult-proof-20260803/`).** Rig: bare isolated HOME +
+  (live-hit 2026-08-03 ~04:50; evidence `.real-runs/consult-proof-20260803/`).**
+  **✅ CLOSED 2026-08-03 ~07:40 — root cause was RIG CONFIG, the product path is loud, and the filing's
+  "nothing records why" was MY OWN selective grep (correction owed and recorded).** The instrumented re-rig
+  surfaced `Could not auto-start … (unknown_code): No native !Klein provider is configured` within 20s — and
+  the SAME line sits **six times in the originally preserved server.log**; I had grepped that log only for
+  review/capture terms. Fourth confident-negative catch of this session, and the only one that reached a
+  committed filing. With `nklein-provider-selection.json` written ({"providerId":"lmstudio"}), the SAME rig
+  ran the FULL pipeline on an A2A-seeded card: start → 2B work → acceptance-verify → test-driven gate BOUNCE
+  (correctly: no test file touched) → review-resolution; the previously stranded card was picked up too, with
+  a visible queue line. KEPT (net-positive regardless): the two report-only sweep instruments from
+  `fa4fcd64a` — `swept_start_unresolved` (60s watch) and `sweep_skip_active_session` — close the two
+  STATICALLY-verified zero-trace holes that remain real (a hung start and a silent active-session skip).
+  RESIDUE FILED ELSEWHERE: A2A `GetTask` kept reporting SUBMITTED while the card was unstartable-by-config —
+  the operator-actionable failure text should ride the task status message (P17.8 follow-up list); the
+  auto-start failure-guard did not pause after 6 fails (check its threshold when next in that file — likely
+  by design). LESSON, now thrice-paid: **grep the preserved log for the FAILURE VOCABULARY of the seam under
+  suspicion (auto-start, provider, queued) before declaring silence — and run the positive control FIRST.** Rig: bare isolated HOME +
   registered scratch workspace + an A2A-seeded ready-lane card (`consult-proof-1`, autoReviewEnabled, ACT,
   baseRef main) + both models loaded ≥32k. The sweep fired continuously for ~20 minutes across TWO runtime
   launches — first with NO modelRoles config, then WITH `worker`/`reviewer` roles configured
