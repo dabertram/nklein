@@ -2698,6 +2698,22 @@ These are known defects or incomplete migrations. Clear them before widening cap
   request; if the sweep path drops it, stamp it (that is a bugfix on F12.18b's own contract, not a consult
   special case), then re-run the mechanical rig: scratch HOME+WS+git, config.json roles + provider-selection
   lmstudio, model ≥32k, runtime with A2A+consult flags, seed ledger, A2A send, grep devlog for the tool.
+  **▶ 2026-08-03 ~08:20 — CAUSE PINNED (evidence-convergent, one small fix + re-run left).** Role threading is
+  CLEAN on this path (`resolveNKleinTaskRole`: not `::review`, `startInPlanMode` false ⇒ "worker"; the flag
+  set is request.startInPlanMode-driven, service :1987). The failing precondition is **`request.baseUrl` /
+  `request.modelId` on the session-runtime request**: the service dispatch passes them THROUGH
+  (`baseUrl: request.baseUrl`, `modelId ?? UNCONFIGURED sentinel`), and the sweep-start caller never sets
+  them — dev-test's explicit `client.runtime.startTaskSession` DOES, which is why every gate worked on
+  drains. Evidence: in the preserved devlog window (`devlog2-tail.txt`, n23-repro-1's session) the
+  **repo-summary tool is ALSO absent** — the sibling gate with the identical `request.baseUrl &&
+  request.modelId` precondition — while 174 other tool-name hits in the same window serve as positive
+  control; and the full-file grep before teardown showed zero consult hits across both sessions. (Evidence
+  note: the preserved tail covers the WRONG session for consult-proof-2 specifics — full devlog was deleted
+  with the rig; the sibling-gate convergence carries the conclusion.) FIX: thread the resolved
+  `nkleinLaunchConfig.baseUrl` + `modelId` into the service-level start request on the board/sweep path
+  (start-task-session.ts assembles the launch config; the service request must carry both), then re-run the
+  mechanical rig — expect BOTH the consult tool AND the repo-summary tool to appear, which double-proves the
+  fix at zero extra cost.
   Pure core SHIPPED 2026-07-23 (`src/core/model-consult.ts`): harness-enforced stuck-gate (≥2 recorded failed
   attempts + per-card consult budget), strongest-eligible-LOCAL-consultant selection (loaded + idle + ≥10
   capability points stronger + never the asker; declines rather than load/unload), capped four-field request,
