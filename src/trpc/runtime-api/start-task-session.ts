@@ -1948,7 +1948,17 @@ export async function handleStartTaskSession(
 			fleetDecompositionGuidance, // F12.110 — advisory fleet sharding (null unless the dark flag is on)
 			taskDifficulty: Math.max(0, Math.min(1, taskDifficulty / 100)), // F12.111b — deliberation gate only
 			apiKey: nkleinLaunchConfig.apiKey,
-			baseUrl: nkleinLaunchConfig.baseUrl,
+			// F3.37 composition-proof forensics (2026-08-03): a bare provider selection resolves with baseUrl
+			// NULL, and this request used to pass that null through — the session still reached the model (deeper
+			// layers apply their own default) but every baseUrl-gated session extra (repo-summary caller,
+			// retrieval discriminator, consult tool) silently vanished on server-initiated starts. Two sibling
+			// gates empty with in-window positive controls was the tell. Same fallback the residency check above
+			// already trusts, local providers only — a cloud provider with no URL stays an explicit error.
+			baseUrl:
+				nkleinLaunchConfig.baseUrl ??
+				(isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl)
+					? resolveDefaultLocalModelBaseUrl()
+					: undefined),
 			reasoningEffort: nkleinLaunchConfig.reasoningEffort,
 			contextScope: body.nkleinSettings?.contextScope,
 			executionMode: body.nkleinSettings?.executionMode,
