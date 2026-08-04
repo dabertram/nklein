@@ -10378,6 +10378,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   prize counts only prompt tokens the provider did NOT already serve from its own cache; and it returns `null`
   with a stated reason on too few samples, a degenerate system, or a physically impossible negative coefficient.
   A test recovers PLANTED coefficients, because a slipped solve would still return plausible milliseconds.
+  **✅ THE PRIZE IS SIZED ON REAL TRAFFIC (2026-08-04, aggregated across the weekend's preserved run-HOME
+  telemetry — merge recipe: concatenate `.real-runs/*/home/.nklein/nklein/telemetry/*.jsonl` into a scratch
+  HOME dated today; the tool reads the `model_usage` SELF-OBSERVATION stream, not model-performance):**
+  **google/gemma-4-31b-qat, n=101: ~4,049s (~67 MINUTES) of re-prefill a persistent KV cache could have
+  kept**, at a clean fit of 3.81 ms/prompt-token + 134 ms/completion-token + 6.2s fixed — with cache-hit
+  0.0% across every load/unload cycle, i.e. the entire prompt volume re-prefilled every time. gemma-4-e2b
+  (n=275) honestly UNSIZED (negative coefficient — the 2B is too fast for prefill to rise above noise),
+  which itself is informative: **the prize concentrates in the big models, exactly where residency swaps
+  hurt most.** Coverage note: 124 requests carried no usage payload (excluded; find the emitting path —
+  likely the second-opinion/aux completions — before treating totals as more than floors). Evidence gate
+  status: the number justifies proceeding to the engine half (P17.1a mlx-serve adapter → persistence probe →
+  measured warm-reload) per David's approved sequence; P17.7 residency re-opens only after warm-reload cost
+  is measured. (P17.7 scope note, reconciling the two decisions: 2026-08-03's "single-host version now"
+  chose SCOPE; 2026-07-30's evidence-first SEQUENCE still governs order — single-host, in sequence.)
   **🔴 AND IT IMMEDIATELY FOUND A REAL DEFECT THAT MADE THE MEASUREMENT IMPOSSIBLE — now fixed.**
   Running it returned nine per-request records with "no usage payload", which reads as *the provider reported
   nothing*. It was not. **`SECRET_KEY_PATTERN` in the self-observation sink contains the substring `token`, so
