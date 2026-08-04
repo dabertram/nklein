@@ -10294,7 +10294,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   (persist-before-effect / apply-then-project ordering)** rather than a new writer to convert. No child rows
   (no decompose this run). Day-one arc totals for step 1: 5 inventories, 2 projection rows corrected, 2
   edges converted, 1 split-brain registry fixed, 1 kernel success-terminal added — residue = the batched
-  child fork + reconciler lag (step 3's charter).  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  child fork + reconciler lag (step 3's charter).
+  **✅ FULL NIGHTLY GREEN post-arc (2026-08-04 ~01:40): 28/28 cells, all invariant packs satisfied,
+  crash-recovery matrix (6 SIGKILL phases) PASSED** — the ~30 commits of 08-02→08-04 (consult wire + bounce
+  gate + guard-park rule, A2A receive-side, N20/N21/N22b fixes, both reconciler conversions,
+  `decomposition_complete`, projection rows, identity-keyed queue registry, causal transition reasons)
+  validated end-to-end with zero regressions.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly
