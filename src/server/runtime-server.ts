@@ -1125,8 +1125,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// F1.31b: the background-eval rail wiring (service + control coordinator), built just before `createRuntimeApi` so
 	// its coordinator can be injected. Held here so `close()` can stop the service. Null until built.
 	let backgroundEvalRailWiring: BackgroundEvalRailWiring | null = null;
-	// P24.1 shadow dedup: one divergence observation per (workspace, card, phase, lane) — repeat ticks silent.
+	// P24.1 shadow dedup + TWO-STRIKE debounce (sixth inventory, 2026-08-04): the sampler reads the board
+	// snapshot at tick start but `phaseOf` LIVE at sample time, so a card advancing mid-tick reads as diverged
+	// for exactly one sample — an instrument artifact, not a product window (every real finding persisted
+	// across many ticks). A divergence must be seen on TWO CONSECUTIVE ticks before it records; the pending
+	// set is replaced each tick so a transient clears itself.
 	const phaseLaneDivergenceNotifiedKeys = new Set<string>();
+	const phaseLaneDivergencePendingByWorkspaceId = new Map<string, Set<string>>();
 	// N23: dedup for the two sweep-visibility observations below (skip-on-active-session and unresolved-start).
 	// Keyed per card+state / per card, so a healthy board emits nothing and a stuck one emits exactly once.
 	const sweepSkipNotifiedKeys = new Set<string>();
@@ -4081,6 +4086,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// migration it is the regression tripwire for new bypassing writers.
 						{
 							const workflowQueue = getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId);
+							const previousPending =
+								phaseLaneDivergencePendingByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
+							const nextPending = new Set<string>();
 							for (const column of board.columns) {
 								for (const card of column.cards) {
 									const divergence = assessPhaseLaneDivergence({
@@ -4095,6 +4103,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									if (phaseLaneDivergenceNotifiedKeys.has(divergenceKey)) {
 										continue;
 									}
+									if (!previousPending.has(divergenceKey)) {
+										// First sighting: pend it. A mid-tick advance clears itself by next tick.
+										nextPending.add(divergenceKey);
+										continue;
+									}
 									phaseLaneDivergenceNotifiedKeys.add(divergenceKey);
 									recordSelfObservation({
 										...buildPhaseLaneDivergenceObservation(divergence),
@@ -4102,6 +4115,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									});
 								}
 							}
+							phaseLaneDivergencePendingByWorkspaceId.set(scope.workspaceId, nextPending);
 						}
 						const startable = listStartableUnstartedTaskIds(board, activeSessionTaskIds);
 						// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending
