@@ -8195,7 +8195,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   (`.real-runs/consult-proof-20260803/` has config + ledger), wrap the swept start in a timed race +
   log-on-entry, and dump `listSummaries()` states each watchdog tick. FIX SHAPE unchanged (visibility
   first), plus whichever of {start timeout, liveness-set unification} the repro convicts.
-- [ ] **N22 — 🧹 Turn-end summary-emit interleave + transition-reason misattribution (split from N21's
+- [x] **N22 *(CLOSED 2026-08-04: (b) fixed 08-03 with regression pins; (a) resolved by P24.1's completed stance — the summary stream is presentation and last-writer-wins races are inherent to it, while the KERNEL drives acceptance/review/badges authoritatively (proven in the evidence run and by the redrive-window work). No emit-ordering patch owed.)* — 🧹 Turn-end summary-emit interleave + transition-reason misattribution (split from N21's
   confirmation run, 2026-08-03; low severity — self-healed live).** Two residuals, one evidence base
   (`.real-runs/20260802-235233`): (a) **same-instant emit interleave** — the repeated-decompose guard's PARK
   (`awaiting_review`/attention) and the turn's terminal emit raced 3ms apart; the terminal payload was built
