@@ -7259,6 +7259,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   properly per combination, and encode each family's known quirks as fixtures (reasoning-channel-only output, empty
   content on json_schema, no-verdict reviewers, Jinja alternation 500s) so a regression in a quirk-handling path
   fails the matrix loudly.
+  **▶ OPENED 2026-08-04 — AND THE FIRST FAMILY CELL CAUGHT A LIVE WIRE BUG.** Simulator gained the two missing
+  quirk primitives (`requiresJsonSchema` + `messagesNonAlternating`, tri-state request-shape matchers; the
+  `reasoning` channel and `modelIncludes` already existed) — quirk tracks compile as NEGATIVE-SPACE TRIPWIRES:
+  they match only the request shape !Klein must never send, so a healthy drain never lights them. **First cell
+  (02×ministral_quirk = perfect run + alternation→500 tripwire) fired 4×/drain: the adaptive retry note opened
+  a second consecutive USER message after every tool_result turn — a hard-500 on real Mistral-family models
+  whenever a retry carries guidance.** Root-cause was TWO layers deep (the honest trail: first fix at
+  `appendRetryNote` merged into a trailing user turn and changed NOTHING — journal showed 0 merged shapes,
+  because domain tool results are role `"tool"`); the true seam is the `/v1/messages` wire builder whose
+  tool→user mapping CREATES the adjacency — `neutralMessages` now coalesces consecutive same-role wire
+  messages, owning alternation safety for every source. Proof: 0 fires of 165 requests, 19/19 completed,
+  packs quiet. Registered per the tranche-integrity convention (`ministral-quirk-run.json`); second profile
+  staged same day: `reasoning_only_quirk` (all 40 conversational text payloads moved into the reasoning
+  channel with EMPTY content — the DeepSeek-class shape the eval harness once misread). NEXT: run family 2's
+  cell; then json_schema-refusing and no-verdict-reviewer families + role-combination coverage.
 - [x] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
   git remotes, update feeds, web/egress (already hard-gated), clock-driven damping. INTERNAL flaky sources (the
   proven ones, extend as found): the host-capacity view that reads the REAL LM Studio gateway even in sims (memory:
