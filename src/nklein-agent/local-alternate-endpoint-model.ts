@@ -277,8 +277,13 @@ export function createLocalAlternateEndpointModel(options: LocalAlternateEndpoin
 								: response.stopReason === "max_tokens"
 									? "max-tokens"
 									: "stop";
+						// §5.AN on the messages shape: a reasoning model may put its ENTIRE answer in `thinking`
+						// blocks with no text block at all (N3's reasoning-only family cell caught this live,
+						// 2026-08-04 — such turns parsed empty and the session errored). When prose was expected
+						// and only reasoning arrived, the reasoning IS the answer; ordinary text keeps precedence.
+						const visibleText = response.text.trim().length > 0 ? response.text : (response.reasoningText ?? "");
 						const events: AgentModelEvent[] = [
-							...(response.text ? [{ type: "text-delta" as const, text: response.text }] : []),
+							...(visibleText ? [{ type: "text-delta" as const, text: visibleText }] : []),
 							...response.toolCalls.map((call, index) => ({
 								type: "tool-call-delta" as const,
 								toolCallId: call.id || `messages-${index + 1}`,
@@ -289,7 +294,7 @@ export function createLocalAlternateEndpointModel(options: LocalAlternateEndpoin
 						];
 						lastEvents = events;
 						const usable =
-							request.tools.length > 0 ? response.toolCalls.length > 0 : response.text.trim().length > 0;
+							request.tools.length > 0 ? response.toolCalls.length > 0 : visibleText.trim().length > 0;
 						if (usable) winningEvents = events;
 						if (usable) {
 							if (session.invalidate()) {

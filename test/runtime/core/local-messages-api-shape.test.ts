@@ -92,10 +92,21 @@ describe("local Anthropic-messages wire shape (§5.AB endpoint kind)", () => {
 		});
 
 		it("is defensive — a malformed/partial body yields empty text + no tool calls, never throws", () => {
-			expect(parseAnthropicMessagesResponse(null)).toEqual({ text: "", toolCalls: [], stopReason: null });
-			expect(parseAnthropicMessagesResponse("nonsense")).toEqual({ text: "", toolCalls: [], stopReason: null });
+			expect(parseAnthropicMessagesResponse(null)).toEqual({
+				text: "",
+				reasoningText: null,
+				toolCalls: [],
+				stopReason: null,
+			});
+			expect(parseAnthropicMessagesResponse("nonsense")).toEqual({
+				text: "",
+				reasoningText: null,
+				toolCalls: [],
+				stopReason: null,
+			});
 			expect(parseAnthropicMessagesResponse({ content: "not-an-array" })).toEqual({
 				text: "",
+				reasoningText: null,
 				toolCalls: [],
 				stopReason: null,
 			});
@@ -118,5 +129,31 @@ describe("local Anthropic-messages wire shape (§5.AB endpoint kind)", () => {
 			});
 			expect(parsed.toolCalls[0]?.name).toBe("run_tests");
 		});
+	});
+});
+
+describe("thinking blocks (§5.AN on the messages shape — N3 reasoning-only family, 2026-08-04)", () => {
+	it("collects thinking blocks into reasoningText, keeping text/tool extraction unchanged", () => {
+		const parsed = parseAnthropicMessagesResponse({
+			stop_reason: "end_turn",
+			content: [
+				{ type: "thinking", thinking: "Implemented the scaffold; verified node:test wiring. ", signature: "" },
+				{ type: "thinking", thinking: "All checks green." },
+			],
+		});
+		expect(parsed.text).toBe("");
+		expect(parsed.reasoningText).toBe("Implemented the scaffold; verified node:test wiring. All checks green.");
+		expect(parsed.toolCalls).toEqual([]);
+	});
+
+	it("text blocks keep precedence semantics — reasoningText rides alongside, never replaces", () => {
+		const parsed = parseAnthropicMessagesResponse({
+			content: [
+				{ type: "thinking", thinking: "hidden deliberation" },
+				{ type: "text", text: "the visible answer" },
+			],
+		});
+		expect(parsed.text).toBe("the visible answer");
+		expect(parsed.reasoningText).toBe("hidden deliberation");
 	});
 });

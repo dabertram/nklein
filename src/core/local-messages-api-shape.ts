@@ -98,6 +98,8 @@ export interface ParsedToolCall {
 export interface ParsedAnthropicMessagesResponse {
 	/** All `text` content blocks concatenated (the model's prose, if any). */
 	text: string;
+	/** All `thinking` blocks concatenated (the reasoning channel), or null when the model emitted none. */
+	reasoningText: string | null;
 	/** Every `tool_use` block, in order. */
 	toolCalls: ParsedToolCall[];
 	/** The `stop_reason` (`end_turn` / `tool_use` / `max_tokens` / …), or null when absent. */
@@ -116,7 +118,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
  */
 export function parseAnthropicMessagesResponse(body: unknown): ParsedAnthropicMessagesResponse {
 	const record = asRecord(body);
-	const empty: ParsedAnthropicMessagesResponse = { text: "", toolCalls: [], stopReason: null };
+	const empty: ParsedAnthropicMessagesResponse = { text: "", reasoningText: null, toolCalls: [], stopReason: null };
 	if (!record) {
 		return empty;
 	}
@@ -124,6 +126,7 @@ export function parseAnthropicMessagesResponse(body: unknown): ParsedAnthropicMe
 	const stopReason = typeof stopReasonRaw === "string" ? stopReasonRaw : null;
 	const content = Array.isArray(record.content) ? record.content : [];
 	const textParts: string[] = [];
+	const reasoningParts: string[] = [];
 	const toolCalls: ParsedToolCall[] = [];
 	for (const rawBlock of content) {
 		const block = asRecord(rawBlock);
@@ -132,6 +135,12 @@ export function parseAnthropicMessagesResponse(body: unknown): ParsedAnthropicMe
 		}
 		if (block.type === "text" && typeof block.text === "string") {
 			textParts.push(block.text);
+		} else if (block.type === "thinking" && typeof block.thinking === "string") {
+			// §5.AN's messages-shape sibling: the reasoning channel arrives as `thinking` blocks. Live-found
+			// dropped here by N3's reasoning-only family cell (2026-08-04): a reasoning-only turn parsed to
+			// {text:"", toolCalls:[]} and the session errored "Model returned empty response" — the exact
+			// "must read reasoning_content" lesson, on the `/v1/messages` wire-shape path.
+			reasoningParts.push(block.thinking);
 		} else if (block.type === "tool_use" && typeof block.name === "string") {
 			toolCalls.push({
 				id: typeof block.id === "string" ? block.id : "",
@@ -140,5 +149,10 @@ export function parseAnthropicMessagesResponse(body: unknown): ParsedAnthropicMe
 			});
 		}
 	}
-	return { text: textParts.join(""), toolCalls, stopReason };
+	return {
+		text: textParts.join(""),
+		reasoningText: reasoningParts.length > 0 ? reasoningParts.join("") : null,
+		toolCalls,
+		stopReason,
+	};
 }
