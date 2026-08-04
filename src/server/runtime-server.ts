@@ -5380,7 +5380,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			for (const column of state.board.columns) {
 				const card = column.cards.find((candidate) => candidate.id === taskId);
 				if (card) {
-					return { columnId: column.id, title: card.title ?? "" };
+					return {
+						columnId: column.id,
+						title: card.title ?? "",
+						reviewStatus: card.review?.status ?? null,
+						reviewParkedReason: card.review?.parkedReason ?? null,
+					};
 				}
 			}
 			return null;

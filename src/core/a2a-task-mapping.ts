@@ -32,6 +32,13 @@ export interface A2aTaskProjectionInput {
 	summaryState?: string | null;
 	/** Summary reviewReason — "attention" marks an operator-park (todo §5.AA vocabulary). */
 	reviewReason?: string | null;
+	/**
+	 * The card's second-opinion review status (board truth, not session summary) — "parked" means the review
+	 * loop-guard handed the card to a human. Live-found missing (P17.1 probe 2026-08-04): a review-parked card
+	 * projected TASK_STATE_WORKING forever, the N23 disease shape on a different field — the board KNEW
+	 * (`review.status: "parked"`, `parkedReason` set) and the A2A surface was the one place it never reached.
+	 */
+	reviewStatus?: string | null;
 	/** ISO 8601 timestamp for TaskStatus.timestamp (the caller supplies its clock; pure code takes no Date.now). */
 	timestamp?: string | null;
 	/** Optional agent-authored status text to surface as the status message. */
@@ -61,6 +68,12 @@ export function projectA2aTaskState(input: A2aTaskProjectionInput): A2aTaskState
 		return "TASK_STATE_CANCELED";
 	}
 	if (input.summaryState === "awaiting_review" && input.reviewReason === "attention") {
+		return "TASK_STATE_INPUT_REQUIRED";
+	}
+	// A review-parked card is BY DEFINITION waiting on a human ("Parking for a human" is the guard's own
+	// message) — the exact semantics of INPUT_REQUIRED. Checked after failed/interrupted so a terminal summary
+	// still outranks the park refinement.
+	if (input.columnId === "review" && input.reviewStatus === "parked") {
 		return "TASK_STATE_INPUT_REQUIRED";
 	}
 	if (input.columnId === "backlog" || input.columnId === "ready") {

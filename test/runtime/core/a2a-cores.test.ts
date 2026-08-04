@@ -117,6 +117,27 @@ describe("projectA2aTaskState", () => {
 		).toBe("TASK_STATE_INPUT_REQUIRED");
 	});
 
+	it("a review-PARKED card is INPUT_REQUIRED — live-found projecting WORKING forever (P17.1 probe)", () => {
+		// The board knew (`review.status: "parked"`, guard message "Parking for a human") and the A2A surface
+		// was the one place it never reached — N23's disease shape on the card's own review field. No session
+		// summary needed: the park is board truth and outlives the session that produced it.
+		expect(projectA2aTaskState({ cardId: "c", columnId: "review", reviewStatus: "parked" })).toBe(
+			"TASK_STATE_INPUT_REQUIRED",
+		);
+		// Non-parked review statuses keep the pipeline-driving default.
+		expect(projectA2aTaskState({ cardId: "c", columnId: "review", reviewStatus: "in_review" })).toBe(
+			"TASK_STATE_WORKING",
+		);
+		// A terminal summary still outranks the park refinement.
+		expect(
+			projectA2aTaskState({ cardId: "c", columnId: "review", reviewStatus: "parked", summaryState: "failed" }),
+		).toBe("TASK_STATE_FAILED");
+		// And a parked card OUTSIDE the review lane (operator moved it) does not claim INPUT_REQUIRED off stale review state.
+		expect(projectA2aTaskState({ cardId: "c", columnId: "completed", reviewStatus: "parked" })).toBe(
+			"TASK_STATE_COMPLETED",
+		);
+	});
+
 	it("the LANE outranks a stale live-looking summary (N21's lesson at the wire)", () => {
 		expect(projectA2aTaskState({ cardId: "c", columnId: "completed", summaryState: "running" })).toBe(
 			"TASK_STATE_COMPLETED",

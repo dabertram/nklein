@@ -10596,8 +10596,8 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   fetchLoadedModelDescriptors falls back to plain /v1/models for runtimes that ANNOTATE residency
   (loaded:true + capabilities + meta.context_length; bare rosters yield [] — never guess loaded),
   LIVE-VERIFIED against mlx-serve 26.7.11 (full descriptor incl. the active 33k window ⇒ reviewer fallback,
-  32k-floor reads, and reasoning floors work unchanged); REMAINING in ②: live end-to-end with a configured
-  mlxserve provider (needs the settings/UI surface to name it);
+  32k-floor reads, and reasoning floors work unchanged); REMAINING-in-② CLOSED 2026-08-04 (★ probe below —
+  the custom-provider surface sufficed, no new UI needed);
   ② adapter for discovery+descriptors (classes 2/4/7 read paths); ③ ✅ VERIFIED 2026-07-27 no code needed:
   an mlxserve model has no lms ps entry ⇒ machineByModelId unmapped ⇒ existing LOCAL_MACHINE_ID degradation
   (pinned by machine-concurrency-gate + concurrency-config tests) — one mlx-serve endpoint schedules as one
@@ -10605,6 +10605,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   capability record — a supportsLoad=false runtime degrades to the recommendation-only refusal instead of
   driving LM Studio's lms CLI at a foreign runtime (unknown providers keep today's behavior); ⑤ (only if
   mlx-serve grows a load API) the write path behind the same decideModelLoad* policy.
+  **★ LIVE END-TO-END PROBE PASSED 2026-08-04 (David's adapter-route decision, slice 1 — closes the ② remainder):
+  !Klein ran a full card through mlx-serve TODAY, no adapter code yet, via the existing custom-provider surface**
+  (`addSdkCustomProvider` "mlxserve" @ 127.0.0.1:11234/v1 + worker role config; `isLocalProvider` passes on the
+  loopback baseUrl). A2A-seeded card → planning → implementation (real diff) → acceptance → 3 review rounds
+  (same-model reviewer fallback) → loop-guard park (test-driven delivery gate on a doc-only card — correct
+  harness behavior, not a routing fault) = **8 chat/completions against `mlx-serve serve --prefix-cache-disk`,
+  zero provider-shaped failures; the SSD tier restored a real 14,016-token session prompt in 29 ms mid-run**
+  (P17.6's prize delivered in-product), and the rig survived a mid-flight runtime restart (sweep re-drove the
+  working card, correctly did NOT re-drive the parked card). **Live-ranked breakpoint list = the ③-onward work:**
+  (a) **the ONE hard wall — admission floor vs LAZY-LOAD:** `context_floor_unmet` at auto-start because
+  descriptor reads deliberately skip `state:"unloaded"` entries ("never guess loaded") and mlx-serve loads on
+  first traffic — the floor cannot see the 262k window until a request has already run. Probe's lever (works,
+  user-facing): `saveNKleinModelContextWindowOverride` (local-provider-gated). Adapter fix: capability bit
+  `advertisesContextWhenUnloaded` → the floor may trust roster `meta.context_length` for such runtimes (mlx-serve's
+  meta tracks the ACTIVE ctx config per the 07-27 verification), and the remedy string must come from the adapter
+  — today it says `lms load …` at a runtime that has no lms. (b) same skip ⇒ `gatherLoadedCandidates` [] while
+  the model is unloaded ⇒ consult failover reads unavailable ⇒ guard-parks count as stuck-evidence (the 08-03
+  rule) — self-consistent once (a) lands, listed for awareness. (c) A2A park invisibility — FOUND+FIXED with the
+  probe (see P17.8 note). (d) stateful-responses correctly self-gates to lmstudio; mlx-serve HAS `/v1/responses`
+  — a future adapter capability, not a break. (e) policy note: with a lazy-loading runtime the "load" happens
+  implicitly server-side on first traffic — the never-auto-load/recommendation-only story should name this class
+  (runtime-managed residency) instead of assuming loads are always operator acts.
   Contracts to preserve: nightly-hermeticity fake-lms, multimodal id spellings, lms-ps-json parse semantics,
   the `provider:model:endpoint` key shape.
   **READ-ONLY COEXISTENCE REACHED 2026-07-27 (phases ①②③④ done/verified same day). OPERATOR RUNBOOK to
@@ -10641,7 +10663,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   card in READY with `autoReviewEnabled: true`/ACT/baseRef main (the N10/N20 unattended-card policy);
   `GetTask` projects lane truth; ledger `external → a2a_seeded` + `a2a_task_ingress` observation (path
   -redacted) recorded; live error codes verified (`CancelTask` → -32004, `url` part → -32005, unknown method
-  → -32601). **REMAINING (deliberate follow-ups, not gaps):** send-side fleet delegation (fleet-gated);
+  → -32601). **+ PARK PROJECTION FIX 2026-08-04 (live-found by the P17.1 mlx-serve probe):** a review-PARKED
+  card ("Parking for a human" — the definitive INPUT_REQUIRED situation) projected `TASK_STATE_WORKING` forever
+  with no status note — N23's disease shape on the card's own review field (the board knew: `review.status:
+  "parked"` + `parkedReason`; the A2A surface was the one place it never reached). Fixed: `readBoardRecord`
+  surfaces `reviewStatus`/`reviewParkedReason`, the projection maps review-lane+parked → INPUT_REQUIRED (terminal
+  summary still outranks), and the guard's own `parkedReason` rides the status message ahead of the generic note
+  stream; +4 projection tests, live-verified on the probe rig (GetTask now returns INPUT_REQUIRED + the reason).
+  **REMAINING (deliberate follow-ups, not gaps):** send-side fleet delegation (fleet-gated);
   CancelTask semantics (interrupt vs trash vs park — its own decision); completion ARTIFACTS from delivery
   evidence; summary-state refinement on GetTask (lane-only today, correct per the projection's design);
   per-workspace `tenant` entries on the card + non-main default branches; and an A2A client conformance

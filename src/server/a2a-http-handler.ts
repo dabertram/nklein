@@ -37,7 +37,16 @@ export interface A2aWorkspaceEntry {
 export interface A2aHttpDeps {
 	listWorkspaces: () => Promise<A2aWorkspaceEntry[]>;
 	/** Board lookup for one card: its lane + title, or null when absent. */
-	readBoardRecord: (entry: A2aWorkspaceEntry, taskId: string) => Promise<{ columnId: string; title: string } | null>;
+	readBoardRecord: (
+		entry: A2aWorkspaceEntry,
+		taskId: string,
+	) => Promise<{
+		columnId: string;
+		title: string;
+		/** Card review status ("parked" → INPUT_REQUIRED) + the guard's park reason for the status message. */
+		reviewStatus?: string | null;
+		reviewParkedReason?: string | null;
+	} | null>;
 	/** Seed the card (idempotent on taskId). Lane/flags are the handler's policy, applied by the wire. */
 	seedCard: (
 		entry: A2aWorkspaceEntry,
@@ -201,12 +210,16 @@ export async function handleA2aHttpRequest(
 				`No task ${params.data.id} on workspace ${workspace.workspaceId}.`,
 			);
 		}
-		const statusText = (await deps.readStatusNote?.(workspace, params.data.id).catch(() => null)) ?? null;
+		const statusNote = (await deps.readStatusNote?.(workspace, params.data.id).catch(() => null)) ?? null;
+		// A park reason beats the generic status-note stream: it is the guard's own explanation of why a human
+		// is needed, written on the card itself (live-found absent from the A2A view, P17.1 probe 2026-08-04).
+		const statusText = (record.reviewStatus === "parked" ? record.reviewParkedReason?.trim() : null) || statusNote;
 		return rpcResult(
 			id,
 			buildA2aTaskView({
 				cardId: params.data.id,
 				columnId: record.columnId,
+				reviewStatus: record.reviewStatus ?? null,
 				timestamp: deps.nowIso(),
 				...(statusText ? { statusText } : {}),
 			}),
