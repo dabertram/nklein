@@ -10378,7 +10378,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   gate + guard-park rule, A2A receive-side, N20/N21/N22b fixes, both reconciler conversions,
   `decomposition_complete`, projection rows, identity-keyed queue registry, causal transition reasons)
   validated end-to-end with zero regressions.
-  **▶ STEP 3 OPENED (2026-08-04 ~04:20): apply-then-project ORDERING** — the command queue now AWAITS async
+  **▶ STEP 3 OPENED (2026-08-04 ~04:20) — REVERTED same day ~23:45 (`2108aeac0`): H1 was RIGHT after all.**
+  The first 42-card full nightly through the awaited projections deadlocked 23 delivered cards silently
+  between merge and completion (dispatch inside a workspace-state transaction awaited the reconciler, which
+  waited on the same held lock; zero error rows — the receipted-delivery recovery healed all but two before
+  the stall wall killed both 01 cells). The sixth inventory refuted H1 on a THIN run — the refutation did not
+  generalize to completion-burst scale. Subscribers are fire-and-forget again; the two-strike debounce owns
+  the sampler race; 01×both re-proven green (2/2). Original step-3 note kept below for the record.
+  **(original)** apply-then-project ORDERING — the command queue now AWAITS async
   subscribers inside the per-task chain (listeners may return promises; rejections still never break the
   command path — pinned by tests), and both reconciler mounts RETURN their projection mutate instead of
   voiding it. The lane now lands before the next same-card command applies; the fifth inventory's residual
