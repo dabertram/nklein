@@ -2167,6 +2167,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					});
 					const reviewReason = "reason" in reviewOutcome ? ` (${reviewOutcome.reason})` : "";
 					deps.warn(`Second-opinion review outcome for ${taskId}: ${reviewOutcome.type}${reviewReason}`);
+					// N3 family 4: a PARK hands the card to the operator — settle its durable job (failed/parked
+					// vocabulary) so the lease releases instead of sitting orphaned (the park quiesces the session
+					// to idle, which the summary reaction maps to `none`; without this the lease outlived teardown).
+					if (reviewOutcome.type === "parked") {
+						void durableRunWiring?.observeParked(
+							scope.workspaceId,
+							taskId,
+							"reason" in reviewOutcome ? String(reviewOutcome.reason) : null,
+						);
+					}
 					// The reviewer's turns just freed the endpoint. A DELIVERED review drains via the completion path
 					// below, but a bounced/parked/skipped one does NOT complete the card — so a sibling card queued
 					// behind the busy review endpoint would wait out its full exponential backoff (fleet

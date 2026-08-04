@@ -107,4 +107,20 @@ export class DurableRunRegistry {
 			this.runs.delete(workspaceId);
 		}
 	}
+
+	/**
+	 * A review-level PARK is the card handed to the operator — the job must settle as `failed` (the controller's
+	 * own parked-for-operator vocabulary) and release its lease. Live-found missing (N3 family 4, 2026-08-04):
+	 * the park QUIESCES the session to idle, which maps to reaction `none`, so no summary ever reported the
+	 * outcome and the lease sat orphaned past teardown (`no_orphans_after_teardown: 1 lease left behind`).
+	 * The park reason rides the error text so the run summary names WHY the card needs attention.
+	 */
+	async reportParked(workspaceId: string, taskId: string, reason: string | null): Promise<void> {
+		const controller = this.runs.get(workspaceId);
+		if (!controller) {
+			return;
+		}
+		await controller.reportCompletion(taskId, "failed", reason);
+		await controller.tick();
+	}
 }

@@ -244,7 +244,7 @@ export async function runNKleinSecondOpinionReview(
 		...(input.reviewLenses && input.reviewLenses.length > 0 ? { lenses: input.reviewLenses } : {}),
 	});
 	stamp(`core: review-session start (round ${round}, seed ${seedPrompt.length}b)`);
-	const submission =
+	let submission =
 		input.preReviewVerdict ?? (await input.deps.runReviewSession({ taskId: input.taskId, seedPrompt, round }));
 	stamp(`core: review-session done (${submission ? submission.verdict : "no submission"})`);
 	if (!submission) {
@@ -254,11 +254,29 @@ export async function runNKleinSecondOpinionReview(
 		// session. Track consecutive no-verdict outcomes per task+fingerprint (in-process; a restart re-arms the
 		// budget once) and PARK for a human at the cap: an unchanged artifact that three reviewer sessions could
 		// not verdict will not verdict on the fourth try either. New work or a real submission resets the streak.
+		//
+		// The retries run INLINE, within this one resolution (N3 family 4, 2026-08-04): the cap used to depend on
+		// an EXTERNAL driver re-entering review — but the nightly's hermetic posture disables watchdog ticks, and
+		// even live the rescue has its own attempt budget, so a never-verdicts reviewer could dead-end as
+		// `skipped` below the cap forever while its dependents starved (one silent reviewer absorbed a 19-card
+		// drain). Driving the remaining budget here makes the park reachable IDENTICALLY everywhere: one
+		// resolution → up to the cap's worth of reviewer sessions → a real park, no scheduler cooperation needed.
 		const streakFingerprint = workFingerprint ?? "(unfingerprinted)";
-		const streak = noVerdictStreakByTaskId.get(input.taskId);
-		const count = streak && streak.fingerprint === streakFingerprint ? streak.count + 1 : 1;
+		let count = (() => {
+			const streak = noVerdictStreakByTaskId.get(input.taskId);
+			return streak && streak.fingerprint === streakFingerprint ? streak.count + 1 : 1;
+		})();
 		noVerdictStreakByTaskId.set(input.taskId, { fingerprint: streakFingerprint, count });
-		if (count >= NO_VERDICT_PARK_STREAK) {
+		while (!submission && count < NO_VERDICT_PARK_STREAK) {
+			stamp(`core: review-session retry (no verdict ${count}/${NO_VERDICT_PARK_STREAK}, round ${round})`);
+			submission = await input.deps.runReviewSession({ taskId: input.taskId, seedPrompt, round });
+			stamp(`core: review-session done (${submission ? submission.verdict : "no submission"})`);
+			if (!submission) {
+				count += 1;
+				noVerdictStreakByTaskId.set(input.taskId, { fingerprint: streakFingerprint, count });
+			}
+		}
+		if (!submission && count >= NO_VERDICT_PARK_STREAK) {
 			noVerdictStreakByTaskId.delete(input.taskId);
 			const parkedReason = `The reviewer ended ${count} consecutive sessions without a verdict on the same unchanged work — parking for a human decision (reviewer cannot produce a verdict on this artifact).`;
 			const review: RuntimeCardReview = {
@@ -277,7 +295,11 @@ export async function runNKleinSecondOpinionReview(
 			await input.deps.onPark({ taskId: input.taskId, review, reason: parkedReason });
 			return { type: "parked", round: card.review?.round ?? 0, reason: parkedReason };
 		}
-		return { type: "skipped", reason: "no_verdict" };
+		if (!submission) {
+			// Only reachable when a retry was cut short abnormally (e.g. the runner aborted) — the cap park above
+			// handles the exhausted case, and a recovered submission falls through to the normal path below.
+			return { type: "skipped", reason: "no_verdict" };
+		}
 	}
 	// A real submission arrived — the reviewer CAN verdict this artifact; the no-verdict budget resets.
 	noVerdictStreakByTaskId.delete(input.taskId);

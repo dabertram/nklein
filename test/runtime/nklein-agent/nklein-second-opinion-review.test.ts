@@ -98,44 +98,48 @@ describe("runNKleinSecondOpinionReview", () => {
 		});
 	});
 
-	it("parks after three consecutive no-verdict sessions on unchanged work (bounded retry, live-found loop)", async () => {
+	it("parks after three consecutive no-verdict sessions on unchanged work — driven INLINE in one resolution", async () => {
+		// N3 family 4 (2026-08-04): the cap used to depend on an external driver re-entering review, and a
+		// never-verdicts reviewer dead-ended as `skipped` below the cap while its dependents starved (one silent
+		// reviewer absorbed a 19-card drain; the nightly's hermetic posture has no watchdog to re-drive). The
+		// remaining budget now runs inside the resolution itself: one call → up to the cap's reviewer sessions →
+		// a real PARK, no scheduler cooperation required.
 		const base2 = { ...base, taskId: "task-noverdict" };
-		const first = makeDeps({ submission: null });
-		expect(await runNKleinSecondOpinionReview({ ...base2, deps: first })).toEqual({
-			type: "skipped",
-			reason: "no_verdict",
-		});
-		const second = makeDeps({ submission: null });
-		expect(await runNKleinSecondOpinionReview({ ...base2, deps: second })).toEqual({
-			type: "skipped",
-			reason: "no_verdict",
-		});
-		const third = makeDeps({ submission: null });
-		const outcome = await runNKleinSecondOpinionReview({ ...base2, deps: third });
+		const parked1 = makeDeps({ submission: null });
+		const outcome = await runNKleinSecondOpinionReview({ ...base2, deps: parked1 });
 		expect(outcome.type).toBe("parked");
-		expect(third.onPark).toHaveBeenCalledOnce();
-		const parked = firstArg<{ review: RuntimeCardReview; reason: string }>(third.onPark);
+		expect(parked1.runReviewSession).toHaveBeenCalledTimes(3);
+		expect(parked1.onPark).toHaveBeenCalledOnce();
+		const parked = firstArg<{ review: RuntimeCardReview; reason: string }>(parked1.onPark);
 		expect(parked.review.status).toBe("parked");
 		expect(parked.reason).toContain("without a verdict");
-		// After the park the streak is cleared — the next no-verdict is a fresh count, not an instant re-park.
-		const fourth = makeDeps({ submission: null });
-		expect(await runNKleinSecondOpinionReview({ ...base2, deps: fourth })).toEqual({
-			type: "skipped",
-			reason: "no_verdict",
-		});
-		// A real submission resets the streak for its task.
+		// After the park the streak is cleared — the next resolution drives a fresh full budget, then parks again.
+		const parked2 = makeDeps({ submission: null });
+		expect((await runNKleinSecondOpinionReview({ ...base2, deps: parked2 })).type).toBe("parked");
+		expect(parked2.runReviewSession).toHaveBeenCalledTimes(3);
+		// A real submission resets the streak for its task and takes the normal path.
 		const submitting = makeDeps({});
-		await runNKleinSecondOpinionReview({ ...base2, deps: submitting });
-		const afterReset = makeDeps({ submission: null });
-		expect(await runNKleinSecondOpinionReview({ ...base2, deps: afterReset })).toEqual({
-			type: "skipped",
-			reason: "no_verdict",
-		});
+		expect((await runNKleinSecondOpinionReview({ ...base2, deps: submitting })).type).not.toBe("parked");
 	});
 
-	it("skips when the reviewer session returns no verdict", async () => {
+	it("a verdict on an inline retry recovers to the normal path (no park, no skip)", async () => {
+		const base2 = { ...base, taskId: "task-recovers" };
+		const deps2 = makeDeps({});
+		// First session returns no submission; the second returns an approval — the resolution must use it.
+		deps2.runReviewSession
+			.mockResolvedValueOnce(null)
+			.mockResolvedValueOnce({ verdict: "approve", summary: "ok on retry", feedback: null, insight: null });
+		const outcome = await runNKleinSecondOpinionReview({ ...base2, deps: deps2 });
+		expect(outcome.type).toBe("delivered");
+		expect(deps2.runReviewSession).toHaveBeenCalledTimes(2);
+		expect(deps2.onPark).not.toHaveBeenCalled();
+	});
+
+	it("a no-verdict reviewer is retried inline and PARKS at the cap — skipped is no longer the terminal shape", async () => {
 		const deps = makeDeps({ submission: null });
-		expect(await runNKleinSecondOpinionReview({ ...base, deps })).toEqual({ type: "skipped", reason: "no_verdict" });
+		const outcome = await runNKleinSecondOpinionReview({ ...base, deps });
+		expect(outcome.type).toBe("parked");
+		expect(deps.runReviewSession).toHaveBeenCalledTimes(3);
 	});
 
 	it("§5.AW: persists the reviewer's A/B pick on the delivered review (durable across restart)", async () => {

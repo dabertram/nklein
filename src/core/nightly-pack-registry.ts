@@ -235,8 +235,12 @@ export const FLAGS_ON_COVERAGE: InvariantPack = {
  */
 export const SILENT_REVIEWER_PARK: InvariantPack = {
 	id: "silent-reviewer-park",
-	expectedTerminalLanes: ["review", "planning"],
-	mustFire: ["second_opinion_review_session", "task_session_operator_input"],
+	// `completed` is the devtest SEED (it completes reviewless by design — learned on this pack's first run).
+	expectedTerminalLanes: ["review", "planning", "completed"],
+	// mustFire holds to the registry's own rule — assert only what the collector can observe. Reviews fire
+	// second_opinion_review_session; the PARK itself emits no registered mechanism today (it is asserted via
+	// the terminal lane shape + the lease settling). A registered park observation is a filed follow-up.
+	mustFire: ["second_opinion_review_session"],
 	mustStayQuiet: [],
 };
 

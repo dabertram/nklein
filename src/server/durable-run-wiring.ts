@@ -182,6 +182,8 @@ export interface DurableRunWiring {
 	): Promise<void>;
 	/** F1.18: the task's DELIVERY completed — the only dependency-releasing success (review alone never releases). */
 	observeDelivered(workspaceId: string, taskId: string): Promise<void>;
+	/** A review-level park: settle the job failed (parked-for-operator) and release its lease. */
+	observeParked(workspaceId: string, taskId: string, reason: string | null): Promise<void>;
 	/**
 	 * G6.8a v15b: the runtime's bounded rescue decided these startable-but-sessionless cards deserve a dispatch —
 	 * make the handover REAL by reviving their failed jobs and ticking (previously a warn the controller never saw:
@@ -401,6 +403,14 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 			}
 			deps.reservations?.release(taskId);
 			await runSerial(workspaceId, () => registry.reportDelivered(workspaceId, taskId));
+		},
+
+		async observeParked(workspaceId, taskId, reason) {
+			if (!deps.enabled) {
+				return;
+			}
+			deps.reservations?.release(taskId);
+			await runSerial(workspaceId, () => registry.reportParked(workspaceId, taskId, reason));
 		},
 
 		async redispatchCandidates(workspaceId, taskIds) {
