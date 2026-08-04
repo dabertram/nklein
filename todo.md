@@ -10411,6 +10411,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   to planning/ready; lane = projection for ALL cards). **(3) REDRIVE LANES: SHOW BOTH** — lane stays put
   during redrive AND the card shows a restarting badge driven by kernel phase (UI + projection tolerance).
   **(4) A/B: mains now/soon** — the loop schedules 2-3 long (60-90min) consult-flag-ON drains today.
+  **✅ DECISION (2) LANDED same hour: the kernel owns board composition.** New `created` phase (own class:
+  not alive, holds/reserves nothing — the sweep STARTS created cards, never rescues them) + `card_created`
+  command (idle → created; created joins the start ladder via start_requested) + projection `created →
+  planning` + dispatch at `onDecompositionApplied` for every child BEFORE root auto-start. All exhaustive
+  guards absorbed the extension (6,677 core tests green); the second inventory's idle/planning child rows
+  become agreeing created/planning rows on the next decompose drain.
   **🔴 AND IT IMMEDIATELY FOUND A REAL DEFECT THAT MADE THE MEASUREMENT IMPOSSIBLE — now fixed.**
   Running it returned nine per-request records with "no usage payload", which reads as *the provider reported
   nothing*. It was not. **`SECRET_KEY_PATTERN` in the self-observation sink contains the substring `token`, so

@@ -10,6 +10,9 @@
 
 export type WorkflowPhase =
 	| "idle"
+	// DECIDED 2026-08-04 (David, child-composition batch): the kernel OWNS board composition — a card that
+	// EXISTS but has not entered the start ladder. Decompose children live here between apply and start.
+	| "created"
 	| "queued_for_board_capacity"
 	| "queued_for_endpoint"
 	| "queued_for_sandbox"
@@ -64,7 +67,10 @@ export type WorkflowCommand =
 	// (`completeDecompositionSourceTask`, deliberate since §5.B). The kernel had no success-terminal edge from
 	// `planning`, so every decompose run ended with the seed kernel-stuck at `planning` while the board said
 	// `completed`. One reading only — the kernel learns to say what the product already does.
-	| { kind: "decomposition_complete" };
+	| { kind: "decomposition_complete" }
+	// DECIDED 2026-08-04 (David): board composition enters the kernel — dispatched once per decompose child
+	// at plan-apply, so created-but-unstarted cards are kernel-known instead of invisible until start.
+	| { kind: "card_created" };
 
 export type WorkflowEffect =
 	| { kind: "enqueue"; queue: "board_capacity" | "endpoint" | "sandbox" }
@@ -143,6 +149,7 @@ export function isTerminalWorkflowPhase(phase: WorkflowPhase): boolean {
  */
 const PHASE_MEMBERSHIP: Record<WorkflowPhase, true> = {
 	idle: true,
+	created: true,
 	queued_for_board_capacity: true,
 	queued_for_endpoint: true,
 	queued_for_sandbox: true,
@@ -185,12 +192,14 @@ const COMMAND_MEMBERSHIP: Record<WorkflowCommand["kind"], true> = {
 	cancel_requested: true,
 	reopened: true,
 	decomposition_complete: true,
+	card_created: true,
 };
 
 export const ALL_WORKFLOW_COMMANDS = Object.keys(COMMAND_MEMBERSHIP) as readonly WorkflowCommand["kind"][];
 
 export type WorkflowPhaseClass =
 	| "idle"
+	| "created"
 	| "waiting_capacity"
 	| "running"
 	| "reviewing"
@@ -202,6 +211,11 @@ export function classifyWorkflowPhase(phase: WorkflowPhase): WorkflowPhaseClass 
 	switch (phase) {
 		case "idle":
 			return "idle";
+		case "created":
+			// Exists on the board, not yet in the start ladder: holds nothing, reserves nothing, and is NOT
+			// "alive" in the reclaim sense (there is no session or lease to protect — the sweep STARTS created
+			// cards; it never rescues them).
+			return "created";
 		case "queued_for_board_capacity":
 		case "queued_for_endpoint":
 		case "queued_for_sandbox":
@@ -356,6 +370,15 @@ export function applyWorkflowCommand(phase: WorkflowPhase, command: WorkflowComm
 
 	switch (phase) {
 		case "idle":
+			if (command.kind === "card_created") {
+				return { phase: "created", effects: [] };
+			}
+			return command.kind === "start_requested"
+				? { phase: "queued_for_board_capacity", effects: [{ kind: "enqueue", queue: "board_capacity" }] }
+				: hold;
+		case "created":
+			// The start ladder begins here exactly as it does from idle; cancel/fail fall through to the
+			// any-phase rules above like every other non-terminal phase.
 			return command.kind === "start_requested"
 				? { phase: "queued_for_board_capacity", effects: [{ kind: "enqueue", queue: "board_capacity" }] }
 				: hold;

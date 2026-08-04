@@ -4,6 +4,7 @@ import {
 	ALL_WORKFLOW_PHASES,
 	applyWorkflowCommand,
 	classifyWorkflowPhase,
+	holdsEndpointCapacity,
 	holdsWorkerCapacity,
 	isLiveWorkflowPhase,
 	isTerminalWorkflowPhase,
@@ -187,7 +188,7 @@ describe("workflow kernel — the canonical classification", () => {
 		for (const phase of ALL_PHASES) {
 			const phaseClass = classifyWorkflowPhase(phase);
 			expect(
-				["idle", "waiting_capacity", "running", "reviewing", "paused", "awaiting_verdict", "terminal"],
+				["idle", "created", "waiting_capacity", "running", "reviewing", "paused", "awaiting_verdict", "terminal"],
 				`${phase} unclassified`,
 			).toContain(phaseClass);
 			expect(phaseClass === "terminal", `${phase}: classification and isTerminalWorkflowPhase disagree`).toBe(
@@ -355,5 +356,22 @@ describe("decomposition_complete (the seed's success-terminal from planning)", (
 			const result = applyWorkflowCommand(phase, { kind: "decomposition_complete" });
 			expect(result.phase, `${phase} must hold`).toBe(phase);
 		}
+	});
+});
+
+describe("card_created (board composition enters the kernel, 2026-08-04)", () => {
+	it("moves idle → created with no effects, and created joins the start ladder", () => {
+		const created = applyWorkflowCommand("idle", { kind: "card_created" });
+		expect(created.phase).toBe("created");
+		expect(created.effects).toEqual([]);
+		const started = applyWorkflowCommand("created", { kind: "start_requested" });
+		expect(started.phase).toBe("queued_for_board_capacity");
+	});
+
+	it("created holds nothing, reserves nothing, and is NOT alive — the sweep starts it, never rescues it", () => {
+		expect(isLiveWorkflowPhase("created")).toBe(false);
+		expect(holdsWorkerCapacity("created")).toBe(false);
+		expect(reservesWorkerCapacity("created")).toBe(false);
+		expect(holdsEndpointCapacity("created")).toBe(false);
 	});
 });

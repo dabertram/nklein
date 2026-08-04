@@ -10,6 +10,7 @@ import {
 
 const EXPECTED: Record<WorkflowPhase, RuntimeBoardColumnId> = {
 	idle: "backlog",
+	created: "planning",
 	queued_for_board_capacity: "planning",
 	// Data-informed row (P24.1 second inventory): endpoint-queued dep-free cards park in Ready by design.
 	queued_for_endpoint: "ready",

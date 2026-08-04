@@ -10,6 +10,12 @@ export function workflowPhaseToBoardColumn(phase: WorkflowPhase): RuntimeBoardCo
 	switch (phase) {
 		case "idle":
 			return "backlog";
+		// DECIDED 2026-08-04 (David): created-but-unstarted cards (decompose children between apply and
+		// start) surface in Planning — the waiting lane the second inventory measured them in. A dep-free
+		// created card that the sweep parks behind an endpoint moves via the start ladder (whose
+		// queued_for_endpoint row already projects to Ready).
+		case "created":
+			return "planning";
 		// Started but pre-implementation (queued for resources, or refining) — the §5.B Planning/Refinement lane.
 		case "queued_for_board_capacity":
 		case "queued_for_sandbox":

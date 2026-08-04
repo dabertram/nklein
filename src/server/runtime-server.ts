@@ -3428,6 +3428,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					if (event.workspacePath !== scope.workspacePath) {
 						return;
 					}
+					// DECIDED 2026-08-04 (David): board composition enters the kernel — every decompose child is
+					// kernel-known from CREATION (`card_created` → `created` phase, projecting to Planning), not
+					// only from its first start. Dispatched BEFORE the root auto-start so a root's start ladder
+					// finds its card already in the machine.
+					for (const childTaskId of Object.values(event.taskIdByPlanTaskId)) {
+						dispatchWorkflowCommands(scope.workspacePath, scope.workspaceId, childTaskId, [
+							{ kind: "card_created" },
+						]);
+					}
 					await autoStartDecompositionRootTasks(scope, event);
 					await completeDecompositionSourceTask(scope, event);
 				},
