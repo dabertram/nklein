@@ -39,6 +39,7 @@ import { runDevCardTimelineCommand } from "./dev-card-timeline-command";
 import { runDevChurnCommand } from "./dev-churn-command";
 import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import { runDevCompactionFormatCommand } from "./dev-compaction-format-command";
+import { runDevConnectionAuditCommand } from "./dev-connection-audit-command";
 import { runDevDiagnoseCommand } from "./dev-diagnose-command";
 import { runDevEditReliabilityCommand } from "./dev-edit-reliability-command";
 import { runDevEnvGatedCommand } from "./dev-env-gated-command";
@@ -1092,6 +1093,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { facts?: string; seed?: string; json?: boolean }) => {
 			await runDevCompactionFormatCommand(options);
+		});
+	dev.command("connection-audit")
+		.description("N15 local-only assertion: judge recorded lsof samples — loopback-only passes, empty set fails.")
+		.option("--samples <file>", "Accumulated `lsof -nP -iTCP -sTCP:ESTABLISHED` output to judge.")
+		.option("--allow <hosts>", "Comma-separated remote hosts to allowlist (e.g. returning fleet devices).")
+		.option("--json", "Print the full verdict as JSON.")
+		.action(async (options: { samples?: string; allow?: string; json?: boolean }) => {
+			await runDevConnectionAuditCommand(options);
 		});
 	dev.command("mlxserve")
 		.description("Manage the local mlx-serve instance (P17.7 residency: enforces the kvCacheDiskGb disk budget).")

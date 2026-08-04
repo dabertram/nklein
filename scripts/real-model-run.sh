@@ -380,6 +380,27 @@ drain_semantic_signature(){ # raw verifier output includes repeated scheduler bo
     '(^|\] )Board-liveness watchdog:|(^|\] )Auto-start of .* (queued behind a busy endpoint\.|hit the concurrency limit; deferred for retry on the next completion\.)$|(^|\] )Model turn for .* is waiting for capacity:' \
     "$DRAIN_JSON" 2>/dev/null | cksum | awk '{print $1 " " $2}'
 }
+# N15 local-only assertion (opt-in: NKLEIN_EGRESS_AUDIT=1): each poll appends the RUN pid tree's ESTABLISHED
+# TCP rows to egress-audit.samples; `dev connection-audit` judges them at report time. Pid-tree scoping keeps
+# the host's unrelated apps out of the verdict; docker'd sandbox agents live in their own netns and are
+# governed by the container network config, so host lsof correctly excludes them.
+run_pid_tree(){
+  local roots="$RUNTIME_PID $DRAIN_PID $$" all="" frontier next
+  frontier="$roots"
+  while [ -n "$frontier" ]; do
+    all="$all $frontier"
+    next=$(pgrep -P "$(echo "$frontier" | tr ' ' ',')" 2>/dev/null | tr '\n' ' ')
+    frontier="$next"
+  done
+  echo "$all" | tr ' ' '\n' | grep -E '^[0-9]+$' | sort -u | tr '\n' ',' | sed 's/,$//'
+}
+EGRESS_AUDIT_SAMPLES="$RUN_DIR/egress-audit.samples"
+sample_run_connections(){
+  [ "${NKLEIN_EGRESS_AUDIT:-0}" = 1 ] || return 0
+  local pids; pids=$(run_pid_tree)
+  [ -n "$pids" ] || return 0
+  lsof -a -p "$pids" -nP -iTCP -sTCP:ESTABLISHED 2>/dev/null >>"$EGRESS_AUDIT_SAMPLES" || true
+}
 LAST_SIG=""; LAST_CHANGE=$(date +%s); ABORT_REASON=""; RUN_PHASE="watch"; WORKER_MISS_COUNT=0
 while kill -0 "$DRAIN_PID" 2>/dev/null; do
   sleep "$POLL_SECS"
@@ -389,6 +410,7 @@ while kill -0 "$DRAIN_PID" 2>/dev/null; do
     log "REACT: received $SIGNAL_ABORT_REASON — stopping the drain and preserving evidence."
     break
   fi
+  sample_run_connections
   snapshot_session_transcripts
   NOW=$(date +%s); ELAPSED=$((NOW-DRAIN_START))
   if [ "$ELAPSED" -ge $((MAX_MIN*60)) ]; then
@@ -498,6 +520,17 @@ jq -n \
   --argjson durationSeconds "$((DRAIN_END-DRAIN_START))" \
   '{abortReason: (if $abortReason == "" then null else $abortReason end), outcome: $outcome, success: $success, drainExitCode: $drainExitCode, durationSeconds: $durationSeconds}' \
   >"$RUN_DIR/controller-result.json"
+
+# N15: judge the recorded connection samples — PASS / FAIL / INDETERMINATE ride the report; a FAIL names
+# each destination. Allowlist comes from NKLEIN_EGRESS_AUDIT_ALLOW (comma-separated, e.g. fleet hosts).
+if [ "${NKLEIN_EGRESS_AUDIT:-0}" = 1 ]; then
+  if AUDIT_OUT=$("$REPO/node_modules/.bin/tsx" "$REPO/src/cli.ts" dev connection-audit \
+      --samples "$EGRESS_AUDIT_SAMPLES" ${NKLEIN_EGRESS_AUDIT_ALLOW:+--allow "$NKLEIN_EGRESS_AUDIT_ALLOW"} 2>&1); then
+    log "$AUDIT_OUT"
+  else
+    log "⚠ $AUDIT_OUT"
+  fi
+fi
 
 if [ "$RUN_KIND" = dev-test ]; then
   log "collecting exact transcripts, tool results, errors, pending calls, board state, and transitions"

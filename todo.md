@@ -8056,8 +8056,14 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   dedupe+count, and `observedConnections` is exposed so ZERO samples reads as sampler-broken, never as a
   pass (silence-is-not-success, in the type). Deliberately independent of the egress broker/receipts family:
   this audits what the OS says actually connected, so unfenced paths (dependency phone-home, broker bypass)
-  still show. NEXT SLICE: orchestrator wiring — pid-tree-scoped sampling loop in real-model-run.sh's watch
-  phase + the verdict in report/RESULT (opt-in flag first, default-on once quiet), then the soak cell. DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
+  still show. **▶ HARNESS WIRED same day (slice 2):** `dev connection-audit --samples … [--allow hosts]`
+  (PASS/FAIL/INDETERMINATE; exits 1 on FAIL **and** on zero observations) + real-model-run.sh sampler —
+  opt-in `NKLEIN_EGRESS_AUDIT=1` appends the RUN pid tree's ESTABLISHED rows (pgrep-walked from runtime/
+  drain/orchestrator roots; docker'd sandboxes correctly excluded, own netns) each poll, and the report
+  phase logs the verdict (`NKLEIN_EGRESS_AUDIT_ALLOW` for fleet hosts). 3-way live smoke: real external
+  traffic FAILs with named destinations, loopback-only PASSes exit 0, empty samples INDETERMINATE exit 1.
+  REMAINING: flag-ON on a real drain (next organic run), then default-ON once quiet + the soak cell
+  (40-card hours-long run, RSS/handle/ledger growth watch) + trust-center posture row. DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
 - [x] **N23 — 🐛 Ready-sweep silent no-op loop: the board-liveness watchdog logs "1 startable … — sweeping
   (frozen-board self-heal)" every cycle FOREVER while the card never starts and nothing records why
