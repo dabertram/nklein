@@ -7302,8 +7302,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   toward a bounded cap and then PARK for the operator (task_session_operator_input), like every other
   dead-end. Also learned: the devtest SEED completes reviewless BY DESIGN — the pack's terminal lanes need
   `completed` added for it (pack fix rides the rung fix). The cell STAYS RED as the standing guard until
-  the rung lands. NEXT: build the no-verdict park rung; then role-combination coverage + remaining
-  families as the catalog grows.
+  the rung lands.
+  **✅ CLOSED same evening — TWO product fixes and the cell is GREEN:** (1) the no-verdict cap now drives
+  INLINE (one resolution → up to 3 reviewer sessions → a real park; a verdict on a retry recovers to the
+  normal path) — the cap no longer depends on any external driver, so nightly and live behave identically;
+  (2) a review-level park now SETTLES its durable job (`reportParked`/`observeParked` → the controller's
+  failed/parked-for-operator vocabulary) at the review-outcome site — the park used to quiesce the session
+  to idle (reaction `none`) and the lease outlived teardown (`1 lease left behind`). Pack finalized honest
+  (terminal lanes include the reviewless devtest seed; mustFire only what the collector observes).
+  FOLLOW-UP filed: a registered park OBSERVATION (operator visibility + a mustFire-able mechanism id).
+  NEXT: role-combination coverage + remaining families as the catalog grows.
 - [x] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
   git remotes, update feeds, web/egress (already hard-gated), clock-driven damping. INTERNAL flaky sources (the
   proven ones, extend as found): the host-capacity view that reads the REAL LM Studio gateway even in sims (memory:
