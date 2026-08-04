@@ -271,7 +271,7 @@ else
     if ( cd "$REPO" && HOME="$REAL_HOME" \
          NKLEIN_LOAD_DEVICE="$LOAD_DEVICE" NKLEIN_LOAD_MAX_RESIDENTS="$MAX_RESIDENTS" \
          NKLEIN_LOAD_PINNED_MODELS="${NKLEIN_RETAIN_MODELS:-} ${FLEET[*]}" \
-         npx tsx scripts/model-lab.mts admit "$m" "$CTX" ) >"$LOAD_LOG" 2>&1; then
+         "$REPO/node_modules/.bin/tsx" scripts/model-lab.mts admit "$m" "$CTX" ) >"$LOAD_LOG" 2>&1; then
       log "  ✓ admitted $m; warm-set policy reconciled"
     else
       log "  ✗ REFUSED $m — see $(basename "$LOAD_LOG")"
@@ -293,7 +293,7 @@ if [ "$RUN_KIND" = dev-test ]; then
   log "starting !Klein runtime on :$PORT (HOME=$RUN_HOME)…"
   ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
     NKLEIN_EVIDENCE_SESSION_SNAPSHOT_DIR="$SESSION_SNAPSHOT_DIR" \
-      npx tsx src/cli.ts --port "$PORT" >"$RUNTIME_LOG" 2>&1 ) & RUNTIME_PID=$!
+      "$REPO/node_modules/.bin/tsx" src/cli.ts --port "$PORT" >"$RUNTIME_LOG" 2>&1 ) & RUNTIME_PID=$!
   for i in $(seq 1 40); do HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && break; sleep 1; done
   HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN || { log "FATAL: runtime did not come up"; exit 4; }
   log "runtime UP"
@@ -307,25 +307,25 @@ if [ "$RUN_KIND" = eval ]; then
   ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_VERIFY_MODEL="$WORKER" \
       NKLEIN_VERIFY_BASE_URL="http://127.0.0.1:1234/v1" \
       NKLEIN_EVAL_CHECKPOINT_PATH="$RUN_DIR/eval-checkpoint.json" \
-      npx tsx scripts/eval-harness.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
+      "$REPO/node_modules/.bin/tsx" scripts/eval-harness.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
 elif [ "$RUN_KIND" = cache ]; then
   DRAIN_JSON="$RUN_DIR/cache-probe.log"; DRAIN_ERR="$RUN_DIR/cache-probe.err"
   log "launching cache-health probe: worker=$WORKER max=${MAX_MIN}m"
   ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_VERIFY_MODEL="$WORKER" \
       NKLEIN_VERIFY_BASE_URL="http://127.0.0.1:1234/v1" \
-      npx tsx scripts/verify-cache-health-live.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
+      "$REPO/node_modules/.bin/tsx" scripts/verify-cache-health-live.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
 elif [ "$RUN_KIND" = fleet ]; then
   DRAIN_JSON="$RUN_DIR/fleet-swarm.log"; DRAIN_ERR="$RUN_DIR/fleet-swarm.err"
   log "launching heterogeneous fleet verifier: preset=$PRESET worker=$WORKER fault=${NKLEIN_FLEET_FAULT_MODEL:-none} max=${MAX_MIN}m"
   ( cd "$REPO" && HOME="$REAL_HOME" NKLEIN_VERIFY_PRESET="$PRESET" NKLEIN_FLEET_WORKER="$WORKER" \
       NKLEIN_VERIFY_TIMEOUT_MS=$((MAX_MIN*60000)) \
-      npx tsx scripts/verify-fleet-swarm.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
+      "$REPO/node_modules/.bin/tsx" scripts/verify-fleet-swarm.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
 else
   log "launching drain: preset=$PRESET mode=${MODE:-plan} worker=$WORKER max=${MAX_MIN}m"
   NULL_AGENT_ARG=""
   [ "$NULL_AGENT" = 1 ] && NULL_AGENT_ARG="--null-agent"
   ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
-      npx tsx src/cli.ts dev test-project --preset "$PRESET" $MODE $NULL_AGENT_ARG \
+      "$REPO/node_modules/.bin/tsx" src/cli.ts dev test-project --preset "$PRESET" $MODE $NULL_AGENT_ARG \
         --model-id "$WORKER" --provider-id lmstudio \
         --max-wait-ms $((MAX_MIN*60000)) --poll-interval-ms 10000 --json \
         >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!

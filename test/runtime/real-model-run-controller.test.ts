@@ -41,7 +41,7 @@ describe("real-model run controller safety", () => {
 
 	it("routes every fleet admission through the guarded retained-set command", () => {
 		const source = readFileSync(SCRIPT, "utf8");
-		expect(source).toContain('npx tsx scripts/model-lab.mts admit "$m" "$CTX"');
+		expect(source).toContain('"$REPO/node_modules/.bin/tsx" scripts/model-lab.mts admit "$m" "$CTX"');
 		expect(source).not.toMatch(/\blms load\b/u);
 		expect(source).toMatch(/MAX_RESIDENTS="\$\{NKLEIN_LOAD_MAX_RESIDENTS:-3\}"/u);
 		expect(source).not.toContain("google/gemma-4-31b-qat");
@@ -51,11 +51,11 @@ describe("real-model run controller safety", () => {
 		const source = readFileSync(SCRIPT, "utf8");
 		expect(source).toContain('if [ "$UNLOAD" = 1 ]');
 		expect(source).toContain("--eval-harness");
-		expect(source).toContain("npx tsx scripts/eval-harness.mts");
+		expect(source).toContain('"$REPO/node_modules/.bin/tsx" scripts/eval-harness.mts');
 		expect(source).toContain("--cache-probe");
-		expect(source).toContain("npx tsx scripts/verify-cache-health-live.mts");
+		expect(source).toContain('"$REPO/node_modules/.bin/tsx" scripts/verify-cache-health-live.mts');
 		expect(source).toContain("--fleet-swarm");
-		expect(source).toContain("npx tsx scripts/verify-fleet-swarm.mts");
+		expect(source).toContain('"$REPO/node_modules/.bin/tsx" scripts/verify-fleet-swarm.mts');
 		expect(source).toContain("--null-agent");
 		expect(source).toContain('DRAIN_OUTCOME="null_agent_rejected"');
 		expect(source).toContain('DRAIN_OUTCOME="null_agent_forged"');

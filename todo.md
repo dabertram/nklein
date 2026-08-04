@@ -8062,8 +8062,18 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   drain/orchestrator roots; docker'd sandboxes correctly excluded, own netns) each poll, and the report
   phase logs the verdict (`NKLEIN_EGRESS_AUDIT_ALLOW` for fleet hosts). 3-way live smoke: real external
   traffic FAILs with named destinations, loopback-only PASSes exit 0, empty samples INDETERMINATE exit 1.
-  REMAINING: flag-ON on a real drain (next organic run), then default-ON once quiet + the soak cell
-  (40-card hours-long run, RSS/handle/ledger growth watch) + trust-center posture row. DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
+  **✅ FIRST FLAG-ON RUN CAUGHT A REAL ONE, ROOT-FIXED, RE-RUN PASSES (2026-08-04 ~15:00):** null-agent
+  drain `.real-runs/20260804-145914` FAILed — `node → [2606:4700::6810:b22]:443` (Cloudflare anycast in
+  npmjs's 6810:xxx block) inside the RUN pid tree of a local-only run. Root cause: the orchestrator
+  spawned everything via `npx tsx`, and npm's update check phones registry.npmjs.org (once-per-day cache
+  — an isolated `npx --version` repro stayed quiet because the drain had already spent today's ping).
+  ROOT FIX, valuable regardless of hypothesis: all six orchestrator spawns pinned to
+  `$REPO/node_modules/.bin/tsx` (the evidence CLI already did this) + `.npmrc` gains
+  `update-notifier=false, fund=false, audit=false`. Identical re-run `.real-runs/20260804-150413`:
+  **CONNECTION AUDIT: PASS — every destination loopback** (the lms↔LM Studio local pair). The audit
+  proved its worth on run #1 AND the product's local-only invariant now has its first PASSING audited
+  run. REMAINING: flag-ON on a full model drain, default-ON once quiet, the soak cell (40-card
+  hours-long, RSS/handle/ledger growth), trust-center posture row. DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
 - [x] **N23 — 🐛 Ready-sweep silent no-op loop: the board-liveness watchdog logs "1 startable … — sweeping
   (frozen-board self-heal)" every cycle FOREVER while the card never starts and nothing records why
