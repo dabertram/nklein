@@ -10319,7 +10319,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   chain tail). Fresh-session opener: grep the run ledger for the seed's wf: rows (chain present but stalled
   ⇒ H1; chain absent past sandbox_granted ⇒ H2), then either move the projection INTO the same
   mutateWorkspaceState transaction (step-3's proper form) or fix the dispatch site. The two-strike debounce
-  itself is validated either way — it kept the real finding and dropped the artifact.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  itself is validated either way — it kept the real finding and dropped the artifact.
+  **✅ DECIDED BY THE GREP same hour: BOTH hypotheses refuted — the chain is complete and advancing (TWO
+  full start chains: interrupted → `reopened` → restarted → `begin_implementation`).** The persistent rows
+  are the RESTART WINDOW: after a reopen the kernel honestly re-tracks idle→queued→planning while the board
+  deliberately keeps the card at its pre-interrupt position (review/in_progress) until the restart moves it
+  — minutes-long, real, and a POLICY question rather than a bug: should a reopened card's lane reset to its
+  phase projection (kernel-true, visually jarring) or should the projection tolerate restart windows (board
+  -true, shadow-visible)? **BATCHED alongside the child-composition fork as the redrive-lane-semantics
+  question.** State of the shadow after six inventories: every MECHANICAL divergence source is fixed; the
+  remaining rows are exclusively DELIBERATE-POLICY questions (child composition, restart windows) — which is
+  precisely what "the machine in charge, modulo decisions" looks like mid-migration.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly
