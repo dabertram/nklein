@@ -10417,6 +10417,11 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   planning` + dispatch at `onDecompositionApplied` for every child BEFORE root auto-start. All exhaustive
   guards absorbed the extension (6,677 core tests green); the second inventory's idle/planning child rows
   become agreeing created/planning rows on the next decompose drain.
+  **▶ A/B DRAIN #1 (2026-08-04, 75min mains, `.real-runs/20260804-084229`): stuck-evidence reached 1 — the
+  FIRST organic review bounce under a window that fits a full cycle** (9 attempts, 1 bounce; consult
+  correctly absent below the 2-threshold). Window math: two cycles want ~90-120min; drain #2 runs at 90.
+  Shadow: 1 row, the REOPENED-card shape (`reopened` → phase idle while the lane deliberately stays put) —
+  decision-3 territory (show-both), to be absorbed by the restart-tolerance + badge build, not a new writer.
   **🔴 AND IT IMMEDIATELY FOUND A REAL DEFECT THAT MADE THE MEASUREMENT IMPOSSIBLE — now fixed.**
   Running it returned nine per-request records with "no usage payload", which reads as *the provider reported
   nothing*. It was not. **`SECRET_KEY_PATTERN` in the self-observation sink contains the substring `token`, so
