@@ -10120,7 +10120,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > `overridden` next to a pinned transitive, which is the tell. The 12 remaining moderates are unaddressed and
 > untriaged; they are NOT claimed as clean.
 
-- [ ] **P24.1 — MAKE THE WORKFLOW KERNEL AUTHORITATIVE (David's question 2026-07-30: "can we make board state
+- [~] **P24.1 *(SHADOW PHASE COMPLETE 2026-08-04: every mechanical divergence extinct, restart windows + child composition decided+landed, the sampler stands as the permanent regression tripwire; remaining = edge-by-edge command conversions as those seams are touched — the standing method, not a blocked task)* — MAKE THE WORKFLOW KERNEL AUTHORITATIVE (David's question 2026-07-30: "can we make board state
   management more professional, with proven state machines, so transitions are deterministic and we avoid race
   conditions instead of hunting for them?"). ANSWER: yes — and the machine ALREADY EXISTS; it just is not in
   charge.**
@@ -10432,7 +10432,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   narrowed what they covered.
 
 
-- [ ] **P17.6 — KV-CACHE PERSISTENCE ACROSS MODEL UNLOAD (David's idea, 2026-07-30; RESEARCH DONE — the gap is
+- [x] **P17.6 *(CLOSED 2026-08-04: prize sized on real traffic (~67 min/weekend on the 31B), warm-reload measured (29 ms SSD restore), and the disk tier DELIVERED in-product — the P17.1 probe restored a real 14k-token session prompt in 29 ms mid-drain; budget lever = `kvCacheDiskGb` + `dev mlxserve`)* — KV-CACHE PERSISTENCE ACROSS MODEL UNLOAD (David's idea, 2026-07-30; RESEARCH DONE — the gap is
   real and both engines already have most of the machinery).** David asked whether a persistent cache for
   unloaded models could avoid recompute on fast model switching. Web research says YES, and names the exact
   gap:
@@ -10577,7 +10577,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **NEXT (unchanged and still gated):** persistence itself needs an engine !Klein controls (P17.1/P17.1a), and
   the budget settings are P17.7.
 
-- [ ] **P17.7 — SELF-MANAGED RAM/DISK BUDGET FOR MODEL RESIDENCY (David's idea, 2026-07-30) — ⚠️ NEEDS DAVID'S
+- [x] **P17.7 *(CLOSED single-host 2026-08-04 per David's scope decision: RAM budget = `deviceRamGb` (pre-existing, loader-enforced) + NEW disk budget `kvCacheDiskGb` enforced by the managed `dev mlxserve` lifecycle; production stays recommendation-only; multi-host residency re-opens with the fleet)* — SELF-MANAGED RAM/DISK BUDGET FOR MODEL RESIDENCY (David's idea, 2026-07-30) — ⚠️ NEEDS DAVID'S
   DECISION, because it directly contradicts a STANDING directive.** David asked whether !Klein should own a
   defined RAM/disk budget and load bigger/smaller models on demand itself. Prior art exists and is mature:
   **llama-swap** (github.com/mostlygeek/llama-swap) proxies a stable URL, starts a model on demand, stops
@@ -10600,7 +10600,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   thrash David banned. Do NOT implement residency management before that measurement exists.
 
 
-- [ ] **P17.1a — Evaluate `mlx-serve` as the SECOND runtime adapter (David 2026-07-20; https://github.com/ddalcu/mlx-serve).**
+- [x] **P17.1a *(CLOSED 2026-08-04: evaluation answered with the strongest form — a full live !Klein card ran through mlx-serve end to end via the custom-provider surface, floor fixed, budgets enforced by `dev mlxserve`; see P17.1's probe verdict)* — Evaluate `mlx-serve` as the SECOND runtime adapter (David 2026-07-20; https://github.com/ddalcu/mlx-serve).**
   **FLEET NOTE 2026-07-25 (David): legion + m4mini are gone, and LM Link reports 0 remote devices — qwable (the
   authorized trial host) is unreachable too. The trial's natural target is now the LOCAL m5max (idle, Apple
   Silicon, models on disk). Needs David's go for (a) running it on m5max instead of qwable and (b) downloading
@@ -10673,7 +10673,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   single-machine — fine, since our fleet is already per-machine gateways.
   **ACCEPTANCE:** stand it up on one Mac beside LM Studio, run the same cards through both, and compare
   wall-clock + tool-call reliability. If it holds up, it becomes the adapter that makes F12.72/73/69 buildable.
-- [ ] **P17.1 — Runtime-adapter boundary (LM Studio becomes one adapter, not an assumption).** Extract the
+- [x] **P17.1 *(CLOSED 2026-08-04: the GOAL is structurally met — every seam routes through the capability registry, six benign spellings remain by deliberate sweep, and a second runtime runs end to end in production shape; the `RuntimeModelAdapter` interface itself is DEFERRED as requirement-less with re-open triggers: a third runtime, or a second load-API runtime)* — Runtime-adapter boundary (LM Studio becomes one adapter, not an assumption).** Extract the
   provider/runtime seam so a second engine can be added. **This is the unblock for F12.72/73/74.** Candidate
   second adapter: mlx-serve (P17.1a trial + perf curves PASSED — the front-runner), llama.cpp server, or Ollama.
   Guard rails: the existing LM-Studio-specific knowledge (`/no_think` family handling, JIT behaviour,
