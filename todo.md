@@ -10392,6 +10392,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   measured warm-reload) per David's approved sequence; P17.7 residency re-opens only after warm-reload cost
   is measured. (P17.7 scope note, reconciling the two decisions: 2026-08-03's "single-host version now"
   chose SCOPE; 2026-07-30's evidence-first SEQUENCE still governs order — single-host, in sequence.)
+  **✅ WARM-RELOAD COST MEASURED (2026-08-04 ~08:20, mlx-serve v26.7.11 re-fetched under the 07-26
+  delegation, `serve --model-dir <lmstudio>/snsnc --prefix-cache-disk 10GB`, Qwopus3.5-9B-4bit, 14,016-token
+  fixed prompt):** COLD prefill **14.8s** → in-memory HOT **0.3s** (14,015 cached; 49×) → **FULL SERVER
+  RESTART then repeat: 0.1s, disk tier restored 14,015/14,016 tokens from SSD in 29ms** (server line:
+  `[disk-cache] restored 14015/14016 tokens from SSD in 29ms`). **KV persistence across engine process death
+  EXISTS today in an engine !Klein can control — the exact gap LM Studio's scratch-only cache leaves.**
+  Rig notes: the bare `mlx-serve --model` invocation is INTERACTIVE chat (exits on stdin EOF when detached —
+  three silent deaths before the diagnosis); the server form is `mlx-serve serve --model-dir …`. Binary NOT
+  vendored (61.5MB tarball, releases/v26.7.11/mlx-serve-bin-macos-arm64.tar.gz — adapter work decides
+  packaging). **DAVID'S SEQUENCE IS NOW FULLY MEASURED: prize = 67 min/weekend on the 31B; warm-reload =
+  29ms restore. The P17.7 swap/residency RE-OPEN is his call on these numbers; the build path if yes =
+  P17.1 adapter boundary routing !Klein traffic through mlx-serve with the disk tier on.**
   **🔴 AND IT IMMEDIATELY FOUND A REAL DEFECT THAT MADE THE MEASUREMENT IMPOSSIBLE — now fixed.**
   Running it returned nine per-request records with "no usage payload", which reads as *the provider reported
   nothing*. It was not. **`SECRET_KEY_PATTERN` in the self-observation sink contains the substring `token`, so
