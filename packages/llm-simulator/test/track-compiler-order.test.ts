@@ -226,3 +226,87 @@ describe("modelIncludes conditioning (N2 model-failover / N3 matrix primitive)",
 		expect(idx("sim/other")).toBe(2);
 	});
 });
+
+describe("N3 quirk matchers (tri-state request-shape predicates)", () => {
+	const firstMatch = (script: ScenarioScript, request: unknown): string | null => {
+		for (const fixture of compileScenarioScript(script)) {
+			const predicate = (fixture.match as { predicate?: (r: unknown) => boolean }).predicate;
+			if (predicate?.(request)) {
+				return (fixture.response as { content?: string }).content ?? "non-text";
+			}
+		}
+		return null;
+	};
+
+	it("requiresJsonSchema: true fires ONLY on json_schema requests; false only on their absence", () => {
+		const script: ScenarioScript = {
+			name: "json-schema-quirk",
+			seed: 1,
+			tracks: [
+				{
+					id: "c-empty-on-schema",
+					requestClass: "any",
+					requiresJsonSchema: true,
+					turns: [{ behavior: { kind: "text", content: "QUIRK" } }],
+					repeatLastTurn: true,
+				},
+				{
+					id: "perfect",
+					requestClass: "any",
+					requiresJsonSchema: false,
+					turns: [{ behavior: { kind: "text", content: "HEALTHY" } }],
+					repeatLastTurn: true,
+				},
+			],
+		};
+		const base = { model: "sim/gemma", messages: [{ role: "user", content: "go" }] };
+		expect(firstMatch(script, { ...base, response_format: { type: "json_schema" } })).toBe("QUIRK");
+		expect(firstMatch(script, base)).toBe("HEALTHY");
+		expect(firstMatch(script, { ...base, response_format: { type: "json_object" } })).toBe("HEALTHY");
+	});
+
+	it("messagesNonAlternating: true fires only when consecutive non-system roles repeat (the Jinja 500 shape)", () => {
+		const script: ScenarioScript = {
+			name: "alternation-quirk",
+			seed: 1,
+			tracks: [
+				{
+					id: "t-jinja-500",
+					requestClass: "any",
+					messagesNonAlternating: true,
+					turns: [
+						{ behavior: { kind: "http_error", status: 500, message: "Conversation roles must alternate" } },
+					],
+					repeatLastTurn: true,
+				},
+				{
+					id: "perfect",
+					requestClass: "any",
+					turns: [{ behavior: { kind: "text", content: "HEALTHY" } }],
+					repeatLastTurn: true,
+				},
+			],
+		};
+		// The live-found shape: focus-brief parts split into [system, user, user] — non-alternating.
+		const nonAlternating = {
+			model: "sim/ministral",
+			messages: [
+				{ role: "system", content: "s" },
+				{ role: "user", content: "brief" },
+				{ role: "user", content: "task" },
+			],
+		};
+		// System messages are excluded from the alternation check (they legitimately lead the conversation).
+		const alternating = {
+			model: "sim/ministral",
+			messages: [
+				{ role: "system", content: "s" },
+				{ role: "user", content: "brief" },
+				{ role: "assistant", content: "ok" },
+				{ role: "user", content: "next" },
+			],
+		};
+		expect(firstMatch(script, nonAlternating)).toBe("non-text");
+		expect(firstMatch(script, alternating)).toBe("HEALTHY");
+	});
+});

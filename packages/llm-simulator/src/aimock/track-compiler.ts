@@ -129,6 +129,7 @@ export function compileTrack(track: ScenarioTrack, options: CompileOptions = {})
 		const shaped = request as Parameters<typeof classifyRequest>[0] & {
 			messages?: Array<{ role?: string; content?: unknown }>;
 			model?: unknown;
+			response_format?: { type?: unknown };
 		};
 		// Per-model conditioning (N2 model-failover / N3 matrix): the OpenAI request always carries `model`.
 		if (modelNeedle && !String(shaped.model ?? "").toLowerCase().includes(modelNeedle)) {
@@ -136,6 +137,23 @@ export function compileTrack(track: ScenarioTrack, options: CompileOptions = {})
 		}
 		if (needle && !userText(shaped).toLowerCase().includes(needle)) {
 			return false;
+		}
+		// N3 quirk matchers, tri-state (unset = don't care). Both are REQUEST-SHAPE predicates so family quirks
+		// compile to negative-space tripwires: the failing track matches only the shape !Klein must never send.
+		if (track.requiresJsonSchema !== undefined) {
+			const wantsJsonSchema = shaped.response_format?.type === "json_schema";
+			if (wantsJsonSchema !== track.requiresJsonSchema) {
+				return false;
+			}
+		}
+		if (track.messagesNonAlternating !== undefined) {
+			const conversational = (shaped.messages ?? []).filter((message) => message.role !== "system");
+			const nonAlternating = conversational.some(
+				(message, index) => index > 0 && message.role === conversational[index - 1].role,
+			);
+			if (nonAlternating !== track.messagesNonAlternating) {
+				return false;
+			}
 		}
 		return track.requestClass === "any" || classifyRequest(shaped, markers) === track.requestClass;
 	};
@@ -177,8 +195,13 @@ export function compileTrack(track: ScenarioTrack, options: CompileOptions = {})
  * 02's no-needle `any` fallback swallow project 05's decompose request, stranding its board in Planning).
  */
 function trackSpecificity(track: ScenarioTrack): number {
-	if (track.userMessageIncludes || track.modelIncludes) {
-		return 0; // needle- or model-keyed — most specific (a narrowing matcher must never be shadowed by a catch-all)
+	if (
+		track.userMessageIncludes ||
+		track.modelIncludes ||
+		track.requiresJsonSchema !== undefined ||
+		track.messagesNonAlternating !== undefined
+	) {
+		return 0; // narrowing matchers — most specific (must never be shadowed by a catch-all)
 	}
 	if (track.requestClass !== "any") {
 		return 1; // class-scoped

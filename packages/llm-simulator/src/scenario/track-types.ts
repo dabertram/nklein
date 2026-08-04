@@ -73,6 +73,22 @@ export interface ScenarioTrack {
 	 * fails terminally, the failover candidate succeeds) and the N3 per-model behavior matrix. Unset ⇒ any model.
 	 */
 	modelIncludes?: string;
+	/**
+	 * N3 quirk matcher: condition on whether the request asks for constrained decoding
+	 * (`response_format.type === "json_schema"`). `true` matches only such requests, `false` only their absence,
+	 * unset ⇒ don't care. Encodes the empty-content-on-json_schema family quirk as a NEGATIVE-SPACE tripwire:
+	 * the quirk track answers json_schema requests with the family's real failure, so a regression that starts
+	 * sending json_schema to a family whose schema profile forbids it lights the track and fails the drain —
+	 * while the healthy path never matches it.
+	 */
+	requiresJsonSchema?: boolean;
+	/**
+	 * N3 quirk matcher: condition on the request's chat history having two consecutive NON-SYSTEM messages with
+	 * the same role (`true` ⇒ only non-alternating, `false` ⇒ only strictly alternating, unset ⇒ don't care).
+	 * Encodes the Mistral-family Jinja quirk (wire-proven 2026-07-17: non-alternating roles hard-500) the same
+	 * tripwire way: the 500 track only fires if !Klein regresses into emitting [system,user,user] again.
+	 */
+	messagesNonAlternating?: boolean;
 	/** The scripted turns, in order. `repeatLastTurn` keeps replaying the final turn (loops!). */
 	turns: ScenarioTurn[];
 	repeatLastTurn?: boolean;
