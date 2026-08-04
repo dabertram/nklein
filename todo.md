@@ -10436,7 +10436,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   never launches/kills the engine; the operator does, and sessions route through it as a custom provider
   (the probe's proven path). Remaining P17.1 ③+ work: move the LM-Studio-specific knowledge INTO an adapter
   record/impl (advice strings, /no_think family, id conventions) + the `RuntimeModelAdapter` contract
-  extraction itself. **(2) CHILD COMPOSITION: YES — the kernel gains a
+  extraction itself.
+  **✅ ③ SIZED BY SWEEP same day — the interface extraction is DEFERRED as requirement-less.** Full-honesty
+  grep (first pass voided itself — an exclusion for `= "lmstudio"` swallowed `=== "lmstudio"`; redone):
+  SIX raw lmstudio spellings remain outside the capability registry, every one deliberate, cosmetic, or
+  benign-by-fallback: stateful-responses (deliberately lmstudio-only, self-documenting reason string),
+  provider-list sort order (cosmetic), advisor completion + research-owner heuristic + schema profile
+  (generic fallback correct for mlxserve — live-proven by the probe's 8-request run). The incremental
+  capability-record approach ate the adapter's read/write value piece by piece; a `RuntimeModelAdapter`
+  interface would now be ceremony without a driving requirement. RE-OPEN TRIGGER: a third runtime lands,
+  or a runtime needs load-API drive (supportsLoad=true beyond lms). **(2) CHILD COMPOSITION: YES — the kernel gains a
   `created` phase** (plan-apply dispatches a creation command per child; created/waiting-deps class projects
   to planning/ready; lane = projection for ALL cards). **(3) REDRIVE LANES: SHOW BOTH** — lane stays put
   during redrive AND the card shows a restarting badge driven by kernel phase (UI + projection tolerance).
