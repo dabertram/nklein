@@ -136,17 +136,19 @@ export function createWorkflowCommandQueue(options: WorkflowCommandQueueOptions)
 		}
 		phases.set(taskId, next.phase);
 		redrives.set(taskId, nextRedriveInFlight(redrives.get(taskId) ?? false, transition));
-		// P24.1 step 3 (apply-then-project ordering, motivated by the fifth shadow inventory): an ASYNC
-		// subscriber — the lane reconciler projecting phase onto the board — is AWAITED inside the per-task
-		// chain, so the projection lands before the next same-card command applies and a sampler between apply
-		// and projection sees at most one in-flight window instead of an unbounded race. Callers are unaffected
-		// (every production dispatch is fire-and-forget); a throwing/rejecting subscriber still never breaks the
-		// command path.
+		// P24.1 step 3 REVERTED (2026-08-04 evening, full-nightly evidence): the awaited async subscriber —
+		// the lane reconciler calling mutateWorkspaceState — DEADLOCKS when a dispatch happens inside a
+		// workspace-state transaction: the reconciler waits on the lock the dispatching transaction holds.
+		// The sixth inventory raised exactly this as H1 and refuted it on a thin run; the first 42-card
+		// full-scale run through this code CONFIRMED it — 23 delivered cards hung silently between merge and
+		// completion (zero error rows; the receipted-delivery recovery healed all but two before the drain's
+		// stall wall). Subscribers are fire-and-forget again: the sampler race step 3 targeted is owned by the
+		// validated two-strike debounce, and a rejecting subscriber still never breaks the command path.
 		for (const listener of listeners) {
 			try {
 				const result = listener(transition) as unknown;
 				if (result && typeof (result as Promise<unknown>).then === "function") {
-					await (result as Promise<unknown>).catch(() => undefined);
+					void (result as Promise<unknown>).catch(() => undefined);
 				}
 			} catch {
 				// A subscriber must never break the command path.

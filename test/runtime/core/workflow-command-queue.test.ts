@@ -166,23 +166,29 @@ describe("createWorkflowCommandQueue", () => {
 	});
 });
 
-describe("async subscribers are awaited in the per-task chain (P24.1 step 3)", () => {
-	it("applies the NEXT same-card command only after the previous subscriber projection settles", async () => {
+describe("async subscribers are FIRE-AND-FORGET (P24.1 step 3 reverted, 2026-08-04)", () => {
+	it("dispatch does NOT wait for a slow subscriber projection — a held workspace lock cannot deadlock the chain", async () => {
+		// Step 3 awaited projections inside the per-task chain; the first 42-card full nightly through that
+		// code deadlocked 23 completions silently (a dispatch inside a workspace-state transaction waits on a
+		// reconciler that waits on the same lock). Subscribers are decoupled again; the sampler race step 3
+		// targeted is owned by the two-strike debounce.
 		const { queue } = makeQueue();
 		const order: string[] = [];
+		let release: () => void = () => undefined;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
 		queue.subscribe(async (transition) => {
 			order.push(`project:${transition.command.kind}:start`);
-			await new Promise((resolve) => setTimeout(resolve, 20));
+			await gate;
 			order.push(`project:${transition.command.kind}:done`);
 		});
-		void queue.dispatch("t-9", { kind: "start_requested" });
+		await queue.dispatch("t-9", { kind: "start_requested" });
 		await queue.dispatch("t-9", { kind: "board_capacity_granted" });
-		expect(order).toEqual([
-			"project:start_requested:start",
-			"project:start_requested:done",
-			"project:board_capacity_granted:start",
-			"project:board_capacity_granted:done",
-		]);
+		// Both commands applied while the projections still hang — the deadlock shape cannot form.
+		expect(queue.phaseOf("t-9")).toBe("queued_for_endpoint");
+		expect(order).toEqual(["project:start_requested:start", "project:board_capacity_granted:start"]);
+		release();
 	});
 
 	it("a REJECTING subscriber never breaks the command path", async () => {
