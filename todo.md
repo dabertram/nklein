@@ -10635,10 +10635,11 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   now probes `meta` after `model_info`; the `lms load …`-only remedy string became runtime-neutral (names the
   lms lever, the serve-context lever, AND the per-model override). **CLEAN-PATH PROOF:** registry entry purged →
   fresh A2A card auto-started with ZERO floor refusals and a fresh entry `advertised: 262144, userOverride: null`
-  written by live discovery — the new-user path needs no override. FOLLOW-UP (small, filed here): the discovery
-  -written entry keyed `…:http://localhost:11234/v1` while the manual override had keyed `…:127.0.0.1…` — endpoint
-  SPELLING reaches registry keys unnormalized (identity-vs-spelling, P24.1's disease in miniature); normalize at
-  `buildNKleinModelRegistryKey` so overrides and discovery converge on one entry. (b) same skip ⇒ `gatherLoadedCandidates` [] while
+  written by live discovery — the new-user path needs no override. (RETRACTED same day: a follow-up filed here
+  claimed endpoint spellings reach registry keys unnormalized — VERIFIED FALSE. `normalizeEndpoint`
+  (model-identity.ts) folds every loopback spelling to `localhost` in BOTH `buildNKleinModelRegistryKey` and
+  `createNKleinModelRegistryEntry`; the override and discovery writes landed on ONE entry, and the "127.0.0.1
+  vs localhost" I saw was my raw input spelling vs the stored canonical — normalization working, not a split.) (b) same skip ⇒ `gatherLoadedCandidates` [] while
   the model is unloaded ⇒ consult failover reads unavailable ⇒ guard-parks count as stuck-evidence (the 08-03
   rule) — self-consistent once (a) lands, listed for awareness. (c) A2A park invisibility — FOUND+FIXED with the
   probe (see P17.8 note). (d) stateful-responses correctly self-gates to lmstudio; mlx-serve HAS `/v1/responses`
