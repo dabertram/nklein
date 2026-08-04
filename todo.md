@@ -10422,6 +10422,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   correctly absent below the 2-threshold). Window math: two cycles want ~90-120min; drain #2 runs at 90.
   Shadow: 1 row, the REOPENED-card shape (`reopened` → phase idle while the lane deliberately stays put) —
   decision-3 territory (show-both), to be absorbed by the restart-tolerance + badge build, not a new writer.
+  **▶ A/B DRAIN #2 (90min mains, `.real-runs/20260804-100016`): 2 bounces — split across TWO cards (1 each);
+  per-card stuck-evidence peaked at 1, gate correctly closed, consult correctly absent.** Two-drain campaign
+  math: organic bounces occur reliably on mains (3 today) but SCATTER across cards; a per-card double-bounce
+  on mid_task's small card count is structurally rare — which is the gate WORKING (consults should be rare).
+  Guard-park arming under the failover-unavailable rule doesn't compound either: a single-model spiral parks
+  ONCE (operator hold) and stops at stuck=1. **Campaign proposal recorded for David's next batch: accept
+  organic rarity as designed; gather the BEHAVIORAL half (does the model call the offered tool; does the
+  answer help) on the deterministic rig at small scale, and keep NKLEIN_MODEL_CONSULT=1 on all future organic
+  drains as free accumulating evidence.** Meanwhile the flag's safety record grows: zero misfires across
+  every armed/unarmed run to date.
   **🔴 AND IT IMMEDIATELY FOUND A REAL DEFECT THAT MADE THE MEASUREMENT IMPOSSIBLE — now fixed.**
   Running it returned nine per-request records with "no usage payload", which reads as *the provider reported
   nothing*. It was not. **`SECRET_KEY_PATTERN` in the self-observation sink contains the substring `token`, so
