@@ -226,6 +226,9 @@ const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	// request to the reasoning-named architect with the family's real SILENT EMPTY; the structured-output
 	// contract (reasoning ids -> native_tool_call, never json_schema) keeps it dark on a healthy drain.
 	schema_deadend_quirk: "schema-deadend-quirk",
+	// N3 family 4: the no-verdict reviewer — review-class turns are prose forever; the silent-reviewer-park
+	// pack asserts the ladder parks for the operator instead of spinning (terminal shape review+planning).
+	silent_reviewer_quirk: "silent-reviewer-quirk",
 };
 
 /** Per-profile env the drain needs beyond NKLEIN_SIMFLOW_RUN (kept beside the run map so they stay in sync). */

@@ -224,8 +224,25 @@ export const FLAGS_ON_COVERAGE: InvariantPack = {
 	includes: ["core-invariants"],
 };
 
+/**
+ * N3 family 4 (`silent_reviewer_quirk`): every review-class turn is PROSE with no submit_review — the
+ * no-verdict reviewer some families really are. The ladder must absorb it, not spin: implemented cards
+ * enter review, rounds retry/bounce, and cards end PARKED in the review lane awaiting the operator, with
+ * dependents legitimately starving in planning. Deliberately NOT composed from core-invariants (nothing
+ * completes, so completion-side mustFire gates would false-fail) and runtime_error deliberately NOT in
+ * mustStayQuiet: a drain full of no-verdict rounds is EXPECTED noisy — the assertions are the terminal
+ * SHAPE plus the ladder genuinely parking for the operator.
+ */
+export const SILENT_REVIEWER_PARK: InvariantPack = {
+	id: "silent-reviewer-park",
+	expectedTerminalLanes: ["review", "planning"],
+	mustFire: ["second_opinion_review_session", "task_session_operator_input"],
+	mustStayQuiet: [],
+};
+
 export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map([
 	[CORE_INVARIANTS.id, CORE_INVARIANTS],
+	[SILENT_REVIEWER_PARK.id, SILENT_REVIEWER_PARK],
 	[PARKED_TERMINAL.id, PARKED_TERMINAL],
 	[LOOP_PARK_TERMINAL.id, LOOP_PARK_TERMINAL],
 	[SYNTAX_GUARD_RECOVERY.id, SYNTAX_GUARD_RECOVERY],

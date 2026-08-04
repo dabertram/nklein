@@ -7290,9 +7290,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   dead-end contract as a tripwire (any json_schema to the reasoning-named architect answers with the
   family's real silent-empty; probed 2026-07). Green = the structured-output contract (reasoning ids →
   native_tool_call, never json_schema) held across a full live drain — the contract is now drain-guarded,
-  not just unit-pinned. NEXT: no-verdict-reviewer family (needs its own terminal pack — the review ladder
-  should END IN PARK, so the cell asserts ladder behavior, not quiet packs) + role-combination coverage +
-  remaining families as the catalog grows.
+  not just unit-pinned. **▶ FAMILY 4 BUILT AND KNOWN-RED — IT FOUND A REAL LIVENESS HOLE (2026-08-04 ~17:30, evidence
+  `/var/folders/…/nklein-nightly-02-d6bcVj` retained):** `silent_reviewer_quirk` (all 19 review tracks
+  narrate forever, never submit_review) + new `silent-reviewer-park` pack (terminal review+planning;
+  mustFire second_opinion_review_session + task_session_operator_input). The run: ONE card reached review,
+  its resolution ended **`skipped (no_verdict)` — and nothing re-drives, bounces, or parks it.** The card
+  sits in the review lane with NO review object (round None), the rescue retried once (2 review-session
+  starts total), got the same skip, and went silent; **17 dependents starved in planning behind one silent
+  reviewer. No park, no operator signal — a drain-killing dead end on a reviewer that a real family
+  (no-verdict narrators) actually is.** THE MISSING RUNG: consecutive `no_verdict` resolutions must count
+  toward a bounded cap and then PARK for the operator (task_session_operator_input), like every other
+  dead-end. Also learned: the devtest SEED completes reviewless BY DESIGN — the pack's terminal lanes need
+  `completed` added for it (pack fix rides the rung fix). The cell STAYS RED as the standing guard until
+  the rung lands. NEXT: build the no-verdict park rung; then role-combination coverage + remaining
+  families as the catalog grows.
 - [x] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
   git remotes, update feeds, web/egress (already hard-gated), clock-driven damping. INTERNAL flaky sources (the
   proven ones, extend as found): the host-capacity view that reads the REAL LM Studio gateway even in sims (memory:

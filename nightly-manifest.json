@@ -28,7 +28,8 @@
     "flags_on",
     "ministral_quirk",
     "reasoning_only_quirk",
-    "schema_deadend_quirk"
+    "schema_deadend_quirk",
+    "silent_reviewer_quirk"
    ],
    "invariantPackByProfile": {
     "loop_park": "loop-park-terminal",
@@ -36,7 +37,8 @@
     "failover": "failover-recovery",
     "taint_gate": "taint-gate-hold",
     "park_resume": "park-resume-recovery",
-    "flags_on": "flags-on-coverage"
+    "flags_on": "flags-on-coverage",
+    "silent_reviewer_quirk": "silent-reviewer-park"
    }
   },
   {
