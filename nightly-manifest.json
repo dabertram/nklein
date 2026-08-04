@@ -27,7 +27,8 @@
     "park_resume",
     "flags_on",
     "ministral_quirk",
-    "reasoning_only_quirk"
+    "reasoning_only_quirk",
+    "schema_deadend_quirk"
    ],
    "invariantPackByProfile": {
     "loop_park": "loop-park-terminal",

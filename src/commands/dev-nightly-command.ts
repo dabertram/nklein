@@ -222,6 +222,10 @@ const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	// of the perfect run moves its payload into the reasoning channel with EMPTY content — green proves the
 	// product's reasoning_content reads survive a full drain.
 	reasoning_only_quirk: "reasoning-only-quirk",
+	// N3 family 3: the json_schema dead-end contract as a tripwire — the recording answers any json_schema
+	// request to the reasoning-named architect with the family's real SILENT EMPTY; the structured-output
+	// contract (reasoning ids -> native_tool_call, never json_schema) keeps it dark on a healthy drain.
+	schema_deadend_quirk: "schema-deadend-quirk",
 };
 
 /** Per-profile env the drain needs beyond NKLEIN_SIMFLOW_RUN (kept beside the run map so they stay in sync). */
