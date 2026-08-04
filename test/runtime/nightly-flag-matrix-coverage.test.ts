@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FEATURE_FLAG_REGISTRY, FLAGS_ON_LANE_EXCLUSIONS } from "../../src/core/feature-flag-registry";
-import { MECHANISM_REGISTRY } from "../../src/core/mechanism-observation-audit";
+import { LEDGER_OBSERVABLE_LANE_FLAGS, MECHANISM_REGISTRY } from "../../src/core/mechanism-observation-audit";
 import { NIGHTLY_PACK_REGISTRY } from "../../src/core/nightly-pack-registry";
 import { OBSERVABLE_DRAIN_SIGNALS } from "../../src/core/nightly-signal-extraction";
 
@@ -38,7 +38,17 @@ describe("N11 flags_on lane covers every flag-gated mechanism", () => {
 			FLAGS_ON_LANE_EXCLUSIONS.filter((entry) => entry.kind === "permanent").map((entry) => entry.flag),
 		);
 		const registryFlags = new Set(
-			MECHANISM_REGISTRY.map((entry) => entry.enabledBy).filter((flag): flag is string => Boolean(flag)),
+			[
+				...MECHANISM_REGISTRY.map((entry) => entry.enabledBy),
+				...MECHANISM_REGISTRY.flatMap((entry) => entry.covers ?? []),
+				...LEDGER_OBSERVABLE_LANE_FLAGS,
+			].filter(
+				(flag): flag is string =>
+					// The lane's universe is DEFAULT-OFF opt-ins: a covers-linked flag that is default-ON (or
+					// dev-only) is observable, but it is not lane material and must not enter the demand set.
+					Boolean(flag) &&
+					FEATURE_FLAG_REGISTRY.some((spec) => spec.flag === flag && !spec.defaultOn && spec.mode !== "dev_only"),
+			),
 		);
 		const missing = [...registryFlags]
 			.filter((flag) => !readFlagsOnEnv().has(flag) && !permanentlyExcluded.has(flag))
@@ -51,7 +61,11 @@ describe("N11 flags_on lane covers every flag-gated mechanism", () => {
 
 	it("enables no flag the registry does not know about (the list stays traceable, not aspirational)", () => {
 		const registryFlags = new Set(
-			MECHANISM_REGISTRY.map((entry) => entry.enabledBy).filter((flag): flag is string => Boolean(flag)),
+			[
+				...MECHANISM_REGISTRY.map((entry) => entry.enabledBy),
+				...MECHANISM_REGISTRY.flatMap((entry) => entry.covers ?? []),
+				...LEDGER_OBSERVABLE_LANE_FLAGS,
+			].filter((flag): flag is string => Boolean(flag)),
 		);
 		const unknown = [...readFlagsOnEnv()].filter((flag) => !registryFlags.has(flag)).sort();
 		expect(unknown, `flags_on enables flags no registered mechanism claims: ${unknown.join(", ")}`).toEqual([]);

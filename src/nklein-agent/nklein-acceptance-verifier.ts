@@ -1,5 +1,6 @@
 import type { RuntimeTaskAcceptanceResult } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { runNKleinAcceptanceGateInSandbox } from "./nklein-acceptance-gate";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
@@ -100,6 +101,18 @@ export function createAcceptanceVerifier(deps: AcceptanceVerifierDeps): Acceptan
 			}
 		})();
 		storePropertyCheckEvidence(input.taskId, property);
+		try {
+			// N11 registration (2026-08-05): the gate's decision, recorded either way — the lane/audit contract.
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Property gate ${property.outcome} for ${input.taskId} (${property.invariantCount} invariant(s)): ${property.reason}`,
+				taskId: input.taskId,
+				metadata: { category: "property_gate", outcome: property.outcome },
+			});
+		} catch {
+			// Telemetry must never affect acceptance.
+		}
 		const propertyOutput = `\n\n[property checks: ${property.outcome}] ${property.reason}${property.output ? `\n${property.output}` : ""}`;
 		const durationMs = acceptance.durationMs + Math.max(0, Date.now() - propertyStartedAt);
 		if (property.outcome === "unavailable") {

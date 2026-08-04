@@ -297,36 +297,6 @@ export interface FlagsOnLaneExclusion {
  */
 export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 	{
-		flag: "NKLEIN_EXPLORER_SUBAGENT",
-		kind: "pending_validation",
-		reason:
-			"adds an explore handler. DRAIN-GREEN one-at-a-time 2026-08-05 (solo flags_on run passed) — the remaining precondition is NOT another run: the lane ratchet only admits flags a REGISTERED MECHANISM claims, and none claims this one. Register a consuming mechanism (emit site + registry entry), then it joins the lane. Same correction shape as NKLEIN_TRUNCATION_DIAGNOSTICS 2026-08-02.",
-	},
-	{
-		flag: "NKLEIN_PROPERTY_GATE",
-		kind: "pending_validation",
-		reason:
-			"gates acceptance. DRAIN-GREEN one-at-a-time 2026-08-05 (solo flags_on run passed) — the remaining precondition is NOT another run: the lane ratchet only admits flags a REGISTERED MECHANISM claims, and none claims this one. Register a consuming mechanism (emit site + registry entry), then it joins the lane. Same correction shape as NKLEIN_TRUNCATION_DIAGNOSTICS 2026-08-02.",
-	},
-	{
-		flag: "NKLEIN_SPEC_DELIBERATION",
-		kind: "pending_validation",
-		reason:
-			"adds a plan-mode deliberation step. DRAIN-GREEN one-at-a-time 2026-08-05 (solo flags_on run passed) — the remaining precondition is NOT another run: the lane ratchet only admits flags a REGISTERED MECHANISM claims, and none claims this one. Register a consuming mechanism (emit site + registry entry), then it joins the lane. Same correction shape as NKLEIN_TRUNCATION_DIAGNOSTICS 2026-08-02.",
-	},
-	{
-		flag: "NKLEIN_VISUAL_GATE",
-		kind: "pending_validation",
-		reason:
-			"adds a review gate. DRAIN-GREEN one-at-a-time 2026-08-05 (solo flags_on run passed) — the remaining precondition is NOT another run: the lane ratchet only admits flags a REGISTERED MECHANISM claims, and none claims this one. Register a consuming mechanism (emit site + registry entry), then it joins the lane. Same correction shape as NKLEIN_TRUNCATION_DIAGNOSTICS 2026-08-02.",
-	},
-	{
-		flag: "NKLEIN_N_EYES_REVIEW",
-		kind: "pending_validation",
-		reason:
-			"runs a different review procedure. DRAIN-GREEN one-at-a-time 2026-08-05 (solo flags_on run passed) — the remaining precondition is NOT another run: the lane ratchet only admits flags a REGISTERED MECHANISM claims, and none claims this one. Register a consuming mechanism (emit site + registry entry), then it joins the lane. Same correction shape as NKLEIN_TRUNCATION_DIAGNOSTICS 2026-08-02.",
-	},
-	{
 		flag: "NKLEIN_ALLOW_UNSUITABLE_MODEL",
 		kind: "permanent",
 		reason:

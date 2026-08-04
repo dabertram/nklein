@@ -7949,9 +7949,13 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **▶ THE FIVE RAN one-at-a-time 2026-08-05 (~23:50-00:18), ALL DRAIN-GREEN — and the lane ratchet then
   refused all five for the DEEPER precondition: no REGISTERED MECHANISM claims any of them** (the same
   refusal that corrected TRUNCATION_DIAGNOSTICS on 08-02 — the ratchet re-earning its keep). Exclusions
-  restored with corrected reasons recording the green runs; the actual remaining slice is FIVE MECHANISM
-  REGISTRATIONS (verify/add an emit site per feature + registry entries + category coverage), after which
-  they join the lane on the already-banked validation evidence. Lane (c) kill-switches-OFF remains unbuilt.
+  restored with corrected reasons recording the green runs; the actual remaining slice was FIVE MECHANISM
+  REGISTRATIONS — **✅ DONE same night (~00:45): property_gate emit added + registered; spec_deliberation's
+  existing emit registered; visual → the existing visual_delivery_gate mechanism; N_EYES was already claimed
+  via `covers` (the lane test now reads covers — its own doc warned enabledBy-only counting understates);
+  EXPLORER consumable as the F4.8b ledger-observable class. ALL FIVE IN THE LANE: solo drains green +
+  the combined all-five cell green; 16/16 ratchets.** Lane (c) kill-switches-OFF remains unbuilt — the one
+  open N11 leg.
   **The ratchet earning its keep is the point:** it refused a change I made on the strength of a written note, and
   the note was wrong. 8 "pending a run" was really 2 permanent + 2 mis-recorded + 5 real.
   ◆ Found only because `memory_freshness_audit`'s registration tripped the existing ratchet — *"a newly registered

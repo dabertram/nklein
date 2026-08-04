@@ -31,6 +31,13 @@
  * observable AT ALL, not whether it is observable *here*.
  */
 
+/**
+ * F4.8b's ledger-observable class, made consumable: flags whose mechanism is fully observable through the
+ * agent LEDGER (tool calls by name/outcome), where adding a telemetry category would be the duplicate
+ * instrumentation N17 forbids. The flags_on lane admits these alongside mechanism-claimed flags.
+ */
+export const LEDGER_OBSERVABLE_LANE_FLAGS: readonly string[] = ["NKLEIN_EXPLORER_SUBAGENT"];
+
 /** Why a mechanism might legitimately record nothing. */
 export type FiringExpectation =
 	/** Should record on EVERY run it is enabled for — silence is a defect. */
@@ -759,6 +766,40 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 	},
 	{
+		// N11 2026-08-05: registered so the flags_on lane can admit the flag on its banked one-at-a-time
+		// validation — the lane ratchet (correctly) only admits mechanism-claimed flags. Records the gate's
+		// decision either way (the test_driven_gate precedent: "how often would this fire?" must be answerable
+		// BEFORE enabling it by default).
+		category: "property_gate",
+		item: "F12.93b",
+		observes: "the property-check acceptance gate's decision on a passing primary harness",
+		enabledBy: "NKLEIN_PROPERTY_GATE",
+		expectation: "every_run",
+		firesWhen: "agent_sandbox_result_patch",
+		addedOn: Date.UTC(2026, 7, 5),
+	},
+	{
+		// N11 2026-08-05: same registration wave as property_gate.
+		category: "spec_deliberation",
+		item: "F12.111b",
+		observes: "a plan-mode spec deliberation ran for a session's planning phase",
+		enabledBy: "NKLEIN_SPEC_DELIBERATION",
+		expectation: "every_run",
+		firesWhen: "aux_session_start",
+		addedOn: Date.UTC(2026, 7, 5),
+	},
+	{
+		// N11 2026-08-05: same registration wave as property_gate. Exceptional: fires only when a review's
+		// diff actually touches UI files — a backend-only drain legitimately stays silent.
+		category: "visual_delivery_gate",
+		item: "F12.87b",
+		observes: "the visual review gate ran (UI files touched) and its verdict input was produced",
+		enabledBy: "NKLEIN_VISUAL_GATE",
+		expectation: "exceptional",
+		firesWhen: "second_opinion_review_session",
+		addedOn: Date.UTC(2026, 7, 5),
+	},
+	{
 		// F4.8b 2026-07-20: emitted ONLY on a bounce, so "how often would this fire if I enabled it?" — the
 		// question asked BEFORE turning it on — had no answer. Now records the decision either way.
 		category: "test_driven_gate",
@@ -1072,7 +1113,6 @@ export const KNOWN_UNREGISTERED_EMITTERS: readonly string[] = [
 	"second_opinion_review_single_flight",
 	"self_compaction_request",
 	"self_improvement_gate",
-	"spec_deliberation",
 	"speculative_arbitration",
 	"speculative_arbitration_fallback",
 	"speculative_mirror_residency_skip",
@@ -1085,7 +1125,6 @@ export const KNOWN_UNREGISTERED_EMITTERS: readonly string[] = [
 	"task_worktree_merge",
 	"test_misinterpretation",
 	"trigger_intake",
-	"visual_delivery_gate",
 	"work_package_boundary_violation",
 	"write_grounding",
 ];

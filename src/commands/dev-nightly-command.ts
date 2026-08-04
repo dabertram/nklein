@@ -242,6 +242,15 @@ const PROFILE_EXTRA_ENV: Readonly<Record<string, Readonly<Record<string, string>
 		// route only — no replay traffic reaches it, so the drain shape is untouched; coverage here just
 		// proves the flag-ON posture boots and drains clean.
 		NKLEIN_A2A_SERVER: "1",
+		// N11's five, validated one-at-a-time 2026-08-05 (all solo flags_on drains green) and admitted once their
+		// mechanisms were actually claimable: property_gate + spec_deliberation registered (spec's emit already
+		// existed unregistered), visual maps to the existing visual_delivery_gate mechanism, N_EYES was already
+		// claimed via `covers` (the lane test now reads covers), EXPLORER is the documented ledger-observable class.
+		NKLEIN_EXPLORER_SUBAGENT: "1",
+		NKLEIN_PROPERTY_GATE: "1",
+		NKLEIN_SPEC_DELIBERATION: "1",
+		NKLEIN_VISUAL_GATE: "1",
+		NKLEIN_N_EYES_REVIEW: "1",
 		NKLEIN_ADAPTIVE_RETRY: "1",
 		NKLEIN_ARCHITECT_EDITOR: "1",
 		NKLEIN_BASELINE_PROBE: "1",
