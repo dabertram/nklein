@@ -51,6 +51,7 @@ export function BoardColumn({
 	replayCardsEnabled = false,
 	defaultAgentId,
 	mailboxCountByTaskId,
+	restartingByTaskId,
 	reasoningSnippetByTaskId,
 }: {
 	column: BoardColumnModel;
@@ -59,6 +60,8 @@ export function BoardColumn({
 	dependencyBlockedByTaskId?: Record<string, boolean>;
 	/** W3.4: pending §5.AU mailbox-note counts (taskId → n); absent/0 = no badge. */
 	mailboxCountByTaskId?: Record<string, number>;
+	/** Decision 3: redrive-window truth (taskId → true) — shows the card's "restarting" badge. */
+	restartingByTaskId?: Record<string, boolean>;
 	/** §5.V: live reasoning-phase snippets (taskId → last thinking line); absent ⇒ generic "Thinking...". */
 	reasoningSnippetByTaskId?: Record<string, string>;
 	onCreateTask?: () => void;
@@ -204,6 +207,7 @@ export function BoardColumn({
 											sessionSummary={taskSessions[card.id]}
 											blockedOnDependency={dependencyBlockedByTaskId?.[card.id] ?? false}
 											pendingMailboxCount={mailboxCountByTaskId?.[card.id] ?? 0}
+											restarting={restartingByTaskId?.[card.id] ?? false}
 											reasoningSnippet={reasoningSnippetByTaskId?.[card.id] ?? null}
 											onStart={onStartTask}
 											onPauseTask={onPauseTask}

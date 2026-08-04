@@ -3,6 +3,7 @@
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeCardMailboxCountsResponse,
+	RuntimeCardRestartingResponse,
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
 	RuntimeDebugResetAllStateResponse,
@@ -160,6 +161,15 @@ export async function fetchCardMailboxCounts(
 ): Promise<RuntimeCardMailboxCountsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getCardMailboxCounts.query({ taskIds });
+}
+
+/** Decision 3: cards inside a redrive window (kernel-queue truth) — feeds the board's "restarting" badge. */
+export async function fetchCardRestarting(
+	workspaceId: string | null,
+	taskIds: string[],
+): Promise<RuntimeCardRestartingResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getCardRestarting.query({ taskIds });
 }
 
 export async function fetchGlobalSetupPlan(workspaceId: string | null): Promise<RuntimeSetupPlanResponse> {

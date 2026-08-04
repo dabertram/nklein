@@ -49,17 +49,49 @@ export interface WorkflowCommandQueueOptions {
 	appendEvent?: (event: AgentTransitionEvent) => Promise<void>;
 	/** Seed phases recovered at boot (from {@link replayWorkflowPhaseFromLedger}). */
 	seedPhases?: ReadonlyMap<string, WorkflowPhase>;
+	/** Seed redrive-window flags recovered at boot (from {@link replayWorkflowRedriveFromLedger}). */
+	seedRedrives?: ReadonlyMap<string, boolean>;
 	now?: () => number;
 }
 
 export interface WorkflowCommandQueue {
 	dispatch(taskId: string, command: WorkflowCommand): Promise<WorkflowDispatchOutcome>;
 	phaseOf(taskId: string): WorkflowPhase;
+	/**
+	 * P24.1 / decision 3 (2026-08-04): is this card inside a REDRIVE WINDOW — `reopened` fired from a live
+	 * phase and `begin_implementation` has not yet re-arrived? During that window the LANE deliberately stays
+	 * put (review / in_progress) while the phase replays the admission ladder, so the board shows a
+	 * "restarting" badge instead of the card jumping lanes, and the phase↔lane shadow treats the disagreement
+	 * as expected rather than as a bypassing writer.
+	 */
+	redriveInFlightOf(taskId: string): boolean;
 	subscribe(listener: (transition: WorkflowQueueTransition) => void | Promise<void>): () => void;
+}
+
+/**
+ * The redrive-window fold, PURE — one step per APPLIED transition. Derivable entirely from the command
+ * sequence the queue already persists (`reason` = command kind), so boot replay recovers it exactly:
+ *  - `reopened` from a non-idle phase OPENS the window (the card had visible work state to hold);
+ *  - `begin_implementation` CLOSES it (the session is genuinely running again — lane and phase re-agree);
+ *  - reaching a terminal phase closes it too (a redrive that ends in failed/cancelled is no longer restarting).
+ * A fresh card's ordinary ladder never opens the window: its `reopened` (if any) fires from idle.
+ */
+export function nextRedriveInFlight(
+	current: boolean,
+	transition: { command: WorkflowCommand; fromPhase: WorkflowPhase; phase: WorkflowPhase },
+): boolean {
+	if (transition.command.kind === "reopened" && transition.fromPhase !== "idle") {
+		return true;
+	}
+	if (transition.command.kind === "begin_implementation" || isTerminalWorkflowPhase(transition.phase)) {
+		return false;
+	}
+	return current;
 }
 
 export function createWorkflowCommandQueue(options: WorkflowCommandQueueOptions): WorkflowCommandQueue {
 	const phases = new Map<string, WorkflowPhase>(options.seedPhases ?? []);
+	const redrives = new Map<string, boolean>(options.seedRedrives ?? []);
 	const listeners = new Set<(transition: WorkflowQueueTransition) => void | Promise<void>>();
 	const chainByTaskId = new Map<string, Promise<unknown>>();
 	const now = options.now ?? (() => Date.now());
@@ -103,6 +135,7 @@ export function createWorkflowCommandQueue(options: WorkflowCommandQueueOptions)
 			return { applied: false, phase: fromPhase, reason: "persist_failed" };
 		}
 		phases.set(taskId, next.phase);
+		redrives.set(taskId, nextRedriveInFlight(redrives.get(taskId) ?? false, transition));
 		// P24.1 step 3 (apply-then-project ordering, motivated by the fifth shadow inventory): an ASYNC
 		// subscriber — the lane reconciler projecting phase onto the board — is AWAITED inside the per-task
 		// chain, so the projection lands before the next same-card command applies and a sampler between apply
@@ -141,6 +174,9 @@ export function createWorkflowCommandQueue(options: WorkflowCommandQueueOptions)
 		phaseOf(taskId) {
 			return phases.get(taskId) ?? "idle";
 		},
+		redriveInFlightOf(taskId) {
+			return redrives.get(taskId) ?? false;
+		},
 		subscribe(listener) {
 			listeners.add(listener);
 			return () => listeners.delete(listener);
@@ -156,7 +192,35 @@ export function createWorkflowCommandQueue(options: WorkflowCommandQueueOptions)
  */
 export function replayWorkflowPhaseFromLedger(events: readonly AgentLedgerEvent[], taskId: string): WorkflowPhase {
 	let phase: WorkflowPhase = "idle";
-	const transitions = events
+	for (const event of selectWorkflowQueueTransitions(events, taskId)) {
+		phase = event.to.slice(WORKFLOW_PHASE_PREFIX.length) as WorkflowPhase;
+	}
+	return phase;
+}
+
+/**
+ * Boot replay for the redrive-window flag: fold {@link nextRedriveInFlight} over the same persisted
+ * transitions the phase replay reads — `reason` carries the command kind and `from`/`to` carry the phases,
+ * so the fold recovers the exact in-memory flag a live queue would hold. Same trust rule as the phase
+ * replay: recorded values are not re-validated.
+ */
+export function replayWorkflowRedriveFromLedger(events: readonly AgentLedgerEvent[], taskId: string): boolean {
+	let redriveInFlight = false;
+	for (const event of selectWorkflowQueueTransitions(events, taskId)) {
+		redriveInFlight = nextRedriveInFlight(redriveInFlight, {
+			command: { kind: event.reason } as WorkflowCommand,
+			// `from` is nullable on the generic transition shape; the queue always records it, and a missing one
+			// degrades to "idle" — which merely declines to open the window (fail-closed for the badge).
+			fromPhase: (event.from ?? `${WORKFLOW_PHASE_PREFIX}idle`).slice(WORKFLOW_PHASE_PREFIX.length) as WorkflowPhase,
+			phase: event.to.slice(WORKFLOW_PHASE_PREFIX.length) as WorkflowPhase,
+		});
+	}
+	return redriveInFlight;
+}
+
+/** The queue's own persisted transitions for one task, in recorded order (shared by both boot replays). */
+function selectWorkflowQueueTransitions(events: readonly AgentLedgerEvent[], taskId: string): AgentTransitionEvent[] {
+	return events
 		.filter(
 			(event): event is AgentTransitionEvent =>
 				event.kind === "transition" &&
@@ -165,8 +229,4 @@ export function replayWorkflowPhaseFromLedger(events: readonly AgentLedgerEvent[
 				event.to.startsWith(WORKFLOW_PHASE_PREFIX),
 		)
 		.sort((left, right) => left.recordedAt - right.recordedAt);
-	for (const event of transitions) {
-		phase = event.to.slice(WORKFLOW_PHASE_PREFIX.length) as WorkflowPhase;
-	}
-	return phase;
 }

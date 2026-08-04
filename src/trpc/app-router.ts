@@ -30,6 +30,8 @@ import type {
 	RuntimeCardMailboxCountsResponse,
 	RuntimeCardMailboxSendRequest,
 	RuntimeCardMailboxSendResponse,
+	RuntimeCardRestartingRequest,
+	RuntimeCardRestartingResponse,
 	RuntimeCardTimelineRequest,
 	RuntimeCardTimelineResponse,
 	RuntimeChatHostActionAuditRequest,
@@ -322,6 +324,8 @@ export interface RuntimeTrpcContext {
 		getModelTuning: () => Promise<RuntimeModelTuningResponse>;
 		/** W3.4 mailbox badge: pending mailbox-note counts for the given cards (non-zero entries only). */
 		getCardMailboxCounts: (input: RuntimeCardMailboxCountsRequest) => Promise<RuntimeCardMailboxCountsResponse>;
+		/** Decision 3: cards inside a redrive window (queue truth) — drives the restarting badge (sparse). */
+		getCardRestarting: (input: RuntimeCardRestartingRequest) => Promise<RuntimeCardRestartingResponse>;
 		/** F2.18c: queue an operator note onto a card's mailbox (drained by the next redrive). */
 		sendCardMailboxNote: (input: RuntimeCardMailboxSendRequest) => Promise<RuntimeCardMailboxSendResponse>;
 		/** F2.12b: the host-action audit history for a chat session (read-only). */

@@ -53,3 +53,33 @@ describe("assessPhaseLaneDivergence", () => {
 		expect(observation?.taskId).toBe("t9");
 	});
 });
+
+describe("redrive-window tolerance (decision 3, 2026-08-04)", () => {
+	it("suppresses the expected ladder-replay divergences while a redrive is in flight", () => {
+		// The lane deliberately HOLDS (review / in_progress) while the phase replays the admission ladder —
+		// with the queue's redrive flag set, none of these are bypassing writers.
+		for (const phase of ["idle", "queued_for_board_capacity", "queued_for_endpoint", "planning"] as const) {
+			for (const lane of ["review", "in_progress"]) {
+				expect(assessPhaseLaneDivergence({ taskId: "t", phase, lane, redriveInFlight: true })).toBeNull();
+			}
+		}
+	});
+
+	it("keeps flagging the same shapes when NO redrive is in flight — the tolerance is not a blanket pass", () => {
+		expect(assessPhaseLaneDivergence({ taskId: "t", phase: "idle", lane: "review" })?.kind).toBe("unknown_to_kernel");
+		expect(
+			assessPhaseLaneDivergence({ taskId: "t", phase: "planning", lane: "review", redriveInFlight: false })?.kind,
+		).toBe("projection_mismatch");
+	});
+
+	it("keeps flagging shapes OUTSIDE the window even mid-redrive (wrong lane, or a phase past the ladder)", () => {
+		// A redriven card sitting in backlog is not a legitimate hold — the ladder never parks there.
+		expect(
+			assessPhaseLaneDivergence({ taskId: "t", phase: "planning", lane: "backlog", redriveInFlight: true }),
+		).not.toBeNull();
+		// implementing disagrees with review even mid-redrive: begin_implementation should have closed the window.
+		expect(
+			assessPhaseLaneDivergence({ taskId: "t", phase: "implementing", lane: "review", redriveInFlight: true }),
+		).not.toBeNull();
+	});
+});

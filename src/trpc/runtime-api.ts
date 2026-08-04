@@ -238,6 +238,7 @@ import {
 	handleRunUpdateNow,
 } from "./runtime-api/update-status.js";
 import { handleVerifyTaskAcceptance } from "./runtime-api/verify-task-acceptance.js";
+import { getWorkspaceWorkflowQueue } from "./runtime-api/workflow-queue-registry.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -1247,6 +1248,23 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				}),
 			);
 			return { counts };
+		},
+		// Decision 3 (2026-08-04): which cards are inside a redrive window (queue truth) — drives the
+		// "restarting" badge. Sparse: only true entries returned; no active workspace ⇒ empty (badge hidden).
+		getCardRestarting: async (input) => {
+			const workspacePath = deps.getActiveWorkspacePath();
+			const workspaceId = deps.getActiveWorkspaceId();
+			if (!workspacePath || !workspaceId) {
+				return { restarting: {} };
+			}
+			const queue = getWorkspaceWorkflowQueue(workspacePath, workspaceId);
+			const restarting: Record<string, boolean> = {};
+			for (const taskId of input.taskIds) {
+				if (queue.redriveInFlightOf(taskId)) {
+					restarting[taskId] = true;
+				}
+			}
+			return { restarting };
 		},
 		// F2.18c: queue an OPERATOR note onto a card's mailbox. The redrive (start-task-session) drains pending
 		// notes into the resumed session's prompt, so this + a redrive threads the operator's answer/context/

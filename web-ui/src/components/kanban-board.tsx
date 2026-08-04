@@ -34,7 +34,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
-import { fetchCardMailboxCounts, fetchFleetStatus } from "@/runtime/queries/config";
+import { fetchCardMailboxCounts, fetchCardRestarting, fetchFleetStatus } from "@/runtime/queries/config";
 import { fetchNKleinModelRegistry } from "@/runtime/queries/model-registry";
 import {
 	collectTaskEvidence,
@@ -487,6 +487,7 @@ export function KanbanBoard({
 
 	// W3.4 mailbox badge: pending §5.AU note counts per card, polled on the fleet cadence (15s, board visible).
 	const [mailboxCountByTaskId, setMailboxCountByTaskId] = useState<Record<string, number>>({});
+	const [restartingByTaskId, setRestartingByTaskId] = useState<Record<string, boolean>>({});
 	const boardTaskIds = useMemo(
 		() => data.columns.flatMap((column) => (column.id === "trash" ? [] : column.cards.map((card) => card.id))),
 		[data.columns],
@@ -496,6 +497,7 @@ export function KanbanBoard({
 	useEffect(() => {
 		if (!currentProjectId) {
 			setMailboxCountByTaskId({});
+			setRestartingByTaskId({});
 			return;
 		}
 		let cancelled = false;
@@ -503,6 +505,7 @@ export function KanbanBoard({
 			const taskIds = boardTaskIdsRef.current;
 			if (taskIds.length === 0) {
 				setMailboxCountByTaskId({});
+				setRestartingByTaskId({});
 				return;
 			}
 			void fetchCardMailboxCounts(currentProjectId, taskIds).then(
@@ -515,6 +518,17 @@ export function KanbanBoard({
 				},
 				() => {
 					// Fail soft — a missing count just hides the badge.
+				},
+			);
+			// Decision 3: the redrive-window map rides the same poll — kernel truth for the "restarting" badge.
+			void fetchCardRestarting(currentProjectId, taskIds).then(
+				(response) => {
+					if (!cancelled) {
+						setRestartingByTaskId(response?.restarting ?? {});
+					}
+				},
+				() => {
+					// Fail soft — a missing map just hides the badge.
 				},
 			);
 		};
@@ -1038,6 +1052,7 @@ export function KanbanBoard({
 			replayCardsEnabled={replayCardsEnabled}
 			defaultAgentId={defaultAgentId}
 			mailboxCountByTaskId={mailboxCountByTaskId}
+			restartingByTaskId={restartingByTaskId}
 			reasoningSnippetByTaskId={reasoningSnippetByTaskId}
 			onCardClick={(card) => {
 				if (!dragOccurredRef.current) {

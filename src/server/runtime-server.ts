@@ -4104,6 +4104,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										taskId: card.id,
 										phase: workflowQueue.phaseOf(card.id),
 										lane: column.id,
+										// Decision 3: a lane deliberately held through a redrive is not a bypassing writer.
+										redriveInFlight: workflowQueue.redriveInFlightOf(card.id),
 									});
 									if (!divergence) {
 										continue;

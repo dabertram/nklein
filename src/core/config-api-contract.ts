@@ -356,6 +356,25 @@ export const runtimeCardMailboxCountsResponseSchema = z.object({
 });
 export type RuntimeCardMailboxCountsResponse = z.infer<typeof runtimeCardMailboxCountsResponseSchema>;
 
+/**
+ * Decision 3 (2026-08-04, "show both"): which board cards are inside a REDRIVE WINDOW — the workflow queue's
+ * `redriveInFlightOf` truth (`reopened` fired from a live phase, `begin_implementation` not yet re-arrived).
+ * The lane deliberately stays put during that window; this feed drives the card's "restarting" badge so the
+ * operator sees WHY a review/in-progress card briefly has no live session. Same polling contract as the
+ * mailbox badge (sparse — only true entries ride the wire).
+ */
+export const runtimeCardRestartingRequestSchema = z.object({
+	/** The board's card ids to check (bounded — a board is at most a few hundred cards). */
+	taskIds: z.array(z.string()).max(500),
+});
+export type RuntimeCardRestartingRequest = z.infer<typeof runtimeCardRestartingRequestSchema>;
+
+export const runtimeCardRestartingResponseSchema = z.object({
+	/** taskId → true while the card's redrive window is open; absent = not restarting. */
+	restarting: z.record(z.string(), z.boolean()),
+});
+export type RuntimeCardRestartingResponse = z.infer<typeof runtimeCardRestartingResponseSchema>;
+
 // F2.18c: append an OPERATOR note to a card's mailbox (the redrive drains pending notes into the resumed session's
 // prompt). Used by the escalation panel's input-then-redrive resume: deliver the answer/context/constraint, then
 // redrive from the parked result branch.

@@ -28,6 +28,8 @@ import {
 	runtimeCardMailboxCountsResponseSchema,
 	runtimeCardMailboxSendRequestSchema,
 	runtimeCardMailboxSendResponseSchema,
+	runtimeCardRestartingRequestSchema,
+	runtimeCardRestartingResponseSchema,
 	runtimeCardTimelineRequestSchema,
 	runtimeCardTimelineResponseSchema,
 	runtimeChatHostActionAuditRequestSchema,
@@ -291,6 +293,11 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.input(runtimeCardMailboxCountsRequestSchema)
 			.output(runtimeCardMailboxCountsResponseSchema)
 			.query(async ({ ctx, input }) => ctx.runtimeApi.getCardMailboxCounts(input)),
+		// Decision 3: cards inside a redrive window — feeds the board's "restarting" badge.
+		getCardRestarting: t.procedure
+			.input(runtimeCardRestartingRequestSchema)
+			.output(runtimeCardRestartingResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.getCardRestarting(input)),
 		// F2.18c: queue an operator note onto a card's mailbox (drained by the next redrive).
 		sendCardMailboxNote: t.procedure
 			.input(runtimeCardMailboxSendRequestSchema)

@@ -229,6 +229,19 @@ describe("BoardCard", () => {
 		expect(container.textContent).not.toContain("Worker");
 	});
 
+	it("shows the restarting badge only while the card's redrive window is open (decision 3)", async () => {
+		await act(async () => {
+			root.render(<BoardCard card={createCard()} index={0} columnId="review" restarting={true} />);
+		});
+		expect(container.querySelector('[data-testid="card-restarting-badge"]')).not.toBeNull();
+		expect(container.textContent).toContain("Restarting");
+
+		await act(async () => {
+			root.render(<BoardCard card={createCard()} index={0} columnId="review" restarting={false} />);
+		});
+		expect(container.querySelector('[data-testid="card-restarting-badge"]')).toBeNull();
+	});
+
 	it("shows the worker role for execution cards waiting in Planning", async () => {
 		await act(async () => {
 			root.render(<BoardCard card={createCard({ startInPlanMode: false })} index={0} columnId="planning" />);

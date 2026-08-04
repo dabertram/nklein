@@ -36,11 +36,32 @@ export interface PhaseLaneDivergence {
 /** Lanes where an idle-(untracked)-phase card is unremarkable. */
 const IDLE_COMPATIBLE_LANES: ReadonlySet<string> = new Set(["backlog", "completed", "trash"]);
 
+/**
+ * Decision 3 (David 2026-08-04, "show both"): during a REDRIVE the lane deliberately stays put while the
+ * phase replays the admission ladder — these are the phases that ladder walks (reopened lands on idle, then
+ * queued_* → planning), and the lanes a redriven card legitimately holds meanwhile. A divergence matching
+ * this shape while the queue says a redrive is in flight is EXPECTED, not a bypassing writer; everything
+ * else stays flagged (a redrive that somehow reaches implementing with the lane still elsewhere is real).
+ */
+const REDRIVE_WINDOW_PHASES: ReadonlySet<WorkflowPhase> = new Set([
+	"idle",
+	"queued_for_board_capacity",
+	"queued_for_endpoint",
+	"queued_for_sandbox",
+	"planning",
+]);
+const REDRIVE_HOLD_LANES: ReadonlySet<string> = new Set(["review", "in_progress"]);
+
 export function assessPhaseLaneDivergence(input: {
 	readonly taskId: string;
 	readonly phase: WorkflowPhase;
 	readonly lane: string;
+	/** The queue's redrive-window flag (`redriveInFlightOf`) — false/absent outside a redrive. */
+	readonly redriveInFlight?: boolean;
 }): PhaseLaneDivergence | null {
+	if (input.redriveInFlight && REDRIVE_WINDOW_PHASES.has(input.phase) && REDRIVE_HOLD_LANES.has(input.lane)) {
+		return null;
+	}
 	const projectedLane = workflowPhaseToBoardColumn(input.phase);
 	if (input.phase === "idle") {
 		if (IDLE_COMPATIBLE_LANES.has(input.lane)) {

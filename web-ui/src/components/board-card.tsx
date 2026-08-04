@@ -568,6 +568,7 @@ export function BoardCard({
 	onManageDependencies,
 	defaultAgentId = null,
 	pendingMailboxCount = 0,
+	restarting = false,
 	reasoningSnippet = null,
 	blockedOnDependency = false,
 }: {
@@ -577,6 +578,8 @@ export function BoardCard({
 	sessionSummary?: RuntimeTaskSessionSummary;
 	/** W3.4: pending §5.AU mailbox notes for this card (chat guidance waiting for its next start). 0 = no badge. */
 	pendingMailboxCount?: number;
+	/** Decision 3: the card's redrive window is open (kernel-queue truth) — lane holds still while the ladder replays. */
+	restarting?: boolean;
 	/** §5.V: live reasoning-phase snippet (last thinking line) shown in the status line while the agent thinks. */
 	reasoningSnippet?: string | null;
 	/** F12.51: an OPEN upstream dependency blocks this card (derived board-side from the dependency edges). */
@@ -1258,6 +1261,16 @@ export function BoardCard({
 											◈
 										</span>
 										<span className="truncate">{shortenModelIdForBadge(sessionModelId)}</span>
+									</span>
+								) : null}
+								{restarting ? (
+									<span
+										title="Restarting: the card is being re-driven — it keeps its lane while the workflow replays admission (queue → planning → running)."
+										data-testid="card-restarting-badge"
+										className="inline-flex items-center gap-1 rounded-md border border-status-gold/40 bg-status-gold/15 px-1.5 py-0.5 text-xs text-status-gold"
+									>
+										<RotateCcw size={12} className="shrink-0 animate-spin [animation-duration:2.5s]" />
+										<span>Restarting</span>
 									</span>
 								) : null}
 								{pendingMailboxCount > 0 ? (

@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { type AgentLedgerEvent, agentLedgerEventSchema } from "../../../src/core/agent-attempt-ledger";
 import {
 	createWorkflowCommandQueue,
+	nextRedriveInFlight,
 	replayWorkflowPhaseFromLedger,
+	replayWorkflowRedriveFromLedger,
 	type WorkflowQueueTransition,
 } from "../../../src/core/workflow-command-queue";
 
@@ -191,5 +193,91 @@ describe("async subscribers are awaited in the per-task chain (P24.1 step 3)", (
 		const outcome = await queue.dispatch("t-10", { kind: "start_requested" });
 		expect(outcome.applied).toBe(true);
 		expect(queue.phaseOf("t-10")).toBe("queued_for_board_capacity");
+	});
+});
+
+describe("redrive window (decision 3, 2026-08-04): reopened→begin_implementation tracked beside the phase", () => {
+	// The full ladder a fresh card walks to reach implementing (drives realistic sequences below).
+	const LADDER = [
+		{ kind: "start_requested" },
+		{ kind: "board_capacity_granted" },
+		{ kind: "endpoint_granted" },
+		{ kind: "sandbox_granted" },
+		{ kind: "begin_implementation" },
+	] as const;
+
+	async function driveToImplementing(queue: ReturnType<typeof makeQueue>["queue"], taskId: string) {
+		for (const command of LADDER) {
+			await queue.dispatch(taskId, { ...command });
+		}
+	}
+
+	it("nextRedriveInFlight: opens on reopened-from-live, closes on begin_implementation and on terminal phases", () => {
+		expect(
+			nextRedriveInFlight(false, {
+				command: { kind: "reopened" },
+				fromPhase: "awaiting_review",
+				phase: "idle",
+			}),
+		).toBe(true);
+		// A fresh card's ordinary ladder never opens the window: reopened from idle holds it closed.
+		expect(nextRedriveInFlight(false, { command: { kind: "reopened" }, fromPhase: "idle", phase: "idle" })).toBe(
+			false,
+		);
+		// Window stays open across the replayed admission ladder…
+		expect(
+			nextRedriveInFlight(true, {
+				command: { kind: "start_requested" },
+				fromPhase: "idle",
+				phase: "queued_for_board_capacity",
+			}),
+		).toBe(true);
+		// …and closes when implementation genuinely resumes, or when the redrive dies terminally.
+		expect(
+			nextRedriveInFlight(true, {
+				command: { kind: "begin_implementation" },
+				fromPhase: "planning",
+				phase: "implementing",
+			}),
+		).toBe(false);
+		expect(nextRedriveInFlight(true, { command: { kind: "failed" }, fromPhase: "planning", phase: "failed" })).toBe(
+			false,
+		);
+	});
+
+	it("a live queue exposes the window via redriveInFlightOf across a real reopen→restart sequence", async () => {
+		const { queue } = makeQueue();
+		await driveToImplementing(queue, "t-redrive");
+		expect(queue.redriveInFlightOf("t-redrive")).toBe(false);
+		await queue.dispatch("t-redrive", { kind: "implementation_finished" });
+		// The redrive: reopened from a LIVE phase opens the window; the ladder replay keeps it open.
+		await queue.dispatch("t-redrive", { kind: "reopened" });
+		expect(queue.redriveInFlightOf("t-redrive")).toBe(true);
+		await queue.dispatch("t-redrive", { kind: "start_requested" });
+		await queue.dispatch("t-redrive", { kind: "board_capacity_granted" });
+		expect(queue.redriveInFlightOf("t-redrive")).toBe(true);
+		expect(queue.phaseOf("t-redrive")).toBe("queued_for_endpoint");
+		// begin_implementation closes it — lane and phase agree again.
+		await queue.dispatch("t-redrive", { kind: "endpoint_granted" });
+		await queue.dispatch("t-redrive", { kind: "sandbox_granted" });
+		await queue.dispatch("t-redrive", { kind: "begin_implementation" });
+		expect(queue.redriveInFlightOf("t-redrive")).toBe(false);
+	});
+
+	it("boot replay recovers the open window exactly from the persisted transitions", async () => {
+		const { queue, appended } = makeQueue();
+		await driveToImplementing(queue, "t-replay");
+		await queue.dispatch("t-replay", { kind: "implementation_finished" });
+		await queue.dispatch("t-replay", { kind: "reopened" });
+		await queue.dispatch("t-replay", { kind: "start_requested" });
+		expect(queue.redriveInFlightOf("t-replay")).toBe(true);
+		expect(replayWorkflowRedriveFromLedger(appended, "t-replay")).toBe(true);
+		// After the window closes, replay agrees again.
+		await queue.dispatch("t-replay", { kind: "board_capacity_granted" });
+		await queue.dispatch("t-replay", { kind: "endpoint_granted" });
+		await queue.dispatch("t-replay", { kind: "sandbox_granted" });
+		await queue.dispatch("t-replay", { kind: "begin_implementation" });
+		expect(replayWorkflowRedriveFromLedger(appended, "t-replay")).toBe(false);
+		expect(queue.redriveInFlightOf("t-replay")).toBe(false);
 	});
 });
