@@ -10424,7 +10424,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   P17.1 adapter boundary routing !Klein traffic through mlx-serve with the disk tier on.**
   **✅ DAVID'S BATCH 2026-08-04 (~09:00), all four: (1) RESIDENCY: YES — adapter route** (build the P17.1
   runtime-adapter boundary through mlx-serve with the disk tier; budgeted single-host residency with
-  user-definable RAM/disk settings follows on top). **(2) CHILD COMPOSITION: YES — the kernel gains a
+  user-definable RAM/disk settings follows on top).
+  **✅ DECISION (1) SECOND HALF LANDED same day: the user-definable budgets exist with REAL enforcing
+  consumers.** RAM budget already existed end to end (`deviceRamGb` setting → machine-aware loader +
+  device routing, env-wins precedence). NEW: **`kvCacheDiskGb`** (Settings → Sandbox, beside the RAM field)
+  mirrored through the full config chain, enforced by the new **`dev mlxserve start|stop|status`** managed
+  lifecycle — 127.0.0.1-only `serve` form, pidfile-owned single instance, bounded readiness wait, SIGTERM→
+  SIGKILL stop, install recipe echoed instead of any auto-download. Live smoke on an isolated HOME:
+  Settings value 12 → spawned argv `--prefix-cache-disk 12GB` ("from Settings kvCacheDiskGb"), status
+  healthy (2 models discovered), stop clean, port freed. Production stays recommendation-only: the runtime
+  never launches/kills the engine; the operator does, and sessions route through it as a custom provider
+  (the probe's proven path). Remaining P17.1 ③+ work: move the LM-Studio-specific knowledge INTO an adapter
+  record/impl (advice strings, /no_think family, id conventions) + the `RuntimeModelAdapter` contract
+  extraction itself. **(2) CHILD COMPOSITION: YES — the kernel gains a
   `created` phase** (plan-apply dispatches a creation command per child; created/waiting-deps class projects
   to planning/ready; lane = projection for ALL cards). **(3) REDRIVE LANES: SHOW BOTH** — lane stays put
   during redrive AND the card shows a restarting badge driven by kernel phase (UI + projection tolerance).
