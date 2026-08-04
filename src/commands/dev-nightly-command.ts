@@ -212,6 +212,16 @@ const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	// profile can never exercise them. One profile gives all of them their chance in a single drain instead of
 	// 29 bespoke cells, and needs no new recording at all.
 	flags_on: "perfect",
+	// N3 per-family behavior matrix, first family (2026-08-04): the ministral/Mistral-family Jinja quirk as a
+	// NEGATIVE-SPACE tripwire — the recording is the perfect run PLUS a messagesNonAlternating→500 track that
+	// only a prompt-shape regression can light. Green means "!Klein never sent this family a non-alternating
+	// conversation across a full drain"; red names the exact wire shape that regressed.
+	ministral_quirk: "ministral-quirk",
+	// N3 family 2: reasoning-channel-only models (DeepSeek-R1/qwen-think class; live-found in the eval harness:
+	// "reasoning/mtp models return empty content — must read reasoning_content"). Every conversational text turn
+	// of the perfect run moves its payload into the reasoning channel with EMPTY content — green proves the
+	// product's reasoning_content reads survive a full drain.
+	reasoning_only_quirk: "reasoning-only-quirk",
 };
 
 /** Per-profile env the drain needs beyond NKLEIN_SIMFLOW_RUN (kept beside the run map so they stay in sync). */

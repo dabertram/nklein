@@ -96,9 +96,18 @@ describe("createAdaptiveSwarmRecoveryModel", () => {
 
 		expect(await collect(model, request())).toEqual(called);
 		expect(base.requests).toHaveLength(3);
-		expect(base.requests[2]?.messages.at(-1)?.content[0]).toEqual(
+		// The note MERGES into the trailing user turn (alternation-safe): original text first, note appended.
+		expect(base.requests[2]?.messages.at(-1)?.content.at(-1)).toEqual(
 			expect.objectContaining({ type: "text", text: expect.stringContaining("tried reduced_tool_set") }),
 		);
+		// The retry request must never contain consecutive same-role messages — Mistral-family Jinja templates
+		// hard-500 that shape (N3's ministral tripwire caught the old append-as-new-user form live, 2026-08-04).
+		for (const req of base.requests) {
+			const conversational = req.messages;
+			for (let index = 1; index < conversational.length; index += 1) {
+				expect(conversational[index]?.role).not.toBe(conversational[index - 1]?.role);
+			}
+		}
 		expect(onStrategyApplied).toHaveBeenCalledWith("prompt_variant:explicit_format");
 	});
 

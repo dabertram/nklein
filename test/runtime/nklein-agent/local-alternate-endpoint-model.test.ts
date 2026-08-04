@@ -23,6 +23,67 @@ describe("local alternate endpoint AgentModel", () => {
 		expect(agentMessageToEndpointText(message)).toContain('"evidence"');
 	});
 
+	it("coalesces consecutive same-role wire messages — the [tool, user] retry-note shape stays alternating", async () => {
+		// The domain legitimately holds a TOOL message followed by a USER message (tool result + adaptive retry
+		// note); the tool→user wire mapping made them consecutive user messages, which Mistral-family Jinja
+		// hard-500s. N3's ministral tripwire caught this live (2026-08-04, 4 fires/drain) — this pins the fix.
+		const bodies: Array<{ messages?: Array<{ role: string; content: string }> }> = [];
+		const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+			const url = String(input);
+			if (url.endsWith("/v1/messages")) {
+				bodies.push(JSON.parse(String(init?.body)));
+				return new Response(
+					JSON.stringify({
+						content: [{ type: "tool_use", id: "s-1", name: "submit_review", input: { verdict: "approve" } }],
+						stop_reason: "tool_use",
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response(JSON.stringify({ output: [] }), { status: 500 });
+		});
+		const model = createLocalAlternateEndpointModel({
+			baseUrl: "http://127.0.0.1:1234/v1",
+			modelId: "local-model",
+			fetchImpl: fetchImpl as typeof fetch,
+		});
+		const request: AgentModelRequest = {
+			systemPrompt: "judge",
+			messages: [
+				{ id: "u1", role: "user", createdAt: 1, content: [{ type: "text", text: "review this" }] },
+				{
+					id: "a1",
+					role: "assistant",
+					createdAt: 2,
+					content: [{ type: "tool-call", toolCallId: "r-1", toolName: "read_file", input: {} }],
+				},
+				{
+					id: "t1",
+					role: "tool",
+					createdAt: 3,
+					content: [{ type: "tool-result", toolCallId: "r-1", toolName: "read_file", output: "evidence" }],
+				},
+				{
+					id: "nklein-retry-4",
+					role: "user",
+					createdAt: 4,
+					content: [{ type: "text", text: "Already attempted this task (do NOT repeat these)" }],
+				},
+			],
+			tools: [{ name: "submit_review", description: "submit", inputSchema: { type: "object" } }],
+		};
+		for await (const event of await model.stream(request)) void event;
+		const wire = bodies[0]?.messages ?? [];
+		const conversational = wire.filter((message) => message.role !== "system");
+		for (let index = 1; index < conversational.length; index += 1) {
+			expect(conversational[index]?.role).not.toBe(conversational[index - 1]?.role);
+		}
+		// The note still arrives — merged into the tool-result user turn, not dropped.
+		const lastUser = [...conversational].reverse().find((message) => message.role === "user");
+		expect(lastUser?.content).toContain("tool_result id=r-1");
+		expect(lastUser?.content).toContain("Already attempted this task");
+	});
+
 	it("skips native when tools are required and emits a forced Messages tool call", async () => {
 		const urls: string[] = [];
 		const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {

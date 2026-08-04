@@ -71,12 +71,29 @@ function neutralMessages(
 	request: AgentModelRequest,
 	messages: readonly AgentMessage[] = request.messages,
 ): Array<{ role: "system" | "user" | "assistant"; content: string }> {
+	const mapped = messages.map((message) => ({
+		role: message.role === "assistant" ? ("assistant" as const) : ("user" as const),
+		content: agentMessageToEndpointText(message),
+	}));
+	// COALESCE consecutive same-role wire messages. The domain legitimately holds [tool, user] sequences
+	// (a tool result followed by e.g. the adaptive retry note), and the tool→user wire mapping above turns
+	// them into consecutive user messages — which Mistral-family Jinja templates hard-500 ("Conversation
+	// roles must alternate"; wire-proven 2026-07-17, and caught LIVE at this seam by N3's ministral
+	// tripwire 2026-08-04: 4 fires per drain, every one a tool_result+retry-note pair). The wire builder
+	// is where the adjacency is CREATED, so the wire builder owns alternation safety — for every source,
+	// past and future, not just the retry note.
+	const coalesced: Array<{ role: "user" | "assistant"; content: string }> = [];
+	for (const message of mapped) {
+		const previous = coalesced.at(-1);
+		if (previous && previous.role === message.role) {
+			previous.content = `${previous.content}\n\n${message.content}`;
+			continue;
+		}
+		coalesced.push({ ...message });
+	}
 	return [
 		...(request.systemPrompt?.trim() ? [{ role: "system" as const, content: request.systemPrompt }] : []),
-		...messages.map((message) => ({
-			role: message.role === "assistant" ? ("assistant" as const) : ("user" as const),
-			content: agentMessageToEndpointText(message),
-		})),
+		...coalesced,
 	];
 }
 

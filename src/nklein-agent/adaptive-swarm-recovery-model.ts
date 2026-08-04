@@ -274,7 +274,17 @@ export function compactAgentMessagesPreservingToolWork(messages: readonly AgentM
 
 function appendRetryNote(request: AgentModelRequest, note: string): AgentModelRequest {
 	if (!note.trim()) return request;
-	const createdAt = (request.messages.at(-1)?.createdAt ?? 0) + 1;
+	const last = request.messages.at(-1);
+	// Mistral-family Jinja templates hard-500 on consecutive same-role messages (wire-proven 2026-07-17), and
+	// on a retry the trailing message is ALWAYS the tool_result USER turn — so appending the note as its own
+	// user message made every retry a [user, user] pair. N3's ministral tripwire caught this site live on its
+	// first cell (2026-08-04, 4 fires in one drain). Merge the note into the trailing user turn instead: same
+	// delivered text, alternation-safe for every family.
+	if (last?.role === "user") {
+		const merged = { ...last, content: [...last.content, { type: "text" as const, text: note }] };
+		return { ...request, messages: [...request.messages.slice(0, -1), merged] };
+	}
+	const createdAt = (last?.createdAt ?? 0) + 1;
 	return {
 		...request,
 		messages: [
