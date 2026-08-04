@@ -10338,8 +10338,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   review/in_progress lanes, everything else still flags — including implementing+review, which
   begin_implementation should have closed); (b) the BOARD shows a kernel-truth "Restarting" badge via a new
   `getCardRestarting` tRPC feed (mailbox-badge polling pattern, sparse) → board-card chip with spin icon +
-  explanatory title. Suppression validated by unit tests both directions; live confirmation rides the next
-  organic drain (the sixth inventory's two persistent rows are precisely the shape now tolerated).  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  explanatory title. Suppression validated by unit tests both directions.
+  **✅ LIVE-CONFIRMED WITH POSITIVE CONTROL same day (`.real-runs/20260804-132737`, 50-min mid_task ACT mains
+  drain, consult flag ON):** one organic reopened chain occurred (`habit-insight-summary…` interrupted mid-
+  implementing → `reopened` → window stayed open to run end — the exact persistent-row shape of the sixth
+  inventory), the sampler demonstrably ran (204 `board_liveness_watchdog_tick` rows + 96 watchdog observations
+  in the run telemetry), and **zero `phase_lane_divergence` rows were recorded** — the tolerance suppressed a
+  real, long-lived restart window on live traffic, verified against an alive sampler rather than by absence.
+  Teardown clean (port freed, fleet unloaded). Side catch spun off as its own chip: model-turn admission
+  RETRY breadcrumbs flood telemetry under `aux_session_start` (4,516 rows/50min from 5 waiting cards —
+  3-4 rows per ~2s retry); dedupe/demote them at the emit site.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly
