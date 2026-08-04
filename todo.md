@@ -7286,7 +7286,13 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   FIXED same day: the parser collects `thinking` into `reasoningText`, and the messages-endpoint model
   surfaces reasoning as the visible answer when no text block arrived (text keeps precedence) — the
   "must read reasoning_content" lesson applied to the anthropic-shape path. Proof: family-2 cell GREEN,
-  packs silent. NEXT: json_schema-refusing and no-verdict-reviewer families + role-combination coverage.
+  packs silent. **✅ FAMILY 3 GREEN first run (same day): `schema_deadend_quirk`** — the json_schema
+  dead-end contract as a tripwire (any json_schema to the reasoning-named architect answers with the
+  family's real silent-empty; probed 2026-07). Green = the structured-output contract (reasoning ids →
+  native_tool_call, never json_schema) held across a full live drain — the contract is now drain-guarded,
+  not just unit-pinned. NEXT: no-verdict-reviewer family (needs its own terminal pack — the review ladder
+  should END IN PARK, so the cell asserts ladder behavior, not quiet packs) + role-combination coverage +
+  remaining families as the catalog grows.
 - [x] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
   git remotes, update feeds, web/egress (already hard-gated), clock-driven damping. INTERNAL flaky sources (the
   proven ones, extend as found): the host-capacity view that reads the REAL LM Studio gateway even in sims (memory:
