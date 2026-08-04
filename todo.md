@@ -10306,7 +10306,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   voiding it. The lane now lands before the next same-card command applies; the fifth inventory's residual
   reconciler-lag window shrinks to a single bounded in-flight projection. Ordering + rejection-isolation
   pinned in the queue's own test file. Next shadow inventory expected: zero rows on non-decompose
-  trajectories; the child fork alone on decompose ones.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  trajectories; the child fork alone on decompose ones.
+  **▶ SIXTH INVENTORY (2026-08-04, `.real-runs/20260804-053934`, post two-strike debounce): 2 PERSISTENT
+  rows — the debounce filtered skew and kept something real.** The seed's kernel phase stayed `planning`
+  across multiple ticks while the board progressed (planning/review @916356, then planning/in_progress
+  @006364) — `begin_implementation` never applied for it this run. Two hypotheses, deliberately NOT guessed
+  between (the arc's own rule): **(H1) step-3's awaited projection chains a SECOND workspace-lock
+  acquisition into the per-task dispatch chain** — under contention the chain stalls and later commands
+  (begin_implementation) queue behind it, freezing the kernel while the board moves (weakened by run
+  051634, which advanced fine under the same code); **(H2) the begin_implementation dispatch site is
+  skipped on this run's fast trajectory** (locate the site; check this run's ledger for the seed's wf:
+  chain tail). Fresh-session opener: grep the run ledger for the seed's wf: rows (chain present but stalled
+  ⇒ H1; chain absent past sandbox_granted ⇒ H2), then either move the projection INTO the same
+  mutateWorkspaceState transaction (step-3's proper form) or fix the dispatch site. The two-strike debounce
+  itself is validated either way — it kept the real finding and dropped the artifact.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly
