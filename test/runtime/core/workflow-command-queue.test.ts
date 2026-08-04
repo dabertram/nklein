@@ -29,7 +29,9 @@ describe("createWorkflowCommandQueue", () => {
 	it("drives a full lifecycle through the reducer, emitting effects and persisting every applied command", async () => {
 		const { queue, appended } = makeQueue();
 		const seen: WorkflowQueueTransition[] = [];
-		queue.subscribe((transition) => seen.push(transition));
+		queue.subscribe((transition) => {
+			seen.push(transition);
+		});
 
 		const started = await queue.dispatch("t-1", { kind: "start_requested" });
 		expect(started).toMatchObject({ applied: true });
@@ -63,7 +65,9 @@ describe("createWorkflowCommandQueue", () => {
 	it("HOLDS a duplicate/out-of-order command (no persist, no event) and rejects commands to a terminal task", async () => {
 		const { queue, appended } = makeQueue();
 		const seen: WorkflowQueueTransition[] = [];
-		queue.subscribe((transition) => seen.push(transition));
+		queue.subscribe((transition) => {
+			seen.push(transition);
+		});
 
 		await queue.dispatch("t-1", { kind: "start_requested" });
 		const duplicate = await queue.dispatch("t-1", { kind: "start_requested" }); // already queued
@@ -90,7 +94,9 @@ describe("createWorkflowCommandQueue", () => {
 			now: () => 1_000,
 		});
 		const seen: WorkflowQueueTransition[] = [];
-		queue.subscribe((transition) => seen.push(transition));
+		queue.subscribe((transition) => {
+			seen.push(transition);
+		});
 		await expect(queue.dispatch("t-1", { kind: "start_requested" })).resolves.toEqual({
 			applied: false,
 			phase: "idle",
@@ -155,5 +161,35 @@ describe("createWorkflowCommandQueue", () => {
 		const next = await resumed.dispatch("t-1", { kind: "endpoint_granted" });
 		expect(next).toMatchObject({ applied: true });
 		expect(resumed.phaseOf("t-1")).toBe("queued_for_sandbox");
+	});
+});
+
+describe("async subscribers are awaited in the per-task chain (P24.1 step 3)", () => {
+	it("applies the NEXT same-card command only after the previous subscriber projection settles", async () => {
+		const { queue } = makeQueue();
+		const order: string[] = [];
+		queue.subscribe(async (transition) => {
+			order.push(`project:${transition.command.kind}:start`);
+			await new Promise((resolve) => setTimeout(resolve, 20));
+			order.push(`project:${transition.command.kind}:done`);
+		});
+		void queue.dispatch("t-9", { kind: "start_requested" });
+		await queue.dispatch("t-9", { kind: "board_capacity_granted" });
+		expect(order).toEqual([
+			"project:start_requested:start",
+			"project:start_requested:done",
+			"project:board_capacity_granted:start",
+			"project:board_capacity_granted:done",
+		]);
+	});
+
+	it("a REJECTING subscriber never breaks the command path", async () => {
+		const { queue } = makeQueue();
+		queue.subscribe(async () => {
+			throw new Error("projection failed");
+		});
+		const outcome = await queue.dispatch("t-10", { kind: "start_requested" });
+		expect(outcome.applied).toBe(true);
+		expect(queue.phaseOf("t-10")).toBe("queued_for_board_capacity");
 	});
 });

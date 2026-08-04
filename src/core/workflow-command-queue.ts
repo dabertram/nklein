@@ -55,12 +55,12 @@ export interface WorkflowCommandQueueOptions {
 export interface WorkflowCommandQueue {
 	dispatch(taskId: string, command: WorkflowCommand): Promise<WorkflowDispatchOutcome>;
 	phaseOf(taskId: string): WorkflowPhase;
-	subscribe(listener: (transition: WorkflowQueueTransition) => void): () => void;
+	subscribe(listener: (transition: WorkflowQueueTransition) => void | Promise<void>): () => void;
 }
 
 export function createWorkflowCommandQueue(options: WorkflowCommandQueueOptions): WorkflowCommandQueue {
 	const phases = new Map<string, WorkflowPhase>(options.seedPhases ?? []);
-	const listeners = new Set<(transition: WorkflowQueueTransition) => void>();
+	const listeners = new Set<(transition: WorkflowQueueTransition) => void | Promise<void>>();
 	const chainByTaskId = new Map<string, Promise<unknown>>();
 	const now = options.now ?? (() => Date.now());
 
@@ -103,9 +103,18 @@ export function createWorkflowCommandQueue(options: WorkflowCommandQueueOptions)
 			return { applied: false, phase: fromPhase, reason: "persist_failed" };
 		}
 		phases.set(taskId, next.phase);
+		// P24.1 step 3 (apply-then-project ordering, motivated by the fifth shadow inventory): an ASYNC
+		// subscriber — the lane reconciler projecting phase onto the board — is AWAITED inside the per-task
+		// chain, so the projection lands before the next same-card command applies and a sampler between apply
+		// and projection sees at most one in-flight window instead of an unbounded race. Callers are unaffected
+		// (every production dispatch is fire-and-forget); a throwing/rejecting subscriber still never breaks the
+		// command path.
 		for (const listener of listeners) {
 			try {
-				listener(transition);
+				const result = listener(transition) as unknown;
+				if (result && typeof (result as Promise<unknown>).then === "function") {
+					await (result as Promise<unknown>).catch(() => undefined);
+				}
 			} catch {
 				// A subscriber must never break the command path.
 			}

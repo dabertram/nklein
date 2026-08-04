@@ -10299,7 +10299,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   crash-recovery matrix (6 SIGKILL phases) PASSED** — the ~30 commits of 08-02→08-04 (consult wire + bounce
   gate + guard-park rule, A2A receive-side, N20/N21/N22b fixes, both reconciler conversions,
   `decomposition_complete`, projection rows, identity-keyed queue registry, causal transition reasons)
-  validated end-to-end with zero regressions.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  validated end-to-end with zero regressions.
+  **▶ STEP 3 OPENED (2026-08-04 ~04:20): apply-then-project ORDERING** — the command queue now AWAITS async
+  subscribers inside the per-task chain (listeners may return promises; rejections still never break the
+  command path — pinned by tests), and both reconciler mounts RETURN their projection mutate instead of
+  voiding it. The lane now lands before the next same-card command applies; the fifth inventory's residual
+  reconciler-lag window shrinks to a single bounded in-flight projection. Ordering + rejection-isolation
+  pinned in the queue's own test file. Next shadow inventory expected: zero rows on non-decompose
+  trajectories; the child fork alone on decompose ones.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly

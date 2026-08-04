@@ -4258,12 +4258,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				if (!targetLane) {
 					return;
 				}
-				void retryWorkspaceStateLock(() =>
+				// Returned (not voided) so the queue's per-task chain AWAITS the projection — apply-then-project
+				// ordering (P24.1 step 3): the lane lands before the next same-card command applies.
+				return retryWorkspaceStateLock(() =>
 					mutateWorkspaceState(scope.workspacePath, (latestState) => {
 						const movement = moveTaskToColumn(latestState.board, transition.taskId, targetLane);
 						return { board: movement.board, save: movement.moved, value: null };
 					}),
-				).catch(() => {});
+				).then(
+					() => undefined,
+					() => undefined,
+				);
 			});
 			speculativeConfigByWorkspaceId.set(scope.workspaceId, {
 				enabled: runtimeConfig.speculativeBestOfNEnabled,
@@ -4907,12 +4912,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				if (!targetLane) {
 					return;
 				}
-				void retryWorkspaceStateLock(() =>
+				// Returned (not voided) so the queue's per-task chain AWAITS the projection — apply-then-project
+				// ordering (P24.1 step 3): the lane lands before the next same-card command applies.
+				return retryWorkspaceStateLock(() =>
 					mutateWorkspaceState(scope.workspacePath, (latestState) => {
 						const movement = moveTaskToColumn(latestState.board, transition.taskId, targetLane);
 						return { board: movement.board, save: movement.moved, value: null };
 					}),
-				).catch(() => {});
+				).then(
+					() => undefined,
+					() => undefined,
+				);
 			});
 			speculativeConfigByWorkspaceId.set(scope.workspaceId, {
 				enabled: runtimeConfig.speculativeBestOfNEnabled,
