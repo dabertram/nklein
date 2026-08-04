@@ -844,19 +844,30 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		string,
 		Awaited<ReturnType<typeof loadRuntimeConfig>>
 	>();
+	// Chip task_f8c1a384 (2026-08-04): these breadcrumbs used to emit per PHASE per RETRY under the misleading
+	// `aux_session_start` category — a capacity-queued card retrying every ~2s wrote 3-4 rows per attempt
+	// (4,516 rows from 5 waiting cards in one 50-min drain). They now carry their own category and are
+	// STATE-CHANGE gated: a phase is stamped once per task until the phase actually changes, and the memo
+	// clears on completion so a future wait re-narrates. The queued-on-capacity INFORMATION stays; the
+	// per-retry duplication goes.
+	const lastAdmissionPhaseByTaskId = new Map<string, string>();
 	const auxAdmissionStamp = (
 		scope: RuntimeTrpcWorkspaceScope,
 		request: NKleinModelTurnAdmissionRequest,
 		phase: string,
 	): void => {
 		try {
+			if (lastAdmissionPhaseByTaskId.get(request.taskId) === phase) {
+				return;
+			}
+			lastAdmissionPhaseByTaskId.set(request.taskId, phase);
 			recordSelfObservation({
 				signal: "custom",
 				severity: "debug",
 				message: `Model-turn admission ${phase} for ${request.taskId}.`,
 				taskId: request.taskId,
 				workspacePath: scope.workspacePath,
-				metadata: { category: "aux_session_start", phase },
+				metadata: { category: "model_turn_admission", phase },
 			});
 		} catch {
 			// Telemetry must never break admission.
@@ -1054,6 +1065,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		};
 		const activeTurns = activeModelTurnsByWorkspaceId.get(scope.workspaceId) ?? [];
 		activeModelTurnsByWorkspaceId.set(scope.workspaceId, [...activeTurns, reservation]);
+		// Admission settled — clear the phase memo so a FUTURE capacity wait narrates itself afresh.
+		lastAdmissionPhaseByTaskId.delete(request.taskId);
 		return { ok: true, reservation };
 	};
 	const waitForModelTurnAdmission = async (

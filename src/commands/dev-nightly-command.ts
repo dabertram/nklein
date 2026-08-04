@@ -794,6 +794,7 @@ export async function runDevNightlyCommand(options: {
 				const evaluation = evaluatePack(pack, collected.state);
 				return {
 					passed: evaluation.passed,
+					cellKey: nightlyCellKey(verdict.cell),
 					text: `${nightlyCellName(verdict.cell)}: ${evaluation.summary} [${extraction.summary}]`,
 				};
 			}),
@@ -808,9 +809,20 @@ export async function runDevNightlyCommand(options: {
 	// the root cause surfaced — the "flake" was exactly correlated with the --keep-home flag). Failures always
 	// retain their HOME for diagnosis; the leak this cleanup exists for (331 HOMEs / 6.3 GB, 2026-08-01) is
 	// still closed, one phase later.
+	// Chip task_3d5b0ac9 (2026-08-04): "passed" here is the DRAIN-level outcome — a cell whose invariant
+	// PACK violated used to lose its HOME too, so diagnosing a pack violation cost a full --keep-home re-run
+	// (hit twice the day this landed). Pack-violated cells now retain their HOME like failed cells do; the
+	// leak protection (331 HOMEs / 6.3 GB) still applies to genuinely green cells.
+	const packViolatedCellKeys = new Set(
+		packEvaluations.filter((evaluation) => !evaluation.passed).map((evaluation) => evaluation.cellKey),
+	);
 	if (!keepHome) {
 		for (const verdict of verdicts) {
-			if (verdict.outcome === "passed" && verdict.homePath) {
+			if (
+				verdict.outcome === "passed" &&
+				verdict.homePath &&
+				!packViolatedCellKeys.has(nightlyCellKey(verdict.cell))
+			) {
 				await rm(verdict.homePath, { recursive: true, force: true }).catch(() => undefined);
 			}
 		}

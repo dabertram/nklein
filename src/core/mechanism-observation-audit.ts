@@ -1047,6 +1047,7 @@ export const KNOWN_UNREGISTERED_EMITTERS: readonly string[] = [
 	"agent_sandbox_result_patch_superseded",
 	"aux_model_stream",
 	"aux_session_start",
+	"model_turn_admission",
 	"capability_ceiling_advisory",
 	"concurrency_gate_ghost_excluded",
 	"delivery_crash_recovery",
