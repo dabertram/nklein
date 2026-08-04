@@ -128,6 +128,19 @@ function toLmStudioModel(item: unknown, pathname: string): RuntimeNKleinProvider
 		return null;
 	}
 	const modelInfo = readObjectValue(record.model_info);
+	// P17.1 breakpoint (a), live-found 2026-08-04: mlx-serve's plain `/v1/models` roster carries the window in
+	// `meta.context_length` — and for that runtime the value tracks the ACTIVE serve config even for models not
+	// yet lazy-loaded (verified 2026-07-27), so probing it is what lets the 32k admission floor see a window
+	// before first traffic. LM Studio items have no `meta` object; this sub-probe is inert there.
+	const meta = readObjectValue(record.meta);
+	const nestedContextKeys = [
+		"loaded_context_length",
+		"loadedContextLength",
+		"loaded_context_window",
+		"context_length",
+		"max_context_length",
+		"max_input_tokens",
+	];
 	const contextWindow =
 		readNumberField(record, [
 			"loaded_context_length",
@@ -139,16 +152,8 @@ function toLmStudioModel(item: unknown, pathname: string): RuntimeNKleinProvider
 			"context_window",
 			"max_input_tokens",
 		]) ??
-		(modelInfo
-			? readNumberField(modelInfo, [
-					"loaded_context_length",
-					"loadedContextLength",
-					"loaded_context_window",
-					"context_length",
-					"max_context_length",
-					"max_input_tokens",
-				])
-			: null);
+		(modelInfo ? readNumberField(modelInfo, nestedContextKeys) : null) ??
+		(meta ? readNumberField(meta, nestedContextKeys) : null);
 	const type = readStringField(record, ["type"]);
 	return {
 		id,

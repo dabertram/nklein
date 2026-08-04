@@ -105,7 +105,14 @@ export function isContextWindowPolicyMessage(message: string | null | undefined)
 	return typeof message === "string" && message.includes(CONTEXT_WINDOW_POLICY_MESSAGE_SIGNATURE);
 }
 
-/** The operator-actionable remedy appended when a card can't start because its model is below the floor. */
+/**
+ * The operator-actionable remedy appended when a card can't start because its model is below the floor.
+ * Runtime-NEUTRAL by design (P17.1 breakpoint (a), 2026-08-04): the old string said `lms load …`
+ * unconditionally — advice aimed at a runtime the refused provider may not be (the mlx-serve probe read it
+ * while no lms existed anywhere). The floor message itself already names `provider:model`; this names one
+ * lever per runtime class plus the always-available per-model override.
+ */
 export function contextFloorRemedyHint(): string {
-	return `Reload the model with at least ${formatNKleinContextWindowTokens(NKLEIN_MIN_CONTEXT_WINDOW_TOKENS)} context (e.g. \`lms load <model> --context-length 32768\`), then it will auto-start.`;
+	const floor = formatNKleinContextWindowTokens(NKLEIN_MIN_CONTEXT_WINDOW_TOKENS);
+	return `Give the model at least ${floor} context tokens at its runtime (LM Studio: \`lms load <model> --context-length 32768\`; other local runtimes: raise the serve context, or set a per-model context-window override in Settings → Models), then it will auto-start.`;
 }

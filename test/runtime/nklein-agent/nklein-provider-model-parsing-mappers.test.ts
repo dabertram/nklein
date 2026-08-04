@@ -46,4 +46,23 @@ describe("toLmStudioModels (§5.V coverage)", () => {
 	it("returns empty for a /api/v1/models item with no loaded instances", () => {
 		expect(toLmStudioModels({ id: "base", context_length: 8000 }, "/api/v1/models")).toEqual([]);
 	});
+
+	it("reads the window from `meta.context_length` on a plain /v1/models item (mlx-serve roster shape)", () => {
+		// P17.1 breakpoint (a): mlx-serve advertises the ACTIVE serve window under `meta` even for models it has
+		// not lazy-loaded yet — the probe (2026-08-04) showed the 32k admission floor blind to a 262k model
+		// because this sub-object was the one place the parse never probed. Top-level keys still win.
+		expect(
+			toLmStudioModels(
+				{ id: "Qwopus3.5-9B-Coder-MLX-4bit", state: "unloaded", meta: { context_length: 262144 } },
+				"/v1/models",
+			),
+		).toEqual([{ id: "Qwopus3.5-9B-Coder-MLX-4bit", name: "Qwopus3.5-9B-Coder-MLX-4bit", contextWindow: 262144 }]);
+		expect(
+			toLmStudioModels({ id: "m", context_length: 4096, meta: { context_length: 262144 } }, "/v1/models"),
+		).toEqual([{ id: "m", name: "m", contextWindow: 4096 }]);
+		// A meta object without a numeric window stays windowless rather than inventing one.
+		expect(toLmStudioModels({ id: "m2", meta: { quantization: "4-bit" } }, "/v1/models")).toEqual([
+			{ id: "m2", name: "m2" },
+		]);
+	});
 });

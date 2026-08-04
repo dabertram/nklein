@@ -10614,13 +10614,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   zero provider-shaped failures; the SSD tier restored a real 14,016-token session prompt in 29 ms mid-run**
   (P17.6's prize delivered in-product), and the rig survived a mid-flight runtime restart (sweep re-drove the
   working card, correctly did NOT re-drive the parked card). **Live-ranked breakpoint list = the ③-onward work:**
-  (a) **the ONE hard wall — admission floor vs LAZY-LOAD:** `context_floor_unmet` at auto-start because
-  descriptor reads deliberately skip `state:"unloaded"` entries ("never guess loaded") and mlx-serve loads on
-  first traffic — the floor cannot see the 262k window until a request has already run. Probe's lever (works,
-  user-facing): `saveNKleinModelContextWindowOverride` (local-provider-gated). Adapter fix: capability bit
-  `advertisesContextWhenUnloaded` → the floor may trust roster `meta.context_length` for such runtimes (mlx-serve's
-  meta tracks the ACTIVE ctx config per the 07-27 verification), and the remedy string must come from the adapter
-  — today it says `lms load …` at a runtime that has no lms. (b) same skip ⇒ `gatherLoadedCandidates` [] while
+  (a) **the ONE hard wall — admission floor vs LAZY-LOAD: ✅ FIXED same day.** `context_floor_unmet` at
+  auto-start because descriptor reads deliberately skip `state:"unloaded"` entries ("never guess loaded") and
+  mlx-serve loads on first traffic — the floor cannot see the 262k window until a request has already run.
+  ROOT FIX (smaller than the planned capability bit, which proved unnecessary): discovery ALREADY owns
+  advertised-context semantics for every runtime (top-level `max_context_length` is trusted today) and the
+  launch config already flows discovery's window into the guard — the one missing hop was that the roster parse
+  never probed the `meta` sub-object where mlx-serve puts `context_length` (which tracks the ACTIVE serve
+  config even for unloaded models, per the 07-27 verification — so it is exactly floor-honest). `toLmStudioModel`
+  now probes `meta` after `model_info`; the `lms load …`-only remedy string became runtime-neutral (names the
+  lms lever, the serve-context lever, AND the per-model override). **CLEAN-PATH PROOF:** registry entry purged →
+  fresh A2A card auto-started with ZERO floor refusals and a fresh entry `advertised: 262144, userOverride: null`
+  written by live discovery — the new-user path needs no override. FOLLOW-UP (small, filed here): the discovery
+  -written entry keyed `…:http://localhost:11234/v1` while the manual override had keyed `…:127.0.0.1…` — endpoint
+  SPELLING reaches registry keys unnormalized (identity-vs-spelling, P24.1's disease in miniature); normalize at
+  `buildNKleinModelRegistryKey` so overrides and discovery converge on one entry. (b) same skip ⇒ `gatherLoadedCandidates` [] while
   the model is unloaded ⇒ consult failover reads unavailable ⇒ guard-parks count as stuck-evidence (the 08-03
   rule) — self-consistent once (a) lands, listed for awareness. (c) A2A park invisibility — FOUND+FIXED with the
   probe (see P17.8 note). (d) stateful-responses correctly self-gates to lmstudio; mlx-serve HAS `/v1/responses`
