@@ -53,6 +53,7 @@ import { runDevLedgerHealthCommand } from "./dev-ledger-health-command";
 import { runDevMechanismDecisionCommand } from "./dev-mechanism-decision-command";
 import { runDevMechanismDocCommand } from "./dev-mechanism-doc-command";
 import { runDevMechanismRegistryCommand } from "./dev-mechanism-registry-command";
+import { runDevMlxServeCommand } from "./dev-mlxserve-command";
 import { runDevModelFitCommand } from "./dev-model-fit-command";
 import { runDevNightlyCommand } from "./dev-nightly-command";
 import { runDevOffTrackCommand } from "./dev-off-track-command";
@@ -1092,6 +1093,25 @@ export function registerDevCommand(program: Command): void {
 		.action(async (options: { facts?: string; seed?: string; json?: boolean }) => {
 			await runDevCompactionFormatCommand(options);
 		});
+	dev.command("mlxserve")
+		.description("Manage the local mlx-serve instance (P17.7 residency: enforces the kvCacheDiskGb disk budget).")
+		.argument("<action>", "start | stop | status")
+		.option("--model-dir <dir>", "Directory of MLX models to serve (e.g. a vendor dir under ~/.lmstudio/models).")
+		.option("--port <n>", "Bind port on 127.0.0.1 (default 11234).")
+		.option(
+			"--binary <path>",
+			"mlx-serve binary (else NKLEIN_MLX_SERVE_BIN, else ~/.nklein/nklein/tools/mlx-serve/).",
+		)
+		.option("--disk-gb <n>", "Override the persisted kvCacheDiskGb disk-tier budget for this start.")
+		.option("--json", "Print machine-readable JSON (status).")
+		.action(
+			async (
+				action: string,
+				options: { modelDir?: string; port?: string; binary?: string; diskGb?: string; json?: boolean },
+			) => {
+				await runDevMlxServeCommand(action, options);
+			},
+		);
 	dev.command("cache-check")
 		.description("Is this llama.cpp build actually reusing the prompt cache? (P19.4 — needs two real timings.)")
 		.option("--cold <log>", "llama.cpp output for the COLD run (first, uncached).")

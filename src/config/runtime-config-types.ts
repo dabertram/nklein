@@ -148,6 +148,11 @@ export interface RuntimeConfigState {
 	 */
 	deviceRamGb: string | null;
 	/**
+	 * P17.7 residency budgets: KV-cache DISK budget in whole GB for a local runtime's persistent prefix tier
+	 * (mlx-serve `--prefix-cache-disk`). null = no disk tier. Consumed by the `dev mlxserve` launcher.
+	 */
+	kvCacheDiskGb: number | null;
+	/**
 	 * §5.L egress proxy (§6 I3): persisted equivalent of the `NKLEIN_SANDBOX_EGRESS_PROXY` env flag. OFF by default.
 	 * Env-when-set overrides the config (real environment wins); off ⇒ the `allowlist` tier stays `--network none`.
 	 */
@@ -234,6 +239,7 @@ export interface RuntimeConfigUpdateInput {
 	openPrPromptTemplate?: string;
 	workspaceBaseDir?: string | null;
 	deviceRamGb?: string | null;
+	kvCacheDiskGb?: number | null;
 	sandboxEgressProxyEnabled?: boolean;
 	sandboxEgressAllowlist?: string | null;
 }
@@ -298,6 +304,7 @@ export interface RuntimeGlobalConfigFileShape {
 	openPrPromptTemplate?: string;
 	workspaceBaseDir?: string | null;
 	deviceRamGb?: string | null;
+	kvCacheDiskGb?: number | null;
 	sandboxEgressProxyEnabled?: boolean;
 	sandboxEgressAllowlist?: string | null;
 }

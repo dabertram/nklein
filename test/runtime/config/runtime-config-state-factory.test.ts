@@ -80,6 +80,7 @@ function makeInput(overrides: Partial<RuntimeConfigStateFromValuesInput> = {}): 
 		openPrPromptTemplate: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
 		workspaceBaseDir: null,
 		deviceRamGb: null,
+		kvCacheDiskGb: null,
 		sandboxEgressProxyEnabled: false,
 		sandboxEgressAllowlist: null,
 		...overrides,

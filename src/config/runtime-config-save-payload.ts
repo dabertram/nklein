@@ -102,6 +102,7 @@ export interface SaveRuntimeConfigInput {
 	selectedShortcutLabel: string | null;
 	workspaceBaseDir: string | null;
 	deviceRamGb: string | null;
+	kvCacheDiskGb: number | null;
 	sandboxEgressProxyEnabled?: boolean;
 	sandboxEgressAllowlist: string | null;
 	developerModeEnabled?: boolean;
@@ -183,6 +184,7 @@ export function buildGlobalConfigFilePayload(config: SaveRuntimeConfigInput) {
 		selectedShortcutLabel: config.selectedShortcutLabel,
 		workspaceBaseDir: config.workspaceBaseDir,
 		deviceRamGb: config.deviceRamGb,
+		kvCacheDiskGb: config.kvCacheDiskGb,
 		sandboxEgressProxyEnabled: normalizeBoolean(
 			config.sandboxEgressProxyEnabled,
 			DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
@@ -305,6 +307,7 @@ export function buildSavedRuntimeConfigStateValues(config: SaveRuntimeConfigInpu
 		selectedShortcutLabel: config.selectedShortcutLabel,
 		workspaceBaseDir: config.workspaceBaseDir,
 		deviceRamGb: config.deviceRamGb,
+		kvCacheDiskGb: config.kvCacheDiskGb,
 		sandboxEgressProxyEnabled: normalizeBoolean(
 			config.sandboxEgressProxyEnabled,
 			DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,

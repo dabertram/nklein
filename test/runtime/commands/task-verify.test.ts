@@ -71,6 +71,7 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 		selectedShortcutLabel: null,
 		workspaceBaseDir: null,
 		deviceRamGb: null,
+		kvCacheDiskGb: null,
 		sandboxEgressProxyEnabled: false,
 		sandboxEgressAllowlist: null,
 		developerModeEnabled: false,

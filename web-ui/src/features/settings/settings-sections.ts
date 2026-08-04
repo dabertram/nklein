@@ -44,6 +44,7 @@ export const SETTINGS_SECTION_FIELDS = {
 	sandbox: [
 		"workspaceBaseDir",
 		"deviceRamGb",
+		"kvCacheDiskGb",
 		"sandboxEgressProxyEnabled",
 		"sandboxEgressAllowlist",
 		"sandboxMaxContainers",
@@ -122,6 +123,7 @@ const TRIMMED_STRING_FIELDS = new Set<keyof SettingsDraft>([
 	"sandboxCpusPerContainer",
 	"sandboxIdleTimeoutMinutes",
 	"deviceRamGb",
+	"kvCacheDiskGb",
 ]);
 
 function fieldDirty(field: keyof SettingsDraft, draft: SettingsDraft, snapshot: SettingsConfigSnapshot): boolean {
@@ -276,7 +278,7 @@ export const SETTINGS_NAV_FIELDS: Partial<Record<SettingsNavId, readonly (keyof 
 	// dialog (see `dirtyNavIdSet`), so this draft-field list alone would UNDER-report — never read it in isolation
 	// for the Tasks tab. `agentRulesets` is SHARED with the Agents tab (edited via the simplified presets here, the
 	// full panel there) — editing it lights BOTH dots, which is correct (both controls mutate the one object).
-	tasks: ["workspaceBaseDir", "deviceRamGb", "agentRulesets"],
+	tasks: ["workspaceBaseDir", "deviceRamGb", "kvCacheDiskGb", "agentRulesets"],
 	guardrails: ["maxConcurrentTasks", "swarmGuardrailInputs", "memoryAuditInputs"],
 	nklein: [
 		"modelRoles",

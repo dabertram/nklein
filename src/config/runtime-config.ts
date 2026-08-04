@@ -112,6 +112,7 @@ import { mergeGlobalRuntimeConfigFields } from "./runtime-config-update-merge";
 import {
 	keepNormalizedValue,
 	normalizeDeviceRamGb,
+	normalizeKvCacheDiskGb,
 	normalizeSandboxEgressAllowlist,
 	normalizeShortcutLabel,
 	normalizeWorkspaceBaseDir,
@@ -231,6 +232,7 @@ function toRuntimeConfigState({
 		openPrPromptTemplateDefault: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
 		workspaceBaseDir: normalizeWorkspaceBaseDir(globalConfig?.workspaceBaseDir),
 		deviceRamGb: normalizeDeviceRamGb(globalConfig?.deviceRamGb),
+		kvCacheDiskGb: normalizeKvCacheDiskGb(globalConfig?.kvCacheDiskGb),
 		sandboxEgressProxyEnabled: normalizeBoolean(
 			globalConfig?.sandboxEgressProxyEnabled,
 			DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,
@@ -282,6 +284,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		selectedShortcutLabel: current.selectedShortcutLabel,
 		workspaceBaseDir: current.workspaceBaseDir,
 		deviceRamGb: current.deviceRamGb,
+		kvCacheDiskGb: current.kvCacheDiskGb,
 		sandboxEgressProxyEnabled: current.sandboxEgressProxyEnabled,
 		sandboxEgressAllowlist: current.sandboxEgressAllowlist,
 		developerModeEnabled: current.developerModeEnabled,

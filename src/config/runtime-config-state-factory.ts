@@ -73,6 +73,7 @@ import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
 import type { RuntimeConfigState } from "./runtime-config-types";
 import {
 	normalizeDeviceRamGb,
+	normalizeKvCacheDiskGb,
 	normalizeSandboxEgressAllowlist,
 	normalizeShortcutLabel,
 	normalizeWorkspaceBaseDir,
@@ -161,6 +162,7 @@ export interface RuntimeConfigStateFromValuesInput {
 	openPrPromptTemplate: string;
 	workspaceBaseDir: string | null;
 	deviceRamGb: string | null;
+	kvCacheDiskGb: number | null;
 	sandboxEgressProxyEnabled: boolean;
 	sandboxEgressAllowlist: string | null;
 }
@@ -290,6 +292,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		openPrPromptTemplateDefault: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
 		workspaceBaseDir: normalizeWorkspaceBaseDir(input.workspaceBaseDir),
 		deviceRamGb: normalizeDeviceRamGb(input.deviceRamGb),
+		kvCacheDiskGb: normalizeKvCacheDiskGb(input.kvCacheDiskGb),
 		sandboxEgressProxyEnabled: normalizeBoolean(
 			input.sandboxEgressProxyEnabled,
 			DEFAULT_SANDBOX_EGRESS_PROXY_ENABLED,

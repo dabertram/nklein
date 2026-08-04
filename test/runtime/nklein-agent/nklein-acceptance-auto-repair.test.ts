@@ -94,6 +94,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		selectedShortcutLabel: null,
 		workspaceBaseDir: null,
 		deviceRamGb: null,
+		kvCacheDiskGb: null,
 		sandboxEgressProxyEnabled: false,
 		sandboxEgressAllowlist: null,
 		developerModeEnabled: false,

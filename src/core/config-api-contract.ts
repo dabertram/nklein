@@ -55,6 +55,8 @@ export const runtimeConfigResponseSchema = z.object({
 	workspaceBaseDir: z.string().nullable(),
 	// §5.AB: machine-aware loader per-device fast-memory capacity; legacy wire key retained for compatibility.
 	deviceRamGb: z.string().nullable().optional(),
+	// P17.7 residency budgets: KV-cache disk tier budget in whole GB (mlx-serve --prefix-cache-disk); null = off.
+	kvCacheDiskGb: z.number().int().positive().nullable().optional(),
 	// §5.L egress proxy (§6 I3): persisted flag + host allowlist; both optional so older clients/fixtures omit them.
 	sandboxEgressProxyEnabled: z.boolean().optional(),
 	sandboxEgressAllowlist: z.string().nullable().optional(),
@@ -169,6 +171,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	selectedShortcutLabel: z.string().nullable().optional(),
 	workspaceBaseDir: z.string().nullable().optional(),
 	deviceRamGb: z.string().nullable().optional(),
+	kvCacheDiskGb: z.number().int().positive().nullable().optional(),
 	sandboxEgressProxyEnabled: z.boolean().optional(),
 	sandboxEgressAllowlist: z.string().nullable().optional(),
 	developerModeEnabled: z.boolean().optional(),

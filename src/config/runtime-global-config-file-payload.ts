@@ -141,6 +141,7 @@ import {
 	assignChangedConfigField,
 	hasOwnKey,
 	normalizeDeviceRamGb,
+	normalizeKvCacheDiskGb,
 	normalizeSandboxEgressAllowlist,
 	normalizeShortcutLabel,
 	normalizeWorkspaceBaseDir,
@@ -206,6 +207,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	openPrPromptTemplate?: string;
 	workspaceBaseDir?: string | null;
 	deviceRamGb?: string | null;
+	kvCacheDiskGb?: number | null;
 	sandboxEgressProxyEnabled?: boolean;
 	sandboxEgressAllowlist?: string | null;
 }
@@ -270,6 +272,10 @@ export function buildRuntimeGlobalConfigFilePayload(
 	const deviceRamGb = config.deviceRamGb === undefined ? undefined : normalizeDeviceRamGb(config.deviceRamGb);
 	const existingDeviceRamGb = hasOwnKey(existing, "deviceRamGb")
 		? normalizeDeviceRamGb(existing?.deviceRamGb)
+		: undefined;
+	const kvCacheDiskGb = config.kvCacheDiskGb === undefined ? undefined : normalizeKvCacheDiskGb(config.kvCacheDiskGb);
+	const existingKvCacheDiskGb = hasOwnKey(existing, "kvCacheDiskGb")
+		? normalizeKvCacheDiskGb(existing?.kvCacheDiskGb)
 		: undefined;
 	const sandboxEgressAllowlist =
 		config.sandboxEgressAllowlist === undefined
@@ -447,6 +453,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 		}
 	} else if (existingDeviceRamGb) {
 		payload.deviceRamGb = existingDeviceRamGb;
+	}
+	if (kvCacheDiskGb !== undefined) {
+		if (kvCacheDiskGb) {
+			payload.kvCacheDiskGb = kvCacheDiskGb;
+		}
+	} else if (existingKvCacheDiskGb) {
+		payload.kvCacheDiskGb = existingKvCacheDiskGb;
 	}
 	if (sandboxEgressAllowlist !== undefined) {
 		if (sandboxEgressAllowlist) {

@@ -270,6 +270,7 @@ export function buildRuntimeConfigSaveRequest(
 		maxConcurrentTasks: parsed.maxConcurrentTasks,
 		workspaceBaseDir: draft.workspaceBaseDir.trim() || null,
 		deviceRamGb: draft.deviceRamGb.trim() || null,
+		kvCacheDiskGb: Number(draft.kvCacheDiskGb.trim()) > 0 ? Math.trunc(Number(draft.kvCacheDiskGb.trim())) : null,
 		sandboxEgressProxyEnabled: draft.sandboxEgressProxyEnabled,
 		sandboxEgressAllowlist: draft.sandboxEgressAllowlist.trim() || null,
 		sandboxMaxContainers: parsed.sandboxMaxContainers,

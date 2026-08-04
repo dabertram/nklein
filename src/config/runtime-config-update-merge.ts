@@ -83,6 +83,7 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 		selectedShortcutLabel: keepUpdatedValue(updates.selectedShortcutLabel, current.selectedShortcutLabel),
 		workspaceBaseDir: keepUpdatedValue(updates.workspaceBaseDir, current.workspaceBaseDir),
 		deviceRamGb: keepUpdatedValue(updates.deviceRamGb, current.deviceRamGb),
+		kvCacheDiskGb: keepUpdatedValue(updates.kvCacheDiskGb, current.kvCacheDiskGb),
 		sandboxEgressProxyEnabled: keepNormalizedValue(
 			updates.sandboxEgressProxyEnabled,
 			current.sandboxEgressProxyEnabled,

@@ -80,6 +80,7 @@ interface SettingsDraftCommonFields {
 	maxConcurrentTasks: string;
 	workspaceBaseDir: string;
 	deviceRamGb: string;
+	kvCacheDiskGb: string;
 	sandboxEgressProxyEnabled: boolean;
 	sandboxEgressAllowlist: string;
 	sandboxMaxContainers: string;
@@ -204,6 +205,7 @@ export function initSettingsDraftFromConfig(
 		maxConcurrentTasks: String(config?.maxConcurrentTasks ?? 3),
 		workspaceBaseDir: config?.workspaceBaseDir ?? "",
 		deviceRamGb: config?.deviceRamGb ?? "",
+		kvCacheDiskGb: config?.kvCacheDiskGb != null ? String(config.kvCacheDiskGb) : "",
 		sandboxEgressProxyEnabled: config?.sandboxEgressProxyEnabled ?? false,
 		sandboxEgressAllowlist: config?.sandboxEgressAllowlist ?? "",
 		sandboxMaxContainers: String(config?.sandboxMaxContainers ?? 1),
@@ -353,6 +355,9 @@ export function isSettingsDraftDirty(args: SettingsDirtyArgs): boolean {
 		return true;
 	}
 	if (draft.workspaceBaseDir.trim() !== snapshot.workspaceBaseDir.trim()) {
+		return true;
+	}
+	if (draft.kvCacheDiskGb.trim() !== snapshot.kvCacheDiskGb.trim()) {
 		return true;
 	}
 	if (draft.deviceRamGb.trim() !== snapshot.deviceRamGb.trim()) {

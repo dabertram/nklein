@@ -56,6 +56,21 @@ export function normalizeDeviceRamGb(value: unknown): string | null {
 }
 
 /**
+ * P17.7 residency budgets: the KV-cache DISK budget in whole GB (the SSD prefix-cache tier a local inference
+ * runtime may persist — mlx-serve's `--prefix-cache-disk`). Positive integers only; anything else (including
+ * 0, negatives, NaN, numeric strings that don't parse) normalizes to null = "no disk tier configured".
+ * Enforced by the `dev mlxserve` launcher; production stays recommendation-only per the never-auto-load rule.
+ */
+export function normalizeKvCacheDiskGb(value: unknown): number | null {
+	const numeric = typeof value === "string" ? Number(value.trim()) : value;
+	if (typeof numeric !== "number" || !Number.isFinite(numeric)) {
+		return null;
+	}
+	const truncated = Math.trunc(numeric);
+	return truncated > 0 ? truncated : null;
+}
+
+/**
  * §5.L egress proxy (§6 I3): trim the free-form `sandboxEgressAllowlist` config string (comma/newline-separated
  * hosts) to a non-empty string, or null when unset/blank. `parseEgressAllowlist` splits/dedups the entries at the
  * point of use; this only trims — mirroring `normalizeDeviceRamGb`'s "store the raw string, parse later" style.

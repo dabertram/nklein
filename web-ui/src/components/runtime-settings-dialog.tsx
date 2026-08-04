@@ -282,6 +282,7 @@ export function RuntimeSettingsDialog({
 	const [maxConcurrentTasks, setMaxConcurrentTasks] = useState("3");
 	const [workspaceBaseDir, setWorkspaceBaseDir] = useState("");
 	const [deviceRamGb, setDeviceRamGb] = useState("");
+	const [kvCacheDiskGb, setKvCacheDiskGb] = useState("");
 	const [sandboxEgressProxyEnabled, setSandboxEgressProxyEnabled] = useState(false);
 	const [sandboxEgressAllowlist, setSandboxEgressAllowlist] = useState("");
 	const [sandboxMaxContainers, setSandboxMaxContainers] = useState("1");
@@ -453,6 +454,7 @@ export function RuntimeSettingsDialog({
 	const maxConcurrentTasksId = "runtime-settings-max-concurrent-tasks";
 	const workspaceBaseDirId = "runtime-settings-workspace-base-dir";
 	const deviceRamGbId = "runtime-settings-device-ram-gb";
+	const kvCacheDiskGbId = "runtime-settings-kv-cache-disk-gb";
 	const sandboxEgressProxyEnabledId = "runtime-settings-sandbox-egress-proxy-enabled";
 	const sandboxEgressAllowlistId = "runtime-settings-sandbox-egress-allowlist";
 	const maxAgentWritableFileLinesId = "runtime-settings-max-agent-writable-file-lines";
@@ -771,6 +773,7 @@ export function RuntimeSettingsDialog({
 			maxConcurrentTasks,
 			workspaceBaseDir,
 			deviceRamGb,
+			kvCacheDiskGb,
 			sandboxEgressProxyEnabled,
 			sandboxEgressAllowlist,
 			sandboxMaxContainers,
@@ -840,6 +843,7 @@ export function RuntimeSettingsDialog({
 			maxConcurrentTasks,
 			workspaceBaseDir,
 			deviceRamGb,
+			kvCacheDiskGb,
 			sandboxEgressProxyEnabled,
 			sandboxEgressAllowlist,
 			sandboxMaxContainers,
@@ -1029,6 +1033,9 @@ export function RuntimeSettingsDialog({
 					case "deviceRamGb":
 						setDeviceRamGb(configSnapshot.deviceRamGb);
 						break;
+					case "kvCacheDiskGb":
+						setKvCacheDiskGb(configSnapshot.kvCacheDiskGb);
+						break;
 					case "agentRulesets":
 						setAgentRulesets(configSnapshot.agentRulesets);
 						break;
@@ -1213,6 +1220,7 @@ export function RuntimeSettingsDialog({
 		setMaxConcurrentTasks(snapshot.maxConcurrentTasks);
 		setWorkspaceBaseDir(snapshot.workspaceBaseDir);
 		setDeviceRamGb(snapshot.deviceRamGb);
+		setKvCacheDiskGb(snapshot.kvCacheDiskGb);
 		setSandboxEgressProxyEnabled(snapshot.sandboxEgressProxyEnabled);
 		setSandboxEgressAllowlist(snapshot.sandboxEgressAllowlist);
 		setSandboxMaxContainers(snapshot.sandboxMaxContainers);
@@ -1321,6 +1329,7 @@ export function RuntimeSettingsDialog({
 		config?.maxConcurrentTasks,
 		config?.workspaceBaseDir,
 		config?.deviceRamGb,
+		config?.kvCacheDiskGb,
 		config?.sandboxEgressProxyEnabled,
 		config?.sandboxEgressAllowlist,
 		config?.sandboxAgentsPerContainer,
@@ -2869,6 +2878,29 @@ export function RuntimeSettingsDialog({
 									geometry, and runtime overhead, and refuses a load that cannot retain the 32k/task floor.
 									Leave blank to disable managed placement. The legacy-named <code>NKLEIN_DEVICE_RAM_GB</code>
 									environment variable overrides this value.
+								</p>
+							</div>
+							<div className="mt-3">
+								<label htmlFor={kvCacheDiskGbId} className="block text-[13px] text-text-primary mb-1">
+									KV-cache disk budget (GB)
+								</label>
+								<input
+									id={kvCacheDiskGbId}
+									type="number"
+									min={1}
+									value={kvCacheDiskGb}
+									onChange={(event) => setKvCacheDiskGb(event.target.value)}
+									placeholder="16"
+									disabled={controlsDisabled}
+									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary disabled:opacity-40"
+								/>
+								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+									SSD budget for a local runtime&apos;s persistent prompt-prefix cache (P17.7 residency).
+									Enforced by <code>dev mlxserve start</code> as mlx-serve&apos;s{" "}
+									<code>--prefix-cache-disk</code> — a warm prompt survives model unloads and server restarts
+									(measured: a 14k-token prompt restored in 29&nbsp;ms). Leave blank to keep the disk tier off.
+									Production never starts or stops runtimes itself; this budget only takes effect through the
+									dev launcher.
 								</p>
 							</div>
 						</div>

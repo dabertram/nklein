@@ -112,6 +112,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("openPrPromptTemplate"),
 	runtimeConfigChangeField("workspaceBaseDir"),
 	runtimeConfigChangeField("deviceRamGb"),
+	runtimeConfigChangeField("kvCacheDiskGb"),
 	runtimeConfigChangeField("sandboxEgressProxyEnabled"),
 	runtimeConfigChangeField("sandboxEgressAllowlist"),
 ];
