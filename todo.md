@@ -10329,7 +10329,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   -true, shadow-visible)? **BATCHED alongside the child-composition fork as the redrive-lane-semantics
   question.** State of the shadow after six inventories: every MECHANICAL divergence source is fixed; the
   remaining rows are exclusively DELIBERATE-POLICY questions (child composition, restart windows) — which is
-  precisely what "the machine in charge, modulo decisions" looks like mid-migration.  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
+  precisely what "the machine in charge, modulo decisions" looks like mid-migration.
+  **✅ RESTART-WINDOW POLICY DECIDED BY DAVID + SHIPPED (2026-08-04, "show both", `170133c2b`).** The window is
+  now a FIRST-CLASS queue concept: `nextRedriveInFlight` folds over applied transitions (opens on `reopened`
+  from a live phase, closes on `begin_implementation` or a terminal phase), `redriveInFlightOf` exposes it,
+  and a replay twin recovers it from the persisted `reason` kinds — flag and phase share one durability story.
+  Both halves of "show both": (a) the SHADOW tolerates exactly the window shape (ladder phases × held
+  review/in_progress lanes, everything else still flags — including implementing+review, which
+  begin_implementation should have closed); (b) the BOARD shows a kernel-truth "Restarting" badge via a new
+  `getCardRestarting` tRPC feed (mailbox-badge polling pattern, sparse) → board-card chip with spin icon +
+  explanatory title. Suppression validated by unit tests both directions; live confirmation rides the next
+  organic drain (the sixth inventory's two persistent rows are precisely the shape now tolerated).  **◆ AND THE PHASE LIST IS NOW EXHAUSTIVE BY COMPILER.** `ALL_WORKFLOW_PHASES` is derived from a
   `Record<WorkflowPhase, true>`, so omitting a phase fails to compile (**verified: removing one yields
   `TS2741: Property 'awaiting_review' is missing`**). This replaced a hand-maintained duplicate list in the
   properties test — where an under-enumerated list would not have failed a single property, it would have quietly
