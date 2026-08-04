@@ -10404,6 +10404,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   packaging). **DAVID'S SEQUENCE IS NOW FULLY MEASURED: prize = 67 min/weekend on the 31B; warm-reload =
   29ms restore. The P17.7 swap/residency RE-OPEN is his call on these numbers; the build path if yes =
   P17.1 adapter boundary routing !Klein traffic through mlx-serve with the disk tier on.**
+  **✅ DAVID'S BATCH 2026-08-04 (~09:00), all four: (1) RESIDENCY: YES — adapter route** (build the P17.1
+  runtime-adapter boundary through mlx-serve with the disk tier; budgeted single-host residency with
+  user-definable RAM/disk settings follows on top). **(2) CHILD COMPOSITION: YES — the kernel gains a
+  `created` phase** (plan-apply dispatches a creation command per child; created/waiting-deps class projects
+  to planning/ready; lane = projection for ALL cards). **(3) REDRIVE LANES: SHOW BOTH** — lane stays put
+  during redrive AND the card shows a restarting badge driven by kernel phase (UI + projection tolerance).
+  **(4) A/B: mains now/soon** — the loop schedules 2-3 long (60-90min) consult-flag-ON drains today.
   **🔴 AND IT IMMEDIATELY FOUND A REAL DEFECT THAT MADE THE MEASUREMENT IMPOSSIBLE — now fixed.**
   Running it returned nine per-request records with "no usage payload", which reads as *the provider reported
   nothing*. It was not. **`SECRET_KEY_PATTERN` in the self-observation sink contains the substring `token`, so
