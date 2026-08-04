@@ -7272,8 +7272,19 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   messages, owning alternation safety for every source. Proof: 0 fires of 165 requests, 19/19 completed,
   packs quiet. Registered per the tranche-integrity convention (`ministral-quirk-run.json`); second profile
   staged same day: `reasoning_only_quirk` (all 40 conversational text payloads moved into the reasoning
-  channel with EMPTY content — the DeepSeek-class shape the eval harness once misread). NEXT: run family 2's
-  cell; then json_schema-refusing and no-verdict-reviewer families + role-combination coverage.
+  channel with EMPTY content — the DeepSeek-class shape the eval harness once misread).
+  **▶ FAMILY 2 CELL IS KNOWN-RED (deliberate, an OPEN handling question — not regression noise):** the drain
+  completes 19/19 but `must_stay_quiet:runtime_error` fires — 4× "Model returned empty response" (vendored
+  agent-runtime, content.length===0) on reasoning-only closing turns, each recovered by retry. Localization
+  so far: aimock DID emit the reasoning (no suppression logs; sim model ids aren't in its non-reasoning
+  families), the installed @ai-sdk/openai-compatible provider DOES map `reasoning_content` (stream line 730 +
+  non-stream 595), and the vendored agent-runtime DOES assemble reasoning-delta events into content parts —
+  so the drop sits between the provider and the runtime (a !Klein model-stack wrapper, or the session's
+  model-call path not using that provider). PRODUCT QUESTION underneath: a reasoning-only completion should
+  count as a valid turn (the eval-harness lesson, "must read reasoning_content") — pin the dropping layer,
+  then decide surface-as-text vs tolerate-and-request-continuation. NEXT: pin the layer with a scripted
+  reasoning-only stream through the session model stack; then json_schema-refusing and no-verdict-reviewer
+  families + role-combination coverage.
 - [x] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
   git remotes, update feeds, web/egress (already hard-gated), clock-driven damping. INTERNAL flaky sources (the
   proven ones, extend as found): the host-capacity view that reads the REAL LM Studio gateway even in sims (memory:
