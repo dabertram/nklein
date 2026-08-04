@@ -297,6 +297,36 @@ export interface FlagsOnLaneExclusion {
  */
 export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 	{
+		flag: "NKLEIN_EXPLORER_SUBAGENT",
+		kind: "pending_validation",
+		reason:
+			"adds an explore handler. DRAIN-GREEN one-at-a-time 2026-08-05 (solo flags_on run passed) — the remaining precondition is NOT another run: the lane ratchet only admits flags a REGISTERED MECHANISM claims, and none claims this one. Register a consuming mechanism (emit site + registry entry), then it joins the lane. Same correction shape as NKLEIN_TRUNCATION_DIAGNOSTICS 2026-08-02.",
+	},
+	{
+		flag: "NKLEIN_PROPERTY_GATE",
+		kind: "pending_validation",
+		reason:
+			"gates acceptance. DRAIN-GREEN one-at-a-time 2026-08-05 (solo flags_on run passed) — the remaining precondition is NOT another run: the lane ratchet only admits flags a REGISTERED MECHANISM claims, and none claims this one. Register a consuming mechanism (emit site + registry entry), then it joins the lane. Same correction shape as NKLEIN_TRUNCATION_DIAGNOSTICS 2026-08-02.",
+	},
+	{
+		flag: "NKLEIN_SPEC_DELIBERATION",
+		kind: "pending_validation",
+		reason:
+			"adds a plan-mode deliberation step. DRAIN-GREEN one-at-a-time 2026-08-05 (solo flags_on run passed) — the remaining precondition is NOT another run: the lane ratchet only admits flags a REGISTERED MECHANISM claims, and none claims this one. Register a consuming mechanism (emit site + registry entry), then it joins the lane. Same correction shape as NKLEIN_TRUNCATION_DIAGNOSTICS 2026-08-02.",
+	},
+	{
+		flag: "NKLEIN_VISUAL_GATE",
+		kind: "pending_validation",
+		reason:
+			"adds a review gate. DRAIN-GREEN one-at-a-time 2026-08-05 (solo flags_on run passed) — the remaining precondition is NOT another run: the lane ratchet only admits flags a REGISTERED MECHANISM claims, and none claims this one. Register a consuming mechanism (emit site + registry entry), then it joins the lane. Same correction shape as NKLEIN_TRUNCATION_DIAGNOSTICS 2026-08-02.",
+	},
+	{
+		flag: "NKLEIN_N_EYES_REVIEW",
+		kind: "pending_validation",
+		reason:
+			"runs a different review procedure. DRAIN-GREEN one-at-a-time 2026-08-05 (solo flags_on run passed) — the remaining precondition is NOT another run: the lane ratchet only admits flags a REGISTERED MECHANISM claims, and none claims this one. Register a consuming mechanism (emit site + registry entry), then it joins the lane. Same correction shape as NKLEIN_TRUNCATION_DIAGNOSTICS 2026-08-02.",
+	},
+	{
 		flag: "NKLEIN_ALLOW_UNSUITABLE_MODEL",
 		kind: "permanent",
 		reason:
@@ -341,11 +371,6 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 			"Same correction as NKLEIN_TRUNCATION_DIAGNOSTICS (2026-08-02): no registered mechanism reads it, so the lane ratchet refuses it and a nightly run cannot change that. Register a consuming mechanism first.",
 	},
 	{
-		flag: "NKLEIN_EXPLORER_SUBAGENT",
-		kind: "pending_validation",
-		reason: "adds an explore handler; changes the drain shape, so it needs a validating run",
-	},
-	{
 		flag: "NKLEIN_MODEL_CONSULT",
 		kind: "permanent",
 		reason:
@@ -364,29 +389,9 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 			"swaps the system prompt below a context threshold, so it would change EVERY replayed request — and aimock matches on the request. In a REPLAY lane that is not a validation risk, it is a guaranteed unmatched-request failure, so no run can ever green it. Reclassified from pending_validation 2026-08-02: labelling a structural impossibility as 'pending' invites someone to keep attempting it.",
 	},
 	{
-		flag: "NKLEIN_PROPERTY_GATE",
-		kind: "pending_validation",
-		reason: "gates acceptance; could block cards the way NKLEIN_TYPECHECK_FIRST did on this lane's first drain",
-	},
-	{
-		flag: "NKLEIN_SPEC_DELIBERATION",
-		kind: "pending_validation",
-		reason: "adds a plan-mode deliberation step; changes the drain shape",
-	},
-	{
 		flag: "NKLEIN_STATEFUL_RESPONSES",
 		kind: "permanent",
 		reason:
 			"changes the provider TRANSPORT, and its own stated reason — 'a replay lane is the wrong place to first exercise that' — is an argument about where this belongs, not about needing one more run. Reclassified from pending_validation 2026-08-02: it needs a REAL-transport exercise, which this lane structurally is not.",
-	},
-	{
-		flag: "NKLEIN_VISUAL_GATE",
-		kind: "pending_validation",
-		reason: "adds a review gate; could block cards, so it needs a validating run",
-	},
-	{
-		flag: "NKLEIN_N_EYES_REVIEW",
-		kind: "pending_validation",
-		reason: "runs an entirely different review procedure; needs its own validating run",
 	},
 ];

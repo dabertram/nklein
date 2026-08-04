@@ -7946,6 +7946,12 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   · **5 remain genuinely pending a validating run** (`EXPLORER_SUBAGENT`, `PROPERTY_GATE`, `SPEC_DELIBERATION`,
     `VISUAL_GATE`, `N_EYES_REVIEW`) — each changes the drain shape or gates acceptance, which is exactly the
     `TYPECHECK_FIRST` failure mode, so they want one-at-a-time drains rather than a batch.
+  **▶ THE FIVE RAN one-at-a-time 2026-08-05 (~23:50-00:18), ALL DRAIN-GREEN — and the lane ratchet then
+  refused all five for the DEEPER precondition: no REGISTERED MECHANISM claims any of them** (the same
+  refusal that corrected TRUNCATION_DIAGNOSTICS on 08-02 — the ratchet re-earning its keep). Exclusions
+  restored with corrected reasons recording the green runs; the actual remaining slice is FIVE MECHANISM
+  REGISTRATIONS (verify/add an emit site per feature + registry entries + category coverage), after which
+  they join the lane on the already-banked validation evidence. Lane (c) kill-switches-OFF remains unbuilt.
   **The ratchet earning its keep is the point:** it refused a change I made on the strength of a written note, and
   the note was wrong. 8 "pending a run" was really 2 permanent + 2 mis-recorded + 5 real.
   ◆ Found only because `memory_freshness_audit`'s registration tripped the existing ratchet — *"a newly registered
