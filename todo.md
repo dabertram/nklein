@@ -8048,7 +8048,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
 - [ ] **N15 — Soak + local-only assertion.** One long-horizon cell: a 40-card board over hours with RSS/handle/
   ledger-growth watch (codebase-memory has OOM'd under load before). The SAME run records every outbound
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
-  (feeds the trust-center posture table). DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
+  (feeds the trust-center posture table).
+  **▶ ASSERTION CORE SHIPPED 2026-08-04 (`runtime-connection-audit.ts` + 6 tests + live positive control):**
+  parse `lsof -nP -iTCP -sTCP:ESTABLISHED` rows (IPv4/bracketed-IPv6/escaped-space commands — validated
+  against real host output), loopback-only passes (every spelling incl. v4-mapped v6), LAN and public FAIL
+  alike unless explicitly allowlisted (returning fleet hosts get passed in by the harness), repeat sightings
+  dedupe+count, and `observedConnections` is exposed so ZERO samples reads as sampler-broken, never as a
+  pass (silence-is-not-success, in the type). Deliberately independent of the egress broker/receipts family:
+  this audits what the OS says actually connected, so unfenced paths (dependency phone-home, broker bypass)
+  still show. NEXT SLICE: orchestrator wiring — pid-tree-scoped sampling loop in real-model-run.sh's watch
+  phase + the verdict in report/RESULT (opt-in flag first, default-on once quiet), then the soak cell. DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
 - [x] **N23 — 🐛 Ready-sweep silent no-op loop: the board-liveness watchdog logs "1 startable … — sweeping
   (frozen-board self-heal)" every cycle FOREVER while the card never starts and nothing records why
