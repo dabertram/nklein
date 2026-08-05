@@ -50,6 +50,8 @@ export interface NightlyManifest {
 	readonly persistedStateFixtures?: readonly NightlyPersistedStateEntry[];
 	/** N10: six real-runtime SIGKILL seams; a separate standing lane because it is phase×recovery, not project×model. */
 	readonly crashRecoveryMatrix?: { readonly enabled: boolean };
+	/** N14: run the browser UI journey lanes (drained board + operator review-merge) after the cells. */
+	readonly uiJourneys?: { readonly enabled: boolean };
 }
 
 export interface NightlyPersistedStateEntry extends NightlyProjectEntry {
@@ -175,8 +177,10 @@ export function isNightlyOverallOk(input: {
 	readonly cellsOk: boolean;
 	readonly crashRecoveryOk: boolean;
 	readonly invariantPacksOk: boolean;
+	/** N14 UI journey lanes; defaults true so callers without the lanes keep their verdict shape. */
+	readonly uiJourneysOk?: boolean;
 }): boolean {
-	return input.cellsOk && input.crashRecoveryOk && input.invariantPacksOk;
+	return input.cellsOk && input.crashRecoveryOk && input.invariantPacksOk && (input.uiJourneysOk ?? true);
 }
 
 /**

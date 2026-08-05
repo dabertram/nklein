@@ -88,6 +88,8 @@ const QUARANTINE_PATH = "nightly-quarantine.json";
 const CELL_TIMEOUT_MS = 45 * 60 * 1000;
 /** Six sequential low-power SIGKILL drains; each phase owns the regular cell budget. */
 const CRASH_RECOVERY_MATRIX_TIMEOUT_MS = 6 * CELL_TIMEOUT_MS;
+/** One browser journey lane (own sim/HOME + runtime + vite + playwright); generous for low-power boots. */
+const UI_JOURNEYS_TIMEOUT_MS = 10 * 60 * 1000;
 
 async function loadManifest(path: string): Promise<NightlyManifest | null> {
 	try {
@@ -611,6 +613,9 @@ export async function runDevNightlyCommand(options: {
 		if (manifest.crashRecoveryMatrix?.enabled && !options.project && !options.model) {
 			process.stdout.write("  crash-recovery-matrix  (6 sequential real-runtime SIGKILL phase drains)\n");
 		}
+		if (manifest.uiJourneys?.enabled && !options.project && !options.model) {
+			process.stdout.write("  ui-journeys            (N14 browser lanes: drained board + operator review-merge)\n");
+		}
 		return;
 	}
 
@@ -681,6 +686,43 @@ export async function runDevNightlyCommand(options: {
 				evidence: null,
 			};
 		}
+	}
+
+	// N14: the browser journey lanes — same manifest-gated shape as the crash matrix. Each launcher owns its
+	// full stack (sim/drained HOME + runtime + vite + playwright) and prints a definitive PASS line; both must
+	// exit 0. Skipped under project/model filters exactly like the matrix.
+	let uiJourneys: { outcome: "passed" | "failed" | "not_selected"; reason: string } = {
+		outcome: "not_selected",
+		reason: "not enabled or a project/model filter selected",
+	};
+	if (manifest.uiJourneys?.enabled && !options.project && !options.model) {
+		process.stderr.write("== ui-journeys (N14 browser lanes) ==\n");
+		const lanes: { script: string; passLine: string }[] = [
+			{ script: "scripts/ui-journey-drained.mts", passLine: "DRAINED JOURNEYS PASS" },
+			{ script: "scripts/ui-journey-review.mts", passLine: "REVIEW JOURNEY PASS" },
+		];
+		const laneReasons: string[] = [];
+		let allPassed = true;
+		for (const lane of lanes) {
+			try {
+				const { stdout, stderr } = await execFileAsync("npx", ["tsx", lane.script], {
+					timeout: UI_JOURNEYS_TIMEOUT_MS,
+					maxBuffer: 20 * 1024 * 1024,
+				});
+				if (stderr) process.stderr.write(stderr);
+				if (!stdout.includes(lane.passLine)) {
+					throw new Error(`${lane.script} exited 0 without its PASS line`);
+				}
+				laneReasons.push(`${lane.script}: pass`);
+			} catch (error) {
+				allPassed = false;
+				laneReasons.push(`${lane.script}: ${error instanceof Error ? error.message.slice(0, 400) : String(error)}`);
+			}
+		}
+		uiJourneys = {
+			outcome: allPassed ? "passed" : "failed",
+			reason: laneReasons.join(" · "),
+		};
 	}
 
 	// N13: the gate sees only non-quarantined cells; quarantined ones still ran and are reported loudly below.
@@ -850,6 +892,7 @@ export async function runDevNightlyCommand(options: {
 		cellsOk: summary.ok,
 		crashRecoveryOk: crashRecoveryMatrix.outcome !== "failed",
 		invariantPacksOk,
+		uiJourneysOk: uiJourneys.outcome !== "failed",
 	});
 	const quarantineReport = formatQuarantineReport({ file: quarantine, newlyQuarantined });
 	if (quarantineReport && !options.json) {
@@ -909,6 +952,9 @@ export async function runDevNightlyCommand(options: {
 			`\nCrash-recovery matrix: ${crashRecoveryMatrix.outcome.toUpperCase()} — ${crashRecoveryMatrix.reason}\n`,
 		);
 	}
+	if (uiJourneys.outcome !== "not_selected" && !options.json) {
+		process.stdout.write(`\nUI journeys: ${uiJourneys.outcome.toUpperCase()} — ${uiJourneys.reason}\n`);
+	}
 
 	// N6: the suite watching its OWN cost. A cell drifting 40s -> 200s is a product regression that presents as
 	// "the nightly got slower" and is usually absorbed rather than investigated.
@@ -943,7 +989,7 @@ export async function runDevNightlyCommand(options: {
 	}
 	if (options.json) {
 		process.stdout.write(
-			`${JSON.stringify({ ...summary, ok: overallOk, verdicts, failureReports, regressions, costRegressions, packVerdicts, crashRecoveryMatrix, quarantine: { entries: quarantine.entries, newlyQuarantined: newlyQuarantined.map((entry) => entry.cellId) } }, null, 2)}\n`,
+			`${JSON.stringify({ ...summary, ok: overallOk, verdicts, failureReports, regressions, costRegressions, packVerdicts, crashRecoveryMatrix, uiJourneys, quarantine: { entries: quarantine.entries, newlyQuarantined: newlyQuarantined.map((entry) => entry.cellId) } }, null, 2)}\n`,
 		);
 	} else {
 		process.stdout.write(`\n${summary.summary}${overallOk ? "" : " Overall nightly verdict: FAILED."}\n`);

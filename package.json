@@ -94,7 +94,8 @@
     "benchmark:livecodebench-cache": "benchmark-harness/livecodebench/.venv/bin/python scripts/cache-livecodebench-control.py",
     "benchmark:terminal-setup": "sh scripts/setup-terminal-bench-harness.sh",
     "prepare": "husky",
-    "prepublishOnly": "npm run build && npm run check"
+    "prepublishOnly": "npm run build && npm run check",
+    "test:ui-journeys": "tsx scripts/ui-journey-drained.mts && tsx scripts/ui-journey-review.mts"
   },
   "license": "Apache-2.0",
   "devDependencies": {

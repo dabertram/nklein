@@ -151,5 +151,8 @@
     "fixtureSha256": "ff230498a42e4f356d6a11408e72ff75b88b04e2323d431ed4c5ded935a4f2f9"
    }
   }
- ]
+ ],
+ "uiJourneys": {
+  "enabled": true
+ }
 }
