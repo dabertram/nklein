@@ -8180,7 +8180,13 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   redrive skip paused uniformly, and pausing evicts the overlap-deferral entry (the phantom "+1 deferred").
   This also EXPLAINS the G6.8a v14 "frozen-board self-heal ineffective" finding. Also explained: the proof
   soak's 2 egress violations were exactly the (b) boot pair, and the RSS 3.0→1.3GB "cliff" was the paused board
-  going idle — both retroactively benign. Re-run pending to bank the green leg**; **(b) the RUNTIME PROCESS
+  going idle — both retroactively benign. **✅ GREEN LEG BANKED same morning (`.real-runs/soak-green/`): 6/6
+  rounds 240/240 drained with all fixes live AND the same environmental trigger present (real LM Studio serving
+  qwen) — the freeze class is dead; egress loopback-only 0 violations across 954 observed connections (the
+  offline-boot fix proven inside the soak harness itself); handles flat 116→133 (reconciler fix holding at
+  240 cards). Thread (c) now cleanly measured: ~+30s/round linear on clean rounds (round 1 polluted by
+  concurrent test suites), RSS 683MB→3.25GB at 240 cards — second-order accumulator, far shallower than the
+  fixed quadratic (~140s/round equivalent-depth), still open**; **(b) the RUNTIME PROCESS
   ITSELF phones two external :443 hosts once per run**
   (Cloudflare anycast + Google LB 35.186.247.105 — SAME pair in both soaks, deterministic; a real
   local-only violation to name: suspects = an SDK/dependency boot-time fetch; probe with a boot-only
