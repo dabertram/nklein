@@ -1,40 +1,52 @@
 {
-  "tests": [
-    {
-      "path": "test/runtime/nklein-agent/nklein-local-only-policy.test.ts",
-      "rationale": "Guards the local-only provider policy and cloud-provider hiding boundary."
-    },
-    {
-      "path": "test/runtime/nklein-agent/nklein-context-window-policy.test.ts",
-      "rationale": "Guards effective context-window and overflow policy behavior for local models."
-    },
-    {
-      "path": "test/runtime/nklein-agent/nklein-timeout-scaling.test.ts",
-      "rationale": "Guards timeout scaling for slow local models and body-timeout recovery behavior."
-    },
-    {
-      "path": "test/runtime/swarm-guardrails.test.ts",
-      "rationale": "Guards swarm pause/resume and autonomous guardrail behavior."
-    },
-    {
-      "path": "test/runtime/workspace-registry.test.ts",
-      "rationale": "Guards workspace identity, project health diagnostics, and ownership-sensitive project state."
-    },
-    {
-      "path": "test/runtime/nklein-agent/nklein-decomposition-tool.test.ts",
-      "rationale": "Guards decomposition graph application, plan artifacts, and Planning-lane behavior."
-    },
-    {
-      "path": "test/runtime/nklein-agent/nklein-agent-sandbox-host-guard.test.ts",
-      "rationale": "Guards the strict-isolation invariant that agent tools and the acceptance gate never execute on the host filesystem/shell (no host fallback)."
-    },
-    {
-      "path": "test/runtime/nklein-agent/nklein-agent-sandbox.test.ts",
-      "rationale": "Guards Docker sandbox lockdown flags, fail-closed availability checks, per-task uid isolation, and pool/queue admission."
-    },
-    {
-      "path": "test/runtime/nklein-agent/nklein-task-start-guard.test.ts",
-      "rationale": "Guards the fail-closed task-start preflight (sandbox-unavailable refusal) and candidate-window fit budget."
-    }
-  ]
+ "tests": [
+  {
+   "path": "test/runtime/nklein-agent/nklein-local-only-policy.test.ts",
+   "rationale": "Guards the local-only provider policy and cloud-provider hiding boundary."
+  },
+  {
+   "path": "test/runtime/nklein-agent/nklein-context-window-policy.test.ts",
+   "rationale": "Guards effective context-window and overflow policy behavior for local models."
+  },
+  {
+   "path": "test/runtime/nklein-agent/nklein-timeout-scaling.test.ts",
+   "rationale": "Guards timeout scaling for slow local models and body-timeout recovery behavior."
+  },
+  {
+   "path": "test/runtime/swarm-guardrails.test.ts",
+   "rationale": "Guards swarm pause/resume and autonomous guardrail behavior."
+  },
+  {
+   "path": "test/runtime/workspace-registry.test.ts",
+   "rationale": "Guards workspace identity, project health diagnostics, and ownership-sensitive project state."
+  },
+  {
+   "path": "test/runtime/nklein-agent/nklein-decomposition-tool.test.ts",
+   "rationale": "Guards decomposition graph application, plan artifacts, and Planning-lane behavior."
+  },
+  {
+   "path": "test/runtime/nklein-agent/nklein-agent-sandbox-host-guard.test.ts",
+   "rationale": "Guards the strict-isolation invariant that agent tools and the acceptance gate never execute on the host filesystem/shell (no host fallback)."
+  },
+  {
+   "path": "test/runtime/nklein-agent/nklein-agent-sandbox.test.ts",
+   "rationale": "Guards Docker sandbox lockdown flags, fail-closed availability checks, per-task uid isolation, and pool/queue admission."
+  },
+  {
+   "path": "test/runtime/nklein-agent/nklein-task-start-guard.test.ts",
+   "rationale": "Guards the fail-closed task-start preflight (sandbox-unavailable refusal) and candidate-window fit budget."
+  },
+  {
+   "path": "test/protected/oracle/02_construction_jobsite_safety_compliance/authorization.probe.mts",
+   "rationale": "P23.5 held-out oracle probe for dev-test project 02 \u2014 grades agent-built workspaces at scoring time; editing it moves the goalposts of every grade, so changes are human-gated."
+  },
+  {
+   "path": "test/protected/oracle/02_construction_jobsite_safety_compliance/reconciler.probe.mts",
+   "rationale": "P23.5 held-out oracle probe for dev-test project 02 \u2014 grades agent-built workspaces at scoring time; editing it moves the goalposts of every grade, so changes are human-gated."
+  },
+  {
+   "path": "test/protected/oracle/02_construction_jobsite_safety_compliance/compliance.probe.mts",
+   "rationale": "P23.5 held-out oracle probe for dev-test project 02 \u2014 grades agent-built workspaces at scoring time; editing it moves the goalposts of every grade, so changes are human-gated."
+  }
+ ]
 }
