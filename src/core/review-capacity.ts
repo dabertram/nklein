@@ -85,3 +85,20 @@ export function deriveFleetReviewCapacity(
 	const best = verdicts.reduce((left, right) => ((right.ceilingLines ?? 0) > (left.ceilingLines ?? 0) ? right : left));
 	return best;
 }
+
+/**
+ * The plan-time diff-size ESTIMATE's evidence half: the median successfully-judged diff size across all
+ * models. Observe-first (P21.6b slice 3): at decompose time nothing has a diff yet, and the policy forbids
+ * invented constants — the median of what cards ACTUALLY produced is the defensible baseline forecast, and
+ * the sizing observation records predicted-vs-later-actual so the estimator can be judged before it enforces.
+ */
+export function deriveTypicalDiffLines(rows: readonly ReviewCapacityEvidenceRow[]): number | null {
+	const sizes = rows
+		.filter((row) => SUCCESSFUL_JUDGMENTS.has(row.outcome) && Number.isFinite(row.diffLines) && row.diffLines >= 0)
+		.map((row) => row.diffLines)
+		.sort((left, right) => left - right);
+	if (sizes.length < REVIEW_CAPACITY_MIN_SAMPLE) {
+		return null;
+	}
+	return sizes[Math.floor(sizes.length / 2)] ?? null;
+}

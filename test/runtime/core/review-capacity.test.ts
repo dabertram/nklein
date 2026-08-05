@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	deriveFleetReviewCapacity,
 	deriveReviewCapacity,
+	deriveTypicalDiffLines,
 	REVIEW_CAPACITY_MIN_SAMPLE,
 	type ReviewCapacityEvidenceRow,
 } from "../../../src/core/review-capacity";
@@ -69,5 +70,13 @@ describe("deriveFleetReviewCapacity", () => {
 		const rows = [row("small", "delivered", 100)];
 		expect(deriveFleetReviewCapacity(rows, ["small"]).basis).toBe("insufficient_evidence");
 		expect(deriveFleetReviewCapacity([], ["small"]).basis).toBe("no_evidence");
+	});
+});
+
+describe("deriveTypicalDiffLines", () => {
+	it("median of judged sizes; null below the evidence floor (no invented constants)", () => {
+		const rows = [100, 200, 300, 400, 500].map((lines) => row("any", "delivered", lines));
+		expect(deriveTypicalDiffLines(rows)).toBe(300);
+		expect(deriveTypicalDiffLines(rows.slice(0, 3))).toBeNull();
 	});
 });
