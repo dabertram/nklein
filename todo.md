@@ -7487,7 +7487,7 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   introduced by one item and detonated by another.
   So each reuse needs a stated reason it cannot carry state, and the honest default is **not to reuse**: the time
   saved is bounded and known, while the cost of a hidden dependency is unbounded and arrives disguised.
-- [ ] **N8 — SWE-bench tranche: 10 suitable cases as nightly cells (David 2026-07-19 addition).** The dev-test
+- [~] **N8 — SWE-bench tranche: 10 suitable cases as nightly cells (David 2026-07-19 addition).** The dev-test
   projects cover FROM-SCRATCH flows; nightly must ALSO freeze the two other entry shapes — BUG-FIXING and
   continue/extend an EXISTING pre-seeded codebase. Pick 10 SUITABLE instances from the SWE-bench palette
   (Lite/Verified pool; selection bar: small repo, bounded golden-diff scope, deterministic fast test command,
@@ -7498,6 +7498,28 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   vendored grading core + instance fetcher (dataset-vendoring footprint = the David green-light already attached
   to F11.3); aimock recordings per model profile exactly like N2/N3 — the SAME four-step growth recipe applies,
   so "add nightly coverage for SWE-bench instance X" needs no further explanation either.
+  **▶ SLICES 1–3 + THE ENV PROBE LANDED 2026-08-05 morning (the "ARM64 weekend" fear is dead):**
+  · **Slice 1 — fetcher + tranche** (`scripts/swebench-fetch.mts`, the explicit egress step; everything
+    downstream refuses-with-remedy instead of downloading): Lite+Verified indexed → 66 candidates clear the
+    pure-python bar (requests/flask/pytest/pylint — no C toolchain on arm64); tranche of 10 selected (3 pytest,
+    3 requests, 3 pylint, 1 flask; 8 Verified; all single-file gold ≤763B with real P2P guards) and sha256-pinned
+    into git-ignored `.nklein-bench/swebench/` (~15MB). Gold patches measured for selection then DROPPED — the
+    cache cannot leak them.
+  · **Slice 2 — instance pure core** (`src/core/swebench-instance.ts`): pin verify; leakage-safe card (issue
+    text IS the prompt + two ground rules; test_patch grader-side by construction); deterministic grade plan
+    (pytest -rA over exactly the instance's F2P/P2P selections); silence-is-failure parser (a collection crash
+    can never grade as resolved). Resolution = the SWE-bench rule verbatim, a boolean not a score.
+  · **Slice 3 — materializer** (`src/core/swebench-materialize.ts`): cache-only, sha-verified BEFORE extract,
+    one-commit git workspace at base_commit, stale-target refusal.
+  · **ENV REALITY PROBE (bracket pair, real venvs):** system python3 is 3.9.6 — the exact era SWE-bench maps
+    these repos to, so ONE py3.9 grader env covers all 10 (flask 2.3 supports 3.8+). requests-1921 (2014, the
+    feared wall): installs + test_patch applies + F2P fails pre-fix cleanly — NO wall. flask-5014 exposed the
+    real gap: unbounded `Werkzeug>=2.3.3` floats to 3.x (`werkzeug.__version__` removed) — fixed by
+    `werkzeug<3`, F2P then fails pre-fix correctly. ⇒ grader recipe: py3.9 venv + `pip install -e .` +
+    per-instance `extraRequirements` ONLY where the repo's own constraints float across a major.
+  **REMAINING:** (a) probe the other 7 instances' envs + record extraRequirements in instance metadata; (b) the
+  sealed grader (Aider-pattern Docker python:3.9 image with preloaded wheels — one-time egress at build) +
+  grade execution wire; (c) nightly cell registration + aimock recordings per the standard four-step recipe.
 - [x] **N9 — Upgrade-path / persisted-state compatibility cells.** Freeze a fixture-HOME per release; nightly
   boots each on the CURRENT build and asserts: clean boot (corrupt-file recovery paths included), a full drain,
   and the LEARNING stores (fitness/behavior/ledger) folding mixed-generation data into sane routing (the
