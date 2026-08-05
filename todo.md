@@ -7900,9 +7900,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **RE-RUN VERDICT: 6/6 phases green** (decompose, worker, review, delivery, compaction, trigger), each reporting one
   marker, one SIGKILL restart, a terminal board, no duplicate effect and zero teardown residue — all five of this
   item's stated closure conditions, on every phase — with the refusal message now appearing 0 times.
-- [ ] **N11 — Flag-matrix lanes.** Three nightly lanes over the same cells: (a) defaults, (b) all safe opt-ins ON
+- [x] **N11 — Flag-matrix lanes.** Three nightly lanes over the same cells: (a) defaults, (b) all safe opt-ins ON
   (the dark flags shipped observe-first), (c) kill-switches OFF — so flag INTERACTIONS are exercised, not just
   each flag alone. New flags register here at ship time.
+  **✅ CLOSED 2026-08-05 (~10:45): all three lanes built AND validated.** (a) = the standing nightly defaults
+  lane; (b) flags_on with the five one-at-a-time admissions + mechanism registrations (below); (c) validated
+  this morning — the COMBINED `02×kill_switches_off` cell GREEN (all 10 default-ON switches off at once, 7/7
+  invariants, 148 requests) plus ALL TEN solo drains green, each across BOTH cells (`02×perfect` fresh +
+  `02×perfect@home-0.0.0` migrated-home): 20 solo cell-passes, zero failures. The pending
+  `NKLEIN_REPO_VERIFY` one-at-a-time validation drain is discharged by its solo. Every default flip's promised
+  escape hatch is now a nightly-proven posture, not an assumption.
   **▶ 2026-08-01 — THE `flags_on` LANE DOES NOT DO WHAT ITS DOC SAYS: it enables 32 of 46 default-OFF opt-ins.**
   Its header says *"the baseline `perfect` recording replayed with EVERY default-OFF opt-in"*. Checked against the
   new flag registry: **15 are missing.** The existing `nightly-flag-matrix-coverage` ratchet only requires flags the
@@ -7961,8 +7968,8 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   registered gate honors (`isEnabledByDefaultEnv`, both `/^(0|false|off)$/i` gates, and the prune `!== "off"`
   gate — `"0"` would have silently left prune ENABLED, caught at design time). Lane test pins profile +
   from-registry construction + off-semantics of declared gate matchers + the manifest cell; tranche integrity
-  declares the perfect-recording reuse. REMAINING for lane (c) CLOSE: the validation drains (each of the 10
-  switches solo, then the combined cell) — queued behind the N15 green-leg soak for an uncontended box.
+  declares the perfect-recording reuse. **✅ VALIDATION DRAINS ALL GREEN same morning (combined cell 7/7
+  invariants + 10 solos × 2 cells each = 21 green cells, zero failures) — lane (c) CLOSED, and with it N11.**
   **The ratchet earning its keep is the point:** it refused a change I made on the strength of a written note, and
   the note was wrong. 8 "pending a run" was really 2 permanent + 2 mis-recorded + 5 real.
   ◆ Found only because `memory_freshness_audit`'s registration tripped the existing ratchet — *"a newly registered
