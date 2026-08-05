@@ -8196,8 +8196,11 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   provider through `nklein-provider-selection.json` (A2A cards carry per-card settings — why the soak never
   tripped); the first-run slides re-arm on project-id changes ⇒ journey clicks are dialog-immune
   (clickSettled); shared journey helpers extracted.
+  **▶ NIGHTLY REGISTRATION DONE same day:** the two lanes join `dev nightly` exactly like the crash matrix
+  (manifest-gated `uiJourneys.enabled`, PASS-line + exit-0 double check per launcher, folded into
+  isNightlyOverallOk + the JSON payload; dry-run lists them; `npm run test:ui-journeys` standalone).
   REMAINING: the review BOUNCE (request-changes) journey — chat/feedback-driven, wants its own slice;
-  nightly registration of the three lanes; drained twins of mocked journeys where they add release value.
+  drained twins of mocked journeys where they add release value.
 - [ ] **N15 — Soak + local-only assertion.** One long-horizon cell: a 40-card board over hours with RSS/handle/
   ledger-growth watch (codebase-memory has OOM'd under load before). The SAME run records every outbound
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
