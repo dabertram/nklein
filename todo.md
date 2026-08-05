@@ -8178,9 +8178,15 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   browser socket 403s and the UI shows "Disconnected" (curl/node probes carry no Origin and sail through; the
   dev-proxy flow was silently unusable); ② un-normalized macOS tmp paths (/var vs /private/var) make the
   workspace-index lookup MISS and the runtime silently re-registers the workspace fresh (new id, no config,
-  setup wizard on every visit). REMAINING: interaction depth on purpose-built boards (drag/drop lane moves,
-  review approve/bounce against a mid-drain board), nightly registration of the lane, and the mocked-suite
-  journeys' drained twins where they add release value.
+  setup wizard on every visit).
+  **▶ SLICE 2 GREEN same day: the pointer DRAG/DROP journey (4/4 lane cells).** Two cards created through the
+  real UI, pointer-dragged to reorder within Backlog — staged moves with event-loop turns (the sensor never
+  lifts on a single steps:N burst), lift asserted via position:fixed, order asserted on stable data-task-ids
+  (mid-animation portals make text scans lie), and the reorder SURVIVES A FULL RELOAD through the runtime.
+  Product behavior confirmed en route: dragging OUT of Backlog is a deliberate START gesture ("backlog cards
+  always kick off") — the passive drag journey is within-lane reorder; new cards insert newest-first.
+  REMAINING: review approve/bounce journey (needs a purpose-built mid-drain board with a review-lane card),
+  nightly registration of the lane, and drained twins of mocked journeys where they add release value.
 - [ ] **N15 — Soak + local-only assertion.** One long-horizon cell: a 40-card board over hours with RSS/handle/
   ledger-growth watch (codebase-memory has OOM'd under load before). The SAME run records every outbound
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
