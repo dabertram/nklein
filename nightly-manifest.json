@@ -26,6 +26,7 @@
     "taint_gate",
     "park_resume",
     "flags_on",
+    "kill_switches_off",
     "ministral_quirk",
     "reasoning_only_quirk",
     "schema_deadend_quirk",

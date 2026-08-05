@@ -95,7 +95,7 @@ describe("N2 smallest-ten nightly tranche", () => {
 			// enabled, so requiring a `flags-on-run.json` would force a pointless byte-identical copy whose only
 			// effect is a second file to keep in sync. Those profiles are listed here explicitly, so reuse stays a
 			// declared decision rather than a silently missing recording.
-			const REUSES_BASELINE_RECORDING = new Set(["flags_on"]);
+			const REUSES_BASELINE_RECORDING = new Set(["flags_on", "kill_switches_off"]);
 			for (const run of project.modelProfiles) {
 				if (REUSES_BASELINE_RECORDING.has(run)) {
 					continue;

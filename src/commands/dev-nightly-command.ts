@@ -3,6 +3,7 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { defaultOnKillSwitches } from "../core/feature-flag-registry";
 import {
 	detectNightlyCostRegressions,
 	type NightlyModelIoCost,
@@ -212,6 +213,10 @@ const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	// profile can never exercise them. One profile gives all of them their chance in a single drain instead of
 	// 29 bespoke cells, and needs no new recording at all.
 	flags_on: "perfect",
+	// N11 lane (c) (2026-08-05): the SAME perfect recording with every DEFAULT-ON kill-switch turned OFF — the
+	// escape hatch each default flip promises ("opt-out: NKLEIN_X=0") proven as one drained posture, so flag
+	// interactions with the defaults ABSENT are exercised rather than assumed.
+	kill_switches_off: "perfect",
 	// N3 per-family behavior matrix, first family (2026-08-04): the ministral/Mistral-family Jinja quirk as a
 	// NEGATIVE-SPACE tripwire — the recording is the perfect run PLUS a messagesNonAlternating→500 track that
 	// only a prompt-shape regression can light. Green means "!Klein never sent this family a non-alternating
@@ -286,6 +291,11 @@ const PROFILE_EXTRA_ENV: Readonly<Record<string, Readonly<Record<string, string>
 		NKLEIN_TEST_DRIVEN_MODE: "1",
 		NKLEIN_TOOL_TRUST_DECAY: "1",
 	},
+	// N11 lane (c): every DEFAULT-ON kill-switch OFF, built from the registry so a newly shipped default-ON flag
+	// joins this lane automatically instead of drifting past it. "off" is the one disable value every registered
+	// kill-switch gate honors (isEnabledByDefaultEnv, both /^(0|false|off)$/i gates, and the model-sensitive-prune
+	// `!== "off"` gate) — the lane test pins that a new default-ON flag keeps honoring it.
+	kill_switches_off: Object.fromEntries(defaultOnKillSwitches().map((flag) => [flag, "off"])),
 };
 
 async function runCell(cell: NightlyCell): Promise<CellVerdict> {
