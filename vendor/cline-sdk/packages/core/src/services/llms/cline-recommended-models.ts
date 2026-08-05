@@ -161,6 +161,12 @@ async function fetchWithTimeout(
 export async function fetchClineRecommendedModels(
 	options: FetchClineRecommendedModelsOptions = {},
 ): Promise<ClineRecommendedModelsData> {
+	// NKLEIN_DISABLE_MODEL_FEEDS: a host embedding this SDK in a LOCAL-ONLY posture sets this to keep boot
+	// fully offline — this feed then resolves to its built-in fallback without opening a socket (live-found
+	// 2026-08-05: the feed was the runtime's only non-loopback connection on an otherwise local-only host).
+	if (process.env.NKLEIN_DISABLE_MODEL_FEEDS === "1") {
+		return cloneRecommendedModels(FALLBACK_CLINE_RECOMMENDED_MODELS);
+	}
 	try {
 		const base = getConfiguredApiBaseUrl(options);
 		const fetchImpl = options.fetchImpl ?? fetch;

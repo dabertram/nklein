@@ -798,6 +798,11 @@ async function fetchLiveModelsCatalog(
 export async function getLiveModelsCatalog(
 	options: Pick<ModelCatalogConfig, "url" | "cacheTtlMs"> = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
+	// NKLEIN_DISABLE_MODEL_FEEDS: local-only hosts keep boot fully offline — the generated catalog is the
+	// documented fallback for an unreachable live catalog, so resolving to it directly preserves semantics.
+	if (process.env.NKLEIN_DISABLE_MODEL_FEEDS === "1") {
+		return {};
+	}
 	const url = options.url ?? DEFAULT_MODELS_CATALOG_URL;
 	const cacheTtlMs = options.cacheTtlMs ?? DEFAULT_MODELS_CATALOG_CACHE_TTL_MS;
 	const now = Date.now();

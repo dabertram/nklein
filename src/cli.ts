@@ -1,3 +1,11 @@
+// LOCAL-ONLY boot posture (prime directive #1, live-found 2026-08-05): the vendored SDK's model feeds
+// (api.cline.bot recommended-models + models.dev catalog) were the runtime's ONLY non-loopback connections —
+// caught by the N15 soak's egress audit on two independent runs. Default them OFF before anything can call
+// them; an explicit NKLEIN_DISABLE_MODEL_FEEDS=0 re-enables for a deliberately cloud-enabled setup.
+if (process.env.NKLEIN_DISABLE_MODEL_FEEDS === undefined) {
+	process.env.NKLEIN_DISABLE_MODEL_FEEDS = "1";
+}
+
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";

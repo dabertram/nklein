@@ -194,6 +194,12 @@ export async function fetchLiveProviderModels(
 	fetcher: typeof fetch = fetch,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const emptyProviderModels: Record<string, Record<string, ModelInfo>> = {};
+	// NKLEIN_DISABLE_MODEL_FEEDS: a local-only host keeps boot fully offline — both live feeds resolve to
+	// their documented unreachable-fallbacks (empty overlays) without opening a socket (live-found 2026-08-05:
+	// these were the runtime's only non-loopback connections on an otherwise local-only host).
+	if (process.env.NKLEIN_DISABLE_MODEL_FEEDS === "1") {
+		return emptyProviderModels;
+	}
 	const [providerModels, clineRecommendedPayload] = await Promise.all([
 		fetchModelsDevProviderModels(modelsDevUrl, fetcher).catch(
 			() => emptyProviderModels,
