@@ -10,11 +10,15 @@
  *  - `installEnv` carries SETUPTOOLS_SCM_PRETEND_VERSION for pytest-repo instances: codeload tarballs have no
  *    git history, so setuptools_scm invents `0.1.dev1+g…` and pytest's own minversion check rejects itself.
  *  - `installArgs` carries `--no-build-isolation` where the repo pins a build backend without PEP 660
- *    (pylint 2.15/2.16 era) — the venv's modern setuptools provides `build_editable` instead.
- *  - `installPytest` is false for pytest-repo instances: the editable install IS the pytest under test, and a
- *    modern pytest would shadow it. Where it is a version RANGE, that range is probe-proven (pytest 8's
- *    bundled `py` shim breaks `from py._path.local import …` in old pylint test modules; `pytest<8` + real
- *    `py` restores them).
+ *    (pylint 2.15/2.16 era) — the venv's modern setuptools provides `build_editable` instead. (Grade-time
+ *    installs ALWAYS run --no-build-isolation regardless: an isolated build env fetches from the index, which
+ *    `--network none` forbids — the flag here records which instances need it even ONLINE.)
+ *  - `buildRequirements` are the PEP 517 build deps beyond setuptools+wheel (pytest builds need
+ *    setuptools-scm) — offline grading must have their wheels cached.
+ *  - pytest-repo instances install NO pytest of their own (empty `extraRequirements`): the editable install IS
+ *    the pytest under test, and a modern one would shadow it. Where a range appears, it is probe-proven
+ *    (pytest 8's bundled `py` shim breaks `from py._path.local import …` in old pylint test modules;
+ *    `pytest<8` + real `py` restores them).
  */
 
 export interface SwebenchTrancheEntry {
@@ -28,6 +32,8 @@ export interface SwebenchTrancheEntry {
 	readonly installEnv: Readonly<Record<string, string>>;
 	/** Extra args for the editable install. */
 	readonly installArgs: readonly string[];
+	/** PEP 517 build requirements beyond setuptools+wheel (grade runs offline with --no-build-isolation). */
+	readonly buildRequirements: readonly string[];
 	/** Installed AFTER the editable install (test runner + era pins); [] means the repo brings its own. */
 	readonly extraRequirements: readonly string[];
 }
@@ -40,6 +46,7 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		preInstallRequirements: [],
 		installEnv: {},
 		installArgs: [],
+		buildRequirements: [],
 		// flask 2.3 leaves Werkzeug unbounded (>=2.3.3); werkzeug 3 removed `__version__` (probe-caught).
 		extraRequirements: ["werkzeug<3", "pytest"],
 	},
@@ -50,6 +57,7 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		preInstallRequirements: [],
 		installEnv: {},
 		installArgs: [],
+		buildRequirements: [],
 		extraRequirements: ["pytest"],
 	},
 	{
@@ -59,6 +67,7 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		preInstallRequirements: [],
 		installEnv: {},
 		installArgs: [],
+		buildRequirements: [],
 		extraRequirements: ["pytest"],
 	},
 	{
@@ -68,6 +77,7 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		preInstallRequirements: [],
 		installEnv: {},
 		installArgs: [],
+		buildRequirements: [],
 		extraRequirements: ["pytest"],
 	},
 	{
@@ -77,6 +87,7 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		preInstallRequirements: ["setuptools<81"],
 		installEnv: { SETUPTOOLS_SCM_PRETEND_VERSION: "4.4.0" },
 		installArgs: [],
+		buildRequirements: ["setuptools-scm"],
 		extraRequirements: [],
 	},
 	{
@@ -86,6 +97,7 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		preInstallRequirements: ["setuptools<81"],
 		installEnv: { SETUPTOOLS_SCM_PRETEND_VERSION: "5.2.0" },
 		installArgs: [],
+		buildRequirements: ["setuptools-scm"],
 		extraRequirements: [],
 	},
 	{
@@ -95,6 +107,7 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		preInstallRequirements: ["setuptools<81"],
 		installEnv: { SETUPTOOLS_SCM_PRETEND_VERSION: "6.0.0" },
 		installArgs: [],
+		buildRequirements: ["setuptools-scm"],
 		extraRequirements: [],
 	},
 	{
@@ -104,6 +117,7 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		preInstallRequirements: [],
 		installEnv: {},
 		installArgs: [],
+		buildRequirements: [],
 		extraRequirements: ["pytest"],
 	},
 	{
@@ -113,6 +127,7 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		preInstallRequirements: [],
 		installEnv: {},
 		installArgs: [],
+		buildRequirements: [],
 		extraRequirements: ["pytest<8", "py"],
 	},
 	{
@@ -122,6 +137,7 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		preInstallRequirements: ["setuptools<81"],
 		installEnv: {},
 		installArgs: ["--no-build-isolation"],
+		buildRequirements: [],
 		extraRequirements: ["pytest<8", "py"],
 	},
 ];

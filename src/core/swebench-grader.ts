@@ -33,7 +33,9 @@ export const SWEBENCH_GRADER_IMAGE = "python:3.9-slim";
  * failure the facts exist to prevent (prepare-caught on pytest-5227).
  */
 export function buildSwebenchPrepareScript(entry: SwebenchTrancheEntry): string {
-	const pins = [...entry.preInstallRequirements, ...entry.extraRequirements];
+	// The grade-time closure: era pins AND the offline build toolchain (pip download never includes PEP 517
+	// build requirements in a source's closure — the whole first control sweep failed on exactly that).
+	const pins = [...new Set([...swebenchToolchainRequirements(entry), ...entry.extraRequirements])];
 	const installEnv = Object.entries(entry.installEnv)
 		.map(([key, value]) => `${key}='${value}'`)
 		.join(" ");
@@ -56,27 +58,50 @@ export function buildSwebenchPrepareScript(entry: SwebenchTrancheEntry): string 
 	].join("\n");
 }
 
-/** The in-container shell for `grade`: venv from cache only, editable install, run both selections. */
+/** The build toolchain every offline editable install needs (pip's isolated build env is unreachable offline). */
+export function swebenchToolchainRequirements(entry: SwebenchTrancheEntry): string[] {
+	const pinnedSetuptools = entry.preInstallRequirements.find((requirement) => requirement.startsWith("setuptools"));
+	return [
+		"wheel",
+		pinnedSetuptools ?? "setuptools",
+		...entry.buildRequirements,
+		...entry.preInstallRequirements.filter((requirement) => requirement !== pinnedSetuptools),
+	];
+}
+
+/**
+ * The in-container shell for `grade`: venv from cache only, toolchain first, editable install ALWAYS with
+ * `--no-build-isolation` (an isolated build env tries to fetch setuptools from the index — impossible under
+ * `--network none`; control-caught on the whole first tranche sweep). Every stage is diagnosable: pip
+ * failures print a named marker line, and pytest's stderr merges into the parsed stream (`^PASSED` summary
+ * lines cannot collide with diagnostics).
+ */
 export function buildSwebenchGradeScript(entry: SwebenchTrancheEntry, instance: SwebenchInstanceMetadata): string {
 	const plan = buildSwebenchGradePlan(instance);
 	const wheels = `--no-index --find-links /cache/wheels/${entry.instanceId}`;
 	const installEnv = Object.entries(entry.installEnv)
 		.map(([key, value]) => `${key}='${value}'`)
 		.join(" ");
-	const pipInstall = (what: string) => `python -m pip install --disable-pip-version-check -q ${wheels} ${what}`;
 	const quote = (parts: readonly string[]) => parts.map((part) => `'${part}'`).join(" ");
+	const pipInstall = (what: string, stage: string) =>
+		`python -m pip install --disable-pip-version-check -q ${wheels} ${what} 2>&1 || echo "SWEBENCH_PIP_FAILED ${stage}"`;
 	return [
 		"set -u",
 		"python -m venv /tmp/venv",
 		"export PATH=/tmp/venv/bin:$PATH",
-		...(entry.preInstallRequirements.length > 0 ? [pipInstall(quote(entry.preInstallRequirements))] : []),
-		`${installEnv ? `env ${installEnv} ` : ""}${pipInstall(`${quote(entry.installArgs)} -e /work`.trim())}`,
-		...(entry.extraRequirements.length > 0 ? [pipInstall(quote(entry.extraRequirements))] : []),
+		pipInstall(quote(swebenchToolchainRequirements(entry)), "toolchain"),
+		`${installEnv ? `env ${installEnv} ` : ""}${pipInstall(
+			`--no-build-isolation ${quote(entry.installArgs.filter((arg) => arg !== "--no-build-isolation"))} -e /work`
+				.replace(/\s+/g, " ")
+				.trim(),
+			"editable",
+		)}`,
+		...(entry.extraRequirements.length > 0 ? [pipInstall(quote(entry.extraRequirements), "extras")] : []),
 		"cd /work",
 		"echo '===SWEBENCH_F2P==='",
-		`${quote(plan.failToPassCommand)} || true`,
+		`${quote(plan.failToPassCommand)} 2>&1 || true`,
 		"echo '===SWEBENCH_P2P==='",
-		`${quote(plan.passToPassCommand)} || true`,
+		`${quote(plan.passToPassCommand)} 2>&1 || true`,
 		"echo '===SWEBENCH_END==='",
 	].join("\n");
 }
