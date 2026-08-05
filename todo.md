@@ -8148,8 +8148,22 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   the soak ran capability-strict but without the nightly's hermetic posture; identify which child phoned
   (sandbox npm activity is the prime suspect) and whether the strict preset should have blocked it.
   Harness verdict machinery proven (tree-wide sampling after the wrapper-only false-flat finding).
-  NEXT: root-cause (1) with a profile of the per-card hot path at high board counts; (2) via a heap
-  snapshot diff between rounds; (3) via per-child attribution in the sampler. DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
+  **✅ (1)+(2) ROOT-CAUSED AND FIXED (2026-08-05 morning, evidence chain: restart discriminator → degraded-
+  phase CDP profile → subscribe-site audit): the lane reconciler was subscribed INSIDE the scoped-service
+  resolver (runs per request) onto the per-workspace-memoized queue — listeners accumulated per request and
+  every kernel transition fanned into N full board read+zod-parse+writes** (profile: readFileUtf8 20% +
+  readJsonFile 11.5% + zod 5% of all work). Fixed: once-per-workspace mount guard. Proof soak: rounds 1-5
+  flattened to 219→432s (was 110→1129 pre-fix). Tools built en route: `scripts/soak-simulated.mts`
+  (REUSE_HOME knob, argv attribution) + `scripts/cdp-cpu-profile.mts` (attach-and-sample; --cpu-prof loses
+  its profile on SIGTERM — hit twice). THREE FOLLOW-UP THREADS from the proof run
+  (`.real-runs/soak-proof/`): **(a) round-6 stall** — 28 cards "startable … lack an active task session —
+  sweeping" repeating with nothing starting and no error (the N23 silent-sweep shape, this time in-product;
+  home retained); **(b) the RUNTIME PROCESS ITSELF phones two external :443 hosts once per run**
+  (Cloudflare anycast + Google LB 35.186.247.105 — SAME pair in both soaks, deterministic; a real
+  local-only violation to name: suspects = an SDK/dependency boot-time fetch; probe with a boot-only
+  netstat watch); **(c) residual linear creep** (+~55s/round remains — second-order accumulator, lower
+  priority). RSS also showed a 3.0→1.3GB cliff at the round-6 stall (possibly the dying component
+  releasing). DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
 - [x] **N23 — 🐛 Ready-sweep silent no-op loop: the board-liveness watchdog logs "1 startable … — sweeping
   (frozen-board self-heal)" every cycle FOREVER while the card never starts and nothing records why
