@@ -4,9 +4,8 @@
  * board machinery, then POLL the board record + status note and stream every TRANSITION as an
  * agent_message_chunk until the card reaches a terminal shape.
  *
- * Cancellation (slice-2 contract, recorded): abort resolves the turn with "cancelled" and stops streaming;
- * the seeded card itself keeps running under the swarm's own lifecycle — stopping it is a follow-up once the
- * facade grows a stop closure.
+ * Cancellation stops BOTH halves: the turn resolves "cancelled" immediately, and the seeded card's live
+ * session is stopped through the facade so an editor's cancel never leaves the swarm running the turn's card.
  */
 
 import type { RuntimeServer } from "../server/runtime-server";
@@ -89,7 +88,13 @@ export function buildRuntimeAcpPorts(input: {
 				}
 				await new Promise((tick) => setTimeout(tick, POLL_MS));
 			}
-			return signal.aborted ? "cancelled" : "max_turn_requests";
+			if (signal.aborted) {
+				// The editor cancelled: stop the card's live session too — never leave the swarm running a
+				// turn the client walked away from. Best-effort; the turn's contract is resolving promptly.
+				void input.ingress.stopTask(entry, taskId).catch(() => undefined);
+				return "cancelled";
+			}
+			return "max_turn_requests";
 		},
 	};
 }

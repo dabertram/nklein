@@ -349,7 +349,11 @@ export interface RuntimeServer {
 	externalIngress: Pick<
 		Parameters<typeof handleA2aHttpRequest>[1],
 		"listWorkspaces" | "seedCard" | "readBoardRecord" | "readStatusNote"
-	> & { armWorkspace: (entry: { workspaceId: string; repoPath: string }) => Promise<void> };
+	> & {
+		armWorkspace: (entry: { workspaceId: string; repoPath: string }) => Promise<void>;
+		/** Stop a seeded card's live session (ACP cancel must not leave the swarm running the turn's card). */
+		stopTask: (entry: { workspaceId: string; repoPath: string }, taskId: string) => Promise<void>;
+	};
 }
 
 // C3 (§5.AF): how often the durable-run reclaim/dispatch timer fires. Long enough not to busy-loop, short enough to
@@ -6026,6 +6030,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					workspaceId: entry.workspaceId,
 					workspacePath: entry.repoPath,
 				}).catch(() => undefined);
+			},
+			stopTask: async (entry, taskId) => {
+				const service = await getScopedNKleinTaskSessionService({
+					workspaceId: entry.workspaceId,
+					workspacePath: entry.repoPath,
+				}).catch(() => null);
+				await service?.stopTaskSession(taskId).catch(() => null);
 			},
 		},
 		close: async () => {
