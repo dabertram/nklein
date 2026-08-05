@@ -11022,8 +11022,8 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   (stdout writers → stderr — one log line on fd 1 corrupts the protocol). LIVE SMOKE
   (`scripts/acp-smoke.mts`): the SDK's own client over child stdio, sim-backed HOME — initialize v1 →
   session/new(cwd) → prompt → real sandboxed worker + auto-review delivery → 9 streamed updates → end_turn.
-  REMAINING (small): session/request_permission ↔ S3 confirm queue; a facade stop closure so cancel also
-  stops the card; a real-editor (Zed) smoke.
+  REMAINING (small): session/request_permission ↔ S3 confirm queue; a real-editor (Zed) smoke.
+  (✅ cancel-stops-the-card landed same hour: stopTask joined the facade; smoke re-run green.)
   **(superseded blueprint, kept for the record:)** the bridge-over-tRPC
   idea is WRONG (no card-create mutation exists on runtime.*; the board writes ride a non-obvious channel).
   The right shape is the A2A-symmetric IN-PROCESS mount: ① `nklein acp` boots the FULL runtime server on an
