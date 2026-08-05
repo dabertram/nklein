@@ -497,6 +497,7 @@ export async function runSecondOpinionReviewForTask(
 	};
 	stampPhase("acceptance-verify start");
 	// Same diff basis the review core fingerprints (getTaskDiff below) — a cheap git call vs a sandbox run.
+	let reviewedDiffLines: number | null = null;
 	const evidenceFingerprint = config.secondOpinionReviewEnabled
 		? await getDiff({
 				repoPath: input.workspacePath,
@@ -504,7 +505,12 @@ export async function runSecondOpinionReviewForTask(
 				baseRef: card.baseRef,
 				...(input.primaryResultCommit ? { resultCommit: input.primaryResultCommit } : {}),
 			})
-				.then((diff) => fingerprintReviewArtifact(diff || "(no file changes)"))
+				.then((diff) => {
+					// P21.6b: the reviewed diff's SIZE is the review-capacity evidence the sizing invariant
+					// derives its ceiling from — captured here because this is the diff the reviewer judges.
+					reviewedDiffLines = diff ? diff.split("\n").length : 0;
+					return fingerprintReviewArtifact(diff || "(no file changes)");
+				})
 				.catch(() => null)
 		: null;
 	// Live-found (rig 2026-07-18): verdict-less review retries re-ran the full sandbox acceptance on
@@ -1227,5 +1233,29 @@ ${review.lastFeedback}`
 			? `review-resolution done (delivered; durable approval reused, round ${reviewResult.round})`
 			: `review-resolution done (${reviewResult.type})`,
 	);
+	// P21.6b review-capacity EVIDENCE: what size of diff did THIS reviewer model actually judge, and how did
+	// it end? The sizing invariant's ceiling must be derived from this record ("what the available auto-review
+	// models have empirically reviewed successfully"), never from parameter count or an invented default.
+	// Skipped resolutions carry no judgment and record nothing.
+	if (reviewResult.type !== "skipped" && reviewedDiffLines !== null) {
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "debug",
+				message: `Review capacity evidence for ${input.taskId}: ${reviewResult.type} at ${reviewedDiffLines} diff line(s) by ${reviewer?.modelId ?? "auto"}.`,
+				taskId: input.taskId,
+				workspacePath: input.workspacePath,
+				metadata: {
+					category: "review_capacity_evidence",
+					outcome: reviewResult.type,
+					diffLines: reviewedDiffLines,
+					reviewerModelId: reviewer?.modelId ?? null,
+					reviewerProviderId: reviewer?.providerId ?? null,
+				},
+			});
+		} catch {
+			// Evidence must never break the review path.
+		}
+	}
 	return reviewResult;
 }

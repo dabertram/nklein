@@ -766,6 +766,18 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 	},
 	{
+		// P21.6b 2026-08-05: the sizing invariant's evidence stream — what diff size each reviewer model
+		// actually judged and how it ended. Always on (the record IS the measurement); the capacity deriver
+		// reads it to compute the empirical review ceiling.
+		category: "review_capacity_evidence",
+		item: "P21.6b",
+		observes: "the reviewed diff's line count + outcome per reviewer model (empirical review-capacity evidence)",
+		enabledBy: null,
+		expectation: "every_run",
+		firesWhen: "second_opinion_review_session",
+		addedOn: Date.UTC(2026, 7, 5),
+	},
+	{
 		// N11 2026-08-05: registered so the flags_on lane can admit the flag on its banked one-at-a-time
 		// validation — the lane ratchet (correctly) only admits mechanism-claimed flags. Records the gate's
 		// decision either way (the test_driven_gate precedent: "how often would this fire?" must be answerable
