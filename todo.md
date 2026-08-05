@@ -7517,9 +7517,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
     real gap: unbounded `Werkzeug>=2.3.3` floats to 3.x (`werkzeug.__version__` removed) — fixed by
     `werkzeug<3`, F2P then fails pre-fix correctly. ⇒ grader recipe: py3.9 venv + `pip install -e .` +
     per-instance `extraRequirements` ONLY where the repo's own constraints float across a major.
-  **REMAINING:** (a) probe the other 7 instances' envs + record extraRequirements in instance metadata; (b) the
-  sealed grader (Aider-pattern Docker python:3.9 image with preloaded wheels — one-time egress at build) +
-  grade execution wire; (c) nightly cell registration + aimock recordings per the standard four-step recipe.
+  **✅ (a) DONE same day — ALL TEN ENV-PROVEN, one probe rejection:** the remaining 7 probed with real venvs;
+  every gap root-caused and its fix VERIFIED (setuptools<81 for pkg_resources; SETUPTOOLS_SCM_PRETEND_VERSION
+  because codeload tarballs have no git history — scm invents 0.1.dev1 and pytest rejects itself; pytest<8 +
+  real `py` for old pylint's py._path imports; --no-build-isolation for the PEP-660-less era backend; grade
+  plan drops `--no-header` — pytest <6.2 rejects it, probe-caught). **pylint-7277 REJECTED by the probe** (its
+  only F2P passes PRE-FIX here — cannot discriminate; replaced by pylint-7993, probe-clean). The facts live in
+  `src/core/swebench-tranche.ts` (+4 integrity tests incl. exclusion honesty).
+  **REMAINING:** (b) the sealed grader (Aider-pattern Docker python:3.9 image with preloaded wheels — one-time
+  egress at build) + grade execution wire; (c) nightly cell registration + aimock recordings per the standard
+  four-step recipe.
 - [x] **N9 — Upgrade-path / persisted-state compatibility cells.** Freeze a fixture-HOME per release; nightly
   boots each on the CURRENT build and asserts: clean boot (corrupt-file recovery paths included), a full drain,
   and the LEARNING stores (fitness/behavior/ledger) folding mixed-generation data into sane routing (the
