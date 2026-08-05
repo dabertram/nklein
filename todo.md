@@ -11014,7 +11014,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   session/cancel aborts the in-flight turn while the prompt still RESOLVES with stopReason `cancelled`;
   authenticate refuses (no authMethods declared). Proven with the SDK's OWN ClientSideConnection over an
   in-process duplex — 5 tests incl. the cancel-resolves contract and prompt-block flattening.
-  **REMAINING — slice 2 BLUEPRINT (surveyed 2026-08-05 ~15:10, execute as written):** the bridge-over-tRPC
+  **✅ SLICE 2 EXECUTED same hour — `nklein acp` is LIVE end-to-end.** The runtime exposes an
+  `externalIngress` facade (the exact A2A receive-side closures + an explicit armWorkspace);
+  `buildRuntimeAcpPorts` maps prompt→seed-ready-card→arm→poll-and-stream (every lane/review transition an
+  agent_message_chunk; completed→end_turn, trash→refusal, parked-review→end_turn+reason; 30min ceiling).
+  `nklein acp` boots the full runtime and speaks ndjson on a RAW fd-1 stream grabbed before anything can log
+  (stdout writers → stderr — one log line on fd 1 corrupts the protocol). LIVE SMOKE
+  (`scripts/acp-smoke.mts`): the SDK's own client over child stdio, sim-backed HOME — initialize v1 →
+  session/new(cwd) → prompt → real sandboxed worker + auto-review delivery → 9 streamed updates → end_turn.
+  REMAINING (small): session/request_permission ↔ S3 confirm queue; a facade stop closure so cancel also
+  stops the card; a real-editor (Zed) smoke.
+  **(superseded blueprint, kept for the record:)** the bridge-over-tRPC
   idea is WRONG (no card-create mutation exists on runtime.*; the board writes ride a non-obvious channel).
   The right shape is the A2A-symmetric IN-PROCESS mount: ① `nklein acp` boots the FULL runtime server on an
   ephemeral loopback port (normal cli path — all wiring standard), then attaches AgentSideConnection over
