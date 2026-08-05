@@ -75,6 +75,34 @@ export function lmStudioApiV0ModelsUrl(baseUrl: string): string {
 }
 
 /**
+ * Whether two base URLs address the SAME local model daemon (host:port identity, loopback spellings unified).
+ *
+ * Exists for evidence SCOPING: `lms ps` describes the local LM Studio daemon and nothing else, so its loaded-set may
+ * only be merged into a residency verdict when the card's endpoint IS that daemon. Merging it host-globally judged a
+ * simulator-pinned card against the real gateway's loaded set the moment the real gateway had any model resident —
+ * `model_not_loaded` against a healthy endpoint, 28 cards auto-paused (N15 soak round 6, 2026-08-05). The same class
+ * bites any custom base URL: mlx-serve, a remote fleet host, a nightly aimock origin. Unparseable URLs answer false
+ * (no identity ⇒ no borrowed evidence).
+ */
+export function targetsSameLocalModelDaemon(baseUrlA: string, baseUrlB: string): boolean {
+	const a = canonicalLoopbackHostPort(baseUrlA);
+	const b = canonicalLoopbackHostPort(baseUrlB);
+	return a !== null && a === b;
+}
+
+function canonicalLoopbackHostPort(baseUrl: string): string | null {
+	try {
+		const url = new URL(baseUrl.trim());
+		const host = url.hostname.toLowerCase();
+		const canonicalHost = host === "localhost" || host === "::1" || host === "[::1]" ? "127.0.0.1" : host;
+		const port = url.port || (url.protocol === "https:" ? "443" : url.protocol === "http:" ? "80" : "");
+		return `${canonicalHost}:${port}`;
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Fetch the ids of currently LOADED (resident) models from LM Studio. Returns `[]` on any failure (caller decides how to
  * treat "unknown" — the harness treats it as "can't confirm loaded" and refuses). Never triggers a load (read-only GET).
  */
@@ -121,9 +149,16 @@ export async function fetchLoadedModelIdsCached(baseUrl: string, fetchImpl: type
 	if (hit && now - hit.at < ttl) {
 		return hit.ids;
 	}
-	const ids = await fetchLoadedModelIds(baseUrl, fetchImpl);
-	loadedIdsCache.set(key, { ids, at: now });
-	return ids;
+	// A FAILED probe is not knowledge and must never enter the cache: one 3s timeout cached as [] poisoned every
+	// task start for a whole TTL window (N15 soak round 6, 2026-08-05 — 28 cards auto-paused against a healthy
+	// endpoint). On failure fall back to the last good view (stale beats invented-empty); the next call re-probes.
+	try {
+		const ids = await fetchLoadedModelIdsStrict(baseUrl, fetchImpl);
+		loadedIdsCache.set(key, { ids, at: now });
+		return ids;
+	} catch {
+		return hit?.ids ?? [];
+	}
 }
 
 /**

@@ -139,7 +139,11 @@ import {
 	moveTaskToColumn,
 	STARTED_CARD_ENTRY_LANE,
 } from "../core/task-board-mutations";
-import { listStartableUnstartedTaskIds, listUnmetDependencyTaskIds } from "../core/task-board-ready-sweep";
+import {
+	listStartableUnstartedTaskIds,
+	listUnmetDependencyTaskIds,
+	partitionStartableByPause,
+} from "../core/task-board-ready-sweep";
 import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } from "../core/task-file-overlap";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { planTerminalRedriveEscalation } from "../core/terminal-redrive-escalation";
@@ -662,6 +666,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// #35 (run36): the tick's failures were INVISIBLE (empty catch) — record the first error per workspace so a
 	// throwing tick (e.g. workspace-state lock contention) can never silently disable the watchdog again.
 	const watchdogErrorReportedWorkspaceIds = new Set<string>();
+	// One needs-operator signal per DISTINCT paused-hold set (not per tick): the N15 round-6 freeze logged
+	// "startable … sweeping (frozen-board self-heal)" 106 times over a fully paused board it could never heal.
+	const pausedHoldSignatureByWorkspaceId = new Map<string, string>();
 	// §5.AW opportunistic best-of-N (user decision 2026-07-02): the per-workspace mirror tick + its budgets.
 	// The tick mirrors the hardest RUNNING card onto a lineage-diverse idle model as a `::spec` session; the
 	// A/B arbitration at the review seam picks the winner. Real work always outranks speculation (queued or
@@ -1205,6 +1212,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		for (const taskId of taskIds) {
 			try {
 				if (pausedTaskIds.has(taskId)) {
+					// A pause supersedes any pending deferral — leaving the card in the overlap set inflates the
+					// watchdog's "deferred" count forever (the phantom "+1 deferred" of the N15 round-6 freeze).
+					deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(taskId);
 					settleDurableDispatchNoop(taskId, "failed", "card is paused (operator hold / failure guard)");
 					continue;
 				}
@@ -1469,6 +1479,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								() => null,
 							);
 							pausedTaskIds.add(task.id);
+							// The hold owns the card now — a lingering overlap-deferral entry would keep it counted
+							// as retry-pending forever (phantom "deferred" in the watchdog's board summary).
+							deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(task.id);
 							deps.warn(pauseMessage);
 							recordSelfObservation({
 								signal: "custom",
@@ -1631,16 +1644,23 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						.filter((summary) => hasLiveSessionForTerminalRedrive(summary.state))
 						.map((summary) => summary.taskId),
 				);
+				// Respect the persisted hold uniformly: a paused card (operator hold / failure guard) must not be
+				// swept, deferred-retried, or redriven — under a durable run, re-handing paused cards to the
+				// controller would burn their attempt budget on dispatches the start path refuses anyway. The
+				// watchdog reports paused holds as their own needs-operator condition instead.
+				const pausedHeldTaskIds = await readPausedTasks(scope.workspacePath).catch(() => new Set<string>());
 				// The triggering dead card is owned by the bounded redrive branch below. Leaving it in the generic ready
 				// sweep bypasses terminalRedriveAttemptedTaskKeys after the first attempt and turns "ONE restart" into an
 				// unbounded sequence of replacement sessions.
 				const sweepTaskIds = excludeTriggeringTerminalTask(
 					listStartableUnstartedTaskIds(state.board, activeSessionTaskIds),
 					terminalTaskId,
+				).filter((taskId) => !pausedHeldTaskIds.has(taskId));
+				const deferredTaskIds = [...(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId) ?? [])].filter(
+					(taskId) => !pausedHeldTaskIds.has(taskId),
 				);
-				const deferredTaskIds = [...(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId) ?? [])];
 				const redriveTaskIds: string[] = [];
-				if (terminalTaskId && !activeSessionTaskIds.has(terminalTaskId)) {
+				if (terminalTaskId && !activeSessionTaskIds.has(terminalTaskId) && !pausedHeldTaskIds.has(terminalTaskId)) {
 					const redriveKey = `${scope.workspaceId}:${terminalTaskId}`;
 					const lane = state.board.columns.find((column) =>
 						column.cards.some((card) => card.id === terminalTaskId),
@@ -3284,12 +3304,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				const sweepTaskIds = sweepState
 					? listStartableUnstartedTaskIds(sweepState.board, activeSessionTaskIds)
 					: [];
+				// Paused cards (operator hold / failure guard) are excluded uniformly — same contract as the
+				// terminal-retry sweep: the hold is the operator's, and re-handing them to the durable controller
+				// only burns attempt budget on dispatches the start path refuses.
+				const pausedHeldTaskIds = await readPausedTasks(scope.workspacePath).catch(() => new Set<string>());
+				const unheld = (taskIds: readonly string[]): string[] =>
+					taskIds.filter((candidateTaskId) => !pausedHeldTaskIds.has(candidateTaskId));
 				// Under a durable run the controller owns ready/sweep (dependency_unblocked → lease); only the
 				// deferred set is ours to restart here (startRescueCandidates). Off durable this is the same union.
-				await startRescueCandidates(scope, deferredOverlapTaskIds, [
-					...readyTaskIds,
-					...deferredOverlapTaskIds,
-					...sweepTaskIds,
+				await startRescueCandidates(scope, unheld(deferredOverlapTaskIds), [
+					...unheld(readyTaskIds),
+					...unheld(deferredOverlapTaskIds),
+					...unheld(sweepTaskIds),
 				]);
 			}
 		})();
@@ -4154,12 +4180,45 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							}
 							phaseLaneDivergencePendingByWorkspaceId.set(scope.workspaceId, nextPending);
 						}
-						const startable = listStartableUnstartedTaskIds(board, activeSessionTaskIds);
+						// PAUSED cards are not the watchdog's to heal — counting them as startable claimed an endless
+						// self-heal over a board the sweep refuses card-by-card (N15 soak round 6: 27 silent minutes).
+						// They are the operator's, so when they are all that remains, say THAT — once per hold set.
+						const pausedHeldSet = await readPausedTasks(scope.workspacePath).catch(() => new Set<string>());
+						const { actionable: startable, pausedHeld } = partitionStartableByPause(
+							listStartableUnstartedTaskIds(board, activeSessionTaskIds),
+							pausedHeldSet,
+						);
 						// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending
 						// concurrency-deferral retry (run36: only the overlap set was checked).
 						const deferredCount =
 							(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) +
 							(deferredRetryTimerByWorkspaceId.has(scope.workspaceId) ? 1 : 0);
+						if (pausedHeld.length > 0 && startable.length === 0 && deferredCount === 0) {
+							const signature = [...pausedHeld].sort().join(",");
+							if (pausedHoldSignatureByWorkspaceId.get(scope.workspaceId) !== signature) {
+								pausedHoldSignatureByWorkspaceId.set(scope.workspaceId, signature);
+								const holdMessage =
+									`Board-liveness watchdog: ${pausedHeld.length} card(s) are paused (operator hold / ` +
+									`auto-start failure guard) and nothing else is startable for ${scope.workspacePath} — ` +
+									`the watchdog will not sweep a paused card. RESUME them (or fix the named cause) to continue.`;
+								deps.warn(holdMessage);
+								recordSelfObservation({
+									signal: "custom",
+									severity: "warning",
+									message: holdMessage,
+									workspacePath: scope.workspacePath,
+									metadata: {
+										category: "board_liveness_watchdog",
+										reconciled: "paused_hold",
+										pausedHeld: pausedHeld.length,
+									},
+								});
+							}
+							return;
+						}
+						if (pausedHoldSignatureByWorkspaceId.has(scope.workspaceId) && pausedHeld.length === 0) {
+							pausedHoldSignatureByWorkspaceId.delete(scope.workspaceId); // holds cleared — re-arm the signal
+						}
 						if (startable.length === 0 && deferredCount === 0) {
 							// STALLED-REVIEW rescue: a verdict-less review card with no live session on an
 							// otherwise-idle board is a frozen pipeline (a dropped review finalize — e.g. the
@@ -4236,7 +4295,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							return;
 						}
 						deps.warn(
-							`Board-liveness watchdog: ${startable.length} startable + ${deferredCount} deferred card(s) lack an active task session for ${scope.workspacePath} — sweeping (frozen-board self-heal).`,
+							`Board-liveness watchdog: ${startable.length} startable + ${deferredCount} deferred${
+								pausedHeld.length > 0 ? ` (+ ${pausedHeld.length} paused-held, not swept)` : ""
+							} card(s) lack an active task session for ${scope.workspacePath} — sweeping (frozen-board self-heal).`,
 						);
 						recordSelfObservation({
 							signal: "custom",

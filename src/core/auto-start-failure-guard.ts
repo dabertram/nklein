@@ -5,6 +5,13 @@
  * start a card five times in a row does not need a sixth identical attempt — it needs to HOLD the card visibly
  * for the operator with the failure named, exactly like the repeated-feedback park guard holds a looping review.
  *
+ * The count alone is NOT persistence evidence: the sweep triggers cluster (a completion burst fires several
+ * sweeps within seconds), so five failures can be ONE bad moment sampled five times. The N15 soak (round 6,
+ * 2026-08-05) proved it — a single poisoned residency window produced ~9 attempts per card in seconds and paused
+ * 28 healthy cards. The pause therefore requires BOTH the count and a minimum wall-clock span from the first
+ * failure of the climb: a condition that survives the span is real; a burst inside it keeps climbing unpaused
+ * and is forgotten the moment one start is accepted.
+ *
  * Pure counter core; the runtime wire pauses the card through the persisted pause set (the same hold the
  * operator's own pause uses, so resume-to-retry is the existing, familiar gesture).
  */
@@ -12,9 +19,12 @@
 /** Consecutive auto-start failures before the card is paused-with-reason. */
 export const AUTO_START_FAILURE_PAUSE_THRESHOLD = 5;
 
+/** Minimum wall-clock span (first failure → pausing failure) — bursts inside it are one incident, not persistence. */
+export const AUTO_START_FAILURE_MIN_SPAN_MS = 60_000;
+
 export interface AutoStartFailureDecision {
 	consecutiveFailures: number;
-	/** True exactly once, on the failure that crosses the threshold. */
+	/** True exactly once, on the failure that satisfies BOTH the count threshold and the minimum span. */
 	shouldPause: boolean;
 }
 
@@ -29,25 +39,31 @@ export interface AutoStartFailureGuard {
 
 export function createAutoStartFailureGuard(
 	threshold: number = AUTO_START_FAILURE_PAUSE_THRESHOLD,
+	minSpanMs: number = AUTO_START_FAILURE_MIN_SPAN_MS,
+	now: () => number = Date.now,
 ): AutoStartFailureGuard {
-	const consecutiveByKey = new Map<string, number>();
+	const climbByKey = new Map<string, { consecutiveFailures: number; firstFailureAt: number }>();
 	return {
 		recordFailure(key: string): AutoStartFailureDecision {
-			const consecutiveFailures = (consecutiveByKey.get(key) ?? 0) + 1;
-			consecutiveByKey.set(key, consecutiveFailures);
-			// Fire the pause exactly once at the crossing; later failures (a resumed card failing again) restart
-			// the climb from the reset the resume implies — the map is cleared when the pause is applied.
-			if (consecutiveFailures >= threshold) {
-				consecutiveByKey.delete(key);
+			const at = now();
+			const climb = climbByKey.get(key) ?? { consecutiveFailures: 0, firstFailureAt: at };
+			const consecutiveFailures = climb.consecutiveFailures + 1;
+			// Fire the pause exactly once at the first failure meeting BOTH conditions; later failures (a resumed
+			// card failing again) restart the climb from the reset the resume implies — the entry is cleared when
+			// the pause is applied. A burst that crosses the count inside the span keeps the entry and keeps
+			// climbing: if the condition is still failing after the span, the next failure pauses.
+			if (consecutiveFailures >= threshold && at - climb.firstFailureAt >= minSpanMs) {
+				climbByKey.delete(key);
 				return { consecutiveFailures, shouldPause: true };
 			}
+			climbByKey.set(key, { consecutiveFailures, firstFailureAt: climb.firstFailureAt });
 			return { consecutiveFailures, shouldPause: false };
 		},
 		reset(key: string): void {
-			consecutiveByKey.delete(key);
+			climbByKey.delete(key);
 		},
 		count(key: string): number {
-			return consecutiveByKey.get(key) ?? 0;
+			return climbByKey.get(key)?.consecutiveFailures ?? 0;
 		},
 	};
 }

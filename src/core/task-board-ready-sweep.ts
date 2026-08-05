@@ -102,3 +102,22 @@ export function listUnmetDependencyTaskIds(board: RuntimeBoardData, taskId: stri
 		.filter((dependency) => dependency.fromTaskId === taskId && laneByTaskId.get(dependency.toTaskId) !== "completed")
 		.map((dependency) => dependency.toTaskId);
 }
+
+/**
+ * Split the ready-sweep's startable candidates into ACTIONABLE vs PAUSED-HELD (the persisted pause set: an
+ * operator hold or the auto-start failure guard). The split exists for HONESTY, not routing: the sweep already
+ * refuses paused cards one by one, silently — so a watchdog that counts them as "startable" claims a self-heal
+ * it cannot perform, forever (N15 soak round 6, 2026-08-05: 27 minutes of "28 startable … sweeping" over a fully
+ * paused board). Callers report `pausedHeld` as a needs-operator condition instead of sweeping it.
+ */
+export function partitionStartableByPause(
+	startableTaskIds: readonly string[],
+	pausedTaskIds: ReadonlySet<string>,
+): { actionable: string[]; pausedHeld: string[] } {
+	const actionable: string[] = [];
+	const pausedHeld: string[] = [];
+	for (const taskId of startableTaskIds) {
+		(pausedTaskIds.has(taskId) ? pausedHeld : actionable).push(taskId);
+	}
+	return { actionable, pausedHeld };
+}

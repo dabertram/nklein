@@ -9,6 +9,7 @@ import {
 	mergeLoadedModelIds,
 	parseLoadedModelIds,
 	shouldBlockUnloadedModel,
+	targetsSameLocalModelDaemon,
 } from "../../../src/core/lmstudio-loaded-models";
 
 const payload = {
@@ -155,5 +156,69 @@ describe("fetchLoadedModelIdsCached (anti-hammering TTL cache, §4A)", () => {
 		} finally {
 			process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS = prev;
 		}
+	});
+
+	it("never caches a FAILED probe (N15 soak round 6: one cached [] paused 28 healthy cards) — next call re-probes", async () => {
+		const prev = process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS;
+		process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS = "30000";
+		try {
+			let calls = 0;
+			const flaky = (async () => {
+				calls += 1;
+				if (calls === 1) {
+					throw new Error("timeout");
+				}
+				return { ok: true, json: async () => payload };
+			}) as unknown as typeof fetch;
+			const url = "http://127.0.0.1:9913/v1";
+			// Failure with no prior good view: unknown ([]), and NOT written into the cache…
+			expect(await fetchLoadedModelIdsCached(url, flaky)).toEqual([]);
+			// …so the very next call inside the same TTL window re-probes and recovers.
+			expect(await fetchLoadedModelIdsCached(url, flaky)).toEqual(["loaded-a", "loaded-c"]);
+			expect(calls).toBe(2);
+		} finally {
+			process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS = prev;
+		}
+	});
+
+	it("prefers the STALE last-good view over invented-empty when a re-probe fails after TTL expiry", async () => {
+		const prev = process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS;
+		process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS = "1";
+		try {
+			let calls = 0;
+			const goodThenDown = (async () => {
+				calls += 1;
+				if (calls === 1) {
+					return { ok: true, json: async () => payload };
+				}
+				throw new Error("timeout");
+			}) as unknown as typeof fetch;
+			const url = "http://127.0.0.1:9914/v1";
+			expect(await fetchLoadedModelIdsCached(url, goodThenDown)).toEqual(["loaded-a", "loaded-c"]);
+			await new Promise((settle) => setTimeout(settle, 5)); // let the 1ms TTL lapse
+			expect(await fetchLoadedModelIdsCached(url, goodThenDown)).toEqual(["loaded-a", "loaded-c"]); // stale grace
+			expect(calls).toBe(2);
+		} finally {
+			process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS = prev;
+		}
+	});
+});
+
+describe("targetsSameLocalModelDaemon (lms ps evidence scoping — N15 soak round 6)", () => {
+	it("unifies loopback spellings for the same daemon", () => {
+		expect(targetsSameLocalModelDaemon("http://localhost:1234/v1", "http://127.0.0.1:1234/v1")).toBe(true);
+		expect(targetsSameLocalModelDaemon("http://[::1]:1234/v1", "http://127.0.0.1:1234/v1")).toBe(true);
+		expect(targetsSameLocalModelDaemon("http://127.0.0.1:1234", "http://127.0.0.1:1234/v1")).toBe(true);
+	});
+
+	it("a custom endpoint (simulator, mlx-serve, remote host) is NOT the local daemon", () => {
+		expect(targetsSameLocalModelDaemon("http://127.0.0.1:53620/v1", "http://127.0.0.1:1234/v1")).toBe(false);
+		expect(targetsSameLocalModelDaemon("http://127.0.0.1:8455/v1", "http://127.0.0.1:1234/v1")).toBe(false);
+		expect(targetsSameLocalModelDaemon("http://192.168.1.20:1234/v1", "http://127.0.0.1:1234/v1")).toBe(false);
+	});
+
+	it("unparseable URLs answer false — no identity, no borrowed evidence", () => {
+		expect(targetsSameLocalModelDaemon("not a url", "http://127.0.0.1:1234/v1")).toBe(false);
+		expect(targetsSameLocalModelDaemon("http://127.0.0.1:1234/v1", "")).toBe(false);
 	});
 });

@@ -3,6 +3,7 @@ import type { RuntimeBoardData } from "../../../src/core/api-contract";
 import {
 	listStartableUnstartedTaskIds,
 	listUnmetDependencyTaskIds,
+	partitionStartableByPause,
 	resolveCardExecutionState,
 } from "../../../src/core/task-board-ready-sweep";
 
@@ -107,5 +108,21 @@ describe("resolveCardExecutionState + listUnmetDependencyTaskIds (§5.AU relay f
 	it("lists only the UNMET prerequisites (completed ones excluded)", () => {
 		expect(listUnmetDependencyTaskIds(b, "blocked-card")).toEqual(["ready-card"]);
 		expect(listUnmetDependencyTaskIds(b, "ready-card")).toEqual([]);
+	});
+});
+
+describe("partitionStartableByPause (watchdog honesty — N15 soak round 6)", () => {
+	it("splits startable candidates into actionable vs paused-held, preserving order", () => {
+		const { actionable, pausedHeld } = partitionStartableByPause(["a", "b", "c", "d"], new Set(["b", "d"]));
+		expect(actionable).toEqual(["a", "c"]);
+		expect(pausedHeld).toEqual(["b", "d"]);
+	});
+
+	it("an empty pause set leaves everything actionable; a fully-paused board leaves nothing to sweep", () => {
+		expect(partitionStartableByPause(["a"], new Set())).toEqual({ actionable: ["a"], pausedHeld: [] });
+		expect(partitionStartableByPause(["a", "b"], new Set(["a", "b"]))).toEqual({
+			actionable: [],
+			pausedHeld: ["a", "b"],
+		});
 	});
 });

@@ -41,6 +41,7 @@ import {
 	loadedModelIdsFromLmsPsModels,
 	mergeLoadedModelIds,
 	shouldBlockUnloadedModel,
+	targetsSameLocalModelDaemon,
 } from "../../core/lmstudio-loaded-models";
 import { createLmStudioRestModelClient } from "../../core/lmstudio-rest-model-client";
 import { resolveDefaultLocalModelBaseUrl } from "../../core/local-model-endpoint";
@@ -526,9 +527,18 @@ export async function handleStartTaskSession(
 		const residencyBaseUrl = nkleinLaunchConfig.baseUrl ?? resolveDefaultLocalModelBaseUrl();
 		const shouldReadLocalResidency =
 			residencyCheckEnabled && isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl);
-		const lmsPsModelsForResidency = shouldReadLocalResidency
-			? await fetchLmsPsModelsCached(createDefaultLmsRunner()).catch(() => [])
-			: [];
+		// `lms ps` describes the LOCAL LM Studio daemon and nothing else — its loaded-set is residency evidence
+		// ONLY when the card's endpoint IS that daemon. Merged host-globally it judged simulator/mlx-serve/remote
+		// cards against the real gateway's models: `model_not_loaded` against a healthy endpoint, 28 cards
+		// auto-paused (N15 soak round 6, 2026-08-05). Custom base URLs are judged by their own `/api/v0/models`.
+		const lmsPsAppliesToResidencyEndpoint = targetsSameLocalModelDaemon(
+			residencyBaseUrl,
+			resolveDefaultLocalModelBaseUrl(),
+		);
+		const lmsPsModelsForResidency =
+			shouldReadLocalResidency && lmsPsAppliesToResidencyEndpoint
+				? await fetchLmsPsModelsCached(createDefaultLmsRunner()).catch(() => [])
+				: [];
 		const loadedModelIds = shouldReadLocalResidency
 			? mergeLoadedModelIds(
 					await fetchLoadedModelIdsCached(residencyBaseUrl),
