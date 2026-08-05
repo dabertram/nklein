@@ -341,8 +341,16 @@ async function main(): Promise<void> {
 		.filter((row): row is NonNullable<typeof row> => row !== null);
 	const egress = buildConnectionAuditVerdict(observations);
 	runtime.kill("SIGTERM");
-	await new Promise((settle) => setTimeout(settle, 3_000));
-	runtime.kill("SIGKILL");
+	// Wait for a GRACEFUL exit before the hard kill: a --cpu-prof runtime flushes its profile at exit, and a
+	// multi-GB process needs more than seconds (the first profiled soak SIGKILLed the profile away).
+	{
+		const exited = new Promise<void>((settle) => runtime.once("close", () => settle()));
+		const graceful = await Promise.race([
+			exited.then(() => true),
+			new Promise<boolean>((settle) => setTimeout(() => settle(false), 30_000)),
+		]);
+		if (!graceful) runtime.kill("SIGKILL");
+	}
 	await simulator.stop().catch(() => undefined);
 
 	const rssSeries = samples.map((sample) => sample.rssKb);
