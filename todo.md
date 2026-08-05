@@ -8135,8 +8135,21 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   `update-notifier=false, fund=false, audit=false`. Identical re-run `.real-runs/20260804-150413`:
   **CONNECTION AUDIT: PASS — every destination loopback** (the lms↔LM Studio local pair). The audit
   proved its worth on run #1 AND the product's local-only invariant now has its first PASSING audited
-  run. REMAINING: flag-ON on a full model drain, default-ON once quiet, the soak cell (40-card
-  hours-long, RSS/handle/ledger growth), trust-center posture row. DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
+  run. REMAINING: flag-ON on a full model drain, default-ON once quiet, trust-center posture row.
+  **▶ SOAK HARNESS BUILT + FIRST 2.5h RUN EXECUTED (2026-08-05 ~02:20, `scripts/soak-simulated.mts`,
+  report `.real-runs/soak-2026-08-04T2324/soak-report.json`) — THREE REAL FINDINGS, the soak doing its job:**
+  **(1) SUPER-LINEAR round-time growth:** identical 40-card rounds took 552s → 742 → 848 → 1096 → 1350 →
+  1550 → 1813s(timeout at 437/440 by round 11) — per-card work grows with ACCUMULATED board/history size
+  (something rescans the whole state per operation; the O(n²) class). This is the headline scalability
+  finding for long-lived boards. **(2) RSS 651MB → 3.6GB across 480 cards (~7.5MB retained per COMPLETED
+  card)** — not runaway-exponential, but completed cards should not hold megabytes of process memory;
+  likely in-memory session/summary retention. **(3) EGRESS: two one-shot :443 connections from a node
+  child in the runtime's pid tree** (Cloudflare anycast + a Google LB) — the sandbox-network question:
+  the soak ran capability-strict but without the nightly's hermetic posture; identify which child phoned
+  (sandbox npm activity is the prime suspect) and whether the strict preset should have blocked it.
+  Harness verdict machinery proven (tree-wide sampling after the wrapper-only false-flat finding).
+  NEXT: root-cause (1) with a profile of the per-card hot path at high board counts; (2) via a heap
+  snapshot diff between rounds; (3) via per-child attribution in the sampler. DAVID CALL (not yet items): cross-platform lanes (Linux CI cheap;
   Windows only if desktop targets it) + performance-budget thresholds as FAILING assertions (noise policy).
 - [x] **N23 — 🐛 Ready-sweep silent no-op loop: the board-liveness watchdog logs "1 startable … — sweeping
   (frozen-board self-heal)" every cycle FOREVER while the card never starts and nothing records why
