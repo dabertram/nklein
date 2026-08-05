@@ -8158,7 +8158,23 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   its profile on SIGTERM — hit twice). THREE FOLLOW-UP THREADS from the proof run
   (`.real-runs/soak-proof/`): **(a) round-6 stall** — 28 cards "startable … lack an active task session —
   sweeping" repeating with nothing starting and no error (the N23 silent-sweep shape, this time in-product;
-  home retained); **(b) the RUNTIME PROCESS ITSELF phones two external :443 hosts once per run**
+  home retained) — **✅ (a) ROOT-CAUSED + FIXED same morning (`f9527854e`), four stacked defects, all with the
+  disk forensics to prove them (board 28×ready, paused-tasks.json = exactly those 28, ledger = a2a_seeded only,
+  log lines 13365–13937): ① the residency gate merged the HOST-GLOBAL `lms ps` loaded-set into every card's
+  verdict — a simulator-pinned card was judged against the real gateway's models the moment ANY model was
+  resident there (`model_not_loaded` vs a healthy endpoint; the same class bites mlx-serve/remote hosts) → now
+  scoped by `targetsSameLocalModelDaemon` (loopback spellings unified; custom base URLs judged only by their own
+  /api/v0/models); ② one 3s-timeout /api/v0/models probe was CACHED as an empty loaded-set for the whole TTL
+  window → failures are never cached now (stale last-good beats invented-empty); ③ the 5-strike auto-start pause
+  was count-only, so a completion-burst (~9 attempts/card in seconds) inside one poisoned window read as
+  persistence → the pause now also requires a ≥60s first→pausing-failure span; ④ the board-liveness watchdog was
+  pause-blind — it claimed "28 startable … self-heal" 106×/27min over a board the sweep refused card-by-card,
+  silently → paused-held cards are partitioned out, ONE needs-operator observation per hold set, sweep/deferred/
+  redrive skip paused uniformly, and pausing evicts the overlap-deferral entry (the phantom "+1 deferred").
+  This also EXPLAINS the G6.8a v14 "frozen-board self-heal ineffective" finding. Also explained: the proof
+  soak's 2 egress violations were exactly the (b) boot pair, and the RSS 3.0→1.3GB "cliff" was the paused board
+  going idle — both retroactively benign. Re-run pending to bank the green leg**; **(b) the RUNTIME PROCESS
+  ITSELF phones two external :443 hosts once per run**
   (Cloudflare anycast + Google LB 35.186.247.105 — SAME pair in both soaks, deterministic; a real
   local-only violation to name: suspects = an SDK/dependency boot-time fetch; probe with a boot-only
   netstat watch — **✅ (b) CLOSED same morning: NODE_DEBUG=fetch named them — the vendored SDK's
