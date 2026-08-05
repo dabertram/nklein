@@ -8162,10 +8162,25 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   every session's prompt. Registration is the fix; enabling is a per-flag decision with a measured A/B behind it.
 
 
-- [ ] **N14 — UI release journeys.** Playwright-class browser flows against a drained nightly board: board
+- [~] **N14 — UI release journeys.** Playwright-class browser flows against a drained nightly board: board
   drag/drop + lane moves, card detail (trail/effort/steer chips), review approve/bounce actions, settings
   round-trips, and the F2.16 stream→DAG→card→thread→BACK focus spec (folds in here). Today's plan is
   backend-drain-centric; releases also ship the UI.
+  **▶ SLICE 1 GREEN 2026-08-05 (~14:00): the DRAINED-BOARD lane exists and passes 3/3.** Discovery first: the
+  mocked e2e suite already covers most named journeys (35 specs incl. stream-drill-focus-back = F2.16,
+  review-recovery, settings, card lifecycle; Playwright + chromium already installed — NO download needed).
+  The missing piece was the RELEASE-shaped lane: `scripts/ui-journey-drained.mts` boots the real stack on a
+  COPY of a retained drained HOME (default `.real-runs/soak-green`, 240 genuinely drained cards) and runs
+  `web-ui/tests-drained/` with ZERO mocks — board renders the drained lane truth (Completed 240 + real
+  titles), card → full task view → back, settings against the live runtime; the first-run chain (onboarding
+  slides → guided setup) is walked as a journey step. TWO real findings caught building it: ① the WS/CORS
+  origin gate only allowlists the vite-dev origin when the RUNTIME knows NKLEIN_WEB_UI_PORT — otherwise every
+  browser socket 403s and the UI shows "Disconnected" (curl/node probes carry no Origin and sail through; the
+  dev-proxy flow was silently unusable); ② un-normalized macOS tmp paths (/var vs /private/var) make the
+  workspace-index lookup MISS and the runtime silently re-registers the workspace fresh (new id, no config,
+  setup wizard on every visit). REMAINING: interaction depth on purpose-built boards (drag/drop lane moves,
+  review approve/bounce against a mid-drain board), nightly registration of the lane, and the mocked-suite
+  journeys' drained twins where they add release value.
 - [ ] **N15 — Soak + local-only assertion.** One long-horizon cell: a 40-card board over hours with RSS/handle/
   ledger-growth watch (codebase-memory has OOM'd under load before). The SAME run records every outbound
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
