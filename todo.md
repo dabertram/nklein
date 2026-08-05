@@ -8185,8 +8185,19 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   (mid-animation portals make text scans lie), and the reorder SURVIVES A FULL RELOAD through the runtime.
   Product behavior confirmed en route: dragging OUT of Backlog is a deliberate START gesture ("backlog cards
   always kick off") — the passive drag journey is within-lane reorder; new cards insert newest-first.
-  REMAINING: review approve/bounce journey (needs a purpose-built mid-drain board with a review-lane card),
-  nightly registration of the lane, and drained twins of mocked journeys where they add release value.
+  **▶ SLICE 3 GREEN same day: the OPERATOR review-merge journey, end-to-end in ~6s** (`scripts/
+  ui-journey-review.mts` + `web-ui/tests-review/`): create via the New-task dialog with auto-review OFF →
+  start from the hover toolbar → sim worker in a real Docker sandbox (199ms spin-up) → card parks in Review
+  for the HUMAN → operator Merge via the Review-actions panel → launcher-verified ground truth: git main
+  contains the worker's file. Merge ≠ close by design (card stays in Review, merged state shown); the spec
+  asserts the panel's exact result message — a generic /merge/i matched the Merge BUTTON instantly and
+  teardown killed the in-flight merge, caught only because the launcher's git check disagreed with a passing
+  spec (the two-source verdict earning its keep). Rig facts encoded: board-started cards resolve the native
+  provider through `nklein-provider-selection.json` (A2A cards carry per-card settings — why the soak never
+  tripped); the first-run slides re-arm on project-id changes ⇒ journey clicks are dialog-immune
+  (clickSettled); shared journey helpers extracted.
+  REMAINING: the review BOUNCE (request-changes) journey — chat/feedback-driven, wants its own slice;
+  nightly registration of the three lanes; drained twins of mocked journeys where they add release value.
 - [ ] **N15 — Soak + local-only assertion.** One long-horizon cell: a 40-card board over hours with RSS/handle/
   ledger-growth watch (codebase-memory has OOM'd under load before). The SAME run records every outbound
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
