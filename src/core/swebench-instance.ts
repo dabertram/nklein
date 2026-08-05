@@ -84,7 +84,9 @@ export function buildSwebenchGradePlan(instance: SwebenchInstanceMetadata): {
 	readonly failToPassCommand: readonly string[];
 	readonly passToPassCommand: readonly string[];
 } {
-	const base = ["python", "-m", "pytest", "-rA", "--no-header", "-p", "no:cacheprovider"];
+	// No `--no-header`: it only exists from pytest 6.2, and pytest-repo instances run THEIR OWN pytest — the
+	// 5.x-era tranche members reject unknown flags as a usage error (probe-caught 2026-08-05, pytest-6202).
+	const base = ["python", "-m", "pytest", "-rA", "-p", "no:cacheprovider"];
 	return {
 		testPatch: instance.testPatch,
 		failToPassCommand: [...base, ...instance.failToPass],

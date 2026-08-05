@@ -63,7 +63,6 @@ describe("buildSwebenchGradePlan", () => {
 			"-m",
 			"pytest",
 			"-rA",
-			"--no-header",
 			"-p",
 			"no:cacheprovider",
 			...instance.failToPass,
