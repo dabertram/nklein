@@ -243,6 +243,7 @@ async function startServer(): Promise<{
 	url: string;
 	close: () => Promise<void>;
 	shutdown: (options?: { skipSessionCleanup?: boolean }) => Promise<void>;
+	externalIngress: import("./server/runtime-server.js").RuntimeServer["externalIngress"];
 }> {
 	// Capture source provenance before workspace-registry initialization or any other startup path can touch the checkout.
 	const buildIdentity = await resolveRuntimeBuildIdentity();
@@ -412,6 +413,7 @@ async function startServer(): Promise<{
 		url: runtimeServer.url,
 		close,
 		shutdown,
+		externalIngress: runtimeServer.externalIngress,
 	};
 }
 
@@ -672,6 +674,65 @@ function createProgram(invocationArgs: string[]): Command {
 		.description("Update !Klein to the latest published version.")
 		.action(async () => {
 			await runUpdateCommand();
+		});
+
+	program
+		.command("acp")
+		.description("Run !Klein as an ACP agent over stdio (Agent Client Protocol — Zed/JetBrains editors).")
+		.action(async () => {
+			// STDOUT IS THE PROTOCOL. Grab the raw fd BEFORE anything can log, then send every ordinary
+			// stdout writer to stderr — a single "[nklein] …" line on fd 1 corrupts the ndjson stream.
+			const { createWriteStream } = await import("node:fs");
+			const { Readable, Writable } = await import("node:stream");
+			const protocolOut = createWriteStream("", { fd: 1 });
+			process.stdout.write = process.stderr.write.bind(process.stderr) as typeof process.stdout.write;
+			console.log = console.error.bind(console);
+			console.info = console.error.bind(console);
+
+			const [{ AgentSideConnection, ndJsonStream }, { NKleinAcpAgent }, { buildRuntimeAcpPorts }, nodeCrypto] =
+				await Promise.all([
+					import("@agentclientprotocol/sdk"),
+					import("./acp/nklein-acp-agent.js"),
+					import("./acp/nklein-acp-runtime-ports.js"),
+					import("node:crypto"),
+				]);
+			const server = await startServer();
+			const ports = buildRuntimeAcpPorts({
+				ingress: server.externalIngress,
+				registerWorkspacePath: async (path) => {
+					const response = await fetch(`${server.url}/api/trpc/projects.add?batch=1`, {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify({ "0": { path } }),
+					});
+					if (!response.ok) {
+						throw new Error(`projects.add failed with HTTP ${response.status}`);
+					}
+					const entry = (await server.externalIngress.listWorkspaces()).find(
+						(candidate: { workspaceId: string; repoPath: string }) => candidate.repoPath === path,
+					);
+					if (!entry) {
+						throw new Error(`workspace registration for ${path} did not land in the index`);
+					}
+					return entry;
+				},
+				randomUuid: () => nodeCrypto.randomUUID(),
+			});
+			const stream = ndJsonStream(
+				Writable.toWeb(protocolOut) as WritableStream<Uint8Array>,
+				Readable.toWeb(process.stdin) as ReadableStream<Uint8Array>,
+			);
+			new AgentSideConnection(
+				(connection) => new NKleinAcpAgent(ports, connection, process.env.npm_package_version?.trim() || "0.0.1"),
+				stream,
+			);
+			console.error(`[nklein] ACP agent ready on stdio (runtime at ${server.url}).`);
+			// Live until the editor closes our stdin, then shut the runtime down cleanly.
+			await new Promise<void>((settle) => {
+				process.stdin.on("close", () => settle());
+				process.stdin.on("end", () => settle());
+			});
+			await server.shutdown();
 		});
 
 	program.action(async (options: RootCommandOptions) => {

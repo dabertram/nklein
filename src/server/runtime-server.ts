@@ -341,6 +341,15 @@ export interface CreateRuntimeServerDependencies {
 export interface RuntimeServer {
 	url: string;
 	close: () => Promise<void>;
+	/**
+	 * P17.2 — the EXTERNAL-INGRESS facade: the exact closures the A2A receive-side uses (seed a ready-lane
+	 * card, read its board record/status note, list workspaces, arm the board machinery), exposed so the ACP
+	 * stdio front-end drives the SAME proven path in-process instead of inventing a parallel one.
+	 */
+	externalIngress: Pick<
+		Parameters<typeof handleA2aHttpRequest>[1],
+		"listWorkspaces" | "seedCard" | "readBoardRecord" | "readStatusNote"
+	> & { armWorkspace: (entry: { workspaceId: string; repoPath: string }) => Promise<void> };
 }
 
 // C3 (§5.AF): how often the durable-run reclaim/dispatch timer fires. Long enough not to busy-loop, short enough to
@@ -6002,8 +6011,23 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	});
 	void externalTriggerScheduler.reconcileNow().catch(() => undefined);
 
+	const ingressDeps = buildA2aDeps(undefined);
 	return {
 		url,
+		externalIngress: {
+			listWorkspaces: ingressDeps.listWorkspaces,
+			seedCard: ingressDeps.seedCard,
+			readBoardRecord: ingressDeps.readBoardRecord,
+			readStatusNote: ingressDeps.readStatusNote,
+			// The same arm the A2A audit closure performs: warm the scoped service so the board-liveness
+			// ready-sweep starts the seeded card on a headless workspace.
+			armWorkspace: async (entry) => {
+				await getScopedNKleinTaskSessionService({
+					workspaceId: entry.workspaceId,
+					workspacePath: entry.repoPath,
+				}).catch(() => undefined);
+			},
+		},
 		close: async () => {
 			await managedSearchBackend.close().catch(() => undefined);
 			// F1.31b: stop the background-eval service first — it force-stops + cleans every held eval workspace before the
