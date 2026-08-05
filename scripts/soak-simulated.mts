@@ -147,21 +147,28 @@ async function dirBytes(path: string): Promise<number> {
 
 async function main(): Promise<void> {
 	await mkdir(OUT_DIR, { recursive: true });
-	const home = join(OUT_DIR, "home");
-	const workspace = join(OUT_DIR, "ws");
+	// NKLEIN_SOAK_REUSE_HOME: point at a PRIOR soak's OUT dir to resume its grown state — the lever for
+	// profiling the per-turn overhead AT scale (a fresh home cannot show the accumulated-state cost).
+	const reuse = process.env.NKLEIN_SOAK_REUSE_HOME?.trim();
+	const home = reuse ? join(reuse, "home") : join(OUT_DIR, "home");
+	const workspace = reuse ? join(reuse, "ws") : join(OUT_DIR, "ws");
 	await mkdir(join(home, ".nklein", "nklein"), { recursive: true });
 	await mkdir(join(home, ".nklein", "data", "settings"), { recursive: true });
 	await mkdir(workspace, { recursive: true });
 
 	// The soak workspace: a real git repo whose harness the acceptance gate can actually run.
-	await exec("git", ["-C", workspace, "init", "-qb", "main"]);
-	await writeFile(
-		join(workspace, "package.json"),
-		`${JSON.stringify({ name: "soak-ws", private: true, scripts: { test: "node --test" } }, null, 1)}\n`,
-	);
-	await writeFile(join(workspace, "README.md"), "soak workspace\n");
-	await exec("git", ["-C", workspace, "add", "-A"]);
-	await exec("git", ["-C", workspace, "-c", "user.email=soak@local", "-c", "user.name=soak", "commit", "-qm", "init"]);
+	if (reuse) {
+		process.stdout.write(`soak reusing grown state: ${reuse}\n`);
+	} else {
+		await exec("git", ["-C", workspace, "init", "-qb", "main"]);
+		await writeFile(
+			join(workspace, "package.json"),
+			`${JSON.stringify({ name: "soak-ws", private: true, scripts: { test: "node --test" } }, null, 1)}\n`,
+		);
+		await writeFile(join(workspace, "README.md"), "soak workspace\n");
+		await exec("git", ["-C", workspace, "add", "-A"]);
+		await exec("git", ["-C", workspace, "-c", "user.email=soak@local", "-c", "user.name=soak", "commit", "-qm", "init"]);
+	}
 
 	const simulator = createSimulatorServer(soakScript(), {
 		models: [{ id: SIM_MODEL, state: "loaded", family: "qwen", maxContextLength: 65536 }],
@@ -256,6 +263,21 @@ async function main(): Promise<void> {
 		})();
 	}, SAMPLE_MS);
 
+	// When reusing a grown home, prior completed cards are the baseline the per-round expectations sit on.
+	let baselineCompleted = 0;
+	{
+		const { stdout } = await exec("find", [join(home, ".nklein", "nklein", "workspaces"), "-name", "board.json"]).catch(() => ({ stdout: "" }));
+		const boardPath = stdout.split("\n").find((line) => line.trim().length > 0);
+		if (boardPath) {
+			try {
+				const board = JSON.parse(await readFile(boardPath.trim(), "utf8")) as { columns: Array<{ id: string; cards: unknown[] }> };
+				baselineCompleted = board.columns.find((column) => column.id === "completed")?.cards.length ?? 0;
+			} catch {
+				baselineCompleted = 0;
+			}
+		}
+	}
+	if (baselineCompleted > 0) process.stdout.write(`soak baseline completed: ${baselineCompleted}\n`);
 	const roundResults: Array<{ round: number; seeded: number; completed: number; drainMs: number; ok: boolean }> = [];
 	let aborted: string | null = null;
 	for (let round = 1; round <= ROUNDS && !aborted; round += 1) {
@@ -286,7 +308,7 @@ async function main(): Promise<void> {
 				break;
 			}
 		}
-		const expectedCompleted = round * CARDS;
+		const expectedCompleted = baselineCompleted + round * CARDS;
 		const boardPathCandidates = join(home, ".nklein", "nklein", "workspaces");
 		let completed = 0;
 		const roundDeadline = Date.now() + ROUND_TIMEOUT_MS;
