@@ -87,3 +87,78 @@ test.describe("drained board journeys", () => {
 		await page.keyboard.press("Escape");
 	});
 });
+
+test.describe("drained board interactions", () => {
+	test("create two tasks, pointer-drag to reorder within Backlog, and the order survives a reload", async ({
+		page,
+	}) => {
+		await landOnBoard(page);
+		// Create through the UI — the copy's runtime persists both for real. (Dragging OUT of Backlog is a
+		// deliberate START gesture in this product — "backlog cards always kick off" — so the passive drag
+		// journey is the within-lane REORDER.)
+		const backlogColumn = page.locator('[data-column-id="backlog"]').first();
+		for (const title of ["Journey reorder card A", "Journey reorder card B"]) {
+			await backlogColumn.getByRole("button", { name: "Create task" }).first().click();
+			const prompt = page.getByPlaceholder("Describe the task");
+			await prompt.fill(title);
+			await prompt.press("Control+Enter");
+			await expect(
+				page.locator("[data-task-id]").filter({ hasText: title }).first(),
+			).toBeVisible({ timeout: 10_000 });
+		}
+		const idOf = async (title: string): Promise<string> => {
+			const value = await page
+				.locator('[data-column-id="backlog"] [data-task-id]')
+				.filter({ hasText: title })
+				.first()
+				.getAttribute("data-task-id");
+			if (!value) throw new Error(`no id for ${title}`);
+			return value;
+		};
+		const idA = await idOf("Journey reorder card A");
+		const idB = await idOf("Journey reorder card B");
+		const orderedIds = async (): Promise<string[]> => {
+			const ids = await page
+				.locator('[data-column-id="backlog"] [data-task-id]')
+				.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-task-id")));
+			return ids.filter((id): id is string => id === idA || id === idB);
+		};
+		// New backlog cards insert NEWEST-FIRST — derive roles from the observed order, not creation order.
+		const before = await orderedIds();
+		expect(before).toHaveLength(2);
+		const [firstId, secondId] = before as [string, string];
+
+		// Drag the LOWER card up onto the upper one's slot (staged moves — the sensor needs event-loop turns).
+		const lower = page.locator(`[data-task-id="${secondId}"]`).first();
+		const upper = page.locator(`[data-task-id="${firstId}"]`).first();
+		const lowerBox = await lower.boundingBox();
+		const upperBox = await upper.boundingBox();
+		if (!lowerBox || !upperBox) {
+			throw new Error("reorder cards have no bounding boxes");
+		}
+		await page.mouse.move(lowerBox.x + lowerBox.width / 2, lowerBox.y + 20);
+		await page.mouse.down();
+		await page.mouse.move(lowerBox.x + lowerBox.width / 2 + 8, lowerBox.y + 20, { steps: 2 });
+		await page.waitForTimeout(150);
+		await expect(lower).toHaveCSS("position", "fixed", { timeout: 2_000 }); // lifted
+		for (let step = 1; step <= 5; step += 1) {
+			await page.mouse.move(
+				lowerBox.x + lowerBox.width / 2,
+				lowerBox.y + 20 + ((upperBox.y - 10 - (lowerBox.y + 20)) * step) / 5,
+				{ steps: 2 },
+			);
+			await page.waitForTimeout(60);
+		}
+		await page.waitForTimeout(200);
+		await page.mouse.up();
+		// Let the drop animation land and the streamed board frame settle before reading order.
+		await expect(lower).not.toHaveCSS("position", "fixed", { timeout: 5_000 });
+		await expect.poll(orderedIds, { timeout: 10_000 }).toEqual([secondId, firstId]);
+
+		// The release truth: the reorder persisted through the real runtime, not just component state.
+		await page.reload();
+		await landOnBoard(page);
+		await expect(page.locator(`[data-task-id="${secondId}"]`).first()).toBeVisible({ timeout: 15_000 });
+		expect(await orderedIds()).toEqual([secondId, firstId]);
+	});
+});
