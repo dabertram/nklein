@@ -12867,6 +12867,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   fake one (empty oracle → `no_probes`; no fail_to_pass → the same `inconclusive` diagnostic-oracles would return),
   so the remaining work cannot be quietly skipped. Same shape as P23.7's requirement spine: **must be AUTHORED,
   not extracted.**
+  **▶ THE AUTHORING BEGAN 2026-08-05 — project 02's oracle is REAL and its null-agent gate PASSES.** Three probe
+  files (15 probes) under human-gated `test/protected/oracle/02_…/`, bound to the spec's PRESCRIBED module
+  surface (the S-section contracts: authorization, conflict-check, reconciler, recordability, log-300,
+  event-log) — never the agent's tests or fixtures. They encode the spec's own pitfalls as adversarial cases:
+  the 4-axis authorization refusals (expired / wrong zone / stale retest / bad O₂ / no attendant / unverified
+  LOTO), adjacent-zone drift conflicts, idempotent replay, safety-critical divergence held with BOTH versions
+  verbatim, sign-offs as safety-critical, shuffle determinism with a clock-skewed device, the 300-log upgrade
+  path, the 7-day window. `runHeldOutOracle` (new) composes assessOracleIndependence (fail-closed, FIRST) with
+  a host-tsx `node --test` dispatch — nothing agent-authored on the verdict path; workspace reaches probes only
+  via NKLEIN_ORACLE_WORKSPACE; paths absolute by construction (a relative path flipped the containment check in
+  the first live run — cwd must never decide independence). **NULL-AGENT GATE run live: empty workspace ⇒
+  independent ✓, 0/3 fail_to_pass pass, delivered=false — the oracle is not forgeable by doing nothing.**
+  Probes are goalpost-gated via protected-tests.json. REMAINING: the positive leg (a real-model drain on the
+  02 spec that PASSES probes — the first genuinely graded run), authoring for the other flagship projects
+  (same pattern, ~3 files each), and the scoring-time wire into the drain/campaign verdict path.
 - [ ] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle.** Today's spec tells the agent
   the SPEC does the thinking and the model follows — a valid test of faithful execution, retrieval and dependency
   extraction, but NOT of architecture discovery. Keep the prescriptive benchmark and add a discovery variant
