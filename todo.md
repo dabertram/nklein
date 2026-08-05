@@ -7524,9 +7524,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   plan drops `--no-header` — pytest <6.2 rejects it, probe-caught). **pylint-7277 REJECTED by the probe** (its
   only F2P passes PRE-FIX here — cannot discriminate; replaced by pylint-7993, probe-clean). The facts live in
   `src/core/swebench-tranche.ts` (+4 integrity tests incl. exclusion honesty).
-  **REMAINING:** (b) the sealed grader (Aider-pattern Docker python:3.9 image with preloaded wheels — one-time
-  egress at build) + grade execution wire; (c) nightly cell registration + aimock recordings per the standard
-  four-step recipe.
+  **✅ (b) SEALED GRADER COMPLETE same day — 10/10 controls clean under `--network none`.** Two-phase design
+  with an explicit egress boundary: `prepare` (network ON, once/instance) resolves era pins + the offline
+  build toolchain into per-instance wheel caches with the container's exact python+platform; `grade` runs a
+  stock python:3.9-slim with the network namespace OFF — venv from cache (`--no-index` everywhere), editable
+  install `--no-build-isolation` (an isolated build env fetches setuptools from the index — control-caught on
+  the whole first sweep), the instance's own F2P/P2P selections, silence-is-failure parsing. test_patch
+  applies HOST-side to a throwaway copy. Control-caught + root-fixed en route: ① SWE-bench F2P/P2P arrays
+  carry whitespace-split capture junk (one bad id → pytest runs NOTHING → whole legs poisoned) — sanitized
+  with every exclusion counted in the verdict; ② pytest's own suite lists testdir-sandbox ids that exist in
+  no repo file — filtered by file existence; ③ setuptools ≥71 vendors typeguard whose auto-registered plugin
+  crashes old pytest's addini — pytest entries pin `<71`; ④ the 2014/15 requests suites call httpbin LIVE —
+  the grade container now starts a LOOPBACK httpbin inside the none-network namespace (HTTPBIN_URL), which
+  BEATS the official benchmark for determinism (it hits httpbin.org over the wire); the 12 inherently-online
+  ids (TLS, off-host redirects, real timeouts) are per-instance `sealedPassToPassExclusions` with cause.
+  **The closure proof: every unfixed workspace grades `unresolved: N fail-to-pass still failing` with ZERO
+  pass-to-pass regressions, sealed.** `scripts/swebench-grade.mts prepare|grade|control`.
+  **REMAINING:** (c) nightly cell registration + aimock recordings per the standard four-step recipe (the
+  perfect recording needs a real-model run that resolves each instance — fleet-adjacent).
 - [x] **N9 — Upgrade-path / persisted-state compatibility cells.** Freeze a fixture-HOME per release; nightly
   boots each on the CURRENT build and asserts: clean boot (corrupt-file recovery paths included), a full drain,
   and the LEARNING stores (fitness/behavior/ledger) folding mixed-generation data into sane routing (the
