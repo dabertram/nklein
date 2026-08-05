@@ -11014,10 +11014,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   session/cancel aborts the in-flight turn while the prompt still RESOLVES with stopReason `cancelled`;
   authenticate refuses (no authMethods declared). Proven with the SDK's OWN ClientSideConnection over an
   in-process duplex — 5 tests incl. the cancel-resolves contract and prompt-block flattening.
-  **REMAINING:** slice 2 — wire the two ports onto the real services (cwd→projects.add/lookup;
-  runPrompt→chat or card pipeline with event-stream→session/update adaptation) + the `nklein acp` stdio CLI
-  mount (ndJsonStream over stdin/stdout) + a real-editor smoke (Zed points at the binary); later:
-  session/request_permission ↔ S3 confirm queue mapping.
+  **REMAINING — slice 2 BLUEPRINT (surveyed 2026-08-05 ~15:10, execute as written):** the bridge-over-tRPC
+  idea is WRONG (no card-create mutation exists on runtime.*; the board writes ride a non-obvious channel).
+  The right shape is the A2A-symmetric IN-PROCESS mount: ① `nklein acp` boots the FULL runtime server on an
+  ephemeral loopback port (normal cli path — all wiring standard), then attaches AgentSideConnection over
+  ndJsonStream(stdout, stdin) in the same process; ② extract the A2A ingress deps at
+  `runtime-server.ts:~5480-5530` (`seedCard` workspace-state mutation into the ready lane, `readBoardRecord`
+  lane/review-status reader, `listWorkspaces`) into a shared factory both A2A and ACP consume; ③ the ACP
+  ports: ensureWorkspace = listWorkspaces match-by-repoPath else the projects.add path; runPrompt = seedCard
+  (taskId `acp-<uuid>`, prompt text) → autoStart → poll readBoardRecord ~1s → emit agent_message_chunk on
+  each lane/review-status TRANSITION → resolve end_turn on completed (or review when autoReview off),
+  cancelled on abort (stopTaskSession); ④ smoke = the review-journey rig pattern (sim + fresh HOME) driving
+  `nklein acp` via the SDK ClientSideConnection over child stdio — one prompt → updates → end_turn; ⑤ later:
+  session/request_permission ↔ S3 confirm queue, real-editor (Zed) smoke.
 - [-] **P17.4 — A2A (Agent2Agent): DECIDED AGAINST, with reasons recorded.** Researched 2026-07-19 and
   **rejected** — this is a decision, not a deferral. A2A v1.0 is HTTP-native with no stdio binding; its push
   notifications are **outbound HTTP POSTs to registered webhooks** (a direct egress channel, precisely what the
