@@ -7954,8 +7954,15 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   existing emit registered; visual → the existing visual_delivery_gate mechanism; N_EYES was already claimed
   via `covers` (the lane test now reads covers — its own doc warned enabledBy-only counting understates);
   EXPLORER consumable as the F4.8b ledger-observable class. ALL FIVE IN THE LANE: solo drains green +
-  the combined all-five cell green; 16/16 ratchets.** Lane (c) kill-switches-OFF remains unbuilt — the one
-  open N11 leg.
+  the combined all-five cell green; 16/16 ratchets.**
+  **▶ LANE (c) BUILT 2026-08-05 morning: `02×kill_switches_off` replays the perfect recording with every
+  registry default-ON kill-switch set to `off` — the env is CONSTRUCTED from `defaultOnKillSwitches()` (a new
+  default-ON flag joins by construction, no memory required), and `off` is the one disable value every
+  registered gate honors (`isEnabledByDefaultEnv`, both `/^(0|false|off)$/i` gates, and the prune `!== "off"`
+  gate — `"0"` would have silently left prune ENABLED, caught at design time). Lane test pins profile +
+  from-registry construction + off-semantics of declared gate matchers + the manifest cell; tranche integrity
+  declares the perfect-recording reuse. REMAINING for lane (c) CLOSE: the validation drains (each of the 10
+  switches solo, then the combined cell) — queued behind the N15 green-leg soak for an uncontended box.
   **The ratchet earning its keep is the point:** it refused a change I made on the strength of a written note, and
   the note was wrong. 8 "pending a run" was really 2 permanent + 2 mis-recorded + 5 real.
   ◆ Found only because `memory_freshness_audit`'s registration tripped the existing ratchet — *"a newly registered
