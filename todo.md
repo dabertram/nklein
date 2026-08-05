@@ -10991,7 +10991,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   reviewer output (A2A artifacts are a textbook injection vector); F3.37's consult stays complementary
   (model-level, one completion, cache preserved — vs agent-level delegation with cross_model_carry
   economics); IBM's "ACP" (folded into the A2A orbit) is UNRELATED to Zed's ACP in P17.2 — do not conflate.
-- [ ] **P17.2 — ACP (Agent Client Protocol) agent-side support.** **Verified 2026-07-19:** ACP is JSON-RPC 2.0
+- [~] **P17.2 — ACP (Agent Client Protocol) agent-side support.** **Verified 2026-07-19:** ACP is JSON-RPC 2.0
   over **stdio** (the only stable transport — HTTP is a draft proposal, do not build against it),
   `protocolVersion` is the bare integer `1`, capabilities omitted at `initialize` MUST be treated as unsupported,
   and adding capabilities is explicitly non-breaking. Apache-2.0, `@agentclientprotocol/sdk` on npm.
@@ -11005,6 +11005,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   we would DECLINE the `terminal` client capability and keep execution in our sandbox (conformant, since those
   caps are optional) at the cost of live terminal output in the editor. `session/request_permission` maps
   naturally onto the existing S3 confirm queue. Estimate 1–2 weeks done properly.
+  **▶ SLICE 1 LANDED 2026-08-05 (~15:15): the minimal conformant agent CORE, duplex-proven.** `src/acp/
+  nklein-acp-agent.ts` over the official `@agentclientprotocol/sdk` 1.3.0 (Apache-2.0, zero runtime deps —
+  the route this item names; dependency added): initialize negotiates protocolVersion 1 and NEVER requests
+  client fs/terminal (the design decision above, honored — execution stays Docker-isolated); session/new
+  binds the editor cwd through an `ensureWorkspace` port; session/prompt drives a `runPrompt` port and
+  streams `session/update` agent_message_chunks (one turn at a time per the prompt-turn lifecycle);
+  session/cancel aborts the in-flight turn while the prompt still RESOLVES with stopReason `cancelled`;
+  authenticate refuses (no authMethods declared). Proven with the SDK's OWN ClientSideConnection over an
+  in-process duplex — 5 tests incl. the cancel-resolves contract and prompt-block flattening.
+  **REMAINING:** slice 2 — wire the two ports onto the real services (cwd→projects.add/lookup;
+  runPrompt→chat or card pipeline with event-stream→session/update adaptation) + the `nklein acp` stdio CLI
+  mount (ndJsonStream over stdin/stdout) + a real-editor smoke (Zed points at the binary); later:
+  session/request_permission ↔ S3 confirm queue mapping.
 - [-] **P17.4 — A2A (Agent2Agent): DECIDED AGAINST, with reasons recorded.** Researched 2026-07-19 and
   **rejected** — this is a decision, not a deferral. A2A v1.0 is HTTP-native with no stdio binding; its push
   notifications are **outbound HTTP POSTs to registered webhooks** (a direct egress channel, precisely what the
