@@ -8213,9 +8213,14 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   rounds 240/240 drained with all fixes live AND the same environmental trigger present (real LM Studio serving
   qwen) — the freeze class is dead; egress loopback-only 0 violations across 954 observed connections (the
   offline-boot fix proven inside the soak harness itself); handles flat 116→133 (reconciler fix holding at
-  240 cards). Thread (c) now cleanly measured: ~+30s/round linear on clean rounds (round 1 polluted by
-  concurrent test suites), RSS 683MB→3.25GB at 240 cards — second-order accumulator, far shallower than the
-  fixed quadratic (~140s/round equivalent-depth), still open**; **(b) the RUNTIME PROCESS
+  240 cards). Thread (c) now cleanly measured AND characterized: ~+30s/round linear on clean rounds (round 1
+  polluted by concurrent test suites); the green report's sample series shows **RSS PLATEAUING at ~3.2GB in the
+  second half (−6.8MB/min — saturating caches, NOT a leak)** while the agent ledger grows linearly (0.83MB/min,
+  ~200KB/card, 47MB at 240 cards) and the board file carries every completed card. Reading: the residual creep
+  is per-event work scaling with accumulated board+ledger SIZE — a bounded-by-design scaling characteristic of
+  one ever-growing hot board, not an accumulator defect. Product answer = archival/trim policy (terminal cards
+  out of the hot board file + ledger rotation), which belongs with the memory-lifecycle work — DOWNGRADED from
+  open bug thread to a design item; no further soak forensics owed**; **(b) the RUNTIME PROCESS
   ITSELF phones two external :443 hosts once per run**
   (Cloudflare anycast + Google LB 35.186.247.105 — SAME pair in both soaks, deterministic; a real
   local-only violation to name: suspects = an SDK/dependency boot-time fetch; probe with a boot-only
