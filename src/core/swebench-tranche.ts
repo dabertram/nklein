@@ -5,8 +5,10 @@
  *
  * Everything here is evidence, not guesswork:
  *  - `python` is 3.9 for the whole tranche — the era SWE-bench maps these repos to, and the probe ran on it.
- *  - `preInstallRequirements` land BEFORE the editable install (modern setuptools ≥81 removed `pkg_resources`,
- *    which 4.x–6.x pytest imports at runtime).
+ *  - `preInstallRequirements` land BEFORE the editable install. The pytest pin is `setuptools<71`, for TWO
+ *    probe/control-caught reasons: ≥81 removed `pkg_resources` (old pytest imports it at runtime), and ≥71
+ *    VENDORS typeguard, whose auto-registered pytest plugin calls `addini(type="string")` — old pytest's
+ *    argparsing asserts on it and the whole collection dies.
  *  - `installEnv` carries SETUPTOOLS_SCM_PRETEND_VERSION for pytest-repo instances: codeload tarballs have no
  *    git history, so setuptools_scm invents `0.1.dev1+g…` and pytest's own minversion check rejects itself.
  *  - `installArgs` carries `--no-build-isolation` where the repo pins a build backend without PEP 660
@@ -36,6 +38,19 @@ export interface SwebenchTrancheEntry {
 	readonly buildRequirements: readonly string[];
 	/** Installed AFTER the editable install (test runner + era pins); [] means the repo brings its own. */
 	readonly extraRequirements: readonly string[];
+	/**
+	 * PASS_TO_PASS ids excluded from SEALED grading, each with cause. Only for tests that are inherently
+	 * online (real connect timeouts etc.) — `--network none` changes their failure mode regardless of any fix.
+	 * Kept per-instance and tiny so a trimmed regression guard is a recorded decision, never a silent one.
+	 */
+	readonly sealedPassToPassExclusions?: readonly { id: string; cause: string }[];
+	/**
+	 * Start a loopback httpbin INSIDE the grade container and export HTTPBIN_URL before the selections run —
+	 * for the 2014/15-era requests suites that build URLs from that env (their tests otherwise call
+	 * httpbin.org live, which --network none forbids and determinism abhors). Loopback works fine inside the
+	 * none-network namespace, so the seal holds.
+	 */
+	readonly httpbinService?: { readonly port: number };
 }
 
 export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
@@ -58,7 +73,19 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		installEnv: {},
 		installArgs: [],
 		buildRequirements: [],
-		extraRequirements: ["pytest"],
+		// pytest-httpbin supplies the httpbin package the loopback service runs; the era suite reads HTTPBIN_URL.
+		extraRequirements: ["pytest", "pytest-httpbin"],
+		httpbinService: { port: 8998 },
+		sealedPassToPassExclusions: [
+			{
+				id: "test_requests.py::RequestsTestCase::test_mixed_case_scheme_acceptable",
+				cause: "iterates HTTPS scheme variants — the loopback httpbin serves plain HTTP only",
+			},
+			{
+				id: "test_requests.py::RequestsTestCase::test_pyopenssl_redirect",
+				cause: "hits an external HTTPS endpoint explicitly — TLS egress under --network none",
+			},
+		],
 	},
 	{
 		instanceId: "psf__requests-2317",
@@ -68,7 +95,35 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		installEnv: {},
 		installArgs: [],
 		buildRequirements: [],
-		extraRequirements: ["pytest"],
+		// pytest-httpbin supplies the httpbin package the loopback service runs; the era suite reads HTTPBIN_URL.
+		extraRequirements: ["pytest", "pytest-httpbin"],
+		httpbinService: { port: 8998 },
+		sealedPassToPassExclusions: [
+			{
+				id: "test_requests.py::RequestsTestCase::test_mixed_case_scheme_acceptable",
+				cause: "iterates HTTPS scheme variants — the loopback httpbin serves plain HTTP only",
+			},
+			{
+				id: "test_requests.py::RequestsTestCase::test_pyopenssl_redirect",
+				cause: "hits an external HTTPS endpoint explicitly — TLS egress under --network none",
+			},
+			{
+				id: "test_requests.py::RequestsTestCase::test_auth_is_stripped_on_redirect_off_host",
+				cause: "redirects to a SECOND host — a single loopback httpbin cannot serve an off-host hop",
+			},
+			{
+				id: "test_requests.py::TestTimeout::test_stream_timeout",
+				cause: "real network timeout to an external host — --network none changes the failure mode",
+			},
+			{
+				id: "test_requests.py::TestTimeout::test_connect_timeout",
+				cause: "real network timeout to an external host — --network none changes the failure mode",
+			},
+			{
+				id: "test_requests.py::TestTimeout::test_total_timeout_connect",
+				cause: "real network timeout to an external host — --network none changes the failure mode",
+			},
+		],
 	},
 	{
 		instanceId: "psf__requests-5414",
@@ -78,13 +133,23 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		installEnv: {},
 		installArgs: [],
 		buildRequirements: [],
-		extraRequirements: ["pytest"],
+		// 2020-era suite serves httpbin IN-PROCESS via the pytest-httpbin fixture — fully sealed-compatible.
+		extraRequirements: ["pytest", "pytest-httpbin"],
+		sealedPassToPassExclusions: [
+			"tests/test_requests.py::TestTimeout::test_connect_timeout[timeout0]",
+			"tests/test_requests.py::TestTimeout::test_connect_timeout[timeout1]",
+			"tests/test_requests.py::TestTimeout::test_total_timeout_connect[timeout0]",
+			"tests/test_requests.py::TestTimeout::test_total_timeout_connect[timeout1]",
+		].map((id) => ({
+			id,
+			cause: "real connect-timeout to an external host — --network none changes the failure mode regardless of fix",
+		})),
 	},
 	{
 		instanceId: "pytest-dev__pytest-5227",
 		repo: "pytest-dev/pytest",
 		python: "3.9",
-		preInstallRequirements: ["setuptools<81"],
+		preInstallRequirements: ["setuptools<71"],
 		installEnv: { SETUPTOOLS_SCM_PRETEND_VERSION: "4.4.0" },
 		installArgs: [],
 		buildRequirements: ["setuptools-scm"],
@@ -94,7 +159,7 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		instanceId: "pytest-dev__pytest-6202",
 		repo: "pytest-dev/pytest",
 		python: "3.9",
-		preInstallRequirements: ["setuptools<81"],
+		preInstallRequirements: ["setuptools<71"],
 		installEnv: { SETUPTOOLS_SCM_PRETEND_VERSION: "5.2.0" },
 		installArgs: [],
 		buildRequirements: ["setuptools-scm"],
@@ -104,7 +169,7 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		instanceId: "pytest-dev__pytest-7521",
 		repo: "pytest-dev/pytest",
 		python: "3.9",
-		preInstallRequirements: ["setuptools<81"],
+		preInstallRequirements: ["setuptools<71"],
 		installEnv: { SETUPTOOLS_SCM_PRETEND_VERSION: "6.0.0" },
 		installArgs: [],
 		buildRequirements: ["setuptools-scm"],

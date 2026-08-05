@@ -69,6 +69,34 @@ describe("buildSwebenchGradePlan", () => {
 		]);
 		expect(plan.passToPassCommand.slice(-1)).toEqual(instance.passToPass);
 		expect(plan.testPatch).toBe(instance.testPatch);
+		expect(plan.droppedSelections).toEqual([]);
+	});
+
+	it("drops whitespace-split dataset junk BEFORE pytest sees it (one bad id aborts a whole selection run)", () => {
+		const dirty: SwebenchInstanceMetadata = {
+			...instance,
+			passToPass: [
+				"tests/test_requests.py::test_ok",
+				"[100%]",
+				"[",
+				"tests/test_requests.py::test_trunc[\\xd0\\xb8-Basic",
+				"tests/a.py::test_split id]",
+			],
+		};
+		const plan = buildSwebenchGradePlan(dirty);
+		expect(plan.passToPass).toEqual(["tests/test_requests.py::test_ok"]);
+		expect(plan.droppedSelections).toHaveLength(4);
+		expect(plan.passToPassCommand.filter((part) => part.includes("["))).toEqual([]);
+	});
+
+	it("keeps legit parametrized ids, including pytest's escape-sequence renderings", () => {
+		const escaped: SwebenchInstanceMetadata = {
+			...instance,
+			passToPass: ["tests/t.py::test_url[http://stra\\xdfe.de/-ok]", "tests/t.py::TestX::test_y[\\u30b8-1]"],
+		};
+		const plan = buildSwebenchGradePlan(escaped);
+		expect(plan.passToPass).toHaveLength(2);
+		expect(plan.droppedSelections).toEqual([]);
 	});
 });
 

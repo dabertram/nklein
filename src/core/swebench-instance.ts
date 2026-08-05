@@ -75,22 +75,58 @@ export function buildSwebenchCard(instance: SwebenchInstanceMetadata): {
 }
 
 /**
- * The grader's plan: apply the instance's OWN test changes, then run exactly the instance's FAIL_TO_PASS and
- * PASS_TO_PASS selections. Deterministic single command per group; `-rA` prints one summary line per test in
- * every outcome class, which is what the parser consumes.
+ * SWE-bench's F2P/P2P arrays carry a known capture wart: some parametrized ids were WHITESPACE-SPLIT at
+ * dataset build time, leaving junk fragments (`[100%]`, `[`, progress-bar debris) and truncated heads with an
+ * unbalanced `[`. A selection list containing ANY such entry makes pytest run NOTHING (`ERROR: not found`
+ * aborts before the first test) — one bad id poisoned entire P2P legs (control-caught 2026-08-05 on
+ * pytest-5227/7521 and requests-5414). A valid selection names a file/module (`::`), has balanced brackets,
+ * and no whitespace (a split id is unreconstructable; the official harness space-joins and drops them too).
+ */
+export function sanitizeSwebenchSelections(selections: readonly string[]): {
+	readonly kept: string[];
+	readonly dropped: string[];
+} {
+	const kept: string[] = [];
+	const dropped: string[] = [];
+	for (const selection of selections) {
+		const balanced =
+			[...selection].reduce((depth, char) => (char === "[" ? depth + 1 : char === "]" ? depth - 1 : depth), 0) === 0;
+		if (selection.includes("::") && balanced && !/\s/.test(selection)) {
+			kept.push(selection);
+		} else {
+			dropped.push(selection);
+		}
+	}
+	return { kept, dropped };
+}
+
+/**
+ * The grader's plan: apply the instance's OWN test changes, then run exactly the instance's SANITIZED
+ * FAIL_TO_PASS and PASS_TO_PASS selections. Deterministic single command per group; `-rA` prints one summary
+ * line per test in every outcome class, which is what the parser consumes. The parser must judge against the
+ * SAME sanitized lists (`failToPass`/`passToPass` here), and `droppedSelections` is surfaced so a trimmed
+ * guard is visible, never silent.
  */
 export function buildSwebenchGradePlan(instance: SwebenchInstanceMetadata): {
 	readonly testPatch: string;
+	readonly failToPass: readonly string[];
+	readonly passToPass: readonly string[];
+	readonly droppedSelections: readonly string[];
 	readonly failToPassCommand: readonly string[];
 	readonly passToPassCommand: readonly string[];
 } {
 	// No `--no-header`: it only exists from pytest 6.2, and pytest-repo instances run THEIR OWN pytest — the
 	// 5.x-era tranche members reject unknown flags as a usage error (probe-caught 2026-08-05, pytest-6202).
 	const base = ["python", "-m", "pytest", "-rA", "-p", "no:cacheprovider"];
+	const failToPass = sanitizeSwebenchSelections(instance.failToPass);
+	const passToPass = sanitizeSwebenchSelections(instance.passToPass);
 	return {
 		testPatch: instance.testPatch,
-		failToPassCommand: [...base, ...instance.failToPass],
-		passToPassCommand: [...base, ...instance.passToPass],
+		failToPass: failToPass.kept,
+		passToPass: passToPass.kept,
+		droppedSelections: [...failToPass.dropped, ...passToPass.dropped],
+		failToPassCommand: [...base, ...failToPass.kept],
+		passToPassCommand: [...base, ...passToPass.kept],
 	};
 }
 

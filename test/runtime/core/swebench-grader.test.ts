@@ -5,6 +5,7 @@ import {
 	splitSwebenchGradeOutput,
 } from "../../../src/core/swebench-grader";
 import type { SwebenchInstanceMetadata } from "../../../src/core/swebench-instance";
+import { buildSwebenchGradePlan } from "../../../src/core/swebench-instance";
 import type { SwebenchTrancheEntry } from "../../../src/core/swebench-tranche";
 
 /**
@@ -53,7 +54,7 @@ describe("buildSwebenchPrepareScript", () => {
 
 describe("buildSwebenchGradeScript", () => {
 	it("cache-only installs, toolchain first, --no-build-isolation ALWAYS, pretend version on the editable install", () => {
-		const script = buildSwebenchGradeScript(entry, instance);
+		const script = buildSwebenchGradeScript(entry, buildSwebenchGradePlan(instance));
 		const pipLines = script.split("\n").filter((line) => line.includes("pip install"));
 		expect(pipLines.length).toBe(3);
 		for (const line of pipLines) {

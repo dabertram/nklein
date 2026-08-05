@@ -15,6 +15,7 @@
  */
 
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -76,8 +77,10 @@ export function swebenchToolchainRequirements(entry: SwebenchTrancheEntry): stri
  * failures print a named marker line, and pytest's stderr merges into the parsed stream (`^PASSED` summary
  * lines cannot collide with diagnostics).
  */
-export function buildSwebenchGradeScript(entry: SwebenchTrancheEntry, instance: SwebenchInstanceMetadata): string {
-	const plan = buildSwebenchGradePlan(instance);
+export function buildSwebenchGradeScript(
+	entry: SwebenchTrancheEntry,
+	plan: Pick<ReturnType<typeof buildSwebenchGradePlan>, "failToPassCommand" | "passToPassCommand">,
+): string {
 	const wheels = `--no-index --find-links /cache/wheels/${entry.instanceId}`;
 	const installEnv = Object.entries(entry.installEnv)
 		.map(([key, value]) => `${key}='${value}'`)
@@ -97,6 +100,14 @@ export function buildSwebenchGradeScript(entry: SwebenchTrancheEntry, instance: 
 			"editable",
 		)}`,
 		...(entry.extraRequirements.length > 0 ? [pipInstall(quote(entry.extraRequirements), "extras")] : []),
+		...(entry.httpbinService
+			? [
+					// Loopback httpbin INSIDE the none-network namespace: the era suite builds URLs from HTTPBIN_URL.
+					`(python -c 'from httpbin import app; app.run(host="127.0.0.1", port=${entry.httpbinService.port})' >/tmp/httpbin.log 2>&1 &)`,
+					`export HTTPBIN_URL=http://127.0.0.1:${entry.httpbinService.port}/`,
+					`for attempt in $(seq 1 50); do python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:${entry.httpbinService.port}/get', timeout=1)" 2>/dev/null && break; sleep 0.2; done`,
+				]
+			: []),
 		"cd /work",
 		"echo '===SWEBENCH_F2P==='",
 		`${quote(plan.failToPassCommand)} 2>&1 || true`,
@@ -120,6 +131,35 @@ export function splitSwebenchGradeOutput(stdout: string): { failToPassOutput: st
 		failToPassOutput: stdout.slice(f2pStart, p2pStart),
 		passToPassOutput: stdout.slice(p2pStart, end),
 	};
+}
+
+/**
+ * The SEALED grade's effective selections: dataset sanitize (pure, inside `buildSwebenchGradePlan`) PLUS the
+ * two workspace-aware filters — recorded per-instance online-only P2P exclusions, and ids whose FILE does not
+ * exist in the repo at all (pytest's own suite ids tests created inside testdir sandboxes at runtime; such an
+ * id aborts the whole selection run with `file not found`, control-caught on pytest-7521). Every removal is
+ * counted so a trimmed guard is visible in the verdict, never silent.
+ */
+export function planSealedGrade(
+	entry: SwebenchTrancheEntry,
+	instance: SwebenchInstanceMetadata,
+	workspaceDir: string,
+): { plan: ReturnType<typeof buildSwebenchGradePlan>; excludedCount: number } {
+	const sealedExcluded = new Set((entry.sealedPassToPassExclusions ?? []).map((exclusion) => exclusion.id));
+	const fileExists = (selection: string): boolean => {
+		const file = selection.split("::")[0];
+		return file !== undefined && existsSync(join(workspaceDir, file));
+	};
+	const passToPass = instance.passToPass.filter(
+		(selection) => !sealedExcluded.has(selection) && fileExists(selection),
+	);
+	const failToPass = instance.failToPass.filter(fileExists);
+	const plan = buildSwebenchGradePlan({ ...instance, failToPass, passToPass });
+	const excludedCount =
+		plan.droppedSelections.length +
+		(instance.passToPass.length - passToPass.length) +
+		(instance.failToPass.length - failToPass.length);
+	return { plan, excludedCount };
 }
 
 export interface SwebenchGraderDeps {
@@ -170,6 +210,7 @@ export async function gradeSwebenchWorkspace(
 	},
 	deps: SwebenchGraderDeps = defaultDeps,
 ): Promise<SwebenchGradeVerdict & { graderStdoutTail: string }> {
+	const sealed = planSealedGrade(input.entry, input.instance, input.workspaceCopyDir);
 	let stdout = "";
 	try {
 		const result = await deps.exec("docker", [
@@ -184,20 +225,31 @@ export async function gradeSwebenchWorkspace(
 			SWEBENCH_GRADER_IMAGE,
 			"bash",
 			"-lc",
-			buildSwebenchGradeScript(input.entry, input.instance),
+			buildSwebenchGradeScript(input.entry, sealed.plan),
 		]);
 		stdout = result.stdout;
 	} catch (error) {
 		stdout = error instanceof Error ? error.message : String(error);
 	}
 	const { failToPassOutput, passToPassOutput } = splitSwebenchGradeOutput(stdout);
+	const { plan, excludedCount } = sealed;
 	const verdict = parseSwebenchGradeOutput({
-		failToPass: input.instance.failToPass,
-		passToPass: input.instance.passToPass,
+		failToPass: plan.failToPass,
+		passToPass: plan.passToPass,
 		failToPassOutput,
 		passToPassOutput,
 	});
-	return { ...verdict, graderStdoutTail: stdout.slice(-2_000) };
+	// A tranche instance whose gradable F2P is EMPTY cannot prove any fix — that is disqualifying, not green.
+	const resolvable = plan.failToPass.length > 0;
+	const reason = `${
+		resolvable ? verdict.reason : `not resolvable: no gradable fail-to-pass id survived the dataset`
+	}${excludedCount > 0 ? ` (${excludedCount} ungradable dataset id(s) excluded)` : ""}`;
+	return {
+		...verdict,
+		resolved: verdict.resolved && resolvable,
+		reason,
+		graderStdoutTail: stdout.slice(-2_000),
+	};
 }
 
 /** Host-side test_patch application onto the workspace COPY (the container has no git by design). */
