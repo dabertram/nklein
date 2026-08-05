@@ -4,8 +4,9 @@ import { loadRuntimeConfig } from "../../config/runtime-config";
 import { resolveFleetDecompositionSettings } from "../../config/runtime-config-fleet-decomposition-resolver";
 import { DEFAULT_RUNTIME_FLEET_DECOMPOSITION_SETTINGS } from "../../core/api-contract";
 import { resolveAutonomousTimeoutPowerMultiplier } from "../../core/autonomous-timeout-defaults";
+import { assessPlannedTaskSizing, type ReviewCapacityEvidenceRow } from "../../core/review-capacity";
 import { mutateWorkspaceState } from "../../state/workspace-state";
-import { recordSelfObservation } from "../../telemetry/self-observation-sink";
+import { readSelfObservationEvents, recordSelfObservation } from "../../telemetry/self-observation-sink";
 import type {
 	ApplyDecomposeProjectArtifactsResult,
 	ApplyNKleinPlanTaskReplacementArtifactsResult,
@@ -22,7 +23,8 @@ import type { NKleinTaskRoutingCandidate } from "../nklein-task-router";
 import { buildDecompositionRoutingCandidates } from "./build-decomposition-routing-candidates";
 import { applyNKleinPlanTaskGraphToBoard, replaceNKleinPlanTaskInGraph } from "./plan-task-board-apply";
 import { buildPlanTaskFocusedSpans } from "./plan-task-focused-spans";
-import { previewNKleinPlanTaskGraphWithFallback } from "./plan-task-routing";
+import { buildTaskPrompt } from "./plan-task-prompt";
+import { derivePlanTaskRoutingSizing, previewNKleinPlanTaskGraphWithFallback } from "./plan-task-routing";
 
 export { replaceNKleinPlanTaskInGraph };
 
@@ -65,6 +67,84 @@ function escapeForRegExp(value: string): string {
 
 function pluralizeCount(count: number, singular: string, plural = `${singular}s`): string {
 	return `${count} ${count === 1 ? singular : plural}`;
+}
+
+/**
+ * P21.6b slice 3 — OBSERVE-FIRST plan-time sizing: after a plan applies, record one sizing assessment per
+ * created card (empirical review ceiling × empirical diff baseline × the routing's context sizing), keyed by
+ * the BOARD task id so the card's later `review_capacity_evidence` row joins as predicted-vs-actual. Records
+ * only — nothing enforces until that stream has judged the estimator. Fire-and-forget AFTER the workspace-state
+ * transaction (never inside it — P24.1), and never allowed to fail the apply.
+ */
+async function recordPlanSizingObservations(input: {
+	workspacePath: string;
+	taskGraph: NKleinPlanTaskGraph;
+	sharedContext?: NKleinPlanTaskSharedContext;
+	sizingCandidates: readonly NKleinTaskRoutingCandidate[] | undefined;
+	taskIdByPlanTaskId: Readonly<Record<string, string>>;
+}): Promise<void> {
+	const evidenceRows: ReviewCapacityEvidenceRow[] = (
+		await readSelfObservationEvents({ category: "review_capacity_evidence", limit: 500 })
+	).flatMap((record) => {
+		const metadata = record.metadata as
+			| { outcome?: unknown; diffLines?: unknown; reviewerModelId?: unknown }
+			| undefined;
+		const diffLines = Number(metadata?.diffLines);
+		if (typeof metadata?.outcome !== "string" || !Number.isFinite(diffLines)) {
+			return [];
+		}
+		return [
+			{
+				reviewerModelId: typeof metadata.reviewerModelId === "string" ? metadata.reviewerModelId : null,
+				outcome: metadata.outcome,
+				diffLines,
+			},
+		];
+	});
+	const largestContextWindow =
+		input.sizingCandidates
+			?.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
+			.filter((contextWindow) => contextWindow > 0)
+			.sort((left, right) => right - left)[0] ?? null;
+	for (const [planTaskId, boardTaskId] of Object.entries(input.taskIdByPlanTaskId)) {
+		const task = input.taskGraph.tasks.find((candidate) => candidate.id === planTaskId);
+		if (!task) {
+			continue;
+		}
+		const sizing = derivePlanTaskRoutingSizing(
+			task,
+			buildTaskPrompt(task, input.sharedContext),
+			input.sizingCandidates,
+		);
+		const assessment = assessPlannedTaskSizing({
+			rows: evidenceRows,
+			modelContextTokens: largestContextWindow,
+			estimatedTaskTokens: sizing.fitBudgetTokens,
+		});
+		recordSelfObservation({
+			signal: "custom",
+			severity: "debug",
+			message: `Plan sizing (observe-first) for ${boardTaskId}: ${
+				assessment.verdict ? assessment.verdict.reason : `no verdict — ${assessment.basis}`
+			}`,
+			taskId: boardTaskId,
+			workspacePath: input.workspacePath,
+			metadata: {
+				category: "plan_sizing_verdict",
+				basis: assessment.basis,
+				fits: assessment.verdict?.fits ?? null,
+				binding: assessment.verdict?.binding ?? null,
+				overshoot: assessment.verdict?.overshoot ?? null,
+				mustSplit: assessment.verdict?.mustSplit ?? null,
+				predictedDiffLines: assessment.estimatedDiffLines,
+				reviewCeilingLines: assessment.reviewCeiling.ceilingLines,
+				reviewCeilingSample: assessment.reviewCeiling.sample,
+				reviewCeilingBasis: assessment.reviewCeiling.basis,
+				estimatedTaskTokens: sizing.fitBudgetTokens,
+				modelContextTokens: largestContextWindow,
+			},
+		});
+	}
 }
 
 export async function applyDecomposeProjectArtifactsToWorkspace(input: {
@@ -185,6 +265,16 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 				},
 			};
 		});
+		if (result.value.applied) {
+			// Observe-first sizing per created card — outside the state transaction, never load-bearing.
+			void recordPlanSizingObservations({
+				workspacePath: input.workspacePath,
+				taskGraph: input.taskGraph,
+				sharedContext: input.sharedContext,
+				sizingCandidates: fleetSizingCandidates ?? routingCandidates,
+				taskIdByPlanTaskId: result.value.taskIdByPlanTaskId,
+			}).catch(() => undefined);
+		}
 		return result.value;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

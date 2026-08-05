@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	assessPlannedTaskSizing,
 	deriveFleetReviewCapacity,
 	deriveReviewCapacity,
 	deriveTypicalDiffLines,
@@ -78,5 +79,55 @@ describe("deriveTypicalDiffLines", () => {
 		const rows = [100, 200, 300, 400, 500].map((lines) => row("any", "delivered", lines));
 		expect(deriveTypicalDiffLines(rows)).toBe(300);
 		expect(deriveTypicalDiffLines(rows.slice(0, 3))).toBeNull();
+	});
+});
+
+describe("assessPlannedTaskSizing (P21.6b slice 3 — observe-first plan-time verdict)", () => {
+	const evidenced = [100, 120, 140, 160, 180].map((lines) => row("m", "delivered", lines));
+
+	it("produces the full two-ceiling verdict only when BOTH evidence halves exist", () => {
+		const assessment = assessPlannedTaskSizing({
+			rows: evidenced,
+			modelContextTokens: 32_000,
+			estimatedTaskTokens: 8_000,
+		});
+		expect(assessment.basis).toBe("verdict");
+		expect(assessment.verdict?.fits).toBe(true);
+		expect(assessment.reviewCeiling.basis).toBe("empirical_percentile");
+		expect(assessment.estimatedDiffLines).toBe(140); // the median baseline forecast
+	});
+
+	it("names WHICH half is missing instead of guessing (the flip decision's denominator)", () => {
+		expect(assessPlannedTaskSizing({ rows: [], modelContextTokens: 32_000, estimatedTaskTokens: 8_000 }).basis).toBe(
+			"no_review_evidence",
+		);
+		expect(
+			assessPlannedTaskSizing({ rows: evidenced, modelContextTokens: null, estimatedTaskTokens: 8_000 }).basis,
+		).toBe("no_context_window");
+		expect(assessPlannedTaskSizing({ rows: [], modelContextTokens: null, estimatedTaskTokens: 8_000 }).basis).toBe(
+			"no_evidence_at_all",
+		);
+	});
+
+	it("a review-ceiling overrun binds by NAME — the split remedy, never the bigger-model lever", () => {
+		// The only PROVEN reviewer (5+ samples) handles ~50-line diffs; the big diffs all came from
+		// under-sampled models that prove nothing — so the typical diff (median 1000) dwarfs the proven
+		// ceiling (50) while context is comfortable. The verdict must name review_capacity as binding.
+		const rows = [
+			...[50, 50, 50, 50, 50].map((lines) => row("proven-small", "delivered", lines)),
+			...[1_000, 1_000, 1_000, 1_000].map((lines) => row("unproven-a", "delivered", lines)),
+			...[1_000, 1_000, 1_000, 1_000].map((lines) => row("unproven-b", "delivered", lines)),
+		];
+		const assessment = assessPlannedTaskSizing({
+			rows,
+			modelContextTokens: 200_000,
+			estimatedTaskTokens: 4_000,
+		});
+		expect(assessment.basis).toBe("verdict");
+		expect(assessment.reviewCeiling.ceilingLines).toBe(50);
+		expect(assessment.estimatedDiffLines).toBe(1_000);
+		expect(assessment.verdict?.binding).toBe("review_capacity");
+		expect(assessment.verdict?.mustSplit).toBe(true);
+		expect(assessment.verdict?.reason).toContain("cannot be fixed with a bigger model");
 	});
 });

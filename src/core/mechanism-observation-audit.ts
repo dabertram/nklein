@@ -778,6 +778,18 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		addedOn: Date.UTC(2026, 7, 5),
 	},
 	{
+		// P21.6b slice 3 2026-08-05: the OBSERVE-FIRST plan-time sizing verdict, one per created card at plan
+		// apply — joins against the card's later review_capacity_evidence row (same taskId) as the estimator's
+		// predicted-vs-actual record. Records only; nothing enforces until that stream judges the estimator.
+		category: "plan_sizing_verdict",
+		item: "P21.6b",
+		observes: "the plan-time two-ceiling sizing verdict (or which evidence half was missing) per created card",
+		enabledBy: null,
+		expectation: "every_run",
+		firesWhen: "fleet_aware_decompose",
+		addedOn: Date.UTC(2026, 7, 5),
+	},
+	{
 		// N11 2026-08-05: registered so the flags_on lane can admit the flag on its banked one-at-a-time
 		// validation — the lane ratchet (correctly) only admits mechanism-claimed flags. Records the gate's
 		// decision either way (the test_driven_gate precedent: "how often would this fire?" must be answerable

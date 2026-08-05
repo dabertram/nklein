@@ -17,6 +17,8 @@
  * routine giants.
  */
 
+import { decideTaskSizing, type TaskSizingVerdict } from "./task-sizing-invariant";
+
 export interface ReviewCapacityEvidenceRow {
 	readonly reviewerModelId: string | null;
 	readonly outcome: string;
@@ -84,6 +86,67 @@ export function deriveFleetReviewCapacity(
 	}
 	const best = verdicts.reduce((left, right) => ((right.ceilingLines ?? 0) > (left.ceilingLines ?? 0) ? right : left));
 	return best;
+}
+
+/**
+ * P21.6b slice 3 — the OBSERVE-FIRST plan-time sizing assessment: combine the empirical review ceiling, the
+ * empirical diff-size baseline, and the routing's context sizing into one `decideTaskSizing` verdict — or say
+ * precisely WHICH half of the evidence is missing. No half is ever guessed (the policy's "unknown evidence means
+ * no proven room"), and slice 3 only RECORDS the result per planned child; nothing enforces until the recorded
+ * predicted-vs-actual stream has judged the estimator.
+ */
+export interface PlannedTaskSizingAssessment {
+	/** The full two-ceiling verdict — present only when BOTH evidence halves exist. */
+	readonly verdict: TaskSizingVerdict | null;
+	readonly reviewCeiling: ReviewCapacityVerdict;
+	readonly estimatedDiffLines: number | null;
+	/** Why there is (or is not) a verdict — the flip decision's denominator. */
+	readonly basis: "verdict" | "no_review_evidence" | "no_context_window" | "no_evidence_at_all";
+}
+
+export function assessPlannedTaskSizing(input: {
+	readonly rows: readonly ReviewCapacityEvidenceRow[];
+	/** Largest QUALITY-effective context window among the sizing candidates; null when the fleet view is unknown. */
+	readonly modelContextTokens: number | null;
+	/** Tokens the planned task will demand (the start guard's fit budget for its prompt). */
+	readonly estimatedTaskTokens: number;
+}): PlannedTaskSizingAssessment {
+	const modelIds = [
+		...new Set(
+			input.rows
+				.map((row) => row.reviewerModelId)
+				.filter((modelId): modelId is string => modelId !== null && modelId.trim() !== ""),
+		),
+	];
+	const reviewCeiling = deriveFleetReviewCapacity(input.rows, modelIds);
+	const estimatedDiffLines = deriveTypicalDiffLines(input.rows);
+	const contextWindow =
+		input.modelContextTokens !== null && input.modelContextTokens > 0 ? input.modelContextTokens : null;
+	if (reviewCeiling.ceilingLines !== null && estimatedDiffLines !== null && contextWindow !== null) {
+		return {
+			verdict: decideTaskSizing({
+				modelContextTokens: contextWindow,
+				estimatedTaskTokens: input.estimatedTaskTokens,
+				reviewCapacityLines: reviewCeiling.ceilingLines,
+				estimatedDiffLines,
+			}),
+			reviewCeiling,
+			estimatedDiffLines,
+			basis: "verdict",
+		};
+	}
+	const reviewKnown = reviewCeiling.ceilingLines !== null && estimatedDiffLines !== null;
+	return {
+		verdict: null,
+		reviewCeiling,
+		estimatedDiffLines,
+		basis:
+			!reviewKnown && contextWindow === null
+				? "no_evidence_at_all"
+				: reviewKnown
+					? "no_context_window"
+					: "no_review_evidence",
+	};
 }
 
 /**
