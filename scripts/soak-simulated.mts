@@ -131,7 +131,13 @@ async function sampleConnections(pid: number): Promise<string> {
 	const { stdout } = await exec("lsof", ["-a", "-p", pids.join(","), "-nP", "-iTCP", "-sTCP:ESTABLISHED"]).catch(
 		() => ({ stdout: "" }),
 	);
-	return stdout;
+	if (!stdout) return stdout;
+	// Finding-3 follow-up (first 2.5h soak): name WHICH child phoned — append a pid→argv map beside any
+	// non-empty sample so a violation is attributable without a re-run.
+	const { stdout: argvs } = await exec("ps", ["-o", "pid=,command=", "-p", pids.join(",")]).catch(() => ({
+		stdout: "",
+	}));
+	return `${stdout}\n#argv\n${argvs}`;
 }
 
 async function dirBytes(path: string): Promise<number> {
