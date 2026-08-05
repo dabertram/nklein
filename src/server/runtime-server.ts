@@ -1144,6 +1144,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// across many ticks). A divergence must be seen on TWO CONSECUTIVE ticks before it records; the pending
 	// set is replaced each tick so a transient clears itself.
 	const phaseLaneDivergenceNotifiedKeys = new Set<string>();
+	// Soak root cause (2026-08-05): the lane reconciler must mount ONCE per workspace queue — the
+	// scoped-service resolver runs per request and queue.subscribe adds a listener each call.
+	const laneReconcilerMountedByWorkspaceId = new Set<string>();
 	const phaseLaneDivergencePendingByWorkspaceId = new Map<string, Set<string>>();
 	// N23: dedup for the two sweep-visibility observations below (skip-on-active-session and unresolved-start).
 	// Keyed per card+state / per card, so a healthy board emits nothing and a stuck one emits exactly once.
@@ -4301,23 +4304,32 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// the lane move (kernel = the writer; the legacy direct move on the same edge becomes a redundant
 			// idempotent no-op and is retired once the shadow stays silent for the pair). Edge allowlist lives in
 			// the bridge (`laneMoveForAppliedTransition`); the shadow remains the live verifier either way.
-			getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId).subscribe((transition) => {
-				const targetLane = laneMoveForAppliedTransition(transition);
-				if (!targetLane) {
-					return;
-				}
-				// Returned (not voided) so the queue's per-task chain AWAITS the projection — apply-then-project
-				// ordering (P24.1 step 3): the lane lands before the next same-card command applies.
-				return retryWorkspaceStateLock(() =>
-					mutateWorkspaceState(scope.workspacePath, (latestState) => {
-						const movement = moveTaskToColumn(latestState.board, transition.taskId, targetLane);
-						return { board: movement.board, save: movement.moved, value: null };
-					}),
-				).then(
-					() => undefined,
-					() => undefined,
-				);
-			});
+			//
+			// MOUNTED ONCE PER WORKSPACE (soak root cause, 2026-08-05): this block lives inside the scoped-service
+			// resolver, which runs on EVERY scoped request — and queue.subscribe ADDS a listener each call, so
+			// reconcilers accumulated per request and every applied transition fanned out into N full board
+			// read+parse+writes (the 12x throughput collapse + the 3.6GB RSS in the first 2.5h soak; profile:
+			// readJsonFile+zod dominated). The queue is memoized per workspace; its reconciler must be too.
+			if (!laneReconcilerMountedByWorkspaceId.has(scope.workspaceId)) {
+				laneReconcilerMountedByWorkspaceId.add(scope.workspaceId);
+				getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId).subscribe((transition) => {
+					const targetLane = laneMoveForAppliedTransition(transition);
+					if (!targetLane) {
+						return;
+					}
+					// Returned (not voided) so the queue's per-task chain AWAITS the projection — apply-then-project
+					// ordering (P24.1 step 3): the lane lands before the next same-card command applies.
+					return retryWorkspaceStateLock(() =>
+						mutateWorkspaceState(scope.workspacePath, (latestState) => {
+							const movement = moveTaskToColumn(latestState.board, transition.taskId, targetLane);
+							return { board: movement.board, save: movement.moved, value: null };
+						}),
+					).then(
+						() => undefined,
+						() => undefined,
+					);
+				});
+			}
 			speculativeConfigByWorkspaceId.set(scope.workspaceId, {
 				enabled: runtimeConfig.speculativeBestOfNEnabled,
 				maxConcurrentSpecs: runtimeConfig.speculativeMaxConcurrentSpecs,
@@ -4955,23 +4967,32 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// the lane move (kernel = the writer; the legacy direct move on the same edge becomes a redundant
 			// idempotent no-op and is retired once the shadow stays silent for the pair). Edge allowlist lives in
 			// the bridge (`laneMoveForAppliedTransition`); the shadow remains the live verifier either way.
-			getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId).subscribe((transition) => {
-				const targetLane = laneMoveForAppliedTransition(transition);
-				if (!targetLane) {
-					return;
-				}
-				// Returned (not voided) so the queue's per-task chain AWAITS the projection — apply-then-project
-				// ordering (P24.1 step 3): the lane lands before the next same-card command applies.
-				return retryWorkspaceStateLock(() =>
-					mutateWorkspaceState(scope.workspacePath, (latestState) => {
-						const movement = moveTaskToColumn(latestState.board, transition.taskId, targetLane);
-						return { board: movement.board, save: movement.moved, value: null };
-					}),
-				).then(
-					() => undefined,
-					() => undefined,
-				);
-			});
+			//
+			// MOUNTED ONCE PER WORKSPACE (soak root cause, 2026-08-05): this block lives inside the scoped-service
+			// resolver, which runs on EVERY scoped request — and queue.subscribe ADDS a listener each call, so
+			// reconcilers accumulated per request and every applied transition fanned out into N full board
+			// read+parse+writes (the 12x throughput collapse + the 3.6GB RSS in the first 2.5h soak; profile:
+			// readJsonFile+zod dominated). The queue is memoized per workspace; its reconciler must be too.
+			if (!laneReconcilerMountedByWorkspaceId.has(scope.workspaceId)) {
+				laneReconcilerMountedByWorkspaceId.add(scope.workspaceId);
+				getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId).subscribe((transition) => {
+					const targetLane = laneMoveForAppliedTransition(transition);
+					if (!targetLane) {
+						return;
+					}
+					// Returned (not voided) so the queue's per-task chain AWAITS the projection — apply-then-project
+					// ordering (P24.1 step 3): the lane lands before the next same-card command applies.
+					return retryWorkspaceStateLock(() =>
+						mutateWorkspaceState(scope.workspacePath, (latestState) => {
+							const movement = moveTaskToColumn(latestState.board, transition.taskId, targetLane);
+							return { board: movement.board, save: movement.moved, value: null };
+						}),
+					).then(
+						() => undefined,
+						() => undefined,
+					);
+				});
+			}
 			speculativeConfigByWorkspaceId.set(scope.workspaceId, {
 				enabled: runtimeConfig.speculativeBestOfNEnabled,
 				maxConcurrentSpecs: runtimeConfig.speculativeMaxConcurrentSpecs,
