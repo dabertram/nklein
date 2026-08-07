@@ -11034,8 +11034,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   answering it — the entry keeps its own expiry-is-deny path). `allow_always`/`reject_always` are deliberately
   NOT offered: the queue's decisions are one-shot and standing grants live in F2.2's grant store with their own
   scope keys/TTL, so an "always" would promise a persistence that does not exist.
-  REMAINING for the wire: expose the pending-confirm list + resolve on the externalIngress facade (the stopTask
-  pattern) and raise the request from the ports' poll loop.
+  **🔴 THE WIRE HIT A SCOPING BLOCKER, AND NOT WIRING IT IS THE FINDING (2026-08-05).** Traced both producers:
+  the HOST-ACTION queue's ONLY producer is the chat tool executor, keyed by CHAT sessionId — an ACP prompt seeds
+  a BOARD card that runs in the swarm, so that queue is **empty for ACP cards by construction**; the EGRESS queue
+  DOES cover sandboxed agents (swarm cards produce entries) but its identity was (attemptId, host, port, role)
+  with `attemptId = generateId()` — **no task attribution at all**. So "raise the pending confirms to the editor"
+  would have raised the WHOLE RUNTIME's pending confirms to whichever ACP session happened to poll, letting one
+  editor approve an egress attempt belonging to a different workspace or a concurrent chat. **An approval leak,
+  not a style question** — so the wire waits on the precondition rather than shipping the leak.
+  **✅ PRECONDITION SHIPPED same session:** the proxy already resolves an `attributedTaskId` (F2.5 per-task
+  credential) and it is in scope at the confirm call site; it now rides onto the queued entry as ATTRIBUTION,
+  **deliberately NOT part of the binding** (resolve() still matches the same four facts — a fifth would change a
+  fail-closed primitive's contract and silently turn every existing resolver into a mismatch/deny; same
+  precedent as F2.12b's describer fields). 3 tests incl. the backward-compatible resolver.
+  REMAINING for the wire: expose a TASK-SCOPED pending-confirm list + resolve on the externalIngress facade (the
+  stopTask pattern), raise from the ports' poll loop, and hand `requestPermission` down from the connection.
   (✅ cancel-stops-the-card landed same hour: stopTask joined the facade; smoke re-run green.)
   **(superseded blueprint, kept for the record:)** the bridge-over-tRPC
   idea is WRONG (no card-create mutation exists on runtime.*; the board writes ride a non-obvious channel).
