@@ -12633,6 +12633,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
      automatic where the fitness store has evidence, and explicitly abstain where it does not. ⚠️ Depends on
      **P22.2's eval-side depth work** — the store now records depth but nothing populates it, and a depth-blind
      fitness number is the wrong basis for routing a deep card.
+     **▶ THE DECIDER SHIPPED 2026-08-05 (the P22.2 gate cleared 07-31): `fitness-role-assignment.ts`, 9 tests.**
+     `assignModelFromFitness(rows, neededDepth)` → assign or ABSTAIN, with THREE distinct abstentions because
+     "never measured" and "measured and bad" are different facts: `no_evidence` /
+     `no_depth_matched_evidence` / `below_confidence_floor`.
+     · The depth rule is **derived per bucket through `fitnessDepthMismatch`** — the same function the
+       freshness/re-eval side uses — not restated, so the two cannot drift about what covers what. A purely
+       shallow-measured cell never routes a deep card; it still routes a shallow one.
+     · **THE LIMIT IS STATED, NOT PAPERED OVER:** `depthSamples` counts samples per depth but there is no
+       per-depth SUCCESS count, so a row's rate stays depth-blind even when its samples are depth-matched. Two
+       guards bound the over-read — a minimum of depth-matched attempts AND a minimum SHARE of the row, so a
+       94%-shallow cell with 6 deep runs cannot pass on a rate the other depths produced. **The real fix is a
+       per-depth success counter in the store; it is NAMED as the follow-up rather than simulated here.**
+     · Confidence is the Wilson lower bound (a 6/6 cell cannot outrank 57/60), and **within a 0.07 noise band —
+       P22's own BFCL finding that multi-turn differences under ~7 points are noise — the tiebreak is MORE
+       depth-matched evidence, never the marginally higher number.**
+     REMAINING for phase 4: the WIRE (consume the verdict at role/card model selection, observe-first: record
+     the assignment + its abstentions before it steers anything), which wants live depth-populated rows.
   5. **Full auto ROUTING + RESIDENCY of models already present** — explicitly NOT acquisition, which is setup-only
      per P25.2a. Gated on P17.6 having measured that a swap is affordable ("re-open the swap decision on evidence").
   **Ordering is deliberately capability-last:** every phase before 5 is useful standing alone, none can wedge a
