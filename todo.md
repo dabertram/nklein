@@ -11047,8 +11047,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **deliberately NOT part of the binding** (resolve() still matches the same four facts — a fifth would change a
   fail-closed primitive's contract and silently turn every existing resolver into a mismatch/deny; same
   precedent as F2.12b's describer fields). 3 tests incl. the backward-compatible resolver.
-  REMAINING for the wire: expose a TASK-SCOPED pending-confirm list + resolve on the externalIngress facade (the
-  stopTask pattern), raise from the ports' poll loop, and hand `requestPermission` down from the connection.
+  **✅ THE WIRE LANDED same session, task-scoped.** Facade grew `listTaskEgressConfirms` +
+  `resolveTaskEgressConfirm`; the ports' poll loop puts any attempt attributed to THIS turn's card to the editor
+  and resolves the queue. **Scoping enforced at the facade: filtered to the turn's taskId, and an entry WITHOUT
+  attribution is never returned** (an unattributed attempt is the operator's, not a card's). Fail-closed carried
+  through: resolve binds to the PENDING entry's four facts; rejection denies; client cancellation resolves
+  nothing; a throwing requestPermission un-marks the attempt so a later tick re-asks. 4 wire tests — **the
+  re-raise test first passed for the WRONG reason** (harness ended the card after one iteration, making "asked
+  once" trivial); board reads and confirm polls now advance independently and it asserts the loop really polled
+  again. Smoke re-run PASS. REMAINING for P17.2: a real-editor (Zed) smoke.
   (✅ cancel-stops-the-card landed same hour: stopTask joined the facade; smoke re-run green.)
   **(superseded blueprint, kept for the record:)** the bridge-over-tRPC
   idea is WRONG (no card-create mutation exists on runtime.*; the board writes ride a non-obvious channel).
