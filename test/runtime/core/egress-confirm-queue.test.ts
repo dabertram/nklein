@@ -66,3 +66,37 @@ describe("createEgressConfirmQueue", () => {
 		expect(first.expiresAt - first.requestedAt).toBe(DEFAULT_EGRESS_CONFIRM_TIMEOUT_MS);
 	});
 });
+
+describe("F2.5 task attribution (found while wiring ACP session/request_permission)", () => {
+	const ATTRIBUTED = { attemptId: "a-attr", host: "pypi.org", port: 443, role: "worker", taskId: "acp-card-1" };
+
+	it("carries the owning task onto the pending entry so a surface can SCOPE to one card", () => {
+		const queue = createEgressConfirmQueue();
+		queue.enqueue(ATTRIBUTED, 1_000);
+		queue.enqueue({ attemptId: "a-other", host: "example.com", port: 443, role: "worker" }, 1_000);
+		const pending = queue.listPending(1_500);
+		expect(pending.map((entry) => entry.taskId)).toEqual(["acp-card-1", undefined]);
+		// The scoping a control surface performs: only this card's attempts, never the runtime-wide list.
+		expect(pending.filter((entry) => entry.taskId === "acp-card-1").map((entry) => entry.attemptId)).toEqual([
+			"a-attr",
+		]);
+	});
+
+	it("attribution is NOT part of the binding — a resolver that omits taskId still applies", () => {
+		const queue = createEgressConfirmQueue();
+		queue.enqueue(ATTRIBUTED, 1_000);
+		// The pre-existing resolver shape (four bound facts, no taskId) must keep working — adding a fifth bound
+		// field would have silently turned every existing caller into a mismatch, i.e. a deny.
+		expect(
+			queue.resolve({ attemptId: "a-attr", host: "pypi.org", port: 443, role: "worker", approve: true }, 2_000),
+		).toBe("applied");
+		expect(queue.status("a-attr", 2_100)).toBe("approved");
+	});
+
+	it("a wrong BOUND fact still mismatches even when the taskId matches", () => {
+		const queue = createEgressConfirmQueue();
+		queue.enqueue(ATTRIBUTED, 1_000);
+		expect(queue.resolve({ ...ATTRIBUTED, port: 8080, approve: true }, 2_000)).toBe("mismatch");
+		expect(queue.status("a-attr", 2_100)).toBe("pending");
+	});
+});

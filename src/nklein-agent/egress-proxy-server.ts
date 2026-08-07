@@ -223,13 +223,29 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 	 * F2.3 (I5): park a confirm-tier attempt on the queue and wait (bounded) for a bound approve/deny.
 	 * Resolves true ONLY on a clean approval; deny/expiry/timeout all resolve false (fail-closed).
 	 */
-	function awaitConfirmDecision(request: { host: string; port: number; role: string }): Promise<boolean> {
+	function awaitConfirmDecision(request: {
+		host: string;
+		port: number;
+		role: string;
+		/** F2.5 attribution — carried onto the queued entry so a control surface can scope to the owning card. */
+		taskId?: string;
+	}): Promise<boolean> {
 		const queue = deps.confirmQueue;
 		if (!queue) {
 			return Promise.resolve(false);
 		}
 		const attemptId = generateId();
-		queue.enqueue({ attemptId, host: request.host, port: request.port, role: request.role }, now(), confirmTimeoutMs);
+		queue.enqueue(
+			{
+				attemptId,
+				host: request.host,
+				port: request.port,
+				role: request.role,
+				...(request.taskId ? { taskId: request.taskId } : {}),
+			},
+			now(),
+			confirmTimeoutMs,
+		);
 		return new Promise<boolean>((resolve) => {
 			let settled = false;
 			const settle = (approved: boolean): void => {
@@ -570,7 +586,12 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 					}
 					if (verdict2.decision === "confirm") {
 						const approved = deps.confirmQueue
-							? await awaitConfirmDecision({ host: parsed.host, port: parsed.port, role: context.role })
+							? await awaitConfirmDecision({
+									host: parsed.host,
+									port: parsed.port,
+									role: context.role,
+									...(attributedTaskId ? { taskId: attributedTaskId } : {}),
+								})
 							: false;
 						if (!approved) {
 							refuse(verdict2, transport, resolvedIps);

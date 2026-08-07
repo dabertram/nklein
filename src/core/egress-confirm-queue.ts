@@ -19,6 +19,20 @@ export interface EgressConfirmRequest {
 	host: string;
 	port: number;
 	role: string;
+	/**
+	 * F2.5 ATTRIBUTION — which task's sandbox attempted this egress, when the proxy could verify a per-task
+	 * credential. Present so a control surface can show (and SCOPE to) the card an attempt belongs to: without
+	 * it, "the pending confirms" is a runtime-wide list and any surface showing it would let one context approve
+	 * another's action (found while wiring ACP's session/request_permission, 2026-08-05).
+	 *
+	 * DELIBERATELY NOT PART OF THE BINDING. {@link EgressConfirmQueue.resolve} still matches ONLY
+	 * (attemptId, host, port, role) — the same four facts as before. Adding a fifth would change a fail-closed
+	 * primitive's contract and silently turn every existing resolver that does not send it into a `mismatch`,
+	 * i.e. a deny. Attribution answers "whose attempt is this"; the binding answers "is this decision about
+	 * exactly the queued facts", and those are different questions. Same precedent as F2.12b's describer fields
+	 * on the host-action queue.
+	 */
+	taskId?: string;
 }
 
 export interface PendingEgressConfirm extends EgressConfirmRequest {
