@@ -57,6 +57,11 @@ import { assessDiffMinimality } from "../core/diff-minimality";
 import { createDispatchReservationLedger, reservationAwarePools } from "../core/dispatch-reservations";
 import { createAdmissionWakeCoordinator } from "../core/durable-admission";
 import { resolveDurableHeartbeatTaskIds } from "../core/durable-lease-heartbeat";
+import type {
+	EgressConfirmRequest,
+	EgressConfirmResolveOutcome,
+	PendingEgressConfirm,
+} from "../core/egress-confirm-queue";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { EVAL_PROMPT_CORPUS } from "../core/eval-prompt-corpus";
 import { seedFocusChainFromPlanTask } from "../core/focus-chain";
@@ -353,6 +358,21 @@ export interface RuntimeServer {
 		armWorkspace: (entry: { workspaceId: string; repoPath: string }) => Promise<void>;
 		/** Stop a seeded card's live session (ACP cancel must not leave the swarm running the turn's card). */
 		stopTask: (entry: { workspaceId: string; repoPath: string }, taskId: string) => Promise<void>;
+		/**
+		 * Pending egress confirms attributed to ONE task. Scoped on purpose: the runtime-wide list would let an
+		 * external front-end (ACP editor) approve an attempt belonging to a different card or a concurrent chat.
+		 * Entries without attribution are NEVER returned here — an unattributed attempt belongs to the operator's
+		 * own control surface, not to a card's turn.
+		 */
+		listTaskEgressConfirms: (
+			entry: { workspaceId: string; repoPath: string },
+			taskId: string,
+		) => Promise<PendingEgressConfirm[]>;
+		/** Apply one operator decision, bound to the same four facts the queue binds on. */
+		resolveTaskEgressConfirm: (
+			entry: { workspaceId: string; repoPath: string },
+			decision: EgressConfirmRequest & { approve: boolean },
+		) => Promise<EgressConfirmResolveOutcome>;
 	};
 }
 
@@ -6037,6 +6057,32 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					workspacePath: entry.repoPath,
 				}).catch(() => null);
 				await service?.stopTaskSession(taskId).catch(() => null);
+			},
+			listTaskEgressConfirms: async (entry, taskId) => {
+				const service = await getScopedNKleinTaskSessionService({
+					workspaceId: entry.workspaceId,
+					workspacePath: entry.repoPath,
+				}).catch(() => null);
+				const manager = service?.getAgentSandboxManagerForEgressControl() ?? null;
+				if (!manager) {
+					return [];
+				}
+				const pending = await manager.listPendingEgressConfirms().catch(() => []);
+				// Attribution is REQUIRED to match: an entry with no taskId is not "maybe this card's", it is
+				// unattributed, and handing it to a card's front-end would be the approval leak this scoping exists
+				// to prevent.
+				return pending.filter((candidate) => candidate.taskId === taskId);
+			},
+			resolveTaskEgressConfirm: async (entry, decision) => {
+				const service = await getScopedNKleinTaskSessionService({
+					workspaceId: entry.workspaceId,
+					workspacePath: entry.repoPath,
+				}).catch(() => null);
+				const manager = service?.getAgentSandboxManagerForEgressControl() ?? null;
+				if (!manager) {
+					return "unknown";
+				}
+				return await manager.resolvePendingEgressConfirm(decision).catch(() => "unknown" as const);
 			},
 		},
 		close: async () => {

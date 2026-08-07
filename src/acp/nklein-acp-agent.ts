@@ -27,6 +27,8 @@ import type {
 	PromptRequest,
 	PromptResponse,
 	ProtocolVersion,
+	RequestPermissionRequest,
+	RequestPermissionResponse,
 	SessionNotification,
 	SessionUpdate,
 	StopReason,
@@ -44,6 +46,11 @@ export interface NKleinAcpPorts {
 		readonly sessionId: string;
 		readonly promptText: string;
 		readonly emitUpdate: (update: SessionUpdate) => Promise<void>;
+		/**
+		 * Ask the EDITOR to decide a parked approval (ACP `session/request_permission`). Supplied from the
+		 * connection so the port never needs the transport; a turn that has nothing to ask simply never calls it.
+		 */
+		readonly requestPermission: (request: RequestPermissionRequest) => Promise<RequestPermissionResponse>;
 		readonly signal: AbortSignal;
 	}) => Promise<StopReason>;
 	readonly randomUuid: () => string;
@@ -79,7 +86,10 @@ export class NKleinAcpAgent implements Agent {
 
 	constructor(
 		private readonly ports: NKleinAcpPorts,
-		private readonly connection: { sessionUpdate(params: SessionNotification): Promise<void> },
+		private readonly connection: {
+			sessionUpdate(params: SessionNotification): Promise<void>;
+			requestPermission(params: RequestPermissionRequest): Promise<RequestPermissionResponse>;
+		},
 		private readonly agentVersion: string,
 	) {}
 
@@ -118,6 +128,7 @@ export class NKleinAcpAgent implements Agent {
 				sessionId: params.sessionId,
 				promptText: acpPromptText(params.prompt),
 				emitUpdate: (update) => this.connection.sessionUpdate({ sessionId: params.sessionId, update }),
+				requestPermission: (request) => this.connection.requestPermission(request),
 				signal: abort.signal,
 			});
 			return { stopReason: abort.signal.aborted ? "cancelled" : stopReason };

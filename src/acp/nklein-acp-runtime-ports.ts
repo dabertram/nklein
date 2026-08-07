@@ -9,6 +9,7 @@
  */
 
 import type { RuntimeServer } from "../server/runtime-server";
+import { buildAcpPermissionRequest, interpretAcpPermissionOutcome } from "./acp-permission-mapping";
 import type { NKleinAcpPorts } from "./nklein-acp-agent";
 
 type IngressEntry = { workspaceId: string; repoPath: string };
@@ -35,7 +36,7 @@ export function buildRuntimeAcpPorts(input: {
 			entriesByWorkspaceId.set(entry.workspaceId, entry);
 			return entry.workspaceId;
 		},
-		runPrompt: async ({ workspaceId, promptText, emitUpdate, signal }) => {
+		runPrompt: async ({ workspaceId, sessionId, promptText, emitUpdate, requestPermission, signal }) => {
 			const entry = entriesByWorkspaceId.get(workspaceId);
 			if (!entry) {
 				throw new Error(`ACP workspace ${workspaceId} is not bound.`);
@@ -48,11 +49,71 @@ export function buildRuntimeAcpPorts(input: {
 				emitUpdate({ sessionUpdate: "agent_message_chunk", content: { type: "text", text } });
 			await emitText(`Seeded board card ${taskId} — the swarm is on it.`);
 
+			// Approvals already put to the editor this turn — a permission prompt must never be re-raised while the
+			// operator is still looking at it (the poll ticks once a second; the human does not).
+			const raisedConfirmAttempts = new Set<string>();
 			let lastLane: string | null = null;
 			let lastReview: string | null = null;
 			let lastNote: string | null = null;
 			const deadline = now() + TURN_CEILING_MS;
 			while (!signal.aborted && now() < deadline) {
+				// An egress attempt attributed to THIS card is a question only the operator can answer; inside an
+				// editor, ask the editor. Scoped by taskId at the facade, so a concurrent card's attempt is never
+				// offered here.
+				for (const pending of await input.ingress.listTaskEgressConfirms(entry, taskId).catch(() => [])) {
+					if (raisedConfirmAttempts.has(pending.attemptId)) {
+						continue;
+					}
+					raisedConfirmAttempts.add(pending.attemptId);
+					const outcome = await requestPermission(
+						buildAcpPermissionRequest({
+							sessionId,
+							pending: {
+								attemptId: pending.attemptId,
+								sessionId,
+								action: "egress_connect",
+								target: `${pending.host}:${pending.port}`,
+								actionLabel: `Network access (${pending.role})`,
+								scope: `the ${pending.role} sandbox`,
+								consequence: `allows one outbound connection to ${pending.host}:${pending.port}`,
+								duration: "this attempt only",
+								requestedAt: pending.requestedAt,
+								expiresAt: pending.expiresAt,
+							},
+						}),
+					).catch(() => null);
+					if (!outcome) {
+						// The editor could not answer; leave the entry to its own expiry-is-deny path, and allow a
+						// later tick to ask again rather than silently dropping the question.
+						raisedConfirmAttempts.delete(pending.attemptId);
+						continue;
+					}
+					const decision = interpretAcpPermissionOutcome(outcome.outcome, {
+						attemptId: pending.attemptId,
+						sessionId,
+						action: "egress_connect",
+						target: `${pending.host}:${pending.port}`,
+						requestedAt: pending.requestedAt,
+						expiresAt: pending.expiresAt,
+					});
+					if (decision.kind === "leave_pending") {
+						continue;
+					}
+					// The queue binds on ITS OWN four facts (attemptId, host, port, role) — taken from the pending
+					// entry, never rebuilt from the editor's reply.
+					await input.ingress
+						.resolveTaskEgressConfirm(entry, {
+							attemptId: pending.attemptId,
+							host: pending.host,
+							port: pending.port,
+							role: pending.role,
+							approve: decision.decision.approve,
+						})
+						.catch(() => undefined);
+					await emitText(
+						`Network access to ${pending.host}:${pending.port} ${decision.decision.approve ? "approved" : "denied"} by the editor.`,
+					);
+				}
 				const record = await input.ingress.readBoardRecord(entry, taskId).catch(() => null);
 				if (record) {
 					if (record.columnId !== lastLane) {
