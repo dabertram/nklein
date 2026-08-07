@@ -11022,7 +11022,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   (stdout writers → stderr — one log line on fd 1 corrupts the protocol). LIVE SMOKE
   (`scripts/acp-smoke.mts`): the SDK's own client over child stdio, sim-backed HOME — initialize v1 →
   session/new(cwd) → prompt → real sandboxed worker + auto-review delivery → 9 streamed updates → end_turn.
-  REMAINING (small): session/request_permission ↔ S3 confirm queue; a real-editor (Zed) smoke.
+  REMAINING (small): a real-editor (Zed) smoke; the permission WIRE (below).
+  **▶ session/request_permission ↔ S3 CONFIRM QUEUE — the pure mapping landed 2026-08-05**
+  (`src/acp/acp-permission-mapping.ts`, 7 tests). Inside an editor the operator's answer should come FROM the
+  editor, and ACP's permission request is already the confirm queue's shape. The queue's fail-closed binding
+  survives by construction: the resolution carries (attemptId, sessionId, action, target) VERBATIM from the
+  PENDING entry — **the editor picks an OPTION, never the identity of what it approves**, so a reply can never
+  approve a different action than the one displayed; F2.12b describer fields ride as DISPLAY enrichment only.
+  Deny is the default in both directions: an unknown option id resolves as a DENY (an uninterpretable reply must
+  never widen access) while a client `cancelled` LEAVES the entry pending (withdrawing the question is not
+  answering it — the entry keeps its own expiry-is-deny path). `allow_always`/`reject_always` are deliberately
+  NOT offered: the queue's decisions are one-shot and standing grants live in F2.2's grant store with their own
+  scope keys/TTL, so an "always" would promise a persistence that does not exist.
+  REMAINING for the wire: expose the pending-confirm list + resolve on the externalIngress facade (the stopTask
+  pattern) and raise the request from the ports' poll loop.
   (✅ cancel-stops-the-card landed same hour: stopTask joined the facade; smoke re-run green.)
   **(superseded blueprint, kept for the record:)** the bridge-over-tRPC
   idea is WRONG (no card-create mutation exists on runtime.*; the board writes ride a non-obvious channel).
