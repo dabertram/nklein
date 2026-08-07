@@ -109,3 +109,17 @@ describe("handleEgressConfirmControlRequest (F2.3b)", () => {
 		).toBe(400);
 	});
 });
+
+describe("F2.5 attribution survives the control hop (the join, not the steps)", () => {
+	it("the GET body carries taskId so the host side can SCOPE pending confirms to one card", () => {
+		// Each step of this chain is separately correct; what breaks in practice is a JOIN silently dropping a
+		// field (P22.2's lesson). The control server returns listPending() wholesale and the client spreads the
+		// entries, so attribution reaches the host — pinned here rather than assumed.
+		const queue = createEgressConfirmQueue();
+		queue.enqueue({ attemptId: "a-attr", host: "pypi.org", port: 443, role: "worker", taskId: "acp-card-1" }, 1000);
+		queue.enqueue({ attemptId: "a-bare", host: "example.com", port: 443, role: "worker" }, 1000);
+		const res = handleEgressConfirmControlRequest({ method: "GET", path: "/egress-confirms" }, queue, 1001);
+		const pending = (res.body as { pending: { attemptId: string; taskId?: string }[] }).pending;
+		expect(pending.map((entry) => entry.taskId)).toEqual(["acp-card-1", undefined]);
+	});
+});
