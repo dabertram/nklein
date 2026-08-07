@@ -296,7 +296,12 @@ import {
 import { persistCardVerification } from "./persist-card-verification";
 import { isReviewDeliverySuperseded } from "./review-delivery-supersession";
 import { resolveReviewSandboxResult, runWithSettledReviewSandboxArtifact } from "./review-sandbox-result";
-import { getRemoteIp, readRequestBody } from "./runtime-server-http";
+import {
+	getRemoteIp,
+	INGRESS_REQUEST_BODY_MAX_BYTES,
+	RequestBodyTooLargeError,
+	readRequestBody,
+} from "./runtime-server-http";
 import type { RuntimeStateHub } from "./runtime-state-hub";
 import { runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
 import {
@@ -5750,10 +5755,19 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				let a2aBody = "";
 				if (req.method === "POST") {
 					try {
-						a2aBody = await readRequestBody(req);
-					} catch {
-						res.writeHead(400, a2aHeaders);
-						res.end(JSON.stringify({ error: "Invalid request body." }));
+						// INGRESS cap, not the control-surface default: an A2A task description is a spec or an
+						// issue body, routinely far past 4 KiB.
+						a2aBody = await readRequestBody(req, INGRESS_REQUEST_BODY_MAX_BYTES);
+					} catch (error) {
+						res.writeHead(413, a2aHeaders);
+						res.end(
+							JSON.stringify({
+								error:
+									error instanceof RequestBodyTooLargeError
+										? `Request body exceeds the ${INGRESS_REQUEST_BODY_MAX_BYTES}-byte A2A ingress limit.`
+										: "Invalid request body.",
+							}),
+						);
 						return;
 					}
 				}
@@ -5782,10 +5796,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				}
 				let triggerBody = "";
 				try {
-					triggerBody = await readRequestBody(req);
-				} catch {
-					res.writeHead(400, triggerHeaders);
-					res.end(JSON.stringify({ error: "Invalid request body." }));
+					// Same reasoning as A2A: a trigger payload IS the task description.
+					triggerBody = await readRequestBody(req, INGRESS_REQUEST_BODY_MAX_BYTES);
+				} catch (error) {
+					res.writeHead(413, triggerHeaders);
+					res.end(
+						JSON.stringify({
+							error:
+								error instanceof RequestBodyTooLargeError
+									? `Request body exceeds the ${INGRESS_REQUEST_BODY_MAX_BYTES}-byte trigger ingress limit.`
+									: "Invalid request body.",
+						}),
+					);
 					return;
 				}
 				const triggerResult = await handleTriggerIntake(

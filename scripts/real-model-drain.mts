@@ -1,0 +1,209 @@
+/**
+ * The REAL-MODEL drain harness the P23.5 / N8 / P25.3 legs share: seed ONE card into a prepared workspace via
+ * the A2A ingress (the proven external-trigger path — same call the soak harness makes), let the swarm work it
+ * with the operator's ACTUALLY-LOADED model, and report the terminal lane plus where the workspace landed.
+ *
+ *   tsx scripts/real-model-drain.mts --workspace <dir> --prompt-file <f> [--out <dir>] [--max-min N]
+ *
+ * Deliberately NOT a simulator: the point of these legs is evidence from a real model. It therefore refuses to
+ * invent a model — the roster comes from what is loaded RIGHT NOW (`/api/v0/models`), and an empty roster is a
+ * refusal rather than a fallback, because a drain against a model nobody loaded proves nothing about the fleet.
+ *
+ * Never unloads or loads anything (directive: the resident set is the operator's). Tears down its runtime.
+ */
+
+import { type ChildProcess, execFile, spawn } from "node:child_process";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+const REPO = process.cwd();
+const TSX = join(REPO, "node_modules", ".bin", "tsx");
+
+function arg(name: string): string | null {
+	const index = process.argv.indexOf(`--${name}`);
+	return index >= 0 ? (process.argv[index + 1] ?? null) : null;
+}
+
+const workspaceSource = arg("workspace");
+const promptFile = arg("prompt-file");
+const maxMinutes = Number(arg("max-min") ?? "90");
+const outDir = arg("out");
+if (!workspaceSource || !promptFile) {
+	process.stderr.write("usage: real-model-drain.mts --workspace <dir> --prompt-file <f> [--out <dir>] [--max-min N]\n");
+	process.exit(64);
+}
+
+const LOCAL_BASE = process.env.NKLEIN_LOCAL_BASE_URL?.trim() || "http://127.0.0.1:1234/v1";
+const RUNTIME_PORT = Number(process.env.NKLEIN_DRAIN_PORT ?? "3496");
+
+/** The loaded roster is the ONLY source of a model id — an empty roster refuses rather than inventing one. */
+async function loadedModelIds(): Promise<string[]> {
+	const root = LOCAL_BASE.replace(/\/+$/u, "").replace(/\/v1$/u, "");
+	const response = await fetch(`${root}/api/v0/models`, { signal: AbortSignal.timeout(5_000) });
+	const payload = (await response.json()) as { data?: { id?: string; state?: string }[] };
+	return (payload.data ?? [])
+		.filter((entry) => entry.state === "loaded" && typeof entry.id === "string")
+		.map((entry) => entry.id as string);
+}
+
+const work = await realpath(await mkdtemp(join(tmpdir(), "real-drain-")));
+const home = join(work, "home");
+const workspace = outDir ? await realpath(outDir).catch(() => outDir) : join(work, "ws");
+await mkdir(join(home, ".nklein", "nklein"), { recursive: true });
+await mkdir(join(home, ".nklein", "data", "settings"), { recursive: true });
+await execFileAsync("cp", ["-R", workspaceSource, workspace]).catch(async () => {
+	await mkdir(workspace, { recursive: true });
+});
+const git = (...args: string[]) => execFileAsync("git", ["-C", workspace, ...args]);
+await git("rev-parse", "--git-dir").catch(async () => {
+	await git("init", "--quiet", "--initial-branch=main");
+	await git("add", "-A");
+	await git("-c", "user.email=drain@local", "-c", "user.name=drain", "commit", "-qm", "init");
+});
+
+const loaded = await loadedModelIds().catch(() => []);
+if (loaded.length === 0) {
+	process.stderr.write(
+		`REFUSED: no model is loaded at ${LOCAL_BASE}. This harness never loads models (the resident set is the operator's) and a drain against an unloaded model proves nothing.\n`,
+	);
+	process.exit(1);
+}
+const model = loaded[0] as string;
+process.stdout.write(`real-model drain: model=${model} workspace=${workspace}\n`);
+
+await writeFile(
+	join(home, ".nklein", "nklein", "config.json"),
+	JSON.stringify(
+		{
+			selectedAgentId: "nklein",
+			developerModeEnabled: true,
+			setupWizardCompletedAt: Date.now(),
+			agentRulesets: { capability: { globalPreset: "strict" }, delivery: { globalPreset: "fully_open" } },
+			modelRoles: {
+				architect: { modelId: model, providerId: "lmstudio" },
+				worker: { modelId: model, providerId: "lmstudio" },
+				reviewer: { modelId: model, providerId: "lmstudio" },
+			},
+		},
+		null,
+		1,
+	),
+);
+await writeFile(
+	join(home, ".nklein", "nklein", "nklein-provider-selection.json"),
+	`${JSON.stringify({ providerId: "lmstudio" }, null, 2)}\n`,
+);
+await writeFile(
+	join(home, ".nklein", "data", "settings", "providers.json"),
+	JSON.stringify(
+		{
+			version: 1,
+			lastUsedProvider: "lmstudio",
+			providers: {
+				lmstudio: {
+					settings: { provider: "lmstudio", model, baseUrl: LOCAL_BASE },
+					updatedAt: new Date().toISOString(),
+					tokenSource: "manual",
+				},
+			},
+		},
+		null,
+		1,
+	),
+);
+
+let runtime: ChildProcess | null = null;
+const shutdown = async (): Promise<void> => {
+	runtime?.kill("SIGTERM");
+	await new Promise((tick) => setTimeout(tick, 5_000));
+	if (runtime && runtime.exitCode === null) {
+		runtime.kill("SIGKILL");
+	}
+};
+
+async function waitForHttp(url: string, timeoutMs: number): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	for (;;) {
+		try {
+			await fetch(url, { signal: AbortSignal.timeout(2_000) });
+			return;
+		} catch {
+			if (Date.now() > deadline) throw new Error(`timed out waiting for ${url}`);
+			await new Promise((tick) => setTimeout(tick, 1_000));
+		}
+	}
+}
+
+try {
+	const logPath = join(work, "runtime.log");
+	const { createWriteStream } = await import("node:fs");
+	const runtimeLog = createWriteStream(logPath);
+	runtime = spawn(TSX, ["src/cli.ts", "--host", "127.0.0.1", "--port", String(RUNTIME_PORT)], {
+		cwd: REPO,
+		env: { ...process.env, HOME: home, NODE_ENV: "development", NKLEIN_A2A_SERVER: "1" },
+		stdio: ["ignore", "pipe", "pipe"],
+	});
+	runtime.stdout?.pipe(runtimeLog);
+	runtime.stderr?.pipe(runtimeLog);
+	await waitForHttp(`http://127.0.0.1:${RUNTIME_PORT}/`, 90_000);
+
+	await execFileAsync(TSX, ["-e", "void 0"]).catch(() => undefined); // no-op keeps tsx warm
+	const register = await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/projects.add?batch=1`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ "0": { path: workspace } }),
+	});
+	process.stdout.write(`workspace registration: HTTP ${register.status}\n`);
+
+	const prompt = await readFile(promptFile, "utf8");
+	const seeded = await fetch(`http://127.0.0.1:${RUNTIME_PORT}/a2a/v1`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({
+			jsonrpc: "2.0",
+			id: "real-drain-1",
+			method: "SendMessage",
+			params: { message: { messageId: "real-drain-m-1", role: "ROLE_USER", parts: [{ text: prompt }] } },
+		}),
+	});
+	if (!seeded.ok) {
+		throw new Error(`A2A SendMessage failed: HTTP ${seeded.status}`);
+	}
+	process.stdout.write(`card seeded; draining for up to ${maxMinutes}m…\n`);
+
+	const boardPath = join(workspace, ".nklein", "nklein", "workspace", "board.json");
+	const deadline = Date.now() + maxMinutes * 60_000;
+	let lastSummary = "";
+	for (;;) {
+		await new Promise((tick) => setTimeout(tick, 30_000));
+		const board = await readFile(boardPath, "utf8")
+			.then((text) => JSON.parse(text) as { board?: { columns: { id: string; cards: unknown[] }[] } })
+			.catch(() => null);
+		const columns = board?.board?.columns ?? [];
+		const counts = Object.fromEntries(columns.map((column) => [column.id, column.cards.length]));
+		const summary = JSON.stringify(counts);
+		if (summary !== lastSummary) {
+			lastSummary = summary;
+			process.stdout.write(`  lanes: ${summary}\n`);
+		}
+		const active = (counts.backlog ?? 0) + (counts.planning ?? 0) + (counts.ready ?? 0) + (counts.in_progress ?? 0);
+		const settled = (counts.completed ?? 0) + (counts.review ?? 0);
+		if (active === 0 && settled > 0) {
+			process.stdout.write(`DRAIN SETTLED: ${summary}\n`);
+			break;
+		}
+		if (Date.now() > deadline) {
+			process.stdout.write(`DRAIN TIMEOUT after ${maxMinutes}m: ${summary}\n`);
+			break;
+		}
+	}
+	process.stdout.write(`workspace retained at: ${workspace}\nruntime log: ${logPath}\n`);
+} finally {
+	await shutdown();
+	if (!outDir) {
+		process.stdout.write(`(temp workdir ${work} retained for inspection)\n`);
+	}
+}
