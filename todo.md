@@ -12140,8 +12140,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   their place, and it is the direction this measurement should mostly return. The value of the harness is that
   DECORATIVE is now *sayable* about any core, cheaply; the item's own asymmetry (a false `decorative` sends
   someone to delete working code) means finding none is the comfortable outcome.
-  It also exercised the harness across four different module shapes — the restore verified clean each time, which
-  is the property that makes this safe to run casually.
+  **Extended to TEN cores 2026-08-08 — all LOAD_BEARING.** Added `air-gap-posture`, `anti-decomposition-guard`,
+  `assumption-safety` (25 tests), `attempt-idempotency-key` (20), `auto-clarify` (14),
+  `autonomous-timeout-defaults`. Every ablated run went to **0 passing** — the stub's throw propagates fully —
+  and the selection COUNT matched the baseline in all ten, so the stub never broke collection. Ten clean restores.
+  **Stated honestly: no real DECORATIVE finding yet.** The mechanism is proven able to produce one (the assessor's
+  own synthetic exercise recorded above), but on real repo code this sweep has only ever returned LOAD_BEARING.
+  That is the expected majority outcome and good news about the code — it is NOT yet evidence that the sweep
+  would notice dead weight if it were there. A deliberately-decorative module would settle that, and is the
+  cheap next check for whoever extends this.
   **DEVIATION, stated plainly: this runs LOCALLY, not inside the agent sandbox.** The item says "re-run the suite
   in the sandbox". The stub-and-run mechanism — the half that did not exist — is built and proven; wrapping it in
   the sandbox is a further step and is not claimed here.
