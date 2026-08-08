@@ -242,40 +242,59 @@ export function applySearchReplaceBlock(
 
 	const whole = splitKeepNewlines(content);
 	const part = splitKeepNewlines(search);
-	const replaceLines = splitKeepNewlines(replace);
+	// ── N8.1: a terminator-less block must not eat the matched line's newline ──
+	// Lines here KEEP their newline (`"charlie\n"`), but a model naturally writes a search/replace block WITHOUT a
+	// trailing newline. The whitespace-flexible strategy matches `"charlie"` against `"charlie\n"` — correctly — and
+	// then splices a terminator-less replacement over a terminated line, fusing it with the line below:
+	// `"…\nCHARLIEdelta\n"`. Live-found three times across three projects and two models
+	// (`def test_dotted_names_from_app(app, client):    test = …`), and root-caused here rather than in the models.
+	// So when the SEARCH carries no terminator, neither does the model's mental model of a "line" — give the
+	// replacement one, and take it back below if the file genuinely had no final newline.
+	const searchLacksTerminator = !search.endsWith("\n");
+	const normalizedReplace =
+		searchLacksTerminator && replace !== "" && !replace.endsWith("\n") ? `${replace}\n` : replace;
+	const replaceLines = splitKeepNewlines(normalizedReplace);
+	/** Undo the terminator we added when the ORIGINAL file had no final newline and the edit reached its end. */
+	const restoreFinalNewline = (edited: string): string =>
+		normalizedReplace !== replace && !content.endsWith("\n") && edited.endsWith("\n") ? edited.slice(0, -1) : edited;
 
 	const exact = perfectReplace(whole, part, replaceLines);
 	if (exact) {
-		return { ok: true, content: exact.join(""), strategy: "exact" };
+		return { ok: true, content: restoreFinalNewline(exact.join("")), strategy: "exact" };
 	}
 
 	const whitespace = whitespaceFlexibleReplace(whole, part, replaceLines);
 	if (whitespace) {
-		return { ok: true, content: whitespace.join(""), strategy: "whitespace" };
+		return { ok: true, content: restoreFinalNewline(whitespace.join("")), strategy: "whitespace" };
 	}
 
 	const trimmedPart = stripLeadingBlankLines(part);
 	if (trimmedPart.length !== part.length && trimmedPart.length > 0) {
 		const exactTrimmed = perfectReplace(whole, trimmedPart, replaceLines);
 		if (exactTrimmed) {
-			return { ok: true, content: exactTrimmed.join(""), strategy: "leading_blank" };
+			return { ok: true, content: restoreFinalNewline(exactTrimmed.join("")), strategy: "leading_blank" };
 		}
 		const whitespaceTrimmed = whitespaceFlexibleReplace(whole, trimmedPart, replaceLines);
 		if (whitespaceTrimmed) {
-			return { ok: true, content: whitespaceTrimmed.join(""), strategy: "leading_blank" };
+			return { ok: true, content: restoreFinalNewline(whitespaceTrimmed.join("")), strategy: "leading_blank" };
 		}
 	}
 
 	const dotdotdots = dotdotdotsReplace(content, search, replace);
 	if (dotdotdots !== null) {
-		return { ok: true, content: dotdotdots, strategy: "dotdotdots" };
+		return { ok: true, content: restoreFinalNewline(dotdotdots), strategy: "dotdotdots" };
 	}
 
 	if (content.length <= MAX_FUZZY_CONTENT_CHARS) {
 		const threshold = options.fuzzyThreshold ?? FUZZY_MATCH_THRESHOLD;
 		const fuzzy = fuzzyReplace(whole, part, replaceLines, threshold);
 		if (fuzzy.lines) {
-			return { ok: true, content: fuzzy.lines.join(""), strategy: "fuzzy", similarity: fuzzy.similarity };
+			return {
+				ok: true,
+				content: restoreFinalNewline(fuzzy.lines.join("")),
+				strategy: "fuzzy",
+				similarity: fuzzy.similarity,
+			};
 		}
 		return {
 			ok: false,

@@ -95,3 +95,108 @@ describe("similarityRatio", () => {
 		expect(similarityRatio("abc", "xyz")).toBeLessThan(0.5);
 	});
 });
+
+describe("newline preservation — the merged-line artefact (N8.1)", () => {
+	// Live-found 2026-08-08, three times across three projects and two models: a file came back with two source
+	// lines fused onto one, e.g. `from .cookies import (    cookiejar_from_dict, …)` where the original spanned
+	// two lines. Whether OUR applier can produce that, or the model simply emits the merged form, was unsettled —
+	// the ledger stores a tool-call FINGERPRINT rather than raw arguments, so a completed run cannot answer it.
+	//
+	// These tests attack the question from our side with BREADTH rather than one example: across every strategy
+	// in the ladder, applying a block must never fuse two lines that the replacement kept separate. If our applier
+	// is capable of it, one of these shapes should find it.
+	const LINES = [
+		"from .compat import cookielib, OrderedDict, builtin_str",
+		"from .cookies import (",
+		"    cookiejar_from_dict, extract_cookies_to_jar, merge_cookies)",
+		"from .models import Request, PreparedRequest",
+		"",
+		"class Session(object):",
+		"    def __init__(self):",
+		"        self.headers = default_headers()",
+	];
+	const file = `${LINES.join("\n")}\n`;
+
+	/**
+	 * No single output line may contain TWO distinct original lines — that is precisely what a fused pair looks
+	 * like. Checking "is the original followed by a newline" is NOT sufficient and this helper learned it the hard
+	 * way: when a line is edited by EXTENDING it (search `X`, replace `X, extra`), the original is legitimately
+	 * followed by more content on the same line, and that check reports a false fusion.
+	 */
+	function assertNoFusedLines(before: string, after: string, label: string) {
+		const originals = before
+			.split("\n")
+			.map((line) => line.trim())
+			.filter((line) => line.length > 3);
+		for (const outputLine of after.split("\n")) {
+			const contained = originals.filter((original) => outputLine.includes(original));
+			expect(
+				contained.length <= 1,
+				`${label}: one output line contains ${contained.length} distinct source lines — they fused:\n  ${outputLine.slice(0, 100)}`,
+			).toBe(true);
+		}
+	}
+
+	const CASES: Array<{ label: string; search: string; replace: string }> = [
+		{
+			label: "single-line replace, neighbours multi-line",
+			search: LINES[0] as string,
+			replace: `${LINES[0]}, is_py2`,
+		},
+		{
+			label: "replacement WITHOUT a trailing newline",
+			search: LINES[3] as string,
+			replace: "from .models import Request",
+		},
+		{
+			label: "replacement WITH a trailing newline",
+			search: LINES[3] as string,
+			replace: "from .models import Request\n",
+		},
+		{
+			label: "multi-line search collapsed to one line",
+			search: `${LINES[1]}\n${LINES[2]}`,
+			replace: "from .cookies import cookiejar_from_dict, extract_cookies_to_jar, merge_cookies",
+		},
+		{
+			label: "one line expanded into two",
+			search: LINES[0] as string,
+			replace: `from .compat import cookielib, OrderedDict\nfrom .compat import builtin_str`,
+		},
+		{ label: "indented body line", search: LINES[7] as string, replace: "        self.headers = {}" },
+		{
+			label: "search with different leading whitespace (whitespace-flexible strategy)",
+			search: `   ${(LINES[7] as string).trim()}`,
+			replace: "        self.headers = {}",
+		},
+		{ label: "replacement touching a blank line", search: LINES[4] as string, replace: "" },
+	];
+
+	for (const { label, search, replace } of CASES) {
+		it(`never fuses lines: ${label}`, () => {
+			const result = applySearchReplaceBlocks(file, [{ search, replace }]);
+			if (!result.ok || result.content === undefined) {
+				return; // a block that does not apply is not this test's subject
+			}
+			assertNoFusedLines(file, result.content, label);
+		});
+	}
+
+	it("keeps the exact line count implied by the replacement", () => {
+		// The arithmetic version of the same property: replacing one line with one line cannot change the count,
+		// and replacing two with one must remove exactly one.
+		const before = file.split("\n").length;
+		const oneForOne = applySearchReplaceBlocks(file, [
+			{ search: LINES[3] as string, replace: "from .models import R" },
+		]);
+		expect(oneForOne.ok).toBe(true);
+		expect((oneForOne.content ?? "").split("\n").length).toBe(before);
+
+		const twoForOne = applySearchReplaceBlocks(file, [
+			{ search: `${LINES[1]}\n${LINES[2]}`, replace: "from .cookies import merge_cookies" },
+		]);
+		if (twoForOne.ok && twoForOne.content !== undefined) {
+			expect(twoForOne.content.split("\n").length).toBe(before - 1);
+		}
+	});
+});

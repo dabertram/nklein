@@ -7307,7 +7307,24 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   instance.** Two of two attempted instances solved the task and then made their own work unscoreable. That
   points the remedy at the constraint's enforcement — a delivery-time refusal, or a card that cannot write to
   graded paths — rather than at the prompt's wording or the model's strength.
-  **⚠️ A THIRD, SEPARATE OBSERVATION — the MERGED-LINE artefact, now seen three times and still unexplained.**
+  **✅ THE MERGED-LINE ARTEFACT IS ROOT-CAUSED AND FIXED 2026-08-08 — IT WAS OURS.**
+  `applySearchReplaceBlocks("alpha\nbravo\ncharlie\ndelta\n", [{search:"charlie", replace:"CHARLIE"}])` returned
+  **`"alpha\nbravo\nCHARLIEdelta\n"`** — the edited line fused with the one below it. That is exactly the
+  signature seen three times in real runs.
+  **Mechanism:** the applier splits lines KEEPING their terminator (`"charlie\n"`), but a model naturally writes
+  a search/replace block WITHOUT a trailing newline. The whitespace-flexible strategy correctly matches
+  `"charlie"` against `"charlie\n"` — and then splices a terminator-less replacement over a terminated line,
+  eating the newline. **A model doing the most natural thing triggers it.**
+  **Fixed** by giving the replacement a terminator when the SEARCH lacks one, and taking it back only when the
+  original file genuinely had no final newline — applied at all six strategy return paths, so the ladder cannot
+  grow a new leak. 9 new tests across every strategy; confirmed RED before the fix.
+  **The earlier investigation was RIGHT to stop where it did.** It had checked `applySearchReplaceBlocks` with a
+  realistic reproduction and found it preserved structure — but that reproduction replaced a line with a
+  replacement that HAPPENED to carry a newline, so it never crossed the boundary. The finding was recorded as
+  "unsettled, and the ledger cannot decide it" rather than blamed on the models. **Breadth is what found it:
+  eight search/replace shapes across the strategy ladder instead of one hand-picked case.**
+  ── original note ──
+  **⚠️ WAS: A THIRD, SEPARATE OBSERVATION — the MERGED-LINE artefact, seen three times and unexplained.**
   `requests/sessions.py` came back with `from .cookies import (    cookiejar_from_dict, …)` on ONE line where the
   original spanned two — the same signature as the flask run's merged `def`/body and the habit-score patch's
   merged object literal. Three sightings, three projects, two models, always inside a region the model was
