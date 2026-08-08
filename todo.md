@@ -7274,7 +7274,13 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   fitness table is a DISPLAY stream; routing reads the ledger projection), so it is recorded here as an
   architectural fact rather than filed as a bug.
 
-- [ ] **N8.1 real-model leg — FIRST verdict, and it is not a score: UNGRADABLE (`graded_tests_modified`).**
+- [x] **N8.1 — CLOSED 2026-08-08. Every thread resolved, and it produced a real product fix.**
+  The leg's verdict (UNGRADABLE — the model edited the files it is graded by) is recorded below along with a
+  correction to my own first reading of it; follow-up (a) was answered from a SECOND instance — the behaviour
+  reproduces, so it is instruction-following rather than capability — and (b) shipped as
+  `swebench-grade.mts check-tests`. The third observation, the merged-line artefact, turned out to be OURS and is
+  now root-caused and fixed in the edit applier (see below). Nothing here is waiting on a fleet run.
+  ORIGINAL RECORD BELOW.** — real-model leg — FIRST verdict, and it is not a score: UNGRADABLE (`graded_tests_modified`).
   A real `pallets__flask-5014` drain settled a card and produced a result branch, but the sealed grade could
   not run: the instance's own `test_patch` no longer applies, because the model **edited the graded tests**.
   **⚠️ CORRECTED 2026-08-08 — the first reading of this run was WRONG, and the correction matters.** I reported
