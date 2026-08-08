@@ -1,16 +1,16 @@
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the real boundary scores a correct candidate against its assertions","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the real boundary DENIES the candidate a filesystem read outside its own directory","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the real boundary DENIES the candidate a child process","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the real boundary runs a CLASS-based candidate — the true-top-level scoping defect","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the real boundary returns NULL for a non-terminating candidate rather than a zero it did not earn","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the real boundary reports a definition-time throw as every test failing, with the reason","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::how the child is launched grants fs-read on the RESOLVED path, not the symlink tmpdir() hands back","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::how the child is launched passes --permission and scopes the read to that ONE directory","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::how the child is launched kills a runaway child with SIGKILL, not a signal it could ignore","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::how the child is launched applies the caller's timeout, and a default when none is given","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::what counts as evidence keeps a result the candidate reported BEFORE exiting non-zero","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::what counts as evidence returns NULL when no sentinel was ever printed","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::what counts as evidence ignores model console noise that merely LOOKS like a result","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the throwaway directory is removed after a successful run","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the throwaway directory is removed even when the run THROWS","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the throwaway directory uses a FRESH directory per run","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::what the walk finds reports a root package as \"\" and nested packages by relative path","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::what the walk finds collects AGENTS.md and CLAUDE.md wherever they sit","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::what the walk finds matches instruction files by EXACT name, not case-insensitively","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::what the walk finds returns empty facts for a workspace that does not exist, rather than throwing","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::what the walk finds returns empty facts for an empty workspace","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the skip list does NOT descend into node_modules","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the skip list skips build output and VCS directories too","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the skip list skips every dot-directory, not only the ones named in the list","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the skip list does not skip a directory whose name merely CONTAINS a skipped name","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the depth bound finds a package four levels down","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the depth bound does NOT find a package five levels down","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the memo returns the SAME facts object on a second call — one walk serves every card start","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the memo does not see a package added after the first scan","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the memo sees it once the memo is cleared","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the memo keys the memo per workspace, so one project's facts never answer for another","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the memo memoizes an EMPTY result too, including for an unreadable tree","passed":true}

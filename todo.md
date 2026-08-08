@@ -12387,6 +12387,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   error that killed the child before it printed anything, which is why the *legitimate* candidates returned null
   while the two denial probes passed. The tell was that asymmetry, and capturing the child's real stderr took
   one command; theorising about it would have taken longer and landed somewhere wrong.
+  **▶ SIXTH OF THE 16 — `src/nklein-agent/nklein-monorepo-scope-scan`, 16 tests, 16/16 ablation-proven.** One
+  bounded walk per workspace feeding the pure scope derivation. Two things earn pinning rather than trust.
+  **The skip list is not an optimisation.** A real monorepo's `node_modules` holds thousands of `package.json`
+  files, so a walk that descends into it does not return a slow answer — it returns a WRONG one, in which every
+  dependency looks like a workspace package and the card's scope becomes the entire dependency tree. Pinned for
+  `node_modules`, for build output and VCS dirs (which hold COPIES, so descending double-reports one package
+  under two paths), for every dot-directory rather than only the listed ones, and — the other direction —
+  `distribution` and `my-node_modules` must NOT be skipped for merely containing a skipped name.
+  **The memo's sharp edge is stated, not discovered.** Returning the first caller's facts is the point (one walk
+  serves every card start); the cost is that a package added afterwards stays invisible until the memo clears.
+  Both directions are now tests, along with per-workspace keying — a cache shared across workspaces would hand a
+  card the wrong project's layout, a failure that reads as a scoping bug rather than a caching one — and
+  memoizing the EMPTY result too, since a missing workspace is the case most likely to repeat.
+  Also pinned: the depth bound bites at five levels, written down so raising it is a deliberate act rather than
+  something a card discovers by having its package silently invisible; and instruction files match by EXACT
+  name, since matching `agents.md` loosely would sweep unrelated docs into a model's instructions.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports
