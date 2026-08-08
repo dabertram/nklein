@@ -75,6 +75,10 @@
   {
    "path": "test/protected/oracle/24_agentic_swarm_ide_distributed_runtime/redaction-totality.probe.mts",
    "rationale": "Held-out oracle for project 24: redaction TOTALITY and statelessness — the spec's own suggested containsHostPath uses shared /g regexes, whose lastIndex makes the guard answer differently on repeated calls."
+  },
+  {
+   "path": "test/protected/oracle/19_distributed_database_stream_processing_platform/exactly-once-dedup.probe.mts",
+   "rationale": "Held-out oracle for project 19: exactly-once client dedup keyed on the COMPOSITE (clientId, requestSeq) — every visible acceptance check uses one client, so a seq-only store passes them all and leaks one client's result to another."
   }
  ]
 }

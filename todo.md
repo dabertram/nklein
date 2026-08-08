@@ -11655,10 +11655,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   version (fresh regex per call) passes 7/7.
   **This is the clearest evidence yet for the held-out suite's value:** the visible acceptance an agent is given
   cannot distinguish the buggy implementation from the correct one, because it checks one path once.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; eight of ~18 candidate specs now
-  carry held-out probes, spanning eight invariant families (genealogy conservation, recall-safe tracing, RNG
+  **▶ NINTH PROJECT 2026-08-08 — project 19 (distributed DB), 6 probes on EXACTLY-ONCE dedup: IDENTITY, not
+  arithmetic.** Correctness rests on a COMPOSITE key `(clientId, requestSeq)` — and all three of the spec's
+  visible acceptance checks use the SAME client `c1`. A store keyed on `requestSeq` alone passes every one of
+  them and then hands client 2 the result of client 1's request with the same sequence number: one client
+  reading another's data, and a retry applying the wrong command. So every probe here is multi-client and
+  interleaved; none repeats the single-client shape already covered.
+  **DISCRIMINATION PROVEN:** 6/6 on a correct composite-keyed store; the seq-only store fails exactly the two
+  client-isolation probes and passes the other four.
+  **ONE HOLE DELIBERATELY LEFT UNASSERTED, and recorded in the probe instead:** `getResult` returns
+  `unknown | null`, so a command whose legitimate result IS null cannot be distinguished from "never seen" — an
+  exactly-once hole living in the INTERFACE, not in any implementation of it. A probe for it would fail every
+  conforming workspace and make the oracle a judge of the spec rather than of the agent.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; nine of ~18 candidate specs now
+  carry held-out probes, spanning nine invariant families (genealogy conservation, recall-safe tracing, RNG
   stream independence, temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence,
-  path optimality + capacity, redaction totality).
+  path optimality + capacity, redaction totality, exactly-once identity).
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting
