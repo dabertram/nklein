@@ -12134,6 +12134,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   judged, rather than silently producing the expensive verdict.
   The original is restored in a `finally` AND the restore is verified, exiting non-zero if it failed — leaving a
   stubbed repo behind would be worse than any verdict this produces.
+  **▶ FIRST SWEEP 2026-08-08 — four cores ablated, all LOAD_BEARING, repo clean after every run.**
+  `auto-start-failure-guard` (5/5 broke), `task-board-ready-sweep`, `review-capacity`, `fitness-role-assignment`.
+  **A sweep that finds nothing decorative is a real result, not a wasted run** — it is evidence these cores earn
+  their place, and it is the direction this measurement should mostly return. The value of the harness is that
+  DECORATIVE is now *sayable* about any core, cheaply; the item's own asymmetry (a false `decorative` sends
+  someone to delete working code) means finding none is the comfortable outcome.
+  It also exercised the harness across four different module shapes — the restore verified clean each time, which
+  is the property that makes this safe to run casually.
   **DEVIATION, stated plainly: this runs LOCALLY, not inside the agent sandbox.** The item says "re-run the suite
   in the sandbox". The stub-and-run mechanism — the half that did not exist — is built and proven; wrapping it in
   the sandbox is a further step and is not claimed here.
