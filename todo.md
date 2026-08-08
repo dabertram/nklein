@@ -9720,10 +9720,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   and re-checked rather than acted on. **`evaluable 0` mid-run and `evaluable 0` structurally look identical —
   the discriminator is letting the cards finish**, which is the same "no data yet vs cannot be produced" trap
   this session hit twice before, caught here at the cost of one re-read instead of a build.
-  **STATE NOW: the floor is 30 observations (passed: 42) and a verdict additionally needs enough EVALUABLE ones.
-  100% disagreement across 42 observations is a large, real behavioural delta** — the gate would have dropped
-  tools on every turn — and it becomes a verdict as evaluable volume accumulates over ordinary real-model runs.
-  **P15.3 is therefore no longer blocked on anything but running**, which is the first time that has been true.
+  **🏁 FIRST REAL VERDICT, 2026-08-08 — the campaign has produced a decision for the first time.**
+  One 45-minute drain later: **`observations 90 · disagreements 90 (100%) · evaluable 31` → `do_not_enforce`.**
+  The core's own reasoning: *"the mechanism disagreed 90 time(s), but the path actually taken succeeded 31/31
+  (100%) — current behaviour is working on exactly the cards it objects to."*
+  **Read it carefully, because the two numbers say different things.** 100% disagreement is NOT evidence to
+  enforce — it is evidence the gate would change behaviour constantly, and the outcomes say the behaviour it
+  would change is already succeeding. The mechanism is not a no-op (it fires on everything); it is simply not
+  justified as a DEFAULT. That is the campaign's rule working exactly as written: flip only where the evidence
+  says so, and "do not flip" is a legitimate, informative answer rather than a stalemate.
+  **The whole arc in one day: structurally 0 observations (a flag nobody had switched on) → 27 → 42 → 90, and
+  `insufficient_data` → a decision.** Nothing was built to get here beyond one line in the drain harness; what
+  was missing was never volume, and never judgement — it was that no evidence could be recorded at all.
+  **P15.3's remaining work is now the OTHER mechanisms**, each needing its own observations by the same route.
   **✅ JOIN KEY SHIPPED 2026-08-01.** `taskId: sessionId` now travels with the gate observation — a one-line change
   using the pattern a NEIGHBOURING `recordSelfObservation` in the same function already used, so nothing new had to
   be plumbed. A source-level ratchet pins it, scoped to the slice between that call and its own metadata so a
