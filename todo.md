@@ -11594,8 +11594,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   food, so the gap probes assert a SUPERSET rather than an exact set — the spec's own `isConservative: true`.
   **DISCRIMINATION PROVEN:** 8/8 on a correct reference; RED on a naive walker with no visited set — which
   passes all four prescribed visible tests, since none of them revisits a node — failing on exactly the diamond.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; three of ~18 candidate specs now
-  carry held-out probes.
+  **▶ FOURTH PROJECT 2026-08-08 — project 27 (tactical deckbuilder), 6 probes on a DIFFERENT KIND of invariant.**
+  18 and 04 measure conservation across a chain; this measures INDEPENDENCE. The spec gives a run six named RNG
+  sub-streams so drawing loot cannot perturb combat — and a single shared counter behind a stream-shaped API
+  satisfies every per-stream test anyone would write (each stream deterministic, seeded, replayable, bounded,
+  immutable) while collapsing the moment two streams interleave. So every probe is an INTERLEAVING or a REPLAY,
+  never a single-stream sequence. Also pinned: avalanche-mixed stream seeds (the spec says "NOT seed+constant",
+  and the additive version is caught by requiring the GAP between two stream seeds to differ across runs), and
+  the degenerate pass — a generator returning a constant satisfies every determinism assertion, so replay and
+  non-triviality are asserted together.
+  **DISCRIMINATION PROVEN:** 6/6 on a correct xoroshiro128**/SplitMix64 reference; RED on a shared-counter
+  variant failing ONLY the stream-independence probe, with the other five green — the exact "each part is
+  defensible, the whole is not" signature.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; four of ~18 candidate specs now
+  carry held-out probes, and the four deliberately span different invariant families (genealogy conservation,
+  recall-safe tracing, RNG independence, temporal-spatial authorization).
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting

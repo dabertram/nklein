@@ -55,6 +55,10 @@
   {
    "path": "test/protected/oracle/04_food_traceability_allergen_haccp/genealogy-trace.probe.mts",
    "rationale": "Held-out compositional oracle for project 04: deep-chain, diamond, rework-edge and deep-gap tracing — the recall-safety surface the spec's own shallow trace tests cannot reach."
+  },
+  {
+   "path": "test/protected/oracle/27_tactical_deckbuilder_roguelike_arena/determinism-streams.probe.mts",
+   "rationale": "Held-out compositional oracle for project 27: RNG stream INDEPENDENCE and replay across interleaved draws — the surface a shared-counter implementation passes every per-stream test on."
   }
  ]
 }
