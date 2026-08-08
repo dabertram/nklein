@@ -7277,16 +7277,31 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
 - [ ] **N8.1 real-model leg — FIRST verdict, and it is not a score: UNGRADABLE (`graded_tests_modified`).**
   A real `pallets__flask-5014` drain settled a card and produced a result branch, but the sealed grade could
   not run: the instance's own `test_patch` no longer applies, because the model **edited the graded tests**.
-  The commit changes ONLY `tests/test_blueprints.py` (+6/−2) and no `src/flask/` at all, despite the card
-  saying "do not modify existing tests; fix the library code so the described behavior is correct."
-  Notably the model's instinct was half-right — it added `test_empty_name_not_allowed`, which is exactly the
-  instance's bug — but it wrote a TEST instead of a FIX, which SWE-bench scores as nothing.
+  **⚠️ CORRECTED 2026-08-08 — the first reading of this run was WRONG, and the correction matters.** I reported
+  that the commit changed ONLY `tests/test_blueprints.py` and no library code, concluding the model "wrote a
+  TEST instead of a FIX". That came from `git show --stat HEAD`, which shows only the LAST of the run's TWO
+  result commits. Diffed against the instance base, the delivery is `src/flask/blueprints.py` (+3/−1) AND
+  `tests/test_blueprints.py` (+6/−2) — and **the library fix is exactly correct**:
+  `if not name: raise ValueError("'name' must not be empty.")`, which is the instance's actual fix.
+  **So the real finding is sharper and less damning:** the model SOLVED the task and then made its own work
+  unscoreable by also editing the file it is graded by, against an explicit instruction not to. That is an
+  instruction-following failure sitting on top of a correct solution, not a capability failure — a completely
+  different thing to design a remedy for.
+  **The `otherChangedFiles` split caught my own error**, which is the argument for having built it: the field
+  exists precisely to separate "edited tests INSTEAD of fixing" from "fixed AND also touched a test", and the
+  first delivery-time run of `check-tests` reported the second while my prose still claimed the first.
   The grader now reports this as a named verdict instead of crashing (it previously died on the failed
   `git apply`). **Do not "fix" this by relaxing the grader**: refusing to grade a tampered suite is the whole
   point of a held-out oracle, and the same discipline as P23.5's null-agent gate.
-  Follow-ups: (a) does the card prompt need to state the constraint more forcefully, or is this a capability
-  limit of the local model? — decide from a second instance, not this one; (b) the tranche needs a
-  tests-untouched precheck so this is visible at delivery, not only at grade time.
+  **▶ (b) SHIPPED 2026-08-08 — `swebench-grade.mts check-tests <id> <dir>`.** Reports at DELIVERY what the grade
+  would otherwise only discover as a failed `test_patch` apply, with no container and no wheel cache, naming the
+  graded files touched and whether anything else changed. The diff base is resolved from the INSTANCE's identity
+  (the materialized root commit records the real `baseCommit` in its message) rather than a branch convention or
+  `HEAD~1`, and an unreadable diff reports **UNKNOWN, never "clean"** — verified: it correctly refused before the
+  base resolution was right, instead of passing the tampered delivery.
+  (a) is now a sharper question given the correction above — not "does the model understand the task" but "why
+  does a correct solution also violate an explicit constraint" — and a SECOND instance (`psf__requests-2317`) is
+  draining to answer it from more than one data point.
 
 - [x] **🐛 CORRUPT PATCH CAPTURE lost a card's work — ROOT-CAUSED AND FIXED (live-found + fixed 2026-08-08).**
   A real `mid_task --act` drain classified `infrastructureFailure`: *"Could not capture sandbox task result
