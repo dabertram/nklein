@@ -13291,6 +13291,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
        depth-matched evidence, never the marginally higher number.**
      REMAINING for phase 4: the WIRE (consume the verdict at role/card model selection, observe-first: record
      the assignment + its abstentions before it steers anything), which wants live depth-populated rows.
+     **▶ 2026-08-08 — THE PRECONDITION IS NOW MET. Live depth-populated rows EXIST for the first time.** The
+     blocker was not volume: the live ledger→fitness projection was dropping every attempt's `contextTokens`, so
+     100% of cells were depth-UNKNOWN and no amount of running could change it (see the depth-blind bug entry).
+     Fixed today and proven on a real banked drain — the same events now project to
+     `{shallow:3, medium:1, deep:9}`. **`assignModelFromFitness` can therefore be exercised on real depth-matched
+     evidence for the first time; its guards will still abstain at this volume, which is the correct answer.**
+     **WHERE THE WIRE GOES, and what it needs (scouted, deliberately not rushed):** the natural site is
+     `start-task-session.ts` (~line 799), which already reads `fitnessTableRows` for `buildFitnessRoutingEvidence`
+     — so the rows are in hand. What is NOT in scope there is an explicit `(role, neededDepth)` pair: that site
+     works in blended candidates, and the decider needs the card's role and a depth estimate. **Deriving those
+     correctly is the actual work of this wire**, and it belongs on a live model-selection path only with that
+     understood — not bolted on beside an existing read because the rows happened to be nearby.
   5. **Full auto ROUTING + RESIDENCY of models already present** — explicitly NOT acquisition, which is setup-only
      per P25.2a. Gated on P17.6 having measured that a swap is affordable ("re-open the swap decision on evidence").
   **Ordering is deliberately capability-last:** every phase before 5 is useful standing alone, none can wedge a
