@@ -11860,8 +11860,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **DISCRIMINATION PROVEN:** 5/5 on a correct lattice; the `>=` variant fails exactly the threshold probe.
   **SIXTH PROBE-WEAKNESS CAUGHT THIS SESSION** — and the first found by REASONING about what the two
   implementations would return, before running either. The pattern is becoming predictable enough to anticipate.
+  **▶ TWENTY-SECOND PROJECT 2026-08-08 — project 12 (code hosting), 6 probes on MERGE-BASE = the MOST RECENT
+  common ancestor. AND IT FOUND A SECOND SPECIFICATION BUG.** On a linear or simply-forked history almost any
+  traversal satisfies the contract, because there is only one common ancestor to find; the distinction between
+  *a* common ancestor and *the most recent* one appears only once a commit has two parents — the ordinary shape
+  of any repo that has ever merged.
+  **🔴 THE SPEC'S OWN "how to implement" IS WRONG.** It says: collect `ancestors(a)`, BFS from `b` in level
+  order, return the first hit. That is not the LCA. Given `O ← Y ← a`, `Y ← L`, and `b` merging `O` and `L`,
+  both O and Y are common — but level-order BFS from `b` reaches O at depth 1 and Y at depth 2, so it answers
+  **O, the older one**. A three-way merge from too far back resurfaces changes both branches already share.
+  **MEASURED:** the spec's literal pseudocode fails 2 of 6 — the LCA probe and the SYMMETRY probe (collecting
+  ancestors of the first argument and walking the second is asymmetric by construction).
+  **Graded against the CONTRACT, not the pseudocode**, because the contract is what the rest of the system
+  consumes — but a workspace faithfully following the spec WILL fail this probe, and that is stated in the probe
+  header and the registration rationale rather than left to surface as a mysterious red test.
+  **SECOND SPEC DEFECT FOUND BY THIS METHOD** (after project 24's shared-`/g`-regex `containsHostPath`). Both
+  were invisible to the spec's own visible acceptance, which is precisely the argument for the held-out suite.
   **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.**
-  Twenty-one now carry held-out probes; **seven remain** (12, 28, 29, 33, 34, 35, 36). The
+  Twenty-two now carry held-out probes; **six remain** (28, 29, 33, 34, 35, 36). The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,

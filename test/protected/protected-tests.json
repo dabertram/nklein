@@ -127,6 +127,10 @@
   {
    "path": "test/protected/oracle/06_industrial_predictive_maintenance_historian/quality-lattice.probe.mts",
    "rationale": "Held-out oracle for project 06: quality-lattice monotonicity — permutation invariance, the one-way no-improvement property, and the STRICT bad-fraction threshold (which the returned code alone cannot discriminate)."
+  },
+  {
+   "path": "test/protected/oracle/12_gitlab_class_code_hosting_ci_platform/merge-base-lca.probe.mts",
+   "rationale": "Held-out oracle for project 12: mergeBase must be the MOST RECENT common ancestor. NOTE: the spec's own suggested BFS-first-hit algorithm fails this probe — graded against the stated contract, and the spec defect is recorded in todo.md."
   }
  ]
 }
