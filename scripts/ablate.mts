@@ -27,6 +27,7 @@ import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { assessNoOpAblation } from "../src/core/no-op-ablation";
 
 const execFileAsync = promisify(execFile);
 
@@ -35,21 +36,29 @@ function arg(name: string): string | undefined {
 	return index === -1 ? undefined : process.argv[index + 1];
 }
 
+const sweepDir = arg("sweep");
 const modulePath = arg("module");
 const testSelection = arg("tests");
 const outDir = arg("out-dir") ?? ".ablation";
-if (!modulePath || !testSelection) {
-	process.stderr.write("usage: ablate.mts --module <src/...ts> --tests <test pattern> [--out-dir <dir>]\n");
+if (!sweepDir && (!modulePath || !testSelection)) {
+	process.stderr.write(
+		"usage: ablate.mts --module <src/...ts> --tests <test pattern> [--out-dir <dir>]\n" +
+			"       ablate.mts --sweep <src/core> [--limit <n>] [--out-dir <dir>]\n",
+	);
 	process.exit(64);
 }
 
 /** Run vitest over a fixed selection and reduce its JSON report to the `{testId, passed}` shape. */
-async function runSelection(label: string): Promise<Array<{ testId: string; passed: boolean }>> {
+async function runSelection(
+	label: string,
+	selection: string,
+	outDir: string,
+): Promise<Array<{ testId: string; passed: boolean }>> {
 	const reportPath = join(outDir, `${label}-report.json`);
 	try {
 		await execFileAsync(
 			"npx",
-			["vitest", "run", testSelection as string, "--reporter=json", `--outputFile=${reportPath}`],
+			["vitest", "run", selection, "--reporter=json", `--outputFile=${reportPath}`],
 			{ maxBuffer: 64 * 1024 * 1024, timeout: 15 * 60_000 },
 		);
 	} catch {
@@ -99,43 +108,101 @@ async function buildThrowingStub(target: string): Promise<string> {
 	return `${lines.join("\n")}\n`;
 }
 
-await mkdir(outDir, { recursive: true });
-const target = resolve(modulePath as string);
-const backup = join(outDir, "original.bak");
-await mkdir(dirname(backup), { recursive: true });
 
-process.stdout.write(`baseline: running ${testSelection} against the real ${modulePath}…\n`);
-const baseline = await runSelection("baseline");
-await writeJsonl(join(outDir, "baseline.jsonl"), baseline);
-process.stdout.write(`  ${baseline.length} test(s), ${baseline.filter((r) => r.passed).length} passing\n`);
+/**
+ * Ablate ONE module and return the assessor's verdict. The judgement happens IN PROCESS via
+ * `assessNoOpAblation` rather than by parsing CLI text — a sweep that scrapes stdout can silently produce an
+ * empty verdict and report it as a result, which is exactly how an ad-hoc batch wrapper over this script
+ * mis-reported 12 cores before this mode existed.
+ */
+async function ablateOne(
+	module: string,
+	selection: string,
+	workDir: string,
+): Promise<{ verdict: string; reason: string; baseline: number; ablatedPassing: number; countsMatch: boolean }> {
+	await mkdir(workDir, { recursive: true });
+	const target = resolve(module);
+	const backup = join(workDir, "original.bak");
 
-const stub = await buildThrowingStub(modulePath as string);
-await copyFile(target, backup);
-let restored = false;
-try {
-	await writeFile(target, stub, "utf8");
-	process.stdout.write(`ablated: ${modulePath} stubbed (every export throws); re-running the SAME selection…\n`);
-	const ablated = await runSelection("ablated");
-	await writeJsonl(join(outDir, "ablated.jsonl"), ablated);
-	process.stdout.write(`  ${ablated.length} test(s), ${ablated.filter((r) => r.passed).length} passing\n`);
+	const baseline = await runSelection("baseline", selection, workDir);
+	await writeJsonl(join(workDir, "baseline.jsonl"), baseline);
 
-	if (ablated.length !== baseline.length) {
-		// A shrunken selection is NOT a verdict: fewer tests that all pass reads as "nothing depended on this".
-		process.stdout.write(
-			`\n⚠ the ablated run collected ${ablated.length} test(s) against the baseline's ${baseline.length}. ` +
-				"A stub that breaks COLLECTION changes the selection, and a smaller all-green run would read as DECORATIVE. " +
-				"Judge this pair only after the counts match.\n",
-		);
+	const stub = await buildThrowingStub(module);
+	await copyFile(target, backup);
+	let ablated: Array<{ testId: string; passed: boolean }> = [];
+	let restored = false;
+	try {
+		await writeFile(target, stub, "utf8");
+		ablated = await runSelection("ablated", selection, workDir);
+		await writeJsonl(join(workDir, "ablated.jsonl"), ablated);
+	} finally {
+		await copyFile(backup, target);
+		restored = (await readFile(target, "utf8")) !== stub;
+		await rm(backup, { force: true });
 	}
-} finally {
-	await copyFile(backup, target);
-	restored = (await readFile(target, "utf8")) !== stub;
-	await rm(backup, { force: true });
-	process.stdout.write(restored ? `restored ${modulePath}\n` : `\n🔴 FAILED TO RESTORE ${modulePath} — restore from ${backup}\n`);
+	if (!restored) {
+		throw new Error(`FAILED TO RESTORE ${module} — the repo is left stubbed; restore before continuing`);
+	}
+	const assessment = assessNoOpAblation({ baseline, ablated });
+	return {
+		verdict: assessment.verdict,
+		reason: assessment.reason ?? "",
+		baseline: baseline.length,
+		ablatedPassing: ablated.filter((row) => row.passed).length,
+		countsMatch: ablated.length === baseline.length,
+	};
 }
-if (!restored) {
-	process.exit(3);
+
+if (sweepDir) {
+	// Pair each `src/<dir>/<name>.ts` with `test/runtime/<dir>/<name>.test.ts`; unpaired modules are SKIPPED and
+	// counted, never silently dropped — a sweep that quietly shrinks its own scope reports a clean bill of health
+	// for code it never looked at.
+	const { readdir } = await import("node:fs/promises");
+	const limit = Number(arg("limit") ?? "25");
+	const suffix = sweepDir.replace(/^src\//, "");
+	const modules = (await readdir(sweepDir)).filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts")).sort();
+	const pairs: Array<{ module: string; selection: string }> = [];
+	let unpaired = 0;
+	for (const file of modules) {
+		const selection = `test/runtime/${suffix}/${file.replace(/\.ts$/, ".test.ts")}`;
+		if (existsSync(selection)) {
+			pairs.push({ module: join(sweepDir, file), selection });
+		} else {
+			unpaired += 1;
+		}
+	}
+	const scope = pairs.slice(0, limit);
+	process.stdout.write(
+		`sweep: ${scope.length} of ${pairs.length} paired module(s) (${unpaired} module(s) have no matching test and are SKIPPED, not judged)\n\n`,
+	);
+	const tally = new Map<string, number>();
+	for (const [index, pair] of scope.entries()) {
+		const workDir = join(outDir, `sweep-${index}`);
+		try {
+			const result = await ablateOne(pair.module, pair.selection, workDir);
+			tally.set(result.verdict, (tally.get(result.verdict) ?? 0) + 1);
+			const flag = result.countsMatch ? "" : "  ⚠ COUNT MISMATCH — not judgeable";
+			process.stdout.write(`${result.verdict.padEnd(14)} ${pair.module}${flag}\n`);
+			if (result.verdict !== "load_bearing") {
+				process.stdout.write(`               ${result.reason}\n`);
+			}
+		} catch (error) {
+			tally.set("error", (tally.get("error") ?? 0) + 1);
+			process.stdout.write(`${"ERROR".padEnd(14)} ${pair.module}: ${error instanceof Error ? error.message : String(error)}\n`);
+			if (String(error).includes("FAILED TO RESTORE")) {
+				process.exit(3); // never keep sweeping over a stubbed repo
+			}
+		} finally {
+			await rm(workDir, { recursive: true, force: true });
+		}
+	}
+	process.stdout.write(`\nsummary: ${[...tally].map(([k, v]) => `${k}=${v}`).join(" · ") || "nothing ran"}\n`);
+	process.stdout.write(`${unpaired} module(s) skipped for want of a matching test — they were NOT judged.\n`);
+} else {
+	const result = await ablateOne(modulePath as string, testSelection as string, outDir);
+	process.stdout.write(
+		`${result.baseline} test(s) baseline · ${result.ablatedPassing} still passing when stubbed\n` +
+			`${result.countsMatch ? "" : "⚠ COUNT MISMATCH — a stub that breaks collection is not judgeable\n"}` +
+			`NO-OP ABLATION: ${result.verdict.toUpperCase()}\n  ${result.reason}\n`,
+	);
 }
-process.stdout.write(
-	`\nnow judge them:\n  npx tsx src/cli.ts dev ablation --baseline ${join(outDir, "baseline.jsonl")} --ablated ${join(outDir, "ablated.jsonl")}\n`,
-);

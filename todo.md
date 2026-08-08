@@ -12148,6 +12148,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   LOAD_BEARING, and a deliberately-decorative trial module (imported but never measured by its two tests)
   returns **DECORATIVE**: *"passed WITH AND WITHOUT the artifact (2) — each never measured it."* Trial artifacts
   removed; `git status` clean afterwards.
+  **▶ SWEEP MODE BUILT 2026-08-08 — `ablate.mts --sweep src/core [--limit n]`, judged IN PROCESS.**
+  Written because the ad-hoc shell wrapper below failed exactly as a scraper does. The sweep calls
+  `assessNoOpAblation` directly instead of parsing CLI text, so a verdict can never come back as an empty string
+  that a shell loop then reports as a result. Pairs `src/<dir>/<name>.ts` with
+  `test/runtime/<dir>/<name>.test.ts`; a count mismatch is flagged NOT-JUDGEABLE inline; and a failed RESTORE
+  aborts the whole sweep rather than continuing over a stubbed repo.
+  **Unpaired modules are SKIPPED, COUNTED and reported** — "a sweep that quietly shrinks its own scope reports a
+  clean bill of health for code it never looked at". First run surfaces the number that matters:
+  **590 paired modules in `src/core`, and 144 with NO matching test file at all.** Those 144 are not
+  load-bearing-or-decorative; they are UNMEASURED, and the sweep says so on every run.
   **⚠️ A BATCH WRAPPER OVER THIS IS NOT THE SAME THING AS THE HARNESS, and mine was buggy.** An ad-hoc shell loop
   over 12 cores mis-extracted the verdicts (printed bare module names, and one module produced no output at all),
   so **no results from that batch are reported here** — reporting 11 LOAD_BEARINGs I could not substantiate would
