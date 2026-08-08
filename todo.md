@@ -12254,7 +12254,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Also pinned: the response schema actually constrains `tool` to the offered set (that is the constrained-decode
   defence; without it the post-hoc check is the only one), `additionalProperties: false`, and the prompt's step
   budget coming from the shared constant rather than a literal that can go stale.
-  **TWO REMAIN on the actionable list:** `env-gated-delivery` (166 lines), `model-research-policy` (232).
+  **▶ SIXTH MODULE — `env-gated-delivery`, 13 tests, 13/13 ablation-proven. Its first test closes a loop from
+  earlier today.** The module's own comment claims it avoids the shared-`/g`-regex trap (a `lastIndex` carried
+  between calls makes a scanner skip every second invocation) — **and that claim was UNTESTED**, while the
+  IDENTICAL bug was found live in project 24's suggested `containsHostPath` a few hours earlier. Now pinned with
+  ten repeats, because the failure is 2-periodic and a two-call check can get lucky.
+  The rest pin the checker's HONESTY, which is its main product: a clean result must say "NOTHING WAS FOUND"
+  rather than reading as a clean bill of health; a positive result is a "suspicion, never a verdict" needing
+  VERIFY BY READING; an EMPTY registry means "nothing registered", not "everything registered"; zero consumers is
+  an UNWIRED core rather than an env-gating question; and one ungated consumer means no alarm, because a false
+  alarm costs a reader's trust. Also: every `NON_MECHANISM_FLAGS` exemption must carry a written reason, or the
+  list decays into a place to hide inconvenient flags.
+  **ONE REMAINS on the actionable list:** `model-research-policy` (232 lines).
   The five covered — `tool-result-failure`, `local-model-base-url`, `plan-gap-kind`, `bulk-seed`,
   `action-plan-producer` — are each ablation-proven, so the coverage claim is measured rather than assumed.
   **The lesson is about the shape of the error, not the arithmetic:** every version of this number looked like a
