@@ -79,6 +79,10 @@
   {
    "path": "test/protected/oracle/19_distributed_database_stream_processing_platform/exactly-once-dedup.probe.mts",
    "rationale": "Held-out oracle for project 19: exactly-once client dedup keyed on the COMPOSITE (clientId, requestSeq) — every visible acceptance check uses one client, so a seq-only store passes them all and leaks one client's result to another."
+  },
+  {
+   "path": "test/protected/oracle/07_regulated_banking_ledger_loan_servicing/bitemporal-immutability.probe.mts",
+   "rationale": "Held-out oracle for project 07: bitemporal balanceAsOf (effectiveAt AND postedAt AND discardedAt>knownAt) plus append-only immutability — a reversal must ADD a compensating entry, never remove history."
   }
  ]
 }

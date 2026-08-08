@@ -11685,10 +11685,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `unknown | null`, so a command whose legitimate result IS null cannot be distinguished from "never seen" — an
   exactly-once hole living in the INTERFACE, not in any implementation of it. A probe for it would fail every
   conforming workspace and make the oracle a judge of the spec rather than of the agent.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; nine of ~18 candidate specs now
-  carry held-out probes, spanning nine invariant families (genealogy conservation, recall-safe tracing, RNG
-  stream independence, temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence,
-  path optimality + capacity, redaction totality, exactly-once identity).
+  **▶ TENTH PROJECT 2026-08-08 — project 07 (regulated ledger), 7 probes on BITEMPORAL correctness + IMMUTABILITY.**
+  The spec names this project's defining property outright, so the probes test it directly: `balanceAsOf` filters
+  on `effectiveAt` AND `postedAt` AND `discardedAt > knownAt`, and an implementation using `effectiveAt` alone
+  passes every single-date fixture while answering wrong the one question a regulator actually asks — *what did
+  you believe on the 5th, about the 1st?* The immutability half is the other thing a balance assertion can never
+  catch: a store that DELETES the reversed entry produces exactly the right number and destroys the audit trail,
+  so the probe asserts the original still appears in the log.
+  **DISCRIMINATION PROVEN:** 7/7 on a correct bitemporal store; 3 of 7 RED on a single-clock, non-atomic-post
+  variant (which also leaves entries behind after rejecting an unbalanced journal).
+  **THE PROBE ITSELF WAS WRONG FIRST, and the correct-reference run is what caught it.** Its reversal journal
+  forced BOTH entries to `credit`, which is unbalanced and was rightly rejected — so the test failed against a
+  perfectly good store. A real compensating journal FLIPS each side. **Running every probe against a known-GOOD
+  implementation is as load-bearing as running it against a known-bad one**; without it this would have shipped
+  as a permanently-red probe blamed on the agent.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; ten of ~18 candidate specs now
+  carry held-out probes, spanning ten invariant families (genealogy conservation, recall-safe tracing, RNG stream
+  independence, temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path
+  optimality + capacity, redaction totality, exactly-once identity, bitemporal immutability).
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting
