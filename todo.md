@@ -12278,6 +12278,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   id discards the whole field**, so a partially-hallucinated citation list is thrown away rather than salvaged
   down to its real sources. Both behaviours are now pinned, with the reasoning, so the next reader does not
   re-derive the wrong one.
+  **▶ 45-MODULE AUDIT AFTER THE COVERAGE WORK: `load_bearing=42 · inconclusive=3`, ZERO decorative, repo clean.**
+  The three inconclusives are the same import-time schema cases confirmed above, not new. **And the prediction
+  held exactly:** the unexercised count fell 21 → 14, and every one of the 14 is an `*-api-contract` module —
+  the class identified earlier as exercised THROUGH the API rather than directly, and structurally un-ablatable
+  because a throwing stub of a Zod schema breaks collection at import. **A forecast made from the first messy
+  count, checked and confirmed after the work.**
+  **No DECORATIVE finding across ~60 modules judged in total.** Stated plainly because it is the honest and
+  expected majority outcome — the harness is PROVEN able to say DECORATIVE (the trial module above), so its
+  silence here is informative rather than merely quiet.
   ── **THE SEVEN ARE DONE:** `tool-result-failure`, `local-model-base-url`, `plan-gap-kind`, `bulk-seed`,
   `action-plan-producer`, `env-gated-delivery`, `model-research-policy` — 88 tests, every one verified by
   ablation to actually measure its module rather than its neighbourhood.
