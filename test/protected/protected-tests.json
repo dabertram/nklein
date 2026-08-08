@@ -151,6 +151,10 @@
   {
    "path": "test/protected/oracle/35_persistent_world_ai_civilization_sim/conservation-checker.probe.mts",
    "rationale": "Held-out oracle for project 35: the verifier must be able to say NO. Every visible assertion expects checkConservation to be true, so a constant-true function passes the whole suite; plus drift across a long sequence and atomicity of a refused consume."
+  },
+  {
+   "path": "test/protected/oracle/36_dark_factory_dschinn_universal_agent/taint-monotonicity.probe.mts",
+   "rationale": "Held-out oracle for project 36: taint monotonicity as a property of EVERY path — 'verify is the only way to raise trust' is a claim about arbitrary chains, which no per-function test can reach."
   }
  ]
 }

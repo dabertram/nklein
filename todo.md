@@ -11938,9 +11938,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   the refused operation left nothing deducted.
   **DISCRIMINATION PROVEN:** 5/5 on a real checker; **3 of 5 RED** on an always-true one with a non-atomic
   consume.
-  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.**
-  Twenty-seven now carry held-out probes; **one remains** (36 — the dark-factory spec, which is also P23.7's
-  context-benchmark fixture). The
+  **▶ TWENTY-EIGHTH PROJECT 2026-08-08 — project 36 (dark factory), 6 probes on TAINT MONOTONICITY. THE VEIN IS
+  COMPLETE: all 28 card-grammar specs now carry held-out probes.** The spec states the rule in its own type
+  signatures — `mapTainted` "keeps trust (monotone)", `combineTainted` takes "trust = weakest(a,b)", `verify` is
+  the "ONLY way to raise trust". That last clause is a claim about EVERY PATH through the module, which no
+  per-function test can reach: one `mapTainted` preserving trust says nothing about whether a CHAIN of maps and
+  combines launders a low-trust value into a high-trust one, and laundering is the only way a taint system
+  actually fails.
+  Trust level names are DISCOVERED from the implementation rather than assumed, so the probe grades the order the
+  workspace declares; a first probe rejects a degenerate flat lattice that would make every later assertion
+  vacuous.
+  **DISCRIMINATION PROVEN:** 6/6 on a weakest-of-both implementation; 2 of 6 RED on one taking the FIRST
+  argument's trust.
+  **🔎 SEVENTH — AND LAST — INSTANCE OF THE ORDERING-FLATTERS-THE-IMPLEMENTATION PATTERN.** The chain probe first
+  PASSED on that bad build, because the chain always passed the tainted value FIRST, so keeping `a.trust` was
+  right by accident. Fixed by ALTERNATING the argument order every step. **Seven probes across this vein needed
+  exactly this correction; running each against a deliberately-broken build is what caught every one of them.**
+  ── **P20.2 FIXTURE SPLIT: COMPLETE.** 28 of 28 card-grammar specs, spanning 28 invariant families, every probe
+  verified against a correct AND a deliberately-broken implementation (except project 26 — chess — whose limit is
+  recorded honestly in its own entry). Two SPECIFICATION defects were found along the way (24's shared `/g`
+  regex, 12's non-LCA merge-base pseudocode), both invisible to their specs' own visible acceptance. The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,
