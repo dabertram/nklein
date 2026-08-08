@@ -12144,11 +12144,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `assumption-safety` (25 tests), `attempt-idempotency-key` (20), `auto-clarify` (14),
   `autonomous-timeout-defaults`. Every ablated run went to **0 passing** — the stub's throw propagates fully —
   and the selection COUNT matched the baseline in all ten, so the stub never broke collection. Ten clean restores.
-  **Stated honestly: no real DECORATIVE finding yet.** The mechanism is proven able to produce one (the assessor's
-  own synthetic exercise recorded above), but on real repo code this sweep has only ever returned LOAD_BEARING.
-  That is the expected majority outcome and good news about the code — it is NOT yet evidence that the sweep
-  would notice dead weight if it were there. A deliberately-decorative module would settle that, and is the
-  cheap next check for whoever extends this.
+  **✅ PROVEN IN BOTH DIRECTIONS — the caveat is closed the same turn it was raised.** Ten real cores return
+  LOAD_BEARING, and a deliberately-decorative trial module (imported but never measured by its two tests)
+  returns **DECORATIVE**: *"passed WITH AND WITHOUT the artifact (2) — each never measured it."* Trial artifacts
+  removed; `git status` clean afterwards.
+  **This matters because 10/10 LOAD_BEARING is exactly what a harness that CANNOT say DECORATIVE would also
+  produce.** Good news about the code and a broken detector are indistinguishable from the pass column alone —
+  the same lesson the P20.2 probe vein learned nine times over. Both directions now measured, so the sweep's
+  silence is informative.
   **DEVIATION, stated plainly: this runs LOCALLY, not inside the agent sandbox.** The item says "re-run the suite
   in the sandbox". The stub-and-run mechanism — the half that did not exist — is built and proven; wrapping it in
   the sandbox is a further step and is not claimed here.
