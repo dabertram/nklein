@@ -12217,7 +12217,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   (`/must address loopback/`) → 11/11.
   **That is a security guard whose reject tests would have passed against a function replaced by `throw`** — and
   nothing but the ablation would have said so.
-  **FIVE REMAIN on the actionable list:** `action-plan-producer`, `bulk-seed`, `env-gated-delivery`,
+  **▶ THIRD MODULE — `plan-gap-kind`, 4 tests, 3/4. And the ONE that "never measured the artifact" is CORRECT
+  to be there, which is a nuance worth stating.** That test is a source-level ratchet: it reads the file and
+  asserts no `node:` import, because the module exists ONLY to keep the browser bundle free of the telemetry
+  chain (`recordSelfObservation` → `node:path`/`fs`/`os`). A stub also has no `node:` imports, so the ratchet
+  passes either way — the ablation reports that honestly, and it is still a test worth having.
+  **So "passed with AND without" is not automatically a flaw.** It means the test does not exercise RUNTIME
+  behaviour, which is exactly true of a ratchet guarding what a module DRAGS IN. The distinction matters when
+  reading a sweep: for `local-model-base-url` the same signal exposed a real hole (a `toThrow` matching the
+  stub's own text); here it describes a test doing precisely its job. **The signal locates a question, not a
+  verdict.**
+  (The companion ratchet — pinning the whole import list to exactly `["zod"]` — DOES break when stubbed, so the
+  pair covers both the boundary and the runtime.)
+  **FOUR REMAIN on the actionable list:** `action-plan-producer`, `bulk-seed`, `env-gated-delivery`,
   `local-model-base-url`, `model-research-policy`, `plan-gap-kind`.
   **The lesson is about the shape of the error, not the arithmetic:** every version of this number looked like a
   measurement and was partly an artefact of how the question was asked. It only became useful by being doubted
