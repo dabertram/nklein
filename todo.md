@@ -9688,9 +9688,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   data cannot be produced" are indistinguishable from the outside.**
   **FIXED:** `scripts/real-model-run.sh` now sets `NKLEIN_TOOL_GATE_OBSERVE=1` on the runtime it launches. Safe by
   construction — the flag registry classifies it `mode: "observe_only"`; it records a counterfactual and changes
-  no behaviour, and ENFORCE stays off, which is the point of observe-first. **Every future real drain now
-  accumulates the evidence this campaign turns on**; the 30-observation floor is now reachable by running, which
-  it demonstrably was not before.
+  no behaviour, and ENFORCE stays off, which is the point of observe-first.
+  **VERIFIED so far, and stated precisely because the two are different claims:**
+    · the flag reaches the runtime process (`ps eww` on the live pid shows `NKLEIN_TOOL_GATE_OBSERVE=1`);
+    · the emit CONDITION is satisfiable on real traffic — the gate only records when more than `DEFAULT_TOOL_CAP`
+      (7) tools are offered, and real drains offer **27–30** (`toolSetOffered` in the ledger);
+    · the READ path is sound — `dev mechanism-decision` reads BOTH stores (`readSelfObservationEvents` over
+      `telemetry/` and `readAllAgentLedger`) and joins them, so the earlier zero was genuine absence rather than
+      a store mismatch. Checked because the sink writes to `telemetry/` while the command's default path resolves
+      to `agent-attempt-ledger`, which looked like a mismatch until the join was read.
+  **NOT YET VERIFIED: that a real drain actually EMITS one.** At the time of writing the flagged run is minutes
+  old and still reports `observations 0`. **Setting a flag and gathering evidence are two different facts**, and
+  this entry deliberately does not claim the second from the first — the same substitution that made the
+  campaign look "insufficient" for weeks.
   **✅ JOIN KEY SHIPPED 2026-08-01.** `taskId: sessionId` now travels with the gate observation — a one-line change
   using the pattern a NEIGHBOURING `recordSelfObservation` in the same function already used, so nothing new had to
   be plumbed. A source-level ratchet pins it, scoped to the slice between that call and its own metadata so a
