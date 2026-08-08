@@ -12987,7 +12987,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   question. The right one is **"can this resource be reclaimed?"** — a label is one way, a stable name is another,
   and an idle timer a third. A grep for `--filter|reap|rm |orphan` on the LABEL could never see a lifecycle keyed
   on the NAME. When a sweep flags something, read the resource's whole lifecycle before filing.
-- [ ] **P21.13b-followup — task-env references + the S2-fence serialization invariant *(split 2026-07-31)*.**
+- [x] **P21.13b-followup — CLOSED 2026-08-08.** The INVARIANT half shipped (a resolved secret is mechanically
+  pinned out of any log or prompt, mutation-checked, with a source-level ratchet). The TASK-ENV half is a no-op
+  and should stay one: there is no user-configured task/sandbox env in the codebase — the sandbox environment is
+  entirely !Klein-authored — and `env://` has exactly one consumer, the MCP transport factory, which is where
+  third-party credentials actually live. **Creating a task-env surface merely to have somewhere to apply `env://`
+  would add an attack surface to solve a problem nobody has.** Re-open only if a user-supplied task env is ever
+  introduced; the resolver is ready for it. Detail below.
+  ORIGINAL RECORD BELOW.** — task-env references + the S2-fence serialization invariant *(split 2026-07-31)*.
   Extend `env://` resolution to the task/sandbox env plumbing, and add the tested invariant that a resolved
   secret value never appears in a prompt or log. Coordinate with the Phase 7S final audit pass, as originally
   scoped. Lower value than the MCP surface just shipped: task env is !Klein-authored, whereas MCP server configs
