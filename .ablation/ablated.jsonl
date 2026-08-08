@@ -1,0 +1,15 @@
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles round-trips a snapshot: written, then removed by task id","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles does NOT delete another REPO's snapshot for the same task id","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles does NOT delete a DIFFERENT task's snapshot in the same repo","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles does not treat `t1` as a prefix of `t10`","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles still cleans up LEGACY un-keyed snapshots, which is a deliberate widening","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles is silent when the store does not exist at all","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles REFUSES a task id that could address a path outside the store","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskPatchFilesForRepo removes only THIS repo's snapshots and reports how many","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskPatchFilesForRepo returns 0 rather than throwing when there is nothing to remove","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskArtifacts discards the patch snapshot AND the task's result branch","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskArtifacts also discards the `::spec` speculative candidate","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskArtifacts succeeds when there is NO speculative candidate — the common case","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskArtifacts succeeds when the card left nothing behind at all","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskArtifacts REPORTS a bad task id instead of throwing at the caller","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskArtifacts does not touch a NEIGHBOURING task's result branch","passed":false}

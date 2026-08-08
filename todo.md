@@ -12307,6 +12307,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   (base64url is what makes arbitrary ids ref-safe), turns and tasks do not overwrite each other's snapshots, the
   repo ROOT is resolved so a nested cwd still captures the whole tree, and deletion is idempotent because
   cleanup runs on paths that may already have cleaned up.
+  **▶ SECOND OF THE 16 — `src/workspace/task-artifact-cleanup`, 15 tests, 15/15 ablation-proven.** Every export
+  here DELETES, so the failure that matters is deleting **too much**, and that is invisible to a test asserting
+  only that the intended file disappeared — it passes just as happily when the neighbours went with it. Two
+  mechanisms stand between a trashed card and someone else's data, and both are now pinned by a **survivor**
+  assertion rather than an absence one: a repo key mixed into each patch filename, so the same task id (`t1`
+  exists in every project — ids are unique per workspace, not globally) does not cross-delete; and a task-id
+  guard rejecting `/`, `\` and `..`, so an id can never address a path outside the store. Also pinned: `t1` is
+  not a prefix of `t10`; the `::spec` speculative candidate goes with the card (§5.AW) but its **absence** — the
+  common case — must not fail the cleanup; a bad id is REPORTED as `{ok:false}` rather than thrown, because
+  project-removal calls this on ids it never vetted and a throw would abort the removal midway; and legacy
+  un-keyed `<taskId>.<commit>.patch` files are swept on any repo's trash, the one place the scoping deliberately
+  does not hold. **Three fixture bugs of my own, each caught by an assertion rather than by a green run:** I
+  guessed the store path (so `listPatches()` read an empty directory — now derived from `getRuntimeHomePath()`,
+  never guessed), I invented branch names (`nklein/tasks/<id>` — really `<slug>-<hash10>`, and `::spec` is not
+  even a legal ref, so the fixtures now build names with `createTaskResultBranchName`), and I passed `commit:`
+  where the option is `headCommit:` — vitest strips types, so the filename simply contained the string
+  `undefined` and only a name-shaped assertion noticed.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports
