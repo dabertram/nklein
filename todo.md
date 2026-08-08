@@ -11927,6 +11927,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   numerator on plausibility is what the module's own header forbids. The kinds are split so the measured decision
   can be made when routing is built. Summary wording corrected: "no FORMAT-attributable refusal" rather than
   "no classifiable refusal", since args failures classify fine.
+  **▶ FIRST POST-FIX PRODUCTION-SHAPED DATA POINT 2026-08-08 (60-min real drain, attributable throughout).**
+  19 attempt events; ONE model measured — `lmstudio:qwen/qwen3.6-35b-a3b` at **50.0% over 2 edit calls** — and
+  the summary correctly reports *no FORMAT-attributable refusal*. The single captured refusal was
+  `Blocked edit_file: Absolute path is outside the workspace`, i.e. the PATH-CONTAINMENT guard, which the
+  taxonomy deliberately excludes from the format numerator. So the numerator is still 0, but now for a
+  SUBSTANTIVE reason (this model did not fail on format in this run) rather than the old data-quality one —
+  every event was attributable, which is what the historical gap was about.
+  **2 edit calls is nowhere near a routing basis.** Do not build the routing half on this; it confirms the
+  pipeline end-to-end on current-generation data and nothing more.
   **THE DATA GAP IS HISTORICAL AND ALREADY CLOSED, so this unblocks itself on the next real-model run.** Date-bucketed
   the 70 unattributable attempts: they run **2026-07-10 → 07-22 and then stop**, all of them predating the ledger
   door that now refuses an unattributable attempt outright. Nothing has written to the PRODUCTION ledger since
