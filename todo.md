@@ -11876,8 +11876,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   header and the registration rationale rather than left to surface as a mysterious red test.
   **SECOND SPEC DEFECT FOUND BY THIS METHOD** (after project 24's shared-`/g`-regex `containsHostPath`). Both
   were invisible to the spec's own visible acceptance, which is precisely the argument for the held-out suite.
+  **▶ TWENTY-THIRD PROJECT 2026-08-08 — project 29 (factory sandbox), 5 probes on TRANSPORT-LINE ORDER: a
+  container whose SEQUENCE is the whole point.** A belt is not a bag. `countItemsOnLine` makes conservation easy
+  to check and says nothing about order, so a line backed by a stack passes every count-based assertion and
+  delivers items in reverse — the wrong ingredient at the wrong assembler, with the totals balancing perfectly.
+  The other half is backpressure's real obligation: `tryInsertItemAtTail` returns a boolean because a full line
+  must REFUSE rather than silently swallow, and a refusal that still consumes the item is invisible to any test
+  checking only the return value.
+  **DISCRIMINATION PROVEN:** 5/5 on a FIFO line with an honest refusal; 2 of 5 RED on a LIFO line whose refusal
+  pushes first and reports second.
+  **NOTED:** the conservation probe PASSES on that bad build, and correctly so — its interleaving never fills the
+  line, so the consuming-refusal path is reached only by the dedicated backpressure probe. Separating the two
+  means a failure names WHICH obligation broke instead of just "something is off".
   **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.**
-  Twenty-two now carry held-out probes; **six remain** (28, 29, 33, 34, 35, 36). The
+  Twenty-three now carry held-out probes; **five remain** (28, 33, 34, 35, 36). The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,
