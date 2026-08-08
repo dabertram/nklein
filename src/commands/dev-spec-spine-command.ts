@@ -1,5 +1,10 @@
 import { readFileSync } from "node:fs";
-import { buildSpecRequirementSpine, requirementClosure } from "../core/spec-requirement-spine";
+import {
+	buildSpecRequirementSpine,
+	requirementClosure,
+	SPEC_INVARIANT_CHARTER,
+	verifyInvariantCharter,
+} from "../core/spec-requirement-spine";
 
 /**
  * `nklein dev spec-spine <file>` — the requirement spine P23.7 asks for, and the retrieval unit that makes the
@@ -11,7 +16,8 @@ import { buildSpecRequirementSpine, requirementClosure } from "../core/spec-requ
  * Read-only, like `spec-index`: the specification is a TEST FIXTURE whose size is part of what it measures.
  */
 export function runDevSpecSpineCommand(file: string, options: { card?: string; json?: boolean } = {}): void {
-	const spine = buildSpecRequirementSpine(readFileSync(file, "utf8"));
+	const markdown = readFileSync(file, "utf8");
+	const spine = buildSpecRequirementSpine(markdown);
 
 	if (options.card) {
 		const closure = requirementClosure(spine, options.card);
@@ -51,5 +57,22 @@ export function runDevSpecSpineCommand(file: string, options: { card?: string; j
 			process.stdout.write(`  ${issue.kind}: ${issue.detail}\n`);
 		}
 	}
+	// The charter check: the 13 positional invariant ids mean "the Nth item in a list", so a renumber re-points
+	// every card citing them WITHOUT breaking anything visible. Printing "holds" is deliberate — silence would be
+	// indistinguishable from a check that never ran, and this exists precisely to make a silent change loud.
+	const drift = verifyInvariantCharter(markdown);
+	if (drift.length === 0) {
+		process.stdout.write(`\nInvariant charter: holds (${SPEC_INVARIANT_CHARTER.length} positional ids verified).\n`);
+	} else {
+		process.stdout.write("\n⚠ INVARIANT CHARTER DRIFT — cards citing these now mean something else:\n");
+		for (const entry of drift) {
+			process.stdout.write(
+				entry.kind === "renumbered"
+					? `  ${entry.positionalId} (${entry.stableId}): was "${entry.charteredName}", now "${entry.currentName}"\n`
+					: `  ${entry.positionalId} (${entry.stableId}): no longer defined in the document\n`,
+			);
+		}
+	}
+
 	process.stdout.write("\nRetrieve one card's closure with --card <id> instead of reading the whole specification.\n");
 }

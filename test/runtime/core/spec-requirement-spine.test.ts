@@ -5,6 +5,9 @@ import {
 	buildSpecRequirementSpine,
 	citedInvariantIds,
 	requirementClosure,
+	resolveCharteredInvariant,
+	SPEC_INVARIANT_CHARTER,
+	verifyInvariantCharter,
 } from "../../../src/core/spec-requirement-spine";
 
 /**
@@ -302,5 +305,57 @@ describe("the real specification — every cited invariant resolves", () => {
 		expect(determinism?.name).toBe("Determinism");
 		expect(determinism?.ordinal).toBe(7);
 		expect(determinism?.id).toBe(`${determinism?.sectionId}.${determinism?.ordinal}`);
+	});
+});
+
+describe("the invariant charter — P23.7's remaining ask", () => {
+	const markdown = readFileSync(SPEC_PATH, "utf8");
+
+	it("charters exactly the 13 positional invariants, and nothing with a written id", () => {
+		const catalog = buildInvariantCatalog(markdown);
+		const positional = new Set(catalog.filter((d) => d.idSource === "positional").map((d) => d.id));
+		const chartered = SPEC_INVARIANT_CHARTER.map((entry) => entry.positionalId);
+		expect(chartered).toHaveLength(13);
+		// V3.3 and V6.2 carry sub-numbers too, but their ids are WRITTEN at the definition, so they survive a
+		// renumber on their own. Chartering them would overstate the fragile set.
+		for (const id of chartered) {
+			expect(positional.has(id)).toBe(true);
+		}
+		expect(new Set(SPEC_INVARIANT_CHARTER.map((e) => e.stableId)).size).toBe(13);
+	});
+
+	it("resolves cleanly against the live specification", () => {
+		expect(verifyInvariantCharter(markdown)).toEqual([]);
+	});
+
+	it("FIRES when a list item is inserted and every invariant below it renumbers", () => {
+		// The exact silent failure the charter exists to catch. Inserting an item under `## E11` shifts
+		// Determinism from 7 to 8, so `E11.7` still resolves — it just quietly means something else now.
+		const renumbered = markdown.replace(
+			/^6\.\s+\*\*Reviewability\*\*/mu,
+			"6. **Freshly inserted invariant** — pushed everything below it down one.\n7. **Reviewability**",
+		);
+		expect(renumbered).not.toBe(markdown); // the fixture still has the line this test edits
+
+		const drift = verifyInvariantCharter(renumbered);
+		expect(drift.length).toBeGreaterThan(0);
+		const determinism = drift.find((d) => d.stableId === "INV-DETERMINISM");
+		expect(determinism?.kind).toBe("renumbered");
+		if (determinism?.kind === "renumbered") {
+			// Loud AND specific: it names what the citation used to mean and what it means now.
+			expect(determinism.charteredName).toBe("Determinism");
+			expect(determinism.currentName).not.toBe("Determinism");
+		}
+	});
+
+	it("reports a chartered invariant that disappeared entirely", () => {
+		const deleted = markdown.replace(/^7\.\s+\*\*Determinism\*\*.*$/mu, "");
+		const drift = verifyInvariantCharter(deleted);
+		expect(drift.some((d) => d.stableId === "INV-DETERMINISM")).toBe(true);
+	});
+
+	it("maps a durable handle back to the position that currently holds it", () => {
+		expect(resolveCharteredInvariant("INV-DETERMINISM")?.positionalId).toBe("E11.7");
+		expect(resolveCharteredInvariant("INV-NOT-A-REAL-ONE")).toBeNull();
 	});
 });

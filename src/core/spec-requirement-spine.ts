@@ -260,6 +260,12 @@ export interface SpecInvariantDefinition {
 	readonly name: string;
 	readonly sectionId: string;
 	readonly ordinal: number;
+	/**
+	 * Whether the id is WRITTEN at the definition (`### V3.3 …`, `- **V6.2 …**`) or implied by ORDINAL POSITION
+	 * (`7. **Determinism**` under `## E11`). Only the positional ones are renumbering-fragile, so this is what
+	 * separates "13 of 33 are positional" from a raw count of ids that merely happen to carry a sub-number.
+	 */
+	readonly idSource: "written" | "positional";
 }
 
 /**
@@ -309,6 +315,7 @@ export function buildInvariantCatalog(markdown: string): readonly SpecInvariantD
 				name: invariantName(idHeading[2] as string),
 				sectionId: id.split(".")[0] as string,
 				ordinal: Number(id.split(".")[1] ?? 0),
+				idSource: "written",
 			});
 		}
 		const bulletDefinition = BULLET_ID_DEFINITION.exec(line);
@@ -320,6 +327,7 @@ export function buildInvariantCatalog(markdown: string): readonly SpecInvariantD
 				name: invariantName(bulletDefinition[2] as string),
 				sectionId: id.split(".")[0] as string,
 				ordinal: Number(id.split(".")[1] ?? 0),
+				idSource: "written",
 			});
 		}
 		if (catalogHeading) {
@@ -341,7 +349,13 @@ export function buildInvariantCatalog(markdown: string): readonly SpecInvariantD
 			continue;
 		}
 		seen.add(id);
-		definitions.push({ id, name: invariantName(item[2] as string), sectionId: catalogSectionId, ordinal });
+		definitions.push({
+			id,
+			name: invariantName(item[2] as string),
+			sectionId: catalogSectionId,
+			ordinal,
+			idSource: "positional",
+		});
 	}
 	return definitions;
 }
@@ -378,4 +392,97 @@ export function requirementClosure(spine: SpecRequirementSpine, cardId: string):
 	};
 	visit(cardId);
 	return order;
+}
+
+/**
+ * ── THE CHARTER: written, stable ids for the 13 POSITIONAL invariants (P23.7's remaining ask) ──
+ *
+ * `E11.7` means "the 7th item under `## E11`". `## V8` continues the same list from 8, which is why cards cite
+ * `V8.8`…`V8.14`. Insert one list item and every invariant below it renumbers: no test fails, no link breaks,
+ * and every card citing them silently starts meaning a different invariant.
+ *
+ * The fix is NOT to renumber the document. That specification is a TEST FIXTURE whose size and shape are part of
+ * what it measures, so it stays untouched and the charter lives beside it. What the charter buys is twofold:
+ *   · a WRITTEN id (`INV-DETERMINISM`) that survives any renumbering, so future citations can be made durable;
+ *   · a NAME anchor per positional id, which turns a silent renumber into a LOUD failure — `verifyInvariantCharter`
+ *     re-resolves each id against the live document and reports any that no longer land on the same invariant.
+ *
+ * Drift detection is the whole point. An unstable reference that cannot announce its own breakage is exactly the
+ * failure this item flagged, and it is the same shape as every other lesson in this repo: an input that has
+ * quietly changed meaning must never present as a clean answer.
+ */
+export interface CharteredInvariant {
+	/** What cards cite TODAY — positional, and fragile by construction. */
+	readonly positionalId: string;
+	/** The durable handle, written down here rather than implied by a list position. */
+	readonly stableId: string;
+	/** The canonical name at charter time; the anchor that makes a renumber detectable. */
+	readonly name: string;
+}
+
+export const SPEC_INVARIANT_CHARTER: readonly CharteredInvariant[] = Object.freeze([
+	{ positionalId: "E11.1", stableId: "INV-CONSERVATION-OF-MONEY", name: "Conservation of money" },
+	{ positionalId: "E11.2", stableId: "INV-TOTALITY-OF-AUDIT", name: "Totality of audit" },
+	{ positionalId: "E11.3", stableId: "INV-AUTHORITY-NON-ESCALATION", name: "Authority non-escalation" },
+	{
+		positionalId: "E11.4",
+		stableId: "INV-IDEMPOTENT-PAID-ACTIONS",
+		name: "Idempotent paid actions across failover",
+	},
+	{ positionalId: "E11.5", stableId: "INV-TAINT-MONOTONICITY", name: "Taint monotonicity" },
+	{ positionalId: "E11.6", stableId: "INV-REVIEWABILITY", name: "Reviewability" },
+	{ positionalId: "E11.7", stableId: "INV-DETERMINISM", name: "Determinism" },
+	{ positionalId: "V8.8", stableId: "INV-CAPABILITY-SOUNDNESS", name: "Capability soundness" },
+	{
+		positionalId: "V8.9",
+		stableId: "INV-TOKEN-ATTENUATION-MONOTONICITY",
+		name: "Token-attenuation monotonicity",
+	},
+	{ positionalId: "V8.10", stableId: "INV-RUN-GOVERNANCE-TOTALITY", name: "!Klein-run governance totality" },
+	{ positionalId: "V8.11", stableId: "INV-EVIDENCE-DERIVED-SUCCESS", name: "Evidence-derived success only" },
+	{ positionalId: "V8.13", stableId: "INV-CALIBRATION-HONESTY", name: "Calibration honesty" },
+	{ positionalId: "V8.14", stableId: "INV-ADAPTER-CONTRACT-PARITY", name: "Adapter-contract parity" },
+]);
+
+export type CharterDrift =
+	| { readonly kind: "missing"; readonly positionalId: string; readonly stableId: string }
+	| {
+			readonly kind: "renumbered";
+			readonly positionalId: string;
+			readonly stableId: string;
+			readonly charteredName: string;
+			readonly currentName: string;
+	  };
+
+/**
+ * Re-resolve every chartered id against the live document. Empty means the citations still mean what they meant.
+ *
+ * A `renumbered` result is the important one: the id still resolves, so nothing looks broken, but it now names a
+ * DIFFERENT invariant — the silent failure the charter exists to make loud.
+ */
+export function verifyInvariantCharter(markdown: string): readonly CharterDrift[] {
+	const byId = new Map(buildInvariantCatalog(markdown).map((definition) => [definition.id, definition]));
+	const drift: CharterDrift[] = [];
+	for (const entry of SPEC_INVARIANT_CHARTER) {
+		const current = byId.get(entry.positionalId);
+		if (!current) {
+			drift.push({ kind: "missing", positionalId: entry.positionalId, stableId: entry.stableId });
+			continue;
+		}
+		if (current.name !== entry.name) {
+			drift.push({
+				kind: "renumbered",
+				positionalId: entry.positionalId,
+				stableId: entry.stableId,
+				charteredName: entry.name,
+				currentName: current.name,
+			});
+		}
+	}
+	return drift;
+}
+
+/** Resolve a durable `INV-…` handle to whatever position currently holds it, so callers can cite the stable id. */
+export function resolveCharteredInvariant(stableId: string): CharteredInvariant | null {
+	return SPEC_INVARIANT_CHARTER.find((entry) => entry.stableId === stableId) ?? null;
 }
