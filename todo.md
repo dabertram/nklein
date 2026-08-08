@@ -11724,11 +11724,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   ordinary output still passing, repeatedly, since a fence that throws on everything is an outage.
   **DISCRIMINATION PROVEN:** 6/6 on a correct recursive, case-folding fence; **5 of 6 RED** on the naive one,
   with only "ordinary output passes" surviving, because it barely throws at all.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; twelve of ~18 candidate specs now
-  carry held-out probes, spanning twelve invariant families (genealogy conservation, recall-safe tracing, RNG
-  stream independence, temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence,
-  path optimality + capacity, redaction totality, exactly-once identity, bitemporal immutability,
-  content-addressing integrity, authority non-escalation).
+  **▶ THIRTEENTH PROJECT 2026-08-08 — project 25 (self-improving factory), 6 probes on SAFETY PRECEDENCE: which
+  rule wins when several apply.** This is the gate a self-improving system passes its OWN changes through, so
+  the ordering IS the safety property: immutable core rejects first, then guardrail regressions, then missing
+  approval, then promote. **The spec's three visible tests each exercise exactly one rule in isolation and never
+  put two in tension** — so a gate that evaluates them in the wrong order passes all three. The dangerous
+  inversion is concrete: a change touching the integrity firewall, improving every score, carrying human
+  approval, must STILL be rejected. A gate that promotes on "approved and improving" first is precisely how a
+  self-improving system edits its own safety rails.
+  Also pinned: approval is a gate, not a bypass (an approved guardrail regression must not promote); a
+  regression in ANY SINGLE RUN blocks even when the average improves (the spec says "any run" — an averaging
+  gate lets exactly the intermittent security regression through); and all THREE immutable paths are protected,
+  not just the one the visible test names — the other two are the audit log and the gate itself.
+  **DISCRIMINATION PROVEN:** 6/6 on a correct gate; **4 of 6 RED** on an approval-first, averaging, first-path-only
+  variant.
+  **AND THE PROBE WAS FIXED MID-FLIGHT, again by running it against the known-BAD build:** the any-single-run
+  fixture originally let the AVERAGE drop too, so an averaging gate blocked for the wrong reason and the probe
+  proved nothing. The scores now make the average IMPROVE (0.9 → 0.9167) while one run regresses.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; thirteen of ~18 candidate specs
+  now carry held-out probes, spanning thirteen invariant families (genealogy conservation, recall-safe tracing,
+  RNG stream independence, temporal-spatial authorization, fixed-point determinism, cross-artifact
+  correspondence, path optimality + capacity, redaction totality, exactly-once identity, bitemporal
+  immutability, content-addressing integrity, authority non-escalation, safety precedence).
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting
