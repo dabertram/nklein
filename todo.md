@@ -12528,6 +12528,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   caller always sees the generic "Failed to fetch Featurebase token." Not a defect — one bounded retry is right
   — but the specific diagnostic never reaches a user, so it is pinned as the TRUE behaviour rather than as the
   message I assumed, and recorded here so nobody asserts the inner one and believes it surfaces.
+  **▶ SIXTEENTH — `src/nklein-agent/nklein-task-session-service-types` is NOT TESTABLE AT RUNTIME, and that is a
+  MISCOUNT IN MY OWN AUDIT, not a gap.** Every export is an `interface` or a `type`, every import is an
+  `import type`, and there is not one runtime value in its 427 lines. Verified rather than read: bundling it
+  emits **0 bytes**. It is erased entirely at compile time, so there is nothing to exercise and nothing an
+  ablation could stub — a test file for it would be pure decoration, the exact thing this whole vein exists to
+  remove. It is still load-bearing: `NKleinTaskSessionService` is the contract every session implementation
+  satisfies, and its verifier is `tsc --noEmit`, which runs in the pre-commit hook on every change.
+  **The corrected count is 15 coverable + 1 type-only, not 16 unexercised.** The detector counted a
+  type-only module as unexercised, which it is by construction and always will be — worth fixing in the
+  detector before the next audit, or the same false gap reappears and someone writes the decorative test.
+  ✅ **VEIN CLOSED: all 15 coverable modules covered, every one ablation-proven LOAD_BEARING.**
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports
