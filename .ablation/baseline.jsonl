@@ -1,16 +1,16 @@
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::the local-only gate runs BEFORE anything else refuses an OAuth login without calling out or writing a credential","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::the local-only gate runs BEFORE anything else refuses to START a device auth without calling out","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::the local-only gate runs BEFORE anything else refuses to COMPLETE a device auth without calling out or writing a credential","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::the local-only gate runs BEFORE anything else does not let a LOOPBACK base url buy an exemption","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::the local-only gate runs BEFORE anything else names the provider that was refused","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::the local-only gate runs BEFORE anything else REFUSES structurally where the caller can see it, and throws where it cannot","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate writes the credential and selects the provider","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate does NOT return the access token to the caller","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate does not let an OAuth token masquerade as a configured API KEY","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate PRESERVES unrelated existing settings instead of overwriting the record","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate CLEARS a stale base url when the login supplies none","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate keeps a base url the login DID supply, trimmed","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate treats a whitespace-only base url as none at all","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate normalises a SECONDS expiry to milliseconds","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate reports a login failure as ok:false and writes NOTHING","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate does not select the provider when the credential write itself fails","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the real boundary scores a correct candidate against its assertions","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the real boundary DENIES the candidate a filesystem read outside its own directory","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the real boundary DENIES the candidate a child process","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the real boundary runs a CLASS-based candidate — the true-top-level scoping defect","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the real boundary returns NULL for a non-terminating candidate rather than a zero it did not earn","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the real boundary reports a definition-time throw as every test failing, with the reason","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::how the child is launched grants fs-read on the RESOLVED path, not the symlink tmpdir() hands back","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::how the child is launched passes --permission and scopes the read to that ONE directory","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::how the child is launched kills a runaway child with SIGKILL, not a signal it could ignore","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::how the child is launched applies the caller's timeout, and a default when none is given","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::what counts as evidence keeps a result the candidate reported BEFORE exiting non-zero","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::what counts as evidence returns NULL when no sentinel was ever printed","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::what counts as evidence ignores model console noise that merely LOOKS like a result","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the throwaway directory is removed after a successful run","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the throwaway directory is removed even when the run THROWS","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-implement-sandbox.test.ts::the throwaway directory uses a FRESH directory per run","passed":true}

@@ -12365,6 +12365,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   configuration that does not exist. **One assumption of mine was wrong and the module was right:** an OAuth
   login leaves `apiKeyConfigured` FALSE, because an access token is not an API key — two credentials, two
   resolution paths. That is now pinned as its own probe.
+  **▶ FIFTH OF THE 16 — `src/nklein-agent/nklein-implement-sandbox`, 16 tests, 16/16 ablation-proven.** It runs a
+  local model's candidate under a `node --permission` child, and the header makes a specific claim about what
+  that boundary denies. **A claim about a boundary is exactly the kind that decays into decoration, because a
+  sandbox that has quietly stopped sandboxing looks identical from the outside** — so the denial probes do not
+  assert the flags, they RUN candidates that reach for `fs.readFileSync('/etc/hosts')` and for
+  `child_process.execSync` and require both to come back `ERR_ACCESS_DENIED`. If `--permission` were dropped,
+  every argv assertion and the happy-path test would still pass; only those two would go red. That is the whole
+  reason they are executed rather than inspected.
+  Second: the module's own hard-won defect, now pinned. `tmpdir()` on macOS is `/var/folders/…`, a SYMLINK to
+  `/private/var/folders/…`, and Node's permission model matches the RESOLVED path — grant the symlinked form and
+  the child cannot read its own harness script, so **every run returns "no evidence", silently and
+  indistinguishably from a model whose code hung**. A boundary misconfiguration wearing the costume of a
+  legitimate null. Also pinned: the real regression where a `try` wrapper made block-scoped `class`/`let`/`const`
+  invisible to the assertions (function-based candidates survived via hoisting and hid it — and a unit test
+  asserting the script TEXT contained the candidate stayed green throughout); `null` for non-termination is NOT
+  `0/N`; a result printed BEFORE a non-zero exit is still kept; the last sentinel wins over model console noise
+  shaped like a result; and the throwaway directory holding model-authored code is removed on the throw path too,
+  fresh per run. **My fixtures were wrong three times, the module never was:** an assertion is an EXPRESSION
+  whose truthiness is the verdict (`add(2,2) === 4`), not a statement — my `if (…) throw` fixtures were a syntax
+  error that killed the child before it printed anything, which is why the *legitimate* candidates returned null
+  while the two denial probes passed. The tell was that asymmetry, and capturing the child's real stderr took
+  one command; theorising about it would have taken longer and landed somewhere wrong.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports
