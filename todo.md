@@ -11631,9 +11631,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **Honest limit recorded in the file:** the cycle probe's real failure mode is a HANG, so it fails by timeout
   rather than assertion and cannot be demonstrated against a truly unbounded traversal without hanging one; its
   assertions cover the milder case of a traversal that terminates but drops nodes reachable only via the cycle.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; six of ~18 candidate specs now
-  carry held-out probes, spanning six invariant families (genealogy conservation, recall-safe tracing, RNG stream
-  independence, temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence).
+  **▶ SEVENTH PROJECT 2026-08-08 — project 30 (transport tycoon), 7 probes on OPTIMALITY + CAPACITY.**
+  Optimality is the most interesting thing yet held out, because **a wrong implementation still returns a working
+  route**. Greedy best-first finds a path on every hand-written fixture; it just finds a worse one, and nothing
+  about the result looks broken. So the graphs carry a deliberate trap — a cheap first step leading somewhere
+  expensive — and the probes assert the TOTAL COST, never merely that a path came back. Also pinned: a node
+  reached more cheaply later (the closed-set defect), tie-breaking stable under edge REORDERING (which is what
+  proves the tiebreak is on node id rather than iteration order), `null` for an unreachable goal, and station
+  capacity across 200 interleaved occupies/releases plus a spurious release.
+  **DISCRIMINATION PROVEN:** 7/7 on a correct A*/station reference; on a greedy + id-blind-release build, the
+  optimality probe catches a **101-cost route where 11 is optimal** — and the other five pass, which is precisely
+  the point: it produces usable routes throughout.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; seven of ~18 candidate specs now
+  carry held-out probes, spanning seven invariant families (genealogy conservation, recall-safe tracing, RNG
+  stream independence, temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence,
+  path optimality + capacity).
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting
