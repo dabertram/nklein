@@ -12148,6 +12148,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   LOAD_BEARING, and a deliberately-decorative trial module (imported but never measured by its two tests)
   returns **DECORATIVE**: *"passed WITH AND WITHOUT the artifact (2) — each never measured it."* Trial artifacts
   removed; `git status` clean afterwards.
+  **⚠️ A BATCH WRAPPER OVER THIS IS NOT THE SAME THING AS THE HARNESS, and mine was buggy.** An ad-hoc shell loop
+  over 12 cores mis-extracted the verdicts (printed bare module names, and one module produced no output at all),
+  so **no results from that batch are reported here** — reporting 11 LOAD_BEARINGs I could not substantiate would
+  be exactly the green-signal substitution this repo keeps catching. The single-module path was re-verified
+  immediately afterwards and is reliable (`board-api-contract`: 13/13 → 1/13, LOAD_BEARING, restored).
+  **The reassuring part: `git status` was CLEAN after the buggy batch too.** Even with the wrapper misbehaving,
+  every module was restored — which is the property that makes this safe to drive from a script someone else
+  writes. Anyone building a real sweep should assert on the verdict STRING rather than a shell variable that can
+  silently come back empty.
+  (Side observation from `board-api-contract`: 1 of its 13 tests still passes with the module stubbed. The
+  verdict is correctly LOAD_BEARING — 12 broke — but that one test never measures the artifact, which is the
+  same partial-decorative signal at test granularity.)
   **This matters because 10/10 LOAD_BEARING is exactly what a harness that CANNOT say DECORATIVE would also
   produce.** Good news about the code and a broken detector are indistinguishable from the pass column alone —
   the same lesson the P20.2 probe vein learned nine times over. Both directions now measured, so the sweep's
