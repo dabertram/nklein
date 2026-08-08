@@ -12181,9 +12181,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   (Two hypotheses were tested to get here: "the stub drops type exports" was refuted by a fix that changed
   nothing, and only then was the import-time read confirmed by reading the actual error.)
   **Unpaired modules are SKIPPED, COUNTED and reported** — "a sweep that quietly shrinks its own scope reports a
-  clean bill of health for code it never looked at". First run surfaces the number that matters:
-  **590 paired modules in `src/core`, and 144 with NO matching test file at all.** Those 144 are not
-  load-bearing-or-decorative; they are UNMEASURED, and the sweep says so on every run.
+  clean bill of health for code it never looked at".
+  **⚠️ AND THE FIRST VERSION OF THAT COUNT WAS ITSELF AN OVERCLAIM — caught by checking it.** It reported
+  "144 module(s) have no matching test", which reads as 144 UNTESTED modules. It meant "144 do not match my
+  `X.ts` ↔ `X.test.ts` naming convention": **6 of the first 8 sampled were tested under a different filename.**
+  A convenience heuristic had been reported as a coverage measurement.
+  **FIXED** — the sweep now falls back to whichever test files actually IMPORT the module, and the corrected
+  numbers are materially different: **707 modules with an exercising test (was 590), and 27 imported by NO test
+  file at all (was a misleading 144).** 117 modules recovered into the sweep's reach, and **27 is the real
+  coverage finding** — those are genuinely unexercised, neither load-bearing nor decorative, and the summary now
+  says exactly that.
   **⚠️ A BATCH WRAPPER OVER THIS IS NOT THE SAME THING AS THE HARNESS, and mine was buggy.** An ad-hoc shell loop
   over 12 cores mis-extracted the verdicts (printed bare module names, and one module produced no output at all),
   so **no results from that batch are reported here** — reporting 11 LOAD_BEARINGs I could not substantiate would

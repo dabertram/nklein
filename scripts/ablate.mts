@@ -58,7 +58,7 @@ async function runSelection(
 	try {
 		await execFileAsync(
 			"npx",
-			["vitest", "run", selection, "--reporter=json", `--outputFile=${reportPath}`],
+			["vitest", "run", ...selection.split(" ").filter(Boolean), "--reporter=json", `--outputFile=${reportPath}`],
 			{ maxBuffer: 64 * 1024 * 1024, timeout: 15 * 60_000 },
 		);
 	} catch {
@@ -175,16 +175,33 @@ if (sweepDir) {
 	const pairs: Array<{ module: string; selection: string }> = [];
 	let unpaired = 0;
 	for (const file of modules) {
-		const selection = `test/runtime/${suffix}/${file.replace(/\.ts$/, ".test.ts")}`;
-		if (existsSync(selection)) {
-			pairs.push({ module: join(sweepDir, file), selection });
+		const base = file.replace(/\.ts$/, "");
+		const conventional = `test/runtime/${suffix}/${base}.test.ts`;
+		if (existsSync(conventional)) {
+			pairs.push({ module: join(sweepDir, file), selection: conventional });
+			continue;
+		}
+		// The convention is a CONVENIENCE, not a coverage measurement. A first version reported
+		// "144 modules have no matching test", which read as 144 UNTESTED modules — but 6 of the first 8 were
+		// tested under a different filename. Fall back to whichever test files actually IMPORT the module, so the
+		// sweep judges what is testable and only reports as unmeasured what genuinely has no exercising test.
+		let importers: string[] = [];
+		try {
+			const { stdout } = await execFileAsync("grep", ["-rl", `${suffix}/${base}"`, "test/"], { maxBuffer: 8 * 1024 * 1024 });
+			importers = stdout.split("\n").filter((line) => line.endsWith(".test.ts"));
+		} catch {
+			// grep exits non-zero when nothing matches; that is the genuinely-unexercised case.
+		}
+		if (importers.length > 0) {
+			pairs.push({ module: join(sweepDir, file), selection: importers.join(" ") });
 		} else {
 			unpaired += 1;
 		}
 	}
 	const scope = pairs.slice(0, limit);
 	process.stdout.write(
-		`sweep: ${scope.length} of ${pairs.length} paired module(s) (${unpaired} module(s) have no matching test and are SKIPPED, not judged)\n\n`,
+		`sweep: ${scope.length} of ${pairs.length} module(s) with an exercising test ` +
+			`(${unpaired} module(s) are imported by NO test file at all — genuinely unexercised, SKIPPED, not judged)\n\n`,
 	);
 	const tally = new Map<string, number>();
 	for (const [index, pair] of scope.entries()) {
@@ -208,7 +225,9 @@ if (sweepDir) {
 		}
 	}
 	process.stdout.write(`\nsummary: ${[...tally].map(([k, v]) => `${k}=${v}`).join(" · ") || "nothing ran"}\n`);
-	process.stdout.write(`${unpaired} module(s) skipped for want of a matching test — they were NOT judged.\n`);
+	process.stdout.write(
+		`${unpaired} module(s) are imported by no test file at all — unexercised, therefore NOT judged (neither load-bearing nor decorative).\n`,
+	);
 } else {
 	const result = await ablateOne(modulePath as string, testSelection as string, outDir);
 	process.stdout.write(
