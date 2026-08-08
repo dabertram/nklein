@@ -115,6 +115,10 @@
   {
    "path": "test/protected/oracle/09_maritime_fleet_routing_compliance/colregs-reciprocity.probe.mts",
    "rationale": "Held-out oracle for project 09: COLREGS RECIPROCITY — every visible case classifies from one vessel's view, so a frame error can make BOTH vessels believe they stand on and neither gives way."
+  },
+  {
+   "path": "test/protected/oracle/15_airport_operations_turnaround_control/cpm-joins.probe.mts",
+   "rationale": "Held-out oracle for project 15: CPM joins take the MAX of predecessors (fixture lists the longest SECOND) and the forward pass must be topological rather than positional."
   }
  ]
 }

@@ -11815,8 +11815,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   BOTH vessels.
   **DISCRIMINATION PROVEN:** 5/5 on a correct classifier; 2 of 5 RED on one measuring relative bearing against
   the TARGET's course — a classic frame mix-up that leaves every single-vessel test green.
-  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.** Eighteen
-  now carry held-out probes; **ten remain** (05, 06, 12, 15, 28, 29, 33, 34, 35, 36). The
+  **▶ NINETEENTH PROJECT 2026-08-08 — project 15 (airport turnaround), 6 probes on CPM JOINS. Strongest
+  discrimination of the run: 5 of 6 red.** The forward pass is one line in the spec — `earliestStart = max(
+  predecessors' earliestFinish)` — and the word doing the work is **max**. An implementation taking the FIRST
+  predecessor produces a complete, plausible, uniformly-too-optimistic schedule: every join starts before its
+  slowest input is done, which on a turnaround is an aircraft pushed back while still fuelling.
+  **The fixture is adversarial by design:** the diamond lists the SHORT branch first, so a take-first
+  implementation is wrong by 20 minutes; and a second probe SHUFFLES the task array, because a CPM leaning on
+  array order rather than a topological pass is correct for every well-ordered input. Both tricks come straight
+  from this session's own lesson that an accidentally-flattering fixture proves nothing.
+  Also pinned: float equals the branch difference exactly (an all-zero-float implementation still gets the
+  critical path right and tells a controller nothing); slipping a non-critical task BEYOND its float must move
+  the finish (the spec's visible test only covers the within-float half); and `predictedOffBlockMs` must include
+  a NON-ZERO `inBlocksMs`, which every convenient zero-based fixture cannot detect.
+  **DISCRIMINATION PROVEN:** 6/6 on a correct two-pass CPM; **5 of 6 RED** on a first-predecessor, positional one.
+  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.** Nineteen
+  now carry held-out probes; **nine remain** (05, 06, 12, 28, 29, 33, 34, 35, 36). The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,
