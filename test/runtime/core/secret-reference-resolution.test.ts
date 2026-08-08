@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
 	describeSecretReferenceResolution,
@@ -104,5 +105,59 @@ describe("describeSecretReferenceResolution", () => {
 		expect(describeSecretReferenceResolution(resolveSecretReferences({}, HOST))).toBe(
 			"no secret references configured",
 		);
+	});
+});
+
+describe("P21.13b — a resolved secret value never reaches a prompt or a log", () => {
+	// Adversarial values, each chosen for a way a naive implementation could leak it: one that carries the
+	// reference syntax itself, one with regex metacharacters that could break a redactor, one non-ASCII.
+	//
+	// DELIBERATELY EXCLUDED, and the reason is the point: a secret whose VALUE equals (or is a substring of) a
+	// KEY NAME cannot be checked this way at all. The description legitimately prints key names, so
+	// `not.toContain(secret)` fails on a value of "ANTHROPIC_API_KEY" even though nothing leaked — the assertion
+	// cannot tell a leak from a correct key mention when the two are the same string. Example-based tests are
+	// structurally blind to that case, which is exactly why the source-level RATCHET below carries the real
+	// weight: it covers every value, including the ones no assertion can distinguish.
+	const SECRETS = ["sk-live-51H8xQ2vAbCdEf", "env://NOT_REALLY_A_REFERENCE", "p@ss.*[word]+$", "пароль-٧٨٩"];
+
+	it("keeps every secret value out of the human-facing description", () => {
+		for (const secret of SECRETS) {
+			const resolution = resolveSecretReferences(
+				{ ANTHROPIC_API_KEY: "env://HOST_SECRET", PLAIN: "not-a-secret", MISSING: "env://NOT_SET", BAD: "env://" },
+				{ HOST_SECRET: secret },
+			);
+			const description = describeSecretReferenceResolution(resolution);
+
+			// The value is in `env` — that is the ONLY place it may be, because that map goes to the child process.
+			expect(resolution.env.ANTHROPIC_API_KEY).toBe(secret);
+			// …and nowhere in the text a caller would log.
+			expect(description).not.toContain(secret);
+			// The description still has to be USEFUL, or a future author will reach for the env map instead.
+			expect(description).toContain("ANTHROPIC_API_KEY");
+			expect(description).toContain("MISSING");
+			expect(description).toContain("BAD");
+		}
+	});
+
+	it("keeps a LITERAL configured value out of the description too", () => {
+		// Not every credential arrives as a reference — an unconverted config still holds literals, and the whole
+		// point of incremental adoption is that those keep working. They must not become the leak.
+		const literal = "literal-token-do-not-log";
+		const resolution = resolveSecretReferences({ TOKEN: literal }, {});
+		expect(resolution.env.TOKEN).toBe(literal);
+		expect(describeSecretReferenceResolution(resolution)).not.toContain(literal);
+	});
+
+	it("RATCHET: describeSecretReferenceResolution never reads the value-carrying `env` map", () => {
+		// The comment above the function claims it is "value-free by construction". This pins that claim
+		// mechanically, because the failure mode is a future edit that adds the resolved map "just for debugging"
+		// — which is exactly what the comment warns about and what no example-based test would catch for a value
+		// it did not happen to try. A source-level ratchet is the only thing that covers all future values.
+		const source = readFileSync("src/core/secret-reference-resolution.ts", "utf8");
+		const start = source.indexOf("export function describeSecretReferenceResolution");
+		expect(start).toBeGreaterThan(-1);
+		const body = source.slice(start, source.indexOf("\n}", start));
+		expect(body).not.toMatch(/resolution\.env\b/);
+		expect(body).not.toMatch(/\benv\[/);
 	});
 });
