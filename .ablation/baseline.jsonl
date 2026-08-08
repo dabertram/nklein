@@ -1,15 +1,21 @@
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles round-trips a snapshot: written, then removed by task id","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles does NOT delete another REPO's snapshot for the same task id","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles does NOT delete a DIFFERENT task's snapshot in the same repo","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles does not treat `t1` as a prefix of `t10`","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles still cleans up LEGACY un-keyed snapshots, which is a deliberate widening","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles is silent when the store does not exist at all","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::writeTrashedTaskPatch / deleteTaskPatchFiles REFUSES a task id that could address a path outside the store","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskPatchFilesForRepo removes only THIS repo's snapshots and reports how many","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskPatchFilesForRepo returns 0 rather than throwing when there is nothing to remove","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskArtifacts discards the patch snapshot AND the task's result branch","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskArtifacts also discards the `::spec` speculative candidate","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskArtifacts succeeds when there is NO speculative candidate — the common case","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskArtifacts succeeds when the card left nothing behind at all","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskArtifacts REPORTS a bad task id instead of throwing at the caller","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/workspace/task-artifact-cleanup.test.ts::deleteTaskArtifacts does not touch a NEIGHBOURING task's result branch","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::source availability reports every source as UNAVAILABLE on an empty home, and marks the trail partial","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::source availability distinguishes a PRESENT-but-quiet source from an ABSENT one","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::source availability is NOT partial once every source is readable","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::source availability calls a card missing from an EXISTING board 'not found', not 'board unavailable'","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading clocks events from `recordedAt` — the field the ledger actually stamps","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading orders ledger events by their real clock, not by file order","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading LIFTS an attempt's tool calls into the timeline instead of burying them in metadata","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading keeps tool calls AFTER their attempt and in their own order","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading names a tool call's missing fields rather than rendering `undefined`","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading caps the file list so one wide tool call cannot swamp the line","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading tolerates an attempt with NO tool calls, and a non-array toolCalls field","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::malformed input skips ONE bad line without losing the rest of the trail","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::malformed input survives an unparseable board.json","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::malformed input falls through a broken workspace to a later one that DOES list the card","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::runtime log sorts un-timestamped log lines LAST rather than inventing clock values","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::runtime log preserves LINE ORDER within the log, which is its only ordering information","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::runtime log ignores log lines that do not mention the card","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::board lane reports the card's lane and what is blocking it","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::board lane does not report a dependency edge pointing AT the card as blocking it","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::observations prefers the metadata category over the raw signal for an event's kind","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::observations keeps severity alongside the record's own metadata","passed":true}

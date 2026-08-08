@@ -12324,6 +12324,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   even a legal ref, so the fixtures now build names with `createTaskResultBranchName`), and I passed `commit:`
   where the option is `headCommit:` — vitest strips types, so the filename simply contained the string
   `undefined` and only a name-shaped assertion noticed.
+  **▶ THIRD OF THE 16 — `src/state/card-trail-sources`, 21 tests, 21/21 ablation-proven.** The reader half of
+  `dev card-timeline` and the product UI: four on-disk sources merged into one chronological trail. Its own
+  header states the property that matters — **"this source had no events" and "this source could not be read"
+  are different facts** — and collapsing them makes a deleted log look like a quiet card. That is
+  absence-of-evidence standing in for evidence-of-absence, in the one place it does the most damage: a trail
+  whose failure mode is silence. Pinned per source and in BOTH directions, including the pair shown side by side
+  (telemetry present-but-quiet → `available:true, eventCount:0`; ledger directory absent → `available:false`),
+  and a card missing from a READABLE board reported as "not found", not as an unavailable source.
+  The second concentration is ORDER, because a chronological tool that orders wrongly has failed at the one
+  thing it is for. The module's own comment records a real defect found this way: ledger records stamp
+  `recordedAt`, and reading `at`/`createdAt` left 61 real events unclocked and sorted to the FRONT. Now pinned
+  directly, plus its visible consequence (written newest-first, returned oldest-first), the fractional offsets
+  that keep an attempt's tool calls after it and in their own order, and un-timestamped `runtime.log` lines
+  sorting last with line ordinals preserved rather than having clock values invented for them. Also pinned: one
+  truncated JSONL line is skipped without losing the events around it (a forensic record must survive a partial
+  write), a corrupt `board.json` falls through to a later workspace that DOES list the card, and a dependency
+  edge pointing AT the card is not read as blocking it — inverting that inverts the answer to "why is this stuck".
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports
