@@ -12245,9 +12245,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   cards racing on the same files), and the cap at exactly 100 vs 101 — where a `>=` rejects a legitimate full
   batch and a missing check turns a paste into a board flood. Also pinned: the cap counts inputs BEFORE dedup,
   because "150 given" is what makes the error actionable.
-  **THREE REMAIN on the actionable list:** `action-plan-producer` (95 lines), `env-gated-delivery` (166),
-  `model-research-policy` (232). The four covered so far — `tool-result-failure`, `local-model-base-url`,
-  `plan-gap-kind`, `bulk-seed` — are each ablation-proven, so the coverage claim is measured rather than assumed.
+  **▶ FIFTH MODULE — `action-plan-producer`, 15 tests, 15/15 ablation-proven.** This is the boundary where a
+  LOCAL MODEL's output becomes something the runtime will EXECUTE, so its job is refusal and the tests are
+  weighted that way: a hallucinated tool must be rejected **and named** (a bare "invalid plan" gives the model
+  nothing to correct), reported ONCE per distinct tool but for EVERY distinct one, schema errors must carry a
+  PATH, malformed JSON must become an error rather than a throw, and — the contract callers depend on — a
+  non-null plan must NEVER arrive alongside errors, or a caller checking only `plan` executes a rejected one.
+  Also pinned: the response schema actually constrains `tool` to the offered set (that is the constrained-decode
+  defence; without it the post-hoc check is the only one), `additionalProperties: false`, and the prompt's step
+  budget coming from the shared constant rather than a literal that can go stale.
+  **TWO REMAIN on the actionable list:** `env-gated-delivery` (166 lines), `model-research-policy` (232).
+  The five covered — `tool-result-failure`, `local-model-base-url`, `plan-gap-kind`, `bulk-seed`,
+  `action-plan-producer` — are each ablation-proven, so the coverage claim is measured rather than assumed.
   **The lesson is about the shape of the error, not the arithmetic:** every version of this number looked like a
   measurement and was partly an artefact of how the question was asked. It only became useful by being doubted
   three times.
