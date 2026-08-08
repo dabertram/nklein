@@ -103,6 +103,10 @@
   {
    "path": "test/protected/oracle/26_chess_study_engine_arena/move-legality.probe.mts",
    "rationale": "Held-out oracle for project 26: the rules the six canonical perft positions do NOT reach — horizontal en-passant pin, castling through an attacked square, under-promotion completeness. NOTE: null-agent gate verified; discrimination against a reference engine NOT yet demonstrated."
+  },
+  {
+   "path": "test/protected/oracle/20_virtualized_microkernel_operating_system_lab/machine-contract.probe.mts",
+   "rationale": "Held-out oracle for project 20: hardware-contract fidelity — x0 hardwiring inspected in the STORED state, fault reason correctness (misaligned vs out_of_bounds), and the exact memory boundary."
   }
  ]
 }

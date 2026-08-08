@@ -11775,8 +11775,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   is disproportionate to write here. **Every other project's probe was run against both a correct and a
   deliberately-broken build; this one was not.** Recorded rather than glossed, because "verified" and "carefully
   reasoned" are not the same claim.
-  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.** Fifteen
-  now carry held-out probes; **thirteen remain** (05, 06, 09, 12, 13, 15, 20, 28, 29, 33, 34, 35, 36). The
+  **▶ SIXTEENTH PROJECT 2026-08-08 — project 20 (microkernel OS lab), 6 probes on HARDWARE-CONTRACT FIDELITY.**
+  The visible acceptance covers the headline rules single-shot: `writeReg(rf, 0, 42)` reads back 0 (x0 hardwired)
+  and `MemoryAccessError` on a bad access. The probe takes the three places emulators actually break: x0 across a
+  SEQUENCE, the `reason` field being RIGHT rather than merely present (the spec makes it a union so a fault
+  handler can act on it, and `assert.throws` — which is every visible test — cannot tell a real discriminator
+  from one hard-coded to a single value), and the EXACT boundary (`size-4` loads, `size` faults).
+  **DISCRIMINATION PROVEN:** 6/6 on a correct machine; 3 of 6 RED on a read-masked-x0, one-fault-reason,
+  mutating-writeReg variant.
+  **FOURTH INSTANCE OF THE SAME PROBE-WEAKNESS PATTERN, and the fix is now a recognisable move.** The x0-sequence
+  probe initially PASSED on the bad build: a register file that masks `r===0` on READ while still STORING the
+  value is invisible through the accessor. Fixed by inspecting the BACKING STATE directly — the same fix as
+  project 31's backing-array length check. **Generalisation worth keeping: when an accessor can hide the defect,
+  assert on the stored state, not the read path.** A context switch, snapshot or trap dump reads the array, not
+  the getter.
+  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.** Sixteen
+  now carry held-out probes; **twelve remain** (05, 06, 09, 12, 13, 15, 28, 29, 33, 34, 35, 36). The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,
