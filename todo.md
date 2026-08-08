@@ -12692,6 +12692,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   scanner that has a documented bypass history. Publisher allow-listing and a pinned revision hash on top.
 
 - [ ] **P25.3 — PHASED PLAN (each phase independently useful; stop after any one).**
+  **▶ 2026-08-08 — THE DEPTH-ROWS LEG WAS BLOCKED BY A DEFECT, NOT BY MISSING RUNS; NOW UNBLOCKED.** Two real
+  drains were spent trying to accumulate depth-matched evidence. The second completed cleanly (35 terminal
+  model-attributable sessions, `infrastructureFailure: null`) and still produced ZERO depth samples, because the
+  live ledger→fitness projection dropped every attempt's `contextTokens` — see the depth-blind bug entry above.
+  Fixed and proven on that run's own ledger: the same events now project to `{shallow:3, medium:1, deep:9}`.
+  **So phase 4 no longer needs a fresh fleet run to BEGIN** — 15 depth-matched samples already exist from the
+  banked drain, and every future drain contributes. What is still fleet-gated is VOLUME: 15 samples across two
+  cells is far below `minDepthMatchedSamples`, so `assignModelFromFitness` still (correctly) abstains.
+  **Lesson worth keeping: "no data yet" and "the data cannot be produced" look identical from the outside.** Two
+  drains were spent on the wrong hypothesis; the discriminator was cheap — read the store after a KNOWN-GOOD run
+  and ask whether the field could have been written at all.
   1. ✅ **Sizing core — SHIPPED 2026-07-31.** `model-residency-sizing.ts` + `nklein dev model-fit`, 12 tests.
      Weights + **KV cache** + overhead, with a `fits`/`tight`/`exceeds` verdict against a declared budget.
      **The KV half is the entire point, and the tool proved it on the first real run:** an 8B Q4 model at our 32k
