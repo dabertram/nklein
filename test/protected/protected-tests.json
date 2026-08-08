@@ -38,15 +38,19 @@
   },
   {
    "path": "test/protected/oracle/02_construction_jobsite_safety_compliance/authorization.probe.mts",
-   "rationale": "P23.5 held-out oracle probe for dev-test project 02 \u2014 grades agent-built workspaces at scoring time; editing it moves the goalposts of every grade, so changes are human-gated."
+   "rationale": "P23.5 held-out oracle probe for dev-test project 02 — grades agent-built workspaces at scoring time; editing it moves the goalposts of every grade, so changes are human-gated."
   },
   {
    "path": "test/protected/oracle/02_construction_jobsite_safety_compliance/reconciler.probe.mts",
-   "rationale": "P23.5 held-out oracle probe for dev-test project 02 \u2014 grades agent-built workspaces at scoring time; editing it moves the goalposts of every grade, so changes are human-gated."
+   "rationale": "P23.5 held-out oracle probe for dev-test project 02 — grades agent-built workspaces at scoring time; editing it moves the goalposts of every grade, so changes are human-gated."
   },
   {
    "path": "test/protected/oracle/02_construction_jobsite_safety_compliance/compliance.probe.mts",
-   "rationale": "P23.5 held-out oracle probe for dev-test project 02 \u2014 grades agent-built workspaces at scoring time; editing it moves the goalposts of every grade, so changes are human-gated."
+   "rationale": "P23.5 held-out oracle probe for dev-test project 02 — grades agent-built workspaces at scoring time; editing it moves the goalposts of every grade, so changes are human-gated."
+  },
+  {
+   "path": "test/protected/oracle/18_semiconductor_fab_mes_yield_platform/genealogy-conservation.probe.mts",
+   "rationale": "Held-out compositional oracle for project 18: wafer conservation across chained split/merge/rework, the surface the spec's own per-module acceptance tests cannot reach."
   }
  ]
 }

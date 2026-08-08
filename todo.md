@@ -11530,7 +11530,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **null between 10K and 25K LOC**, and the trend is exposed only as `trendGapIncreasePoints(from, to)` — a slope
   with no intercept can answer a DIFFERENCE ("how much more gap as the codebase grows?") and cannot answer an
   absolute. A number produced any other way would look like a measurement and behave like a guess.
-  **STILL OPEN: the fixture split itself** — authoring real probes per project. That is content, not tooling.
+  **▶ SECOND PROJECT'S PROBES LANDED 2026-08-08 — project 18 (semiconductor fab MES), 6 compositional probes.**
+  Deliberately targets the ALGEBRA rather than any single handler, because project 18's spec prescribes the
+  agent's own per-module acceptance tests (`lot-split.test.ts` splits 25 into 22+3 and checks conservation;
+  `lot-merge.test.ts` merges them back and checks conservation) — and those pass on an implementation that
+  cannot COMPOSE. Every probe here chains operations: split→merge→split conservation, route inheritance across
+  a split feeding a merge, merging a lot with its own split child, rework appending rather than erasing,
+  totality of split validation, and non-mutation of the input.
+  **PROVEN TO MEASURE WHAT IT CLAIMS, on three workspaces:** RED on an empty workspace (null-agent gate);
+  6/6 GREEN on a reference implementation; and — the load-bearing one — RED on a deliberately FEATURE-ISOLATED
+  build whose `splitLot` drops the parent's `routeId`. That build passes both of the spec's own visible module
+  tests (split's checks only waferIds, merge's constructs its lots by hand) and is caught ONLY by the
+  compositional probe. That is P20.2's "the parts pass and the whole does not exist" reproduced end-to-end
+  instead of asserted.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; two of ~18 candidate specs now
+  carry held-out probes.
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting
