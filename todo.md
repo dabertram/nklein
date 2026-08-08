@@ -11556,7 +11556,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > define an implementation-agnostic standard.** Plan accordingly — hand-authored tasks are a different quality
 > class, not a marginally better one.
 
-- [ ] **P20.2 — VISIBLE/HELD-OUT suite split + report the gap as a first-class metric (highest leverage in this
+- [x] **P20.2 — VISIBLE/HELD-OUT suite split — CLOSED 2026-08-08. All three parts landed: the verdict core (found,
+  not rebuilt), the guard + gap metric (`held-out-oracle.ts` + `dev diagnose --oracle`, 2026-07-31), and now the
+  FIXTURE SPLIT — 28 of 28 card-grammar specs carrying held-out compositional probes across 28 invariant
+  families. Each probe was verified against BOTH a correct and a deliberately-broken implementation (the sole
+  exception, project 26/chess, is recorded in its own entry). Two SPECIFICATION defects surfaced in the process
+  — project 24's shared-`/g`-regex `containsHostPath` and project 12's non-LCA merge-base pseudocode — both
+  invisible to their own specs' visible acceptance, which is the item's thesis demonstrated rather than argued.
+  **The method that made it work, worth keeping:** run every probe against a deliberately-broken build, not just
+  a correct one. SEVEN probes across the vein passed against a known-bad implementation on the first attempt —
+  usually because a fixture's accidental ORDERING flattered the defect — and two more were caught the other way,
+  by a CORRECT implementation failing, which exposed a hand-computed constant and a malformed fixture. A probe
+  that has only ever seen a correct implementation is not evidence about anything.
+  ORIGINAL ITEM BELOW.** — VISIBLE/HELD-OUT suite split + report the gap as a first-class metric (highest leverage in this
   phase).** SpecBench (arXiv 2605.21384): give the agent a per-feature validation suite it MAY iterate against,
   and keep a **compositional** held-out suite it never sees. **The gap between them IS the reward-hacking
   measurement.** Measured: the gap grows **~27–28 pp per tenfold increase in code size**; under 10K LOC worst case
@@ -13492,7 +13504,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **Any indirection through an agent-authored file is agent-controlled**, so the runner check refuses
   npm/pnpm/yarn/bun/npx/make/just/task/rake/tox. That list is a RATCHET, not a proof: passing it means the known
   launchers were avoided, not that independence was demonstrated.
-  **STILL OPEN — and it is authoring, not tooling:** real probes per project. The tooling now refuses to accept a
+  **✅ THE AUTHORING THREAD CLOSED 2026-08-08 — 28 of 28 card-grammar specs now carry held-out probes**, across 28
+  invariant families, each verified against both a correct and a deliberately-broken implementation (sole
+  exception: project 26/chess, recorded in its own entry). See P20.2 for the full record and the method note.
+  The item's OTHER thread — a longer or decomposed real-model run to see whether the domain slice is reachable
+  locally — stays open below; it is a fleet run, not authoring.
+  ── original note ──
+  **WAS OPEN — and it is authoring, not tooling:** real probes per project. The tooling now refuses to accept a
   fake one (empty oracle → `no_probes`; no fail_to_pass → the same `inconclusive` diagnostic-oracles would return),
   so the remaining work cannot be quietly skipped. Same shape as P23.7's requirement spine: **must be AUTHORED,
   not extracted.**
