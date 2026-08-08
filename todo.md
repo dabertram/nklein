@@ -12506,6 +12506,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   brief would look exactly the same. Nudging is bounded on both axes — at most `maxNudges`, never after the
   deadline, never at all once a brief is in hand — and the nudge text demands the TOOL, since inviting prose
   would produce a reply the runner cannot read and the phase would still yield null.
+  **▶ FIFTEENTH OF THE 16 — `src/nklein-agent/nklein-provider-account-api`, 22 tests, 22/22 ablation-proven.**
+  Three behaviours earn the tests and each is a DEFAULT — what gets returned when the real answer could not be
+  obtained.
+  **`getNKleinKanbanAccess` FAILS OPEN**, and this is the mirror image of the green-signal problem the rest of
+  this codebase guards against: here the permissive default is the CORRECT one, because a gate that could not
+  run must not lock a user out of their own board — least of all in a local-only build where the account API is
+  never reachable at all. Pinned per path (no settings, no token, no remote config, network error), because one
+  "fails closed" regression stays invisible until it reaches someone who then cannot work. The error is carried
+  alongside `enabled:true` so an outage is not presented as a deliberate policy answer. And **one real negative
+  is pinned too** — an enterprise account whose config withholds the board — without which every fail-open test
+  above would be satisfied by a function returning `{enabled:true}` unconditionally.
+  **The profile cache evicts a REJECTED promise.** Caching a rejection turns one transient failure into a
+  guaranteed failure for the whole TTL with no request made — indistinguishable from a persistent outage and not
+  one. And **the cache key includes the access token AND the base url**, so one account's identity is never
+  handed to another after a switch; both responses are well-formed, so nothing downstream could tell.
+  **Two assumptions of mine were wrong and the module was right both times.** `computeKanbanEnabled` gates only
+  when a parsed config exists AND the account IS enterprise AND the flag is not explicitly true — I had the
+  enterprise condition inverted. And the Featurebase "No access token configured" message is **unreachable from
+  outside**: it is thrown inside the attempt, swallowed by the deliberate retry-after-refresh wrapper, and the
+  caller always sees the generic "Failed to fetch Featurebase token." Not a defect — one bounded retry is right
+  — but the specific diagnostic never reaches a user, so it is pinned as the TRUE behaviour rather than as the
+  message I assumed, and recorded here so nobody asserts the inner one and believes it surfaces.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports

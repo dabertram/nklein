@@ -1,22 +1,22 @@
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::every degraded path returns null so the worker still starts returns null when there is no sandbox manager","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::every degraded path returns null so the worker still starts returns null when the card has no launch config at all","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::every degraded path returns null so the worker still starts returns null when the launch config is missing a provider or a model","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::every degraded path returns null so the worker still starts returns null — not a rejection — when the bracketed run THROWS","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::every degraded path returns null so the worker still starts returns null when the session never submits a brief","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::every degraded path returns null so the worker still starts says WHY it skipped, on stderr","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::the recursion guard refuses to spawn an architect for a DERIVED session","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::the recursion guard refuses for a review session too","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::the recursion guard runs for an ordinary card","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::which model the architect runs on inherits the worker's model when nothing pins it","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::which model the architect runs on uses NKLEIN_ARCHITECT_MODEL when it is set","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::which model the architect runs on does NOT mutate the worker's launch config","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::which model the architect runs on treats a blank pin as unset","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::how the session is started runs under its own ::architect id, not the card's","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::how the session is started asks for a MINIMAL context scope — the fresh window is the point","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::how the session is started works in the sandbox workspace while rooting the workspace at the real repo","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::how the session is started carries the card's prompt into the seed","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::nudging does not nudge a session that already submitted","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::nudging nudges at most maxNudges times, then gives up with null","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::nudging never nudges when maxNudges is zero","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::nudging asks for the TOOL, not for prose","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::nudging stops nudging once the deadline has passed","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN is enabled when no provider is configured at all","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN is enabled when the provider carries no access token","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN is enabled when the remote config is absent or names no organization","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN is enabled — and REPORTS the error — when the lookup throws","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN gates the board ONLY for an enterprise account whose config withholds it","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN leaves a NON-enterprise account enabled whatever the config says","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN re-enables an enterprise account whose config explicitly permits the board","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the account profile is null for a non-nklein provider, without calling the account API","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the account profile is null when nothing is configured","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the account profile returns the fetched identity","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the account profile falls back to the STORED account id when the response omits one","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the account profile retries ONCE after an OAuth refresh, and no more","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the account profile gives up with a null profile when the refresh yields nothing","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the profile dedupe cache shares ONE round trip between concurrent callers","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the profile dedupe cache EVICTS a rejected promise so the next caller really retries","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the profile dedupe cache keys on the ACCESS TOKEN, so a different account never reads the first one's profile","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the profile dedupe cache keys on the BASE URL as well, so a self-hosted endpoint is a distinct account","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the profile dedupe cache does not share a cache between two API instances","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the Featurebase token refuses, by name, when no provider is configured","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the Featurebase token refuses a non-nklein provider by name","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the Featurebase token reports the GENERIC failure for a missing token — the specific reason never escapes","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the Featurebase token retries once after a refresh and returns the token","passed":false}
