@@ -11543,7 +11543,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   tests (split's checks only waferIds, merge's constructs its lots by hand) and is caught ONLY by the
   compositional probe. That is P20.2's "the parts pass and the whole does not exist" reproduced end-to-end
   instead of asserted.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; two of ~18 candidate specs now
+  **▶ THIRD PROJECT 2026-08-08 — project 04 (food traceability / allergen HACCP), 8 compositional probes.**
+  Same discipline, different trap. The spec prescribes the agent's own `test/trace.test.ts`: a two-hop chain, one
+  commingle, one partial consumption, a ONE-hop gap — all shallow and tree-shaped. So the probes build what that
+  cannot reach: 4-hop chains in both directions, a DIAMOND (which alone separates a walker that double-counts a
+  shared ancestor from one that prunes the second branch entirely — both wrong, and a one-hop commingle sees
+  neither), a rework edge (the shape that looks like a cycle to a naive walker; the spec calls it "a DAG with a
+  time-ordered rework edge" and the visible suite never builds one), a gap three hops above the query, trace
+  agreement under out-of-order arrival, non-negative availableKg along a chain, and per-transformation mass
+  conservation that a global sum would net out to green.
+  **Recall asymmetry is respected:** this is a HACCP system where an under-inclusive trace ships contaminated
+  food, so the gap probes assert a SUPERSET rather than an exact set — the spec's own `isConservative: true`.
+  **DISCRIMINATION PROVEN:** 8/8 on a correct reference; RED on a naive walker with no visited set — which
+  passes all four prescribed visible tests, since none of them revisits a node — failing on exactly the diamond.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; three of ~18 candidate specs now
   carry held-out probes.
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent

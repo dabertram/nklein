@@ -51,6 +51,10 @@
   {
    "path": "test/protected/oracle/18_semiconductor_fab_mes_yield_platform/genealogy-conservation.probe.mts",
    "rationale": "Held-out compositional oracle for project 18: wafer conservation across chained split/merge/rework, the surface the spec's own per-module acceptance tests cannot reach."
+  },
+  {
+   "path": "test/protected/oracle/04_food_traceability_allergen_haccp/genealogy-trace.probe.mts",
+   "rationale": "Held-out compositional oracle for project 04: deep-chain, diamond, rework-edge and deep-gap tracing — the recall-safety surface the spec's own shallow trace tests cannot reach."
   }
  ]
 }
