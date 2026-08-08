@@ -12154,6 +12154,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   that a shell loop then reports as a result. Pairs `src/<dir>/<name>.ts` with
   `test/runtime/<dir>/<name>.test.ts`; a count mismatch is flagged NOT-JUDGEABLE inline; and a failed RESTORE
   aborts the whole sweep rather than continuing over a stubbed repo.
+  **▶ FIRST REAL AUDIT 2026-08-08 — 30 modules: `load_bearing=27 · inconclusive=3`, repo clean.**
+  **The three INCONCLUSIVE results are the safety property firing on real code**, not noise:
+  `adaptive-decomposition-decision`, `adw-workflow`, `agent-turn-loop` — each stub broke test COLLECTION, so the
+  ablated pass re-ran no baseline-green test and the two runs cannot be compared. The assessor names it exactly
+  right: *"a harness problem rather than a finding about the artifact."* **A scraper-style sweep would have seen
+  an all-green ablated run over a shrunken selection and reported DECORATIVE on three real modules** — the false
+  accusation that sends someone to delete working code. Refusing to judge is the correct, expensive-direction-
+  aware answer, and it is now demonstrated on production code rather than argued for.
+  (Why collection breaks for those three is worth a look: likely other test files importing the stubbed module,
+  or type-only exports a value-level stub cannot reproduce. Named, not guessed.)
   **Unpaired modules are SKIPPED, COUNTED and reported** — "a sweep that quietly shrinks its own scope reports a
   clean bill of health for code it never looked at". First run surfaces the number that matters:
   **590 paired modules in `src/core`, and 144 with NO matching test file at all.** Those 144 are not
