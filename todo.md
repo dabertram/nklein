@@ -11789,8 +11789,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   project 31's backing-array length check. **Generalisation worth keeping: when an accessor can hide the defect,
   assert on the stored state, not the read path.** A context switch, snapshot or trap dump reads the array, not
   the getter.
-  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.** Sixteen
-  now carry held-out probes; **twelve remain** (05, 06, 09, 12, 13, 15, 28, 29, 33, 34, 35, 36). The
+  **▶ SEVENTEENTH PROJECT 2026-08-08 — project 13 (SOC detection), 6 probes on BOOLEAN OPERATOR PRECEDENCE.**
+  `evaluateCondition("sel1 OR sel2 AND sel3", …)` has one correct answer and it is not the left-to-right one:
+  AND binds tighter, so it means `sel1 OR (sel2 AND sel3)`. A naive left-to-right fold computes
+  `(sel1 OR sel2) AND sel3` and **agrees with the correct evaluator on every single-operator fixture** — which is
+  what a hand-written test uses. The consequence is not cosmetic in a DETECTION engine: a mis-bound condition
+  silently changes which alerts fire, so a broad rule quietly degrades into one that only fires when its last
+  clause holds, with the suite still green.
+  Pure probes — `evaluateCondition` takes a string and a results map, so no event fixtures or normalizer are
+  needed, only the expression semantics the spec fixes.
+  **DISCRIMINATION PROVEN:** 6/6 on a recursive-descent evaluator; 3 of 6 RED on a left-to-right, parens-stripping
+  fold — the precedence probes and the parenthesis-override pair.
+  **NOTED HONESTLY:** the nested-parenthesis probe does NOT discriminate against that particular naive build (its
+  values happen to agree); it is coverage for a parser that THROWS on nesting rather than a discriminator. Kept,
+  and labelled, rather than dressed up as a catch.
+  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.** Seventeen
+  now carry held-out probes; **eleven remain** (05, 06, 09, 12, 15, 28, 29, 33, 34, 35, 36). The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,

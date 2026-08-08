@@ -107,6 +107,10 @@
   {
    "path": "test/protected/oracle/20_virtualized_microkernel_operating_system_lab/machine-contract.probe.mts",
    "rationale": "Held-out oracle for project 20: hardware-contract fidelity — x0 hardwiring inspected in the STORED state, fault reason correctness (misaligned vs out_of_bounds), and the exact memory boundary."
+  },
+  {
+   "path": "test/protected/oracle/13_cyber_range_soc_detection_platform/condition-precedence.probe.mts",
+   "rationale": "Held-out oracle for project 13: boolean operator PRECEDENCE in rule conditions — a left-to-right evaluator agrees with the correct one on every single-operator fixture and silently mis-fires every mixed rule."
   }
  ]
 }
