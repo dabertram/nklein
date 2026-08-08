@@ -12229,7 +12229,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   verdict.**
   (The companion ratchet — pinning the whole import list to exactly `["zod"]` — DOES break when stubbed, so the
   pair covers both the boundary and the runtime.)
-  **FOUR REMAIN on the actionable list:** `action-plan-producer`, `bulk-seed`, `env-gated-delivery`,
+  **▶ FOURTH MODULE — `bulk-seed`, 15 tests, 15/15 ablation-proven.** Bulk seeding stamps one template over a
+  list and creates a card per entry, so every failure mode is AMPLIFIED by the fan-out — which is what the tests
+  aim at rather than the single-input happy path: `replaceAll` vs `replace` (a single-replacement leaves literal
+  `{input}` in 100 prompts), 1-based indices, the empty-slug fallback being UNIQUE per index (a colliding slug
+  means colliding branch names across the batch), deduplication (a repeated pasted line would otherwise seed two
+  cards racing on the same files), and the cap at exactly 100 vs 101 — where a `>=` rejects a legitimate full
+  batch and a missing check turns a paste into a board flood.
+  Also pinned: the cap counts inputs BEFORE dedup, because "150 given" is what makes the error actionable.
+  **THREE REMAIN on the actionable list:** `action-plan-producer`, `bulk-seed`, `env-gated-delivery`,
   `local-model-base-url`, `model-research-policy`, `plan-gap-kind`.
   **The lesson is about the shape of the error, not the arithmetic:** every version of this number looked like a
   measurement and was partly an artefact of how the question was asked. It only became useful by being doubted
