@@ -13061,7 +13061,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   carrying vision + invariants + threats + acceptance criteria ONLY (no file map, no prescribed interfaces).
   **The DELTA between the two, graded by one oracle, is the most valuable research output this project can
   produce.**
-- [ ] **P23.7 — Progressive-disclosure split of the specification.** It is **23,691 words / 182 KB** and instructs
+- [x] **P23.7 — Progressive-disclosure split of the specification.** It is **23,691 words / 182 KB** and instructs
   "read the entire specification before planning" — against a 32k context that leaves nothing for system
   instructions, repo evidence, reasoning or plan output. That is acceptable ONLY if named honestly as a
   retrieval/compaction/traceability test (now recorded in the spec). Split into: short authoritative charter ·
@@ -13121,8 +13121,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   references just quietly start meaning something else. Catalog sections are detected by the heading SAYING
   "invariants" rather than by id shape, because `## E12.` matches the same shape and its ordinary numbered list
   would mint a phantom `E12.1` nothing cites.
-  **REMAINING (small, and now well-specified):** give the 13 positional invariants written, stable ids in a charter
-  so a card's citation survives an edit to the list. The catalog makes the current state navigable until then.
+  **✅ CLOSED 2026-08-08 — the charter shipped.** `SPEC_INVARIANT_CHARTER` + `verifyInvariantCharter` +
+  `resolveCharteredInvariant`, 7 new tests, surfaced by `nklein dev spec-spine`. All 13 positional ids now carry a
+  written, stable handle (`E11.7` → `INV-DETERMINISM`) plus a NAME anchor, and the checker re-resolves every id
+  against the live document. Verified clean on the real fixture.
+  **The document was deliberately NOT renumbered.** It is a test fixture whose size and shape are part of what it
+  measures, so the charter lives beside it and the protection is DETECTION rather than prevention: a renumber
+  still happens, it just stops being silent.
+  **The test proves the mechanism FIRES** — it inserts a list item and asserts `INV-DETERMINISM` returns
+  `renumbered`, naming both what the citation used to mean and what it means now. A charter that only passed on
+  the clean document would be indistinguishable from one that never ran, which is also why the CLI prints
+  "holds" instead of staying quiet. Same discipline as [[green-signal-substitution]].
+  **`idSource` was needed to get the SET right:** `V3.3` and `V6.2` also carry sub-numbers, but their ids are
+  WRITTEN at the definition and so survive a renumber unaided — chartering them would have overstated the
+  fragile set as 15.
 - [x] **P23.8 — "Two brains" = two versioned deployment SLOTS, not two resident stacks.** DONE 2026-07-20:
   clarified in-spec. The candidate may be cold, remote on an owned machine, replay-only, or loaded only during an
   explicit evaluation window. Requiring simultaneous residency contradicts the project's own consumer-memory
