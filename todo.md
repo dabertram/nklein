@@ -13004,8 +13004,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   via NKLEIN_ORACLE_WORKSPACE; paths absolute by construction (a relative path flipped the containment check in
   the first live run — cwd must never decide independence). **NULL-AGENT GATE run live: empty workspace ⇒
   independent ✓, 0/3 fail_to_pass pass, delivered=false — the oracle is not forgeable by doing nothing.**
-  Probes are goalpost-gated via protected-tests.json. REMAINING: the positive leg (a real-model drain on the
-  02 spec that PASSES probes — the first genuinely graded run), authoring for the other flagship projects
+  Probes are goalpost-gated via protected-tests.json.
+  **▶ THE POSITIVE LEG RAN 2026-08-08 (qwen3.6-35b-a3b, real drain over the 77 KB spec) — verdict 0/3, and it
+  is a REAL measurement this time.** The model delivered S01+S02 only: `src/lib/clock.ts`, `src/lib/prng.ts`,
+  tsconfig/vitest scaffold, 193 lines, card settled in review. The oracle probes the DOMAIN surface
+  (authorization / conflict-check / reconciler / recordability / log-300 / event-log) — none of which exist —
+  so 0/3 is the honest verdict for a run that built the scaffold and stopped short of the graded behaviours.
+  **This is the discrimination the oracle exists for:** unlike the null-agent 0/3 (nothing at all), here real,
+  plausible code exists and the oracle still refuses to credit it toward behaviours it does not implement.
+  ⚠️ TWO HARNESS DEFECTS FOUND EN ROUTE, both fixed: the drain graded the WORKING TREE while a card's output
+  lives on its `nklein/tasks/*` RESULT BRANCH (so the first 0/3 measured an empty repo — the null-agent answer
+  for a non-null run); and the rig itself had three green-signal failures (self-project guard, status-only
+  checks on 200-with-error-body, a board parse reading a wrapper key that does not exist).
+  REMAINING: a stronger/longer run (or a decomposed multi-card drain) to see whether the domain slice is
+  reachable at all locally; authoring for the other flagship projects
   (same pattern, ~3 files each), and the scoring-time wire into the drain/campaign verdict path.
 - [ ] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle.** Today's spec tells the agent
   the SPEC does the thinking and the model follows — a valid test of faithful execution, retrieval and dependency
