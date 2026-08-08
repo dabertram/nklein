@@ -111,6 +111,10 @@
   {
    "path": "test/protected/oracle/13_cyber_range_soc_detection_platform/condition-precedence.probe.mts",
    "rationale": "Held-out oracle for project 13: boolean operator PRECEDENCE in rule conditions — a left-to-right evaluator agrees with the correct one on every single-operator fixture and silently mis-fires every mixed rule."
+  },
+  {
+   "path": "test/protected/oracle/09_maritime_fleet_routing_compliance/colregs-reciprocity.probe.mts",
+   "rationale": "Held-out oracle for project 09: COLREGS RECIPROCITY — every visible case classifies from one vessel's view, so a frame error can make BOTH vessels believe they stand on and neither gives way."
   }
  ]
 }

@@ -11803,8 +11803,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **NOTED HONESTLY:** the nested-parenthesis probe does NOT discriminate against that particular naive build (its
   values happen to agree); it is coverage for a parser that THROWS on nesting rather than a discriminator. Kept,
   and labelled, rather than dressed up as a catch.
-  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.** Seventeen
-  now carry held-out probes; **eleven remain** (05, 06, 09, 12, 15, 28, 29, 33, 34, 35, 36). The
+  **▶ EIGHTEENTH PROJECT 2026-08-08 — project 09 (maritime), 5 probes on COLREGS RECIPROCITY: two independent
+  answers that must agree with each other.** Every visible acceptance case classifies an encounter from ONE
+  vessel's point of view, and each is individually plausible. What none can check is the property the rule
+  EXISTS for: if I classify you `CROSSING_GIVE_WAY`, you must classify me `CROSSING_STAND_ON`. A frame error
+  produces two reasonable-looking classifications in which **both vessels believe they stand on and neither
+  gives way** — the collision the regulation is written to prevent, invisible to every single-vessel test.
+  Paired deliberately with the HEAD_ON case, where agreement is CORRECT: a classifier over-corrected into always
+  producing complementary answers fails there instead, so the pair pins the direction. Also: CPA/TCPA must be
+  identical from either frame (it is a property of the pair, not the observer), and Rule 19 must override for
+  BOTH vessels.
+  **DISCRIMINATION PROVEN:** 5/5 on a correct classifier; 2 of 5 RED on one measuring relative bearing against
+  the TARGET's course — a classic frame mix-up that leaves every single-vessel test green.
+  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.** Eighteen
+  now carry held-out probes; **ten remain** (05, 06, 12, 15, 28, 29, 33, 34, 35, 36). The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,
