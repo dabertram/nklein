@@ -12287,6 +12287,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **No DECORATIVE finding across ~60 modules judged in total.** Stated plainly because it is the honest and
   expected majority outcome — the harness is PROVEN able to say DECORATIVE (the trial module above), so its
   silence here is informative rather than merely quiet.
+  **▶ THE COVERAGE AUDIT EXTENDED BEYOND `src/core` 2026-08-08 — and the headline is GOOD NEWS.** The same
+  import-based pairing applied to four more directories: **371 modules, 16 with no exercising test (4.3%)**.
+    · `src/nklein-agent` — 303 modules, **11** unexercised: `nklein-architect-runner`,
+      `nklein-baseline-probe-registry`, `nklein-implement-sandbox`, `nklein-monorepo-scope-scan`,
+      `nklein-property-evidence-registry`, `nklein-provider-account-api`, `nklein-provider-auth-flows`,
+      `nklein-provider-launch-config`, `nklein-task-session-service-types`, `nklein-telemetry-service`,
+      `procedural-skill-execution-recorder`
+    · `src/state` — 36 modules, **2**: `card-trail-sources`, `workspace-state-schema`
+    · `src/workspace` — 22 modules, **2**: `task-artifact-cleanup`, `turn-checkpoints`
+    · `src/telemetry` — 10 modules, **1**: `sentry-node`
+  **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
+  than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
+  the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports
+  what is UNEXERCISED, not what is wrong.
   ── **THE SEVEN ARE DONE:** `tool-result-failure`, `local-model-base-url`, `plan-gap-kind`, `bulk-seed`,
   `action-plan-producer`, `env-gated-delivery`, `model-research-policy` — 88 tests, every one verified by
   ablation to actually measure its module rather than its neighbourhood.
