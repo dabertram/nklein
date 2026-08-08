@@ -123,6 +123,10 @@
   {
    "path": "test/protected/oracle/05_emergency_dispatch_incident_command/fsm-complement.probe.mts",
    "rationale": "Held-out oracle for project 05: the FSM COMPLEMENT (all 58 illegal pairs, where the visible suite checks every legal edge but only two illegal ones) plus agreement between transition, legalNextStatuses and the refusal payload."
+  },
+  {
+   "path": "test/protected/oracle/06_industrial_predictive_maintenance_historian/quality-lattice.probe.mts",
+   "rationale": "Held-out oracle for project 06: quality-lattice monotonicity — permutation invariance, the one-way no-improvement property, and the STRICT bad-fraction threshold (which the returned code alone cannot discriminate)."
   }
  ]
 }

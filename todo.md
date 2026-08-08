@@ -11845,8 +11845,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   DERIVED from the table in-probe rather than remembered, with the literal kept only as a guard on the table
   itself. **A hand-computed constant in a probe is a second implementation, and it can be wrong exactly like the
   first one.**
-  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.** Twenty
-  now carry held-out probes; **eight remain** (06, 12, 28, 29, 33, 34, 35, 36). The
+  **▶ TWENTY-FIRST PROJECT 2026-08-08 — project 06 (predictive maintenance), 5 probes on QUALITY-LATTICE
+  MONOTONICITY: a value that may only ever get worse.** Every derived reading inherits the worst of its inputs,
+  and the safety direction is one-way — a computation may DEGRADE quality, never improve it, or the historian
+  recommends action on data it already decided not to trust. Probes: permutation invariance over ALL six
+  orderings, subReason preservation (the field that tells an engineer WHY data is untrusted), the no-improvement
+  property across four thresholds, and eligibility composing with the lattice.
+  **THE THRESHOLD PROBE NEEDED REAL CARE, and the first version did not discriminate at all.** The spec says
+  `> threshold`; a `>=` implementation is identical on every case the spec lists. But at the boundary BOTH
+  return the code Bad — because any Bad input makes worst-of-inputs Bad anyway — so **the returned code cannot
+  tell them apart**. Two things can, and the probe now uses both: a ZERO threshold with no bad inputs (`0 > 0`
+  false ⇒ Good, `0 >= 0` true ⇒ Bad — completely different answers), and the **subReason**, which the threshold
+  rule stamps `sensor-fault` while falling through preserves the input's own cause.
+  **DISCRIMINATION PROVEN:** 5/5 on a correct lattice; the `>=` variant fails exactly the threshold probe.
+  **SIXTH PROBE-WEAKNESS CAUGHT THIS SESSION** — and the first found by REASONING about what the two
+  implementations would return, before running either. The pattern is becoming predictable enough to anticipate.
+  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.**
+  Twenty-one now carry held-out probes; **seven remain** (12, 28, 29, 33, 34, 35, 36). The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,
