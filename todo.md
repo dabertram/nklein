@@ -12297,6 +12297,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     · `src/state` — 36 modules, **2**: `card-trail-sources`, `workspace-state-schema`
     · `src/workspace` — 22 modules, **2**: `task-artifact-cleanup`, `turn-checkpoints`
     · `src/telemetry` — 10 modules, **1**: `sentry-node`
+  **▶ FIRST OF THE 16 COVERED — `src/workspace/turn-checkpoints`, 9 tests, 9/9 ablation-proven.** A checkpoint
+  snapshots the WORKING TREE so a turn can be rewound, and the dangerous property is not what it captures but
+  **what it must not disturb**: it runs `git add -A` under a temporary `GIT_INDEX_FILE`, and if that redirection
+  ever broke, every checkpoint would silently stage the user's entire working tree in their real repo. **That
+  side effect is invisible to any test asserting only that a commit came back**, so it is the first thing pinned.
+  Also covered: uncommitted edits really are captured (the point of the feature), an empty repo with NO HEAD
+  works (the first turn of a fresh workspace), a task id containing `..~^:` and spaces still yields a valid ref
+  (base64url is what makes arbitrary ids ref-safe), turns and tasks do not overwrite each other's snapshots, the
+  repo ROOT is resolved so a nested cwd still captures the whole tree, and deletion is idempotent because
+  cleanup runs on paths that may already have cleaned up.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports
