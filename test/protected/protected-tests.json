@@ -135,6 +135,10 @@
   {
    "path": "test/protected/oracle/29_factory_automation_puzzle_sandbox/transport-line-order.probe.mts",
    "rationale": "Held-out oracle for project 29: a belt is FIFO, not a bag — countItemsOnLine conserves perfectly for a stack-backed line — plus backpressure that must refuse without consuming."
+  },
+  {
+   "path": "test/protected/oracle/28_modern_ant_colony_programming_arena/pheromone-symmetry.probe.mts",
+   "rationale": "Held-out oracle for project 28: diffusion ISOTROPY — an in-place row-major sweep conserves mass perfectly and drifts pheromone down and right, which no conservation check can see."
   }
  ]
 }

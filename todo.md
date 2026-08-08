@@ -11888,8 +11888,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **NOTED:** the conservation probe PASSES on that bad build, and correctly so — its interleaving never fills the
   line, so the consuming-refusal path is reached only by the dedicated backpressure probe. Separating the two
   means a failure names WHICH obligation broke instead of just "something is off".
+  **▶ TWENTY-FOURTH PROJECT 2026-08-08 — project 28 (ant colony), 5 probes on DIFFUSION ISOTROPY: a field update
+  that must not favour a direction.** The spec warns about the trap in its own implementation notes — *"use a
+  copy of the original values as the source"* — which is exactly the kind of warning a test suite does not follow
+  up on. An in-place row-major sweep **conserves total mass perfectly**, so every conservation check passes; what
+  it loses is isotropy, because cells updated earlier feed the cells updated later and pheromone drifts down and
+  to the right. In a colony sim that is a permanent directional bias in every trail, with nothing in the totals
+  to show for it.
+  **DISCRIMINATION PROVEN, and unusually clean:** 5/5 on a copy-source implementation; the in-place variant fails
+  **only** the symmetry probe — conservation, colony isolation, purity and evaporation all pass. A single deposit
+  at the centre, one diffusion step, four neighbours compared to each other is the whole discriminator.
   **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.**
-  Twenty-three now carry held-out probes; **five remain** (28, 33, 34, 35, 36). The
+  Twenty-four now carry held-out probes; **four remain** (33, 34, 35, 36). The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,
