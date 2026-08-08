@@ -11,27 +11,27 @@
  * visible suite leaves uncovered and the gap P20.2 exists to measure.
  *
  * FAIL_TO_PASS: red on an unbuilt or feature-isolated workspace, green only when the algebra actually composes.
- * The probe binds ONLY to the spec's prescribed module paths and exported signatures (`src/domain/route/…`),
- * never to the agent's own tests, fixtures or helpers — an agent cannot satisfy it by editing what it wrote.
+ * The probe binds only to a surface some SPEC fixed in advance — the prescriptive spec's module paths, or the
+ * discovery variant's pinned public entry point (see `resolve-operations.mts`) — never to the agent's own tests,
+ * fixtures or helpers. An agent cannot satisfy it by editing anything it wrote.
  *
  * Runs via the HOST's tsx, never through anything the agent authored. Workspace arrives via
  * NKLEIN_ORACLE_WORKSPACE.
  */
 
 import assert from "node:assert/strict";
-import { join } from "node:path";
 import { test } from "node:test";
-import { pathToFileURL } from "node:url";
+import { resolveRouteAlgebra } from "./resolve-operations.mts";
 
 const workspace = process.env.NKLEIN_ORACLE_WORKSPACE;
 if (!workspace) {
 	throw new Error("NKLEIN_ORACLE_WORKSPACE is not set — the oracle runner must provide the workspace under grade.");
 }
 
-const moduleAt = async (relativePath: string) => await import(pathToFileURL(join(workspace, relativePath)).href);
-const { splitLot } = await moduleAt("src/domain/route/lot-split.ts");
-const { mergeLots } = await moduleAt("src/domain/route/lot-merge.ts");
-const { recordRework } = await moduleAt("src/domain/route/lot-rework.ts");
+// Bound through the shared resolver so this ONE probe grades BOTH spec variants (P23.6): the prescriptive
+// spec's module paths and the discovery variant's single pinned public entry point. Either way the surface was
+// fixed by a SPEC in advance, never chosen by the agent.
+const { splitLot, mergeLots, recordRework } = await resolveRouteAlgebra(workspace);
 
 const EPOCH = 1_700_000_000_000;
 /** The spec's Clock contract is one method; a local stub keeps the probe independent of the agent's ManualClock. */

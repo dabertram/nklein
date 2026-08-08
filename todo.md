@@ -13075,6 +13075,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   carrying vision + invariants + threats + acceptance criteria ONLY (no file map, no prescribed interfaces).
   **The DELTA between the two, graded by one oracle, is the most valuable research output this project can
   produce.**
+  **▶ FIRST VARIANT PAIR SHIPPED 2026-08-08 — project 18, one oracle grading both.**
+  `specification-discovery.md` carries vision · 5 composition invariants · 3 threats · acceptance, and drops the
+  file map, the per-module interfaces and every numbered implementation step.
+  **THE DESIGN TENSION THIS ITEM HIDES, AND HOW IT RESOLVES:** "grade both with the SAME oracle" collides with
+  "no prescribed interfaces" — a held-out probe can only exist if something stable is CALLABLE, and an oracle
+  binding to paths the agent invented is not an oracle. So the discovery variant pins exactly ONE thing, a
+  public entry point (`src/index.ts`) re-exporting the three named operations, and **architecture is everything
+  behind it**. `resolve-operations.mts` binds to the OPERATION wherever the variant's own contract puts it —
+  public surface first, prescriptive module paths second — and throws loudly when neither exists, so "the agent
+  built nothing callable" can never read as "the probe found nothing to assert".
+  **VERIFIED ON FOUR WORKSPACES, not asserted:** prescriptive layout 6/6 · discovery layout 6/6 (a deliberately
+  DIFFERENT architecture — one cohesive `src/algebra/genealogy.ts` with `split`/`merge`/`rework` aliased through
+  the pinned surface) · empty workspace fails loudly · feature-isolated build red on exactly the compositional
+  probe.
+  **REMAINING: the measurement itself** — run a real model against both variants and report the delta. That is
+  a fleet run, not authoring work; the apparatus it needed now exists.
 - [x] **P23.7 — Progressive-disclosure split of the specification.** It is **23,691 words / 182 KB** and instructs
   "read the entire specification before planning" — against a 32k context that leaves nothing for system
   instructions, repo evidence, reasoning or plan output. That is acceptable ONLY if named honestly as a
