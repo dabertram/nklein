@@ -614,7 +614,9 @@ export async function runDevNightlyCommand(options: {
 			process.stdout.write("  crash-recovery-matrix  (6 sequential real-runtime SIGKILL phase drains)\n");
 		}
 		if (manifest.uiJourneys?.enabled && !options.project && !options.model) {
-			process.stdout.write("  ui-journeys            (N14 browser lanes: drained board + operator review-merge)\n");
+			process.stdout.write(
+				"  ui-journeys            (N14 browser lanes: drained board + review-merge + review-bounce)\n",
+			);
 		}
 		return;
 	}
@@ -700,6 +702,7 @@ export async function runDevNightlyCommand(options: {
 		const lanes: { script: string; passLine: string }[] = [
 			{ script: "scripts/ui-journey-drained.mts", passLine: "DRAINED JOURNEYS PASS" },
 			{ script: "scripts/ui-journey-review.mts", passLine: "REVIEW JOURNEY PASS" },
+			{ script: "scripts/ui-journey-bounce.mts", passLine: "BOUNCE JOURNEY PASS" },
 		];
 		const laneReasons: string[] = [];
 		let allPassed = true;

@@ -95,7 +95,7 @@
     "benchmark:terminal-setup": "sh scripts/setup-terminal-bench-harness.sh",
     "prepare": "husky",
     "prepublishOnly": "npm run build && npm run check",
-    "test:ui-journeys": "tsx scripts/ui-journey-drained.mts && tsx scripts/ui-journey-review.mts"
+    "test:ui-journeys": "tsx scripts/ui-journey-drained.mts && tsx scripts/ui-journey-review.mts && tsx scripts/ui-journey-bounce.mts"
   },
   "license": "Apache-2.0",
   "devDependencies": {
