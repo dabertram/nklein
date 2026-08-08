@@ -1,21 +1,16 @@
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::source availability reports every source as UNAVAILABLE on an empty home, and marks the trail partial","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::source availability distinguishes a PRESENT-but-quiet source from an ABSENT one","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::source availability is NOT partial once every source is readable","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::source availability calls a card missing from an EXISTING board 'not found', not 'board unavailable'","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading clocks events from `recordedAt` — the field the ledger actually stamps","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading orders ledger events by their real clock, not by file order","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading LIFTS an attempt's tool calls into the timeline instead of burying them in metadata","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading keeps tool calls AFTER their attempt and in their own order","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading names a tool call's missing fields rather than rendering `undefined`","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading caps the file list so one wide tool call cannot swamp the line","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::ledger reading tolerates an attempt with NO tool calls, and a non-array toolCalls field","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::malformed input skips ONE bad line without losing the rest of the trail","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::malformed input survives an unparseable board.json","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::malformed input falls through a broken workspace to a later one that DOES list the card","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::runtime log sorts un-timestamped log lines LAST rather than inventing clock values","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::runtime log preserves LINE ORDER within the log, which is its only ordering information","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::runtime log ignores log lines that do not mention the card","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::board lane reports the card's lane and what is blocking it","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::board lane does not report a dependency edge pointing AT the card as blocking it","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::observations prefers the metadata category over the raw signal for an event's kind","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/card-trail-sources.test.ts::observations keeps severity alongside the record's own metadata","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::the local-only gate runs BEFORE anything else refuses an OAuth login without calling out or writing a credential","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::the local-only gate runs BEFORE anything else refuses to START a device auth without calling out","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::the local-only gate runs BEFORE anything else refuses to COMPLETE a device auth without calling out or writing a credential","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::the local-only gate runs BEFORE anything else does not let a LOOPBACK base url buy an exemption","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::the local-only gate runs BEFORE anything else names the provider that was refused","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::the local-only gate runs BEFORE anything else REFUSES structurally where the caller can see it, and throws where it cannot","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate writes the credential and selects the provider","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate does NOT return the access token to the caller","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate does not let an OAuth token masquerade as a configured API KEY","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate PRESERVES unrelated existing settings instead of overwriting the record","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate CLEARS a stale base url when the login supplies none","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate keeps a base url the login DID supply, trimmed","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate treats a whitespace-only base url as none at all","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate normalises a SECONDS expiry to milliseconds","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate reports a login failure as ok:false and writes NOTHING","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-auth-flows.test.ts::runOauthLogin, past the gate does not select the provider when the credential write itself fails","passed":true}

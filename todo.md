@@ -12341,6 +12341,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   truncated JSONL line is skipped without losing the events around it (a forensic record must survive a partial
   write), a corrupt `board.json` falls through to a later workspace that DOES list the card, and a dependency
   edge pointing AT the card is not read as blocking it — inverting that inverts the answer to "why is this stuck".
+  **▶ FOURTH OF THE 16 — `src/nklein-agent/nklein-provider-auth-flows`, 16 tests, 16/16 ablation-proven.** The
+  two managed-OAuth flows — with the custom-provider manager and the settings writer, the only paths that MUTATE
+  the SDK provider registry. The module's header states the property that carries prime directive #1: **the
+  local-only assert runs BEFORE any network or credential touch**, and that ordering claim was untested even
+  though it is the whole of the guarantee. A gate running AFTER the login does not prevent the egress — it only
+  declines to record it, which is the difference between "we never called out" and "we called out and threw the
+  answer away". So the probes assert on the SPIES, not the return value: `loginManagedOauthProvider`,
+  `startNKleinDeviceAuth`, `completeNKleinDeviceAuth`, `saveSdkProviderSettings` and the selection write are all
+  never invoked. Pinned alongside it: **a loopback base url buys no exemption** — the tempting future widening,
+  since "it points at localhost, so it is local" reads perfectly reasonable, but `nklein`/`oca`/`openai-codex`
+  always reach cloud whatever url they are handed, so admitting them there breaches the directive for exactly
+  the three providers it exists to stop. And the asymmetry is deliberate, not an oversight: the two flows
+  returning an api-contract response refuse with `ok:false` (a throw would surface as an unhandled 500 rather
+  than a stated refusal), while `startDeviceAuth` returns a device-code object with no field able to carry a
+  failure and so must throw — pinned so the shapes are never "harmonised" into one that cannot say no.
+  Past the gate (reached with a non-managed id, so the REAL policy runs in both directions rather than being
+  mocked away): the response **never carries the token**, reporting presence as booleans; a stale `baseUrl` is
+  DELETED rather than left to keep routing at a previous host; unrelated settings like a chosen model survive a
+  re-authentication; a seconds-shaped expiry is normalised to ms (storing it raw dates the token to 1970 and
+  makes every request look expired); and neither a failed exchange nor a failed credential write leaves the
+  provider SELECTED — pointing "use this one" at credentials that never landed sends every later call to a
+  configuration that does not exist. **One assumption of mine was wrong and the module was right:** an OAuth
+  login leaves `apiKeyConfigured` FALSE, because an access token is not an API key — two credentials, two
+  resolution paths. That is now pinned as its own probe.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports
