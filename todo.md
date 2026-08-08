@@ -8199,8 +8199,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **▶ NIGHTLY REGISTRATION DONE same day:** the two lanes join `dev nightly` exactly like the crash matrix
   (manifest-gated `uiJourneys.enabled`, PASS-line + exit-0 double check per launcher, folded into
   isNightlyOverallOk + the JSON payload; dry-run lists them; `npm run test:ui-journeys` standalone).
-  REMAINING: the review BOUNCE (request-changes) journey — chat/feedback-driven, wants its own slice;
-  drained twins of mocked journeys where they add release value.
+  **✅ SLICE 4 GREEN 2026-08-08 — the review BOUNCE journey, the last of the three lanes** (`scripts/
+  ui-journey-bounce.mts` + `web-ui/tests-bounce/`, registered in dev nightly + `test:ui-journeys`). Auto-review
+  ON, reviewer requests changes at round 1, worker re-drives, round 2 approves; the assertion is on the
+  reviewer's own FEEDBACK TEXT visible on the card, because a silent bounce is the N10/N20 failure class.
+  **Round sequencing was the difficulty and the first attempt was wrong instructively:** pinning round 2 to an
+  assistant-message count fails because THE REVIEWER SESSION RESETS BETWEEN ROUNDS — every round starts at
+  count 0, so the round-1 request_changes track matched forever and the repeated-feedback guard (correctly)
+  parked the card. The proven 02-fixture shape is to match the review prompt's own round marker
+  ("(review round 1)") then fall through to a generic approval track.
+  REMAINING: drained twins of mocked journeys where they add release value (low priority).
 - [ ] **N15 — Soak + local-only assertion.** One long-horizon cell: a 40-card board over hours with RSS/handle/
   ledger-growth watch (codebase-memory has OOM'd under load before). The SAME run records every outbound
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
