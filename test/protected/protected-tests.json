@@ -119,6 +119,10 @@
   {
    "path": "test/protected/oracle/15_airport_operations_turnaround_control/cpm-joins.probe.mts",
    "rationale": "Held-out oracle for project 15: CPM joins take the MAX of predecessors (fixture lists the longest SECOND) and the forward pass must be topological rather than positional."
+  },
+  {
+   "path": "test/protected/oracle/05_emergency_dispatch_incident_command/fsm-complement.probe.mts",
+   "rationale": "Held-out oracle for project 05: the FSM COMPLEMENT (all 58 illegal pairs, where the visible suite checks every legal edge but only two illegal ones) plus agreement between transition, legalNextStatuses and the refusal payload."
   }
  ]
 }

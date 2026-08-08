@@ -11829,8 +11829,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   the finish (the spec's visible test only covers the within-float half); and `predictedOffBlockMs` must include
   a NON-ZERO `inBlocksMs`, which every convenient zero-based fixture cannot detect.
   **DISCRIMINATION PROVEN:** 6/6 on a correct two-pass CPM; **5 of 6 RED** on a first-predecessor, positional one.
-  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.** Nineteen
-  now carry held-out probes; **nine remain** (05, 06, 12, 28, 29, 33, 34, 35, 36). The
+  **▶ TWENTIETH PROJECT 2026-08-08 — project 05 (emergency dispatch), 6 probes on the FSM COMPLEMENT.** The
+  visible acceptance is unusually thorough on ONE side — it requires an assertion per LEGAL edge — and checks
+  exactly two illegal cases. That asymmetry is the whole opening: an implementation returning `{ok:true}` for any
+  pair satisfies every legal-edge assertion and needs only two special cases to pass the rest, yielding a state
+  machine with no constraints at all. The probe asserts all **58** illegal pairs, plus agreement between
+  `transition`, `legalNextStatuses` and the refusal payload's `legalTransitions` — three copies of one relation
+  that drift invisibly, because each looks right alone. Plus a liveness property no edge test can express: every
+  status must still reach `available`, computed from the IMPLEMENTATION's own advertised edges rather than the
+  constant, so it grades the workspace instead of re-checking the spec.
+  **DISCRIMINATION PROVEN:** 6/6 on a table-driven FSM; **5 of 6 RED** on a permissive one with the two named
+  pairs special-cased.
+  **🔎 FIFTH PROBE-BUG CAUGHT BY THE CORRECT-REFERENCE RUN, and this one was arithmetic:** the probe asserted 57
+  illegal pairs. It is 58 (9² − 23 published edges), so the CORRECT implementation failed. The count is now
+  DERIVED from the table in-probe rather than remembered, with the literal kept only as a guard on the table
+  itself. **A hand-computed constant in a probe is a second implementation, and it can be wrong exactly like the
+  first one.**
+  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.** Twenty
+  now carry held-out probes; **eight remain** (06, 12, 28, 29, 33, 34, 35, 36). The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,
