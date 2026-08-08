@@ -87,6 +87,10 @@
   {
    "path": "test/protected/oracle/22_agentic_pair_programming_ide/content-addressing.probe.mts",
    "rationale": "Held-out oracle for project 22: workspace-digest integrity — key-order independence and path/content framing, the two collisions that let a stale context pack look fresh."
+  },
+  {
+   "path": "test/protected/oracle/23_agentic_chat_workspace_operating_system/authority-fence.probe.mts",
+   "rationale": "Held-out oracle for project 23: the authority fence under STRUCTURED output — both visible tests pass flat lowercase strings, which String(output).includes() satisfies while letting every real (object-shaped) injection through."
   }
  ]
 }

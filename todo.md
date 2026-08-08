@@ -11709,11 +11709,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `{"a":"bc"}` cannot collide — without a delimiter they hash identically, and a stale pack looks fresh).
   **DISCRIMINATION PROVEN:** 5/5 on a correct sorted+framed digest; the unsorted, unframed variant fails exactly
   those two probes and passes the other three.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; eleven of ~18 candidate specs now
-  carry held-out probes, spanning eleven invariant families (genealogy conservation, recall-safe tracing, RNG
+  **▶ TWELFTH PROJECT 2026-08-08 — project 23 (chat workspace OS), 6 probes on the AUTHORITY FENCE. Strongest
+  discrimination measured so far: the naive implementation fails 5 of 6.** Tool output may carry injected
+  instructions, and this fence is what stops them becoming authority. Its visible acceptance is two cases — one
+  flat lowercase string containing `"ignore prior instructions"` throws, a normal one does not.
+  **Both are flat strings, so `String(output).includes("ignore prior")` satisfies the entire visible suite** —
+  and then stringifies every real search result to `"[object Object]"`, passing every injection through.
+  `assertNoAuthorityEscalation(output: unknown)` takes `unknown` precisely because tool results are structured;
+  the object shape is the DEFAULT, not an edge case.
+  Probes cover: nested-in-object and in-array injections, all THREE patterns the spec names (a fence written
+  against its own single example catches one and waves the others through), case variation (an attacker pressing
+  shift is the cheapest evasion there is), `classifyToolOutput` returning untrusted for EVERY shape — the rule is
+  "by construction" and the visible suite never calls it at all, so a whitelist added later is invisible — and
+  ordinary output still passing, repeatedly, since a fence that throws on everything is an outage.
+  **DISCRIMINATION PROVEN:** 6/6 on a correct recursive, case-folding fence; **5 of 6 RED** on the naive one,
+  with only "ordinary output passes" surviving, because it barely throws at all.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; twelve of ~18 candidate specs now
+  carry held-out probes, spanning twelve invariant families (genealogy conservation, recall-safe tracing, RNG
   stream independence, temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence,
   path optimality + capacity, redaction totality, exactly-once identity, bitemporal immutability,
-  content-addressing integrity).
+  content-addressing integrity, authority non-escalation).
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting
