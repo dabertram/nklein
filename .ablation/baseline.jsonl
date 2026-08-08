@@ -1,19 +1,17 @@
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the local-only lockdown is the FIRST thing that happens refuses a cloud provider without refreshing OAuth or discovering models","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the local-only lockdown is the FIRST thing that happens refuses a cloud provider reached through the OVERRIDE path too","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the local-only lockdown is the FIRST thing that happens admits a local provider through the same real policy","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the context-window floor is asserted with the MEASURED window, not one the model claims","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the context-window floor passes NULL rather than a guess when the model was never discovered","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the context-window floor propagates the policy's refusal instead of launching anyway","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::a live-only provider's model must actually be loaded names the model and says what to do about it","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::a live-only provider's model must actually be loaded does not reach the context policy once it has refused","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::which model gets dispatched prefers an explicit override over the stored selection","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::which model gets dispatched falls back to the provider CATALOG default when nothing is selected","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::which model gets dispatched falls back to the built-in default when the CATALOG READ ITSELF fails","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::which model gets dispatched yields a null model rather than inventing one for an unknown provider","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::reasoning effort: unspecified is not the same as none uses the stored effort when the caller says nothing about it","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::reasoning effort: unspecified is not the same as none honours an EXPLICIT undefined override as 'no effort', not as 'unspecified'","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::reasoning effort: unspecified is not the same as none passes an explicit effort through","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the rest of the resolved config normalises the provider id, and trims a blank base url to null","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the rest of the resolved config prefers the settings the OAuth refresh returned over the stale ones","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the rest of the resolved config refuses with an ACTIONABLE message when no provider is configured","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the rest of the resolved config refuses a settings record whose provider id is blank","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree accepts a consistent index","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree rejects an entry whose workspaceId disagrees with its own KEY","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree rejects an entry with NO mapping — the corruption only the entries→mapping direction sees","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree rejects an ORPHAN mapping — the corruption only the mapping→entries direction sees","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree rejects a mapping that points at a real workspace with a DIFFERENT path","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree names the offending workspace in the message, not just the path","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree accepts an empty index — a first run is consistent, not corrupt","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the version is a migration boundary rejects an older index rather than reading it as current","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the version is a migration boundary rejects a FUTURE version too","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::index entries requires a non-empty workspace id and repo path","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::index entries requires autoResumeEnabled to be stated, not inferred","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::index entries leaves the descriptive fields optional","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::sessions are keyed by the task they belong to accepts a record whose keys match their sessions","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::sessions are keyed by the task they belong to rejects a session filed under another task's key","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::sessions are keyed by the task they belong to accepts an empty session record","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the smaller records pins the local identity to version 1, with both fields present","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the smaller records requires the state revision to be a non-negative integer","passed":true}

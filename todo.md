@@ -12469,6 +12469,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   (`resetAllMocks` is the right tool); and invented "local-sounding" provider ids are not local — the real
   policy admits `ollama`/`lmstudio` by id and any custom id only on a loopback endpoint, so the fixtures now
   carry a real base url instead of a hopeful name.
+  **▶ THIRTEENTH OF THE 16 — `src/state/workspace-state-schema`, 17 tests, 17/17 ablation-proven.** The
+  workspace index stores **one relation twice** — `entries` keyed by workspace id, `repoPathToId` keyed by repo
+  path — and the `superRefine` is what keeps the two views agreeing. That is worth more than a shape check: a
+  workspace whose views disagree resolves to the WRONG repo path, so a card runs against a project the user
+  never opened, and **nothing downstream can notice because both halves are individually well-formed**.
+  The check runs in both directions and the tests isolate them, because **each direction catches a corruption
+  the other cannot see**: entries→mapping catches an entry with no mapping at all; mapping→entries catches an
+  ORPHAN pointing at a workspace that does not exist. Either alone would let the other through while looking
+  like a complete consistency check. The subtlest case has both halves present and well-formed, with the map
+  landing on a workspace whose repo is somewhere else — that is the one that opens the wrong project, and the
+  message names the offending workspace because a corrupt index gets repaired by hand.
+  Also pinned: the version literal is a MIGRATION boundary in both directions (an older file read as current
+  would be interpreted under the wrong layout and written back in that shape, destroying it; a newer file must
+  not be silently downgraded); an empty index is consistent, not corrupt, because that is a first run;
+  `autoResumeEnabled` must be STATED rather than defaulted, since auto-resume restarts work with no human
+  present and a default either way is a decision nobody made; the session record's key must match the session's
+  own `taskId`, or a stop or resume reaches the wrong card; and the state revision must be a non-negative
+  INTEGER, since it is an optimistic-concurrency counter and a fractional value compares in ways no writer
+  intends — a stale write could look newer than the state it overwrites.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports
