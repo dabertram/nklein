@@ -11911,8 +11911,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **DISCRIMINATION PROVEN:** 5/5 on a reference that filters and forgets; 2 of 5 RED on one that filters
   `visibleUnits` CORRECTLY — so the spec's own visible test passes — while leaking through the raw `fogState`
   and a live-position ghost list.
+  **▶ TWENTY-SIXTH PROJECT 2026-08-08 — project 33 (colony sim), 7 probes on THE SHAPE OF A CURVE. The cleanest
+  example in the whole set of a spec pinning a function only where nothing distinguishes the candidates.**
+  `urgency` is specified as `(100 − needLevel)² / 100`, and the visible acceptance checks exactly two points:
+  `urgency(100) = 0` and `urgency(0) = 100` — **precisely the two places where a LINEAR ramp and the specified
+  QUADRATIC give identical answers**. A linear implementation satisfies the entire visible suite and is wrong
+  everywhere between: at half-satisfied it reports 50 instead of 25, so colonists panic over moderately-unmet
+  needs and the whole priority system skews.
+  Probes sample the MIDDLE, and separately assert CONVEXITY — successive equal drops in satisfaction must cost
+  ever more — which needs no reference values at all and survives someone rescaling constants to hit the sampled
+  points. Plus additivity of `decayNeeds` (linear in `ticks`, so n-at-once must equal n×1; a compounding or
+  flat-rate decay passes every single-tick fixture), the zero floor, and non-mutation.
+  **DISCRIMINATION PROVEN:** 7/7 on a quadratic implementation; **2 of 7 RED** on a linear one — the midpoint and
+  convexity probes — while it passes both of the spec's own checkpoints, monotonicity, and every decay probe.
   **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.**
-  Twenty-five now carry held-out probes; **three remain** (33, 35, 36). The
+  Twenty-six now carry held-out probes; **two remain** (35, 36). The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,
