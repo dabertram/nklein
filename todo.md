@@ -7299,9 +7299,27 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   (the materialized root commit records the real `baseCommit` in its message) rather than a branch convention or
   `HEAD~1`, and an unreadable diff reports **UNKNOWN, never "clean"** — verified: it correctly refused before the
   base resolution was right, instead of passing the tampered delivery.
-  (a) is now a sharper question given the correction above — not "does the model understand the task" but "why
-  does a correct solution also violate an explicit constraint" — and a SECOND instance (`psf__requests-2317`) is
-  draining to answer it from more than one data point.
+  **▶ (a) ANSWERED 2026-08-08 — TWO independent instances, the SAME behaviour. It reproduces.**
+  `psf__requests-2317`: the model changed `requests/sessions.py` (+13/−5, touching `method = builtin_str(method)`
+  — the instance's actual bug) **and** `test_requests.py` (+19/−1). Identical shape to the flask run: a real
+  library fix, plus an edit to the file it is graded by, against an explicit instruction.
+  **So this is a reproducible INSTRUCTION-FOLLOWING failure, not a capability limit and not an artefact of one
+  instance.** Two of two attempted instances solved the task and then made their own work unscoreable. That
+  points the remedy at the constraint's enforcement — a delivery-time refusal, or a card that cannot write to
+  graded paths — rather than at the prompt's wording or the model's strength.
+  **⚠️ A THIRD, SEPARATE OBSERVATION — the MERGED-LINE artefact, now seen three times and still unexplained.**
+  `requests/sessions.py` came back with `from .cookies import (    cookiejar_from_dict, …)` on ONE line where the
+  original spanned two — the same signature as the flask run's merged `def`/body and the habit-score patch's
+  merged object literal. Three sightings, three projects, two models, always inside a region the model was
+  actively editing.
+  **What was CHECKED:** `applySearchReplaceBlocks` was driven directly with a realistic reproduction of the
+  requests edit (replace the neighbouring `compat` import, leave the multi-line `cookies` import alone) and it
+  preserved the two-line structure correctly. So our applier is not implicated on that shape.
+  **What is NOT settled:** whether some other search/replace shape triggers it in our applier, or whether the
+  model simply emits the merged form. **The ledger cannot decide it** — tool calls are recorded as a
+  `fingerprint` hash rather than raw arguments, deliberately, so the model's actual replacement string is not
+  recoverable from a completed run. Settling it needs a targeted capture of raw tool arguments on a dev run.
+  Recorded rather than guessed.
 
 - [x] **🐛 CORRUPT PATCH CAPTURE lost a card's work — ROOT-CAUSED AND FIXED (live-found + fixed 2026-08-08).**
   A real `mid_task --act` drain classified `infrastructureFailure`: *"Could not capture sandbox task result
