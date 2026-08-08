@@ -293,6 +293,12 @@ if [ "$RUN_KIND" = dev-test ]; then
   log "starting !Klein runtime on :$PORT (HOME=$RUN_HOME)…"
   ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
     NKLEIN_EVIDENCE_SESSION_SNAPSHOT_DIR="$SESSION_SNAPSHOT_DIR" \
+    NKLEIN_TOOL_GATE_OBSERVE=1 \
+    `# P15.3: the default-flip campaign can only ever conclude from REAL-model observations, and this emitter is` \
+    `# opt-in and default-OFF. A drain that never sets it produces zero observations, so 'dev mechanism-decision'` \
+    `# reports insufficient_data forever and reads as "keep running" when in fact nothing was being gathered.` \
+    `# Safe to turn on here by construction: the registry classifies it mode: "observe_only" — it records a` \
+    `# counterfactual and changes no behaviour. ENFORCE stays off, which is the whole point of observe-first.` \
       "$REPO/node_modules/.bin/tsx" src/cli.ts --port "$PORT" >"$RUNTIME_LOG" 2>&1 ) & RUNTIME_PID=$!
   for i in $(seq 1 40); do HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && break; sleep 1; done
   HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN || { log "FATAL: runtime did not come up"; exit 4; }

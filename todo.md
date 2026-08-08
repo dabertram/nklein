@@ -9677,6 +9677,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   metadata at the emit site, so a later pass can join each observation to that card's terminal outcome. Only then
   does wiring the report produce something that can ever become a verdict. Building the `dev` command first would
   produce a facade that looks like the campaign is running and can never conclude.
+  **▶ 2026-08-08 — RAN THE CAMPAIGN'S FIRST REAL MEASUREMENT, AND IT EXPOSED THE LAST GAP.** Both prior blockers
+  are resolved (join key 2026-08-01; the `dev mechanism-decision` wire exists), so the report was run against a
+  REAL 60-minute drain's home. It returned exactly what the core is designed to return — and the number is the
+  finding: **`observations 0 · evaluable 0`**.
+  **Cause: the emitter is opt-in and default-OFF, and the drain harness never set it.** `NKLEIN_TOOL_GATE_OBSERVE`
+  gates the one genuine observe-first emitter, so every real drain to date gathered nothing. The report would
+  have gone on saying `insufficient_data` — which reads as "keep running" — while no amount of running could
+  change it. **The same failure family as the depth-blind projection found earlier today: "no data yet" and "the
+  data cannot be produced" are indistinguishable from the outside.**
+  **FIXED:** `scripts/real-model-run.sh` now sets `NKLEIN_TOOL_GATE_OBSERVE=1` on the runtime it launches. Safe by
+  construction — the flag registry classifies it `mode: "observe_only"`; it records a counterfactual and changes
+  no behaviour, and ENFORCE stays off, which is the point of observe-first. **Every future real drain now
+  accumulates the evidence this campaign turns on**; the 30-observation floor is now reachable by running, which
+  it demonstrably was not before.
   **✅ JOIN KEY SHIPPED 2026-08-01.** `taskId: sessionId` now travels with the gate observation — a one-line change
   using the pattern a NEIGHBOURING `recordSelfObservation` in the same function already used, so nothing new had to
   be plumbed. A source-level ratchet pins it, scoped to the slice between that call and its own metadata so a
