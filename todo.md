@@ -12197,6 +12197,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `action-plan-producer`, `bulk-seed`, `env-gated-delivery`, `local-model-base-url`, `model-research-policy`,
   `plan-gap-kind`, `tool-result-failure`. That is a short, checkable list someone can act on — which "144
   untested modules" was not.
+  **▶ ACTED ON THE LIST 2026-08-08 — `tool-result-failure` now has a test, and it is ABLATION-PROVEN.**
+  10 tests, and stubbing the module breaks 10 of 10 — so they measure the artifact rather than its neighbourhood.
+  Worth covering first because of what it does: an SDK tool result can report failure INSIDE its payload while
+  omitting the top-level `is_error`, so a caller trusting only the transport flag treats a FAILED tool call as a
+  success. **That is this repo's recurring green-signal substitution living in a 30-line module.** The tests
+  concentrate on where a failure hides — four failure spellings (`success:false`, `ok:false`, `is_error`,
+  `isError`), nesting, arrays, and a payload that arrived as a JSON STRING (the live sandbox envelope shape) —
+  plus the two directions that keep a detector honest: non-JSON prose is NOT a failure signal, and the depth
+  guard is shown to terminate on a genuinely CYCLIC payload rather than a merely deep one.
+  **SIX REMAIN on the actionable list:** `action-plan-producer`, `bulk-seed`, `env-gated-delivery`,
+  `local-model-base-url`, `model-research-policy`, `plan-gap-kind`.
   **The lesson is about the shape of the error, not the arithmetic:** every version of this number looked like a
   measurement and was partly an artefact of how the question was asked. It only became useful by being doubted
   three times.
