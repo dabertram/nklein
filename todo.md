@@ -12206,7 +12206,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `isError`), nesting, arrays, and a payload that arrived as a JSON STRING (the live sandbox envelope shape) —
   plus the two directions that keep a detector honest: non-JSON prose is NOT a failure signal, and the depth
   guard is shown to terminate on a genuinely CYCLIC payload rather than a merely deep one.
-  **SIX REMAIN on the actionable list:** `action-plan-producer`, `bulk-seed`, `env-gated-delivery`,
+  **▶ SECOND MODULE COVERED — `local-model-base-url`, the LOCAL-ONLY prime-directive guard, 11 tests, 11/11
+  ablation-proven.** Weighted toward the reject direction and the `172.16.0.0/12` boundary, where `172.15` and
+  `172.32` are ordinary public space one character away.
+  **AND THE ABLATION CAUGHT A FLAW IN MY OWN TESTS — this is the clearest demonstration yet of why it exists.**
+  The first version scored 8/11: three tests "passed with AND without" the module. Cause: they matched
+  `/loopback|private|local/i`, and the stub's own failure text (`ABLATED_STUB via assertLocalModelBaseUrl`)
+  contains **"Local"** — so a loose alternation matched a throw that proved nothing. **A `toThrow` assertion is
+  satisfied by ANY throw, including the one a broken implementation makes.** Anchored on the guard's own wording
+  (`/must address loopback/`) → 11/11.
+  **That is a security guard whose reject tests would have passed against a function replaced by `throw`** — and
+  nothing but the ablation would have said so.
+  **FIVE REMAIN on the actionable list:** `action-plan-producer`, `bulk-seed`, `env-gated-delivery`,
   `local-model-base-url`, `model-research-policy`, `plan-gap-kind`.
   **The lesson is about the shape of the error, not the arithmetic:** every version of this number looked like a
   measurement and was partly an artefact of how the question was asked. It only became useful by being doubted
