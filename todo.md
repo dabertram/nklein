@@ -11606,9 +11606,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **DISCRIMINATION PROVEN:** 6/6 on a correct xoroshiro128**/SplitMix64 reference; RED on a shared-counter
   variant failing ONLY the stream-independence probe, with the other five green — the exact "each part is
   defensible, the whole is not" signature.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; four of ~18 candidate specs now
-  carry held-out probes, and the four deliberately span different invariant families (genealogy conservation,
-  recall-safe tracing, RNG independence, temporal-spatial authorization).
+  **▶ FIFTH PROJECT 2026-08-08 — project 32 (ecosystem sim), 7 probes on the FIXED-POINT determinism substrate.**
+  The sim's whole replay claim rests on `src/fp.ts` being integer-only, and the spec's visible acceptance for it
+  is FOUR single-operation checks with tolerances (`fromFP(toFP(3.5))` round-trips, `1+2===3`, `0.1*10 ≈ 1`,
+  `5-3` does not throw). A float-backed implementation passes all four — a tolerance can never distinguish
+  "deterministic" from "close enough this time". The probes therefore chain 200 operations and assert EXACT
+  equality, check the integer domain survives a chain, pin the spec's stated truncation formulas (rounding
+  instead shifts a long simulation systematically), and — the dangerous one — require the conservation guard to
+  THROW, including one unit below zero, because a clamp-to-zero silently CREATES matter while every downstream
+  conservation test still balances.
+  **DISCRIMINATION PROVEN:** 7/7 on a correct integer reference; **4 of 7 RED** on a float-backed, clamp-instead-
+  of-throw variant that satisfies all four of the spec's own visible checks.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; five of ~18 candidate specs now
+  carry held-out probes, deliberately spanning five different invariant families (genealogy conservation,
+  recall-safe tracing, RNG stream independence, temporal-spatial authorization, fixed-point determinism).
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting

@@ -59,6 +59,10 @@
   {
    "path": "test/protected/oracle/27_tactical_deckbuilder_roguelike_arena/determinism-streams.probe.mts",
    "rationale": "Held-out compositional oracle for project 27: RNG stream INDEPENDENCE and replay across interleaved draws — the surface a shared-counter implementation passes every per-stream test on."
+  },
+  {
+   "path": "test/protected/oracle/32_ecosystem_climate_survival_sim/fixed-point-determinism.probe.mts",
+   "rationale": "Held-out oracle for project 32: the fixed-point determinism substrate under composition — integer domain, exact replay, specified truncation, and the conservation guard's THROW."
   }
  ]
 }
