@@ -83,6 +83,10 @@
   {
    "path": "test/protected/oracle/07_regulated_banking_ledger_loan_servicing/bitemporal-immutability.probe.mts",
    "rationale": "Held-out oracle for project 07: bitemporal balanceAsOf (effectiveAt AND postedAt AND discardedAt>knownAt) plus append-only immutability — a reversal must ADD a compensating entry, never remove history."
+  },
+  {
+   "path": "test/protected/oracle/22_agentic_pair_programming_ide/content-addressing.probe.mts",
+   "rationale": "Held-out oracle for project 22: workspace-digest integrity — key-order independence and path/content framing, the two collisions that let a stale context pack look fresh."
   }
  ]
 }

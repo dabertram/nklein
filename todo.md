@@ -11699,10 +11699,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   perfectly good store. A real compensating journal FLIPS each side. **Running every probe against a known-GOOD
   implementation is as load-bearing as running it against a known-bad one**; without it this would have shipped
   as a permanently-red probe blamed on the agent.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; ten of ~18 candidate specs now
-  carry held-out probes, spanning ten invariant families (genealogy conservation, recall-safe tracing, RNG stream
-  independence, temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path
-  optimality + capacity, redaction totality, exactly-once identity, bitemporal immutability).
+  **▶ ELEVENTH PROJECT 2026-08-08 — project 22 (pair-programming IDE), 5 probes on CONTENT-ADDRESSING INTEGRITY:
+  when two different things must never look the same.** The workspace digest is the identity the whole staleness
+  mechanism rests on. The spec's visible acceptance is "same string → same hash" and "different strings →
+  different hashes" — both about `sha256Hex`, and both true of any correct SHA-256 call. Neither touches
+  `hashWorkspace`'s own two obligations: **key-order independence** (the spec says "sort keys"; an unsorted
+  implementation looks perfectly deterministic because JS preserves insertion order, then reports two digests for
+  one workspace walked in a different order) and **framing** (`"path:hash\n"` exists so `{"ab":"c"}` and
+  `{"a":"bc"}` cannot collide — without a delimiter they hash identically, and a stale pack looks fresh).
+  **DISCRIMINATION PROVEN:** 5/5 on a correct sorted+framed digest; the unsorted, unframed variant fails exactly
+  those two probes and passes the other three.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; eleven of ~18 candidate specs now
+  carry held-out probes, spanning eleven invariant families (genealogy conservation, recall-safe tracing, RNG
+  stream independence, temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence,
+  path optimality + capacity, redaction totality, exactly-once identity, bitemporal immutability,
+  content-addressing integrity).
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting
