@@ -9697,10 +9697,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
       `telemetry/` and `readAllAgentLedger`) and joins them, so the earlier zero was genuine absence rather than
       a store mismatch. Checked because the sink writes to `telemetry/` while the command's default path resolves
       to `agent-attempt-ledger`, which looked like a mismatch until the join was read.
-  **NOT YET VERIFIED: that a real drain actually EMITS one.** At the time of writing the flagged run is minutes
-  old and still reports `observations 0`. **Setting a flag and gathering evidence are two different facts**, and
-  this entry deliberately does not claim the second from the first — the same substitution that made the
-  campaign look "insufficient" for weeks.
+  **✅ NOW VERIFIED END-TO-END — the flagged drain EMITS, and the report reads them: `observations 0 → 27`.**
+  (Deliberately held as an open claim until measured; setting a flag and gathering evidence are two different
+  facts, and conflating them is what made this campaign look merely "insufficient" for weeks.)
+  **AND THE FIRST REAL SIGNAL IS ALREADY INTERESTING: 27 observations, 27 DISAGREEMENTS — 100%.** On real traffic
+  the gate would have dropped tools on EVERY turn. That is a large behavioural delta hiding behind a flag nobody
+  had switched on, and precisely the number a default flip must be decided from rather than guessed at.
+  **🔴 THE NEXT GAP, NAMED BY THE REPORT ITSELF: `evaluable 0`.** The observations carry a task id, but nothing
+  yet joins them to how each card ENDED, so the counterfactual the campaign turns on ("had this been enforcing,
+  would outcomes have been BETTER?") still cannot be computed. **The core says this out loud** — *"a verdict is
+  impossible until outcomes join; this is a data gap, NOT evidence the gate is a no-op"* — which is exactly the
+  misread-prevention the item asked for, working. Next step is the outcome join, not more running: at 100%
+  disagreement, volume alone will never produce a verdict.
+  (Measured mid-drain with 1 card terminal; `evaluable` may rise as cards settle, and that is worth re-checking
+  before building anything — but 27/27 disagreement with 0 evaluable is already the shape of a join gap.)
   **✅ JOIN KEY SHIPPED 2026-08-01.** `taskId: sessionId` now travels with the gate observation — a one-line change
   using the pattern a NEIGHBOURING `recordSelfObservation` in the same function already used, so nothing new had to
   be plumbed. A source-level ratchet pins it, scoped to the slice between that call and its own metadata so a
