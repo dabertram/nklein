@@ -1,13 +1,10 @@
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::which skills get the evidence records the verdict against every skill surfaced into the session","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::which skills get the evidence passes a RED acceptance through as a refutation, not as nothing","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::which skills get the evidence uses the LATEST attempt's surfaced skills, not the first","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::which skills get the evidence ignores attempts belonging to OTHER cards","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::which skills get the evidence ignores non-attempt ledger events","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::which skills get the evidence skips a surfaced id that no longer names a known skill","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::when there is nothing to record writes nothing when the attempt surfaced no skills","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::when there is nothing to record writes nothing when the attempt has no surfacedSkillIds stamp at all","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::when there is nothing to record writes nothing when the ledger holds no attempts for this card","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::best-effort by contract resolves silently when the LEDGER read fails, writing nothing","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::best-effort by contract resolves silently when the skill STORE read fails","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::best-effort by contract resolves silently when a skill WRITE fails mid-way","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::best-effort by contract resolves silently for a null workspace path","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::the singleton builds the service once and returns the same instance thereafter","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::the singleton does not rebuild when a later caller supplies a logger","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::the singleton passes a logger through when the FIRST caller supplies one","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::the metadata it reports identifies the product and its version, without identifying the user","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::the metadata it reports records the platform it is running on","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::disposal disposes the live service","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::disposal lets the NEXT caller build a fresh service","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::disposal is a silent no-op when nothing was ever built","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::disposal does not dispose twice","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::disposal clears the slot even when dispose REJECTS","passed":true}

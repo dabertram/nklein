@@ -12427,6 +12427,27 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
       Its best-effort contract is pinned **per failing dependency with the write asserted absent**, because a
       swallowed failure and a successful no-op are indistinguishable from outside — "it did not throw" alone
       would pass against a module that had entirely stopped working.
+  **▶ TENTH AND ELEVENTH OF THE 16 — the two telemetry modules, 24 tests, 14/14 and 10/10 ablation-proven.**
+    · `src/telemetry/sentry-node` (14/14). The only thing here that really matters is **the DEFAULT**: no DSN is
+      hardcoded, the value comes from the environment, and with none set nothing initialises and nothing leaves
+      the machine. In a local-only product that default IS the feature — and it is exactly the kind that can be
+      lost with no visible symptom. A hardcoded fallback DSN, or an `initialized` starting true, would silently
+      begin shipping errors off the machine while **every test that merely calls `captureNodeException` and
+      checks it does not throw stayed green**. So the probes assert on the SDK spies: `init` never called,
+      `captureException` never reached, `flush` never entered (a shutdown path calls flush unconditionally, and
+      reaching the SDK would block teardown on a round trip with no destination). Whitespace-only DSN counts as
+      unset — the shape a half-filled env file produces, where a truthiness check alone would init against a
+      blank destination and report itself enabled. `sendDefaultPii: false` is pinned explicitly rather than
+      trusted: flipping that one flag attaches user and request data to every event and nothing else about the
+      module would look different. The DSN is read at MODULE LOAD, so each case resets the registry and
+      re-imports under a fresh env rather than trying to mutate a decision already made.
+    · `nklein-telemetry-service` (10/10). The singleton is the contract: a second client alongside the first
+      does not fail, it **double-reports** — a defect that surfaces as a puzzling metric, never as an error. The
+      sharper half is disposal ORDERING: the slot is cleared BEFORE the await, so a dispose that rejects still
+      leaves it empty. Clearing afterwards would install a half-disposed client and hand it to every later
+      caller — a service neither usable nor replaceable. Pinned by making dispose reject and asserting the next
+      caller gets a fresh instance. The metadata block is also swept for user-scoped fields, since it is the
+      easiest place for one to appear unnoticed.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports
