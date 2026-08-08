@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
 	buildSwebenchCard,
 	buildSwebenchGradePlan,
+	detectGradedTestTampering,
+	listGradedTestFiles,
 	parseSwebenchGradeOutput,
 	type SwebenchInstanceMetadata,
 	verifySwebenchPin,
@@ -136,5 +138,70 @@ describe("parseSwebenchGradeOutput", () => {
 		expect(verdict.resolved).toBe(false);
 		expect(verdict.failToPassFailed).toEqual(instance.failToPass);
 		expect(verdict.passToPassFailed).toEqual(instance.passToPass);
+	});
+});
+
+describe("graded-test tampering", () => {
+	const TEST_PATCH = [
+		"diff --git a/tests/test_blueprints.py b/tests/test_blueprints.py",
+		"--- a/tests/test_blueprints.py",
+		"+++ b/tests/test_blueprints.py",
+		"@@ -1,1 +1,2 @@",
+		" x",
+		"+y",
+		"diff --git a/tests/test_helpers.py b/tests/test_helpers.py",
+		"--- a/tests/test_helpers.py",
+		"+++ b/tests/test_helpers.py",
+		"@@ -1,1 +1,2 @@",
+		" x",
+		"+y",
+	].join("\n");
+
+	it("names the graded files an instance is scored by", () => {
+		expect(listGradedTestFiles(TEST_PATCH)).toEqual(["tests/test_blueprints.py", "tests/test_helpers.py"]);
+	});
+
+	it("reads a graded file DELETED by the test patch, where +++ is /dev/null", () => {
+		// The b/ path in the `diff --git` header survives a deletion; parsing `+++` would drop the file from the
+		// guarded set and let an agent edit it undetected.
+		const deletion = [
+			"diff --git a/tests/test_gone.py b/tests/test_gone.py",
+			"--- a/tests/test_gone.py",
+			"+++ /dev/null",
+		].join("\n");
+		expect(listGradedTestFiles(deletion)).toEqual(["tests/test_gone.py"]);
+	});
+
+	it("flags an agent that edited the tests INSTEAD of fixing the code", () => {
+		// The live 2026-08-08 shape: only the graded test file changed, no library code at all.
+		const result = detectGradedTestTampering({
+			testPatch: TEST_PATCH,
+			changedFiles: ["tests/test_blueprints.py"],
+		});
+		expect(result.tampered).toBe(true);
+		expect(result.modifiedGradedFiles).toEqual(["tests/test_blueprints.py"]);
+		// The empty "other" list is what distinguishes "edited tests instead of fixing" from "fixed and also
+		// touched a test" — the two deserve different reads, so the detector must not collapse them.
+		expect(result.otherChangedFiles).toEqual([]);
+	});
+
+	it("stays quiet when the agent changed only library code", () => {
+		const result = detectGradedTestTampering({
+			testPatch: TEST_PATCH,
+			changedFiles: ["src/flask/blueprints.py", "src/flask/app.py"],
+		});
+		expect(result.tampered).toBe(false);
+		expect(result.modifiedGradedFiles).toEqual([]);
+		expect(result.otherChangedFiles).toEqual(["src/flask/app.py", "src/flask/blueprints.py"]);
+	});
+
+	it("reports both when the agent fixed the code AND touched a graded test", () => {
+		const result = detectGradedTestTampering({
+			testPatch: TEST_PATCH,
+			changedFiles: ["src/flask/blueprints.py", "tests/test_helpers.py"],
+		});
+		expect(result.tampered).toBe(true);
+		expect(result.modifiedGradedFiles).toEqual(["tests/test_helpers.py"]);
+		expect(result.otherChangedFiles).toEqual(["src/flask/blueprints.py"]);
 	});
 });

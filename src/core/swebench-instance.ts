@@ -174,3 +174,48 @@ export function parseSwebenchGradeOutput(input: {
 		: `unresolved: ${failToPassFailed.length} fail-to-pass still failing${passToPassFailed.length > 0 ? `, ${passToPassFailed.length} pass-to-pass REGRESSED` : ""}`;
 	return { resolved, failToPassPassed, failToPassFailed, passToPassFailed, reason };
 }
+
+/**
+ * The files an instance's own `test_patch` touches — i.e. the files the agent is GRADED BY and must not edit.
+ *
+ * Parsed from `diff --git a/<path> b/<path>` headers rather than `+++ b/<path>`, because the latter is `/dev/null`
+ * for deletions and would silently drop a graded file from the guarded set.
+ */
+export function listGradedTestFiles(testPatch: string): string[] {
+	const files = new Set<string>();
+	for (const line of testPatch.split("\n")) {
+		const match = line.match(/^diff --git a\/(\S+) b\/(\S+)$/);
+		if (match?.[2]) {
+			files.add(match[2]);
+		}
+	}
+	return [...files].sort();
+}
+
+export interface GradedTestTampering {
+	/** True when the delivered workspace changed at least one file the instance grades by. */
+	readonly tampered: boolean;
+	/** The graded files the agent modified, sorted — named individually so the report is actionable. */
+	readonly modifiedGradedFiles: readonly string[];
+	/** Non-test files the agent changed; an EMPTY list alongside tampering means it only edited tests. */
+	readonly otherChangedFiles: readonly string[];
+}
+
+/**
+ * Detect at DELIVERY time what the sealed grader would otherwise only discover as a failed `test_patch` apply.
+ *
+ * Live-found 2026-08-08: a real model asked to fix `pallets__flask-5014` changed ONLY `tests/test_blueprints.py`
+ * and no library code at all, despite the card forbidding it. That is worth surfacing as its own fact — the run
+ * is unscoreable, and "edited the tests instead of fixing the bug" is a far more useful signal than a generic
+ * grade failure. Splitting out `otherChangedFiles` distinguishes "edited tests INSTEAD of fixing" from "fixed
+ * the bug and also touched a test", which are different behaviours deserving different reads.
+ */
+export function detectGradedTestTampering(input: {
+	testPatch: string;
+	changedFiles: readonly string[];
+}): GradedTestTampering {
+	const graded = new Set(listGradedTestFiles(input.testPatch));
+	const modifiedGradedFiles = [...new Set(input.changedFiles.filter((file) => graded.has(file)))].sort();
+	const otherChangedFiles = [...new Set(input.changedFiles.filter((file) => !graded.has(file)))].sort();
+	return { tampered: modifiedGradedFiles.length > 0, modifiedGradedFiles, otherChangedFiles };
+}

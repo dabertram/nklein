@@ -17,6 +17,7 @@ import {
 	gradeSwebenchWorkspace,
 	prepareSwebenchWheels,
 } from "../src/core/swebench-grader";
+import { listGradedTestFiles } from "../src/core/swebench-instance";
 import { materializeSwebenchInstance, readSwebenchCacheEntry, swebenchCacheRoot } from "../src/core/swebench-materialize";
 import { SWEBENCH_TRANCHE } from "../src/core/swebench-tranche";
 
@@ -54,9 +55,14 @@ async function gradeDir(instanceId: string, workspaceDir: string, label: string)
 	try {
 		const applied = await applyTestPatchToCopy(copyDir, instance.testPatch);
 		if (!applied.applied) {
-			// Not a crash and NOT a pass: the run is ungradable because the graded tests were changed.
+			// Not a crash and NOT a pass: the run is ungradable because the graded tests were changed. Name the
+			// files the instance grades by, so the operator can diff them directly instead of re-deriving the set
+			// from a git error — the whole point of the verdict is that it is actionable.
+			const graded = listGradedTestFiles(instance.testPatch);
 			process.stdout.write(
-				`${label} ${instanceId}: UNGRADABLE (${applied.reason}) — the instance's own tests no longer apply, which means the agent edited the files it is graded by. ${applied.detail.split("\n")[0] ?? ""}\n`,
+				`${label} ${instanceId}: UNGRADABLE (${applied.reason}) — the instance's own tests no longer apply, which means the agent edited the files it is graded by.\n` +
+					`  graded files (inspect these in ${workspaceDir}): ${graded.join(", ")}\n` +
+					`  git: ${applied.detail.split("\n")[0] ?? ""}\n`,
 			);
 			return 1;
 		}
