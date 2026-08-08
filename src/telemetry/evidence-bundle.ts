@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { toSlug } from "../core/slugify";
 import { lockedFileSystem } from "../fs/locked-file-system";
+import { ensureTrailingNewline } from "../workspace/task-result-branches";
 
 export interface EvidenceBundleTaskTranscript {
 	taskId: string;
@@ -156,7 +157,10 @@ export async function createEvidenceBundle(input: EvidenceBundleInput): Promise<
 	if (diffPath) {
 		await lockedFileSystem.writeTextFileAtomic(
 			diffPath,
-			input.diffPatch?.trimEnd() ? `${input.diffPatch.trimEnd()}\n` : "",
+			// Byte-faithful for the same reason the apply path is: a diff's trailing blank context line is a single
+			// space, and trimming it leaves the last hunk shorter than its header declares, so the bundled diff
+			// would fail to apply for anyone reproducing from it. Trim only to decide "no changes".
+			input.diffPatch?.trim() ? ensureTrailingNewline(input.diffPatch) : "",
 			{
 				lock: null,
 			},

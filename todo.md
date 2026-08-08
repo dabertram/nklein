@@ -7265,41 +7265,28 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   limit of the local model? — decide from a second instance, not this one; (b) the tranche needs a
   tests-untouched precheck so this is visible at delivery, not only at grade time.
 
-- [ ] **🐛 CORRUPT PATCH CAPTURE loses a card's work on a real-model drain (live-found 2026-08-08).** A
-  `real-model-run.sh mid_task --act` drain classified `infrastructureFailure`: *"Could not capture sandbox task
-  result patch (corrupt_patch) … git apply --cached --binary --whitespace=nowarn … error: corrupt patch at
-  line 53"* — the card's work was LOST, and the run produced no classification.
-  **VERIFIED from the preserved artifact** (`.real-runs/20260808-034451/home/.nklein/nklein/patch-failures/
-  habit-insights-recommendation-1786154346982.patch`, retained by the existing failure-preservation path —
-  that part worked): the second hunk header claims `@@ -25,8 +25,7 @@` (8 old / 7 new lines) while the hunk
-  BODY contains only 5 old / 4 new, and the file ends at line 53 — so `git apply` reads to EOF hunting the
-  missing lines and reports the last line as corrupt. **The patch is TRUNCATED, and separately one addition
-  line has two source lines merged into it** (`recommendation: "…growing.",\t\t},`) with no newline between.
-  **CONFIRMED — the damage is OURS, after git.** The patch is produced by `git diff --staged --binary`
-  (`nklein-agent-sandbox.ts:959`), and git only ever emits self-consistent patches, so a header/body mismatch
-  cannot come from the model or the worktree: something damages a good diff between capture and apply.
-  **The arithmetic names the victim:** the body is short by exactly 3 in BOTH counts (8→5 old, 7→4 new), and
-  lines counting in both are CONTEXT lines — so 3 context lines were dropped, and the invisible ones are blank.
-  **Refuted, with the evidence:** the 64 MiB exec `maxBuffer` (patch is 53 lines); TTY/pty mangling (no `-t`
-  is allocated on any exec path, so there is no CRLF translation or pty-close truncation); per-line `trimEnd`
-  (a single-space context line SURVIVES intact in the artifact — a per-line trim would have emptied it); and
-  the preservation writer's own `trimEnd()` (tail-only, while the damage is mid-hunk).
-  **Still open, and now sharper.** PROVEN by direct experiment: `git diff --staged --binary` emits a blank
-  context line as a single SPACE (`" "`), never as a zero-length line — so the 3 missing context lines were
-  present in git's output in `" "` form and were REMOVED afterwards. The artifact still contains one surviving
-  `" "` line, so this is NOT a blanket strip of space-only lines, and that asymmetry is the next thing to
-  explain. The static search is EXHAUSTED: capture→apply is `captureWorkspacePatch` → `trimEnd()` →
-  `writeFile` → `git apply`, with no JSON/record round-trip, no line-based patch processing, and no redaction
-  on the path (the redactor touches the observation sink, not the diff). **Next step must be empirical**:
-  reproduce with a live sandbox capture over a file with blank lines, and compare the in-container `git diff`
-  bytes against the string that reaches `writeFile` — that bisects container-boundary vs Node-side in one run.
-  **Second, INDEPENDENT sighting (N8 flask run, same night):** a model asked to fix `pallets__flask-5014`
-  committed `tests/test_blueprints.py` with two source lines merged onto one — through a VALID diff. So merged
-  lines can ALSO originate in the model's own edit, which is a separate defect from the transport damage; do
-  not conflate them when fixing.
-  **Why it matters beyond one card:** the failure is classified `infrastructureFailure`, so it is invisible as
-  a quality signal while silently discarding completed work — the same shape as the N15/N20 "recovery machinery
-  masks the regression" family. Reproduces on a plain mid_task ACT drain.
+- [x] **🐛 CORRUPT PATCH CAPTURE lost a card's work — ROOT-CAUSED AND FIXED (live-found + fixed 2026-08-08).**
+  A real `mid_task --act` drain classified `infrastructureFailure`: *"Could not capture sandbox task result
+  patch (corrupt_patch) … error: corrupt patch at line 53"*, discarding a completed card's work.
+  **Root cause: `trimEnd()` on the patch bytes.** A diff's final line can be a blank CONTEXT line, which git
+  writes as a single SPACE. `applyTaskPatchToResultBranch` normalised the captured patch with `trimEnd()`,
+  which deleted that trailing line — leaving the last hunk exactly one line shorter than its own header
+  declared. `git apply` then read to EOF hunting the remainder and called the patch corrupt. **Any change
+  touching the end of a file that ends in a blank line hit this**, and the loss was invisible because it was
+  reported as infrastructure trouble rather than as a defect.
+  **Fixed** by trimming only to DECIDE emptiness and handing git the captured bytes untouched
+  (`ensureTrailingNewline`), at all three sites: the apply path, the failure-preservation writer (which had
+  been corrupting the very evidence needed to diagnose it), and the evidence bundle's `diff.patch` (which
+  anyone reproducing from a bundle would have failed to apply). Regression test drives REAL git — the patch is
+  produced by `git diff`, not hand-written, because the bug lives in the bytes git chooses — and it was
+  confirmed RED before the fix ("corrupt patch at line 9", production's error class) and green after.
+  **Method note worth keeping:** the first analysis miscounted the hunk body and concluded "3 context lines
+  missing, mid-hunk", which wrongly EXONERATED `trimEnd` (a tail-only operation) and sent the search to the
+  container boundary. The miscount was caught only because the same counting code called a known-good git
+  patch malformed. Checking the checker against a known-good input is what turned the investigation around;
+  the boundary bisection that "failed" to find damage was the step that exposed it. See
+  [[green-signal-substitution]] — an analysis tool needs a control just as much as a rig does.
+
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,

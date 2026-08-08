@@ -194,3 +194,61 @@ describe("task result branches", () => {
 		}
 	});
 });
+
+describe("patch byte fidelity", () => {
+	it("applies a real git diff whose final hunk ends in a blank context line", async () => {
+		// THE REGRESSION. Live-found 2026-08-08: a real drain lost a completed card to "corrupt patch at line 53".
+		// A diff's trailing blank CONTEXT line is a single space, and normalising the patch with `trimEnd()` ate
+		// it — leaving the last hunk one line shorter than its own header declared. git apply then read to EOF
+		// hunting the remainder, called the patch corrupt, and the work was discarded as an infrastructure
+		// failure. The patch here is produced BY GIT rather than written by hand, because the bug lives exactly
+		// in the bytes git chooses; a hand-written patch would encode my assumption instead of git's contract.
+		const repo = createRepo();
+		try {
+			// A file ending in a blank line, changed at its END — the shape that produces a trailing " " line.
+			writeFileSync(join(repo.path, "notes.md"), "alpha\nbravo\n\n", "utf8");
+			runGit(repo.path, ["add", "notes.md"]);
+			runGit(repo.path, ["commit", "-m", "add notes"]);
+			writeFileSync(join(repo.path, "notes.md"), "alpha\nCHARLIE\n\n", "utf8");
+			runGit(repo.path, ["add", "notes.md"]);
+			const patch = execFileSync("git", ["-C", repo.path, "diff", "--staged", "--binary"], {
+				encoding: "utf8",
+				env: createGitProcessEnv(),
+			});
+			// Guard the fixture itself: if git ever stops emitting the trailing " ", this test must fail loudly
+			// rather than silently passing on a patch that no longer exercises the bug.
+			expect(patch.endsWith(" \n")).toBe(true);
+			runGit(repo.path, ["reset", "--hard", "HEAD"]);
+
+			const result = await applyTaskPatchToResultBranch({
+				repoPath: repo.path,
+				taskId: "blank-context-task",
+				baseRef: "main",
+				patch,
+			});
+
+			// The card's work reaches its result branch instead of vanishing into a capture failure.
+			expect(result).not.toBeNull();
+			expect(runGit(repo.path, ["show", `${result?.branchName}:notes.md`])).toContain("CHARLIE");
+		} finally {
+			repo.cleanup();
+		}
+	});
+
+	it("still treats a whitespace-only patch as no changes at all", async () => {
+		// The `trimEnd()` existed to detect an empty capture; keeping that behaviour is part of the fix, so the
+		// emptiness decision must survive while the BYTES handed to git stop being normalised.
+		const repo = createRepo();
+		try {
+			const result = await applyTaskPatchToResultBranch({
+				repoPath: repo.path,
+				taskId: "empty-task",
+				baseRef: "main",
+				patch: "  \n\n",
+			});
+			expect(result).toBeNull();
+		} finally {
+			repo.cleanup();
+		}
+	});
+});

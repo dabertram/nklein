@@ -220,6 +220,15 @@ export async function deleteTaskResultBranchesForRepo(input: { repoPath: string;
 }
 
 /**
+ * A patch is byte-sensitive: `git apply` counts the lines of every hunk against its header, and a diff's own
+ * trailing blank context line is a single space that whitespace-normalisation silently eats. So the only
+ * safe "normalisation" is guaranteeing the terminator git requires — never touching anything before it.
+ */
+export function ensureTrailingNewline(patch: string): string {
+	return patch.endsWith("\n") ? patch : `${patch}\n`;
+}
+
+/**
  * Persists a failed sandbox task patch to a durable runtime-home location so a corrupt/non-applying diff can
  * be inspected after the temp working dir is cleaned up (follow-up-6 §3.5). Best-effort: a preservation
  * failure must not mask the original capture failure, so this returns null instead of throwing.
@@ -230,7 +239,10 @@ async function preserveFailedTaskPatch(taskId: string, patch: string): Promise<s
 		await mkdir(dir, { recursive: true });
 		const safeTaskId = taskId.replace(/[^A-Za-z0-9._-]+/gu, "-").slice(0, 80) || "task";
 		const patchPath = join(dir, `${safeTaskId}-${Date.now()}.patch`);
-		await writeFile(patchPath, `${patch.trimEnd()}\n`, "utf8");
+		// Byte-faithful on purpose: this artifact is the only surviving evidence of WHY a patch failed, so it must
+		// not be normalised on the way to disk (the earlier `trimEnd()` here destroyed the very trailing blank
+		// context line that caused the failure, which sent the investigation looking mid-hunk for damage at EOF).
+		await writeFile(patchPath, ensureTrailingNewline(patch), "utf8");
 		return patchPath;
 	} catch {
 		return null;
@@ -240,10 +252,16 @@ async function preserveFailedTaskPatch(taskId: string, patch: string): Promise<s
 export async function applyTaskPatchToResultBranch(
 	input: ApplyTaskPatchToResultBranchInput,
 ): Promise<TaskResultBranch | null> {
-	const normalizedPatch = input.patch.trimEnd();
-	if (!normalizedPatch) {
+	// Trim only to DECIDE emptiness — never to normalise the bytes we hand to git. A diff's final line can be a
+	// blank CONTEXT line, which git writes as a single space; trimming the patch deletes it, leaving the last
+	// hunk one line shorter than its own header declares. `git apply` then reads to EOF hunting the remainder
+	// and reports "corrupt patch at line N", and the card's completed work is discarded as an infrastructure
+	// failure. Live-found 2026-08-08 on a real drain, then reproduced minimally: any change touching the end of
+	// a file that ends in a blank line hits this. See the regression test for the exact shape.
+	if (!input.patch.trim()) {
 		return null;
 	}
+	const normalizedPatch = ensureTrailingNewline(input.patch);
 	const runGit = input.runGit ?? defaultRunGit;
 	const baseCommitResult = await runGit(input.repoPath, ["rev-parse", "--verify", `${input.baseRef}^{commit}`]);
 	if (!baseCommitResult.ok || !baseCommitResult.stdout.trim()) {
@@ -263,7 +281,7 @@ export async function applyTaskPatchToResultBranch(
 		GIT_INDEX_FILE: indexPath,
 	};
 	try {
-		await writeFile(patchPath, `${normalizedPatch}\n`, "utf8");
+		await writeFile(patchPath, normalizedPatch, "utf8");
 		const readTree = await runGit(input.repoPath, ["read-tree", baseCommit], { env });
 		if (!readTree.ok) {
 			throw new Error(readTree.error ?? "Could not initialize task result index.");
