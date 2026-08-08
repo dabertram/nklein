@@ -54,6 +54,9 @@ const home = join(work, "home");
 const workspace = outDir ? await realpath(outDir).catch(() => outDir) : join(work, "ws");
 await mkdir(join(home, ".nklein", "nklein"), { recursive: true });
 await mkdir(join(home, ".nklein", "data", "settings"), { recursive: true });
+// `cp -R a b` NESTS a inside b when b already exists — a stale destination from a previous run silently
+// produced a wrong tree that then got graded (live-found 2026-08-08). Always start from a clean destination.
+await rm(workspace, { recursive: true, force: true });
 await execFileAsync("cp", ["-R", workspaceSource, workspace]).catch(async () => {
 	await mkdir(workspace, { recursive: true });
 });
@@ -176,6 +179,12 @@ try {
 
 	const boardPath = join(workspace, ".nklein", "nklein", "workspace", "board.json");
 	const deadline = Date.now() + maxMinutes * 60_000;
+	// A seeded card must APPEAR on this workspace's board quickly. An HTTP 200 from SendMessage means the
+	// request was accepted, NOT that a card is being worked — and a board that stays empty is a broken rig, not
+	// a slow model. Burned a 150-minute budget on `lanes: {}` before this existed (2026-08-08); silence is not
+	// success, and the harness must say so in minutes rather than hours.
+	const boardMustAppearBy = Date.now() + 3 * 60_000;
+	let sawAnyCard = false;
 	let lastSummary = "";
 	for (;;) {
 		await new Promise((tick) => setTimeout(tick, 30_000));
@@ -191,6 +200,16 @@ try {
 		}
 		const active = (counts.backlog ?? 0) + (counts.planning ?? 0) + (counts.ready ?? 0) + (counts.in_progress ?? 0);
 		const settled = (counts.completed ?? 0) + (counts.review ?? 0);
+		if (active + settled > 0) {
+			sawAnyCard = true;
+		}
+		if (!sawAnyCard && Date.now() > boardMustAppearBy) {
+			process.stdout.write(
+				`RIG BROKEN: no card reached ${boardPath} within 3m of seeding — the A2A accept did not become board work. Not burning the ${maxMinutes}m budget on an empty board.\n`,
+			);
+			process.exitCode = 2;
+			break;
+		}
 		if (active === 0 && settled > 0) {
 			process.stdout.write(`DRAIN SETTLED: ${summary}\n`);
 			break;
