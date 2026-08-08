@@ -12154,10 +12154,38 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   which before accepting", rather than presenting a possible harness artefact as a finding about the card.
   Live through the CLI: `SUPPORTED` (exit 0) · `SUSPECT — HOLDS the card for review` (exit **1**) · `UNMEASURED`
   (exit **0**, because missing evidence is not an alarm), and `--json` now carries the `acceptance` block.
-  **REMAINING on P20.3b:** the stub-and-run still executes against the HOST working tree (mitigated by a
-  verified restore + abort-on-failed-restore, but the item says "in the sandbox"), and nothing calls the fold
-  from the delivery seam yet — a per-card ablation costs two suite runs, so wiring it needs the sandbox half
-  first. Both named rather than implied.
+  **▶ THE ISOLATION HALF SHIPPED 2026-08-09 — the stub now never touches the repo at all.** The `finally`
+  restore was correct but **cannot survive a SIGKILL**, and the failure it would leave behind is a repo silently
+  stubbed. `ablate.mts` now builds an ISOLATED COPY of the tree the suite needs and runs BOTH passes there —
+  there is nothing to restore, because nothing is modified. The restore path and its abort-the-sweep branch are
+  deleted rather than kept as belt-and-braces: dead safety code reads as a live guarantee.
+  **Both runs happen in the copy.** Running the baseline on the host and the ablated pass in the copy would
+  attribute every environmental difference between two trees to the artifact.
+  **A `git worktree` was tried FIRST and rejected on a fact, not a preference:** it is cheaper (no copy at all,
+  and vitest ran 16/16 green from one), but a worktree checks out a COMMIT — so an ablation would silently
+  measure committed code while reporting on the code in front of you. That is precisely the substitution this
+  measurement exists to refuse. The copy is of the WORKING TREE.
+  **Cost measured, not assumed:** `src`+`test`+`scripts`+every root file ≈ 29 MB, versus **11 GB** for the full
+  tree once nested `node_modules` and `vendor/` are counted; `node_modules` is SYMLINKED, the one directory both
+  enormous and identical by construction.
+  **A hand-listed manifest went stale on its first run** — it missed `tsconfig.base.json`, which `tsconfig.json`
+  extends, and every run then collected ZERO tests. **The safety property fired exactly as designed:** that
+  surfaced as `inconclusive`, not as three telemetry modules falsely called decorative on the strength of a
+  broken harness. Root files are now taken wholesale; at 2.7 MB there is nothing to gain by curating a list that
+  can silently omit a config.
+  Also fixed in passing: `--out-dir` defaulted to `.ablation` **inside the repo, and its four report files were
+  COMMITTED** — a tool whose entire property is "it modifies nothing" was dirtying the working tree on every
+  run. Now defaults to a temp dir, and `.ablation/` is untracked and gitignored.
+  **PROVEN, not asserted:** across a full ablation the target's mtime, size and inode are byte-identical
+  (the old code rewrote the file on restore, so mtime always moved), no `ABLATED_STUB` marker ever appears in
+  the host file, and `git status` is unchanged before/after both single-module and sweep runs. Verdicts still
+  discriminate: `src/telemetry` ×3 and `src/workspace` ×2 all LOAD_BEARING, `no-op-ablation` 12/12.
+  **⚠️ One of my own probes was unsound and is recorded so nobody repeats it:** I first made the host module
+  `chmod 444` expecting a write attempt to fail loudly. `cp -R` preserves permissions, so it made the COPY
+  read-only too and the write into the copy failed — the probe could not distinguish "wrote the host file" from
+  "wrote a read-only copy". mtime/inode comparison is the sound version.
+  **REMAINING on P20.3b:** nothing calls the fold from the delivery seam yet — a per-card ablation costs two
+  suite runs, so that wire needs a cost decision (which cards, how often) rather than more plumbing.
   **▶ FIRST SWEEP 2026-08-08 — four cores ablated, all LOAD_BEARING, repo clean after every run.**
   `auto-start-failure-guard` (5/5 broke), `task-board-ready-sweep`, `review-capacity`, `fitness-role-assignment`.
   **A sweep that finds nothing decorative is a real result, not a wasted run** — it is evidence these cores earn

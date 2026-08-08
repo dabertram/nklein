@@ -17,13 +17,17 @@
  * let a collection error silently shrink it, and a smaller all-green run reads as "nothing depended on this".
  * The selection is therefore computed once, and a run whose test COUNT changed is reported rather than judged.
  *
- * The original module is restored in a `finally`, and the restore is verified — leaving a repo stubbed would be
- * a far worse failure than any verdict this produces.
+ * ── WHY THE STUB NEVER TOUCHES THE REPO ──
+ * The stub is written into an ISOLATED COPY of the tree the suite needs, and BOTH runs happen there. An earlier
+ * version stubbed the real file and restored it in a `finally` — correct, but a `finally` cannot survive a
+ * SIGKILL, and the failure it would leave behind is a repo silently stubbed. Copying removes the class instead
+ * of narrowing it; there is nothing to restore, because nothing was modified.
  */
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -39,7 +43,9 @@ function arg(name: string): string | undefined {
 const sweepDir = arg("sweep");
 const modulePath = arg("module");
 const testSelection = arg("tests");
-const outDir = arg("out-dir") ?? ".ablation";
+// Default OUTSIDE the repo. `.ablation` was the old default and its four report files ended up committed —
+// a tool whose whole property is "it modifies nothing" quietly dirtying the working tree on every run.
+const outDir = arg("out-dir") ?? join(tmpdir(), "nklein-ablate-out");
 if (!sweepDir && (!modulePath || !testSelection)) {
 	process.stderr.write(
 		"usage: ablate.mts --module <src/...ts> --tests <test pattern> [--out-dir <dir>]\n" +
@@ -48,17 +54,67 @@ if (!sweepDir && (!modulePath || !testSelection)) {
 	process.exit(64);
 }
 
+/**
+ * Build an ISOLATED copy of the tree the suite needs, so the stub is never written into the real repo.
+ *
+ * The `finally` restore that preceded this is correct but cannot survive a SIGKILL, a power loss, or a second
+ * process reading the file mid-run — and the failure it would leave behind is a repo silently stubbed. Copying
+ * removes the whole class rather than narrowing it.
+ *
+ * Only what the suite loads is copied: three directories plus EVERY root-level file (~29 MB), versus 11 GB for
+ * the full tree once nested `node_modules` and `vendor/` are counted. `node_modules` is SYMLINKED, not copied —
+ * the one directory that is both enormous and identical by construction.
+ *
+ * Root files are taken wholesale rather than named. A hand-listed manifest went stale immediately: it missed
+ * `tsconfig.base.json`, which `tsconfig.json` extends, and every run then collected ZERO tests. That surfaced
+ * as `inconclusive` — the assessor's safety property doing its job, refusing to call three real modules
+ * decorative on the strength of a broken harness — but a manifest that can silently omit a config is a defect
+ * generator, and at 2.7 MB there is nothing to gain by curating it.
+ *
+ * The copy is of the WORKING TREE, not of HEAD. A `git worktree` would have been cheaper and was tried first,
+ * but it checks out a COMMIT — so an ablation would silently measure committed code while reporting on the
+ * code in front of you, which is the substitution this whole measurement exists to refuse.
+ */
+const ISOLATED_TREE_DIRS = ["src", "test", "scripts"] as const;
+
+async function createIsolatedTree(): Promise<string> {
+	const root = await mkdtemp(join(tmpdir(), "nklein-ablate-"));
+	for (const entry of ISOLATED_TREE_DIRS) {
+		// `cp -R src dest` NESTS when dest already exists; naming the destination explicitly avoids that entirely.
+		await execFileAsync("cp", ["-R", resolve(entry), join(root, entry)]);
+	}
+	for (const file of await readdir(process.cwd(), { withFileTypes: true })) {
+		if (file.isFile()) {
+			await execFileAsync("cp", [resolve(file.name), join(root, file.name)]);
+		}
+	}
+	await symlink(resolve("node_modules"), join(root, "node_modules"), "dir");
+	return root;
+}
+
 /** Run vitest over a fixed selection and reduce its JSON report to the `{testId, passed}` shape. */
 async function runSelection(
 	label: string,
 	selection: string,
 	outDir: string,
+	root: string,
 ): Promise<Array<{ testId: string; passed: boolean }>> {
-	const reportPath = join(outDir, `${label}-report.json`);
+	// ABSOLUTE: vitest resolves `--outputFile` against `--root`, so a repo-relative path would write the report
+	// into the isolated copy while the script looked for it in the repo — reported as "the selection did not
+	// collect", which is a real failure mode wearing the wrong name.
+	const reportPath = resolve(outDir, `${label}-report.json`);
 	try {
 		await execFileAsync(
 			"npx",
-			["vitest", "run", ...selection.split(" ").filter(Boolean), "--reporter=json", `--outputFile=${reportPath}`],
+			[
+				"vitest",
+				"run",
+				"--root",
+				root,
+				...selection.split(" ").filter(Boolean),
+				"--reporter=json",
+				`--outputFile=${reportPath}`,
+			],
 			{ maxBuffer: 64 * 1024 * 1024, timeout: 15 * 60_000 },
 		);
 	} catch {
@@ -99,7 +155,7 @@ async function buildThrowingStub(target: string): Promise<string> {
 	);
 	const marker = `ABLATED_STUB: ${target} was stubbed by scripts/ablate.mts and must not be reachable`;
 	const lines = [
-		`// AUTO-GENERATED by scripts/ablate.mts — the original is restored in a finally block.`,
+		`// AUTO-GENERATED by scripts/ablate.mts into an isolated tree copy — the real repo is never modified.`,
 		`const fail = (name) => { throw new Error(\`${marker} (via \${name})\`); };`,
 	];
 	for (const name of names) {
@@ -132,43 +188,40 @@ async function ablateOne(
 	workDir: string,
 ): Promise<{ verdict: string; reason: string; baseline: number; ablatedPassing: number; countsMatch: boolean }> {
 	await mkdir(workDir, { recursive: true });
-	const target = resolve(module);
-	const backup = join(workDir, "original.bak");
-
-	const baseline = await runSelection("baseline", selection, workDir);
-	await writeJsonl(join(workDir, "baseline.jsonl"), baseline);
-
+	// The stub is built from the REAL module (it imports it to discover the exports) but written only into the
+	// isolated copy. The host file is opened for reading and never for writing.
 	const stub = await buildThrowingStub(module);
-	await copyFile(target, backup);
-	let ablated: Array<{ testId: string; passed: boolean }> = [];
-	let restored = false;
+	const isolatedRoot = await createIsolatedTree();
+	const isolatedTarget = join(isolatedRoot, module);
 	try {
-		await writeFile(target, stub, "utf8");
-		ablated = await runSelection("ablated", selection, workDir);
+		// BOTH runs happen in the copy. Running the baseline on the host and the ablated run in the copy would
+		// attribute every environmental difference between the two trees to the artifact.
+		const baseline = await runSelection("baseline", selection, workDir, isolatedRoot);
+		await writeJsonl(join(workDir, "baseline.jsonl"), baseline);
+
+		await writeFile(isolatedTarget, stub, "utf8");
+		const ablated = await runSelection("ablated", selection, workDir, isolatedRoot);
 		await writeJsonl(join(workDir, "ablated.jsonl"), ablated);
+
+		const assessment = assessNoOpAblation({ baseline, ablated });
+		return {
+			verdict: assessment.verdict,
+			reason: assessment.reason ?? "",
+			baseline: baseline.length,
+			ablatedPassing: ablated.filter((row) => row.passed).length,
+			countsMatch: ablated.length === baseline.length,
+		};
 	} finally {
-		await copyFile(backup, target);
-		restored = (await readFile(target, "utf8")) !== stub;
-		await rm(backup, { force: true });
+		// Nothing to restore — the repo was never modified. Removing the copy is tidiness, not safety, so a failure
+		// here must not mask the verdict.
+		await rm(isolatedRoot, { recursive: true, force: true }).catch(() => undefined);
 	}
-	if (!restored) {
-		throw new Error(`FAILED TO RESTORE ${module} — the repo is left stubbed; restore before continuing`);
-	}
-	const assessment = assessNoOpAblation({ baseline, ablated });
-	return {
-		verdict: assessment.verdict,
-		reason: assessment.reason ?? "",
-		baseline: baseline.length,
-		ablatedPassing: ablated.filter((row) => row.passed).length,
-		countsMatch: ablated.length === baseline.length,
-	};
 }
 
 if (sweepDir) {
 	// Pair each `src/<dir>/<name>.ts` with `test/runtime/<dir>/<name>.test.ts`; unpaired modules are SKIPPED and
 	// counted, never silently dropped — a sweep that quietly shrinks its own scope reports a clean bill of health
 	// for code it never looked at.
-	const { readdir } = await import("node:fs/promises");
 	const limit = Number(arg("limit") ?? "25");
 	const suffix = sweepDir.replace(/^src\//, "");
 	// `.test.ts` files live alongside sources in some directories; counting them as MODULES inflated the
@@ -323,9 +376,6 @@ if (sweepDir) {
 		} catch (error) {
 			tally.set("error", (tally.get("error") ?? 0) + 1);
 			process.stdout.write(`${"ERROR".padEnd(14)} ${pair.module}: ${error instanceof Error ? error.message : String(error)}\n`);
-			if (String(error).includes("FAILED TO RESTORE")) {
-				process.exit(3); // never keep sweeping over a stubbed repo
-			}
 		} finally {
 			await rm(workDir, { recursive: true, force: true });
 		}
