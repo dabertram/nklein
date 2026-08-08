@@ -71,6 +71,10 @@
   {
    "path": "test/protected/oracle/30_transport_tycoon_logistics_network/pathfinding-capacity.probe.mts",
    "rationale": "Held-out oracle for project 30: A* path OPTIMALITY (a wrong search still returns a working route) plus station capacity under a long interleaving of occupies and releases."
+  },
+  {
+   "path": "test/protected/oracle/24_agentic_swarm_ide_distributed_runtime/redaction-totality.probe.mts",
+   "rationale": "Held-out oracle for project 24: redaction TOTALITY and statelessness — the spec's own suggested containsHostPath uses shared /g regexes, whose lastIndex makes the guard answer differently on repeated calls."
   }
  ]
 }

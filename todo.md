@@ -11642,10 +11642,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **DISCRIMINATION PROVEN:** 7/7 on a correct A*/station reference; on a greedy + id-blind-release build, the
   optimality probe catches a **101-cost route where 11 is optimal** — and the other five pass, which is precisely
   the point: it produces usable routes throughout.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; seven of ~18 candidate specs now
-  carry held-out probes, spanning seven invariant families (genealogy conservation, recall-safe tracing, RNG
+  **▶ EIGHTH PROJECT 2026-08-08 — project 24 (swarm IDE), 7 probes on REDACTION TOTALITY. And it found a bug IN
+  THE SPECIFICATION.** The first seven families measure what a system COMPUTES; this measures what a guard must
+  never let through, where one uncovered shape or one inconsistent answer means a real host path reaches an agent.
+  **The spec's own suggested implementation is broken, and the probe proves it.** `HOST_PATH_PATTERNS` is a
+  module-level array of `/g` regexes and the spec says `containsHostPath` should "test any pattern matches" — but
+  a `/g` regex object carries `lastIndex` between calls, so `.test()` on the SAME string returns true, then
+  false, then true. Every single-call test passes; the actual product surface (a scanner iterating a list) misses
+  every other leak.
+  **MEASURED: the spec's literal implementation fails 4 of 7 probes**, including `assertNoLeaks` failing to throw
+  on a genuinely leaking list — a security hole an agent would be led into BY FOLLOWING THE SPEC. A correct
+  version (fresh regex per call) passes 7/7.
+  **This is the clearest evidence yet for the held-out suite's value:** the visible acceptance an agent is given
+  cannot distinguish the buggy implementation from the correct one, because it checks one path once.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; eight of ~18 candidate specs now
+  carry held-out probes, spanning eight invariant families (genealogy conservation, recall-safe tracing, RNG
   stream independence, temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence,
-  path optimality + capacity).
+  path optimality + capacity, redaction totality).
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting
