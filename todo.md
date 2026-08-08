@@ -12488,6 +12488,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   own `taskId`, or a stop or resume reaches the wrong card; and the state revision must be a non-negative
   INTEGER, since it is an optimistic-concurrency counter and a fractional value compares in ways no writer
   intends — a stale write could look newer than the state it overwrites.
+  **▶ FOURTEENTH OF THE 16 — `src/nklein-agent/nklein-architect-runner`, 22 tests, 22/22 ablation-proven.** The
+  bounded `::architect` session that solves a card in prose so a weak model never splits its attention between
+  solving and edit-format conformance. **Its headline contract is a NEGATIVE one** — "every degraded path
+  resolves to null so the worker ALWAYS starts; a failed architect phase costs one bounded session, never the
+  card" — and a happy-path test cannot see any of it. The guarded failure is the expensive direction: **a card
+  that never runs because an optional enhancement threw.** So each degradation is pinned separately and each
+  asserts NULL rather than the weaker "it did not throw": no sandbox manager, no launch config, a half launch
+  config (provider and model checked separately, either alone making the session meaningless), a bracketed run
+  that THROWS, and a session that answers in prose instead of calling the tool. The skip reason reaches stderr,
+  because a silent skip is indistinguishable from the feature being off.
+  Two things must not leak. **The recursion guard** — an `::architect` spawning another architect is unbounded
+  fan-out and each level costs a real model session — is checked before anything else runs, verified by the
+  sandbox manager never even being asked for. **The model pin** retargets the architect ONLY: pinned by
+  asserting the caller's launch config object comes back UNTOUCHED, because a runner assigning into it rather
+  than spreading would silently retarget the worker as a side effect of an optional phase, and the returned
+  brief would look exactly the same. Nudging is bounded on both axes — at most `maxNudges`, never after the
+  deadline, never at all once a brief is in hand — and the nudge text demands the TOOL, since inviting prose
+  would produce a reply the runner cannot read and the phase would still yield null.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports

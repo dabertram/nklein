@@ -1,17 +1,22 @@
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree accepts a consistent index","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree rejects an entry whose workspaceId disagrees with its own KEY","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree rejects an entry with NO mapping — the corruption only the entries→mapping direction sees","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree rejects an ORPHAN mapping — the corruption only the mapping→entries direction sees","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree rejects a mapping that points at a real workspace with a DIFFERENT path","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree names the offending workspace in the message, not just the path","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the index's two views must agree accepts an empty index — a first run is consistent, not corrupt","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the version is a migration boundary rejects an older index rather than reading it as current","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the version is a migration boundary rejects a FUTURE version too","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::index entries requires a non-empty workspace id and repo path","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::index entries requires autoResumeEnabled to be stated, not inferred","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::index entries leaves the descriptive fields optional","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::sessions are keyed by the task they belong to accepts a record whose keys match their sessions","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::sessions are keyed by the task they belong to rejects a session filed under another task's key","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::sessions are keyed by the task they belong to accepts an empty session record","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the smaller records pins the local identity to version 1, with both fields present","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/state/workspace-state-schema.test.ts::the smaller records requires the state revision to be a non-negative integer","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::every degraded path returns null so the worker still starts returns null when there is no sandbox manager","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::every degraded path returns null so the worker still starts returns null when the card has no launch config at all","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::every degraded path returns null so the worker still starts returns null when the launch config is missing a provider or a model","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::every degraded path returns null so the worker still starts returns null — not a rejection — when the bracketed run THROWS","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::every degraded path returns null so the worker still starts returns null when the session never submits a brief","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::every degraded path returns null so the worker still starts says WHY it skipped, on stderr","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::the recursion guard refuses to spawn an architect for a DERIVED session","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::the recursion guard refuses for a review session too","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::the recursion guard runs for an ordinary card","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::which model the architect runs on inherits the worker's model when nothing pins it","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::which model the architect runs on uses NKLEIN_ARCHITECT_MODEL when it is set","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::which model the architect runs on does NOT mutate the worker's launch config","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::which model the architect runs on treats a blank pin as unset","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::how the session is started runs under its own ::architect id, not the card's","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::how the session is started asks for a MINIMAL context scope — the fresh window is the point","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::how the session is started works in the sandbox workspace while rooting the workspace at the real repo","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::how the session is started carries the card's prompt into the seed","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::nudging does not nudge a session that already submitted","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::nudging nudges at most maxNudges times, then gives up with null","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::nudging never nudges when maxNudges is zero","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::nudging asks for the TOOL, not for prose","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-architect-runner.test.ts::nudging stops nudging once the deadline has passed","passed":true}
