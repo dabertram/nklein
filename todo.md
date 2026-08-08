@@ -7284,9 +7284,15 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   is allocated on any exec path, so there is no CRLF translation or pty-close truncation); per-line `trimEnd`
   (a single-space context line SURVIVES intact in the artifact — a per-line trim would have emptied it); and
   the preservation writer's own `trimEnd()` (tail-only, while the damage is mid-hunk).
-  **Still open:** which step drops the 3 blank context lines. `task-result-branches.ts` and the sandbox hold no
-  line-based patch processing, so the next probe is the rest of the capture→apply carry (any JSON/record
-  round-trip the patch text passes through).
+  **Still open, and now sharper.** PROVEN by direct experiment: `git diff --staged --binary` emits a blank
+  context line as a single SPACE (`" "`), never as a zero-length line — so the 3 missing context lines were
+  present in git's output in `" "` form and were REMOVED afterwards. The artifact still contains one surviving
+  `" "` line, so this is NOT a blanket strip of space-only lines, and that asymmetry is the next thing to
+  explain. The static search is EXHAUSTED: capture→apply is `captureWorkspacePatch` → `trimEnd()` →
+  `writeFile` → `git apply`, with no JSON/record round-trip, no line-based patch processing, and no redaction
+  on the path (the redactor touches the observation sink, not the diff). **Next step must be empirical**:
+  reproduce with a live sandbox capture over a file with blank lines, and compare the in-container `git diff`
+  bytes against the string that reaches `writeFile` — that bisects container-boundary vs Node-side in one run.
   **Second, INDEPENDENT sighting (N8 flask run, same night):** a model asked to fix `pallets__flask-5014`
   committed `tests/test_blueprints.py` with two source lines merged onto one — through a VALID diff. So merged
   lines can ALSO originate in the model's own edit, which is a separate defect from the transport damage; do
