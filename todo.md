@@ -9732,7 +9732,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **The whole arc in one day: structurally 0 observations (a flag nobody had switched on) → 27 → 42 → 90, and
   `insufficient_data` → a decision.** Nothing was built to get here beyond one line in the drain harness; what
   was missing was never volume, and never judgement — it was that no evidence could be recorded at all.
-  **P15.3's remaining work is now the OTHER mechanisms**, each needing its own observations by the same route.
+  **P15.3's remaining work is now the OTHER mechanisms — and an audit of what that actually means, so the next
+  person does not go looking for a wire that isn't the problem.** Of the six `observe_only` flags in
+  `feature-flag-registry.ts`, only `NKLEIN_TOOL_GATE_OBSERVE` emits a COUNTERFACTUAL (what the mechanism WOULD
+  have done vs what happened). The others are diagnostics or capture — `NKLEIN_DEBUG_STREAM_EVENTS`,
+  `NKLEIN_TRUNCATION_DIAGNOSTICS`, `NKLEIN_REASONING_CAPTURE` — and `NKLEIN_BASELINE_PROBE` spawns a sandbox
+  (cheap for behaviour, costly for resources). **A diagnostic is not a decidable mechanism**: there is no
+  "recommended vs actual" to compare, so pointing the report at one would produce `insufficient_data` forever
+  for a structural reason, which is the exact misread this whole thread has been about.
+  So the next step is NOT wiring more flags into the existing report. It is **choosing which of the ~29
+  flag-gated mechanisms deserve a counterfactual emitter**, and adding one per mechanism — design work, one
+  mechanism at a time, exactly as this item's title says. `dev mechanism-decision` is also single-mechanism
+  today and would need a selector.
   **✅ JOIN KEY SHIPPED 2026-08-01.** `taskId: sessionId` now travels with the gate observation — a one-line change
   using the pattern a NEIGHBOURING `recordSelfObservation` in the same function already used, so nothing new had to
   be plumbed. A source-level ratchet pins it, scoped to the slice between that call and its own metadata so a
