@@ -7251,6 +7251,20 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **Defect #13, and its lesson compounds the set: my cleanup commit CLAIMED "a PASSED cell's isolated HOME has
   nothing left to diagnose" — false; the pack evaluator still needed it.** A cleanup's correct phase is defined by
   the LAST reader, not by the writer's view of doneness.
+- [ ] **N8.1 real-model leg — FIRST verdict, and it is not a score: UNGRADABLE (`graded_tests_modified`).**
+  A real `pallets__flask-5014` drain settled a card and produced a result branch, but the sealed grade could
+  not run: the instance's own `test_patch` no longer applies, because the model **edited the graded tests**.
+  The commit changes ONLY `tests/test_blueprints.py` (+6/−2) and no `src/flask/` at all, despite the card
+  saying "do not modify existing tests; fix the library code so the described behavior is correct."
+  Notably the model's instinct was half-right — it added `test_empty_name_not_allowed`, which is exactly the
+  instance's bug — but it wrote a TEST instead of a FIX, which SWE-bench scores as nothing.
+  The grader now reports this as a named verdict instead of crashing (it previously died on the failed
+  `git apply`). **Do not "fix" this by relaxing the grader**: refusing to grade a tampered suite is the whole
+  point of a held-out oracle, and the same discipline as P23.5's null-agent gate.
+  Follow-ups: (a) does the card prompt need to state the constraint more forcefully, or is this a capability
+  limit of the local model? — decide from a second instance, not this one; (b) the tranche needs a
+  tests-untouched precheck so this is visible at delivery, not only at grade time.
+
 - [ ] **🐛 CORRUPT PATCH CAPTURE loses a card's work on a real-model drain (live-found 2026-08-08).** A
   `real-model-run.sh mid_task --act` drain classified `infrastructureFailure`: *"Could not capture sandbox task
   result patch (corrupt_patch) … git apply --cached --binary --whitespace=nowarn … error: corrupt patch at
@@ -7261,12 +7275,22 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   BODY contains only 5 old / 4 new, and the file ends at line 53 — so `git apply` reads to EOF hunting the
   missing lines and reports the last line as corrupt. **The patch is TRUNCATED, and separately one addition
   line has two source lines merged into it** (`recommendation: "…growing.",\t\t},`) with no newline between.
-  **NOT yet root-caused — do not guess.** Checked and NOT the cause: the 64 MiB exec `maxBuffer`, and the
-  `trimEnd()` in `task-result-branches.ts` (it only touches the tail, while the damage is mid-hunk). Next
-  probes: whether the diff is captured through a boundary that can drop a newline / short-read (sandbox exec
-  stream vs file), and whether the merged line exists in the WORKTREE (model wrote it that way ⇒ git's diff
-  would still be VALID, so a header/body mismatch means post-processing) — that single check discriminates
-  "model wrote a weird file" from "we damaged a good diff".
+  **CONFIRMED — the damage is OURS, after git.** The patch is produced by `git diff --staged --binary`
+  (`nklein-agent-sandbox.ts:959`), and git only ever emits self-consistent patches, so a header/body mismatch
+  cannot come from the model or the worktree: something damages a good diff between capture and apply.
+  **The arithmetic names the victim:** the body is short by exactly 3 in BOTH counts (8→5 old, 7→4 new), and
+  lines counting in both are CONTEXT lines — so 3 context lines were dropped, and the invisible ones are blank.
+  **Refuted, with the evidence:** the 64 MiB exec `maxBuffer` (patch is 53 lines); TTY/pty mangling (no `-t`
+  is allocated on any exec path, so there is no CRLF translation or pty-close truncation); per-line `trimEnd`
+  (a single-space context line SURVIVES intact in the artifact — a per-line trim would have emptied it); and
+  the preservation writer's own `trimEnd()` (tail-only, while the damage is mid-hunk).
+  **Still open:** which step drops the 3 blank context lines. `task-result-branches.ts` and the sandbox hold no
+  line-based patch processing, so the next probe is the rest of the capture→apply carry (any JSON/record
+  round-trip the patch text passes through).
+  **Second, INDEPENDENT sighting (N8 flask run, same night):** a model asked to fix `pallets__flask-5014`
+  committed `tests/test_blueprints.py` with two source lines merged onto one — through a VALID diff. So merged
+  lines can ALSO originate in the model's own edit, which is a separate defect from the transport damage; do
+  not conflate them when fixing.
   **Why it matters beyond one card:** the failure is classified `infrastructureFailure`, so it is invisible as
   a quality signal while silently discarding completed work — the same shape as the N15/N20 "recovery machinery
   masks the regression" family. Reproduces on a plain mid_task ACT drain.

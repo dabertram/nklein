@@ -52,7 +52,14 @@ async function gradeDir(instanceId: string, workspaceDir: string, label: string)
 	const copyDir = join(await mkdtemp(join(tmpdir(), "swebench-grade-")), "work");
 	await cp(workspaceDir, copyDir, { recursive: true });
 	try {
-		await applyTestPatchToCopy(copyDir, instance.testPatch);
+		const applied = await applyTestPatchToCopy(copyDir, instance.testPatch);
+		if (!applied.applied) {
+			// Not a crash and NOT a pass: the run is ungradable because the graded tests were changed.
+			process.stdout.write(
+				`${label} ${instanceId}: UNGRADABLE (${applied.reason}) — the instance's own tests no longer apply, which means the agent edited the files it is graded by. ${applied.detail.split("\n")[0] ?? ""}\n`,
+			);
+			return 1;
+		}
 		const verdict = await gradeSwebenchWorkspace({ entry, instance, workspaceCopyDir: copyDir, cacheRoot });
 		process.stdout.write(`${label} ${instanceId}: ${verdict.reason}\n`);
 		return verdict.resolved ? 0 : 1;

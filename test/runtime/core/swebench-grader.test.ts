@@ -1,5 +1,15 @@
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+
+const execFileAsync = promisify(execFile);
+
 import {
+	applyTestPatchToCopy,
 	buildSwebenchGradeScript,
 	buildSwebenchPrepareScript,
 	splitSwebenchGradeOutput,
@@ -92,5 +102,46 @@ describe("splitSwebenchGradeOutput", () => {
 			failToPassOutput: "",
 			passToPassOutput: "",
 		});
+	});
+});
+
+describe("applyTestPatchToCopy", () => {
+	it("refuses with a named reason when the agent edited the graded tests, instead of throwing", async () => {
+		// Live-found 2026-08-08 (pallets__flask-5014): the model changed ONLY tests/test_blueprints.py, so the
+		// instance's own test_patch no longer applied and the grader died on the raw git error. Refusal has to be
+		// a VERDICT — a crash reads as infrastructure trouble, and "grade it anyway" would score a tampered suite.
+		const dir = await mkdtemp(join(tmpdir(), "swebench-apply-"));
+		await execFileAsync("git", ["-C", dir, "init", "-q"]);
+		await writeFile(join(dir, "test_thing.py"), "def test_one():\n    assert 2 == 2\n");
+
+		const result = await applyTestPatchToCopy(
+			dir,
+			// A test_patch written against the PRISTINE line ("assert 1 == 1") — the agent's edit moved it.
+			"diff --git a/test_thing.py b/test_thing.py\n--- a/test_thing.py\n+++ b/test_thing.py\n@@ -1,2 +1,2 @@\n def test_one():\n-    assert 1 == 1\n+    assert 1 == 2\n",
+		);
+
+		expect(result.applied).toBe(false);
+		if (!result.applied) {
+			expect(result.reason).toBe("graded_tests_modified");
+			expect(result.detail).toContain("test_thing.py");
+		}
+		// …and the scratch patch file never survives a refusal.
+		expect(existsSync(join(dir, ".swebench-test.patch"))).toBe(false);
+		await rm(dir, { recursive: true, force: true });
+	});
+
+	it("applies cleanly and reports success when the agent left the graded tests alone", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "swebench-apply-"));
+		await execFileAsync("git", ["-C", dir, "init", "-q"]);
+		await writeFile(join(dir, "test_thing.py"), "def test_one():\n    assert 1 == 1\n");
+
+		const result = await applyTestPatchToCopy(
+			dir,
+			"diff --git a/test_thing.py b/test_thing.py\n--- a/test_thing.py\n+++ b/test_thing.py\n@@ -1,2 +1,2 @@\n def test_one():\n-    assert 1 == 1\n+    assert 1 == 2\n",
+		);
+
+		expect(result.applied).toBe(true);
+		expect(await readFile(join(dir, "test_thing.py"), "utf8")).toContain("assert 1 == 2");
+		await rm(dir, { recursive: true, force: true });
 	});
 });

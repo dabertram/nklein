@@ -252,10 +252,30 @@ export async function gradeSwebenchWorkspace(
 	};
 }
 
-/** Host-side test_patch application onto the workspace COPY (the container has no git by design). */
-export async function applyTestPatchToCopy(workspaceCopyDir: string, testPatch: string): Promise<void> {
+/**
+ * Host-side test_patch application onto the workspace COPY (the container has no git by design).
+ *
+ * A REFUSAL here is a finding, not an error. The instance's own test changes only fail to apply when the file
+ * they target has moved underneath them — overwhelmingly because the agent EDITED THE GRADED TESTS, which the
+ * card explicitly forbids ("do not modify existing tests; fix the library code"). Live-found 2026-08-08: a
+ * real model asked to fix a Flask bug changed only `tests/test_blueprints.py` and no source at all. Grading
+ * that run is impossible, and saying so precisely is far more useful than either crashing or, worse, quietly
+ * grading a tampered suite.
+ */
+export type TestPatchApplication =
+	| { readonly applied: true }
+	| { readonly applied: false; readonly reason: "graded_tests_modified"; readonly detail: string };
+
+export async function applyTestPatchToCopy(workspaceCopyDir: string, testPatch: string): Promise<TestPatchApplication> {
 	const patchPath = join(workspaceCopyDir, ".swebench-test.patch");
 	await writeFile(patchPath, testPatch.endsWith("\n") ? testPatch : `${testPatch}\n`);
-	await execFileAsync("git", ["-C", workspaceCopyDir, "apply", ".swebench-test.patch"]);
-	await rm(patchPath, { force: true });
+	try {
+		await execFileAsync("git", ["-C", workspaceCopyDir, "apply", ".swebench-test.patch"]);
+		return { applied: true };
+	} catch (error) {
+		const detail = error instanceof Error ? error.message : String(error);
+		return { applied: false, reason: "graded_tests_modified", detail: detail.slice(0, 500) };
+	} finally {
+		await rm(patchPath, { force: true });
+	}
 }
