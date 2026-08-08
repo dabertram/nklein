@@ -12448,6 +12448,27 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
       caller — a service neither usable nor replaceable. Pinned by making dispose reject and asserting the next
       caller gets a fresh instance. The metadata block is also swept for user-scoped fields, since it is the
       easiest place for one to appear unnoticed.
+  **▶ TWELFTH OF THE 16 — `src/nklein-agent/nklein-provider-launch-config`, 19 tests, 19/19 ablation-proven.**
+  The single dispatch chokepoint: every task session's provider, model, key, base url and context window is
+  resolved here, and **BOTH prime directives are asserted here** — the local-only lockdown and the ≥32k context
+  floor — before any OAuth refresh, key resolution, or model discovery. **"Before" is the entire value of a
+  chokepoint and it is invisible in the return value:** a lockdown running after the refresh still refuses the
+  launch, having already taken a cloud token over the network, so the refusal proves nothing about the egress.
+  Probes assert on the spies. The override path is refused too — a gate wired only into the default path leaves
+  a second way in. The local-only policy is left REAL rather than mocked, so `lmstudio` is admitted and `nklein`
+  refused by the same code the product runs.
+  The floor is asserted with the **MEASURED** window, never a claimed one, and an undiscovered model reaches the
+  policy as `null` rather than as a substituted default — that substitution is the green-signal move, letting an
+  unmeasured model through the one check that exists to stop it. The LM-Studio not-loaded refusal names the
+  model and says what to do, which is the difference between an actionable message and a hunt through a session
+  that failed deep. And reasoning effort distinguishes **unspecified from none** via an `in` check rather than a
+  `??`: a caller deliberately clearing the effort must not have the stored value quietly reinstated, since the
+  two are indistinguishable to a nullish check and mean opposite things.
+  **Two mistakes of mine, both mine and not the module's:** `vi.clearAllMocks()` clears recorded calls but
+  LEAVES implementations installed, so the test that made the context policy throw poisoned every test after it
+  (`resetAllMocks` is the right tool); and invented "local-sounding" provider ids are not local — the real
+  policy admits `ollama`/`lmstudio` by id and any custom id only on a loopback endpoint, so the fixtures now
+  carry a real base url instead of a hopeful name.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports

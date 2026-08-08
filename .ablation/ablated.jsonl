@@ -1,10 +1,19 @@
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::the singleton builds the service once and returns the same instance thereafter","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::the singleton does not rebuild when a later caller supplies a logger","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::the singleton passes a logger through when the FIRST caller supplies one","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::the metadata it reports identifies the product and its version, without identifying the user","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::the metadata it reports records the platform it is running on","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::disposal disposes the live service","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::disposal lets the NEXT caller build a fresh service","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::disposal is a silent no-op when nothing was ever built","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::disposal does not dispose twice","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-telemetry-service.test.ts::disposal clears the slot even when dispose REJECTS","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the local-only lockdown is the FIRST thing that happens refuses a cloud provider without refreshing OAuth or discovering models","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the local-only lockdown is the FIRST thing that happens refuses a cloud provider reached through the OVERRIDE path too","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the local-only lockdown is the FIRST thing that happens admits a local provider through the same real policy","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the context-window floor is asserted with the MEASURED window, not one the model claims","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the context-window floor passes NULL rather than a guess when the model was never discovered","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the context-window floor propagates the policy's refusal instead of launching anyway","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::a live-only provider's model must actually be loaded names the model and says what to do about it","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::a live-only provider's model must actually be loaded does not reach the context policy once it has refused","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::which model gets dispatched prefers an explicit override over the stored selection","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::which model gets dispatched falls back to the provider CATALOG default when nothing is selected","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::which model gets dispatched falls back to the built-in default when the CATALOG READ ITSELF fails","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::which model gets dispatched yields a null model rather than inventing one for an unknown provider","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::reasoning effort: unspecified is not the same as none uses the stored effort when the caller says nothing about it","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::reasoning effort: unspecified is not the same as none honours an EXPLICIT undefined override as 'no effort', not as 'unspecified'","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::reasoning effort: unspecified is not the same as none passes an explicit effort through","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the rest of the resolved config normalises the provider id, and trims a blank base url to null","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the rest of the resolved config prefers the settings the OAuth refresh returned over the stale ones","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the rest of the resolved config refuses with an ACTIONABLE message when no provider is configured","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-launch-config.test.ts::the rest of the resolved config refuses a settings record whose provider id is blank","passed":false}
