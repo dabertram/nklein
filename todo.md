@@ -12563,8 +12563,31 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
       visible, which is precisely how the 12 were found.
   **CORRECTED CENSUS** (`--sweep <dir> --limit 0`): core 714 exercised / **2 unexercised** / 12 via-barrel ·
   nklein-agent 302 / 0 / 1 type-only · state 36 / 0 · telemetry 10 / 0 · workspace 22 / 0.
-  **The real remaining gap is 2 modules, not 14:** `src/core/adw-run-api-contract.ts` and
-  `src/core/field-report-api-contract.ts` — the only two `*-api-contract` files no barrel re-exports.
+  **The real remaining gap was 2 modules, not 14** — `adw-run-api-contract` and `field-report-api-contract`, the
+  only two `*-api-contract` files no barrel re-exports — **and both are now covered (32 tests, 20/20 and 12/12
+  ablation-proven).**
+    · `field-report-api-contract` (12/12) is the wire contract for the field-report REVIEW surface, whose whole
+      purpose is that **the reviewed bytes cannot drift from the sent bytes**. A schema is not a neutral pipe
+      there: any normalisation it performs — a trim, a default, a coercion — means the bytes shown for review
+      are not the bytes that leave the machine, and the user approved something that never existed. So the tests
+      are mostly about what it must NOT do: whitespace preserved exactly (a trim is the most natural-looking
+      change and the most damaging), an EMPTY value preserved rather than treated as missing (presence is itself
+      a disclosure), newlines byte-for-byte, and no coercion of a non-string into plausible-looking bytes.
+      `layer` is a closed A/B/C set because it drives consent projection and an unrecognised value would either
+      fall through unhandled or read as the most permissive — neither visible in the UI. One malformed candidate
+      rejects the WHOLE response, since silently dropping it would render a complete-looking list missing
+      exactly the item nobody could parse. And unknown fields are STRIPPED: nothing the contract does not name
+      can ride out with a reviewed payload, because it was never shown for review.
+    · `adw-run-api-contract` (20/20): the `input` cap pinned at the BOUNDARY (4000 accepted, 4001 rejected — an
+      off-by-one here is invisible until the one input someone cared about), the default that makes an
+      input-less workflow runnable at all, and — the one that matters most — **an INVALID workflow is LISTED
+      with its reason rather than omitted**, because a broken workflow missing from the list is
+      indistinguishable from one nobody wrote, so its author sees nothing to fix. `verdict` and step `status`
+      keep "running" and "skipped" distinct from "fail"; a live run rendered as a failure is a wrong answer the
+      UI cannot second-guess.
+  ✅ **CENSUS NOW CLEAN: 0 unexercised across all five directories** (core 716 · nklein-agent 302 · state 36 ·
+  telemetry 10 · workspace 22), with 12 via-barrel and 1 type-only correctly classified as NOT gaps.
+  Suite **13,737**.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports

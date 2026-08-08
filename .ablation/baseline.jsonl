@@ -1,22 +1,20 @@
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN is enabled when no provider is configured at all","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN is enabled when the provider carries no access token","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN is enabled when the remote config is absent or names no organization","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN is enabled — and REPORTS the error — when the lookup throws","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN gates the board ONLY for an enterprise account whose config withholds it","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN leaves a NON-enterprise account enabled whatever the config says","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::kanban access fails OPEN re-enables an enterprise account whose config explicitly permits the board","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the account profile is null for a non-nklein provider, without calling the account API","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the account profile is null when nothing is configured","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the account profile returns the fetched identity","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the account profile falls back to the STORED account id when the response omits one","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the account profile retries ONCE after an OAuth refresh, and no more","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the account profile gives up with a null profile when the refresh yields nothing","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the profile dedupe cache shares ONE round trip between concurrent callers","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the profile dedupe cache EVICTS a rejected promise so the next caller really retries","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the profile dedupe cache keys on the ACCESS TOKEN, so a different account never reads the first one's profile","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the profile dedupe cache keys on the BASE URL as well, so a self-hosted endpoint is a distinct account","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the profile dedupe cache does not share a cache between two API instances","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the Featurebase token refuses, by name, when no provider is configured","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the Featurebase token refuses a non-nklein provider by name","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the Featurebase token reports the GENERIC failure for a missing token — the specific reason never escapes","passed":true}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-provider-account-api.test.ts::the Featurebase token retries once after a refresh and returns the token","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::the run request defaults a missing input to the empty string","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::the run request keeps a supplied input verbatim, whitespace included","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::the run request accepts input right up to the cap and rejects one character past it","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::the run request requires a non-empty workflow name","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::the run request requires a non-empty run id when polling","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::listing workflows LISTS a broken workflow with its reason instead of hiding it","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::listing workflows distinguishes a healthy workflow by a NULL reason, not an empty one","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::listing workflows allows a null description but not a missing one","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::listing workflows requires the step counts to be non-negative integers","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::listing workflows accepts an empty workflow list","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::listing workflows rejects the whole list if one summary is malformed","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::starting a run carries a run id on success and a reason on failure","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::starting a run requires both fields to be STATED, even when null","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot represents a LIVE run: no finish time, verdict still running","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot keeps `running` out of the terminal verdicts","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot keeps SKIPPED distinct from FAIL and from PENDING","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot distinguishes a deterministic step from an agent step","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot lets a step name the card it produced, or state that it produced none","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot accepts a finished run with an evidence directory","passed":true}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot accepts a run with NO steps — a workflow that failed before any step ran","passed":true}
