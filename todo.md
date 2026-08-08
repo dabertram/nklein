@@ -7426,7 +7426,15 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   to idle (reaction `none`) and the lease outlived teardown (`1 lease left behind`). Pack finalized honest
   (terminal lanes include the reviewless devtest seed; mustFire only what the collector observes).
   FOLLOW-UP filed: a registered park OBSERVATION (operator visibility + a mustFire-able mechanism id).
-  NEXT: role-combination coverage + remaining families as the catalog grows.
+  **▶ 2026-08-08 — AUDITED THE FAMILY HALF: IT IS COMPLETE FOR EVERY QUIRK THIS ITEM NAMES.** The item lists four
+  ("reasoning-channel-only output, empty content on json_schema, no-verdict reviewers, Jinja alternation 500s")
+  and all four now have a registered profile AND a recording under
+  `packages/llm-simulator/scenarios/02_…/`: `ministral-quirk` (alternation→500), `reasoning-only-quirk`,
+  `schema-deadend-quirk`, `silent-reviewer-quirk`. Checked rather than assumed — the entry's own "NEXT" line
+  still read as though families were outstanding, which understated where this had got to.
+  NEXT (the genuinely remaining half): **role-combination coverage** — architect/worker/reviewer assignments per
+  profile, which is what turns four family tripwires into the MATRIX the item asks for. Additional families only
+  as the catalog grows; there is no known fifth quirk to encode today.
 - [x] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
   git remotes, update feeds, web/egress (already hard-gated), clock-driven damping. INTERNAL flaky sources (the
   proven ones, extend as found): the host-capacity view that reads the REAL LM Studio gateway even in sims (memory:
