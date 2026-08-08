@@ -7251,6 +7251,25 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **Defect #13, and its lesson compounds the set: my cleanup commit CLAIMED "a PASSED cell's isolated HOME has
   nothing left to diagnose" — false; the pack evaluator still needed it.** A cleanup's correct phase is defined by
   the LAST reader, not by the writer's view of doneness.
+- [ ] **🐛 CORRUPT PATCH CAPTURE loses a card's work on a real-model drain (live-found 2026-08-08).** A
+  `real-model-run.sh mid_task --act` drain classified `infrastructureFailure`: *"Could not capture sandbox task
+  result patch (corrupt_patch) … git apply --cached --binary --whitespace=nowarn … error: corrupt patch at
+  line 53"* — the card's work was LOST, and the run produced no classification.
+  **VERIFIED from the preserved artifact** (`.real-runs/20260808-034451/home/.nklein/nklein/patch-failures/
+  habit-insights-recommendation-1786154346982.patch`, retained by the existing failure-preservation path —
+  that part worked): the second hunk header claims `@@ -25,8 +25,7 @@` (8 old / 7 new lines) while the hunk
+  BODY contains only 5 old / 4 new, and the file ends at line 53 — so `git apply` reads to EOF hunting the
+  missing lines and reports the last line as corrupt. **The patch is TRUNCATED, and separately one addition
+  line has two source lines merged into it** (`recommendation: "…growing.",\t\t},`) with no newline between.
+  **NOT yet root-caused — do not guess.** Checked and NOT the cause: the 64 MiB exec `maxBuffer`, and the
+  `trimEnd()` in `task-result-branches.ts` (it only touches the tail, while the damage is mid-hunk). Next
+  probes: whether the diff is captured through a boundary that can drop a newline / short-read (sandbox exec
+  stream vs file), and whether the merged line exists in the WORKTREE (model wrote it that way ⇒ git's diff
+  would still be VALID, so a header/body mismatch means post-processing) — that single check discriminates
+  "model wrote a weird file" from "we damaged a good diff".
+  **Why it matters beyond one card:** the failure is classified `infrastructureFailure`, so it is invisible as
+  a quality signal while silently discarding completed work — the same shape as the N15/N20 "recovery machinery
+  masks the regression" family. Reproduces on a plain mid_task ACT drain.
 - [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,
