@@ -9703,14 +9703,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **AND THE FIRST REAL SIGNAL IS ALREADY INTERESTING: 27 observations, 27 DISAGREEMENTS — 100%.** On real traffic
   the gate would have dropped tools on EVERY turn. That is a large behavioural delta hiding behind a flag nobody
   had switched on, and precisely the number a default flip must be decided from rather than guessed at.
-  **🔴 THE NEXT GAP, NAMED BY THE REPORT ITSELF: `evaluable 0`.** The observations carry a task id, but nothing
-  yet joins them to how each card ENDED, so the counterfactual the campaign turns on ("had this been enforcing,
-  would outcomes have been BETTER?") still cannot be computed. **The core says this out loud** — *"a verdict is
-  impossible until outcomes join; this is a data gap, NOT evidence the gate is a no-op"* — which is exactly the
-  misread-prevention the item asked for, working. Next step is the outcome join, not more running: at 100%
-  disagreement, volume alone will never produce a verdict.
-  (Measured mid-drain with 1 card terminal; `evaluable` may rise as cards settle, and that is worth re-checking
-  before building anything — but 27/27 disagreement with 0 evaluable is already the shape of a join gap.)
+  **⚠️ CORRECTION, and it changes what to build: THE OUTCOME JOIN ALREADY WORKS.** A first reading at
+  `observations 27 · evaluable 0` looked like a structural join gap, and the conclusion drawn was "the outcome
+  join is the next step, not more running". **That was wrong.** Re-read once cards reached terminal state:
+  **`observations 42 · disagreements 42 (100%) · evaluable 11`** — `evaluable` rises as cards settle, because the
+  join needs a TERMINAL outcome to join to. Nothing needs building; the campaign simply needs runs.
+  The mid-drain reading was taken with ONE card terminal, which is exactly why it was recorded as provisional
+  and re-checked rather than acted on. **`evaluable 0` mid-run and `evaluable 0` structurally look identical —
+  the discriminator is letting the cards finish**, which is the same "no data yet vs cannot be produced" trap
+  this session hit twice before, caught here at the cost of one re-read instead of a build.
+  **STATE NOW: the floor is 30 observations (passed: 42) and a verdict additionally needs enough EVALUABLE ones.
+  100% disagreement across 42 observations is a large, real behavioural delta** — the gate would have dropped
+  tools on every turn — and it becomes a verdict as evaluable volume accumulates over ordinary real-model runs.
+  **P15.3 is therefore no longer blocked on anything but running**, which is the first time that has been true.
   **✅ JOIN KEY SHIPPED 2026-08-01.** `taskId: sessionId` now travels with the gate observation — a one-line change
   using the pattern a NEIGHBOURING `recordSelfObservation` in the same function already used, so nothing new had to
   be plumbed. A source-level ratchet pins it, scoped to the slice between that call and its own metadata so a
