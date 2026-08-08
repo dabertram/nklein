@@ -15,7 +15,7 @@
 import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -51,7 +51,19 @@ async function loadedModelIds(): Promise<string[]> {
 
 const work = await realpath(await mkdtemp(join(tmpdir(), "real-drain-")));
 const home = join(work, "home");
-const workspace = outDir ? await realpath(outDir).catch(() => outDir) : join(work, "ws");
+/**
+ * The drain workspace ALWAYS lives outside !Klein's own checkout.
+ *
+ * `projects.add` refuses a path inside this repo — "this is !Klein's own source repository … needs
+ * confirmation" (§5.W self-project guard). A workspace under `.real-runs/` is inside the repo, so registration
+ * failed, the runtime had NO workspace, and every seeded card went nowhere while the harness polled a board
+ * path that happened to exist locally (2026-08-08). The guard is right; the harness was wrong to fight it, and
+ * passing confirmSelfProject to silence it would trade a real safety property for convenience.
+ *
+ * `--out` therefore means "copy the drained tree HERE when finished", not "work in place".
+ */
+const workspace = join(work, "ws");
+const keepAt = outDir ? resolvePath(outDir) : null;
 await mkdir(join(home, ".nklein", "nklein"), { recursive: true });
 await mkdir(join(home, ".nklein", "data", "settings"), { recursive: true });
 // `cp -R a b` NESTS a inside b when b already exists — a stale destination from a previous run silently
@@ -159,7 +171,13 @@ try {
 		headers: { "content-type": "application/json" },
 		body: JSON.stringify({ "0": { path: workspace } }),
 	});
-	process.stdout.write(`workspace registration: HTTP ${register.status}\n`);
+	// The BODY, not just the status: tRPC answers 200 with an error payload, so a status-only check reports
+	// success for a registration that did not happen — precisely how the runtime ended up workspace-less.
+	const registerBody = await register.text();
+	process.stdout.write(`workspace registration: HTTP ${register.status} ${registerBody.slice(0, 200)}\n`);
+	if (!register.ok || registerBody.includes('"error"')) {
+		throw new Error(`workspace registration failed for ${workspace}: ${registerBody.slice(0, 300)}`);
+	}
 
 	const prompt = await readFile(promptFile, "utf8");
 	const seeded = await fetch(`http://127.0.0.1:${RUNTIME_PORT}/a2a/v1`, {
@@ -172,10 +190,13 @@ try {
 			params: { message: { messageId: "real-drain-m-1", role: "ROLE_USER", parts: [{ text: prompt }] } },
 		}),
 	});
-	if (!seeded.ok) {
-		throw new Error(`A2A SendMessage failed: HTTP ${seeded.status}`);
+	// JSON-RPC answers 200 WITH an error body — a status-only check reports a seed that never happened (the
+	// same trap as projects.add above; both were hiding a rig failure behind a green HTTP code).
+	const seededBody = await seeded.text();
+	if (!seeded.ok || seededBody.includes('"error"')) {
+		throw new Error(`A2A SendMessage failed (HTTP ${seeded.status}): ${seededBody.slice(0, 400)}`);
 	}
-	process.stdout.write(`card seeded; draining for up to ${maxMinutes}m…\n`);
+	process.stdout.write(`card seeded: ${seededBody.slice(0, 200)}\n draining for up to ${maxMinutes}m…\n`);
 
 	const boardPath = join(workspace, ".nklein", "nklein", "workspace", "board.json");
 	const deadline = Date.now() + maxMinutes * 60_000;
@@ -188,10 +209,26 @@ try {
 	let lastSummary = "";
 	for (;;) {
 		await new Promise((tick) => setTimeout(tick, 30_000));
-		const board = await readFile(boardPath, "utf8")
-			.then((text) => JSON.parse(text) as { board?: { columns: { id: string; cards: unknown[] }[] } })
+		// The persisted board is `{columns, dependencies}` — there is NO `board` wrapper. Reading `board.board`
+		// yielded undefined and rendered every real lane as `{}`, so a card that was demonstrably being worked
+		// looked like an empty board for the whole run (2026-08-08). Accept BOTH shapes and, crucially, treat an
+		// unreadable/unparseable board as UNKNOWN rather than as empty.
+		const parsed = await readFile(boardPath, "utf8")
+			.then(
+				(text) =>
+					JSON.parse(text) as
+						| { columns?: { id: string; cards: unknown[] }[] }
+						| { board?: { columns: { id: string; cards: unknown[] }[] } },
+			)
 			.catch(() => null);
-		const columns = board?.board?.columns ?? [];
+		if (parsed === null) {
+			// No board file yet — say so, and let the fail-fast deadline below decide.
+			process.stdout.write("  (board not readable yet)\n");
+		}
+		const columns =
+			(parsed as { columns?: { id: string; cards: unknown[] }[] } | null)?.columns ??
+			(parsed as { board?: { columns: { id: string; cards: unknown[] }[] } } | null)?.board?.columns ??
+			[];
 		const counts = Object.fromEntries(columns.map((column) => [column.id, column.cards.length]));
 		const summary = JSON.stringify(counts);
 		if (summary !== lastSummary) {
@@ -219,7 +256,12 @@ try {
 			break;
 		}
 	}
-	process.stdout.write(`workspace retained at: ${workspace}\nruntime log: ${logPath}\n`);
+	if (keepAt) {
+		await rm(keepAt, { recursive: true, force: true });
+		await execFileAsync("cp", ["-R", workspace, keepAt]).catch(() => undefined);
+		process.stdout.write(`drained tree copied to: ${keepAt}\n`);
+	}
+	process.stdout.write(`workspace was: ${workspace}\nruntime log: ${logPath}\n`);
 } finally {
 	await shutdown();
 	if (!outDir) {
