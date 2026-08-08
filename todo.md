@@ -12167,12 +12167,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   breaks collection" looked conclusive. The stub generator now re-declares them (`export type X = any;`), which
   is a correct improvement worth keeping on its own — **and it changed nothing**: all three still return
   INCONCLUSIVE with the ablated pass collecting ZERO tests.
-  **So the real cause is elsewhere, and the most likely mechanism is inherent rather than a bug:** a stubbed
-  export that THROWS ON READ blows up at IMPORT time for any consumer that touches it at module scope, so the
-  whole file fails to collect. That is the fail-loudly contract doing exactly what the item demands, and
-  INCONCLUSIVE is then the honest verdict for such a module — not a harness defect to be engineered away.
-  Recorded as open rather than closed on a plausible story: **a hypothesis that survives only because nobody ran
-  it is the thing this whole item is about.**
+  **✅ THE REAL CAUSE IS NOW CONFIRMED, with the error in hand — not inferred.** Stubbing `adw-workflow` (11 value
+  exports, 7 types) and running its suite yields: **`Error: ABLATED_STUB via adwWorkflowSchema`** *during
+  collection*. A stubbed VALUE export that throws on READ — here a Zod schema that consumers touch at module
+  scope — blows up at IMPORT time, so the file never collects and the ablated pass gets zero tests.
+  **This is inherent to the fail-loudly contract, not a harness defect.** The item REQUIRES the stub to throw
+  rather than return a plausible default; a module whose exports are read at import time will therefore always
+  break collection, and INCONCLUSIVE is the honest verdict for it. Engineering around it would mean weakening
+  exactly the property that prevents the false `DECORATIVE`.
+  **Practical consequence for anyone sweeping:** schema/constant modules (Zod objects, frozen tables, registries)
+  are structurally un-ablatable by this method. That is a KNOWN LIMIT to state, not a gap to close — and the
+  sweep already reports them as inconclusive rather than judging them.
+  (Two hypotheses were tested to get here: "the stub drops type exports" was refuted by a fix that changed
+  nothing, and only then was the import-time read confirmed by reading the actual error.)
   **Unpaired modules are SKIPPED, COUNTED and reported** — "a sweep that quietly shrinks its own scope reports a
   clean bill of health for code it never looked at". First run surfaces the number that matters:
   **590 paired modules in `src/core`, and 144 with NO matching test file at all.** Those 144 are not
