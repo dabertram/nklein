@@ -147,6 +147,10 @@
   {
    "path": "test/protected/oracle/33_colony_settlement_social_sim/urgency-curve.probe.mts",
    "rationale": "Held-out oracle for project 33: the SHAPE of the urgency curve. The spec's visible acceptance pins only urgency(0) and urgency(100) — the two points where a linear ramp and the specified quadratic agree exactly."
+  },
+  {
+   "path": "test/protected/oracle/35_persistent_world_ai_civilization_sim/conservation-checker.probe.mts",
+   "rationale": "Held-out oracle for project 35: the verifier must be able to say NO. Every visible assertion expects checkConservation to be true, so a constant-true function passes the whole suite; plus drift across a long sequence and atomicity of a refused consume."
   }
  ]
 }

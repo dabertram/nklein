@@ -11924,8 +11924,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   flat-rate decay passes every single-tick fixture), the zero floor, and non-mutation.
   **DISCRIMINATION PROVEN:** 7/7 on a quadratic implementation; **2 of 7 RED** on a linear one — the midpoint and
   convexity probes — while it passes both of the spec's own checkpoints, monotonicity, and every decay probe.
+  **▶ TWENTY-SEVENTH PROJECT 2026-08-08 — project 35 (civilization sim), 5 probes on WHETHER THE CHECKER CHECKS.**
+  `checkConservation` is the economy's own safety net, and the spec's visible acceptance uses it exactly one way:
+  *"checkConservation is true after any sequence"*. Every assertion expects TRUE. **A function returning `true`
+  unconditionally passes the entire visible suite** — and then certifies every future leak, including ones the
+  agent has not written yet. That is the sharpest form of a failure this session met repeatedly: a guard whose
+  only exercised direction is the one where it says yes. The probe hands it manifestly-violating states (goods
+  conjured, goods vanished, treasury inflated) and requires FALSE — paired with a genuinely-conserving case, so
+  an always-NO checker fails too.
+  Also: DRIFT — the tolerance is one FP unit per comparison and a test writer checks two or three operations, so
+  conservation is asserted from the ORIGINAL state across 200 rounds, where per-step truncation accumulates. And
+  ATOMICITY — the visible test checks only that an over-consume throws, while what matters to a ledger is that
+  the refused operation left nothing deducted.
+  **DISCRIMINATION PROVEN:** 5/5 on a real checker; **3 of 5 RED** on an always-true one with a non-atomic
+  consume.
   **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.**
-  Twenty-six now carry held-out probes; **two remain** (35, 36). The
+  Twenty-seven now carry held-out probes; **one remains** (36 — the dark-factory spec, which is also P23.7's
+  context-benchmark fixture). The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,
