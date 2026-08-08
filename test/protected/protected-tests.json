@@ -139,6 +139,10 @@
   {
    "path": "test/protected/oracle/28_modern_ant_colony_programming_arena/pheromone-symmetry.probe.mts",
    "rationale": "Held-out oracle for project 28: diffusion ISOTROPY — an in-place row-major sweep conserves mass perfectly and drifts pheromone down and right, which no conservation check can see."
+  },
+  {
+   "path": "test/protected/oracle/34_llm_commanded_realtime_strategy/fog-leak.probe.mts",
+   "rationale": "Held-out oracle for project 34: fog-of-war leakage asserted over the SERIALISED observation (the visible suite checks one field of six), plus ghosts that must hold the last-SEEN position rather than live ground truth."
   }
  ]
 }

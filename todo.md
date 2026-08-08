@@ -11898,8 +11898,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **DISCRIMINATION PROVEN, and unusually clean:** 5/5 on a copy-source implementation; the in-place variant fails
   **only** the symmetry probe — conservation, colony isolation, purity and evaporation all pass. A single deposit
   at the centre, one diffusion step, four neighbours compared to each other is the whole discriminator.
+  **▶ TWENTY-FIFTH PROJECT 2026-08-08 — project 34 (LLM-commanded RTS), 5 probes on FOG-OF-WAR LEAKAGE: what a
+  consumer must NOT be told.** The Observation is the only thing an LLM commander sees, so this is an
+  information-hiding boundary rather than a computation: a leak does not crash or look wrong, it makes the AI
+  play with perfect information while behaving entirely plausibly, and nothing downstream can detect it.
+  **The visible acceptance checks ONE field of six** — that a hidden enemy is absent from `visibleUnits`. So the
+  probe asserts on the SERIALISED WHOLE, the only check that covers fields nobody enumerated (same reasoning as
+  project 24's redaction probe asserting over the redacted OUTPUT).
+  **The sharper probe: a GHOST must hold the last-SEEN position.** An implementation building ghosts from live
+  ground truth passes every fixture where the enemy stands still, and hands the commander live tracking of units
+  it cannot see. The enemy therefore MOVES after leaving sight — the only way to separate memory from tracking.
+  **DISCRIMINATION PROVEN:** 5/5 on a reference that filters and forgets; 2 of 5 RED on one that filters
+  `visibleUnits` CORRECTLY — so the spec's own visible test passes — while leaking through the raw `fogState`
+  and a live-position ghost list.
   **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.**
-  Twenty-four now carry held-out probes; **four remain** (33, 34, 35, 36). The
+  Twenty-five now carry held-out probes; **three remain** (33, 35, 36). The
   fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
   temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
   capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,
