@@ -259,7 +259,20 @@ try {
 	if (keepAt) {
 		await rm(keepAt, { recursive: true, force: true });
 		await execFileAsync("cp", ["-R", workspace, keepAt]).catch(() => undefined);
-		process.stdout.write(`drained tree copied to: ${keepAt}\n`);
+		// THE DELIVERED WORK IS ON A RESULT BRANCH, NOT THE WORKING TREE. A card that ends in review has its
+		// output on `nklein/tasks/<id>-<hash>`; grading the tree therefore grades an EMPTY repo and returns the
+		// null-agent answer for a run that genuinely produced code (live-found 2026-08-08 — a 0/3 that measured
+		// nothing). `--out` must hand a grader the delivered bytes, so check the result branch out here.
+		const branches = await execFileAsync("git", ["-C", keepAt, "branch", "--format=%(refname:short)"])
+			.then(({ stdout }) => stdout.split("\n").map((line) => line.trim()).filter(Boolean))
+			.catch(() => [] as string[]);
+		const resultBranch = branches.find((branch) => branch.startsWith("nklein/tasks/"));
+		if (resultBranch) {
+			await execFileAsync("git", ["-C", keepAt, "checkout", "-q", resultBranch]).catch(() => undefined);
+			process.stdout.write(`drained tree copied to: ${keepAt} (result branch ${resultBranch} checked out)\n`);
+		} else {
+			process.stdout.write(`drained tree copied to: ${keepAt} (NO result branch — the card produced no work)\n`);
+		}
 	}
 	process.stdout.write(`workspace was: ${workspace}\nruntime log: ${logPath}\n`);
 } finally {
