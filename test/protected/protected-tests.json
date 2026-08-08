@@ -63,6 +63,10 @@
   {
    "path": "test/protected/oracle/32_ecosystem_climate_survival_sim/fixed-point-determinism.probe.mts",
    "rationale": "Held-out oracle for project 32: the fixed-point determinism substrate under composition — integer domain, exact replay, specified truncation, and the conservation guard's THROW."
+  },
+  {
+   "path": "test/protected/oracle/21_agentic_code_review_ci_guardian/blast-radius-mapping.probe.mts",
+   "rationale": "Held-out oracle for project 21: cross-artifact correspondence — hunk/symbol overlap at boundaries and across files, and blast-radius traversal over cycles, diamonds and multiple seeds."
   }
  ]
 }

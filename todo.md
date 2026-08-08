@@ -11617,9 +11617,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   conservation test still balances.
   **DISCRIMINATION PROVEN:** 7/7 on a correct integer reference; **4 of 7 RED** on a float-backed, clamp-instead-
   of-throw variant that satisfies all four of the spec's own visible checks.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; five of ~18 candidate specs now
-  carry held-out probes, deliberately spanning five different invariant families (genealogy conservation,
-  recall-safe tracing, RNG stream independence, temporal-spatial authorization, fixed-point determinism).
+  **▶ SIXTH PROJECT 2026-08-08 — project 21 (CI review guardian), 7 probes on CROSS-ARTIFACT CORRESPONDENCE.**
+  The first five families all live inside one artifact; this one is two artifacts having to AGREE — diff hunks
+  carry line ranges, symbols carry line ranges, and the guardian's whole value is the correspondence. The visible
+  acceptance is a single FULLY-CONTAINED overlap (hunk 40–45 vs symbol 38–50) and a 3-node chain for blast
+  radius, neither of which can expose an off-by-one at a TOUCHING boundary, a mapper that ignores `filePath`, a
+  first-match-only mapper, or a traversal that mishandles cycles, diamonds or multiple seeds.
+  **DISCRIMINATION PROVEN, after fixing the probe:** 7/7 on a correct reference, 3 of 7 RED on a naive
+  first-match/strict-boundary mapper. The cross-file probe initially did NOT discriminate — the correct symbol
+  happened to be listed first, so a mapper ignoring `filePath` got the right answer by accident. Reordering the
+  fixture so the wrong-file symbol comes first turned it into a real test. **A probe that passes against a known-
+  bad implementation is not evidence, and the only way to find that out is to run one.**
+  **Honest limit recorded in the file:** the cycle probe's real failure mode is a HANG, so it fails by timeout
+  rather than assertion and cannot be demonstrated against a truly unbounded traversal without hanging one; its
+  assertions cover the milder case of a traversal that terminates but drops nodes reachable only via the cycle.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; six of ~18 candidate specs now
+  carry held-out probes, spanning six invariant families (genealogy conservation, recall-safe tracing, RNG stream
+  independence, temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence).
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting
