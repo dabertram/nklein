@@ -13859,6 +13859,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
      Fixed today and proven on a real banked drain — the same events now project to
      `{shallow:3, medium:1, deep:9}`. **`assignModelFromFitness` can therefore be exercised on real depth-matched
      evidence for the first time; its guards will still abstain at this volume, which is the correct answer.**
+     **▶ THE DEPTH HALF OF THE WIRE SHIPPED 2026-08-09 — `card-depth-basis.ts`, 18 tests, 18/18
+     ablation-proven.** This is the piece the entry below called "the actual work of this wire". Role derivation
+     already existed (`resolveNKleinTaskRole`); **depth did not, because `classifyContextDepth` classifies
+     OBSERVED tokens and selection happens before the card runs.**
+     **The trap it avoids:** `fitnessDepthMismatch` treats `neededDepth` as a FACT — a card declared `deep`
+     accepts only deep-measured evidence — so passing a guess silently converts it into a manufactured
+     REQUIREMENT in one direction and a manufactured PERMISSION in the other. So the derivation returns depth
+     **with its basis**, and `canSteerOnDepth` (a type guard, so a null depth cannot reach the decider even at
+     compile time) is what callers gate on:
+       · `measured` — a PRIOR ATTEMPT of this card recorded its context tokens. Not an estimate at all, and
+         re-work is exactly where selection matters most. Takes the DEEPEST prior attempt: a card that once
+         needed 20k can need them again, and reading the latest would let one cheap retry understate it.
+       · `lower_bound` — the seed prompt ALONE crosses a band boundary. **Arithmetic, not prediction**: a
+         session's context includes its seed and only grows, so a 20k-token seed cannot produce a shallow
+         session. It can never rule a card SHALLOW, which is what makes it a bound rather than an estimate.
+       · `unknown` — first attempt, small seed. **Reported, never defaulted**, and the tests pin both refusals:
+         defaulting `shallow` is the manufactured permission (a shallow-measured model takes a deep card — the
+         exact P22.2 error), defaulting `deep` is the manufactured requirement (every assignment abstains for a
+         reason that reads as missing data rather than as an invented constraint).
+     A missing `usedContextTokens` is treated as ABSENCE, not as zero — reading it as zero would classify a card
+     shallow on a field that was never written, which is the depth-blind projection bug re-created one layer up.
+     REMAINING for phase 4: only the effectful call site now. With role and depth both derivable, the wire is a
+     single guarded call — and it stays observe-first (record the assignment and its abstentions before it
+     steers anything), which is a live-path change this entry deliberately does not rush.
      **WHERE THE WIRE GOES, and what it needs (scouted, deliberately not rushed):** the natural site is
      `start-task-session.ts` (~line 799), which already reads `fitnessTableRows` for `buildFitnessRoutingEvidence`
      — so the rows are in hand. What is NOT in scope there is an explicit `(role, neededDepth)` pair: that site
