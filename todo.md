@@ -12245,8 +12245,9 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   cards racing on the same files), and the cap at exactly 100 vs 101 — where a `>=` rejects a legitimate full
   batch and a missing check turns a paste into a board flood. Also pinned: the cap counts inputs BEFORE dedup,
   because "150 given" is what makes the error actionable.
-  **THREE REMAIN on the actionable list:** `action-plan-producer`, `env-gated-delivery`,
-  `local-model-base-url`, `model-research-policy`, `plan-gap-kind`.
+  **THREE REMAIN on the actionable list:** `action-plan-producer` (95 lines), `env-gated-delivery` (166),
+  `model-research-policy` (232). The four covered so far — `tool-result-failure`, `local-model-base-url`,
+  `plan-gap-kind`, `bulk-seed` — are each ablation-proven, so the coverage claim is measured rather than assumed.
   **The lesson is about the shape of the error, not the arithmetic:** every version of this number looked like a
   measurement and was partly an artefact of how the question was asked. It only became useful by being doubted
   three times.
