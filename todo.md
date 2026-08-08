@@ -12094,6 +12094,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   sends someone to delete working code, inverted. So P20.3b now needs only the EFFECTFUL half: stub-and-run in
   the sandbox producing the two files this already judges. That half is where the "stub must throw, not return a
   plausible default" rule lives — the assessor is proven, the stubbing is not yet built.
+  **▶ THE EFFECTFUL HALF SHIPPED 2026-08-08 — `scripts/ablate.mts`, live-exercised end to end.**
+  `--module <src/…> --tests <selection>` runs the baseline, replaces the module with a stub whose every export
+  FAILS LOUDLY, re-runs the SAME selection, and emits the two `{testId, passed}` JSONL files the proven assessor
+  judges. **Live trial:** `auto-start-failure-guard` → baseline 5/5 passing, ablated 0/5, counts matched,
+  module restored, verdict **LOAD_BEARING** ("stubbing the artifact broke 5 of 5 baseline-green tests").
+  **The stub throws from every export, including VALUES** — a `Proxy` whose getter throws rather than
+  `undefined`, because a plausible default is precisely the false-accusation path this measurement must avoid.
+  **The SELECTION is fixed once and the counts are compared**: a stub that breaks COLLECTION shrinks the
+  selection, and a smaller all-green run reads as DECORATIVE. A count mismatch is REPORTED and explicitly not
+  judged, rather than silently producing the expensive verdict.
+  The original is restored in a `finally` AND the restore is verified, exiting non-zero if it failed — leaving a
+  stubbed repo behind would be worse than any verdict this produces.
+  **DEVIATION, stated plainly: this runs LOCALLY, not inside the agent sandbox.** The item says "re-run the suite
+  in the sandbox". The stub-and-run mechanism — the half that did not exist — is built and proven; wrapping it in
+  the sandbox is a further step and is not claimed here.
   **⚠️ THE STUB MUST FAIL LOUDLY IF CALLED, NOT RETURN A PLAUSIBLE DEFAULT.** A stub returning `null`, `0`, `[]`
   or an empty string can let tests pass for the WRONG reason — they would report `decorative` on an artifact that
   is genuinely load-bearing but tolerant of empty input. That is a FALSE ACCUSATION, and it is the expensive
