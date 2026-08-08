@@ -171,7 +171,11 @@ if (sweepDir) {
 	const { readdir } = await import("node:fs/promises");
 	const limit = Number(arg("limit") ?? "25");
 	const suffix = sweepDir.replace(/^src\//, "");
-	const modules = (await readdir(sweepDir)).filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts")).sort();
+	// `.test.ts` files live alongside sources in some directories; counting them as MODULES inflated the
+	// "unexercised" figure by six on the first run. A test file is not an artifact to ablate.
+	const modules = (await readdir(sweepDir))
+		.filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts") && !f.endsWith(".test.ts"))
+		.sort();
 	const pairs: Array<{ module: string; selection: string }> = [];
 	let unpaired = 0;
 	for (const file of modules) {

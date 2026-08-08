@@ -12186,11 +12186,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   "144 module(s) have no matching test", which reads as 144 UNTESTED modules. It meant "144 do not match my
   `X.ts` ↔ `X.test.ts` naming convention": **6 of the first 8 sampled were tested under a different filename.**
   A convenience heuristic had been reported as a coverage measurement.
-  **FIXED** — the sweep now falls back to whichever test files actually IMPORT the module, and the corrected
-  numbers are materially different: **707 modules with an exercising test (was 590), and 27 imported by NO test
-  file at all (was a misleading 144).** 117 modules recovered into the sweep's reach, and **27 is the real
-  coverage finding** — those are genuinely unexercised, neither load-bearing nor decorative, and the summary now
-  says exactly that.
+  **FIXED, and then fixed TWICE MORE — the count was corrected three times and got more honest each time.**
+    1. **144** — the naming-convention artefact above.
+    2. **27** — after pairing by IMPORTS instead of filename (707 modules gained an exercising test).
+    3. **21** — after excluding `.test.ts` files from the module glob; six TEST files in `src/core` were being
+       counted as unexercised modules. A test file is not an artifact to ablate.
+  **And 14 of those 21 are `*-api-contract` modules** — Zod schema/contract definitions exercised THROUGH the API
+  rather than directly, and (per the confirmed import-time finding above) structurally un-ablatable anyway.
+  **So the genuinely interesting residue is SEVEN core modules with no exercising test at all:**
+  `action-plan-producer`, `bulk-seed`, `env-gated-delivery`, `local-model-base-url`, `model-research-policy`,
+  `plan-gap-kind`, `tool-result-failure`. That is a short, checkable list someone can act on — which "144
+  untested modules" was not.
+  **The lesson is about the shape of the error, not the arithmetic:** every version of this number looked like a
+  measurement and was partly an artefact of how the question was asked. It only became useful by being doubted
+  three times.
   **⚠️ A BATCH WRAPPER OVER THIS IS NOT THE SAME THING AS THE HARNESS, and mine was buggy.** An ad-hoc shell loop
   over 12 cores mis-extracted the verdicts (printed bare module names, and one module produced no output at all),
   so **no results from that batch are reported here** — reporting 11 LOAD_BEARINGs I could not substantiate would
