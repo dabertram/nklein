@@ -11741,11 +11741,27 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **AND THE PROBE WAS FIXED MID-FLIGHT, again by running it against the known-BAD build:** the any-single-run
   fixture originally let the AVERAGE drop too, so an averaging gate blocked for the wrong reason and the probe
   proved nothing. The scores now make the average IMPROVE (0.9 → 0.9167) while one run regresses.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; thirteen of ~18 candidate specs
-  now carry held-out probes, spanning thirteen invariant families (genealogy conservation, recall-safe tracing,
+  **▶ FOURTEENTH PROJECT 2026-08-08 — project 31 (city builder), 6 probes on SPATIAL INDEXING + generation
+  discipline.** Fields live in a flat array addressed `y*width+x`; the transposed `x*height+y` is not merely
+  hard to spot on a square grid, it is CORRECT there — so any 16×16 fixture passes with x and y swapped. The
+  second half is the double buffer the spec fixes explicitly (write→`next`, read→`prev`, swap on commit): a
+  single-buffer store makes a tick read its own partial output, so results depend on iteration order and
+  determinism dies. Note the probe asserts the SPEC's order, under which the intuitive write-then-read returns
+  the OLD value — asserting the intuitive thing would have inverted the test.
+  **DISCRIMINATION PROVEN:** 6/6 on a correct store; 4 of 6 RED on a transposed, single-buffer variant.
+  **🔎 A ROUND-TRIP CANNOT DETECT A TRANSPOSED INDEX — learned by running the probe against the bad build, where
+  it PASSED.** If read and write share the same wrong index the value comes back fine: wrong, but consistent.
+  What makes the probe decisive is asserting the BACKING ARRAY never exceeds `width*height` — a transposed index
+  on 7×3 addresses up to 44 in a 21-element array and JS silently extends it. The header now says so, since the
+  original comment claimed a non-square world was sufficient on its own and it is not.
+  **THIRD TIME THIS PATTERN HAS CAUGHT A WEAK PROBE THIS SESSION** (after project 21's accidentally-ordered
+  fixture and project 25's averaged-away regression). Running each probe against a deliberately-broken build is
+  not a formality; it has changed the actual content of three probes.
+  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; fourteen of ~18 candidate specs
+  now carry held-out probes, spanning fourteen invariant families (genealogy conservation, recall-safe tracing,
   RNG stream independence, temporal-spatial authorization, fixed-point determinism, cross-artifact
   correspondence, path optimality + capacity, redaction totality, exactly-once identity, bitemporal
-  immutability, content-addressing integrity, authority non-escalation, safety precedence).
+  immutability, content-addressing integrity, authority non-escalation, safety precedence, spatial indexing).
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting

@@ -95,6 +95,10 @@
   {
    "path": "test/protected/oracle/25_self_improving_agentic_software_factory/gate-precedence.probe.mts",
    "rationale": "Held-out oracle for project 25: safety PRECEDENCE in the self-modification gate — each visible test exercises one rule alone, so a gate with inverted ordering passes all three and lets an approved, improving change edit the integrity firewall."
+  },
+  {
+   "path": "test/protected/oracle/31_city_builder_civic_simulation/field-indexing.probe.mts",
+   "rationale": "Held-out oracle for project 31: flat-array spatial indexing on a NON-SQUARE world plus the double-buffer generation discipline — a transposed index is correct on a square grid and a round-trip cannot detect it."
   }
  ]
 }
