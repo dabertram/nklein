@@ -356,6 +356,13 @@ export function buildFitnessTableFromLedger(events: readonly AgentLedgerEvent[])
 				wallTimeMs,
 				tokensPerSec: attempt.tokensPerSec,
 				usedKnowledgeTools: attempt.knowledge ? attempt.knowledge.retrievalCallCount > 0 : null,
+				// P22.2 / P25.3: the attempt already carries the context size it was measured at, and the fold files a
+				// sample under that depth. Omitting it here made every cell the LIVE path produces depth-UNKNOWN, so
+				// depth-matched evidence could only ever come from eval runs — never from a real drain, which is why a
+				// 60-minute drain with 35 terminal attributable sessions yielded no depth rows at all. The fold still
+				// guards on a finite number, so a legacy attempt without the field stays depth-unknown rather than
+				// being manufactured as shallow.
+				usedContextTokens: attempt.contextTokens,
 			},
 			attempt.completedAt ?? attempt.recordedAt,
 		);

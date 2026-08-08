@@ -192,3 +192,40 @@ describe("F1.15b fitness projection equivalence (fixture lock)", () => {
 		expect(row?.tokensPerSecSamples).toBe(1);
 	});
 });
+
+describe("depth-matched evidence from the LIVE path", () => {
+	it("files each attempt under the context depth the ledger already measured", () => {
+		// P22.2 / P25.3, live-found 2026-08-08. The projection passed wallTimeMs and tokensPerSec to the fold but
+		// dropped the attempt's contextTokens, so every cell the LIVE path produced was depth-UNKNOWN. Depth-matched
+		// evidence could therefore only ever come from eval runs — a 60-minute real drain with 35 terminal,
+		// model-attributable sessions yielded ZERO depth samples. Verified on that run's real ledger: all zeros
+		// before, {shallow:3, medium:1, deep:9} after, from the identical events.
+		const base = attemptEventFor(RUNS[0]!);
+		const deep = { ...base, contextTokens: 106_842 } as AgentLedgerEvent;
+		const shallow = { ...base, taskId: "task-shallow", contextTokens: 900 } as AgentLedgerEvent;
+
+		const rows = buildFitnessTableFromLedger([deep, shallow]);
+		const totals = Object.values(rows).reduce(
+			(acc, row) => ({
+				shallow: acc.shallow + row.depthSamples.shallow,
+				medium: acc.medium + row.depthSamples.medium,
+				deep: acc.deep + row.depthSamples.deep,
+			}),
+			{ shallow: 0, medium: 0, deep: 0 },
+		);
+		expect(totals.deep).toBe(1);
+		expect(totals.shallow).toBe(1);
+	});
+
+	it("leaves an attempt with no measured context size depth-UNKNOWN rather than filing it as shallow", () => {
+		// The other half of P22.2: manufacturing shallow evidence from an unreported context size would let a routing
+		// guard pass on samples that were never measured. Absence must stay absence.
+		const noTokens = { ...attemptEventFor(RUNS[0]!) } as Record<string, unknown>;
+		noTokens.contextTokens = undefined;
+
+		const rows = buildFitnessTableFromLedger([noTokens as AgentLedgerEvent]);
+		for (const row of Object.values(rows)) {
+			expect(row.depthSamples).toEqual({ shallow: 0, medium: 0, deep: 0 });
+		}
+	});
+});

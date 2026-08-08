@@ -7251,6 +7251,29 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   **Defect #13, and its lesson compounds the set: my cleanup commit CLAIMED "a PASSED cell's isolated HOME has
   nothing left to diagnose" — false; the pack evaluator still needed it.** A cleanup's correct phase is defined by
   the LAST reader, not by the writer's view of doneness.
+- [x] **🐛 DEPTH-BLIND LIVE PATH — real drains contributed NO depth-matched fitness evidence (found + fixed 2026-08-08).**
+  Chasing P25.3's missing depth rows after a clean 60-minute drain: 4 cards completed, **35 terminal
+  model-attributable sessions**, and **zero** depth samples. Not a timeout artefact — the evidence simply never
+  existed.
+  **Root cause:** `buildFitnessTableFromLedger` passed `wallTimeMs`, `tokensPerSec` and `usedKnowledgeTools` to
+  the fitness fold but **dropped the attempt's `contextTokens`**, which is the only input the fold classifies
+  depth from. Every cell the LIVE path produced was therefore depth-UNKNOWN, and depth-matched evidence could
+  only ever come from EVAL runs (`runtime-api` passes `usedContextTokens: cell.contextTokens` explicitly).
+  The data was never missing — the ledger records `contextTokens` on every attempt (one real record: 106,842).
+  **PROVEN ON THE REAL LEDGER, both directions:** the same events project to
+  `{shallow:0, medium:0, deep:0}` before the fix and `{shallow:3, medium:1, deep:9}` after — 15 samples that had
+  been silently discarded. Regression test confirmed RED first.
+  **Why it mattered beyond one row:** P25.3's whole depth-rows leg was being re-run against a path that could
+  not produce them, and `assignModelFromFitness`'s depth guards (`minDepthMatchedSamples`,
+  `minDepthMatchedShare`) would abstain forever on live evidence while looking correctly conservative — a guard
+  that never fires because its input is always empty is indistinguishable from a guard that is working.
+  **The P22.2 half is preserved:** an attempt with no measured context size stays depth-unknown rather than
+  being filed as shallow, pinned by its own test. See [[green-signal-substitution]].
+  **Related discovery, NOT a defect:** `deriveTaskFitnessRecord` (the task-completion → fitness bridge) has zero
+  production callers — both `recordTaskFitnessOutcome` sites are eval paths. That is consistent with §5.BG (the
+  fitness table is a DISPLAY stream; routing reads the ledger projection), so it is recorded here as an
+  architectural fact rather than filed as a bug.
+
 - [ ] **N8.1 real-model leg — FIRST verdict, and it is not a score: UNGRADABLE (`graded_tests_modified`).**
   A real `pallets__flask-5014` drain settled a card and produced a result branch, but the sealed grade could
   not run: the instance's own `test_patch` no longer applies, because the model **edited the graded tests**.
