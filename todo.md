@@ -12265,7 +12265,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   an UNWIRED core rather than an env-gating question; and one ungated consumer means no alarm, because a false
   alarm costs a reader's trust. Also: every `NON_MECHANISM_FLAGS` exemption must carry a written reason, or the
   list decays into a place to hide inconvenient flags.
-  **ONE REMAINS on the actionable list:** `model-research-policy` (232 lines).
+  **▶ SEVENTH AND LAST — `model-research-policy`, 19 tests, 19/19 ablation-proven. THE LIST IS CLEARED: all seven
+  genuinely-unexercised `src/core` modules now have ablation-proven coverage.** Three guards live here, each
+  failing expensively if too permissive: the three-gate egress guard (air-gap / egress-enabled / search backend,
+  tested INDEPENDENTLY from an otherwise-open state so a guard checking only the first cannot pass by luck, with
+  air-gap given precedence so the strongest posture names itself), the primary-SOURCE policy (HTTPS-only; an LM
+  Studio republish is a mirror, never the publisher), and the citation validator — an anti-hallucination guard
+  whose job is refusing an assertion nobody supported.
+  **AND WRITING IT CORRECTED MY OWN ASSUMPTION.** I first asserted that a field citing `[e1, e1]` should be
+  dropped as padded corroboration. It is not, and should not be: the pair dedupes to ONE admitted source, and the
+  claim genuinely has it. The rule the code actually implements is stricter and more interesting — **ANY unknown
+  id discards the whole field**, so a partially-hallucinated citation list is thrown away rather than salvaged
+  down to its real sources. Both behaviours are now pinned, with the reasoning, so the next reader does not
+  re-derive the wrong one.
+  ── **THE SEVEN ARE DONE:** `tool-result-failure`, `local-model-base-url`, `plan-gap-kind`, `bulk-seed`,
+  `action-plan-producer`, `env-gated-delivery`, `model-research-policy` — 88 tests, every one verified by
+  ablation to actually measure its module rather than its neighbourhood.
   The five covered — `tool-result-failure`, `local-model-base-url`, `plan-gap-kind`, `bulk-seed`,
   `action-plan-producer` — are each ablation-proven, so the coverage claim is measured rather than assumed.
   **The lesson is about the shape of the error, not the arithmetic:** every version of this number looked like a
