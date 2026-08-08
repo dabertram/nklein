@@ -12539,6 +12539,32 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   type-only module as unexercised, which it is by construction and always will be — worth fixing in the
   detector before the next audit, or the same false gap reappears and someone writes the decorative test.
   ✅ **VEIN CLOSED: all 15 coverable modules covered, every one ablation-proven LOAD_BEARING.**
+
+  **▶ THEN THE DETECTOR ITSELF WAS WRONG — TWICE, BOTH THE SAME SHAPE (2026-08-09).** Fixing the type-only
+  miscount meant touching `scripts/ablate.mts`, and re-running the census surfaced a second, larger error. The
+  sweep's "unexercised" bucket was answering a NARROWER question than its label: *"does any test name this
+  module's path?"* — reported as *"is this module tested?"*. A plausible number standing in for a fact it never
+  established, in the tool built to catch exactly that.
+    · **Type-only modules counted as gaps.** Detected by MEASUREMENT, not pattern: a single-file esbuild
+      transform of a type-only module is 0 bytes. Regexing `export type` would misjudge any module mixing types
+      with values. A FAILED transform yields `null`, never `true` — my first probe passed `--loader=ts`, which
+      esbuild rejects for a file with an extension, so **every module measured 0 bytes** and would all have been
+      classified type-only. An error reported as a clean measurement, caught only because three identical zeros
+      across obviously-different modules is not agreement, it is a smell. Unknown now counts as a possible gap.
+    · **Barrel re-exports were invisible.** A test importing `core/api-contract` genuinely exercises the 12
+      `*-api-contract` modules that barrel re-exports, but no test contains their paths, so the grep saw
+      nothing. This alone accounted for **12 of the 14 "unexercised" core modules**. Now its own bucket
+      (`via_barrel`) rather than folded into "exercised", because a barrel importer does not necessarily touch
+      THIS module's symbols and stubbing it breaks every barrel importer at import time — a LOAD_BEARING verdict
+      earned by the barrel, not the module. Reached, but not directly judgeable, and saying so is the honest
+      report.
+    · Both buckets are now **NAMED, not just counted** — a bare "14 unexercised" is a percentage in disguise:
+      nobody can act on it and it stays 14 forever. A named list is a work queue, and it makes a wrong count
+      visible, which is precisely how the 12 were found.
+  **CORRECTED CENSUS** (`--sweep <dir> --limit 0`): core 714 exercised / **2 unexercised** / 12 via-barrel ·
+  nklein-agent 302 / 0 / 1 type-only · state 36 / 0 · telemetry 10 / 0 · workspace 22 / 0.
+  **The real remaining gap is 2 modules, not 14:** `src/core/adw-run-api-contract.ts` and
+  `src/core/field-report-api-contract.ts` — the only two `*-api-contract` files no barrel re-exports.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports

@@ -177,7 +177,79 @@ if (sweepDir) {
 		.filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts") && !f.endsWith(".test.ts"))
 		.sort();
 	const pairs: Array<{ module: string; selection: string }> = [];
-	let unpaired = 0;
+	const unexercised: string[] = [];
+	const typeOnly: string[] = [];
+	const viaBarrel: string[] = [];
+
+	/**
+	 * A module re-exported by a barrel that tests DO import is reached — the importer grep just cannot see it,
+	 * because no test names its path. That under-reporting is what turned 2 genuine gaps into a list of 14: every
+	 * `*-api-contract` reached through `core/api-contract` looked untouched.
+	 *
+	 * Reported as its own bucket rather than folded into "exercised", because a barrel importer does not
+	 * necessarily use THIS module's symbols, and stubbing it would break every barrel importer at import time —
+	 * a LOAD_BEARING verdict earned by the barrel, not by the module. Not a naming gap, not a judgeable pairing.
+	 */
+	async function reExportedByAnImportedBarrel(dir: string, base: string): Promise<boolean> {
+		let siblings: string[] = [];
+		try {
+			siblings = (await readdir(dir)).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
+		} catch {
+			return false;
+		}
+		const reExport = new RegExp(`export\\s+\\*\\s+from\\s+["']\\./${base}(\\.js|\\.ts)?["']`, "u");
+		for (const sibling of siblings) {
+			const barrelBase = sibling.replace(/\.ts$/, "");
+			if (barrelBase === base) {
+				continue;
+			}
+			let text = "";
+			try {
+				text = await readFile(join(dir, sibling), "utf8");
+			} catch {
+				continue;
+			}
+			if (!reExport.test(text)) {
+				continue;
+			}
+			try {
+				const { stdout } = await execFileAsync("grep", ["-rl", `${suffix}/${barrelBase}"`, "test/"], {
+					maxBuffer: 8 * 1024 * 1024,
+				});
+				if (stdout.split("\n").some((line) => line.endsWith(".test.ts"))) {
+					return true;
+				}
+			} catch {
+				// no test imports this barrel either — keep looking at other barrels
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * A type-only module emits NO runtime code, so it can never be "exercised" and an ablation stub would change
+	 * nothing. Counting it as unexercised inflates the gap and invites a decorative test — that is exactly what
+	 * happened to `nklein-task-session-service-types`, which sat in a 16-module gap list as the one entry that was
+	 * never a gap at all.
+	 *
+	 * Measured, not pattern-matched: a single-file esbuild transform of a type-only module is zero bytes. Regexing
+	 * for `export type` would misjudge any module that mixes types with runtime values.
+	 *
+	 * A FAILED transform yields null, never `true`. The first version of this probe passed `--loader=ts`, which
+	 * esbuild rejects for a file with an extension; every module then measured 0 bytes and would have been
+	 * classified type-only — an error reported as a clean measurement. Unknown counts as a possible gap.
+	 */
+	async function emitsNoRuntimeCode(modulePath: string): Promise<boolean | null> {
+		try {
+			const { stdout } = await execFileAsync("npx", ["esbuild", modulePath, "--format=esm"], {
+				maxBuffer: 8 * 1024 * 1024,
+			});
+			return stdout.trim().length === 0;
+		} catch {
+			return null;
+		}
+	}
+
 	for (const file of modules) {
 		const base = file.replace(/\.ts$/, "");
 		const conventional = `test/runtime/${suffix}/${base}.test.ts`;
@@ -198,15 +270,45 @@ if (sweepDir) {
 		}
 		if (importers.length > 0) {
 			pairs.push({ module: join(sweepDir, file), selection: importers.join(" ") });
+			continue;
+		}
+		// No test names this path — but that is THREE different facts, and only one of them is a gap.
+		const modulePath = join(sweepDir, file);
+		if ((await emitsNoRuntimeCode(modulePath)) === true) {
+			typeOnly.push(modulePath);
+		} else if (await reExportedByAnImportedBarrel(sweepDir, base)) {
+			viaBarrel.push(modulePath);
 		} else {
-			unpaired += 1;
+			unexercised.push(modulePath);
 		}
 	}
 	const scope = pairs.slice(0, limit);
 	process.stdout.write(
 		`sweep: ${scope.length} of ${pairs.length} module(s) with an exercising test ` +
-			`(${unpaired} module(s) are imported by NO test file at all — genuinely unexercised, SKIPPED, not judged)\n\n`,
+			`(${unexercised.length} unexercised — reached by NO test at all, SKIPPED, not judged` +
+			`${viaBarrel.length > 0 ? `; ${viaBarrel.length} reached only via an imported barrel` : ""}` +
+			`${typeOnly.length > 0 ? `; ${typeOnly.length} type-only, emitting no runtime code — NOT a gap` : ""})\n\n`,
 	);
+	// Named, not just counted — for BOTH buckets. A bare "14 unexercised" is a percentage in disguise: nobody can
+	// act on it, and it stays 14 forever. A named list is a work queue, and it also makes a wrong count visible.
+	for (const modulePath of unexercised) {
+		process.stdout.write(`unexercised    ${modulePath}\n`);
+	}
+	if (unexercised.length > 0) {
+		process.stdout.write("\n");
+	}
+	for (const modulePath of viaBarrel) {
+		process.stdout.write(`via_barrel     ${modulePath}  (re-exported by a barrel tests import — reached, not directly judgeable)\n`);
+	}
+	if (viaBarrel.length > 0) {
+		process.stdout.write("\n");
+	}
+	for (const modulePath of typeOnly) {
+		process.stdout.write(`type_only      ${modulePath}  (no runtime code — nothing to exercise or ablate)\n`);
+	}
+	if (typeOnly.length > 0) {
+		process.stdout.write("\n");
+	}
 	const tally = new Map<string, number>();
 	for (const [index, pair] of scope.entries()) {
 		const workDir = join(outDir, `sweep-${index}`);
@@ -230,8 +332,21 @@ if (sweepDir) {
 	}
 	process.stdout.write(`\nsummary: ${[...tally].map(([k, v]) => `${k}=${v}`).join(" · ") || "nothing ran"}\n`);
 	process.stdout.write(
-		`${unpaired} module(s) are imported by no test file at all — unexercised, therefore NOT judged (neither load-bearing nor decorative).\n`,
+		`${unexercised.length} module(s) are reached by no test at all — unexercised, therefore NOT judged ` +
+			`(neither load-bearing nor decorative).\n`,
 	);
+	if (viaBarrel.length > 0) {
+		process.stdout.write(
+			`${viaBarrel.length} module(s) are reached ONLY through a barrel that tests import — covered in effect, ` +
+				`but stubbing one breaks every barrel importer at import time, so the verdict would belong to the barrel.\n`,
+		);
+	}
+	if (typeOnly.length > 0) {
+		process.stdout.write(
+			`${typeOnly.length} module(s) emit no runtime code (type-only) — NOT a coverage gap and not closable by ` +
+				`a test; their verifier is \`tsc --noEmit\`.\n`,
+		);
+	}
 } else {
 	const result = await ablateOne(modulePath as string, testSelection as string, outDir);
 	process.stdout.write(
