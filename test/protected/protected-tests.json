@@ -99,6 +99,10 @@
   {
    "path": "test/protected/oracle/31_city_builder_civic_simulation/field-indexing.probe.mts",
    "rationale": "Held-out oracle for project 31: flat-array spatial indexing on a NON-SQUARE world plus the double-buffer generation discipline — a transposed index is correct on a square grid and a round-trip cannot detect it."
+  },
+  {
+   "path": "test/protected/oracle/26_chess_study_engine_arena/move-legality.probe.mts",
+   "rationale": "Held-out oracle for project 26: the rules the six canonical perft positions do NOT reach — horizontal en-passant pin, castling through an attacked square, under-promotion completeness. NOTE: null-agent gate verified; discrimination against a reference engine NOT yet demonstrated."
   }
  ]
 }

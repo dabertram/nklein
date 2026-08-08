@@ -11757,11 +11757,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **THIRD TIME THIS PATTERN HAS CAUGHT A WEAK PROBE THIS SESSION** (after project 21's accidentally-ordered
   fixture and project 25's averaged-away regression). Running each probe against a deliberately-broken build is
   not a formality; it has changed the actual content of three probes.
-  **STILL OPEN: the remaining projects' fixture splits** — content, not tooling; fourteen of ~18 candidate specs
-  now carry held-out probes, spanning fourteen invariant families (genealogy conservation, recall-safe tracing,
-  RNG stream independence, temporal-spatial authorization, fixed-point determinism, cross-artifact
-  correspondence, path optimality + capacity, redaction totality, exactly-once identity, bitemporal
-  immutability, content-addressing integrity, authority non-escalation, safety precedence, spatial indexing).
+  **▶ FIFTEENTH PROJECT 2026-08-08 — project 26 (chess), 7 probes on the rules the canonical perft suite does
+  NOT reach.** This project is unusual: its visible acceptance is already strong (perft green to depth ≥4 on six
+  canonical positions, byte-exact against published counts), so re-running perft would measure nothing. The
+  probe holds out the positions those six omit, each a rule the spec itself flags as one that "WILL break a
+  naive implementation": the rare HORIZONTAL en-passant pin (taking removes BOTH pawns from the rank and exposes
+  the king), castling THROUGH an attacked square — paired with the complement, since the ROOK may legally pass
+  one, so the pair shows which direction is wrong — and under-promotion completeness.
+  **DELIBERATELY ASSERTS NO NEW PERFT NUMBERS.** A perft expectation is only as good as the number written down,
+  and a misremembered count would produce a permanently-red probe blaming the AGENT for the PROBE's error — the
+  exact failure this session already hit three times. Every expectation is instead a legality fact derivable
+  from the position by reasoning, or a self-consistency property (`perft(1)` must equal the legal-move count;
+  `makeMove` must not mutate its input). Those need no external table to be trustworthy.
+  **⚠️ HONEST LIMIT — this is the ONE probe whose discrimination is NOT demonstrated.** The null-agent gate is
+  verified (it fails loudly with "exports no parseFen"), and all six FEN positions were reasoned through
+  explicitly, but proving it catches a real generator bug needs a working chess engine as the reference, which
+  is disproportionate to write here. **Every other project's probe was run against both a correct and a
+  deliberately-broken build; this one was not.** Recorded rather than glossed, because "verified" and "carefully
+  reasoned" are not the same claim.
+  **STILL OPEN — and the count was WRONG in earlier entries: 28 specs use the card grammar, not ~18.** Fifteen
+  now carry held-out probes; **thirteen remain** (05, 06, 09, 12, 13, 15, 20, 28, 29, 33, 34, 35, 36). The
+  fifteen span fifteen invariant families (genealogy conservation, recall-safe tracing, RNG stream independence,
+  temporal-spatial authorization, fixed-point determinism, cross-artifact correspondence, path optimality +
+  capacity, redaction totality, exactly-once identity, bitemporal immutability, content-addressing integrity,
+  authority non-escalation, safety precedence, spatial indexing, exhaustive rule correctness).
   **▶ 2026-08-01 — THE PRECONDITION IS CONFIRMED PRESENT, and the contracts a probe must target are now
   extractable.** A held-out probe can only exist if the spec pins something stable to CALL; otherwise the agent
   chooses every path and signature and no independent test can be written in advance. Checked, after first getting
