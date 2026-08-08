@@ -12576,6 +12576,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   secret value never appears in a prompt or log. Coordinate with the Phase 7S final audit pass, as originally
   scoped. Lower value than the MCP surface just shipped: task env is !Klein-authored, whereas MCP server configs
   are where third-party credentials genuinely live.
+  **▶ THE INVARIANT HALF SHIPPED 2026-08-08 — 3 tests, mutation-checked.** A resolved secret value is now
+  mechanically pinned out of the human-facing description: adversarial values (reference syntax, regex
+  metacharacters, non-ASCII), literals as well as references (an unconverted config still holds literals, and
+  incremental adoption means those must not become the leak), and a SOURCE-LEVEL ratchet asserting
+  `describeSecretReferenceResolution` never reads the value-carrying `env` map. Mutation-checked: making the
+  function log the env map turns four tests red.
+  **The ratchet is the load-bearing test, for a reason worth keeping.** A secret whose VALUE equals or contains a
+  KEY NAME cannot be checked by assertion at all — the description legitimately prints key names, so
+  `not.toContain(secret)` fails on a value of `"ANTHROPIC_API_KEY"` even when nothing leaked. Example-based
+  tests are structurally blind to that whole class; only the source ratchet covers it. (Found by writing those
+  values into the test and watching it fail for the wrong reason.)
+  **🔴 THE OTHER HALF HAS NO SURFACE TO EXTEND, and should not get one just to have somewhere to put secrets.**
+  There is no user-configured task/sandbox env in the codebase: the sandbox environment is entirely
+  !Klein-authored (`HOME`, `XDG_CACHE_HOME`, `NPM_CONFIG_CACHE`, `CARGO_HOME`, the §5.L egress-proxy vars), and
+  `env://` resolution has exactly one consumer, the MCP transport factory. So "extend `env://` to the task env"
+  is presently a no-op — which is the item's own conclusion carried to its end. Revisit only if a user-supplied
+  task env is ever introduced; the resolver is ready for it.
 ### Phase 25 — FULL-AUTO MODEL LIFECYCLE (David 2026-07-31: research → download → route, self-managed)
 
 > **David's proposal, verbatim in substance:** auto load/unload models as needed on runtimes that suit !Klein
