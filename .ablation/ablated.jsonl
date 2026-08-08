@@ -1,16 +1,13 @@
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::what the walk finds reports a root package as \"\" and nested packages by relative path","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::what the walk finds collects AGENTS.md and CLAUDE.md wherever they sit","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::what the walk finds matches instruction files by EXACT name, not case-insensitively","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::what the walk finds returns empty facts for a workspace that does not exist, rather than throwing","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::what the walk finds returns empty facts for an empty workspace","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the skip list does NOT descend into node_modules","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the skip list skips build output and VCS directories too","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the skip list skips every dot-directory, not only the ones named in the list","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the skip list does not skip a directory whose name merely CONTAINS a skipped name","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the depth bound finds a package four levels down","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the depth bound does NOT find a package five levels down","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the memo returns the SAME facts object on a second call — one walk serves every card start","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the memo does not see a package added after the first scan","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the memo sees it once the memo is cleared","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the memo keys the memo per workspace, so one project's facts never answer for another","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/nklein-monorepo-scope-scan.test.ts::the memo memoizes an EMPTY result too, including for an unreadable tree","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::which skills get the evidence records the verdict against every skill surfaced into the session","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::which skills get the evidence passes a RED acceptance through as a refutation, not as nothing","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::which skills get the evidence uses the LATEST attempt's surfaced skills, not the first","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::which skills get the evidence ignores attempts belonging to OTHER cards","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::which skills get the evidence ignores non-attempt ledger events","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::which skills get the evidence skips a surfaced id that no longer names a known skill","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::when there is nothing to record writes nothing when the attempt surfaced no skills","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::when there is nothing to record writes nothing when the attempt has no surfacedSkillIds stamp at all","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::when there is nothing to record writes nothing when the ledger holds no attempts for this card","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::best-effort by contract resolves silently when the LEDGER read fails, writing nothing","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::best-effort by contract resolves silently when the skill STORE read fails","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::best-effort by contract resolves silently when a skill WRITE fails mid-way","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/nklein-agent/procedural-skill-execution-recorder.test.ts::best-effort by contract resolves silently for a null workspace path","passed":false}

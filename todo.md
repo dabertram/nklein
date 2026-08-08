@@ -12403,6 +12403,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Also pinned: the depth bound bites at five levels, written down so raising it is a deliberate act rather than
   something a card discovers by having its package silently invisible; and instruction files match by EXACT
   name, since matching `agents.md` loosely would sweep unrelated docs into a model's instructions.
+  **▶ SEVENTH TO NINTH OF THE 16 — three small `src/nklein-agent` modules, 31 tests, all ablation-proven
+  (9/9, 9/9, 13/13).** Two are Maps behind three functions, and what makes them worth pinning is not the storage
+  but the fact that **each holds a multi-state answer whose states must not flatten**.
+    · `nklein-baseline-probe-registry` (9/9) answers an ATTRIBUTION question: when acceptance is red at review,
+      did the worker break it or was the base tree already red? Four distinguishable states — `null` (opt-in
+      probe never ran), `{present:false}` (no acceptance command, so a probe proves nothing),
+      `{present:true, passed:null}` (command ran, no verdict), and a real verdict. **The dangerous collapse is
+      any of the first three reading as `passed:false`**, which turns "we do not know" into "it was already
+      broken" and lets a real regression through as pre-existing. Also pinned: forgetting restores ABSENCE, not
+      a stale verdict — a probe outliving its session gets applied to a tree it never ran against.
+    · `nklein-property-evidence-registry` (9/9) carries `pass | fail | unavailable`. **`unavailable` is the one
+      that earns the tests**: a consumer reading it as a pass has substituted a green signal for a fact nobody
+      established, one reading it as a fail invents a defect, and neither is recoverable downstream because by
+      then the distinction is gone. The `invariantCount` alongside is what stops "passed over 0 invariants" from
+      reading as a meaningful pass, so it is pinned as its own probe.
+    · `procedural-skill-execution-recorder` (13/13) turns an acceptance verdict into skill evidence for the
+      F12.29 promotion gate, so a skill credited for a card it never touched is a skill **promoted on someone
+      else's success**. Pinned: the LATEST attempt's surfaced ids (a re-worked card surfaced a different set),
+      the per-card filter (the ledger is per WORKSPACE — without it one card's acceptance credits every skill
+      any card surfaced), a red verdict recorded as a refutation rather than dropped (recording only greens
+      promotes on wins while never counting losses), and a deleted skill id skipped without losing the rest.
+      Its best-effort contract is pinned **per failing dependency with the write asserted absent**, because a
+      swallowed failure and a successful no-op are indistinguishable from outside — "it did not throw" alone
+      would pass against a module that had entirely stopped working.
   **A short, named list beats a percentage**, and this one is small enough to work through deliberately rather
   than as a campaign. Note the shape: several are registries, type-only modules or provider-auth surfaces where
   the honest answer may be "exercised end-to-end elsewhere" rather than "needs a unit test" — the audit reports
