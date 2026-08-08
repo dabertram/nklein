@@ -13,6 +13,7 @@
  */
 
 import { readFile } from "node:fs/promises";
+import { foldAblationIntoAcceptance } from "../core/ablation-acceptance";
 import { assessNoOpAblation, type TestOutcome } from "../core/no-op-ablation";
 
 function parseOutcomes(text: string): TestOutcome[] {
@@ -62,8 +63,13 @@ export async function runDevAblationCommand(options: {
 		ablated: parseOutcomes(ablatedText),
 	});
 
+	// P20.3b: the same verdict, said in the terms card acceptance uses. A raw verdict leaves every caller to
+	// re-derive the asymmetry (decorative holds, inconclusive must not) — and re-deriving it is where it gets got
+	// wrong, because "no evidence" reads like "no problem".
+	const acceptance = foldAblationIntoAcceptance(assessment);
+
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify(assessment, null, 2)}\n`);
+		process.stdout.write(`${JSON.stringify({ ...assessment, acceptance }, null, 2)}\n`);
 		// `decorative` is the alarming verdict — the artifact does nothing the suite measures — so it fails a
 		// script. `inconclusive` does NOT: missing evidence is a harness gap, and failing on it would be the exact
 		// "convert missing evidence into a clean bill of health" move inverted into a false alarm.
@@ -83,6 +89,11 @@ export async function runDevAblationCommand(options: {
 		);
 	}
 	process.stdout.write(`\n${assessment.reason}\n`);
+	process.stdout.write(
+		`\nCARD ACCEPTANCE: ${acceptance.status.toUpperCase()}` +
+			`${acceptance.holdsAcceptance ? " — HOLDS the card for review" : " — does not hold the card"}\n` +
+			`  ${acceptance.detail}\n`,
+	);
 	if (assessment.verdict === "decorative") {
 		process.stdout.write(
 			"⚠️ A perfect green suite over a decorative artifact should LOWER confidence, not raise it — the failure " +

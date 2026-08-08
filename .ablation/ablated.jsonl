@@ -1,20 +1,16 @@
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::the run request defaults a missing input to the empty string","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::the run request keeps a supplied input verbatim, whitespace included","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::the run request accepts input right up to the cap and rejects one character past it","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::the run request requires a non-empty workflow name","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::the run request requires a non-empty run id when polling","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::listing workflows LISTS a broken workflow with its reason instead of hiding it","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::listing workflows distinguishes a healthy workflow by a NULL reason, not an empty one","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::listing workflows allows a null description but not a missing one","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::listing workflows requires the step counts to be non-negative integers","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::listing workflows accepts an empty workflow list","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::listing workflows rejects the whole list if one summary is malformed","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::starting a run carries a run id on success and a reason on failure","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::starting a run requires both fields to be STATED, even when null","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot represents a LIVE run: no finish time, verdict still running","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot keeps `running` out of the terminal verdicts","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot keeps SKIPPED distinct from FAIL and from PENDING","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot distinguishes a deterministic step from an agent step","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot lets a step name the card it produced, or state that it produced none","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot accepts a finished run with an evidence directory","passed":false}
-{"testId":"/Users/david/GIT/nklein/test/runtime/core/adw-run-api-contract.test.ts::a run snapshot accepts a run with NO steps — a workflow that failed before any step ran","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::missing evidence never holds a card does not hold when the ablation could not run at all","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::missing evidence never holds a card does not hold on an INCONCLUSIVE verdict","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::missing evidence never holds a card carries the assessor's own reason forward rather than a generic one","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::missing evidence is never recorded as positive evidence does not claim the tests measure the change when nothing was measured","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::missing evidence is never recorded as positive evidence does not claim it for a SUSPECT result either","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::missing evidence is never recorded as positive evidence says so plainly when the ablation could not run","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::a load-bearing run is positive evidence marks the card supported and does not hold it","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::a load-bearing run is positive evidence counts the tests the stub broke — the evidence itself, not just a label","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::a load-bearing run is positive evidence reports no indifferent tests to chase","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::a decorative run HOLDS, and says why it might be wrong holds the card rather than rejecting it","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::a decorative run HOLDS, and says why it might be wrong NAMES the tests that passed with and without the artifact","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::a decorative run HOLDS, and says why it might be wrong states BOTH readings, not only the accusation","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::a decorative run HOLDS, and says why it might be wrong tells the reviewer to decide, rather than asserting a verdict","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::a decorative run HOLDS, and says why it might be wrong counts the indifferent tests in the detail","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::the three statuses stay distinguishable maps each verdict to exactly one status, and never collapses two","passed":false}
+{"testId":"/Users/david/GIT/nklein/test/runtime/core/ablation-acceptance.test.ts::the three statuses stay distinguishable holds for exactly one of the four inputs","passed":false}

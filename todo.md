@@ -12134,6 +12134,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   judged, rather than silently producing the expensive verdict.
   The original is restored in a `finally` AND the restore is verified, exiting non-zero if it failed — leaving a
   stubbed repo behind would be worse than any verdict this produces.
+  **▶ THE ACCEPTANCE FOLD SHIPPED 2026-08-09 — `src/core/ablation-acceptance.ts`, 16 tests, 16/16
+  ablation-proven, wired into `dev ablation` and live-exercised through all three verdicts.** This is the
+  second half of the item's own headline ("fold the verdict into card acceptance"). `foldAblationIntoAcceptance`
+  maps the three verdicts onto `supported | suspect | unmeasured`, in the same shape as the other acceptance
+  folds in `delivery-evidence.ts`: a NULL assessment means the check could not run and never becomes a false
+  green. **Two directions, both pinned:** holding a card on MISSING evidence punishes it for the harness's own
+  gaps (the same false accusation the exit codes already refuse to make about code, pointed at the card
+  instead), and recording `unmeasured` as `supported` is the green-signal substitution — a card carrying
+  positive evidence nobody produced. `inconclusive` and `null` both sit on the permissive side; only
+  `decorative` holds, and the "holds for exactly one of four inputs" test states that as a whole so the hold
+  cannot quietly widen.
+  **`decorative` HOLDS rather than rejects, and the detail states BOTH readings.** It is the strongest available
+  signal that a card's tests do not measure its own change — and the verdict most able to be wrong for a reason
+  that has nothing to do with the card, because an artifact reached only indirectly (a re-export, a caller, a
+  fixture) can be genuinely covered while a path-scoped ablation sees nothing break. **That exact false negative
+  was found in this repo the same day** (12 modules read as untested purely because no test named their path).
+  The gate cannot tell the two apart; the reviewer can — so it names the indifferent tests and says "confirm
+  which before accepting", rather than presenting a possible harness artefact as a finding about the card.
+  Live through the CLI: `SUPPORTED` (exit 0) · `SUSPECT — HOLDS the card for review` (exit **1**) · `UNMEASURED`
+  (exit **0**, because missing evidence is not an alarm), and `--json` now carries the `acceptance` block.
+  **REMAINING on P20.3b:** the stub-and-run still executes against the HOST working tree (mitigated by a
+  verified restore + abort-on-failed-restore, but the item says "in the sandbox"), and nothing calls the fold
+  from the delivery seam yet — a per-card ablation costs two suite runs, so wiring it needs the sandbox half
+  first. Both named rather than implied.
   **▶ FIRST SWEEP 2026-08-08 — four cores ablated, all LOAD_BEARING, repo clean after every run.**
   `auto-start-failure-guard` (5/5 broke), `task-board-ready-sweep`, `review-capacity`, `fitness-role-assignment`.
   **A sweep that finds nothing decorative is a real result, not a wasted run** — it is evidence these cores earn
