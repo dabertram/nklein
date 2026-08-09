@@ -14657,11 +14657,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   prescriptive:  1 / 1  DELIVERED       independent: true
   discovery:     0 / 1  NOT-delivered   independent: true
   ```
-  **Read this as ONE DATA POINT, not a finding.** n=1 run, 1 model, 1 project, 1 probe. It is consistent with
+  **▶ REPEAT 2 REPRODUCES IT EXACTLY (same model, fresh drains): prescriptive 1/1 DELIVERED, discovery 0/1.**
+  So the delta is not a single roll. 2/2 — still one model, one project, one probe.
+  **AND THE `0/1` IS NOT A NULL RESULT, WHICH IS THE WHOLE POINT.** The discovery leg captured a result branch
+  and built a real six-module architecture (`index.ts` · `split.ts` · `rework.ts` · `types.ts` · `validation.ts`
+  · `errors.ts`), including the ONE thing the variant pins — the public entry point. It then failed the
+  compositional probe on a specific, named assertion:
+  ```
+  AssertionError: Missing expected exception:
+    "a wafer that is not in the parent lot must throw"
+  ```
+  **Given vision + invariants + threats + acceptance and NO file map or interfaces, the model produced a
+  plausible architecture that did not enforce an invariant its own specification states.** The prescriptive
+  variant, which spells the interfaces out, enforced it. That is exactly the failure mode the item predicted a
+  discovery variant would expose and a prescriptive one would hide — "strong code performance masks
+  misalignment with intended semantics" (P20.13's CodeSpecBench note), observed here rather than cited.
+  **Read this as TWO DATA POINTS, not a finding.** n=2 runs, 1 model, 1 project, 1 probe. It is consistent with
   the item's hypothesis (a spec that does the thinking is easier to execute than one that demands architecture)
   and it establishes NOTHING about the size of the gap or its generality. The value delivered here is that the
   apparatus produces a real, independent, comparable verdict end to end — the delta is now MEASURABLE, which is
-  what the item asked for. Repeats across models are the next step.
+  what the item asked for. Repeats across MODELS are the next step, and are blocked only on the operator's resident set — this run never loads or unloads one.
   **AND THE RUN COST 65 MINUTES OF GPU TO PRODUCE ZERO VERDICTS THE FIRST TIME — MY BUG, THREE CONTRACT ERRORS
   DEEP.** Both drains succeeded (result branches captured, cards settled in review); the GRADER never ran:
     1. `npx tsx -e` compiles as **CJS**, which rejects top-level `await` outright. Fixed with an async IIFE.
