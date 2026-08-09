@@ -14650,6 +14650,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   probe.
   **REMAINING: the measurement itself** — run a real model against both variants and report the delta. That is
   a fleet run, not authoring work; the apparatus it needed now exists.
+  **▶ PRECONDITION CHECKED AND MET 2026-08-09 (read-only `lms ps`):** `qwen/qwen3.6-35b-a3b` is loaded, **IDLE**,
+  at **262144** context — comfortably over the ≥32k activation floor that otherwise silently prevents a session
+  from ever starting. It is the OPERATOR's resident model, so the run neither loads nor unloads anything (per the
+  standing no-auto-load/unload directive); the teardown surface is the server and any sandbox containers only.
+  **The apparatus re-verified the same day:** the probe still fails LOUDLY on an empty workspace (exit 1), which
+  is the leg that stops "the agent built nothing callable" from reading as "the probe found nothing to assert".
+  The other three legs (prescriptive 6/6 · discovery 6/6 · feature-isolated red) stand as originally verified,
+  not re-confirmed.
+  **WHY IT WAS NOT STARTED HERE:** this is a BESPOKE run — two spec variants graded by one oracle — not a canned
+  `dev test-project` preset, so it has to be constructed. Constructing it costs the kind of small error that has
+  recurred all session (a wrong flag, an abbreviated path, a misread exit code); on a GPU drain each one costs
+  hours rather than seconds. Start it with fresh context, and read §4A's zsh note first: measure exit codes
+  without a pipe, and `timeout` does not exist on this host.
 - [x] **P23.7 — Progressive-disclosure split of the specification.** It is **23,691 words / 182 KB** and instructs
   "read the entire specification before planning" — against a 32k context that leaves nothing for system
   instructions, repo evidence, reasoning or plan output. That is acceptable ONLY if named honestly as a
