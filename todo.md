@@ -99,6 +99,18 @@ gap remains.
 
 ## 4A. Engineering standards & tribal knowledge (read before coding)
 
+- **A COUNT OF MENTIONS IS NOT A MEASURE OF RECORD COMPLETENESS (learned 2026-08-09, on my own audit).** After
+  finding two items whose entries understated their shipped work (N3's stale "NEXT" line, P21.6b recording none
+  of three slices), I built a quick audit: `git log --grep=<item>` commits vs. `grep -c <item> todo.md`. **The
+  metric is unsound.** A well-written entry names the item ONCE in its header and then describes the work
+  without repeating the token — so N15 scored "6 commits, 1 mention" and looked like the worst offender, while
+  its entry is 92 lines with three shipped-markers covering every commit. P21.6b was a true positive and N15 a
+  false one, **and the metric could not tell them apart** — precisely the shape §5's ablation work exists to
+  catch, arrived at through my own shortcut.
+  ⇒ Reconciling a backlog entry against its commits requires READING the entry. If a cheap proxy is wanted, use
+  entry LENGTH or a per-commit search for its subject line — never token frequency. And a proxy that produced
+  one true and one false positive out of two checks has established nothing about the other eight.
+
 > **⚠️ THE SIMULATED LAYER CANNOT REACH "THE SESSION DIED BEFORE PRODUCING ANYTHING" (2026-08-01, proven).** The
 > LLM simulator always answers, so every dispatched session emits a first summary and every release path keyed on
 > that summary always fires. **A whole defect class is therefore invisible to every aimock/simflow drain by
