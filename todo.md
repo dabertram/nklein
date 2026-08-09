@@ -14658,6 +14658,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   window) on most layers, so KV grows very gradually with context instead of linearly — the usual "long context
   eats VRAM" arithmetic does not apply. Qwen 3.6 is hybrid too. With 48 G free and 18.85 G of weights, a
   262144-context gemma load should fit comfortably.
+  **▶ AND THE PILOT PROVED THE CONFOUND RATHER THAN THE HYPOTHESIS — gemma-4-31b @ 32768: BOTH legs `0/1`.**
+  Aggregated, that reads "no delta". **The two zeros mean opposite things**, which only the built-vs-nothing
+  check reveals:
+  ```
+  prescriptive   NO result branch · 0 source files   → produced NOTHING (a null, not a score)
+  discovery      result branch    · 5 source files   → built an architecture, failed the probe
+  ```
+  **The cause is arithmetic, not capability.** The prescriptive spec is **85,989 B (~21.5k tokens)**; the
+  discovery spec is **4,860 B (~1.2k)**. At the **32768** context I gave it, ~21.5k of spec plus system prompt,
+  tools and transcript leaves almost nothing to work in — so the prescriptive leg had no room to produce
+  anything, while the 1.2k discovery spec ran fine. **The pilot measured my loader flag, not the model.**
+  Note the direction: the confound INVERTED the qwen result (qwen delivered prescriptive and failed discovery;
+  gemma produced nothing on prescriptive and built on discovery). A cross-model claim from these two runs would
+  have been not merely weak but backwards.
+  **This is also why the two specs cannot share a context budget by default:** an 18× size difference between
+  variants means any context ceiling penalises the prescriptive arm first. Future legs must size context to the
+  LARGER variant with headroom, and record the prompt token counts alongside the verdicts.
   ⇒ **RE-RUN THE GEMMA PAIR AT 262144 to match**, and treat the 32768 pair as a pilot rather than a data point.
   The general lesson for every future cross-model leg: **match the context length, or the comparison measures my
   loader flags rather than the models.** `lms load <model> --context-length <N>` — read the model's real ceiling
