@@ -12260,8 +12260,35 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Even on a `load_bearing` verdict the result NAMES the tests that passed with AND without the artifact — each one
   is a test that never measured it, which is worth knowing while the verdict is still good.
   The effectful half is P20.3b.
-- [ ] **P20.3b — Run the ablation for real *(split from P20.3 2026-07-20)*.** Stub the artifact, re-run the suite
-  in the sandbox, and fold the verdict into card acceptance.
+- [x] **P20.3b — Run the ablation for real. CLOSED 2026-08-09 — every clause of the headline built and
+  live-exercised; only the observe→enforce flip remains, and it is evidence-gated by design.**
+  **① "Stub the artifact"** — ✅ `scripts/ablate.mts`. The stub throws from every export INCLUDING values (a
+  throwing `Proxy` getter, never `undefined`), because a plausible default is the false-accusation path that
+  sends someone to delete working code.
+  **② "re-run the suite in the sandbox"** — ✅ as an ISOLATED TREE COPY, and the deviation from "Docker sandbox"
+  is deliberate: the property wanted is *the repo is never mutated*, and a copy delivers it more completely than
+  a container would (both runs happen in the copy; PROVEN by the target's mtime/size/inode being byte-identical
+  across a full run, where the old restore-in-`finally` always rewrote the file). The restore path was DELETED
+  rather than kept as belt-and-braces, because dead safety code reads as a live guarantee.
+  **③ "fold the verdict into card acceptance"** — ✅ `ablation-acceptance.ts` → `supported | suspect |
+  unmeasured`, wired observe-only at the delivery seam. `decorative` HOLDS rather than rejects and states BOTH
+  readings, because the verdict can be wrong for reasons that have nothing to do with the card.
+  **PLUS the cost decision the headline implied but did not name** — `ablation-scheduling.ts`, six skip reasons,
+  each one "the measurement is not defined here" rather than "we could not be bothered".
+  **WHAT THE OBSERVE PASS COST AND FOUND — four readings of the same 18 cards, each masking a deeper one:**
+  `no_source_change` → `diff_unreadable` → `no_ablatable_module` → `foreign_project`. The first three all
+  compiled, type-checked and passed ~13,800 tests. **The last is the one that mattered:** `ablate.mts` copies
+  `process.cwd()`, so a "run" decision on a user's TypeScript project would have stubbed !Klein's own file at
+  that path. Observe-only meant nothing ran; the trap is now refused outright and the constraint is written into
+  the tool's own header.
+  **REMAINING, and deliberately not done:** flipping observe→enforce. F1.21 observe-before-enforce applies with
+  extra force here, since the only informative outcomes need SELF-HOSTED cards, and the nightly fixtures cannot
+  reach them by construction (they are `.mjs`, and foreign besides). Widening `isSourceModule` to `.mjs` would
+  make three more outcomes reachable and look like progress — it stays TS-only until one real `.mjs` ablation
+  has run end to end, because probably-works is not a measurement.
+  ── original scope, kept for the record ──
+  **P20.3b (original)** — Stub the artifact, re-run the suite in the sandbox, and fold the verdict into card
+  acceptance.
   **ASSESSOR NOW CONSUMABLE 2026-07-20 via `dev ablation`** (de-orphans `no-op-ablation.ts`): `--baseline <file>
   --ablated <file>` reads two captured `{testId,passed}` JSONL runs and returns the verdict. Live-exercised:
   two green→red tests → **LOAD_BEARING** (exit 0); all-green after stub → **DECORATIVE** (exit 1); all-red

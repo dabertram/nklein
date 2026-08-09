@@ -5,6 +5,14 @@
  *   tsx scripts/ablate.mts --module src/core/foo.ts --tests test/runtime/core/foo.test.ts --out-dir .ablation
  *   nklein dev ablation --baseline .ablation/baseline.jsonl --ablated .ablation/ablated.jsonl
  *
+ * ── IT ABLATES *THIS* REPO, AND ONLY THIS REPO ──
+ * The isolated tree is copied from `process.cwd()` and run with THIS repo's vitest, so `--module` is resolved
+ * against the repo the process is running in — never against some other project. That is the tool's most
+ * surprising property and it was unstated until a delivery-seam scheduler nearly acted on the opposite
+ * assumption: it would have decided to ablate a user's `src/**\/*.ts` file, and this runner would have stubbed
+ * !Klein's file at that path. The seam now refuses a foreign project outright (`foreign_project`); the
+ * constraint is written here so the next caller does not have to rediscover it.
+ *
  * ── WHY THE STUB THROWS FROM EVERY EXPORT ──
  * A stub returning `null`, `0`, `[]` or `""` lets tests pass for the WRONG reason: an artifact that is genuinely
  * load-bearing but tolerant of empty input comes back `DECORATIVE`, and someone deletes working code on the
