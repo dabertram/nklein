@@ -2,6 +2,21 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **A held card no longer tells you to redrive it into the same failure.** When !Klein could not capture a card's
+  result patch because the sandbox workspace was already gone, the note on the card said the result was unknown
+  and to "inspect diagnostics and redrive the task". For a card whose agent never called a tool at all, a redrive
+  reproduces the same outcome exactly — so the advice sent you round a loop. The note now keeps the honest half
+  (the workspace really was unreadable, which is NOT evidence the card produced nothing) and tells you what to
+  check first: the card's attempts, for whether any tool ran.
+
+- **Model-fitness evidence now records the context DEPTH each attempt actually ran at.** Every completed attempt
+  fed the fitness store, but the live projection dropped the attempt's measured context size on the way in — so
+  100% of recorded cells were depth-unknown, and the routing that prefers a model *proven at the depth this card
+  needs* had nothing to match on. No amount of running could fix it: a clean drain of 35 model-attributable
+  sessions still produced zero depth samples. The projection now carries the measurement through, and the same
+  banked events re-project to real depth-matched rows — so depth evidence accumulates from ordinary use instead
+  of never arriving.
+
 - **A model's explanation alongside its tool calls is no longer lost.** On the profile-forced tool path (small local
   models steered with a required tool call), the assistant text that accompanied the call — the model explaining
   itself, or re-raising a clarifying question mid-work — was silently dropped from the transcript. The card's chat
