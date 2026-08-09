@@ -11486,6 +11486,34 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
       message injected beside the task's own `user` turn, and `mergeConsecutiveSameRoleSdkMessages` merges
       adjacent same-role messages (Mistral-family templates hard-500 on non-alternating roles). So the assertion
       is on the nudge TEXT; a check looking for the marker would silently pass on an empty result.
+  **▶ THE RESTART COUNTER SHIPPED 2026-08-09 — `off-track-restart-ledger.ts`, 14 tests, 14/14 ablation-proven.**
+  One of the two blockers named below is closed. The item was explicit that `restartsSoFar: 0` "MUST" become a
+  real counter "otherwise the restart cap never binds" — **the cap was present in the code and absent in
+  effect**, because `0` is the only value the live wire can pass and `0` defeats it on every call.
+  **The headline property is not storage, it is SURVIVAL.** The remedy's ACTION is restarting the card's
+  session, so a counter stored on the session would be destroyed by the very event it counts, read `0` forever,
+  and never bind — the bug wearing the costume of a working feature. Keying by TASK id is what makes the count
+  outlive the restart.
+  **The cap is proven binding by driving the REAL decider through a full budget**, not by asserting on the
+  counter: the test loop reads the ledger, asks `decideOffTrackRemedy`, and records the restart it was told to
+  perform — exactly the loop the live wire will run — and it restarts while budget remains, then PARKS. Its
+  counterfactual twin passes the hard-coded `0` the wire has today and shows the decider restarting FOREVER, so
+  the defect this closes is a visible test rather than an argument. Also pinned: budgets are per card, a
+  forgotten (replayed) card starts over, and **captured work still parks on the first verdict with the budget
+  untouched** — the cap must not become the only reason park happens.
+  Deliberately NOT counted: runtime restarts (`crash-recovery-matrix.restartCount`) are a different event with a
+  different cause — folding them in would park cards for crashes they did not cause. And `0` means "never
+  restarted" here rather than "unknown", unlike the baseline-probe registry: absence and a real result are the
+  same fact for a counter, and returning `null` would force every caller into a conversion that is one more
+  place to get the cap wrong.
+  **⚠️ MY FIXTURES WERE WRONG TWICE AND THE TESTS PASSED ANYWAY** — recorded because it is the exact failure
+  this item is about. I wrote `offTrack: true` and `utilisation`, where the contract is `onTrack` and
+  `contextUtilisation`. Both unknown properties left the real fields `undefined`; `onTrack: undefined` is falsy,
+  so the off-track branch was entered *by accident*. vitest strips types, so only `tsc` caught it. Fixed, then
+  **mutation-checked**: flipping `onTrack` to `true` turns all 5 cap tests red, so they demonstrably exercise
+  the branch they claim to.
+  REMAINING for P18.4b: `hasCapturedWork` at this seam (the other named signal — the session service can
+  resolve the result branch), and then the acting half behind the observe-first gate.
   ── the original blocker, kept for the record; both signals are now sourced properly ──
   **Two of its four signals did not exist at this seam, and their natural defaults are the DANGEROUS ones:**
     · `hasCapturedWork` — no result-branch/diff signal reaches the focus extension. Defaulting it `false` is
