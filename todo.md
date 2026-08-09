@@ -12379,6 +12379,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   wrong-project-shape vs no-change — and **each one was invisible until a live run of a DIFFERENT cell.** The
   first cell could not have found the second bug: it never produced a diff at all. Two cells, two branches, two
   findings. Compiling, `tsc`, and 13,826 passing tests agreed with every broken version.
+  **▶ REACHABILITY, PROVEN RATHER THAN ASSUMED — "a wire verified on one branch is verified on ONE BRANCH".**
+  Having been caught twice by branch-specific bugs, the honest next question was which outcomes the nightly
+  suite can reach AT ALL. Counted the fixture's own writes: it emits `src/*.mjs` and `test/*.test.mjs` —
+  **zero files match the ablatable `src/**/*.ts` shape.** So on the nightly cells, every card necessarily stops
+  at `no_ablatable_module`, and `no_exercising_test`, `too_many_changed_modules`, `baseline_not_green` and a
+  positive `WOULD_RUN` are **unreachable by construction**. Two of the five outcomes are live-proven
+  (`diff_unreadable` on the silent-worker cell, `no_ablatable_module` on `perfect`); the rest are unit-proven
+  only, and saying so is the point — a future reader seeing "the wire always says no_ablatable_module" should
+  find the reason written down rather than conclude it is broken.
+  **The informative outcomes need SELF-HOSTED cards** — !Klein working on !Klein — which is exactly where the
+  measurement is worth having anyway.
+  **⚠️ OPEN, and deliberately NOT widened on plausibility:** the fixture is `.mjs`, and the stub generator
+  imports a module and re-exports throwing values, which would *probably* work for `.mjs` under vitest. Probably
+  is not a measurement. P21.1 states the rule for exactly this — "widening a routing numerator on plausibility
+  is what the module's own header forbids" — so `isSourceModule` stays TS-only until one real `.mjs` ablation
+  has been run end to end.
   **STATUS: the core now has its consumer.** Its consumer is the delivery seam, and that wire
   is now UNBLOCKED — all three pieces exist (isolated-tree runner · scheduling policy · acceptance fold). It is
   deliberately NOT surfaced through a synthetic CLI flag to avoid the orphan label; that would be decoration,
