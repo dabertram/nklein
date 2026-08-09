@@ -45,15 +45,20 @@ run_leg() {
     --prompt-file "$OUT/$leg-prompt.txt" \
     --out "$OUT/$leg-ws" --max-min "$MAX_MIN" > "$OUT/$leg-drain.log" 2>&1 || true
 
+  # An async IIFE, NOT top-level await: `tsx -e` compiles as CJS and rejects top-level await outright. The first
+  # run lost both gradings to that — 65 minutes of real drain banked, then nothing to grade it with.
   npx tsx -e "
 import { resolve } from 'node:path';
 import { runHeldOutOracle } from './src/core/held-out-oracle-runner';
-const v = await runHeldOutOracle({
-  workspaceDir: resolve('$OUT/$leg-ws'),
-  probeDir: resolve('$PROBES'),
-});
-console.log('ORACLE:', v.passed, '/', v.results.length);
-for (const r of v.results) console.log(' ', r.probe.id, r.passed ? 'PASS' : 'fail');
+void (async () => {
+  const v = await runHeldOutOracle({
+    workspacePath: resolve('$OUT/$leg-ws'),
+    probeDir: resolve('$PROBES'),
+    repoRoot: resolve('.'),
+  });
+  console.log('ORACLE:', v.failToPassPassed, '/', v.failToPassTotal, v.delivered ? 'DELIVERED' : 'NOT-delivered', '| independent:', v.independence.independent);
+  for (const r of v.results) console.log(' ', r.probe.id, r.passed ? 'PASS' : 'fail');
+})();
 " > "$OUT/$leg-oracle.log" 2>&1 || true
   echo "leg $leg oracle: $(grep -E '^ORACLE:' "$OUT/$leg-oracle.log" || echo 'see log')"
 }

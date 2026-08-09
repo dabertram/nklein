@@ -14650,6 +14650,29 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   probe.
   **REMAINING: the measurement itself** — run a real model against both variants and report the delta. That is
   a fleet run, not authoring work; the apparatus it needed now exists.
+  **▶ ✅ THE MEASUREMENT RAN 2026-08-09 — THE FIRST REAL VARIANT DELTA.** One model
+  (`qwen/qwen3.6-35b-a3b`, the operator's resident, 262144 ctx), both spec variants of project 18, one held-out
+  oracle, **oracle INDEPENDENT on both legs**:
+  ```
+  prescriptive:  1 / 1  DELIVERED       independent: true
+  discovery:     0 / 1  NOT-delivered   independent: true
+  ```
+  **Read this as ONE DATA POINT, not a finding.** n=1 run, 1 model, 1 project, 1 probe. It is consistent with
+  the item's hypothesis (a spec that does the thinking is easier to execute than one that demands architecture)
+  and it establishes NOTHING about the size of the gap or its generality. The value delivered here is that the
+  apparatus produces a real, independent, comparable verdict end to end — the delta is now MEASURABLE, which is
+  what the item asked for. Repeats across models are the next step.
+  **AND THE RUN COST 65 MINUTES OF GPU TO PRODUCE ZERO VERDICTS THE FIRST TIME — MY BUG, THREE CONTRACT ERRORS
+  DEEP.** Both drains succeeded (result branches captured, cards settled in review); the GRADER never ran:
+    1. `npx tsx -e` compiles as **CJS**, which rejects top-level `await` outright. Fixed with an async IIFE.
+    2. The runner takes `workspacePath` + `repoRoot`, not `workspaceDir` — I had copied the option names from
+       the older overnight script instead of reading `RunHeldOutOracleInput`.
+    3. The verdict exposes `failToPassPassed`/`failToPassTotal`/`delivered`, not `passed` — the first successful
+       grading printed **`undefined / 1`** while the per-probe PASS/fail lines underneath were correct all along.
+  **The script's own guard is what made this recoverable rather than a false result.** It refused to read
+  "exit 0, no verdicts" as a delta of zero and told me to read the drain logs — so the 65 minutes were banked in
+  `prescriptive-ws`/`discovery-ws` and re-graded in seconds, with no second drain. Had the summary defaulted a
+  missing verdict to 0, this would have reported **0 vs 0: no delta** from a working pipeline.
   **▶ PRECONDITION CHECKED AND MET 2026-08-09 (read-only `lms ps`):** `qwen/qwen3.6-35b-a3b` is loaded, **IDLE**,
   at **262144** context — comfortably over the ≥32k activation floor that otherwise silently prevents a session
   from ever starting. It is the OPERATOR's resident model, so the run neither loads nor unloads anything (per the
