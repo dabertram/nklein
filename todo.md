@@ -14028,9 +14028,32 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
          reason that reads as missing data rather than as an invented constraint).
      A missing `usedContextTokens` is treated as ABSENCE, not as zero — reading it as zero would classify a card
      shallow on a field that was never written, which is the depth-blind projection bug re-created one layer up.
-     REMAINING for phase 4: only the effectful call site now. With role and depth both derivable, the wire is a
-     single guarded call — and it stays observe-first (record the assignment and its abstentions before it
-     steers anything), which is a live-path change this entry deliberately does not rush.
+     **▶ THE CALL SITE SHIPPED 2026-08-09 — OBSERVE-ONLY, and LIVE-PROVEN on a real drain.** Wired at
+     `start-task-session.ts` beside the `fitnessTableRows` read: derive role + depth, ask
+     `assignModelFromFitness`, RECORD the answer, steer nothing. Registered as
+     `fitness_depth_assignment_observed` **with its wire** (the P18.3b lesson: an unregistered mechanism cannot
+     report that it never ran), `expectation: every_run` deliberately — "no depth basis" IS the recorded
+     outcome, so `exceptional` would let a silently-dead wire look like a quiet one, which is exactly how
+     P21.1's `formatFailures` sat at 0 on every real run while its core's tests stayed green.
+     **`seedPromptTokens: 0` is deliberate, not a shortcut.** No exact token count for the seed exists at this
+     seam (`estimateMessageTokens` is private and message-shaped), and `deriveCardDepth` treats the seed as a
+     LOWER BOUND — arithmetic, not prediction. A chars/4 approximation would be an ESTIMATE wearing a bound's
+     authority: over-estimate once and the card is declared `deep`, which `fitnessDepthMismatch` converts into a
+     hard requirement for deep-measured evidence. So the seed contributes nothing and the basis degrades to
+     `measured` (re-work) or `unknown` (first attempt) — both honest. The bound goes live the day an exact count
+     is available here.
+     The ledger→core field rename (`contextTokens` → `usedContextTokens`) is mapped EXPLICITLY rather than
+     spread, because that rename is precisely where the depth-blind projection bug lived; a missing value stays
+     NULL, never 0.
+     **PROVEN, not asserted** — P21.1's "the wire was the bug and only a live run found it" applied to my own
+     wire: a real drain emits exactly one record, `{depthBasis: "unknown", neededDepth: null, priorAttempts: 0,
+     outcome: "no_depth_basis"}`, and the cell stays 4/4. **Two of the repo's own guards fired on me and both
+     were right:** the observation-category ratchet refused the unregistered emitter, and `tsc` caught a missing
+     required field while the 13,797-test suite stayed green — vitest strips types, so the suite could not have
+     seen it.
+     REMAINING for phase 4: flipping observe→steer, which stays gated on the evidence volume the decider's own
+     guards require — it correctly abstains today, and that is the right answer until depth-matched samples
+     accumulate.
      **WHERE THE WIRE GOES, and what it needs (scouted, deliberately not rushed):** the natural site is
      `start-task-session.ts` (~line 799), which already reads `fitnessTableRows` for `buildFitnessRoutingEvidence`
      — so the rows are in hand. What is NOT in scope there is an explicit `(role, neededDepth)` pair: that site

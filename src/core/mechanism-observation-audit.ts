@@ -431,6 +431,23 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	},
 
 	{
+		// P25.3 phase 4, 2026-08-09: the OBSERVE half of depth-matched model assignment. Registered WITH its wire,
+		// per the P18.3b lesson an unregistered mechanism cannot report that it never ran.
+		//
+		// `every_run`, deliberately: this fires at every task start, because "no depth basis" is itself the
+		// recorded outcome. Making it `exceptional` would let a silently-dead wire look like a quiet one — and a
+		// wire fed nothing by its caller is exactly how P21.1's `formatFailures` sat at 0 on every real run while
+		// its core's own tests stayed green.
+		category: "fitness_depth_assignment_observed",
+		item: "P25.3",
+		observes:
+			"what `assignModelFromFitness` WOULD decide for this card at its derived depth — with the depth's BASIS (measured / lower_bound / unknown) — recorded without steering selection",
+		// null = always on: there is no flag, and the observation is unconditional at every task start.
+		enabledBy: null,
+		expectation: "every_run",
+		addedOn: Date.UTC(2026, 7, 9),
+	},
+	{
 		// P18.4b 2026-07-30: the OBSERVE half of the off-track remedy. Registered with its wire, per the lesson from
 		// P18.3b — an unregistered mechanism cannot report that it never ran.
 		//

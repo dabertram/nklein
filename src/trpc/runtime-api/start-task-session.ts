@@ -14,11 +14,13 @@ import { modelUseReservationId } from "../../core/auto-loaded-model-registry";
 import { applyWarmthPreference } from "../../core/cache-warmth";
 import { createCapabilityBlender } from "../../core/capability-blend";
 import { assessCeilingAdvisory } from "../../core/capability-ceiling-advisory";
+import { canSteerOnDepth, deriveCardDepth } from "../../core/card-depth-basis";
 import { buildCommunitySkillSuggestionFragment } from "../../core/community-skill-suggestion";
 import { resolveEffectiveHostConcurrency, resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { composeDependencyHandoffPreamble } from "../../core/decision-handoff";
 import { ensureModelLoadedOnFittingDevice } from "../../core/ensure-model-loaded";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../../core/env-flag";
+import { assignModelFromFitness } from "../../core/fitness-role-assignment";
 import { buildFitnessRoutingEvidence } from "../../core/fitness-routing-evidence";
 import {
 	buildFleetCapabilitySummary,
@@ -800,6 +802,55 @@ export async function handleStartTaskSession(
 			? []
 			: Object.values((await readFitnessTable().catch(() => null))?.rows ?? {});
 		const { fitnessRoleSuccessByKey } = buildFitnessRoutingEvidence(fitnessTableRows);
+		// P25.3 phase 4 — OBSERVE-FIRST depth-matched assignment. Records what `assignModelFromFitness` WOULD
+		// decide, and steers nothing: the decider's guards abstain at today's evidence volume, and an assignment
+		// nobody can audit yet is not one worth acting on. The rows are already in hand above.
+		//
+		// `seedPromptTokens: 0` is deliberate, NOT a shortcut. `deriveCardDepth` treats a seed that crosses a band
+		// boundary as a LOWER BOUND — arithmetic, not prediction — and no exact token count for `body.prompt` is
+		// available at this seam (`estimateMessageTokens` is private and message-shaped). A chars/4 approximation
+		// would be an ESTIMATE wearing a bound's authority: over-estimate once and a card is declared `deep`, which
+		// `fitnessDepthMismatch` turns into a hard requirement for deep-measured evidence. So the seed contributes
+		// nothing here and the basis degrades to `measured` (re-work) or `unknown` (first attempt), both honest.
+		try {
+			const priorAttempts = (
+				await readAgentLedger({
+					workspacePathHash: hashWorkspacePathForLedger(workspaceScope.workspacePath),
+				}).catch(() => [])
+			)
+				.filter((event) => event.kind === "attempt" && event.taskId === body.taskId)
+				// Mapped to the core's field EXPLICITLY: the ledger stamps `contextTokens`, the depth core takes
+				// `usedContextTokens`. That rename is exactly where the depth-blind projection bug lived, so it is
+				// written out rather than spread — and a missing value stays NULL, never 0, because 0 would classify
+				// the card shallow on a field that was never written.
+				.map((event) => ({ usedContextTokens: "contextTokens" in event ? event.contextTokens : null }));
+			const depth = deriveCardDepth({ priorAttempts, seedPromptTokens: 0 });
+			const assignment = canSteerOnDepth(depth)
+				? assignModelFromFitness({ rows: fitnessTableRows, neededDepth: depth.depth })
+				: null;
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Depth-matched assignment (observe-only): ${
+					assignment === null
+						? `no depth basis — ${depth.detail}`
+						: assignment.kind === "abstain"
+							? `abstained (${assignment.reason}) at ${depth.depth} depth`
+							: `would assign ${assignment.modelKey} at ${depth.depth} depth`
+				}`,
+				taskId: body.taskId,
+				metadata: {
+					category: "fitness_depth_assignment_observed",
+					depthBasis: depth.basis,
+					neededDepth: depth.depth,
+					priorAttempts: priorAttempts.length,
+					outcome: assignment === null ? "no_depth_basis" : assignment.kind,
+					...(assignment?.kind === "abstain" ? { abstainReason: assignment.reason } : {}),
+				},
+			});
+		} catch {
+			// Observation must never block a task start.
+		}
 		// W2.6b (audit 2026-07-02): runtime-VERDICT penalty — penalizeFitnessByRuntimeVerdict was display-only, so
 		// the strongest unsuitability signal (chronic stalls observed in real runs) never steered selection. Read the
 		// self-observation evidence once per start (best-effort; empty ⇒ UNKNOWN ⇒ multiplier 1 ⇒ unchanged) and scale
