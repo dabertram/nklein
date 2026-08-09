@@ -14667,9 +14667,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   AssertionError: Missing expected exception:
     "a wafer that is not in the parent lot must throw"
   ```
-  **Given vision + invariants + threats + acceptance and NO file map or interfaces, the model produced a
-  plausible architecture that did not enforce an invariant its own specification states.** The prescriptive
-  variant, which spells the interfaces out, enforced it. That is exactly the failure mode the item predicted a
+  **⚠️ CLAIM CORRECTED BY CHECKING IT (the first wording overstated the evidence).** I first wrote that the model
+  "did not enforce an invariant its own specification states". Reading both specs: the discovery variant does
+  **NOT** enumerate the parent-lot rule anywhere — that specific sentence exists only in the PRESCRIPTIVE spec.
+  What the discovery variant states is the GOVERNING invariant in general form:
+  > **4. No silent failure.** An impossible operation raises a descriptive error. It never returns a partial result…
+  Splitting a wafer that is not in the parent lot IS an impossible operation, so invariant 4 requires the guard —
+  but the discovery spec never names the case. **The accurate finding is therefore sharper than the first one:
+  the model implemented the operations without DERIVING a concrete case from a stated general invariant.**
+  Prescriptive spells the case out and it gets enforced; discovery states the principle and it does not.
+  Generalising from an invariant to the cases it governs is precisely what "architecture discovery" demands, so
+  this is a delta about REASONING FROM PRINCIPLES rather than about file layout — which is a more interesting
+  result than the one I nearly recorded, and it only survived because the claim was checked instead of asserted. That is exactly the failure mode the item predicted a
   discovery variant would expose and a prescriptive one would hide — "strong code performance masks
   misalignment with intended semantics" (P20.13's CodeSpecBench note), observed here rather than cited.
   **Read this as TWO DATA POINTS, not a finding.** n=2 runs, 1 model, 1 project, 1 probe. It is consistent with
