@@ -11657,9 +11657,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   yield `restart`, which no spent-looking constant can produce — and only the PAIR pins it: the empty case
   catches a too-high constant, the spent case catches the old `0`. Either alone is decoration that looks like
   coverage.
-  REMAINING for P18.4b: the acting half (the WRITE + enforcement) behind the observe-first gate, and the wire
-  test above. `foldCapturedWorkProbe` stays unwired until the seam has a real probe to fold — its consumer is
-  the same acting half.
+  **▶ AND READING THE ACTUAL SUPPLIER FOUND WHERE `foldCapturedWorkProbe` PLUGS IN — plus a live gap.**
+  `hasCapturedWork` is fed by `this.sandboxState.getResultBranch(taskId) !== null` — an **IN-MEMORY** lookup.
+  The surrounding comment defends against staleness in TIME (a start-time snapshot would miss a branch captured
+  part-way) and is right about that, but `!== null` still collapses two different facts: *"there is no branch"*
+  and *"this process has no record of one"*.
+  **After a runtime restart mid-card those diverge, and the answer lands on the destructive side.** The
+  in-memory map is empty while the branch exists on disk, so a card with real captured work reports
+  `hasCapturedWork: false` — and `false` is precisely what makes the remedy prefer RESTART over PARK, discarding
+  the diff. The same "stale-false is the dangerous direction" the comment names, arriving by a route it does not
+  cover.
+  Harmless today (observe-only), and the fix is exactly what `foldCapturedWorkProbe` was built for: ask GIT via
+  `probeTaskResultBranchCommit`, and fold `error`/absent into `assumed_safe: true` rather than `false`. Not
+  wired now because a git probe on every drift check is IO on a hot path, and the cost of being wrong only
+  becomes real when the remedy ACTS — so it belongs with the acting half, which is where the probe's expense is
+  justified by the stakes.
+  REMAINING for P18.4b: the acting half — the restart WRITE, the git-probe-backed `hasCapturedWork`, and
+  enforcement — all behind the observe-first gate.
   ── the original blocker, kept for the record; both signals are now sourced properly ──
   **Two of its four signals did not exist at this seam, and their natural defaults are the DANGEROUS ones:**
     · `hasCapturedWork` — no result-branch/diff signal reaches the focus extension. Defaulting it `false` is
