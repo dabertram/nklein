@@ -11512,8 +11512,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   so the off-track branch was entered *by accident*. vitest strips types, so only `tsc` caught it. Fixed, then
   **mutation-checked**: flipping `onTrack` to `true` turns all 5 cap tests red, so they demonstrably exercise
   the branch they claim to.
-  REMAINING for P18.4b: `hasCapturedWork` at this seam (the other named signal — the session service can
-  resolve the result branch), and then the acting half behind the observe-first gate.
+  **▶ AND `hasCapturedWork` SHIPPED THE SAME DAY — `captured-work-basis.ts`, 11 tests, 11/11 ablation-proven.**
+  **Both named blockers are now closed; only the acting half remains.** The probe already had the right
+  three-way shape (`found | missing | error`); what was missing was the FOLD, and specifically what `error`
+  means. **`false` is now reachable ONLY from a probe that positively said "there is no branch"** — an error or
+  an absent probe resolve to `true`, labelled `assumed_safe`.
+  **The asymmetry is the entire module:** wrongly `false` restarts and destroys a real diff (irreversible, and
+  it is the user's work); wrongly `true` parks a card with nothing to save (costs a human's attention, not
+  their work). So a probe that could not read the repo has said NOTHING about the card, and treating silence as
+  "no work" is what turns an infrastructure failure into a deleted diff.
+  **This deliberately DIFFERS from `card-depth-basis.ts`, which abstains on unknown — and the difference is the
+  point, not an inconsistency.** There both defaults are expensive (one manufactures a permission, the other a
+  requirement), so refusing is right; here one direction is plainly safe. Consistency of shape would have been
+  the wrong thing to optimise for. The basis label is what stops the assumption reading as an observation:
+  "parked because we could not check" and "parked because there is a diff" are different facts, only one is
+  about the card, and they have entirely different fixes — so the probe's own failure text is carried into the
+  detail and a park stays attributable.
+  Proven against the REAL decider, including the guard that the safety does not swallow the feature: an
+  unreadable probe parks, a genuinely EMPTY card still restarts. And the structural probe type (kept structural
+  so the core stays free of git) is pinned to the real `TaskResultBranchProbe` by a COMPILE-TIME assignment —
+  without it the fold could be typechecked against a contract no caller satisfies.
+  REMAINING for P18.4b: only the acting half now, behind the observe-first gate — both signals it was blocked
+  on are sourced properly, and the restart cap binds.
   ── the original blocker, kept for the record; both signals are now sourced properly ──
   **Two of its four signals did not exist at this seam, and their natural defaults are the DANGEROUS ones:**
     · `hasCapturedWork` — no result-branch/diff signal reaches the focus extension. Defaulting it `false` is
