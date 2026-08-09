@@ -12332,8 +12332,29 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `chmod 444` expecting a write attempt to fail loudly. `cp -R` preserves permissions, so it made the COPY
   read-only too and the write into the copy failed — the probe could not distinguish "wrote the host file" from
   "wrote a read-only copy". mtime/inode comparison is the sound version.
-  **REMAINING on P20.3b:** nothing calls the fold from the delivery seam yet — a per-card ablation costs two
-  suite runs, so that wire needs a cost decision (which cards, how often) rather than more plumbing.
+  **▶ THE COST DECISION SHIPPED 2026-08-09 — `ablation-scheduling.ts`, 12 tests, 12/12 ablation-proven.**
+  The last named unknown. An ablation costs TWO full runs of the selection, so "ablate every card" is not a
+  policy, it is a tax. `decideCardAblation` runs only where the measurement is DEFINED, and **every skip is a
+  case the run could not have answered** — not a case we could not be bothered with, because a policy that
+  skipped for expedience would eventually skip the card that mattered:
+    · `no_source_change` — nothing to stub (a test-only card is the common coverage shape, and stubbing a test
+      file measures nothing).
+    · `baseline_not_green` — the assessor filters to baseline-GREEN tests, so with none, stubbing cannot make
+      anything newly fail. The verdict is knowable in advance; paying two runs for it is waste. Checked BEFORE
+      the pairing reason on purpose: "your suite is red" is definite and actionable, where "no exercising test"
+      would send someone to write a test that still could not be measured.
+    · `no_exercising_test` — no baseline-green test left to break. A PARTIAL pairing still runs, on the paired
+      subset: one measurable module is a real measurement.
+    · `too_many_changed_modules` — beyond 3 that is a refactor, and N×2 suite runs is a rebuild, not a check.
+      The cost is NAMED in the message so the budget can be argued with rather than merely obeyed.
+  **WHY AGGRESSIVE SKIPPING IS LEGITIMATE HERE, which is not usually true of a skipped check:** a skip composes
+  with `foldAblationIntoAcceptance(null)` into **`unmeasured`** — never `supported`, never a hold. A card never
+  ablated carries "we do not know", plainly labelled, not "it passed". Pinned as its own probe, because if that
+  composition broke, every skip would start manufacturing green.
+  **STATUS, stated plainly: a PURE CORE with no consumer yet.** Its consumer is the delivery seam, and that wire
+  is now UNBLOCKED — all three pieces exist (isolated-tree runner · scheduling policy · acceptance fold). It is
+  deliberately NOT surfaced through a synthetic CLI flag to avoid the orphan label; that would be decoration,
+  which is precisely what this item exists to detect.
   **▶ FIRST SWEEP 2026-08-08 — four cores ablated, all LOAD_BEARING, repo clean after every run.**
   `auto-start-failure-guard` (5/5 broke), `task-board-ready-sweep`, `review-capacity`, `fitness-role-assignment`.
   **A sweep that finds nothing decorative is a real result, not a wasted run** — it is evidence these cores earn
