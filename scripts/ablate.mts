@@ -31,6 +31,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { resolveExercisingTests } from "../src/core/exercising-tests";
 import { assessNoOpAblation } from "../src/core/no-op-ablation";
 
 const execFileAsync = promisify(execFile);
@@ -303,26 +304,27 @@ if (sweepDir) {
 		}
 	}
 
+	// The pairing RULE lives in `src/core/exercising-tests.ts` so the P20.3b delivery seam gets the same answer;
+	// only the IO is supplied here. Two implementations of "which tests exercise this module" would drift, and
+	// one would call a module unexercised while the other measured it.
+	const lookup = {
+		fileExists: (path: string) => existsSync(path),
+		findImportingTests: async (specifier: string) => {
+			try {
+				const { stdout } = await execFileAsync("grep", ["-rl", specifier, "test/"], { maxBuffer: 8 * 1024 * 1024 });
+				return stdout.split("\n");
+			} catch {
+				// grep exits non-zero when nothing matches; that is the genuinely-unexercised case.
+				return [];
+			}
+		},
+	};
+
 	for (const file of modules) {
 		const base = file.replace(/\.ts$/, "");
-		const conventional = `test/runtime/${suffix}/${base}.test.ts`;
-		if (existsSync(conventional)) {
-			pairs.push({ module: join(sweepDir, file), selection: conventional });
-			continue;
-		}
-		// The convention is a CONVENIENCE, not a coverage measurement. A first version reported
-		// "144 modules have no matching test", which read as 144 UNTESTED modules — but 6 of the first 8 were
-		// tested under a different filename. Fall back to whichever test files actually IMPORT the module, so the
-		// sweep judges what is testable and only reports as unmeasured what genuinely has no exercising test.
-		let importers: string[] = [];
-		try {
-			const { stdout } = await execFileAsync("grep", ["-rl", `${suffix}/${base}"`, "test/"], { maxBuffer: 8 * 1024 * 1024 });
-			importers = stdout.split("\n").filter((line) => line.endsWith(".test.ts"));
-		} catch {
-			// grep exits non-zero when nothing matches; that is the genuinely-unexercised case.
-		}
-		if (importers.length > 0) {
-			pairs.push({ module: join(sweepDir, file), selection: importers.join(" ") });
+		const exercising = await resolveExercisingTests(join(sweepDir, file), lookup);
+		if (exercising.length > 0) {
+			pairs.push({ module: join(sweepDir, file), selection: exercising.join(" ") });
 			continue;
 		}
 		// No test names this path — but that is THREE different facts, and only one of them is a gap.

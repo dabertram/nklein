@@ -12366,9 +12366,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   sweep and the seam use it (the sweep still passing is the proof the extraction preserved behaviour), and only
   then wire the seam — observe-first, recording what the policy DECIDED without paying for the runs, exactly as
   P25.3 phase 4 landed.
-  Stopped here rather than half-wiring it, for P18.4b's reason: a wire fed an input it had to invent produces
-  confident decisions about real work. Named so the next session starts with a specified task instead of
-  rediscovering the gap.
+  Stopped there rather than half-wiring it, for P18.4b's reason: a wire fed an input it had to invent produces
+  confident decisions about real work.
+  **▶ STEP 1 OF THAT ORDER DONE 2026-08-09 — the pairing is EXTRACTED and shared.**
+  `src/core/exercising-tests.ts` (9 tests, 9/9 ablation-proven) now owns the rule; `scripts/ablate.mts` supplies
+  only the IO (`fileExists`, `findImportingTests`), injected in the `runGit` style the git cores use, so the
+  decision is testable without a filesystem and the seam cannot diverge from the sweep. Pinned: the conventional
+  path wins WITHOUT running the expensive grep; the fallback catches the module tested under another filename
+  (the 144-vs-6 lesson); the specifier carries its **trailing quote**, without which `core/task-result-branch`
+  matches every importer of `core/task-result-branch-naming` and the pairing silently widens; and non-`.test.ts`
+  grep hits are dropped, since a fixture in the selection makes vitest collect nothing and the run then looks
+  merely shrunken.
+  **BEHAVIOUR PRESERVED, PROVEN BY THE CENSUS, NOT BY READING THE DIFF:** all five directories reproduce, and
+  core's 716→722 is exactly the 6 modules added this session — the rule did not move.
+  **⚠️ THE EXTRACTION BROKE THE SWEEP AND `tsc` DID NOT SEE IT.** Removing the loop's `base` left the barrel
+  check referencing it: `ReferenceError: base is not defined`. **`tsc` does not cover `scripts/`**, so "tsc
+  clean" was never evidence for this file — and four of five directories still passed, because they have 0
+  unexercised and never reach that branch. A 4-of-5 green looked like success and was a crash one directory
+  away. Running the thing found it; nothing else would have.
   **▶ FIRST SWEEP 2026-08-08 — four cores ablated, all LOAD_BEARING, repo clean after every run.**
   `auto-start-failure-guard` (5/5 broke), `task-board-ready-sweep`, `review-capacity`, `fitness-role-assignment`.
   **A sweep that finds nothing decorative is a real result, not a wasted run** — it is evidence these cores earn
