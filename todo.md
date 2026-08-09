@@ -14667,7 +14667,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   AssertionError: Missing expected exception:
     "a wafer that is not in the parent lot must throw"
   ```
-  **⚠️ CLAIM CORRECTED BY CHECKING IT (the first wording overstated the evidence).** I first wrote that the model
+  **🔬 THE ACTUAL MECHANISM, found by reading the delivered code (third and final refinement — each check made
+  the finding sharper, and the first two were wrong).** The discovery build did NOT ignore the invariant, and did
+  NOT fail to derive the case. It built exactly what invariant 4 asks for: a dedicated `validation.ts`, a typed
+  error hierarchy (`MESValidationError` + 8 specific subclasses), and the guards ARE wired — `split.ts:31` calls
+  `validateSplitAssignment(parent.waferIds, waferAssignments)`. It even derived the membership case:
+  `WaferNotAssignedError` exists at `validation.ts:48`.
+  **What it got wrong is the DIRECTION.** The validator checks *"every parent wafer is assigned"*; it never
+  checks *"every assigned wafer is a parent wafer"*. Invariant 1 states the union of the children's wafer sets
+  **equals** the parent's — set equality needs BOTH inclusions, and the model implemented one of them.
+  **So the delta is not "principles vs. cases" and not "architecture vs. layout". It is a ONE-SIDED DERIVATION
+  of a two-sided invariant** — the model built the right structure, wired it correctly, named the right error,
+  and enforced half the rule. That is a far more realistic engineering failure than either earlier reading, and
+  a prescriptive spec hides it precisely because it enumerates the cases instead of stating the equality.
+  **AND IT IS THE SAME ERROR CLASS THIS SESSION KEPT MAKING.** §4A's own entry — "one direction cannot pin a
+  read — you need the PAIR" — was written two days into exactly this mistake in a test of mine (spent-budget
+  park asserted, empty-ledger restart not). The model made the human error, in the same week, on the same shape.
+  ⚠️ **CLAIM CORRECTED TWICE BY CHECKING IT (both earlier wordings overstated or misread the evidence).** I first wrote that the model
   "did not enforce an invariant its own specification states". Reading both specs: the discovery variant does
   **NOT** enumerate the parent-lot rule anywhere — that specific sentence exists only in the PRESCRIPTIVE spec.
   What the discovery variant states is the GOVERNING invariant in general form:
