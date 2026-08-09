@@ -14662,6 +14662,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   The general lesson for every future cross-model leg: **match the context length, or the comparison measures my
   loader flags rather than the models.** `lms load <model> --context-length <N>` — read the model's real ceiling
   first; the ≥32k floor is a MINIMUM, never a target.
+  **AND THE SAME RULE COVERS POWER MODE (David switched m5max to high power mid-run, 2026-08-09).** It removes
+  the sustained-load throttling that makes m5max's speed vary — good, and it means the in-flight gemma pair
+  spans TWO power states. **The oracle verdict is unaffected** (pass/fail on a compositional probe does not care
+  how fast the tokens arrived), **but every wall-clock number from that run is mixed-mode and must not be
+  compared to the qwen legs' timings.** Match power mode alongside context length, or the "conditions" being
+  held constant are only the ones I remembered to name.
   **▶ ✅ THE MEASUREMENT RAN 2026-08-09 — THE FIRST REAL VARIANT DELTA.** One model
   (`qwen/qwen3.6-35b-a3b`, the operator's resident, 262144 ctx), both spec variants of project 18, one held-out
   oracle, **oracle INDEPENDENT on both legs**:
