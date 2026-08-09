@@ -10,14 +10,21 @@
  * never ablated carries "we do not know", not "it passed". That composition is what lets this be aggressive
  * about skipping: the cost of a skip is a missing signal, plainly labelled, and never a false green.
  *
- * ── THE FOUR REASONS TO SKIP, EACH BECAUSE THE RUN COULD NOT ANSWER ANYTHING ──
+ * ── THE FIVE REASONS TO SKIP, EACH BECAUSE THE RUN COULD NOT ANSWER ANYTHING ──
  * Every skip below is "the measurement is not defined here", not "we could not be bothered". A policy that
  * skipped for expedience would eventually skip the case that mattered.
  */
 
 export type AblationSkipReason =
-	/** The card changed no source module — there is nothing to stub. */
-	| "no_source_change"
+	/** The card's diff touched no files at all. */
+	| "no_changed_files"
+	/**
+	 * Files changed, but none is a stubbable TypeScript module. The ablation harness stubs `src/**\/*.ts` and
+	 * re-runs vitest, so it is TypeScript-and-vitest specific BY CONSTRUCTION — a Python or Go project is not a
+	 * card that changed nothing, it is a project this measurement does not apply to. Found on the first live run
+	 * against a fixture project, where every card reported "no source change" while changing two real files.
+	 */
+	| "no_ablatable_module"
 	/** The changed modules have no exercising test, so the ablated run has no baseline-green test to break. */
 	| "no_exercising_test"
 	/** The card's own tests are already red: the assessor would correctly return `inconclusive` from two runs. */
@@ -51,12 +58,20 @@ export function decideCardAblation(input: {
 	readonly acceptancePassed: boolean;
 	readonly exercisingTestsByModule: Readonly<Record<string, readonly string[]>>;
 }): AblationSchedulingDecision {
+	if (input.changedFiles.length === 0) {
+		return {
+			run: false,
+			skipReason: "no_changed_files",
+			detail: "the card's diff touched no files — there is nothing to stub",
+			modules: [],
+		};
+	}
 	const changedModules = input.changedFiles.filter(isSourceModule);
 	if (changedModules.length === 0) {
 		return {
 			run: false,
-			skipReason: "no_source_change",
-			detail: "the card changed no source module — there is nothing to stub",
+			skipReason: "no_ablatable_module",
+			detail: `${input.changedFiles.length} file(s) changed but none is a stubbable \`src/**/*.ts\` module — this measurement is TypeScript-and-vitest specific, so a project of another shape is not a card that changed nothing`,
 			modules: [],
 		};
 	}

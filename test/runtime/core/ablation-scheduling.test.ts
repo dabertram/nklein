@@ -49,7 +49,23 @@ describe("every skip is a case the run could not have answered", () => {
 			exercisingTestsByModule: paired,
 		});
 
-		expect(decision).toMatchObject({ run: false, skipReason: "no_source_change" });
+		expect(decision).toMatchObject({ run: false, skipReason: "no_ablatable_module" });
+	});
+
+	it("separates 'no files at all' from 'no file we can ablate'", () => {
+		// Found on the first LIVE run: every card reported "no source change" while changing two real files,
+		// because the harness only recognises `src/**/*.ts`. Collapsing the two says a card changed nothing when
+		// the truth is that this measurement does not apply to the project's shape.
+		expect(
+			decideCardAblation({ changedFiles: [], acceptancePassed: true, exercisingTestsByModule: {} }).skipReason,
+		).toBe("no_changed_files");
+		expect(
+			decideCardAblation({
+				changedFiles: ["app/main.py", "requirements.txt"],
+				acceptancePassed: true,
+				exercisingTestsByModule: {},
+			}).skipReason,
+		).toBe("no_ablatable_module");
 	});
 
 	it("does not treat a TEST file as a source module — there is nothing to stub in it", () => {
@@ -60,7 +76,7 @@ describe("every skip is a case the run could not have answered", () => {
 			exercisingTestsByModule: paired,
 		});
 
-		expect(decision.skipReason).toBe("no_source_change");
+		expect(decision.skipReason).toBe("no_ablatable_module");
 	});
 
 	it("skips a RED card, because two runs would only buy an `inconclusive`", () => {

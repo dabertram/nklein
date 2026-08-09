@@ -440,7 +440,7 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		category: "ablation_scheduling_observed",
 		item: "P20.3b",
 		observes:
-			"whether a delivered card earns a no-op ablation — and when not, WHICH of the four reasons (no source change / red baseline / no exercising test / too many modules) made the measurement undefined",
+			"whether a delivered card earns a no-op ablation — and when not, WHICH of the five reasons (no changed files / nothing ablatable / red baseline / no exercising test / too many modules) made the measurement undefined",
 		enabledBy: null,
 		expectation: "every_run",
 		addedOn: Date.UTC(2026, 7, 9),

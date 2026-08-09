@@ -12366,6 +12366,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   from an absent measurement, which is precisely what this whole item exists to detect. Fixed by recording
   `diffUnreadable` distinctly, and the same drain re-run flips all 18 from `no_source_change` to
   `diff_unreadable`. **The comment was right and the code was wrong; only running it showed which.**
+  **▶ AND THE SECOND LIVE RUN — on the `perfect` cell, where cards ACTUALLY PRODUCE DIFFS — found the SAME
+  CONFLATION ONE LEVEL UP.** The first run only exercised the null-patch path (the silent worker writes nothing,
+  so there is no result branch). Running a cell whose cards deliver real work showed `changedFiles: 2` on every
+  card and the outcome still `no_source_change` — because `isSourceModule` only recognises **!Klein's own
+  `src/**/*.ts` shape**, and the delivery seam runs against the USER'S project.
+  **So the policy was reporting "this card changed no source module" for cards that changed two real files.**
+  The ablation harness stubs TypeScript and re-runs vitest, so it is TS-and-vitest specific BY CONSTRUCTION: a
+  Python or Go project is not a card that changed nothing, it is a project this measurement does not apply to.
+  Split into `no_changed_files` vs `no_ablatable_module`, and the same drain re-run flips all 18.
+  **THAT IS THE THIRD TIME THE SAME SHAPE APPEARED IN ONE WIRE** — unreadable-diff vs no-change, then
+  wrong-project-shape vs no-change — and **each one was invisible until a live run of a DIFFERENT cell.** The
+  first cell could not have found the second bug: it never produced a diff at all. Two cells, two branches, two
+  findings. Compiling, `tsc`, and 13,826 passing tests agreed with every broken version.
   **STATUS: the core now has its consumer.** Its consumer is the delivery seam, and that wire
   is now UNBLOCKED — all three pieces exist (isolated-tree runner · scheduling policy · acceptance fold). It is
   deliberately NOT surfaced through a synthetic CLI flag to avoid the orphan label; that would be decoration,
