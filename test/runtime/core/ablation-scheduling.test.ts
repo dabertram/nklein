@@ -22,6 +22,7 @@ describe("it runs where the measurement is defined", () => {
 			changedFiles: ["src/core/thing.ts", "test/runtime/core/thing.test.ts", "README.md"],
 			acceptancePassed: true,
 			exercisingTestsByModule: paired,
+			cardProjectIsRuntimeRepo: true,
 		});
 
 		expect(decision.run).toBe(true);
@@ -34,6 +35,7 @@ describe("it runs where the measurement is defined", () => {
 			changedFiles: modules,
 			acceptancePassed: true,
 			exercisingTestsByModule: Object.fromEntries(modules.map((m) => [m, ["t.test.ts"]])),
+			cardProjectIsRuntimeRepo: true,
 		});
 
 		expect(decision.run).toBe(true);
@@ -47,6 +49,7 @@ describe("every skip is a case the run could not have answered", () => {
 			changedFiles: ["README.md", "todo.md", "test/runtime/core/thing.test.ts"],
 			acceptancePassed: true,
 			exercisingTestsByModule: paired,
+			cardProjectIsRuntimeRepo: true,
 		});
 
 		expect(decision).toMatchObject({ run: false, skipReason: "no_ablatable_module" });
@@ -57,13 +60,19 @@ describe("every skip is a case the run could not have answered", () => {
 		// because the harness only recognises `src/**/*.ts`. Collapsing the two says a card changed nothing when
 		// the truth is that this measurement does not apply to the project's shape.
 		expect(
-			decideCardAblation({ changedFiles: [], acceptancePassed: true, exercisingTestsByModule: {} }).skipReason,
+			decideCardAblation({
+				changedFiles: [],
+				acceptancePassed: true,
+				exercisingTestsByModule: {},
+				cardProjectIsRuntimeRepo: true,
+			}).skipReason,
 		).toBe("no_changed_files");
 		expect(
 			decideCardAblation({
 				changedFiles: ["app/main.py", "requirements.txt"],
 				acceptancePassed: true,
 				exercisingTestsByModule: {},
+				cardProjectIsRuntimeRepo: true,
 			}).skipReason,
 		).toBe("no_ablatable_module");
 	});
@@ -74,6 +83,7 @@ describe("every skip is a case the run could not have answered", () => {
 			changedFiles: ["src/core/thing.test.ts"],
 			acceptancePassed: true,
 			exercisingTestsByModule: paired,
+			cardProjectIsRuntimeRepo: true,
 		});
 
 		expect(decision.skipReason).toBe("no_ablatable_module");
@@ -86,6 +96,7 @@ describe("every skip is a case the run could not have answered", () => {
 			changedFiles: ["src/core/thing.ts"],
 			acceptancePassed: false,
 			exercisingTestsByModule: paired,
+			cardProjectIsRuntimeRepo: true,
 		});
 
 		expect(decision).toMatchObject({ run: false, skipReason: "baseline_not_green" });
@@ -99,6 +110,7 @@ describe("every skip is a case the run could not have answered", () => {
 			changedFiles: ["src/core/unpaired.ts"],
 			acceptancePassed: false,
 			exercisingTestsByModule: {},
+			cardProjectIsRuntimeRepo: true,
 		});
 
 		expect(decision.skipReason).toBe("baseline_not_green");
@@ -109,6 +121,7 @@ describe("every skip is a case the run could not have answered", () => {
 			changedFiles: ["src/core/unpaired.ts"],
 			acceptancePassed: true,
 			exercisingTestsByModule: { "src/core/unpaired.ts": [] },
+			cardProjectIsRuntimeRepo: true,
 		});
 
 		expect(decision).toMatchObject({ run: false, skipReason: "no_exercising_test" });
@@ -120,6 +133,7 @@ describe("every skip is a case the run could not have answered", () => {
 			changedFiles: ["src/core/thing.ts", "src/core/unpaired.ts"],
 			acceptancePassed: true,
 			exercisingTestsByModule: paired,
+			cardProjectIsRuntimeRepo: true,
 		});
 
 		expect(decision.run).toBe(true);
@@ -132,6 +146,7 @@ describe("every skip is a case the run could not have answered", () => {
 			changedFiles: modules,
 			acceptancePassed: true,
 			exercisingTestsByModule: Object.fromEntries(modules.map((m) => [m, ["t.test.ts"]])),
+			cardProjectIsRuntimeRepo: true,
 		});
 
 		expect(decision).toMatchObject({ run: false, skipReason: "too_many_changed_modules" });
@@ -143,13 +158,45 @@ describe("every skip is a case the run could not have answered", () => {
 		// The contract a caller relies on: `run: false` means there is nothing to schedule, so a caller reading
 		// only `modules` cannot start a run the policy declined.
 		for (const decision of [
-			decideCardAblation({ changedFiles: [], acceptancePassed: true, exercisingTestsByModule: {} }),
-			decideCardAblation({ changedFiles: ["src/a.ts"], acceptancePassed: false, exercisingTestsByModule: {} }),
-			decideCardAblation({ changedFiles: ["src/a.ts"], acceptancePassed: true, exercisingTestsByModule: {} }),
+			decideCardAblation({
+				changedFiles: [],
+				acceptancePassed: true,
+				exercisingTestsByModule: {},
+				cardProjectIsRuntimeRepo: true,
+			}),
+			decideCardAblation({
+				changedFiles: ["src/a.ts"],
+				acceptancePassed: false,
+				exercisingTestsByModule: {},
+				cardProjectIsRuntimeRepo: true,
+			}),
+			decideCardAblation({
+				changedFiles: ["src/a.ts"],
+				acceptancePassed: true,
+				exercisingTestsByModule: {},
+				cardProjectIsRuntimeRepo: true,
+			}),
 		]) {
 			expect(decision.run).toBe(false);
 			expect(decision.modules).toEqual([]);
 		}
+	});
+});
+
+describe("a foreign project is refused first of all", () => {
+	it("skips before any other reason, because the runner would stub the wrong tree", () => {
+		// `scripts/ablate.mts` copies `process.cwd()` — the RUNTIME's repo — and runs the runtime's vitest. For a
+		// card in someone else's project a "run" decision would ablate !Klein's file at that path. Checked first:
+		// no other reason matters when the measurement is aimed at the wrong tree.
+		const decision = decideCardAblation({
+			changedFiles: ["src/core/thing.ts"],
+			acceptancePassed: true,
+			exercisingTestsByModule: paired,
+			cardProjectIsRuntimeRepo: false,
+		});
+
+		expect(decision).toMatchObject({ run: false, skipReason: "foreign_project" });
+		expect(decision.modules).toEqual([]);
 	});
 });
 
@@ -161,6 +208,7 @@ describe("a skip is never a pass — the composition that makes skipping safe", 
 			changedFiles: ["README.md"],
 			acceptancePassed: true,
 			exercisingTestsByModule: {},
+			cardProjectIsRuntimeRepo: true,
 		});
 		expect(skipped.run).toBe(false);
 
@@ -172,9 +220,24 @@ describe("a skip is never a pass — the composition that makes skipping safe", 
 
 	it("gives every skip a reason a human can act on or argue with", () => {
 		for (const decision of [
-			decideCardAblation({ changedFiles: ["README.md"], acceptancePassed: true, exercisingTestsByModule: {} }),
-			decideCardAblation({ changedFiles: ["src/a.ts"], acceptancePassed: false, exercisingTestsByModule: {} }),
-			decideCardAblation({ changedFiles: ["src/a.ts"], acceptancePassed: true, exercisingTestsByModule: {} }),
+			decideCardAblation({
+				changedFiles: ["README.md"],
+				acceptancePassed: true,
+				exercisingTestsByModule: {},
+				cardProjectIsRuntimeRepo: true,
+			}),
+			decideCardAblation({
+				changedFiles: ["src/a.ts"],
+				acceptancePassed: false,
+				exercisingTestsByModule: {},
+				cardProjectIsRuntimeRepo: true,
+			}),
+			decideCardAblation({
+				changedFiles: ["src/a.ts"],
+				acceptancePassed: true,
+				exercisingTestsByModule: {},
+				cardProjectIsRuntimeRepo: true,
+			}),
 		]) {
 			expect(decision.skipReason).toBeDefined();
 			expect(decision.detail.length).toBeGreaterThan(30);

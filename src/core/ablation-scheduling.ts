@@ -10,12 +10,19 @@
  * never ablated carries "we do not know", not "it passed". That composition is what lets this be aggressive
  * about skipping: the cost of a skip is a missing signal, plainly labelled, and never a false green.
  *
- * ── THE FIVE REASONS TO SKIP, EACH BECAUSE THE RUN COULD NOT ANSWER ANYTHING ──
+ * ── THE SIX REASONS TO SKIP, EACH BECAUSE THE RUN COULD NOT ANSWER ANYTHING ──
  * Every skip below is "the measurement is not defined here", not "we could not be bothered". A policy that
  * skipped for expedience would eventually skip the case that mattered.
  */
 
 export type AblationSkipReason =
+	/**
+	 * The card's project is NOT the runtime's own repo. `scripts/ablate.mts` copies `process.cwd()` — !Klein —
+	 * and runs !Klein's vitest against it; it has no notion of the card's project. So for a foreign project the
+	 * scheduler could say "run" and the runner would stub !Klein's file at that path instead. Checked FIRST,
+	 * because no other reason matters when the measurement would be aimed at the wrong tree entirely.
+	 */
+	| "foreign_project"
 	/** The card's diff touched no files at all. */
 	| "no_changed_files"
 	/**
@@ -57,7 +64,18 @@ export function decideCardAblation(input: {
 	readonly changedFiles: readonly string[];
 	readonly acceptancePassed: boolean;
 	readonly exercisingTestsByModule: Readonly<Record<string, readonly string[]>>;
+	/** True only when the card's project IS the repo this runtime is running from. */
+	readonly cardProjectIsRuntimeRepo: boolean;
 }): AblationSchedulingDecision {
+	if (!input.cardProjectIsRuntimeRepo) {
+		return {
+			run: false,
+			skipReason: "foreign_project",
+			detail:
+				"the card's project is not this runtime's own repo, and the ablation runner copies the RUNTIME's tree — it would stub the wrong file entirely",
+			modules: [],
+		};
+	}
 	if (input.changedFiles.length === 0) {
 		return {
 			run: false,

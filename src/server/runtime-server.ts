@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
@@ -2424,6 +2424,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							changedFiles,
 							acceptancePassed: acceptance?.present === true && acceptance.passed === true,
 							exercisingTestsByModule,
+							// The runner copies `process.cwd()` and runs THIS repo's vitest, so an ablation is only ever
+							// aimed at the right tree when the card's project IS this runtime's repo. Compared by real
+							// path so a symlinked or relative workspace cannot read as foreign (or, worse, as native).
+							cardProjectIsRuntimeRepo: (() => {
+								try {
+									return realpathSync(scope.workspacePath) === realpathSync(process.cwd());
+								} catch {
+									// Unresolvable path ⇒ cannot claim it is ours. Foreign is the non-destructive answer:
+									// it skips, and a skip is `unmeasured`, never a false green.
+									return false;
+								}
+							})(),
 						});
 						recordSelfObservation({
 							signal: "custom",

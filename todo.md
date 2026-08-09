@@ -12395,6 +12395,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   is not a measurement. P21.1 states the rule for exactly this — "widening a routing numerator on plausibility
   is what the module's own header forbids" — so `isSourceModule` stays TS-only until one real `.mjs` ablation
   has been run end to end.
+  **🔴 AND THE DEEPEST REASON WAS UNDERNEATH ALL OF THEM: `ablate.mts` COPIES `process.cwd()`.** It ablates the
+  tree the RUNTIME runs from — !Klein — and runs !Klein's vitest against it. It has no notion of the card's
+  project at all. So for a card in a user's TypeScript project the scheduler would have said **run**, and the
+  runner would have stubbed **!Klein's own file at that path**. Harmless today because the wire is observe-only;
+  a live trap for whoever flips it on. Closed with a `foreign_project` skip checked FIRST — no other reason
+  matters when the measurement is aimed at the wrong tree — compared by REAL path so a symlinked or relative
+  workspace cannot read as native, and an unresolvable path answers "foreign", the non-destructive direction.
+  Live: all 18 fixture cards now report `foreign_project`.
+  **THE PROGRESSION IS THE LESSON, and every step of it needed a RUN:**
+  `no_source_change` → *(silent-worker cell)* `diff_unreadable` → *(perfect cell)* `no_ablatable_module` →
+  *(reading the runner)* `foreign_project`. **Each answer was a real measurement of a shallower question, and
+  each masked a more fundamental one underneath.** Four readings of the same 18 cards; the first three all
+  compiled, type-checked and passed ~13,800 tests. Nothing but running it against a different cell — and then
+  reading what the runner actually does — moved it down a layer.
   **STATUS: the core now has its consumer.** Its consumer is the delivery seam, and that wire
   is now UNBLOCKED — all three pieces exist (isolated-tree runner · scheduling policy · acceptance fold). It is
   deliberately NOT surfaced through a synthetic CLI flag to avoid the orphan label; that would be decoration,
