@@ -13614,6 +13614,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   or an invented universal default. Unknown evidence means no proven room and therefore a conservative split. Human
   intervention remains the last-resort fallback. A future user may opt out of auto-review and configure a personal
   review-size limit; that setting and UX are explicitly later scope, not a blocker for autonomous enforcement now.
+  **▶ THREE SLICES SHIPPED AND THIS ENTRY RECORDED NONE OF THEM — reconciled 2026-08-09.** The work is in
+  `git log --grep=P21.6b` (`a7a0750a7`, `014d645e5`, `384d4eb92`) but todo.md said nothing, so the item read as
+  unstarted. Same shape as N3's stale "NEXT" line: the record understating where the work had got to, in the
+  file AGENTS.md calls the single source of truth. What actually exists:
+    1. **Evidence stream** — the runner records `review_capacity_evidence` (registered, always-on) per
+       non-skipped resolution: outcome + reviewed diff LINE COUNT + reviewer model/provider. The empirical
+       record the ceiling derives from, per the item's own policy — never parameter count, never a default.
+    2. **Capacity deriver** — `deriveReviewCapacity`: 90th percentile of successfully-JUDGED diff sizes
+       (delivered AND bounced both count, because a bounce IS a completed judgment; PARKS are the failures the
+       ceiling exists to avoid), and `null` below a 5-judgment sample — "unknown evidence means no proven room"
+       made executable. **The index is `ceil(p*n)-1`, and the first test run earned it:** a `floor` landed on
+       the MAX at n=10, the exact one-lucky-giant failure a percentile exists to prevent.
+       `deriveFleetReviewCapacity` takes the best proven ceiling across routable models.
+    3. **Observe-first verdict at plan apply** — `assessPlannedTaskSizing` combines the empirical review
+       ceiling, the empirical diff baseline (median) and the routing's context sizing into one
+       `decideTaskSizing` verdict, **or names exactly which evidence half is missing; no half is ever guessed,
+       and the missing-half rate is the flip decision's own denominator.** Recorded per created card AFTER the
+       workspace transaction (P24.1: never inside), keyed by board taskId so the card's later
+       `review_capacity_evidence` row joins as predicted-vs-actual. `decideTaskSizing` got its first consumer.
+  **REMAINING: only the ENFORCE half** — "split when it says to". Correctly gated: nothing enforces until the
+  predicted-vs-actual stream has judged the estimator — the same observe-before-enforce posture as P18.4b and
+  P20.3b — and that join only accumulates on real drains.
  Backlog.md's framing is
   the sharpest in the field: *"AI agents can now produce more plausible code in an hour than you can carefully
   read in a day. The bottleneck is no longer writing code. It's your attention."* Their three checkpoints —
