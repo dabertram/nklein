@@ -347,7 +347,12 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 								: ""
 						}`
 					: workspaceUnavailableReason
-						? `Could not capture sandbox task result patch: the sandbox workspace was unavailable before capture (${workspaceUnavailableReason}). The task result is unknown; inspect diagnostics and redrive the task.`
+						? // "Unknown" is the honest half and must stay: the workspace was gone before we could look, which
+							// is NOT evidence the card produced nothing. The ADVICE was the defect — a bare "redrive the
+							// task" assumes a redrive would go differently, and N3's silent-architect cell showed the case
+							// where it cannot: a decomposition turn that never emitted a tool call fails identically every
+							// time, so an operator following this note loops. Say what to check first.
+							`Could not capture sandbox task result patch: the sandbox workspace was unavailable before capture (${workspaceUnavailableReason}). The task result is unknown — the workspace was gone before it could be read, which is NOT evidence the card produced nothing. Check the card's attempts for tool calls BEFORE redriving: a card whose agent never called a tool will fail the same way again.`
 						: `Could not capture sandbox task result patch: ${errorMessage}`;
 				recordSelfObservation({
 					signal: "runtime_error",

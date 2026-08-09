@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { extractOperatorHold, findResultBranchForCard } from "../../src/core/operator-hold-extraction";
 
@@ -119,5 +120,30 @@ describe("N16 acceptance — the real s03 operator hold", () => {
 		const summary = extract()?.evidence.summary ?? "";
 		expect(summary).toContain("NOT a defect");
 		expect(summary).not.toMatch(/re-?drive|retry automatically/i);
+	});
+});
+
+/**
+ * A SOURCE RATCHET, in the style of the P21.1 edit-kind ratchet: the thing being protected here is the WORDING
+ * of an operator-facing note, which no behavioural assertion reaches — the message is built inline at the
+ * capture site and only ever read by a human.
+ *
+ * N3's silent-architect cell showed why it matters. A decomposition turn that never emits a tool call ends with
+ * `workspace_disposed_before_capture`, and the note used to say "inspect diagnostics and redrive the task" —
+ * advice that, for that card, loops: the redrive fails identically. The honest half ("the result is unknown")
+ * must survive, because the workspace really was gone before it could be read; only the advice was wrong.
+ */
+describe("the workspace-unavailable note", () => {
+	it("keeps the honest claim and drops the unconditional redrive advice", async () => {
+		const source = await readFile(
+			new URL("../../src/nklein-agent/nklein-sandbox-review-finalizer.ts", import.meta.url),
+			"utf8",
+		);
+
+		// The absence half: "unknown" must not be allowed to read as "nothing was produced".
+		expect(source).toContain("NOT evidence the card produced nothing");
+		// The advice half: check before redriving, rather than redrive.
+		expect(source).toMatch(/Check the card's attempts for tool calls BEFORE redriving/);
+		expect(source).not.toMatch(/inspect diagnostics and redrive the task/);
 	});
 });

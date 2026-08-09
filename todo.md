@@ -7495,6 +7495,16 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   the same thing again. A diagnosis-quality defect, not a crash. `runtime_error` is deliberately left OUT of
   `mustStayQuiet` with that reason attached, rather than being added to a quiet list, which would have made the
   cell hide exactly what it found.
+  **✅ AND THE FINDING IS FIXED 2026-08-09, the same day the cell surfaced it.** The note now keeps its honest
+  half — *"the result is unknown — the workspace was gone before it could be read, which is NOT evidence the
+  card produced nothing"* — because the workspace really was unreadable, and turning "could not look" into
+  "nothing there" is the substitution this whole codebase guards against. Only the ADVICE was wrong: a bare
+  *"redrive the task"* assumes a redrive would go differently, and the silent-architect case is exactly where it
+  cannot — a decomposition turn that never emitted a tool call fails identically every time, so an operator
+  following the note loops. It now says to check the card's attempts for tool calls BEFORE redriving.
+  Pinned by a SOURCE RATCHET (the P21.1 pattern), because the thing protected is operator-facing WORDING that no
+  behavioural assertion reaches — the message is built inline and only ever read by a human. Mutation-checked:
+  removing the honest half turns the ratchet red.
   N3's role half is now **DONE**: three role cells, each with a distinct terminal shape and its own ladder.
   Additional FAMILIES only as the catalog grows.
 - [x] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
