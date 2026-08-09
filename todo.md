@@ -110,6 +110,20 @@ gap remains.
   ⇒ Reconciling a backlog entry against its commits requires READING the entry. If a cheap proxy is wanted, use
   entry LENGTH or a per-commit search for its subject line — never token frequency. And a proxy that produced
   one true and one false positive out of two checks has established nothing about the other eight.
+  **▶ THE OTHER EIGHT WERE THEN AUDITED PROPERLY (2026-08-09): ALL EIGHT ARE ACCURATE.** Per-commit method —
+  take each commit's own distinctive identifiers and check the entry for them — flagged **14 candidates, and
+  every single one was a FALSE POSITIVE**, from three distinct contaminations that had to be found by checking:
+    · **Substring matching.** `git log --grep=P21.1` also matches `P21.13`, `P21.13a`, `P21.13b`. P21.1 looked
+      like 22 commits; it owns **3**.
+    · **Body citations.** Commits whose BODY cites an item counted as that item's work — including several of
+      my own this session, which quote P21.1's "the wire was the bug" lesson while implementing P18.4b/P25.3.
+    · **Different words.** The remaining misses were work genuinely described in the entry under other terms
+      ("the restart read is now wired" vs. the commit's `restart-count`). Exactly the weakness the method was
+      declared to have, so a miss is a candidate to READ, never a verdict — and reading resolved all of them.
+  **Net over both passes: 1 true finding (P21.6b, found by reading) and 15 false ones (found by proxies).** The
+  proxies were not merely imprecise — each was a well-formed measurement of a question narrower than its label,
+  which is the §5 ablation shape yet again. Backlog reconciliation is a READING task; treat any cheap version
+  as a candidate generator whose output is unproven until read.
 
 > **⚠️ THE SIMULATED LAYER CANNOT REACH "THE SESSION DIED BEFORE PRODUCING ANYTHING" (2026-08-01, proven).** The
 > LLM simulator always answers, so every dispatched session emits a first summary and every release path keyed on
