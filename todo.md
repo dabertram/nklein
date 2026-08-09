@@ -11646,8 +11646,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   that read with `99` leaves **all 9 drift-critic wire tests green**. They assert the remedy computation "does
   not throw" and never inspect the RECORDED remedy, so no test covers what the observation actually says. My
   read is correct and UNCOVERED, and citing those 9 passes as coverage would have been exactly the substitution
-  this file keeps documenting. **Specified next task:** have the wire test capture `recordSelfObservation` and
-  assert the recorded remedy — which would cover the pre-existing computation as well as this read.
+  this file keeps documenting.
+  **▶ CLOSED SAME DAY — the wire test now captures the sink and asserts the RECORDED remedy (12 tests).**
+  Three mutations are caught where none were before: `hasCapturedWork` forced false, and the ledger read
+  replaced by **either** `99` **or** `0`.
+  **🔴 AND MY FIRST CORRECTIVE TEST PASSED FOR THE WRONG REASON — the exact fault it was written to fix.**
+  It spent the budget and asserted `park` + "budget". A hard-coded `99` produces that message just as happily,
+  so the test could not distinguish "reads the ledger" from "guessed high"; the mutation check caught it
+  immediately. **One direction cannot pin a read.** The fix is the OPPOSITE direction — an EMPTY ledger must
+  yield `restart`, which no spent-looking constant can produce — and only the PAIR pins it: the empty case
+  catches a too-high constant, the spent case catches the old `0`. Either alone is decoration that looks like
+  coverage.
   REMAINING for P18.4b: the acting half (the WRITE + enforcement) behind the observe-first gate, and the wire
   test above. `foldCapturedWorkProbe` stays unwired until the seam has a real probe to fold — its consumer is
   the same acting half.

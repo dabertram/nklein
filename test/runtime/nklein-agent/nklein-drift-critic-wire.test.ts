@@ -1,5 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MAX_RESTATEMENT_RESTARTS } from "../../../src/core/off-track-intervention";
+import { clearOffTrackRestartLedger, recordOffTrackRestart } from "../../../src/core/off-track-restart-ledger";
 import { createKanbanContextFocusExtension } from "../../../src/nklein-agent/nklein-context-focus-extension";
+
+/**
+ * The sink is captured so the tests can assert the RECORDED remedy. Until 2026-08-09 they only asserted that
+ * computing it did not throw — a mutation check proved that: replacing the live `restartsSoFar` read with `99`
+ * left all nine green. "Did not throw" is not a measurement of what the observation says.
+ */
+const observations = vi.hoisted(() => [] as { message: string; metadata?: Record<string, unknown> }[]);
+vi.mock("../../../src/telemetry/self-observation-sink", () => ({
+	recordSelfObservation: (event: { message: string; metadata?: Record<string, unknown> }) => {
+		observations.push(event);
+	},
+	readSelfObservationEvents: async () => [],
+}));
 
 /**
  * P18.4b — the FIRST end-to-end coverage of the F12.92 drift-critic path.
@@ -50,8 +65,9 @@ function buildExtension(options: {
 		return options.driftReply;
 	});
 	sessionCounter += 1;
+	const sessionId = `session-${sessionCounter}`;
 	const extension = createKanbanContextFocusExtension(
-		`session-${sessionCounter}`,
+		sessionId,
 		"/workspaces/task-1",
 		"/repo",
 		200_000,
@@ -62,7 +78,7 @@ function buildExtension(options: {
 		undefined, // repoSummaryCaller
 		options.withSignals === false ? undefined : () => ({ hasCapturedWork: options.hasCapturedWork ?? false }),
 	);
-	return { extension, driftCriticCaller };
+	return { extension, driftCriticCaller, sessionId };
 }
 
 /** Let the critic's fire-and-forget promise chain settle — it is deliberately OFF the worker's critical path. */
@@ -74,6 +90,8 @@ async function settle(): Promise<void> {
 describe("F12.92 drift critic — the wire, end to end", () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
+		observations.length = 0;
+		clearOffTrackRestartLedger();
 	});
 
 	it("does NOT consult the critic before the turn floor", async () => {
@@ -188,6 +206,51 @@ describe("F12.92 drift critic — the wire, end to end", () => {
 		const { extension } = buildExtension({ driftReply: OFF_TRACK_REPLY, hasCapturedWork: true });
 		await expect(extension.hooks?.beforeModel?.(makeContext(8))).resolves.not.toThrow();
 		await settle();
+	});
+
+	it("RECORDS the remedy it chose, not merely computes one", async () => {
+		// The gap a mutation check exposed: every assertion here used to be "did not throw", so the recorded
+		// remedy — the entire product of this observation — went unread. A regression in the computation would
+		// have stayed green.
+		const { extension } = buildExtension({ driftReply: OFF_TRACK_REPLY, hasCapturedWork: true });
+		await extension.hooks?.beforeModel?.(makeContext(8));
+		await settle();
+
+		const remedy = observations.find((event) => event.metadata?.category === "off_track_remedy_observed");
+		expect(remedy, "no off-track remedy was recorded at all").toBeDefined();
+		// Captured work parks the card: restarting would destroy artefacts a human could still judge.
+		expect(remedy?.message).toMatch(/park/);
+	});
+
+	it("reads the restart budget from the LEDGER, so a spent budget changes the recorded remedy", async () => {
+		// Covers the live `getOffTrackRestartCount(sessionId)` read. With the budget spent and NO captured work,
+		// the honest answer flips from restart to park — and a hard-coded `0` could never produce it, which is
+		// exactly what made the observation biased toward `restart_with_restatement` while it was a literal.
+		const { extension, sessionId } = buildExtension({ driftReply: OFF_TRACK_REPLY, hasCapturedWork: false });
+		for (let spent = 0; spent < MAX_RESTATEMENT_RESTARTS; spent += 1) {
+			recordOffTrackRestart(sessionId);
+		}
+
+		await extension.hooks?.beforeModel?.(makeContext(8));
+		await settle();
+
+		const remedy = observations.find((event) => event.metadata?.category === "off_track_remedy_observed");
+		expect(remedy?.message).toMatch(/park/);
+		expect(remedy?.message).toMatch(/budget/);
+	});
+
+	it("and with the budget UNSPENT the same card restarts — the direction that pins the read", async () => {
+		// The first version of the test above passed against a hard-coded `99` as happily as against the real
+		// read, because a large constant produces the budget-park too. One direction cannot distinguish "read the
+		// ledger" from "guessed high". This is the other direction: an EMPTY ledger must yield restart, which no
+		// spent-looking constant can produce. The pair pins the read; either alone does not.
+		const { extension } = buildExtension({ driftReply: OFF_TRACK_REPLY, hasCapturedWork: false });
+		await extension.hooks?.beforeModel?.(makeContext(8));
+		await settle();
+
+		const remedy = observations.find((event) => event.metadata?.category === "off_track_remedy_observed");
+		expect(remedy?.message).toMatch(/restart/);
+		expect(remedy?.message).not.toMatch(/budget/);
 	});
 
 	it("skips the remedy entirely when no signals provider is supplied", async () => {
