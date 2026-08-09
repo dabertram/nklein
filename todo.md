@@ -14675,7 +14675,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **This is also why the two specs cannot share a context budget by default:** an 18× size difference between
   variants means any context ceiling penalises the prescriptive arm first. Future legs must size context to the
   LARGER variant with headroom, and record the prompt token counts alongside the verdicts.
-  ⇒ **RE-RUN THE GEMMA PAIR AT 262144 to match**, and treat the 32768 pair as a pilot rather than a data point.
+  **▶ THE MATCHED RE-RUN (262144) FALSIFIED MY OWN "context arithmetic" EXPLANATION — same split as the pilot
+  (prescriptive: NO branch, 0 files; discovery: branch + files). Root-caused with direct probes (2026-08-10):**
+    · The exact 86KB prompt sent STRAIGHT to LM Studio returns fine — 135s prefill (24,210 tokens), then cached
+      at 10s. No hang, no refusal. The wire is healthy.
+    · **This gemma deployment REASONS: 190 reasoning tokens before a trivial 'ACK', content empty at max_tokens
+      16, content arrives with budget.** The catalog's gemma-4-31b entry (non-reasoning, json_schema-safe) is
+      STALE for this build — the template thinks first.
+    · The leg's isolated-HOME telemetry shows **423 distinct event types over the "stalled" 90 minutes**: turns
+      ran, `raise_token_budget` RECOVERED two empty turns (the product ladder absorbing the reasoning-budget
+      shape), an acceptance gate ran `npm test` and failed. **The leg was never stuck — it was SLOW.** The board
+      showed `planning:1` unchanged because the work happens inside the planning-phase card; lanes are a coarse
+      proxy, and I read "board static" as "runtime frozen" — the exact misreading the m5max throttling note
+      warns about ("never read slow turns as stalls").
+  **CORRECTED CROSS-MODEL STATEMENT:** at matched context, qwen completed the prescriptive leg inside 90m; gemma
+  (dense 31B + reasoning on every turn + 24k prefill) did not finish PLANNING in 90m while progressing the whole
+  time. **What was measured is completion-within-time-budget, confounded by per-model speed — not capability.**
+  ⇒ Time budgets must scale with the model's throughput, or MAX_MIN silently becomes part of the treatment.
+  Re-running gemma at MAX_MIN=240. Discovery verdicts to date: gemma BUILDS on the small spec (2 and 5 files)
+  and fails the same compositional probe qwen fails — consistent with the one-sided-derivation finding, but not
+  comparable until its prescriptive leg has a fair budget.
   The general lesson for every future cross-model leg: **match the context length, or the comparison measures my
   loader flags rather than the models.** `lms load <model> --context-length <N>` — read the model's real ceiling
   first; the ≥32k floor is a MINIMUM, never a target.
