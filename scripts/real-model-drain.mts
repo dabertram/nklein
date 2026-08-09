@@ -156,7 +156,9 @@ try {
 	const logPath = join(work, "runtime.log");
 	const { createWriteStream } = await import("node:fs");
 	const runtimeLog = createWriteStream(logPath);
-	runtime = spawn(TSX, ["src/cli.ts", "--host", "127.0.0.1", "--port", String(RUNTIME_PORT)], {
+	// `--no-open`: without it every drain leg pops a browser tab on the operator's machine — seven of them in one
+	// day before anyone noticed, because the drain itself works fine either way.
+	runtime = spawn(TSX, ["src/cli.ts", "--host", "127.0.0.1", "--port", String(RUNTIME_PORT), "--no-open"], {
 		cwd: REPO,
 		env: { ...process.env, HOME: home, NODE_ENV: "development", NKLEIN_A2A_SERVER: "1" },
 		stdio: ["ignore", "pipe", "pipe"],
