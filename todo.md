@@ -14650,6 +14650,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   probe.
   **REMAINING: the measurement itself** — run a real model against both variants and report the delta. That is
   a fleet run, not authoring work; the apparatus it needed now exists.
+  **⚠️ THE CROSS-MODEL LEG HAS AN AVOIDABLE CONFOUND — FOUND BY CHECKING THE MODEL'S REAL LIMIT (2026-08-09).**
+  The qwen legs ran at **262144** context; I loaded gemma-4-31b at **32768**, assuming that was near its ceiling.
+  It is not: **Gemma 4 31B supports 256K**, 8× what I gave it. So any gemma-vs-qwen difference is confounded by
+  an 8× context gap I introduced, not by the models.
+  **And the fix is cheap, because both families are HYBRID-ATTENTION.** Gemma 4 uses local attention (≈512-token
+  window) on most layers, so KV grows very gradually with context instead of linearly — the usual "long context
+  eats VRAM" arithmetic does not apply. Qwen 3.6 is hybrid too. With 48 G free and 18.85 G of weights, a
+  262144-context gemma load should fit comfortably.
+  ⇒ **RE-RUN THE GEMMA PAIR AT 262144 to match**, and treat the 32768 pair as a pilot rather than a data point.
+  The general lesson for every future cross-model leg: **match the context length, or the comparison measures my
+  loader flags rather than the models.** `lms load <model> --context-length <N>` — read the model's real ceiling
+  first; the ≥32k floor is a MINIMUM, never a target.
   **▶ ✅ THE MEASUREMENT RAN 2026-08-09 — THE FIRST REAL VARIANT DELTA.** One model
   (`qwen/qwen3.6-35b-a3b`, the operator's resident, 262144 ctx), both spec variants of project 18, one held-out
   oracle, **oracle INDEPENDENT on both legs**:
