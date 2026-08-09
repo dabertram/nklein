@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
@@ -20,6 +21,7 @@ import { effectiveRetrievalSearchBackendUrl } from "../config/runtime-config-ret
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { selectA2aStatusNote } from "../core/a2a-task-mapping";
 import { A2A_WELL_KNOWN_AGENT_CARD_PATH } from "../core/a2a-wire-shapes";
+import { decideCardAblation } from "../core/ablation-scheduling";
 import { buildTransitionEvent } from "../core/agent-attempt-ledger";
 import {
 	capabilitiesForTier,
@@ -64,6 +66,7 @@ import type {
 } from "../core/egress-confirm-queue";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { EVAL_PROMPT_CORPUS } from "../core/eval-prompt-corpus";
+import { resolveExercisingTests } from "../core/exercising-tests";
 import { seedFocusChainFromPlanTask } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { loadLlmfitCatalogSupplement } from "../core/llmfit-catalog-supplement";
@@ -98,6 +101,7 @@ import {
 	type OpportunisticWorkOutcome,
 } from "../core/opportunistic-work-value";
 import { resolveRuntimeSwarmGuardrailsForModelRoles } from "../core/parallel-swarm-guardrails";
+import { changedFilesFromPatch } from "../core/patch-changed-files";
 import {
 	assessPhaseLaneDivergence,
 	buildPhaseLaneDivergenceObservation,
@@ -258,6 +262,7 @@ import { sweepLegacyTaskWorktrees } from "../workspace/legacy-worktree-sweep";
 import { resolveRemoteBrowseRoots } from "../workspace/remote-path-confinement";
 import {
 	deleteTaskResultBranch,
+	getTaskResultBranchDiff,
 	pinTaskResultEvidenceCommit,
 	resolveTaskResultBranchCommit,
 } from "../workspace/task-result-branches";
@@ -2363,6 +2368,78 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						taskId,
 						cardVerificationFromAcceptance(acceptance, Date.now()),
 					).catch(() => {});
+					// P20.3b OBSERVE-FIRST: record what the ablation SCHEDULER would decide for this delivery, and
+					// run nothing. The measurement costs two suite runs, so the first question is how often it would
+					// even be worth paying — and that is answerable only from real deliveries.
+					//
+					// Fire-and-forget, like the persist above: the pairing's fallback does a `grep -rl` over `test/`
+					// per changed module, which is fine in a sweep and has no business on the delivery critical path.
+					// A card must never wait on, or fail because of, an observation.
+					void (async () => {
+						if (!deliveryCard) {
+							return;
+						}
+						const execFileAsync = promisify(execFile);
+						const patch = await getTaskResultBranchDiff({
+							repoPath: scope.workspacePath,
+							taskId: deliveredBranchTaskId ?? taskId,
+							baseRef: deliveryCard.baseRef,
+							...(deliveredResultCommit ? { resultCommit: deliveredResultCommit } : {}),
+						});
+						// A null patch means the diff could NOT BE READ, which is a different fact from "the card
+						// changed nothing" — and passing `""` through would collapse them into `no_source_change`,
+						// reporting an unreadable diff as a measured absence. Recorded distinctly instead.
+						if (patch === null) {
+							recordSelfObservation({
+								signal: "custom",
+								severity: "info",
+								message:
+									"Ablation scheduling (observe-only): the result-branch diff could not be read, so whether this card earns an ablation is UNKNOWN — not the same as 'it changed nothing'.",
+								taskId,
+								workspacePath: scope.workspacePath,
+								metadata: { category: "ablation_scheduling_observed", wouldRun: false, diffUnreadable: true },
+							});
+							return;
+						}
+						const changedFiles = changedFilesFromPatch(patch);
+						const lookup = {
+							fileExists: (path: string) => existsSync(join(scope.workspacePath, path)),
+							findImportingTests: async (specifier: string) => {
+								try {
+									const { stdout } = await execFileAsync("grep", ["-rl", specifier, "test/"], {
+										cwd: scope.workspacePath,
+										maxBuffer: 8 * 1024 * 1024,
+									});
+									return stdout.split("\n");
+								} catch {
+									return [];
+								}
+							},
+						};
+						const exercisingTestsByModule: Record<string, readonly string[]> = {};
+						for (const file of changedFiles) {
+							exercisingTestsByModule[file] = await resolveExercisingTests(file, lookup);
+						}
+						const decision = decideCardAblation({
+							changedFiles,
+							acceptancePassed: acceptance?.present === true && acceptance.passed === true,
+							exercisingTestsByModule,
+						});
+						recordSelfObservation({
+							signal: "custom",
+							severity: "info",
+							message: `Ablation scheduling (observe-only): ${decision.run ? `would ablate ${decision.modules.length} module(s)` : `skipped — ${decision.skipReason}`}. ${decision.detail}`,
+							taskId,
+							workspacePath: scope.workspacePath,
+							metadata: {
+								category: "ablation_scheduling_observed",
+								wouldRun: decision.run,
+								changedFiles: changedFiles.length,
+								modules: decision.modules.length,
+								...(decision.skipReason ? { skipReason: decision.skipReason } : {}),
+							},
+						});
+					})().catch(() => {});
 					// #39 (runs 32/35/36/38 — the scope-vs-acceptance trap): when the card's acceptance command
 					// fails on the DELIVERED tree, sample it once against the BASE tree. An identical baseline
 					// failure means the breakage predates this card (broken test infra, a sibling's debt) — the

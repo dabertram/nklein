@@ -12351,7 +12351,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   with `foldAblationIntoAcceptance(null)` into **`unmeasured`** — never `supported`, never a hold. A card never
   ablated carries "we do not know", plainly labelled, not "it passed". Pinned as its own probe, because if that
   composition broke, every skip would start manufacturing green.
-  **STATUS, stated plainly: a PURE CORE with no consumer yet.** Its consumer is the delivery seam, and that wire
+  **▶ STEP 2 DONE 2026-08-09 — THE DELIVERY SEAM IS WIRED, OBSERVE-ONLY, AND LIVE-PROVEN.** At
+  `runtime-server.ts` beside `persistCardVerification`: read the card's result-branch diff → `changedFilesFromPatch`
+  → `resolveExercisingTests` per file → `decideCardAblation` → RECORD. Nothing is ablated; the point is to learn
+  how often the measurement is even worth paying for, which only real deliveries can answer. Registered as
+  `ablation_scheduling_observed` (`every_run`, `enabledBy: null`) BEFORE the ratchet could catch it this time.
+  **Fire-and-forget**, matching the persist beside it: the pairing's fallback greps `test/` per changed module,
+  which is fine in a sweep and has no business on the delivery critical path. A card must never wait on, or fail
+  because of, an observation.
+  **🔴 AND THE FIRST LIVE RUN CAUGHT THE SUBSTITUTION IN MY OWN NEW WIRE, minutes after I wrote the comment
+  warning about it.** I passed `patch ?? ""` into the parser, so an UNREADABLE diff and a card that genuinely
+  changed nothing both collapsed to `no_source_change`. The live drain reported *"the card changed no source
+  module"* as a MEASURED FACT for **18 cards whose diff could not be read at all** — a confident claim built
+  from an absent measurement, which is precisely what this whole item exists to detect. Fixed by recording
+  `diffUnreadable` distinctly, and the same drain re-run flips all 18 from `no_source_change` to
+  `diff_unreadable`. **The comment was right and the code was wrong; only running it showed which.**
+  **STATUS: the core now has its consumer.** Its consumer is the delivery seam, and that wire
   is now UNBLOCKED — all three pieces exist (isolated-tree runner · scheduling policy · acceptance fold). It is
   deliberately NOT surfaced through a synthetic CLI flag to avoid the orphan label; that would be decoration,
   which is precisely what this item exists to detect.

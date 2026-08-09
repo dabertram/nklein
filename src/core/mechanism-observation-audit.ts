@@ -431,6 +431,21 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	},
 
 	{
+		// P20.3b 2026-08-09: the OBSERVE half of ablation scheduling — what the policy WOULD decide for a real
+		// delivery, recorded without paying for the two suite runs. The point is to learn how often the
+		// measurement is even worth running before enabling it, and that is answerable only from real cards.
+		//
+		// `every_run`: it fires at every delivery, because a SKIP is the recorded outcome just as much as a run.
+		// `exceptional` would let a silently-dead wire read as a quiet one.
+		category: "ablation_scheduling_observed",
+		item: "P20.3b",
+		observes:
+			"whether a delivered card earns a no-op ablation — and when not, WHICH of the four reasons (no source change / red baseline / no exercising test / too many modules) made the measurement undefined",
+		enabledBy: null,
+		expectation: "every_run",
+		addedOn: Date.UTC(2026, 7, 9),
+	},
+	{
 		// P25.3 phase 4, 2026-08-09: the OBSERVE half of depth-matched model assignment. Registered WITH its wire,
 		// per the P18.3b lesson an unregistered mechanism cannot report that it never ran.
 		//
