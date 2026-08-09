@@ -11,6 +11,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { changedFilesFromPatch } from "./patch-changed-files";
 
 /** One vendored instance's metadata, as staged by the fetcher (gold patch measured for selection, then dropped). */
 export interface SwebenchInstanceMetadata {
@@ -182,14 +183,10 @@ export function parseSwebenchGradeOutput(input: {
  * for deletions and would silently drop a graded file from the guarded set.
  */
 export function listGradedTestFiles(testPatch: string): string[] {
-	const files = new Set<string>();
-	for (const line of testPatch.split("\n")) {
-		const match = line.match(/^diff --git a\/(\S+) b\/(\S+)$/);
-		if (match?.[2]) {
-			files.add(match[2]);
-		}
-	}
-	return [...files].sort();
+	// Delegates to the shared parser: the delivery scheduler asks the same question of a card's diff, and two
+	// implementations would fail in OPPOSITE directions — the grader missing a tampered file while the scheduler
+	// skipped an ablation it should have run.
+	return changedFilesFromPatch(testPatch);
 }
 
 export interface GradedTestTampering {

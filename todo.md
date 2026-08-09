@@ -12377,6 +12377,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   matches every importer of `core/task-result-branch-naming` and the pairing silently widens; and non-`.test.ts`
   grep hits are dropped, since a fixture in the selection makes vitest collect nothing and the run then looks
   merely shrunken.
+  **▶ STEP 1.5 — the PATCH→FILES parser extracted too (`patch-changed-files.ts`, 7 tests, 7/7
+  ablation-proven).** The seam gets a card's diff as a unified patch and needs FILE PATHS; that parser already
+  existed but was trapped inside `listGradedTestFiles`, a SWE-bench-named function. Same N17 shape as the
+  pairing, and here the two callers would fail in OPPOSITE directions: the grader missing a tampered file while
+  the scheduler skipped an ablation it should have run. `listGradedTestFiles` now delegates, and its own 13
+  tests passing unchanged is the behaviour receipt.
+  **The module is carried by its DELETION test.** Reading `diff --git` rather than `+++` is the whole design —
+  `+++` is `/dev/null` for a deletion, so a `+++` parser looks correct on every add and every modify (the two
+  shapes anyone writes a fixture for) and silently drops deletions. Also pinned: a rename yields the POST-change
+  path, since that is the only side a later lookup can resolve; and diff text INSIDE a patch (an added line
+  `+diff --git …`) contributes no phantom path, which the line anchor is what prevents.
   **BEHAVIOUR PRESERVED, PROVEN BY THE CENSUS, NOT BY READING THE DIFF:** all five directories reproduce, and
   core's 716→722 is exactly the 6 modules added this session — the rule did not move.
   **⚠️ THE EXTRACTION BROKE THE SWEEP AND `tsc` DID NOT SEE IT.** Removing the loop's `base` left the barrel
