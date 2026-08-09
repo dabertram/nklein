@@ -272,10 +272,37 @@ export const SILENT_WORKER_NO_PATCH: InvariantPack = {
 	mustStayQuiet: [],
 };
 
+/**
+ * N3 family 6 (`silent_architect_quirk`): the decomposition turn narrates a plan forever and never calls
+ * `decompose_project` — observed live on a 9B that rabbit-holed on `run_commands`.
+ *
+ * **WHAT THE FIRST RUN SHOWED — the product DOES respond, and the ladder is visible in telemetry.** One card
+ * ends in `planning` and no cards are ever created (the correct shape). Before giving up it logs
+ * "!Klein continued a decomposition turn that ended with no decompose_project tool call" ×4, then runs the
+ * swarm retry ladder through TWO distinct strategies — `reduced_tool_set` and `prompt_variant:explicit_format`
+ * — neither of which recovers, and `budget_wall` fires. So the assertion here is `budget_wall`: the observable
+ * proof that the spin was BOUNDED rather than endless, which is the property that matters for a model that
+ * will never comply.
+ *
+ * `runtime_error` is deliberately NOT in `mustStayQuiet`, and the reason is a FILED FINDING rather than an
+ * excuse: the single error is `agent_sandbox_result_patch / workspace_disposed_before_capture`, whose text
+ * says *"The task result is unknown; inspect diagnostics and redrive the task"*. For a card whose architect
+ * simply never decomposed, the result is not unknown — nothing happened — so an operator is pointed at a
+ * redrive for a card that would do the same thing again. That is a diagnosis-quality defect this cell
+ * surfaced; it is recorded in todo N3 rather than silently absorbed by adding the signal to a quiet list.
+ */
+export const SILENT_ARCHITECT_NO_CARDS: InvariantPack = {
+	id: "silent-architect-no-cards",
+	expectedTerminalLanes: ["planning"],
+	mustFire: ["budget_wall"],
+	mustStayQuiet: [],
+};
+
 export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map([
 	[CORE_INVARIANTS.id, CORE_INVARIANTS],
 	[SILENT_REVIEWER_PARK.id, SILENT_REVIEWER_PARK],
 	[SILENT_WORKER_NO_PATCH.id, SILENT_WORKER_NO_PATCH],
+	[SILENT_ARCHITECT_NO_CARDS.id, SILENT_ARCHITECT_NO_CARDS],
 	[PARKED_TERMINAL.id, PARKED_TERMINAL],
 	[LOOP_PARK_TERMINAL.id, LOOP_PARK_TERMINAL],
 	[SYNTAX_GUARD_RECOVERY.id, SYNTAX_GUARD_RECOVERY],

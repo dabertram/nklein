@@ -31,7 +31,8 @@
 				"reasoning_only_quirk",
 				"schema_deadend_quirk",
 				"silent_reviewer_quirk",
-				"silent_worker_quirk"
+				"silent_worker_quirk",
+				"silent_architect_quirk"
 			],
 			"invariantPackByProfile": {
 				"loop_park": "loop-park-terminal",
@@ -41,7 +42,8 @@
 				"park_resume": "park-resume-recovery",
 				"flags_on": "flags-on-coverage",
 				"silent_reviewer_quirk": "silent-reviewer-park",
-				"silent_worker_quirk": "silent-worker-no-patch"
+				"silent_worker_quirk": "silent-worker-no-patch",
+				"silent_architect_quirk": "silent-architect-no-cards"
 			}
 		},
 		{

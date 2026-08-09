@@ -7475,8 +7475,28 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   tripwire on exactly that interaction: if the empty-patch hold, the turn-loop guard, or the rerun gate ever
   start catching a no-op worker, cards stop reaching `completed` and this cell goes red with the reason
   attached. Green first run once the pack matched reality: 4/4 invariants, 110 requests.
-  STILL REMAINING: the **silent ARCHITECT** cell, which needs an `architect` request class (or an `any`+matcher
-  track) in the simulator — that missing vocabulary is part of its work, and is why it was not done first.
+  **▶ FAMILY 6 BUILT AND GREEN 2026-08-09 — `silent_architect_quirk` + `silent-architect-no-cards`. THE ROLE
+  TRIO IS NOW COMPLETE (reviewer · worker · architect).** **And my own "needs a new request class" note was
+  wrong**: the architect turn is already addressable as `requestClass: "any"` plus a `userMessageIncludes`
+  matcher — the same handle `schema-deadend-quirk` uses — so no simulator vocabulary was needed after all.
+  One track rewritten (`perfect-decompose` → prose forever, `repeatLastTurn`).
+  **A DISTINCT TERMINAL SHAPE, which is what makes it a separate cell rather than a variation:** 1 card in
+  `planning`, nothing anywhere else — no cards are ever created. Compare family 5 (19 `completed`) and family 4
+  (parked in review).
+  **THE PRODUCT DOES RESPOND, and the ladder is visible:** it logs *"!Klein continued a decomposition turn that
+  ended with no decompose_project tool call"* ×4, then runs the swarm retry ladder through TWO distinct
+  strategies — `reduced_tool_set` and `prompt_variant:explicit_format` — neither recovers, and `budget_wall`
+  fires. **`budget_wall` is therefore the pack's assertion**: the observable proof the spin was BOUNDED rather
+  than endless, which is the only property that matters for a model that will never comply.
+  **🔴 A FINDING THE CELL SURFACED, filed rather than absorbed.** The one `runtime_error` is
+  `agent_sandbox_result_patch / workspace_disposed_before_capture`, whose text reads *"The task result is
+  unknown; inspect diagnostics and redrive the task"*. For a card whose architect simply never decomposed the
+  result is NOT unknown — nothing happened — so an operator is pointed at a redrive for a card that would do
+  the same thing again. A diagnosis-quality defect, not a crash. `runtime_error` is deliberately left OUT of
+  `mustStayQuiet` with that reason attached, rather than being added to a quiet list, which would have made the
+  cell hide exactly what it found.
+  N3's role half is now **DONE**: three role cells, each with a distinct terminal shape and its own ladder.
+  Additional FAMILIES only as the catalog grows.
 - [x] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
   git remotes, update feeds, web/egress (already hard-gated), clock-driven damping. INTERNAL flaky sources (the
   proven ones, extend as found): the host-capacity view that reads the REAL LM Studio gateway even in sims (memory:

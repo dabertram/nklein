@@ -242,6 +242,11 @@ const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	// observed rather than invented — no-op workers were once left stranded In Progress by a too-tight rerun
 	// gate, and a 9B ran a single generation for 15+ minutes with no tool call and no progress.
 	silent_worker_quirk: "silent-worker-quirk",
+	// N3 family 6 (2026-08-09): the no-op ARCHITECT — narrates a plan forever and never calls
+	// `decompose_project`. Observed live on a 9B that rabbit-holed on `run_commands` exploration. Completes the
+	// role trio with families 4 (reviewer) and 5 (worker): the same "talks instead of acting" shape, landing on
+	// the decomposition path, where the failure is that NO cards are ever created.
+	silent_architect_quirk: "silent-architect-quirk",
 };
 
 /** Per-profile env the drain needs beyond NKLEIN_SIMFLOW_RUN (kept beside the run map so they stay in sync). */
