@@ -12355,6 +12355,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   is now UNBLOCKED — all three pieces exist (isolated-tree runner · scheduling policy · acceptance fold). It is
   deliberately NOT surfaced through a synthetic CLI flag to avoid the orphan label; that would be decoration,
   which is precisely what this item exists to detect.
+  **▶ THE DELIVERY WIRE SCOUTED 2026-08-09, AND STOPPED DELIBERATELY ONE DEPENDENCY SHORT.** The seam is
+  `runtime-server.ts` at the fail-closed delivery gate (beside `deriveDeliveryGateEvidence`), and it has the
+  card, its `baseRef` and a fresh acceptance result in hand. What it does NOT have is `exercisingTestsByModule`,
+  the third input `decideCardAblation` requires.
+  **That pairing exists only INSIDE `scripts/ablate.mts`** (conventional `test/runtime/<dir>/<name>.test.ts`,
+  falling back to an importer grep) and it is effectful. Reimplementing it at the seam would put two
+  implementations of "which tests exercise this module" in the tree — the N17 rule this repo states outright,
+  and the day they disagree neither can be trusted. So the ORDER is: extract the pairing once, make BOTH the
+  sweep and the seam use it (the sweep still passing is the proof the extraction preserved behaviour), and only
+  then wire the seam — observe-first, recording what the policy DECIDED without paying for the runs, exactly as
+  P25.3 phase 4 landed.
+  Stopped here rather than half-wiring it, for P18.4b's reason: a wire fed an input it had to invent produces
+  confident decisions about real work. Named so the next session starts with a specified task instead of
+  rediscovering the gap.
   **▶ FIRST SWEEP 2026-08-08 — four cores ablated, all LOAD_BEARING, repo clean after every run.**
   `auto-start-failure-guard` (5/5 broke), `task-board-ready-sweep`, `review-capacity`, `fitness-role-assignment`.
   **A sweep that finds nothing decorative is a real result, not a wasted run** — it is evidence these cores earn
