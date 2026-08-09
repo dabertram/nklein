@@ -7455,6 +7455,28 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   Everything else in the nominal matrix is either already covered (reasoning-only) or would target a path that
   does not exist (json_schema outside the architect turn). **Additional FAMILIES only as the catalog grows;
   there is still no known fifth quirk.**
+  **▶ FAMILY 5 BUILT AND GREEN 2026-08-09 — `silent_worker_quirk` + the `silent-worker-no-patch` pack.** Built
+  the WORKER cell first, not the architect one: the measurement above showed `worker` is a real request class
+  while `architect` is not, so this one needed no new simulator vocabulary. 18 worker-class tracks rewritten to
+  prose-forever; the reviewer and architect halves left untouched.
+  **THE FIRST RUN DID NOT SHOW WHAT THE CELL WAS BUILT EXPECTING, and chasing that is the whole result.** All
+  19 cards reached `completed` — a drain where no worker ever calls a tool should not complete anything. The
+  first reading ("the guard handled it") was wrong twice over. `core-invariants` failed on
+  `agent_sandbox_result_patch` never firing, which is exactly right: **nothing was ever written.** I then
+  checked whether some other track was quietly doing the work — no non-worker track emits `read_files` or
+  `write_files`, only `decompose_project` and `submit_review` — so the silencing held.
+  **The real cause: the recording's reviewers still `submit_review: approve`, and `shouldHoldEmptyPatchResult`
+  holds an empty patch ONLY when the review did not approve.** An approving reviewer overrides the
+  empty-patch hold, so 19 cards complete with no diff between them.
+  ⚠️ **The approving reviewer is a RECORDING property**, so the cell does NOT prove a real reviewer would pass
+  an empty card. It proves the product does not stop it on its own. Whether it should is F1.21/P18 territory —
+  filed, not decided here, and the pack says so rather than implying a verdict.
+  The pack therefore asserts the SHAPE OBSERVED rather than the shape assumed, and the cell's value is as a
+  tripwire on exactly that interaction: if the empty-patch hold, the turn-loop guard, or the rerun gate ever
+  start catching a no-op worker, cards stop reaching `completed` and this cell goes red with the reason
+  attached. Green first run once the pack matched reality: 4/4 invariants, 110 requests.
+  STILL REMAINING: the **silent ARCHITECT** cell, which needs an `architect` request class (or an `any`+matcher
+  track) in the simulator — that missing vocabulary is part of its work, and is why it was not done first.
 - [x] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
   git remotes, update feeds, web/egress (already hard-gated), clock-driven damping. INTERNAL flaky sources (the
   proven ones, extend as found): the host-capacity view that reads the REAL LM Studio gateway even in sims (memory:

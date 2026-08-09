@@ -236,6 +236,12 @@ const PROFILE_TO_SIMFLOW_RUN: Readonly<Record<string, string>> = {
 	// N3 family 4: the no-verdict reviewer — review-class turns are prose forever; the silent-reviewer-park
 	// pack asserts the ladder parks for the operator instead of spinning (terminal shape review+planning).
 	silent_reviewer_quirk: "silent-reviewer-quirk",
+	// N3 family 5 (2026-08-09): the no-op WORKER — every `worker` turn narrates intent and never calls a tool.
+	// The ROLE counterpart to family 4: same "model talks instead of acting" shape, but it lands on the
+	// turn-loop guard rather than the review ladder, so it exercises a different product path. Both halves are
+	// observed rather than invented — no-op workers were once left stranded In Progress by a too-tight rerun
+	// gate, and a 9B ran a single generation for 15+ minutes with no tool call and no progress.
+	silent_worker_quirk: "silent-worker-quirk",
 };
 
 /** Per-profile env the drain needs beyond NKLEIN_SIMFLOW_RUN (kept beside the run map so they stay in sync). */

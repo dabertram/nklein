@@ -244,9 +244,38 @@ export const SILENT_REVIEWER_PARK: InvariantPack = {
 	mustStayQuiet: [],
 };
 
+/**
+ * N3 family 5 (`silent_worker_quirk`): every `worker`-class turn is PROSE and never calls a tool — the no-op
+ * worker that really happens (a 9B once ran one generation for 15+ minutes with no tool call and no progress).
+ *
+ * **WHAT THE FIRST RUN ACTUALLY SHOWED, which is not what the cell was built expecting.** All 19 cards reach
+ * `completed` — with NO patch anywhere: `core-invariants` fails on `agent_sandbox_result_patch` never firing,
+ * which is exactly right, since nothing was ever written. Cards complete anyway because the recording's
+ * reviewers still `submit_review: approve`, and `shouldHoldEmptyPatchResult` holds an empty patch only when
+ * the review did NOT approve. An approving reviewer overrides the empty-patch hold.
+ *
+ * So this pack asserts the SHAPE that was observed rather than the shape that was assumed, and the value of
+ * the cell is as a tripwire on exactly that interaction: if the empty-patch hold, the turn-loop guard, or the
+ * rerun gate ever start catching a no-op worker, cards stop reaching `completed` and this cell goes red with
+ * the reason attached. Composed WITHOUT `core-invariants` for family 4's reason — completion-side gates
+ * false-fail on a drain where nothing is produced.
+ *
+ * ⚠️ The approving reviewer is a RECORDING property, so this cell does not prove a real reviewer would let an
+ * empty card through. It proves the product does not stop it on its own. Whether it should is P18/F1.21
+ * territory and is filed, not decided here.
+ */
+export const SILENT_WORKER_NO_PATCH: InvariantPack = {
+	id: "silent-worker-no-patch",
+	expectedTerminalLanes: ["completed"],
+	// The reviewer half still runs, and it is the only thing that fires — which is the finding.
+	mustFire: ["second_opinion_review_session"],
+	mustStayQuiet: [],
+};
+
 export const NIGHTLY_PACK_REGISTRY: ReadonlyMap<string, InvariantPack> = new Map([
 	[CORE_INVARIANTS.id, CORE_INVARIANTS],
 	[SILENT_REVIEWER_PARK.id, SILENT_REVIEWER_PARK],
+	[SILENT_WORKER_NO_PATCH.id, SILENT_WORKER_NO_PATCH],
 	[PARKED_TERMINAL.id, PARKED_TERMINAL],
 	[LOOP_PARK_TERMINAL.id, LOOP_PARK_TERMINAL],
 	[SYNTAX_GUARD_RECOVERY.id, SYNTAX_GUARD_RECOVERY],
