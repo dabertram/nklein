@@ -7366,7 +7366,35 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   the boundary bisection that "failed" to find damage was the step that exposed it. See
   [[green-signal-substitution]] — an analysis tool needs a control just as much as a rig does.
 
-- [ ] **N3 — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
+- [x] **N3 — Per-LLM behavior matrix. CLOSED 2026-08-09 — every clause checked against evidence, not assumed.**
+  **① "encode each family's known quirks as fixtures" (four named)** — ✅ all four registered with recordings
+  (`ministral-quirk`, `reasoning-only-quirk`, `schema-deadend-quirk`, `silent-reviewer-quirk`), audited
+  2026-08-08 by listing them rather than trusting the entry's own stale "NEXT" line.
+  **② "every REASONABLE combination (architect/worker/reviewer per profile)"** — ✅ the role trio exists
+  (families 4/5/6). **"Reasonable" was the operative word and it was MEASURED, not assumed:** a mechanical
+  quirk×role grid would mostly build cells that target nothing, because `reasoning-only` already spans every
+  role (39/40 tracks), `ministral` is role-agnostic by construction (it tests a wire shape no role may send),
+  and json_schema is only requested on the architect turn. The three cells that remained are each backed by an
+  OBSERVED model failure, not by symmetry.
+  **③ "assert the project FINISHES properly per combination"** — ✅, read as *terminates in a defined state
+  rather than spinning*, which is the only reading that survives contact with a model that never acts. Two of
+  the three role cells assert the project deliberately does NOT complete, and that is the correct assertion:
+  architect → 1 card in `planning` with `budget_wall` proving the retry ladder was BOUNDED; reviewer → parked in
+  the review lane for the operator; worker → 19 `completed` with no patch, which is itself the finding.
+  **④ "a regression in a quirk-handling path fails the matrix loudly"** — ✅ by construction; each cell is
+  registered with its own invariant pack asserting the shape OBSERVED on its first run.
+  **THE REFRAMING WORTH KEEPING: the matrix is keyed by BEHAVIOUR, not by model name.** The item lists families
+  (qwen/gemma/ministral/…), but a cell named after a model would need re-authoring the moment the catalog moved,
+  while a quirk cell already covers every model that shares the quirk — including ones not yet released.
+  **WHAT EACH CELL COST AND PAID BACK:** family 1 found a live alternation bug two layers deep, family 2 found
+  `thinking` blocks silently dropped on the `/v1/messages` path, family 4 found a liveness hole, family 5 found
+  that an approving reviewer overrides the empty-patch hold, and family 6 found an operator note advising a
+  redrive that would loop — **fixed the same day**. Six cells, six findings; none was a wasted run.
+  Verified green individually this session (reviewer 4/4, worker 4/4, architect 4/4); **not** in one
+  back-to-back run, because three sequential drains exceed the command timeout — stated rather than implied.
+  Additional FAMILIES only as the catalog grows; there is still no known fifth quirk.
+  ── original scope, kept for the record ──
+  **N3 (original) — Per-LLM behavior matrix (small + medium models !Klein already supports).** Each nightly cell runs a
   project × a MODEL-BEHAVIOR PROFILE: aimock recordings/replay shaped per supported model family (the sweep winners +
   the historically-integrated small models — qwen2.5-coder-14b, qwen3.5/qwopus families, gemma-4, ministral-3-14b,
   rnj-1, glm-4.6v-flash, seed-oss/olmo-3 where role-capable; extend as the catalog grows). The matrix must cover
