@@ -11632,8 +11632,25 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   unreadable probe parks, a genuinely EMPTY card still restarts. And the structural probe type (kept structural
   so the core stays free of git) is pinned to the real `TaskResultBranchProbe` by a COMPILE-TIME assignment —
   without it the fold could be typechecked against a contract no caller satisfies.
-  REMAINING for P18.4b: only the acting half now, behind the observe-first gate — both signals it was blocked
-  on are sourced properly, and the restart cap binds.
+  **▶ THE RESTART READ IS NOW WIRED 2026-08-09 — and checking rather than assuming found that BOTH new cores
+  were ORPHANS.** `getOffTrackRestartCount` and `foldCapturedWorkProbe` appeared only in their own files;
+  nothing consumed either. Correct cores fed by nobody — the P21.1 shape, caught by grepping for consumers
+  instead of trusting that "the blockers are closed" meant "the wire uses them".
+  The live decider now reads `getOffTrackRestartCount(sessionId)` instead of the literal `0`. It returns 0 today
+  and will until the acting half performs a restart — **but that is the ledger telling the truth rather than a
+  literal standing in for it.** The distinction is not cosmetic: a constant makes the cap unbindable BY
+  CONSTRUCTION, so the observation could never record the budget-exhausted `park` and was **biased toward
+  `restart_with_restatement` for as long as it stayed a literal**. The acting half now only has to add the
+  WRITE; the read, the keying and the cap are in place and tested.
+  **⚠️ AND A PRE-EXISTING COVERAGE GAP THE MUTATION CHECK EXPOSED, stated rather than papered over:** replacing
+  that read with `99` leaves **all 9 drift-critic wire tests green**. They assert the remedy computation "does
+  not throw" and never inspect the RECORDED remedy, so no test covers what the observation actually says. My
+  read is correct and UNCOVERED, and citing those 9 passes as coverage would have been exactly the substitution
+  this file keeps documenting. **Specified next task:** have the wire test capture `recordSelfObservation` and
+  assert the recorded remedy — which would cover the pre-existing computation as well as this read.
+  REMAINING for P18.4b: the acting half (the WRITE + enforcement) behind the observe-first gate, and the wire
+  test above. `foldCapturedWorkProbe` stays unwired until the seam has a real probe to fold — its consumer is
+  the same acting half.
   ── the original blocker, kept for the record; both signals are now sourced properly ──
   **Two of its four signals did not exist at this seam, and their natural defaults are the DANGEROUS ones:**
     · `hasCapturedWork` — no result-branch/diff signal reaches the focus extension. Defaulting it `false` is

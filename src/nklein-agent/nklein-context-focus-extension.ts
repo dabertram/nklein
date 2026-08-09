@@ -18,6 +18,7 @@ import type { FocusChain } from "../core/focus-chain";
 import { isNightlyHermeticEnvironment, NIGHTLY_HERMETIC_EPOCH_MS } from "../core/nightly-hermeticity";
 import { mergeConsecutiveSameRoleSdkMessages } from "../core/normalize-system-first";
 import { decideOffTrackRemedy } from "../core/off-track-intervention";
+import { getOffTrackRestartCount } from "../core/off-track-restart-ledger";
 import { assessProgressStall, type TurnProgressRecord } from "../core/progress-stall-detector";
 import {
 	assessWriteGrounding,
@@ -552,12 +553,16 @@ export function createKanbanContextFocusExtension(
 											onTrack: false,
 											contextUtilisation: driftUtilisation,
 											hasCapturedWork: offTrackSignals.hasCapturedWork,
-											// TRUE today, not a placeholder: `restartsSoFar` counts restarts performed by
-											// THIS remedy, and the remedy has never run — it is observe-only. The acting
-											// half must introduce a real counter and increment it, or the restart cap
-											// (which exists because unbounded restarting "discards work while looking like
-											// progress") would never bind.
-											restartsSoFar: 0,
+											// Read from the REAL ledger rather than a constant (P18.4b, 2026-08-09). It returns
+											// 0 today and will keep returning 0 until the acting half performs a restart —
+											// but that is now the ledger telling the truth, not a literal standing in for
+											// it. The distinction matters because a constant here makes the restart cap
+											// unbindable BY CONSTRUCTION: the observation could never record the
+											// budget-exhausted `park`, so the recorded remedy was biased toward
+											// `restart_with_restatement` for as long as it stayed a literal.
+											// The acting half now only has to add the WRITE (`recordOffTrackRestart`); the
+											// read, the keying and the cap are already in place and tested.
+											restartsSoFar: getOffTrackRestartCount(sessionId),
 										});
 										recordSelfObservation({
 											signal: "custom",
