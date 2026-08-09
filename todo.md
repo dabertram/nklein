@@ -7432,9 +7432,29 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   `packages/llm-simulator/scenarios/02_…/`: `ministral-quirk` (alternation→500), `reasoning-only-quirk`,
   `schema-deadend-quirk`, `silent-reviewer-quirk`. Checked rather than assumed — the entry's own "NEXT" line
   still read as though families were outstanding, which understated where this had got to.
-  NEXT (the genuinely remaining half): **role-combination coverage** — architect/worker/reviewer assignments per
-  profile, which is what turns four family tripwires into the MATRIX the item asks for. Additional families only
-  as the catalog grows; there is no known fifth quirk to encode today.
+  **▶ 2026-08-09 — THE ROLE HALF MEASURED, AND IT IS A MUCH SMALLER, SHARPER JOB THAN "role-combination
+  coverage" SUGGESTED.** Counted the tracks rather than reasoning about the phrasing:
+    · `reasoning-only-quirk` — **39 of 40 tracks** carry the quirk, so it ALREADY spans every role. Nothing to add.
+    · `silent-reviewer-quirk` — **19 tracks, every one `requestClass: "review"`**. Reviewer-scoped by construction.
+    · `schema-deadend-quirk` — **1 track**, the architect's json_schema request.
+    · `ministral-quirk` — **1 track**, a wire-shape `messagesNonAlternating→500` match. Role-AGNOSTIC by design:
+      it tests what !Klein must never send, which no role may send.
+  **🔴 THE DECISIVE FACT: the simulator has no `architect` request class.** Across every 02 recording the classes
+  are `worker` (160), `review` (165), `chat` (11), `any` (24) — architect turns are matched by `any` plus a
+  matcher. So "architect/worker/reviewer assignments per profile" does not map onto the simulator's vocabulary,
+  and a mechanical 3×4 matrix would mostly build cells that target nothing. Naming that is the point of
+  measuring: the item's own phrasing implied twelve combinations where the tooling supports far fewer.
+  **THE TWO CELLS ACTUALLY WORTH BUILDING, and both are EVIDENCED by real observed model behaviour rather than
+  by symmetry:**
+    1. **Silent ARCHITECT** — explores forever and never emits `decompose_project`. Observed live (sweep run 7:
+       a 9B rabbit-holes on `run_commands` and never decomposes). Exercises a DIFFERENT product ladder from the
+       silent reviewer: a card whose architect produces no cards at all. Needs an `architect` request class or
+       an `any`+matcher track, which is itself part of the work.
+    2. **Silent WORKER** — prose forever, never calls a tool. Also observed (the no-op workers left stranded In
+       Progress by a too-tight rerun gate). Exercises the turn-loop guard rather than the review ladder.
+  Everything else in the nominal matrix is either already covered (reasoning-only) or would target a path that
+  does not exist (json_schema outside the architect turn). **Additional FAMILIES only as the catalog grows;
+  there is still no known fifth quirk.**
 - [x] **N4 — Mock every external dependency AND every flaky internal source.** External: the model gateway (aimock),
   git remotes, update feeds, web/egress (already hard-gated), clock-driven damping. INTERNAL flaky sources (the
   proven ones, extend as found): the host-capacity view that reads the REAL LM Studio gateway even in sims (memory:
