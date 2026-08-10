@@ -4,6 +4,7 @@ import {
 	type DagOpResult,
 	emptyDagConstruction,
 } from "../../core/incremental-dag-construction";
+import { toSlug } from "../../core/slugify";
 import { type NKleinPlanTask, nkleinPlanTaskSchema } from "../nklein-plan-artifacts";
 import { repairJsonStringValue } from "../nklein-tool-argument-repair";
 import type { AgentTool } from "../sdk-agent-types";
@@ -105,8 +106,72 @@ export function injectIncrementalTasksIntoDecomposeInput(input: unknown, state: 
 	return { ...record, tasks: assembled };
 }
 
+/**
+ * Synthesize the plan document from the accumulated construction itself. The construction is already the single
+ * source of dependency truth (see assembleIncrementalTasks), so a plan derived from it cannot drift from the
+ * graph — unlike a model re-transcription, which is exactly what the live 20260810-101125 run showed failing:
+ * the model built a perfect 15-card graph through add_task, then died three times trying to re-emit the plan as
+ * inline finalize prose (two empty calls, one cut mid-payload by the turn token budget). 15 validated cards were
+ * discarded for want of re-typed documents the session already contained.
+ */
+export function synthesizePlanFromConstruction(state: IncrementalDagSessionState): string {
+	const dependsOnById = new Map<string, string[]>();
+	for (const edge of state.construction.edges) {
+		const list = dependsOnById.get(edge.to);
+		if (list) {
+			list.push(edge.from);
+		} else {
+			dependsOnById.set(edge.to, [edge.from]);
+		}
+	}
+	const sections = state.construction.nodes.map((node) => {
+		const task = state.tasksById.get(node.id);
+		const title = task?.title?.trim() || node.label || node.id;
+		const prompt = task?.prompt?.trim() || "";
+		const dependsOn = dependsOnById.get(node.id) ?? [];
+		const dependsLine = dependsOn.length > 0 ? `\nDepends on: ${dependsOn.join(", ")}` : "";
+		return `## ${node.id} — ${title}\n${prompt}${dependsLine}`;
+	});
+	return [
+		`# Implementation plan — ${state.construction.nodes.length} task(s), ${state.construction.edges.length} dependency edge(s)`,
+		"",
+		"(Synthesized from the accumulated add_task/add_dependency graph — the single source of dependency truth.)",
+		"",
+		sections.join("\n\n"),
+	].join("\n");
+}
+
+/**
+ * Recover missing finalize METADATA from the accumulated construction, mirroring how the tasks array is already
+ * injected: once the model has done the real work through the validated incremental protocol, the closing call
+ * must never be rejected — and the graph never discarded — for want of re-stated prose. `slug` derives from the
+ * first declared task; `plan` is synthesized from the graph. `spec` is NOT handled here (it needs workspace IO —
+ * see the decompose_project execute path, which reads specification.md). Fields the model did pass are kept
+ * verbatim; one-shot mode (empty construction) is untouched, so its strict validation still guides.
+ */
+export function recoverIncrementalDecomposeMeta(input: unknown, state: IncrementalDagSessionState): unknown {
+	if (state.construction.nodes.length === 0) {
+		return input;
+	}
+	const record = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
+	const next: Record<string, unknown> = { ...record };
+	let changed = typeof input !== "object" || input === null;
+	const slugPresent = typeof next.slug === "string" && next.slug.trim().length > 0;
+	if (!slugPresent) {
+		const first = state.construction.nodes[0];
+		next.slug = toSlug(first?.label ?? "") || toSlug(first?.id ?? "") || "plan";
+		changed = true;
+	}
+	const planPresent = typeof next.plan === "string" && next.plan.trim().length > 0;
+	if (!planPresent) {
+		next.plan = synthesizePlanFromConstruction(state);
+		changed = true;
+	}
+	return changed ? next : input;
+}
+
 function progressLine(state: IncrementalDagSessionState): string {
-	return `Graph so far: ${state.construction.nodes.length} task(s), ${state.construction.edges.length} dependency(ies). When the graph is complete, call decompose_project WITHOUT tasks (just slug, spec, plan) to submit it.`;
+	return `Graph so far: ${state.construction.nodes.length} task(s), ${state.construction.edges.length} dependency(ies). When the graph is complete, call decompose_project with NO arguments to submit it — slug, spec, and plan fill in automatically (pass them only to override).`;
 }
 
 /**

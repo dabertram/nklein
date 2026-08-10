@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -7,9 +7,11 @@ import {
 	createIncrementalDagSessionState,
 	createIncrementalDagTools,
 	injectIncrementalTasksIntoDecomposeInput,
+	recoverIncrementalDecomposeMeta,
 	resetIncrementalDagSessionState,
 } from "../../../../src/nklein-agent/decomposition/incremental-dag-tools";
 import { createNKleinDecompositionTools } from "../../../../src/nklein-agent/nklein-decomposition-tool";
+import { readNKleinPlanArtifacts } from "../../../../src/nklein-agent/nklein-plan-artifacts";
 
 vi.mock("../../../../src/telemetry/self-observation-sink.js", () => ({
 	recordSelfObservation: vi.fn(),
@@ -233,6 +235,66 @@ describe("decompose_project completion route (shared session state)", () => {
 			ctx,
 		)) as { ok: boolean; taskCount: number };
 		expect(result).toMatchObject({ ok: true, taskCount: 1 });
+	});
+
+	it("a BARE decompose_project call submits a non-empty construction with recovered slug/spec/plan", async () => {
+		// Live 20260810-101125: a 35B model built a perfect 15-card graph through add_task, then failed the
+		// finalize three times over the slug/spec/plan re-statement and the whole graph was discarded. A bare
+		// call must now succeed: slug/plan derive from the graph, spec from the workspace's specification.md.
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-incremental-bare-"));
+		const specText = "# Real spec\nThe authoritative specification the seed prompt references.";
+		await writeFile(join(workspacePath, "specification.md"), specText, "utf8");
+		// The seed card carries the acceptance command in production; the finalize recovers it from there too.
+		const tools = createNKleinDecompositionTools({
+			workspacePath,
+			sourcePrompt: "Build the platform.\nAcceptance command: npm test",
+		});
+		const byName = new Map(tools.map((tool) => [tool.name, tool]));
+		const addTask = byName.get("add_task");
+		const decompose = byName.get("decompose_project");
+		if (!addTask || !decompose) {
+			throw new Error("expected add_task and decompose_project in the toolset");
+		}
+
+		await addTask.execute({ id: "clock", title: "Virtual clock", prompt: "Injectable clock interface." }, ctx);
+		await addTask.execute(
+			{ id: "log", title: "Event log", prompt: "Append-only event log.", dependsOn: ["clock"] },
+			ctx,
+		);
+
+		const result = (await decompose.execute({}, ctx)) as { ok: boolean; slug: string; taskCount: number };
+		expect(result.ok).toBe(true);
+		expect(result.taskCount).toBe(2);
+		expect(result.slug).toBe("virtual-clock");
+
+		const artifacts = await readNKleinPlanArtifacts(workspacePath, result.slug);
+		expect(artifacts.spec.trim()).toBe(specText);
+		// The synthesized plan comes from the construction itself — every card and the accepted edge appear.
+		expect(artifacts.plan).toContain("clock — Virtual clock");
+		expect(artifacts.plan).toContain("log — Event log");
+		expect(artifacts.plan).toContain("Depends on: clock");
+	});
+
+	it("a bare decompose_project call with NO construction still bounces with the one-shot guidance", async () => {
+		// The recovery is scoped to a demonstrated construction — an empty session must not gain a free pass.
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-incremental-empty-"));
+		const tools = createNKleinDecompositionTools({ workspacePath });
+		const decompose = new Map(tools.map((tool) => [tool.name, tool])).get("decompose_project");
+		if (!decompose) {
+			throw new Error("expected decompose_project in the toolset");
+		}
+		await expect(decompose.execute({}, ctx)).rejects.toThrow(/called with no arguments/);
+	});
+
+	it("recoverIncrementalDecomposeMeta keeps every model-supplied field verbatim", async () => {
+		const { state, addTask } = getTools();
+		await addTask.execute({ id: "a", title: "Alpha", prompt: "Do A." }, ctx);
+		const input = { slug: "my-slug", spec: "my spec", plan: "my plan", title: "Mine" };
+		expect(recoverIncrementalDecomposeMeta(input, state)).toBe(input);
+		const partial = recoverIncrementalDecomposeMeta({ slug: "kept" }, state) as Record<string, unknown>;
+		expect(partial.slug).toBe("kept");
+		expect(String(partial.plan)).toContain("a — Alpha");
+		expect(partial.spec).toBeUndefined();
 	});
 
 	it("a tasks-less decompose_project submits the incremental construction, then the state resets", async () => {

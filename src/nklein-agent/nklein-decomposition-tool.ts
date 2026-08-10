@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { decideDecomposition } from "../core/anti-decomposition-guard";
 import type {
 	RuntimeBoardCard,
@@ -205,6 +207,7 @@ import {
 	createIncrementalDagTools,
 	type IncrementalDagSessionState,
 	injectIncrementalTasksIntoDecomposeInput,
+	recoverIncrementalDecomposeMeta,
 	resetIncrementalDagSessionState,
 } from "./decomposition/incremental-dag-tools";
 import {
@@ -343,9 +346,31 @@ function createDecomposeProjectTool(
 			// F1.7 incremental completion route: a call WITHOUT `tasks` submits the add_task/add_dependency
 			// construction accumulated this session. Once incremental construction has started, it remains the
 			// authoritative graph even if the model redundantly sends a full tasks array in this final call.
-			const effectiveInput = incrementalState
+			let effectiveInput = incrementalState
 				? injectIncrementalTasksIntoDecomposeInput(inputWithSourceAcceptance, incrementalState)
 				: inputWithSourceAcceptance;
+			// Live 20260810-101125: after 15 clean add_task calls the model failed the finalize THREE times over
+			// the slug/spec/plan re-statement (two empty emissions, one cut mid-payload by the turn budget) and the
+			// whole validated graph was discarded. A non-empty construction means the real work already happened
+			// through the validated protocol, so the closing call recovers missing meta instead of bouncing:
+			// slug/plan derive from the graph (pure), and spec falls back to the workspace's own specification.md —
+			// the very file the model read — with an honest stub when no such file exists.
+			if (incrementalState && incrementalState.construction.nodes.length > 0) {
+				effectiveInput = recoverIncrementalDecomposeMeta(effectiveInput, incrementalState);
+				const record = effectiveInput as Record<string, unknown>;
+				if (!(typeof record.spec === "string" && record.spec.trim().length > 0)) {
+					const specFromWorkspace = await readFile(join(workspacePath, "specification.md"), "utf8").catch(
+						() => null,
+					);
+					effectiveInput = {
+						...record,
+						spec:
+							specFromWorkspace?.trim() ||
+							"Specification not restated inline: no specification.md was found in the workspace at decompose time. " +
+								"The accumulated task graph is authoritative and each card carries its full prompt.",
+					};
+				}
+			}
 			const { slug, spec, plan, summary, questions, taskGraph, expansions } =
 				normalizeDecomposeProjectToolInput(effectiveInput);
 			if (sourceTaskId) {

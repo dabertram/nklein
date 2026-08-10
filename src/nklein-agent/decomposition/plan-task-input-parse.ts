@@ -29,11 +29,17 @@ export function slugifyTaskId(input: string): string {
 // (see recoverMissingDecomposeProjectTitle) — parse-and-recover, not re-prompt (AGENTS.md).
 const DECOMPOSE_PROJECT_REQUIRED_FIELDS = ["slug", "spec", "plan", "tasks"] as const;
 
+// Live 20260810-101125: the earlier wording told the model to finish "using only slug, spec, plan" — re-stating
+// the two largest documents through a single tool call. A 35B model followed that instruction into three failed
+// finalizes (two empty emissions, one cut mid-payload by the turn budget) and its perfect 15-card graph was
+// discarded. The finalize now recovers missing meta from the accumulated graph + workspace, so the coaching asks
+// for a bare call instead of a payload.
 const DECOMPOSE_PROJECT_RECOVERY_HINT =
 	"STOP retrying the full nested decompose_project payload. Switch to the incremental protocol now: call " +
 	"add_task once per card with only id, title, and prompt (plus optional card fields); after all cards exist, call " +
-	"add_dependency once per edge; then call decompose_project WITHOUT tasks using only slug, spec, plan, and " +
-	"optional title/summary/questions/defaultAcceptanceCommand. The accumulated graph will be submitted automatically.";
+	"add_dependency once per edge; then call decompose_project with NO arguments. The accumulated graph is " +
+	"submitted automatically and slug, spec, and plan are recovered from the graph and the workspace — pass any of " +
+	"them only to override.";
 
 export function decomposeProjectFieldIsUsable(value: unknown): boolean {
 	if (typeof value === "string") {
