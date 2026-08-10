@@ -57,4 +57,38 @@ describe("live result-handle bridge (F4.7)", () => {
 		expect(() => tool.execute({ handle: "bad" }, context)).toThrow(/valid result/);
 		expect(() => tool.execute({ handle: "result://search_code/999" }, context)).toThrow(/Unknown/);
 	});
+
+	it("an offset-less repeat continues from where the last call left off (live 20260810-194712)", () => {
+		// The model read page one and asked — in its own words — to continue "from character 16000 onwards"
+		// while emitting the same offset-less call three times; the tool re-served page one until the loop
+		// guard killed the session. An identical offset-less repeat now means "next page".
+		const { store, tool } = createSessionResultHandles();
+		const handle = store.put("read_files", "a".repeat(20_000));
+		const context = { agentId: "agent", iteration: 1 };
+		expect(String(tool.execute({ handle, maxChars: 8_000 }, context))).toContain("characters 0-8000");
+		expect(String(tool.execute({ handle, maxChars: 8_000 }, context))).toContain("characters 8000-16000");
+		expect(String(tool.execute({ handle, maxChars: 8_000 }, context))).toContain("characters 16000-20000");
+		// At the end the cursor stops: a further repeat re-serves the final page with the end marker.
+		const again = String(tool.execute({ handle, maxChars: 8_000 }, context));
+		expect(again).toContain("characters 16000-20000");
+		expect(again).toContain("[end of result]");
+		// An explicit offset always wins and re-anchors the cursor (0 restarts).
+		expect(String(tool.execute({ handle, offset: 0, maxChars: 8_000 }, context))).toContain("characters 0-8000");
+		expect(String(tool.execute({ handle, maxChars: 8_000 }, context))).toContain("characters 8000-16000");
+	});
+
+	it("coerces numeric strings and clamps out-of-range bounds instead of rejecting (parse-and-recover)", () => {
+		// The same live run pre-rejected maxChars 75000 with a Zod dump for a bound execute() clamps anyway.
+		const { store, tool } = createSessionResultHandles();
+		const handle = store.put("read_files", "b".repeat(30_000));
+		const context = { agentId: "agent", iteration: 1 };
+		expect(String(tool.execute({ handle, maxChars: 75_000 }, context))).toContain("characters 0-16000");
+		expect(String(tool.execute({ handle, offset: "16000", maxChars: "9999" }, context))).toContain(
+			"characters 16000-25999",
+		);
+		// The advertised schema carries no validation keywords the SDK could pre-reject against.
+		const nested = JSON.stringify((tool.inputSchema as { properties: unknown }).properties);
+		expect(nested).not.toContain('"type"');
+		expect(nested).not.toContain('"maximum"');
+	});
 });
