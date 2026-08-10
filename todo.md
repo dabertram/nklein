@@ -14712,9 +14712,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   quality gates doing their designed job (test-driven gate, writeScope boundary) against a worker that won't
   write tests for a types card. Foundation cards (scaffold/clock/prng) deliver and merge repeatedly; S03-types
   is the recurring wall. Latest lever: empty-call errors now anchor to the model's OWN last successful call.
-  REMAINING: continue the campaign (one command: the run 12 invocation in this entry's history) when fresh
-  levers exist — constrained-schema retry for empty calls is the strongest untried one — or bank the verdict
-  as the honest local-capability boundary and grade any future deeper tree with the standing oracle wire.
+  **▶ RUN 13 (20260811-001402, 49 min): the anchored coaching held; the BIGGEST graph yet applied (30 cards),
+  3 completed — and it isolated the campaign's next defect precisely.** THE POST-APPROVE MERGE WEDGE (also the
+  true shape of run 11's end): for ONE card (seeded-rng), the ledger shows `review → delivery_merge`
+  ("auto-merges, all gates passed") and IN THE SAME MILLISECOND `awaiting_review → interrupted` on the card's
+  OWN session, kernel `reopened`, a FRESH ATTEMPT for the very card being merged, one more review-gate
+  transition (mutation_adequacy, +8s) — then 7 idle minutes; the merge never completes; the rig watchdog kills
+  the run. Two state machines (delivery finalization vs an interrupt→reopen→redrive path) interleave on one
+  card. INVESTIGATE NEXT, fresh-context: (a) who emits the interrupt at merge-start (a stop on the delivery
+  path? an idle reaper?); (b) whether the terminal-failure sweep's #24 one-shot redrive can hit a card whose
+  result is mid-merge (it must be excluded — a delivering card is not a dead card); (c) what the serialized
+  workspace merge awaits that the interrupted session orphans. Evidence banked: .real-runs/20260811-001402.
+  REMAINING: root-cause the post-approve merge wedge above, then continue the campaign (same one-command
+  invocation) — constrained-schema retry for empty calls stays the strongest untried model-side lever — or
+  bank the verdict as the honest local-capability boundary and grade any deeper tree with the oracle wire.
 - [x] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle. CLOSED 2026-08-10 — the
   measurement ran across THREE models (8 legs), the delta is real, reproducible, and root-caused where it is
   defined.**
