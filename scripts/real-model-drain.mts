@@ -14,6 +14,8 @@
 
 import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { appendFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { basename } from "node:path";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
@@ -305,6 +307,29 @@ try {
 			process.stdout.write(`drained tree copied to: ${keepAt} (result branch ${resultBranch} checked out)\n`);
 		} else {
 			process.stdout.write(`drained tree copied to: ${keepAt} (NO result branch — the card produced no work)\n`);
+		}
+		// P23.5 scoring-time wire: when the fixture has an authored held-out oracle, grade the DELIVERED tree
+		// (result branch checked out above — a card's output lives on its result branch, not the working tree)
+		// and print the verdict beside the drain summary. Absent oracle ⇒ one line saying so, never silence:
+		// "no oracle" and "oracle said nothing" must stay distinguishable. Non-fatal by construction — a grader
+		// failure reports, it does not un-drain the run.
+		try {
+			// `workspace` is the TEMP COPY (…/ws) — the fixture identity lives in the SOURCE argument. The first
+			// live run printed "none authored for ws", which is this bug made visible by the never-silent fallback.
+			const fixtureName = basename(resolvePath(workspaceSource ?? ""));
+			const probeDir = join(REPO, "test", "protected", "oracle", fixtureName);
+			if (existsSync(probeDir)) {
+				const { runHeldOutOracle } = await import("../src/core/held-out-oracle-runner");
+				const verdict = await runHeldOutOracle({ workspacePath: keepAt, probeDir, repoRoot: REPO });
+				process.stdout.write(
+					`HELD-OUT ORACLE: ${verdict.failToPassPassed} / ${verdict.failToPassTotal} ` +
+						`${verdict.delivered ? "DELIVERED" : "NOT-delivered"} | independent: ${verdict.independence.independent}\n`,
+				);
+			} else {
+				process.stdout.write(`HELD-OUT ORACLE: none authored for ${fixtureName} — not graded\n`);
+			}
+		} catch (error) {
+			process.stdout.write(`HELD-OUT ORACLE: grading FAILED (${error instanceof Error ? error.message.slice(0, 160) : String(error)})\n`);
 		}
 	}
 	process.stdout.write(`workspace was: ${workspace}\nruntime log: ${logPath}\n`);

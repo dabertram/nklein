@@ -14681,9 +14681,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   lives on its `nklein/tasks/*` RESULT BRANCH (so the first 0/3 measured an empty repo — the null-agent answer
   for a non-null run); and the rig itself had three green-signal failures (self-project guard, status-only
   checks on 200-with-error-body, a board parse reading a wrapper key that does not exist).
-  REMAINING: a stronger/longer run (or a decomposed multi-card drain) to see whether the domain slice is
-  reachable at all locally; authoring for the other flagship projects
-  (same pattern, ~3 files each), and the scoring-time wire into the drain/campaign verdict path.
+  **▶ THE SCORING-TIME WIRE SHIPPED 2026-08-10 — every real drain now grades itself when an oracle exists.**
+  `real-model-drain.mts` resolves `test/protected/oracle/<fixture>/` from the SOURCE workspace argument and, on
+  the copied tree (result branch checked out — the delivered work, not the working tree), runs
+  `runHeldOutOracle` and prints `HELD-OUT ORACLE: n / m DELIVERED|NOT-delivered | independent: bool` beside the
+  drain summary. An absent oracle prints "none authored for <fixture>" — **never silence, because "no oracle"
+  and "the oracle said nothing" must stay distinguishable** — and a grader failure reports without un-draining
+  the run. The campaign script (p23.6-variant-delta.sh) already had this per-leg; the GENERIC drain now matches.
+  **The never-silent fallback caught the wire's own first bug:** the live run printed "none authored for ws" —
+  I had taken `basename` of the TEMP COPY (`…/real-drain-*/ws`) instead of the source argument. Fixed; the
+  corrected path verified on the same run's banked tree (0/1 NOT-delivered, independent) with no second drain.
+  REMAINING: a stronger/longer run (or a decomposed multi-card drain) to see whether project 02's domain slice
+  is reachable at all locally; authoring oracles for the other flagship projects (same pattern, ~3 files each).
 - [x] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle. CLOSED 2026-08-10 — the
   measurement ran across THREE models (8 legs), the delta is real, reproducible, and root-caused where it is
   defined.**
