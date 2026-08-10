@@ -13286,7 +13286,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
 > machine fleet with fitness-based routing.** (3) **Published quality numbers** — zero of the surveyed products
 > publish benchmarks; Fusion has an eval harness and no results.
 
-- [ ] **P21.1 — Track "correct edit format %" as a first-class fitness metric, and route weak models to
+- [x] **P21.1 — CLOSED 2026-08-10. The metric half is SHIPPED; the routing half is DELIBERATELY NOT BUILT, on measured evidence rather than absence. Original: track "correct edit format %" as a first-class fitness metric, and route weak models to
+  **▶ CLOSING RATIONALE (2026-08-10):** the metric half has been live since steps 1/2 shipped (`edit-reliability`
+  + `formatFailures` per row, ratcheted taxonomy, wire regression-tested). The routing half's premise — Aider's
+  2× whole-vs-diff swing on weak models — is now MEASURED on our own stack and unsupported: **1 EDIT-FORMAT
+  failure in 194 classified edit calls (~0.5%)** across the first multi-model harvest (qwen3.6 155 calls @71%
+  reliability, gemma-31b 39 calls @48.7% with ZERO format failures). Our failure mix is args-emission, context
+  and guards — different levers entirely. Building format-routing against a 0.5% numerator would be fitting a
+  rule to noise, the exact move this item's own header forbade. **Re-open trigger, named:** if the fleet's
+  format-failure share ever exceeds ~10% of classified edit errors for any routable model, revisit — the metric
+  that would show it is the part that shipped and stays on.
   WHOLE-FILE edits.** Aider's leaderboard: **Qwen2.5-Coder-32B scores 16.4% with `whole` format vs 8.0% with
   `diff`** — a **2× swing from edit format alone**, on exactly our target model class. Aider tracks edit-format
   correctness as its own metric and we do not. Compose with Cline's measured diff work: **order-invariant
