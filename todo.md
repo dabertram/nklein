@@ -13319,6 +13319,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   numerator on plausibility is what the module's own header forbids. The kinds are split so the measured decision
   can be made when routing is built. Summary wording corrected: "no FORMAT-attributable refusal" rather than
   "no classifiable refusal", since args failures classify fine.
+  **▶ THE FORMAT NUMERATOR IS POPULATED — first multi-model measurement, harvested from the P23.6 campaign's
+  24 surviving drain HOMEs (2026-08-10, merged via `NKLEIN_AGENT_LEDGER_ROOT` into one `dev edit-reliability`
+  run):**
+  ```
+  gemma-4-31b-qat    48.7%  (19/39 edit calls)     0 EDIT-FORMAT failures
+  qwen3.6-35b-a3b    71.0%  (110/155 edit calls)   1 EDIT-FORMAT failure
+  qwen2.5-coder-14b  [10 calls — below the 20-call floor]
+  ```
+  **ONE search-block mismatch in 194 classified calls (~0.5%).** The zero is no longer a data-quality artifact —
+  it is a substantive result: **on this stack, edit failures are overwhelmingly NOT diff-format failures.** The
+  Aider-motivated premise (weak models → whole-file edits for a 2× swing) is so far UNSUPPORTED by our own
+  taxonomy; the dominant failure kinds sit elsewhere (args emission, context, guards), exactly where the earlier
+  9B probe found them. gemma failing every second edit call (48.7%) with ZERO format failures also explains the
+  P23.6 floor mechanistically — it struggles to EDIT, not to format.
+  ⇒ **The routing half stays unbuilt, now on EVIDENCE rather than absence:** n=1 format failure cannot ground a
+  format-routing rule, and the measured failure mix points at different levers (args robustness, context
+  discipline) than the one this item imported from Aider. Re-examine only if the numerator grows with the fleet.
   **▶ FIRST POST-FIX PRODUCTION-SHAPED DATA POINT 2026-08-08 (60-min real drain, attributable throughout).**
   19 attempt events; ONE model measured — `lmstudio:qwen/qwen3.6-35b-a3b` at **50.0% over 2 edit calls** — and
   the summary correctly reports *no FORMAT-attributable refusal*. The single captured refusal was
