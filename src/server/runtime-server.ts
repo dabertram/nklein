@@ -2334,6 +2334,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								{ kind: "review_changes_requested" },
 							]);
 						}
+						if (
+							reviewOutcome.type === "parked" ||
+							reviewOutcome.type === "escalated" ||
+							reviewOutcome.type === "blocked"
+						) {
+							// A review park is the operator's decision — but its SIBLINGS are not (same class as the
+							// six delivery-hold terminals, live 20260811-001402): sweep waiting cards so a mixed graph
+							// keeps moving. When every remaining card depends on the parked one, the sweep finds
+							// nothing and the board is legitimately idle — which the drain monitor now classifies.
+							retryWaitingCardsAfterTerminal(scope, service, taskId);
+						}
 						return;
 					}
 					const summaryAfterReview = service.getSummary(taskId);

@@ -35,6 +35,27 @@ describe("countPendingAutoReviews", () => {
 		expect(countPendingAutoReviews({ columns: [{ id: "planning", cards: [{ autoReviewEnabled: true }] }] })).toBe(0);
 	});
 
+	it("EXCLUDES an attention-parked review-lane card — parked for the operator is not pending work", () => {
+		// Live 20260811-001402 (runs 11+13): a review-loop park left the card in the review lane with
+		// autoReviewEnabled forever; counting it pinned activeSessionCount ≥ 1, the stagnation settle never
+		// fired, and the rig stall-killed an unclassified run after 7 idle minutes. The exclusion set derives
+		// from the SAME rule as the needs_attention outcome, so "parked" has exactly one definition.
+		const board = {
+			columns: [
+				{
+					id: "review",
+					cards: [
+						{ id: "parked-card", autoReviewEnabled: true },
+						{ id: "live-card", autoReviewEnabled: true },
+					],
+				},
+			],
+		};
+		expect(countPendingAutoReviews(board, new Set(["parked-card"]))).toBe(1);
+		expect(countPendingAutoReviews(board, new Set())).toBe(2);
+		expect(countPendingAutoReviews(board)).toBe(2);
+	});
+
 	it("still ignores cards that are not auto-reviewed, and boards with no review lane", () => {
 		// A human-reviewed card must not keep an unattended run alive forever; the parked-for-a-human case is
 		// tracked separately as attentionCardCount with its own terminal outcome.

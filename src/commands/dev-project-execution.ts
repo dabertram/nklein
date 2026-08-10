@@ -36,7 +36,7 @@ export type DevRuntimeClient = ReturnType<typeof createDevRuntimeClient>;
 interface DevScenarioBoardForActivity {
 	columns: ReadonlyArray<{
 		id: string;
-		cards: ReadonlyArray<{ autoReviewEnabled?: boolean; review?: unknown }>;
+		cards: ReadonlyArray<{ id?: string; autoReviewEnabled?: boolean; review?: unknown }>;
 	}>;
 }
 
@@ -59,9 +59,23 @@ interface DevScenarioBoardForActivity {
  * counts as activity regardless of verdict. The genuinely stuck case (parked awaiting a human) does NOT hang the
  * run: it is tracked independently as `attentionCardCount` and has its own terminal outcome bucket.
  */
-export function countPendingAutoReviews(board: DevScenarioBoardForActivity): number {
+export function countPendingAutoReviews(
+	board: DevScenarioBoardForActivity,
+	attentionParkedTaskIds?: ReadonlySet<string>,
+): number {
 	const review = board.columns.find((column) => column.id === "review");
-	return review?.cards.filter((card) => card.autoReviewEnabled === true).length ?? 0;
+	return (
+		review?.cards.filter(
+			(card) =>
+				card.autoReviewEnabled === true &&
+				// Live 20260811-001402 (and run 11 before it): a card PARKED for the operator sits in the review
+				// lane with autoReviewEnabled forever — counting it pinned activeSessionCount ≥ 1 on a board where
+				// nothing could ever progress, the stagnation settle never fired, and the rig burned 7 idle minutes
+				// before stall-killing an unclassified run. The exclusion set is derived from the SAME rule the
+				// needs_attention outcome uses (countAttentionParkedSessions), so "parked" has one definition.
+				!(card.id !== undefined && attentionParkedTaskIds?.has(card.id)),
+		).length ?? 0
+	);
 }
 
 /** Identify a terminal sandbox result-capture failure without conflating ordinary model/session failures with infra. */
@@ -138,7 +152,19 @@ export async function executeDevTestScenario(
 				board: state.board,
 				runtimeReachable: true,
 				failedCardCount: sessions.filter((summary) => summary.state === "failed").length,
-				activeSessionCount: counts.running + counts.queued + countPendingAutoReviews(state.board),
+				activeSessionCount:
+					counts.running +
+					counts.queued +
+					countPendingAutoReviews(
+						state.board,
+						new Set(
+							sessions
+								.filter(
+									(summary) => summary.state === "awaiting_review" && summary.reviewReason === "attention",
+								)
+								.map((summary) => summary.taskId),
+						),
+					),
 				attentionCardCount: countAttentionParkedSessions(sessions),
 				infrastructureFailure: findSandboxPatchCaptureFailure(sessions),
 			};

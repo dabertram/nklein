@@ -14713,17 +14713,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   write tests for a types card. Foundation cards (scaffold/clock/prng) deliver and merge repeatedly; S03-types
   is the recurring wall. Latest lever: empty-call errors now anchor to the model's OWN last successful call.
   **▶ RUN 13 (20260811-001402, 49 min): the anchored coaching held; the BIGGEST graph yet applied (30 cards),
-  3 completed — and it isolated the campaign's next defect precisely.** THE POST-APPROVE MERGE WEDGE (also the
-  true shape of run 11's end): for ONE card (seeded-rng), the ledger shows `review → delivery_merge`
-  ("auto-merges, all gates passed") and IN THE SAME MILLISECOND `awaiting_review → interrupted` on the card's
-  OWN session, kernel `reopened`, a FRESH ATTEMPT for the very card being merged, one more review-gate
-  transition (mutation_adequacy, +8s) — then 7 idle minutes; the merge never completes; the rig watchdog kills
-  the run. Two state machines (delivery finalization vs an interrupt→reopen→redrive path) interleave on one
-  card. INVESTIGATE NEXT, fresh-context: (a) who emits the interrupt at merge-start (a stop on the delivery
-  path? an idle reaper?); (b) whether the terminal-failure sweep's #24 one-shot redrive can hit a card whose
-  result is mid-merge (it must be excluded — a delivering card is not a dead card); (c) what the serialized
-  workspace merge awaits that the interrupted session orphans. Evidence banked: .real-runs/20260811-001402.
-  REMAINING: root-cause the post-approve merge wedge above, then continue the campaign (same one-command
+  3 completed — and a fresh-context deep trace OVERTURNED the initial "merge wedge" reading.** The merge
+  completed in 57 ms (merge-history ok, card review→completed); the same-ms "interrupted"+"attempt" records
+  are the delivery's own designed cleanup (post-merge stopTaskSession → terminal attempt record, outcome
+  aborted-by-bookkeeping). THE TRUE END-STATE (runs 11+13): the foundational types card PARKED in review
+  ("same change request on unchanged work"), the durable controller's observeParked maps park→failed and
+  cascade-cancelled all 30 dependents (dependency_failed; the resurrect path exists but only fires if the
+  parked card later SUCCEEDS — operator territory), zero cards startable, and the board-liveness watchdog
+  DELIBERATELY rules a review-parked card "legitimately idle" (parked/held = the operator's decision). In the
+  product this is all correct design; in an autonomous drain it means: A PARK ON A FOUNDATIONAL CARD IS THE
+  RUN'S TERMINAL OUTCOME. The waste was the monitor never classifying it — a parked card's awaiting_review
+  summary counts as a live session, so the settle detector waited forever and the rig burned 7 idle minutes
+  before stall-killing. Fixed on two seams: the review-park branch now sweeps waiting siblings like every
+  other terminal (harmless when all depend on the parked card, correct in mixed graphs), and the dev-test
+  monitor classifies a parked-review + nothing-startable + idle board as needs_operator instead of waiting.
+  REMAINING: continue the campaign (same one-command
   invocation) — constrained-schema retry for empty calls stays the strongest untried model-side lever — or
   bank the verdict as the honest local-capability boundary and grade any deeper tree with the oracle wire.
 - [x] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle. CLOSED 2026-08-10 — the
