@@ -8485,7 +8485,14 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   `update-notifier=false, fund=false, audit=false`. Identical re-run `.real-runs/20260804-150413`:
   **CONNECTION AUDIT: PASS — every destination loopback** (the lms↔LM Studio local pair). The audit
   proved its worth on run #1 AND the product's local-only invariant now has its first PASSING audited
-  run. REMAINING: flag-ON on a full model drain, default-ON once quiet, trust-center posture row.
+  run. **▶ ALL THREE REMAINDERS CLOSED 2026-08-10:** ① flag-ON on a full model drain — the sampler is now
+  ported into `real-model-drain.mts` too, and a real qwen drain ran under it end to end: **CONNECTION AUDIT:
+  PASS — 56 observations, every destination loopback**. ② default-ON once quiet — BOTH orchestrators now
+  default ON (`NKLEIN_EGRESS_AUDIT=0` opts out); two PASSing audited runs cleared the gate. ③ the trust-center
+  posture row exists, citing the measured run. ⚠️ The port first KILLED a drain 30s in — samples path inside
+  `--out` (exists only at copy-time) + an async void with no `.catch`, so one ENOENT took the drain down: the
+  observation broke the run, the exact failure an observer must never cause. Both fixed; the evidence run is
+  the fixed version.
   **▶ SOAK HARNESS BUILT + FIRST 2.5h RUN EXECUTED (2026-08-05 ~02:20, `scripts/soak-simulated.mts`,
   report `.real-runs/soak-2026-08-04T2324/soak-report.json`) — THREE REAL FINDINGS, the soak doing its job:**
   **(1) SUPER-LINEAR round-time growth:** identical 40-card rounds took 552s → 742 → 848 → 1096 → 1350 →
