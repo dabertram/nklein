@@ -227,6 +227,64 @@ export function createIncrementalDagTools(state: IncrementalDagSessionState): Ag
 				);
 			}
 			const task = parsed.data;
+			const existing = state.tasksById.get(task.id);
+			if (existing) {
+				// Idempotent replay: a session restarted with its conversation intact (or a model re-sending its
+				// list) re-declares tasks it already declared. An IDENTICAL payload is a no-op success, same as
+				// add_dependency's duplicate-edge handling — never a rejection spiral.
+				if (JSON.stringify(existing) === JSON.stringify(task)) {
+					return {
+						ok: true,
+						taskId: task.id,
+						alreadyPresent: true,
+						acceptedDependencyCount: 0,
+						rejectedDependencies: [],
+						instruction: `Task "${task.id}" was already declared with this exact content. No change was needed. ${progressLine(state)}`,
+					};
+				}
+				// Post-bounce repair (live 20260810-103422): after the assembled graph was REJECTED by validation
+				// ("S01 touches 5 likely files"), the model's instinct — re-declare the task smaller under the
+				// same id — bounced as duplicate_node, leaving NO small-call repair path: the stale construction
+				// resubmitted the same oversized task forever. After a bounce, same-id add_task REPLACES the
+				// earlier declaration (edges kept; inline dependsOn processed with duplicates tolerated).
+				if (state.allowTaskArrayRevision) {
+					state.tasksById.set(task.id, task);
+					let acceptedDependencyCount = 0;
+					const rejectedDependencies: Array<{ dependsOn: string; reason: string; message: string }> = [];
+					for (const dependency of task.dependsOn) {
+						const edgeOutcome = applyDagOp(state.construction, {
+							op: "add_edge",
+							from: dependency,
+							to: task.id,
+						});
+						if (edgeOutcome.result.ok) {
+							state.construction = edgeOutcome.state;
+							acceptedDependencyCount += 1;
+						} else if (edgeOutcome.result.reason !== "duplicate_edge") {
+							state.rejectedOpCount += 1;
+							rejectedDependencies.push({
+								dependsOn: dependency,
+								reason: edgeOutcome.result.reason,
+								message: describeDependencyRejection(edgeOutcome.result),
+							});
+						}
+					}
+					const rejectionNote =
+						rejectedDependencies.length > 0
+							? ` ${rejectedDependencies.length} dependency(ies) were REJECTED: ${rejectedDependencies
+									.map((entry) => `"${entry.dependsOn}" (${entry.message})`)
+									.join("; ")}.`
+							: "";
+					return {
+						ok: true,
+						taskId: task.id,
+						replaced: true,
+						acceptedDependencyCount,
+						rejectedDependencies,
+						instruction: `Task "${task.id}" REPLACED the earlier declaration (existing edges were kept).${rejectionNote} ${progressLine(state)}`,
+					};
+				}
+			}
 			const nodeOutcome = applyDagOp(state.construction, { op: "add_node", id: task.id, label: task.title });
 			if (!nodeOutcome.result.ok) {
 				state.rejectedOpCount += 1;

@@ -4,37 +4,33 @@ import {
 	toPermissiveAgentInputSchema,
 } from "../../../src/nklein-agent/decomposition/plan-task-schemas";
 
-// `relaxJsonSchemaNode` deep-relaxes a JSON Schema for the SDK tool boundary (§5.O): strip every `required` and open
-// `additionalProperties` so the SDK never pre-rejects a weak model's slightly-off call before the in-handler repair runs.
+// `relaxJsonSchemaNode` deep-relaxes a JSON Schema for the SDK tool boundary (§5.O): strip every `required`, every
+// closed `additionalProperties`, AND every validation keyword (`type`, `enum`, bounds…) so the SDK never pre-rejects
+// a weak model's slightly-off call before the in-handler repair runs. Live 20260810-103422: stripping `required`
+// alone still let a full decompose_project payload bounce with "Type validation failed" and a multi-KB dump — a
+// type mismatch at ANY depth was as fatal as a missing key. Descriptions and structure survive as documentation.
 describe("relaxJsonSchemaNode", () => {
-	it("strips `required` and opens `additionalProperties` on an object node", () => {
+	it("strips `required` and every validation keyword, keeping structure", () => {
 		expect(relaxJsonSchemaNode({ type: "object", required: ["a"], properties: { a: { type: "string" } } })).toEqual({
-			type: "object",
-			properties: { a: { type: "string" } },
-			additionalProperties: true,
+			properties: { a: {} },
 		});
 	});
 
-	it("replaces a closed `additionalProperties: false` with `true`", () => {
-		expect(relaxJsonSchemaNode({ type: "object", additionalProperties: false })).toEqual({
-			type: "object",
-			additionalProperties: true,
-		});
+	it("drops the closed `additionalProperties: false` form", () => {
+		expect(relaxJsonSchemaNode({ type: "object", additionalProperties: false })).toEqual({});
 	});
 
-	it("recurses into nested object properties, stripping `required` at every depth", () => {
+	it("recurses into nested object properties, stripping keywords at every depth", () => {
 		const input = {
 			type: "object",
 			required: ["outer"],
 			properties: {
-				outer: { type: "object", required: ["inner"], properties: { inner: { type: "string" } } },
+				outer: { type: "object", required: ["inner"], properties: { inner: { type: "string", minLength: 1 } } },
 			},
 		};
 		expect(relaxJsonSchemaNode(input)).toEqual({
-			type: "object",
-			additionalProperties: true,
 			properties: {
-				outer: { type: "object", additionalProperties: true, properties: { inner: { type: "string" } } },
+				outer: { properties: { inner: {} } },
 			},
 		});
 	});
@@ -46,8 +42,7 @@ describe("relaxJsonSchemaNode", () => {
 				additionalProperties: { type: "object", required: ["x"], properties: { x: { type: "number" } } },
 			}),
 		).toEqual({
-			type: "object",
-			additionalProperties: { type: "object", additionalProperties: true, properties: { x: { type: "number" } } },
+			additionalProperties: { properties: { x: {} } },
 		});
 	});
 
@@ -58,13 +53,8 @@ describe("relaxJsonSchemaNode", () => {
 				items: { type: "object", required: ["a"], properties: { a: { type: "string" } } },
 			}),
 		).toEqual({
-			type: "array",
-			items: { type: "object", additionalProperties: true, properties: { a: { type: "string" } } },
+			items: { properties: { a: {} } },
 		});
-	});
-
-	it("does not add `additionalProperties` to non-object-typed nodes", () => {
-		expect(relaxJsonSchemaNode({ type: "string", description: "d" })).toEqual({ type: "string", description: "d" });
 	});
 
 	it("passes primitives, null, and arrays through", () => {
@@ -74,7 +64,7 @@ describe("relaxJsonSchemaNode", () => {
 		expect(relaxJsonSchemaNode([1, "a"])).toEqual([1, "a"]);
 	});
 
-	it("preserves descriptions and other schema metadata", () => {
+	it("preserves descriptions and other model-facing documentation", () => {
 		expect(
 			relaxJsonSchemaNode({
 				type: "object",
@@ -83,22 +73,42 @@ describe("relaxJsonSchemaNode", () => {
 				properties: { a: { type: "string", description: "field a" } },
 			}),
 		).toEqual({
-			type: "object",
 			description: "the task",
-			additionalProperties: true,
-			properties: { a: { type: "string", description: "field a" } },
+			properties: { a: { description: "field a" } },
 		});
 	});
 });
 
 describe("toPermissiveAgentInputSchema", () => {
-	it("deep-relaxes the schema (delegates to relaxJsonSchemaNode)", () => {
-		const schema = { type: "object", required: ["a"], properties: { a: { type: "string" } } };
-		expect(toPermissiveAgentInputSchema(schema)).toEqual(relaxJsonSchemaNode(schema));
+	it("deep-relaxes the schema but restores the root object type providers require", () => {
+		const schema = {
+			type: "object",
+			required: ["a"],
+			properties: { a: { type: "string", description: "field a" } },
+		};
 		expect(toPermissiveAgentInputSchema(schema)).toEqual({
 			type: "object",
-			properties: { a: { type: "string" } },
 			additionalProperties: true,
+			properties: { a: { description: "field a" } },
 		});
+	});
+
+	it("leaves nothing the SDK validator can fail a nested value against", () => {
+		const relaxed = toPermissiveAgentInputSchema({
+			type: "object",
+			properties: {
+				tasks: {
+					type: "array",
+					items: {
+						type: "object",
+						required: ["id"],
+						properties: { id: { type: "string" }, dependsOn: { type: "array", items: { type: "string" } } },
+					},
+				},
+			},
+		});
+		const nested = JSON.stringify((relaxed as { properties: unknown }).properties);
+		expect(nested).not.toContain('"type"');
+		expect(nested).not.toContain('"required"');
 	});
 });

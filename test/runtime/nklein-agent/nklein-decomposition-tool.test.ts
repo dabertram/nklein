@@ -1338,27 +1338,24 @@ describe("nklein decomposition tools", () => {
 		const questionsSchema = inputProperties.questions as {
 			items?: { properties?: Record<string, { type?: unknown }> };
 		};
-		const taskArraySchema = tasksSchema.anyOf?.find((schema) => schema.type === "array") as
-			| { items?: { properties?: Record<string, { type?: unknown }> } }
+		// Validation keywords (type unions included) are stripped from the SDK boundary so a mistyped value can
+		// never pre-reject (live 20260810-103422); the dual structured/stringified form is still ADVERTISED by
+		// the anyOf shape itself — one branch carrying the nested items structure, one carrying the
+		// stringified-payload description for small models.
+		const taskArraySchema = tasksSchema.anyOf?.find((schema) => schema.items !== undefined) as
+			| { items?: { properties?: Record<string, unknown> } }
 			| undefined;
-
-		expect(tasksSchema.anyOf).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ type: "array" }),
-				expect.objectContaining({ type: "string" }),
-			]),
-		);
-		expect(expansionsSchema.anyOf).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ type: "object" }),
-				expect.objectContaining({ type: "string" }),
-			]),
-		);
-		expect(questionsSchema.items?.properties?.answer?.type).toEqual(["string", "null"]);
-		expect(questionsSchema.items?.properties?.assumption?.type).toEqual(["string", "null"]);
-		expect(taskArraySchema?.items?.properties?.suggestedRole?.type).toEqual(["string", "null"]);
-		expect(taskArraySchema?.items?.properties?.acceptanceCommand?.type).toEqual(["string", "null"]);
-		expect(taskArraySchema?.items?.properties?.acceptanceTestPrompt?.type).toEqual(["string", "null"]);
+		const taskStringSchema = tasksSchema.anyOf?.find((schema) => schema.items === undefined) as
+			| { description?: string }
+			| undefined;
+		expect(taskArraySchema?.items?.properties?.id).toBeDefined();
+		expect(String(taskStringSchema?.description ?? "")).toContain("JSON-stringified");
+		expect(expansionsSchema.anyOf?.length).toBeGreaterThanOrEqual(2);
+		expect(questionsSchema.items?.properties?.answer).toBeDefined();
+		expect(questionsSchema.items?.properties?.assumption).toBeDefined();
+		expect(taskArraySchema?.items?.properties?.suggestedRole).toBeDefined();
+		expect(taskArraySchema?.items?.properties?.acceptanceCommand).toBeDefined();
+		expect(taskArraySchema?.items?.properties?.acceptanceTestPrompt).toBeDefined();
 	});
 
 	it("rejects decompose_project plans below the requested minimum task count", async () => {

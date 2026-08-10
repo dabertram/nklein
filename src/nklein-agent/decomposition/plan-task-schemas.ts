@@ -130,6 +130,32 @@ export const decomposeProjectStringifiedExpansionsJsonSchema = {
 		"JSON-stringified recursive replacement map; accepted for small models that stringify nested expansion objects.",
 } as const;
 
+// Every JSON Schema keyword the SDK's up-front validator can FAIL a value against. Stripping `required` alone
+// is not enough: live 20260810-103422 showed the boundary still pre-rejecting a full decompose_project payload
+// with "Type validation failed" plus the multi-KB dump this relaxation exists to prevent — a type mismatch at
+// ANY depth (a stringified dependsOn, a numeric id) still bounced before our handler could answer compactly.
+// Descriptions and structure (`properties`, `items`) are kept as model-facing documentation; actual validation
+// happens in the handlers (see assertUsableDecomposeProjectInput), which is the design intent all along.
+const JSON_SCHEMA_VALIDATION_KEYWORDS = new Set([
+	"type",
+	"enum",
+	"const",
+	"minimum",
+	"maximum",
+	"exclusiveMinimum",
+	"exclusiveMaximum",
+	"multipleOf",
+	"minLength",
+	"maxLength",
+	"pattern",
+	"format",
+	"minItems",
+	"maxItems",
+	"uniqueItems",
+	"minProperties",
+	"maxProperties",
+]);
+
 export function relaxJsonSchemaNode(node: unknown): unknown {
 	if (Array.isArray(node)) {
 		return node.map(relaxJsonSchemaNode);
@@ -139,7 +165,7 @@ export function relaxJsonSchemaNode(node: unknown): unknown {
 	}
 	const result: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
-		if (key === "required") {
+		if (key === "required" || JSON_SCHEMA_VALIDATION_KEYWORDS.has(key)) {
 			continue;
 		}
 		if (key === "additionalProperties") {
@@ -151,9 +177,6 @@ export function relaxJsonSchemaNode(node: unknown): unknown {
 			continue;
 		}
 		result[key] = relaxJsonSchemaNode(value);
-	}
-	if (result.type === "object" && result.additionalProperties === undefined) {
-		result.additionalProperties = true;
 	}
 	return result;
 }
@@ -171,7 +194,13 @@ export function relaxJsonSchemaNode(node: unknown): unknown {
  * preserved, so the model still gets schema guidance.
  */
 export function toPermissiveAgentInputSchema(schema: Record<string, unknown>): Record<string, unknown> {
-	return relaxJsonSchemaNode(schema) as Record<string, unknown>;
+	const relaxed = relaxJsonSchemaNode(schema) as Record<string, unknown>;
+	// The root keeps its `type: "object"` — providers require a well-formed object schema at the tool boundary;
+	// it is the NESTED validation keywords that turned typos into multi-KB pre-rejections.
+	if (schema.type === "object") {
+		return { ...relaxed, type: "object", additionalProperties: true };
+	}
+	return relaxed;
 }
 
 export const decomposeProjectToolInputSchema = nkleinPlanTaskGraphSchema

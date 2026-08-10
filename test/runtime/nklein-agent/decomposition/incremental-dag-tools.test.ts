@@ -297,6 +297,76 @@ describe("decompose_project completion route (shared session state)", () => {
 		expect(partial.spec).toBeUndefined();
 	});
 
+	it("add_task treats an IDENTICAL re-declaration as an idempotent no-op (restart replay)", async () => {
+		const { addTask } = getTools();
+		const payload = { id: "clock", title: "Clock", prompt: "Injectable clock." };
+		await addTask.execute(payload, ctx);
+		const replay = (await addTask.execute(payload, ctx)) as { ok: boolean; alreadyPresent?: boolean };
+		expect(replay.ok).toBe(true);
+		expect(replay.alreadyPresent).toBe(true);
+		// A DIFFERENT payload under the same id is still a genuine duplicate before any bounce.
+		await expect(addTask.execute({ id: "clock", title: "Clock", prompt: "Changed." }, ctx)).rejects.toThrow(
+			/duplicate_node/,
+		);
+	});
+
+	it("after a validation bounce, add_task with the SAME id REPLACES the task and keeps its edges", async () => {
+		// Live 20260810-103422: the sizing bounce ("S01 touches 5 likely files") left no small-call repair —
+		// same-id re-declaration bounced as duplicate and the stale construction resubmitted the same task forever.
+		const { state, addTask, addDependency } = getTools();
+		await addTask.execute({ id: "s01", title: "Big task", prompt: "Do five files of work." }, ctx);
+		await addTask.execute({ id: "s02", title: "Downstream", prompt: "Depends on s01." }, ctx);
+		await addDependency.execute({ taskId: "s02", dependsOn: "s01" }, ctx);
+
+		state.allowTaskArrayRevision = true; // what the decompose_project quality bounce flips
+		const replaced = (await addTask.execute(
+			{ id: "s01", title: "Smaller task", prompt: "Do two files of work." },
+			ctx,
+		)) as { ok: boolean; replaced?: boolean };
+		expect(replaced.ok).toBe(true);
+		expect(replaced.replaced).toBe(true);
+
+		const assembled = assembleIncrementalTasks(state);
+		expect(assembled?.find((task) => task.id === "s01")?.prompt).toBe("Do two files of work.");
+		expect(assembled?.find((task) => task.id === "s02")?.dependsOn).toEqual(["s01"]);
+	});
+
+	it("the incremental construction survives a session restart for the same card", async () => {
+		// The conversation and the construction are one state: a restarted planning session for the same card
+		// resumes the graph, so the model's bare finalize after a restart still submits its accumulated work.
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-incremental-restart-"));
+		await writeFile(join(workspacePath, "specification.md"), "# Spec", "utf8");
+		const sessionOne = createNKleinDecompositionTools({
+			workspacePath,
+			sourceTaskId: "card-1",
+			sourcePrompt: "Build.\nAcceptance command: npm test",
+		});
+		const addTaskOne = new Map(sessionOne.map((tool) => [tool.name, tool])).get("add_task");
+		if (!addTaskOne) {
+			throw new Error("expected add_task");
+		}
+		await addTaskOne.execute({ id: "clock", title: "Clock", prompt: "Injectable clock." }, ctx);
+
+		// The session dies and is restarted: a NEW toolset for the SAME workspace + card.
+		const sessionTwo = createNKleinDecompositionTools({
+			workspacePath,
+			sourceTaskId: "card-1",
+			sourcePrompt: "Build.\nAcceptance command: npm test",
+		});
+		const decomposeTwo = new Map(sessionTwo.map((tool) => [tool.name, tool])).get("decompose_project");
+		if (!decomposeTwo) {
+			throw new Error("expected decompose_project");
+		}
+		const result = (await decomposeTwo.execute({}, ctx)) as { ok: boolean; taskCount: number };
+		expect(result.ok).toBe(true);
+		expect(result.taskCount).toBe(1);
+
+		// A DIFFERENT card in the same workspace starts empty — no cross-card bleed.
+		const otherCard = createNKleinDecompositionTools({ workspacePath, sourceTaskId: "card-2" });
+		const decomposeOther = new Map(otherCard.map((tool) => [tool.name, tool])).get("decompose_project");
+		await expect(decomposeOther?.execute({}, ctx)).rejects.toThrow(/called with no arguments/);
+	});
+
 	it("a tasks-less decompose_project submits the incremental construction, then the state resets", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-incremental-dag-"));
 		const tools = createNKleinDecompositionTools({ workspacePath });

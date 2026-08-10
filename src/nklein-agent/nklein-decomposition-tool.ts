@@ -401,6 +401,18 @@ function createDecomposeProjectTool(
 				candidates.push(taskGraph);
 				rejectedGraphCandidatesBySlug.set(slug, candidates);
 				if (candidates.length <= MAX_QUALITY_BOUNCES) {
+					// Incremental mode gets a SMALL-CALL repair path with the bounce (live 20260810-103422: without
+					// this, the model's same-id re-declare bounced as duplicate and the stale construction resubmitted
+					// the same oversized task until the session died). The bounce above flipped the revision flag, so
+					// same-id add_task now replaces.
+					if (incrementalState && incrementalState.construction.nodes.length > 0) {
+						const message = qualityError instanceof Error ? qualityError.message : String(qualityError);
+						throw new Error(
+							`${message} REPAIR WITH SMALL CALLS: re-send add_task with the SAME id to replace that task ` +
+								`(split its work into additional new ids as needed), add any new edges with add_dependency, ` +
+								`then call decompose_project with no arguments again. Do NOT send the full tasks payload.`,
+						);
+					}
 					throw qualityError;
 				}
 				const best = selectBestNKleinPlanTaskGraph(candidates);
@@ -812,6 +824,24 @@ function createExpandTaskTool(): AgentTool {
 	};
 }
 
+/**
+ * One construction per (workspace, source task), surviving in-process session restarts. Entries are emptied by
+ * resetIncrementalDagSessionState on successful apply / critic revision; the map itself is bounded by the number
+ * of cards planned in one runtime process.
+ */
+const planningConstructionStateByTarget = new Map<string, IncrementalDagSessionState>();
+
+function getOrCreatePlanningConstructionState(workspacePath: string, sourceTaskId: string): IncrementalDagSessionState {
+	const key = `${workspacePath}::${sourceTaskId}`;
+	const existing = planningConstructionStateByTarget.get(key);
+	if (existing) {
+		return existing;
+	}
+	const created = createIncrementalDagSessionState();
+	planningConstructionStateByTarget.set(key, created);
+	return created;
+}
+
 export function createNKleinDecompositionTools(options: {
 	workspacePath: string;
 	artifactWorkspacePath?: string | null;
@@ -824,9 +854,18 @@ export function createNKleinDecompositionTools(options: {
 	/** F1.3e: executes one bounded clarify turn; absent ⇒ kept-open questions go straight to the operator. */
 	requestClarifyTurn?: NKleinClarifyTurnHandler;
 }): AgentTool[] {
-	// F1.7 (§5.AV): one incremental construction per session, shared by decompose_project (the completion route)
-	// and the add_task/add_dependency tools below. One-shot mode (an explicit tasks array) is untouched.
-	const incrementalState = createIncrementalDagSessionState();
+	// F1.7 (§5.AV): one incremental construction shared by decompose_project (the completion route) and the
+	// add_task/add_dependency tools below. One-shot mode (an explicit tasks array) is untouched.
+	//
+	// Keyed by (workspace, source task) rather than per-call: live 20260810-103422 superseded-and-restarted a
+	// planning session mid-decompose — the conversation (with its 15 successful add_task calls) carried over,
+	// but a fresh per-session construction was EMPTY, so the model's correct bare finalize bounced "called with
+	// no arguments" and the coaching became a contradiction it could not escape. The construction and the
+	// conversation are one state; a restart for the same card must resume both. Reset-on-apply (and the critic
+	// revision reset) still empty it at the designed points; sessions without a source task keep isolated state.
+	const incrementalState = options.sourceTaskId
+		? getOrCreatePlanningConstructionState(options.workspacePath, options.sourceTaskId)
+		: createIncrementalDagSessionState();
 	return [
 		createDecomposeProjectTool(
 			options.artifactWorkspacePath?.trim() || options.workspacePath,

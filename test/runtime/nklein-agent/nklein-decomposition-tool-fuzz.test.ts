@@ -331,26 +331,32 @@ describe("decompose_project SDK boundary schema is permissive at every depth", (
 		return tool.inputSchema as JsonSchemaNode;
 	}
 
-	function expectOpenObject(node: JsonSchemaNode | undefined): void {
+	// Live 20260810-103422: stripping `required` alone still pre-rejected a full payload on a nested TYPE
+	// mismatch ("Type validation failed" + multi-KB dump). A nested node is open only when it carries NO
+	// validation keyword at all — no type, no required, no closed additionalProperties.
+	function expectOpenNode(node: JsonSchemaNode | undefined): void {
 		expect(node).toBeDefined();
-		expect(node?.type).toBe("object");
+		expect(node?.type).toBeUndefined();
 		expect(node?.required).toBeUndefined();
 		expect(node?.additionalProperties).not.toBe(false);
 	}
 
-	it("leaves the top-level object open", () => {
-		expectOpenObject(getInputSchema());
+	it("leaves the top-level object open (root keeps the object type providers require)", () => {
+		const root = getInputSchema();
+		expect(root.type).toBe("object");
+		expect(root.required).toBeUndefined();
+		expect(root.additionalProperties).toBe(true);
 	});
 
-	it("leaves nested task items open (so a typo'd or missing task field cannot pre-reject)", () => {
+	it("leaves nested task items open (so a typo'd, missing, or mistyped task field cannot pre-reject)", () => {
 		const taskItems = getInputSchema().properties.tasks.anyOf[0].items;
-		expectOpenObject(taskItems);
+		expectOpenNode(taskItems);
 		// Descriptions are preserved so the model still gets guidance.
 		expect(taskItems.properties.id).toBeDefined();
 	});
 
 	it("leaves nested questions items open", () => {
-		expectOpenObject(getInputSchema().properties.questions.items);
+		expectOpenNode(getInputSchema().properties.questions.items);
 	});
 
 	it("preserves the expansions map's value schema rather than dropping it", () => {
