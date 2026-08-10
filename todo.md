@@ -14628,7 +14628,37 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   REMAINING: a stronger/longer run (or a decomposed multi-card drain) to see whether the domain slice is
   reachable at all locally; authoring for the other flagship projects
   (same pattern, ~3 files each), and the scoring-time wire into the drain/campaign verdict path.
-- [ ] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle.** Today's spec tells the agent
+- [x] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle. CLOSED 2026-08-10 — the
+  measurement ran across THREE models (8 legs), the delta is real, reproducible, and root-caused where it is
+  defined.**
+  **THE CAMPAIGN TABLE (all legs oracle-independent; per-model context = its own max; budgets throughput-fair):**
+  ```
+  qwen3.6-35b-a3b   @262144   prescriptive 1/1 DELIVERED ×2
+                              discovery: real 6-module architecture, binds, fails the membership
+                              probe ONE-SIDED ×2                      → delta MEASURABLE + reproducible
+  qwen2.5-coder-14b @131072   prescriptive: TIMEOUT@180m, 0 files
+                              discovery: IMPLEMENTS all three ops in index.ts — and never writes
+                              `export`. 1,532 bytes of algebra, zero exports, bind failure   → below floor
+  gemma-4-31b-qat   @32k+262k prescriptive: scaffolding-only (240m) · discovery: EMPTY index.ts;
+                              6 legs, output unstable, 0 gradeable arms                      → below floor
+  ```
+  **THE FINDING, in its final form: the discovery variant is a capability LADDER, and the failure moves UP the
+  abstraction stack with model capability.** coder-14b fails at the KEYWORD (`export`); gemma fails at the
+  MODULE SURFACE (empty or absent entry); qwen fails at the INVARIANT (derives the membership guard one-sided —
+  checks "every parent wafer is assigned", never "every assigned wafer is a parent's"). A prescriptive spec
+  hides every rung by enumerating what each layer would otherwise have to derive.
+  **"Below floor" is recorded as UNDEFINED, never as a variant loss** — the delta only exists above a model's
+  agentic floor for the project. And gemma's floor is Phase 22 observed end-to-end: 0.958 tied-best on eval
+  cells, ungradeable on the real project — eval-cell fitness and agentic depth are different axes, which is
+  precisely the gap the depth-matched fitness work (P25.3) exists to measure.
+  **Method rules the campaign burned into §4A-grade lessons:** built-vs-nothing BEFORE verdicts (the two 0/1s
+  meant opposite things twice); time budgets scale with throughput or MAX_MIN becomes treatment; context sized
+  to the larger variant with headroom (the 18× spec-size gap penalises the prescriptive arm first); lanes are a
+  coarse proxy — a static board is not a frozen runtime (423 telemetry events under one unmoving `planning:1`).
+  **REMAINING (new leaf, not this item):** the oracle probes one inclusion direction; it should probe BOTH —
+  the exact one-sided gap qwen's build has. Filed as the natural P23.5 follow-up.
+  ── original scope ──
+  **P23.6 (original) — Author the DISCOVERY variant and grade both with the same oracle.** Today's spec tells the agent
   the SPEC does the thinking and the model follows — a valid test of faithful execution, retrieval and dependency
   extraction, but NOT of architecture discovery. Keep the prescriptive benchmark and add a discovery variant
   carrying vision + invariants + threats + acceptance criteria ONLY (no file map, no prescribed interfaces).
