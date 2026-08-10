@@ -14691,10 +14691,30 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **The never-silent fallback caught the wire's own first bug:** the live run printed "none authored for ws" —
   I had taken `basename` of the TEMP COPY (`…/real-drain-*/ws`) instead of the source argument. Fixed; the
   corrected path verified on the same run's banked tree (0/1 NOT-delivered, independent) with no second drain.
-  REMAINING (one clause — an earlier draft also listed "authoring oracles for the other flagship projects",
-  which was already CLOSED 2026-08-08 above; a remainder list must be checked against the entry's own body):
-  a stronger/longer run — or a decomposed multi-card drain, letting the product's own decompose flow split the
-  77 KB spec instead of one card carrying it all — to see whether project 02's domain slice is reachable locally.
+  **▶ THE DECOMPOSED-DRAIN CAMPAIGN RAN 2026-08-10→11 — twelve sequential real drains (qwen3.6-35b in every
+  role, 262144 ctx, `real-model-run.sh … --plan`), each run converting its predecessor's failure into a
+  root-cause product fix.** The harness yield was enormous — every fix live-verified by the next run:
+  bare-finalize meta recovery + never-discard-the-graph; post-bounce add_task REPLACE (the missing repair
+  path); constructions keyed by (workspace, card) surviving session restarts; the SDK boundary made truly
+  permissive session-wide (no local tool can pre-reject with a Zod dump — killed 25× write_file dumps in one
+  run); all six delivery-hold terminals now sweep waiting siblings (a held card no longer dead-stops the DAG);
+  resolve_result cursor semantics (offset-less repeat = next page) + its loop-guard exclusion; the offline-
+  sandbox toolchain rules made universal (a worker had burned 111 impossible `npm install`s); a tool call CUT
+  by max-tokens now classifies as truncation so the raise_token_budget ladder is reachable; one sizing bounce
+  carries the whole worklist; the spec-coverage enumeration regex no longer converts prose tails into mandatory
+  verbatim tokens; dead sessions purge their model-turn reservations so waiters admit (a 7-minute silent wedge).
+  Deepest boards: run 8 — 64 min, 21 cards applied, FOUR completed+merged, ended on a DESIGNED park
+  (test-driven gate on the foundational types card); run 11 — 43 min, 3 completed.
+  **INTERIM VERDICT on the reachability question: the domain slice (authorization / conflict-check /
+  reconciler) has not been reached in twelve attempts.** The frontier is no longer the harness: it alternates
+  between (a) qwen3.6-35b's intent-emission gap on large payloads — the model plans a card in reasoning, then
+  emits an EMPTY tool call (clean stop, not truncation; three in a row trips the mistake streak), and (b) the
+  quality gates doing their designed job (test-driven gate, writeScope boundary) against a worker that won't
+  write tests for a types card. Foundation cards (scaffold/clock/prng) deliver and merge repeatedly; S03-types
+  is the recurring wall. Latest lever: empty-call errors now anchor to the model's OWN last successful call.
+  REMAINING: continue the campaign (one command: the run 12 invocation in this entry's history) when fresh
+  levers exist — constrained-schema retry for empty calls is the strongest untried one — or bank the verdict
+  as the honest local-capability boundary and grade any future deeper tree with the standing oracle wire.
 - [x] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle. CLOSED 2026-08-10 — the
   measurement ran across THREE models (8 legs), the delta is real, reproducible, and root-caused where it is
   defined.**

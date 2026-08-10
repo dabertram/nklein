@@ -225,6 +225,19 @@ export function createIncrementalDagTools(state: IncrementalDagSessionState): Ag
 			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
 			const parsed = nkleinPlanTaskSchema.safeParse(repairJsonStringValue(record));
 			if (!parsed.success) {
+				// Live 20260811-000253: after four perfect 1-2KB add_task calls the model degenerated to EMPTY
+				// calls — it planned "S05" in its reasoning, then emitted `<function=add_task></function>` three
+				// times and the mistake streak stopped a healthy session. For the empty case, anchor the coaching
+				// to the model's OWN recent success (it demonstrably knows the format) instead of restating the
+				// schema it just used correctly.
+				if (Object.keys(record).length === 0 && state.construction.nodes.length > 0) {
+					const lastId = state.construction.nodes[state.construction.nodes.length - 1]?.id ?? "the last task";
+					throw new Error(
+						`add_task arrived with NO arguments — you planned the task in your reasoning but emitted an empty call. ` +
+							`Re-send it with the fields written INSIDE the tool call, exactly like your successful add_task for "${lastId}": ` +
+							`id, title, and prompt (plus optional card fields).`,
+					);
+				}
 				const issue = parsed.error.issues[0];
 				throw new Error(
 					`add_task needs id, title, and prompt (non-empty strings)${issue ? ` — ${issue.path.join(".") || "(root)"}: ${issue.message}` : ""}. Fix the call and resend it.`,
