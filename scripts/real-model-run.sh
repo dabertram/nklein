@@ -386,7 +386,7 @@ drain_semantic_signature(){ # raw verifier output includes repeated scheduler bo
     '(^|\] )Board-liveness watchdog:|(^|\] )Auto-start of .* (queued behind a busy endpoint\.|hit the concurrency limit; deferred for retry on the next completion\.)$|(^|\] )Model turn for .* is waiting for capacity:' \
     "$DRAIN_JSON" 2>/dev/null | cksum | awk '{print $1 " " $2}'
 }
-# N15 local-only assertion (opt-in: NKLEIN_EGRESS_AUDIT=1): each poll appends the RUN pid tree's ESTABLISHED
+# N15 local-only assertion — DEFAULT ON since 2026-08-10 (NKLEIN_EGRESS_AUDIT=0 disables): each poll appends the RUN pid tree's ESTABLISHED
 # TCP rows to egress-audit.samples; `dev connection-audit` judges them at report time. Pid-tree scoping keeps
 # the host's unrelated apps out of the verdict; docker'd sandbox agents live in their own netns and are
 # governed by the container network config, so host lsof correctly excludes them.
@@ -402,7 +402,8 @@ run_pid_tree(){
 }
 EGRESS_AUDIT_SAMPLES="$RUN_DIR/egress-audit.samples"
 sample_run_connections(){
-  [ "${NKLEIN_EGRESS_AUDIT:-0}" = 1 ] || return 0
+  # Default-ON: two PASSing audited runs (2026-08-04 sh, 2026-08-10 mts) cleared the "once quiet" gate.
+  [ "${NKLEIN_EGRESS_AUDIT:-1}" = 1 ] || return 0
   local pids; pids=$(run_pid_tree)
   [ -n "$pids" ] || return 0
   lsof -a -p "$pids" -nP -iTCP -sTCP:ESTABLISHED 2>/dev/null >>"$EGRESS_AUDIT_SAMPLES" || true

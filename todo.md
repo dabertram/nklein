@@ -13333,6 +13333,11 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   taxonomy; the dominant failure kinds sit elsewhere (args emission, context, guards), exactly where the earlier
   9B probe found them. gemma failing every second edit call (48.7%) with ZERO format failures also explains the
   P23.6 floor mechanistically — it struggles to EDIT, not to format.
+  ⚠️ Process debt from the harvest, one sentence: I tore the 24 HOMEs down after harvesting ONLY this item's
+  consumer — a depth-sample report for P25.3 (46 attempts with contextTokens) was harvestable from the same
+  ledgers and is now gone. Nothing store-feeding was lost (isolated-rig evidence must not contaminate the
+  production fitness store anyway), but the rule is: **enumerate every consumer of a rig's evidence before
+  teardown, harvest all of them, then delete.**
   ⇒ **The routing half stays unbuilt, now on EVIDENCE rather than absence:** n=1 format failure cannot ground a
   format-routing rule, and the measured failure mix points at different levers (args robustness, context
   discipline) than the one this item imported from Aider. Re-examine only if the numerator grows with the fleet.

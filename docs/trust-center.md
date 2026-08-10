@@ -26,6 +26,12 @@ operation, and no telemetry phone-home.
 - **Local-only model policy:** `assertLocalProviderAllowed` (`src/nklein-agent/nklein-local-only-policy.ts`) fails
   closed before any network call when a provider/base-URL is not a permitted local endpoint. Eleven call sites guard
   the client constructors and eval paths.
+- **Runtime egress audit (measured on real runs, default-ON in both drain orchestrators):** every real-model
+  run samples the runtime pid tree's ESTABLISHED TCP connections every 30s (`lsof -nP -iTCP -sTCP:ESTABLISHED`)
+  and `nklein dev connection-audit` judges them after the drain — loopback-only passes, anything else fails, and
+  an EMPTY sample set FAILS so a sampler that never ran cannot read as clean. Latest audited run (2026-08-10, a
+  full real-model drain end to end): **PASS — 56 observations, every destination loopback.** Opt-out:
+  `NKLEIN_EGRESS_AUDIT=0`.
 - **Local-retrieval privacy invariant (machine-checked in CI):**
   `test/runtime/nklein-agent/local-retrieval-privacy-invariant.test.ts` statically scans every retrieval/embedding
   module and FAILS the suite if any non-localhost URL appears beyond the single allowlisted ingress (the public

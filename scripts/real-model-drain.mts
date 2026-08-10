@@ -13,6 +13,7 @@
  */
 
 import { type ChildProcess, execFile, spawn } from "node:child_process";
+import { appendFile } from "node:fs/promises";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
@@ -167,6 +168,36 @@ try {
 	runtime.stderr?.pipe(runtimeLog);
 	await waitForHttp(`http://127.0.0.1:${RUNTIME_PORT}/`, 90_000);
 
+	// N15 local-only assertion — DEFAULT ON for this rig (NKLEIN_EGRESS_AUDIT=0 disables). Every 30s, append the
+	// runtime pid TREE's ESTABLISHED TCP rows to a samples file; after the drain, `dev connection-audit` judges
+	// them (loopback-only passes; an EMPTY sample set FAILS, so a sampler that never ran cannot read as clean).
+	// Ported from real-model-run.sh, where it was opt-in — a rig that measures the privacy invariant by default
+	// is how "default-ON once quiet" starts.
+	// Samples live in `work` (which EXISTS) — `--out` is created only at copy-time, per this file's own header.
+	// The first version pointed there and the first sample's ENOENT, unhandled inside the interval's async void,
+	// killed the entire drain 30s in: the observation broke the run, the exact failure it must never cause.
+	const egressSamplesPath = join(work, "egress-audit.samples");
+	const egressAuditEnabled = process.env.NKLEIN_EGRESS_AUDIT !== "0";
+	const pidTree = async (root: number): Promise<string[]> => {
+		const pids = [String(root)];
+		for (let i = 0; i < pids.length && i < 64; i += 1) {
+			const { stdout } = await execFileAsync("pgrep", ["-P", pids[i]]).catch(() => ({ stdout: "" }));
+			for (const child of stdout.split("\n")) if (/^\d+$/.test(child.trim())) pids.push(child.trim());
+		}
+		return pids;
+	};
+	const egressTimer = egressAuditEnabled
+		? setInterval(() => {
+				void (async () => {
+					const pids = runtime?.pid ? await pidTree(runtime.pid) : [];
+					if (pids.length === 0) return;
+					const { stdout } = await execFileAsync("lsof", ["-a", "-p", pids.join(","), "-nP", "-iTCP", "-sTCP:ESTABLISHED"]).catch(() => ({ stdout: "" }));
+					if (stdout.trim()) await appendFile(egressSamplesPath, stdout);
+				})().catch(() => undefined);
+			}, 30_000)
+		: null;
+	egressTimer?.unref();
+
 	await execFileAsync(TSX, ["-e", "void 0"]).catch(() => undefined); // no-op keeps tsx warm
 	const register = await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/projects.add?batch=1`, {
 		method: "POST",
@@ -277,6 +308,11 @@ try {
 		}
 	}
 	process.stdout.write(`workspace was: ${workspace}\nruntime log: ${logPath}\n`);
+	if (egressAuditEnabled) {
+		clearInterval(egressTimer as NodeJS.Timeout);
+		const verdict = await execFileAsync(TSX, ["src/cli.ts", "dev", "connection-audit", "--samples", egressSamplesPath], { cwd: REPO }).catch((error) => ({ stdout: String((error as { stdout?: string }).stdout ?? error) }));
+		process.stdout.write(`EGRESS AUDIT: ${verdict.stdout.trim().split("\n").slice(-2).join(" | ")}\n`);
+	}
 } finally {
 	await shutdown();
 	if (!outDir) {
