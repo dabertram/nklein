@@ -141,7 +141,12 @@ function classifyTurn(
 	options: AdaptiveSwarmRecoveryModelOptions,
 ): ClassifiedTurn {
 	const { signal } = turn;
-	if (signal.hadToolCall) {
+	// A tool call PLUS finish reason max-tokens is the truncated-emission signature: the arguments were cut
+	// mid-payload and the salvage layer hands the tool `{}` (live 20260810-222735 — six consecutive empty
+	// write_file calls on a types card). Calling that turn a success re-ran the same oversized emission at the
+	// same budget forever, because the raise_token_budget ladder below was unreachable behind this branch. A
+	// COMPLETED call ends its turn with a tool/stop finish, never max-tokens — so max-tokens takes precedence.
+	if (signal.hadToolCall && signal.finishReason !== "max-tokens") {
 		return { outcome: "success", availableStrategies: [], evidence: "structured tool call emitted", whyFailed: "" };
 	}
 	if (signal.callerAborted) {
@@ -180,7 +185,9 @@ function classifyTurn(
 		return {
 			outcome: "aborted",
 			availableStrategies: strategiesForSignature("token_budget", request, options),
-			evidence: "finish reason=max-tokens; no tool call",
+			evidence: signal.hadToolCall
+				? "finish reason=max-tokens; a tool call was cut mid-emission (salvaged with empty input)"
+				: "finish reason=max-tokens; no tool call",
 			whyFailed: "the output budget ended before the required action landed",
 		};
 	}

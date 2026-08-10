@@ -156,6 +156,34 @@ describe("createAdaptiveSwarmRecoveryModel", () => {
 		expect(base.requests.every((item) => item.options?.metadata)).toBe(true);
 	});
 
+	it("treats a tool call CUT by max-tokens as truncation, not success (live 20260810-222735)", async () => {
+		// Six consecutive write_file calls arrived as {} — the args were cut mid-emission and salvaged empty.
+		// hadToolCall used to short-circuit to success, so the raise_token_budget ladder was unreachable and the
+		// worker re-ran the same oversized emission at the same budget forever.
+		const cutMidCall: AgentModelEvent[] = [
+			{ type: "tool-call-delta", toolCallId: "w1", toolName: "write_file", inputText: '{"path":"src/do' },
+			{ type: "finish", reason: "max-tokens" },
+		];
+		const base = scriptedBase([cutMidCall, called]);
+		const model = createAdaptiveSwarmRecoveryModel(base.model, {
+			modelId: "google/gemma-4-31b-qat",
+			baseMaxTokens: 1_024,
+		});
+
+		expect(await collect(model, request())).toEqual(called);
+		expect(base.requests[1]?.options?.maxTokens).toBe(2_048);
+	});
+
+	it("a COMPLETED tool call whose turn stops normally stays a success", async () => {
+		const base = scriptedBase([called]);
+		const model = createAdaptiveSwarmRecoveryModel(base.model, {
+			modelId: "google/gemma-4-31b-qat",
+			baseMaxTokens: 1_024,
+		});
+		expect(await collect(model, request())).toEqual(called);
+		expect(base.requests).toHaveLength(1);
+	});
+
 	it("shrinks context-overflow payloads while preserving completed tool call/result pairs", async () => {
 		const huge = "evidence ".repeat(1_000);
 		const messages: AgentMessage[] = [

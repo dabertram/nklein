@@ -426,9 +426,11 @@ async function approveWriteFilesTool(
 ): Promise<NKleinSdkToolApprovalResult> {
 	const writeRequests = parseWriteFilesRequests(request.input);
 	if (writeRequests.length === 0) {
+		// Live 20260810-222735: six consecutive {} write_file calls — large inline content cut by the turn
+		// budget. Same coaching as the host-side write tools: name the cause and the way out.
 		return {
 			approved: false,
-			reason: `Blocked ${request.toolName}: no files with path and content fields were provided.`,
+			reason: `Blocked ${request.toolName}: no files with path and content fields were provided. An empty call usually means the emission was cut mid-content — resend it, and split large content across several smaller writes (one file each, or build the file incrementally with edit_file).`,
 		};
 	}
 	for (const writeRequest of writeRequests) {
