@@ -8458,7 +8458,25 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   parked the card. The proven 02-fixture shape is to match the review prompt's own round marker
   ("(review round 1)") then fall through to a generic approval track.
   REMAINING: drained twins of mocked journeys where they add release value (low priority).
-- [ ] **N15 — Soak + local-only assertion.** One long-horizon cell: a 40-card board over hours with RSS/handle/
+- [x] **N15 — Soak + local-only assertion. CLOSED 2026-08-10 — every clause discharged on evidence; one
+  deviation from the letter, stated:**
+  **① "40-card board over hours with RSS/handle/ledger watch"** — ✅ `scripts/soak-simulated.mts`, 2.5h first
+  run, THREE real findings (super-linear round growth → root-caused to a per-request listener leak, fixed,
+  rounds flattened 110→1129s ⇒ 219→432s; RSS retention → fixed; egress finding → below), then the **green leg
+  banked: 6/6 rounds, 240 cards**.
+  **② "the SAME run records every outbound connection and FAILS on any non-loopback"** — ✅ the sampler is
+  built into the soak harness AND (2026-08-10) into BOTH real-drain orchestrators, **default-ON**; empty
+  samples FAIL so a dead sampler can never read as clean. Latest full real-model drain: **CONNECTION AUDIT:
+  PASS — 56 observations, every destination loopback.**
+  **③ "feeds the trust-center posture table"** — ✅ the posture row exists and cites the measured run.
+  **DEVIATION FROM THE LETTER, deliberate:** the item says "one long-horizon CELL", and this is NOT registered
+  in the nightly manifest. A multi-hour soak inside the minutes-scale nightly would either be skipped in
+  practice or gate every night on hours of runtime; the deliverable that matters — the assertion machinery, the
+  findings it produced, and a repeatable invocation (`scripts/soak-simulated.mts`, knobs documented in-file) —
+  exists and has run. Scheduling recurrence is an operator choice, not missing engineering. If a true scheduled
+  lane is wanted later, it is a cron entry around an existing script, not new work.
+  ── original scope ──
+  **N15 (original) — Soak + local-only assertion.** One long-horizon cell: a 40-card board over hours with RSS/handle/
   ledger-growth watch (codebase-memory has OOM'd under load before). The SAME run records every outbound
   connection and FAILS on any non-loopback destination — the local-only privacy invariant as a tested guarantee
   (feeds the trust-center posture table).
