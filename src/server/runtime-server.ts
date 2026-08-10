@@ -1171,6 +1171,28 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			activeModelTurnsByWorkspaceId.delete(workspaceId);
 		}
 	};
+	// Live 20260810-231515: a session died (interrupted) while holding a model-turn reservation, and the
+	// identity-based release above never ran — the ghost then blocked every OTHER task's admission on the cap-1
+	// host for 7 idle minutes until the rig's watchdog killed the run. The same-task purges (fresh start /
+	// parent reacquire) cannot help a DIFFERENT task queued behind a dead holder, and only the wait-queue side
+	// expires. A dead session's reservations — including its aux (::review/::critique) children, which run on
+	// its behalf — are ghosts by definition; purge them the moment the summary goes terminal.
+	const purgeModelTurnReservationsForDeadTask = (workspaceId: string, taskId: string): void => {
+		const activeTurns = activeModelTurnsByWorkspaceId.get(workspaceId) ?? [];
+		const ghosts = activeTurns.filter((turn) => turn.taskId === taskId || turn.taskId.startsWith(`${taskId}::`));
+		if (ghosts.length === 0) {
+			return;
+		}
+		deps.warn(
+			`Model-turn admission purged ${ghosts.length} reservation(s) held by dead session ${taskId} (terminal summary); waiting tasks can now admit.`,
+		);
+		const nextTurns = activeTurns.filter((turn) => !ghosts.includes(turn));
+		if (nextTurns.length > 0) {
+			activeModelTurnsByWorkspaceId.set(workspaceId, nextTurns);
+		} else {
+			activeModelTurnsByWorkspaceId.delete(workspaceId);
+		}
+	};
 	const createModelTurnAdmissionGate = (scope: RuntimeTrpcWorkspaceScope): NKleinModelTurnAdmissionGate => {
 		const existing = modelTurnAdmissionGateByWorkspaceId.get(scope.workspaceId);
 		if (existing) {
@@ -3885,6 +3907,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					drainQueuedTaskStarts(scope, { force: true });
 				}
 				if (isTerminalFailureSessionState(summary.state)) {
+					// A dead session's model-turn reservations are ghosts — free them BEFORE the retry sweep so the
+					// cards it was blocking can actually admit (live 20260810-231515: a 7-minute silent wedge).
+					purgeModelTurnReservationsForDeadTask(scope.workspaceId, summary.taskId);
 					// A dying card fires no completion — retry the waiting cards it can no longer unblock (run16),
 					// and give the dead card ITSELF one fresh attempt when it left no reviewable work (#24).
 					retryWaitingCardsAfterTerminal(scope, trackedService, summary.taskId);
