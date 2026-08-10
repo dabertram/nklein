@@ -72,10 +72,21 @@ function significantTokens(text: string): string[] {
 
 function exactCoverageTokens(requirement: string, tokens: readonly string[]): string[] {
 	const exact = new Set(tokens.filter((token) => EXACT_COVERAGE_TOKENS.has(token)));
-	const alternatives = /\b(?:as|one of)\s+(.+)$/i.exec(requirement)?.[1];
+	// The enumeration rule exists for bullets whose CONTENT is a short alternative list ("classify trend as
+	// improving, declining, or steady") — the list members ARE the requirement. Live 20260810-201120: the old
+	// `\b(?:as|one of)\s+(.+)$` greedily matched a mid-sentence prose "logged as first-aid-only; a follow-up
+	// command …" and converted the REST OF THE SENTENCE — twelve tokens, including "itself" — into mandatory
+	// verbatim terms, parking a graph that covered 17/9 anchors for paraphrasing rather than omission (the same
+	// anti-pattern the G6.8a calibration fixed for the invariant-token set; this branch had escaped it). The
+	// marker word is not the discriminator — the TAIL SHAPE is: the capture must run to the end of the bullet
+	// with no sentence punctuation inside it (terminal ./!/? allowed) and stay a short comma/or list.
+	const alternatives = /\b(?:as\s+one\s+of|one\s+of|as)\s+([^.;:—]+?)[.!?]*\s*$/i.exec(requirement)?.[1];
 	if (alternatives && /,|\bor\b/i.test(alternatives)) {
-		for (const token of significantTokens(alternatives)) {
-			exact.add(token);
+		const listTokens = significantTokens(alternatives);
+		if (listTokens.length <= 6) {
+			for (const token of listTokens) {
+				exact.add(token);
+			}
 		}
 	}
 	return [...exact];

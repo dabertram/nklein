@@ -145,6 +145,35 @@ describe("exact-invariant terms bind only on weakly-covered bullets (G6.8a live 
 		expect(findUncoveredPlanRequirements(normativeSpec, [unrelated])).toHaveLength(1);
 	});
 
+	it("mid-sentence prose 'as' never converts the rest of the sentence into mandatory verbatim terms", () => {
+		// Live 20260810-201120: '- An injury initially logged as first-aid-only; …' — the old greedy alternatives
+		// regex captured everything after the prose "as" and demanded twelve exact tokens (including "itself"),
+		// parking a graph that covered 17/9 anchors for paraphrasing rather than omission.
+		const spec =
+			"- An injury initially logged as first-aid-only; a follow-up command upgrades it to required sutures. " +
+			"The classifier must reclassify to recordable and the projection must update, citing the upgrading event " +
+			"within the seven-day window, with the window itself tracked.";
+		const richTask = task({
+			prompt:
+				"Implement the injury classifier: an injury initially logged as first-aid-only whose follow-up " +
+				"command upgrades it (required sutures = medical treatment) must reclassify to recordable and the " +
+				"projection must update, citing the upgrading event within the seven-day window.",
+		});
+		expect(findUncoveredPlanRequirements(spec, [richTask])).toEqual([]);
+	});
+
+	it("a genuine 'one of' enumeration still binds its short list members verbatim", () => {
+		const spec = "- The permit status must be stored as one of active, suspended, or closed.";
+		const paraphrased = task({ prompt: "Persist the permit status field with its allowed lifecycle values." });
+		const uncovered = findUncoveredPlanRequirements(spec, [paraphrased]);
+		expect(uncovered).toHaveLength(1);
+		expect(uncovered[0]?.missingExactTokens).toEqual(expect.arrayContaining(["active", "suspended", "closed"]));
+		const literal = task({
+			prompt: "Persist the permit status as one of active, suspended, or closed; reject anything else.",
+		});
+		expect(findUncoveredPlanRequirements(spec, [literal])).toEqual([]);
+	});
+
 	it("still surfaces a descriptive bullet the graph never mentions at all", () => {
 		const conventionSpec = "- Product source files are TypeScript under `src/**/*.ts`.";
 		const unrelated = {
