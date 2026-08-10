@@ -187,9 +187,26 @@ export function validateNKleinPlanTaskGraph(input: {
 		...parsedTaskGraph,
 		tasks: parsedTaskGraph.tasks.map((task) => normalizeTaskAcceptanceCommand(task, null)),
 	};
+	// Collect EVERY sizing violation before throwing: live 20260810-195244 bounced the finalize once per
+	// violating task (domain-model → fix → incident-classification → fix → workflow-state-machine → …), and each
+	// bounce costs the model a full repair round-trip. One bounce carrying the whole worklist lets one repair
+	// round fix them all.
+	const sizingViolations: string[] = [];
 	for (const task of taskGraph.tasks) {
-		validateTaskSizingContract(task);
+		try {
+			validateTaskSizingContract(task);
+		} catch (error) {
+			sizingViolations.push(error instanceof Error ? error.message : String(error));
+			continue;
+		}
 		selectTaskRoutingCandidate(task, buildTaskPrompt(task), input.routingCandidates);
+	}
+	if (sizingViolations.length > 0) {
+		throw new Error(
+			sizingViolations.length === 1
+				? (sizingViolations[0] as string)
+				: `${sizingViolations.length} tasks failed the sizing contract — fix ALL of them, then resubmit once:\n- ${sizingViolations.join("\n- ")}`,
+		);
 	}
 	const dependencyCount = validateTaskGraphReferences(taskGraph);
 	const quality = assessNKleinPlanTaskGraphQuality(taskGraph);

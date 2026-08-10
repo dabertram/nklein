@@ -8,7 +8,7 @@ import { toSlug } from "../../core/slugify";
 import { type NKleinPlanTask, nkleinPlanTaskSchema } from "../nklein-plan-artifacts";
 import { repairJsonStringValue } from "../nklein-tool-argument-repair";
 import type { AgentTool } from "../sdk-agent-types";
-import { DECOMPOSE_DEPENDENCY_GUIDANCE } from "./plan-task-schemas";
+import { DECOMPOSE_DEPENDENCY_GUIDANCE, toPermissiveAgentInputSchema } from "./plan-task-schemas";
 
 /**
  * F1.7 (§5.AV) — the LIVE wiring of incremental valid-DAG construction: `add_task` / `add_dependency` tools whose
@@ -198,7 +198,11 @@ export function createIncrementalDagTools(state: IncrementalDagSessionState): Ag
 		name: "add_task",
 		description:
 			"Incrementally declare ONE decomposition task (validated immediately). Optional alternative to sending a full tasks array: declare tasks one by one, add dependencies with add_dependency, then call decompose_project WITHOUT tasks to submit the accumulated graph.",
-		inputSchema: {
+		// Live 20260810-195244: ten add_task calls (truncated {} emissions) were SDK-pre-rejected against this
+		// schema's required/type keywords, each answered with a multi-KB Zod dump the execute path would have
+		// answered compactly ("add_task needs id, title, and prompt... resend"). Same permissive-boundary rule
+		// as decompose_project: the handler validates, the boundary never pre-rejects.
+		inputSchema: toPermissiveAgentInputSchema({
 			type: "object",
 			properties: {
 				id: { type: "string", description: "Stable short task id, e.g. setup-db." },
@@ -216,7 +220,7 @@ export function createIncrementalDagTools(state: IncrementalDagSessionState): Ag
 			},
 			required: ["id", "title", "prompt"],
 			additionalProperties: true,
-		},
+		}),
 		async execute(input) {
 			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
 			const parsed = nkleinPlanTaskSchema.safeParse(repairJsonStringValue(record));
@@ -334,7 +338,7 @@ export function createIncrementalDagTools(state: IncrementalDagSessionState): Ag
 		name: "add_dependency",
 		description:
 			"Declare that one already-added task depends on another (validated immediately — rejects unknown tasks, duplicates, self-loops, and anything that would create a cycle).",
-		inputSchema: {
+		inputSchema: toPermissiveAgentInputSchema({
 			type: "object",
 			properties: {
 				taskId: { type: "string", description: "The task that DEPENDS ON the other (must exist via add_task)." },
@@ -342,7 +346,7 @@ export function createIncrementalDagTools(state: IncrementalDagSessionState): Ag
 			},
 			required: ["taskId", "dependsOn"],
 			additionalProperties: true,
-		},
+		}),
 		async execute(input) {
 			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
 			const taskId = typeof record.taskId === "string" ? record.taskId.trim() : "";

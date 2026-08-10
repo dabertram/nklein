@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	normalizeTaskAcceptanceCommand,
+	validateNKleinPlanTaskGraph,
 	validateTaskGraphReferences,
 	validateTaskSizingContract,
 } from "../../../src/nklein-agent/decomposition/plan-task-validation";
@@ -111,6 +112,33 @@ describe("validateTaskGraphReferences", () => {
 	it("rejects a dependency on an unknown task", () => {
 		expect(() => validateTaskGraphReferences(graph([task({ id: "a", dependsOn: ["ghost"] })]))).toThrow(
 			/depends on unknown task ghost/u,
+		);
+	});
+});
+
+describe("validateNKleinPlanTaskGraph sizing collection", () => {
+	it("one bounce carries EVERY sizing violation, not just the first (live 20260810-195244)", () => {
+		// The finalize used to bounce once per violating task, costing the model a full repair round-trip each;
+		// one bounce with the whole worklist lets one repair round fix them all.
+		const bad = graph([
+			task({ id: "a", acceptanceCommand: null }),
+			task({ id: "b" }),
+			task({ id: "c", complexity: 99 }),
+		]);
+		let message = "";
+		try {
+			validateNKleinPlanTaskGraph({ taskGraph: bad });
+		} catch (error) {
+			message = error instanceof Error ? error.message : String(error);
+		}
+		expect(message).toContain("2 tasks failed the sizing contract");
+		expect(message).toContain("Task a is missing an acceptanceCommand");
+		expect(message).toContain("Task c has complexity 99/100");
+	});
+
+	it("a single violation keeps its original, un-wrapped message", () => {
+		expect(() => validateNKleinPlanTaskGraph({ taskGraph: graph([task({ id: "a", complexity: 99 })]) })).toThrow(
+			/^Task a has complexity 99\/100/u,
 		);
 	});
 });

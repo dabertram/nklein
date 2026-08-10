@@ -286,6 +286,20 @@ describe("decompose_project completion route (shared session state)", () => {
 		await expect(decompose.execute({}, ctx)).rejects.toThrow(/called with no arguments/);
 	});
 
+	it("add_task and add_dependency boundaries carry no validation keywords the SDK could pre-reject against", () => {
+		// Live 20260810-195244: ten truncated `{}` add_task emissions were pre-rejected with multi-KB Zod dumps
+		// the execute path would have answered compactly. The handler validates; the boundary never pre-rejects.
+		const { addTask, addDependency } = getTools();
+		for (const tool of [addTask, addDependency]) {
+			const schema = tool.inputSchema as { type?: unknown; required?: unknown; properties: unknown };
+			expect(schema.type).toBe("object");
+			expect(schema.required).toBeUndefined();
+			const nested = JSON.stringify(schema.properties);
+			expect(nested).not.toContain('"type"');
+			expect(nested).not.toContain('"required"');
+		}
+	});
+
 	it("recoverIncrementalDecomposeMeta keeps every model-supplied field verbatim", async () => {
 		const { state, addTask } = getTools();
 		await addTask.execute({ id: "a", title: "Alpha", prompt: "Do A." }, ctx);
