@@ -14692,7 +14692,28 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   (dense 31B + reasoning on every turn + 24k prefill) did not finish PLANNING in 90m while progressing the whole
   time. **What was measured is completion-within-time-budget, confounded by per-model speed — not capability.**
   ⇒ Time budgets must scale with the model's throughput, or MAX_MIN silently becomes part of the treatment.
-  Re-running gemma at MAX_MIN=240. Discovery verdicts to date: gemma BUILDS on the small spec (2 and 5 files)
+  **▶ THE FAIR-BUDGET RUN (240m) SETTLES IT — AND THE ANSWER IS A CAPABILITY FLOOR, NOT A DELTA (2026-08-10).**
+  Both legs SETTLED with result branches this time (speed hypothesis confirmed: 90m was cutting planning off).
+  What four hours actually bought:
+    · prescriptive: **5 files of pure scaffolding** — `lib/clock`, `lib/prng`, `domain/{types,event-types,event-log}`.
+      **No split/merge/rework anywhere.** The resolver's loud path fired: "no callable route algebra".
+    · discovery: **one file, `src/index.ts`, 0 bytes** — the pinned entry point, created EMPTY.
+  Across all SIX gemma legs (32k/90m · 256k/90m · 256k/240m, two arms each), output is UNSTABLE and never
+  gradeable: discovery yielded 5 files, then 2, then 1 empty — no monotonic relation to context or budget.
+  **CROSS-MODEL RESULT, final form:**
+  ```
+  qwen3.6-35b-a3b   prescriptive 1/1 DELIVERED ×2 · discovery builds real architecture, fails the
+                    membership probe one-sided ×2         → delta MEASURABLE and reproducible
+  gemma-4-31b-qat   0 gradeable arms in 6 legs            → delta UNDEFINED (below the project's floor)
+  ```
+  **"Undefined" is not "zero", and recording it as a loss for either variant would be false.** The variant
+  delta exists only above a model's agentic floor for the project; gemma-as-deployed (reasoning template +
+  json_schema tool path, dense 31B) is below it at any feasible budget.
+  **THIS IS PHASE 22'S FINDING, OBSERVED END-TO-END:** the catalog has gemma-4-31b at **0.958 mean, tied-best**
+  on eval cells — and it cannot drive this project at all. Eval-cell fitness measures single-turn role quality;
+  agentic depth is a different axis, and parameter count / sweep scores predict neither. The depth-matched
+  fitness work (P25.3) exists for exactly this gap, and this is its cleanest motivating example yet.
+  Re-running gemma at MAX_MIN=240 (superseded by the above). Discovery verdicts to date: gemma BUILDS on the small spec (2 and 5 files)
   and fails the same compositional probe qwen fails — consistent with the one-sided-derivation finding, but not
   comparable until its prescriptive leg has a fair budget.
   The general lesson for every future cross-model leg: **match the context length, or the comparison measures my
