@@ -172,7 +172,12 @@ export function computeRepeatedToolCallCandidate(
 	if (!toolName || isNKleinUserAttentionTool(toolName)) {
 		return null;
 	}
-	if (toolName.toLowerCase() === "read_large_file") {
+	if (toolName.toLowerCase() === "read_large_file" || toolName.toLowerCase() === "resolve_result") {
+		// Cursor tools are DESIGNED to be re-called with identical input: resolve_result advances a per-handle
+		// cursor when offset is omitted (live 20260810-230736 — the guard parked a healthy session three
+		// productive pages into a spec read, 18 seconds in), and read_large_file advances its own cursor. Their
+		// workflows bound themselves (end-of-result marker / stale-cursor rejection) and the autonomy budget
+		// bounds any true loop.
 		return null;
 	}
 	const toolInputSummary = activity.toolInputSummary?.trim() || null;

@@ -6182,6 +6182,18 @@ describe("computeRepeatedToolCallCandidate", () => {
 		expect(computeRepeatedToolCallCandidate(activity({ toolName: "READ_LARGE_FILE" }) as never)).toBeNull();
 	});
 
+	it("EXCLUDES resolve_result from the guard — omitting offset advances a per-handle cursor", () => {
+		// Live 20260810-230736: the guard parked a healthy planning session 18 seconds in, three PRODUCTIVE pages
+		// into a spec read — identical inputs, but each call returned the next page. Same design class as
+		// read_large_file: the tool bounds itself (end-of-result marker) and the autonomy budget bounds true loops.
+		expect(
+			computeRepeatedToolCallCandidate(
+				activity({ toolName: "resolve_result", toolInputSummary: "result://read_files/1" }) as never,
+			),
+		).toBeNull();
+		expect(computeRepeatedToolCallCandidate(activity({ toolName: "RESOLVE_RESULT" }) as never)).toBeNull();
+	});
+
 	it("skips non-tool-call activities, missing source, and user-attention tools", () => {
 		expect(computeRepeatedToolCallCandidate(null)).toBeNull();
 		expect(computeRepeatedToolCallCandidate(activity({ source: "other" }) as never)).toBeNull();
