@@ -14655,8 +14655,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   meant opposite things twice); time budgets scale with throughput or MAX_MIN becomes treatment; context sized
   to the larger variant with headroom (the 18× spec-size gap penalises the prescriptive arm first); lanes are a
   coarse proxy — a static board is not a frozen runtime (423 telemetry events under one unmoving `planning:1`).
-  **REMAINING (new leaf, not this item):** the oracle probes one inclusion direction; it should probe BOTH —
-  the exact one-sided gap qwen's build has. Filed as the natural P23.5 follow-up.
+  **⚠️ FOLLOW-UP WITHDRAWN THE SAME MORNING — the probe ALREADY tests both directions, and I filed the leaf
+  from the failing assertion's NAME without reading 20 lines further.** `split validation is total` asserts
+  BOTH `"an unassigned wafer must throw"` (completeness) AND `"a wafer that is not in the parent lot must
+  throw"` (membership). qwen passed the first and failed the second: the GATE is two-sided; only the BUILD was
+  one-sided. The false leaf is the session's false-gap pattern once more — a conclusion drawn from a fragment
+  (one assertion message) that a full read refuted in one minute. Only residual nuance, deliberately NOT acted
+  on: both directions share one subtest, so a completeness-failing build aborts before its membership is
+  checked — fine as a gate (any one-sided build still fails), mildly lossy as a diagnostic, and not worth
+  touching a protected file for.
   ── original scope ──
   **P23.6 (original) — Author the DISCOVERY variant and grade both with the same oracle.** Today's spec tells the agent
   the SPEC does the thinking and the model follows — a valid test of faithful execution, retrieval and dependency
