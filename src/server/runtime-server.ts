@@ -2540,6 +2540,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							deps.warn(
 								`Delivery held for ${taskId}: the selected result artifact ${deliveredBranchTaskId} disappeared before its evidence receipt could be persisted.`,
 							);
+							// Cascade-blind hold terminal (live 20260810-191705): sweep waiting siblings.
+							retryWaitingCardsAfterTerminal(scope, service, taskId);
 							return;
 						}
 						await pinTaskResultEvidenceCommit({
@@ -2636,6 +2638,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						);
 						// #33 v2: final hold — stop the session so the held card frees its slot (see delivery-hold).
 						await service.stopTaskSession(taskId).catch(() => null);
+						// Hold terminals were cascade-blind (live 20260810-191705): freeing the slot starts nobody —
+						// sweep the waiting siblings or a single held card dead-stops the whole DAG.
+						retryWaitingCardsAfterTerminal(scope, service, taskId);
 						return;
 					}
 
@@ -2989,6 +2994,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									`Delivery held for ${taskId} (taint gate): ${deliveryGate.reason ?? "tainted influence on git_delivery"}. Review and merge manually.`,
 								);
 								await service.stopTaskSession(taskId).catch(() => null);
+								// Cascade-blind hold terminal (same class as the boundary hold below; live 20260810-191705):
+								// waiting siblings must still be swept or a single held card dead-stops the whole DAG.
+								retryWaitingCardsAfterTerminal(scope, service, taskId);
 								return;
 							}
 						} catch {
@@ -3043,6 +3051,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									`Self-improvement card ${taskId} held in Review (M4 fail-closed): ${selfDecision.blockers.join("; ")}. Review and merge manually.`,
 								);
 								await service.stopTaskSession(taskId).catch(() => null);
+								// Cascade-blind hold terminal (live 20260810-191705): sweep waiting siblings.
+								retryWaitingCardsAfterTerminal(scope, service, taskId);
 								return;
 							}
 						}
@@ -3109,6 +3119,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							// F2.17b: stamp the held session distinctly so the operator inbox surfaces it as a protected-write
 							// hold (mapped to `protectedPathHeld`), not a generic interrupted stop.
 							await service.stopTaskSession(taskId, { reviewReason: "protected_write" }).catch(() => null);
+							// A delivery hold is a THIRD terminal — neither completion (which cascades dependents) nor
+							// death (which retryWaitingCardsAfterTerminal covers) — and it was cascade-blind: live
+							// 20260810-191705, S01 held here as the only active card and the other 21 decompose cards
+							// (dep-free roots included) sat in planning while the runtime idled to a watchdog abort.
+							// A held card must never dead-stop its siblings; the sweep excludes the held card itself.
+							retryWaitingCardsAfterTerminal(scope, service, taskId);
 							return;
 						}
 						if (deliveryDecision.action !== "merge") {
@@ -3164,6 +3180,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							// stopTaskSession is the proven slot-freeing call (delivery uses it after every merge);
 							// the card stays in Review as the operator surface and a re-drive restarts cleanly.
 							await service.stopTaskSession(taskId).catch(() => null);
+							// #33 freed the slot but started nobody — cascade-blind hold terminal (live 20260810-191705):
+							// sweep the waiting siblings so the freed slot is actually used.
+							retryWaitingCardsAfterTerminal(scope, service, taskId);
 							return;
 						}
 						// Serialized per workspace (see runWorkspaceMergeSerialized): concurrent finalizations must
