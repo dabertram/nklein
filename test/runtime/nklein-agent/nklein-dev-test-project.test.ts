@@ -44,6 +44,10 @@ describe("nklein dev test project", () => {
 		expect(specification).toContain("## Fixture/toolchain rules");
 		expect(specification).toContain("test/**/*.test.ts");
 		expect(specification).toContain(".test.js");
+		// The offline rule is UNIVERSAL — every agent sandbox is offline. Live 20260810-211914: the ts-starter
+		// scaffold carried no toolchain rules at all, so the worker chose vitest and burned 111 failed
+		// npm install/npm test commands against a wall that can never yield.
+		expect(specification).toContain("OFFLINE");
 		expect(specification).not.toContain("Acceptance command");
 		const marker = JSON.parse(
 			await readFile(join(project.workspacePath, NKLEIN_DEV_TEST_PROJECT_MARKER_PATH), "utf8"),

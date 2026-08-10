@@ -137,13 +137,26 @@ export function resolveNKleinDevTestTemplatePath(templateName = DEFAULT_TEMPLATE
 	return join(getRepoRootFromCurrentModule(), "scripts", "dev-fixtures", templateName);
 }
 
+// Both TypeScript starter fixtures share the same layout family (src/ + test/ + `npm test` through a plain
+// node runner), so the TS-specific test-file rules apply to both.
+const TS_FAMILY_TEMPLATE_NAMES = new Set([DEFAULT_TEMPLATE_NAME, "ts-starter"]);
+
 function getDevTestFixtureToolchainRules(templateName: string): string[] {
-	if (templateName !== DEFAULT_TEMPLATE_NAME) {
-		return [];
-	}
-	return [
+	// The offline rules are UNIVERSAL, because every agent sandbox is offline (strict isolation). These used to
+	// be gated to the default template only — so a 02-project (ts-starter) worker was never told, chose vitest,
+	// wrote it into package.json, and burned 111 failed `npm install`/`npm test` commands against a wall that
+	// can never yield (live 20260810-211914).
+	const universal = [
 		"## Fixture/toolchain rules",
 		"",
+		"- The agent sandbox is OFFLINE: `npm install`, registry fetches, and any other network call always fail. Never add dependencies or new test frameworks — use only what the fixture already provides.",
+		"- The declared acceptance command must pass exactly as-is, offline, with the fixture's own toolchain.",
+	];
+	if (!TS_FAMILY_TEMPLATE_NAMES.has(templateName)) {
+		return [...universal, ""];
+	}
+	return [
+		...universal,
 		"- Product source files are TypeScript under `src/**/*.ts`.",
 		"- Test files may be plain JavaScript (`test/**/*.test.js`) or TypeScript (`test/**/*.test.ts`).",
 		"- A `.test.js` file must stay plain JavaScript: no `import type`, `interface`, `type`, `: Type`, `as Type`, or generic syntax. If a test needs TypeScript syntax, name it `.test.ts`.",
