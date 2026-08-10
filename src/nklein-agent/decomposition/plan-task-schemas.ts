@@ -130,78 +130,10 @@ export const decomposeProjectStringifiedExpansionsJsonSchema = {
 		"JSON-stringified recursive replacement map; accepted for small models that stringify nested expansion objects.",
 } as const;
 
-// Every JSON Schema keyword the SDK's up-front validator can FAIL a value against. Stripping `required` alone
-// is not enough: live 20260810-103422 showed the boundary still pre-rejecting a full decompose_project payload
-// with "Type validation failed" plus the multi-KB dump this relaxation exists to prevent — a type mismatch at
-// ANY depth (a stringified dependsOn, a numeric id) still bounced before our handler could answer compactly.
-// Descriptions and structure (`properties`, `items`) are kept as model-facing documentation; actual validation
-// happens in the handlers (see assertUsableDecomposeProjectInput), which is the design intent all along.
-const JSON_SCHEMA_VALIDATION_KEYWORDS = new Set([
-	"type",
-	"enum",
-	"const",
-	"minimum",
-	"maximum",
-	"exclusiveMinimum",
-	"exclusiveMaximum",
-	"multipleOf",
-	"minLength",
-	"maxLength",
-	"pattern",
-	"format",
-	"minItems",
-	"maxItems",
-	"uniqueItems",
-	"minProperties",
-	"maxProperties",
-]);
-
-export function relaxJsonSchemaNode(node: unknown): unknown {
-	if (Array.isArray(node)) {
-		return node.map(relaxJsonSchemaNode);
-	}
-	if (node === null || typeof node !== "object") {
-		return node;
-	}
-	const result: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
-		if (key === "required" || JSON_SCHEMA_VALIDATION_KEYWORDS.has(key)) {
-			continue;
-		}
-		if (key === "additionalProperties") {
-			// Drop the closed-object boolean form; relax a schema-valued additionalProperties (e.g. the
-			// expansions map's task-array value schema) in place rather than dropping it.
-			if (typeof value !== "boolean") {
-				result[key] = relaxJsonSchemaNode(value);
-			}
-			continue;
-		}
-		result[key] = relaxJsonSchemaNode(value);
-	}
-	return result;
-}
-
-/**
- * Deep-relax a JSON Schema for the SDK tool boundary so the SDK never pre-rejects a model's call before our
- * handler runs. The SDK validates the WHOLE inputSchema tree up front and answers ANY violation — a typo'd or
- * missing key at any depth (e.g. `acceptenceCommand` on a task, or an omitted `title`) — with a multi-KB raw
- * Zod dump that small local models cannot recover from (they spiral into empty `{}` retries) and that bypasses
- * our in-handler JSON repair + compact errors. We keep the strict literals above as documentation of intent but
- * strip every `required` and open `additionalProperties` on every object node before handing the schema to the
- * SDK; the in-handler zod schemas (`decomposeProjectToolInputSchema` / `nkleinPlanTaskSchema`) are the real
- * validators (they require id/title/prompt with compact errors and strip unknown keys, so a typo'd
- * `acceptanceCommand` simply falls back to `defaultAcceptanceCommand`). The `properties` descriptions are
- * preserved, so the model still gets schema guidance.
- */
-export function toPermissiveAgentInputSchema(schema: Record<string, unknown>): Record<string, unknown> {
-	const relaxed = relaxJsonSchemaNode(schema) as Record<string, unknown>;
-	// The root keeps its `type: "object"` — providers require a well-formed object schema at the tool boundary;
-	// it is the NESTED validation keywords that turned typos into multi-KB pre-rejections.
-	if (schema.type === "object") {
-		return { ...relaxed, type: "object", additionalProperties: true };
-	}
-	return relaxed;
-}
+// The permissive-boundary transform grew from a decompose-only fix into the session-wide tool boundary;
+// the single implementation now lives in agent-tool-boundary.ts (N17 one-implementation rule) and is
+// re-exported here so the decomposition modules and their tests keep their import paths.
+export { relaxJsonSchemaNode, toPermissiveAgentInputSchema } from "../agent-tool-boundary";
 
 export const decomposeProjectToolInputSchema = nkleinPlanTaskGraphSchema
 	.pick({

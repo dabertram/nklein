@@ -109,7 +109,11 @@ function createWriteTool(options: {
 		async execute(input) {
 			const requests = parseWriteFilesRequests(input);
 			if (requests.length === 0) {
-				throw new Error(`${options.name} requires path and content fields.`);
+				// Live 20260810-203016: 25 write_file calls arrived as {} — large inline content cut by the turn
+				// budget. Tell the model what happened and how to succeed, in one line.
+				throw new Error(
+					`${options.name} requires path and content fields. An empty call usually means the emission was cut mid-content — resend it, and split large content across several smaller ${options.name === "write_file" ? "write_file calls (one file each, or build the file with edit_file appends)" : "entries or calls"}.`,
+				);
 			}
 			if (!isBatchTool && requests.length !== 1) {
 				throw new Error("write_file writes exactly one file. Use write_files for batches.");

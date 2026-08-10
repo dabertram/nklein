@@ -8,6 +8,7 @@ import {
 } from "../core/mistake-streak-classifier";
 import { normalizeProviderBaseUrl } from "../core/openai-compat-base-url";
 import { decideResearchFreshnessGate } from "../core/research-freshness-gate";
+import { relaxAgentToolSchemas } from "./agent-tool-boundary";
 import {
 	clearAllSessionFocusState,
 	createKanbanContextFocusExtension,
@@ -656,8 +657,14 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		this.swarmBrokerStateByTaskId.set(request.taskId, swarmToolBrokerState);
 		// Offer-layer policy filter: the SDK only policy-filters extension-registered tools — config-declared tools
 		// merge unfiltered — so a disabled tool's schema still reached the model (28KB judge block, live 2026-07-18).
+		// Permissive boundary for every LOCAL tool (live P23.5 campaign: SDK pre-validation answered truncated or
+		// slightly-off calls with multi-KB Zod dumps across decompose_project, add_task, resolve_result and 25×
+		// write_file — the handlers' own compact errors never got to run). MCP tools keep their schemas verbatim:
+		// external servers validate server-side and may rely on typed advertisement.
 		const extraTools = filterToolsByPolicyEnabled(
-			wrapSwarmAgentTools(rawExtraTools, swarmToolBrokerState, { mcpToolNames }),
+			relaxAgentToolSchemas(wrapSwarmAgentTools(rawExtraTools, swarmToolBrokerState, { mcpToolNames }), {
+				skipToolNames: mcpToolNames,
+			}),
 			request.toolPolicies,
 		);
 		const toolExecutors = wrapSwarmToolExecutors(request.toolExecutors, swarmToolBrokerState, { mcpToolNames });
