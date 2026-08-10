@@ -299,7 +299,9 @@ if [ "$RUN_KIND" = dev-test ]; then
     `# reports insufficient_data forever and reads as "keep running" when in fact nothing was being gathered.` \
     `# Safe to turn on here by construction: the registry classifies it mode: "observe_only" — it records a` \
     `# counterfactual and changes no behaviour. ENFORCE stays off, which is the whole point of observe-first.` \
-      "$REPO/node_modules/.bin/tsx" src/cli.ts --port "$PORT" >"$RUNTIME_LOG" 2>&1 ) & RUNTIME_PID=$!
+    `# --no-open: a rig runtime must NEVER open a browser tab on the operator's machine (the drain script had` \
+    `# the same omission — David's machine collected 7 dead tabs before it was found there; fixed in both).` \
+      "$REPO/node_modules/.bin/tsx" src/cli.ts --port "$PORT" --no-open >"$RUNTIME_LOG" 2>&1 ) & RUNTIME_PID=$!
   for i in $(seq 1 40); do HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN && break; sleep 1; done
   HOME="$REAL_HOME" lsof -iTCP:"$PORT" -sTCP:LISTEN -P 2>/dev/null | grep -q LISTEN || { log "FATAL: runtime did not come up"; exit 4; }
   log "runtime UP"

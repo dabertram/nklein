@@ -14691,8 +14691,10 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **The never-silent fallback caught the wire's own first bug:** the live run printed "none authored for ws" —
   I had taken `basename` of the TEMP COPY (`…/real-drain-*/ws`) instead of the source argument. Fixed; the
   corrected path verified on the same run's banked tree (0/1 NOT-delivered, independent) with no second drain.
-  REMAINING: a stronger/longer run (or a decomposed multi-card drain) to see whether project 02's domain slice
-  is reachable at all locally; authoring oracles for the other flagship projects (same pattern, ~3 files each).
+  REMAINING (one clause — an earlier draft also listed "authoring oracles for the other flagship projects",
+  which was already CLOSED 2026-08-08 above; a remainder list must be checked against the entry's own body):
+  a stronger/longer run — or a decomposed multi-card drain, letting the product's own decompose flow split the
+  77 KB spec instead of one card carrying it all — to see whether project 02's domain slice is reachable locally.
 - [x] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle. CLOSED 2026-08-10 — the
   measurement ran across THREE models (8 legs), the delta is real, reproducible, and root-caused where it is
   defined.**
