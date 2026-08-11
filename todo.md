@@ -14802,7 +14802,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   run builds on a predecessor's deliveries — the domain slice cannot be reached by repetition, only by depth.
   The drift-critic stream is likewise saturated on-track (250+ verdicts, 1 honest flag, ~0.4% flag rate — a
   real false-positive baseline for the P18.4b gate).
-  REMAINING, in value order: **(1) RESUME-MODE drains** — persist NKLEIN_RUN_HOME + the scaffolded workspace
+  **🏁 RESUME-MODE RAN (cycles 1-3, 2026-08-11) AND CLOSED THE QUESTION.** Cycle 1 banked a persistent
+  home+workspace pair (~/nklein-resume-02: 24-card graph, foundation delivered, types card parked). Cycle 2
+  exposed the LAZY-SERVICE cold-boot gap (a booted runtime whose clients only read state never instantiates the
+  session service, so nothing can ever dispatch — fixed: boot warm-up + a cold-boot sweep at service creation,
+  the same sweep every terminal runs; real users reopening a mid-graph board get the same fix). Cycle 3 then
+  proved the runtime's non-dispatch CORRECT: the board's canonical dependency edges (board.dependencies — not
+  the stale per-card dependsOn my first analysis read) chain EVERY remaining card through core-types →
+  incident-types → hazards → permit-types → permit-state-machine, and core-types is the parked card.
+  **TERMINAL VERDICT for the reachability question: the domain slice is LOCALLY UNREACHABLE with
+  qwen3.6-35b under the product's own quality gates — for one precise, attributable reason: the foundational
+  types card cannot pass the test-driven gate (the model will not write a type-level test; three runs, same
+  park), and the entire graph correctly waits behind it.** The gates are working; the model is the wall. A
+  HUMAN-assisted continuation exists by design (the park text names it: declare the card not_testable as the
+  OPERATOR, or hand-write the one test) — that is David's call, deliberately not exercised by the autonomous
+  campaign, because a rubber-stamped declaration would change what the campaign measures.
+  Standing assets: the resume pair (~/nklein-resume-02) is preserved for that continuation; the oracle wire
+  grades any deeper tree the moment one exists.
+  REMAINING, in value order: **(1) ~~RESUME-MODE drains~~ (built, ran, question closed)** — persist NKLEIN_RUN_HOME + the scaffolded workspace
   across runs so run N+1 boots the runtime over the surviving board and dispatches the DEEPER startable cards
   instead of re-scaffolding (needs: skip the duplicate seed when a board already exists; the rig's teardown to
   spare the persisted pair; the monitor to classify as today). This is the honest path to "is the domain slice
