@@ -14788,6 +14788,11 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   before stall-killing. Fixed on two seams: the review-park branch now sweeps waiting siblings like every
   other terminal (harmless when all depend on the parked card, correct in mixed graphs), and the dev-test
   monitor classifies a parked-review + nothing-startable + idle board as needs_operator instead of waiting.
+  **Runs 15-20 (overnight 2026-08-11, drift-critic-enabled cadence): the critic recorded 60+ real verdicts
+  (all on-track — honest for on-brief workers; the remedy stream fills when a run genuinely derails), and run
+  19 set the campaign's completion record — FIVE cards completed and merged in one ~40-min classified run.**
+  Variance is now well-characterized: roughly half the runs materialize the graph and deliver 2-5 cards; the
+  other half end at the seed session (architect finalize variance). Every run ends classified; no babysitting.
   **Run 14 (20260811-014837, 31 min) CONFIRMED both fixes live: ended CLASSIFIED by the monitor's own settle
   (acceptance_green_workflow_incomplete; 4 completed / 16 planning / 1 review-parked) — no stall-abort, no
   idle tail.** The campaign loop is now cheap and self-terminating: foundation cards deliver every run; the
