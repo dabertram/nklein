@@ -9918,7 +9918,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **MECHANISM #3 IS LIVE in `dev mechanism-decision`** (`tool-trust-observation-join`; recommended =
   demote_tool/withhold_tool, actual = applied-or-kept_offering by the enforced field; 10 command tests). (c) **diagnostics/capture/dev-only** — no decision, excluded by the entry's own
   earlier analysis. So P15.3's remaining work forks: shadow emitters one at a time (b), and an A/B campaign
-  design for (a) — the latter needs paired drains and is a fresh-context design task.
+  design for (a) — SCOPED 2026-08-11: pairs = alternating flag-on/flag-off REAL drains over the same fixture
+  (the 02 preset, or resume cycles once a graph survives), outcome = per-card terminal success from the ledger
+  outcome index (the same join every mechanism uses), decision = `decideDefaultFlip`'s McNemar on the pairs.
+  First flag: `NKLEIN_MODEL_CONSULT` (its registry note already names the bar). The build is a `dev` campaign
+  runner that alternates arms and accumulates pairs across invocations — fresh-context work, sized ~one
+  session; until then the N11 sim lanes keep proving mechanisms FIRE, which is deliberately not the same claim.
   **▶ MECHANISM #2 COMPLETE 2026-08-11 — the off-track remedy (P18.4b) now has the full pipeline:** join key
   (drift/remedy observations carry the board task id), adapter (`off-track-remedy-observation-join`, same
   honesty rules as the gate join: unknown remedy = UNUSABLE, never counted toward either side; unjoined
@@ -10252,6 +10257,10 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   scan is text-level and can miss those).
 - [ ] **P15.5 — Settings-surface reduction driven by P15.3.** Every mechanism that gets a justified default is a
   setting that does NOT need to exist. Target: the pro/settings surface shrinks as proof accumulates.
+  **Unblock check 2026-08-11: correctly still waiting.** No mechanism has a justified default yet — the tool
+  gate's verdict is corpus-dependent (do_not_enforce on normal traffic 2026-08-08; enforce-worth-trial on the
+  adversarial drain corpus 2026-08-11 — a flip needs the paired A/B, not either rate), and the remedy/trust
+  streams are below the evidence floor. This item moves only when P15.3 produces its first defensible flip.
 
 - [x] **P15.6 — Capability INDEX: make built capability findable *(filed + shipped 2026-07-20)*.**
   **Filed because the orphan triage found the real problem was not dead code.** One session produced THREE
