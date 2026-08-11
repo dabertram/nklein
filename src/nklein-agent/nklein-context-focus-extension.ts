@@ -1179,8 +1179,16 @@ export function createKanbanContextFocusExtension(
 							signal: "custom",
 							severity: tier === "dropped" ? "warning" : "info",
 							message: `Tool trust ${tier} for ${trustToolName} in ${sessionId} (consecutive failures).`,
-							taskId: sessionId,
-							metadata: { category: "tool_trust_decay", tool: trustToolName, tier },
+							// The BOARD task id is the outcome-join key (P15.3); session ids change per attempt.
+							taskId: taskId ?? sessionId,
+							metadata: {
+								category: "tool_trust_decay",
+								tool: trustToolName,
+								tier,
+								// Whether the enforcement flag was ON when this transition fired — the join's `actual`
+								// (guidance injected / tool withheld vs merely recorded) is unknowable without it.
+								enforced: isTruthyEnv(process.env.NKLEIN_TOOL_TRUST_DECAY),
+							},
 						});
 						if (isTruthyEnv(process.env.NKLEIN_TOOL_TRUST_DECAY)) {
 							const guidance = toolTrustGuidance(tier, trustToolName);

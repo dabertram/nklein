@@ -8,7 +8,11 @@ import { runDevMechanismDecisionCommand, toGateRecord } from "../../../src/comma
 
 async function run(rawOptions: Parameters<typeof runDevMechanismDecisionCommand>[0]): Promise<string> {
 	// Every test injects its reads; default the remedy stream to empty so no test touches the real sink.
-	const options = { readRemedyObservations: async () => [], ...rawOptions };
+	const options = {
+		readRemedyObservations: async () => [],
+		readTrustObservations: async () => [],
+		...rawOptions,
+	};
 	const originalWrite = process.stdout.write.bind(process.stdout);
 	let out = "";
 	process.stdout.write = ((chunk: string) => {
@@ -91,6 +95,21 @@ describe("runDevMechanismDecisionCommand", () => {
 		// 3 usable observations, 2 recommending something other than continue, 1 of those with a known outcome.
 		expect(out).toMatch(/3 remedy observation\(s\): 2 recommending something other than continue, 1 of those/u);
 		expect(out).toMatch(/1 unusable record\(s\), 1 without a ledger outcome/u);
+	});
+
+	it("reports the tool-trust shadow beside the others, honouring the enforced field (P15.3 #3)", async () => {
+		const out = await run({
+			readObservations: async () => [],
+			readLedger: async () => [completed("t3", "failed")] as never,
+			readTrustObservations: async () => [
+				{ taskId: "t3", metadata: { tool: "edit_file", tier: "dropped", enforced: false } },
+				// Legacy record without `enforced`: its world is unknowable — unusable, never guessed.
+				{ taskId: "t3", metadata: { tool: "edit_file", tier: "demoted" } },
+			],
+		});
+		expect(out).toMatch(/tool_trust_decay/u);
+		expect(out).toMatch(/1 trust-decay observation\(s\): 1 unapplied recommendation\(s\), 1 of those/u);
+		expect(out).toMatch(/1 unusable record\(s\)/u);
 	});
 
 	it("says plainly that zero observations prove nothing", async () => {

@@ -937,8 +937,14 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	{
 		category: "tool_trust_decay",
 		item: "F12.24",
-		observes: "a tool demoted after consecutive failures in one session",
-		enabledBy: "NKLEIN_TOOL_TRUST_DECAY",
+		observes:
+			"a tool demoted after consecutive failures in one session (recorded UNCONDITIONALLY — the flag gates only the guidance/filtering effect, whose on/off state the record's `enforced` field carries)",
+		// Corrected 2026-08-11: the record is always-on (live-verified — a flagless run recorded a demotion),
+		// so `enabledBy: NKLEIN_TOOL_TRUST_DECAY` was WRONG here: a flag-off run's absence would be misjudged
+		// "never_enabled" when zero genuinely means "no tool decayed". The flag link moves to `covers`, the
+		// sysprompt_level pattern for unconditional records that make a flag observable.
+		enabledBy: null,
+		covers: ["NKLEIN_TOOL_TRUST_DECAY"],
 		expectation: "exceptional",
 	},
 	{

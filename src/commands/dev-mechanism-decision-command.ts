@@ -9,6 +9,7 @@ import {
 	joinToolGateObservations,
 	type ToolGateObservationRecord,
 } from "../core/tool-gate-observation-join";
+import { joinToolTrustObservations, toToolTrustRecord } from "../core/tool-trust-observation-join";
 import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
 
@@ -42,11 +43,17 @@ export interface DevMechanismDecisionOptions {
 	readRemedyObservations?: () => Promise<
 		readonly { metadata?: Record<string, unknown> | undefined; taskId?: string | null }[]
 	>;
+	/** Injected in tests; defaults to the real telemetry read of the tool-trust stream. */
+	readTrustObservations?: () => Promise<
+		readonly { metadata?: Record<string, unknown> | undefined; taskId?: string | null }[]
+	>;
 }
 
 const GATE_CATEGORY = "tool_catalog_gate_observation";
 /** P18.4b: the second mechanism with a real counterfactual stream — the observe-only off-track remedy. */
 const REMEDY_CATEGORY = "off_track_remedy_observed";
+/** P15.3 mechanism #3: the F12.24 tool-trust shadow (recorded unconditionally; the flag gates the effect). */
+const TRUST_CATEGORY = "tool_trust_decay";
 /** The reader's hard maximum. Asking for less would silently narrow the evidence a FLIP decision rests on. */
 const OBSERVATION_READ_LIMIT = 500;
 
@@ -85,6 +92,9 @@ export async function runDevMechanismDecisionCommand(options: DevMechanismDecisi
 	const remedyEvents = await (options.readRemedyObservations
 		? options.readRemedyObservations()
 		: readSelfObservationEvents({ category: REMEDY_CATEGORY, limit: OBSERVATION_READ_LIMIT }));
+	const trustEvents = await (options.readTrustObservations
+		? options.readTrustObservations()
+		: readSelfObservationEvents({ category: TRUST_CATEGORY, limit: OBSERVATION_READ_LIMIT }));
 	const outcomeByTaskId = buildTaskOutcomeIndex(ledger as never);
 	const joined = joinToolGateObservations({
 		records: events.map(toGateRecord),
@@ -96,11 +106,17 @@ export async function runDevMechanismDecisionCommand(options: DevMechanismDecisi
 		outcomeByTaskId,
 	});
 	const remedyDecision = buildMechanismDecision(remedyJoined.observations);
+	const trustJoined = joinToolTrustObservations({
+		records: trustEvents.map(toToolTrustRecord),
+		outcomeByTaskId,
+	});
+	const trustDecision = buildMechanismDecision(trustJoined.observations);
 	// Hitting the reader's ceiling means the window is FULL, so there are probably older observations it never
 	// returned. A verdict computed on a truncated sample looks exactly like one computed on all of it — and this
 	// verdict's whole job is to license flipping a default. Saturation is therefore reported, not swallowed.
 	const saturated = events.length >= OBSERVATION_READ_LIMIT;
 	const remedySaturated = remedyEvents.length >= OBSERVATION_READ_LIMIT;
+	const trustSaturated = trustEvents.length >= OBSERVATION_READ_LIMIT;
 
 	if (options.json) {
 		process.stdout.write(
@@ -117,6 +133,12 @@ export async function runDevMechanismDecisionCommand(options: DevMechanismDecisi
 							join: remedyJoined,
 							decision: remedyDecision,
 							readSaturated: remedySaturated,
+						},
+						{
+							mechanism: TRUST_CATEGORY,
+							join: trustJoined,
+							decision: trustDecision,
+							readSaturated: trustSaturated,
 						},
 					],
 				},
@@ -156,6 +178,13 @@ export async function runDevMechanismDecisionCommand(options: DevMechanismDecisi
 		remedyJoined.summary,
 		remedyDecision,
 		remedySaturated,
+	);
+	process.stdout.write("\n");
+	printDecision(
+		`${TRUST_CATEGORY} (F12.24 tool-trust shadow — recorded unconditionally, the flag gates the effect)`,
+		trustJoined.summary,
+		trustDecision,
+		trustSaturated,
 	);
 	if (decision.verdict === "insufficient_data" || remedyDecision.verdict === "insufficient_data") {
 		// Said explicitly, because this verdict is the expected one for a long time and its meaning has changed
