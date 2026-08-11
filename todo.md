@@ -14727,9 +14727,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   before stall-killing. Fixed on two seams: the review-park branch now sweeps waiting siblings like every
   other terminal (harmless when all depend on the parked card, correct in mixed graphs), and the dev-test
   monitor classifies a parked-review + nothing-startable + idle board as needs_operator instead of waiting.
-  REMAINING: continue the campaign (same one-command
-  invocation) — constrained-schema retry for empty calls stays the strongest untried model-side lever — or
-  bank the verdict as the honest local-capability boundary and grade any deeper tree with the oracle wire.
+  **Run 14 (20260811-014837, 31 min) CONFIRMED both fixes live: ended CLASSIFIED by the monitor's own settle
+  (acceptance_green_workflow_incomplete; 4 completed / 16 planning / 1 review-parked) — no stall-abort, no
+  idle tail.** The campaign loop is now cheap and self-terminating: foundation cards deliver every run; the
+  types-card review park remains the model-capability wall.
+  REMAINING: continue the campaign (same one-command invocation) — constrained-schema retry for empty calls
+  stays the strongest untried model-side lever, and the types card's test-refusal is the recurring park cause
+  (worker won't write a type-level test; the gate is correct) — or bank the verdict as the honest
+  local-capability boundary and grade any deeper tree with the standing oracle wire.
 - [x] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle. CLOSED 2026-08-10 — the
   measurement ran across THREE models (8 legs), the delta is real, reproducible, and root-caused where it is
   defined.**
