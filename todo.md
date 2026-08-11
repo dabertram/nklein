@@ -9909,7 +9909,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   pays the mechanism's full price while discarding its benefit, so it belongs to the A/B family after all
   (and its ON-effect record already exists: F4.8b `queue_aware_free_first`). The corrected exemplar is
   `NKLEIN_TOOL_TRUST_DECAY`: its decision computes from tool-error history already in memory on the default
-  path, so the shadow is genuinely free — the next concrete buildable slice. (c) **diagnostics/capture/dev-only** — no decision, excluded by the entry's own
+  path, so the shadow is genuinely free — and checking found the shadow ALREADY RECORDING (tier transitions
+  are unconditional; the flag gates only guidance/filtering) with two latent defects, both fixed 2026-08-11:
+  the record's taskId was the SESSION id (the drift stream's join-key defect again — outcomes could never
+  join), and the audit entry claimed enabledBy for an always-on record (a flag-off run's honest zero would
+  read "never_enabled"; corrected to enabledBy null + covers, the sysprompt_level pattern). Records now stamp
+  `enforced`, so the join's `actual` is READ, never guessed — a legacy record without it is UNUSABLE.
+  **MECHANISM #3 IS LIVE in `dev mechanism-decision`** (`tool-trust-observation-join`; recommended =
+  demote_tool/withhold_tool, actual = applied-or-kept_offering by the enforced field; 10 command tests). (c) **diagnostics/capture/dev-only** — no decision, excluded by the entry's own
   earlier analysis. So P15.3's remaining work forks: shadow emitters one at a time (b), and an A/B campaign
   design for (a) — the latter needs paired drains and is a fresh-context design task.
   **▶ MECHANISM #2 COMPLETE 2026-08-11 — the off-track remedy (P18.4b) now has the full pipeline:** join key
