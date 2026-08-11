@@ -9893,8 +9893,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   for a structural reason, which is the exact misread this whole thread has been about.
   So the next step is NOT wiring more flags into the existing report. It is **choosing which of the ~29
   flag-gated mechanisms deserve a counterfactual emitter**, and adding one per mechanism — design work, one
-  mechanism at a time, exactly as this item's title says. `dev mechanism-decision` is also single-mechanism
-  today and would need a selector.
+  mechanism at a time, exactly as this item's title says. ~~`dev mechanism-decision` is also single-mechanism
+  today and would need a selector.~~
+  **▶ MECHANISM #2 COMPLETE 2026-08-11 — the off-track remedy (P18.4b) now has the full pipeline:** join key
+  (drift/remedy observations carry the board task id), adapter (`off-track-remedy-observation-join`, same
+  honesty rules as the gate join: unknown remedy = UNUSABLE, never counted toward either side; unjoined
+  outcome = null), and the report prints BOTH mechanisms (JSON gains `mechanisms[]` beside the original
+  fields). `actual` is the faithful constant "continue" while the remedy stays observe-only; the module header
+  warns the acting half must replace it with what was actually done.
+  **Stated dependency, so nobody hunts for a missing wire:** the stream accumulates only on runs with
+  `NKLEIN_DRIFT_CRITIC` set — and unlike `NKLEIN_TOOL_GATE_OBSERVE` (registry-classified observe_only,
+  auto-set by the drain harness), the critic INJECTS WORKER NUDGES, i.e. it is behaviour-affecting, so the
+  harness deliberately does NOT auto-set it. Gathering remedy evidence is an explicit run configuration:
+  `NKLEIN_DRIFT_CRITIC=1` on the same drain command. Expect `insufficient_data` until such runs accumulate —
+  the designed answer, now for the honest reason (volume) rather than the structural one (no join key).
   **✅ JOIN KEY SHIPPED 2026-08-01.** `taskId: sessionId` now travels with the gate observation — a one-line change
   using the pattern a NEIGHBOURING `recordSelfObservation` in the same function already used, so nothing new had to
   be plumbed. A source-level ratchet pins it, scoped to the slice between that call and its own metadata so a
