@@ -33,6 +33,10 @@ done
 case "$REPEAT" in ''|*[!0-9]*|0) echo "error: --repeat must be a positive integer" >&2; exit 64;; esac
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
+# The rig's idle-stall window MUST exceed the dev-test monitor's stagnation settle (48 polls x 10s = 480s),
+# or arms that end via stagnation get stall-killed ~60s before they can classify — and those kills correlate
+# with whichever arm fails more, silently BIASING the pair sample (live: 4/6 arm-A discards, 0/6 arm-B).
+export NKLEIN_STALL_SECS="${NKLEIN_STALL_SECS:-600}"
 CAMPAIGN_DIR="$HOME/nklein-ab-campaigns"
 PAIRS_FILE="$CAMPAIGN_DIR/$FLAG.jsonl"
 mkdir -p "$CAMPAIGN_DIR"
