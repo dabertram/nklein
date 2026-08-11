@@ -1163,6 +1163,8 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 							request.offTrackSignalsProvider,
 							// P18.4b: the BOARD task id, so drift/remedy observations join the card's eventual outcome.
 							request.taskId,
+							// P18.4b acting half: only when the operator opted in — observe-only stays byte-identical.
+							isTruthyEnv(process.env.NKLEIN_DRIFT_REMEDY_ENFORCE) ? request.onOffTrackRemedy : undefined,
 						),
 					],
 					...(request.userInstructionService ? { userInstructionService: request.userInstructionService } : {}),

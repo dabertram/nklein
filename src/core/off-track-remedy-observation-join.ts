@@ -33,17 +33,21 @@ const KNOWN_REMEDIES: ReadonlySet<string> = new Set([
 export interface OffTrackRemedyObservationRecord {
 	readonly taskId: string | null;
 	readonly remedy: string | null;
+	/** What was actually DONE (the acting half stamps this); absent/legacy records mean "continue". */
+	readonly actual: string | null;
 }
 
-/** Pull the join fields out of a self-observation event (top-level taskId + metadata.remedy). */
+/** Pull the join fields out of a self-observation event (top-level taskId + metadata.remedy/actualAction). */
 export function toOffTrackRemedyRecord(event: {
 	readonly taskId?: string | null;
 	readonly metadata?: Record<string, unknown> | undefined;
 }): OffTrackRemedyObservationRecord {
 	const remedy = event.metadata?.remedy;
+	const actual = event.metadata?.actualAction;
 	return {
 		taskId: typeof event.taskId === "string" && event.taskId.length > 0 ? event.taskId : null,
 		remedy: typeof remedy === "string" && remedy.length > 0 ? remedy : null,
+		actual: typeof actual === "string" && actual.length > 0 ? actual : null,
 	};
 }
 
@@ -77,7 +81,8 @@ export function joinOffTrackRemedyObservations(input: {
 		}
 		observations.push({
 			recommended: record.remedy,
-			actual: OFF_TRACK_ACTUAL_TODAY,
+			// The acting half stamps what was DONE; legacy/observe-only records carry the faithful constant.
+			actual: record.actual ?? OFF_TRACK_ACTUAL_TODAY,
 			succeeded: outcome ?? null,
 		});
 	}

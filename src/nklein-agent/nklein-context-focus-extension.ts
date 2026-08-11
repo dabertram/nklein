@@ -284,6 +284,15 @@ export function createKanbanContextFocusExtension(
 	// join the ledger), so evaluable stays 0 forever — the exact pathology the decision command's docstring
 	// names — and the observe-first gate can never conclude anything from what was recorded.
 	taskId?: string,
+	// P18.4b ACTING half (opt-in, NKLEIN_DRIFT_REMEDY_ENFORCE): applies the computed remedy. Undefined ⇒ the
+	// long-standing observe-only behaviour, byte-identical. The callback returns what it actually DID, which is
+	// recorded as the observation's actualAction — an applied remedy must never be recorded as a disagreement
+	// with itself (the join module's own warning).
+	onOffTrackRemedy?: (input: {
+		readonly remedy: import("../core/off-track-intervention").OffTrackRemedy;
+		readonly reason: string;
+		readonly turn: number;
+	}) => Promise<{ readonly applied: string } | null>,
 ): NKleinSdkRuntimeExtension {
 	const nightlyHermetic = isNightlyHermeticEnvironment();
 	const operationalNow = nightlyHermetic ? () => NIGHTLY_HERMETIC_EPOCH_MS : Date.now;
@@ -592,16 +601,34 @@ export function createKanbanContextFocusExtension(
 											// `restart_with_restatement` for as long as it stayed a literal.
 											// The acting half now only has to add the WRITE (`recordOffTrackRestart`); the
 											// read, the keying and the cap are already in place and tested.
-											restartsSoFar: getOffTrackRestartCount(sessionId),
+											// Keyed by the BOARD task id: the ledger's whole design is that the count OUTLIVES
+											// the restart, and session ids change per attempt — reading by sessionId would
+											// reset the budget on the very event it counts (latent until the acting half; the
+											// sessionId fallback keeps ad-hoc sessions working).
+											restartsSoFar: getOffTrackRestartCount(taskId ?? sessionId),
 										});
+										// ACT (opt-in) before recording, so the observation's actualAction is what actually
+										// happened rather than a prediction. A throwing/failed action records as failed:*,
+										// never as success.
+										const acted = onOffTrackRemedy
+											? await onOffTrackRemedy({
+													remedy: remedy.remedy,
+													reason: remedy.reason,
+													turn: driftTurn,
+												}).catch((error: unknown) => ({
+													applied: `failed:${error instanceof Error ? error.message : String(error)}`,
+												}))
+											: null;
+										const actualAction = acted?.applied ?? "continue";
 										recordSelfObservation({
 											signal: "custom",
 											severity: "info",
-											message: `Off-track remedy (observed, not applied) at turn ${driftTurn}: ${remedy.remedy} — ${remedy.reason}`,
+											message: `Off-track remedy (${acted ? `APPLIED: ${actualAction}` : "observed, not applied"}) at turn ${driftTurn}: ${remedy.remedy} — ${remedy.reason}`,
 											...(taskId ? { taskId } : {}),
 											metadata: {
 												category: "off_track_remedy_observed",
 												remedy: remedy.remedy,
+												actualAction,
 												turn: driftTurn,
 												contextUtilisation: driftUtilisation.toFixed(3),
 												hasCapturedWork: String(offTrackSignals.hasCapturedWork),

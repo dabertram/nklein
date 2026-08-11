@@ -119,6 +119,12 @@ export interface StartNKleinSessionRuntimeRequest {
 	offTrackSignalsProvider?: () =>
 		| { readonly hasCapturedWork: boolean; readonly basis?: string; readonly detail?: string }
 		| Promise<{ readonly hasCapturedWork: boolean; readonly basis?: string; readonly detail?: string }>;
+	/** P18.4b acting half (opt-in): applies the computed off-track remedy and reports what was actually done. */
+	onOffTrackRemedy?: (input: {
+		readonly remedy: "continue" | "compact_and_continue" | "restart_with_restatement" | "park";
+		readonly reason: string;
+		readonly turn: number;
+	}) => Promise<{ readonly applied: string } | null>;
 	/** F3.3: correlates a successful prompt-variation recovery with the task's terminal attempt ledger entry. */
 	onPromptStrategyApplied?: (strategy: string) => void;
 	/** F3.10: learned retry budget/profile snapshot used by the shared swarm adaptive loop. */

@@ -15,21 +15,37 @@ describe("toOffTrackRemedyRecord", () => {
 		expect(toOffTrackRemedyRecord({ taskId: "t1", metadata: { remedy: "park" } })).toEqual({
 			taskId: "t1",
 			remedy: "park",
+			actual: null,
 		});
 		expect(toOffTrackRemedyRecord({ taskId: "", metadata: { remedy: 7 } })).toEqual({
 			taskId: null,
 			remedy: null,
+			actual: null,
 		});
 	});
 });
 
 describe("joinOffTrackRemedyObservations", () => {
+	it("an APPLIED remedy records its own action as actual — never a disagreement with itself", () => {
+		// The acting half stamps actualAction; a restart that was performed must join as agreement-with-action,
+		// or the decision stream would count every applied remedy against the very gate that authorised it.
+		const report = joinOffTrackRemedyObservations({
+			records: [{ taskId: "t1", remedy: "restart_with_restatement", actual: "restarted_with_restatement" }],
+			outcomeByTaskId: new Map([["t1", true]]),
+		});
+		expect(report.observations[0]).toEqual({
+			recommended: "restart_with_restatement",
+			actual: "restarted_with_restatement",
+			succeeded: true,
+		});
+	});
+
 	it("maps remedy → recommended against the constant actual, joining outcomes by task id", () => {
 		const report = joinOffTrackRemedyObservations({
 			records: [
-				{ taskId: "won", remedy: "restart_with_restatement" },
-				{ taskId: "lost", remedy: "park" },
-				{ taskId: "agree", remedy: "continue" },
+				{ taskId: "won", remedy: "restart_with_restatement", actual: null },
+				{ taskId: "lost", remedy: "park", actual: null },
+				{ taskId: "agree", remedy: "continue", actual: null },
 			],
 			outcomeByTaskId: new Map([
 				["won", true],
@@ -50,7 +66,7 @@ describe("joinOffTrackRemedyObservations", () => {
 		// disagreement rate toward no_op (which ends in deletion); counting it as disagreement manufactures
 		// evidence for enforcement. Both directions are wrong, so neither is taken.
 		const report = joinOffTrackRemedyObservations({
-			records: [{ taskId: "t1", remedy: "reboot_universe" }],
+			records: [{ taskId: "t1", remedy: "reboot_universe", actual: null }],
 			outcomeByTaskId: new Map([["t1", true]]),
 		});
 		expect(report.observations).toHaveLength(0);

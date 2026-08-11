@@ -276,6 +276,9 @@ const PROFILE_EXTRA_ENV: Readonly<Record<string, Readonly<Record<string, string>
 		// NKLEIN_UNIFIED_MEMORY, already in this lane: it adds agent tooling rather than altering the drain shape.
 		NKLEIN_BASIC_MEMORY: "1",
 		NKLEIN_DRIFT_CRITIC: "1",
+		// P18.4b acting half (2026-08-11): exercised here where the remedies can only ever discard SIM work; the
+		// production default stays OFF behind the dev mechanism-decision evidence bar.
+		NKLEIN_DRIFT_REMEDY_ENFORCE: "1",
 		NKLEIN_FEWSHOT_EXEMPLARS: "1",
 		NKLEIN_FLEET_AWARE_DECOMPOSE: "1",
 		NKLEIN_FOCUS_CHAIN_NUDGE: "1",

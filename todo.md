@@ -11754,7 +11754,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   stays null (counted, not evaluable). This closes P15.3's "counterfactual emitter" design work for THIS
   mechanism — the observe-first gate now has its readout, and `insufficient_data` at current volumes is the
   designed answer that more drift-critic-enabled running can change.
-  **REMAINING (the acting half proper, still deliberately observe-first/F1.21):** an opt-in enforcement gate
+  **▶ THE ACTING HALF SHIPPED 2026-08-11 — behind `NKLEIN_DRIFT_REMEDY_ENFORCE`, default OFF (F1.21 intact).**
+  The extension takes an optional `onOffTrackRemedy` action callback, constructed by the runtime ONLY under the
+  flag (observe-only stays byte-identical); the service implements the two destructive remedies with proven
+  patterns — `restart_with_restatement` = the redrive-after-stop shape the delivery holds use (ledger WRITE
+  `recordOffTrackRestart` lands BEFORE the stop so the budget binds even if the fresh start fails; the clean
+  session carries the original brief + restart framing, never a compaction of the drifted transcript), `park` =
+  the F2.17b attention stop. The observation now records `actualAction` — what the callback actually DID
+  (`failed:*` on a throwing action, never success) — and the decision join reads it, so an applied remedy joins
+  as agreement-with-action rather than a disagreement with itself (the join header's own warning, honoured).
+  **En route, a latent defect fixed: the restart-budget READ was keyed by session id** — which changes per
+  attempt, so the count would have reset on the very restart it counts (the ledger's headline property,
+  defeated at the read site). Keyed by the board task id now, with the budget test pair updated to pin the key.
+  Flag registered (`enforcing`; note: flip ONLY per `dev mechanism-decision` on the remedy stream). 15 wire
+  tests + 4 join tests.
+  **REMAINING:** the evidence-gated FLIP itself (dev mechanism-decision on accumulated NKLEIN_DRIFT_CRITIC
+  runs — insufficient_data at current volumes is the designed answer), and an opt-in enforcement gate
   (default OFF) that ACTS on the recorded remedy — `restart_with_restatement` performs the restart (write
   `recordOffTrackRestart` at the restart it performs, restate the card brief) and `park` parks for attention —
   plus the false-positive-rate readout from the accumulated `off_track_remedy_observed` stream that justifies

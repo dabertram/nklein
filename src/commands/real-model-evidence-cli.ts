@@ -307,10 +307,7 @@ export async function collectRealModelRunEvidence(options: CliOptions): Promise<
 		aimockRecordedFixtures: aimockEntries.length,
 		aimockReplayTracks: aimockReplay.tracks.length,
 		aimockReplaySessions: replaySelections.length,
-		aimockSupersededSessions: replaySelections.reduce(
-			(total, selection) => total + selection.superseded.length,
-			0,
-		),
+		aimockSupersededSessions: replaySelections.reduce((total, selection) => total + selection.superseded.length, 0),
 		collectionErrors: errors,
 	};
 	await writeFile(join(options.outputDir, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`, "utf8");

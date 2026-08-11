@@ -232,9 +232,11 @@ describe("F12.92 drift critic — the wire, end to end", () => {
 		// Covers the live `getOffTrackRestartCount(sessionId)` read. With the budget spent and NO captured work,
 		// the honest answer flips from restart to park — and a hard-coded `0` could never produce it, which is
 		// exactly what made the observation biased toward `restart_with_restatement` while it was a literal.
-		const { extension, sessionId } = buildExtension({ driftReply: OFF_TRACK_REPLY, hasCapturedWork: false });
+		// Keyed by the BOARD task id (2026-08-11): session ids change per attempt, so a sessionId-keyed read
+		// would reset the budget on the very restart it counts — the ledger's own headline property.
+		const { extension, taskId } = buildExtension({ driftReply: OFF_TRACK_REPLY, hasCapturedWork: false });
 		for (let spent = 0; spent < MAX_RESTATEMENT_RESTARTS; spent += 1) {
-			recordOffTrackRestart(sessionId);
+			recordOffTrackRestart(taskId);
 		}
 
 		await extension.hooks?.beforeModel?.(makeContext(8));
@@ -291,6 +293,63 @@ describe("F12.92 drift critic — the wire, end to end", () => {
 		expect(remedy?.metadata?.capturedWorkBasis).toBe("assumed_safe");
 		expect(remedy?.metadata?.capturedWorkDetail).toBe("probe could not read the repo");
 		expect(remedy?.message).toMatch(/park/);
+	});
+
+	it("ACTS on the remedy when an onOffTrackRemedy callback is supplied, and records what was done", async () => {
+		// P18.4b acting half: the callback is handed the computed remedy, and the observation's actualAction is
+		// what the callback reports it DID — an applied remedy must never read as a disagreement with itself.
+		const applied: string[] = [];
+		const driftCriticCaller = vi.fn(async () => OFF_TRACK_REPLY);
+		sessionCounter += 1;
+		const extension = createKanbanContextFocusExtension(
+			`session-${sessionCounter}`,
+			"/workspaces/task-1",
+			"/repo",
+			200_000,
+			undefined,
+			undefined,
+			driftCriticCaller as never,
+			undefined,
+			undefined,
+			() => ({ hasCapturedWork: false }),
+			`task-${sessionCounter}`,
+			async ({ remedy }) => {
+				applied.push(remedy);
+				return { applied: "restarted_with_restatement" };
+			},
+		);
+		await extension.hooks?.beforeModel?.(makeContext(8));
+		await settle();
+
+		expect(applied).toEqual(["restart_with_restatement"]);
+		const remedy = observations.find((event) => event.metadata?.category === "off_track_remedy_observed");
+		expect(remedy?.metadata?.actualAction).toBe("restarted_with_restatement");
+		expect(remedy?.message).toMatch(/APPLIED/);
+	});
+
+	it("a THROWING action callback records failed:*, never success — and never disturbs the run", async () => {
+		const driftCriticCaller = vi.fn(async () => OFF_TRACK_REPLY);
+		sessionCounter += 1;
+		const extension = createKanbanContextFocusExtension(
+			`session-${sessionCounter}`,
+			"/workspaces/task-1",
+			"/repo",
+			200_000,
+			undefined,
+			undefined,
+			driftCriticCaller as never,
+			undefined,
+			undefined,
+			() => ({ hasCapturedWork: false }),
+			`task-${sessionCounter}`,
+			async () => {
+				throw new Error("session refused");
+			},
+		);
+		await expect(extension.hooks?.beforeModel?.(makeContext(8))).resolves.not.toThrow();
+		await settle();
+		const remedy = observations.find((event) => event.metadata?.category === "off_track_remedy_observed");
+		expect(remedy?.metadata?.actualAction).toBe("failed:session refused");
 	});
 
 	it("skips the remedy entirely when no signals provider is supplied", async () => {

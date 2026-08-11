@@ -74,6 +74,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 	{ flag: "NKLEIN_TOOL_GATE_OBSERVE", mode: "observe_only", gate: "nklein-context-focus-extension.ts" },
 	{ flag: "NKLEIN_TOOL_GATE_ENFORCE", mode: "enforcing", gate: "nklein-context-focus-extension.ts" },
 	{
+		flag: "NKLEIN_DRIFT_REMEDY_ENFORCE",
+		mode: "enforcing",
+		gate: "nklein-session-runtime.ts (hands the extension the onOffTrackRemedy action callback)",
+		note: "P18.4b acting half, default-OFF (F1.21 observe-before-enforce). Both remedies discard or freeze real work; flip ONLY per dev mechanism-decision on the off_track_remedy_observed stream — insufficient_data means keep observing, not flip.",
+	},
+	{
 		flag: "NKLEIN_DRIFT_CRITIC",
 		mode: "enforcing",
 		gate: "nklein-session-runtime.ts (constructs the F12.92 drift-critic caller for worker-card sessions)",

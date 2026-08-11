@@ -8,6 +8,8 @@ import {
 	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
 	type ModelStatsTrackingLevel,
 } from "../core/model-stats-tracking-level";
+import { MAX_RESTATEMENT_RESTARTS } from "../core/off-track-intervention";
+import { getOffTrackRestartCount, recordOffTrackRestart } from "../core/off-track-restart-ledger";
 import { createPendingWriteTracker } from "../core/pending-write-tracker";
 import { parsePromptIntentMode } from "../core/prompt-intent-mode";
 import { isTerminalFailureSessionState } from "../core/session-state-predicates";
@@ -2551,6 +2553,30 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 									basis: signal.basis,
 									detail: signal.detail,
 								};
+							},
+							// P18.4b acting half (runtime-gated on NKLEIN_DRIFT_REMEDY_ENFORCE; wiring it here is inert
+							// until that flag is set). restart_with_restatement is the redrive-after-stop pattern the
+							// delivery holds already use: stop ends the derailed conversation, send-input starts a
+							// CLEAN session carrying the original brief plus the restart framing — never a compaction
+							// of the drifted transcript. The ledger WRITE happens before the stop so the budget binds
+							// even if the fresh start fails. park is the F2.17b attention stop (the operator surface).
+							onOffTrackRemedy: async ({ remedy, reason }) => {
+								if (remedy === "restart_with_restatement") {
+									recordOffTrackRestart(request.taskId);
+									await this.stopTaskSession(request.taskId).catch(() => null);
+									const restatement =
+										`OFF-TRACK RESTART (${getOffTrackRestartCount(request.taskId)}/${MAX_RESTATEMENT_RESTARTS}): ` +
+										`your previous attempt drifted from the card's brief (${reason}). Start clean and follow the brief STRICTLY.\n\n${workerStartPrompt}`;
+									const sent = await this.sendTaskSessionInput(request.taskId, restatement, "act").catch(
+										() => null,
+									);
+									return { applied: sent ? "restarted_with_restatement" : "restart_failed" };
+								}
+								if (remedy === "park") {
+									await this.stopTaskSession(request.taskId, { reviewReason: "attention" }).catch(() => null);
+									return { applied: "parked" };
+								}
+								return null;
 							},
 							// Always hand the runtime a host workspace root so the trusted control-plane decomposition
 							// tools resolve plan artifacts + board mutations to the host owning workspace, never to the

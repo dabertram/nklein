@@ -115,7 +115,7 @@ describe("real-model evidence collector", () => {
 			runtimeLogPath: runtimeLog,
 		});
 
-			expect(summary).toMatchObject({
+		expect(summary).toMatchObject({
 			sessions: 2,
 			toolUses: 4,
 			errorResults: 2,
@@ -171,8 +171,14 @@ describe("real-model evidence collector", () => {
 		const home = join(root, "retry-home");
 		const output = join(root, "retry-evidence");
 		const sessions = join(home, ".nklein", "data", "sessions");
-		await Promise.all([mkdir(join(sessions, "attempt-a"), { recursive: true }), mkdir(join(sessions, "attempt-b"), { recursive: true })]);
-		const seed = { role: "user", content: [{ type: "text", text: "Guidance topic: ts\n\nImplement the retry-safe worker." }] };
+		await Promise.all([
+			mkdir(join(sessions, "attempt-a"), { recursive: true }),
+			mkdir(join(sessions, "attempt-b"), { recursive: true }),
+		]);
+		const seed = {
+			role: "user",
+			content: [{ type: "text", text: "Guidance topic: ts\n\nImplement the retry-safe worker." }],
+		};
 		await writeFile(
 			join(sessions, "attempt-a", "attempt-a.messages.json"),
 			JSON.stringify({

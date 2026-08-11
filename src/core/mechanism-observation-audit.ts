@@ -471,8 +471,11 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		category: "off_track_remedy_observed",
 		item: "P18.4b",
 		observes:
-			"the remedy the off-track ladder WOULD choose for a drifting card (continue / compact / restart / park), recorded without being applied",
+			"the remedy the off-track ladder chooses for a drifting card, with actualAction recording whether it was applied (NKLEIN_DRIFT_REMEDY_ENFORCE) or merely observed",
 		enabledBy: "NKLEIN_DRIFT_CRITIC",
+		// The acting half's EFFECT is observable through this same record's actualAction field — the flag link
+		// keeps the N11 flags_on lane's coverage claim traceable rather than aspirational.
+		covers: ["NKLEIN_DRIFT_REMEDY_ENFORCE"],
 		expectation: "exceptional",
 		addedOn: Date.UTC(2026, 6, 30),
 	},

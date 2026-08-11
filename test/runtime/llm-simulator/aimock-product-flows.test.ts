@@ -11,8 +11,8 @@ import {
 import {
 	createHierarchicalRepoSummaryTool,
 	defaultHierarchicalRepoSummaryCachePath,
-	refreshHierarchicalRepoSummary,
 	type RepoSummaryRequest,
+	refreshHierarchicalRepoSummary,
 } from "../../../src/nklein-agent/nklein-hierarchical-repo-summary";
 import { LocalLlmClient } from "../../../src/nklein-agent/nklein-local-llm-client";
 import { createLocalRepoSummaryModelCaller } from "../../../src/nklein-agent/nklein-repo-summary-model-caller";
@@ -80,7 +80,13 @@ describe("aimock coverage for product onboarding flows (F11.4b)", () => {
 											slug: "aimock-atlas",
 											spec: "Local-first maintenance planner",
 											plan: "Start with the job lifecycle.",
-											tasks: [{ id: "job-lifecycle", title: "Job lifecycle", prompt: "Implement the job lifecycle." }],
+											tasks: [
+												{
+													id: "job-lifecycle",
+													title: "Job lifecycle",
+													prompt: "Implement the job lifecycle.",
+												},
+											],
 										},
 									},
 								],
@@ -99,9 +105,7 @@ describe("aimock coverage for product onboarding flows (F11.4b)", () => {
 					{ role: "system", content: "You are NKlein." },
 					{ role: "user", content: [{ type: "text", text: seed }] },
 				],
-				tools: [
-					{ type: "function", function: { name: "decompose_project", parameters: { type: "object" } } },
-				],
+				tools: [{ type: "function", function: { name: "decompose_project", parameters: { type: "object" } } }],
 			});
 			const call = completion.choices[0].message.tool_calls[0];
 			expect(call.function.name).toBe("decompose_project");
