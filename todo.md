@@ -14889,7 +14889,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   campaign, because a rubber-stamped declaration would change what the campaign measures.
   Standing assets: the resume pair (~/nklein-resume-02) is preserved for that continuation; the oracle wire
   grades any deeper tree the moment one exists.
-  **▶ DAVID DECIDED 2026-08-11 (multiple choice): HE hand-writes the types test himself** — the honest unblock
+  **▶ DECISION REVISED 2026-08-12 (David: "i will not write the tests file.. you just do it"): the assist is
+  MINE as operator** — both deliverables authored by the operator agent (src/types.ts + test/types.test.js,
+  verified through the fixture's own toolchain before delivery), handed to the parked card as a verbatim-write
+  redrive so the work still flows through the standard pipeline and the gate passes on a REAL test change.
+  Recorded as an operator assist: the autonomous verdict stands; everything downstream measures honestly.
+  ~~▶ DAVID DECIDED 2026-08-11 (multiple choice): HE hand-writes the types test himself~~ — the honest unblock
   that keeps the campaign's autonomous verdict intact. When `test/domain/types.test.ts` (or equivalent) lands
   in the resume workspace (~/nklein-resume-02/home/.nklein/dev-workspaces/nklein-02-…-xVELHA), the next resume
   cycle continues the graph from exactly there; drift critic stays OFF his real sessions (drains only), and
