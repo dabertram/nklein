@@ -1149,6 +1149,8 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 							// P18.4b: live off-track signals, read at drift-check time. Undefined keeps the extension
 							// byte-identical (it records drift and computes no remedy).
 							request.offTrackSignalsProvider,
+							// P18.4b: the BOARD task id, so drift/remedy observations join the card's eventual outcome.
+							request.taskId,
 						),
 					],
 					...(request.userInstructionService ? { userInstructionService: request.userInstructionService } : {}),

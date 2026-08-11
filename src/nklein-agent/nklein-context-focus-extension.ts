@@ -279,6 +279,11 @@ export function createKanbanContextFocusExtension(
 	offTrackSignalsProvider?: () =>
 		| { readonly hasCapturedWork: boolean; readonly basis?: string; readonly detail?: string }
 		| Promise<{ readonly hasCapturedWork: boolean; readonly basis?: string; readonly detail?: string }>,
+	// P18.4b: the BOARD task id, distinct from the SDK session id. Without it every drift/remedy observation is
+	// structurally unjoinable to the card's eventual outcome (`dev mechanism-decision` reads top-level taskId to
+	// join the ledger), so evaluable stays 0 forever — the exact pathology the decision command's docstring
+	// names — and the observe-first gate can never conclude anything from what was recorded.
+	taskId?: string,
 ): NKleinSdkRuntimeExtension {
 	const nightlyHermetic = isNightlyHermeticEnvironment();
 	const operationalNow = nightlyHermetic ? () => NIGHTLY_HERMETIC_EPOCH_MS : Date.now;
@@ -573,6 +578,7 @@ export function createKanbanContextFocusExtension(
 											signal: "custom",
 											severity: "info",
 											message: `Off-track remedy (observed, not applied) at turn ${driftTurn}: ${remedy.remedy} — ${remedy.reason}`,
+											...(taskId ? { taskId } : {}),
 											metadata: {
 												category: "off_track_remedy_observed",
 												remedy: remedy.remedy,
@@ -592,6 +598,7 @@ export function createKanbanContextFocusExtension(
 										signal: "custom",
 										severity: "info",
 										message: `Drift critic found the run on-track at turn ${driftTurn}.`,
+										...(taskId ? { taskId } : {}),
 										metadata: { category: "drift_critic_on_track", turn: driftTurn },
 									});
 								}

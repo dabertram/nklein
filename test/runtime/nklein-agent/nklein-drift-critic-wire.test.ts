@@ -8,9 +8,11 @@ import { createKanbanContextFocusExtension } from "../../../src/nklein-agent/nkl
  * computing it did not throw — a mutation check proved that: replacing the live `restartsSoFar` read with `99`
  * left all nine green. "Did not throw" is not a measurement of what the observation says.
  */
-const observations = vi.hoisted(() => [] as { message: string; metadata?: Record<string, unknown> }[]);
+const observations = vi.hoisted(
+	() => [] as { message: string; taskId?: string | null; metadata?: Record<string, unknown> }[],
+);
 vi.mock("../../../src/telemetry/self-observation-sink", () => ({
-	recordSelfObservation: (event: { message: string; metadata?: Record<string, unknown> }) => {
+	recordSelfObservation: (event: { message: string; taskId?: string | null; metadata?: Record<string, unknown> }) => {
 		observations.push(event);
 	},
 	readSelfObservationEvents: async () => [],
@@ -77,8 +79,9 @@ function buildExtension(options: {
 		undefined, // servingModel
 		undefined, // repoSummaryCaller
 		options.withSignals === false ? undefined : () => ({ hasCapturedWork: options.hasCapturedWork ?? false }),
+		`task-${sessionCounter}`,
 	);
-	return { extension, driftCriticCaller, sessionId };
+	return { extension, driftCriticCaller, sessionId, taskId: `task-${sessionCounter}` };
 }
 
 /** Let the critic's fire-and-forget promise chain settle — it is deliberately OFF the worker's critical path. */
@@ -220,6 +223,9 @@ describe("F12.92 drift critic — the wire, end to end", () => {
 		expect(remedy, "no off-track remedy was recorded at all").toBeDefined();
 		// Captured work parks the card: restarting would destroy artefacts a human could still judge.
 		expect(remedy?.message).toMatch(/park/);
+		// The BOARD task id is the join key `dev mechanism-decision` reads — without it every observation is
+		// structurally unjoinable to the card's outcome and the observe-first gate can never conclude anything.
+		expect(remedy?.taskId).toMatch(/^task-/);
 	});
 
 	it("reads the restart budget from the LEDGER, so a spent budget changes the recorded remedy", async () => {

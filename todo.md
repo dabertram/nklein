@@ -11705,7 +11705,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   observation (`capturedWorkBasis`/`capturedWorkDetail`) so "parked because we could not check" and "parked
   because there is a diff" stay distinguishable in telemetry. Wire-pinned: the extension AWAITS an async
   provider and the basis survives to the observation (13 wire tests).
-  **REMAINING (the acting half proper, still deliberately observe-first/F1.21):** an opt-in enforcement gate
+  **▶ AND THE JOIN KEY LANDED 2026-08-11: drift/remedy observations now carry the BOARD task id.** Without a
+  top-level `taskId`, `dev mechanism-decision` can never join an observation to the card's eventual outcome —
+  `evaluable` stays 0 forever, the "structurally unanswerable" pathology the command's own docstring names —
+  so every drift-critic-enabled run until now accumulated observations the decision gate could not use. The
+  extension takes the task id beside the session id (they are different identifiers), the runtime threads
+  `request.taskId`, and the wire test pins the join key on the recorded remedy.
+  **REMAINING (the acting half proper, still deliberately observe-first/F1.21):** the
+  off-track-remedy observation JOIN into `dev mechanism-decision` (same shape as tool-gate-observation-join:
+  recommended = recorded remedy, actual = "continue" — today's unconditional behaviour — succeeded from the
+  ledger outcome index), then an opt-in enforcement gate
   (default OFF) that ACTS on the recorded remedy — `restart_with_restatement` performs the restart (write
   `recordOffTrackRestart` at the restart it performs, restate the card brief) and `park` parks for attention —
   plus the false-positive-rate readout from the accumulated `off_track_remedy_observed` stream that justifies
