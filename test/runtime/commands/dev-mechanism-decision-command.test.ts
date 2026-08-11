@@ -6,7 +6,9 @@ import { runDevMechanismDecisionCommand, toGateRecord } from "../../../src/comma
  * no input at all. This is that invocation for the one mechanism with a real counterfactual stream.
  */
 
-async function run(options: Parameters<typeof runDevMechanismDecisionCommand>[0]): Promise<string> {
+async function run(rawOptions: Parameters<typeof runDevMechanismDecisionCommand>[0]): Promise<string> {
+	// Every test injects its reads; default the remedy stream to empty so no test touches the real sink.
+	const options = { readRemedyObservations: async () => [], ...rawOptions };
 	const originalWrite = process.stdout.write.bind(process.stdout);
 	let out = "";
 	process.stdout.write = ((chunk: string) => {
@@ -69,6 +71,26 @@ describe("runDevMechanismDecisionCommand", () => {
 			readLedger: async () => [completed("t1", "transient_retry")] as never,
 		});
 		expect(out).toMatch(/1 without a joinable outcome/u);
+	});
+
+	it("reports the off-track remedy mechanism beside the gate (P18.4b)", async () => {
+		const out = await run({
+			readObservations: async () => [],
+			readLedger: async () => [completed("t9", "failed")] as never,
+			readRemedyObservations: async () => [
+				{ taskId: "t9", metadata: { remedy: "park" } },
+				{ taskId: "t9", metadata: { remedy: "continue" } },
+				// Unknown remedy value: unusable data, never silently counted toward either side.
+				{ taskId: "t9", metadata: { remedy: "reboot_universe" } },
+				// No task id: joins with no outcome (counted, not evaluable).
+				{ taskId: null, metadata: { remedy: "restart_with_restatement" } },
+			],
+		});
+		expect(out).toMatch(/off_track_remedy_observed/u);
+		expect(out).toMatch(/actual = continue until the acting half ships/u);
+		// 3 usable observations, 2 recommending something other than continue, 1 of those with a known outcome.
+		expect(out).toMatch(/3 remedy observation\(s\): 2 recommending something other than continue, 1 of those/u);
+		expect(out).toMatch(/1 unusable record\(s\), 1 without a ledger outcome/u);
 	});
 
 	it("says plainly that zero observations prove nothing", async () => {

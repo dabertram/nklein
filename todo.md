@@ -11711,10 +11711,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   so every drift-critic-enabled run until now accumulated observations the decision gate could not use. The
   extension takes the task id beside the session id (they are different identifiers), the runtime threads
   `request.taskId`, and the wire test pins the join key on the recorded remedy.
-  **REMAINING (the acting half proper, still deliberately observe-first/F1.21):** the
-  off-track-remedy observation JOIN into `dev mechanism-decision` (same shape as tool-gate-observation-join:
-  recommended = recorded remedy, actual = "continue" — today's unconditional behaviour — succeeded from the
-  ledger outcome index), then an opt-in enforcement gate
+  **▶ AND THE DECISION FEED SHIPPED 2026-08-11 — `dev mechanism-decision` now reports the off-track remedy
+  beside the tool-catalog gate.** `off-track-remedy-observation-join` (pure) maps the observation stream into
+  the P15.2 decision core's shape: recommended = the recorded remedy, actual = the faithful constant
+  "continue" (today's unconditional live behaviour — the module warns in its own header that the ACTING half
+  must replace the constant with what was actually done, or every applied remedy would read as disagreeing
+  with itself), succeeded joined from the ledger outcome index by the new task-id key. Honesty rules mirror
+  the gate join: an unknown remedy value is UNUSABLE (counting it as agreement steers toward no_op/deletion;
+  as disagreement, it manufactures enforcement evidence — both wrong, neither taken); an unjoined outcome
+  stays null (counted, not evaluable). This closes P15.3's "counterfactual emitter" design work for THIS
+  mechanism — the observe-first gate now has its readout, and `insufficient_data` at current volumes is the
+  designed answer that more drift-critic-enabled running can change.
+  **REMAINING (the acting half proper, still deliberately observe-first/F1.21):** an opt-in enforcement gate
   (default OFF) that ACTS on the recorded remedy — `restart_with_restatement` performs the restart (write
   `recordOffTrackRestart` at the restart it performs, restate the card brief) and `park` parks for attention —
   plus the false-positive-rate readout from the accumulated `off_track_remedy_observed` stream that justifies

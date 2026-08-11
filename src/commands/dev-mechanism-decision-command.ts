@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import type { AgentLedgerEvent } from "../core/agent-attempt-ledger";
 import { buildMechanismDecision } from "../core/mechanism-decision-report";
+import { joinOffTrackRemedyObservations, toOffTrackRemedyRecord } from "../core/off-track-remedy-observation-join";
 import {
 	buildTaskOutcomeIndex,
 	joinToolGateObservations,
@@ -37,9 +38,15 @@ export interface DevMechanismDecisionOptions {
 	>;
 	/** Injected in tests; defaults to the real ledger read. */
 	readLedger?: () => Promise<AgentLedgerEvent[]>;
+	/** Injected in tests; defaults to the real telemetry read of the off-track remedy stream. */
+	readRemedyObservations?: () => Promise<
+		readonly { metadata?: Record<string, unknown> | undefined; taskId?: string | null }[]
+	>;
 }
 
 const GATE_CATEGORY = "tool_catalog_gate_observation";
+/** P18.4b: the second mechanism with a real counterfactual stream — the observe-only off-track remedy. */
+const REMEDY_CATEGORY = "off_track_remedy_observed";
 /** The reader's hard maximum. Asking for less would silently narrow the evidence a FLIP decision rests on. */
 const OBSERVATION_READ_LIMIT = 500;
 
@@ -75,42 +82,87 @@ export async function runDevMechanismDecisionCommand(options: DevMechanismDecisi
 		? options.readLedger()
 		: readAllAgentLedger({ rootDir: defaultLedgerRoot() }));
 
+	const remedyEvents = await (options.readRemedyObservations
+		? options.readRemedyObservations()
+		: readSelfObservationEvents({ category: REMEDY_CATEGORY, limit: OBSERVATION_READ_LIMIT }));
+	const outcomeByTaskId = buildTaskOutcomeIndex(ledger as never);
 	const joined = joinToolGateObservations({
 		records: events.map(toGateRecord),
-		outcomeByTaskId: buildTaskOutcomeIndex(ledger as never),
+		outcomeByTaskId,
 	});
 	const decision = buildMechanismDecision(joined.observations);
+	const remedyJoined = joinOffTrackRemedyObservations({
+		records: remedyEvents.map(toOffTrackRemedyRecord),
+		outcomeByTaskId,
+	});
+	const remedyDecision = buildMechanismDecision(remedyJoined.observations);
 	// Hitting the reader's ceiling means the window is FULL, so there are probably older observations it never
 	// returned. A verdict computed on a truncated sample looks exactly like one computed on all of it — and this
 	// verdict's whole job is to license flipping a default. Saturation is therefore reported, not swallowed.
 	const saturated = events.length >= OBSERVATION_READ_LIMIT;
+	const remedySaturated = remedyEvents.length >= OBSERVATION_READ_LIMIT;
 
 	if (options.json) {
 		process.stdout.write(
-			`${JSON.stringify({ mechanism: GATE_CATEGORY, join: joined, decision, readSaturated: saturated }, null, 2)}\n`,
+			`${JSON.stringify(
+				{
+					mechanism: GATE_CATEGORY,
+					join: joined,
+					decision,
+					readSaturated: saturated,
+					mechanisms: [
+						{ mechanism: GATE_CATEGORY, join: joined, decision, readSaturated: saturated },
+						{
+							mechanism: REMEDY_CATEGORY,
+							join: remedyJoined,
+							decision: remedyDecision,
+							readSaturated: remedySaturated,
+						},
+					],
+				},
+				null,
+				2,
+			)}\n`,
 		);
 		return;
 	}
 
-	process.stdout.write(`Mechanism: ${GATE_CATEGORY} (F12.18 tool-catalog gate, record-only)\n`);
-	process.stdout.write(`${joined.summary}\n\n`);
-	process.stdout.write(`VERDICT: ${decision.verdict}\n`);
-	process.stdout.write(
-		`  observations ${decision.observations} · disagreements ${decision.disagreements} ` +
-			`(${(decision.disagreementRate * 100).toFixed(1)}%) · evaluable ${decision.evaluable}\n`,
-	);
-	process.stdout.write(`  ${decision.reason}\n`);
-	if (saturated) {
+	const printDecision = (
+		title: string,
+		summary: string,
+		verdict: ReturnType<typeof buildMechanismDecision>,
+		wasSaturated: boolean,
+	): void => {
+		process.stdout.write(`Mechanism: ${title}\n`);
+		process.stdout.write(`${summary}\n\n`);
+		process.stdout.write(`VERDICT: ${verdict.verdict}\n`);
 		process.stdout.write(
-			`\n⚠️  READ SATURATED at ${OBSERVATION_READ_LIMIT} observations — older ones were not returned, so this\n` +
-				"verdict rests on a TRUNCATED sample and must not be used to flip a default as-is.\n",
+			`  observations ${verdict.observations} · disagreements ${verdict.disagreements} ` +
+				`(${(verdict.disagreementRate * 100).toFixed(1)}%) · evaluable ${verdict.evaluable}\n`,
 		);
-	}
-	if (decision.verdict === "insufficient_data") {
-		// Said explicitly, because this verdict is the expected one for a long time and its meaning changed today.
+		process.stdout.write(`  ${verdict.reason}\n`);
+		if (wasSaturated) {
+			process.stdout.write(
+				`\n⚠️  READ SATURATED at ${OBSERVATION_READ_LIMIT} observations — older ones were not returned, so this\n` +
+					"verdict rests on a TRUNCATED sample and must not be used to flip a default as-is.\n",
+			);
+		}
+	};
+
+	printDecision(`${GATE_CATEGORY} (F12.18 tool-catalog gate, record-only)`, joined.summary, decision, saturated);
+	process.stdout.write("\n");
+	printDecision(
+		`${REMEDY_CATEGORY} (P18.4b off-track remedy, observe-only; actual = continue until the acting half ships)`,
+		remedyJoined.summary,
+		remedyDecision,
+		remedySaturated,
+	);
+	if (decision.verdict === "insufficient_data" || remedyDecision.verdict === "insufficient_data") {
+		// Said explicitly, because this verdict is the expected one for a long time and its meaning has changed
+		// as join keys landed (gate: task id 2026-07-xx; remedy: task id 2026-08-11).
 		process.stdout.write(
-			"\nThis is the DESIGNED answer below the evidence floor, not a failure. Since the gate observation now\n" +
-				"carries a task id, more running can change it — before that, no volume could have.\n",
+			"\ninsufficient_data is the DESIGNED answer below the evidence floor, not a failure. Both observation\n" +
+				"streams now carry a task id, so more running can change it — before that, no volume could have.\n",
 		);
 	}
 }
