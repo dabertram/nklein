@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { CONSENT_MISMATCH, createLmStudioModelAcquisitionClient } from "../../../src/core/lmstudio-model-acquisition";
+import { describe, expect, it, vi } from "vitest";
+import {
+	CONSENT_MISMATCH,
+	createLmStudioModelAcquisitionClient,
+	isAutoDownloadSafeFormat,
+	UNSAFE_FORMAT_REFUSED,
+} from "../../../src/core/lmstudio-model-acquisition";
 import type { LmStudioRestFetch } from "../../../src/core/lmstudio-rest-model-client";
 
 /**
@@ -23,7 +28,7 @@ describe("createLmStudioModelAcquisitionClient", () => {
 		const recorder: { url?: string; body?: string } = {};
 		const client = createLmStudioModelAcquisitionClient({
 			baseUrl: "http://localhost:1234/v1",
-			consent: { modelKey: "qwen/qwen3-8b", approvedBytes: 4_800_000_000 },
+			consent: { modelKey: "qwen/qwen3-8b", approvedBytes: 4_800_000_000, artifactFormat: "gguf" },
 			fetch: fakeFetch(recorder),
 		});
 		const result = await client.downloadModel({ model: "qwen/qwen3-8b" });
@@ -38,7 +43,7 @@ describe("createLmStudioModelAcquisitionClient", () => {
 		const recorder: { url?: string; body?: string } = {};
 		const client = createLmStudioModelAcquisitionClient({
 			baseUrl: "http://localhost:1234",
-			consent: { modelKey: "qwen/qwen3-8b", approvedBytes: null },
+			consent: { modelKey: "qwen/qwen3-8b", approvedBytes: null, artifactFormat: "gguf" },
 			fetch: fakeFetch(recorder),
 		});
 		const result = await client.downloadModel({ model: "some/other-model-70b" });
@@ -48,7 +53,7 @@ describe("createLmStudioModelAcquisitionClient", () => {
 	});
 
 	it("exposes the consent it is bound to, so a caller can render what it is about to do", () => {
-		const consent = { modelKey: "qwen/qwen3-8b", approvedBytes: 4_800_000_000 };
+		const consent = { modelKey: "qwen/qwen3-8b", approvedBytes: 4_800_000_000, artifactFormat: "gguf" as const };
 		expect(createLmStudioModelAcquisitionClient({ baseUrl: "http://localhost:1234", consent }).consent).toEqual(
 			consent,
 		);
@@ -58,7 +63,7 @@ describe("createLmStudioModelAcquisitionClient", () => {
 		const recorder: { url?: string; body?: string } = {};
 		await createLmStudioModelAcquisitionClient({
 			baseUrl: "http://localhost:1234/v1/",
-			consent: { modelKey: "m", approvedBytes: null },
+			consent: { modelKey: "m", approvedBytes: null, artifactFormat: "gguf" },
 			fetch: fakeFetch(recorder),
 		}).downloadModel({ model: "m" });
 		expect(recorder.url).toBe("http://localhost:1234/api/v1/models/download");
@@ -67,7 +72,7 @@ describe("createLmStudioModelAcquisitionClient", () => {
 	it("returns an ordinary error result when the endpoint rejects — never throws", async () => {
 		const client = createLmStudioModelAcquisitionClient({
 			baseUrl: "http://localhost:1234",
-			consent: { modelKey: "ghost/model", approvedBytes: null },
+			consent: { modelKey: "ghost/model", approvedBytes: null, artifactFormat: "gguf" },
 			fetch: async () => ({
 				ok: false,
 				status: 404,
@@ -82,12 +87,40 @@ describe("createLmStudioModelAcquisitionClient", () => {
 	it("survives an unreachable endpoint as a network_error result", async () => {
 		const client = createLmStudioModelAcquisitionClient({
 			baseUrl: "http://localhost:1234",
-			consent: { modelKey: "m", approvedBytes: null },
+			consent: { modelKey: "m", approvedBytes: null, artifactFormat: "gguf" },
 			fetch: async () => {
 				throw new Error("ECONNREFUSED");
 			},
 		});
 		const result = await client.downloadModel({ model: "m" });
 		expect(result.ok === false && result.error.type).toBe("network_error");
+	});
+});
+
+describe("P25.2b artefact-format hard rule", () => {
+	it("refuses pickle-class and UNDECLARED formats regardless of matching consent — consent does not make a pickle safe", async () => {
+		for (const artifactFormat of ["pickle", "unknown"] as const) {
+			const fetchMock = vi.fn();
+			const client = createLmStudioModelAcquisitionClient({
+				baseUrl: "http://localhost:1234",
+				consent: { modelKey: "evil/model", approvedBytes: null, artifactFormat },
+				fetch: fetchMock as never,
+			});
+			const result = await client.downloadModel({ model: "evil/model" });
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.error.type).toBe(UNSAFE_FORMAT_REFUSED);
+			}
+			// The refusal must bind BEFORE any network call — no request is ever made for an unsafe format.
+			expect(fetchMock).not.toHaveBeenCalled();
+		}
+	});
+
+	it("safe-by-design formats pass: load executes no logic for safetensors, GGUF, and MLX", () => {
+		expect(isAutoDownloadSafeFormat("safetensors")).toBe(true);
+		expect(isAutoDownloadSafeFormat("gguf")).toBe(true);
+		expect(isAutoDownloadSafeFormat("mlx")).toBe(true);
+		expect(isAutoDownloadSafeFormat("pickle")).toBe(false);
+		expect(isAutoDownloadSafeFormat("unknown")).toBe(false);
 	});
 });

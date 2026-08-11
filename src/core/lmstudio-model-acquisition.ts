@@ -35,6 +35,21 @@ import {
 	type LmStudioRestResult,
 } from "./lmstudio-rest-model-client";
 
+/**
+ * P25.2b — the artefact-format hard rule. Pickle-based weights (.bin/.pt/.pth/.ckpt/.pkl) execute arbitrary
+ * code on load; real malicious models recur on Hugging Face, and the main open-source scanner carried three
+ * CVSS-9.3 bypass CVEs (CVE-2025-10155/6/7) — so "we scan them" is not an answer, and CONSENT DOES NOT MAKE A
+ * PICKLE FILE SAFE. safetensors (and the formats built on it: MLX) and GGUF execute no logic on load.
+ * Auto-download is therefore restricted to safe-by-design formats; anything pickle-class or UNDECLARED is
+ * refused regardless of consent — removing the arbitrary-code-execution class instead of trying to detect it.
+ */
+export type ModelArtifactFormat = "safetensors" | "gguf" | "mlx" | "pickle" | "unknown";
+
+/** The formats whose LOAD executes no logic — the only ones auto-download may fetch. */
+export function isAutoDownloadSafeFormat(format: ModelArtifactFormat): boolean {
+	return format === "safetensors" || format === "gguf" || format === "mlx";
+}
+
 /** What the operator was shown and approved, for exactly one model. */
 export interface ModelAcquisitionConsent {
 	/** The model key the operator approved. A request for any other key is refused. */
@@ -47,6 +62,12 @@ export interface ModelAcquisitionConsent {
 	 * difference. It exists so a wildly different size is visible in the record afterwards.
 	 */
 	readonly approvedBytes: number | null;
+	/**
+	 * The artefact format the operator was SHOWN (from the catalogue entry) — enforced, unlike the size,
+	 * because the format rule is a hard gate: the download key alone does not reveal the format, so the
+	 * declaration must travel with the consent, and an undeclared format is refused fail-closed.
+	 */
+	readonly artifactFormat: ModelArtifactFormat;
 }
 
 export interface LmStudioModelAcquisitionClient {
@@ -62,6 +83,7 @@ export interface LmStudioModelAcquisitionClient {
 }
 
 export const CONSENT_MISMATCH = "consent_mismatch";
+export const UNSAFE_FORMAT_REFUSED = "unsafe_format_refused";
 
 export function createLmStudioModelAcquisitionClient(options: {
 	baseUrl: string;
@@ -83,6 +105,17 @@ export function createLmStudioModelAcquisitionClient(options: {
 					error: {
 						type: CONSENT_MISMATCH,
 						message: `Refusing to download ${input.model}: this client was authorised for ${consent.modelKey}. Acquisition is per-model and setup-time; construct a new client after the operator approves this one.`,
+					},
+				};
+			}
+			// P25.2b hard rule: the format gate binds AFTER identity but BEFORE any network call, and consent
+			// cannot override it — a pickle file executes arbitrary code on load no matter who approved it.
+			if (!isAutoDownloadSafeFormat(consent.artifactFormat)) {
+				return {
+					ok: false,
+					error: {
+						type: UNSAFE_FORMAT_REFUSED,
+						message: `Refusing to download ${input.model}: artefact format "${consent.artifactFormat}" is not safe-by-design (safetensors/GGUF/MLX only). Pickle-class weights execute arbitrary code on load — consent does not make them safe. Obtain and load such weights manually if you accept that risk.`,
 					},
 				};
 			}

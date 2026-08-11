@@ -14308,10 +14308,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
       blocklist. So "we scan them" is NOT a sufficient answer on its own.
     · **`safetensors` is safe BY DESIGN** — loading it executes no logic, and it passed independent audit with no
       critical ACE findings.
-  **⇒ PROPOSED HARD RULE (recommended): auto-download is restricted to `safetensors`/GGUF; pickle-format weights
-  are NEVER auto-downloaded, only ever operator-approved.** That is the same shape as this codebase's other
-  fail-closed gates and it removes the entire arbitrary-code-execution class rather than trying to detect it with a
-  scanner that has a documented bypass history. Publisher allow-listing and a pinned revision hash on top.
+  ~~⇒ PROPOSED HARD RULE~~ **✅ THE HARD RULE SHIPPED 2026-08-11 (David unblocked the item by multiple
+  choice).** The download key alone does not reveal the artefact format, so the FORMAT now travels with the
+  consent: `ModelAcquisitionConsent.artifactFormat` is REQUIRED (the size stays recorded-not-enforced; the
+  format is a hard gate), and `downloadModel` refuses `pickle`/`unknown` with `UNSAFE_FORMAT_REFUSED` — after
+  the identity check, BEFORE any network call, and regardless of consent ("consent does not make a pickle file
+  safe"). Safe-by-design set: `safetensors`, `GGUF`, `MLX` (safetensors-based). An UNDECLARED format refuses
+  fail-closed. Any future setup-flow caller must declare the operator-shown format BY CONSTRUCTION (the type
+  demands it); the acquisition-boundary test still proves the autonomous runtime cannot reach the module at
+  all. 8 tests, incl. the pin that no request is ever made for an unsafe format.
+  REMAINING (smaller, on top): publisher allow-listing + a pinned revision hash — bounded by what LM Studio's
+  download API exposes; check its request surface before designing.
 
 - [ ] **P25.3 — PHASED PLAN (each phase independently useful; stop after any one).**
   **▶ 2026-08-08 — THE DEPTH-ROWS LEG WAS BLOCKED BY A DEFECT, NOT BY MISSING RUNS; NOW UNBLOCKED.** Two real
@@ -14882,6 +14889,11 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   campaign, because a rubber-stamped declaration would change what the campaign measures.
   Standing assets: the resume pair (~/nklein-resume-02) is preserved for that continuation; the oracle wire
   grades any deeper tree the moment one exists.
+  **▶ DAVID DECIDED 2026-08-11 (multiple choice): HE hand-writes the types test himself** — the honest unblock
+  that keeps the campaign's autonomous verdict intact. When `test/domain/types.test.ts` (or equivalent) lands
+  in the resume workspace (~/nklein-resume-02/home/.nklein/dev-workspaces/nklein-02-…-xVELHA), the next resume
+  cycle continues the graph from exactly there; drift critic stays OFF his real sessions (drains only), and
+  the A/B campaign runs until decideDefaultFlip decides.
   REMAINING, in value order: **(1) ~~RESUME-MODE drains~~ (built, ran, question closed)** — persist NKLEIN_RUN_HOME + the scaffolded workspace
   across runs so run N+1 boots the runtime over the surviving board and dispatches the DEEPER startable cards
   instead of re-scaffolding (needs: skip the duplicate seed when a board already exists; the rig's teardown to
