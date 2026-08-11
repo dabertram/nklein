@@ -9928,7 +9928,10 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   so evidence accumulates across invocations (the P25.3 throwaway-home lesson, applied); a pair with a broken
   arm is DISCARDED, never recorded — infrastructure noise must not vote; the verdict step runs
   `decideDefaultFlip` over ALL accumulated pairs and prints it. Verified on synthetic pairs: the gate's own
-  refusal semantics decide ("within noise … need a larger eval"). The CAMPAIGN itself is one command away
+  refusal semantics decide ("within noise … need a larger eval"). **LIVE-PROVEN same day: the first invocation ran 4 real drains — one pair discarded honestly (an
+  arm errored; noise must not vote), one concordant pair recorded, verdict correctly refusing at n=1.**
+  Calibration note: 30-min ACT caps yielded concordant-fail pairs, which McNemar rightly ignores — informative
+  pairs need arms that can COMPLETE, so subsequent invocations run longer caps. The CAMPAIGN itself is one command away
   (`scripts/ab-campaign.sh NKLEIN_MODEL_CONSULT --presets mid_task,deep_chain --repeat 3 --max-min 30` ≈ 6
   paired drains ≈ a few GPU-hours) — start it whenever the GPU time is worth it; pairs accumulate forever.
   **▶ MECHANISM #2 COMPLETE 2026-08-11 — the off-track remedy (P18.4b) now has the full pipeline:** join key
