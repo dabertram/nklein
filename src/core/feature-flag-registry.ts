@@ -74,6 +74,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 	{ flag: "NKLEIN_TOOL_GATE_OBSERVE", mode: "observe_only", gate: "nklein-context-focus-extension.ts" },
 	{ flag: "NKLEIN_TOOL_GATE_ENFORCE", mode: "enforcing", gate: "nklein-context-focus-extension.ts" },
 	{
+		flag: "NKLEIN_DRIFT_CRITIC",
+		mode: "enforcing",
+		gate: "nklein-session-runtime.ts (constructs the F12.92 drift-critic caller for worker-card sessions)",
+		note: "Behaviour-affecting despite the observational-sounding name: an off-track verdict INJECTS a worker nudge. The remedy stays observe-only (off_track_remedy_observed); only the nudge acts. Registered 2026-08-11 when the missing production constructor was found — the flag had been read nowhere in src.",
+	},
+	{
 		flag: "NKLEIN_MODEL_CONSULT",
 		mode: "enforcing",
 		gate: "nklein-session-runtime.ts (admits consult_stronger_model into stuck worker sessions + runs a consultant completion)",

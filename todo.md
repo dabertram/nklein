@@ -9901,6 +9901,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   outcome = null), and the report prints BOTH mechanisms (JSON gains `mechanisms[]` beside the original
   fields). `actual` is the faithful constant "continue" while the remedy stays observe-only; the module header
   warns the acting half must replace it with what was actually done.
+  **🔴→✅ AND THE STATED DEPENDENCY WAS ITSELF THE MISSING WIRE — found by measuring, 2026-08-11.** The first
+  drift-critic-enabled drain (run 20260811-042008, flag exported and verified inherited) recorded **zero drift
+  events of any kind**, because `NKLEIN_DRIFT_CRITIC` was read NOWHERE in src: the pure core, the extension
+  seam, and the wire tests (mock caller) all existed, and the session runtime hardwired `undefined` at the
+  caller position. The enabled_but_silent shape, in the item whose own history documents it twice — caught the
+  same way both prior instances were, by measuring the stream instead of trusting the flag. FIXED:
+  `createOpenAiCompatDriftCriticCaller` (same transport pattern as the neighbouring two-phase pick caller;
+  reasoning_content fallback for reasoning models; empty reply → null, failed request → visible throw, never a
+  fabricated verdict — 3 tests), wired for worker-card sessions and registered in the flag registry as
+  `enforcing` ("behaviour-affecting despite the observational-sounding name: an off-track verdict INJECTS a
+  worker nudge").
+  **Same-run bonus finding, recorded not acted on:** the tool-gate verdict on THIS drain corpus read
+  `enforce` (133 obs, 100% disagreement, 36/77 = 47% success on the paths it objected to) versus
+  `do_not_enforce` on the 2026-08-08 corpus (31/31 = 100%) — the verdict is CORPUS-DEPENDENT, and the drain
+  corpus is adversarial (a hard fixture mid-campaign). A flip decision needs the paired A/B the core itself
+  names, not a hard-corpus rate.
   **Stated dependency, so nobody hunts for a missing wire:** the stream accumulates only on runs with
   `NKLEIN_DRIFT_CRITIC` set — and unlike `NKLEIN_TOOL_GATE_OBSERVE` (registry-classified observe_only,
   auto-set by the drain harness), the critic INJECTS WORKER NUDGES, i.e. it is behaviour-affecting, so the

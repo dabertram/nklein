@@ -117,6 +117,7 @@ const CONSULT_BUDGET_PER_CARD = 1;
 // a truncated consult wastes the whole per-card budget, so the timeout errs long.
 const CONSULT_COMPLETION_TIMEOUT_MS = 300_000;
 
+import { createOpenAiCompatDriftCriticCaller } from "./nklein-drift-critic-caller";
 import { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 import {
 	createNKleinSdkSessionHost,
@@ -1143,7 +1144,18 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 								? createOpenAiCompatPhaseOnePickCaller({ baseUrl: request.baseUrl, modelId: request.modelId })
 								: undefined,
 							sessionResultHandles.store,
-							undefined,
+							// F12.92 drift critic (opt-in, NKLEIN_DRIFT_CRITIC): consults the session's own endpoint+model
+							// for a second-opinion drift verdict. This position was hardwired `undefined` while the flag,
+							// the pure core, the extension seam and the wire tests all existed — a real drain with the
+							// flag exported recorded ZERO drift events (2026-08-11), which is how the missing constructor
+							// was found. Worker-card sessions only (`onCardPromoted`), like the two-phase pick above:
+							// the critic judges card WORK against its brief; architect/plan/chat turns have no card brief.
+							isTruthyEnv(process.env.NKLEIN_DRIFT_CRITIC) &&
+								request.baseUrl &&
+								request.modelId &&
+								request.onCardPromoted
+								? createOpenAiCompatDriftCriticCaller({ baseUrl: request.baseUrl, modelId: request.modelId })
+								: undefined,
 							{ providerId: request.providerId, modelId: request.modelId },
 							repoSummaryCaller,
 							// P18.4b: live off-track signals, read at drift-check time. Undefined keeps the extension
