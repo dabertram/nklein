@@ -9912,6 +9912,10 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   fabricated verdict — 3 tests), wired for worker-card sessions and registered in the flag registry as
   `enforcing` ("behaviour-affecting despite the observational-sounding name: an off-track verdict INJECTS a
   worker nudge").
+  **✅ AND THE NEXT RUN PROVED IT LIVE (20260811-050020): five real drift verdicts on real traffic — "Drift
+  critic found the run on-track at turn 8/13/17/21/25" — the first drift events ever recorded in production.**
+  The verdicts are honest (the architect was steadily reading the spec and adding tasks). The remedy stream
+  stays empty until a run actually goes off-track; that is the mechanism working, not a gap.
   **Same-run bonus finding, recorded not acted on:** the tool-gate verdict on THIS drain corpus read
   `enforce` (133 obs, 100% disagreement, 36/77 = 47% success on the paths it objected to) versus
   `do_not_enforce` on the 2026-08-08 corpus (31/31 = 100%) — the verdict is CORPUS-DEPENDENT, and the drain
