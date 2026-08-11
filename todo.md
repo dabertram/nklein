@@ -9903,8 +9903,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   success vs cross_model_carry" — `decideDefaultFlip`/F12.41 machinery, needs paired drains); the same holds
   for the exemplar/prompt-content/review-shape flags. Building a "join" for these would manufacture agreement.
   (b) **SHADOW-EMITTER candidates**: the decision core is pure and cheap enough to run while OFF, recording
-  what it WOULD have chosen — `NKLEIN_QUEUE_AWARE_FREE_FIRST` (routing calc) is the exemplar and the next
-  concrete buildable slice. (c) **diagnostics/capture/dev-only** — no decision, excluded by the entry's own
+  what it WOULD have chosen — with the refinement contact with the first candidate forced: the shadow must be
+  cheap INCLUDING ITS INPUTS. `NKLEIN_QUEUE_AWARE_FREE_FIRST` looked like the exemplar (pure routing calc) but
+  its input IS the flag's whole cost (the `lms ps` subprocess the OFF state exists to avoid) — a shadow there
+  pays the mechanism's full price while discarding its benefit, so it belongs to the A/B family after all
+  (and its ON-effect record already exists: F4.8b `queue_aware_free_first`). The corrected exemplar is
+  `NKLEIN_TOOL_TRUST_DECAY`: its decision computes from tool-error history already in memory on the default
+  path, so the shadow is genuinely free — the next concrete buildable slice. (c) **diagnostics/capture/dev-only** — no decision, excluded by the entry's own
   earlier analysis. So P15.3's remaining work forks: shadow emitters one at a time (b), and an A/B campaign
   design for (a) — the latter needs paired drains and is a fresh-context design task.
   **▶ MECHANISM #2 COMPLETE 2026-08-11 — the off-track remedy (P18.4b) now has the full pipeline:** join key
