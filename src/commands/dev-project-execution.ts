@@ -59,6 +59,17 @@ interface DevScenarioBoardForActivity {
  * counts as activity regardless of verdict. The genuinely stuck case (parked awaiting a human) does NOT hang the
  * run: it is tracked independently as `attentionCardCount` and has its own terminal outcome bucket.
  */
+/**
+ * P23.5 resume-mode: does the board still hold work (any card outside completed/trash)? When true, a resume run
+ * skips seeding entirely — the surviving board IS the seed. Exhausted boards fall through to normal seeding: an
+ * empty board resumed is a fresh start, not an error.
+ */
+export function boardHoldsNonTerminalCards(board: {
+	columns: ReadonlyArray<{ id: string; cards: readonly unknown[] }>;
+}): boolean {
+	return board.columns.some((column) => column.id !== "completed" && column.id !== "trash" && column.cards.length > 0);
+}
+
 export function countPendingAutoReviews(
 	board: DevScenarioBoardForActivity,
 	attentionParkedTaskIds?: ReadonlySet<string>,
@@ -106,6 +117,14 @@ export interface ExecuteDevTestScenarioInput {
 	scenario: NKleinDevTestProjectScenario;
 	baseRef: string;
 	seedTaskId?: string;
+	/**
+	 * P23.5 resume-mode: when true and the live board already holds any card in a non-terminal lane, the seed
+	 * step is SKIPPED entirely and no session is started — the surviving board IS the seed, and the runtime's
+	 * own dispatch (liveness sweep / scheduler) starts the startable cards. Fresh-workspace runs are
+	 * measurement-stationary (each run re-delivers the same foundation cards); resuming is what lets run N+1
+	 * attack the graph's DEEPER cards.
+	 */
+	resumeExistingBoard?: boolean;
 	pollIntervalMs?: number;
 	maxWaitMs?: number;
 	stablePollsUntilSettled?: number;
@@ -189,6 +208,17 @@ export async function executeDevTestScenario(
 			startSeedTask: async (payload) => {
 				try {
 					const state = await input.client.workspace.getState.query();
+					if (input.resumeExistingBoard) {
+						if (boardHoldsNonTerminalCards(state.board)) {
+							return {
+								ok: true,
+								message:
+									"Resume: the board already holds non-terminal cards — no seed added; the runtime's own dispatch drives them.",
+							};
+						}
+						// A resume against a board with nothing left to do falls through to normal seeding: an
+						// exhausted board is a fresh start, not an error.
+					}
 					const cardExists = state.board.columns.some((column) =>
 						column.cards.some((card) => card.id === payload.taskId),
 					);

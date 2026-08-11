@@ -1,5 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { countPendingAutoReviews, findSandboxPatchCaptureFailure } from "../../../src/commands/dev-project-execution";
+import {
+	boardHoldsNonTerminalCards,
+	countPendingAutoReviews,
+	findSandboxPatchCaptureFailure,
+} from "../../../src/commands/dev-project-execution";
+
+describe("boardHoldsNonTerminalCards (P23.5 resume-mode)", () => {
+	it("holds work when any card sits outside completed/trash — the surviving board IS the seed", () => {
+		expect(
+			boardHoldsNonTerminalCards({
+				columns: [
+					{ id: "completed", cards: [{}, {}] },
+					{ id: "planning", cards: [{}] },
+				],
+			}),
+		).toBe(true);
+	});
+
+	it("an exhausted board (completed/trash only, or empty) does NOT hold work — resume falls through to a fresh seed", () => {
+		expect(
+			boardHoldsNonTerminalCards({
+				columns: [
+					{ id: "completed", cards: [{}] },
+					{ id: "trash", cards: [{}] },
+					{ id: "planning", cards: [] },
+				],
+			}),
+		).toBe(false);
+		expect(boardHoldsNonTerminalCards({ columns: [] })).toBe(false);
+	});
+});
 
 describe("countPendingAutoReviews", () => {
 	it("counts every auto-reviewed review-lane card, INCLUDING ones that already have a verdict", () => {

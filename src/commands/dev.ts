@@ -312,6 +312,8 @@ interface DevTestProjectOptions {
 	plan?: boolean;
 	/** Seed and grade the real pipeline without starting an agent (P20.1 null-agent baseline). */
 	nullAgent?: boolean;
+	/** P23.5 resume-mode: monitor an existing board (requires projectPath); skip seeding when cards remain. */
+	resume?: boolean;
 	json?: boolean;
 	cwd?: string;
 	write?: (text: string) => void;
@@ -341,6 +343,8 @@ async function executeDevTestPreset(input: {
 	/** When false, the seed card starts in ACT mode (the agent does the work directly) instead of plan/decompose. */
 	startInPlanMode?: boolean;
 	nullAgent?: boolean;
+	/** P23.5 resume-mode: skip seeding when the board already holds non-terminal cards. */
+	resumeExistingBoard?: boolean;
 }): Promise<{
 	scenario: ReturnType<typeof resolveNKleinDevTestProjectScenario>;
 	result: Awaited<ReturnType<typeof executeDevTestScenario>>["result"];
@@ -360,6 +364,7 @@ async function executeDevTestPreset(input: {
 			? { stablePollsUntilSettled: input.stablePollsUntilSettled }
 			: {}),
 		...(input.nullAgent ? { nullAgent: true } : {}),
+		...(input.resumeExistingBoard ? { resumeExistingBoard: true } : {}),
 		// a3 decision (2026-07-27, N5 follow-up): in a HERMETIC sim run (the harness exports the aimock gateway
 		// env) the fixture's real acceptance command measures sandbox topology, not the work — deps are never
 		// installed offline, so `npm test` fails deterministically and the classification read "failed
@@ -386,6 +391,11 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 	// An explicit `--project-path` is used as-is (a real project or a pre-scaffolded one).
 	let projectPath: string;
 	let scaffoldedBaseRef: string | null = null;
+	if (options.resume && !options.projectPath) {
+		throw new Error(
+			"dev test-project --resume requires --project-path: resuming means monitoring an EXISTING workspace's board, and scaffolding a fresh one would defeat it.",
+		);
+	}
 	if (options.projectPath) {
 		projectPath = resolveProjectInputPath(options.projectPath, cwd);
 	} else {
@@ -444,6 +454,7 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 		...(nkleinSettings ? { nkleinSettings } : {}),
 		...(options.plan === false ? { startInPlanMode: false } : {}),
 		...(options.nullAgent ? { nullAgent: true } : {}),
+		...(options.resume ? { resumeExistingBoard: true } : {}),
 		...(typeof options.pollIntervalMs === "number" ? { pollIntervalMs: options.pollIntervalMs } : {}),
 		...(typeof options.maxWaitMs === "number" ? { maxWaitMs: options.maxWaitMs } : {}),
 	});
@@ -1727,6 +1738,10 @@ export function registerDevCommand(program: Command): void {
 		.option("--provider-id <id>", "Provider for --model-id (default lmstudio).")
 		.option("--no-plan", "Start the seed in ACT mode (agent works directly) instead of plan/decompose.")
 		.option("--null-agent", "Seed and grade the real pipeline without starting an agent (grader-integrity baseline).")
+		.option(
+			"--resume",
+			"Resume an existing board (requires --project-path): skip seeding when non-terminal cards exist and let the runtime's own dispatch drive them.",
+		)
 		.option("--poll-interval-ms <ms>", "Board poll interval in milliseconds.", (value) => Number.parseInt(value, 10))
 		.option("--max-wait-ms <ms>", "Maximum monitor duration in milliseconds.", (value) => Number.parseInt(value, 10))
 		.option("--json", "Print machine-readable JSON.")

@@ -329,6 +329,19 @@ elif [ "$RUN_KIND" = fleet ]; then
       NKLEIN_VERIFY_TIMEOUT_MS=$((MAX_MIN*60000)) \
       "$REPO/node_modules/.bin/tsx" scripts/verify-fleet-swarm.mts >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
 else
+  # P23.5 resume-mode: NKLEIN_RESUME_PROJECT_PATH (with NKLEIN_RUN_HOME persisted across cycles) monitors the
+  # EXISTING board instead of scaffolding+seeding — run N+1 attacks the graph's deeper cards. Fresh-workspace
+  # runs are measurement-stationary; resuming is the honest path to "is the domain slice reachable locally".
+  if [ -n "${NKLEIN_RESUME_PROJECT_PATH:-}" ]; then
+    [ -n "${NKLEIN_RUN_HOME:-}" ] || { log "FATAL: resume mode requires NKLEIN_RUN_HOME (the persisted home whose board is being resumed)"; exit 64; }
+    log "launching RESUME drain: project=$NKLEIN_RESUME_PROJECT_PATH worker=$WORKER max=${MAX_MIN}m"
+    ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
+        "$REPO/node_modules/.bin/tsx" src/cli.ts dev test-project --preset "$PRESET" --resume \
+          --project-path "$NKLEIN_RESUME_PROJECT_PATH" \
+          --model-id "$WORKER" --provider-id lmstudio \
+          --max-wait-ms $((MAX_MIN*60000)) --poll-interval-ms 10000 --json \
+          >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
+  else
   log "launching drain: preset=$PRESET mode=${MODE:-plan} worker=$WORKER max=${MAX_MIN}m"
   NULL_AGENT_ARG=""
   [ "$NULL_AGENT" = 1 ] && NULL_AGENT_ARG="--null-agent"
@@ -337,6 +350,7 @@ else
         --model-id "$WORKER" --provider-id lmstudio \
         --max-wait-ms $((MAX_MIN*60000)) --poll-interval-ms 10000 --json \
         >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
+  fi
 fi
 
 # ─────────────────────────────── watch + react ───────────────────────────────
