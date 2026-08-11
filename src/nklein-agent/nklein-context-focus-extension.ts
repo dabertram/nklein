@@ -273,7 +273,12 @@ export function createKanbanContextFocusExtension(
 	// F11.2l local summary refresh. Undefined still serves an already-persisted artifact, but performs no inference.
 	repoSummaryCaller?: RepoSummaryModelCaller,
 	// P18.4b: reads LIVE off-track signals when drift fires. Undefined ⇒ no remedy is computed (byte-identical).
-	offTrackSignalsProvider?: () => { readonly hasCapturedWork: boolean },
+	// Async so the provider can ask the REPO (foldCapturedWorkProbe) when in-memory state says nothing — the
+	// in-memory null is not "no work": it is what a restarted service reports for exactly the cards whose diff a
+	// restart would destroy.
+	offTrackSignalsProvider?: () =>
+		| { readonly hasCapturedWork: boolean; readonly basis?: string; readonly detail?: string }
+		| Promise<{ readonly hasCapturedWork: boolean; readonly basis?: string; readonly detail?: string }>,
 ): NKleinSdkRuntimeExtension {
 	const nightlyHermetic = isNightlyHermeticEnvironment();
 	const operationalNow = nightlyHermetic ? () => NIGHTLY_HERMETIC_EPOCH_MS : Date.now;
@@ -494,7 +499,7 @@ export function createKanbanContextFocusExtension(
 								recentActivity,
 							}),
 						)
-							.then((text) => {
+							.then(async (text) => {
 								const verdict = parseDriftCriticVerdict(text ?? "");
 								// ON-TRACK (and any unparseable reply) injects NOTHING — a spurious nudge is worse
 								// than none, and a critic that always finds something trains the worker to ignore it.
@@ -547,7 +552,7 @@ export function createKanbanContextFocusExtension(
 									// allowed to act. Recording it also closes the actual defect this item names — that the
 									// live path never called the core at all — while leaving the acting half a deliberate,
 									// separately-reviewable change.
-									const offTrackSignals = offTrackSignalsProvider?.();
+									const offTrackSignals = await offTrackSignalsProvider?.();
 									if (offTrackSignals && driftUtilisation !== null) {
 										const remedy = decideOffTrackRemedy({
 											onTrack: false,
@@ -574,6 +579,11 @@ export function createKanbanContextFocusExtension(
 												turn: driftTurn,
 												contextUtilisation: driftUtilisation.toFixed(3),
 												hasCapturedWork: String(offTrackSignals.hasCapturedWork),
+												// The basis is what keeps an assumption from reading as an observation:
+												// "parked because we could not check" and "parked because there is a diff"
+												// are different facts with different fixes (captured-work-basis.ts).
+												...(offTrackSignals.basis ? { capturedWorkBasis: offTrackSignals.basis } : {}),
+												...(offTrackSignals.detail ? { capturedWorkDetail: offTrackSignals.detail } : {}),
 											},
 										});
 									}

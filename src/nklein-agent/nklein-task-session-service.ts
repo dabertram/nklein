@@ -1,5 +1,6 @@
 import { readdirSync } from "node:fs";
 import { buildEditorPrompt } from "../core/architect-editor-split";
+import { foldCapturedWorkProbe } from "../core/captured-work-basis";
 import { restrictToolPoliciesForPlanning } from "../core/decompose-tool-policy";
 import { restrictToolPoliciesForVerdictSession, VERDICT_ONLY_SESSION_KINDS } from "../core/judge-tool-policy";
 import {
@@ -89,7 +90,7 @@ import { recordTaskRunSummary, type TaskRunTerminalState } from "../state/task-r
 import { loadWorkspaceState } from "../state/workspace-state";
 import { summarizeAttemptKnowledgeUsage } from "../telemetry/attempt-knowledge-usage";
 import { recordSelfObservation, type SelfObservationEventInput } from "../telemetry/self-observation-sink";
-import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
+import { probeTaskResultBranchCommit, resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
 import type { AutonomyBudgetWatchdogCallbacks } from "./autonomy-budget-watchdog";
 import { AutonomyBudgetWatchdog } from "./autonomy-budget-watchdog";
@@ -2523,9 +2524,34 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							// PART-WAY through a session, so a start-time snapshot would report `false` for exactly the
 							// cards that have work worth preserving — and stale-false is the dangerous direction, since
 							// it is what makes the remedy prefer RESTART (discarding the diff) over PARK.
-							offTrackSignalsProvider: () => ({
-								hasCapturedWork: this.sandboxState.getResultBranch(request.taskId) !== null,
-							}),
+							// The in-memory fast path answers only the POSITIVE case. Its null is NOT "no work" — it is
+							// what a restarted service reports for exactly the cards whose diff a restart would destroy —
+							// so null falls through to the REPO probe, folded by captured-work-basis (an unreadable probe
+							// resolves to true, labelled assumed_safe; only a probe that positively said "no branch"
+							// yields the restart-permitting false).
+							offTrackSignalsProvider: async () => {
+								if (this.sandboxState.getResultBranch(request.taskId) !== null) {
+									return {
+										hasCapturedWork: true,
+										basis: "observed",
+										detail: "in-memory sandbox state holds a captured result branch",
+									};
+								}
+								const probe = await probeTaskResultBranchCommit({
+									repoPath: request.workspaceRoot ?? request.cwd,
+									taskId: request.taskId,
+								}).catch((error: unknown) => ({
+									status: "error" as const,
+									commit: null,
+									message: error instanceof Error ? error.message : String(error),
+								}));
+								const signal = foldCapturedWorkProbe(probe);
+								return {
+									hasCapturedWork: signal.hasCapturedWork,
+									basis: signal.basis,
+									detail: signal.detail,
+								};
+							},
 							// Always hand the runtime a host workspace root so the trusted control-plane decomposition
 							// tools resolve plan artifacts + board mutations to the host owning workspace, never to the
 							// container workdir (agentPerceivedCwd points inside the sandbox volume when isolation is active).

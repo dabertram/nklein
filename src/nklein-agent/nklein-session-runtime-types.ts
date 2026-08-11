@@ -116,7 +116,9 @@ export interface StartNKleinSessionRuntimeRequest {
 	 *
 	 * Undefined ⇒ the extension records drift as before and computes no remedy, so omitting it is byte-identical.
 	 */
-	offTrackSignalsProvider?: () => { readonly hasCapturedWork: boolean };
+	offTrackSignalsProvider?: () =>
+		| { readonly hasCapturedWork: boolean; readonly basis?: string; readonly detail?: string }
+		| Promise<{ readonly hasCapturedWork: boolean; readonly basis?: string; readonly detail?: string }>;
 	/** F3.3: correlates a successful prompt-variation recovery with the task's terminal attempt ledger entry. */
 	onPromptStrategyApplied?: (strategy: string) => void;
 	/** F3.10: learned retry budget/profile snapshot used by the shared swarm adaptive loop. */

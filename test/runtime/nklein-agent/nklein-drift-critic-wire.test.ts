@@ -253,6 +253,40 @@ describe("F12.92 drift critic — the wire, end to end", () => {
 		expect(remedy?.message).not.toMatch(/budget/);
 	});
 
+	it("awaits an ASYNC signals provider and records its basis — the repo-probe fold reaches the observation", async () => {
+		// P18.4b slice (2026-08-11): the live provider now asks the REPO via foldCapturedWorkProbe when in-memory
+		// state says nothing (the in-memory null is what a restarted service reports for exactly the cards whose
+		// diff a restart would destroy). This pins the two things that wire depends on: the extension AWAITS a
+		// promise-returning provider, and the basis label survives into the recorded metadata — "parked because
+		// we could not check" and "parked because there is a diff" must stay distinguishable facts.
+		const driftCriticCaller = vi.fn(async () => OFF_TRACK_REPLY);
+		sessionCounter += 1;
+		const extension = createKanbanContextFocusExtension(
+			`session-${sessionCounter}`,
+			"/workspaces/task-1",
+			"/repo",
+			200_000,
+			undefined,
+			undefined,
+			driftCriticCaller as never,
+			undefined,
+			undefined,
+			async () => ({
+				hasCapturedWork: true,
+				basis: "assumed_safe",
+				detail: "probe could not read the repo",
+			}),
+		);
+		await extension.hooks?.beforeModel?.(makeContext(8));
+		await settle();
+
+		const remedy = observations.find((event) => event.metadata?.category === "off_track_remedy_observed");
+		expect(remedy, "async provider result never reached the observation").toBeDefined();
+		expect(remedy?.metadata?.capturedWorkBasis).toBe("assumed_safe");
+		expect(remedy?.metadata?.capturedWorkDetail).toBe("probe could not read the repo");
+		expect(remedy?.message).toMatch(/park/);
+	});
+
 	it("skips the remedy entirely when no signals provider is supplied", async () => {
 		// Without real signals the remedy is not computed at all, rather than computed from defaults — defaulting
 		// `hasCapturedWork` to false is precisely what would make the ladder prefer RESTART and discard a diff.

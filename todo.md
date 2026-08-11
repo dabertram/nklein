@@ -11693,11 +11693,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   CONSTRUCTION, so the observation could never record the budget-exhausted `park` and was **biased toward
   `restart_with_restatement` for as long as it stayed a literal**. The acting half now only has to add the
   WRITE; the read, the keying and the cap are in place and tested.
-  **⚠️ AND A PRE-EXISTING COVERAGE GAP THE MUTATION CHECK EXPOSED, stated rather than papered over:** replacing
-  that read with `99` leaves **all 9 drift-critic wire tests green**. They assert the remedy computation "does
-  not throw" and never inspect the RECORDED remedy, so no test covers what the observation actually says. My
-  read is correct and UNCOVERED, and citing those 9 passes as coverage would have been exactly the substitution
-  this file keeps documenting.
+  ~~⚠️ pre-existing coverage gap (the 9 wire tests never inspected the RECORDED remedy)~~ — CLOSED: the sink is
+  captured and the remedy tests assert the recorded message/metadata, including the ledger-read PAIR (spent
+  budget → park-with-budget; empty ledger → restart).
+  **▶ `foldCapturedWorkProbe` DE-ORPHANED ON THE LIVE PATH 2026-08-11.** The provider had shipped with an
+  in-memory shortcut (`sandboxState.getResultBranch(...) !== null`) — whose `null` is NOT "no work": it is what
+  a restarted service reports for exactly the cards whose diff a restart would destroy, i.e. the stale-false
+  the fold was built to prevent, sitting one call upstream of the fold that never ran. The provider is now
+  async: the in-memory fast path answers only the POSITIVE case; `null` falls through to
+  `probeTaskResultBranchCommit` folded by captured-work-basis, and the basis/detail ride into the recorded
+  observation (`capturedWorkBasis`/`capturedWorkDetail`) so "parked because we could not check" and "parked
+  because there is a diff" stay distinguishable in telemetry. Wire-pinned: the extension AWAITS an async
+  provider and the basis survives to the observation (13 wire tests).
+  **REMAINING (the acting half proper, still deliberately observe-first/F1.21):** an opt-in enforcement gate
+  (default OFF) that ACTS on the recorded remedy — `restart_with_restatement` performs the restart (write
+  `recordOffTrackRestart` at the restart it performs, restate the card brief) and `park` parks for attention —
+  plus the false-positive-rate readout from the accumulated `off_track_remedy_observed` stream that justifies
+  ever flipping it.
   **▶ CLOSED SAME DAY — the wire test now captures the sink and asserts the RECORDED remedy (12 tests).**
   Three mutations are caught where none were before: `hasCapturedWork` forced false, and the ledger read
   replaced by **either** `99` **or** `0`.
