@@ -14310,7 +14310,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   live ledger→fitness projection dropped every attempt's `contextTokens` — see the depth-blind bug entry above.
   Fixed and proven on that run's own ledger: the same events now project to `{shallow:3, medium:1, deep:9}`.
   **So phase 4 no longer needs a fresh fleet run to BEGIN** — 15 depth-matched samples already exist from the
-  banked drain, and every future drain contributes. What is still fleet-gated is VOLUME: 15 samples across two
+  banked drain, and every future drain contributes.
+  **Volume-accrual correction 2026-08-11, learned from the P23.5 campaign's ~29 drains:** isolated-HOME drains
+  do NOT accumulate — their fitness stores die with the pruned run dirs, so a hundred throwaway drains leave
+  the depth-sample count exactly where it was. Only runs against a DURABLE home accrue. The resume-pair
+  pattern (persistent NKLEIN_RUN_HOME, built for P23.5's resume-mode) is therefore also the depth-volume
+  answer: point future drains at a durable home and every cycle's terminal sessions add rows to one store. What is still fleet-gated is VOLUME: 15 samples across two
   cells is far below `minDepthMatchedSamples`, so `assignModelFromFitness` still (correctly) abstains.
   **Lesson worth keeping: "no data yet" and "the data cannot be produced" look identical from the outside.** Two
   drains were spent on the wrong hypothesis; the discriminator was cheap — read the store after a KNOWN-GOOD run
