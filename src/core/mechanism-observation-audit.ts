@@ -477,6 +477,20 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		addedOn: Date.UTC(2026, 6, 30),
 	},
 	{
+		// P18.4b 2026-08-11: the remedy-SKIP record, registered with its wire (the ratchet caught it — working
+		// as designed). Fires only when the drift critic FLAGS a card but context utilisation is unavailable, so
+		// the remedy cannot be computed (it needs the (offTrack, utilisation) pair). Recording the skip keeps
+		// the evidence stream's absences attributable: "no remedy observations" and "no flags" are different
+		// facts — the live 20260811-080403 first-flag run left them indistinguishable.
+		category: "off_track_remedy_skipped",
+		item: "P18.4b",
+		observes:
+			"a flagged drift verdict whose remedy could not be computed (utilisation unavailable), recorded so the absence is attributable",
+		enabledBy: "NKLEIN_DRIFT_CRITIC",
+		expectation: "exceptional",
+		addedOn: Date.UTC(2026, 7, 11),
+	},
+	{
 		// P18.3b 2026-07-30: registered AT THE MOMENT ITS WIRE LANDED, which is the point of the item's instruction
 		// to "verify with `dev mechanism-registry` after wiring, not by inspection". The pure core had no consumer
 		// and no registry entry, so nothing could have reported that it never ran — the `enabled_but_silent` shape

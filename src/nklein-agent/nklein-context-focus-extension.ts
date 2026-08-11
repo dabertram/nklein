@@ -541,6 +541,7 @@ export function createKanbanContextFocusExtension(
 										signal: "custom",
 										severity: "info",
 										message: `Drift critic flagged ${verdict.flags.length} concern(s) at turn ${driftTurn}.`,
+										...(taskId ? { taskId } : {}),
 										metadata: {
 											category: "drift_critic_flagged",
 											flags: verdict.flags.length,
@@ -558,6 +559,25 @@ export function createKanbanContextFocusExtension(
 									// live path never called the core at all — while leaving the acting half a deliberate,
 									// separately-reviewable change.
 									const offTrackSignals = await offTrackSignalsProvider?.();
+									// Live 20260811-080403 — the FIRST real flag produced NO remedy observation, silently:
+									// utilisation was unavailable that turn, and the skip left "no remedy observations"
+									// indistinguishable from "no flags". The remedy still needs the (offTrack, utilisation)
+									// PAIR — a derailed card and a merely-full one need opposite remedies — so nothing is
+									// computed without it; but the SKIP is now recorded with its reason, keeping the
+									// evidence stream's absences attributable.
+									if (offTrackSignals && driftUtilisation === null) {
+										recordSelfObservation({
+											signal: "custom",
+											severity: "info",
+											message: `Off-track remedy SKIPPED at turn ${driftTurn}: context utilisation was unavailable, and the remedy needs the (offTrack, utilisation) pair.`,
+											...(taskId ? { taskId } : {}),
+											metadata: {
+												category: "off_track_remedy_skipped",
+												reason: "utilisation_unavailable",
+												turn: driftTurn,
+											},
+										});
+									}
 									if (offTrackSignals && driftUtilisation !== null) {
 										const remedy = decideOffTrackRemedy({
 											onTrack: false,
