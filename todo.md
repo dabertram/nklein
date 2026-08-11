@@ -9895,6 +9895,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   flag-gated mechanisms deserve a counterfactual emitter**, and adding one per mechanism — design work, one
   mechanism at a time, exactly as this item's title says. ~~`dev mechanism-decision` is also single-mechanism
   today and would need a selector.~~
+  **▶ SURVEY VERDICT 2026-08-11 — the counterfactual-JOIN family is EXHAUSTED at two mechanisms, and that is
+  a finding, not a shortfall.** Swept the full flag registry against the pattern's requirement (a mechanism
+  that RECOMMENDS without acting, joinable to outcomes): every remaining flag is one of —
+  (a) **A/B-family**: act-when-ON mechanisms whose evidence is the PAIRED comparison, not a counterfactual
+  join. `NKLEIN_MODEL_CONSULT` is the exemplar and its registry note already names its bar ("consult-then-
+  success vs cross_model_carry" — `decideDefaultFlip`/F12.41 machinery, needs paired drains); the same holds
+  for the exemplar/prompt-content/review-shape flags. Building a "join" for these would manufacture agreement.
+  (b) **SHADOW-EMITTER candidates**: the decision core is pure and cheap enough to run while OFF, recording
+  what it WOULD have chosen — `NKLEIN_QUEUE_AWARE_FREE_FIRST` (routing calc) is the exemplar and the next
+  concrete buildable slice. (c) **diagnostics/capture/dev-only** — no decision, excluded by the entry's own
+  earlier analysis. So P15.3's remaining work forks: shadow emitters one at a time (b), and an A/B campaign
+  design for (a) — the latter needs paired drains and is a fresh-context design task.
   **▶ MECHANISM #2 COMPLETE 2026-08-11 — the off-track remedy (P18.4b) now has the full pipeline:** join key
   (drift/remedy observations carry the board task id), adapter (`off-track-remedy-observation-join`, same
   honesty rules as the gate join: unknown remedy = UNUSABLE, never counted toward either side; unjoined
