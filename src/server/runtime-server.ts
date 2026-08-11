@@ -3871,6 +3871,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					`Startup orphan reconcile failed for ${scope.workspacePath}: ${error instanceof Error ? error.message : String(error)}`,
 				);
 			}
+			// COLD-BOOT RESUME (P23.5 resume-mode, live 20260811 cycle 2): a freshly booted runtime with a
+			// startable board dispatched NOTHING — every start path is event-triggered (a seed save, a
+			// completion, a terminal summary), and a resumed/reopened workspace generates no event. 22 dep-free
+			// planning cards sat for a full monitored run while the runtime idled. One timer-form sweep at
+			// service creation resumes any startable board; it respects pauses, skips live sessions, and is the
+			// same sweep every terminal already runs — a reopened mid-graph board simply continues.
+			retryWaitingCardsAfterTerminal(scope, trackedService, undefined, { timerFired: true });
 			deps.runtimeStateHub.trackNKleinTaskSessionService(scope.workspaceId, scope.workspacePath, service);
 			// C3 (§5.AF): remember the scope so the durable controller's `startCard` port can re-enter the start path from a
 			// timer/summary callback, and BOOT-RESUME any durable run this workspace had in flight when the process died.
