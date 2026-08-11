@@ -14797,10 +14797,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   (acceptance_green_workflow_incomplete; 4 completed / 16 planning / 1 review-parked) — no stall-abort, no
   idle tail.** The campaign loop is now cheap and self-terminating: foundation cards deliver every run; the
   types-card review park remains the model-capability wall.
-  REMAINING: continue the campaign (same one-command invocation) — constrained-schema retry for empty calls
-  stays the strongest untried model-side lever, and the types card's test-refusal is the recurring park cause
-  (worker won't write a type-level test; the gate is correct) — or bank the verdict as the honest
-  local-capability boundary and grade any deeper tree with the standing oracle wire.
+  **▶ CADENCE FINDING (runs 21-30): the fresh-workspace cadence is MEASUREMENT-STATIONARY.** Each run
+  scaffolds a fresh workspace, so completions recycle the same foundation cards (clock/prng/scaffold) and no
+  run builds on a predecessor's deliveries — the domain slice cannot be reached by repetition, only by depth.
+  The drift-critic stream is likewise saturated on-track (250+ verdicts, 1 honest flag, ~0.4% flag rate — a
+  real false-positive baseline for the P18.4b gate).
+  REMAINING, in value order: **(1) RESUME-MODE drains** — persist NKLEIN_RUN_HOME + the scaffolded workspace
+  across runs so run N+1 boots the runtime over the surviving board and dispatches the DEEPER startable cards
+  instead of re-scaffolding (needs: skip the duplicate seed when a board already exists; the rig's teardown to
+  spare the persisted pair; the monitor to classify as today). This is the honest path to "is the domain slice
+  reachable locally" — incremental accumulation across runs. **(2) constrained-schema retry for empty calls**
+  (strongest model-side lever). **(3)** bank the verdict as the local-capability boundary and grade any deeper
+  tree with the standing oracle wire. The types card's test-refusal park remains the correct gate doing its
+  job.
 - [x] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle. CLOSED 2026-08-10 — the
   measurement ran across THREE models (8 legs), the delta is real, reproducible, and root-caused where it is
   defined.**
