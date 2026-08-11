@@ -9921,9 +9921,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   design for (a) — SCOPED 2026-08-11: pairs = alternating flag-on/flag-off REAL drains over the same fixture
   (the 02 preset, or resume cycles once a graph survives), outcome = per-card terminal success from the ledger
   outcome index (the same join every mechanism uses), decision = `decideDefaultFlip`'s McNemar on the pairs.
-  First flag: `NKLEIN_MODEL_CONSULT` (its registry note already names the bar). The build is a `dev` campaign
-  runner that alternates arms and accumulates pairs across invocations — fresh-context work, sized ~one
-  session; until then the N11 sim lanes keep proving mechanisms FIRE, which is deliberately not the same claim.
+  First flag: `NKLEIN_MODEL_CONSULT` (its registry note already names the bar). **THE RUNNER SHIPPED
+  2026-08-11: `scripts/ab-campaign.sh <FLAG> [--presets p1,p2] [--repeat N] [--max-min M] [--verdict-only]`.**
+  Both arms go through real-model-run.sh (§4A), sequentially; the pairing unit is (preset, pair-index) — the
+  same task content in both arms; each pair appends to a durable ledger (~/nklein-ab-campaigns/<flag>.jsonl)
+  so evidence accumulates across invocations (the P25.3 throwaway-home lesson, applied); a pair with a broken
+  arm is DISCARDED, never recorded — infrastructure noise must not vote; the verdict step runs
+  `decideDefaultFlip` over ALL accumulated pairs and prints it. Verified on synthetic pairs: the gate's own
+  refusal semantics decide ("within noise … need a larger eval"). The CAMPAIGN itself is one command away
+  (`scripts/ab-campaign.sh NKLEIN_MODEL_CONSULT --presets mid_task,deep_chain --repeat 3 --max-min 30` ≈ 6
+  paired drains ≈ a few GPU-hours) — start it whenever the GPU time is worth it; pairs accumulate forever.
   **▶ MECHANISM #2 COMPLETE 2026-08-11 — the off-track remedy (P18.4b) now has the full pipeline:** join key
   (drift/remedy observations carry the board task id), adapter (`off-track-remedy-observation-join`, same
   honesty rules as the gate join: unknown remedy = UNUSABLE, never counted toward either side; unjoined
