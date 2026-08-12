@@ -884,6 +884,8 @@ export async function runSecondOpinionReviewForTask(
 		// structurally always false. Guard on ANY derived session id (`::review`, `::spec`, …) so a derived id that
 		// reaches this path (e.g. via an unguarded summary fan-out) is never itself second-opinion-reviewed.
 		isReviewerCard: isDerivedTaskSessionId(input.taskId),
+		// F10: same cross-workspace collision shape as escalatedWorkerTaskIds — scope the no-verdict streak.
+		streakScope: input.workspacePath,
 		acceptanceSummary: acceptanceSummaryForReview,
 		...(reviewLenses ? { reviewLenses } : {}),
 		escalationAvailable: Boolean(escalationCandidate),

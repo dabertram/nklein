@@ -76,6 +76,8 @@ export interface RunNKleinSecondOpinionReviewInput {
 	isReviewerCard?: boolean;
 	/** True for planning/decomposition cards (skipped). */
 	isPlanningCard?: boolean;
+	/** Scopes the in-process no-verdict streak key (pass the workspace path) so same-named cards on two boards never share a streak. */
+	streakScope?: string;
 	/** Human acceptance-gate summary to give the reviewer, when an acceptance check ran. */
 	acceptanceSummary?: string | null;
 	/**
@@ -170,6 +172,8 @@ function buildNextReview(input: {
 
 /** Park after this many CONSECUTIVE reviewer sessions that end without any submit_review call on unchanged work. */
 const NO_VERDICT_PARK_STREAK = 3;
+// Keyed `${streakScope ?? ""}::${taskId}` (audit 2026-08-12 F10): a bare-taskId key collided across workspaces
+// (plan slugs repeat between boards), so a colliding id could push a healthy card toward the no-verdict park cap.
 const noVerdictStreakByTaskId = new Map<string, { fingerprint: string; count: number }>();
 
 export async function runNKleinSecondOpinionReview(
@@ -223,6 +227,8 @@ export async function runNKleinSecondOpinionReview(
 	}
 
 	const history = card.review?.history ?? [];
+	// Audit 2026-08-12 F10: scope the no-verdict streak key by caller-supplied scope (workspace) + task id.
+	const streakKey = `${input.streakScope ?? ""}::${input.taskId}`;
 	const round = history.length + 1;
 	stamp("core: context-load");
 	const reviewContext = (await input.deps.getReviewContext?.(input.taskId)) ?? null;
@@ -276,21 +282,21 @@ export async function runNKleinSecondOpinionReview(
 		// resolution → up to the cap's worth of reviewer sessions → a real park, no scheduler cooperation needed.
 		const streakFingerprint = workFingerprint ?? "(unfingerprinted)";
 		let count = (() => {
-			const streak = noVerdictStreakByTaskId.get(input.taskId);
+			const streak = noVerdictStreakByTaskId.get(streakKey);
 			return streak && streak.fingerprint === streakFingerprint ? streak.count + 1 : 1;
 		})();
-		noVerdictStreakByTaskId.set(input.taskId, { fingerprint: streakFingerprint, count });
+		noVerdictStreakByTaskId.set(streakKey, { fingerprint: streakFingerprint, count });
 		while (!submission && count < NO_VERDICT_PARK_STREAK) {
 			stamp(`core: review-session retry (no verdict ${count}/${NO_VERDICT_PARK_STREAK}, round ${round})`);
 			submission = await input.deps.runReviewSession({ taskId: input.taskId, seedPrompt, round });
 			stamp(`core: review-session done (${submission ? submission.verdict : "no submission"})`);
 			if (!submission) {
 				count += 1;
-				noVerdictStreakByTaskId.set(input.taskId, { fingerprint: streakFingerprint, count });
+				noVerdictStreakByTaskId.set(streakKey, { fingerprint: streakFingerprint, count });
 			}
 		}
 		if (!submission && count >= NO_VERDICT_PARK_STREAK) {
-			noVerdictStreakByTaskId.delete(input.taskId);
+			noVerdictStreakByTaskId.delete(streakKey);
 			const parkedReason = `The reviewer ended ${count} consecutive sessions without a verdict on the same unchanged work — parking for a human decision (reviewer cannot produce a verdict on this artifact).`;
 			// Spread-preserve first (audit 2026-08-12 M4): field-enumerating rebuilds silently drop optional review
 			// fields (`preferredCandidate`, `resultArtifact`, and any future additive one).
@@ -317,7 +323,7 @@ export async function runNKleinSecondOpinionReview(
 		}
 	}
 	// A real submission arrived — the reviewer CAN verdict this artifact; the no-verdict budget resets.
-	noVerdictStreakByTaskId.delete(input.taskId);
+	noVerdictStreakByTaskId.delete(streakKey);
 
 	// A no-change result still gets a stable work fingerprint so the stall / identical-loop guards engage when a
 	// card keeps coming back with nothing done (a common bad-planning symptom), rather than bouncing to the cap.
