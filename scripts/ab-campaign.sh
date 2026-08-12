@@ -33,10 +33,12 @@ done
 case "$REPEAT" in ''|*[!0-9]*|0) echo "error: --repeat must be a positive integer" >&2; exit 64;; esac
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-# The rig's idle-stall window MUST exceed the dev-test monitor's stagnation settle (48 polls x 10s = 480s),
-# or arms that end via stagnation get stall-killed ~60s before they can classify — and those kills correlate
-# with whichever arm fails more, silently BIASING the pair sample (live: 4/6 arm-A discards, 0/6 arm-B).
-export NKLEIN_STALL_SECS="${NKLEIN_STALL_SECS:-600}"
+# The rig's idle-stall kill is DISABLED-in-effect for campaign arms (window = the arm's own wall + slack):
+# 600s was not enough, and the deeper finding is that idle-kills here are not noise — the flag UNDER TEST
+# changes idle patterns (a stuck consult-OFF arm goes quiet; a consult-ON arm stays active), so stall-kills
+# systematically censor exactly the pairs where the mechanism matters. Within a bounded arm, every run must
+# reach a CONTROLLER classification (complete, settle, or max-wait) so every pair records an outcome.
+export NKLEIN_STALL_SECS="${NKLEIN_STALL_SECS:-$((MAX_MIN * 60 + 300))}"
 CAMPAIGN_DIR="$HOME/nklein-ab-campaigns"
 PAIRS_FILE="$CAMPAIGN_DIR/$FLAG.jsonl"
 mkdir -p "$CAMPAIGN_DIR"
