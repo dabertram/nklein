@@ -14961,6 +14961,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     redrive landed post-conversion and prematurely released the causal-stamps parent past 2 pending children.
     Edges must never silently vanish/flip; explicit starts of dep-gated cards should refuse-or-warn (folded into
     the fix batch alongside the satisfied-edges persistence design).
+  - **AUDIT FIX BATCHES EXECUTED same day (2026-08-12): `0c2d9bf66` (batch 1: park-path truth, scoped guards,
+    derived-id guards, M4 review-rebuild preservation, M1 streams strip, B-F7 lean level, trust-write key, W4.2a
+    objective), `9d4e7a802` (F1 CRITICAL: mid-run decompose cards absorbed into the LIVE durable run + board-driven
+    reopen of the converted parent, restart-covered; + focus-chain derived strip, :: helper adoption, warm-cap
+    announce), `ef8438051` (batch 2: shared observation-outcome bridge incl. ::-strip, expand-plan-task strict
+    decode, F4.8 card contract WIRED both start paths, stream-membership derive fallback, portable-continuation
+    direction uninverted + tests un-bent, decision-handoff history feedback source, fanout namespaces, fixture
+    realism, web-ui all-edges), `e707243fa` (F10 streak scoping). All gates green (backend 13,907 + web-ui 1,154).
+    REMAINDERS (recorded, not blocking): edge-semantics slice — updateTaskDependencies must never FLIP an existing
+    edge and should persist satisfied edges (umbrella for the dark handoff + reviewer completed-neighbor context +
+    F12 ready-lane + explicit-start-past-deps live find); DECISIONS FOR DAVID: F8 blockedKind (enforce in sweep vs
+    clear server-side — today display-only), M5 pre-commit scope (web-ui tsc + src co-located tests not run at
+    commit); small: task-session-service :: sites, trigger-intake absorb, M2 CRDT streams modeling, F5 full gate
+    routing, F13 acceptance-repair role fallback on single-model rigs, attention-park skipped-review liveness pin,
+    redecompose fixture typed-pin (source id ≠ redecompose- prefix).**
   - **A/B CAMPAIGN CHECKPOINT (NKLEIN_MODEL_CONSULT, 2026-08-12, flagged per the standing agreement):** 18
     accumulated pairs, verdict REFUSING (3 better / 1 worse, McNemar p=0.625) — and the discordant count has been
     FROZEN for six consecutive invocations (9 pairs, zero new discordants; success rates a=17% b=28%). Two reasons
