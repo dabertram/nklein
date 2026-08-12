@@ -1102,6 +1102,9 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"card_lane_change",
 	"model_usage",
 	"review_phase",
+	// David 2026-08-12: the park-path re-decompose rung records every spawn/skip decision with its reason —
+	// F4.8b's rule (record the DECISION, not only the action) applied to the widened rung.
+	"review_redecompose_rung",
 	"sandbox_workspace_disposed",
 	// N23 (2026-08-03): the two zero-trace forever-waits a swept card can enter, made visible. Diagnostics
 	// on the sweep path — not flag-gated mechanisms, and a healthy board emits neither.

@@ -16,6 +16,7 @@ import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain"
 import type { ReviewLens } from "../core/review-lenses";
 import {
 	buildReviewSeedPrompt,
+	collectPriorReviewConcerns,
 	fingerprintReviewArtifact,
 	type ReviewBoardContext,
 	type ReviewSubmissionInput,
@@ -122,8 +123,17 @@ export interface RunNKleinSecondOpinionReviewInput {
 		onBounce(input: { taskId: string; review: RuntimeCardReview; workerPrompt: string }): Promise<void>;
 		/** W4.2 (optional): re-drive the stuck card on a stronger/different-lineage worker. Absent ⇒ park instead. */
 		onEscalate?(input: { taskId: string; review: RuntimeCardReview; workerPrompt: string }): Promise<void>;
-		/** Parked: persist the review state and flag the card for a human. */
-		onPark(input: { taskId: string; review: RuntimeCardReview; reason: string }): Promise<void>;
+		/**
+		 * Parked: persist the review state and flag the card for a human. `parkKind` distinguishes worker-stuck
+		 * parks (`review_stuck` — re-decompose-rung evidence) from reviewer no-verdict parks (`no_verdict` — the
+		 * REVIEWER failed; decomposing the work would remedy the wrong agent).
+		 */
+		onPark(input: {
+			taskId: string;
+			review: RuntimeCardReview;
+			reason: string;
+			parkKind: "review_stuck" | "no_verdict";
+		}): Promise<void>;
 	};
 }
 
@@ -239,6 +249,9 @@ export async function runNKleinSecondOpinionReview(
 		acceptanceSummary: input.acceptanceSummary ?? null,
 		round,
 		priorFeedback: card.review?.lastFeedback ?? null,
+		// Every distinct EARLIER concern (dedupe by fingerprint, excluding the latest one shown above), so a
+		// re-review verifies the whole set — not only the most recent ask (David 2026-08-12).
+		priorConcerns: collectPriorReviewConcerns(history, fingerprintReviewArtifact(card.review?.lastFeedback ?? null)),
 		focusChain: card.focusChain ? formatFocusChainForPrompt(card.focusChain) : null,
 		// Opt-in: absent unless the runner (gated on NKLEIN_REVIEW_LENSES) supplied a non-empty panel.
 		...(input.reviewLenses && input.reviewLenses.length > 0 ? { lenses: input.reviewLenses } : {}),
@@ -292,7 +305,7 @@ export async function runNKleinSecondOpinionReview(
 				...(card.review?.escalated !== undefined ? { escalated: card.review.escalated } : {}),
 				updatedAt: now,
 			};
-			await input.deps.onPark({ taskId: input.taskId, review, reason: parkedReason });
+			await input.deps.onPark({ taskId: input.taskId, review, reason: parkedReason, parkKind: "no_verdict" });
 			return { type: "parked", round: card.review?.round ?? 0, reason: parkedReason };
 		}
 		if (!submission) {
@@ -315,6 +328,12 @@ export async function runNKleinSecondOpinionReview(
 		// Escalation only counts as available when the executor is actually wired.
 		escalationAvailable: Boolean(input.escalationAvailable && input.deps.onEscalate),
 		...(input.alreadyEscalated !== undefined ? { alreadyEscalated: input.alreadyEscalated } : {}),
+		// Self-contained re-work brief inputs (David 2026-08-12): the bounce/escalation prompt restates the
+		// objective + acceptance bar and marks a no-op attempt, so a takeover model needs no session history.
+		taskTitle: card.title,
+		taskObjective: card.prompt,
+		acceptanceSummary: input.acceptanceSummary ?? null,
+		artifactStatus: diff ? "changed" : "no_changes",
 	});
 	const previousSignOff = card.review?.signOff ?? null;
 
@@ -387,6 +406,6 @@ export async function runNKleinSecondOpinionReview(
 		now,
 		...(card.review?.escalated !== undefined ? { escalated: card.review.escalated } : {}),
 	});
-	await input.deps.onPark({ taskId: input.taskId, review, reason: transition.reason });
+	await input.deps.onPark({ taskId: input.taskId, review, reason: transition.reason, parkKind: "review_stuck" });
 	return { type: "parked", round, reason: transition.reason };
 }

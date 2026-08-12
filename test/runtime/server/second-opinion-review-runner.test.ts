@@ -14,6 +14,7 @@ function boardWithCardInReview(options?: {
 	preexistingRedecompose?: boolean;
 	review?: RuntimeCardReview;
 	testability?: "testable" | "not_testable";
+	decomposeGeneration?: number;
 }): RuntimeBoardData {
 	return {
 		columns: COLUMN_IDS.map((id) => ({
@@ -29,6 +30,9 @@ function boardWithCardInReview(options?: {
 								startInPlanMode: false,
 								baseRef: "main",
 								...(options?.testability ? { testability: options.testability } : {}),
+								...(options?.decomposeGeneration !== undefined
+									? { decomposeGeneration: options.decomposeGeneration }
+									: {}),
 								...(options?.review
 									? { review: options.review }
 									: options?.preexistingRedecompose
@@ -81,11 +85,13 @@ function makeDeps(overrides: {
 	review?: RuntimeCardReview;
 	effectiveTestDrivenMode?: boolean;
 	cardTestability?: "testable" | "not_testable";
+	decomposeGeneration?: number;
 }) {
 	const board = boardWithCardInReview({
 		preexistingRedecompose: overrides.preexistingRedecompose,
 		review: overrides.review,
 		...(overrides.cardTestability ? { testability: overrides.cardTestability } : {}),
+		...(overrides.decomposeGeneration !== undefined ? { decomposeGeneration: overrides.decomposeGeneration } : {}),
 	});
 	const operationOrder: string[] = [];
 	const reviewerRole = {
@@ -171,6 +177,9 @@ describe("applyCardReviewToBoard", () => {
 
 describe("buildReviewBoardContext", () => {
 	it("derives dependencies, dependents, siblings, and the plan objective", () => {
+		// Real-apply shape (the 2026-08-12 fix): each generated card carries its OWN plan-internal `planTaskId`,
+		// siblings share the plan SLUG, and the objective lives on the SOURCE card (`sourceTaskId` = a board id).
+		// The old fixture had board ids equal to `planTaskId` — the exact collision the buggy lookup needed.
 		const card = {
 			id: "impl-b",
 			title: "Implement B",
@@ -179,14 +188,27 @@ describe("buildReviewBoardContext", () => {
 			baseRef: "main",
 			createdAt: 1,
 			updatedAt: 1,
-			generatedFromPlan: { artifactKind: "decomposition" as const, planSlug: "plan-x", planTaskId: "plan-1" },
+			generatedFromPlan: {
+				artifactKind: "decomposition" as const,
+				planSlug: "plan-x",
+				planTaskId: "b",
+				sourceTaskId: "plan-1",
+			},
 		};
 		const board: RuntimeBoardData = {
 			columns: [
 				{
 					id: "planning",
 					title: "Planning",
-					cards: [{ ...card, id: "plan-1", title: "Plan", prompt: "Build X end to end." }],
+					cards: [
+						{
+							...card,
+							id: "plan-1",
+							title: "Plan",
+							prompt: "Build X end to end.",
+							generatedFromPlan: undefined,
+						},
+					],
 				},
 				{
 					id: "completed",
@@ -196,7 +218,12 @@ describe("buildReviewBoardContext", () => {
 							...card,
 							id: "impl-a",
 							title: "Implement A",
-							generatedFromPlan: { artifactKind: "decomposition", planSlug: "plan-x", planTaskId: "plan-1" },
+							generatedFromPlan: {
+								artifactKind: "decomposition",
+								planSlug: "plan-x",
+								planTaskId: "a",
+								sourceTaskId: "plan-1",
+							},
 						},
 					],
 				},
@@ -209,7 +236,12 @@ describe("buildReviewBoardContext", () => {
 							...card,
 							id: "impl-c",
 							title: "Implement C",
-							generatedFromPlan: { artifactKind: "decomposition", planSlug: "plan-x", planTaskId: "plan-1" },
+							generatedFromPlan: {
+								artifactKind: "decomposition",
+								planSlug: "plan-x",
+								planTaskId: "c",
+								sourceTaskId: "plan-1",
+							},
 						},
 					],
 				},
@@ -950,10 +982,41 @@ describe("runSecondOpinionReviewForTask", () => {
 			candidate.columns.some((column) => column.cards.some((card) => card.id === `redecompose-${taskId}`)),
 		);
 
-	it("a plain park (no prior escalation) never spawns a re-decompose card", async () => {
+	it("a park with NO escalation available spawns the re-decompose card — the single-model rig, where bounce→park is the whole ladder (David 2026-08-12)", async () => {
+		// service(deps) wires no pickDiverseEscalationModel: no diverse worker exists, so the historical
+		// escalated-only rule left this park a dead end (live-observed dark on resume-02, seven parked cards).
 		const deps = makeDeps({
 			submission: { verdict: "request_changes", summary: "Stuck", feedback: "Cannot proceed", insight: null },
 			maxRounds: 0,
+		});
+		const outcome = await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: service(deps),
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+		});
+		expect(outcome.type).toBe("parked");
+		const boards = boardsFromMutations(deps);
+		expect(hasRedecomposeCard(boards, "task-1")).toBe(true);
+		// The seed carries the SITUATION: the split instruction, the objective, and the reviewer's concern.
+		const spawned = boards
+			.flatMap((candidate) => candidate.columns.flatMap((column) => column.cards))
+			.find((entry) => entry.id === "redecompose-task-1");
+		expect(spawned?.prompt).toContain("decompose_project");
+		expect(spawned?.prompt).toContain("Implement login.");
+		expect(spawned?.prompt).toContain("Cannot proceed");
+		expect(spawned?.redecomposeOf).toBe("task-1");
+		expect(spawned?.decomposeGeneration).toBe(1);
+	});
+
+	it("a park at the generation cap never spawns — thinner slices are refuted; the park stands for a human", async () => {
+		const deps = makeDeps({
+			submission: { verdict: "request_changes", summary: "Stuck", feedback: "Cannot proceed", insight: null },
+			maxRounds: 0,
+			decomposeGeneration: 2,
 		});
 		const outcome = await runSecondOpinionReviewForTask({
 			workspacePath: "/repo",

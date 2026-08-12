@@ -123,6 +123,12 @@ export interface ReviewSeedPromptInput {
 	/** The previous round's change-request feedback, included when re-reviewing so the reviewer can verify it. */
 	priorFeedback?: string | null;
 	/**
+	 * DISTINCT change requests from rounds before the previous one (from {@link collectPriorReviewConcerns}), so a
+	 * re-review verifies EVERY open concern rather than only the latest — a worker that fixes round 3's ask while
+	 * quietly regressing round 1's must not pass. Absent/empty ⇒ byte-identical prompt.
+	 */
+	priorConcerns?: readonly PriorReviewConcern[];
+	/**
 	 * The worker's self-authored focus chain (its plan-of-attack checklist for this card, todo §5.N), formatted via
 	 * `formatFocusChainForPrompt`, so the reviewer can judge whether the work actually followed/completed its plan.
 	 */
@@ -218,6 +224,16 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 	if (input.priorFeedback?.trim()) {
 		lines.push("", "## Your previous change request (verify it was addressed)", input.priorFeedback.trim());
 	}
+	if (input.priorConcerns && input.priorConcerns.length > 0) {
+		lines.push(
+			"",
+			"## Earlier rounds' change requests (verify EACH is addressed or genuinely resolved — a fix for the latest ask must not regress an earlier one)",
+			...input.priorConcerns.map(
+				(concern) =>
+					`- (round ${concern.round}${concern.timesRaised > 1 ? `, raised ${concern.timesRaised}×` : ""}) ${concern.feedback}`,
+			),
+		);
+	}
 	if (input.riskDirective?.trim()) {
 		lines.push("", "## Review routing for THIS diff", input.riskDirective.trim());
 	}
@@ -309,23 +325,129 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 	return lines.join("\n");
 }
 
-/** Worker bounce-back prompt carrying the reviewer's change request as the worker's next turn. */
-export function buildReviewBouncePrompt(input: { round: number; summary: string; feedback: string }): string {
-	return [
-		`The second-opinion reviewer requested changes (review round ${input.round}).`,
+/** Per-record clamp for review text persisted on round records (a concrete change request fits well inside it). */
+export const REVIEW_RECORD_TEXT_BUDGET = 1_500;
+
+/** Clamp reviewer text for persistence on a round record; empty/whitespace collapses to undefined. */
+export function clampReviewRecordText(value: string | null | undefined): string | undefined {
+	const text = value?.trim();
+	if (!text) {
+		return undefined;
+	}
+	return text.length <= REVIEW_RECORD_TEXT_BUDGET ? text : `${text.slice(0, REVIEW_RECORD_TEXT_BUDGET)}…`;
+}
+
+/** One still-open concern from an earlier review round, deduped by feedback fingerprint. */
+export interface PriorReviewConcern {
+	/** The earliest round that raised this concern. */
+	round: number;
+	/** How many rounds raised this exact concern (1 = raised once). */
+	timesRaised: number;
+	feedback: string;
+}
+
+/**
+ * The DISTINCT change requests from earlier rounds (dedupe by feedback fingerprint, oldest first), excluding the
+ * current round's own feedback — the "still open unless you fixed them" list a next attempt must see. Records
+ * from older boards carry no text and are skipped (their concern is unknowable, not empty).
+ */
+export function collectPriorReviewConcerns(
+	history: readonly ReviewRoundRecord[],
+	currentFeedbackFingerprint: string | null,
+): PriorReviewConcern[] {
+	const byFingerprint = new Map<string, PriorReviewConcern>();
+	for (const record of history) {
+		if (record.verdict !== "request_changes" || !record.feedback?.trim()) {
+			continue;
+		}
+		const fingerprint = record.feedbackFingerprint ?? fingerprintReviewArtifact(record.feedback);
+		if (!fingerprint || fingerprint === currentFeedbackFingerprint) {
+			continue;
+		}
+		const existing = byFingerprint.get(fingerprint);
+		if (existing) {
+			existing.timesRaised += 1;
+		} else {
+			byFingerprint.set(fingerprint, { round: record.round, timesRaised: 1, feedback: record.feedback.trim() });
+		}
+	}
+	return [...byFingerprint.values()];
+}
+
+/** How many distinct prior concerns the re-work brief lists (newest kept when over budget). */
+const REWORK_PRIOR_CONCERN_LIMIT = 5;
+const REWORK_OBJECTIVE_BUDGET = 2_000;
+
+export interface ReviewBouncePromptInput {
+	round: number;
+	summary: string;
+	feedback: string;
+	/** The card title, so a fresh takeover model knows what it is working on without session history. */
+	taskTitle?: string | null;
+	/** The card objective, RESTATED — the next attempt must never depend on the model remembering it. */
+	taskObjective?: string | null;
+	/** Distinct still-open concerns from earlier rounds (from {@link collectPriorReviewConcerns}). */
+	priorConcerns?: readonly PriorReviewConcern[];
+	/** What the reviewed attempt actually produced — arms the harder no-op framing when nothing changed. */
+	artifactStatus?: "changed" | "no_changes" | null;
+	/** The acceptance check the work must pass, when one exists (same summary the reviewer saw). */
+	acceptanceSummary?: string | null;
+}
+
+/**
+ * Worker re-work brief carrying the reviewer's change request as the worker's next turn — MAXIMUM-quality feedback
+ * (David 2026-08-12): self-contained (objective restated, all distinct prior concerns, acceptance check), because
+ * the same prompt drives an in-session bounce, a fresh-model escalation takeover, and the empty-patch reroute —
+ * the last two have no reliable session history, and weak models lose even their own.
+ */
+export function buildReviewBouncePrompt(input: ReviewBouncePromptInput): string {
+	const lines: string[] = [
+		`The second-opinion reviewer requested changes (review round ${input.round})${input.taskTitle?.trim() ? ` on the card "${input.taskTitle.trim()}"` : ""}.`,
+		"",
+		"## Requested changes (address ALL of these now)",
+		input.feedback.trim() || "(the reviewer gave no detailed feedback — judge against the objective below)",
 		"",
 		"## Reviewer summary",
 		input.summary.trim(),
-		"",
-		"## Requested changes",
-		input.feedback.trim(),
+	];
+	const priorConcerns = (input.priorConcerns ?? []).slice(-REWORK_PRIOR_CONCERN_LIMIT);
+	if (priorConcerns.length > 0) {
+		lines.push(
+			"",
+			"## Still-open concerns from earlier rounds (fix these too unless already resolved)",
+			...priorConcerns.map(
+				(concern) =>
+					`- (round ${concern.round}${concern.timesRaised > 1 ? `, raised ${concern.timesRaised}×` : ""}) ${concern.feedback}`,
+			),
+		);
+	}
+	if (input.artifactStatus === "no_changes") {
+		lines.push(
+			"",
+			"## Your previous attempt made NO file changes",
+			"The reviewer judged an empty result. Prose is not work: this round must produce actual edits that implement the objective.",
+		);
+	}
+	const objective = input.taskObjective?.trim();
+	if (objective) {
+		lines.push(
+			"",
+			"## The card's objective (unchanged — your work must satisfy this, not just the feedback)",
+			objective.length <= REWORK_OBJECTIVE_BUDGET ? objective : `${objective.slice(0, REWORK_OBJECTIVE_BUDGET)}…`,
+		);
+	}
+	if (input.acceptanceSummary?.trim()) {
+		lines.push("", "## Acceptance check (must pass before the card can deliver)", input.acceptanceSummary.trim());
+	}
+	lines.push(
 		"",
 		// Weak local workers tend to reply in prose ("the code is already correct") and make NO edit, so the diff is
 		// unchanged, the reviewer repeats the same request, and the card is parked after a wasted round (live-observed
 		// 2026-07-11, qwen3-8b, habit-deep-chain). Lead with the concrete action — EDIT the file — and frame the
 		// no-change reply as the narrow exception, so a small model is pushed to actually resolve the concern in code.
 		"Address this by EDITING the relevant file(s) now: a prose-only reply leaves the code unchanged, so the reviewer will raise the same concern and the card will be parked without an edit. Make the change, then finish as usual so the card can be re-reviewed. Only if the request is genuinely mistaken and no code change is warranted should you instead make the smallest safe change that resolves the concern, or explain precisely why the current code is already correct in your final message.",
-	].join("\n");
+	);
+	return lines.join("\n");
 }
 
 /** The reviewer's sign-off, recorded on the card when an approval proceeds to delivery. */
@@ -354,6 +476,13 @@ export interface ResolveReviewTransitionInput {
 	escalationAvailable?: boolean;
 	/** W4.2: this card already used its one escalation. */
 	alreadyEscalated?: boolean;
+	/** Card title/objective for the self-contained re-work brief (absent ⇒ the brief omits those sections). */
+	taskTitle?: string | null;
+	taskObjective?: string | null;
+	/** The acceptance summary the reviewer saw, restated to the worker so the bar is explicit. */
+	acceptanceSummary?: string | null;
+	/** Whether the reviewed attempt changed any files (arms the harder no-op framing in the brief). */
+	artifactStatus?: "changed" | "no_changes" | null;
 }
 
 /**
@@ -364,11 +493,16 @@ export interface ResolveReviewTransitionInput {
 export function resolveReviewTransition(input: ResolveReviewTransitionInput): ReviewTransition {
 	const feedbackFingerprint =
 		input.submission.verdict === "request_changes" ? fingerprintReviewArtifact(input.submission.feedback) : null;
+	const recordSummary = clampReviewRecordText(input.submission.summary);
+	const recordFeedback =
+		input.submission.verdict === "request_changes" ? clampReviewRecordText(input.submission.feedback) : undefined;
 	const record: ReviewRoundRecord = {
 		round: input.round,
 		verdict: input.submission.verdict,
 		feedbackFingerprint,
 		workFingerprint: input.workFingerprint,
+		...(recordSummary !== undefined ? { summary: recordSummary } : {}),
+		...(recordFeedback !== undefined ? { feedback: recordFeedback } : {}),
 	};
 	const decision = decideReviewLoopAction({
 		verdict: input.submission.verdict,
@@ -396,6 +530,11 @@ export function resolveReviewTransition(input: ResolveReviewTransitionInput): Re
 				round: input.round,
 				summary: input.submission.summary,
 				feedback: input.submission.feedback ?? "",
+				taskTitle: input.taskTitle ?? null,
+				taskObjective: input.taskObjective ?? null,
+				priorConcerns: collectPriorReviewConcerns(input.history, feedbackFingerprint),
+				artifactStatus: input.artifactStatus ?? null,
+				acceptanceSummary: input.acceptanceSummary ?? null,
 			}),
 			record,
 		};

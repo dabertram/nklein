@@ -23,8 +23,13 @@ import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
 import { planReviewEffort } from "../core/review-effort-scaling";
 import type { ReviewBoardContext, ReviewRelatedCard, ReviewSubmissionInput } from "../core/review-orchestration";
-import { fingerprintReviewArtifact } from "../core/review-orchestration";
+import { collectPriorReviewConcerns, fingerprintReviewArtifact } from "../core/review-orchestration";
 import { planReviewPanel } from "../core/review-panel-plan";
+import {
+	buildRedecomposeCardPrompt,
+	decideReviewRedecompose,
+	summarizeReviewAttemptEvidence,
+} from "../core/review-redecompose";
 import { resolveSwarmRoleModel } from "../core/swarm-role-selection";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { classifyTaskComplexity } from "../core/task-complexity";
@@ -182,15 +187,21 @@ export function buildReviewBoardContext(board: RuntimeBoardData, card: RuntimeBo
 			}
 		}
 	}
-	const planTaskId = card.generatedFromPlan?.planTaskId ?? null;
+	// Fixed 2026-08-12 (found building the re-decompose rung): this used `planTaskId` — the PLAN-INTERNAL task id
+	// (e.g. "t1") — for both lookups, so the objective card ~never resolved (board ids are `<slug>-<taskId>`) and
+	// "siblings" required a cross-plan id collision. Reviewers therefore judged cards with NO plan objective and NO
+	// sibling context since the section shipped. The source CARD id (`sourceTaskId`) carries the objective; siblings
+	// share the plan SLUG.
+	const planSlug = card.generatedFromPlan?.planSlug ?? null;
+	const planSourceTaskId = card.generatedFromPlan?.sourceTaskId ?? null;
 	const siblings: ReviewRelatedCard[] = [];
 	let planObjective: string | null = null;
-	if (planTaskId) {
+	if (planSlug) {
 		for (const column of board.columns) {
 			for (const entry of column.cards) {
-				if (entry.id === planTaskId) {
+				if (planSourceTaskId && entry.id === planSourceTaskId) {
 					planObjective = entry.prompt.slice(0, REVIEW_PLAN_OBJECTIVE_BUDGET);
-				} else if (entry.id !== card.id && entry.generatedFromPlan?.planTaskId === planTaskId) {
+				} else if (entry.id !== card.id && entry.generatedFromPlan?.planSlug === planSlug) {
 					siblings.push({ title: entry.title ?? entry.id, column: column.id });
 				}
 			}
@@ -856,6 +867,8 @@ export async function runSecondOpinionReviewForTask(
 		}
 	})();
 	stampPhase("review-resolution start");
+	// Hoisted: the same summary feeds the reviewer seed, the re-work brief, and the re-decompose card prompt.
+	const acceptanceSummaryForReview = formatAcceptanceSummaryForReview(acceptance, getBaselineProbe(input.taskId));
 	const reviewResult = await runNKleinSecondOpinionReview({
 		taskId: input.taskId,
 		columnId,
@@ -864,7 +877,7 @@ export async function runSecondOpinionReviewForTask(
 		...(preReviewVerdict ? { preReviewVerdict } : {}),
 		maxRounds: config.reviewMaxRounds,
 		isReviewerCard: input.taskId.includes(REVIEW_SESSION_TASK_SUFFIX),
-		acceptanceSummary: formatAcceptanceSummaryForReview(acceptance, getBaselineProbe(input.taskId)),
+		acceptanceSummary: acceptanceSummaryForReview,
 		...(reviewLenses ? { reviewLenses } : {}),
 		escalationAvailable: Boolean(escalationCandidate),
 		// In-memory set ∪ the persisted flag — the one-escalation guard survives a runtime restart (#W4.2).
@@ -1161,7 +1174,7 @@ export async function runSecondOpinionReviewForTask(
 					`Escalated ${input.taskId} to ${escalationCandidate?.modelId ?? "?"} after a stuck review loop (one escalation per card).`,
 				);
 			},
-			onPark: async ({ review }) => {
+			onPark: async ({ review, parkKind }) => {
 				await persistReview(review);
 				await discardSpeculativeCandidate();
 				// Run20 live finding: a parked card's worker session kept CHURNING turns — burning tokens on a card
@@ -1170,19 +1183,56 @@ export async function runSecondOpinionReviewForTask(
 				// the session: the turn is aborted and the state goes idle (slot freed), while the session stays
 				// resumable — sendTaskSessionInput accepts an idle session, so the human's follow-up just works.
 				await input.service.cancelTaskTurn?.(input.taskId).catch(() => null);
-				// §5.AB RE-DECOMPOSE RUNG: a card parked after its ESCALATION also failed has exhausted the whole
-				// ladder (bounce → diverse takeover → park) — the proven can't-handle-as-one-unit signal
-				// (decideCardDecomposition Rule 1). Spawn ONE follow-up decompose card so the architect splits the
-				// objective into smaller cards; the caller schedules it immediately (backlog + no deps). Runs 21-25:
-				// this is the productive escape for the score-clamp-class cards that defeated all three model tiers.
-				// The persisted flag is authoritative across runtime restarts; the in-memory set only closes the
-				// same-process race before a refreshed card snapshot is available.
-				if (
-					escalatedWorkerTaskIds.has(input.taskId) ||
-					card.review?.escalated === true ||
-					review.escalated === true
-				) {
+				// §5.AB RE-DECOMPOSE RUNG (widened per David 2026-08-12): spawn ONE follow-up decompose card when
+				// the remedy ladder is EXHAUSTED — the escalation rung was spent (historical rule) OR never existed
+				// (single-model rig, where bounce→park is the whole ladder; live-observed dark on resume-02 with
+				// seven parked cards). Depth-capped via the card's decompose generation; a reviewer no-verdict park
+				// never qualifies (that is the REVIEWER failing, not the work being too big). The architect splits
+				// the objective IN FULL SITUATION — plan objective, surrounding cards, every distinct reviewer
+				// concern, attempt evidence, acceptance bar — and the plan apply converts this parked parent into
+				// an integration card gated on the children (see applyNKleinPlanTaskGraphToBoard), so downstream
+				// dependents flow again once the split work actually delivers.
+				const parentGeneration = card.decomposeGeneration ?? 0;
+				const redecomposeDecision = decideReviewRedecompose({
+					parkKind,
+					escalationSpent:
+						escalatedWorkerTaskIds.has(input.taskId) ||
+						card.review?.escalated === true ||
+						review.escalated === true,
+					escalationAvailable: Boolean(escalationCandidate),
+					parentGeneration,
+				});
+				try {
+					recordSelfObservation({
+						signal: "custom",
+						severity: redecomposeDecision.spawn ? "warning" : "info",
+						message: `Re-decompose rung for parked ${input.taskId}: ${redecomposeDecision.spawn ? "SPAWNING" : "not spawning"} — ${redecomposeDecision.reason}`,
+						taskId: input.taskId,
+						workspacePath: input.workspacePath,
+						metadata: {
+							category: "review_redecompose_rung",
+							spawn: redecomposeDecision.spawn,
+							parkKind,
+							parentGeneration,
+							reason: redecomposeDecision.reason,
+						},
+					});
+				} catch {
+					// Telemetry must never break the park path.
+				}
+				if (redecomposeDecision.spawn) {
 					const redecomposeTaskId = `redecompose-${input.taskId}`;
+					const boardContext = buildReviewBoardContext(state.board, card);
+					const reviewerConcerns = collectPriorReviewConcerns(review.history, null);
+					const redecomposePrompt = buildRedecomposeCardPrompt({
+						taskTitle: card.title ?? card.id,
+						taskObjective: card.prompt,
+						boardContext,
+						reviewerConcerns,
+						attemptEvidence: summarizeReviewAttemptEvidence(review.history),
+						acceptanceSummary: acceptanceSummaryForReview,
+						generation: parentGeneration + 1,
+					});
 					const spawned = await retryWorkspaceStateLock(() =>
 						mutate(input.workspacePath, (current) => {
 							const exists = current.board.columns.some((column) =>
@@ -1197,21 +1247,14 @@ export async function runSecondOpinionReviewForTask(
 								{
 									taskId: redecomposeTaskId,
 									title: `Decompose: ${card.title ?? card.id}`,
-									prompt: [
-										`The card "${card.title ?? card.id}" proved too hard as ONE unit — a bounced worker, a diverse escalation, and the review ladder all failed to complete it. Split its objective into SMALLER, independently-verifiable cards using the decompose_project tool (do NOT implement it directly).`,
-										`Original objective:
-${card.prompt}`,
-										review.lastFeedback
-											? `Reviewer feedback the workers could not address:
-${review.lastFeedback}`
-											: "",
-										`Keep each new card small enough for a single focused session, declare tight file scopes, and give every card an objective acceptance check.`,
-									]
-										.filter(Boolean)
-										.join("\n\n"),
+									prompt: redecomposePrompt,
 									baseRef: card.baseRef,
 									startInPlanMode: true,
 									autoReviewEnabled: card.autoReviewEnabled ?? true,
+									// Typed stamps the plan apply reads: which parked parent to convert into an
+									// integration card, and the generation its children will carry (depth guard).
+									redecomposeOf: input.taskId,
+									decomposeGeneration: parentGeneration + 1,
 								},
 								() => globalThis.crypto.randomUUID(),
 							);
@@ -1220,7 +1263,7 @@ ${review.lastFeedback}`
 					);
 					if (spawned.value) {
 						input.warn?.(
-							`Parked card ${input.taskId} exhausted the escalation ladder — spawned re-decompose card ${redecomposeTaskId} (the architect will split the objective).`,
+							`Parked card ${input.taskId} exhausted the remedy ladder — spawned re-decompose card ${redecomposeTaskId} (generation ${parentGeneration + 1}; the architect splits the objective in full board context).`,
 						);
 						await input.onRedecomposeCardSpawned?.(redecomposeTaskId);
 					}

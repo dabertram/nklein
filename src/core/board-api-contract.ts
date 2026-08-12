@@ -105,6 +105,11 @@ export const runtimeReviewRoundRecordSchema = z.object({
 	verdict: runtimeReviewVerdictSchema,
 	feedbackFingerprint: z.string().nullable(),
 	workFingerprint: z.string().nullable(),
+	// Review→next-attempt feedback maximization (David 2026-08-12): the round's actual TEXT rides the record
+	// (clamped at write) so later attempts and a re-decompose can present ALL distinct concerns, not only
+	// `lastFeedback`. Additive optional — records from older boards simply have no text.
+	summary: z.string().optional(),
+	feedback: z.string().optional(),
 });
 export type RuntimeReviewRoundRecord = z.infer<typeof runtimeReviewRoundRecordSchema>;
 
@@ -223,6 +228,14 @@ export const runtimeBoardCardSchema = z
 		// §5.AU: the stream/epic this card belongs to (single-parent). Additive optional (CRDT whole-object LWW) so older
 		// boards load as-is; a manual `set_card_stream` override wins over the derived membership (see `deriveStreams`).
 		streamId: z.string().optional(),
+		// §5.AB re-decompose rung (David 2026-08-12): a `redecompose-<parent>` card carries its parked parent's id
+		// TYPED (never re-parsed from the id string), so the decompose apply can convert that parent into an
+		// integration card gated on the children. Additive optional (CRDT whole-object LWW).
+		redecomposeOf: z.string().optional(),
+		// How many review-driven decompose generations sit above this card (0/absent = an original card; a
+		// redecompose card and the children it produces carry parent+1). Read by the re-decompose rung's depth
+		// guard so a stubborn objective fragments at most REVIEW_REDECOMPOSE_GENERATION_CAP times, then parks.
+		decomposeGeneration: z.number().int().nonnegative().optional(),
 		blockedKind: z.enum(["needs_decomposition", "local_model_required", "agent_sandbox_unavailable"]).optional(),
 		blockedReason: z.string().optional(),
 		nkleinProviderId: z.string().optional(),

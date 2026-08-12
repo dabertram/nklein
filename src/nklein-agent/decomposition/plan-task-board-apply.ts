@@ -6,6 +6,7 @@ import type {
 	RuntimeStream,
 } from "../../core/api-contract";
 import { withAutonomousNKleinTimeoutSettings } from "../../core/autonomous-timeout-defaults";
+import { buildIntegrationParentPrompt, INTEGRATION_PARENT_PROMPT_MARKER } from "../../core/review-redecompose";
 import { addTaskDependency, addTaskToColumn, moveTaskToColumn } from "../../core/task-board-mutations";
 import type {
 	ApplyNKleinPlanTaskGraphInput,
@@ -136,6 +137,12 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 			? snapshotFleetRoutingCandidates(input.fleetSizingCandidates ?? input.routingCandidates ?? [])
 			: [];
 	const fleetFingerprint = fingerprintFleetRoutingCandidates(fleetCandidates);
+	// §5.AB re-decompose rung: the source card's typed stamps, resolved from the ORIGINAL board (immutable through
+	// the mutations below) — children inherit its decompose generation; `redecomposeOf` names the parked parent to
+	// convert into an integration card once the children exist.
+	const sourceCard = input.sourceTaskId
+		? (input.board.columns.flatMap((column) => column.cards).find((card) => card.id === input.sourceTaskId) ?? null)
+		: null;
 	const reshardRequest = assertFleetReshardSubmissionSafe(board, input.sourceTaskId, taskGraph);
 	if (reshardRequest) {
 		for (const planTaskId of reshardRequest.targetPlanTaskIds) {
@@ -255,6 +262,11 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 				...(task.testability === "not_testable" && task.testabilityReason
 					? { testabilityReason: task.testabilityReason }
 					: {}),
+				// Children of a re-decompose carry the redecompose card's generation, so the rung's depth guard
+				// can count how many review-driven splits already sit above any card that later parks itself.
+				...(sourceCard?.decomposeGeneration !== undefined
+					? { decomposeGeneration: sourceCard.decomposeGeneration }
+					: {}),
 				generatedFromPlan: {
 					artifactKind: "decomposition",
 					planSlug: taskGraph.slug,
@@ -316,6 +328,71 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 	// zero cards created (work lost, no error). An empty graph is a model/upstream error, not a done decomposition:
 	// leave the source card in place so it can be re-decomposed or inspected.
 	const producedCards = Object.keys(taskIdByPlanTaskId).length > 0;
+
+	// §5.AB re-decompose rung (David 2026-08-12): the parked PARENT the source card was spawned for becomes an
+	// INTEGRATION card gated on the children — moved back into the waiting lane with a dependency edge on every
+	// created card and its objective rewritten around the preserved original. Without this, the parent stays
+	// parked forever and every downstream dependent stays dammed behind it even after the children deliver; and
+	// completing it instead would LIE (releasing dependents before the split work exists). Terminal parents
+	// (operator already merged/trashed) are left alone. Idempotent: a re-apply re-ensures edges (duplicate-benign)
+	// but never re-wraps the prompt.
+	const integrationParentTaskId = sourceCard?.redecomposeOf?.trim() || null;
+	let integrationParentConverted = false;
+	if (integrationParentTaskId && producedCards) {
+		const parentLocation = board.columns
+			.map((column) => ({
+				columnId: column.id,
+				card: column.cards.find((candidate) => candidate.id === integrationParentTaskId),
+			}))
+			.find((entry) => entry.card !== undefined);
+		if (parentLocation?.card && parentLocation.columnId !== "completed" && parentLocation.columnId !== "trash") {
+			const parent = parentLocation.card;
+			const alreadyConverted = parent.prompt.startsWith(INTEGRATION_PARENT_PROMPT_MARKER);
+			if (!alreadyConverted) {
+				board = {
+					...board,
+					columns: board.columns.map((column) => ({
+						...column,
+						cards: column.cards.map((card) =>
+							card.id === integrationParentTaskId
+								? {
+										...card,
+										prompt: buildIntegrationParentPrompt({
+											originalObjective: card.prompt,
+											childTitles: createdTasks.map((task) => task.title ?? task.id),
+										}),
+										// The card is no longer waiting for a human — it waits for its children.
+										...(card.review
+											? {
+													review: {
+														...card.review,
+														status: "changes_requested" as const,
+														parkedReason: null,
+														updatedAt: now,
+													},
+												}
+											: {}),
+										updatedAt: now,
+									}
+								: card,
+						),
+					})),
+				};
+				board = moveTaskToColumn(board, integrationParentTaskId, "planning", now).board;
+				integrationParentConverted = true;
+			}
+			for (const created of createdTasks) {
+				const linked = addTaskDependency(board, integrationParentTaskId, created.id);
+				if (!linked.added || !linked.dependency) {
+					// Duplicate on a re-apply is expected; a child that already advanced past the waiting lanes can
+					// no longer carry an edge (the work it gates is underway/done) — both are benign here.
+					continue;
+				}
+				board = linked.board;
+				createdDependencies.push(linked.dependency);
+			}
+		}
+	}
 	if (sourceTaskId && producedCards && !Object.values(taskIdByPlanTaskId).includes(sourceTaskId)) {
 		// F1.34c (live-found by the 20-set drain audit 2026-07-25): a decomposition SOURCE delivers a PLAN — specs,
 		// scaffolding, spawned children — and the children carry the tests. Stamp it not_testable so a session-end
@@ -356,5 +433,6 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 		preview,
 		...(cycleBreak.brokenEdges.length > 0 ? { brokenDependencyEdges: cycleBreak.brokenEdges } : {}),
 		...(cycleBreak.condensedGroups.length > 0 ? { condensedCycleGroups: cycleBreak.condensedGroups } : {}),
+		...(integrationParentConverted && integrationParentTaskId ? { integrationParentTaskId } : {}),
 	};
 }

@@ -57,6 +57,10 @@ export interface RuntimeCreateTaskInput {
 	fleetReshardRequest?: RuntimeFleetReshardRequest;
 	/** §5.AU: the stream/epic this card belongs to (set by the decomposition write-path). */
 	streamId?: string;
+	/** §5.AB re-decompose rung: the parked parent this decompose card will split (typed, never id-parsed). */
+	redecomposeOf?: string;
+	/** Review-driven decompose generations above this card (depth guard for the re-decompose rung). */
+	decomposeGeneration?: number;
 	baseRef: string;
 }
 
@@ -352,6 +356,8 @@ export function addTaskToColumn(
 		...(input.generatedFromPlan ? { generatedFromPlan: { ...input.generatedFromPlan } } : {}),
 		...(input.fleetReshardRequest ? { fleetReshardRequest: { ...input.fleetReshardRequest } } : {}),
 		...(input.streamId ? { streamId: input.streamId } : {}),
+		...(input.redecomposeOf ? { redecomposeOf: input.redecomposeOf } : {}),
+		...(input.decomposeGeneration !== undefined ? { decomposeGeneration: input.decomposeGeneration } : {}),
 		baseRef,
 		createdAt: now,
 		updatedAt: now,

@@ -14909,6 +14909,45 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   autonomously past review with this model, tier after tier. The board (14 planning / 7 review / 2 completed)
   and the pair stay preserved; each parked card is one operator manual-merge away from releasing its tier, the
   same assisted route the types card took.
+  **→ DIRECTIVE (David 2026-08-12, on seeing review catch the poor work): "incorporate maximum quality feedback
+  from review to next attempt, including potential decompose step(s) if task seems to require it given the
+  situation; decomposition always needs to take the full surrounding tasks, spec, status etc into account, to
+  reduce drift from initial main target." SHIPPED same day (all cores unit-tested, 13,869 fast tests green):**
+  - **Re-work brief (review→next attempt)**: `buildReviewBouncePrompt` is now a SELF-CONTAINED brief — current
+    feedback first, then reviewer summary, distinct still-open concerns from earlier rounds (deduped by
+    fingerprint with repeat counts via new `collectPriorReviewConcerns`), a hard no-op section when the attempt
+    changed nothing, the objective RESTATED, and the acceptance bar. Round records now persist clamped
+    summary/feedback TEXT (`runtimeReviewRoundRecordSchema` additive fields) so concerns accumulate across
+    rounds instead of only `lastFeedback` surviving. The same brief drives in-session bounces, the fresh-model
+    escalation takeover, and the empty-patch reroute (the two takeover paths previously got a 4-line prompt with
+    NO objective). Reviewer seeds also list every earlier distinct concern ("verify EACH is addressed").
+  - **Re-decompose rung widened + situation-grounded** (`src/core/review-redecompose.ts`, pure + tested):
+    `decideReviewRedecompose` spawns the split card when the remedy ladder is EXHAUSTED — escalation spent
+    (historical rule) OR never available (single-model rig, where bounce→park was a dead end and the rung sat
+    dark — exactly the resume-02 case), gated to `review_stuck` parks only (a reviewer no-verdict park is the
+    REVIEWER failing, not the work being too big — new `parkKind` on onPark) and capped at 2 decompose
+    generations (`decomposeGeneration` card stamp; a twice-split card that still parks has refuted "too big").
+    `buildRedecomposeCardPrompt` hands the architect the FULL SITUATION: plan objective (the initial main
+    target), prerequisites/dependents/siblings with lanes, every distinct reviewer concern, attempt evidence
+    (rounds + identical-work stalls), the acceptance bar, and anti-drift child requirements (each child names
+    WHICH PART of the objective it delivers; the union must cover the whole; edges where order matters).
+    Every spawn/skip decision is recorded (`review_redecompose_rung` observation category, F4.8b rule).
+  - **Integration-parent conversion** (`applyNKleinPlanTaskGraphToBoard`): a redecompose card carries typed
+    `redecomposeOf`; at plan-apply the parked parent becomes an INTEGRATION card — moved to planning, dependsOn
+    EVERY child, prompt rewritten around the preserved original objective (idempotent via the
+    `INTEGRATION CARD` marker), review unparked to changes_requested. Downstream dependents stay correctly
+    dammed until the children actually deliver, then flow — previously the parent stayed parked forever and the
+    spawned children never released anything.
+  - **Pre-existing bug found & fixed on the way**: `buildReviewBoardContext` looked up the plan objective by
+    `planTaskId` (plan-INTERNAL id, e.g. "t1") instead of `sourceTaskId`, and siblings by shared `planTaskId`
+    instead of shared `planSlug` — so reviewers had received planObjective=null and siblings=[] since the
+    section shipped. Its test was green because the fixture gave board cards ids EQUAL to the plan-internal ids
+    — a fixture bent to the bug (green-signal-substitution, testcraft instance). Fixture now mirrors the real
+    apply shape.
+  - **Live validation owed** (GPU busy with the A/B campaign at ship time): resume-02 drain — operator-redrive
+    one parked card → stuck park → rung spawns → architect splits in-situation → parent converts → children
+    flow. The 7 already-parked cards predate the rung and stay operator-owned (parked is a terminal-for-machines
+    state by design); redrive is the product's own re-entry path.
   ~~▶ DAVID DECIDED 2026-08-11 (multiple choice): HE hand-writes the types test himself~~ — the honest unblock
   that keeps the campaign's autonomous verdict intact. When `test/domain/types.test.ts` (or equivalent) lands
   in the resume workspace (~/nklein-resume-02/home/.nklein/dev-workspaces/nklein-02-…-xVELHA), the next resume

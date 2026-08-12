@@ -27,6 +27,13 @@ export interface ReviewRoundRecord {
 	feedbackFingerprint: string | null;
 	/** Hash of the worker output (diff) that was reviewed this round (null when unknown). */
 	workFingerprint: string | null;
+	/**
+	 * The round's actual reviewer text (clamped at write), so later attempts and a re-decompose can present ALL
+	 * distinct concerns rather than only the latest (David 2026-08-12). Optional — the loop decisions above read
+	 * only the fingerprints; records from older boards have no text.
+	 */
+	summary?: string;
+	feedback?: string;
 }
 
 export type ReviewLoopAction =

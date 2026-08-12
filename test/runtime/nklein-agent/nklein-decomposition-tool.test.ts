@@ -185,6 +185,150 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 		expect(result.createdTasks.every((task) => task.streamId === "stream-habit-tracker")).toBe(true);
 	});
 
+	it("converts the parked re-decompose parent into an integration card gated on the children (David 2026-08-12)", () => {
+		const board = createBoard();
+		const parkedParent = {
+			id: "exporter",
+			title: "Build the report exporter",
+			prompt: "Export weekly safety reports as signed PDFs.",
+			startInPlanMode: false,
+			review: {
+				status: "parked" as const,
+				round: 3,
+				history: [],
+				lastVerdict: "request_changes" as const,
+				lastSummary: "Still failing",
+				lastFeedback: "PDF signing is stubbed out.",
+				lastInsight: null,
+				signOff: null,
+				parkedReason: "Review stalled: the worker made no changes after the last review. Parking for a human.",
+				updatedAt: 50,
+			},
+			baseRef: "main",
+			createdAt: 1,
+			updatedAt: 50,
+		};
+		const redecomposeCard = {
+			id: "redecompose-exporter",
+			title: "Decompose: Build the report exporter",
+			prompt: "Split it.",
+			startInPlanMode: true,
+			redecomposeOf: "exporter",
+			decomposeGeneration: 1,
+			baseRef: "main",
+			createdAt: 60,
+			updatedAt: 60,
+		};
+		const downstream = {
+			id: "email-digest",
+			title: "Email digest",
+			prompt: "Send the weekly digest.",
+			startInPlanMode: false,
+			baseRef: "main",
+			createdAt: 1,
+			updatedAt: 1,
+		};
+		board.columns.find((column) => column.id === "review")?.cards.push(parkedParent);
+		board.columns.find((column) => column.id === "planning")?.cards.push(redecomposeCard, downstream);
+		board.dependencies.push({ id: "dep-downstream", fromTaskId: "email-digest", toTaskId: "exporter", createdAt: 1 });
+
+		const result = applyNKleinPlanTaskGraphToBoard({
+			board,
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			sourceTaskId: "redecompose-exporter",
+			now: 100,
+		});
+
+		expect(result.integrationParentTaskId).toBe("exporter");
+		// Children inherit the redecompose card's generation (the rung's depth-guard counter).
+		expect(result.createdTasks.every((task) => task.decomposeGeneration === 1)).toBe(true);
+		// The parent moved back to the waiting lane as an integration card; the original objective is preserved.
+		const planningColumn = result.board.columns.find((column) => column.id === "planning");
+		const convertedParent = planningColumn?.cards.find((card) => card.id === "exporter");
+		expect(convertedParent).toBeDefined();
+		expect(convertedParent?.prompt.startsWith("INTEGRATION CARD")).toBe(true);
+		expect(convertedParent?.prompt).toContain("Export weekly safety reports as signed PDFs.");
+		expect(convertedParent?.review?.status).toBe("changes_requested");
+		expect(convertedParent?.review?.parkedReason).toBeNull();
+		// The parent waits on EVERY child; the downstream dependent stays dammed behind the parent (edge untouched).
+		for (const created of result.createdTasks) {
+			expect(
+				result.board.dependencies.some(
+					(dependency) => dependency.fromTaskId === "exporter" && dependency.toTaskId === created.id,
+				),
+			).toBe(true);
+		}
+		expect(
+			result.board.dependencies.some(
+				(dependency) => dependency.fromTaskId === "email-digest" && dependency.toTaskId === "exporter",
+			),
+		).toBe(true);
+		// The redecompose SOURCE card itself completed (it delivered its plan).
+		const completedColumn = result.board.columns.find((column) => column.id === "completed");
+		expect(completedColumn?.cards.some((card) => card.id === "redecompose-exporter")).toBe(true);
+
+		// Idempotent re-apply: the prompt is never re-wrapped a second time.
+		const reapplied = applyNKleinPlanTaskGraphToBoard({
+			board: result.board,
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			sourceTaskId: "redecompose-exporter",
+			now: 200,
+		});
+		const reappliedParent = reapplied.board.columns
+			.flatMap((column) => column.cards)
+			.find((card) => card.id === "exporter");
+		expect(reappliedParent?.prompt.match(/INTEGRATION CARD/g)).toHaveLength(1);
+		expect(reapplied.integrationParentTaskId).toBeUndefined();
+	});
+
+	it("leaves a terminal (already-completed) re-decompose parent untouched", () => {
+		const board = createBoard();
+		board.columns
+			.find((column) => column.id === "completed")
+			?.cards.push({
+				id: "exporter",
+				title: "Build the report exporter",
+				prompt: "Export weekly safety reports as signed PDFs.",
+				startInPlanMode: false,
+				baseRef: "main",
+				createdAt: 1,
+				updatedAt: 1,
+			});
+		board.columns
+			.find((column) => column.id === "planning")
+			?.cards.push({
+				id: "redecompose-exporter",
+				title: "Decompose: Build the report exporter",
+				prompt: "Split it.",
+				startInPlanMode: true,
+				redecomposeOf: "exporter",
+				decomposeGeneration: 1,
+				baseRef: "main",
+				createdAt: 60,
+				updatedAt: 60,
+			});
+
+		const result = applyNKleinPlanTaskGraphToBoard({
+			board,
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			sourceTaskId: "redecompose-exporter",
+			now: 100,
+		});
+
+		expect(result.integrationParentTaskId).toBeUndefined();
+		const completedParent = result.board.columns
+			.find((column) => column.id === "completed")
+			?.cards.find((card) => card.id === "exporter");
+		expect(completedParent?.prompt).toBe("Export weekly safety reports as signed PDFs.");
+		expect(result.board.dependencies.some((dependency) => dependency.fromTaskId === "exporter")).toBe(false);
+	});
+
 	it("F11.2d attaches the precomputed focused span only to its generated leaf card", () => {
 		const result = applyNKleinPlanTaskGraphToBoard({
 			board: createBoard(),

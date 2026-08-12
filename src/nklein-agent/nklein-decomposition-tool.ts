@@ -131,6 +131,13 @@ export interface ApplyNKleinPlanTaskGraphResult {
 	 * members spuriously unordered). Absent when no multi-task cycle existed.
 	 */
 	condensedCycleGroups?: string[][];
+	/**
+	 * §5.AB re-decompose rung (David 2026-08-12): when the SOURCE card carried `redecomposeOf`, the parked parent
+	 * named there was converted into an integration card gated on the created children (moved to planning,
+	 * dependency edges added, objective rewritten around the preserved original). Absent when the apply had no
+	 * re-decompose parent or the parent was already terminal.
+	 */
+	integrationParentTaskId?: string;
 }
 
 export interface ValidateNKleinPlanTaskGraphResult {

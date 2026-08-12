@@ -5,6 +5,7 @@ import {
 	buildReviewBouncePrompt,
 	buildReviewSeedPrompt,
 	buildReviewSignOff,
+	collectPriorReviewConcerns,
 	fingerprintReviewArtifact,
 	resolveReviewTransition,
 	shouldReviewCard,
@@ -297,6 +298,59 @@ describe("buildReviewBouncePrompt / buildReviewSignOff", () => {
 			"Insight: Nice use of types",
 		);
 	});
+
+	it("builds a self-contained brief: objective restated, prior concerns listed, no-op framing, acceptance bar", () => {
+		const prompt = buildReviewBouncePrompt({
+			round: 3,
+			summary: "Still failing",
+			feedback: "Wire the handler.",
+			taskTitle: "Add rate limiting",
+			taskObjective: "Implement a token-bucket limiter on /api.",
+			priorConcerns: [
+				{ round: 1, timesRaised: 2, feedback: "Missing tests for the refill path." },
+				{ round: 2, timesRaised: 1, feedback: "The bucket size is hardcoded." },
+			],
+			artifactStatus: "no_changes",
+			acceptanceSummary: "Acceptance: `npm test` must pass.",
+		});
+		expect(prompt).toContain('on the card "Add rate limiting"');
+		expect(prompt).toContain("Wire the handler.");
+		expect(prompt).toContain("Still-open concerns from earlier rounds");
+		expect(prompt).toContain("(round 1, raised 2×) Missing tests for the refill path.");
+		expect(prompt).toContain("(round 2) The bucket size is hardcoded.");
+		expect(prompt).toContain("NO file changes");
+		expect(prompt).toContain("Implement a token-bucket limiter on /api.");
+		expect(prompt).toContain("Acceptance: `npm test` must pass.");
+		expect(prompt).toContain("EDITING");
+	});
+});
+
+describe("collectPriorReviewConcerns", () => {
+	const record = (round: number, feedback: string | undefined, fingerprint: string | null): ReviewRoundRecord => ({
+		round,
+		verdict: "request_changes",
+		feedbackFingerprint: fingerprint,
+		workFingerprint: `work-${round}`,
+		...(feedback !== undefined ? { feedback } : {}),
+	});
+
+	it("dedupes by fingerprint with repeat counts, skips textless legacy records and the current concern", () => {
+		const concerns = collectPriorReviewConcerns(
+			[
+				record(1, "Fix A", "fp-a"),
+				record(2, "Fix A", "fp-a"),
+				record(3, undefined, "fp-legacy"),
+				record(4, "Fix B", "fp-b"),
+				{ round: 5, verdict: "approve", feedbackFingerprint: null, workFingerprint: "work-5" },
+				record(6, "Fix C (current)", "fp-current"),
+			],
+			"fp-current",
+		);
+		expect(concerns).toEqual([
+			{ round: 1, timesRaised: 2, feedback: "Fix A" },
+			{ round: 4, timesRaised: 1, feedback: "Fix B" },
+		]);
+	});
 });
 
 describe("resolveReviewTransition", () => {
@@ -316,6 +370,8 @@ describe("resolveReviewTransition", () => {
 				verdict: "approve",
 				feedbackFingerprint: null,
 				workFingerprint: "work-1",
+				// The round's text rides the record (David 2026-08-12) so later attempts see every concern.
+				summary: "Solid work",
 			});
 		}
 	});
