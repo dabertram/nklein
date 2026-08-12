@@ -105,6 +105,12 @@ export interface StartNKleinSessionRuntimeRequest {
 	modelId: string;
 	/** F3.3: resolved swarm role selects the bounded no-tool-call prompt variant. */
 	role?: RuntimeModelPerformanceRole;
+	/**
+	 * F4.8 (audit 2026-08-12): the card's contract, carried into every goal re-anchor so a long session is
+	 * re-grounded on its boundaries (write scope / forbidden paths) and on what "done" means (the acceptance
+	 * command) — not only on the objective. Either field may be null (a card without them is a real state).
+	 */
+	cardContract?: { constraints: string | null; acceptanceCriteria: string | null };
 	/** F4.15: difficulty-modulated active-skill policy applied at every chat-completion request in this session. */
 	skillApiProfile?: SkillApiProfile;
 	/**

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	boardCardIdOfTaskSessionId,
 	isDerivedTaskSessionId,
 	isSpeculativeMirrorTaskId,
 	primaryTaskIdOfSpeculativeMirror,
@@ -34,5 +35,17 @@ describe("primaryTaskIdOfSpeculativeMirror", () => {
 	it("is a no-op for a non-mirror id (primary card or other derived kind)", () => {
 		expect(primaryTaskIdOfSpeculativeMirror("card-7")).toBe("card-7");
 		expect(primaryTaskIdOfSpeculativeMirror("card-7::review")).toBe("card-7::review");
+	});
+});
+
+describe("boardCardIdOfTaskSessionId", () => {
+	it("strips ANY derived kind at the first '::' to recover the board card id", () => {
+		expect(boardCardIdOfTaskSessionId("card-7::spec")).toBe("card-7");
+		expect(boardCardIdOfTaskSessionId("card-7::review")).toBe("card-7");
+		expect(boardCardIdOfTaskSessionId("card-7::plan-critique")).toBe("card-7");
+	});
+
+	it("is a no-op for a primary work-card id", () => {
+		expect(boardCardIdOfTaskSessionId("card-7")).toBe("card-7");
 	});
 });

@@ -1,9 +1,51 @@
 import { TRPCError } from "@trpc/server";
 import { inferNKleinPlanSlugForTask } from "../../commands/task/task-plan-slug.js";
 import type { RuntimeExpandNKleinPlanTaskRequest, RuntimeExpandNKleinPlanTaskResponse } from "../../core/api-contract";
+import { slugifyTaskId } from "../../nklein-agent/decomposition/plan-task-input-parse";
 import { applyNKleinPlanTaskReplacementArtifacts } from "../../nklein-agent/nklein-decomposition-tool";
 import { readNKleinPlanArtifacts } from "../../nklein-agent/nklein-plan-artifacts";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
+
+/**
+ * Resolve a BOARD task id back to its plan-internal task id. Board ids are `<slugify(planSlug)>-<slugify(planTaskId)>`
+ * with an optional NUMERIC dedupe suffix (`-2`, `-3`, …) — never arbitrary text.
+ *
+ * Audit 2026-08-12: the previous inline loop broke on the FIRST `startsWith(`${baseId}-`)` hit, so plan task
+ * "storage" wrongly claimed the board id of plan task "storage-migration" (whichever iterated first won). Two passes
+ * fix the precedence, mirroring `matchesPlanBoardTaskId` (src/commands/task/task-plan-slug.ts): an EXACT baseId match
+ * beats everything; otherwise a prefix match counts ONLY when the remainder after `${baseId}-` is all digits. More
+ * than one surviving match (possible because slugification is lossy — "storage migration" and "storage-migration"
+ * collide) is AMBIGUOUS and throws rather than guessing. No match returns null (the caller owns that error).
+ */
+export function resolvePlanTaskIdFromBoardTaskId(
+	taskGraphTasks: ReadonlyArray<{ id: string }>,
+	planSlug: string,
+	boardTaskId: string,
+): string | null {
+	const slugPrefix = slugifyTaskId(planSlug);
+	const exactMatches: string[] = [];
+	const dedupeSuffixMatches: string[] = [];
+	for (const task of taskGraphTasks) {
+		const baseId = `${slugPrefix}-${slugifyTaskId(task.id)}`;
+		if (boardTaskId === baseId) {
+			exactMatches.push(task.id);
+			continue;
+		}
+		if (boardTaskId.startsWith(`${baseId}-`) && /^\d+$/.test(boardTaskId.slice(baseId.length + 1))) {
+			dedupeSuffixMatches.push(task.id);
+		}
+	}
+	const matches = exactMatches.length > 0 ? exactMatches : dedupeSuffixMatches;
+	if (matches.length > 1) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message:
+				`Board task "${boardTaskId}" matches ${matches.length} plan tasks in plan "${planSlug}" ` +
+				`(${matches.join(", ")}). Pass planTaskId explicitly.`,
+		});
+	}
+	return matches[0] ?? null;
+}
 
 /**
  * Handler for the expand-plan-task procedure, extracted from the oversized `runtime-api.ts`
@@ -29,28 +71,12 @@ export async function handleExpandNKleinPlanTask(
 		});
 	}
 
-	// Resolve planTaskId: use the caller's explicit value, or infer by scanning the plan's task graph.
-	// The board taskId is composed as "<slugify(planSlug)>-<slugify(planTaskId)>" so we strip the prefix.
+	// Resolve planTaskId: use the caller's explicit value, or infer by scanning the plan's task graph
+	// (exact-first, digits-only dedupe suffix, ambiguity throws — see resolvePlanTaskIdFromBoardTaskId).
 	let planTaskId = input.planTaskId?.trim() || null;
 	if (!planTaskId) {
 		const artifacts = await readNKleinPlanArtifacts(workspaceScope.workspacePath, planSlug);
-		// Find the task whose board ID matches the input taskId (exact or with -N suffix).
-		// Board IDs are generated as `${slugify(slug)}-${slugify(planTaskId)}` so strip the slug prefix.
-		const slugPrefix = planSlug
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, "-")
-			.replace(/^-+|-+$/g, "");
-		for (const task of artifacts.taskGraph.tasks) {
-			const taskSlug = task.id
-				.toLowerCase()
-				.replace(/[^a-z0-9]+/g, "-")
-				.replace(/^-+|-+$/g, "");
-			const baseId = `${slugPrefix}-${taskSlug}`;
-			if (input.taskId === baseId || input.taskId.startsWith(`${baseId}-`)) {
-				planTaskId = task.id;
-				break;
-			}
-		}
+		planTaskId = resolvePlanTaskIdFromBoardTaskId(artifacts.taskGraph.tasks, planSlug, input.taskId);
 	}
 	if (!planTaskId) {
 		throw new TRPCError({

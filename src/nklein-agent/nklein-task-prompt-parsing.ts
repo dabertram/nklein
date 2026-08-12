@@ -72,3 +72,28 @@ export function isDecompositionPlanningPrompt(prompt: string): boolean {
 export function isExplicitDecompositionPrompt(prompt: string): boolean {
 	return /\bdecompose_project\b/.test(prompt) || /\bminimumTaskCount\b/.test(prompt);
 }
+
+/**
+ * F4.8 (audit 2026-08-12): compose the card contract the goal re-anchor carries — a compact boundaries line from
+ * the card's write-scope fence and the acceptance command parsed from its prompt. Both fields null when absent (a
+ * card without them is a real state; the re-anchor omits the line rather than emitting an empty one). Pure.
+ */
+export function buildSessionCardContract(input: {
+	writeScope?: readonly string[] | null;
+	forbiddenPaths?: readonly string[] | null;
+	cardPrompt: string;
+}): { constraints: string | null; acceptanceCriteria: string | null } {
+	const writeScope = (input.writeScope ?? []).map((path) => path.trim()).filter((path) => path.length > 0);
+	const forbiddenPaths = (input.forbiddenPaths ?? []).map((path) => path.trim()).filter((path) => path.length > 0);
+	const parts: string[] = [];
+	if (writeScope.length > 0) {
+		parts.push(`Write only within: ${writeScope.join(", ")}.`);
+	}
+	if (forbiddenPaths.length > 0) {
+		parts.push(`Never touch: ${forbiddenPaths.join(", ")}.`);
+	}
+	return {
+		constraints: parts.length > 0 ? parts.join(" ") : null,
+		acceptanceCriteria: parseAcceptanceCommand(input.cardPrompt),
+	};
+}

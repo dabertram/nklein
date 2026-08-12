@@ -32,6 +32,8 @@ function column(id: RuntimeBoardColumnId, cards: RuntimeBoardCard[]): RuntimeBoa
 	return { id, title: id, cards };
 }
 
+// Board edge semantics (task-board-mutations): `fromTaskId` DEPENDS ON `toTaskId` — dep("b", "a") means b needs a
+// done first. This file used to encode the inverted reading; un-bent with the selector fix (audit 2026-08-12).
 function dep(fromTaskId: string, toTaskId: string): RuntimeBoardDependency {
 	return { id: `${fromTaskId}->${toTaskId}`, fromTaskId, toTaskId, createdAt: 1 };
 }
@@ -164,38 +166,39 @@ describe("selectContinuationPoints", () => {
 		expect(selection.perCard.map((entry) => entry.taskId)).toEqual(["a", "c", "m", "z"]);
 	});
 
-	it("dependency: an open predecessor blocks its dependent; a completed one lets it resume", () => {
+	it("dependency: an open prerequisite blocks its dependent; a completed one lets it resume", () => {
+		// b depends on a (edge b → a). While a is still open, b is blocked; once a completes, b resumes.
 		const blockedSel = selectContinuationPoints(
-			board([column("in_progress", [card("a"), card("b")])], [dep("a", "b")]),
+			board([column("in_progress", [card("a"), card("b")])], [dep("b", "a")]),
 		);
 		expect(byId(blockedSel, "b")).toMatchObject({ disposition: "blocked", reason: "dependency_unsatisfied" });
 		// a itself is a clean working card → resume.
 		expect(byId(blockedSel, "a").disposition).toBe("resume");
 
 		const readySel = selectContinuationPoints(
-			board([column("completed", [card("a")]), column("in_progress", [card("b")])], [dep("a", "b")]),
+			board([column("completed", [card("a")]), column("in_progress", [card("b")])], [dep("b", "a")]),
 		);
 		expect(byId(readySel, "b")).toMatchObject({ disposition: "resume", reason: "ready_to_resume" });
 	});
 
-	it("a trashed predecessor also satisfies the dependency", () => {
+	it("a trashed prerequisite also satisfies the dependency", () => {
 		const selection = selectContinuationPoints(
-			board([column("trash", [card("a")]), column("in_progress", [card("b")])], [dep("a", "b")]),
+			board([column("trash", [card("a")]), column("in_progress", [card("b")])], [dep("b", "a")]),
 		);
 		expect(byId(selection, "b").disposition).toBe("resume");
 	});
 
-	it("an absent (tombstoned) predecessor does not block its dependent forever", () => {
-		// Dependency references upstream `ghost`, which is not on the imported board at all.
-		const selection = selectContinuationPoints(board([column("in_progress", [card("b")])], [dep("ghost", "b")]));
+	it("an absent (tombstoned) prerequisite does not block its dependent forever", () => {
+		// b depends on `ghost`, which is not on the imported board at all.
+		const selection = selectContinuationPoints(board([column("in_progress", [card("b")])], [dep("b", "ghost")]));
 		expect(byId(selection, "b")).toMatchObject({ disposition: "resume", unsatisfiedDependencies: [] });
 	});
 
-	it("collects multiple unsatisfied predecessors, deduped and sorted", () => {
+	it("collects multiple unsatisfied prerequisites, deduped and sorted", () => {
 		const selection = selectContinuationPoints(
 			board(
 				[column("in_progress", [card("a"), card("b"), card("c")])],
-				[dep("a", "c"), dep("b", "c"), dep("a", "c")],
+				[dep("c", "a"), dep("c", "b"), dep("c", "a")],
 			),
 		);
 		expect(byId(selection, "c")).toMatchObject({
@@ -242,20 +245,20 @@ describe("selectContinuationPoints", () => {
 	it("is deterministic — same board yields identical output twice", () => {
 		const input = board(
 			[column("in_progress", [card("b"), card("a")]), column("completed", [card("z")])],
-			[dep("z", "a")],
+			[dep("a", "z")],
 		);
 		expect(selectContinuationPoints(input)).toEqual(selectContinuationPoints(input));
 	});
 
 	it("does not mutate the injected board", () => {
-		const input = board([column("in_progress", [card("a")])], [dep("x", "a")]);
+		const input = board([column("in_progress", [card("a")])], [dep("a", "x")]);
 		const snapshot = JSON.stringify(input);
 		selectContinuationPoints(input);
 		expect(JSON.stringify(input)).toBe(snapshot);
 	});
 
 	it("a realistic mixed import resolves the whole board correctly", () => {
-		// a: completed (done) → b resumes once a is done; c blocked behind still-open b; d parked → replan;
+		// a: completed (done) → b (depends on a) resumes; c (depends on still-open b) blocked; d parked → replan;
 		// e: fresh in backlog → replan; f: in review → awaiting_review; g: trashed → done.
 		const selection = selectContinuationPoints(
 			board(
@@ -267,7 +270,7 @@ describe("selectContinuationPoints", () => {
 					column("review", [card("f")]),
 					column("trash", [card("g")]),
 				],
-				[dep("a", "b"), dep("b", "c")],
+				[dep("b", "a"), dep("c", "b")],
 			),
 		);
 		const dispositions: Record<string, ContinuationDisposition> = {};

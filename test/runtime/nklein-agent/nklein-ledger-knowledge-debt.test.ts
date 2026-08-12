@@ -81,6 +81,8 @@ describe("resolveTaskKnowledgeDebtPresent (F1.1)", () => {
 						artifactKind: "decomposition" as const,
 						planSlug: "debt-plan",
 						planTaskId,
+						// The decompose path always stamps the seeding board card's id (audit 2026-08-12).
+						sourceTaskId: "card-decompose-debt-plan",
 					},
 				});
 				await saveWorkspaceState(workspacePath, {

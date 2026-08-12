@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { RuntimeStream } from "../../../src/core/board-api-contract";
+import type { RuntimeBoardCard, RuntimeBoardData, RuntimeStream } from "../../../src/core/board-api-contract";
 import {
 	type BoardStreamMemberState,
 	type BoardStreamsSummary,
 	renderBoardStreamsSummary,
+	resolveEffectiveBoardStreamMembership,
 	summarizeBoardStreams,
 	toStreamOverviewRows,
 } from "../../../src/core/board-streams-summary";
@@ -192,5 +193,93 @@ describe("toStreamOverviewRows", () => {
 
 	it("returns no rows for a board with no streams", () => {
 		expect(toStreamOverviewRows({ streams: [], ungroupedCardIds: ["a"] })).toEqual([]);
+	});
+});
+
+describe("resolveEffectiveBoardStreamMembership (audit 2026-08-12)", () => {
+	const boardCard = (id: string, extras: Partial<RuntimeBoardCard> = {}): RuntimeBoardCard =>
+		({
+			id,
+			title: id,
+			prompt: `do ${id}`,
+			startInPlanMode: false,
+			baseRef: "main",
+			createdAt: 1,
+			updatedAt: 1,
+			...extras,
+		}) as RuntimeBoardCard;
+	const plan = (planSlug: string, planTaskId: string): RuntimeBoardCard["generatedFromPlan"] => ({
+		artifactKind: "decomposition",
+		planSlug,
+		planTaskId,
+		sourceTaskId: null,
+	});
+
+	it("legacy board (plan-born cards, no streamId, no board.streams) → membership derived, ephemeral streams", () => {
+		const board: RuntimeBoardData = {
+			columns: [
+				{
+					id: "in_progress",
+					title: "Doing",
+					cards: [boardCard("auth-login", { generatedFromPlan: plan("auth", "login") })],
+				},
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [boardCard("auth-tokens", { generatedFromPlan: plan("auth", "tokens") }), boardCard("loose")],
+				},
+			],
+			dependencies: [],
+		};
+		const membership = resolveEffectiveBoardStreamMembership(board);
+		expect(membership.streams.map((stream) => stream.id)).toEqual(["stream-auth"]);
+		expect(membership.streamIdByCardId).toEqual({ "auth-login": "stream-auth", "auth-tokens": "stream-auth" });
+		// Read-only: the board itself is never mutated.
+		expect(board.streams).toBeUndefined();
+	});
+
+	it("persisted streamId and persisted streams win over the derivation, per card", () => {
+		const board: RuntimeBoardData = {
+			columns: [
+				{
+					id: "in_progress",
+					title: "Doing",
+					cards: [
+						boardCard("manual-member", { streamId: "s-manual" }),
+						boardCard("auth-login", { generatedFromPlan: plan("auth", "login") }),
+						boardCard("auth-tokens", { generatedFromPlan: plan("auth", "tokens") }),
+					],
+				},
+			],
+			dependencies: [],
+			streams: [{ id: "s-manual", title: "Manual", source: "manual", createdAt: 5, updatedAt: 5 }],
+		};
+		const membership = resolveEffectiveBoardStreamMembership(board);
+		// Persisted streams are non-empty, so they ARE the stream list (no ephemeral additions)…
+		expect(membership.streams.map((stream) => stream.id)).toEqual(["s-manual"]);
+		// …while per-card membership still prefers the persisted value and falls back per card.
+		expect(membership.streamIdByCardId["manual-member"]).toBe("s-manual");
+		expect(membership.streamIdByCardId["auth-login"]).toBe("stream-auth");
+	});
+
+	it("trash cards neither join nor shape the derivation", () => {
+		const board: RuntimeBoardData = {
+			columns: [
+				{
+					id: "in_progress",
+					title: "Doing",
+					cards: [boardCard("auth-login", { generatedFromPlan: plan("auth", "login") })],
+				},
+				{
+					id: "trash",
+					title: "Trash",
+					cards: [boardCard("auth-dead", { generatedFromPlan: plan("auth", "dead") })],
+				},
+			],
+			dependencies: [],
+		};
+		const membership = resolveEffectiveBoardStreamMembership(board);
+		expect(membership.streamIdByCardId["auth-dead"]).toBeUndefined();
+		expect(membership.streamIdByCardId["auth-login"]).toBe("stream-auth");
 	});
 });

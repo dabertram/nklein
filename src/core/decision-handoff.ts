@@ -9,7 +9,7 @@
  * `workerNotes` slot when the fleet is available). The brief rides dependent-card B's start prompt.
  */
 
-import type { RuntimeBoardData } from "./board-api-contract";
+import type { RuntimeBoardCard, RuntimeBoardData } from "./board-api-contract";
 import { findBoardCardWithColumn } from "./task-board-mutations";
 
 export interface HandoffSourceFacts {
@@ -72,6 +72,28 @@ export function buildDecisionHandoff(source: HandoffSourceFacts): string | null 
 const MAX_HANDOFF_BRIEFS = 3;
 
 /**
+ * The reviewer feedback that SHAPED a completed card's accepted result. Audit 2026-08-12: `review.lastFeedback` is
+ * structurally NULL on a completed card — the approving round overwrites it — so this module read null forever and
+ * the "review constraint" line never rendered. The shaping constraint is the newest `request_changes` round's text
+ * in `review.history`; rounds recorded before the feedback-text field carry none and are skipped (older text still
+ * beats no text).
+ */
+function lastShapingReviewFeedback(review: RuntimeBoardCard["review"]): string | null {
+	const history = review?.history ?? [];
+	for (let index = history.length - 1; index >= 0; index -= 1) {
+		const round = history[index];
+		if (round?.verdict !== "request_changes") {
+			continue;
+		}
+		const text = round.feedback?.trim();
+		if (text) {
+			return text;
+		}
+	}
+	return null;
+}
+
+/**
  * The board-level composition (F12.38 activation half): every COMPLETED upstream dependency of `taskId` becomes a
  * handoff brief, capped with an honest remainder line. Edge semantics (task-board-mutations): `fromTaskId` DEPENDS
  * ON `toTaskId`, so this card's upstream cards are the `toTaskId`s of its own outgoing edges. `filesTouched` is the
@@ -95,7 +117,7 @@ export function composeDependencyHandoffPreamble(board: RuntimeBoardData, taskId
 				.filter((step) => step.status === "done")
 				.map((step) => step.text),
 			filesTouched: upstream.card.filesLikelyTouched ?? [],
-			shapingReviewFeedback: upstream.card.review?.lastFeedback ?? null,
+			shapingReviewFeedback: lastShapingReviewFeedback(upstream.card.review),
 			workerNotes: null,
 		});
 		if (brief) {

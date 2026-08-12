@@ -205,6 +205,7 @@ import { createTaskFailureEmitter } from "./nklein-task-failure-emitter";
 import { TaskModelEndpointStore, UNCONFIGURED_MODEL_ID } from "./nklein-task-model-endpoint-store";
 import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
 import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
+import { buildSessionCardContract } from "./nklein-task-prompt-parsing";
 import { TaskProviderIdStore } from "./nklein-task-provider-id-store";
 import { TaskRequestTimer } from "./nklein-task-request-timer";
 import { TaskSandboxStateStore } from "./nklein-task-sandbox-state";
@@ -1643,12 +1644,23 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			}
 		}
 		auxStamp("dispatching session runtime start");
+		// F4.8 (audit 2026-08-12): the card contract the goal re-anchor carries — write-scope boundaries from the
+		// persisted launch config + the acceptance command parsed from the start prompt. Omitted when empty so a
+		// contract-less session stays byte-identical.
+		const restartCardContract = buildSessionCardContract({
+			writeScope: launchConfig.writeScope,
+			forbiddenPaths: launchConfig.forbiddenPaths,
+			cardPrompt: input.prompt,
+		});
 		const startResult = await this.sessionRuntime
 			.startTaskSession({
 				taskId: input.taskId,
 				cwd: agentPerceivedCwd,
 				workspaceRoot: input.workspaceRoot ?? launchConfig.workspaceRoot,
 				prompt: effectiveStartPrompt,
+				...(restartCardContract.constraints !== null || restartCardContract.acceptanceCriteria !== null
+					? { cardContract: restartCardContract }
+					: {}),
 				initialMessages: input.initialMessages,
 				maxTokensPerTurn: input.maxTokensPerTurn ?? input.launchConfig.maxTokensPerTurn ?? null,
 				images: input.images,
@@ -2520,6 +2532,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				const toolPolicies = communitySkillAdmission
 					? restrictCommunitySkillToolPolicies(baseToolPolicies, communitySkillAdmission.effectiveTools)
 					: baseToolPolicies;
+				// F4.8 (audit 2026-08-12): compose the card contract once, outside the request literal, so the
+				// conditional spread below stays readable. taskPrompt is the card's effective brief for this start.
+				const primaryCardContract = buildSessionCardContract({
+					writeScope: request.writeScope,
+					forbiddenPaths: request.forbiddenPaths,
+					cardPrompt: taskPrompt,
+				});
 				// auxiliary sessions already use this same gate.
 				const startResult = await this.withModelTurnAdmission(
 					{
@@ -2593,6 +2612,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							// container workdir (agentPerceivedCwd points inside the sandbox volume when isolation is active).
 							workspaceRoot: request.workspaceRoot ?? request.cwd,
 							prompt: workerStartPrompt,
+							// F4.8 (audit 2026-08-12): the card contract the goal re-anchor carries — write-scope boundaries
+							// + the acceptance command parsed from the card prompt. Omitted when empty so a contract-less
+							// session stays byte-identical.
+							...(primaryCardContract.constraints !== null || primaryCardContract.acceptanceCriteria !== null
+								? { cardContract: primaryCardContract }
+								: {}),
 							taskTitle: request.taskTitle,
 							maxTokensPerTurn: request.maxTokensPerTurn ?? null,
 							initialMessages,

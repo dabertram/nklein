@@ -7,10 +7,13 @@
  * Membership is read straight off `card.streamId` (the effective value the store already resolved: manual ?? derived),
  * so this composes cleanly over a persisted board without re-deriving. Cards with no `streamId` (or a `streamId` that
  * names no known stream) are reported as `ungroupedCardIds` — the "loose" cards the UI shows outside any stream.
+ * Callers holding a raw board should resolve membership through {@link resolveEffectiveBoardStreamMembership}, which
+ * adds the legacy-board `deriveStreams` fallback (audit 2026-08-12).
  */
 
-import type { RuntimeStream } from "./board-api-contract";
+import type { RuntimeBoardData, RuntimeStream } from "./board-api-contract";
 import type { OperatorTaskSignals } from "./operator-task-state";
+import { deriveStreams } from "./stream-derivation";
 import { deriveStreamRollup, type StreamHealth, type StreamRollup } from "./stream-rollup";
 
 /** The live state of a member card the rollup needs. */
@@ -18,6 +21,47 @@ export interface BoardStreamMemberState {
 	signals: OperatorTaskSignals;
 	/** Epoch ms of the card's last transition (for staleness). */
 	lastActivityAt: number;
+}
+
+/** A board's EFFECTIVE stream state: persisted when present, else the pure derivation. Read-only projection. */
+export interface EffectiveBoardStreamMembership {
+	/** The board's streams — `board.streams` when non-empty, else the derived proposals materialized ephemerally. */
+	streams: readonly RuntimeStream[];
+	/** Non-trash cardId → effective streamId (persisted `card.streamId`, else the derived membership). */
+	streamIdByCardId: Readonly<Record<string, string>>;
+}
+
+/**
+ * Resolve a board's effective streams + card membership with the `deriveStreams` FALLBACK the tRPC message-target
+ * index already uses (runtime-api.ts). Audit 2026-08-12: this module's consumers read ONLY the persisted
+ * `board.streams` / `card.streamId`, so a legacy board (cards carrying `generatedFromPlan` but no `streamId`, or a
+ * board whose streams were stripped by the pre-fix normalizer) reported every card ungrouped and every broadcast
+ * target missing. Persisted values win per card; derivation runs over non-trash cards only (a trashed card is not a
+ * live member and must not shape components). READ-ONLY — derived streams are an ephemeral projection (zeroed
+ * timestamps), never written back to the board.
+ */
+export function resolveEffectiveBoardStreamMembership(board: RuntimeBoardData): EffectiveBoardStreamMembership {
+	const nonTrashCards = board.columns.filter((column) => column.id !== "trash").flatMap((column) => column.cards);
+	const derived = deriveStreams({
+		cards: nonTrashCards.map((card) => ({
+			id: card.id,
+			title: card.title,
+			planSlug: card.generatedFromPlan?.planSlug ?? null,
+		})),
+		dependencies: board.dependencies ?? [],
+	});
+	const streamIdByCardId: Record<string, string> = {};
+	for (const card of nonTrashCards) {
+		const streamId = card.streamId ?? derived.cardStreamId[card.id];
+		if (streamId) {
+			streamIdByCardId[card.id] = streamId;
+		}
+	}
+	const streams: readonly RuntimeStream[] =
+		board.streams && board.streams.length > 0
+			? board.streams
+			: derived.streams.map((stream) => ({ ...stream, createdAt: 0, updatedAt: 0 }));
+	return { streams, streamIdByCardId };
 }
 
 export interface BoardStreamsSummaryInput {

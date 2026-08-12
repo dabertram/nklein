@@ -17,6 +17,7 @@
  */
 
 import type { MechanismObservation } from "./mechanism-decision-report";
+import { resolveOutcomeForObservation } from "./observation-outcome-bridge";
 import type { OffTrackRemedy } from "./off-track-intervention";
 
 /** What the live system does with a drifting card today, regardless of the recorded recommendation. */
@@ -75,7 +76,10 @@ export function joinOffTrackRemedyObservations(input: {
 			unusableRecords += 1;
 			continue;
 		}
-		const outcome = record.taskId === null ? undefined : input.outcomeByTaskId.get(record.taskId);
+		// Session/card id namespace bridge (audit 2026-08-12): records emit under SESSION ids (`<cardId>-<ts>-<rand>`,
+		// `<cardId>::review`) while outcomes key on CARD ids — the shared bridge joins them; exact `.get` never did.
+		const outcome =
+			record.taskId === null ? undefined : resolveOutcomeForObservation(record.taskId, input.outcomeByTaskId);
 		if (outcome === undefined) {
 			unjoinedOutcomes += 1;
 		}

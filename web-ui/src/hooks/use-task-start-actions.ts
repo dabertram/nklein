@@ -40,11 +40,16 @@ export function getStartableBacklogTaskIds(board: BoardData): string[] {
 		if (card.blockedKind !== undefined) {
 			return;
 		}
-		const dependency = board.dependencies.find((d) => d.fromTaskId === card.id);
-		const isChildTaskInBacklog = dependency && allBacklogTasks.has(dependency.toTaskId);
-		const isChildTaskInProgress = dependency && allInProgressTasks.has(dependency.toTaskId);
+		// ALL of the card's prerequisites (edge from→to means FROM depends on TO) must be clear. Audit 2026-08-12:
+		// `.find(...)` checked only the FIRST edge, so a card with one satisfied and one unmet prerequisite was
+		// reported startable.
+		const hasUnmetPrerequisite = board.dependencies.some(
+			(dependency) =>
+				dependency.fromTaskId === card.id &&
+				(allBacklogTasks.has(dependency.toTaskId) || allInProgressTasks.has(dependency.toTaskId)),
+		);
 
-		if (!isChildTaskInBacklog && !isChildTaskInProgress) {
+		if (!hasUnmetPrerequisite) {
 			startableTaskIds.push(card.id);
 		}
 	});

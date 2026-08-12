@@ -61,6 +61,20 @@ describe("joinOffTrackRemedyObservations", () => {
 		expect(report.unusableRecords).toBe(0);
 	});
 
+	it("joins session-shaped and derived-session ids to the card's outcome (shared bridge, audit 2026-08-12)", () => {
+		// Remedy observations emit under the SESSION id namespace; outcomes key on CARD ids. Exact `.get` never
+		// intersected — the shared observation-outcome bridge does.
+		const report = joinOffTrackRemedyObservations({
+			records: [
+				{ taskId: "card-1-1723400000-ab12", remedy: "park", actual: null },
+				{ taskId: "card-1::review", remedy: "compact_and_continue", actual: null },
+			],
+			outcomeByTaskId: new Map([["card-1", true]]),
+		});
+		expect(report.observations.map((entry) => entry.succeeded)).toEqual([true, true]);
+		expect(report.unjoinedOutcomes).toBe(0);
+	});
+
 	it("counts an unknown remedy as unusable rather than as either agreement or disagreement", () => {
 		// A typo'd or future remedy value must surface as a data problem: counting it as agreement dilutes the
 		// disagreement rate toward no_op (which ends in deletion); counting it as disagreement manufactures

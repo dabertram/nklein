@@ -76,7 +76,23 @@ describe("composeDependencyHandoffPreamble (F12.38 board-level wire)", () => {
 									],
 								},
 								filesLikelyTouched: ["src/parser.ts"],
-								review: { status: "approved", round: 1, history: [], lastFeedback: "keep the API frozen" },
+								// The real completed-card shape (audit 2026-08-12): the approve overwrites lastFeedback
+								// with null; the shaping text lives in the request_changes round's history record.
+								review: {
+									status: "approved",
+									round: 2,
+									history: [
+										{
+											round: 1,
+											verdict: "request_changes",
+											feedbackFingerprint: null,
+											workFingerprint: null,
+											feedback: "keep the API frozen",
+										},
+										{ round: 2, verdict: "approve", feedbackFingerprint: null, workFingerprint: null },
+									],
+									lastFeedback: null,
+								},
 							}),
 						],
 					},
@@ -99,6 +115,47 @@ describe("composeDependencyHandoffPreamble (F12.38 board-level wire)", () => {
 		expect(preamble).toContain("keep the API frozen");
 		expect(preamble).not.toContain("Card busy");
 		expect(preamble.endsWith("\n\n")).toBe(true);
+	});
+
+	it("reads the NEWEST request_changes round with text, skipping textless records (audit 2026-08-12)", () => {
+		const preamble = composeDependencyHandoffPreamble(
+			board({
+				columns: [
+					{
+						id: "completed",
+						cards: [
+							card("a", {
+								review: {
+									status: "approved",
+									round: 3,
+									history: [
+										{
+											round: 1,
+											verdict: "request_changes",
+											feedbackFingerprint: null,
+											workFingerprint: null,
+											feedback: "older constraint",
+										},
+										// A legacy round recorded before the feedback-text field — skipped, not read as "".
+										{
+											round: 2,
+											verdict: "request_changes",
+											feedbackFingerprint: null,
+											workFingerprint: null,
+										},
+										{ round: 3, verdict: "approve", feedbackFingerprint: null, workFingerprint: null },
+									],
+									lastFeedback: null,
+								},
+							}),
+						],
+					},
+				],
+				dependencies: [{ fromTaskId: "b", toTaskId: "a" }],
+			}),
+			"b",
+		);
+		expect(preamble).toContain("older constraint");
 	});
 
 	it("returns empty for no dependencies and caps briefs at 3 with an honest remainder", () => {

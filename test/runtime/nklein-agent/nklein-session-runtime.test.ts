@@ -2842,4 +2842,76 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		expect(fakeHost.dispose).toHaveBeenCalledWith("kanban-runtime-dispose");
 		expect(runtime.getTaskSessionId("task-1")).toBeNull();
 	});
+
+	it("carries the start request's card contract into the goal re-anchor block (F4.8, audit 2026-08-12)", async () => {
+		// recordSessionCardContract shipped with ZERO callers — the wiring under test is startTaskSession →
+		// recordSessionCardContract → the NKLEIN_GOAL_REANCHOR block carrying CONSTRAINTS + DONE MEANS.
+		const originalOptIn = process.env.NKLEIN_GOAL_REANCHOR;
+		process.env.NKLEIN_GOAL_REANCHOR = "1";
+		const fakeHost = {
+			start: vi.fn(async (input: NKleinSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-contract",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const runtime = createInMemoryNKleinSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		try {
+			await runtime.startTaskSession({
+				taskId: "task-contract",
+				cwd: "/workspaces/task-contract",
+				prompt: "Implement the widget",
+				providerId: "lmstudio",
+				modelId: "worker",
+				systemPrompt: "system",
+				cardContract: { constraints: "Write only within: src/a.ts.", acceptanceCriteria: "npm test" },
+			});
+
+			const startInput = fakeHost.start.mock.calls[0]?.[0];
+			const extension = startInput?.localRuntime?.extensions?.find(
+				(candidate) => candidate.name === "kanban-context-focus",
+			);
+			const beforeModel = extension?.hooks?.beforeModel;
+			if (!beforeModel) {
+				throw new Error("Expected the context-focus beforeModel hook");
+			}
+			const context = createModelContext("/workspaces/task-contract");
+			context.request.messages = [
+				{
+					id: "m1",
+					role: "user",
+					content: [{ type: "text", text: "Implement the widget" }],
+					createdAt: 1,
+				},
+			];
+			const result = await beforeModel(context);
+			// Shape-agnostic: the re-anchor block may ride as a standalone message or as a text part appended to
+			// the last user message — assert on the carried CONTRACT text, not the carrier.
+			const allText = (result?.messages ?? [])
+				.flatMap((message) => message.content)
+				.map((part) => (part.type === "text" ? part.text : ""))
+				.join("\n");
+			expect(allText).toContain("CONSTRAINTS: Write only within: src/a.ts.");
+			expect(allText).toContain("ACCEPTANCE CRITERIA: npm test");
+		} finally {
+			if (originalOptIn === undefined) {
+				delete process.env.NKLEIN_GOAL_REANCHOR;
+			} else {
+				process.env.NKLEIN_GOAL_REANCHOR = originalOptIn;
+			}
+			await runtime.dispose();
+		}
+	});
 });

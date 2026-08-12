@@ -24,6 +24,7 @@
  */
 
 import type { MechanismObservation } from "./mechanism-decision-report";
+import { resolveOutcomeForObservation } from "./observation-outcome-bridge";
 
 /** What the gate wrote, as a reader recovers it from the self-observation stream. */
 export interface ToolGateObservationRecord {
@@ -102,37 +103,6 @@ export function joinToolGateObservations(input: {
 					(unjoinedOutcomes > 0 ? ` (${unjoinedOutcomes} without a joinable outcome)` : "") +
 					(unusableRecords > 0 ? ` (${unusableRecords} malformed record(s) excluded)` : ""),
 	};
-}
-
-/**
- * Resolve an observation's outcome across the SESSION/CARD id namespace boundary.
- *
- * Live-found 2026-08-02, on the first real drain: the gate emits from a TASK SESSION, whose id is the card id
- * plus a per-session suffix — `devtest-…-1785625582977-1785625755525-5mmhsijz` against card
- * `devtest-…-1785625582977` — while the scheduler's terminal records carry the CARD id. An exact-match join
- * therefore intersected in ZERO rows and always would have: the twelfth instance of the day's defect class, one
- * level deeper than the missing-key bug it was hiding behind, and invisible to unit tests whose fixtures matched
- * ids by construction.
- *
- * The join is exact-first, then LONGEST prefix followed by `-`. Longest, because one card id can in principle be
- * a prefix of another (both end in a timestamp); matching the longest candidate makes the choice deterministic
- * and attributes the observation to the most specific card. No match stays UNKNOWN — never a guess.
- */
-function resolveOutcomeForObservation(
-	observationTaskId: string,
-	outcomeByTaskId: ReadonlyMap<string, boolean>,
-): boolean | undefined {
-	const exact = outcomeByTaskId.get(observationTaskId);
-	if (exact !== undefined) {
-		return exact;
-	}
-	let bestId: string | null = null;
-	for (const cardId of outcomeByTaskId.keys()) {
-		if (observationTaskId.startsWith(`${cardId}-`) && (bestId === null || cardId.length > bestId.length)) {
-			bestId = cardId;
-		}
-	}
-	return bestId === null ? undefined : outcomeByTaskId.get(bestId);
 }
 
 /** The slice of a `scheduler` ledger event this index needs. */

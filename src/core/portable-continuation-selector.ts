@@ -46,7 +46,7 @@ export interface CardContinuation {
 	taskId: string;
 	disposition: ContinuationDisposition;
 	reason: ContinuationReason;
-	/** Task ids of predecessors (upstream `fromTaskId` of a dependency into this card) not yet `done`. */
+	/** Task ids of prerequisites (`toTaskId` of this card's own outgoing dependency edges) not yet `done`. */
 	unsatisfiedDependencies: string[];
 }
 
@@ -83,7 +83,7 @@ function flattenBoard(board: RuntimeBoardData): FlatCard[] {
 }
 
 /**
- * The set of task ids that count as "already finished upstream" — a dependency into a card is satisfied when its
+ * The set of task ids that count as "already finished upstream" — a card's prerequisite is satisfied when that
  * upstream card is terminal (`completed`/`trash`) OR is absent from the imported board entirely (it was tombstoned
  * away, so it can never complete; blocking on a card that no longer exists would strand the DAG forever).
  */
@@ -106,14 +106,17 @@ function unsatisfiedDependenciesFor(
 	present: Set<string>,
 ): string[] {
 	const unmet = new Set<string>();
+	// Board edge semantics (task-board-mutations): `fromTaskId` DEPENDS ON `toTaskId`, so this card's prerequisites
+	// are the `toTaskId`s of its own outgoing edges. Audit 2026-08-12: this walk was INVERTED (it read edges INTO
+	// the card and named `fromTaskId` the prerequisite), which blocked exactly the wrong side of every edge.
 	for (const dependency of board.dependencies) {
-		if (dependency.toTaskId !== cardId) {
+		if (dependency.fromTaskId !== cardId) {
 			continue;
 		}
-		// A predecessor blocks only while it is present-and-not-terminal. An absent (tombstoned) upstream cannot
-		// finish, so it does not block — otherwise a deleted predecessor would freeze its dependents forever.
-		if (present.has(dependency.fromTaskId) && !satisfied.has(dependency.fromTaskId)) {
-			unmet.add(dependency.fromTaskId);
+		// A prerequisite blocks only while it is present-and-not-terminal. An absent (tombstoned) upstream cannot
+		// finish, so it does not block — otherwise a deleted prerequisite would freeze its dependents forever.
+		if (present.has(dependency.toTaskId) && !satisfied.has(dependency.toTaskId)) {
+			unmet.add(dependency.toTaskId);
 		}
 	}
 	return [...unmet].sort();

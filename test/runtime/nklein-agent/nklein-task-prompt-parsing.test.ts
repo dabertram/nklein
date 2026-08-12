@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	buildSessionCardContract,
 	isDecompositionPlanningPrompt,
 	isExplicitDecompositionPrompt,
 	parseAcceptanceCommand,
@@ -58,5 +59,34 @@ describe("isDecompositionPlanningPrompt", () => {
 	});
 	it("is false for a plain implementation prompt", () => {
 		expect(isDecompositionPlanningPrompt("add a button to the toolbar")).toBe(false);
+	});
+});
+
+describe("buildSessionCardContract (F4.8, audit 2026-08-12)", () => {
+	it("composes boundaries from writeScope/forbiddenPaths and the acceptance command from the prompt", () => {
+		const contract = buildSessionCardContract({
+			writeScope: ["src/a.ts", "src/b.ts"],
+			forbiddenPaths: ["src/core/api-contract.ts"],
+			cardPrompt: "Implement the widget.\nAcceptance command: npm test",
+		});
+		expect(contract.constraints).toBe(
+			"Write only within: src/a.ts, src/b.ts. Never touch: src/core/api-contract.ts.",
+		);
+		expect(contract.acceptanceCriteria).toBe("npm test");
+	});
+
+	it("renders only the present half of the boundary pair", () => {
+		expect(buildSessionCardContract({ writeScope: ["src/a.ts"], cardPrompt: "x" }).constraints).toBe(
+			"Write only within: src/a.ts.",
+		);
+		expect(buildSessionCardContract({ forbiddenPaths: ["dist/"], cardPrompt: "x" }).constraints).toBe(
+			"Never touch: dist/.",
+		);
+	});
+
+	it("is null/null when the card declares nothing — a real state, never an empty line", () => {
+		expect(
+			buildSessionCardContract({ writeScope: [], forbiddenPaths: null, cardPrompt: "no contract here" }),
+		).toEqual({ constraints: null, acceptanceCriteria: null });
 	});
 });

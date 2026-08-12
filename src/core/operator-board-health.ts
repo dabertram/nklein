@@ -1,5 +1,10 @@
 import type { RuntimeWorkspaceStateResponse } from "./api-contract";
-import { type BoardStreamMemberState, type BoardStreamsSummary, summarizeBoardStreams } from "./board-streams-summary";
+import {
+	type BoardStreamMemberState,
+	type BoardStreamsSummary,
+	resolveEffectiveBoardStreamMembership,
+	summarizeBoardStreams,
+} from "./board-streams-summary";
 import {
 	buildOperatorBoardSummary,
 	mapSessionSummaryToOperatorSignals,
@@ -96,6 +101,10 @@ export function summarizeWorkspaceBoardStreams(
 	state: RuntimeWorkspaceStateResponse,
 	options: { now: number; stalenessMs?: number },
 ): BoardStreamsSummary {
+	// Audit 2026-08-12: effective (persisted-else-derived) membership, so a legacy board — cards with
+	// `generatedFromPlan` but no `streamId`, or streams stripped by the pre-fix normalizer — still resolves
+	// stream membership instead of reporting everything ungrouped. Read-only; nothing is written back.
+	const membership = resolveEffectiveBoardStreamMembership(state.board);
 	const cards: { id: string; streamId?: string }[] = [];
 	const taskState: Record<string, BoardStreamMemberState> = {};
 	for (const column of state.board.columns) {
@@ -103,7 +112,8 @@ export function summarizeWorkspaceBoardStreams(
 			continue;
 		}
 		for (const card of column.cards) {
-			cards.push(card.streamId ? { id: card.id, streamId: card.streamId } : { id: card.id });
+			const streamId = membership.streamIdByCardId[card.id];
+			cards.push(streamId ? { id: card.id, streamId } : { id: card.id });
 			const summary = state.sessions[card.id];
 			if (summary) {
 				taskState[card.id] = {
@@ -114,7 +124,7 @@ export function summarizeWorkspaceBoardStreams(
 		}
 	}
 	return summarizeBoardStreams({
-		streams: state.board.streams ?? [],
+		streams: membership.streams,
 		cards,
 		taskState,
 		now: options.now,

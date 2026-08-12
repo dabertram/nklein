@@ -535,6 +535,36 @@ describe("createCardRelayTools — send_to_stream (§5.AU)", () => {
 		expect(await streamRelayTool().tool.run({ stream_id: "s1" })).toContain("requires a non-empty `message`");
 	});
 
+	it("legacy board fallback: plan-born cards with no streamId and no board.streams are still addressable (audit 2026-08-12)", async () => {
+		// Streams post-date this board shape: membership must resolve through the deriveStreams fallback, whose
+		// deterministic id for a decomposition stream is `stream-<planSlug>`.
+		const legacyCard = (id: string): RuntimeBoardCard => ({
+			id,
+			title: id,
+			prompt: "",
+			startInPlanMode: false,
+			baseRef: "main",
+			createdAt: 1,
+			updatedAt: 1,
+			generatedFromPlan: { artifactKind: "decomposition", planSlug: "auth", planTaskId: id, sourceTaskId: null },
+		});
+		const legacyBoard: RuntimeBoardData = {
+			columns: [
+				{ id: "in_progress", title: "Doing", cards: [legacyCard("auth-run")] },
+				{ id: "backlog", title: "Backlog", cards: [legacyCard("auth-wait")] },
+			],
+			dependencies: [],
+		};
+		const r = streamRelayTool({
+			loadBoard: async () => legacyBoard,
+			listActiveSessionTaskIds: () => new Set(["auth-run"]),
+		});
+		const result = await r.tool.run({ stream_id: "stream-auth", message: "use bcrypt" });
+		expect(result).toContain('Sent to stream "Auth" (2 card(s))');
+		expect(r.delivered.map((d) => d.taskId)).toEqual(["auth-run"]);
+		expect(r.queued.map((q) => q.taskId)).toEqual(["auth-wait"]);
+	});
+
 	it("excludes trashed cards — a trashed card keeps its streamId but must not receive a broadcast", async () => {
 		const boardWithTrash: RuntimeBoardData = {
 			columns: [

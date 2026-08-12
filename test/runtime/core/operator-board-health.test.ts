@@ -9,6 +9,7 @@ import {
 	type BoardHealthBoardView,
 	summarizeBoardHealth,
 	summarizeWorkspaceBoardHealth,
+	summarizeWorkspaceBoardStreams,
 } from "../../../src/core/operator-board-health";
 
 function card(id: string, blockedKind?: RuntimeBoardCard["blockedKind"]): RuntimeBoardCard {
@@ -163,5 +164,39 @@ describe("summarizeBoardHealth (§5.V coverage)", () => {
 		summarizeBoardHealth(view([{ id: "backlog", cards: [{ id: "c1" }, { id: "c2" }] }]), {}, resolveOverrides);
 		expect(resolveOverrides).toHaveBeenCalledWith("c1");
 		expect(resolveOverrides).toHaveBeenCalledWith("c2");
+	});
+});
+
+describe("summarizeWorkspaceBoardStreams — legacy-board fallback (audit 2026-08-12)", () => {
+	it("derives stream membership for a board with plan-born cards but no streamId and no board.streams", () => {
+		// The legacy shape: decomposition provenance exists, but the streams feature post-dates the board (or the
+		// pre-fix normalizer stripped them). Membership must come from the deriveStreams fallback, read-only.
+		const planCard = (id: string): RuntimeBoardCard => ({
+			...card(id),
+			generatedFromPlan: { artifactKind: "decomposition", planSlug: "auth", planTaskId: id, sourceTaskId: null },
+		});
+		const legacyBoard = board([
+			{ columnId: "in_progress", card: planCard("auth-login") },
+			{ columnId: "completed", card: planCard("auth-tokens") },
+			{ columnId: "backlog", card: card("loose") },
+		]);
+		expect(legacyBoard.streams).toBeUndefined();
+
+		const summary = summarizeWorkspaceBoardStreams(stateWith(legacyBoard), { now: 1_000 });
+		expect(summary.streams).toHaveLength(1);
+		expect(summary.streams[0]?.stream.id).toBe("stream-auth");
+		expect([...(summary.streams[0]?.memberTaskIds ?? [])].sort()).toEqual(["auth-login", "auth-tokens"]);
+		expect(summary.ungroupedCardIds).toEqual(["loose"]);
+		// Read-only: the fallback never writes derived streams back onto the board.
+		expect(legacyBoard.streams).toBeUndefined();
+	});
+
+	it("still prefers persisted streams + card.streamId when present", () => {
+		const member: RuntimeBoardCard = { ...card("m1"), streamId: "s1" };
+		const persisted = board([{ columnId: "in_progress", card: member }]);
+		persisted.streams = [{ id: "s1", title: "Persisted", source: "manual", createdAt: 1, updatedAt: 1 }];
+		const summary = summarizeWorkspaceBoardStreams(stateWith(persisted), { now: 1_000 });
+		expect(summary.streams.map((entry) => entry.stream.id)).toEqual(["s1"]);
+		expect(summary.streams[0]?.memberTaskIds).toEqual(["m1"]);
 	});
 });

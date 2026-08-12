@@ -32,7 +32,9 @@ function makeCard(spec: CardSpec): RuntimeBoardCard {
 					generatedFromPlan: {
 						artifactKind: "decomposition" as const,
 						planSlug: spec.plan.planSlug,
-						planTaskId: `${spec.plan.planSlug}::${spec.id}`,
+						// A bare plan-internal id — the `<slug>::<id>` composite this fixture used to copy embedded
+						// the derived-session separator into a plan-id field (audit 2026-08-12).
+						planTaskId: spec.id,
 						sourceTaskId: spec.plan.sourceTaskId ?? null,
 					},
 				}

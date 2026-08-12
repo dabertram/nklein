@@ -8,12 +8,14 @@ import {
 } from "../core/mistake-streak-classifier";
 import { normalizeProviderBaseUrl } from "../core/openai-compat-base-url";
 import { decideResearchFreshnessGate } from "../core/research-freshness-gate";
+import { boardCardIdOfTaskSessionId } from "../core/synthetic-task-id";
 import { relaxAgentToolSchemas } from "./agent-tool-boundary";
 import {
 	clearAllSessionFocusState,
 	createKanbanContextFocusExtension,
 	forgetSessionFocusState,
 	getOfferedToolNamesForSession,
+	recordSessionCardContract,
 	recordSessionFocusChain,
 	recordSessionRole,
 } from "./nklein-context-focus-extension";
@@ -420,6 +422,12 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		// F12.18b: record the role this session was ASKED to run, so the tool-gate seam can scope enforcement to
 		// workers with the real attribute — three proxies (name, age, tool-presence) each failed where this is used.
 		recordSessionRole(requestedSessionId, request.role ?? null);
+		// F4.8 (audit 2026-08-12): hand the card's contract (constraints + acceptance criteria) to the goal
+		// re-anchor. `recordSessionCardContract` shipped with ZERO callers — every re-anchor carried the objective
+		// alone, so an agent that forgot what "done" means (or where the boundaries are) was never re-grounded.
+		if (request.cardContract) {
+			recordSessionCardContract(requestedSessionId, request.cardContract);
+		}
 
 		let mcpToolBundle: NKleinMcpToolBundle | null = null;
 		let startWarnings: string[] = [];
@@ -1162,7 +1170,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 							// byte-identical (it records drift and computes no remedy).
 							request.offTrackSignalsProvider,
 							// P18.4b: the BOARD task id, so drift/remedy observations join the card's eventual outcome.
-							request.taskId,
+							// Audit 2026-08-12: auxiliary sessions carry a DERIVED `<cardId>::review`-shaped request.taskId —
+							// strip to the primary card id here, or their observations join nothing.
+							boardCardIdOfTaskSessionId(request.taskId),
 							// P18.4b acting half: only when the operator opted in — observe-only stays byte-identical.
 							isTruthyEnv(process.env.NKLEIN_DRIFT_REMEDY_ENFORCE) ? request.onOffTrackRemedy : undefined,
 						),

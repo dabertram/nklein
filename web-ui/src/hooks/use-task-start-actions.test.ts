@@ -78,4 +78,30 @@ describe("getStartableBacklogTaskIds", () => {
 		});
 		expect(getStartableBacklogTaskIds(board)).toEqual([]);
 	});
+
+	it("checks ALL dependency edges — one satisfied and one unmet prerequisite is NOT startable (audit 2026-08-12)", () => {
+		// The old `.find(...)` read only the FIRST edge: with the satisfied edge listed first, the still-open
+		// second prerequisite was ignored and the card was reported startable.
+		const board = createBoard({
+			backlogCards: [createCard("task-join"), createCard("task-open")],
+			dependencies: [
+				// task-done is on no live column (completed/absent) → this prerequisite is satisfied…
+				{ id: "dep-1", fromTaskId: "task-join", toTaskId: "task-done", createdAt: 1 },
+				// …but task-open is still in the backlog → the card must stay blocked.
+				{ id: "dep-2", fromTaskId: "task-join", toTaskId: "task-open", createdAt: 2 },
+			],
+		});
+		expect(getStartableBacklogTaskIds(board)).toEqual(["task-open"]);
+	});
+
+	it("is startable once EVERY prerequisite has left the backlog/in-progress lanes", () => {
+		const board = createBoard({
+			backlogCards: [createCard("task-join")],
+			dependencies: [
+				{ id: "dep-1", fromTaskId: "task-join", toTaskId: "task-done-a", createdAt: 1 },
+				{ id: "dep-2", fromTaskId: "task-join", toTaskId: "task-done-b", createdAt: 2 },
+			],
+		});
+		expect(getStartableBacklogTaskIds(board)).toEqual(["task-join"]);
+	});
 });

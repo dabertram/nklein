@@ -1,6 +1,10 @@
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeWorkspaceStateResponse } from "../core/api-contract";
 import { buildBoardChatDigest } from "../core/board-chat-digest";
-import { type BoardStreamsSummary, renderBoardStreamsSummary } from "../core/board-streams-summary";
+import {
+	type BoardStreamsSummary,
+	renderBoardStreamsSummary,
+	resolveEffectiveBoardStreamMembership,
+} from "../core/board-streams-summary";
 import {
 	type CardExecutionState,
 	type CardMessageIntent,
@@ -402,14 +406,18 @@ export async function applyStreamMessageBroadcast(
 	message: string,
 	deps: CardMessageRelayDeps,
 ): Promise<string> {
-	const stream = (board.streams ?? []).find((candidate) => candidate.id === streamId);
+	// Audit 2026-08-12: effective (persisted-else-derived) streams + membership, so a legacy board — cards with
+	// `generatedFromPlan` but no `streamId`, or streams stripped by the pre-fix normalizer — is still addressable.
+	// Read-only; derived streams are never written back.
+	const membership = resolveEffectiveBoardStreamMembership(board);
+	const stream = membership.streams.find((candidate) => candidate.id === streamId);
 	if (!stream) {
 		return `No stream with id "${streamId}" on the board (use get_streams to list streams).`;
 	}
 	const memberCards = board.columns
 		.filter((column) => column.id !== "trash")
 		.flatMap((column) => column.cards)
-		.filter((card) => card.streamId === streamId);
+		.filter((card) => membership.streamIdByCardId[card.id] === streamId);
 	if (memberCards.length === 0) {
 		return `Stream "${stream.title}" has no cards — nothing to send to.`;
 	}

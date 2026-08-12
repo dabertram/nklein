@@ -14961,6 +14961,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     redrive landed post-conversion and prematurely released the causal-stamps parent past 2 pending children.
     Edges must never silently vanish/flip; explicit starts of dep-gated cards should refuse-or-warn (folded into
     the fix batch alongside the satisfied-edges persistence design).
+  - **A/B CAMPAIGN CHECKPOINT (NKLEIN_MODEL_CONSULT, 2026-08-12, flagged per the standing agreement):** 18
+    accumulated pairs, verdict REFUSING (3 better / 1 worse, McNemar p=0.625) — and the discordant count has been
+    FROZEN for six consecutive invocations (9 pairs, zero new discordants; success rates a=17% b=28%). Two reasons
+    to freeze this ledger rather than keep burning GPU: (1) the informative-pair rate collapsed — mid_task/deep_chain
+    at 45-min ceilings now produce almost only concordant outcomes, so each invocation adds ~zero McNemar
+    information (needs 3 MORE better-discordants at zero worse to reach significance); (2) REGIME CHANGE — the
+    re-decompose rung + rich re-work briefs shipped mid-campaign, changing the stuck-card dynamics the consult
+    mechanism exists for; pairs 17+ measure a different system than pairs 1-16, so further accumulation into one
+    pool is methodologically unsound. RECOMMENDATION: accept "no flip on current evidence — positive trend within
+    noise" for the OLD regime and, if the question still matters post-redecompose, start a FRESH ledger (the
+    campaign runner + decideDefaultFlip are reusable as-is; ~/nklein-ab-campaigns/NKLEIN_MODEL_CONSULT.jsonl is the
+    frozen old-regime evidence). Campaign PAUSED pending David's call.
   - **→ FOLLOW-UP AUDIT (David 2026-08-12: "check everything for similar and further bugs") — four parallel
     class-sweeps (id-namespace confusion / silently-empty context assemblers + schema mirrors / fixture-bent
     tests / dead rungs + dammed states) over src+test+web-ui. CONFIRMED FINDINGS, fix batch staged (details in

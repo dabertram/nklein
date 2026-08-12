@@ -217,4 +217,27 @@ describe("joining across the session/card id boundary", () => {
 		});
 		expect(report.observations[0]?.succeeded).toBeNull();
 	});
+
+	it("bridges DERIVED session ids (`::review`/`::spec`) to the primary card's outcome (audit 2026-08-12)", () => {
+		const report = joinToolGateObservations({
+			records: [
+				{ taskId: `${CARD}::review`, offered: 10, wouldKeep: 7, wouldDrop: 3 },
+				{ taskId: `${CARD}::spec`, offered: 10, wouldKeep: 10, wouldDrop: 0 },
+			],
+			outcomeByTaskId: new Map([[CARD, true]]),
+		});
+		expect(report.observations.map((entry) => entry.succeeded)).toEqual([true, true]);
+		expect(report.unjoinedOutcomes).toBe(0);
+	});
+
+	it("an exact match on the DERIVED id itself still wins over the stripped primary", () => {
+		const report = joinToolGateObservations({
+			records: [{ taskId: `${CARD}::review`, offered: 10, wouldKeep: 7, wouldDrop: 3 }],
+			outcomeByTaskId: new Map([
+				[CARD, false],
+				[`${CARD}::review`, true],
+			]),
+		});
+		expect(report.observations[0]?.succeeded).toBe(true);
+	});
 });

@@ -31,11 +31,15 @@ describe("createFleetWideFanoutBoard", () => {
 		for (const card of cards) {
 			expect(card.baseRef).toBe("trunk");
 			expect(card.prompt).toContain("Acceptance command: npm test");
+			// Honest provenance (audit 2026-08-12): a plain plan-internal planTaskId (no `::` composite) and a null
+			// sourceTaskId — the fixture is not decomposed from a real board card.
 			expect(card.generatedFromPlan).toMatchObject({
 				artifactKind: "decomposition",
 				planSlug: "fleet-wide-fanout-proof",
-				sourceTaskId: "dev-habit-wide-fanout-decompose",
+				planTaskId: card.id,
+				sourceTaskId: null,
 			});
+			expect(card.generatedFromPlan?.planTaskId).not.toContain("::");
 			for (const path of card.writeScope ?? []) {
 				expect(ownedPaths.has(path)).toBe(false);
 				ownedPaths.add(path);

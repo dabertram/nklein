@@ -11,14 +11,17 @@ interface FormatterCardSpec {
 }
 
 const FLEET_PROOF_PLAN_SLUG = "fleet-wide-fanout-proof";
-const FLEET_PROOF_SOURCE_TASK_ID = "dev-habit-wide-fanout-decompose";
 
+// Audit 2026-08-12: honest provenance shapes. `planTaskId` is the PLAIN plan-internal id (the previous
+// `<slug>::<boardId>` composite embedded the derived-SESSION separator into a plan-id field, poisoning any reader
+// that joins on either namespace), and `sourceTaskId` is null — this deterministic fixture is not decomposed from
+// a real board card, and a phantom id would fabricate a join target.
 function trustedProofPlan(taskId: string): NonNullable<RuntimeBoardCard["generatedFromPlan"]> {
 	return {
 		artifactKind: "decomposition",
 		planSlug: FLEET_PROOF_PLAN_SLUG,
-		planTaskId: `${FLEET_PROOF_PLAN_SLUG}::${taskId}`,
-		sourceTaskId: FLEET_PROOF_SOURCE_TASK_ID,
+		planTaskId: taskId,
+		sourceTaskId: null,
 	};
 }
 

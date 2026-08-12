@@ -132,10 +132,11 @@ describe("fleet-change re-shard planning", () => {
 
 	it("rebinds a waiting card when another loaded model can clear it", () => {
 		const board = emptyBoard();
-		board.columns[0].cards.push(card("work", "work", sizingFor(candidate("old", 80), 55)));
+		// Realistic ids: board id `<slug>-<planTaskId>`, never board id === plan-internal id (audit 2026-08-12).
+		board.columns[0].cards.push(card("demo-work", "work", sizingFor(candidate("old", 80), 55)));
 		const replacement = candidate("replacement", 65);
 		const plan = planFleetChangeReshard({ board, currentCandidates: [replacement], enabled: true });
-		expect(plan.rebinds.map((entry) => entry.taskId)).toEqual(["work"]);
+		expect(plan.rebinds.map((entry) => entry.taskId)).toEqual(["demo-work"]);
 		expect(plan.strandedGroups).toEqual([]);
 		const applied = applyFleetChangeReshardPlan({ board, plan, now: 10 });
 		const rebound = applied.board.columns[0].cards[0];
@@ -146,11 +147,11 @@ describe("fleet-change re-shard planning", () => {
 	it("blocks and scopes re-sharding to only un-clearable waiting cards", () => {
 		const board = emptyBoard();
 		board.columns[0].cards.push(card("stranded", "hard", sizingFor(candidate("old", 90))));
-		board.columns[3].cards.push(card("running", "running", sizingFor(candidate("old", 90))));
+		board.columns[3].cards.push(card("demo-running", "running", sizingFor(candidate("old", 90))));
 		const plan = planFleetChangeReshard({
 			board,
 			currentCandidates: [candidate("tiny", 30)],
-			activeTaskIds: new Set(["running"]),
+			activeTaskIds: new Set(["demo-running"]),
 			enabled: true,
 		});
 		expect(plan.strandedGroups[0]?.taskIds).toEqual(["stranded"]);
@@ -201,7 +202,7 @@ describe("fleet re-shard amendment safety", () => {
 
 	it("rejects a different slug, an unexpanded target, and a target that started", () => {
 		const board = emptyBoard();
-		const target = card("old", "old", sizingFor(candidate("old-model", 80)));
+		const target = card("demo-old", "old", sizingFor(candidate("old-model", 80)));
 		board.columns[0].cards.push(target);
 		board.columns[1].cards.push({
 			...target,
