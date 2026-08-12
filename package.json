@@ -78,7 +78,7 @@
     "test:crash-recovery-matrix": "tsx scripts/verify-crash-recovery-matrix.mts",
     "test:nightly": "tsx src/cli.ts dev nightly",
     "test:nightly:dry": "tsx src/cli.ts dev nightly --dry-run",
-    "test:precommit": "npm run test:fast",
+    "test:precommit": "vitest run test/runtime test/utilities src",
     "test:watch": "vitest",
     "verify:long-memory": "tsx scripts/verify-long-memory-eval.mts",
     "verify:decomposition-freshness": "tsx scripts/verify-decomposition-freshness.mts",

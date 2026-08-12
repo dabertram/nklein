@@ -48,7 +48,10 @@ fi
 # Capturing costs nothing on the passing path (the log is only kept when something fails).
 echo "Running type checking and fast tests..."
 CHECK_LOG="${TMPDIR:-/tmp}/nklein-precommit-$(date +%Y%m%d-%H%M%S).log"
-if npm run typecheck > "$CHECK_LOG" 2>&1 && npm run test:precommit >> "$CHECK_LOG" 2>&1; then
+# David 2026-08-12: the gate also runs web-ui tsc + the src co-located suites — a web-ui type error slipped
+# through once (§10c#11) and the src-only efficiency-prompt budget guard drifted 2 weeks unseen; both are now
+# caught at commit time (~+15s).
+if npm run typecheck > "$CHECK_LOG" 2>&1 && npm run web:typecheck >> "$CHECK_LOG" 2>&1 && npm run test:precommit >> "$CHECK_LOG" 2>&1; then
 	rm -f "$CHECK_LOG"
 else
 	tail -40 "$CHECK_LOG"

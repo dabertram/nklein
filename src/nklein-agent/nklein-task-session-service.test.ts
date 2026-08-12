@@ -149,10 +149,11 @@ describe("buildKanbanEfficiencyRules", () => {
 		});
 		const estimatedPromptTokens = Math.ceil(rules.length / 4);
 
-		// Deliberately re-baselined 2_300 → 2_500 (2026-07-13): the rules grew ~110 estimated tokens on 2026-07-08
-		// (f61ad6c4, one-based read_files guidance for a sweep-run-1 root cause) and this guard lives only in the slow
-		// suite, so the miss surfaced late. The guard's job is unchanged: catch unbounded prompt growth, not block
-		// root-caused rule additions.
-		expect(estimatedPromptTokens).toBeLessThanOrEqual(2_500);
+		// Deliberately re-baselined 2_300 → 2_500 (2026-07-13) → 2_600 (2026-08-12): the 2026-07-29 root-caused
+		// additions (clarification softening 9d4064dde) pushed ~2_544 and sat unnoticed for two weeks because this
+		// guard only lived in the slow suite — as of David's 2026-08-12 decision the src co-located suites run at
+		// COMMIT time, so the next growth is caught the day it happens. The guard's job is unchanged: catch
+		// unbounded prompt growth, not block root-caused rule additions.
+		expect(estimatedPromptTokens).toBeLessThanOrEqual(2_600);
 	});
 });
