@@ -14904,6 +14904,11 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   MACHINERY LIVE (2026-08-12, 59 min): the cold-boot sweep dispatched the released tier and the board moved
   22 planning → 14 planning / 5 ready / 3 review. No new completions yet — the same worker emission wall
   recurs at review on write-heavy cards — but depth now accumulates across cycles exactly as designed.
+  **Cycle 2 (53 min) made the pattern definitive: four more cards worked and reached review (3→7 in review),
+  zero passed it.** Resume cycles are PAUSED — piling parked cards adds no evidence; the graph cannot deliver
+  autonomously past review with this model, tier after tier. The board (14 planning / 7 review / 2 completed)
+  and the pair stay preserved; each parked card is one operator manual-merge away from releasing its tier, the
+  same assisted route the types card took.
   ~~▶ DAVID DECIDED 2026-08-11 (multiple choice): HE hand-writes the types test himself~~ — the honest unblock
   that keeps the campaign's autonomous verdict intact. When `test/domain/types.test.ts` (or equivalent) lands
   in the resume workspace (~/nklein-resume-02/home/.nklein/dev-workspaces/nklein-02-…-xVELHA), the next resume
