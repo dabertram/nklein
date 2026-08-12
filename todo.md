@@ -14944,10 +14944,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     section shipped. Its test was green because the fixture gave board cards ids EQUAL to the plan-internal ids
     — a fixture bent to the bug (green-signal-substitution, testcraft instance). Fixture now mirrors the real
     apply shape.
-  - **Live validation owed** (GPU busy with the A/B campaign at ship time): resume-02 drain — operator-redrive
-    one parked card → stuck park → rung spawns → architect splits in-situation → parent converts → children
-    flow. The 7 already-parked cards predate the rung and stay operator-owned (parked is a terminal-for-machines
-    state by design); redrive is the product's own re-entry path.
+  - **LIVE-VALIDATED 2026-08-12 (resume-02 drain, 3h05m, single-model qwen3.6-35b): the ENTIRE directive chain
+    fired twice, end-to-end.** Two cards parked → rung spawned two redecompose cards (single-model condition —
+    the one that was dark before) → the architect EMITTED decompose_project successfully both times (the
+    write-heavy worker wall does not bite the planning role) → 7 children created (all decomposeGeneration=1,
+    stamps round-tripped) → both parents converted to INTEGRATION CARDs → children ran (board completed 2→8) →
+    **causal-stamps integration parent DELIVERED at review round 13 — 8 round records carrying the new feedback
+    TEXT; the accumulated-concern briefs kept a card progressing where the old loop parked at 3-5 rounds.**
+    notification-system shows the healthy dam: parent in planning, live edges gating it behind its 2 in-review
+    children (2 already completed). Rung observations recorded with reasons throughout.
+    Live-confirmed audit findings + one NEW: (a) F3 confirmed — three extra parks of the same card each recorded
+    SPAWNING while the spawn no-opped (the lying observation); (b) F1's dam did not bite ONLY because no durable
+    run existed in the resume home (children started via the foreground sweep) — the mid-run analysis stands;
+    (c) NEW: an EXPLICIT operator start of a dep-gated card bypasses the dependency gate and the lane move then
+    silently drops/flips the card's dependsOn edges (updateTaskDependencies re-resolution) — my driver's queued
+    redrive landed post-conversion and prematurely released the causal-stamps parent past 2 pending children.
+    Edges must never silently vanish/flip; explicit starts of dep-gated cards should refuse-or-warn (folded into
+    the fix batch alongside the satisfied-edges persistence design).
   - **→ FOLLOW-UP AUDIT (David 2026-08-12: "check everything for similar and further bugs") — four parallel
     class-sweeps (id-namespace confusion / silently-empty context assemblers + schema mirrors / fixture-bent
     tests / dead rungs + dammed states) over src+test+web-ui. CONFIRMED FINDINGS, fix batch staged (details in
