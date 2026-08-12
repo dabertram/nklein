@@ -14948,6 +14948,71 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     one parked card → stuck park → rung spawns → architect splits in-situation → parent converts → children
     flow. The 7 already-parked cards predate the rung and stay operator-owned (parked is a terminal-for-machines
     state by design); redrive is the product's own re-entry path.
+  - **→ FOLLOW-UP AUDIT (David 2026-08-12: "check everything for similar and further bugs") — four parallel
+    class-sweeps (id-namespace confusion / silently-empty context assemblers + schema mirrors / fixture-bent
+    tests / dead rungs + dammed states) over src+test+web-ui. CONFIRMED FINDINGS, fix batch staged (details in
+    session fix-plan; src frozen until the live validation drain ends):**
+    - **P0 — feature-chain correctness:** (1) CRITICAL, verified at source: mid-run decompose children are
+      invisible to the default-ON durable scheduler (`ensureRun` no-ops on existing run, `autoStartTaskIds`
+      durable-guard returns, controller job graph predates them; rescue path says "not revivable") — the
+      redecompose chain dams at the children; fix = idempotent absorb/extend of a live run's job graph, also
+      covers reshard/trigger mid-run spawns + reopen of the attempt-exhausted parent job. (2) verified: a
+      RE-apply of an already-converted integration parent can create a REVERSED child→parent edge
+      (`resolveDependencyEndpoints` derives direction from LANES, ignoring argument order) — move edge-ensure
+      inside the first-conversion branch. (3) second park of the same parent no-ops the spawn while the
+      `review_redecompose_rung` observation already said SPAWNING (record truth; re-schedule an existing
+      unstarted card). (4) `escalatedWorkerTaskIds` + `noVerdictStreakByTaskId` are module-global, unscoped
+      across workspaces, never cleared. (5) plan-integration-gate-runner rebuilds `card.review` WITHOUT
+      `escalated`/`preferredCandidate`/`resultArtifact` — erases the one-escalation guard; make review rebuilds
+      spread-preserve optional fields. (6) `isReviewerCard: taskId.includes("::review")` on a BOARD id is
+      structurally false → use `isDerivedTaskSessionId`. (7) runtime-server `onSummary` fan-out lacks the
+      derived-id guard 8 sibling sites have — `::spec`/`::review` summaries reach the workflow kernel + finalize.
+    - **Dark features (silently-empty context — the exact class of the buildReviewBoardContext bug):**
+      (a) F12.38 `composeDependencyHandoffPreamble` is 100% dark since shipping: completed-prerequisite edges
+      are PRUNED from the board on every read/move (`updateTaskDependencies` drops completed/trash endpoints),
+      so its `columnId === "completed"` condition never holds on a real board — its test board is a shape the
+      load path cannot produce. Same prune also means reviewer `dependsOn` context NEVER contains a completed
+      or active neighbor (only backlog/planning ones), which now also truncates the redecompose prompt's
+      "prerequisites" section. Root-cause fix direction: persist satisfied edges at prune time (additive board
+      field) or read plan-graph edges — feeds handoff, reviewer context, and the redecompose situation alike.
+      (b) F4.8 `recordSessionCardContract` has ZERO callers — constraints/acceptance never reach re-anchor
+      (one-line wiring in session-runtime). (c) `normalizeRuntimeBoardData` STRIPS `board.streams` on every
+      read/save — streams written by plan-apply are erased seconds later; `get_streams`/`send_to_stream`/stream
+      panel permanently empty ("@stream:" addressing survived only via a derivation fallback, which is why
+      nobody noticed). CRDT also doesn't model streams. (d) `NKLEIN_LEAN_SYSPROMPT` level is not passed on the
+      MAIN start path (only the launch-config path) — the flag can't take effect where it matters.
+      (e) approve overwrites `review.lastFeedback` with null, so the handoff's shaping-feedback source is
+      structurally null — read the new `history[].feedback` instead.
+    - **Id-namespace (beyond the fixed one):** `expand-plan-task` infers plan-task ids by unanchored prefix +
+      first-match (UI path replaces the WRONG plan node when one plan id prefixes another — strict decoder with
+      digit-suffix rule exists in task-plan-slug.ts and must be reused); tool-trust observations write
+      `taskId: taskId ?? sessionId` (fallback rows can never join the exact-match outcome index — same
+      structurally-zero-join shape the tool-gate join was already fixed for; remedy join same exposure, and the
+      session-runtime passes `card::review` into the extension's board-id param); `parseRedecomposeRound`
+      id-prefix generation diverges from the typed `decomposeGeneration`; fleet-wide-fanout fixture writes
+      `slug::boardId` composites into `planTaskId` (exported production code); `::` magic-string drift at 5
+      sites the synthetic-task-id helper was created to end; portable-continuation-selector INVERTS dependency
+      direction (dead code today, bent test encodes the inversion).
+    - **Fixture-bent tests (class confirmed 4×):** fleet-change-reshard `card("work","work")` collapses,
+      plan-integration-gate wrong planTaskId convention, decision-handoff impossible board, the ORIGINAL
+      review-runner fixture (fixed), + the redecompose fixture should pin the typed `redecomposeOf` with a
+      non-prefixed source id. Two STALE WORKTREES (`codex/f11-followup`, `codex/backlog-followup`, ~3 weeks)
+      still carry the pre-fix runner bug + bent fixture — merging either re-introduces it green (operator chip
+      spawned to heal/retire; do not merge as-is).
+    - **Also recorded:** review parked-state has exactly one machine clearer (integration conversion) —
+      no_verdict + generation-cap parks are operator-owned BY DESIGN (document); `blockedKind` is display-only
+      (set, never cleared server-side, never gates the sweep); acceptance-repair escalate rung dark on
+      single-model rigs (no reviewer/architect role configured) and whole ladder unreachable on no-Docker;
+      boot warm-up caps at 50 workspaces; `ready` lane not in `updateTaskDependencies`' waiting set (edge drops
+      for ready-lane dependents, latent); attention parks ARE finalize-reviewable (not operator-only — and a
+      `skipped` resolution can pin `awaiting_review` sessions live forever, blocking sweeps); pre-commit runs
+      neither web-ui typecheck NOR the co-located `src/**/*.test.ts` suites (known first half; second half new).
+    - **Healthy (verified by the sweeps, worth knowing):** cold-boot sweep order covers crash-stranded backlog
+      spawns (sweep precedes durable resume); trashed prerequisites do NOT dam dependents (edge pruning is the
+      release); fan-in last-child-completes → parent release is sound off-durable; `redecomposeOf`/
+      `decomposeGeneration` round-trip every parse/serialize surface including web-ui (forward-compat allowlist)
+      and CRDT; the re-work brief's new context is fully populated at its only live caller; A2A/ACP assemble no
+      board context (nothing to go dark).
   ~~▶ DAVID DECIDED 2026-08-11 (multiple choice): HE hand-writes the types test himself~~ — the honest unblock
   that keeps the campaign's autonomous verdict intact. When `test/domain/types.test.ts` (or equivalent) lands
   in the resume workspace (~/nklein-resume-02/home/.nklein/dev-workspaces/nklein-02-…-xVELHA), the next resume
