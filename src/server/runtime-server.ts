@@ -138,7 +138,7 @@ import { decideSpeculativeMirror } from "../core/speculative-mirror";
 import { reconcileOrphanedInProgressCards } from "../core/startup-orphan-reconcile";
 import { assessStubbornFailure, escalationAttemptsFromLedgerEvents } from "../core/stubborn-failure-escalation";
 import { readSwarmStopSignal } from "../core/swarm-guardrails";
-import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
+import { boardCardIdOfTaskSessionId, isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { TAINT_LABELS, type TaintLabel } from "../core/taint-labels";
 import {
 	addTaskToColumn,
@@ -1041,7 +1041,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		if (sameTaskTurn) {
 			// Previously a SILENT hold — the one admission branch with no logging, which cost a full forensic
 			// ladder to find. Keep it quiet for ordinary same-task send serialization, but say so for synthetics.
-			if (request.taskId.includes("::")) {
+			if (isDerivedTaskSessionId(request.taskId)) {
 				deps.warn(`Model-turn admission holding ${request.taskId}: same-task turn still active.`);
 			}
 			return {
@@ -1073,7 +1073,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			modelTurnAdmissionWaitQueue.enqueue(request.taskId, resourceId);
 			// F1.34c: this was the LAST silent admission branch — a dead waiter's reservation held tasks here with
 			// zero log lines (reservations now also expire after 60s without a re-poll; see the wait queue).
-			if (request.taskId.includes("::")) {
+			if (isDerivedTaskSessionId(request.taskId)) {
 				deps.warn(
 					`Model-turn admission holding ${request.taskId}: resource "${resourceId}" reserved for earlier waiter "${reservationHolder}".`,
 				);
@@ -2010,13 +2010,36 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				void durableRunWiring?.tickAll(liveTaskIdsForWorkspace);
 			}, DURABLE_RUN_TICK_INTERVAL_MS)
 		: null;
+	// Audit 2026-08-12 F1 (CRITICAL): cards born MID-RUN were invisible to the durable controller — `ensureRun`
+	// no-ops on an existing run and the durable guard then swallowed every foreground start, so re-decompose
+	// children (and reshard/trigger cards) never started and their subtree dammed permanently. Reconcile the live
+	// run with the current board instead: absorb the new cards (+ reopen a board-reopened integration parent) and
+	// let the controller lease them.
+	const absorbNewBoardCardsIntoRun = async (scope: RuntimeTrpcWorkspaceScope): Promise<boolean> => {
+		if (!durableRunWiring?.hasRun(scope.workspaceId)) {
+			return false;
+		}
+		try {
+			const state = await loadWorkspaceState(scope.workspacePath);
+			const result = await durableRunWiring.absorbBoardCards(scope.workspaceId, state.board);
+			return result !== false && (result.absorbedJobIds.length > 0 || result.reopenedJobIds.length > 0);
+		} catch (error) {
+			deps.warn(
+				`Mid-run board absorb failed for ${scope.workspaceId}: ${error instanceof Error ? error.message : String(error)}`,
+			);
+			return false;
+		}
+	};
 	const autoStartDecompositionRootTasks = async (
 		scope: RuntimeTrpcWorkspaceScope,
 		event: NKleinDecompositionAppliedEvent,
 	): Promise<void> => {
 		// C3: a decompose is a run start — build the durable run first so it drives the roots (no-op when the flag is off,
-		// in which case `autoStartTaskIds` starts them exactly as before).
+		// in which case `autoStartTaskIds` starts them exactly as before). When a run ALREADY exists this apply is a
+		// mid-run decompose (re-decompose, expansion): absorb its cards into the live run — the controller then owns
+		// their dispatch; the `autoStartTaskIds` below stays for the no-run path (its durable guard defers otherwise).
 		await ensureDurableRunForScope(scope);
+		await absorbNewBoardCardsIntoRun(scope);
 		await autoStartTaskIds(scope, event.rootTaskIds);
 	};
 	// §5.B Ready lane (todo 11116 increment 2): a dep-free card whose auto-start was DEFERRED (slot busy, endpoint
@@ -2259,8 +2282,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// transient In Progress bounce lane and reject the legitimate round-2 review as `not_reviewable`.
 						loadWorkspaceState: async () => reviewState,
 						warn: deps.warn,
-						onRedecomposeCardSpawned: (redecomposeTaskId) =>
-							autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
+						onRedecomposeCardSpawned: async (redecomposeTaskId) => {
+							// F1: under a live durable run the controller owns dispatch — absorb the new card and let
+							// it lease (a bypass start beside a controller lease would double-start); no run ⇒ the
+							// direct start exactly as before.
+							if (await absorbNewBoardCardsIntoRun(scope)) {
+								return;
+							}
+							await autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true });
+						},
 					}).catch((error) => {
 						const message = error instanceof Error ? error.message : String(error);
 						deps.warn(`Second-opinion review errored for ${taskId}; proceeding to delivery: ${message}`);
@@ -3759,8 +3789,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				// one from its plan task's contract fields (expected outputs → Produce steps, acceptance checks →
 				// Verify steps) so the worker starts verification-aware.
 				loadPersistedFocusChain: async (taskId) => {
+					// Audit 2026-08-12: a derived session (`card::spec` mirror) carries the CARD's objective — strip
+					// the suffix so it seeds the same chain as the primary; a raw lookup returned null and quietly
+					// seeded the two A/B candidates with different context.
+					const cardTaskId = boardCardIdOfTaskSessionId(taskId);
 					const state = await loadWorkspaceState(scope.workspacePath).catch(() => null);
-					const card = state?.board.columns.flatMap((column) => column.cards).find((c) => c.id === taskId);
+					const card = state?.board.columns.flatMap((column) => column.cards).find((c) => c.id === cardTaskId);
 					if (card?.focusChain) {
 						return { chain: card.focusChain, source: "persisted" as const };
 					}
@@ -4109,7 +4143,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 												scope.workspacePath,
 											);
 											if (applied.spawnedTaskIds.length > 0) {
-												autoStartTaskIds(scope, applied.spawnedTaskIds, { bypassDurableGuard: true });
+												// F1: reshard cards born mid-run join the live run (controller-owned
+												// dispatch); the direct start remains the no-run path.
+												void absorbNewBoardCardsIntoRun(scope).then((absorbed) => {
+													if (!absorbed) {
+														autoStartTaskIds(scope, applied.spawnedTaskIds, {
+															bypassDurableGuard: true,
+														});
+													}
+												});
 											}
 											return; // the remainder of this tick holds a stale board snapshot
 										}
@@ -4476,8 +4518,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								taskId: stalledReviewTaskId,
 								service: trackedService,
 								warn: deps.warn,
-								onRedecomposeCardSpawned: (redecomposeTaskId) =>
-									autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
+								onRedecomposeCardSpawned: async (redecomposeTaskId) => {
+									// F1: same absorb-or-bypass split as the finalize-path callback above.
+									if (await absorbNewBoardCardsIntoRun(scope)) {
+										return;
+									}
+									await autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true });
+								},
 							})
 								.then((outcome) => {
 									// N10 worker-phase forensics 2026-07-25: bounce/park/skip are self-contained inside the
@@ -4984,8 +5031,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									taskId: idleReviewTaskId,
 									service: trackedService,
 									warn: deps.warn,
-									onRedecomposeCardSpawned: (redecomposeTaskId) =>
-										autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true }),
+									onRedecomposeCardSpawned: async (redecomposeTaskId) => {
+										// F1: same absorb-or-bypass split as the finalize-path callback above.
+										if (await absorbNewBoardCardsIntoRun(scope)) {
+											return;
+										}
+										await autoStartTaskIds(scope, [redecomposeTaskId], { bypassDurableGuard: true });
+									},
 								})
 									.then((outcome) => {
 										// Same delivered-verdict hole as the stalled-review rescue: the detached idle
@@ -6193,6 +6245,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	void (async () => {
 		try {
 			const indexEntries = await listWorkspaceIndexEntries();
+			// Audit 2026-08-12 (F11): the cap itself is fine (boot cost), but past it a headless board with open
+			// work would never warm — and the truncation was SILENT, indistinguishable from full coverage.
+			if (indexEntries.length > 50) {
+				deps.warn(
+					`Boot warm-up capped at 50 of ${indexEntries.length} indexed workspaces — boards beyond the cap only self-heal once something touches them.`,
+				);
+			}
 			for (const entry of indexEntries.slice(0, 50)) {
 				try {
 					const board = await loadWorkspaceBoardById(entry.workspaceId);

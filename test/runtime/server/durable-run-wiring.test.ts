@@ -546,4 +546,69 @@ describe("createDurableRunWiring — P21.5b ledger claim", () => {
 		expect(await wiring.ensureRun("ws-1", "/repo", board({ backlog: ["t1"] }))).toBe(true);
 		expect(dispatches.length).toBeGreaterThan(0);
 	});
+
+	it("F1 (audit 2026-08-12): absorbBoardCards folds mid-run decompose children into the LIVE run and leases them", async () => {
+		const { wiring, dispatches } = harness();
+		await wiring.ensureRun("ws1", "/w", board({ backlog: ["seed"] }));
+		expect(dispatches.map((d) => d.taskId)).toEqual(["seed"]);
+		// Mid-run, a re-decompose applies: two children + the converted integration parent appear on the board.
+		// Before the fix these cards were invisible (ensureRun no-ops on an existing run; the durable guard
+		// swallowed every foreground start) — the children never started and the subtree dammed permanently.
+		const result = await wiring.absorbBoardCards(
+			"ws1",
+			board({ in_progress: ["seed"], planning: ["child-1", "child-2", "parent"] }, [
+				{ fromTaskId: "parent", toTaskId: "child-1" },
+				{ fromTaskId: "parent", toTaskId: "child-2" },
+			]),
+		);
+		expect(result).not.toBe(false);
+		if (result !== false) {
+			expect(result.absorbedJobIds.sort()).toEqual(["child-1", "child-2", "parent"]);
+		}
+		// The controller leases the dependency-free children immediately; the parent stays dammed behind them.
+		expect(dispatches.map((d) => d.taskId).sort()).toEqual(["child-1", "child-2", "seed"]);
+	});
+
+	it("F1/F7: absorbBoardCards REOPENS a failed job the board re-opened (integration parent) with its new child edges", async () => {
+		const { wiring, dispatches } = harness();
+		await wiring.ensureRun("ws1", "/w", board({ backlog: ["parent"] }));
+		expect(dispatches.map((d) => d.taskId)).toEqual(["parent"]);
+		// The parent's session dies for good — the job fails (park path reports failed).
+		await wiring.observeParked("ws1", "parent", "review parked after stuck loop");
+		// The re-decompose conversion moves the parent back to planning, gated on a fresh child.
+		const result = await wiring.absorbBoardCards(
+			"ws1",
+			board({ planning: ["parent", "child-1"] }, [{ fromTaskId: "parent", toTaskId: "child-1" }]),
+		);
+		expect(result).not.toBe(false);
+		if (result !== false) {
+			expect(result.reopenedJobIds).toEqual(["parent"]);
+			expect(result.absorbedJobIds).toEqual(["child-1"]);
+		}
+		// The child leases; the reopened parent waits behind it (blocked, not re-leased).
+		expect(dispatches.map((d) => d.taskId)).toEqual(["parent", "child-1"]);
+		// The child delivers → the parent releases on the cascade.
+		await wiring.observeSummary("ws1", "child-1", "awaiting_review");
+		await wiring.observeDelivered("ws1", "child-1");
+		expect(dispatches.map((d) => d.taskId)).toEqual(["parent", "child-1", "parent"]);
+	});
+
+	it("F1 resume-side: a restart replays the parent's failure, but the board-driven reconcile reopens it again", async () => {
+		const first = harness();
+		await first.wiring.ensureRun("ws1", "/w", board({ backlog: ["parent"] }));
+		await first.wiring.observeParked("ws1", "parent", "review parked after stuck loop");
+		// Restart: a fresh wiring resumes from the persisted ledger over the POST-conversion board (parent back
+		// in planning, gated on its new child). Without the resume-side reconcile the replayed failure would
+		// dam the subtree again after every restart.
+		const second = harness({ readLedger: async () => first.ledger });
+		const resumed = await second.wiring.ensureRun(
+			"ws1",
+			"/w",
+			board({ planning: ["parent", "child-1"] }, [{ fromTaskId: "parent", toTaskId: "child-1" }]),
+			{ resumeOnly: true },
+		);
+		expect(resumed).toBe(true);
+		// The child (dependency-free) leases on the resume tick; the reopened parent waits behind it.
+		expect(second.dispatches.map((d) => d.taskId)).toEqual(["child-1"]);
+	});
 });

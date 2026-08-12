@@ -457,6 +457,70 @@ export interface DurableJobGraphInput {
 	succeededTaskIds?: readonly string[];
 }
 
+/** What {@link reconcileDurableJobsWithBoard} changed — absorbed = new jobs, reopened = failed jobs the board re-opened. */
+export interface ReconcileDurableJobsResult {
+	jobs: DurableJob[];
+	absorbedJobIds: string[];
+	reopenedJobIds: string[];
+}
+
+/**
+ * Reconcile a LIVE run's jobs with the CURRENT board (audit 2026-08-12 F1, CRITICAL): a run's job graph was frozen
+ * at build time, so any card born MID-RUN — re-decompose children, an integration-converted parent's new shape,
+ * fleet-reshard replacements, trigger-seeded cards — was invisible to the controller AND skipped by the foreground
+ * cascade (the durable guard defers every start to a controller that had never heard of the card). The children of
+ * a re-decompose could sit in planning forever while the run leased nothing.
+ *
+ * Two board-driven rules, both idempotent and both re-derived identically after a restart (which is why NO log
+ * entry is needed — on resume the initial graph is rebuilt from the same board, and the resume path runs this same
+ * reconcile after replay):
+ *  - **absorb**: a board card with no job joins the run verbatim from the fresh board projection
+ *    (`succeeded`/`ready`/`blocked` per {@link buildDurableJobGraph}).
+ *  - **reopen**: a FAILED job whose card the board holds in a WAITING lane (backlog/planning/ready) was re-opened
+ *    board-side — an integration-parent conversion, an operator move — so the run must honor the board: state and
+ *    dependsOn are refreshed from the board projection (the converted parent's NEW child edges land here) and the
+ *    attempt budget resets (the reopened card is new work, not the exhausted attempt retried — F7).
+ * Every other existing job is untouched: in particular dependsOn is NOT refreshed for in-flight jobs, so the
+ * board's aggressive edge pruning for advanced lanes cannot strip a live run's ordering.
+ */
+export function reconcileDurableJobsWithBoard(
+	jobs: readonly DurableJob[],
+	boardGraph: readonly DurableJob[],
+	waitingTaskIds: ReadonlySet<string>,
+): ReconcileDurableJobsResult {
+	const existingById = new Map(jobs.map((job) => [job.jobId, job]));
+	const boardById = new Map(boardGraph.map((job) => [job.jobId, job]));
+	const absorbedJobIds: string[] = [];
+	const reopenedJobIds: string[] = [];
+	const next: DurableJob[] = jobs.map((job) => {
+		if (job.state !== "failed" || !waitingTaskIds.has(job.jobId)) {
+			return job;
+		}
+		const boardJob = boardById.get(job.jobId);
+		if (!boardJob || boardJob.state === "succeeded") {
+			return job;
+		}
+		reopenedJobIds.push(job.jobId);
+		return {
+			...job,
+			state: boardJob.state,
+			dependsOn: boardJob.dependsOn,
+			lease: null,
+			attempts: 0,
+			nextEligibleAt: 0,
+			failedReason: null,
+		};
+	});
+	for (const boardJob of boardGraph) {
+		if (existingById.has(boardJob.jobId)) {
+			continue;
+		}
+		absorbedJobIds.push(boardJob.jobId);
+		next.push({ ...boardJob });
+	}
+	return { jobs: next, absorbedJobIds, reopenedJobIds };
+}
+
 /**
  * Map a decompose DAG (cards + dependency edges) to the durable scheduler's `DurableJob[]` — the bridge from a board
  * run to {@link decideDurableSchedulerActions}. A job is `succeeded` if already complete, else `ready` when it has no

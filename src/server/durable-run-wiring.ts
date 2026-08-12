@@ -87,6 +87,23 @@ export function durableJobGraphInputFromBoard(board: DurableRunBoardView): {
 	return { taskIds, dependencies: board.dependencies, succeededTaskIds };
 }
 
+/** Board lanes whose cards count as WAITING for the mid-run reconcile's reopen rule (mirrors the ready sweep's set). */
+const WAITING_COLUMN_IDS = new Set<string>(["backlog", "planning", "ready"]);
+
+/** Project the ids of waiting-lane cards (the reopen rule's gate — see `reconcileDurableJobsWithBoard`). */
+export function waitingTaskIdsFromBoard(board: DurableRunBoardView): Set<string> {
+	const waiting = new Set<string>();
+	for (const column of board.columns) {
+		if (!WAITING_COLUMN_IDS.has(column.id)) {
+			continue;
+		}
+		for (const card of column.cards) {
+			waiting.add(card.id);
+		}
+	}
+	return waiting;
+}
+
 export interface DurableRunWiringDeps {
 	/**
 	 * Master switch. When false every method is inert; the runtime server derives it from
@@ -173,6 +190,16 @@ export interface DurableRunWiring {
 			maxConcurrentLeases?: number;
 		},
 	): Promise<boolean>;
+	/**
+	 * Audit 2026-08-12 F1: reconcile a LIVE run with the current board — absorb cards born mid-run (re-decompose
+	 * children, reshard replacements, trigger-seeded cards) and reopen failed jobs the board re-opened (an
+	 * integration-converted parent, with refreshed child edges + a fresh attempt budget). Ticks once when anything
+	 * changed so absorbed/reopened ready jobs lease immediately. No-op (false) when the workspace has no run.
+	 */
+	absorbBoardCards(
+		workspaceId: string,
+		board: DurableRunBoardView,
+	): Promise<{ absorbedJobIds: string[]; reopenedJobIds: string[] } | false>;
 	/** Route a task-session state change into the workspace's run (report completion → tick → cascade, or heartbeat). */
 	observeSummary(
 		workspaceId: string,
@@ -381,11 +408,46 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 					priorLog.length > 0
 						? await DurableRunController.resume(initialJobs, priorLog, runConfig, ports, identity)
 						: new DurableRunController(initialJobs, runConfig, ports, identity);
+				// Audit 2026-08-12 F1: a resumed run replays OLD failure entries over the fresh board graph — a
+				// parent the board has since re-opened (integration conversion, operator move) would fold back to
+				// `failed` and dam its subtree again after every restart. The same board-driven reconcile the live
+				// absorb path uses re-derives the reopen here, keeping restart and live behavior identical.
+				if (priorLog.length > 0) {
+					const reopened = controller.reconcileWithBoardGraph(initialJobs, waitingTaskIdsFromBoard(board));
+					if (reopened.reopenedJobIds.length > 0) {
+						deps.warn?.(
+							`Durable resume for ${workspaceId}: reopened ${reopened.reopenedJobIds.length} board-reopened failed job(s) (${reopened.reopenedJobIds.join(", ")}).`,
+						);
+					}
+				}
 				registry.register(workspaceId, controller);
 				// Lease + dispatch the first ready cards (or, on resume, re-dispatch the reclaimed orphans).
 				await controller.tick();
 				disposeIfComplete(workspaceId);
 				return true;
+			});
+		},
+
+		async absorbBoardCards(workspaceId, board) {
+			if (!deps.enabled) {
+				return false;
+			}
+			return runSerial(workspaceId, async () => {
+				const controller = registry.get(workspaceId);
+				if (!controller) {
+					return false;
+				}
+				const boardGraph = buildDurableJobGraph(durableJobGraphInputFromBoard(board));
+				const result = controller.reconcileWithBoardGraph(boardGraph, waitingTaskIdsFromBoard(board));
+				if (result.absorbedJobIds.length > 0 || result.reopenedJobIds.length > 0) {
+					deps.warn?.(
+						`Durable run for ${workspaceId}: absorbed ${result.absorbedJobIds.length} mid-run card(s)` +
+							`${result.reopenedJobIds.length > 0 ? `, reopened ${result.reopenedJobIds.length} board-reopened job(s)` : ""} — ticking.`,
+					);
+					await controller.tick();
+					disposeIfComplete(workspaceId);
+				}
+				return result;
 			});
 		},
 

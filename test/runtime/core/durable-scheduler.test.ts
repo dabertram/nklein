@@ -8,6 +8,7 @@ import {
 	decideDurableSchedulerActions,
 	isDurableRunComplete,
 	markDurableJob,
+	reconcileDurableJobsWithBoard,
 	renewDurableLease,
 	replayDurableJobs,
 	summarizeDurableRun,
@@ -823,5 +824,80 @@ describe("decideDurableSchedulerActions — readyOrder (§5.AF depth/fan-out lea
 		expect(actions.find((a) => a.type === "unblock")).toMatchObject({ jobId: "a" });
 		// b is ranked ahead of the just-unblocked a, so b wins the single slot (a stays ready for the next tick).
 		expect(actions.filter((a) => a.type === "lease").map((a) => a.jobId)).toEqual(["b"]);
+	});
+});
+
+describe("reconcileDurableJobsWithBoard (audit 2026-08-12 F1 — mid-run absorb + board-driven reopen)", () => {
+	it("absorbs board cards the run has never seen, verbatim from the fresh board projection", () => {
+		const existing = [job({ jobId: "seed", state: "leased" })];
+		const boardGraph = buildDurableJobGraph({
+			taskIds: ["seed", "child-1", "child-2", "parent"],
+			dependencies: [
+				{ fromTaskId: "parent", toTaskId: "child-1" },
+				{ fromTaskId: "parent", toTaskId: "child-2" },
+			],
+			succeededTaskIds: [],
+		});
+		const result = reconcileDurableJobsWithBoard(existing, boardGraph, new Set(["child-1", "child-2", "parent"]));
+		expect(result.absorbedJobIds.sort()).toEqual(["child-1", "child-2", "parent"]);
+		expect(result.reopenedJobIds).toEqual([]);
+		// The in-flight seed job is untouched — absorb never rewrites live state.
+		expect(result.jobs.find((candidate) => candidate.jobId === "seed")?.state).toBe("leased");
+		expect(result.jobs.find((candidate) => candidate.jobId === "child-1")?.state).toBe("ready");
+		expect(result.jobs.find((candidate) => candidate.jobId === "parent")?.state).toBe("blocked");
+		expect([...(result.jobs.find((candidate) => candidate.jobId === "parent")?.dependsOn ?? [])].sort()).toEqual([
+			"child-1",
+			"child-2",
+		]);
+	});
+
+	it("reopens a FAILED job the board holds in a waiting lane: state+deps from the board, attempts reset (F7)", () => {
+		const existing = [
+			job({ jobId: "parent", state: "failed", attempts: 3, failedReason: "attempts_exhausted", dependsOn: [] }),
+		];
+		const boardGraph = buildDurableJobGraph({
+			taskIds: ["parent", "child-1"],
+			dependencies: [{ fromTaskId: "parent", toTaskId: "child-1" }],
+			succeededTaskIds: [],
+		});
+		const result = reconcileDurableJobsWithBoard(existing, boardGraph, new Set(["parent", "child-1"]));
+		expect(result.reopenedJobIds).toEqual(["parent"]);
+		const parent = result.jobs.find((candidate) => candidate.jobId === "parent");
+		expect(parent?.state).toBe("blocked");
+		expect(parent?.dependsOn).toEqual(["child-1"]);
+		expect(parent?.attempts).toBe(0);
+		expect(parent?.failedReason).toBeNull();
+	});
+
+	it("never reopens a failed job the board does NOT hold as waiting, and never touches in-flight jobs' edges", () => {
+		const existing = [
+			job({ jobId: "gone", state: "failed", attempts: 3 }),
+			job({ jobId: "busy", state: "leased", dependsOn: ["kept-edge"] }),
+			job({ jobId: "kept-edge", state: "succeeded" }),
+		];
+		const boardGraph = buildDurableJobGraph({
+			taskIds: ["gone", "busy", "kept-edge"],
+			// The board has since PRUNED busy's edge (its lanes advanced) — the run must keep its ordering.
+			dependencies: [],
+			succeededTaskIds: ["kept-edge"],
+		});
+		const result = reconcileDurableJobsWithBoard(existing, boardGraph, new Set());
+		expect(result.reopenedJobIds).toEqual([]);
+		expect(result.absorbedJobIds).toEqual([]);
+		expect(result.jobs.find((candidate) => candidate.jobId === "gone")?.state).toBe("failed");
+		expect(result.jobs.find((candidate) => candidate.jobId === "busy")?.dependsOn).toEqual(["kept-edge"]);
+	});
+
+	it("is idempotent — a second reconcile over the same board changes nothing", () => {
+		const boardGraph = buildDurableJobGraph({
+			taskIds: ["a", "b"],
+			dependencies: [{ fromTaskId: "b", toTaskId: "a" }],
+			succeededTaskIds: [],
+		});
+		const first = reconcileDurableJobsWithBoard([], boardGraph, new Set(["a", "b"]));
+		const second = reconcileDurableJobsWithBoard(first.jobs, boardGraph, new Set(["a", "b"]));
+		expect(second.absorbedJobIds).toEqual([]);
+		expect(second.reopenedJobIds).toEqual([]);
+		expect(second.jobs).toEqual(first.jobs);
 	});
 });

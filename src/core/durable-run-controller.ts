@@ -26,6 +26,7 @@ import {
 	decideDurableSchedulerActions,
 	isDurableRunComplete,
 	markDurableJob,
+	reconcileDurableJobsWithBoard,
 	renewDurableLease,
 	replayDurableJobs,
 } from "./durable-scheduler";
@@ -229,6 +230,23 @@ export class DurableRunController {
 		await this.ports.appendLog({ kind: "completed", jobId, outcome: "transient_retry" });
 		this.jobs = markDurableJob(this.jobs, jobId, "transient_retry", this.config.maxAttempts);
 		return this.jobs.find((candidate) => candidate.jobId === jobId)?.state === "ready";
+	}
+
+	/**
+	 * Reconcile this LIVE run with the current board (audit 2026-08-12 F1): absorb cards born mid-run (re-decompose
+	 * children, reshard replacements, trigger-seeded cards) and reopen failed jobs the board holds in a waiting lane
+	 * (an integration-converted parent — with its NEW child edges and a fresh attempt budget, F7). Deliberately
+	 * UNLOGGED: both rules re-derive from the board itself, and a resume rebuilds its initial graph from that same
+	 * board before running this same reconcile — logging would only duplicate what replay already reconstructs.
+	 * The caller should `tick()` after a non-empty result so absorbed/reopened ready jobs lease immediately.
+	 */
+	reconcileWithBoardGraph(
+		boardGraph: readonly DurableJob[],
+		waitingTaskIds: ReadonlySet<string>,
+	): { absorbedJobIds: string[]; reopenedJobIds: string[] } {
+		const reconciled = reconcileDurableJobsWithBoard(this.jobs, boardGraph, waitingTaskIds);
+		this.jobs = reconciled.jobs;
+		return { absorbedJobIds: reconciled.absorbedJobIds, reopenedJobIds: reconciled.reopenedJobIds };
 	}
 
 	/**

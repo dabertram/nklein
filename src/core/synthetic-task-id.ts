@@ -24,3 +24,9 @@ export function isSpeculativeMirrorTaskId(taskId: string): boolean {
 export function primaryTaskIdOfSpeculativeMirror(taskId: string): string {
 	return isSpeculativeMirrorTaskId(taskId) ? taskId.slice(0, -SPECULATIVE_MIRROR_SUFFIX.length) : taskId;
 }
+
+/** The BOARD card id underneath ANY derived session id (`x::spec`, `x::review`, …); a no-op for a primary id. */
+export function boardCardIdOfTaskSessionId(taskId: string): string {
+	const separatorIndex = taskId.indexOf(DERIVED_TASK_ID_SEPARATOR);
+	return separatorIndex === -1 ? taskId : taskId.slice(0, separatorIndex);
+}
