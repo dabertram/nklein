@@ -26,8 +26,15 @@ export function createEmptyBoard(): RuntimeBoardData {
 /**
  * Canonicalize a board's columns: rebuild the exact {@link BOARD_COLUMNS} set in their fixed order,
  * redistribute each card into the column matching its id, and DROP any card whose column id is not
- * one of the canonical columns. Dependencies pass through unchanged. Extracted from workspace-state
- * (§5.U) so this load/save invariant is one focused, independently-tested function.
+ * one of the canonical columns. Every NON-column board field passes through unchanged — this function
+ * normalizes column membership, nothing else. Extracted from workspace-state (§5.U) so this load/save
+ * invariant is one focused, independently-tested function.
+ *
+ * Audit 2026-08-12 (M1): the old return built `{ columns, dependencies }` by hand, silently DELETING
+ * `board.streams` (and any future additive board field) on every read and every save — streams written
+ * by the decomposition apply were erased seconds later, leaving `get_streams`/`send_to_stream`/the
+ * stream panel permanently empty. Spread-preserve the input so an additive schema field can never be
+ * stripped here again.
  */
 export function normalizeRuntimeBoardData(board: RuntimeBoardData): RuntimeBoardData {
 	const normalizedColumns: RuntimeBoardData["columns"] = BOARD_COLUMNS.map((column) => ({
@@ -44,7 +51,7 @@ export function normalizeRuntimeBoardData(board: RuntimeBoardData): RuntimeBoard
 		normalizedColumn.cards.push(...column.cards);
 	}
 	return {
+		...board,
 		columns: normalizedColumns,
-		dependencies: board.dependencies,
 	};
 }

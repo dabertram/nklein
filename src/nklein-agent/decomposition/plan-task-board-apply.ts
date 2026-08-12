@@ -380,16 +380,21 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 				};
 				board = moveTaskToColumn(board, integrationParentTaskId, "planning", now).board;
 				integrationParentConverted = true;
-			}
-			for (const created of createdTasks) {
-				const linked = addTaskDependency(board, integrationParentTaskId, created.id);
-				if (!linked.added || !linked.dependency) {
-					// Duplicate on a re-apply is expected; a child that already advanced past the waiting lanes can
-					// no longer carry an edge (the work it gates is underway/done) — both are benign here.
-					continue;
+				// Edges are created ONLY on the converting apply, while the parent is provably in the waiting lane
+				// (audit 2026-08-12 F6): `addTaskDependency` derives edge DIRECTION from the endpoints' lanes, so a
+				// re-apply after the parent advanced past planning would silently create the REVERSED edge (child
+				// dammed behind the parent it exists to unblock). The first apply's edges persist; re-applies have
+				// nothing to add.
+				for (const created of createdTasks) {
+					const linked = addTaskDependency(board, integrationParentTaskId, created.id);
+					if (!linked.added || !linked.dependency) {
+						// A child that already advanced past the waiting lanes can no longer carry an edge (the work
+						// it gates is underway/done) — benign.
+						continue;
+					}
+					board = linked.board;
+					createdDependencies.push(linked.dependency);
 				}
-				board = linked.board;
-				createdDependencies.push(linked.dependency);
 			}
 		}
 	}

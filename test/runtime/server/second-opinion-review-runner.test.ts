@@ -1075,7 +1075,7 @@ describe("runSecondOpinionReviewForTask", () => {
 		expect(duplicates).toBeGreaterThanOrEqual(1);
 	});
 
-	it("does not re-schedule a re-decompose card that already exists", async () => {
+	it("re-OFFERS an existing re-decompose card to the scheduler without duplicating it (live 2026-08-12: repeat parks recorded SPAWNING while no-opping)", async () => {
 		const deps = makeDeps({
 			submission: { verdict: "request_changes", summary: "Stuck", feedback: "Cannot proceed", insight: null },
 			maxRounds: 0,
@@ -1098,7 +1098,17 @@ describe("runSecondOpinionReviewForTask", () => {
 				onRedecomposeCardSpawned,
 			});
 		expect((await run()).type).toBe("parked");
-		expect(onRedecomposeCardSpawned).not.toHaveBeenCalled();
+		// The card is NOT duplicated on the board (the spawn mutate no-ops on the existing id): no single
+		// persisted board snapshot ever holds the id twice.
+		const perBoardCounts = boardsFromMutations(deps).map(
+			(candidate) =>
+				candidate.columns.flatMap((column) => column.cards).filter((card) => card.id === "redecompose-task-1")
+					.length,
+		);
+		expect(Math.max(...perBoardCounts, 0)).toBeLessThanOrEqual(1);
+		// …but the scheduler is still offered the existing card, so a spawn stranded before its start
+		// (crash window, queue loss) gets its start instead of waiting for a lucky sweep.
+		expect(onRedecomposeCardSpawned).toHaveBeenCalledWith("redecompose-task-1");
 	});
 
 	it("delivered and bounced outcomes never cancel the worker's turn", async () => {

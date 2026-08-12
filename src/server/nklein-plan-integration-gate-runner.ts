@@ -57,7 +57,11 @@ export function createPlanIntegrationGateRunner(deps: PlanIntegrationGateRunnerD
 					return { board: latestState.board, save: false, value: null };
 				}
 				surfacedTaskId = surfaceTaskId;
+				// Audit 2026-08-12 (M4): spread the previous review FIRST — this rebuild used to enumerate fields and
+				// silently DROPPED `escalated`/`preferredCandidate`/`resultArtifact`, erasing the one-escalation-
+				// per-card guard on any card that had spent it (and any future additive optional field with it).
 				const review: RuntimeCardReview = {
+					...(surfaceCard.review ?? {}),
 					status: "parked",
 					round: surfaceCard.review?.round ?? 0,
 					history: surfaceCard.review?.history ?? [],
@@ -70,7 +74,8 @@ export function createPlanIntegrationGateRunner(deps: PlanIntegrationGateRunnerD
 					signOff: null,
 					parkedReason:
 						"Plan integration gate failed — every card passed in isolation but the merged tree does not. " +
-						"Operator repair owed (v1 opens no repair cards; the re-decompose rung will own that).",
+						"Operator repair owed (v1 opens no repair cards; this park is NOT picked up by the review-path " +
+						"re-decompose rung — that rung fires only from a review-loop park).",
 					updatedAt: Date.now(),
 				};
 				return {

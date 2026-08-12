@@ -31,6 +31,7 @@ import {
 	summarizeReviewAttemptEvidence,
 } from "../core/review-redecompose";
 import { resolveSwarmRoleModel } from "../core/swarm-role-selection";
+import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { classifyTaskComplexity } from "../core/task-complexity";
 import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-contract";
@@ -61,10 +62,13 @@ import { deleteTaskResultBranch, getTaskResultBranchDiff } from "../workspace/ta
 import { retryWorkspaceStateLock } from "./workspace-state-lock-retry";
 
 /** Suffix the service uses for the isolated reviewer session id; guards against reviewing a review. */
-const REVIEW_SESSION_TASK_SUFFIX = "::review";
 
 /** W4.2 layer 3: one worker-escalation per card per server run (resets on restart — v1 semantics). */
+// Keyed `${workspacePath}::${taskId}` (audit 2026-08-12): a bare-taskId key collided across workspaces — plan
+// slugs and `redecompose-*` ids repeat between boards, so one board's escalation marked another board's card
+// as already-escalated.
 const escalatedWorkerTaskIds = new Set<string>();
+const escalatedWorkerKey = (workspacePath: string, taskId: string): string => `${workspacePath}::${taskId}`;
 
 function shouldQuiescePrimaryWorkerBeforeReview(summary: ReturnType<NKleinTaskSessionService["getSummary"]>): boolean {
 	if (summary?.state !== "running") {
@@ -876,12 +880,17 @@ export async function runSecondOpinionReviewForTask(
 		enabled: config.secondOpinionReviewEnabled,
 		...(preReviewVerdict ? { preReviewVerdict } : {}),
 		maxRounds: config.reviewMaxRounds,
-		isReviewerCard: input.taskId.includes(REVIEW_SESSION_TASK_SUFFIX),
+		// Audit 2026-08-12: the old `.includes("::review")` tested a SESSION-id encoding against a BOARD card id —
+		// structurally always false. Guard on ANY derived session id (`::review`, `::spec`, …) so a derived id that
+		// reaches this path (e.g. via an unguarded summary fan-out) is never itself second-opinion-reviewed.
+		isReviewerCard: isDerivedTaskSessionId(input.taskId),
 		acceptanceSummary: acceptanceSummaryForReview,
 		...(reviewLenses ? { reviewLenses } : {}),
 		escalationAvailable: Boolean(escalationCandidate),
 		// In-memory set ∪ the persisted flag — the one-escalation guard survives a runtime restart (#W4.2).
-		alreadyEscalated: escalatedWorkerTaskIds.has(input.taskId) || card.review?.escalated === true,
+		alreadyEscalated:
+			escalatedWorkerTaskIds.has(escalatedWorkerKey(input.workspacePath, input.taskId)) ||
+			card.review?.escalated === true,
 		now,
 		deps: {
 			getCard: async () => ({
@@ -1155,7 +1164,7 @@ export async function runSecondOpinionReviewForTask(
 			},
 			onEscalate: async ({ review, workerPrompt }) => {
 				// W4.2: the stuck card retries ONCE on the diverse/stronger worker (the W1.1b override machinery).
-				escalatedWorkerTaskIds.add(input.taskId);
+				escalatedWorkerTaskIds.add(escalatedWorkerKey(input.workspacePath, input.taskId));
 				// Persist the escalation as SERVER-SIDE TRUTH (the in-memory set dies with the process; the card
 				// chrome and future arbitration read this flag instead of re-deriving stuck signatures client-side).
 				await persistReview({ ...review, escalated: true }, "in_progress");
@@ -1196,22 +1205,39 @@ export async function runSecondOpinionReviewForTask(
 				const redecomposeDecision = decideReviewRedecompose({
 					parkKind,
 					escalationSpent:
-						escalatedWorkerTaskIds.has(input.taskId) ||
+						escalatedWorkerTaskIds.has(escalatedWorkerKey(input.workspacePath, input.taskId)) ||
 						card.review?.escalated === true ||
 						review.escalated === true,
 					escalationAvailable: Boolean(escalationCandidate),
 					parentGeneration,
 				});
+				// Live 2026-08-12 (resume-02): three repeat parks of one card each recorded "SPAWNING" while the
+				// spawn no-opped on the existing deterministic id — the observation lied. Resolve existence FIRST
+				// so the record states what actually happens; a repeat park still RE-SCHEDULES an existing card
+				// (idempotent — autoStartTaskIds re-checks lanes), so a spawn stranded unstarted gets its start.
+				const redecomposeTaskId = `redecompose-${input.taskId}`;
+				const redecomposeCardExists = redecomposeDecision.spawn
+					? state.board.columns.some((column) =>
+							column.cards.some((boardCard) => boardCard.id === redecomposeTaskId),
+						)
+					: false;
 				try {
 					recordSelfObservation({
 						signal: "custom",
-						severity: redecomposeDecision.spawn ? "warning" : "info",
-						message: `Re-decompose rung for parked ${input.taskId}: ${redecomposeDecision.spawn ? "SPAWNING" : "not spawning"} — ${redecomposeDecision.reason}`,
+						severity: redecomposeDecision.spawn && !redecomposeCardExists ? "warning" : "info",
+						message: `Re-decompose rung for parked ${input.taskId}: ${
+							redecomposeDecision.spawn
+								? redecomposeCardExists
+									? "already spawned earlier — re-scheduling, not duplicating"
+									: "SPAWNING"
+								: "not spawning"
+						} — ${redecomposeDecision.reason}`,
 						taskId: input.taskId,
 						workspacePath: input.workspacePath,
 						metadata: {
 							category: "review_redecompose_rung",
-							spawn: redecomposeDecision.spawn,
+							spawn: redecomposeDecision.spawn && !redecomposeCardExists,
+							alreadySpawned: redecomposeCardExists,
 							parkKind,
 							parentGeneration,
 							reason: redecomposeDecision.reason,
@@ -1221,7 +1247,6 @@ export async function runSecondOpinionReviewForTask(
 					// Telemetry must never break the park path.
 				}
 				if (redecomposeDecision.spawn) {
-					const redecomposeTaskId = `redecompose-${input.taskId}`;
 					const boardContext = buildReviewBoardContext(state.board, card);
 					const reviewerConcerns = collectPriorReviewConcerns(review.history, null);
 					const redecomposePrompt = buildRedecomposeCardPrompt({
@@ -1265,6 +1290,12 @@ export async function runSecondOpinionReviewForTask(
 						input.warn?.(
 							`Parked card ${input.taskId} exhausted the remedy ladder — spawned re-decompose card ${redecomposeTaskId} (generation ${parentGeneration + 1}; the architect splits the objective in full board context).`,
 						);
+						await input.onRedecomposeCardSpawned?.(redecomposeTaskId);
+					} else if (redecomposeCardExists) {
+						// The card already exists from an earlier park. Re-offer it to the scheduler anyway: if it
+						// already ran/completed this is a cheap no-op (lane checks refuse), but a spawn that was
+						// stranded before its start (crash window, queue loss) gets its start here instead of
+						// waiting for a lucky sweep.
 						await input.onRedecomposeCardSpawned?.(redecomposeTaskId);
 					}
 				}

@@ -2654,10 +2654,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								Array.isArray(deliveryCard?.filesLikelyTouched) && deliveryCard.filesLikelyTouched.length > 0
 									? ` This card's declared file scope (writes outside it are blocked): ${deliveryCard.filesLikelyTouched.join(", ")}.`
 									: "";
+							// Restate the objective (David 2026-08-12 brief standard): weak models lose their own
+							// session context, and "complete the task" without the task is the thin-takeover shape
+							// the review-path briefs eliminated.
+							const objectiveNote = deliveryCard?.prompt?.trim()
+								? `\n\nThe card's objective (unchanged):\n${deliveryCard.prompt.trim().slice(0, 2_000)}`
+								: "";
 							await service
 								.sendTaskSessionInput(
 									taskId,
-									`Your previous run ended with NO file changes captured — the task is NOT done. Complete the task now: make the required code changes, keep tool use focused (avoid re-reading files you have already seen), and finish with the acceptance check passing.${scopeNote}`,
+									`Your previous run ended with NO file changes captured — the task is NOT done. Complete the task now: make the required code changes, keep tool use focused (avoid re-reading files you have already seen), and finish with the acceptance check passing.${scopeNote}${objectiveNote}`,
 									"act",
 								)
 								.catch((error) => {
@@ -3900,25 +3906,31 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				recordNKleinKnowledgeToolUsage(scope, summary);
 				recordNKleinModelPerformance(scope, summary);
 				recordNKleinSessionTransition(scope, summary);
+				// Audit 2026-08-12: derived sub-sessions (`::spec` mirrors, `::review` reviewers, …) surface on the
+				// SAME summary stream but name no board card — 8 sibling consumers already guard on this; the
+				// board/kernel actions below must too, or a mirror's terminal summary creates kernel workflow
+				// entries for a phantom card and finalize probes `card::spec::spec`. Reservation purge and the
+				// generic waiting-card sweep still run for derived ids (derived sessions hold real reservations).
+				const summaryNamesBoardCard = !isDerivedTaskSessionId(summary.taskId);
 				// F1.27b (leaf 3): a run reaching review IS the kernel's implementation_finished. Repeated summaries
 				// hold silently (the phase already advanced); failed/interrupted stay unmapped until the kernel gains
 				// a reopen command (they are redriven live, and the kernel's `failed` is terminal — see todo F1.27b).
-				if (summary.state === "awaiting_review") {
+				if (summaryNamesBoardCard && summary.state === "awaiting_review") {
 					void getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId)
 						.dispatch(summary.taskId, { kind: "implementation_finished" })
 						.catch(() => {});
-				} else if (summary.state === "failed") {
+				} else if (summaryNamesBoardCard && summary.state === "failed") {
 					// F1.27b (leaf 4): a genuinely failed run is kernel `failed`; a later redrive reopens it.
 					void getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId)
 						.dispatch(summary.taskId, { kind: "failed" })
 						.catch(() => {});
-				} else if (summary.state === "interrupted") {
+				} else if (summaryNamesBoardCard && summary.state === "interrupted") {
 					// An interrupt is a transient end (§5.AA aborted) — the card is available again, not failed.
 					void getWorkspaceWorkflowQueue(scope.workspacePath, scope.workspaceId)
 						.dispatch(summary.taskId, { kind: "reopened" })
 						.catch(() => {});
 				}
-				if (isReviewableNKleinSummary(summary)) {
+				if (summaryNamesBoardCard && isReviewableNKleinSummary(summary)) {
 					finalizeHeadlessAutoReviewTask(scope, trackedService, summary.taskId);
 				}
 				if (summary.state !== "queued" && summary.state !== "running") {
@@ -3929,8 +3941,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					// cards it was blocking can actually admit (live 20260810-231515: a 7-minute silent wedge).
 					purgeModelTurnReservationsForDeadTask(scope.workspaceId, summary.taskId);
 					// A dying card fires no completion — retry the waiting cards it can no longer unblock (run16),
-					// and give the dead card ITSELF one fresh attempt when it left no reviewable work (#24).
-					retryWaitingCardsAfterTerminal(scope, trackedService, summary.taskId);
+					// and give the dead card ITSELF one fresh attempt when it left no reviewable work (#24). A
+					// derived id still triggers the generic sweep but is never itself the redrive target.
+					retryWaitingCardsAfterTerminal(
+						scope,
+						trackedService,
+						summaryNamesBoardCard ? summary.taskId : undefined,
+					);
 				}
 				// C3: route the state change into the workspace's durable run (report completion → tick → cascade, or
 				// heartbeat a live lease). No-op when the flag is off. Thread the failure reason (§5.AF #7): a failed/

@@ -292,7 +292,10 @@ export async function runNKleinSecondOpinionReview(
 		if (!submission && count >= NO_VERDICT_PARK_STREAK) {
 			noVerdictStreakByTaskId.delete(input.taskId);
 			const parkedReason = `The reviewer ended ${count} consecutive sessions without a verdict on the same unchanged work — parking for a human decision (reviewer cannot produce a verdict on this artifact).`;
+			// Spread-preserve first (audit 2026-08-12 M4): field-enumerating rebuilds silently drop optional review
+			// fields (`preferredCandidate`, `resultArtifact`, and any future additive one).
 			const review: RuntimeCardReview = {
+				...(card.review ?? {}),
 				status: "parked",
 				round: card.review?.round ?? 0,
 				history: card.review?.history ?? [],
@@ -302,7 +305,6 @@ export async function runNKleinSecondOpinionReview(
 				lastInsight: card.review?.lastInsight ?? null,
 				signOff: card.review?.signOff ?? null,
 				parkedReason,
-				...(card.review?.escalated !== undefined ? { escalated: card.review.escalated } : {}),
 				updatedAt: now,
 			};
 			await input.deps.onPark({ taskId: input.taskId, review, reason: parkedReason, parkKind: "no_verdict" });

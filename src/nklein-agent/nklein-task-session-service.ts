@@ -2386,6 +2386,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							contextWindow: requestContextWindow,
 							timeoutMode: request.timeoutMode ?? "normal",
 							maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
+							// Audit 2026-08-12 (B-F7): this main start path never passed `level`, so
+							// NKLEIN_LEAN_SYSPROMPT could not take effect on ordinary card starts — the flag's
+							// measure-first scoreboard was unbuildable from the path that matters. Same derivation
+							// as the launch-config sibling.
+							level:
+								isTruthyEnv(process.env.NKLEIN_LEAN_SYSPROMPT) &&
+								requestContextWindow &&
+								requestContextWindow <= 40_000
+									? "lean"
+									: "full",
 							// G6.8a: this is the start path decompose seeds actually take (it carries the planning
 							// prompt) — same planner diet + opt-out as the sibling call site above.
 							plannerScope:

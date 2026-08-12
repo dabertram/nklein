@@ -1179,8 +1179,12 @@ export function createKanbanContextFocusExtension(
 							signal: "custom",
 							severity: tier === "dropped" ? "warning" : "info",
 							message: `Tool trust ${tier} for ${trustToolName} in ${sessionId} (consecutive failures).`,
-							// The BOARD task id is the outcome-join key (P15.3); session ids change per attempt.
-							taskId: taskId ?? sessionId,
+							// The BOARD task id is the outcome-join key (P15.3); session ids change per attempt. When
+							// no board id is known the field is OMITTED (audit 2026-08-12): the old `?? sessionId`
+							// fallback wrote a session id into an exact-match join — rows that could never match,
+							// silently deflating the mechanism's evaluable count. An absent id is counted honestly
+							// as unusable by the join.
+							...(taskId ? { taskId } : {}),
 							metadata: {
 								category: "tool_trust_decay",
 								tool: trustToolName,

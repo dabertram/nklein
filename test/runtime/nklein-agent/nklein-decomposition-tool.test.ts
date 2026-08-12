@@ -269,9 +269,13 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 		const completedColumn = result.board.columns.find((column) => column.id === "completed");
 		expect(completedColumn?.cards.some((card) => card.id === "redecompose-exporter")).toBe(true);
 
-		// Idempotent re-apply: the prompt is never re-wrapped a second time.
+		// Idempotent re-apply: the prompt is never re-wrapped a second time — and, crucially, a re-apply
+		// after the parent has ADVANCED past the waiting lanes must not touch edges at all (audit 2026-08-12
+		// F6: addTaskDependency derives direction from lanes, so a late edge-ensure would create the REVERSED
+		// child→parent edge, damming the child behind the card it exists to unblock).
+		const advanced = moveTaskToColumn(result.board, "exporter", "in_progress", 150).board;
 		const reapplied = applyNKleinPlanTaskGraphToBoard({
-			board: result.board,
+			board: advanced,
 			taskGraph: createTaskGraph(),
 			baseRef: "main",
 			randomUuid: () => "unused",
@@ -283,6 +287,13 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 			.find((card) => card.id === "exporter");
 		expect(reappliedParent?.prompt.match(/INTEGRATION CARD/g)).toHaveLength(1);
 		expect(reapplied.integrationParentTaskId).toBeUndefined();
+		for (const created of reapplied.createdTasks) {
+			expect(
+				reapplied.board.dependencies.some(
+					(dependency) => dependency.fromTaskId === created.id && dependency.toTaskId === "exporter",
+				),
+			).toBe(false);
+		}
 	});
 
 	it("leaves a terminal (already-completed) re-decompose parent untouched", () => {

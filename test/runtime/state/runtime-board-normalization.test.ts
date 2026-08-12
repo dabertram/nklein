@@ -82,4 +82,31 @@ describe("normalizeRuntimeBoardData", () => {
 		expect(normalized.columns.find((c) => c.id === "planning")?.cards).toHaveLength(1);
 		expect(normalized.columns.find((c) => c.id === "in_progress")?.cards).toHaveLength(1);
 	});
+
+	it("preserves non-column board fields — streams survived being DELETED here on every read/save (audit 2026-08-12 M1)", () => {
+		const board = {
+			columns: [
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "ready", title: "Ready", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Trash", cards: [] },
+			],
+			dependencies: [],
+			streams: [
+				{
+					id: "stream-habit-tracker",
+					title: "Habit Tracker",
+					source: "decomposition",
+					planSlug: "habit-tracker",
+					createdAt: 1,
+					updatedAt: 1,
+				},
+			],
+		};
+		const normalized = normalizeRuntimeBoardData(board as never);
+		expect(normalized.streams).toEqual(board.streams);
+	});
 });
