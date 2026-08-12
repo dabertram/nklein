@@ -55,6 +55,26 @@ describe("countPendingAutoReviews", () => {
 		).toBe(2);
 	});
 
+	it("excludes a card whose PERSISTED review is parked — after a restart the attention set cannot see it (harvested from codex/f11-followup, reconciled 2026-08-12)", () => {
+		expect(
+			countPendingAutoReviews({
+				columns: [
+					{
+						id: "review",
+						cards: [
+							{ autoReviewEnabled: true, review: { status: "in_review" } },
+							{ autoReviewEnabled: true, review: { status: "changes_requested" } },
+							// Approved still counts: delivery/acceptance happen after the verdict (2026-07-29 evidence).
+							{ autoReviewEnabled: true, review: { status: "approved" } },
+							// Parked is operator-owned and, post-restart, invisible to the session-derived set.
+							{ autoReviewEnabled: true, review: { status: "parked" } },
+						],
+					},
+				],
+			}),
+		).toBe(3);
+	});
+
 	it("counts by BOARD LANE, which is what makes a parked terminal distinguishable from live work", () => {
 		// The counterpart to the regression above, learned the expensive way. A first attempt at the v17 fix ALSO
 		// added an `awaiting_review` SESSION term to activeSessionCount. That state conflates a review in flight

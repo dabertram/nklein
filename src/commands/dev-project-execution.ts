@@ -76,16 +76,27 @@ export function countPendingAutoReviews(
 ): number {
 	const review = board.columns.find((column) => column.id === "review");
 	return (
-		review?.cards.filter(
-			(card) =>
-				card.autoReviewEnabled === true &&
-				// Live 20260811-001402 (and run 11 before it): a card PARKED for the operator sits in the review
-				// lane with autoReviewEnabled forever — counting it pinned activeSessionCount ≥ 1 on a board where
-				// nothing could ever progress, the stagnation settle never fired, and the rig burned 7 idle minutes
-				// before stall-killing an unclassified run. The exclusion set is derived from the SAME rule the
-				// needs_attention outcome uses (countAttentionParkedSessions), so "parked" has one definition.
-				!(card.id !== undefined && attentionParkedTaskIds?.has(card.id)),
-		).length ?? 0
+		review?.cards.filter((card) => {
+			if (card.autoReviewEnabled !== true) {
+				return false;
+			}
+			// Live 20260811-001402 (and run 11 before it): a card PARKED for the operator sits in the review
+			// lane with autoReviewEnabled forever — counting it pinned activeSessionCount ≥ 1 on a board where
+			// nothing could ever progress, the stagnation settle never fired, and the rig burned 7 idle minutes
+			// before stall-killing an unclassified run. The exclusion set is derived from the SAME rule the
+			// needs_attention outcome uses (countAttentionParkedSessions), so "parked" has one definition.
+			if (card.id !== undefined && attentionParkedTaskIds?.has(card.id)) {
+				return false;
+			}
+			// Harvested from codex/f11-followup 616903745, RECONCILED with the 2026-07-29 live evidence (see the
+			// test): a verdicted card still has post-verdict flow (bounce → re-review → delivery), so it KEEPS
+			// counting — the one exclusion the branch got right is a PERSISTED park: after a restart the parked
+			// SESSION is gone, so the attention set alone cannot see it, and the card would pin the drain's
+			// activity count forever on a board where nothing can progress.
+			const reviewStatus =
+				card.review && typeof card.review === "object" && "status" in card.review ? card.review.status : null;
+			return reviewStatus !== "parked";
+		}).length ?? 0
 	);
 }
 

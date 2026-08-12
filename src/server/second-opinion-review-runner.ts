@@ -1278,6 +1278,17 @@ export async function runSecondOpinionReviewForTask(
 									baseRef: card.baseRef,
 									startInPlanMode: true,
 									autoReviewEnabled: card.autoReviewEnabled ?? true,
+									// Harvested from codex/f11-followup 4c2cced58 (adapted 2026-08-12): a runtime-spawned
+									// card has no UI start request to recover launch policy from — carry the parent's
+									// model pinning / agent / review mode so routing survives the spawn. The parent's
+									// file scopes deliberately do NOT ride along: they bound IMPLEMENTATION writes,
+									// and a planning card writes plan artifacts (children get scopes from the plan).
+									...(card.autoReviewMode !== undefined ? { autoReviewMode: card.autoReviewMode } : {}),
+									...(card.testEvidencePolicy !== undefined
+										? { testEvidencePolicy: card.testEvidencePolicy }
+										: {}),
+									...(card.agentId !== undefined ? { agentId: card.agentId } : {}),
+									...(card.nkleinSettings !== undefined ? { nkleinSettings: card.nkleinSettings } : {}),
 									// Typed stamps the plan apply reads: which parked parent to convert into an
 									// integration card, and the generation its children will carry (depth guard).
 									redecomposeOf: input.taskId,

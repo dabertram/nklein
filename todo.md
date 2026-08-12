@@ -14961,6 +14961,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     redrive landed post-conversion and prematurely released the causal-stamps parent past 2 pending children.
     Edges must never silently vanish/flip; explicit starts of dep-gated cards should refuse-or-warn (folded into
     the fix batch alongside the satisfied-edges persistence design).
+  - **STALE WORKTREES RETIRED (David 2026-08-12: "take what suits, then kill"):** codex/backlog-followup had
+    ZERO unique commits (deleted). codex/f11-followup had six; HARVESTED two (adapted, not cherry-picked —
+    3 weeks of divergence): 4c2cced58 launch-policy inheritance on the redecompose spawn (model pinning /
+    agent / review mode ride the spawn; file scopes deliberately don't — planning cards write plan artifacts)
+    and 616903745 review-rounds counting, RECONCILED with the newer 2026-07-29 live evidence (verdicted cards
+    keep counting; only a PERSISTED parked status is excluded — the cross-restart hole the session-derived
+    attention set can't see). SUPERSEDED: 1678cd6a6 trailing-patch-context (main fixed it independently and
+    better). NOT TAKEN (F11 benchmark cluster, diverged too far to graft: 220cae0cb sandbox patch transport
+    verification, 34417bd6d fixed benchmark model assignments — fixed-evaluation-model.ts never landed on main,
+    1b25b1e1a Aider Go grader image): hashes preserved here + in reflog; if F11 work resumes and wants the
+    fixed-model-assignment concept, re-derive from 34417bd6d rather than merging stale code. Both branches
+    deleted; the pre-fix review-context bug they carried can no longer re-enter.**
   - **AUDIT FIX BATCHES EXECUTED same day (2026-08-12): `0c2d9bf66` (batch 1: park-path truth, scoped guards,
     derived-id guards, M4 review-rebuild preservation, M1 streams strip, B-F7 lean level, trust-write key, W4.2a
     objective), `9d4e7a802` (F1 CRITICAL: mid-run decompose cards absorbed into the LIVE durable run + board-driven
