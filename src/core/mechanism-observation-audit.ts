@@ -1100,6 +1100,9 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"board_liveness_watchdog_error",
 	"board_liveness_watchdog_tick",
 	"card_lane_change",
+	// Edge-semantics slice (2026-08-13): an explicit operator start that jumps unmet prerequisites proceeds
+	// (operator authority) but is recorded — the silent version started an integration parent past its children.
+	"explicit_start_past_dependencies",
 	"model_usage",
 	"review_phase",
 	// David 2026-08-12: the park-path re-decompose rung records every spawn/skip decision with its reason —

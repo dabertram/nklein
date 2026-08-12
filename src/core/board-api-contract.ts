@@ -283,6 +283,23 @@ export const runtimeBoardDependencySchema = z.object({
 export type RuntimeBoardDependency = z.infer<typeof runtimeBoardDependencySchema>;
 
 /**
+ * Edge-semantics slice (audit 2026-08-12): a dependency edge whose lifecycle ENDED — the prerequisite completed
+ * (`released_by: "completed"` — the decision-handoff's source of truth) or was trashed, or the DEPENDENT reached a
+ * terminal lane first (`"dependent_terminal"`, edge moot). Kept on the board instead of being DELETED (the old
+ * silent prune), because erasing satisfied edges erased the facts every context assembler needed: the F12.38
+ * dependency handoff was 100% dark and reviewers never saw a completed prerequisite. Additive + optional.
+ */
+export const runtimeSatisfiedDependencySchema = z.object({
+	id: z.string(),
+	fromTaskId: z.string(),
+	toTaskId: z.string(),
+	createdAt: z.number(),
+	releasedAt: z.number(),
+	releasedBy: z.enum(["completed", "trashed", "dependent_terminal"]),
+});
+export type RuntimeSatisfiedDependency = z.infer<typeof runtimeSatisfiedDependencySchema>;
+
+/**
  * §5.AU — a STREAM/epic: a named grouping above cards (seeded from a decomposition `planSlug` or a `dependsOn` component
  * by `deriveStreams`, or created manually). Additive; `board.streams` defaults to `[]` so older boards load unchanged.
  * Status/health/progress are NOT stored — they are always derived (`deriveStreamRollup`) from the member cards.
@@ -305,5 +322,8 @@ export const runtimeBoardDataSchema = z.object({
 	// §5.AU: the board's streams/epics. Additive + OPTIONAL (not `.default([])`) so older persisted boards AND every
 	// existing `RuntimeBoardData` constructor load unchanged; readers coalesce `board.streams ?? []`.
 	streams: z.array(runtimeStreamSchema).optional(),
+	// Edge-semantics slice: retired edges (prerequisite completed/trashed, or dependent terminal). Additive +
+	// OPTIONAL for the same constructor-compatibility reason; readers coalesce `?? []`.
+	satisfiedDependencies: z.array(runtimeSatisfiedDependencySchema).optional(),
 });
 export type RuntimeBoardData = z.infer<typeof runtimeBoardDataSchema>;

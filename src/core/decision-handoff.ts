@@ -102,17 +102,36 @@ function lastShapingReviewFeedback(review: RuntimeBoardCard["review"]): string |
  */
 export function composeDependencyHandoffPreamble(board: RuntimeBoardData, taskId: string): string {
 	const briefs: string[] = [];
-	for (const edge of board.dependencies) {
-		if (edge.fromTaskId !== taskId) {
-			continue;
+	// Edge-semantics slice (audit 2026-08-12): a completed prerequisite's edge is RETIRED into
+	// `satisfiedDependencies` by the same mutation that completes it — the live `dependencies` walk below can
+	// essentially never see a completed upstream (which is why this module was 100% dark since shipping). The
+	// satisfied list is the source of truth; the live walk stays as a defensive second look (a hand-edited board).
+	const upstreamTaskIds: string[] = [];
+	const seenUpstream = new Set<string>();
+	for (const satisfied of board.satisfiedDependencies ?? []) {
+		if (
+			satisfied.fromTaskId === taskId &&
+			satisfied.releasedBy === "completed" &&
+			!seenUpstream.has(satisfied.toTaskId)
+		) {
+			seenUpstream.add(satisfied.toTaskId);
+			upstreamTaskIds.push(satisfied.toTaskId);
 		}
-		const upstream = findBoardCardWithColumn(board, edge.toTaskId);
+	}
+	for (const edge of board.dependencies) {
+		if (edge.fromTaskId === taskId && !seenUpstream.has(edge.toTaskId)) {
+			seenUpstream.add(edge.toTaskId);
+			upstreamTaskIds.push(edge.toTaskId);
+		}
+	}
+	for (const upstreamTaskId of upstreamTaskIds) {
+		const upstream = findBoardCardWithColumn(board, upstreamTaskId);
 		if (upstream?.columnId !== "completed") {
 			continue;
 		}
 		const brief = buildDecisionHandoff({
-			taskId: edge.toTaskId,
-			title: upstream.card.title?.trim() || edge.toTaskId,
+			taskId: upstreamTaskId,
+			title: upstream.card.title?.trim() || upstreamTaskId,
 			completedSteps: (upstream.card.focusChain?.steps ?? [])
 				.filter((step) => step.status === "done")
 				.map((step) => step.text),

@@ -6,6 +6,7 @@ import type {
 	RuntimeBoardDependency,
 	RuntimeFleetReshardRequest,
 	RuntimeGeneratedFromPlan,
+	RuntimeSatisfiedDependency,
 	RuntimeTaskAutoReviewMode,
 	RuntimeTaskImage,
 	RuntimeTaskNKleinSettings,
@@ -202,8 +203,11 @@ function resolveDependencyEndpoints(
 	) {
 		return { reason: "trash_task" };
 	}
-	const firstIsWaiting = firstColumnId === "backlog" || firstColumnId === "planning";
-	const secondIsWaiting = secondColumnId === "backlog" || secondColumnId === "planning";
+	// `ready` counts as waiting (edge-semantics slice): a ready-lane card is queued-unblocked — adding a
+	// prerequisite legitimately re-blocks it, and its release path is the same sweep as backlog/planning.
+	const WAITING = new Set<RuntimeBoardColumnId>(["backlog", "planning", "ready"]);
+	const firstIsWaiting = WAITING.has(firstColumnId);
+	const secondIsWaiting = WAITING.has(secondColumnId);
 	if (firstIsWaiting && secondIsWaiting) {
 		return {
 			backlogTaskId: firstTaskId,
@@ -232,7 +236,7 @@ function getLinkedBacklogTaskIdsReadyAfterTaskTrashed(
 			continue;
 		}
 		const waitingColumnId = getTaskColumnId(board, dependency.fromTaskId);
-		if (waitingColumnId !== "backlog" && waitingColumnId !== "planning") {
+		if (waitingColumnId !== "backlog" && waitingColumnId !== "planning" && waitingColumnId !== "ready") {
 			continue;
 		}
 		// A completion releases the dependent only when THIS was its final unfinished prerequisite. The old
@@ -251,39 +255,83 @@ function getLinkedBacklogTaskIdsReadyAfterTaskTrashed(
 	return [...readyTaskIds];
 }
 
-export function updateTaskDependencies(board: RuntimeBoardData): RuntimeBoardData {
+/**
+ * Reconcile the edge list with the CURRENT card set — edge-semantics slice (audit 2026-08-12, four confirmed
+ * defects shared this root):
+ *
+ *  - An existing edge is a FACT about ordering. Lanes advancing never changes the fact, so a live edge is kept
+ *    VERBATIM — the old code re-derived direction from lanes on every board read, which silently FLIPPED an edge
+ *    when the dependent advanced while the prerequisite waited (live-observed: the integration parent's children
+ *    became dammed behind the parent they existed to unblock), and silently DROPPED it when both endpoints were
+ *    mid-flight (a dependent became startable while its prerequisite was still being worked).
+ *  - A TERMINAL endpoint retires the edge into `board.satisfiedDependencies` instead of deleting it: the
+ *    prerequisite completing (`releasedBy: "completed"`) is exactly the fact the F12.38 decision handoff and the
+ *    reviewer's board context need — deleting it is why both were dark. Trashed prerequisites release the
+ *    dependent as before (`"trashed"`); a dependent reaching a terminal lane first retires its own edges
+ *    (`"dependent_terminal"`).
+ *  - Blank/self/missing-card edges still drop (no fact to preserve), and duplicate pairs still collapse.
+ */
+export function updateTaskDependencies(board: RuntimeBoardData, now: number = Date.now()): RuntimeBoardData {
 	if (board.dependencies.length === 0) {
 		return board;
 	}
 	const taskIds = collectTaskIds(board);
+	const laneByTaskId = new Map<string, RuntimeBoardColumnId>();
+	for (const column of board.columns) {
+		for (const card of column.cards) {
+			laneByTaskId.set(card.id, column.id);
+		}
+	}
+	const isTerminalLane = (taskId: string): boolean => {
+		const lane = laneByTaskId.get(taskId);
+		return lane === "completed" || lane === "trash";
+	};
 	const dependencies: RuntimeBoardDependency[] = [];
+	const satisfied: RuntimeSatisfiedDependency[] = [...(board.satisfiedDependencies ?? [])];
+	const retiredIds = new Set(satisfied.map((entry) => entry.id));
 	const existingPairs = new Set<string>();
 	for (const dependency of board.dependencies) {
-		const firstTaskId = dependency.fromTaskId.trim();
-		const secondTaskId = dependency.toTaskId.trim();
-		if (!firstTaskId || !secondTaskId || firstTaskId === secondTaskId) {
+		const fromTaskId = dependency.fromTaskId.trim();
+		const toTaskId = dependency.toTaskId.trim();
+		if (!fromTaskId || !toTaskId || fromTaskId === toTaskId) {
 			continue;
 		}
-		if (!taskIds.has(firstTaskId) || !taskIds.has(secondTaskId)) {
+		if (!taskIds.has(fromTaskId) || !taskIds.has(toTaskId)) {
 			continue;
 		}
-		const resolved = resolveDependencyEndpoints(board, firstTaskId, secondTaskId);
-		if ("reason" in resolved) {
+		if (isTerminalLane(toTaskId) || isTerminalLane(fromTaskId)) {
+			if (!retiredIds.has(dependency.id)) {
+				retiredIds.add(dependency.id);
+				satisfied.push({
+					id: dependency.id,
+					fromTaskId,
+					toTaskId,
+					createdAt: dependency.createdAt,
+					releasedAt: now,
+					releasedBy: isTerminalLane(toTaskId)
+						? laneByTaskId.get(toTaskId) === "completed"
+							? "completed"
+							: "trashed"
+						: "dependent_terminal",
+				});
+			}
 			continue;
 		}
-		const pairKey = createDependencyPairKey(resolved.backlogTaskId, resolved.linkedTaskId);
+		const pairKey = createDependencyPairKey(fromTaskId, toTaskId);
 		if (existingPairs.has(pairKey)) {
 			continue;
 		}
 		existingPairs.add(pairKey);
 		dependencies.push({
 			id: dependency.id,
-			fromTaskId: resolved.backlogTaskId,
-			toTaskId: resolved.linkedTaskId,
+			fromTaskId,
+			toTaskId,
 			createdAt: dependency.createdAt,
 		});
 	}
+	const satisfiedUnchanged = satisfied.length === (board.satisfiedDependencies ?? []).length;
 	if (
+		satisfiedUnchanged &&
 		dependencies.length === board.dependencies.length &&
 		dependencies.every((dependency, index) => {
 			const current = board.dependencies[index];
@@ -301,6 +349,7 @@ export function updateTaskDependencies(board: RuntimeBoardData): RuntimeBoardDat
 	return {
 		...board,
 		dependencies,
+		...(satisfied.length > 0 ? { satisfiedDependencies: satisfied } : {}),
 	};
 }
 
@@ -691,10 +740,13 @@ export function moveTaskToColumn(
 
 	return {
 		moved: true,
-		board: updateTaskDependencies({
-			...board,
-			columns,
-		}),
+		board: updateTaskDependencies(
+			{
+				...board,
+				columns,
+			},
+			now,
+		),
 		task: movedTask,
 		fromColumnId: found.columnId,
 	};

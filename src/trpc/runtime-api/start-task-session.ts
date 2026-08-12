@@ -880,7 +880,41 @@ export async function handleStartTaskSession(
 		// floor, hard/easy task text nudges — so trivial-verbose stops over-provisioning and terse-hard stops
 		// under-routing (this score also gates the W1.3 /no_think decision).
 		const prerequisiteCount = await loadWorkspaceState(workspaceScope.workspacePath)
-			.then((state) => countNKleinTransitivePrerequisites(body.taskId, state.board.dependencies))
+			.then((state) => {
+				// Edge-semantics slice (live-found 2026-08-12 on resume-02): an EXPLICIT start of a dep-gated card
+				// proceeds — operator authority — but must SAY SO: the queued redrive silently started an
+				// integration parent past two pending children, and nothing recorded that the gate was jumped.
+				// (With never-flip/keep semantics the edges themselves now survive the start.)
+				const laneById = new Map(
+					state.board.columns.flatMap((column) => column.cards.map((c) => [c.id, column.id] as const)),
+				);
+				const unmetPrerequisites = state.board.dependencies.filter(
+					(dependency) =>
+						dependency.fromTaskId === body.taskId &&
+						laneById.get(dependency.toTaskId) !== undefined &&
+						laneById.get(dependency.toTaskId) !== "completed" &&
+						laneById.get(dependency.toTaskId) !== "trash",
+				);
+				if (unmetPrerequisites.length > 0) {
+					const blockers = unmetPrerequisites.map((dependency) => dependency.toTaskId).join(", ");
+					try {
+						recordSelfObservation({
+							signal: "custom",
+							severity: "warning",
+							message: `Explicit start of ${body.taskId} proceeded past ${unmetPrerequisites.length} unmet prerequisite(s): ${blockers}.`,
+							taskId: body.taskId,
+							workspacePath: workspaceScope.workspacePath,
+							metadata: {
+								category: "explicit_start_past_dependencies",
+								unmetPrerequisiteTaskIds: unmetPrerequisites.map((dependency) => dependency.toTaskId),
+							},
+						});
+					} catch {
+						// Telemetry must never block a start.
+					}
+				}
+				return countNKleinTransitivePrerequisites(body.taskId, state.board.dependencies);
+			})
 			.catch(() => 0);
 		const taskDifficulty = estimateNKleinStartDifficulty(promptTokens, {
 			skillIds: resolvedSkillIds,

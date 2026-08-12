@@ -178,15 +178,23 @@ export function buildReviewBoardContext(board: RuntimeBoardData, card: RuntimeBo
 	}
 	const dependsOn: ReviewRelatedCard[] = [];
 	const dependedOnBy: ReviewRelatedCard[] = [];
-	for (const dependency of board.dependencies) {
+	const seenDependsOn = new Set<string>();
+	const seenDependedOnBy = new Set<string>();
+	// Live edges + RETIRED edges (edge-semantics slice, audit 2026-08-12): a completed prerequisite's edge moves to
+	// `satisfiedDependencies` on the completing mutation, so the live list alone can never show a DONE neighbor —
+	// the reviewer's "so the reviewer knows what's actually done" doc was unsatisfiable by construction.
+	const allEdges = [...board.dependencies, ...(board.satisfiedDependencies ?? [])];
+	for (const dependency of allEdges) {
 		if (dependency.fromTaskId === card.id) {
 			const related = byId.get(dependency.toTaskId);
-			if (related) {
+			if (related && !seenDependsOn.has(dependency.toTaskId)) {
+				seenDependsOn.add(dependency.toTaskId);
 				dependsOn.push(related);
 			}
 		} else if (dependency.toTaskId === card.id) {
 			const related = byId.get(dependency.fromTaskId);
-			if (related) {
+			if (related && !seenDependedOnBy.has(dependency.fromTaskId)) {
+				seenDependedOnBy.add(dependency.fromTaskId);
 				dependedOnBy.push(related);
 			}
 		}

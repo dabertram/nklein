@@ -5,6 +5,7 @@ import {
 	addTaskDependency,
 	addTaskToColumn,
 	canAddTaskDependency,
+	completeTaskAndGetReadyLinkedTaskIds,
 	deleteTasksFromBoard,
 	findBoardCardWithColumn,
 	getReadyLinkedTaskIdsForTaskInTrash,
@@ -105,7 +106,7 @@ describe("deleteTasksFromBoard", () => {
 });
 
 describe("planning task dependencies", () => {
-	it("allows planning-to-planning links and reorients them when one task starts", () => {
+	it("allows planning-to-planning links and PRESERVES their direction when one task starts (edge-semantics 2026-08-13: an edge is a fact — the old lane-derived re-resolution FLIPPED it, manufacturing a reverse dependency)", () => {
 		const createA = addTaskToColumn(
 			createBoard(),
 			"planning",
@@ -124,7 +125,8 @@ describe("planning task dependencies", () => {
 
 		expect(linked.added).toBe(true);
 		expect(linked.dependency).toMatchObject({ fromTaskId: "aaaaa", toTaskId: "bbbbb" });
-		expect(movedA.board.dependencies).toEqual([expect.objectContaining({ fromTaskId: "bbbbb", toTaskId: "aaaaa" })]);
+		// A started past its unmet prerequisite (an explicit move) — the FACT that A depends on B survives.
+		expect(movedA.board.dependencies).toEqual([expect.objectContaining({ fromTaskId: "aaaaa", toTaskId: "bbbbb" })]);
 	});
 
 	it("reports planning children as ready when their prerequisite finishes review", () => {
@@ -593,5 +595,87 @@ describe("P21.4a — a card may not be based on another card's deliverable", () 
 		expect(() => addTaskToColumn(createBoard(), "backlog", { prompt: "B", baseRef: "  " }, () => "bbbbb111")).toThrow(
 			/baseRef is required/u,
 		);
+	});
+});
+
+describe("edge-semantics slice (2026-08-13): keep, never flip, retire-to-satisfied", () => {
+	// This describe needs the FULL column set (completed + ready) — the file's shared fixture predates both lanes.
+	const createFullBoard = (): RuntimeBoardData => ({
+		columns: [
+			{ id: "backlog", title: "Backlog", cards: [] },
+			{ id: "planning", title: "Planning", cards: [] },
+			{ id: "ready", title: "Ready", cards: [] },
+			{ id: "in_progress", title: "In Progress", cards: [] },
+			{ id: "review", title: "Review", cards: [] },
+			{ id: "completed", title: "Completed", cards: [] },
+			{ id: "trash", title: "Trash", cards: [] },
+		],
+		dependencies: [],
+	});
+	const seed = () => {
+		const a = addTaskToColumn(createFullBoard(), "planning", { prompt: "Task A", baseRef: "main" }, () => "aaaaa111");
+		const b = addTaskToColumn(a.board, "planning", { prompt: "Task B", baseRef: "main" }, () => "bbbbb111");
+		const c = addTaskToColumn(b.board, "planning", { prompt: "Task C", baseRef: "main" }, () => "ccccc111");
+		// A depends on B and C (a fan-in join into A).
+		const l1 = addTaskDependency(c.board, "aaaaa", "bbbbb");
+		const l2 = addTaskDependency(l1.board, "aaaaa", "ccccc");
+		return l2.board;
+	};
+
+	it("keeps an edge VERBATIM while both endpoints are mid-flight (the old code silently dropped it)", () => {
+		let board = seed();
+		board = moveTaskToColumn(board, "bbbbb", "in_progress").board;
+		board = moveTaskToColumn(board, "aaaaa", "in_progress").board;
+		// Both endpoints non-waiting: the old non_backlog resolution deleted the edge, making A restartable
+		// while B was still being worked. The fact survives now.
+		expect(board.dependencies.some((d) => d.fromTaskId === "aaaaa" && d.toTaskId === "bbbbb")).toBe(true);
+		expect(board.dependencies.some((d) => d.fromTaskId === "bbbbb" && d.toTaskId === "aaaaa")).toBe(false);
+	});
+
+	it("retires a COMPLETED prerequisite's edge into satisfiedDependencies (releasedBy completed)", () => {
+		let board = seed();
+		board = moveTaskToColumn(board, "bbbbb", "in_progress").board;
+		board = moveTaskToColumn(board, "bbbbb", "review").board;
+		const completed = completeTaskAndGetReadyLinkedTaskIds(board, "bbbbb", 777);
+		board = completed.board;
+		// Fan-in: A still waits on C, so B's completion must NOT report A ready.
+		expect(completed.readyTaskIds).toEqual([]);
+		expect(board.dependencies.some((d) => d.toTaskId === "bbbbb")).toBe(false);
+		const satisfied = board.satisfiedDependencies ?? [];
+		expect(satisfied).toHaveLength(1);
+		expect(satisfied[0]).toMatchObject({
+			fromTaskId: "aaaaa",
+			toTaskId: "bbbbb",
+			releasedBy: "completed",
+			releasedAt: 777,
+		});
+		// The LAST prerequisite completing releases A.
+		const board2 = moveTaskToColumn(board, "ccccc", "review").board;
+		const completed2 = completeTaskAndGetReadyLinkedTaskIds(board2, "ccccc", 888);
+		expect(completed2.readyTaskIds).toEqual(["aaaaa"]);
+		expect((completed2.board.satisfiedDependencies ?? []).length).toBe(2);
+	});
+
+	it("retires a TRASHED prerequisite's edge with releasedBy trashed and a terminal dependent's with dependent_terminal", () => {
+		let board = seed();
+		board = moveTaskToColumn(board, "bbbbb", "review").board;
+		board = trashTaskAndGetReadyLinkedTaskIds(board, "bbbbb", 100).board;
+		expect((board.satisfiedDependencies ?? []).find((d) => d.toTaskId === "bbbbb")?.releasedBy).toBe("trashed");
+		// The DEPENDENT reaching a terminal lane first retires its own remaining edge as moot.
+		board = moveTaskToColumn(board, "aaaaa", "completed", 200).board;
+		expect((board.satisfiedDependencies ?? []).find((d) => d.toTaskId === "ccccc")?.releasedBy).toBe(
+			"dependent_terminal",
+		);
+		expect(board.dependencies).toHaveLength(0);
+	});
+
+	it("releases a READY-lane dependent when its last prerequisite completes (F12)", () => {
+		let board = seed();
+		board = moveTaskToColumn(board, "ccccc", "review").board;
+		board = completeTaskAndGetReadyLinkedTaskIds(board, "ccccc", 10).board;
+		board = moveTaskToColumn(board, "aaaaa", "ready").board;
+		board = moveTaskToColumn(board, "bbbbb", "review").board;
+		const completed = completeTaskAndGetReadyLinkedTaskIds(board, "bbbbb", 20);
+		expect(completed.readyTaskIds).toEqual(["aaaaa"]);
 	});
 });

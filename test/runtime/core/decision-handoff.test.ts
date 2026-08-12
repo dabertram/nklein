@@ -177,3 +177,50 @@ describe("composeDependencyHandoffPreamble (F12.38 board-level wire)", () => {
 		expect((preamble.match(/\[Handoff from the dependency/g) ?? []).length).toBe(3);
 	});
 });
+
+describe("composeDependencyHandoffPreamble — LIVE through the real board lifecycle (revival proof 2026-08-13)", () => {
+	it("composes a non-empty handoff after a prerequisite ACTUALLY completes via the real mutations", async () => {
+		const { addTaskDependency, addTaskToColumn, completeTaskAndGetReadyLinkedTaskIds, moveTaskToColumn } =
+			await import("../../../src/core/task-board-mutations");
+		const empty = {
+			columns: [
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "ready", title: "Ready", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Trash", cards: [] },
+			],
+			dependencies: [],
+		} as never;
+		const upstream = addTaskToColumn(
+			empty,
+			"planning",
+			{
+				prompt: "Build the parser.",
+				title: "Build the parser",
+				baseRef: "main",
+				filesLikelyTouched: ["src/parser.ts"],
+			},
+			() => "upstream1",
+		);
+		const dependent = addTaskToColumn(
+			upstream.board,
+			"planning",
+			{ prompt: "Use the parser.", title: "Use the parser", baseRef: "main" },
+			() => "dependent1",
+		);
+		const linked = addTaskDependency(dependent.board, dependent.task.id, upstream.task.id);
+		expect(linked.added).toBe(true);
+		// The upstream card runs and completes — exactly the flow that used to PRUNE the edge and leave this
+		// module dark (its old test hand-built a board shape the load path could never produce).
+		let board = moveTaskToColumn(linked.board, upstream.task.id, "in_progress").board;
+		board = moveTaskToColumn(board, upstream.task.id, "review").board;
+		board = completeTaskAndGetReadyLinkedTaskIds(board, upstream.task.id).board;
+
+		const preamble = composeDependencyHandoffPreamble(board, dependent.task.id);
+		expect(preamble).toContain('[Handoff from the dependency "Build the parser"');
+		expect(preamble).toContain("src/parser.ts");
+	});
+});
