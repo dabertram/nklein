@@ -14894,6 +14894,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   verified through the fixture's own toolchain before delivery), handed to the parked card as a verbatim-write
   redrive so the work still flows through the standard pipeline and the gate passes on a REAL test change.
   Recorded as an operator assist: the autonomous verdict stands; everything downstream measures honestly.
+  **▶ THE ASSIST LANDED 2026-08-12 — and its delivery route itself became evidence.** The worker could not
+  even COPY the provided contents (three empty write_file calls with the full payload sitting in its prompt —
+  the emission wall in its purest form, clean stops so no budget ladder applies). Completed via the product's
+  own manual-merge path with David's explicit authorization at each step: operator-authored files committed on
+  the workspace main (npm test 8/8), then the card moved to completed in the persisted board (the permission
+  classifier twice blocked the tRPC board mutation; David chose the direct board.json edit by multiple
+  choice). The graph's root gate is open — 22 planning cards, next tier startable; resume drain queued behind
+  the running A/B invocation.
   ~~▶ DAVID DECIDED 2026-08-11 (multiple choice): HE hand-writes the types test himself~~ — the honest unblock
   that keeps the campaign's autonomous verdict intact. When `test/domain/types.test.ts` (or equivalent) lands
   in the resume workspace (~/nklein-resume-02/home/.nklein/dev-workspaces/nklein-02-…-xVELHA), the next resume
