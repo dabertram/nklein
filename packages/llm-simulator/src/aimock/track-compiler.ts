@@ -195,18 +195,24 @@ export function compileTrack(track: ScenarioTrack, options: CompileOptions = {})
  * 02's no-needle `any` fallback swallow project 05's decompose request, stranding its board in Planning).
  */
 function trackSpecificity(track: ScenarioTrack): number {
-	if (
+	const hasNarrowingMatcher =
 		track.userMessageIncludes ||
 		track.modelIncludes ||
 		track.requiresJsonSchema !== undefined ||
-		track.messagesNonAlternating !== undefined
-	) {
-		return 0; // narrowing matchers — most specific (must never be shadowed by a catch-all)
+		track.messagesNonAlternating !== undefined;
+	if (hasNarrowingMatcher) {
+		// 2026-08-13 (found live during edge-slice validation): within needle tracks, CLASS-SCOPED beats `any`-class.
+		// The generator's decompose tracks are `any` + a needle quoting the project seed — and the moment a
+		// RICHER prompt legitimately embeds that seed text elsewhere (the board-context fix put the plan
+		// objective into reviewer seeds), the any-class decompose track shadowed every same-scenario review
+		// track on authoring order alone: reviewers received decompose_project, three no-verdict sessions,
+		// park. A needle can leak across classes; the request CLASS cannot — so class wins the tie.
+		return track.requestClass !== "any" ? 0 : 1;
 	}
 	if (track.requestClass !== "any") {
-		return 1; // class-scoped
+		return 2; // class-scoped
 	}
-	return 2; // catch-all — always last
+	return 3; // catch-all — always last
 }
 
 /**

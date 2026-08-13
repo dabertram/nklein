@@ -310,3 +310,59 @@ describe("N3 quirk matchers (tri-state request-shape predicates)", () => {
 		expect(firstMatch(script, alternating)).toBe("HEALTHY");
 	});
 });
+
+describe("class-scoped needle beats any-class needle (2026-08-13 — needle leakage across classes)", () => {
+	// The live shape: the decompose track is `any` + a needle quoting the PROJECT SEED — and once the
+	// board-context fix embedded the plan objective (the seed text) into REVIEWER seeds, that any-class track
+	// shadowed the review track on authoring order. A needle can leak into another class's prompt; the request
+	// class cannot — class-scoped needle tracks must outrank any-class needle tracks.
+	const scenario: ScenarioScript = {
+		name: "leak",
+		seed: 1,
+		tracks: [
+			{
+				id: "decompose-any",
+				requestClass: "any",
+				userMessageIncludes: "the great seed phrase",
+				turns: [{ behavior: { kind: "text", content: "DECOMPOSE TRACK." } }],
+				repeatLastTurn: true,
+			},
+			{
+				id: "review-scoped",
+				requestClass: "review",
+				userMessageIncludes: 'the card "build it"',
+				turns: [{ behavior: { kind: "text", content: "REVIEW TRACK." } }],
+				repeatLastTurn: true,
+			},
+		],
+	};
+
+	it("routes a reviewer request whose seed CONTAINS the leaked phrase to the review track", () => {
+		const fixtures = compileScenarioScript(scenario);
+		// A review-classed request (offers submit_review) whose user text contains BOTH needles.
+		const reviewerRequest = {
+			messages: [
+				{
+					role: "user",
+					content:
+						'You are the second-opinion reviewer for the card "build it". Plan objective: the great seed phrase.',
+				},
+			],
+			tools: [{ type: "function", function: { name: "submit_review" } }],
+		};
+		const matched = firstMatch(fixtures, reviewerRequest as never);
+		expect(matched).toBeGreaterThanOrEqual(0);
+		expect(JSON.stringify(fixtures[matched]?.response ?? "")).toContain("REVIEW TRACK.");
+	});
+
+	it("still routes the real decompose request (no review class) to the any-class needle track", () => {
+		const fixtures = compileScenarioScript(scenario);
+		const decomposeRequest = {
+			messages: [{ role: "user", content: "Build the plan: the great seed phrase." }],
+			tools: [{ type: "function", function: { name: "decompose_project" } }],
+		};
+		const matched = firstMatch(fixtures, decomposeRequest as never);
+		expect(matched).toBeGreaterThanOrEqual(0);
+		expect(JSON.stringify(fixtures[matched]?.response ?? "")).toContain("DECOMPOSE TRACK.");
+	});
+});

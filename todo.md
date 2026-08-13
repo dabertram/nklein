@@ -14961,6 +14961,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     redrive landed post-conversion and prematurely released the causal-stamps parent past 2 pending children.
     Edges must never silently vanish/flip; explicit starts of dep-gated cards should refuse-or-warn (folded into
     the fix batch alongside the satisfied-edges persistence design).
+  - **EDGE-SEMANTICS SLICE VALIDATED + a latent aimock matcher bug fixed en route (2026-08-13, `d6cfd24d8` +
+    follow-up):** the aimock lifecycle drain (scenario 04) FAILED on first run — s00 parked after three reviewer
+    sessions returned no verdict. Autopsy (evidence-snapshot rig + tool-level probes): the sim answered the
+    REVIEWER request with the DECOMPOSE track's `decompose_project` calls — that track is `requestClass: "any"` +
+    a needle quoting the PROJECT SEED text, and the buildReviewBoardContext FIX (68a43d8c4) legitimately embedded
+    the plan objective (= the seed text) into reviewer seeds, so the any-class track shadowed every review track
+    on authoring order. The scenario matchers had been RECORDED against the buggy context-less seeds — the
+    fixture-bent class, materialized in matchers (nothing sim-side had run since 2026-07-26). FIX at the compiler
+    (all 20 sets covered, no regeneration): within needle tracks, CLASS-SCOPED beats `any`-class — a needle can
+    leak across classes; the request class cannot (trackSpecificity tier split + leakage unit tests, sim suites
+    60/60). Validation: scenario 04 perfect PASS (reviews deliver, board drains, satisfied-edge retirement live),
+    04 flaky PASS, 07 perfect PASS — zero LLM compute. Slice #27 closed; the aimock 20-set full revalidation is a
+    natural next nightly (N1) run.
   - **STALE WORKTREES RETIRED (David 2026-08-12: "take what suits, then kill"):** codex/backlog-followup had
     ZERO unique commits (deleted). codex/f11-followup had six; HARVESTED two (adapted, not cherry-picked —
     3 weeks of divergence): 4c2cced58 launch-policy inheritance on the redecompose spawn (model pinning /
