@@ -15001,6 +15001,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     commit); small: task-session-service :: sites, trigger-intake absorb, M2 CRDT streams modeling, F5 full gate
     routing, F13 acceptance-repair role fallback on single-model rigs, attention-park skipped-review liveness pin,
     redecompose fixture typed-pin (source id ≠ redecompose- prefix).**
+  - **NEW-MODEL INTAKE STATUS (David 2026-08-13: "check new suitable models... download 1-3... use them"):**
+    Research picked TWO (disk bounds it; Kimi K2.7 Code = 1T params ruled out): NVIDIA Nemotron 3.5 Lightning
+    30B-A3B Q8_0 (the Aug-11 release David referenced — agentic-tuned MoE, new lineage for reviewer diversity)
+    + Meta Muse Glimmer 30B (Aug-10, tool-use-strong, second diverse lineage). DOWNLOAD BLOCKED mid-flight:
+    HuggingFace is hard-throttling this IP (~5KB/s vs 1.5MB/s to Cloudflare — likely anonymous-rate-limited
+    after the rig's historical ~1.3TB of pulls); Nemotron sits at 28.3/33.6GB with an hourly gentle resume loop
+    armed (probes for throttle lift, completes + renames into LM Studio's dir, then fetches Glimmer Q6_K).
+    An authenticated HF token would lift the limit — none exists on the machine and creating accounts/entering
+    credentials is operator-only, so that's DAVID'S lever if faster intake matters. USE plan unchanged (task
+    #29): Nemotron as worker on a real mid_task drain (the write-heavy-wall question), Glimmer as diverse
+    reviewer, eval-harness fitness rows; roles stay config-driven. Meanwhile the progression-scored consult
+    campaign cycles on the GPU (first discordant recorded at pair 5).
   - **NEW-REGIME LEDGER NOTE (2026-08-13):** David chose a fresh ledger post-redecompose. Invocations 1-3 (5
     pairs) are ALL concordant-fail with BOTH arms at 0% — structural, not noise: the redecompose rung's detour
     (park → spawn → architect → children) is now part of a NORMAL run, so the old 45-minute completion ceiling
