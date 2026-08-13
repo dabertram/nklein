@@ -15001,6 +15001,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     commit); small: task-session-service :: sites, trigger-intake absorb, M2 CRDT streams modeling, F5 full gate
     routing, F13 acceptance-repair role fallback on single-model rigs, attention-park skipped-review liveness pin,
     redecompose fixture typed-pin (source id ≠ redecompose- prefix).**
+  - **NEW-REGIME LEDGER NOTE (2026-08-13):** David chose a fresh ledger post-redecompose. Invocations 1-3 (5
+    pairs) are ALL concordant-fail with BOTH arms at 0% — structural, not noise: the redecompose rung's detour
+    (park → spawn → architect → children) is now part of a NORMAL run, so the old 45-minute completion ceiling
+    fails everything regardless of the consult flag. Invocation 4 CONFIRMED it at --max-min 90 (6/6 pairs
+    concordant-fail, both arms 0%): the campaign is PAUSED until the drain classifier gains a redecompose-aware
+    success definition (tracked as its own slice) — the detour is designed behavior, so 'board fully drained
+    within N minutes' no longer separates the arms.
   - **A/B CAMPAIGN CHECKPOINT (NKLEIN_MODEL_CONSULT, 2026-08-12, flagged per the standing agreement):** 18
     accumulated pairs, verdict REFUSING (3 better / 1 worse, McNemar p=0.625) — and the discordant count has been
     FROZEN for six consecutive invocations (9 pairs, zero new discordants; success rates a=17% b=28%). Two reasons
