@@ -1,10 +1,12 @@
 import type { RuntimeTaskNKleinSettings } from "../core/api-contract";
 import {
 	classifyDevTestRun,
+	classifyDrainProgression,
 	countDevTestBoardColumns,
 	type DevTestBoardCounts,
 	type DevTestBoardLike,
 	type DevTestRunClassification,
+	type DrainProgressionVerdict,
 } from "../core/dev-test-outcome";
 import type { NKleinDevTestProjectScenario } from "./nklein-dev-test-project";
 
@@ -110,6 +112,12 @@ export interface DevTestProjectRunResult {
 	polls: number;
 	runtimeReachable: boolean;
 	finalCounts: DevTestBoardCounts;
+	/**
+	 * Redecompose-aware progression over the run (2026-08-13): SEPARATE from `classification.success` — the strict
+	 * bar still gates nightlies; `productive` answers whether a BOUNDED run moved (completions or the designed
+	 * redecompose detour materializing children). Bounded comparisons (the A/B campaign) read this.
+	 */
+	progression: DrainProgressionVerdict;
 	/** Non-null when the run ended because the benchmark harness could not preserve/capture the candidate result. */
 	infrastructureFailure: string | null;
 }
@@ -142,6 +150,25 @@ function isComplete(counts: DevTestBoardCounts): boolean {
 	);
 }
 
+/** Count the re-decompose rung's spawns on the board (`redecompose-*` ids by construction — see the park path). */
+function countRedecomposeCards(state: DevTestStateRead): number {
+	if (!state.board) {
+		return 0;
+	}
+	let count = 0;
+	for (const column of state.board.columns) {
+		for (const card of column.cards) {
+			if (
+				typeof (card as { id?: unknown }).id === "string" &&
+				(card as { id: string }).id.startsWith("redecompose-")
+			) {
+				count += 1;
+			}
+		}
+	}
+	return count;
+}
+
 function readCounts(state: DevTestStateRead): DevTestBoardCounts {
 	const base = state.board
 		? countDevTestBoardColumns(state.board)
@@ -167,6 +194,9 @@ export async function runDevTestProject(
 	// The last read that actually REACHED the runtime — classification (counts + reachability) uses this, so a transient
 	// slow/failed poll under saturation doesn't blank the board or false-classify runtime_down.
 	let lastReachableState: DevTestStateRead = lastState;
+	// Progression baseline: the FIRST reachable read after the seed started (the board may still be growing —
+	// growth from here is exactly what the progression verdict wants to see).
+	let initialCounts: DevTestBoardCounts | null = null;
 	let lastKey: string | null = null;
 	let unchangedPolls = 0;
 	let completeConfirmations = 0;
@@ -210,6 +240,9 @@ export async function runDevTestProject(
 		}
 		consecutiveUnreachable = 0;
 		lastReachableState = state;
+		if (initialCounts === null && state.board) {
+			initialCounts = counts;
+		}
 		// A patch-capture failure destroys the benchmark measurement boundary: there is no trustworthy candidate diff to
 		// grade. Stop immediately and carry an explicit infrastructure result instead of waiting for board stagnation and
 		// mis-scoring the empty patch as a model failure.
@@ -241,6 +274,11 @@ export async function runDevTestProject(
 	// consecutive misses — a transient slow poll under saturation is not runtime_down.
 	const runtimeConfirmedReachable = consecutiveUnreachable < maxConsecutiveUnreachable;
 	const finalCounts = readCounts(lastReachableState);
+	const progression = classifyDrainProgression({
+		initialCounts: initialCounts ?? finalCounts,
+		finalCounts,
+		redecomposeCardCount: countRedecomposeCards(lastReachableState),
+	});
 	const acceptancePassed = deps.runAcceptance ? await deps.runAcceptance() : null;
 	const classification = classifyDevTestRun({
 		counts: finalCounts,
@@ -258,6 +296,7 @@ export async function runDevTestProject(
 		polls,
 		runtimeReachable: runtimeConfirmedReachable,
 		finalCounts,
+		progression,
 		infrastructureFailure: lastReachableState.infrastructureFailure ?? null,
 	};
 }

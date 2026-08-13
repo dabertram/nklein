@@ -470,6 +470,9 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 		} after ${result.polls} poll(s)\n`,
 	);
 	write(`${result.classification.summary}\n`);
+	if (!result.classification.success && result.progression.productive) {
+		write(`Progression: PRODUCTIVE within the bounded window — ${result.progression.reasons.join(" ")}\n`);
+	}
 }
 
 interface DevTestSweepOptions {

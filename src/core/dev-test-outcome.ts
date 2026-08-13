@@ -171,3 +171,55 @@ function formatDevTestRunSummary(
 			return `Failed: ${counts.failed} failed card(s)${acceptancePassed === false ? " and acceptance failing" : ""} (${board}).`;
 	}
 }
+
+/**
+ * Redecompose-aware PROGRESSION verdict (2026-08-13, unblocks the new-regime A/B campaign): the re-decompose
+ * rung made "board fully drained within N minutes" the wrong bar for a bounded arm — the designed detour
+ * (park → spawn redecompose card → architect split → children → integration parent) rarely fits a preset
+ * ceiling, so both arms of every pair failed structurally (6/6 concordant-fail at 45 AND 90 minutes).
+ * This verdict is deliberately SEPARATE from {@link DevTestRunClassification.success} — the strict
+ * every-card-completed bar still gates nightlies and deliveries; `productive` answers the different question a
+ * bounded comparison needs: did the run MOVE, either by completing cards or by the redecompose machinery
+ * materializing children to work on?
+ */
+export interface DrainProgressionInput {
+	/** Counts at the first reachable read after the seed started. */
+	initialCounts: DevTestBoardCounts;
+	/** Counts at the classification read. */
+	finalCounts: DevTestBoardCounts;
+	/** `redecompose-*` cards present on the final board (the rung's spawns, id-prefixed by construction). */
+	redecomposeCardCount: number;
+}
+
+export interface DrainProgressionVerdict {
+	productive: boolean;
+	/** Completed-lane growth over the run. */
+	completedDelta: number;
+	/** Non-trash card-count growth (children materializing shows up here). */
+	cardGrowth: number;
+	reasons: string[];
+}
+
+function countNonTrash(counts: DevTestBoardCounts): number {
+	return counts.completed + counts.review + counts.planning + counts.ready + counts.inProgress + counts.backlog;
+}
+
+export function classifyDrainProgression(input: DrainProgressionInput): DrainProgressionVerdict {
+	const completedDelta = input.finalCounts.completed - input.initialCounts.completed;
+	const cardGrowth = countNonTrash(input.finalCounts) - countNonTrash(input.initialCounts);
+	const reasons: string[] = [];
+	if (completedDelta >= 1) {
+		reasons.push(`${completedDelta} card(s) reached Completed during the run.`);
+	}
+	if (input.redecomposeCardCount >= 1 && cardGrowth >= 2) {
+		reasons.push(
+			`The re-decompose machinery fired (${input.redecomposeCardCount} redecompose card(s)) and ${cardGrowth} new card(s) materialized — the designed detour is progressing.`,
+		);
+	}
+	return {
+		productive: reasons.length > 0,
+		completedDelta,
+		cardGrowth,
+		reasons,
+	};
+}

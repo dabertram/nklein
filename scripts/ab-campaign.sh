@@ -53,12 +53,17 @@ run_arm(){ # $1 = preset, $2 = flag value ("" for off / "1" for on) → echoes "
   fi
   runDirAfter="$(ls -dt "$REPO"/.real-runs/*/ 2>/dev/null | head -1 || true)"
   if [ -z "$runDirAfter" ] || [ "$runDirAfter" = "$runDirBefore" ]; then echo "error"; return; fi
-  # The drain controller's own classification is the outcome — never re-derive it here.
+  # The drain controller's own classification is the outcome — never re-derive it here. Under the
+  # redecompose regime (2026-08-13) a bounded arm ALSO counts as arm-success when the run was PRODUCTIVE
+  # (completions, or the designed redecompose detour materializing children): the strict every-card-completed
+  # bar structurally failed both arms inside any preset ceiling (6/6 concordant fails at 45 AND 90 minutes)
+  # and carried zero McNemar information.
   outcome="$(python3 -c "
 import json,sys
 try:
     d=json.load(open('$runDirAfter/drain.json'))
-    print('true' if d.get('classification',{}).get('success') else 'false')
+    ok = d.get('classification',{}).get('success') or d.get('progression',{}).get('productive')
+    print('true' if ok else 'false')
 except Exception:
     print('error')" 2>/dev/null)"
   echo "${outcome:-error}"

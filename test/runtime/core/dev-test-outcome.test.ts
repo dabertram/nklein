@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	classifyDevTestRun,
+	classifyDrainProgression,
 	countDevTestBoardColumns,
 	type DevTestBoardCounts,
 } from "../../../src/core/dev-test-outcome";
@@ -207,5 +208,58 @@ describe("classifyDevTestRun", () => {
 				runtimeReachable: true,
 			}).outcome,
 		).toBe("failed");
+	});
+});
+
+describe("classifyDrainProgression (redecompose-aware, 2026-08-13)", () => {
+	const counts = (over: Partial<DevTestBoardCounts>) => ({
+		completed: 0,
+		review: 0,
+		planning: 0,
+		ready: 0,
+		inProgress: 0,
+		backlog: 0,
+		failed: 0,
+		trash: 0,
+		...over,
+	});
+
+	it("productive when cards completed during the run", () => {
+		const verdict = classifyDrainProgression({
+			initialCounts: counts({ planning: 5, completed: 1 }),
+			finalCounts: counts({ planning: 3, completed: 3 }),
+			redecomposeCardCount: 0,
+		});
+		expect(verdict.productive).toBe(true);
+		expect(verdict.completedDelta).toBe(2);
+	});
+
+	it("productive when the redecompose detour materialized children (no completions yet)", () => {
+		const verdict = classifyDrainProgression({
+			initialCounts: counts({ planning: 5 }),
+			finalCounts: counts({ planning: 9, review: 1 }),
+			redecomposeCardCount: 1,
+		});
+		expect(verdict.productive).toBe(true);
+		expect(verdict.cardGrowth).toBe(5);
+	});
+
+	it("NOT productive when the board merely churned lanes with no completions and no detour", () => {
+		const verdict = classifyDrainProgression({
+			initialCounts: counts({ planning: 5, review: 1 }),
+			finalCounts: counts({ planning: 4, review: 2 }),
+			redecomposeCardCount: 0,
+		});
+		expect(verdict.productive).toBe(false);
+	});
+
+	it("NOT productive when a redecompose card exists but nothing materialized (spawn without split)", () => {
+		const verdict = classifyDrainProgression({
+			initialCounts: counts({ planning: 5 }),
+			finalCounts: counts({ planning: 5, backlog: 1 }),
+			redecomposeCardCount: 1,
+		});
+		// Growth of 1 is the spawn itself — children require growth ≥ 2.
+		expect(verdict.productive).toBe(false);
 	});
 });
