@@ -209,7 +209,7 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 			updatedAt: 50,
 		};
 		const redecomposeCard = {
-			id: "redecompose-exporter",
+			id: "split-exporter-1",
 			title: "Decompose: Build the report exporter",
 			prompt: "Split it.",
 			startInPlanMode: true,
@@ -237,7 +237,7 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 			taskGraph: createTaskGraph(),
 			baseRef: "main",
 			randomUuid: () => "unused",
-			sourceTaskId: "redecompose-exporter",
+			sourceTaskId: "split-exporter-1",
 			now: 100,
 		});
 
@@ -267,7 +267,7 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 		).toBe(true);
 		// The redecompose SOURCE card itself completed (it delivered its plan).
 		const completedColumn = result.board.columns.find((column) => column.id === "completed");
-		expect(completedColumn?.cards.some((card) => card.id === "redecompose-exporter")).toBe(true);
+		expect(completedColumn?.cards.some((card) => card.id === "split-exporter-1")).toBe(true);
 
 		// Idempotent re-apply: the prompt is never re-wrapped a second time — and, crucially, a re-apply
 		// after the parent has ADVANCED past the waiting lanes must not touch edges at all (audit 2026-08-12
@@ -279,7 +279,7 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 			taskGraph: createTaskGraph(),
 			baseRef: "main",
 			randomUuid: () => "unused",
-			sourceTaskId: "redecompose-exporter",
+			sourceTaskId: "split-exporter-1",
 			now: 200,
 		});
 		const reappliedParent = reapplied.board.columns
@@ -312,7 +312,7 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 		board.columns
 			.find((column) => column.id === "planning")
 			?.cards.push({
-				id: "redecompose-exporter",
+				id: "split-exporter-1",
 				title: "Decompose: Build the report exporter",
 				prompt: "Split it.",
 				startInPlanMode: true,
@@ -328,7 +328,7 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 			taskGraph: createTaskGraph(),
 			baseRef: "main",
 			randomUuid: () => "unused",
-			sourceTaskId: "redecompose-exporter",
+			sourceTaskId: "split-exporter-1",
 			now: 100,
 		});
 

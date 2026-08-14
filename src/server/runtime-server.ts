@@ -2299,6 +2299,21 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					});
 					const reviewReason = "reason" in reviewOutcome ? ` (${reviewOutcome.reason})` : "";
 					deps.warn(`Second-opinion review outcome for ${taskId}: ${reviewOutcome.type}${reviewReason}`);
+					// Audit 2026-08-12 (attention-park note, wired 2026-08-14): a SKIPPED resolution with no further
+					// machine step used to leave the session pinned at awaiting_review — which reads as LIVE to every
+					// sweep (hasLiveTaskSession), so the card could never be redriven; one silent reviewer absorbed a
+					// 19-card drain this way pre-cap. card_not_found / not_reviewable have nothing left to do here:
+					// release the session and give the waiting-card sweep an immediate chance.
+					if (
+						reviewOutcome.type === "skipped" &&
+						(reviewOutcome.reason === "card_not_found" || reviewOutcome.reason === "not_reviewable")
+					) {
+						const pinnedSummary = service.getSummary(taskId);
+						if (pinnedSummary?.state === "awaiting_review") {
+							await service.stopTaskSession(taskId).catch(() => null);
+							retryWaitingCardsAfterTerminal(scope, service, taskId);
+						}
+					}
 					// N3 family 4: a PARK hands the card to the operator — settle its durable job (failed/parked
 					// vocabulary) so the lease releases instead of sitting orphaned (the park quiesces the session
 					// to idle, which the summary reaction maps to `none`; without this the lease outlived teardown).

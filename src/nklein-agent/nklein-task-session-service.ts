@@ -1338,7 +1338,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	): Promise<RuntimeTaskSessionStartResult> {
 		// F1.34c v5: the last un-instrumented span was "runner dispatched" → "first admission evaluation" — this
 		// stamp closes it from the service side (synthetic ids only; evaluate-entry is stamped server-side).
-		if (input.taskId.includes("::")) {
+		if (isDerivedTaskSessionId(input.taskId)) {
 			try {
 				recordSelfObservation({
 					signal: "custom",
@@ -1373,7 +1373,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// stuck segment. Phase observations (synthetic ids only — near-zero volume) make the NEXT such stall name
 		// itself. Debug severity: invisible unless someone is looking.
 		const auxStamp = (phase: string): void => {
-			if (!input.taskId.includes("::")) {
+			if (!isDerivedTaskSessionId(input.taskId)) {
 				return;
 			}
 			try {
