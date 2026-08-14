@@ -15001,6 +15001,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     commit); small: task-session-service :: sites, trigger-intake absorb, M2 CRDT streams modeling, F5 full gate
     routing, F13 acceptance-repair role fallback on single-model rigs, attention-park skipped-review liveness pin,
     redecompose fixture typed-pin (source id ≠ redecompose- prefix).**
+  - **blockedKind ENFORCED + AUTO-CLEARED (David's 2026-08-12 decision, executed 2026-08-14, `8329d9fc1`):**
+    the sweep refuses blocked cards; per-kind pure release decisions (fleet-fingerprint drift for reshard-stranded
+    cards via the new blockedFleetFingerprint stamp — self-correcting re-stamp loop; model-loaded for
+    local_model_required; sandbox-back for agent_sandbox_unavailable); watchdog runs the clear pass only when
+    blocked cards exist, records every release (blocked_kind_autoclear), then durable-absorbs (F1 reconcile
+    reopens the failed job) + sweeps. Unstamped needs_decomposition stays decomposition-released; web-ui manual
+    clear untouched.
   - **NEW-MODEL INTAKE STATUS (David 2026-08-13: "check new suitable models... download 1-3... use them"):**
     Research picked TWO (disk bounds it; Kimi K2.7 Code = 1T params ruled out): NVIDIA Nemotron 3.5 Lightning
     30B-A3B Q8_0 (the Aug-11 release David referenced — agentic-tuned MoE, new lineage for reviewer diversity)
