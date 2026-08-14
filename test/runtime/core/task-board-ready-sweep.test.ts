@@ -126,3 +126,33 @@ describe("partitionStartableByPause (watchdog honesty — N15 soak round 6)", ()
 		});
 	});
 });
+
+describe("blockedKind enforcement in the ready sweep (David 2026-08-12)", () => {
+	it("refuses an explicitly-blocked card and admits it again once cleared", () => {
+		const board = {
+			columns: [
+				{
+					id: "planning",
+					title: "Planning",
+					cards: [
+						{ id: "free-card" },
+						{ id: "stranded-card", blockedKind: "needs_decomposition", blockedReason: "no fitting model" },
+					],
+				},
+			],
+			dependencies: [],
+		} as never;
+		expect(listStartableUnstartedTaskIds(board, new Set())).toEqual(["free-card"]);
+		const cleared = {
+			columns: [
+				{
+					id: "planning",
+					title: "Planning",
+					cards: [{ id: "free-card" }, { id: "stranded-card" }],
+				},
+			],
+			dependencies: [],
+		} as never;
+		expect(listStartableUnstartedTaskIds(cleared, new Set()).sort()).toEqual(["free-card", "stranded-card"]);
+	});
+});

@@ -43,6 +43,7 @@ import { createAutoStartFailureGuard, formatAutoStartPauseMessage } from "../cor
 import { buildBackgroundEvalEvidenceByModel } from "../core/background-eval-evidence-feed";
 import { selectBackgroundEvalTarget } from "../core/background-eval-selection";
 import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
+import { decideBlockedKindRelease } from "../core/blocked-kind-release";
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
 import { readPausedTasks, setCardPaused } from "../core/card-pause";
 import { resolveSessionConcurrencyCaps } from "../core/concurrency-config";
@@ -4067,6 +4068,92 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						for (const finalizationKey of autoReviewFinalizationInFlightTaskIds) {
 							if (finalizationKey.startsWith(finalizationKeyPrefix)) {
 								activelyHandledTaskIds.add(finalizationKey.slice(finalizationKeyPrefix.length));
+							}
+						}
+						// blockedKind AUTO-CLEAR (David 2026-08-12: enforce + auto-clear). The sweep now refuses
+						// blocked cards, so this per-tick pass is their ONLY machine release: per-kind conditions via
+						// the pure decideBlockedKindRelease (fleet drifted since the stamp / a model is loaded again /
+						// the sandbox is back). Environment facts are gathered ONLY when blocked cards exist (rare).
+						const blockedCards = board.columns
+							.flatMap((column) => column.cards)
+							.filter((card) => card.blockedKind !== undefined);
+						if (blockedCards.length > 0) {
+							try {
+								const clearConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
+								const clearCandidates = clearConfig
+									? await buildDecompositionRoutingCandidates(clearConfig, { loadedOnly: true }).catch(
+											() => [],
+										)
+									: [];
+								const clearFingerprint =
+									fingerprintFleetRoutingCandidates(snapshotFleetRoutingCandidates(clearCandidates)) || null;
+								const loadedIds = await fetchLoadedModelIdsCached(resolveDefaultLocalModelBaseUrl()).catch(
+									() => [] as string[],
+								);
+								const environment = {
+									currentFleetFingerprint: clearFingerprint,
+									anyModelLoaded: loadedIds.length > 0,
+									sandboxAvailable: agentSandboxManagerByWorkspaceId.get(scope.workspaceId) !== undefined,
+								};
+								const releases = blockedCards
+									.map((card) => ({
+										card,
+										decision: decideBlockedKindRelease(
+											{
+												blockedKind: card.blockedKind as NonNullable<typeof card.blockedKind>,
+												blockedFleetFingerprint: card.blockedFleetFingerprint ?? null,
+											},
+											environment,
+										),
+									}))
+									.filter((entry) => entry.decision.release);
+								for (const entry of releases) {
+									recordSelfObservation({
+										signal: "custom",
+										severity: "info",
+										message: `blockedKind auto-clear for ${entry.card.id}: ${entry.card.blockedKind} released — ${entry.decision.reason}`,
+										taskId: entry.card.id,
+										workspacePath: scope.workspacePath,
+										metadata: {
+											category: "blocked_kind_autoclear",
+											blockedKind: entry.card.blockedKind,
+											reason: entry.decision.reason,
+										},
+									});
+								}
+								if (releases.length > 0) {
+									const releasedIds = new Set(releases.map((entry) => entry.card.id));
+									await retryWorkspaceStateLock(() =>
+										mutateWorkspaceState(scope.workspacePath, (latestState) => ({
+											board: {
+												...latestState.board,
+												columns: latestState.board.columns.map((column) => ({
+													...column,
+													cards: column.cards.map((card) =>
+														releasedIds.has(card.id) && card.blockedKind !== undefined
+															? {
+																	...card,
+																	blockedKind: undefined,
+																	blockedReason: undefined,
+																	blockedFleetFingerprint: undefined,
+																	updatedAt: Date.now(),
+																}
+															: card,
+													),
+												})),
+											},
+											value: null,
+										})),
+									);
+									// A released card is waiting again: absorb into a live durable run (the F1 reconcile
+									// reopens its failed job) and give the sweep an immediate chance.
+									await absorbNewBoardCardsIntoRun(scope);
+									retryWaitingCardsAfterTerminal(scope, trackedService, undefined, { timerFired: true });
+								}
+							} catch (error) {
+								deps.warn(
+									`blockedKind auto-clear pass failed for ${scope.workspaceId}: ${error instanceof Error ? error.message : String(error)}`,
+								);
 							}
 						}
 						// F12.110c fleet-change checkpoint. Probe only when a WAITING card carries a fleet-sizing receipt;

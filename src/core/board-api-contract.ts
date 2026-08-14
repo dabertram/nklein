@@ -238,6 +238,10 @@ export const runtimeBoardCardSchema = z
 		decomposeGeneration: z.number().int().nonnegative().optional(),
 		blockedKind: z.enum(["needs_decomposition", "local_model_required", "agent_sandbox_unavailable"]).optional(),
 		blockedReason: z.string().optional(),
+		// blockedKind enforcement (David 2026-08-12): the loaded-fleet fingerprint at STAMP time, written by the
+		// reshard's needs_decomposition writer — the auto-clear releases the card when the fleet changes AGAIN
+		// (re-evaluate by unblocking; a still-unfit card gets re-stamped by the same path that stamped it).
+		blockedFleetFingerprint: z.string().optional(),
 		nkleinProviderId: z.string().optional(),
 		nkleinModelId: z.string().optional(),
 		nkleinReasoningEffort: runtimeLegacyTaskNKleinReasoningEffortSchema.optional(),

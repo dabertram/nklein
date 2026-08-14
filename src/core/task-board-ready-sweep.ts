@@ -36,6 +36,12 @@ export function listStartableUnstartedTaskIds(
 			if ((unmetDependencyCounts.get(card.id) ?? 0) > 0) {
 				continue; // still blocked
 			}
+			// blockedKind enforcement (David 2026-08-12): an explicitly-blocked card is NOT startable — the sweep
+			// used to restart needs_decomposition cards against the same fleet that stranded them. Release is the
+			// per-kind auto-clear (decideBlockedKindRelease) or the web-ui manual clear, never the sweep.
+			if ((card as { blockedKind?: unknown }).blockedKind) {
+				continue;
+			}
 			startable.push(card.id);
 		}
 	}

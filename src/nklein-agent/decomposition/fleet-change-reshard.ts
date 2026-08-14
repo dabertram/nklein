@@ -287,6 +287,9 @@ export function applyFleetChangeReshardPlan(input: {
 					blockedKind: "needs_decomposition" as const,
 					blockedReason:
 						"The stable loaded fleet changed and no currently loaded model can clear this card. !Klein is re-sharding only the stranded plan nodes.",
+					// Auto-clear stamp (David 2026-08-12): released when the fleet changes AGAIN (re-evaluate by
+					// unblocking; a still-unfit card is re-stamped by this same pass).
+					blockedFleetFingerprint: input.plan.fingerprint,
 					updatedAt: now,
 				};
 			}),

@@ -1099,6 +1099,8 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"board_liveness_watchdog",
 	"board_liveness_watchdog_error",
 	"board_liveness_watchdog_tick",
+	// David 2026-08-12 decision executed 2026-08-14: per-kind blockedKind releases, recorded per F4.8b.
+	"blocked_kind_autoclear",
 	"card_lane_change",
 	// Edge-semantics slice (2026-08-13): an explicit operator start that jumps unmet prerequisites proceeds
 	// (operator authority) but is recorded — the silent version started an integration parent past its children.
