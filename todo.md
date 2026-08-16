@@ -15025,7 +15025,10 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     wakes the driver — never lands mid-step); rejected-first-claim still logs a durable zero-step turn (the
     observation-truth spirit we just shipped for spawn skips). Their capability seams + goals service
     parallel what we already have (sandbox executors, focus-chain/reanchor) — validation, not takes.
-    NEXT (David's pick): (3) is runnable immediately as pure evidence; (1)+(2) are design slices.
+    **DAVID 2026-08-16: "integrate all the great ideas" — ALL THREE are now committed work (tasks #31 log-derived
+    prompts invariant, #32 session fork, #33 scaffold-vs-scaffold bed; #33 runs when qwen3.8 lands, #31 is the
+    next design slice, #32 builds on #31). Credit recorded in docs/attributions.md per the standing rule (the
+    dsh entry adopts their invariant language and notes the corroborations honestly).**
   - **QWEN3.8-27B INTAKE (David 2026-08-16: "candidate for most capable so far... use it to its max"):**
     Released Aug 14: DENSE 27.78B, multimodal (text/image/video), Apache 2.0, **native 262,144-token context**
     (1M via YaRN), configurable reasoning effort, SWE-Bench Pro 61.7 (big jump over 3.6-27B). QUANT VERDICT

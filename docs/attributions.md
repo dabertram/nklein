@@ -67,6 +67,32 @@ hardware — built on the pi substrate (Mario Zechner). Apache-2.0. Reviewed 202
   back explicitly advisory. This complements the harness-driven §5.AA `cross_model_carry` rung by avoiding its
   overhead: no session teardown, no cold prompt cache, no redone work.
 
+## DeepSeek Harness (dsh) — https://github.com/deepseek-ai/deepseek-harness
+
+An open-source agent harness by DeepSeek AI (MIT, Aug 2026), built on Cordis with an "everything is a plugin"
+architecture. Reviewed 2026-08-16 (developer preview; brought in by David). We are grateful for a design that
+states its invariants out loud — the architecture doc alone sharpened how we talk about our own session model.
+
+- **Adopting — "model-visible means logged"** (their session subsystem → !Klein session runtime, tracked as the
+  log-derived-prompts slice): the session log as the SOURCE of model context — `deriveMessages()` projects every
+  request's history from an append-only event log, with a runtime invariant that anything model-visible is
+  reconstructable from it. For !Klein this directly attacks the green-signal class we keep re-finding (prompt
+  drift; sim matchers recorded against stale seeds): log-derived prompts make every prompt-shape change
+  replayable and let aimock scenarios be recorded from the log deterministically.
+- **Adopting — session fork at a step boundary** (`ctx.sessions.fork(source, boundary)` → §5.AW adjacency): a
+  cheaper best-of-N than !Klein's `::spec` full-restart mirror, and checkpoint-retry for risky steps.
+- **Adopting — evidence bed, not code: scaffold-vs-scaffold** (their `dsh-headless` bundle + OpenAI-compat
+  adapter pointed at LM Studio): the same task run under dsh-scaffold vs !Klein-scaffold on the SAME local model
+  isolates how much of a model's failure is scaffold-dependent; where their prompt-section and tool-schema
+  shapes win, we harvest them (with credit back here).
+- **Adopted in spirit already, reinforced by their doc:** a rejected first claim still logs a durable zero-step
+  turn ("the log records the attempt") — the same observation-truth principle as !Klein's spawn-skip and
+  redecompose-rung records; and their inbox-claim discipline (injected context never lands mid-step) mirrors
+  what our queued-input path should guarantee and now names.
+- **Noted, not adopted:** the Cordis profile/bundle/patch composition (configuration-first composability — !Klein
+  is deliberately code-first); capability seams and the goals service are parallel evolution of !Klein's sandbox
+  tool executors and focus-chain/re-anchor — recorded as corroboration.
+
 ## opencode-swarm — https://github.com/sst/opencode
 
 - **What:** five cores ported 2026-07-15 into !Klein's delivery/watchdog/audit seams (placeholder + quality
