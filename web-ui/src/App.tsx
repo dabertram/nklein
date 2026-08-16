@@ -109,7 +109,7 @@ export default function App(): ReactElement {
 	const terminalThemeColors = useTerminalThemeColors();
 	const [board, setBoard] = useState<BoardData>(() => createInitialBoardData());
 	// §5.BB: the zoom-level surface (0 chat · 1 overview · 2 lean · 3 expert · 4 professional).
-	const { zoom, setZoom, streamFilter, zoomToStream } = useZoomLevel();
+	const { zoom, setZoom, streamFilter, zoomToStream, clearStreamFilter } = useZoomLevel();
 	const [sessions, setSessions] = useState<Record<string, RuntimeTaskSessionSummary>>({});
 	// §5.BB: live board-activity ticks (pure snapshot diff) interleaved into the chat transcript.
 	const activityTicks = useBoardActivityTicks(
@@ -1190,8 +1190,8 @@ export default function App(): ReactElement {
 													type="button"
 													data-testid="needs-you-badge"
 													title={`${needsYouCount} card${needsYouCount === 1 ? "" : "s"} need${needsYouCount === 1 ? "s" : ""} your input — open the full board`}
-													onClick={() => setZoom(3)}
-													className={`inline-flex items-center gap-1.5 rounded-full border border-status-gold/40 bg-status-gold/10 px-2.5 py-0.5 text-[11.5px] text-status-gold hover:bg-status-gold/20${zoom === 3 ? " sm:hidden" : ""}`}
+													onClick={() => setZoom(2)}
+													className={`inline-flex items-center gap-1.5 rounded-full border border-status-gold/40 bg-status-gold/10 px-2.5 py-0.5 text-[11.5px] text-status-gold hover:bg-status-gold/20${zoom >= 2 ? " sm:hidden" : ""}`}
 												>
 													<span aria-hidden>●</span>
 													{needsYouCount} need{needsYouCount === 1 ? "s" : ""} you
@@ -1199,11 +1199,11 @@ export default function App(): ReactElement {
 											) : null}
 											{zoom === 0 ? (
 												<span className="text-[11px] text-text-tertiary">
-													just talk to !Klein — zoom in anytime for the board behind it
+													just talk to !Klein — switch levels anytime for the board behind it
 												</span>
 											) : zoom === 1 ? (
 												<span className="text-[11px] text-text-tertiary">
-													click a cluster to zoom in · chat on the right steers the swarm
+													click a cluster to drill into its stream · chat steers the swarm
 												</span>
 											) : null}
 										</div>

@@ -26,11 +26,11 @@ const KIND_COPY: Record<"global" | "project", { title: string; footer: string }>
 
 /** Per-level one-liners for the zoom chooser step (plain language, no jargon walls). */
 const ZOOM_LEVEL_DESCRIPTIONS: Record<ZoomLevel, string> = {
-	0: "Just a conversation — tell !Klein what you want, it handles the rest.",
-	1: "Chat plus a live activity map — see where work is happening at a glance.",
-	2: "A lean board — Doing / Review / Done, without the deep controls.",
-	3: "The full board — every lane, control, and detail panel.",
-	4: "Everything, including the model fleet strip — the operator cockpit.",
+	0: "Minimalistic — just a conversation. Tell !Klein what you want; it handles the rest.",
+	1: "Clean — an elegant live map of the work; click a cluster to peek into its stream.",
+	2: "Advanced — the full board: every lane, control, and detail panel.",
+	3: "Professional — the board with the model fleet and dependency edges always in view.",
+	4: "Full — the very fullest detail, including developer and diagnostic surfaces.",
 };
 
 export function SetupWizardDialog({

@@ -73,7 +73,7 @@ export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 		kind: "media",
 		title: "Watch the board burn down",
 		description:
-			"Cards flow Planning → Ready → In Progress → Review → Completed on their own; dependency chains start the next task automatically and finished work is committed to its own branch. Zoom to taste: Chat keeps it simple, Professional and the dependency graph show everything.",
+			"Cards flow Planning → Ready → In Progress → Review → Completed on their own; dependency chains start the next task automatically and finished work is committed to its own branch. Pick your level: Minimalistic keeps it a simple conversation; Full and the dependency graph show everything.",
 		assetAlt: "Cards flowing across the !Klein board with dependency links",
 		assetWidthPx: 1156,
 		assetHeightPx: 720,

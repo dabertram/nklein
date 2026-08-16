@@ -221,7 +221,12 @@ export function ActivityMapView({
 						return { ...caption, fittedLabel: label };
 					});
 					return fitted.map(({ cluster, cx, cy, haloRadius, labelX, labelY, fittedLabel }) => (
-						<g key={cluster.id} onClick={() => onZoomToStream(cluster.id)} className="cursor-pointer">
+						<g
+							key={cluster.id}
+							data-cluster-id={cluster.id}
+							onClick={() => onZoomToStream(cluster.id)}
+							className="cursor-pointer"
+						>
 							{/* Full stream name on hover — the caption may be truncated to its slot. */}
 							<title>{cluster.label}</title>
 							<circle

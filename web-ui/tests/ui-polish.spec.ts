@@ -20,7 +20,7 @@ import {
 async function primeUiState(page: Page, options: { zoom: string; edges?: boolean }): Promise<void> {
 	await page.addInitScript(
 		({ zoom, edges }) => {
-			window.localStorage.setItem("nklein.ui-zoom-level.v2", zoom);
+			window.localStorage.setItem("nklein.ui-zoom-level.v3", zoom);
 			if (edges) {
 				window.localStorage.setItem("nklein.board-dependency-edges-visible", "1");
 			}
@@ -74,7 +74,8 @@ test.describe("UI polish regression guards", () => {
 		});
 		await gotoBoard(page);
 		// Walk the real user path: click the zoom button (the boot zoom depends on stored/migrated state).
-		await page.getByRole("button", { name: "Z2 Lean" }).click();
+		await page.getByRole("button", { name: "1 Clean" }).click();
+		await page.locator("[data-cluster-id]").first().click();
 		const queued = page.getByTestId("lean-lane-queued");
 		await expect(queued).toBeVisible();
 		await expect(queued).toContainText("Queued planning card");

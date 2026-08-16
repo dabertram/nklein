@@ -106,7 +106,7 @@ describe("board dependency state", () => {
 		expect(sameTask.reason).toBe("same_task");
 	});
 
-	it("preserves backlog-to-backlog link order and reorients it when one task starts", () => {
+	it("preserves backlog-to-backlog links VERBATIM when one task starts (edge-semantics 2026-08-13: an edge is a fact — the old lane-derived re-resolution flipped it)", () => {
 		const fixture = createBacklogBoard(["Task A", "Task B"]);
 		const taskA = requireTaskId(fixture.taskIdByPrompt["Task A"], "Task A");
 		const taskB = requireTaskId(fixture.taskIdByPrompt["Task B"], "Task B");
@@ -122,8 +122,8 @@ describe("board dependency state", () => {
 		expect(movedA.moved).toBe(true);
 		expect(movedA.board.dependencies).toEqual([
 			expect.objectContaining({
-				fromTaskId: taskB,
-				toTaskId: taskA,
+				fromTaskId: taskA,
+				toTaskId: taskB,
 			}),
 		]);
 	});
@@ -203,7 +203,7 @@ describe("board dependency state", () => {
 		expect(movedBTrash.board.dependencies).toHaveLength(0);
 	});
 
-	it("removes links once neither endpoint remains in backlog", () => {
+	it("KEEPS links while both endpoints are mid-flight (edge-semantics 2026-08-13: lane progression never deletes the fact)", () => {
 		const fixture = createBacklogBoard(["Task A", "Task B"]);
 		const taskA = requireTaskId(fixture.taskIdByPrompt["Task A"], "Task A");
 		const taskB = requireTaskId(fixture.taskIdByPrompt["Task B"], "Task B");
@@ -215,7 +215,7 @@ describe("board dependency state", () => {
 		expect(linked.board.dependencies).toHaveLength(1);
 
 		const movedB = moveTaskToColumn(linked.board, taskB, "in_progress");
-		expect(movedB.board.dependencies).toHaveLength(0);
+		expect(movedB.board.dependencies).toHaveLength(1);
 	});
 
 	it("drops links automatically when an unlocked backlog card starts", () => {
@@ -567,7 +567,11 @@ describe("board dependency state", () => {
 
 		const normalized = normalizeBoardData(rawBoard);
 		expect(normalized).not.toBeNull();
+		// Edge-semantics 2026-08-13: direction is part of an edge's identity — a->b and b->a are DISTINCT facts
+		// (the old normalize flip-collapsed them onto one pair). Exact duplicates (dep-4) and missing endpoints
+		// (dep-6) still drop.
 		expect(normalized?.dependencies.map((dependency) => `${dependency.fromTaskId}->${dependency.toTaskId}`)).toEqual([
+			"a->b",
 			"b->a",
 			"c->a",
 			"b->c",
