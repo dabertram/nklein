@@ -1812,8 +1812,9 @@ export function RuntimeSettingsDialog({
 								<span>Enable developer mode</span>
 							</label>
 							<p className="text-text-secondary text-[13px] ml-11 mt-0 mb-0">
-								Shows developer-only surfaces: sidebar dev-test scenarios, debug tools, data-dir shortcut, reset
-								state.
+								Unlocks developer-only surfaces — sidebar dev-test scenarios, debug tools, data-dir shortcut,
+								reset state. They appear at the Full detail level (this switch is the gate; the level shows
+								them).
 							</p>
 						</div>
 

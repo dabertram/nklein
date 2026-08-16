@@ -283,6 +283,10 @@ export default function App(): ReactElement {
 		settingsRuntimeProjectConfig,
 		onOpenStartupOnboardingDialog: handleOpenStartupOnboardingDialog,
 	});
+	// §5.BB S4 (David's pick: fold developer mode into Full): developer surfaces render only at the Full level,
+	// and ONLY when the server config enables developer mode — the config flag stays the hard gate, the level is
+	// the visibility axis. One visibility model instead of two unrelated ones.
+	const developerSurfacesVisible = developerModeEnabled && zoom >= 4;
 	const {
 		markConnectionReady: markTerminalConnectionReady,
 		prepareWaitForConnection: prepareWaitForTerminalConnectionReady,
@@ -1027,7 +1031,7 @@ export default function App(): ReactElement {
 						selectedAgentId={settingsRuntimeProjectConfig?.selectedAgentId ?? null}
 						nkleinProviderSettings={settingsRuntimeProjectConfig?.nkleinProviderSettings ?? null}
 						cloudProviderSupportEnabled={cloudProviderSupportEnabled}
-						developerModeEnabled={developerModeEnabled}
+						developerModeEnabled={developerSurfacesVisible}
 						featurebaseFeedbackState={featurebaseFeedbackState}
 						onSelectProject={(projectId) => {
 							void handleSelectProject(projectId);
@@ -1081,8 +1085,8 @@ export default function App(): ReactElement {
 						isTerminalOpen={selectedCard ? isDetailTerminalOpen : showHomeBottomTerminal}
 						isTerminalLoading={selectedCard ? isDetailTerminalStarting : isHomeTerminalStarting}
 						onOpenSettings={handleOpenSettings}
-						showDebugButton={developerModeEnabled}
-						onOpenDebugDialog={developerModeEnabled ? handleOpenDebugDialog : undefined}
+						showDebugButton={developerSurfacesVisible}
+						onOpenDebugDialog={developerSurfacesVisible ? handleOpenDebugDialog : undefined}
 						shortcuts={shortcuts}
 						selectedShortcutLabel={selectedShortcutLabel}
 						onSelectShortcutLabel={handleSelectShortcutLabel}
@@ -1486,13 +1490,13 @@ export default function App(): ReactElement {
 					open={isCommandPaletteOpen}
 					onOpenChange={setIsCommandPaletteOpen}
 					hasProject={!hasNoProjects && currentProjectId !== null}
-					showDebugCommands={developerModeEnabled}
+					showDebugCommands={developerSurfacesVisible}
 					onCreateTask={handleOpenCreateTask}
 					onAddProject={() => {
 						void handleAddProject();
 					}}
 					onOpenSettings={handleOpenSettings}
-					onOpenDebugTools={developerModeEnabled ? handleOpenDebugDialog : undefined}
+					onOpenDebugTools={developerSurfacesVisible ? handleOpenDebugDialog : undefined}
 					onToggleGitHistory={handleToggleGitHistory}
 					onStartAllTasks={handleStartAllBacklogTasksFromBoard}
 				/>

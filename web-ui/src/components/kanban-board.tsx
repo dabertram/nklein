@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
+import { type BoardPrefBand, useBandedTriStatePref } from "@/hooks/use-banded-tri-state-pref";
 import { fetchCardMailboxCounts, fetchCardRestarting, fetchFleetStatus } from "@/runtime/queries/config";
 import { fetchNKleinModelRegistry } from "@/runtime/queries/model-registry";
 import {
@@ -56,7 +57,7 @@ import type {
 } from "@/runtime/types";
 import { canCreateTaskDependency } from "@/state/board-state";
 import { findCardColumnId, type ProgrammaticCardMoveInFlight } from "@/state/drag-rules";
-import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
+import { LocalStorageKey } from "@/storage/local-storage-store";
 import type { BoardCard, BoardColumnId, BoardData, BoardDependency } from "@/types";
 
 const BOARD_COLUMN_ORDER: BoardColumnId[] = [
@@ -244,30 +245,23 @@ export function KanbanBoard({
 	const [copyEvidenceTaskId, setCopyEvidenceTaskId] = useState<string | null>(null);
 	const configuredConcurrencyCap = Math.max(1, Math.trunc(runtimeConfig?.maxConcurrentTasks ?? 3));
 	const [concurrencyCapDraft, setConcurrencyCapDraft] = useState(configuredConcurrencyCap);
-	// §5.BC (user pick: treatment C — all edges behind a toggle): persisted TRI-STATE. Unset defers to the zoom
-	// default (Professional cockpit shows edges, Expert stays clean); an explicit toggle wins everywhere.
-	const [dependencyEdgesPref, setDependencyEdgesPref] = useState<string | null>(() =>
-		readLocalStorageItem(LocalStorageKey.BoardDependencyEdgesVisible),
-	);
-	const dependencyEdgesVisible = dependencyEdgesPref === null ? professionalDefaults : dependencyEdgesPref === "1";
-	const handleToggleDependencyEdges = useCallback(() => {
-		const next = dependencyEdgesVisible ? "0" : "1";
-		writeLocalStorageItem(LocalStorageKey.BoardDependencyEdgesVisible, next);
-		setDependencyEdgesPref(next);
-	}, [dependencyEdgesVisible]);
-	// §5.AX: the expandable per-model fleet block below the swarm counts. Persisted TRI-STATE: unset defers to the
-	// zoom default (§5.BB Professional opens it, other zooms keep it collapsed), while an EXPLICIT user toggle wins
-	// everywhere — the previous force-open on Professional made the toggle a dead click there (live-found 2026-07-09).
-	// The loaded-model registry only polls while the block is open.
-	const [fleetStripPref, setFleetStripPref] = useState<string | null>(() =>
-		readLocalStorageItem(LocalStorageKey.BoardFleetStripExpanded),
-	);
-	const fleetStripExpanded = fleetStripPref === null ? professionalDefaults : fleetStripPref === "1";
-	const handleToggleFleetStrip = useCallback(() => {
-		const next = fleetStripExpanded ? "0" : "1";
-		writeLocalStorageItem(LocalStorageKey.BoardFleetStripExpanded, next);
-		setFleetStripPref(next);
-	}, [fleetStripExpanded]);
+	// §5.BC (user pick: treatment C — all edges behind a toggle) + §5.BB S4: persisted tri-state, now LEVEL-SCOPED
+	// (bands): toggling at Advanced no longer collapses the Professional/Full cockpit and vice versa. Each band's
+	// unset state defers to its own default (pro shows edges, standard stays clean); a toggle wins within its band.
+	const prefBand: BoardPrefBand = professionalDefaults ? "pro" : "standard";
+	const { value: dependencyEdgesVisible, toggle: handleToggleDependencyEdges } = useBandedTriStatePref({
+		standardKey: LocalStorageKey.BoardDependencyEdgesVisible,
+		proKey: LocalStorageKey.BoardDependencyEdgesVisiblePro,
+		band: prefBand,
+	});
+	// §5.AX + §5.BB S4: the expandable per-model fleet block below the swarm counts, same banding (Professional's
+	// pin survives a collapse at Advanced; the toggle stays live WITHIN each band — the 2026-07-09 dead-click
+	// lesson). The loaded-model registry only polls while the block is open.
+	const { value: fleetStripExpanded, toggle: handleToggleFleetStrip } = useBandedTriStatePref({
+		standardKey: LocalStorageKey.BoardFleetStripExpanded,
+		proKey: LocalStorageKey.BoardFleetStripExpandedPro,
+		band: prefBand,
+	});
 	// §5.AG/W3.3: feed the board-health rollup the per-task off-summary signals it can't derive from state alone, from
 	// data the client already has — the card's `blockedKind` and a session parked with reviewReason "attention" (held
 	// for the operator). Fixes the "needs you" / risky counts that were always 0 (no overrides were threaded). The

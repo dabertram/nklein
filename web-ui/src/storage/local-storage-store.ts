@@ -31,6 +31,9 @@ export enum LocalStorageKey {
 	Theme = "nklein.theme",
 	/** §5.BC (user pick 2026-07-06: the all-edges toggle): the board dependency-edge overlay toggle. */
 	BoardDependencyEdgesVisible = "nklein.board-dependency-edges-visible",
+	/** §5.BB S4: the PRO band (Professional/Full) of the edges toggle — level-scoped so a toggle at Advanced
+	 *  never collapses the Professional cockpit. The unsuffixed key doubles as the standard band. */
+	BoardDependencyEdgesVisiblePro = "nklein.board-dependency-edges-visible.pro",
 	/** §5.BB: the persisted UI zoom level (LEGACY four-level scale: 0 overview … 3 professional). Superseded by
 	 *  {@link UiZoomLevelV2} (chat-only inserted at 0); kept only as the migration source (old value + 1). */
 	UiZoomLevel = "nklein.ui-zoom-level",
@@ -40,6 +43,8 @@ export enum LocalStorageKey {
 	UiZoomLevelV3 = "nklein.ui-zoom-level.v3",
 	/** §5.AX: whether the board's per-model fleet block is expanded (default collapsed). */
 	BoardFleetStripExpanded = "nklein.board-fleet-strip-expanded",
+	/** §5.BB S4: the PRO band (Professional/Full) of the fleet block — see {@link BoardDependencyEdgesVisiblePro}. */
+	BoardFleetStripExpandedPro = "nklein.board-fleet-strip-expanded.pro",
 	/** §5.BA: per-kind/per-workspace "Skip setup" marker (scoped key) so a skipped wizard never re-fires on reload. */
 	SetupWizardSkipped = "nklein.setup-wizard-skipped",
 }
@@ -125,6 +130,10 @@ const LEGACY_LOCAL_STORAGE_KEY_BY_CURRENT_KEY: Partial<Record<LocalStorageKey, s
 		LEGACY_LOCAL_STORAGE_PREFIX,
 		"board-dependency-edges-visible",
 	),
+	[LocalStorageKey.BoardDependencyEdgesVisiblePro]: buildPrefixedKey(
+		LEGACY_LOCAL_STORAGE_PREFIX,
+		"board-dependency-edges-visible.pro",
+	),
 	[LocalStorageKey.UiZoomLevel]: buildPrefixedKey(LEGACY_LOCAL_STORAGE_PREFIX, "ui-zoom-level"),
 	[LocalStorageKey.UiZoomLevelV2]: buildPrefixedKey(LEGACY_LOCAL_STORAGE_PREFIX, "ui-zoom-level.v2"),
 	[LocalStorageKey.UiZoomLevelV3]: buildPrefixedKey(LEGACY_LOCAL_STORAGE_PREFIX, "ui-zoom-level.v3"),
@@ -133,6 +142,10 @@ const LEGACY_LOCAL_STORAGE_KEY_BY_CURRENT_KEY: Partial<Record<LocalStorageKey, s
 	[LocalStorageKey.BoardFleetStripExpanded]: buildPrefixedKey(
 		LEGACY_LOCAL_STORAGE_PREFIX,
 		"board-fleet-strip-expanded",
+	),
+	[LocalStorageKey.BoardFleetStripExpandedPro]: buildPrefixedKey(
+		LEGACY_LOCAL_STORAGE_PREFIX,
+		"board-fleet-strip-expanded.pro",
 	),
 };
 
