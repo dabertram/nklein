@@ -1228,6 +1228,17 @@ export default function App(): ReactElement {
 												onOpenCard={handleCardSelect}
 												activityTicks={activityTicks}
 											/>
+										) : zoom === 1 && streamFilter !== null ? (
+											// Clean's stream drill (2026-08-16 merge): the former Lean level lives INSIDE
+											// Clean — cluster-click drills in, the breadcrumb drills back out to the map.
+											<LeanBoardView
+												columns={board.columns}
+												sessions={sessions}
+												dependencies={board.dependencies ?? []}
+												streamFilter={streamFilter}
+												onSelectCard={handleCardSelect}
+												onBackToOverview={clearStreamFilter}
+											/>
 										) : zoom === 1 ? (
 											<ActivityMapView
 												map={composeActivityMap({
@@ -1240,18 +1251,9 @@ export default function App(): ReactElement {
 												onZoomToStream={zoomToStream}
 												highlightCardId={chatHoverCardId}
 											/>
-										) : zoom === 2 ? (
-											<LeanBoardView
-												columns={board.columns}
-												sessions={sessions}
-												dependencies={board.dependencies ?? []}
-												streamFilter={streamFilter}
-												onSelectCard={handleCardSelect}
-												onBackToOverview={() => setZoom(1)}
-											/>
 										) : (
 											<KanbanBoard
-												professionalDefaults={zoom === 4}
+												professionalDefaults={zoom >= 3}
 												data={board}
 												taskSessions={sessions}
 												reasoningSnippetByTaskId={reasoningSnippetByTaskId}
