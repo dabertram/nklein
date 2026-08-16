@@ -15008,6 +15008,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     blocked cards exist, records every release (blocked_kind_autoclear), then durable-absorbs (F1 reconcile
     reopens the failed job) + sweeps. Unstamped needs_decomposition stays decomposition-released; web-ui manual
     clear untouched.
+  - **DEEPSEEK HARNESS (dsh) ASSESSMENT (David 2026-08-16: "anything we can take in?"):** Aug-13 release,
+    MIT, Node/TS (stack- and license-compatible), Cordis plugin tree — model adapter/tools/session log/agent
+    loop/sandbox all swappable. CANDIDATE TAKES, ranked: (1) **"Model-visible means logged"** — their session
+    log is the SOURCE of model context (deriveMessages() projects history from the append-only log) with a
+    RUNTIME INVARIANT that anything reaching a request is reconstructable from it. Directly attacks our
+    green-signal class (prompt drift, matchers recorded against wrong seeds — the aimock incident): with
+    log-derived prompts, sim scenarios can be RECORDED from the log deterministically and every prompt-shape
+    change is replayable. Medium effort, big audit payoff. (2) **Session fork** (ctx.sessions.fork(source,
+    boundary)) — fork a live session at a step boundary: a cheaper best-of-N than our ::spec full-restart
+    mirror, and checkpoint-retry for risky steps (§5.AW adjacency). (3) **Scaffold-vs-scaffold bed**: dsh
+    headless bundle + an OpenAI-compat adapter at localhost:1234 drives OUR qwen3.8 — same task under
+    dsh-scaffold vs !Klein-scaffold isolates how much of the emission wall is SCAFFOLD-dependent; if qwen3.8
+    passes under dsh, we harvest their prompt-section + tool-schema shapes (they tuned for V4 agentics).
+    Zero-code evidence. (4) smaller: inbox-claim input discipline (injected context waits until a message
+    wakes the driver — never lands mid-step); rejected-first-claim still logs a durable zero-step turn (the
+    observation-truth spirit we just shipped for spawn skips). Their capability seams + goals service
+    parallel what we already have (sandbox executors, focus-chain/reanchor) — validation, not takes.
+    NEXT (David's pick): (3) is runnable immediately as pure evidence; (1)+(2) are design slices.
   - **QWEN3.8-27B INTAKE (David 2026-08-16: "candidate for most capable so far... use it to its max"):**
     Released Aug 14: DENSE 27.78B, multimodal (text/image/video), Apache 2.0, **native 262,144-token context**
     (1M via YaRN), configurable reasoning effort, SWE-Bench Pro 61.7 (big jump over 3.6-27B). QUANT VERDICT
