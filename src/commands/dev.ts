@@ -429,20 +429,31 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 		: await Promise.all([loadRuntimeConfig(cwd).catch(() => null), fetchLmsPsModels(createDefaultLmsRunner())]);
 	if (preflightConfig) {
 		const readiness = checkRoleModelReadiness({
-			requirements: Object.entries(preflightConfig.modelRoles ?? {}).map(([role, settings]) => ({
-				role,
-				modelId: settings?.modelId ?? null,
-			})),
+			requirements: [
+				// A --model-id override puts the SEED on that model, so the run's worker requirement is the
+				// override itself — the configured worker role is not what this run will strand on (live-hit
+				// 2026-08-16: a spurious worker warning fired on an overridden run).
+				...Object.entries(preflightConfig.modelRoles ?? {})
+					.filter(([role]) => !(modelId && role === "worker"))
+					.map(([role, settings]) => ({ role, modelId: settings?.modelId ?? null })),
+				...(modelId ? [{ role: "worker(--model-id)", modelId }] : []),
+			],
 			loaded: preflightModels.map((model) => ({ identifier: model.identifier, modelKey: model.modelKey })),
 		});
 		if (!readiness.ready) {
-			write(
-				`⚠ Role-model preflight: ${readiness.missing
-					.map((missing) => `${missing.role}=${missing.modelId}`)
-					.join(
-						", ",
-					)} NOT loaded — cards for these roles may strand. Load them (\`lms load <model>\`) or run \`dev role-preflight\`.\n`,
-			);
+			const warning = `⚠ Role-model preflight: ${readiness.missing
+				.map((missing) => `${missing.role}=${missing.modelId}`)
+				.join(
+					", ",
+				)} NOT loaded — cards for these roles may strand. Load them (\`lms load <model>\`) or run \`dev role-preflight\`.\n`;
+			// Same automation contract as the scaffold notice above: with --json, stdout is ONE parseable JSON
+			// document (a leaked warning made a fully-green run read "unclassified", live-hit 2026-08-16) — the
+			// diagnostic still lands in the run dir via stderr (drain.err).
+			if (options.json) {
+				process.stderr.write(warning);
+			} else {
+				write(warning);
+			}
 		}
 	}
 	const { scenario, result } = await executeDevTestPreset({
