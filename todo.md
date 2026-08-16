@@ -15008,6 +15008,26 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     blocked cards exist, records every release (blocked_kind_autoclear), then durable-absorbs (F1 reconcile
     reopens the failed job) + sweeps. Unstamped needs_decomposition stays decomposition-released; web-ui manual
     clear untouched.
+  - **UI DETAIL-LEVELS REDESIGN (David 2026-08-16, task #34 — deep check DONE, design follows):** current
+    system = "zoom" ladder Z0 Chat/Z1 Overview/Z2 Lean/Z3 Expert/Z4 Professional (use-zoom-level.ts, gates only
+    App.tsx pane swap + 2 professionalDefaults booleans + wizard step). Audit findings: card detail is LEVEL-BLIND
+    (25 detail panels identical everywhere — a Z0 user clicking a chat card chip gets the full expert view);
+    Z3/Z4 collapse after one explicit toggle (professionalDefaults only seeds tri-state prefs); the empty-board
+    good-first-task strip renders only at Z3+ while the default is Z1 (new users never see it); chat accessory
+    panels are level-invariant; git-history hides the level bar; no mobile layout/hotkey/telemetry/cross-tab for
+    the switcher; developerModeEnabled is a second unrelated visibility axis. DESIGN (mapping David's names):
+    **Minimalistic** (new default; evolved Z0: one conversation pane, status whisper-strip instead of board,
+    minimal card SHEET on click, terminal/DAG/board chrome hidden) → **Clean** (Z1+Z2 merged: activity map hero,
+    cluster-click drills into the lean 4-lane grid — today's zoomToStream — as ONE level; chat rail; card sheet
+    with progressive disclosure) → **Advanced** (Z3: full kanban + full card detail) → **Professional** (Z4 made
+    REAL: fleet pinned open, dep edges on, header chips, evidence-forward card detail — level-scoped prefs so it
+    never collapses into Advanced) → **Full** (NEW top: Professional + the developer axis folded in — debug,
+    dev-test registry, diagnostics, raw trails auto-expanded; ONE visibility model). Cross-cutting: level reaches
+    card detail (sheet/standard/full presets), per-level empty states with the template strip, switcher mobile
+    layout + hotkey + telemetry event + cross-tab sync, git-history keeps the bar, v2→v3 storage migration.
+    Slices S1 ladder/migration/switcher → S2 Clean merge → S3 level-aware card detail → S4 Professional pins +
+    Full → S5 minimalistic chrome diet. Three calls put to David before build: Clean merge, Full absorbing
+    developer mode, default level.
   - **DEEPSEEK HARNESS (dsh) ASSESSMENT (David 2026-08-16: "anything we can take in?"):** Aug-13 release,
     MIT, Node/TS (stack- and license-compatible), Cordis plugin tree — model adapter/tools/session log/agent
     loop/sandbox all swappable. CANDIDATE TAKES, ranked: (1) **"Model-visible means logged"** — their session
