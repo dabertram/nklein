@@ -720,7 +720,9 @@ export default function App(): ReactElement {
 			return;
 		}
 	}, [closeHomeTerminal, currentProjectId, hasNoProjects, isHomeTerminalOpen, selectedCard]);
-	const showHomeBottomTerminal = !selectedCard && !hasNoProjects && isHomeTerminalOpen;
+	// §5.BB S5: the home terminal pane is board chrome — hidden at Minimalistic (its open-state survives the
+	// level switch, so stepping back up restores it).
+	const showHomeBottomTerminal = !selectedCard && !hasNoProjects && isHomeTerminalOpen && zoom !== 0;
 	const homeTerminalSubtitle = useMemo(
 		() => workspacePath ?? navigationProjectPath ?? null,
 		[navigationProjectPath, workspacePath],
@@ -1080,7 +1082,15 @@ export default function App(): ReactElement {
 									}
 						}
 						onToggleTerminal={
-							hasNoProjects ? undefined : selectedCard ? handleToggleDetailTerminal : handleToggleHomeTerminal
+							// §5.BB S5 (chrome diet): no home-terminal affordance at Minimalistic (the pure conversation);
+							// a card's own full-detail terminal stays reachable through the sheet's disclosure.
+							hasNoProjects
+								? undefined
+								: selectedCard
+									? handleToggleDetailTerminal
+									: zoom === 0
+										? undefined
+										: handleToggleHomeTerminal
 						}
 						isTerminalOpen={selectedCard ? isDetailTerminalOpen : showHomeBottomTerminal}
 						isTerminalLoading={selectedCard ? isDetailTerminalStarting : isHomeTerminalStarting}
@@ -1182,16 +1192,19 @@ export default function App(): ReactElement {
 													</button>
 												))}
 											</div>
-											<button
-												type="button"
-												data-testid="open-dag-view"
-												title="Open the full dependency graph (pan/zoom, cycles marked)"
-												onClick={() => setIsDagViewOpen(true)}
-												className="inline-flex items-center gap-1 rounded-lg border border-border-bright bg-surface-2 px-2.5 py-1 text-[12px] text-text-tertiary hover:text-text-primary"
-											>
-												<GitFork size={13} />
-												DAG
-											</button>
+											{zoom >= 1 ? (
+												// §5.BB S5 (chrome diet): Minimalistic is the pure conversation — no DAG chrome.
+												<button
+													type="button"
+													data-testid="open-dag-view"
+													title="Open the full dependency graph (pan/zoom, cycles marked)"
+													onClick={() => setIsDagViewOpen(true)}
+													className="inline-flex items-center gap-1 rounded-lg border border-border-bright bg-surface-2 px-2.5 py-1 text-[12px] text-text-tertiary hover:text-text-primary"
+												>
+													<GitFork size={13} />
+													DAG
+												</button>
+											) : null}
 											{needsYouCount > 0 ? (
 												// W3.4: the needs-you badge — a JUMP affordance for the zoomed-out views. On the full board
 												// (zoom 3) the board header's F12.52 queue chip is the single, richer affordance on WIDE

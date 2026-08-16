@@ -155,4 +155,26 @@ test.describe("UI polish regression guards", () => {
 		await page.getByTestId("card-sheet-full-detail").click();
 		await expect(page.getByTestId("card-detail-view")).toBeVisible();
 	});
+
+	test("Minimalistic hides DAG/terminal chrome; Clean restores the DAG button (§5.BB S5)", async ({ page }) => {
+		await primeUiState(page, { zoom: "2" });
+		await installRuntimeMock(page, {
+			snapshot: buildBoardSnapshot({
+				columns: buildBoardColumns({
+					in_progress: [buildBoardCard({ id: "c1", title: "Chrome diet card" })],
+				}),
+			}),
+		});
+		await gotoBoard(page);
+		await expect(page.getByTestId("open-dag-view")).toBeVisible();
+		// Non-vacuous baseline: the terminal affordance exists at Advanced before the diet hides it.
+		await expect(page.getByRole("button", { name: /open terminal|close terminal/i })).toBeVisible();
+		await page.getByRole("button", { name: "0 Minimalistic" }).click();
+		// The pure conversation: no DAG chrome, no terminal affordance, chat pane fronted.
+		await expect(page.getByTestId("chat-primary-pane")).toBeVisible();
+		await expect(page.getByTestId("open-dag-view")).toHaveCount(0);
+		await expect(page.getByRole("button", { name: /open terminal|close terminal/i })).toHaveCount(0);
+		await page.getByRole("button", { name: "1 Clean" }).click();
+		await expect(page.getByTestId("open-dag-view")).toBeVisible();
+	});
 });
