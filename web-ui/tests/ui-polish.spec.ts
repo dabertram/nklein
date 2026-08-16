@@ -68,7 +68,9 @@ test.describe("UI polish regression guards", () => {
 			snapshot: buildBoardSnapshot({
 				columns: buildBoardColumns({
 					planning: [planned("Queued planning card", "p1")],
-					in_progress: [buildBoardCard({ id: "d1", title: "Doing card" })],
+					// Same plan stream as p1: Clean's drill is stream-scoped since the Lean merge (2026-08-16),
+					// so cross-stream cards would legitimately be filtered out of this cluster.
+					in_progress: [planned("Doing card", "d1")],
 				}),
 			}),
 		});
@@ -85,7 +87,8 @@ test.describe("UI polish regression guards", () => {
 	});
 
 	test("overview clusters by plan slug with visible directed dependency edges", async ({ page }) => {
-		await primeUiState(page, { zoom: "1" });
+		// Boot at Advanced (gotoBoard's readiness probe needs the board), then walk into Clean like a user.
+		await primeUiState(page, { zoom: "2" });
 		await installRuntimeMock(page, {
 			snapshot: buildBoardSnapshot({
 				columns: buildBoardColumns({
@@ -96,7 +99,7 @@ test.describe("UI polish regression guards", () => {
 		});
 		await gotoBoard(page);
 		// Walk the real user path: click the zoom button (the boot zoom depends on stored/migrated state).
-		await page.getByRole("button", { name: "Z1 Overview" }).click();
+		await page.getByRole("button", { name: "1 Clean" }).click();
 		const map = page.getByTestId("activity-map");
 		await expect(map).toBeVisible();
 		// The cluster is labeled by the plan slug — NOT the old all-in-one "unplanned" blob.
@@ -127,5 +130,29 @@ test.describe("UI polish regression guards", () => {
 		await expect(badge).toHaveAttribute("title", /mistralai\/devstral-small-2-2512/);
 		// No duplicated "agent · default model" chip alongside the actual-model badge.
 		await expect(card).not.toContainText("!Klein ·");
+	});
+
+	test("Clean opens a card as the minimal sheet; Full detail expands in place (§5.BB S3)", async ({ page }) => {
+		// Boot at Advanced (gotoBoard's readiness probe needs the board), then walk into Clean like a user.
+		await primeUiState(page, { zoom: "2" });
+		await installRuntimeMock(page, {
+			snapshot: buildBoardSnapshot({
+				columns: buildBoardColumns({
+					in_progress: [buildBoardCard({ id: "s1", title: "Sheet card" })],
+				}),
+			}),
+		});
+		await gotoBoard(page);
+		await page.getByRole("button", { name: "1 Clean" }).click();
+		await page.locator("[data-cluster-id]").first().click();
+		// Click the card in the lean grid → the MINIMAL sheet, not the full detail view.
+		await page.getByTestId("lean-lane-doing").getByText("Sheet card").click();
+		const sheet = page.getByTestId("card-sheet");
+		await expect(sheet).toBeVisible();
+		await expect(sheet).toContainText("Sheet card");
+		await expect(page.getByTestId("card-detail-view")).toHaveCount(0);
+		// Progressive disclosure: one tap opens the full detail view at the same level.
+		await page.getByTestId("card-sheet-full-detail").click();
+		await expect(page.getByTestId("card-detail-view")).toBeVisible();
 	});
 });

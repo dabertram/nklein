@@ -13,6 +13,7 @@ import { notifyError, showAppToast } from "@/components/app-toaster";
 import { BoardDagView } from "@/components/board-dag-view";
 import { deriveReasoningSnippetByTask } from "@/components/board-reasoning-snippets";
 import { CardDetailView } from "@/components/card-detail-view";
+import { CardSheet } from "@/components/card-sheet";
 import { ChatPrimaryPane, ChatSidebar } from "@/components/chat/chat-sidebar";
 import { HostActionConfirmDialog } from "@/components/chat/host-action-confirm-dialog";
 import { ClearTrashDialog } from "@/components/clear-trash-dialog";
@@ -375,6 +376,12 @@ export default function App(): ReactElement {
 			setIsGitHistoryOpen(false);
 		},
 	});
+	// §5.BB S3: at Minimalistic/Clean an opened card shows the MINIMAL sheet first; "Full detail" expands to
+	// the full CardDetailView in place (per-card, so the next card starts minimal again).
+	const [sheetExpandedTaskId, setSheetExpandedTaskId] = useState<string | null>(null);
+	useEffect(() => {
+		setSheetExpandedTaskId(null); // every freshly opened card starts at the minimal sheet
+	}, [selectedTaskId]);
 	const handleWorkspaceStateApplied = useCallback(
 		(state: RuntimeWorkspaceStateResponse) => {
 			setBoard(state.board);
@@ -1340,7 +1347,18 @@ export default function App(): ReactElement {
 								</div>
 							)}
 						</div>
-						{selectedCard && detailSession ? (
+						{selectedCard && detailSession && zoom <= 1 && sheetExpandedTaskId !== selectedCard.card.id ? (
+							// §5.BB S3: Minimalistic/Clean open the MINIMAL sheet — full detail is one tap away.
+							<div className="absolute inset-0 flex min-h-0 min-w-0">
+								<CardSheet
+									selection={selectedCard}
+									session={detailSession}
+									reasoningSnippet={reasoningSnippetByTaskId[selectedCard.card.id]}
+									onOpenFullDetail={() => setSheetExpandedTaskId(selectedCard.card.id)}
+									onBack={handleBack}
+								/>
+							</div>
+						) : selectedCard && detailSession ? (
 							<div className="absolute inset-0 flex min-h-0 min-w-0">
 								<CardDetailView
 									selection={selectedCard}

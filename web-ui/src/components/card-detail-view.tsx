@@ -954,7 +954,11 @@ export function CardDetailView({
 	}
 
 	return (
-		<div ref={detailLayoutRef} className="flex min-h-0 flex-1 overflow-hidden bg-surface-0">
+		<div
+			ref={detailLayoutRef}
+			className="flex min-h-0 flex-1 overflow-hidden bg-surface-0"
+			data-testid="card-detail-view"
+		>
 			{!isDiffExpanded ? (
 				<>
 					<div className="flex min-h-0 min-w-0" style={{ width: taskCardsPanelPercent }}>
