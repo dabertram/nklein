@@ -15008,6 +15008,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     blocked cards exist, records every release (blocked_kind_autoclear), then durable-absorbs (F1 reconcile
     reopens the failed job) + sweeps. Unstamped needs_decomposition stays decomposition-released; web-ui manual
     clear untouched.
+  - **QWEN3.8-27B INTAKE (David 2026-08-16: "candidate for most capable so far... use it to its max"):**
+    Released Aug 14: DENSE 27.78B, multimodal (text/image/video), Apache 2.0, **native 262,144-token context**
+    (1M via YaRN), configurable reasoning effort, SWE-Bench Pro 61.7 (big jump over 3.6-27B). QUANT VERDICT
+    (David asked to verify Q8): Q8-class is right — near-lossless; on the M5 Max the artifact of choice is
+    **lmstudio-community/Qwen3.8-27B-MLX-8bit (~29GB)**: same quality tier as GGUF Q8 but faster on Apple
+    Silicon, and it leaves KV headroom to actually run the native 262k window (BF16 ~56GB would starve it).
+    MAX-USE CONFIG (official model card): thinking mode is DEFAULT-ON — **temp 1.0 / top_p 0.95 / top_k 20 /
+    min_p 0 / presence_penalty 0**; non-thinking: temp 0.7 / top_p 0.8 / top_k 20 / presence_penalty 1.5.
+    Set these as the LM Studio preset for the model (sampling lives server-side for OpenAI-compat callers);
+    load at 262144 context (matches the rig's standard request exactly); !Klein already parses
+    reasoning_content. Reasoning-effort lever: exposed via chat-template kwargs — verify at first load what
+    LM Studio surfaces and record. Note the outage post-mortem: the "HF hard-throttle" was mostly OUR probe +
+    resume curl missing -L (302 redirect measured/written as the payload) compounded by a real multi-day
+    internet outage; with -L the pipe runs fine. EVALUATION (extends task #29): load Qwen3.8 → real mid_task
+    drain as worker (emission-wall question) with the model-card sampling; Nemotron + Glimmer complete their
+    downloads on the restored pipe; fitness rows for all three; roles stay config-driven.
   - **NEW-MODEL INTAKE STATUS (David 2026-08-13: "check new suitable models... download 1-3... use them"):**
     Research picked TWO (disk bounds it; Kimi K2.7 Code = 1T params ruled out): NVIDIA Nemotron 3.5 Lightning
     30B-A3B Q8_0 (the Aug-11 release David referenced — agentic-tuned MoE, new lineage for reviewer diversity)
