@@ -15027,7 +15027,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     layout + hotkey + telemetry event + cross-tab sync, git-history keeps the bar, v2→v3 storage migration.
     Slices S1 ladder/migration/switcher → S2 Clean merge → S3 level-aware card detail → S4 Professional pins +
     Full → S5 minimalistic chrome diet. Three calls put to David before build: Clean merge, Full absorbing
-    developer mode, default level.
+    developer mode, default level. **ALL FIVE SLICES SHIPPED 2026-08-16** (S1+S2 6bf4276ae/f31f09213; S3 minimal
+    card sheet + in-place disclosure + Playwright-suite repair; S4 banded level-scoped prefs
+    (useBandedTriStatePref) + developer surfaces = Full ∧ server flag; S5 DAG/terminal chrome gated to ≥1;
+    per-level screenshot set generated via tests/level-screenshots.spec.ts and delivered). Remaining: David's
+    taste pass on the screenshots; level-scoped card-detail presets beyond the sheet (standard vs
+    evidence-forward vs raw-trails) stay future polish.
   - **DEEPSEEK HARNESS (dsh) ASSESSMENT (David 2026-08-16: "anything we can take in?"):** Aug-13 release,
     MIT, Node/TS (stack- and license-compatible), Cordis plugin tree — model adapter/tools/session log/agent
     loop/sandbox all swappable. CANDIDATE TAKES, ranked: (1) **"Model-visible means logged"** — their session
