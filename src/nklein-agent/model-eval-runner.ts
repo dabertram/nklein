@@ -33,6 +33,7 @@ import type { ModelEvalRun } from "../core/model-eval-aggregation.js";
 import { type EvalCellStability, scoreModelEvalStability } from "../core/model-eval-stability.js";
 import type { ModelFitnessRecord } from "../core/model-fitness.js";
 import type { ToolCallAttempt } from "../core/prompt-family-scorers.js";
+import { splitReasoningChannel } from "../core/reasoning-channel-split";
 import { selectStructuredOutputStrategy } from "../core/structured-output-strategy.js";
 import type { StoredDistractorObservation } from "../state/distractor-observation-store.js";
 import type { StoredReasoningObservation } from "../state/reasoning-observation-store.js";
@@ -246,15 +247,25 @@ async function scoreImplement(
 				content: `${prompt.prompt}\n\nReply with ONLY the implementation code. No explanation, no markdown fence.`,
 			},
 		],
-		{ max_tokens: maxTokens },
+		// Reasoning-model floor (same idiom as the decompose cell's 4000): thinking prose spends the budget
+		// BEFORE code on these cells; a 2500 cap truncated mid-think and read as "cannot implement".
+		{ max_tokens: Math.max(maxTokens, 6000) },
 	);
 	const text = readText(choice);
 	if (text.trim().length === 0) {
 		return null;
 	}
+	// §29 intake fix (live-found 2026-08-17 on nemotron-3.5/muse-glimmer): reasoning models stream their think
+	// channel as plain content prose before the code — feeding that prose to the sandbox defines nothing and
+	// read as "NO ANSWER", scoring capability where only channel separation failed. Strip the reasoning channel
+	// first; when the split yields no answer half, fall back to the raw text (non-reasoning models unchanged).
+	const answerOnly = splitReasoningChannel(text).answer.trim();
 	// Fences are stripped rather than counted as failures: an unstripped fence is a definition-time syntax error,
 	// which would score 0 and read as "cannot implement" when the model merely formatted its reply.
-	const result = await runImplement({ code: extractImplementCode(text), tests: prompt.tests });
+	const result = await runImplement({
+		code: extractImplementCode(answerOnly.length > 0 ? answerOnly : text),
+		tests: prompt.tests,
+	});
 	if (result === null) {
 		// Timeout, crash, or nothing reported. NOT 0/N — the model produced no measurable evidence, and the runner
 		// treats null as "no scorable answer" rather than as a zero it did not earn.
