@@ -193,6 +193,12 @@ export async function runRequestLogDivergence(options: RequestLogDivergenceOptio
 				return true;
 			}
 			const kind = classifyInjectionKind({ role: sample.role, content: sample.content });
+			if (kind === "retry_note") {
+				// Third tier — LEDGER-DERIVED: the retry note is buildAttemptRetryNoteFromLedger over the durable
+				// attempt ledger (a deterministic log→messages projection that predates #31), so its source of
+				// truth is already append-only durable state. Explained by construction.
+				return true;
+			}
 			return kind !== "other" && injectionRecords.some((record) => record.kind === kind);
 		});
 		sessions.push({
