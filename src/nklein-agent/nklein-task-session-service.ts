@@ -12,6 +12,7 @@ import { MAX_RESTATEMENT_RESTARTS } from "../core/off-track-intervention";
 import { getOffTrackRestartCount, recordOffTrackRestart } from "../core/off-track-restart-ledger";
 import { createPendingWriteTracker } from "../core/pending-write-tracker";
 import { parsePromptIntentMode } from "../core/prompt-intent-mode";
+import { buildSessionForkPlan, type SessionForkBoundary, type SessionForkRefusal } from "../core/session-fork";
 import { isTerminalFailureSessionState } from "../core/session-state-predicates";
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { applyJudgeSessionPromptDiet, JUDGE_SESSION_KINDS } from "../core/sysprompt-level";
@@ -994,6 +995,68 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			...(persisted ?? {}),
 			...input.launchConfigOverrides,
 		});
+	}
+
+	/**
+	 * §dsh#32 — fork a session's CONTEXT at a safe step boundary into a NEW task session (the DeepSeek Harness
+	 * `sessions.fork` take): the fork starts from the source's persisted transcript prefix + `prompt` as its
+	 * continuation instruction, on the source's own launch config. The pure boundary rule (core/session-fork)
+	 * refuses to cut a dangling tool_use. The SOURCE session is left untouched — cheap best-of-N and
+	 * checkpoint-retry both build on exactly this.
+	 */
+	async forkTaskSessionAtBoundary(input: {
+		sourceTaskId: string;
+		forkTaskId: string;
+		/** The fork's continuation instruction (e.g. "try a different approach for step 3"). */
+		prompt: string;
+		boundary?: SessionForkBoundary;
+		mode?: RuntimeTaskSessionMode;
+	}): Promise<{ refusal: SessionForkRefusal } | { started: RuntimeTaskSessionStartResult; boundaryIndex: number }> {
+		const persistedSnapshot = await this.sessionRuntime
+			.readPersistedTaskSession(input.sourceTaskId)
+			.catch(() => null);
+		if (!persistedSnapshot?.messages?.length) {
+			return { refusal: { kind: "empty_source" } };
+		}
+		const planned = buildSessionForkPlan({
+			sourceTaskId: input.sourceTaskId,
+			forkTaskId: input.forkTaskId,
+			messages: persistedSnapshot.messages,
+			boundary: input.boundary ?? "latest",
+			forkedAt: new Date().toISOString(),
+		});
+		if ("refusal" in planned) {
+			return { refusal: planned.refusal };
+		}
+		const launchConfig = this.resolveRestartLaunchConfig({
+			taskId: input.sourceTaskId,
+			persistedSnapshot,
+		});
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Session ${input.sourceTaskId} forked at message ${planned.plan.provenance.boundaryIndex} into ${input.forkTaskId}.`,
+				taskId: input.forkTaskId,
+				metadata: {
+					category: "session_forked",
+					sourceTaskId: input.sourceTaskId,
+					boundaryIndex: planned.plan.provenance.boundaryIndex,
+				},
+			});
+		} catch {
+			// Observability must never break a fork.
+		}
+		const started = await this.restartTaskSessionFromResolvedConfig({
+			taskId: input.forkTaskId,
+			prompt: input.prompt,
+			...(input.mode ? { mode: input.mode } : {}),
+			initialMessages: planned.plan.initialMessages,
+			launchConfig,
+			persistedSnapshot,
+			fallbackCwd: persistedSnapshot.record?.cwd ?? null,
+		});
+		return { started, boundaryIndex: planned.plan.provenance.boundaryIndex };
 	}
 
 	private async restartTaskSessionFromResolvedConfig(input: {

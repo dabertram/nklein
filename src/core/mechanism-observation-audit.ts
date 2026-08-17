@@ -1107,6 +1107,9 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"explicit_start_past_dependencies",
 	"model_usage",
 	"review_phase",
+	// §dsh#32 (2026-08-17): every fork records source + boundary index — a fork with no durable trace would be
+	// exactly the unlogged-context class #31 exists to kill.
+	"session_forked",
 	// David 2026-08-12: the park-path re-decompose rung records every spawn/skip decision with its reason —
 	// F4.8b's rule (record the DECISION, not only the action) applied to the widened rung.
 	"review_redecompose_rung",

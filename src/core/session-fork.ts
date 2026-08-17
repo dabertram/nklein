@@ -25,10 +25,10 @@ export const sessionForkBoundarySchema = z.union([
 ]);
 export type SessionForkBoundary = z.infer<typeof sessionForkBoundarySchema>;
 
-export interface SessionForkPlan {
+export interface SessionForkPlan<T extends ForkSourceMessage = ForkSourceMessage> {
 	forkTaskId: string;
 	/** The messages the fork starts from (source transcript up to and including the boundary message). */
-	initialMessages: ForkSourceMessage[];
+	initialMessages: T[];
 	provenance: {
 		sourceTaskId: string;
 		/** Index of the LAST source message included. */
@@ -87,13 +87,13 @@ export function latestStepBoundaryIndex(messages: readonly ForkSourceMessage[]):
 }
 
 /** Plan a fork, or refuse with a typed reason. PURE — the caller supplies the clock. */
-export function buildSessionForkPlan(input: {
+export function buildSessionForkPlan<T extends ForkSourceMessage>(input: {
 	sourceTaskId: string;
 	forkTaskId: string;
-	messages: readonly ForkSourceMessage[];
+	messages: readonly T[];
 	boundary: SessionForkBoundary;
 	forkedAt: string;
-}): { plan: SessionForkPlan } | { refusal: SessionForkRefusal } {
+}): { plan: SessionForkPlan<T> } | { refusal: SessionForkRefusal } {
 	if (input.sourceTaskId === input.forkTaskId) {
 		return { refusal: { kind: "same_id" } };
 	}
