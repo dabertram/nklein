@@ -15061,6 +15061,27 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     prompts invariant, #32 session fork, #33 scaffold-vs-scaffold bed; #33 runs when qwen3.8 lands, #31 is the
     next design slice, #32 builds on #31). Credit recorded in docs/attributions.md per the standing rule (the
     dsh entry adopts their invariant language and notes the corroborations honestly).**
+    **▶ #31 BLUEPRINT FILED 2026-08-17 (recon done — full prompt-assembly map).** Two request families, no
+    shared choke point: (1) SDK sessions, all passing `nklein-session-runtime.ts:889 modelWrapper` (wrap `base`
+    = innermost → sees the FINAL request after hooks/messageBuilders/decorators); (2) direct
+    `LocalLlmClient.buildBody()` (`nklein-local-llm-client.ts:190`, sole body builder for
+    complete/completeStream/completeWithTools); plus 3 raw-fetch strays to re-route through (2):
+    `nklein-drift-critic-caller.ts:32`, `two-phase-before-model.ts:59`, `local-advisor-completion.ts:121/143`.
+    HEADLINE DIVERGENCE: every `beforeModel` injection (repo-map rail, focus-chain re-anchor,
+    goal/constraints re-anchor, drift-critic note, stall replan, tool-trust reminder) lives in in-memory Maps
+    (`nklein-context-focus-extension.ts:92–164`) and persists NOWHERE (`beforeModel` mutates `request` only;
+    `prepareTurn` — the SDK's write-back — is never set by !Klein). Also: `.messages.json` is an overwrite
+    snapshot at iteration_end (not a journal); decorators (`context_shrink`, retry notes, prompt variants,
+    stateful delta) rewrite below every persistence point; chat prompt ≠ transcript by design. ARCH DECISION
+    (observe-first): **A then B, C deferred** — A = append-only `session-request-log` JSONL (jsonl-store +
+    lock primitive, same family as agent-attempt-ledger; verbatim wire messages, size-capped rotation,
+    env-off) written from the two choke points + rerouted strays; `deriveMessages()` projection +
+    hash-compare verifier as AUDIT (dev CLI + verify-simulated-flow assert + drift-report seam) — measures
+    real projection↔wire disagreement before any behavior change. B = replace the focus-extension Maps with
+    log appends and make `beforeModel` a pure projection of the log (mirrors `ledger-exemplar-messages.ts`,
+    the existing log→messages precedent) — makes the invariant structural for the biggest divergence. C
+    (log-authoritative sessions, dsh-literal) explicitly deferred: fights stateful-delta, the recovery
+    ladder, and prompt-cache warmth; revisit only with A's disagreement measurements in hand.
   - **QWEN3.8-27B INTAKE (David 2026-08-16: "candidate for most capable so far... use it to its max"):**
     Released Aug 14: DENSE 27.78B, multimodal (text/image/video), Apache 2.0, **native 262,144-token context**
     (1M via YaRN), configurable reasoning effort, SWE-Bench Pro 61.7 (big jump over 3.6-27B). QUANT VERDICT
