@@ -15057,6 +15057,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     wakes the driver — never lands mid-step); rejected-first-claim still logs a durable zero-step turn (the
     observation-truth spirit we just shipped for spawn skips). Their capability seams + goals service
     parallel what we already have (sandbox executors, focus-chain/reanchor) — validation, not takes.
+    **▶ #33 BED LEG 1 PROVEN 2026-08-17: dsh-headless drives OUR qwen3.8 end-to-end.** Checkout at
+    ~/GIT/deepseek-harness (pnpm-built via npx, no global installs); isolated DSH_HOME at
+    ~/GIT/nklein-scaffold-bed/dsh-home; headless profile patched with a hand-declared `lmstudio` route
+    (api openai-completions, baseURL localhost:1234/v1, qwen3.8-27b-mlx @262k; pi-ai insists on a key even
+    for keyless local servers → dummy env LMSTUDIO_API_KEY, not a credential). First task (habit-streak
+    implement+test): dsh authored both files, tests verified 4/4 GREEN by us; artifacts + their session
+    JSONL archived at ~/GIT/nklein-scaffold-bed/results/dsh-run-1. GOTCHAS: `dsh --profile headless "job"`
+    uses the INVOKING DIR as workspace root (run from a bed workspace, not the repo); npm cannot install the
+    workspace (pnpm-only). REMAINING for the bed: the matched !Klein leg (same prompt, same model — needs a
+    custom-prompt single-card rig run, not a preset), then the comparison capture (their session JSONL vs our
+    session-request-log — both scaffolds now have full wire records) over 3-5 matched tasks.
     **DAVID 2026-08-16: "integrate all the great ideas" — ALL THREE are now committed work (tasks #31 log-derived
     prompts invariant, #32 session fork, #33 scaffold-vs-scaffold bed; #33 runs when qwen3.8 lands, #31 is the
     next design slice, #32 builds on #31). Credit recorded in docs/attributions.md per the standing rule (the
