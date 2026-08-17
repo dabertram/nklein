@@ -15076,9 +15076,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     session, ~2 min; !Klein imposed src/+test/ layout, spent 23 tool calls (11 read_files, focus chain,
     predict_output) + spawned a review session that made llm-direct qwen3.6 calls and then IDLED without a
     verdict until the rig stall-killer fired at ~16 min — the worker's product was already complete and
-    correct. FOLLOW-UPS: (a) review-idle-without-verdict in the single-card ACT rig is a real observation
-    (N20-adjacent, different flavor); (b) optional bed phase 2 = 3-5 matched tasks + wire-record comparison
-    (their session JSONL vs our session-request-log, now symmetric). Results archived at
+    correct. FOLLOW-UPS **(a) CORRECTED by same-day autopsy — NOT review-idle**: the reviewer approved
+    (ran the tests itself, submit_review pass), resolution DELIVERED, then the S-track TAINT GATE held the
+    delivery by design (require_fresh_trusted_plan: tainted content may not move the protected host_access
+    sink — "review and merge manually") and retried into the same hold (durable approval reused, round 1).
+    Two real follow-ups fall out: (a1) buildDevTestSeedStartPayload drops the scenario's acceptanceCommand —
+    the card carries none, so delivery-gate evidence reads "tests NOT passed — no acceptance command"; (a2)
+    the rig stall-watcher reads an operator-hold (delivery held, card parked for a human) as a STALL — holds
+    are a settled terminal-for-the-rig state and should classify as such, not trip the killer. (b) optional
+    bed phase 2 = 3-5 matched tasks + wire-record comparison (their session JSONL vs our
+    session-request-log, now symmetric). Results archived at
     ~/GIT/nklein-scaffold-bed/results/{dsh-run-1,klein-run-1}.
     **DAVID 2026-08-16: "integrate all the great ideas" — ALL THREE are now committed work (tasks #31 log-derived
     prompts invariant, #32 session fork, #33 scaffold-vs-scaffold bed; #33 runs when qwen3.8 lands, #31 is the
