@@ -147,6 +147,11 @@ RUNTIME_LOG="$RUN_DIR/runtime.log"; DRAIN_JSON="$RUN_DIR/drain.json"; DRAIN_ERR=
 DEVLOG="$RUN_DIR/lmstudio-devlog.txt"; RUNLOG="$RUN_DIR/orchestrator.log"; SNAP="$RUN_DIR/snapshots.log"
 EVIDENCE_DIR="$RUN_DIR/evidence"
 SESSION_SNAPSHOT_DIR="$RUN_HOME/.nklein/evidence-session-snapshots"
+# §dsh#31: every rig run records the session request log (observe-first gate opened HERE, in the rig only) so
+# the wire-vs-durable divergence audit accumulates real-drain measurements at zero standalone cost:
+#   npx tsx src/cli.ts dev request-log-divergence --root <runDir>/session-request-log --home <runDir>/home
+export NKLEIN_SESSION_REQUEST_LOG=1
+export NKLEIN_SESSION_REQUEST_LOG_ROOT="$RUN_DIR/session-request-log"
 
 # The isolated HOME must still be a runnable !Klein installation. Configure the resident fleet as the role fallback
 # so decomposition children do not strand with "No native !Klein provider is configured" after a forced seed model.

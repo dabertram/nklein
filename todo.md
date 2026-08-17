@@ -15082,6 +15082,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     the existing log→messages precedent) — makes the invariant structural for the biggest divergence. C
     (log-authoritative sessions, dsh-literal) explicitly deferred: fights stateful-delta, the recovery
     ladder, and prompt-cache warmth; revisit only with A's disagreement measurements in hand.
+    **▶ ARCHITECTURE A SHIPPED + FIRST CALIBRATED MEASUREMENT 2026-08-17** (A1 core+store `c6951233d`, A2
+    taps `920216ebb`, A3 CLI `90b80c5b5`): sim-flow audit = **0/7 requests reconstructable from durable
+    state** (3 SDK sessions matched; the direct-call bucket has no snapshot by design). Wire-only injectors
+    named live: `[!Klein context focus brief]`, the repo-map rail, the attempt-retry note. DEEPER FINDING
+    (verbatim diff, same flattener both sides): the durable `.messages.json` contains NO tool_call row the
+    wire carried — the post-turn snapshot is compacted/pruned state (journal-vs-snapshot gap made concrete),
+    so the durable record cannot explain tool work the model actually saw. Rig runs now self-measure:
+    real-model-run.sh opens the gate into `$RUN_DIR/session-request-log` on every drain; audit with
+    `dev request-log-divergence --root <runDir>/session-request-log --home <runDir>/home`. NEXT: slice B —
+    replace the focus-extension Maps with log appends + pure projection (kills the three named injector
+    divergences structurally); then reconcile the snapshot writer (journal or tool-row retention) for the
+    compaction gap.
   - **QWEN3.8-27B INTAKE (David 2026-08-16: "candidate for most capable so far... use it to its max"):**
     Released Aug 14: DENSE 27.78B, multimodal (text/image/video), Apache 2.0, **native 262,144-token context**
     (1M via YaRN), configurable reasoning effort, SWE-Bench Pro 61.7 (big jump over 3.6-27B). QUANT VERDICT
