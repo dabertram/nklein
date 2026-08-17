@@ -8,7 +8,7 @@ import {
 } from "../core/mistake-streak-classifier";
 import { normalizeProviderBaseUrl } from "../core/openai-compat-base-url";
 import { decideResearchFreshnessGate } from "../core/research-freshness-gate";
-import { boardCardIdOfTaskSessionId } from "../core/synthetic-task-id";
+import { boardCardIdOfTaskSessionId, isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { relaxAgentToolSchemas } from "./agent-tool-boundary";
 import {
 	clearAllSessionFocusState,
@@ -1084,7 +1084,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 						// stream for synthetic ids (near-zero volume) so the next stall shows whether the stream was
 						// opened, produced a first event, or finished — splitting "hang before fetch" from "fetch never
 						// answered" without touching the vendored provider.
-						const observedModel: typeof profiledModel = !request.taskId.includes("::")
+						const observedModel: typeof profiledModel = !isDerivedTaskSessionId(request.taskId)
 							? profiledModel
 							: {
 									stream(streamRequest) {
