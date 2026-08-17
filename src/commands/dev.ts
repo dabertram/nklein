@@ -61,6 +61,7 @@ import { runDevOffTrackCommand } from "./dev-off-track-command";
 import { runDevOtelExportCommand } from "./dev-otel-export-command";
 import { runDevPrefillCostCommand } from "./dev-prefill-cost-command";
 import { createDevRuntimeClient, executeDevTestScenario } from "./dev-project-execution";
+import { runRequestLogDivergence } from "./dev-request-log";
 import { runDevRequirementCoverageCommand } from "./dev-requirement-coverage-command";
 import { runDevResidentSetCommand } from "./dev-resident-set-command";
 import { runDevRoundsBudgetCommand } from "./dev-rounds-budget-command";
@@ -767,6 +768,23 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevLedgerCommand(options);
+		});
+
+	dev.command("request-log-divergence")
+		.description(
+			"§dsh#31: audit the session request log (what models actually received) against durable .messages.json snapshots.",
+		)
+		.option("--session <id>", "Restrict to one (sanitized) session id.")
+		.option("--root <dir>", "Request-log root override (default: store resolution).")
+		.option("--home <dir>", "HOME whose .nklein snapshots to audit against (default: this user's home).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { session?: string; root?: string; home?: string; json?: boolean }) => {
+			await runRequestLogDivergence({
+				...(options.session ? { sessionId: options.session } : {}),
+				...(options.root ? { rootDir: options.root } : {}),
+				...(options.home ? { homeDir: options.home } : {}),
+				...(options.json ? { json: true } : {}),
+			});
 		});
 
 	dev.command("model-verdict")
