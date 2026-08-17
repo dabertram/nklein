@@ -15006,7 +15006,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     F12 ready-lane + explicit-start-past-deps live find); DECISIONS FOR DAVID: F8 blockedKind (enforce in sweep vs
     clear server-side — today display-only), M5 pre-commit scope (web-ui tsc + src co-located tests not run at
     commit); small: task-session-service :: sites, trigger-intake absorb, M2 CRDT streams modeling, F5 full gate
-    routing, F13 acceptance-repair role fallback on single-model rigs, attention-park skipped-review liveness pin,
+    routing, F13 acceptance-repair role fallback on single-model rigs (DONE 2026-08-17 `5f26ebf3c` — same-model fresh-session escalation), attention-park skipped-review liveness pin,
     redecompose fixture typed-pin (source id ≠ redecompose- prefix).**
   - **blockedKind ENFORCED + AUTO-CLEARED (David's 2026-08-12 decision, executed 2026-08-14, `8329d9fc1`):**
     the sweep refuses blocked cards; per-kind pure release decisions (fleet-fingerprint drift for reshard-stranded
