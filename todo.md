@@ -15007,7 +15007,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     clear server-side — today display-only), M5 pre-commit scope (web-ui tsc + src co-located tests not run at
     commit); small: task-session-service :: sites, trigger-intake absorb, M2 CRDT streams modeling, F5 full gate
     routing, F13 acceptance-repair role fallback on single-model rigs (DONE 2026-08-17 `5f26ebf3c` — same-model fresh-session escalation), attention-park skipped-review liveness pin (INVESTIGATED 2026-08-17: the runner's terminal skips release sessions since the 2026-08-14 wiring; review_round_in_flight is transient by design; the release condition's `not_reviewable` reason has NO producer today — dead-but-tolerant; no operator skip-resolution mutation exists; the original pin scenario appears closed — reopen only with a live repro),
-    redecompose fixture typed-pin (source id ≠ redecompose- prefix).**
+    redecompose fixture typed-pin (VERIFIED DONE 2026-08-17: both fixture sites pin typed `redecomposeOf` with non-prefixed source ids — satisfied by the batch-2 fixture-realism work).**
   - **blockedKind ENFORCED + AUTO-CLEARED (David's 2026-08-12 decision, executed 2026-08-14, `8329d9fc1`):**
     the sweep refuses blocked cards; per-kind pure release decisions (fleet-fingerprint drift for reshard-stranded
     cards via the new blockedFleetFingerprint stamp — self-correcting re-stamp loop; model-loaded for
@@ -15265,8 +15265,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
       no_verdict + generation-cap parks are operator-owned BY DESIGN (document); `blockedKind` is display-only
       (set, never cleared server-side, never gates the sweep); acceptance-repair escalate rung dark on
       single-model rigs (no reviewer/architect role configured) and whole ladder unreachable on no-Docker;
-      boot warm-up caps at 50 workspaces; `ready` lane not in `updateTaskDependencies`' waiting set (edge drops
-      for ready-lane dependents, latent); attention parks ARE finalize-reviewable (not operator-only — and a
+      boot warm-up caps at 50 workspaces; `ready` lane not in `updateTaskDependencies`' waiting set (FIXED in the edge-semantics slice `d6cfd24d8` — `ready` counts as waiting); attention parks ARE finalize-reviewable (not operator-only — and a
       `skipped` resolution can pin `awaiting_review` sessions live forever, blocking sweeps); pre-commit runs
       neither web-ui typecheck NOR the co-located `src/**/*.test.ts` suites (known first half; second half new).
     - **Healthy (verified by the sweeps, worth knowing):** cold-boot sweep order covers crash-stranded backlog
