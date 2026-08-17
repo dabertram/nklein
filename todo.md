@@ -15134,10 +15134,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     wire carried — the post-turn snapshot is compacted/pruned state (journal-vs-snapshot gap made concrete),
     so the durable record cannot explain tool work the model actually saw. Rig runs now self-measure:
     real-model-run.sh opens the gate into `$RUN_DIR/session-request-log` on every drain; audit with
-    `dev request-log-divergence --root <runDir>/session-request-log --home <runDir>/home`. NEXT: slice B —
-    replace the focus-extension Maps with log appends + pure projection (kills the three named injector
-    divergences structurally); then reconcile the snapshot writer (journal or tool-row retention) for the
-    compaction gap.
+    `dev request-log-divergence --root <runDir>/session-request-log --home <runDir>/home`. **▶ #31 CLOSED 2026-08-17 — THE INVARIANT HOLDS (audit: 5/5 wire-only rows explained).** Final
+    architecture: the durable TRIO — (1) the always-on write-ahead injection log (B1) explains the injector
+    rails; (2) the attempt ledger explains the retry note (log-derived by construction); (3) the request
+    log's own prior records explain continuity rows the snapshot compacts away (tool_call/tool_result).
+    Audit tiers: verbatim → kind → ledger-derived → prior-request. The `.messages.json` snapshot stays a
+    CONTINUITY artifact (no persistence redesign needed); "0/7 reconstructable from the snapshot alone"
+    remains true and honest — the INVARIANT is the trio. B2 (log-sourced beforeModel projection) and C
+    (log-authoritative sessions) DEFERRED BY EVIDENCE: no unexplained divergence remains to justify them.
+    OPEN DECISION for David: the request log is rig-gated (verbatim prompts are big — ~100KB/turn); enabling
+    NKLEIN_SESSION_REQUEST_LOG=1 in production would make the full invariant always-on at that disk cost
+    (rotation would be needed).
   - **QWEN3.8-27B INTAKE (David 2026-08-16: "candidate for most capable so far... use it to its max"):**
     Released Aug 14: DENSE 27.78B, multimodal (text/image/video), Apache 2.0, **native 262,144-token context**
     (1M via YaRN), configurable reasoning effort, SWE-Bench Pro 61.7 (big jump over 3.6-27B). QUANT VERDICT

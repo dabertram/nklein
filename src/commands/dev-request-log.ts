@@ -185,7 +185,20 @@ export async function runRequestLogDivergence(options: RequestLogDivergenceOptio
 		// legitimately prepend/rewrite rails (live-measured: the read-files nudge prefixes the repo-map rail and
 		// nets a 5-char rewrite), so byte equality is the wrong bar for "was this injection logged?". A wire-only
 		// row whose classified kind has a same-kind record in this session's injection log is explained.
+		// Fourth tier — IN A PRIOR RECORDED REQUEST: the request log itself is durable, so a wire row that
+		// already appeared in an earlier record of this session (tool_call/tool_result rows the SNAPSHOT
+		// compacts away) is model-visible AND logged — by #31's own machinery. This is what makes the trio
+		// (snapshot + injection log + request log) the full invariant while the request log records.
+		const priorContents = new Set<string>();
+		for (const record of records) {
+			for (const message of record.messages) {
+				priorContents.add(`${message.role.length}:${message.role}:${message.content}`);
+			}
+		}
 		const explained = summary.wireOnlySamples.filter((sample) => {
+			if (priorContents.has(`${sample.role.length}:${sample.role}:${sample.content}`)) {
+				return true;
+			}
 			const verbatim = injectionRecords.some(
 				(record) => sample.content.includes(record.content) || record.content.includes(sample.content),
 			);
@@ -225,7 +238,7 @@ export async function runRequestLogDivergence(options: RequestLogDivergenceOptio
 			continue;
 		}
 		write(
-			`  [${session.sessionId}] requests=${session.requestCount} reconstructable=${session.reconstructableCount} withWireOnly=${session.requestsWithWireOnly} wireOnlyExplainedByInjectionLog=${session.explainedWireOnlyCount ?? 0}/${session.wireOnlySamples.length} (injectionRecords=${session.injectionRecordCount ?? 0})\n`,
+			`  [${session.sessionId}] requests=${session.requestCount} reconstructable=${session.reconstructableCount} withWireOnly=${session.requestsWithWireOnly} wireOnlyExplained=${session.explainedWireOnlyCount ?? 0}/${session.wireOnlySamples.length} (injectionRecords=${session.injectionRecordCount ?? 0})\n`,
 		);
 		for (const sample of session.wireOnlySamples.slice(0, 6)) {
 			write(`      wire-only ${sample.role}: ${sample.contentPreview.slice(0, 110).replaceAll("\n", " ")}\n`);
