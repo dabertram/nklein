@@ -9934,6 +9934,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   pairs need arms that can COMPLETE, so subsequent invocations run longer caps. The CAMPAIGN itself is one command away
   (`scripts/ab-campaign.sh NKLEIN_MODEL_CONSULT --presets mid_task,deep_chain --repeat 3 --max-min 30` ≈ 6
   paired drains ≈ a few GPU-hours) — start it whenever the GPU time is worth it; pairs accumulate forever.
+  **▶ CAMPAIGN CONCLUDED 2026-08-17 (progression-scored regime, 45-min arms): NO FLIP — consult stays
+  default-OFF.** 15 pairs banked: A (off) 15/15, B (on) 10/15; discordant 5 worse / 0 better (McNemar
+  p=0.0625, one discordant short of 0.05); delta −33.3pp vs required ≥0pp. The flip decision needs a positive
+  effect and the point estimate is deeply negative, so further pairs can only chase the secondary
+  "significant-harm" claim — not worth 90-min pairs. Mechanism question left open (why ON-arms fail more:
+  consult detours burning wall-clock vs verdict-following into weaker plans); ledger kept at
+  ~/nklein-ab-campaigns/NKLEIN_MODEL_CONSULT.jsonl for any future re-open with a changed consult design.
   **▶ MECHANISM #2 COMPLETE 2026-08-11 — the off-track remedy (P18.4b) now has the full pipeline:** join key
   (drift/remedy observations carry the board task id), adapter (`off-track-remedy-observation-join`, same
   honesty rules as the gate join: unknown remedy = UNUSABLE, never counted toward either side; unjoined
