@@ -15087,6 +15087,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     bed phase 2 = 3-5 matched tasks + wire-record comparison (their session JSONL vs our
     session-request-log, now symmetric). Results archived at
     ~/GIT/nklein-scaffold-bed/results/{dsh-run-1,klein-run-1}.
+    **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
+    tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
+    `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
+    the generic core, resolves the SOURCE's launch config, starts the fork id through
+    restartTaskSessionFromResolvedConfig, source untouched, `session_forked` observation registered).
+    REMAINING #32: expose via tRPC (`forkTaskSession` beside startTaskSession in app-router interface +
+    runtime-api impl + task-session contracts) + a `dev fork-session --source --fork --prompt` CLI + a
+    sim-rig live proof (run a card to done, fork at latest boundary with an alternative instruction, watch
+    the fork run) — then the best-of-N consumer builds on it.
     **DAVID 2026-08-16: "integrate all the great ideas" — ALL THREE are now committed work (tasks #31 log-derived
     prompts invariant, #32 session fork, #33 scaffold-vs-scaffold bed; #33 runs when qwen3.8 lands, #31 is the
     next design slice, #32 builds on #31). Credit recorded in docs/attributions.md per the standing rule (the
