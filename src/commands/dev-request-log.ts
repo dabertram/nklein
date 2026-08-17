@@ -13,6 +13,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AgentMessage } from "@cline/shared";
+import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { classifyInjectionKind } from "../core/session-injection-log";
 import {
 	computeRequestDivergence,
 	type RequestDivergenceReport,
@@ -20,6 +22,7 @@ import {
 	summarizeSessionDivergence,
 } from "../core/session-request-log";
 import { agentMessageToEndpointText } from "../nklein-agent/local-alternate-endpoint-model";
+import { readSessionInjectionRecords } from "../state/session-injection-log-store";
 import { listSessionRequestLogSessions, readSessionRequestRecords } from "../state/session-request-log-store";
 
 interface SnapshotTranscript {
@@ -119,6 +122,8 @@ export async function runRequestLogDivergence(options: RequestLogDivergenceOptio
 		reconstructableCount: number;
 		requestsWithWireOnly: number;
 		wireOnlySamples: Array<{ role: string; contentPreview: string }>;
+		explainedWireOnlyCount?: number;
+		injectionRecordCount?: number;
 	}>;
 }> {
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
@@ -134,6 +139,8 @@ export async function runRequestLogDivergence(options: RequestLogDivergenceOptio
 		reconstructableCount: number;
 		requestsWithWireOnly: number;
 		wireOnlySamples: Array<{ role: string; contentPreview: string }>;
+		explainedWireOnlyCount?: number;
+		injectionRecordCount?: number;
 	}> = [];
 	for (const sessionId of sessionIds) {
 		const records = await readSessionRequestRecords(sessionId, storeOptions);
@@ -156,6 +163,38 @@ export async function runRequestLogDivergence(options: RequestLogDivergenceOptio
 			computeRequestDivergence(record.messages, snapshot.messages),
 		);
 		const summary = summarizeSessionDivergence(reports);
+		// §dsh#31 B1: a wire-only row EXPLAINED by the write-ahead injection log is model-visible AND logged —
+		// the invariant number is the UNEXPLAINED remainder. (Injection contents are matched by containment:
+		// merge-normalization may have folded an injected rail into a larger wire row.) Injection files are
+		// keyed by the FULL SDK session id (`<taskId>-<ts>-<suffix>`) while request-log scopes use the task id —
+		// resolve exact-then-unique-prefix, like snapshots.
+		const injectionRoot = join(resolveNkleinRuntimeHomePath(homeDir), "session-injection-log");
+		const injectionFiles = (await readdir(injectionRoot).catch(() => [] as string[]))
+			.filter((entry) => entry.endsWith(".jsonl"))
+			.map((entry) => entry.slice(0, -".jsonl".length));
+		const injectionSessionId =
+			injectionFiles.find((entry) => entry === sessionId) ??
+			(() => {
+				const prefixed = injectionFiles.filter((entry) => entry.startsWith(`${sessionId}-`));
+				return prefixed.length === 1 ? prefixed[0] : undefined;
+			})();
+		const injectionRecords = injectionSessionId
+			? await readSessionInjectionRecords(injectionSessionId, { rootDir: injectionRoot })
+			: [];
+		// Two explanation tiers: VERBATIM (byte containment) and KIND-level — post-injection transforms
+		// legitimately prepend/rewrite rails (live-measured: the read-files nudge prefixes the repo-map rail and
+		// nets a 5-char rewrite), so byte equality is the wrong bar for "was this injection logged?". A wire-only
+		// row whose classified kind has a same-kind record in this session's injection log is explained.
+		const explained = summary.wireOnlySamples.filter((sample) => {
+			const verbatim = injectionRecords.some(
+				(record) => sample.content.includes(record.content) || record.content.includes(sample.content),
+			);
+			if (verbatim) {
+				return true;
+			}
+			const kind = classifyInjectionKind({ role: sample.role, content: sample.content });
+			return kind !== "other" && injectionRecords.some((record) => record.kind === kind);
+		});
 		sessions.push({
 			sessionId,
 			matched: true,
@@ -163,6 +202,8 @@ export async function runRequestLogDivergence(options: RequestLogDivergenceOptio
 			reconstructableCount: summary.reconstructableCount,
 			requestsWithWireOnly: summary.requestsWithWireOnly,
 			wireOnlySamples: summary.wireOnlySamples,
+			explainedWireOnlyCount: explained.length,
+			injectionRecordCount: injectionRecords.length,
 		});
 	}
 
@@ -178,7 +219,7 @@ export async function runRequestLogDivergence(options: RequestLogDivergenceOptio
 			continue;
 		}
 		write(
-			`  [${session.sessionId}] requests=${session.requestCount} reconstructable=${session.reconstructableCount} withWireOnly=${session.requestsWithWireOnly}\n`,
+			`  [${session.sessionId}] requests=${session.requestCount} reconstructable=${session.reconstructableCount} withWireOnly=${session.requestsWithWireOnly} wireOnlyExplainedByInjectionLog=${session.explainedWireOnlyCount ?? 0}/${session.wireOnlySamples.length} (injectionRecords=${session.injectionRecordCount ?? 0})\n`,
 		);
 		for (const sample of session.wireOnlySamples.slice(0, 6)) {
 			write(`      wire-only ${sample.role}: ${sample.contentPreview.slice(0, 110).replaceAll("\n", " ")}\n`);

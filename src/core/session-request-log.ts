@@ -96,8 +96,11 @@ export function buildSessionRequestRecord(input: {
 /** A wire message that has no counterpart in the durable state (or vice versa). */
 export interface DivergentMessage {
 	role: string;
-	/** First 160 chars — enough to recognize the injector without duplicating the log. */
+	/** First 160 chars — for display. */
 	contentPreview: string;
+	/** The full divergent content — the injection-log match must run on whole strings (a truncated preview
+	 *  fails containment in BOTH directions once a rail is merged into a larger wire row). */
+	content: string;
 }
 
 /**
@@ -124,7 +127,7 @@ function messageKey(message: SessionRequestWireMessage): string {
 }
 
 function toDivergent(message: SessionRequestWireMessage): DivergentMessage {
-	return { role: message.role, contentPreview: message.content.slice(0, 160) };
+	return { role: message.role, contentPreview: message.content.slice(0, 160), content: message.content };
 }
 
 /** Measure how far the durable state is from the wire — the heart of the slice-A audit. PURE. */

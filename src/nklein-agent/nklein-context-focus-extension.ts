@@ -29,6 +29,7 @@ import {
 } from "../core/read-before-write-guard";
 import type { ResultHandleStore } from "../core/result-handle";
 import { allAlwaysKeepToolNames } from "../core/role-always-keep-tools";
+import { buildSessionInjectionRecords } from "../core/session-injection-log";
 import { assessTestMisinterpretation, type TestMisinterpretationEvent } from "../core/test-misinterpretation-detector";
 import { DEFAULT_TOOL_CAP, decideToolGateEnforcement, gateToolCatalog } from "../core/tool-catalog-retrieval-gate";
 import {
@@ -39,8 +40,10 @@ import {
 	toolTrustGuidance,
 	toolTrustTier,
 } from "../core/tool-trust-decay";
+import { appendSessionInjectionRecords } from "../state/session-injection-log-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
+import { agentMessageToEndpointText } from "./local-alternate-endpoint-model";
 import { buildKanbanContextPressurePolicy } from "./nklein-context-budgets";
 import { countKanbanPersistedMessagesTokens, focusKanbanReadFilesForNextRequest } from "./nklein-context-focus-policy";
 import { reanchorFocusChainMessages } from "./nklein-focus-chain-rail";
@@ -361,6 +364,9 @@ export function createKanbanContextFocusExtension(
 				// A stopped beforeModel cycle never reaches the provider. Clear first so an unusual runtime cannot pair a
 				// later afterModel with stale timing from a prior request whose completion hook was interrupted.
 				modelRequestStartedAtMs = null;
+				// §dsh#31 B1: entry snapshot for the exit diff — any outgoing row whose id is not in this set was
+				// injected by THIS hook and gets write-ahead logged at the exit below.
+				const injectionEntryMessages = context.request.messages;
 				// F12.40: stamp the SDK's run-cumulative usage into the live registry (one Map write per model call)
 				// so the autonomy-budget watchdog can see what a RUNNING card has spent — the summary only learns
 				// usage at run end. Defensive: odd runtimes/fakes may omit the snapshot.
@@ -908,6 +914,29 @@ export function createKanbanContextFocusExtension(
 				);
 				// This is the closest hook-visible point to provider dispatch: exclude repo-map/tool-selection preparation
 				// from inference latency, while retaining the complete stream wait through afterModel.
+				// §dsh#31 B1: the WRITE-AHEAD INJECTION LOG — one diff at the hook's single exit records every
+				// message this hook added (present and future injectors alike; kinds classify by the injectors'
+				// own id prefixes). Fire-and-forget: recording must never delay or break the turn.
+				try {
+					const outgoingInjectionMessages = finalResult?.messages ?? context.request.messages;
+					if (outgoingInjectionMessages !== injectionEntryMessages) {
+						const toDiffMessage = (message: (typeof outgoingInjectionMessages)[number]) => ({
+							id: message.id,
+							role: message.role,
+							content: agentMessageToEndpointText(message),
+						});
+						void appendSessionInjectionRecords(
+							buildSessionInjectionRecords({
+								sessionId,
+								entryMessages: injectionEntryMessages.map(toDiffMessage),
+								outgoingMessages: outgoingInjectionMessages.map(toDiffMessage),
+								recordedAt: new Date().toISOString(),
+							}),
+						);
+					}
+				} catch {
+					// Observational only.
+				}
 				modelRequestStartedAtMs = Date.now();
 				return finalResult;
 			},
@@ -1238,7 +1267,59 @@ export function createKanbanContextFocusExtension(
 			api.registerMessageBuilder({
 				name: "kanban-read-files-focus",
 				build(messages) {
-					return focusKanbanReadFilesForNextRequest(messages) ?? messages;
+					const built = focusKanbanReadFilesForNextRequest(messages) ?? messages;
+					// §dsh#31 B1: the messageBuilder runs BELOW the beforeModel exit diff (orchestrator-side), so the
+					// focus brief it injects/rewrites needs its own write-ahead capture. Persisted-message rows carry
+					// no stable ids here, so the diff is a (role, flattened-content) multiset: outgoing rows without
+					// an entry twin were added or rewritten by this builder.
+					try {
+						if (built !== messages) {
+							const flatten = (message: (typeof built)[number]): { role: string; content: string } => {
+								const raw = (message as { content?: unknown }).content;
+								const content =
+									typeof raw === "string"
+										? raw
+										: Array.isArray(raw)
+											? raw
+													.map((part) =>
+														part && typeof part === "object" && "text" in part
+															? String((part as { text?: unknown }).text ?? "")
+															: JSON.stringify(part),
+													)
+													.join("\n")
+											: JSON.stringify(raw ?? "");
+								return { role: String((message as { role?: unknown }).role ?? "user"), content };
+							};
+							const entryFlat = messages.map(flatten);
+							const entryCounts = new Map<string, number>();
+							for (const row of entryFlat) {
+								const key = `${row.role.length}:${row.role}:${row.content}`;
+								entryCounts.set(key, (entryCounts.get(key) ?? 0) + 1);
+							}
+							const added = built.map(flatten).filter((row) => {
+								const key = `${row.role.length}:${row.role}:${row.content}`;
+								const available = entryCounts.get(key) ?? 0;
+								if (available > 0) {
+									entryCounts.set(key, available - 1);
+									return false;
+								}
+								return true;
+							});
+							if (added.length > 0) {
+								void appendSessionInjectionRecords(
+									buildSessionInjectionRecords({
+										sessionId,
+										entryMessages: [],
+										outgoingMessages: added.map((row) => ({ id: undefined, ...row })),
+										recordedAt: new Date().toISOString(),
+									}),
+								);
+							}
+						}
+					} catch {
+						// Observational only.
+					}
+					return built;
 				},
 			});
 		},
