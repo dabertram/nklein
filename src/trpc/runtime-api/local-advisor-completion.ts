@@ -1,5 +1,7 @@
 import { resolveDefaultLocalModelBaseUrl } from "../../core/local-model-endpoint";
+import { buildSessionRequestRecord } from "../../core/session-request-log";
 import type { ResolvedNKleinLaunchConfig } from "../../nklein-agent/nklein-provider-service";
+import { appendSessionRequestRecord, isSessionRequestLogEnabled } from "../../state/session-request-log-store";
 
 /**
  * Local advisor chat-completion for `createRuntimeApi`, extracted from the oversized `runtime-api.ts` (todo §5.U).
@@ -102,6 +104,19 @@ async function fetchAdvisorJson(url: string, init: RequestInit): Promise<unknown
 }
 
 export async function runLocalAdvisorCompletion(input: AdvisorChatCompletionInput): Promise<string> {
+	// §dsh#31 A2: raw-fetch stray tap (covers both the Ollama and OpenAI branches — same single-message wire).
+	if (isSessionRequestLogEnabled()) {
+		void appendSessionRequestRecord(
+			buildSessionRequestRecord({
+				sessionId: `advisor:${input.launchConfig.modelId ?? "unknown"}`,
+				source: "local_llm_client",
+				purpose: "advisor",
+				modelId: input.launchConfig.modelId ?? "unknown",
+				recordedAt: new Date().toISOString(),
+				messages: [{ role: "user", content: input.prompt }],
+			}),
+		);
+	}
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), 120_000);
 	try {

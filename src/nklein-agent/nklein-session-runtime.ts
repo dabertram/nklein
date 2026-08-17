@@ -111,6 +111,7 @@ import { createWebResearchTool } from "./nklein-web-research-tool";
 import { createWriteFilesTool, createWriteFileTool } from "./nklein-write-files-tool";
 import { createRunawayInterruptModel } from "./runaway-interrupt-model";
 import type { AgentTool } from "./sdk-agent-types";
+import { createSessionRequestLogModel } from "./session-request-log-model";
 
 // F3.37: per-card consult budget — ONE consult per card. The article's own pattern; more than one converts
 // consultation into the loop the budget exists to prevent. Raised only with A/B evidence, never casually.
@@ -379,7 +380,11 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 							// m5max rule is generous timeouts everywhere — a truncated consult wastes the budget.
 							timeoutMs: CONSULT_COMPLETION_TIMEOUT_MS,
 						});
-						const completion = await client.complete({ messages: [{ role: "user", content: prompt }] });
+						const completion = await client.complete({
+							messages: [{ role: "user", content: prompt }],
+							// §dsh#31 A2: attribute the consult in the session request log under its task.
+							logScope: { sessionId: `consult:${request.taskId}`, purpose: "consult" },
+						});
 						return completion.content;
 					} catch {
 						return null;
@@ -887,8 +892,16 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 					// executable shared-policy rung before any partial text/reasoning/usage event becomes visible. Caller
 					// cancellation is authoritative, and a turn that emitted a tool call is never replayed.
 					modelWrapper: (base) => {
+						// §dsh#31 A2: the request-log tap wraps `base` FIRST (innermost), so it records the FINAL
+						// request every outer decorator and beforeModel hook produced — the wire truth. No-op unless
+						// NKLEIN_SESSION_REQUEST_LOG=1 (observe-first rigs).
+						const recordedBase = createSessionRequestLogModel(base, {
+							sessionId: request.taskId,
+							modelId: request.modelId ?? "unknown",
+							purpose: "session_turn",
+						});
 						const interruptionGuardedBase = isTruthyEnv(process.env.NKLEIN_RUNAWAY_ABORT)
-							? createRunawayInterruptModel(base, {
+							? createRunawayInterruptModel(recordedBase, {
 									onInterrupt: (verdict) => {
 										process.stderr.write(
 											`[nklein] Runaway generation interrupted for ${request.taskId}: ${verdict.detail ?? verdict.reason ?? "degenerate output"}\n`,
@@ -914,7 +927,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 										}
 									},
 								})
-							: base;
+							: recordedBase;
 						const guardedBase = statefulResponsesDecision.adopt
 							? createStatefulResponsesModel(interruptionGuardedBase, {
 									onObservation: (observation) => {

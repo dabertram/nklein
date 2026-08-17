@@ -8,9 +8,11 @@
  * and a `none`/`plan_needed`/truncated pick leaves the full set unchanged (only a confident single pick narrows).
  */
 
+import { buildSessionRequestRecord } from "../core/session-request-log";
 import { kanbanTaskToolCardByName } from "../core/task-tool-cards";
 import type { ToolCard } from "../core/tool-card";
 import { narrowToolsToPick, type PhaseOneRawResponse } from "../core/two-phase-tool-pick";
+import { appendSessionRequestRecord, isSessionRequestLogEnabled } from "../state/session-request-log-store";
 import { runTwoPhaseToolPick, type TwoPhasePickModelCaller } from "./two-phase-tool-runner";
 
 /** The latest user-authored step text from a message list (what the pick is "for"); "" when there is none. */
@@ -52,6 +54,23 @@ export function createOpenAiCompatPhaseOnePickCaller(config: {
 	const base = config.baseUrl.replace(/\/$/, "");
 	const url = base.endsWith("/v1") ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
 	return async ({ menu, task }): Promise<PhaseOneRawResponse> => {
+		const wireMessages = [
+			{ role: "system", content: menu },
+			{ role: "user", content: `Step: ${task}\nYour single-line answer:` },
+		];
+		// §dsh#31 A2: raw-fetch stray tap — keeps the request log total over model-bound requests.
+		if (isSessionRequestLogEnabled()) {
+			void appendSessionRequestRecord(
+				buildSessionRequestRecord({
+					sessionId: `phase1-pick:${config.modelId}`,
+					source: "local_llm_client",
+					purpose: "phase1_pick",
+					modelId: config.modelId,
+					recordedAt: new Date().toISOString(),
+					messages: wireMessages,
+				}),
+			);
+		}
 		const response = await fetch(url, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
@@ -59,10 +78,7 @@ export function createOpenAiCompatPhaseOnePickCaller(config: {
 				model: config.modelId,
 				temperature: 0,
 				max_tokens: config.maxTokens ?? 1024,
-				messages: [
-					{ role: "system", content: menu },
-					{ role: "user", content: `Step: ${task}\nYour single-line answer:` },
-				],
+				messages: wireMessages,
 			}),
 		});
 		if (!response.ok) {

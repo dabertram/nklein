@@ -12,6 +12,8 @@
  * model the worker runs on — a second opinion from a fresh context, not a stronger model.
  */
 
+import { buildSessionRequestRecord } from "../core/session-request-log";
+import { appendSessionRequestRecord, isSessionRequestLogEnabled } from "../state/session-request-log-store";
 import type { DriftCriticModelCaller } from "./nklein-context-focus-extension";
 
 export function createOpenAiCompatDriftCriticCaller(config: {
@@ -22,6 +24,20 @@ export function createOpenAiCompatDriftCriticCaller(config: {
 	const base = config.baseUrl.replace(/\/$/, "");
 	const url = base.endsWith("/v1") ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
 	return async (prompt: string): Promise<string | null> => {
+		// §dsh#31 A2: this is one of the three raw-fetch strays outside the LocalLlmClient choke point — tap it
+		// directly so the request log stays total over model-bound requests.
+		if (isSessionRequestLogEnabled()) {
+			void appendSessionRequestRecord(
+				buildSessionRequestRecord({
+					sessionId: `drift-critic:${config.modelId}`,
+					source: "local_llm_client",
+					purpose: "drift_critic",
+					modelId: config.modelId,
+					recordedAt: new Date().toISOString(),
+					messages: [{ role: "user", content: prompt }],
+				}),
+			);
+		}
 		const response = await fetch(url, {
 			method: "POST",
 			headers: { "content-type": "application/json" },

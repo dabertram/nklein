@@ -8,7 +8,9 @@ import { buildJsonSchemaResponseFormat } from "../core/lmstudio-response-format"
 import { mergeConsecutiveSameRoleMessages, mergeSystemMessagesFirst } from "../core/normalize-system-first";
 import { normalizeOpenAiCompatBaseUrl } from "../core/openai-compat-base-url";
 import { reasoningAndAnswerText, splitReasoningChannel } from "../core/reasoning-channel-split";
+import { buildSessionRequestRecord } from "../core/session-request-log";
 import { isRetryableModelCallError, RetryableModelCallAbortError, withTransientRetry } from "../core/transient-error";
+import { appendSessionRequestRecord, isSessionRequestLogEnabled } from "../state/session-request-log-store";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
 import {
 	parseNarratedToolCalls,
@@ -78,6 +80,8 @@ export interface LocalLlmCompletionRequest {
 	sampling?: LocalLlmSamplingOptions;
 	format?: LocalLlmStructuredFormat;
 	signal?: AbortSignal;
+	/** §dsh#31 A2: attributes this call in the session request log (unset ⇒ a synthetic per-model scope). */
+	logScope?: { sessionId: string; purpose: string };
 }
 
 export interface LocalLlmCompletion {
@@ -187,6 +191,37 @@ export class LocalLlmClient {
 		this.fetchImpl = config.fetchImpl ?? fetch;
 	}
 
+	/**
+	 * §dsh#31 A2: best-effort request-log record at the direct-call choke point. Flattens parts-array content to
+	 * a tagged JSON string (the audit needs recognizable text, not multimodal fidelity). Never throws; no-op
+	 * unless NKLEIN_SESSION_REQUEST_LOG=1.
+	 */
+	private recordWireRequest(
+		request: LocalLlmCompletionRequest,
+		wireMessages: Array<{ role: string; content: unknown }>,
+	): void {
+		try {
+			if (!isSessionRequestLogEnabled()) {
+				return;
+			}
+			const record = buildSessionRequestRecord({
+				sessionId: request.logScope?.sessionId ?? `llm-direct:${this.config.modelId}`,
+				source: "local_llm_client",
+				purpose: request.logScope?.purpose ?? "direct",
+				modelId: this.config.modelId,
+				recordedAt: new Date().toISOString(),
+				messages: wireMessages.map((message) => ({
+					role: message.role,
+					content:
+						typeof message.content === "string" ? message.content : `[parts] ${JSON.stringify(message.content)}`,
+				})),
+			});
+			void appendSessionRequestRecord(record);
+		} catch {
+			// Observational only — a log failure must never break the completion that produced it.
+		}
+	}
+
 	private buildBody(request: LocalLlmCompletionRequest): Record<string, unknown> {
 		const sampling = request.sampling ?? {};
 		const body: Record<string, unknown> = {
@@ -206,6 +241,8 @@ export class LocalLlmClient {
 			),
 			stream: false,
 		};
+		// §dsh#31 A2: record the POST-normalization wire messages (the model sees these, not the caller's array).
+		this.recordWireRequest(request, body.messages as Array<{ role: string; content: unknown }>);
 		if (sampling.temperature !== undefined) body.temperature = sampling.temperature;
 		if (sampling.topP !== undefined) body.top_p = sampling.topP;
 		if (sampling.topK !== undefined) body.top_k = sampling.topK;
