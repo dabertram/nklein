@@ -137,5 +137,22 @@ export function parseImplementHarnessOutput(stdout: string): ImplementHarnessRes
  */
 export function extractImplementCode(reply: string): string {
 	const fenced = /```(?:[a-zA-Z]*)\n([\s\S]*?)```/u.exec(reply);
-	return (fenced?.[1] ?? reply).trim();
+	const code = (fenced?.[1] ?? reply).trim();
+	// Bounded brace repair (§29 intake, live-found byte-level on nemotron-3.5): reasoning templates that
+	// pre-open a think block can make the model emit eos ONE token early, leaving a complete function missing
+	// only its closing brace(s). That is the same artifact class as an unstripped fence — a serving/format
+	// quirk, not "cannot implement" — so append at most 3 missing closers when (and only when) the braces are
+	// otherwise balanced-in-order. Surplus or interleaved-wrong braces are left untouched and fail honestly.
+	let depth = 0;
+	for (const char of code) {
+		if (char === "{") {
+			depth += 1;
+		} else if (char === "}") {
+			depth -= 1;
+			if (depth < 0) {
+				return code; // surplus closer — structural, not a truncation artifact
+			}
+		}
+	}
+	return depth > 0 && depth <= 3 ? code + "\n" + "}".repeat(depth) : code;
 }

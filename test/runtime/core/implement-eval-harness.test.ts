@@ -101,3 +101,17 @@ describe("extractImplementCode", () => {
 		expect(extractImplementCode("function f(){ return 1; }")).toBe("function f(){ return 1; }");
 	});
 });
+
+describe("extractImplementCode brace repair (§29 early-eos artifact)", () => {
+	it("appends up to 3 missing closers for an otherwise balanced-in-order body", () => {
+		const truncated = "function f() {\n  const g = () => {\n    return 1;\n  };\n  return g();";
+		expect(extractImplementCode(truncated)).toBe(`${truncated}\n}`);
+	});
+
+	it("leaves surplus or deeply unbalanced code untouched — those fail honestly", () => {
+		const surplus = "function f() { return 1; } }";
+		expect(extractImplementCode(surplus)).toBe(surplus);
+		const fourDeep = "a {{{{";
+		expect(extractImplementCode(fourDeep)).toBe(fourDeep);
+	});
+});
