@@ -15092,7 +15092,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
     the generic core, resolves the SOURCE's launch config, starts the fork id through
     restartTaskSessionFromResolvedConfig, source untouched, `session_forked` observation registered).
-    REMAINING #32: expose via tRPC (`forkTaskSession` beside startTaskSession in app-router interface +
+    **▶ #32 LIVE-PROVEN + CLOSED 2026-08-17**: exposure shipped (`166523d25` contract + workspaceProcedure +
+    runtime-api impl + `dev fork-session` CLI) and `scripts/fork-smoke.mts` proves the whole chain on the sim
+    rig — ACP card runs to completed (8 messages), forkTaskSession returns forked=true boundaryIndex=7, and
+    the FORK session runs past the boundary from the inherited context. The dsh take is integrated; the
+    best-of-N / checkpoint-retry CONSUMER is a future feature slice that now has its primitive.
+    (superseded plan) REMAINING #32: expose via tRPC (`forkTaskSession` beside startTaskSession in app-router interface +
     runtime-api impl + task-session contracts) + a `dev fork-session --source --fork --prompt` CLI + a
     sim-rig live proof (run a card to done, fork at latest boundary with an alternative instruction, watch
     the fork run) — then the best-of-N consumer builds on it.
