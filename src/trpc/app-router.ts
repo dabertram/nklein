@@ -205,6 +205,8 @@ import type {
 	RuntimeTaskEvidenceResponse,
 	RuntimeTaskPauseRequest,
 	RuntimeTaskPauseResponse,
+	RuntimeTaskSessionForkRequest,
+	RuntimeTaskSessionForkResponse,
 	RuntimeTaskSessionInputRequest,
 	RuntimeTaskSessionInputResponse,
 	RuntimeTaskSessionStartRequest,
@@ -383,6 +385,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskSessionStopRequest,
 		) => Promise<RuntimeTaskSessionStopResponse>;
+		forkTaskSession: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeTaskSessionForkRequest,
+		) => Promise<RuntimeTaskSessionForkResponse>;
 		pauseTask: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskPauseRequest,

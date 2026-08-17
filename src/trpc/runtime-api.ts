@@ -1552,6 +1552,22 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			handleStopTaskSession(workspaceScope, input, {
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
 			}),
+		// §dsh#32: fork = pure boundary plan + the service's proven restart path; refusals map to a flat response.
+		forkTaskSession: async (workspaceScope, input) => {
+			const service = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+			const result = await service.forkTaskSessionAtBoundary({
+				sourceTaskId: input.sourceTaskId,
+				forkTaskId: input.forkTaskId,
+				prompt: input.prompt,
+				...(typeof input.afterMessageIndex === "number"
+					? { boundary: { afterMessageIndex: input.afterMessageIndex } }
+					: {}),
+			});
+			if ("refusal" in result) {
+				return { forked: false, boundaryIndex: null, refusalKind: result.refusal.kind };
+			}
+			return { forked: true, boundaryIndex: result.boundaryIndex, refusalKind: null };
+		},
 		pauseTask: async (workspaceScope, input) =>
 			handlePauseTask(workspaceScope, input, {
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,

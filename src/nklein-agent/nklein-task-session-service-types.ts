@@ -20,6 +20,7 @@ import type { FocusChain } from "../core/focus-chain";
 import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import type { PromptFragment } from "../core/prompt-fragment-assembly";
 import type { SandboxMcpServerControls } from "../core/sandbox-mcp-controls";
+import type { SessionForkBoundary, SessionForkRefusal } from "../core/session-fork";
 import type { SkillDynamicsLevel } from "../core/skill-resolver";
 import type { CommunitySkillSessionAdmission } from "../server/community-skill-execution-service";
 import type { TaskRunTimeoutSource } from "../state/task-run-summary-store";
@@ -34,6 +35,7 @@ import type { NKleinPlanCritiqueResult } from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import type { PromptCacheStats } from "./nklein-prompt-warmth-ledger";
 import type { NKleinReviewResult } from "./nklein-review-tool";
+import type { RuntimeTaskSessionStartResult } from "./nklein-runtime-session-input";
 import type { NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import type { CreateInMemoryNKleinSessionRuntimeOptions, NKleinSessionRuntime } from "./nklein-session-runtime";
 import { buildSessionSkillFragments } from "./nklein-session-skill-fragments";
@@ -167,6 +169,14 @@ export interface NKleinTaskSessionService {
 	 * post-delivery cleanup stop, so a racing late finalize is benign supersede noise instead of a capture error.
 	 */
 	markTaskDeliverySettled?: (taskId: string) => void;
+	/** §dsh#32: fork the source session's context at a safe step boundary into a NEW task session. */
+	forkTaskSessionAtBoundary(input: {
+		sourceTaskId: string;
+		forkTaskId: string;
+		prompt: string;
+		boundary?: SessionForkBoundary;
+		mode?: RuntimeTaskSessionMode;
+	}): Promise<{ refusal: SessionForkRefusal } | { started: RuntimeTaskSessionStartResult; boundaryIndex: number }>;
 	stopTaskSession(
 		taskId: string,
 		options?: { reviewReason?: RuntimeTaskSessionReviewReason; abortActiveTurn?: boolean },

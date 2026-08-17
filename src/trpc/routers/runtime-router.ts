@@ -186,6 +186,10 @@ import {
 } from "../../core/api-contract";
 import { runtimeFieldReportCandidatesResponseSchema } from "../../core/field-report-api-contract";
 import { runtimeBuildIdentitySchema } from "../../core/runtime-build-identity";
+import {
+	runtimeTaskSessionForkRequestSchema,
+	runtimeTaskSessionForkResponseSchema,
+} from "../../core/task-session-api-contract";
 import type { RuntimeTrpcBuilder, RuntimeWorkspaceProcedure } from "../app-router";
 
 export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: RuntimeWorkspaceProcedure) {
@@ -376,6 +380,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeTaskSessionStopResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.stopTaskSession(ctx.workspaceScope, input);
+			}),
+		forkTaskSession: workspaceProcedure
+			.input(runtimeTaskSessionForkRequestSchema)
+			.output(runtimeTaskSessionForkResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.forkTaskSession(ctx.workspaceScope, input);
 			}),
 		pauseTask: workspaceProcedure
 			.input(runtimeTaskPauseRequestSchema)

@@ -800,6 +800,42 @@ export function registerDevCommand(program: Command): void {
 			await runDevLedgerCommand(options);
 		});
 
+	dev.command("fork-session")
+		.description("dsh#32: fork a task session's context at a safe step boundary into a NEW task session.")
+		.requiredOption("--source <taskId>", "Source task whose persisted transcript seeds the fork.")
+		.requiredOption("--fork <taskId>", "New task id for the forked session.")
+		.requiredOption("--prompt <text>", "The fork's continuation instruction.")
+		.option("--after-message-index <n>", "Explicit boundary index (default: latest safe boundary).", (value) =>
+			Number.parseInt(value, 10),
+		)
+		.option("--project-path <path>", "Workspace path (defaults to the cwd).")
+		.action(
+			async (options: {
+				source: string;
+				fork: string;
+				prompt: string;
+				afterMessageIndex?: number;
+				projectPath?: string;
+			}) => {
+				const workspace = await loadWorkspaceContext(options.projectPath ?? process.cwd(), {
+					autoCreateIfMissing: false,
+				});
+				const client = createDevRuntimeClient(workspace.workspaceId);
+				const response = await client.runtime.forkTaskSession.mutate({
+					sourceTaskId: options.source,
+					forkTaskId: options.fork,
+					prompt: options.prompt,
+					...(typeof options.afterMessageIndex === "number"
+						? { afterMessageIndex: options.afterMessageIndex }
+						: {}),
+				});
+				process.stdout.write(`${JSON.stringify(response)}\n`);
+				if (!response.forked) {
+					process.exitCode = 1;
+				}
+			},
+		);
+
 	dev.command("request-log-divergence")
 		.description(
 			"§dsh#31: audit the session request log (what models actually received) against durable .messages.json snapshots.",

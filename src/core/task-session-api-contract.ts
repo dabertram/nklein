@@ -6,6 +6,26 @@ import { runtimeAgentIdWithLegacyMigrationSchema } from "./runtime-config-api-co
 // api-contract.ts (§5.X #2), re-exported through the `@runtime-contract` barrel. Imports only `z` +
 // runtimeAgentIdSchema (from the config-primitives module) — never the barrel (no load-order cycle).
 
+/** §dsh#32: fork a session's context at a safe step boundary into a NEW task session. */
+export const runtimeTaskSessionForkRequestSchema = z.object({
+	sourceTaskId: z.string(),
+	forkTaskId: z.string(),
+	/** The fork's continuation instruction. */
+	prompt: z.string(),
+	/** Explicit boundary (message index); omit for the latest safe boundary. */
+	afterMessageIndex: z.number().int().min(0).optional(),
+});
+export type RuntimeTaskSessionForkRequest = z.infer<typeof runtimeTaskSessionForkRequestSchema>;
+
+export const runtimeTaskSessionForkResponseSchema = z.object({
+	forked: z.boolean(),
+	/** Index of the last source message the fork carried; null when refused. */
+	boundaryIndex: z.number().int().nullable(),
+	/** Typed refusal kind (same_id | empty_source | index_out_of_range | dangling_tool_use); null on success. */
+	refusalKind: z.string().nullable(),
+});
+export type RuntimeTaskSessionForkResponse = z.infer<typeof runtimeTaskSessionForkResponseSchema>;
+
 export const runtimeTaskSessionStateSchema = z.enum([
 	"idle",
 	"queued",
