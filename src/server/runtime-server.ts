@@ -5792,6 +5792,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				});
 				return { board: applied.board, value: "created" as const };
 			});
+			// Audit remainder closed 2026-08-17 (same class as the F1 mid-run decompose fix): a trigger-seeded
+			// card born while a durable run is LIVE must join that run immediately — without this, it sat
+			// outside the run until an unrelated absorb tick happened to fire.
+			if (mutation.value === "created") {
+				void absorbNewBoardCardsIntoRun({
+					workspaceId: entry.workspaceId,
+					workspacePath: entry.repoPath,
+				} as RuntimeTrpcWorkspaceScope).catch(() => undefined);
+			}
 			return mutation.value;
 		},
 		audit: async ({
