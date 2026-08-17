@@ -402,7 +402,17 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 				throw new Error(`--scenario-file: missing/empty required string field "${field}"`);
 			}
 		}
-		scenarioOverride = candidate as NKleinDevTestProjectScenario;
+		const validated = candidate as NKleinDevTestProjectScenario;
+		// The delivery gate + card contract parse acceptance from the PROMPT ("Acceptance command: <cmd>",
+		// nklein-task-prompt-parsing). Presets embed it via their spec scaffold; a custom scenario gets the
+		// same line appended so the fail-closed gate has evidence instead of "no acceptance command on the
+		// card" (live-found on the first scaffold-bed run, 2026-08-17).
+		scenarioOverride = /^Acceptance command:/im.test(validated.prompt)
+			? validated
+			: {
+					...validated,
+					prompt: `${validated.prompt.trimEnd()}\n\nAcceptance command: ${validated.acceptanceCommand}\n`,
+				};
 	}
 	const preset = parseDevTestPreset(options.preset);
 	// With NO `--project-path`, SCAFFOLD a fresh isolated scenario project (template + `specification.md` + git init) and

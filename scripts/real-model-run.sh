@@ -497,6 +497,13 @@ while kill -0 "$DRAIN_PID" 2>/dev/null; do
   STALL_LIMIT="$STALL_SECS"; STALL_KIND="idle"
   if [ -n "$MSTAT" ]; then STALL_LIMIT="$ACTIVE_STALL_SECS"; STALL_KIND="active-model"; fi
   if [ "$IDLE_FOR" -ge "$STALL_LIMIT" ]; then
+    # dsh#33 autopsy (2026-08-17): a delivery HELD for the operator (taint gate / manual-merge policy) is a
+    # SETTLED terminal state for an unattended rig, not a stall — the pipeline finished and correctly parked
+    # the card for a human. Classify it honestly instead of tripping the killer.
+    if grep -aq "Delivery held for" "$RUNTIME_LOG" 2>/dev/null; then
+      ABORT_REASON="operator_hold"
+      log "REACT: SETTLED (operator-hold) — delivery held for manual review (taint/manual-merge policy); board quiet for ${IDLE_FOR}s. Ending the watch as settled."
+      { echo "=== OPERATOR-HOLD SNAPSHOT ==="; echo "board: $SIG"; grep -a "Delivery held for" "$RUNTIME_LOG" | tail -3; } >>"$SNAP"; break; fi
     ABORT_REASON="stalled"
     log "REACT: STALL ($STALL_KIND) — no board/tool/model-log progress for ${IDLE_FOR}s (limit ${STALL_LIMIT}s). Snapshotting + aborting."
     { echo "=== STALL SNAPSHOT ==="; echo "board: $SIG"; echo "runtime log tail:"; tail -20 "$RUNTIME_LOG"; } >>"$SNAP"; break; fi
