@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -20,6 +21,7 @@ import { checkRoleModelReadiness, type RoleModelRequirement } from "../core/role
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
 import {
 	type DevTestSelection,
+	type NKleinDevTestProjectScenario,
 	resolveNKleinDevTestProjectScenario,
 	scaffoldNKleinDevTestProject,
 } from "../nklein-agent/nklein-dev-test-project";
@@ -302,6 +304,8 @@ const execFileAsync = promisify(execFile);
 
 interface DevTestProjectOptions {
 	preset?: string;
+	/** §dsh#33: JSON file holding a custom NKleinDevTestProjectScenario to run instead of a preset. */
+	scenarioFile?: string;
 	projectPath?: string;
 	baseRef?: string;
 	pollIntervalMs?: number;
@@ -346,12 +350,14 @@ async function executeDevTestPreset(input: {
 	nullAgent?: boolean;
 	/** P23.5 resume-mode: skip seeding when the board already holds non-terminal cards. */
 	resumeExistingBoard?: boolean;
+	/** §dsh#33: run this custom scenario verbatim instead of resolving `preset` (scaffold-bed matched tasks). */
+	scenarioOverride?: NKleinDevTestProjectScenario;
 }): Promise<{
 	scenario: ReturnType<typeof resolveNKleinDevTestProjectScenario>;
 	result: Awaited<ReturnType<typeof executeDevTestScenario>>["result"];
 	durationMs: number;
 }> {
-	const scenario = resolveNKleinDevTestProjectScenario(input.preset);
+	const scenario = input.scenarioOverride ?? resolveNKleinDevTestProjectScenario(input.preset);
 	return await executeDevTestScenario({
 		client: input.client,
 		workspaceId: input.workspaceId,
@@ -385,6 +391,19 @@ async function executeDevTestPreset(input: {
 export async function runDevTestProjectCommand(options: DevTestProjectOptions = {}): Promise<void> {
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
 	const cwd = options.cwd ?? process.cwd();
+	// §dsh#33: a scenario file replaces the preset entirely (validated minimally here — the harness and the
+	// runtime enforce the rest); the preset default only applies when no file is given.
+	let scenarioOverride: NKleinDevTestProjectScenario | undefined;
+	if (options.scenarioFile) {
+		const raw: unknown = JSON.parse(await readFile(options.scenarioFile, "utf8"));
+		const candidate = raw as Partial<NKleinDevTestProjectScenario>;
+		for (const field of ["id", "title", "prompt", "specification", "acceptanceCommand"] as const) {
+			if (typeof candidate[field] !== "string" || candidate[field].trim().length === 0) {
+				throw new Error(`--scenario-file: missing/empty required string field "${field}"`);
+			}
+		}
+		scenarioOverride = candidate as NKleinDevTestProjectScenario;
+	}
 	const preset = parseDevTestPreset(options.preset);
 	// With NO `--project-path`, SCAFFOLD a fresh isolated scenario project (template + `specification.md` + git init) and
 	// run against it — a true one-shot trustworthy verification (scaffold + seed + run, §5.AI). Without the scaffolded
@@ -462,6 +481,7 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 		workspaceId: workspace.workspaceId,
 		projectPath,
 		preset,
+		...(scenarioOverride ? { scenarioOverride } : {}),
 		baseRef: options.baseRef ?? scaffoldedBaseRef ?? "main",
 		...(nkleinSettings ? { nkleinSettings } : {}),
 		...(options.plan === false ? { startInPlanMode: false } : {}),
@@ -1763,6 +1783,10 @@ export function registerDevCommand(program: Command): void {
 		.option(
 			"--preset <preset>",
 			"Scenario preset: mid_task | complex_dag | audio_vst | daw_foundation | wide_fanout | deep_chain | mixed_dag | many_small.",
+		)
+		.option(
+			"--scenario-file <path>",
+			"Run a CUSTOM scenario from a JSON file ({id,title,prompt,specification,acceptanceCommand,...}) instead of a preset (§dsh#33 scaffold bed).",
 		)
 		.option("--project-path <path>", "Workspace path to run the dev-test scenario in. Defaults to the cwd.")
 		.option("--base-ref <ref>", "Base git ref for the seed card. Defaults to main.")

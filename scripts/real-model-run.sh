@@ -350,8 +350,11 @@ else
   log "launching drain: preset=$PRESET mode=${MODE:-plan} worker=$WORKER max=${MAX_MIN}m"
   NULL_AGENT_ARG=""
   [ "$NULL_AGENT" = 1 ] && NULL_AGENT_ARG="--null-agent"
+  # dsh#33 scaffold bed: a preset arg ending in .json is a CUSTOM scenario file, not a preset name.
+  SCENARIO_ARGS=(--preset "$PRESET")
+  case "$PRESET" in *.json) SCENARIO_ARGS=(--scenario-file "$PRESET");; esac
   ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
-      "$REPO/node_modules/.bin/tsx" src/cli.ts dev test-project --preset "$PRESET" $MODE $NULL_AGENT_ARG \
+      "$REPO/node_modules/.bin/tsx" src/cli.ts dev test-project "${SCENARIO_ARGS[@]}" $MODE $NULL_AGENT_ARG \
         --model-id "$WORKER" --provider-id lmstudio \
         --max-wait-ms $((MAX_MIN*60000)) --poll-interval-ms 10000 --json \
         >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!

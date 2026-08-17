@@ -15068,6 +15068,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     workspace (pnpm-only). REMAINING for the bed: the matched !Klein leg (same prompt, same model — needs a
     custom-prompt single-card rig run, not a preset), then the comparison capture (their session JSONL vs our
     session-request-log — both scaffolds now have full wire records) over 3-5 matched tasks.
+    **▶ LEG 2 + FIRST MATCHED PAIR GRADED same day — the bed IS BUILT.** `dev test-project --scenario-file
+    <json>` runs ANY custom scenario through the proven harness (real-model-run.sh accepts a .json arg in the
+    preset position), so both scaffolds ran the IDENTICAL habit-streak prompt on qwen3.8: **both 4/4 green**
+    (dsh verified in-tree; !Klein graded from evidence transcripts — the rig workspace is torn down; extract
+    write_file payloads from evidence/sessions). Behavioral notes: dsh wrote to the CWD as asked, single
+    session, ~2 min; !Klein imposed src/+test/ layout, spent 23 tool calls (11 read_files, focus chain,
+    predict_output) + spawned a review session that made llm-direct qwen3.6 calls and then IDLED without a
+    verdict until the rig stall-killer fired at ~16 min — the worker's product was already complete and
+    correct. FOLLOW-UPS: (a) review-idle-without-verdict in the single-card ACT rig is a real observation
+    (N20-adjacent, different flavor); (b) optional bed phase 2 = 3-5 matched tasks + wire-record comparison
+    (their session JSONL vs our session-request-log, now symmetric). Results archived at
+    ~/GIT/nklein-scaffold-bed/results/{dsh-run-1,klein-run-1}.
     **DAVID 2026-08-16: "integrate all the great ideas" — ALL THREE are now committed work (tasks #31 log-derived
     prompts invariant, #32 session fork, #33 scaffold-vs-scaffold bed; #33 runs when qwen3.8 lands, #31 is the
     next design slice, #32 builds on #31). Credit recorded in docs/attributions.md per the standing rule (the
