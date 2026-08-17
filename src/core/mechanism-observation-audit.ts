@@ -1107,6 +1107,8 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"explicit_start_past_dependencies",
 	"model_usage",
 	"review_phase",
+	// F5 audit remainder (2026-08-17): the plan-gate park now opens a repair card — every spawn/skip recorded.
+	"plan_gate_repair_spawned",
 	// §dsh#32 (2026-08-17): every fork records source + boundary index — a fork with no durable trace would be
 	// exactly the unlogged-context class #31 exists to kill.
 	"session_forked",

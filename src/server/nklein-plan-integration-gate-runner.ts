@@ -4,6 +4,7 @@ import {
 	resolvePlanAcceptanceCommand,
 	resolvePlanFailureSurfaceCardId,
 } from "../core/plan-integration-gate";
+import { addTaskToColumn } from "../core/task-board-mutations";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -47,6 +48,7 @@ export function createPlanIntegrationGateRunner(deps: PlanIntegrationGateRunnerD
 		failure: { command: string; exitCode: number | null; outputHead: string },
 	): Promise<void> => {
 		let surfacedTaskId: string | null = null;
+		let repairSpawned = false;
 		await retryWorkspaceStateLock(() =>
 			mutateWorkspaceState(scope.workspacePath, (latestState) => {
 				const surfaceTaskId = resolvePlanFailureSurfaceCardId(latestState.board, planSlug);
@@ -74,20 +76,74 @@ export function createPlanIntegrationGateRunner(deps: PlanIntegrationGateRunnerD
 					signOff: null,
 					parkedReason:
 						"Plan integration gate failed — every card passed in isolation but the merged tree does not. " +
-						"Operator repair owed (v1 opens no repair cards; this park is NOT picked up by the review-path " +
-						"re-decompose rung — that rung fires only from a review-loop park).",
+						`A repair card (plan-gate-repair-${planSlug}) was opened with the failure evidence; the park ` +
+						"stays until the repair delivers or the operator resolves it.",
 					updatedAt: Date.now(),
 				};
+				// F5 (audit remainder, closed 2026-08-17): the park previously cited a rung that cannot fire and
+				// opened NO remedy. Spawn ONE repair card (deterministic id — idempotent across re-runs) in the
+				// same board write, carrying the exact failure evidence in ACT mode; its own review/ladder owns
+				// escalation from there.
+				const repairTaskId = `plan-gate-repair-${planSlug}`;
+				let withPark = applyCardReviewToBoard(latestState.board, surfaceTaskId, review, "review");
+				const repairExists = withPark.columns.some((column) =>
+					column.cards.some((card) => card.id === repairTaskId),
+				);
+				if (!repairExists) {
+					try {
+						repairSpawned = true;
+						withPark = addTaskToColumn(
+							withPark,
+							"backlog",
+							{
+								taskId: repairTaskId,
+								title: `Repair integration: plan "${planSlug}"`,
+								prompt:
+									`The plan-level integration gate FAILED for plan "${planSlug}" although every card passed in isolation.\n\n` +
+									`Failed command: \`${failure.command}\` (exit ${failure.exitCode ?? "?"}) on the fully-merged tree.\n\n` +
+									`Output head:\n${failure.outputHead || "(no output captured)"}\n\n` +
+									"Reproduce the failure on the merged tree, fix the cross-card integration issue, and re-run the " +
+									`failed command until it passes.\n\nAcceptance command: ${failure.command}`,
+								baseRef: surfaceCard.baseRef,
+								startInPlanMode: false,
+								autoReviewEnabled: surfaceCard.autoReviewEnabled ?? true,
+							},
+							() => repairTaskId,
+						).board;
+					} catch {
+						// The PARK must never be lost to a repair-spawn failure (e.g. an exotic board shape) — the
+						// park alone is still strictly better than losing both.
+						repairSpawned = false;
+					}
+				}
 				return {
-					board: applyCardReviewToBoard(latestState.board, surfaceTaskId, review, "review"),
+					board: withPark,
 					value: null,
 				};
 			}),
 		);
 		if (surfacedTaskId) {
 			deps.warn(
-				`Plan integration gate FAILED for plan "${planSlug}" (exit ${failure.exitCode ?? "?"}): surfaced on card ${surfacedTaskId} in Review.`,
+				`Plan integration gate FAILED for plan "${planSlug}" (exit ${failure.exitCode ?? "?"}): surfaced on card ${surfacedTaskId} in Review${repairSpawned ? `; repair card plan-gate-repair-${planSlug} opened` : ""}.`,
 			);
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "warning",
+					message: `Plan integration gate failed for "${planSlug}": ${repairSpawned ? "repair card opened" : "repair card already present"} (plan-gate-repair-${planSlug}).`,
+					taskId: surfacedTaskId,
+					workspacePath: scope.workspacePath,
+					metadata: {
+						category: "plan_gate_repair_spawned",
+						planSlug,
+						spawned: repairSpawned,
+						command: failure.command,
+						exitCode: failure.exitCode,
+					},
+				});
+			} catch {
+				// Telemetry must never break the gate path.
+			}
 		} else {
 			deps.warn(
 				`Plan integration gate FAILED for plan "${planSlug}" (exit ${failure.exitCode ?? "?"}), but no source/member card remains on the board to surface it on.`,

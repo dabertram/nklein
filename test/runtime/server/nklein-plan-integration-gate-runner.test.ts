@@ -5,7 +5,14 @@ const h = vi.hoisted(() => ({
 	resolvePlanAcceptanceCommand: vi.fn((_i: unknown) => "npm test" as string | null),
 	resolvePlanFailureSurfaceCardId: vi.fn((_b: unknown, _s: string) => "card-1" as string | null),
 	mutateWorkspaceState: vi.fn(async (_p: string, mutate: (s: unknown) => unknown) =>
-		mutate({ board: { columns: [{ cards: [{ id: "card-1", review: null }] }] } }),
+		mutate({
+			board: {
+				columns: [
+					{ id: "backlog", title: "Backlog", cards: [] },
+					{ id: "review", title: "Review", cards: [{ id: "card-1", review: null, baseRef: "main" }] },
+				],
+			},
+		}),
 	),
 	retryWorkspaceStateLock: vi.fn(async (fn: () => unknown) => fn()),
 	applyCardReviewToBoard: vi.fn((board: unknown, _id: string, _r: unknown, _lane: string) => board),
@@ -87,6 +94,19 @@ describe("createPlanIntegrationGateRunner", () => {
 		);
 		expect(h.mutateWorkspaceState).toHaveBeenCalledOnce();
 		expect(h.applyCardReviewToBoard).toHaveBeenCalledWith(expect.anything(), "card-1", expect.anything(), "review");
+		// F5 remedy: the SAME board write opens the repair card with the failure evidence, ACT mode.
+		const mutated = (await h.mutateWorkspaceState.mock.results[0]?.value) as {
+			board: { columns: Array<{ id?: string; cards: Array<{ id: string; prompt?: string }> }> };
+		};
+		const backlog = mutated.board.columns.find((column) => column.id === "backlog");
+		const repair = backlog?.cards.find((card) => card.id === "plan-gate-repair-plan-a");
+		expect(repair).toBeDefined();
+		expect(repair?.prompt).toContain("Acceptance command: npm test");
+		expect(h.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: expect.objectContaining({ category: "plan_gate_repair_spawned", spawned: true }),
+			}),
+		);
 	});
 
 	it("treats a signal-killed acceptance child (exit 137) as INDETERMINATE — no Review surfacing (N10 forensics)", async () => {
