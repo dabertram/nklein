@@ -114,6 +114,18 @@ describe("nklein acceptance repair", () => {
 		expect(plan?.prompt).toContain("escalate this task to the reviewer role");
 	});
 
+	it("F13: escalates in a fresh same-model session when no reviewer/architect role is configured", () => {
+		const plan = buildNKleinAcceptanceRepairPlan({
+			taskId: "task-1",
+			taskPrompt: "Implement the fix.\nAcceptance check: npm test",
+			acceptance: failedAcceptance,
+			attempt: 3,
+			maxAttempts: 2,
+		});
+		expect(plan).toMatchObject({ action: "escalate", escalatedRole: "worker", escalatedSettings: {} });
+		expect(plan?.prompt).toContain("FRESH session");
+	});
+
 	it("hands off after the single escalation attempt also failed", () => {
 		const plan = buildNKleinAcceptanceRepairPlan({
 			taskId: "task-1",

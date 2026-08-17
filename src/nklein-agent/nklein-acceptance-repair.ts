@@ -21,7 +21,7 @@ export interface NKleinAcceptanceRepairPlan {
 	action: NKleinAcceptanceRepairAction;
 	attempt: number;
 	maxAttempts: number;
-	escalatedRole: "reviewer" | "architect" | null;
+	escalatedRole: "reviewer" | "architect" | "worker" | null;
 	escalatedSettings: RuntimeTaskNKleinSettings | null;
 	prompt: string;
 	summary: string;
@@ -107,7 +107,7 @@ export function extractAcceptanceFailureConstraint(output: string): string | nul
 
 function selectEscalationRole(
 	modelRoles: RuntimeModelRoles | undefined,
-): { role: "reviewer" | "architect"; settings: RuntimeTaskNKleinSettings } | null {
+): { role: "reviewer" | "architect" | "worker"; settings: RuntimeTaskNKleinSettings } | null {
 	const reviewer = modelRoles?.reviewer;
 	if (reviewer && Object.keys(reviewer).length > 0) {
 		return { role: "reviewer", settings: reviewer };
@@ -116,7 +116,11 @@ function selectEscalationRole(
 	if (architect && Object.keys(architect).length > 0) {
 		return { role: "architect", settings: architect };
 	}
-	return null;
+	// F13 (recorded remainder, closed 2026-08-17): a single-model rig configures NEITHER role, which left the
+	// escalate rung dark — the ladder fell straight to human_review. The rung's value is not only a stronger
+	// model: a FRESH session with the escalation brief breaks the failed session's fixation. Empty settings ⇒
+	// buildEscalationOverrides applies no model override, so the same model retries clean.
+	return { role: "worker", settings: {} };
 }
 
 function buildRepairPrompt(input: {
@@ -126,7 +130,7 @@ function buildRepairPrompt(input: {
 	action: NKleinAcceptanceRepairAction;
 	attempt: number;
 	maxAttempts: number;
-	escalatedRole: "reviewer" | "architect" | null;
+	escalatedRole: "reviewer" | "architect" | "worker" | null;
 }): string[] {
 	const commandText = input.acceptance.command ?? "(missing Acceptance check)";
 	const outputPreview = trimOutputPreview(input.acceptance.output);
@@ -137,7 +141,9 @@ function buildRepairPrompt(input: {
 			: input.action === "repair"
 				? `Acceptance check failed on repair attempt ${input.attempt} of ${input.maxAttempts}.`
 				: input.action === "escalate"
-					? `Acceptance check still failed; escalate this task to the ${input.escalatedRole ?? "reviewer"} role.`
+					? input.escalatedRole === "worker"
+						? "Acceptance check still failed; retrying in a FRESH session of the same model with this escalation brief."
+						: `Acceptance check still failed; escalate this task to the ${input.escalatedRole ?? "reviewer"} role.`
 					: "Acceptance check still failed after the allowed repair attempts; prepare a concise human handoff.";
 	return [
 		header,
@@ -197,7 +203,9 @@ export function buildNKleinAcceptanceRepairPlan(
 			: action === "repair"
 				? `Acceptance failed; retry repair attempt ${attempt} of ${maxAttempts}.`
 				: action === "escalate"
-					? `Acceptance failed after ${maxAttempts} repair attempts; retry with ${escalation?.role ?? "reviewer"} role.`
+					? escalation?.role === "worker"
+						? `Acceptance failed after ${maxAttempts} repair attempts; retry in a fresh same-model session (single-model rig).`
+						: `Acceptance failed after ${maxAttempts} repair attempts; retry with ${escalation?.role ?? "reviewer"} role.`
 					: `Acceptance failed after ${maxAttempts} repair attempts; hand off for human review.`,
 	};
 }
