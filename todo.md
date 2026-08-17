@@ -15110,6 +15110,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     internet outage; with -L the pipe runs fine. EVALUATION (extends task #29): load Qwen3.8 → real mid_task
     drain as worker (emission-wall question) with the model-card sampling; Nemotron + Glimmer complete their
     downloads on the restored pipe; fitness rows for all three; roles stay config-driven.
+    **▶ INTAKE MEASUREMENT PROGRAM COMPLETE 2026-08-17 (task #29 closed).** Measured rows (eval-harness, bar
+    0.6 + `dev model-speed`): **qwen3.8-27b-mlx 1.000/15 cells, 19.0 tps, 723ms TTFT, 262k native — PLUS a
+    full mid_task ACT drain as worker: completed, acceptance green** (the bar 14B-class never cleared;
+    emission wall did not materialize); **nemotron-3.5-lightning 0.912/17 cells, 79.3 tps, 539ms TTFT**
+    (architect 1.0, tool-use 1.0, context probes 1.0; reviewer/hard weak); **muse-glimmer-30b 0.906/16 cells,
+    19.8 tps** (same quality tier as nemotron at 3–10× the per-cell latency; needs llama.cpp ≥2.29.0 — new
+    `muse-glimmer` arch hard-crashes older engines). TWO HARNESS ARTIFACT CLASSES root-caused byte-level en
+    route and FIXED: (1) reasoning models stream think prose into content → implement extraction now splits
+    the reasoning channel + budget floor 6000 (`8d5d0ece0`); (2) template-induced early-eos leaves a complete
+    function missing only closing brace(s) → bounded ≤3-brace repair in extractImplementCode, captured-reply
+    proof null→1.0, LIVE-confirmed debounce 1.000 (`83d8cf75f`). Residual: nemotron implement-lru-cache still
+    NO ANSWER (deeper artifact or real limit — same autopsy recipe applies if it ever matters).
+    **ROLE RECOMMENDATION (config-driven, David decides; no flips made):** worker → qwen3.8-27b-mlx (the
+    clear upgrade); reviewer → qwen3.8 primary (both new models flunk the reviewer/hard pair) with
+    qwen3.6-35b as the fast second opinion; architect/aux (phase-1 pick, quick decompose, tool-heavy
+    utility) → nemotron-3.5-lightning (79 tps MoE); glimmer → diversity spare only (non-qwen lineage for
+    divergent review opinions; not a default role at its latency). RAM: qwen3.8+nemotron pair ≈ 61GB leaves
+    the most headroom; qwen3.6+qwen3.8 (current residents) also fits with nemotron loaded on demand.
   - **NEW-MODEL INTAKE STATUS (David 2026-08-13: "check new suitable models... download 1-3... use them"):**
     Research picked TWO (disk bounds it; Kimi K2.7 Code = 1T params ruled out): NVIDIA Nemotron 3.5 Lightning
     30B-A3B Q8_0 (the Aug-11 release David referenced — agentic-tuned MoE, new lineage for reviewer diversity)
