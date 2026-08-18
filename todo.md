@@ -15142,8 +15142,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     "no captured work" mid-window (true then, but the same racing class). Extraction-grade of the escalated
     worker's product: 18/18 — the pipeline was 1 reviewer-retry away from delivering when the wall hit.
     Bed re-grade for pair 3b: !Klein machinery correct end-to-end; costs were the ladder race (now fixed) +
-    reviewer no-verdict + wall clock. STILL OWED: re-run pair 3 klein leg with the guard in for the true
-    grade; wire-record comparison (dsh session JSONL vs session-request-log).
+    reviewer no-verdict + wall clock. PAIR-3 TRUE-GRADE RE-RUN (2026-08-18 evening, guard in, 75-min wall): **healthy end-to-end —
+    one worker round, review APPROVE at round 1 ("verified the acceptance command myself, 21/21"), delivered
+    + completed in ~22.5 min; extraction-grade of the result branch INDEPENDENTLY CONFIRMS 21/21 pass.** No
+    false park, no redecompose, no burned rounds (vs 3b's park + wall-clock death on the same scenario).
+    Pair 3 final: dsh 20/20 one-shot vs !Klein 21/21 through the full review pipeline — quality matched, WC
+    cost = the review layer. NEW P1 FILED FROM THIS RUN (run dir .real-runs/20260818-195608, preserved):
+    **completed-without-merge** — delivery #1 hit the isReviewDeliverySuperseded guard ("newer worker round"
+    — a turn-generation false positive on a SINGLE-round run whose worker session churned post-handoff),
+    delivery #2 delivered via durable-approval reuse and the card completed + cascade ran (session
+    interrupted, kernel walked acceptance_passed→idle at 20:18:21.6) — but NO merge receipt, reflog shows
+    main never moved: the workspace never received the delivered result (result branch c24d6e9 holds it; the
+    rig's host acceptance probe correctly failed on main). Production shape: a Completed card whose change
+    is NOT on the user's branch (recoverable from the result branch, but silently). Suspects: the reused-
+    approval re-finalize path returning before the merge block (no "Could not auto-merge" warn, no
+    merge-history dir in the run HOME) + the supersede false positive that forced that path. STILL OWED:
+    root-cause completed-without-merge; wire-record comparison (dsh session JSONL vs session-request-log).
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
