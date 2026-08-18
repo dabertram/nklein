@@ -98,7 +98,26 @@ export async function resolveReviewSandboxResult(
 			return { status: "capture_failed", resultCommit: null };
 		}
 		if (isEmptySandboxPatchSummary(summary)) {
-			return { status: "empty_patch", resultCommit: null };
+			// `sandbox_patch_empty` means "the LATEST capture found no changes", NOT "no result exists".
+			// Chronic completed-without-merge (2026-08-18, bed runs 195608/212433): a post-capture re-drive
+			// turn no-oped on a freshly restored workspace, its empty capture overwrote the `captured` marker,
+			// and this arm then presented a card WITH a durable result branch as "empty_patch" — which skips
+			// the entire delivery gate+merge suffix. The durable branch is the artifact under judgment (the
+			// reviewer graded exactly its diff), so an empty latest capture concludes empty only when NO
+			// result branch resolves; while the worker is actively re-working, nothing is settled yet.
+			const emptyArmCommit = await probe.resolveResultCommit({
+				repoPath: input.repoPath,
+				taskId: input.taskId,
+			});
+			const durableCommit =
+				typeof emptyArmCommit === "string" && emptyArmCommit.trim() ? emptyArmCommit.trim() : null;
+			if (!durableCommit) {
+				return { status: "empty_patch", resultCommit: null };
+			}
+			if (!isActiveWorkSessionState(summary?.state)) {
+				return { status: "result_branch", resultCommit: durableCommit };
+			}
+			continue;
 		}
 		const resultCommit = await probe.resolveResultCommit({
 			repoPath: input.repoPath,

@@ -14,10 +14,16 @@ export function isReviewDeliverySuperseded(input: {
 	admittedCommit: string | null;
 	currentCommit: string | null;
 }): boolean {
+	// A MEASURED generation advance keeps its authority (that turn's capture is inbound). The busy-state
+	// FALLBACK, though, is unattributable — and chronic completed-without-merge (2026-08-18) showed its
+	// false-positive shape: a dead worker session admitted with a NULL generation, then a rescue restart
+	// projecting `running` at delivery time. When the result-branch commit is measured byte-identical to
+	// the admitted one, that fallback must not discard an approved delivery.
+	const sameArtifact = input.admittedCommit !== null && input.currentCommit === input.admittedCommit;
 	const newerTurn =
 		input.admittedTurnGeneration !== null
 			? input.currentTurnGeneration !== input.admittedTurnGeneration
-			: input.currentSummaryState !== null && isBusySessionState(input.currentSummaryState);
+			: input.currentSummaryState !== null && isBusySessionState(input.currentSummaryState) && !sameArtifact;
 	const newerArtifact = input.admittedCommit !== null && input.currentCommit !== input.admittedCommit;
 	return newerTurn || newerArtifact;
 }

@@ -115,7 +115,7 @@ describe("capture-failure delivery guard", () => {
 });
 
 describe("resolveReviewSandboxResult (§5.U extraction)", () => {
-	it("returns empty_patch immediately, without sleeping or checking the result branch", async () => {
+	it("returns empty_patch immediately when no durable result branch exists", async () => {
 		const sleep = vi.fn(noopSleep);
 		const resolveResultCommit = vi.fn(() => Promise.resolve(null));
 		const result = await resolveReviewSandboxResult(input, {
@@ -125,7 +125,32 @@ describe("resolveReviewSandboxResult (§5.U extraction)", () => {
 		});
 		expect(result).toEqual({ status: "empty_patch", resultCommit: null });
 		expect(sleep).not.toHaveBeenCalled();
-		expect(resolveResultCommit).not.toHaveBeenCalled();
+		// The empty marker only means "the LATEST capture found no changes" — the branch must be consulted.
+		expect(resolveResultCommit).toHaveBeenCalledTimes(1);
+	});
+
+	it("resolves the durable result branch when the latest capture was empty (completed-without-merge, 2026-08-18)", async () => {
+		// Bed runs 195608/212433: a post-capture re-drive turn no-oped on a restored workspace; its empty
+		// capture overwrote the captured marker while the REAL result branch still existed. Presenting that
+		// card as empty_patch skipped the entire delivery gate+merge suffix and completed it unmerged.
+		const result = await resolveReviewSandboxResult(input, {
+			getSummary: () => emptyPatchSummary,
+			resolveResultCommit: () => Promise.resolve("durable-result-commit"),
+			sleep: noopSleep,
+		});
+		expect(result).toEqual({ status: "result_branch", resultCommit: "durable-result-commit" });
+	});
+
+	it("keeps polling (never concludes) while an empty marker stands but the worker is actively re-working", async () => {
+		for (const state of ["queued", "running", "paused"] as const) {
+			const result = await resolveReviewSandboxResult(input, {
+				getSummary: () => ({ ...emptyPatchSummary, state }) as RuntimeTaskSessionSummary,
+				resolveResultCommit: () => Promise.resolve("prior-round-commit"),
+				sleep: noopSleep,
+				delaysMs: [1],
+			});
+			expect(result).toEqual({ status: "unknown", resultCommit: null });
+		}
 	});
 
 	it("returns capture_failed immediately, without probing a branch", async () => {
