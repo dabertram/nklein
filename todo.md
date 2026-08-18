@@ -15118,8 +15118,9 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     reviewer-saw-no-files park that did NOT recur clean — environment-induced, noted not chased. CLEAN
     RE-RUN: worker attempt → review BOUNCE with feedback → rework → **DELIVERED round 2 → completed**;
     extraction-grade 13/13. The full catch-and-correct pipeline working end-to-end on a real refactor task.
-    dsh leg 4 running; pair-3 klein re-run with the fixed scenario owed for fairness; wire-record comparison
-    still owed.
+    dsh leg 4 GRADED same day: **14/14 one-shot** — pair 4 fully matched (dsh 14/14 single session; !Klein
+    13/13 via bounce→rework→delivered). Pair-3 klein fairness re-run (fixed offline-safe scenario) RUNNING;
+    wire-record comparison still owed.
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
