@@ -15119,8 +15119,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     RE-RUN: worker attempt → review BOUNCE with feedback → rework → **DELIVERED round 2 → completed**;
     extraction-grade 13/13. The full catch-and-correct pipeline working end-to-end on a real refactor task.
     dsh leg 4 GRADED same day: **14/14 one-shot** — pair 4 fully matched (dsh 14/14 single session; !Klein
-    13/13 via bounce→rework→delivered). Pair-3 klein fairness re-run (fixed offline-safe scenario) RUNNING;
-    wire-record comparison still owed.
+    13/13 via bounce→rework→delivered). **▶ PAIR-3b (fairness re-run) EXPOSED A P0-CLASS PRODUCT BUG — WORKER WRITES LOST WITH GREEN TOOL
+    RESULTS (2026-08-18, evidence byte-level):** the worker wrote 4 files via write_file using ABSOLUTE
+    container paths `/workspaces/<taskId>/src|test/...` — confineToolPath PASSED them (they match a root),
+    tool results green, the worker even ran node --test in its view — but the reviewer's on-disk listing
+    shows ONLY the template tree (habit-*.ts): the writes landed in a root the result-capture/review does
+    not read. Runs whose workers used RELATIVE paths (pair-4b) landed fine. Same signature as pair-4's
+    first run (then masked by the npx thrash) and plausibly pair-3's original 16/26. Extraction-grade of
+    the lost product: **18/18 pass** — correct work, lost by topology. NEXT (fresh context): map the
+    sandbox mount topology (confineToolPath matchedRoot set vs the capture/review root), then fix at the
+    right layer — either normalize absolute-in-mount writes onto the captured root or make confinement
+    REJECT roots the capture cannot see (fail-fast beats silent loss). Then re-run pair 3 for the real
+    grade. Wire-record comparison still owed.
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
