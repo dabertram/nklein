@@ -252,6 +252,7 @@ import type {
 import type { RuntimeFieldReportCandidatesResponse } from "../core/field-report-api-contract";
 import type { RuntimeBuildIdentity } from "../core/runtime-build-identity";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
+import { touchWorkspaceAttended } from "../state/workspace-attended-registry";
 import { buildChatRouter } from "./routers/chat-router";
 import { buildProjectsRouter } from "./routers/projects-router";
 import { buildRuntimeRouter } from "./routers/runtime-router";
@@ -765,7 +766,13 @@ const t = initTRPC.context<RuntimeTrpcContext>().create({
 /** The shared tRPC builder type — sub-router modules (§5.AK) take this so they build on the same `t`/context. */
 export type RuntimeTrpcBuilder = typeof t;
 
-const workspaceProcedure = t.procedure.use(({ ctx, next }) => {
+const workspaceProcedure = t.procedure.use(({ ctx, next, type }) => {
+	// F3.38: every workspace-scoped MUTATION is an operator gesture — it feeds the unattended-autonomy
+	// budget's attended clock. Queries deliberately do not count (an abandoned polling dashboard must not
+	// keep a workspace "attended" forever).
+	if (type === "mutation" && ctx.workspaceScope) {
+		touchWorkspaceAttended(ctx.workspaceScope.workspaceId);
+	}
 	if (!ctx.requestedWorkspaceId) {
 		throw new TRPCError({
 			code: "BAD_REQUEST",

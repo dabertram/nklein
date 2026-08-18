@@ -232,6 +232,7 @@ import {
 	defaultRuntimeIdModelKeyMapPath,
 	initSharedRuntimeIdModelKeyMap,
 } from "../state/runtime-id-model-key-map-store";
+import { decideWorkspaceUnattendedAutonomy, touchWorkspaceAttended } from "../state/workspace-attended-registry";
 import {
 	listWorkspaceIndexEntries,
 	loadExistingWorkspaceBoardById,
@@ -1250,6 +1251,43 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		// no live session was still auto-startable — and the failure guard below RELIES on a paused card staying
 		// down. One read per drain; fail-open to empty (an unreadable pause file must not block legitimate starts).
 		const pausedTaskIds = await readPausedTasks(scope.workspacePath).catch(() => new Set<string>());
+		// F3.38: the workspace-level unattended autonomy budget. When no operator gesture (workspace mutation)
+		// or driver call has touched this workspace for the budget span, autonomous starts PAUSE the candidate
+		// cards through the same persisted pause set the failure guard uses — loud in the UI, and the resume
+		// gesture itself refreshes the attended clock. Candidates join `pausedTaskIds` so the loop below applies
+		// its existing skip + durable-lease settling uniformly.
+		{
+			const unattendedDecision = decideWorkspaceUnattendedAutonomy(scope.workspaceId);
+			if (!unattendedDecision.allow) {
+				const freshHolds = taskIds.filter((taskId) => !pausedTaskIds.has(taskId));
+				if (freshHolds.length > 0) {
+					const unattendedHours = (unattendedDecision.unattendedMs / 3_600_000).toFixed(1);
+					const budgetHours = (unattendedDecision.budgetMs / 3_600_000).toFixed(1);
+					const holdMessage =
+						`Unattended autonomy budget: no operator gesture or driver call has touched this workspace for ` +
+						`${unattendedHours}h (budget ${budgetHours}h) — pausing ${freshHolds.length} autonomous start(s) ` +
+						`(${freshHolds.join(", ")}). Any workspace action (e.g. Resume) restarts the clock.`;
+					for (const taskId of freshHolds) {
+						await setCardPaused({ workspacePath: scope.workspacePath, taskId, paused: true }).catch(() => null);
+						pausedTaskIds.add(taskId);
+						deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(taskId);
+					}
+					deps.warn(holdMessage);
+					recordSelfObservation({
+						signal: "custom",
+						severity: "warning",
+						message: holdMessage,
+						workspacePath: scope.workspacePath,
+						metadata: {
+							category: "unattended_autonomy_hold",
+							unattendedMs: unattendedDecision.unattendedMs,
+							budgetMs: unattendedDecision.budgetMs,
+							heldTaskIds: [...freshHolds],
+						},
+					});
+				}
+			}
+		}
 		// Durable fail-lease-fast (todo N10 follow-up, 2026-07-26): a durable dispatch that silently no-ops here used
 		// to burn its full 5-minute lease before the reclaim tick noticed — every mis-dispatch was a silent liveness
 		// tax (the W2.2 Review-parked orphans looped lease→reclaim@+300s with one log line per 5 minutes). When the
@@ -6454,6 +6492,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// The same arm the A2A audit closure performs: warm the scoped service so the board-liveness
 			// ready-sweep starts the seeded card on a headless workspace.
 			armWorkspace: async (entry) => {
+				// F3.38: a driver call is an attended touch — external ingress keeps its workspace's
+				// unattended-autonomy clock fresh exactly like an operator gesture would.
+				touchWorkspaceAttended(entry.workspaceId);
 				await getScopedNKleinTaskSessionService({
 					workspaceId: entry.workspaceId,
 					workspacePath: entry.repoPath,

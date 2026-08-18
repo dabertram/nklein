@@ -4688,7 +4688,14 @@ stays fast + complete.
     sweep, moved inside the runner); (b) on startup, reconcile ALL campaign workspaces the same way before the
     initial idle gate; (c) launch attempt runtimes with autonomous drains disabled for leftover boards (the
     driver owns every start). The external babysitter (scratchpad script) is the interim evidence this works.
-  - [ ] **F3.38 — Unattended-workspace autonomy budget (investigate, then bound).** The F11 forensics showed a
+  - [x] **F3.38 — Unattended-workspace autonomy budget (investigate, then bound).** *(SHIPPED 2026-08-19:
+    pure core src/core/unattended-autonomy-budget.ts (registry + decision + NKLEIN_UNATTENDED_AUTONOMY_HOURS
+    knob, default 12h, 0/off disables, junk falls back to the default — never to disabled; 6 tests); attended
+    touches = every workspace-scoped tRPC MUTATION (queries deliberately excluded so a polling dashboard can't
+    defeat it) + external-ingress driver calls; the gate sits in autoStartTaskIds where over-budget candidates
+    join the persisted pause set — the failure guard's own loud, resumable hold, with durable leases settled by
+    the existing paused-skip machinery; boot/first-sighting seeds the clock; unattended_autonomy_hold
+    registered.)* The F11 forensics showed a
     runtime consuming model-hours on auto-started leaf cards with NO operator or driver interaction — nothing
     bounded the unattended burn (the per-session autonomy budget watchdog never tripped across many short leaf
     sessions). Investigate the existing `autonomyBudgetWatchdog` scope; design a WORKSPACE-level unattended

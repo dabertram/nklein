@@ -258,6 +258,15 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	{
+		// ── F3.38 unattended autonomy budget (2026-08-19) ──
+		category: "unattended_autonomy_hold",
+		item: "F3.38",
+		observes:
+			"autonomous starts PAUSED because no operator gesture or driver call touched the workspace within the unattended budget — silent multi-hour burn made loud and resumable",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
 		// ── #37 bounce fork-retry, observe-first (2026-08-18) ──
 		category: "bounce_fork_retry_observed",
 		item: "§5.AW",
