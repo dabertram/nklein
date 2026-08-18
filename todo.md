@@ -15130,11 +15130,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     in-container via manager.runTool; the workdir IS the repo clone; capture stages `git add -u` + `-A`
     (excl. .nklein/node_modules) then `git diff --staged --binary` — so a workdir-absolute write SHOULD be
     captured, and the loss point is somewhere in the extra-tool write execution or segment mismatch that
-    static reading can't settle. DECISIVE PROBE (next turn, deterministic): sim-rig scenario whose worker
-    track write_file's BOTH {path: "/workspaces/<taskId>/probe-abs.txt"} AND {path: "probe-rel.txt"}, run
-    to capture, assert the patch contains both — reproduces the loss deterministically if real, then fix at
-    the write-execution layer and re-assert. Then re-run pair 3 for the true grade. Wire-record comparison
-    still owed.
+    static reading can't settle. PROBE RUN (scripts/write-loss-probe.mts, real container,
+    2026-08-18): **NOT reproduced at the write/capture layer** — absolute AND relative writes both land in
+    the workdir and BOTH appear in captureWorkspacePatch. The loss point narrows to the step BETWEEN patch
+    capture and the reviewer's tree: result-branch materialization / resolveReviewSandboxResult / rework
+    workspace reuse. NEXT: autopsy pair-3b's own run dir along that seam (its result-branch refs, the
+    agent_sandbox_result_patch evidence, which tree diff-load read) — the run dir persists at
+    .real-runs/20260818-<pair3b>. Then re-run pair 3 for the true grade. Wire-record comparison still owed.
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
