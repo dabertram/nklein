@@ -15101,8 +15101,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     and an early grading "hang" was npx cold-start, not a product deadlock (all green with --test-timeout and
     on re-run). Bed insight #2 confirmed at complexity: on single-card tasks dsh's leaner scaffold matches
     quality at lower wall-clock; !Klein's value is the multi-card orchestration/review/delivery layer that
-    single-card tasks don't exercise. Pair 3 (cli-parser precedence class) running; wire-record comparison
-    still owed.
+    single-card tasks don't exercise. **▶ PAIR 3 GRADED (cli-parser precedence class, 2026-08-18) — FIRST DIFFERENTIATED RESULT:** dsh 20/20
+    self-consistent; !Klein 16/26 — its own suite fails its own implementation at extraction-grade (the
+    negation/precedence/coercion edges bit). CROSS-GRADE (each impl vs the other's tests) fails hard BOTH
+    ways (4/26 and 8/20) — the two made different interface interpretations, so cross-suite numbers measure
+    spec ambiguity, not correctness; recorded, not over-read. OPEN PROBE (next): the pair-3 run dir's
+    delivery-gate evidence — acceptance-verify ran (runtime.log) and the suite was red; confirm the gate
+    HELD rather than delivering a red suite (if it delivered, that's a review/gate-quality finding of
+    exactly the class David cares about). Artifacts + cross-grade dirs under
+    ~/GIT/nklein-scaffold-bed/results/{klein-run-3-parser,dsh-run-3-parser,cross-grade-3}. Wire-record
+    comparison still owed; pairs 4-5 (one more complex + one refactor-class) queued.
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
