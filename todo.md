@@ -15205,7 +15205,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     record per-request usage tokens + tool count so future A/Bs are self-contained (dsh logs usage but
     not payloads; we log payloads but not usage); (b) the living-head rewrites are prompt-cache-hostile
     (~70-120KB re-prefill x42) — worth a measured experiment on freezing message[0] between phase
-    boundaries. #35 bed phase 2 is COMPLETE with this.
+    boundaries. #35 bed phase 2 is COMPLETE with this. **▶ #37 SLICE 1 SHIPPED (2026-08-18 night, observe-first per the
+    evidence-gated-flips policy):** every review bounce now records `bounce_fork_retry_observed` — what a
+    session-fork retry WOULD do (eligible?, last safe step boundary via the #32 core, rewind depth,
+    deferrals: already-escalated / active ::spec mirror / no persisted transcript). Pure core
+    src/core/bounce-fork-retry.ts (5 tests) + service preview seam (previewSessionForkBoundary — reads the
+    persisted transcript, reuses latestStepBoundaryIndex) + fire-and-forget wiring at the runner's onBounce.
+    Registered in the mechanism registry. LIVE MODE (reserved flag NKLEIN_BOUNCE_FORK_RETRY): fork at the
+    boundary as a SECOND retry arm and let the existing ::spec/F12.4 arbitration pick — flip only after the
+    observations show eligibility is common and rewind depths are sane (David's autonomous evidence-gated
+    flip standard).
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via

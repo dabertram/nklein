@@ -12,7 +12,12 @@ import { MAX_RESTATEMENT_RESTARTS } from "../core/off-track-intervention";
 import { getOffTrackRestartCount, recordOffTrackRestart } from "../core/off-track-restart-ledger";
 import { createPendingWriteTracker } from "../core/pending-write-tracker";
 import { parsePromptIntentMode } from "../core/prompt-intent-mode";
-import { buildSessionForkPlan, type SessionForkBoundary, type SessionForkRefusal } from "../core/session-fork";
+import {
+	buildSessionForkPlan,
+	latestStepBoundaryIndex,
+	type SessionForkBoundary,
+	type SessionForkRefusal,
+} from "../core/session-fork";
 import { isTerminalFailureSessionState } from "../core/session-state-predicates";
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { applyJudgeSessionPromptDiet, JUDGE_SESSION_KINDS } from "../core/sysprompt-level";
@@ -1004,6 +1009,19 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * refuses to cut a dangling tool_use. The SOURCE session is left untouched — cheap best-of-N and
 	 * checkpoint-retry both build on exactly this.
 	 */
+	async previewSessionForkBoundary(
+		taskId: string,
+	): Promise<{ messageCount: number; boundaryIndex: number | null } | null> {
+		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(taskId).catch(() => null);
+		if (!persistedSnapshot?.messages) {
+			return null;
+		}
+		return {
+			messageCount: persistedSnapshot.messages.length,
+			boundaryIndex: latestStepBoundaryIndex(persistedSnapshot.messages),
+		};
+	}
+
 	async forkTaskSessionAtBoundary(input: {
 		sourceTaskId: string;
 		forkTaskId: string;

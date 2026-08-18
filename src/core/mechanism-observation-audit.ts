@@ -258,6 +258,15 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	{
+		// ── #37 bounce fork-retry, observe-first (2026-08-18) ──
+		category: "bounce_fork_retry_observed",
+		item: "§5.AW",
+		observes:
+			"what a session-fork retry WOULD do at a review bounce (eligibility, safe boundary, rewind depth) — the evidence base for flipping NKLEIN_BOUNCE_FORK_RETRY live",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
 		// ── Completed-without-merge invariant (2026-08-18) ──
 		category: "delivery_ancestry_hold",
 		item: "§5.L",

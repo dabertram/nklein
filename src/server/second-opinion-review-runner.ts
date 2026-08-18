@@ -11,6 +11,7 @@
 
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
+import { planBounceForkRetry } from "../core/bounce-fork-retry";
 import { REVIEW_PHASE_CATEGORY } from "../core/card-tracking-coverage";
 import { isCrashRecoveryMatrixPhaseEnabled, reachCrashRecoveryMatrixBarrier } from "../core/crash-recovery-matrix";
 import { isTruthyEnv } from "../core/env-flag";
@@ -142,6 +143,7 @@ export interface RunSecondOpinionReviewForTaskInput {
 				| "isSecondOpinionReviewInFlight"
 				| "noteNextAttemptStrategy"
 				| "markSandboxRecaptureExpected"
+				| "previewSessionForkBoundary"
 			>
 		>;
 	loadWorkspaceState?: typeof loadWorkspaceState;
@@ -1187,6 +1189,38 @@ export async function runSecondOpinionReviewForTask(
 					input.taskId,
 					"review bounced (request_changes) — a further worker round will capture again",
 				);
+				// #37 observe-first: record what a fork-based retry WOULD do at this bounce (eligibility + safe
+				// boundary + rewind depth). Fire-and-forget — the bounce path must never wait on or fail from it.
+				void (async () => {
+					try {
+						const preview = (await input.service.previewSessionForkBoundary?.(input.taskId)) ?? null;
+						const observation = planBounceForkRetry({
+							preview,
+							alreadyEscalated:
+								escalatedWorkerTaskIds.has(escalatedWorkerKey(input.workspacePath, input.taskId)) ||
+								card.review?.escalated === true,
+							specMirrorActive: Boolean(input.speculativeResultCommit),
+						});
+						recordSelfObservation({
+							signal: "custom",
+							severity: "info",
+							message: `Bounce fork-retry (observe-only) for ${input.taskId}: ${observation.eligible ? `eligible at boundary ${observation.boundaryIndex} (${observation.rewoundMessages} message(s) rewound of ${observation.messageCount})` : `ineligible — ${observation.reason}`}.`,
+							taskId: input.taskId,
+							workspacePath: input.workspacePath,
+							metadata: {
+								category: "bounce_fork_retry_observed",
+								eligible: observation.eligible,
+								reason: observation.reason,
+								boundaryIndex: observation.boundaryIndex,
+								messageCount: observation.messageCount,
+								rewoundMessages: observation.rewoundMessages,
+								round: review.round,
+							},
+						});
+					} catch {
+						// Observation-only: never let it disturb the bounce.
+					}
+				})();
 				// Live F3.24b proof (2026-07-22): qwen3.5-9b handed off three empty patches. The first reviewed
 				// no-op was correctly rejected, but the ordinary bounce sent it straight back to the SAME model;
 				// after another no-op the card stranded in In Progress and froze the fan-in. An admitted empty patch

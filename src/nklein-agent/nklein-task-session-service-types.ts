@@ -158,6 +158,14 @@ export interface NKleinTaskSessionService {
 	markSandboxRecaptureExpected?: (taskId: string, reason: string) => void;
 	/** Clear the recapture marker once the owed capture has settled. */
 	clearSandboxRecaptureExpected?: (taskId: string) => void;
+	/**
+	 * #37 observe-first: preview the persisted transcript's fork shape (message count + last safe step
+	 * boundary) without forking anything — the bounce seam records what a fork-based retry WOULD do.
+	 * Null when the task has no persisted transcript. Optional so fakes stay valid without it.
+	 */
+	previewSessionForkBoundary?: (
+		taskId: string,
+	) => Promise<{ messageCount: number; boundaryIndex: number | null } | null>;
 	onSummary(listener: (summary: RuntimeTaskSessionSummary) => void): () => void;
 	/** F3.2 failover leg: stash the router's ranked candidate model keys (fitness-blended, best first) for a task. */
 	setTaskFailoverCandidates(taskId: string, rankedModelKeys: readonly string[]): void;
