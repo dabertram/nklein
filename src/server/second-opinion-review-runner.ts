@@ -30,6 +30,7 @@ import {
 	decideReviewRedecompose,
 	summarizeReviewAttemptEvidence,
 } from "../core/review-redecompose";
+import { decideRedriveWindow, type PendingRedriveObservation } from "../core/review-redrive-window";
 import { resolveSwarmRoleModel } from "../core/swarm-role-selection";
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { addTaskToColumn } from "../core/task-board-mutations";
@@ -69,6 +70,12 @@ import { retryWorkspaceStateLock } from "./workspace-state-lock-retry";
 // as already-escalated.
 const escalatedWorkerTaskIds = new Set<string>();
 const escalatedWorkerKey = (workspacePath: string, taskId: string): string => `${workspacePath}::${taskId}`;
+
+// Re-drive window guard (bed pair-3b, 2026-08-18): a bounce that SPENDS a rung (empty-patch reroute / W4.2
+// escalation) records what and whom it judged; until the re-drive's worker produces a turn, same-fingerprint
+// re-claims from the OLD worker are absorbed instead of burning review rounds toward the stall park. In-memory
+// like `escalatedWorkerTaskIds` — a restart just reverts to the pre-guard behavior for in-flight cards.
+const pendingRedriveObservations = new Map<string, PendingRedriveObservation>();
 
 function shouldQuiescePrimaryWorkerBeforeReview(summary: ReturnType<NKleinTaskSessionService["getSummary"]>): boolean {
 	if (summary?.state !== "running") {
@@ -536,6 +543,55 @@ export async function runSecondOpinionReviewForTask(
 				})
 				.catch(() => null)
 		: null;
+	// Re-drive window guard (bed pair-3b, 2026-08-18): while a spent rung's re-drive is still executing,
+	// absorb the pre-re-drive worker's byte-identical re-claim instead of admitting a review round — the field
+	// run burned the stall PARK (+ re-decompose spawn) 3 minutes before the escalated worker's real artifact
+	// arrived and was correctly admitted.
+	const redriveKey = escalatedWorkerKey(input.workspacePath, input.taskId);
+	const redriveObservation = pendingRedriveObservations.get(redriveKey) ?? null;
+	if (redriveObservation) {
+		const redriveDecision = decideRedriveWindow({
+			observation: redriveObservation,
+			incomingFingerprint: evidenceFingerprint,
+			incomingSessionStartedAt: workerSummary?.startedAt ?? null,
+			incomingModelId: workerModelId,
+		});
+		if (redriveDecision.absorb) {
+			redriveObservation.absorbedCount += 1;
+			const message =
+				`Absorbed a pre-re-drive re-claim for ${input.taskId} (${redriveDecision.reason}, ` +
+				`${redriveObservation.absorbedCount} absorbed): the previous round's re-drive to ` +
+				`${redriveObservation.rerouteTargetModelId ?? "a fresh session"} has not produced a turn yet, so ` +
+				`re-judging the already-bounced artifact would burn the stall rung against a remedy still in flight.`;
+			input.warn?.(message);
+			stampPhase("review-resolution absorbed (pre-re-drive re-claim)");
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message,
+					taskId: input.taskId,
+					workspacePath: input.workspacePath,
+					metadata: {
+						category: "pre_redrive_reclaim_absorbed",
+						reason: redriveDecision.reason,
+						absorbedCount: redriveObservation.absorbedCount,
+					},
+				});
+			} catch {
+				// Telemetry must never break the absorb.
+			}
+			return { type: "blocked", reason: "pre_redrive_reclaim", message };
+		}
+		if (
+			evidenceFingerprint &&
+			(redriveDecision.reason === "fingerprint_changed" || redriveDecision.reason === "redriven_worker")
+		) {
+			// The re-drive produced a judgeable turn (or new work arrived) — the window is over. A transient
+			// null fingerprint (diff probe error) keeps the window instead of silently dropping the guard.
+			pendingRedriveObservations.delete(redriveKey);
+		}
+	}
 	// Live-found (rig 2026-07-18): verdict-less review retries re-ran the full sandbox acceptance on
 	// byte-identical work — reuse the prior run's evidence until the work fingerprint changes.
 	const reusedAcceptance = evidenceFingerprint
@@ -1118,6 +1174,7 @@ export async function runSecondOpinionReviewForTask(
 				return primary;
 			},
 			onDeliver: async ({ review }) => {
+				pendingRedriveObservations.delete(redriveKey);
 				await persistReview(review);
 			},
 			onBounce: async ({ review, workerPrompt }) => {
@@ -1153,6 +1210,17 @@ export async function runSecondOpinionReviewForTask(
 					input.warn?.(
 						`Empty-patch review bounce for ${input.taskId}: rerouted from the no-op worker to ${emptyPatchEscalation.modelId}.`,
 					);
+					if (evidenceFingerprint) {
+						// Open the re-drive window: until the rerouted worker produces a turn, same-fingerprint
+						// re-claims from this (still winding-down) worker are absorbed, not re-judged.
+						pendingRedriveObservations.set(redriveKey, {
+							fingerprint: evidenceFingerprint,
+							bouncedSessionStartedAt: workerSummary?.startedAt ?? null,
+							bouncedModelId: workerModelId,
+							rerouteTargetModelId: emptyPatchEscalation.modelId,
+							absorbedCount: 0,
+						});
+					}
 					try {
 						recordSelfObservation({
 							signal: "custom",
@@ -1192,8 +1260,19 @@ export async function runSecondOpinionReviewForTask(
 				input.warn?.(
 					`Escalated ${input.taskId} to ${escalationCandidate?.modelId ?? "?"} after a stuck review loop (one escalation per card).`,
 				);
+				if (evidenceFingerprint) {
+					// Same window as the empty-patch reroute: the escalation re-drive needs time to start.
+					pendingRedriveObservations.set(redriveKey, {
+						fingerprint: evidenceFingerprint,
+						bouncedSessionStartedAt: workerSummary?.startedAt ?? null,
+						bouncedModelId: workerModelId,
+						rerouteTargetModelId: escalationCandidate?.modelId ?? null,
+						absorbedCount: 0,
+					});
+				}
 			},
 			onPark: async ({ review, parkKind }) => {
+				pendingRedriveObservations.delete(redriveKey);
 				await persistReview(review);
 				await discardSpeculativeCandidate();
 				// Run20 live finding: a parked card's worker session kept CHURNING turns — burning tokens on a card

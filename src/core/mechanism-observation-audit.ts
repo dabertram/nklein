@@ -258,6 +258,15 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	{
+		// ── Bed pair-3b root cause (2026-08-18) ──
+		category: "pre_redrive_reclaim_absorbed",
+		item: "§5.K",
+		observes:
+			"a pre-re-drive worker's byte-identical re-claim being ABSORBED instead of admitted as a review round — the guard that keeps the stall park from firing while a spent reroute/escalation rung is still executing",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
 		// ── P15.1e batch 3 (2026-08-01) — completes the recorded-but-unregistered set ──
 		category: "acceptance_baseline_waiver",
 		item: "P15.1e",

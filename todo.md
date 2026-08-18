@@ -15119,24 +15119,31 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     RE-RUN: worker attempt → review BOUNCE with feedback → rework → **DELIVERED round 2 → completed**;
     extraction-grade 13/13. The full catch-and-correct pipeline working end-to-end on a real refactor task.
     dsh leg 4 GRADED same day: **14/14 one-shot** — pair 4 fully matched (dsh 14/14 single session; !Klein
-    13/13 via bounce→rework→delivered). **▶ PAIR-3b (fairness re-run) EXPOSED A P0-CLASS PRODUCT BUG — WORKER WRITES LOST WITH GREEN TOOL
-    RESULTS (2026-08-18, evidence byte-level):** the worker wrote 4 files via write_file using ABSOLUTE
-    container paths `/workspaces/<taskId>/src|test/...` — confineToolPath PASSED them (they match a root),
-    tool results green, the worker even ran node --test in its view — but the reviewer's on-disk listing
-    shows ONLY the template tree (habit-*.ts): the writes landed in a root the result-capture/review does
-    not read. Runs whose workers used RELATIVE paths (pair-4b) landed fine. Same signature as pair-4's
-    first run (then masked by the npx thrash) and plausibly pair-3's original 16/26. Extraction-grade of
-    the lost product: **18/18 pass** — correct work, lost by topology. TOPOLOGY MAPPED (2026-08-18 pm): all worker tools exec
-    in-container via manager.runTool; the workdir IS the repo clone; capture stages `git add -u` + `-A`
-    (excl. .nklein/node_modules) then `git diff --staged --binary` — so a workdir-absolute write SHOULD be
-    captured, and the loss point is somewhere in the extra-tool write execution or segment mismatch that
-    static reading can't settle. PROBE RUN (scripts/write-loss-probe.mts, real container,
-    2026-08-18): **NOT reproduced at the write/capture layer** — absolute AND relative writes both land in
-    the workdir and BOTH appear in captureWorkspacePatch. The loss point narrows to the step BETWEEN patch
-    capture and the reviewer's tree: result-branch materialization / resolveReviewSandboxResult / rework
-    workspace reuse. NEXT: autopsy pair-3b's own run dir along that seam (its result-branch refs, the
-    agent_sandbox_result_patch evidence, which tree diff-load read) — the run dir persists at
-    .real-runs/20260818-<pair3b>. Then re-run pair 3 for the true grade. Wire-record comparison still owed.
+    13/13 via bounce→rework→delivered). **▶ PAIR-3b ROOT-CAUSED AND CLOSED (2026-08-18, was mis-graded as a P0 "write loss" — RETRACTED):**
+    the deterministic probe (scripts/write-loss-probe.mts) cleared the write/capture layer, and the run-dir
+    autopsy (timestamped review-phase telemetry + the persisted project repo) proved **NO writes were ever
+    lost**: the result branch `…-bcb81409f5` holds all 4 product files (348 insertions, applied 16:59:06).
+    TRUE sequence: the ORIGINAL worker twice claimed done with ZERO changes (rounds 1-2 graded genuinely-empty
+    artifacts — the "template tree" reviewer text I mis-read as lost writes); round-1's bounce spent the
+    empty-patch reroute rung (→ qwen3.6-35b) but the restart took ~106s, and in that window the old worker's
+    18-second no-op re-claim was admitted as round 2 → same fingerprint → **stall-PARK + redecompose spawn at
+    16:56:30, racing the escalated worker's start at 16:56:30**; the escalated worker then did the real work,
+    capture/admission/fresh-acceptance all behaved CORRECTLY (round 3 on the real artifact), and the round-3
+    reviewer returned no-submission once before the rig wall clock killed the retry. THE REAL DEFECT (fixed
+    same day): the review ladder skipped a rung — a byte-identical re-claim from the PRE-re-drive worker must
+    not consume review rounds while the spent rung's re-drive is still executing. SHIPPED: re-drive window
+    guard — pure core `src/core/review-redrive-window.ts` (7 tests incl. a pair-3b replay; absorb cap 3;
+    same-session + pre-reroute-model discriminators; the RE-DRIVEN worker's identical work still parks) wired
+    into the runner (observations recorded when the empty-patch reroute or W4.2 escalation fires; absorbed
+    admissions return blocked/pre_redrive_reclaim which the runtime treats as leave-in-review; window closes
+    on judged/deliver/park), observation category `pre_redrive_reclaim_absorbed` registered. SIDE FINDINGS
+    (named, not chased): (a) auto_diverse gave rounds 2+3 a reviewer matching the worker's model — the
+    lineage-waiver warn fired but diversity was silently monocultural twice; (b) the dead-card rescue probed
+    "no captured work" mid-window (true then, but the same racing class). Extraction-grade of the escalated
+    worker's product: 18/18 — the pipeline was 1 reviewer-retry away from delivering when the wall hit.
+    Bed re-grade for pair 3b: !Klein machinery correct end-to-end; costs were the ladder race (now fixed) +
+    reviewer no-verdict + wall clock. STILL OWED: re-run pair 3 klein leg with the guard in for the true
+    grade; wire-record comparison (dsh session JSONL vs session-request-log).
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
