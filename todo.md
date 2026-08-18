@@ -15170,15 +15170,27 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     delivery #1 hit the supersede warn, the rerun latch re-finalized, #2 delivered via durable-approval
     reuse → completed. Candidate mechanisms (need ONE deterministic discriminator): admission resolving
     empty_patch (skips the entire gate+merge block silently — all absent warns live inside it) vs a
-    result_branch admission whose merge ternary was never reached. NEXT (fresh window): sim-rig aimock
-    dev-test drain (~3 min, no GPU) to repro completed-without-merge deterministically, instrument the
-    delivery suffix (log sandboxResult.status + mergeResult), fix at the decided layer, and add a
-    delivery invariant: **a completed card whose autoReviewMode is "commit" MUST have its result commit
-    as an ancestor of the workspace HEAD — else fail loudly** (the N10 recovery already computes exactly
-    this predicate). Also owed from this run: supersede false positive on dead-session deliveries; the
-    watchdog/aux ::review path leaving reviewer=worker model (auto_diverse waived "no lineage-diverse
-    candidate available" — qwen3.6 WAS loaded); wire-record comparison (dsh session JSONL vs
-    session-request-log).
+    result_branch admission whose merge ternary was never reached. **P1 CLOSED (2026-08-18 night, root cause proven live + fixed + regression-pinned):**
+    the delivery diagnostics (admission status + merge step summary, now permanent) caught the chain
+    red-handed in run 20260818-212433: a post-capture re-drive turn no-oped on a restored workspace, its
+    EMPTY second capture overwrote the `sandbox_patch_captured` marker while the real result branch
+    existed; the dead session + rescue restart then (1) false-superseded delivery #1 via the
+    null-generation busy-state fallback and (2) let delivery #2 admit `empty_patch`, which skips the
+    ENTIRE gate+merge suffix → card completed with the change stranded off the user's branch (silently,
+    on every bed dev-test run). SHIPPED (c4e0c9739 + da1386f41): (i) resolveReviewSandboxResult — an
+    empty marker concludes empty_patch only when NO durable result branch resolves; with a branch it
+    resolves result_branch (or keeps polling while the worker actively re-works); (ii)
+    isReviewDeliverySuperseded — the unattributable busy-state fallback cannot supersede a measured
+    byte-identical artifact (measured generation advances keep authority); (iii) delivery ancestry
+    invariant — completion REQUIRES the result commit to be an ancestor of the workspace HEAD, else a
+    loud Review hold (`delivery_ancestry_hold`, registered) — this fired live and blocked the bad
+    completion in 212433. Proofs: sim-flow deliveries merge+complete (admission result_branch → merge
+    ok=true per card); invariant live-catch; unit pins on both fixed predicates (18 tests). Verification
+    drain 20260818-214410: a 4-bounce fail-closed ladder on a bad worker draw (5 distinct commits, no
+    approval, wall at 60m) — no supersede/ancestry/empty-misadmission lines; fixes untouched by a busy
+    run. The live approve→merge→complete GPU proof rides on the next naturally-approving bed run. STILL
+    OWED (#35): wire-record comparison (dsh session JSONL vs session-request-log); side finding open:
+    auto_diverse waived diversity claiming "no lineage-diverse candidate" while qwen3.6 was loaded.
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
