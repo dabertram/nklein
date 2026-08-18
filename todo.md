@@ -15201,9 +15201,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     David's call whether that re-run is worth the GPU time. This also EXPLAINS the "auto_diverse waived:
     no lineage-diverse candidate" side finding (worker held 35b, so the only diverse-from-worker option
     was qwen3.8 = correct; waiver message was about the ESCALATION candidate — benign). Named product
-    follow-ups from the comparison (small, not built tonight): (a) session-request-log should also
-    record per-request usage tokens + tool count so future A/Bs are self-contained (dsh logs usage but
-    not payloads; we log payloads but not usage); (b) the living-head rewrites are prompt-cache-hostile
+    follow-ups from the comparison (small, not built tonight): (a) RESOLVED BY DESIGN
+    (2026-08-18): the request log already carries toolNames, and per-request usage ALREADY exists in
+    telemetry (`model_usage` records — the wire-comparison subagent read klein usage from exactly there);
+    duplicating usage into the request log would be the N17 duplicate-instrumentation smell. The real gap
+    is a JOIN convenience (request-log record ↔ model_usage by sessionId+order) — worth a tiny reader
+    utility only when the next A/B actually needs it; (b) the living-head rewrites are prompt-cache-hostile
     (~70-120KB re-prefill x42) — worth a measured experiment on freezing message[0] between phase
     boundaries. #35 bed phase 2 is COMPLETE with this. **▶ #37 SLICE 1 SHIPPED (2026-08-18 night, observe-first per the
     evidence-gated-flips policy):** every review bounce now records `bounce_fork_retry_observed` — what a
