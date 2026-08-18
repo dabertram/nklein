@@ -15188,9 +15188,24 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     ok=true per card); invariant live-catch; unit pins on both fixed predicates (18 tests). Verification
     drain 20260818-214410: a 4-bounce fail-closed ladder on a bad worker draw (5 distinct commits, no
     approval, wall at 60m) — no supersede/ancestry/empty-misadmission lines; fixes untouched by a busy
-    run. The live approve→merge→complete GPU proof rides on the next naturally-approving bed run. STILL
-    OWED (#35): wire-record comparison (dsh session JSONL vs session-request-log); side finding open:
-    auto_diverse waived diversity claiming "no lineage-diverse candidate" while qwen3.6 was loaded.
+    run. The live approve→merge→complete GPU proof rides on the next naturally-approving bed run. WIRE-RECORD
+    COMPARISON DELIVERED (2026-08-18 night, subagent; full note at
+    ~/GIT/nklein-scaffold-bed/results/wire-comparison-pair3.md): dsh worker 10 requests / 1 static 4KB
+    system / append-only history / 27KB tool schemas re-sent per request / 343K-in/24K-out logged /
+    24.6 min one-shot; !Klein worker 42 requests / living head (message[0] rewritten in 24/42 with
+    paths+repo-map+focus chain; system swap at the repair boundary) / ~2-3x dsh's wire volume / 9.4 min
+    with one acceptance-repair round; review = ~5% of wire volume and re-runs acceptance itself.
+    **CONFOUND FOUND: run 195608's worker was qwen/qwen3.6-35b-a3b (not qwen3.8)** — the router flipped
+    model assignments vs run 3b, so pair-3 dsh-vs-klein efficiency/quality ratios are model-confounded
+    (pipeline-behavior conclusions unaffected); a clean A/B needs the worker PINNED to qwen3.8-27b-mlx —
+    David's call whether that re-run is worth the GPU time. This also EXPLAINS the "auto_diverse waived:
+    no lineage-diverse candidate" side finding (worker held 35b, so the only diverse-from-worker option
+    was qwen3.8 = correct; waiver message was about the ESCALATION candidate — benign). Named product
+    follow-ups from the comparison (small, not built tonight): (a) session-request-log should also
+    record per-request usage tokens + tool count so future A/Bs are self-contained (dsh logs usage but
+    not payloads; we log payloads but not usage); (b) the living-head rewrites are prompt-cache-hostile
+    (~70-120KB re-prefill x42) — worth a measured experiment on freezing message[0] between phase
+    boundaries. #35 bed phase 2 is COMPLETE with this.
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
