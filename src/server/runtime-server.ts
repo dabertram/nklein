@@ -2255,6 +2255,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					}
 					const admittedPrimaryCommit =
 						gatedDelivery.result.status === "result_branch" ? gatedDelivery.result.resultCommit : null;
+					// Completed-without-merge investigation (2026-08-18): the admitted artifact status decides whether the
+					// merge block runs at all, and its absence from the log made the field failure unattributable.
+					deps.warn(
+						`Delivery admission for ${taskId}: sandbox result ${gatedDelivery.result.status}${admittedPrimaryCommit ? ` (commit ${admittedPrimaryCommit.slice(0, 12)})` : ""}.`,
+					);
 					const admittedSpeculativeCommit = admittedPrimaryCommit
 						? await resolveTaskResultBranchCommit({
 								repoPath: scope.workspacePath,
@@ -3394,6 +3399,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// null there and every merge-only step below is skipped — including losing-candidate pruning, since
 						// the kept branches ARE the staged delivery's recovery path.)
 						if (mergeResult !== null) {
+							// Same investigation: a SKIPPED-but-ok merge used to be indistinguishable from a real one.
+							deps.warn(
+								`Delivery merge for ${taskId}: ok=${mergeResult.ok} merged=[${mergeResult.mergedTaskIds.join(", ")}] skipped=[${mergeResult.skippedTaskIds.join(", ")}]${mergeResult.steps.length > 0 ? ` | ${mergeResult.steps.map((step) => `${step.type}${"reason" in step && step.reason ? `: ${step.reason}` : ""}`).join(" | ")}` : ""}`,
+							);
 							await recordMergeHistory({
 								workspacePath: scope.workspacePath,
 								taskId,
@@ -3432,6 +3441,45 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								if (preferredSpeculative) {
 									await deleteTaskResultBranch({ repoPath: scope.workspacePath, taskId }).catch(() => false);
 								}
+							}
+						}
+					}
+					// Delivery ancestry invariant (chronic completed-without-merge, 2026-08-18): a commit-mode delivery
+					// must never COMPLETE while a real result commit exists that is not reachable from the workspace
+					// HEAD — whatever upstream branch skipped the merge, the failure becomes a loud Review hold instead
+					// of a silently green card whose change never reached the user's branch. Staged deliveries keep
+					// their result un-committed by design; a genuine no-op has no result branch and passes through.
+					if ((deliveryCard?.autoReviewMode ?? "commit") !== "stage") {
+						const invariantCommit =
+							deliveredResultCommit ??
+							(await resolveTaskResultBranchCommit({
+								repoPath: scope.workspacePath,
+								taskId: deliveredBranchTaskId ?? taskId,
+							}).catch(() => null));
+						if (invariantCommit) {
+							const ancestry = await runGitCommand(scope.workspacePath, [
+								"merge-base",
+								"--is-ancestor",
+								invariantCommit,
+								"HEAD",
+							]).catch(() => null);
+							if (!ancestry?.ok) {
+								deps.warn(
+									`Delivery ancestry invariant held ${taskId} in Review: result commit ${invariantCommit.slice(0, 12)} is not an ancestor of the workspace HEAD after the merge step — completing would strand the delivered change off the user's branch.`,
+								);
+								recordSelfObservation({
+									signal: "custom",
+									severity: "warning",
+									message: `Delivery ancestry invariant held ${taskId}: result commit ${invariantCommit.slice(0, 12)} not merged into the workspace HEAD at completion time.`,
+									taskId,
+									workspacePath: scope.workspacePath,
+									metadata: {
+										category: "delivery_ancestry_hold",
+										resultCommit: invariantCommit,
+									},
+								});
+								retryWaitingCardsAfterTerminal(scope, service, taskId);
+								return;
 							}
 						}
 					}

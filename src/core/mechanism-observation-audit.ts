@@ -258,6 +258,15 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	{
+		// ── Completed-without-merge invariant (2026-08-18) ──
+		category: "delivery_ancestry_hold",
+		item: "§5.L",
+		observes:
+			"a delivery HELD at the completion seam because its result commit is not an ancestor of the workspace HEAD — the completed-without-merge class made loud instead of silently green",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
 		// ── Bed pair-3b root cause (2026-08-18) ──
 		category: "pre_redrive_reclaim_absorbed",
 		item: "§5.K",
