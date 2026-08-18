@@ -140,6 +140,60 @@ describe("portable board CRDT merge", () => {
 	});
 });
 
+describe("M2: streams + satisfiedDependencies in the CRDT (2026-08-18)", () => {
+	const stream = (id: string, updatedAt: number, title = id) => ({
+		id,
+		title,
+		source: "manual" as const,
+		createdAt: 1,
+		updatedAt,
+	});
+	const satisfied = (from: string, to: string, releasedAt: number) => ({
+		id: `${from}->${to}`,
+		fromTaskId: from,
+		toTaskId: to,
+		createdAt: 1,
+		releasedAt,
+		releasedBy: "completed" as const,
+	});
+
+	it("concurrent retirements on DIFFERENT edges both survive the merge (grow-only union)", () => {
+		const base = board([{ columnId: "backlog", card: card("a") }]);
+		const replicaA = boardToPortableBoardCrdt({ ...base, satisfiedDependencies: [satisfied("a", "b", 10)] }, "A");
+		const replicaB = boardToPortableBoardCrdt({ ...base, satisfiedDependencies: [satisfied("c", "d", 11)] }, "B");
+		const merged = portableBoardCrdtToBoard(mergePortableBoardCrdt(replicaA, replicaB));
+		expect((merged.satisfiedDependencies ?? []).map((entry) => entry.id).sort()).toEqual(["a->b", "c->d"]);
+	});
+
+	it("concurrent stream rename resolves LWW by stamp — the newer title wins on both merge orders", () => {
+		const base = board([{ columnId: "backlog", card: card("a") }]);
+		const replicaA = boardToPortableBoardCrdt({ ...base, streams: [stream("s1", 5, "old name")] }, "A");
+		const replicaB = boardToPortableBoardCrdt({ ...base, streams: [stream("s1", 9, "new name")] }, "B");
+		for (const [left, right] of [
+			[replicaA, replicaB],
+			[replicaB, replicaA],
+		] as const) {
+			const merged = portableBoardCrdtToBoard(mergePortableBoardCrdt(left, right));
+			expect(merged.streams?.[0]?.title).toBe("new name");
+		}
+	});
+
+	it("a v1 payload WITHOUT the new fields merges cleanly against one with them", () => {
+		const base = board([{ columnId: "backlog", card: card("a") }]);
+		const legacy = boardToPortableBoardCrdt(base, "A"); // no streams/satisfied fields at all
+		const modern = boardToPortableBoardCrdt(
+			{ ...base, streams: [stream("s1", 3)], satisfiedDependencies: [satisfied("a", "b", 4)] },
+			"B",
+		);
+		const merged = portableBoardCrdtToBoard(mergePortableBoardCrdt(legacy, modern));
+		expect(merged.streams).toHaveLength(1);
+		expect(merged.satisfiedDependencies).toHaveLength(1);
+		const mergedEmpty = portableBoardCrdtToBoard(mergePortableBoardCrdt(legacy, legacy));
+		expect(mergedEmpty.streams).toBeUndefined();
+		expect(mergedEmpty.satisfiedDependencies).toBeUndefined();
+	});
+});
+
 describe("migratePortableBoardCrdt", () => {
 	const currentCrdt = boardToPortableBoardCrdt(board([{ columnId: "backlog", card: card("a") }]), "m1");
 

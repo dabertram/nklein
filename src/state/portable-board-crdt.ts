@@ -48,6 +48,18 @@ export interface PortableBoardCrdt {
 	cards: Record<string, CrdtCard>;
 	/** Keyed by `${fromTaskId}->${toTaskId}`. */
 	dependencies: Record<string, CrdtDependency>;
+	/**
+	 * M2 (2026-08-18): per-stream LWW registers keyed by stream id. ADDITIVE OPTIONAL — a v1 payload without
+	 * this field loads and merges as before (whole-board streams previously rode outside the CRDT and one
+	 * side's writes clobbered the other's).
+	 */
+	streams?: Record<string, CrdtRegister<unknown>>;
+	/**
+	 * M2: satisfied-edge retirements — a GROW-ONLY set with per-key LWW body, keyed like dependencies.
+	 * Retirements never un-happen, so union is the honest merge; concurrent retirements on different edges
+	 * both survive, and the same edge retired on both sides resolves by stamp.
+	 */
+	satisfiedDependencies?: Record<string, CrdtRegister<unknown>>;
 }
 
 /** The schema version this build writes and reads as current. Bump when the on-disk CRDT shape changes. */
@@ -163,7 +175,23 @@ export function mergePortableBoardCrdt(a: PortableBoardCrdt, b: PortableBoardCrd
 				}
 			: dependency;
 	}
-	return { schemaVersion: 1, cards, dependencies };
+	const streams: Record<string, CrdtRegister<unknown>> = { ...(a.streams ?? {}) };
+	for (const [id, register] of Object.entries(b.streams ?? {})) {
+		const existing = streams[id];
+		streams[id] = existing ? pickRegister(existing, register) : register;
+	}
+	const satisfiedDependencies: Record<string, CrdtRegister<unknown>> = { ...(a.satisfiedDependencies ?? {}) };
+	for (const [key, register] of Object.entries(b.satisfiedDependencies ?? {})) {
+		const existing = satisfiedDependencies[key];
+		satisfiedDependencies[key] = existing ? pickRegister(existing, register) : register;
+	}
+	return {
+		schemaVersion: 1,
+		cards,
+		dependencies,
+		...(Object.keys(streams).length > 0 ? { streams } : {}),
+		...(Object.keys(satisfiedDependencies).length > 0 ? { satisfiedDependencies } : {}),
+	};
 }
 
 /** Marks a card deleted with a stamp strictly newer than any present field, so the tombstone wins on merge. */
@@ -211,7 +239,24 @@ export function boardToPortableBoardCrdt(board: RuntimeBoardData, replicaId: str
 			present: { value: true, stamp: { counter: dependency.createdAt, replicaId } },
 		};
 	}
-	return { schemaVersion: 1, cards, dependencies };
+	const streams: Record<string, CrdtRegister<unknown>> = {};
+	for (const stream of board.streams ?? []) {
+		streams[stream.id] = { value: stream, stamp: { counter: stream.updatedAt, replicaId } };
+	}
+	const satisfiedDependencies: Record<string, CrdtRegister<unknown>> = {};
+	for (const satisfied of board.satisfiedDependencies ?? []) {
+		satisfiedDependencies[dependencyKey(satisfied.fromTaskId, satisfied.toTaskId)] = {
+			value: satisfied,
+			stamp: { counter: satisfied.releasedAt, replicaId },
+		};
+	}
+	return {
+		schemaVersion: 1,
+		cards,
+		dependencies,
+		...(Object.keys(streams).length > 0 ? { streams } : {}),
+		...(Object.keys(satisfiedDependencies).length > 0 ? { satisfiedDependencies } : {}),
+	};
 }
 
 const DEFAULT_COLUMN_ORDER: RuntimeBoardColumnId[] = [
@@ -290,6 +335,12 @@ export function portableBoardCrdtToBoard(
 		}))
 		.sort((a, b) => a.createdAt - b.createdAt);
 
+	const streams = Object.entries(crdt.streams ?? {})
+		.map(([, register]) => register.value as { id: string; createdAt: number })
+		.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+	const satisfiedDependencies = Object.entries(crdt.satisfiedDependencies ?? {})
+		.map(([, register]) => register.value as { id: string; releasedAt: number })
+		.sort((a, b) => a.releasedAt - b.releasedAt || a.id.localeCompare(b.id));
 	return {
 		columns: columnOrder.map((columnId) => ({
 			id: columnId,
@@ -297,5 +348,9 @@ export function portableBoardCrdtToBoard(
 			cards: cardsByColumn.get(columnId) ?? [],
 		})),
 		dependencies,
+		...(streams.length > 0 ? { streams: streams as RuntimeBoardData["streams"] } : {}),
+		...(satisfiedDependencies.length > 0
+			? { satisfiedDependencies: satisfiedDependencies as RuntimeBoardData["satisfiedDependencies"] }
+			: {}),
 	};
 }
