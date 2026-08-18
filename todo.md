@@ -15154,10 +15154,31 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     interrupted, kernel walked acceptance_passed→idle at 20:18:21.6) — but NO merge receipt, reflog shows
     main never moved: the workspace never received the delivered result (result branch c24d6e9 holds it; the
     rig's host acceptance probe correctly failed on main). Production shape: a Completed card whose change
-    is NOT on the user's branch (recoverable from the result branch, but silently). Suspects: the reused-
-    approval re-finalize path returning before the merge block (no "Could not auto-merge" warn, no
-    merge-history dir in the run HOME) + the supersede false positive that forced that path. STILL OWED:
-    root-cause completed-without-merge; wire-record comparison (dsh session JSONL vs session-request-log).
+    is NOT on the user's branch (recoverable from the result branch, but silently). INVESTIGATION STATE
+    (2026-08-18 late): (a) **CHRONIC, not a race** — pair-4b's "delivered 13/13" repo ALSO has main at the
+    bare fixture: every dev-test delivery completes without merging, and all prior bed grades came from
+    result branches/transcripts so nobody noticed. (b) merge-skip probe (scripts/merge-skip-probe.mts)
+    replayed mergeTaskWorktreesInDependencyOrder against a clone of the preserved repo with the exact
+    delivery shapes: **merges cleanly** (ok:true, merged:[card], main moves) — helper healthy, so the live
+    delivery never invoked it. (c) Warn-absence constraints from the complete 42-line runtime.log: no
+    supersede warn on delivery #2, no capture-not-settled hold, no taint/self/boundary/tier holds, no
+    "Could not auto-merge", no merge-history receipt anywhere in the rig HOME, no outer-catch finalize
+    warn — yet acceptance-4 ran fresh (2.7s sandbox) and completeDeliveredTaskAndCascade fired 86ms after
+    its disposal. (d) Session context: the worker session DIED ~20:06 (watchdog "marooned In Progress with
+    no live session" reconciled the card to Review at 20:06:45); ONE capture only (20:00:14, branch
+    updated); handoff #2 (20:06:23) produced NO capture event; review ran against the dead session;
+    delivery #1 hit the supersede warn, the rerun latch re-finalized, #2 delivered via durable-approval
+    reuse → completed. Candidate mechanisms (need ONE deterministic discriminator): admission resolving
+    empty_patch (skips the entire gate+merge block silently — all absent warns live inside it) vs a
+    result_branch admission whose merge ternary was never reached. NEXT (fresh window): sim-rig aimock
+    dev-test drain (~3 min, no GPU) to repro completed-without-merge deterministically, instrument the
+    delivery suffix (log sandboxResult.status + mergeResult), fix at the decided layer, and add a
+    delivery invariant: **a completed card whose autoReviewMode is "commit" MUST have its result commit
+    as an ancestor of the workspace HEAD — else fail loudly** (the N10 recovery already computes exactly
+    this predicate). Also owed from this run: supersede false positive on dead-session deliveries; the
+    watchdog/aux ::review path leaving reviewer=worker model (auto_diverse waived "no lineage-diverse
+    candidate available" — qwen3.6 WAS loaded); wire-record comparison (dsh session JSONL vs
+    session-request-log).
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
