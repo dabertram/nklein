@@ -15005,7 +15005,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     edge and should persist satisfied edges (umbrella for the dark handoff + reviewer completed-neighbor context +
     F12 ready-lane + explicit-start-past-deps live find); DECISIONS FOR DAVID: F8 blockedKind (enforce in sweep vs
     clear server-side — today display-only), M5 pre-commit scope (web-ui tsc + src co-located tests not run at
-    commit); small: task-session-service :: sites (DONE — service sites converted in the audit batches; the last raw check anywhere, session-runtime forensics bracket, converted 2026-08-17), trigger-intake absorb (DONE 2026-08-17 — a created trigger card immediately joins the live durable run, same class as the F1 decompose fix), M2 CRDT streams modeling (DESIGN FILED 2026-08-17, task #36 — implement when the drain slot frees:
+    commit); small: task-session-service :: sites (DONE — service sites converted in the audit batches; the last raw check anywhere, session-runtime forensics bracket, converted 2026-08-17), trigger-intake absorb (DONE 2026-08-17 — a created trigger card immediately joins the live durable run, same class as the F1 decompose fix), M2 CRDT streams modeling (**IMPLEMENTED 2026-08-18 `1a2625387`** — grow-only union + per-key LWW for satisfiedDependencies, per-stream LWW registers, additive-optional so v1 payloads load, both-order merge tests; design was:
     `boardToPortableBoardCrdt` projects only cards+dependencies; `board.streams` and
     `board.satisfiedDependencies` ride whole-object outside the CRDT. Model: satisfiedDependencies = grow-only
     per-key ((from,to)) set with LWW body (retirements never un-happen ⇒ union is the honest merge);
