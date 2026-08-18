@@ -15093,6 +15093,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     bed phase 2 = 3-5 matched tasks + wire-record comparison (their session JSONL vs our
     session-request-log, now symmetric). Results archived at
     ~/GIT/nklein-scaffold-bed/results/{dsh-run-1,klein-run-1}.
+    **▶ PAIR 2 (COMPLEX, 2026-08-18 — David: "cover complex projects with the tests"):** the 3-module
+    rate-limited fetch-queue scenario (injected clocks/random/fetch, integration test with a concurrency
+    invariant). BOTH scaffolds solve it on qwen3.8: dsh 21/21 (~35 min, single session); !Klein 17/17 scored
+    (~57 min, 8 sessions, 100 tool calls incl. 21 tool errors, review round-trip). The rig's "acceptance
+    failing" was an INFRA false-negative (npx cold-fetch inside the rig; the product passes on the host) —
+    and an early grading "hang" was npx cold-start, not a product deadlock (all green with --test-timeout and
+    on re-run). Bed insight #2 confirmed at complexity: on single-card tasks dsh's leaner scaffold matches
+    quality at lower wall-clock; !Klein's value is the multi-card orchestration/review/delivery layer that
+    single-card tasks don't exercise. Pair 3 (cli-parser precedence class) running; wire-record comparison
+    still owed.
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
