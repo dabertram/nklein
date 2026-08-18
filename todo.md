@@ -15111,8 +15111,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     the 16/26 grade is the BOUNCED first attempt's extraction. Honest pair-3 reading: dsh landed green in
     one shot; !Klein's worker failed attempt 1, the pipeline caught it and was iterating — fail-closed
     behavior working as designed, at wall-clock cost. Artifacts + cross-grade dirs under
-    ~/GIT/nklein-scaffold-bed/results/{klein-run-3-parser,dsh-run-3-parser,cross-grade-3}. Wire-record
-    comparison still owed; pairs 4-5 (one more complex + one refactor-class) queued.
+    ~/GIT/nklein-scaffold-bed/results/{klein-run-3-parser,dsh-run-3-parser,cross-grade-3}. **▶ PAIR 4 (refactor-class) — SCENARIO BUG FOUND + FIXED, THEN FULL-PIPELINE CONVERGENCE:** first run
+    thrashed ~20 commands because MY acceptance used `npx -y tsx` in the OFFLINE sandbox (impossible by
+    policy — the a3 doctrine in reverse; also poisoned pairs 2-3's in-sandbox verification); all bed
+    scenarios switched to `node --test` (Node 25 native TS). The un-runnable-acceptance run also produced a
+    reviewer-saw-no-files park that did NOT recur clean — environment-induced, noted not chased. CLEAN
+    RE-RUN: worker attempt → review BOUNCE with feedback → rework → **DELIVERED round 2 → completed**;
+    extraction-grade 13/13. The full catch-and-correct pipeline working end-to-end on a real refactor task.
+    dsh leg 4 running; pair-3 klein re-run with the fixed scenario owed for fairness; wire-record comparison
+    still owed.
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
