@@ -15105,10 +15105,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     self-consistent; !Klein 16/26 — its own suite fails its own implementation at extraction-grade (the
     negation/precedence/coercion edges bit). CROSS-GRADE (each impl vs the other's tests) fails hard BOTH
     ways (4/26 and 8/20) — the two made different interface interpretations, so cross-suite numbers measure
-    spec ambiguity, not correctness; recorded, not over-read. OPEN PROBE (next): the pair-3 run dir's
-    delivery-gate evidence — acceptance-verify ran (runtime.log) and the suite was red; confirm the gate
-    HELD rather than delivering a red suite (if it delivered, that's a review/gate-quality finding of
-    exactly the class David cares about). Artifacts + cross-grade dirs under
+    spec ambiguity, not correctness; recorded, not over-read. GATE PROBE RESOLVED (same day): the review **BOUNCED** the
+    red suite (review-resolution done (bounced); card back to in_progress for rework — the #25 feedback
+    machinery in action) and the rig wall ended the run mid-rework. !Klein did NOT deliver failing work;
+    the 16/26 grade is the BOUNCED first attempt's extraction. Honest pair-3 reading: dsh landed green in
+    one shot; !Klein's worker failed attempt 1, the pipeline caught it and was iterating — fail-closed
+    behavior working as designed, at wall-clock cost. Artifacts + cross-grade dirs under
     ~/GIT/nklein-scaffold-bed/results/{klein-run-3-parser,dsh-run-3-parser,cross-grade-3}. Wire-record
     comparison still owed; pairs 4-5 (one more complex + one refactor-class) queued.
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
