@@ -15214,7 +15214,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     Registered in the mechanism registry. LIVE MODE (reserved flag NKLEIN_BOUNCE_FORK_RETRY): fork at the
     boundary as a SECOND retry arm and let the existing ::spec/F12.4 arbitration pick — flip only after the
     observations show eligibility is common and rewind depths are sane (David's autonomous evidence-gated
-    flip standard).
+    flip standard). **▶ #38 COMPLETE (2026-08-18 night):** batch 2 adds US-6 (bounced card: ladder strip
+    bounce rung "now" + the reviewer's feedback text readable in detail) and US-7 (parked card: red park
+    rung + parkedReason in the strip tooltip AND verbatim in detail) — web-ui/tests/user-stories.spec.ts
+    now 7 journeys, all green; fixture lesson recorded in-file (omitted fingerprint fields read as
+    undefined and MATCH the escalation-signature detector's !== null checks — fixtures must carry the
+    production writer's string|null shape). The WORKFLOW side of the directive is served by the EXISTING
+    regression gates, not a duplicate layer (N17): the 20-scenario sim-flow harness (each drain = one
+    workflow journey, PASS + 0 unmatched) and the swarm-deterministic{,-pass,-bounce} trio (bounce/re-drive
+    pins). Journey coverage to extend NEXT when new UX ships: plan-mode question flow, merge-conflict
+    resolution surface, A2A park→INPUT_REQUIRED.
     **▶ #32 CORE + SEAM SHIPPED 2026-08-17** (`f165f4c52` pure core: safe step boundaries — no dangling
     tool_use crosses a fork, typed refusals, provenance; `fa2fbad39` effectful seam:
     `forkTaskSessionAtBoundary` on the session service — reads the source's persisted transcript, plans via
