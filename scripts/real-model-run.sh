@@ -143,6 +143,18 @@ RUN_DIR="$REPO/.real-runs/$STAMP"
 # an explicit NKLEIN_RUN_HOME remains available for a deliberate resume/reproduction.
 RUN_HOME="${NKLEIN_RUN_HOME:-$RUN_DIR/home}"
 mkdir -p "$RUN_DIR" "$RUN_HOME"
+# Depth-volume campaign 2026-08-19: a durable NKLEIN_RUN_HOME is the ONLY way fitness/model-performance rows
+# accrue across drains (isolated homes die with their run dir) — but a durable home also makes WORKSPACES
+# durable, so every later drain booted into all prior drains' boards and their stale cards contended for the
+# single model slot. Durable EVIDENCE and durable WORKSPACES are different wants: keep the accruing stores,
+# retire the boards. NKLEIN_KEEP_RUN_WORKSPACES=1 opts out (a deliberate resume needs its boards).
+if [ -n "${NKLEIN_RUN_HOME:-}" ] && [ "${NKLEIN_KEEP_RUN_WORKSPACES:-0}" != "1" ]; then
+  RETIRED_WS="$RUN_HOME/.nklein/nklein/workspaces"
+  if [ -d "$RETIRED_WS" ]; then
+    mv "$RETIRED_WS" "$RUN_DIR/retired-workspaces" 2>/dev/null || rm -rf "$RETIRED_WS"
+    echo "[rig] durable home: retired prior workspaces into $RUN_DIR/retired-workspaces (accruing stores kept)"
+  fi
+fi
 RUNTIME_LOG="$RUN_DIR/runtime.log"; DRAIN_JSON="$RUN_DIR/drain.json"; DRAIN_ERR="$RUN_DIR/drain.err"
 DEVLOG="$RUN_DIR/lmstudio-devlog.txt"; RUNLOG="$RUN_DIR/orchestrator.log"; SNAP="$RUN_DIR/snapshots.log"
 EVIDENCE_DIR="$RUN_DIR/evidence"
