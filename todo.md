@@ -14355,8 +14355,22 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   DECISION: should rig/dev-test cards carry a trusted-plan waiver, or is manual-merge the intended posture
   for unplanned cards? (3) reviewer throughput on the 35b-heavy nights (2 approves, several no-verdict
   retries across 8 walls). ALSO LIVE-PROVEN this campaign: the #37-adjacent redrive-window guard absorbed 3
-  same-session re-claims on refactor-inventory (cap reached, correct degradation). Round 2 of the campaign
-  should run with per-run workspace pruning + (if David waives) the taint answer.
+  same-session re-claims on refactor-inventory (cap reached, correct degradation). **▶ ROUND 2 (2026-08-19, both round-1 causes fixed): FIRST FULLY GREEN END-TO-END DELIVERY.**
+  refactor-inventory ran worker → review APPROVE → taint gate PASSED → acceptance → MERGE → completed, and
+  the merged workspace main was graded independently by the operator harness: **19/19 pass, merge commit
+  present, product files on the branch**. That single run proves the whole chain the P1 + trust work opened.
+  Causes 1 and 2 are closed: exactly ONE workspace in the durable home (was 9), and no taint hold anywhere.
+  The other 3/4 all died on ONE named cause — **reviewer "no submission"** — and the telemetry named its
+  mechanism precisely: turns ended `finishReason: max-tokens` at the SAME output-token count on every
+  attempt (1535, 1535, 1535 / 2303, 2303). At temperature 0 a byte-identical re-run re-truncates by
+  construction, so the 3-strike no-verdict ladder was one failed experiment repeated three times. FIXED
+  (9f0e76db0): the no-verdict loop carries its attempt index into the reviewer session and the runner
+  doubles the per-turn output budget per attempt (ceiling 32768, ≤3 doublings) — the `raise_token_budget`-
+  first rung the WORKER ladder has always had for `aborted`/`no_tool_call`, which the reviewer path simply
+  never had. Attempt 0 unchanged; a null base budget stays null. ALSO FIXED (1a44916b8): a durable home's
+  session store leaked prior runs' transcripts into each bundle (round-2 evidence carried round-1 task ids)
+  — the collector now takes `--since` and the rig stamps its start. Depth accrual continues across rounds
+  (91 → 139 rows). Round 3 (running) validates the reviewer-budget ladder on the same four scenarios.
   **Volume-accrual correction 2026-08-11, learned from the P23.5 campaign's ~29 drains:** isolated-HOME drains
   do NOT accumulate — their fitness stores die with the pruned run dirs, so a hundred throwaway drains leave
   the depth-sample count exactly where it was. Only runs against a DURABLE home accrue. The resume-pair
