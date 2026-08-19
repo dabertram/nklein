@@ -14370,7 +14370,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   never had. Attempt 0 unchanged; a null base budget stays null. ALSO FIXED (1a44916b8): a durable home's
   session store leaked prior runs' transcripts into each bundle (round-2 evidence carried round-1 task ids)
   — the collector now takes `--since` and the rig stamps its start. Depth accrual continues across rounds
-  (91 → 139 rows). Round 3 (running) validates the reviewer-budget ladder on the same four scenarios.
+  (91 → 139 rows). **▶ ROUND 3 (2026-08-20): 2/4 COMPLETE + MERGED** (cli-parser and refactor-inventory, both with real
+  `Delivery merge ok=true` lines and zero budget raises needed — the healthy path). Delivery trend across the
+  campaign: **0/8 → 1/4 → 2/4**. The budget ladder FIRED as designed on the two failures (4096 → 8192 → 16384)
+  and they still failed — which is the honest and useful result, because the telemetry shows round 3's failures
+  are a DIFFERENT mechanism: every turn finished `tool-calls` (not max-tokens), input climbing 8k → 16k as the
+  reviewer explored the tree, and all three failing sessions ended in **timeout**. The nudge that exists for
+  exactly this ("call submit_review now") is gated on `Date.now() < deadlineMs`, so a turn that consumed the
+  whole deadline left it ZERO iterations: the reviewer was never ASKED for the verdict. FIXED (24482ee1f):
+  `runBoundedTurn` takes `reserveMs`, the review runner reserves 120s on its exploration turn, and the reserve
+  splits the window rather than starving the turn when the budget is small. Round 4 (running) validates it.
+  LESSON WORTH KEEPING: two consecutive rounds produced the same SYMPTOM ("no verdict / reviewer failed") from
+  two unrelated CAUSES (deterministic output truncation, then wall-clock starvation of the ask). The symptom
+  name was never the diagnosis — `finishReason` + the session-outcome class (`timeout` vs `no_verdict`) were,
+  and both were already recorded. Read the discriminator before theorising.
   **Volume-accrual correction 2026-08-11, learned from the P23.5 campaign's ~29 drains:** isolated-HOME drains
   do NOT accumulate — their fitness stores die with the pruned run dirs, so a hundred throwaway drains leave
   the depth-sample count exactly where it was. Only runs against a DURABLE home accrue. The resume-pair
