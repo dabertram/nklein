@@ -14342,6 +14342,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Fixed and proven on that run's own ledger: the same events now project to `{shallow:3, medium:1, deep:9}`.
   **So phase 4 no longer needs a fresh fleet run to BEGIN** — 15 depth-matched samples already exist from the
   banked drain, and every future drain contributes.
+  **▶ DEPTH-VOLUME CAMPAIGN ROUND 1 RAN OVERNIGHT 2026-08-19 (8 sequential bed drains, 00:42→07:04, durable
+  home .depth-campaign-home): ACCRUAL PROVEN — 91 model-performance rows banked into ONE store (77
+  qwen3.6-35b + 14 qwen3.8; the router leaned hard on the 35b as worker). Delivery-wise 0/8 completed, with
+  THREE named causes from the logs:** (1) **cross-run workspace contamination** — a durable HOME also makes
+  WORKSPACES durable, so each run booted into all prior runs' boards (run 2's log admits run 1's card at
+  boot) and the stale sweeps contended for the single model slot; campaign homes need per-run workspace
+  pruning (durable fitness ≠ durable workspaces — split them; e.g. prune home/.nklein/nklein/workspaces
+  between drains while keeping model-performance); (2) **the delivery taint gate held both approves**
+  ("require_fresh_trusted_plan: tainted content may not move the protected host_access sink") — fail-closed
+  AS DESIGNED on plan-less rig cards, but it means scenario-file bed cards can NEVER auto-deliver; DAVID
+  DECISION: should rig/dev-test cards carry a trusted-plan waiver, or is manual-merge the intended posture
+  for unplanned cards? (3) reviewer throughput on the 35b-heavy nights (2 approves, several no-verdict
+  retries across 8 walls). ALSO LIVE-PROVEN this campaign: the #37-adjacent redrive-window guard absorbed 3
+  same-session re-claims on refactor-inventory (cap reached, correct degradation). Round 2 of the campaign
+  should run with per-run workspace pruning + (if David waives) the taint answer.
   **Volume-accrual correction 2026-08-11, learned from the P23.5 campaign's ~29 drains:** isolated-HOME drains
   do NOT accumulate — their fitness stores die with the pruned run dirs, so a hundred throwaway drains leave
   the depth-sample count exactly where it was. Only runs against a DURABLE home accrue. The resume-pair
