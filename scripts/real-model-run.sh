@@ -142,6 +142,11 @@ RUN_DIR="$REPO/.real-runs/$STAMP"
 # A shared HOME contaminates one run's evidence with prior sessions and ledgers. Each run owns a fresh HOME by default;
 # an explicit NKLEIN_RUN_HOME remains available for a deliberate resume/reproduction.
 RUN_HOME="${NKLEIN_RUN_HOME:-$RUN_DIR/home}"
+# This run's start, in epoch ms: the evidence collector's `--since` cutoff. On a DURABLE home the session
+# store holds every prior run's transcripts, and an unfiltered collect bundled them into this run's evidence
+# (round-2 bundles carried round-1 task ids). Stamped before anything writes, so nothing this run produces
+# can fall before it.
+RUN_START_MS="$(date +%s)000"
 mkdir -p "$RUN_DIR" "$RUN_HOME"
 # Depth-volume campaign 2026-08-19: a durable NKLEIN_RUN_HOME is the ONLY way fitness/model-performance rows
 # accrue across drains (isolated homes die with their run dir) — but a durable home also makes WORKSPACES
@@ -585,7 +590,8 @@ fi
 if [ "$RUN_KIND" = dev-test ]; then
   log "collecting exact transcripts, tool results, errors, pending calls, board state, and transitions"
   EVIDENCE_SUMMARY=$("$REPO/node_modules/.bin/tsx" "$REPO/src/commands/real-model-evidence-cli.ts" \
-    --home "$RUN_HOME" --out "$EVIDENCE_DIR" --runtime-log "$RUNTIME_LOG" 2>"$RUN_DIR/evidence-collector.err")
+    --home "$RUN_HOME" --out "$EVIDENCE_DIR" --runtime-log "$RUNTIME_LOG" \
+    --since "$RUN_START_MS" 2>"$RUN_DIR/evidence-collector.err")
   EVIDENCE_STATUS=$?
   if [ "$EVIDENCE_STATUS" -eq 0 ]; then
     log "evidence: $EVIDENCE_SUMMARY"

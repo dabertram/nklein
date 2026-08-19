@@ -1,5 +1,5 @@
 import type { Dirent } from "node:fs";
-import { copyFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -19,6 +19,13 @@ export interface CliOptions {
 	homeDir: string;
 	outputDir: string;
 	runtimeLogPath: string | null;
+	/**
+	 * Epoch ms of this run's start. A DURABLE run home (the depth-volume campaign's accrual home) keeps every
+	 * prior run's session transcripts, so an unfiltered collect bundles other runs' sessions into this run's
+	 * evidence — the 2026-08-19 campaign's round-2 bundles carried round-1 task ids. Null ⇒ collect everything
+	 * (the isolated-home default, unchanged).
+	 */
+	sinceMs: number | null;
 }
 
 interface EvidenceFileError {
@@ -44,6 +51,7 @@ function parseArgs(args: readonly string[]): CliOptions {
 	let homeDir: string | null = null;
 	let outputDir: string | null = null;
 	let runtimeLogPath: string | null = null;
+	let sinceMs: number | null = null;
 	for (let index = 0; index < args.length; index += 1) {
 		const value = args[index + 1];
 		switch (args[index]) {
@@ -59,17 +67,30 @@ function parseArgs(args: readonly string[]): CliOptions {
 				runtimeLogPath = value ?? null;
 				index += 1;
 				break;
+			case "--since": {
+				const parsed = Number(value);
+				// A malformed --since must not silently widen the bundle back to "everything": fail loudly.
+				if (!Number.isFinite(parsed) || parsed < 0) {
+					throw new Error(`--since expects epoch milliseconds, received: ${String(value)}`);
+				}
+				sinceMs = parsed;
+				index += 1;
+				break;
+			}
 			default:
 				throw new Error(`Unknown argument: ${args[index]}`);
 		}
 	}
 	if (!homeDir || !outputDir) {
-		throw new Error("Usage: real-model-evidence-cli --home <run-home> --out <evidence-dir> [--runtime-log <path>]");
+		throw new Error(
+			"Usage: real-model-evidence-cli --home <run-home> --out <evidence-dir> [--runtime-log <path>] [--since <epoch-ms>]",
+		);
 	}
 	return {
 		homeDir: resolve(homeDir),
 		outputDir: resolve(outputDir),
 		runtimeLogPath: runtimeLogPath ? resolve(runtimeLogPath) : null,
+		sinceMs,
 	};
 }
 
@@ -191,6 +212,18 @@ export async function collectRealModelRunEvidence(options: CliOptions): Promise<
 	const transcriptBySessionId = new Map<string, CollectedTranscript>();
 	for (const file of transcriptFiles) {
 		try {
+			// Durable-home guard: skip transcripts last written BEFORE this run began. mtime is the right clock
+			// here — a transcript that this run touched has been rewritten by it; one it never touched has not.
+			if (options.sinceMs !== null) {
+				const lastWrittenMs = await stat(file)
+					.then((stats) => stats.mtimeMs)
+					.catch(() => null);
+				// An unreadable mtime must not silently drop real evidence — keep the file and let the bundle be
+				// wider than necessary rather than quietly narrower than the truth.
+				if (lastWrittenMs !== null && lastWrittenMs < options.sinceMs) {
+					continue;
+				}
+			}
 			const body = await readFile(file, "utf8");
 			const document: unknown = JSON.parse(body);
 			const executions = extractRealModelToolEvidence(document);

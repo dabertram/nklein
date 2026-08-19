@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { collectRealModelRunEvidence } from "../../../src/commands/real-model-evidence-cli";
@@ -113,6 +113,7 @@ describe("real-model evidence collector", () => {
 			homeDir: home,
 			outputDir: output,
 			runtimeLogPath: runtimeLog,
+			sinceMs: null,
 		});
 
 		expect(summary).toMatchObject({
@@ -204,7 +205,12 @@ describe("real-model evidence collector", () => {
 			"utf8",
 		);
 
-		const summary = await collectRealModelRunEvidence({ homeDir: home, outputDir: output, runtimeLogPath: null });
+		const summary = await collectRealModelRunEvidence({
+			homeDir: home,
+			outputDir: output,
+			runtimeLogPath: null,
+			sinceMs: null,
+		});
 		expect(summary).toMatchObject({
 			sessions: 2,
 			aimockRecordedFixtures: 3,
@@ -220,5 +226,43 @@ describe("real-model evidence collector", () => {
 			selectedSessionId: "attempt-b",
 			supersededSessionIds: ["attempt-a"],
 		});
+	});
+	it("--since excludes transcripts from earlier runs sharing a durable home", async () => {
+		// Campaign 2026-08-19: a durable NKLEIN_RUN_HOME (needed for fitness accrual) also retains every prior
+		// run's transcripts, so round-2 evidence bundles carried round-1 task ids. The filter is mtime-based:
+		// a transcript this run touched was rewritten by it.
+		const home = await mkdtemp(join(tmpdir(), "evidence-since-home-"));
+		const output = await mkdtemp(join(tmpdir(), "evidence-since-out-"));
+		const sessionsDir = join(home, ".nklein", "data", "sessions");
+		await mkdir(sessionsDir, { recursive: true });
+		const write = async (name: string, sessionId: string) => {
+			const file = join(sessionsDir, name);
+			await writeFile(file, JSON.stringify({ sessionId, messages: [{ role: "user", content: "hi" }] }), "utf8");
+			return file;
+		};
+		const stale = await write("old.messages.json", "prior-run-session");
+		const fresh = await write("new.messages.json", "this-run-session");
+		const cutoff = 1_800_000_000_000;
+		await utimes(stale, new Date(cutoff - 60_000), new Date(cutoff - 60_000));
+		await utimes(fresh, new Date(cutoff + 60_000), new Date(cutoff + 60_000));
+
+		const filtered = await collectRealModelRunEvidence({
+			homeDir: home,
+			outputDir: output,
+			runtimeLogPath: null,
+			sinceMs: cutoff,
+		});
+		expect(filtered).toMatchObject({ sessions: 1 });
+		expect(await readdir(join(output, "sessions"))).toEqual(["this-run-session.messages.json"]);
+
+		// Without the filter both are collected — proving the exclusion is the flag's doing, not an accident.
+		const unfilteredOut = await mkdtemp(join(tmpdir(), "evidence-since-out2-"));
+		const unfiltered = await collectRealModelRunEvidence({
+			homeDir: home,
+			outputDir: unfilteredOut,
+			runtimeLogPath: null,
+			sinceMs: null,
+		});
+		expect(unfiltered).toMatchObject({ sessions: 2 });
 	});
 });
