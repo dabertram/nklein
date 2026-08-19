@@ -45,6 +45,7 @@ import { selectBackgroundEvalTarget } from "../core/background-eval-selection";
 import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
 import { decideBlockedKindRelease } from "../core/blocked-kind-release";
 import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
+import { resolveCardDeliveryTrust } from "../core/card-delivery-trust";
 import { readPausedTasks, setCardPaused } from "../core/card-pause";
 import { resolveSessionConcurrencyCaps } from "../core/concurrency-config";
 import { isCrashRecoveryMatrixPhaseEnabled, reachCrashRecoveryMatrixBarrier } from "../core/crash-recovery-matrix";
@@ -3090,21 +3091,27 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const taintLabels = (
 								lastAttempt && lastAttempt.kind === "attempt" ? (lastAttempt.taintLabels ?? []) : []
 							).filter((label): label is TaintLabel => knownLabels.has(label));
+							// The gate's real question is whether this delivery is grounded in OPERATOR-authored
+							// intent (see core/card-delivery-trust.ts). The old `Boolean(generatedFromPlan)` proxy
+							// trusted machine-written decompose prompts and permanently held hand-authored cards,
+							// because `repo_instruction` taint attaches the moment a worker reads a repo file.
+							const deliveryTrust = resolveCardDeliveryTrust(deliveryCard);
 							const deliveryGate = decideCapabilityBrokerGate({
 								manifest: DELIVERY_ACTION_MANIFEST,
 								taintLabels,
-								backedByTrustedPlan: Boolean(deliveryCard?.generatedFromPlan),
+								backedByTrustedPlan: deliveryTrust.trusted,
 							});
 							if (!deliveryGate.allow) {
 								recordSelfObservation({
 									signal: "custom",
 									severity: "warning",
-									message: `Delivery taint gate held ${taskId} in Review: ${deliveryGate.reason ?? "tainted influence on git_delivery"}`,
+									message: `Delivery taint gate held ${taskId} in Review (card trust: ${deliveryTrust.reason}): ${deliveryGate.reason ?? "tainted influence on git_delivery"}`,
 									taskId,
 									workspacePath: scope.workspacePath,
 									metadata: {
 										category: "delivery_taint_gate",
 										taintLabels: [...taintLabels],
+										cardTrust: deliveryTrust.reason,
 									},
 								});
 								void appendAgentLedgerEvent(
@@ -5968,6 +5975,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						taskId: seed.taskId,
 						title: seed.title,
 						prompt: seed.prompt,
+						// A2A ingress: a third party wrote this text, so it stays OUTSIDE the delivery gate's
+						// trusted set and must re-ground in a fresh trusted plan before moving a protected sink.
+						trustedOrigin: "external",
 						// Same default the external-trigger template schema uses (trigger-intake.ts). A
 						// non-"main" default branch is a template/config concern there and a follow-up here.
 						baseRef: "main",

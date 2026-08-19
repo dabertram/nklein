@@ -107,6 +107,11 @@ export function createPlanIntegrationGateRunner(deps: PlanIntegrationGateRunnerD
 								baseRef: surfaceCard.baseRef,
 								startInPlanMode: false,
 								autoReviewEnabled: surfaceCard.autoReviewEnabled ?? true,
+								// Inherit the surfacing card's provenance — a repair card is not more trusted than
+								// the plan work that produced the failure it fixes.
+								...(surfaceCard.trustedOrigin !== undefined
+									? { trustedOrigin: surfaceCard.trustedOrigin }
+									: {}),
 							},
 							() => repairTaskId,
 						).board;

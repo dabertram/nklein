@@ -277,6 +277,8 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						state.board,
 						"backlog",
 						{
+							// The operator ran the initializer and authored this brief.
+							trustedOrigin: "operator",
 							title: `Plan ${body.projectName?.trim() || basename(context.repoPath)} from the project brief`,
 							prompt: buildProjectInitializerSeedPrompt(
 								body.projectName?.trim() || basename(context.repoPath),
@@ -539,6 +541,8 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					state.board,
 					"backlog",
 					{
+						// Operator-invoked self-improvement run — their gesture authored this objective.
+						trustedOrigin: "operator",
 						title: "Improve !Klein from current evidence",
 						prompt: buildSelfImprovementTaskPrompt({
 							workspacePath: context.repoPath,

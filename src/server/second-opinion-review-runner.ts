@@ -1399,6 +1399,9 @@ export async function runSecondOpinionReviewForTask(
 									baseRef: card.baseRef,
 									startInPlanMode: true,
 									autoReviewEnabled: card.autoReviewEnabled ?? true,
+									// Trust is INHERITED, never minted: a re-decompose of an external-ingress card is
+									// still external. Absent on a legacy parent ⇒ absent here (fail-closed).
+									...(card.trustedOrigin !== undefined ? { trustedOrigin: card.trustedOrigin } : {}),
 									// Harvested from codex/f11-followup 4c2cced58 (adapted 2026-08-12): a runtime-spawned
 									// card has no UI start request to recover launch policy from — carry the parent's
 									// model pinning / agent / review mode so routing survives the spawn. The parent's

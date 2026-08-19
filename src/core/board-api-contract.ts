@@ -223,6 +223,12 @@ export const runtimeBoardCardSchema = z
 		writeScope: z.array(z.string()).optional(),
 		forbiddenPaths: z.array(z.string()).optional(),
 		generatedFromPlan: runtimeGeneratedFromPlanSchema.optional(),
+		/**
+		 * Where this card's objective text came from — the delivery gate's real trust axis (see
+		 * `card-delivery-trust.ts`). ABSENT on legacy cards and resolves UNTRUSTED, so an unstamped board keeps
+		 * exactly today's fail-closed behavior.
+		 */
+		trustedOrigin: z.enum(["operator", "plan", "external"]).optional(),
 		/** Deterministic control-plane card that replaces only stranded nodes in an existing plan. */
 		fleetReshardRequest: runtimeFleetReshardRequestSchema.optional(),
 		// §5.AU: the stream/epic this card belongs to (single-parent). Additive optional (CRDT whole-object LWW) so older

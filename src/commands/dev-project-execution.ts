@@ -243,6 +243,10 @@ export async function executeDevTestScenario(
 								title: payload.taskTitle,
 								baseRef: payload.baseRef,
 								startInPlanMode: payload.startInPlanMode,
+								// A dev-test card's objective comes from a preset or an operator-supplied
+								// `--scenario-file` on this machine — first-party authored text, not ingress.
+								// (Campaign 2026-08-19: without this every rig card was permanently gate-held.)
+								trustedOrigin: "operator",
 								// N20 (live-hit 2026-08-02): default TRUE. Dev-test drains are HEADLESS — a seed
 								// without auto-review waits for an operator that does not exist, and the omission
 								// is not even neutral: `addTaskToColumn` coerces an absent flag to an explicit

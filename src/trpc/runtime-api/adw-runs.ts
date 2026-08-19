@@ -44,7 +44,8 @@ export async function handleStartAdwRun(
 				const result = addTaskToColumn(
 					state.board,
 					"backlog",
-					{ title: card.title, prompt: card.prompt, baseRef },
+					// The operator started this ADW run; its seed card carries their intent.
+					{ title: card.title, prompt: card.prompt, baseRef, trustedOrigin: "operator" },
 					() => randomUUID(),
 				);
 				return { board: result.board, value: result.task.id };

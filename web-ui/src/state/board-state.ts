@@ -519,6 +519,9 @@ export function addTaskToColumnWithResult(
 		board,
 		columnId,
 		{
+			// A card created in the board UI is the most directly operator-authored input the product has —
+			// the delivery gate must treat it as such (core/card-delivery-trust.ts).
+			trustedOrigin: "operator",
 			title: draft.title,
 			prompt,
 			startInPlanMode: draft.startInPlanMode,

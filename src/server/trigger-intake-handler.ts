@@ -281,6 +281,10 @@ export function applyTriggerCardToBoard(input: {
 			taskId: input.card.taskId,
 			title: input.card.title,
 			prompt: input.card.prompt,
+			// External trigger ingress (webhook/schedule payload): the objective text is not operator-authored,
+			// so delivery of this card still requires a fresh trusted plan. The OPERATOR authored the TEMPLATE,
+			// but the per-fire card body comes from the payload — that is the untrusted half.
+			trustedOrigin: "external",
 			baseRef: input.template.baseRef,
 			startInPlanMode: input.template.startInPlanMode,
 			// N10 trigger cell (2026-07-25): a trigger fires unattended, so the card must enter the headless

@@ -55,6 +55,8 @@ export interface RuntimeCreateTaskInput {
 	writeScope?: string[];
 	forbiddenPaths?: string[];
 	generatedFromPlan?: RuntimeGeneratedFromPlan;
+	/** Provenance of the objective text — the delivery gate's trust axis (see core/card-delivery-trust.ts). */
+	trustedOrigin?: RuntimeBoardCard["trustedOrigin"];
 	fleetReshardRequest?: RuntimeFleetReshardRequest;
 	/** §5.AU: the stream/epic this card belongs to (set by the decomposition write-path). */
 	streamId?: string;
@@ -403,6 +405,12 @@ export function addTaskToColumn(
 		...(writeScope ? { writeScope } : {}),
 		...(forbiddenPaths ? { forbiddenPaths } : {}),
 		...(input.generatedFromPlan ? { generatedFromPlan: { ...input.generatedFromPlan } } : {}),
+		// A plan-generated card carries `plan` trust implicitly; an explicit stamp always wins.
+		...(input.trustedOrigin
+			? { trustedOrigin: input.trustedOrigin }
+			: input.generatedFromPlan
+				? { trustedOrigin: "plan" as const }
+				: {}),
 		...(input.fleetReshardRequest ? { fleetReshardRequest: { ...input.fleetReshardRequest } } : {}),
 		...(input.streamId ? { streamId: input.streamId } : {}),
 		...(input.redecomposeOf ? { redecomposeOf: input.redecomposeOf } : {}),

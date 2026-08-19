@@ -215,7 +215,9 @@ export function createBoardMutationTools(projectPath: string, options: { deps?: 
 						const { board, task } = addTaskToColumn(
 							state.board,
 							"backlog",
-							{ title, prompt, startInPlanMode: false, baseRef },
+							// Board chat is a direct operator conversation on this machine — a card the operator
+							// asked for there carries their intent, exactly like typing it into the board.
+							{ title, prompt, startInPlanMode: false, baseRef, trustedOrigin: "operator" },
 							crypto.randomUUID.bind(crypto),
 						);
 						return { board, save: true, value: task };
