@@ -109,6 +109,50 @@ describe("createSecondarySessionHarness.runBracketed", () => {
 		expect(settledOutcome).toBe("settled");
 	});
 
+	it("reserveMs keeps a slice of the budget for the follow-up turn (campaign round 3)", async () => {
+		// Reviewer sessions spent their ENTIRE deadline exploring, so the "submit your verdict now" nudge —
+		// gated on the deadline — never ran, and the session timed out having never been ASKED for a verdict.
+		// A turn that may consume everything must leave room for the conclusion.
+		const mgr = sandboxManager();
+		let hungTurnOutcome: unknown = null;
+		let nudgeRan = false;
+		let msLeftForNudge = 0;
+		await createSecondarySessionHarness(deps(mgr)).runBracketed(
+			{ ...config, timeoutMs: 400 },
+			async ({ runBoundedTurn, deadlineMs }) => {
+				// A turn that never settles — the exploration loop that ate the whole budget in the field.
+				hungTurnOutcome = await runBoundedTurn(new Promise(() => {}), { reserveMs: 150 });
+				msLeftForNudge = deadlineMs - Date.now();
+				if (Date.now() < deadlineMs) {
+					nudgeRan = true;
+				}
+				return "ok";
+			},
+		);
+		expect(hungTurnOutcome).toBe("timeout");
+		// The reserve is the whole point: the deadline has NOT passed, so the nudge loop still gets its turn.
+		expect(nudgeRan).toBe(true);
+		expect(msLeftForNudge).toBeGreaterThan(0);
+	});
+
+	it("a reserve never starves the turn itself — it splits the window rather than yielding zero", async () => {
+		const mgr = sandboxManager();
+		let outcome: unknown = null;
+		let elapsedMs = 0;
+		await createSecondarySessionHarness(deps(mgr)).runBracketed(
+			{ ...config, timeoutMs: 200 },
+			async ({ runBoundedTurn }) => {
+				const startedAt = Date.now();
+				// Reserve larger than the whole remaining window: the turn must still get half, not nothing.
+				outcome = await runBoundedTurn(new Promise(() => {}), { reserveMs: 10_000 });
+				elapsedMs = Date.now() - startedAt;
+				return "ok";
+			},
+		);
+		expect(outcome).toBe("timeout");
+		expect(elapsedMs).toBeGreaterThan(50);
+	});
+
 	it("falls back to the base ref when the result-branch commit does not resolve (primaryTaskId given)", async () => {
 		mocks.resolveTaskResultBranchCommit.mockResolvedValueOnce(null);
 		const mgr = sandboxManager();

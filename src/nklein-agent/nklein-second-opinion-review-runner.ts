@@ -26,6 +26,12 @@ import { createSessionId } from "./nklein-session-state";
  * are unchanged. The context clamp downstream still bounds it to the window.
  */
 const REASONING_REVIEWER_BUDGET_FLOOR = 4096;
+/**
+ * Wall-clock held back from the reviewer's exploration turn so the "call submit_review now" nudge always gets
+ * a turn. Sized from the campaign's own numbers: verdict-emitting nudge turns settled in ~10-70s on the 27B
+ * local models, so two minutes covers the ask plus a slow first token.
+ */
+const REVIEW_VERDICT_RESERVE_MS = 120_000;
 /** Hard ceiling for the raise-on-retry ladder — a reviewer that needs more than this is not budget-starved. */
 export const REVIEW_RETRY_BUDGET_CEILING = 32_768;
 /** At most this many doublings, so the ceiling is approached deliberately rather than by exponent growth. */
@@ -297,11 +303,15 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 								maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
 							}),
 						}),
+						// Campaign round 3 (2026-08-19): reviewers spent the ENTIRE deadline on exploration tool calls,
+						// so the nudge loop below (gated on `Date.now() < deadlineMs`) never ran and three sessions
+						// timed out without ever being ASKED for a verdict. Reserve a slice for the ask.
+						{ reserveMs: REVIEW_VERDICT_RESERVE_MS },
 					),
 				);
 				// Re-prompt nudge: small models often end a turn without the structured call. Mirror the decomposition
 				// re-prompt — if there's still no verdict, tell the reviewer to call submit_review now, bounded by a
-				// small budget and the overall deadline.
+				// small budget and the overall deadline (the reserve above guarantees this budget is non-empty).
 				for (let nudge = 0; verdict === null && nudge < deps.maxNudges && Date.now() < deadlineMs; nudge += 1) {
 					turnOutcome = mergeTurnOutcome(
 						turnOutcome,

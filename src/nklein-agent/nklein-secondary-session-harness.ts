@@ -24,8 +24,15 @@ export interface SecondarySessionContext {
 	/**
 	 * Await one turn, bounded by the remaining overall budget (an SDK turn can hang). Turn errors are recorded (not
 	 * thrown) so they fall through to whatever null/empty verdict the drive returns (the caller then fail-safe-delivers).
+	 *
+	 * `reserveMs` HOLDS BACK part of the remaining budget for what must happen after this turn. Campaign round 3
+	 * (2026-08-19) showed why it is needed: reviewer sessions spent their whole deadline making exploration tool
+	 * calls, so the "call submit_review now" nudge — gated on `Date.now() < deadlineMs` — never ran even once, and
+	 * three sessions timed out having never been ASKED for the verdict they existed to produce. A turn that may
+	 * consume the entire budget must leave a slice for the conclusion. Omitted ⇒ the full remaining budget, exactly
+	 * as before.
 	 */
-	runBoundedTurn(turn: Promise<unknown>): Promise<SecondaryTurnOutcome>;
+	runBoundedTurn(turn: Promise<unknown>, options?: { reserveMs?: number }): Promise<SecondaryTurnOutcome>;
 }
 
 export interface SecondarySessionConfig {
@@ -98,11 +105,20 @@ export function createSecondarySessionHarness(deps: SecondarySessionHarnessDeps)
 				createdAt: Date.now(),
 			});
 		};
-		const runBoundedTurn = async (turn: Promise<unknown>): Promise<SecondaryTurnOutcome> => {
-			const remainingMs = deadlineMs - Date.now();
-			if (remainingMs <= 0) {
+		const runBoundedTurn = async (
+			turn: Promise<unknown>,
+			options?: { reserveMs?: number },
+		): Promise<SecondaryTurnOutcome> => {
+			const untilDeadlineMs = deadlineMs - Date.now();
+			if (untilDeadlineMs <= 0) {
 				return "timeout";
 			}
+			// Hold back `reserveMs` for the caller's follow-up (e.g. the verdict nudge) — but never starve the turn
+			// itself: if the reserve would leave it less than half the remaining window, split the window evenly
+			// instead. A reserve that prevents the work from happening at all would trade one silent failure for another.
+			const reserveMs = Math.max(0, Math.trunc(options?.reserveMs ?? 0));
+			const remainingMs =
+				reserveMs > 0 ? Math.max(Math.ceil(untilDeadlineMs / 2), untilDeadlineMs - reserveMs) : untilDeadlineMs;
 			let timer: ReturnType<typeof setTimeout> | undefined;
 			const timeout = new Promise<"timeout">((resolve) => {
 				timer = setTimeout(() => resolve("timeout"), remainingMs);
