@@ -288,6 +288,12 @@ export interface NKleinTaskSessionService {
 		seedPrompt: string;
 		reviewer?: { providerId: string; modelId: string } | null;
 		timeoutMs?: number;
+		/**
+		 * No-verdict retry index (0/absent = first attempt). A reviewer truncated mid-reasoning re-truncates
+		 * identically on a plain re-run, so each retry raises the per-turn output budget (F13-adjacent, campaign
+		 * 2026-08-19). Absent ⇒ today's budget exactly.
+		 */
+		budgetAttempt?: number;
 		/** Diagnostic phase stamps (todo §12 review-hang autopsy); absent ⇒ zero overhead. */
 		stampPhase?: (phase: string) => void;
 	}): Promise<NKleinReviewResult | null>;

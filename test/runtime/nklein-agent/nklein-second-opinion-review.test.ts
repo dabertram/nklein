@@ -464,4 +464,22 @@ describe("runNKleinSecondOpinionReview", () => {
 		const bounce = deps.onBounce.mock.calls[0]?.[0] as { workerPrompt: string; review: { lastFeedback: string } };
 		expect(bounce.review.lastFeedback).toContain("Add or update a test");
 	});
+
+	it("escalates the output budget on every no-verdict retry — an identical re-run cannot fix a truncation", async () => {
+		// Campaign round 2 (2026-08-19): reviewer turns ended `max-tokens` at the SAME output-token count on
+		// each attempt (1535, 1535, 1535 …). At temperature 0 a byte-identical re-run re-truncates by
+		// construction, so the retries were three copies of one failed experiment. Each retry must now carry a
+		// rising attempt index, which the runner turns into a larger per-turn budget.
+		const deps = makeDeps({ submission: null });
+		await runNKleinSecondOpinionReview({ ...base, deps });
+		const attempts = deps.runReviewSession.mock.calls.map(
+			(call: unknown[]) => (call[0] as { budgetAttempt?: number }).budgetAttempt ?? 0,
+		);
+		// First attempt is unchanged (0); every retry raises. Strictly increasing, never a repeat.
+		expect(attempts.length).toBeGreaterThan(1);
+		expect(attempts[0]).toBe(0);
+		for (let index = 1; index < attempts.length; index += 1) {
+			expect(attempts[index]).toBeGreaterThan(attempts[index - 1] as number);
+		}
+	});
 });

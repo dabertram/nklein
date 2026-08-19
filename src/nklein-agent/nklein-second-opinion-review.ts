@@ -118,6 +118,13 @@ export interface RunNKleinSecondOpinionReviewInput {
 			taskId: string;
 			seedPrompt: string;
 			round: number;
+			/**
+			 * Which no-verdict retry this is (0 = the first attempt). A reviewer that ran out of output budget
+			 * mid-reasoning re-truncates IDENTICALLY on a plain re-run at temperature 0, so the runner raises the
+			 * per-turn budget by this attempt index — the same `raise_token_budget`-first ordering the worker
+			 * retry ladder already uses for `aborted`/`no_tool_call`. Optional so existing fakes stay valid.
+			 */
+			budgetAttempt?: number;
 		}): Promise<ReviewSubmissionInput | null>;
 		/** Approved: persist the review state and proceed to delivery with the sign-off. */
 		onDeliver(input: { taskId: string; review: RuntimeCardReview }): Promise<void>;
@@ -287,8 +294,19 @@ export async function runNKleinSecondOpinionReview(
 		})();
 		noVerdictStreakByTaskId.set(streakKey, { fingerprint: streakFingerprint, count });
 		while (!submission && count < NO_VERDICT_PARK_STREAK) {
-			stamp(`core: review-session retry (no verdict ${count}/${NO_VERDICT_PARK_STREAK}, round ${round})`);
-			submission = await input.deps.runReviewSession({ taskId: input.taskId, seedPrompt, round });
+			// Campaign round 2 (2026-08-19) named this rung's absence: reviewer turns ended `max-tokens` at the
+			// SAME output-token count on every attempt (1535, 1535, 1535 …), i.e. a deterministic re-truncation
+			// that a byte-identical re-run can only reproduce. Carry the attempt index so the runner can raise the
+			// output budget — a retry that changes nothing is not a retry, it is the same experiment three times.
+			stamp(
+				`core: review-session retry (no verdict ${count}/${NO_VERDICT_PARK_STREAK}, round ${round}, budget attempt ${count})`,
+			);
+			submission = await input.deps.runReviewSession({
+				taskId: input.taskId,
+				seedPrompt,
+				round,
+				budgetAttempt: count,
+			});
 			stamp(`core: review-session done (${submission ? submission.verdict : "no submission"})`);
 			if (!submission) {
 				count += 1;

@@ -1107,6 +1107,9 @@ export async function runSecondOpinionReviewForTask(
 						baseRef: card.baseRef,
 						seedPrompt,
 						reviewer,
+						// Raise-on-retry: the no-verdict ladder's attempt index reaches the per-turn output budget,
+						// so a truncated reviewer gets more room instead of the identical failing turn again.
+						...(sessionArgs.budgetAttempt ? { budgetAttempt: sessionArgs.budgetAttempt } : {}),
 						stampPhase,
 					});
 				};

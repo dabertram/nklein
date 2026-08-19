@@ -26,6 +26,10 @@ import { createSessionId } from "./nklein-session-state";
  * are unchanged. The context clamp downstream still bounds it to the window.
  */
 const REASONING_REVIEWER_BUDGET_FLOOR = 4096;
+/** Hard ceiling for the raise-on-retry ladder — a reviewer that needs more than this is not budget-starved. */
+export const REVIEW_RETRY_BUDGET_CEILING = 32_768;
+/** At most this many doublings, so the ceiling is approached deliberately rather than by exponent growth. */
+export const REVIEW_RETRY_BUDGET_MAX_DOUBLINGS = 3;
 
 /** Re-prompt the reviewer if it ended a turn without the structured `submit_review` call (small models often do). */
 const SECOND_OPINION_REVIEW_NUDGE_PROMPT =
@@ -55,6 +59,8 @@ export interface SecondOpinionReviewRunner {
 		seedPrompt: string;
 		reviewer?: { providerId: string; modelId: string } | null;
 		timeoutMs?: number;
+		/** No-verdict retry index; each retry raises the per-turn output budget (see runInner). */
+		budgetAttempt?: number;
 	}): Promise<NKleinReviewResult | null>;
 	/**
 	 * Whether a review round for this card is CURRENTLY in flight (the single-flight key is held). The rescue
@@ -130,6 +136,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		seedPrompt: string;
 		reviewer?: { providerId: string; modelId: string } | null;
 		timeoutMs?: number;
+		budgetAttempt?: number;
 		stampPhase?: (phase: string) => void;
 	}): Promise<NKleinReviewResult | null> {
 		const stamp = input.stampPhase ?? (() => {});
@@ -197,10 +204,29 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 			(descriptor) =>
 				(descriptor.runtimeId === modelId || descriptor.modelKey === modelId) && descriptor.reasoning === true,
 		);
-		const reasoningSafeMaxTokensPerTurn =
+		const baseMaxTokensPerTurn =
 			isReasoningModel(modelId) || catalogDeclaresReasoning
 				? Math.max(workerLaunch?.maxTokensPerTurn ?? 0, REASONING_REVIEWER_BUDGET_FLOOR)
 				: (workerLaunch?.maxTokensPerTurn ?? null);
+		// RAISE-ON-RETRY (campaign round 2, 2026-08-19): the no-verdict ladder re-ran the reviewer byte-identically,
+		// and the telemetry showed every attempt ending `max-tokens` at the SAME output-token count — a
+		// deterministic re-truncation at temperature 0, so the retries could not have succeeded. Each retry now
+		// doubles the per-turn output budget (capped), mirroring the worker ladder's `raise_token_budget`-first
+		// ordering for `aborted`/`no_tool_call`. Attempt 0 (the first try) is unchanged, so nothing moves for a
+		// reviewer that verdicts normally. A null base budget stays null: the provider default is not ours to guess.
+		const budgetAttempt = Math.max(0, Math.trunc(input.budgetAttempt ?? 0));
+		const reasoningSafeMaxTokensPerTurn =
+			baseMaxTokensPerTurn === null
+				? null
+				: Math.min(
+						REVIEW_RETRY_BUDGET_CEILING,
+						baseMaxTokensPerTurn * 2 ** Math.min(budgetAttempt, REVIEW_RETRY_BUDGET_MAX_DOUBLINGS),
+					);
+		if (budgetAttempt > 0 && reasoningSafeMaxTokensPerTurn !== null) {
+			stamp(
+				`session: retry ${budgetAttempt} raises the per-turn output budget ${baseMaxTokensPerTurn} → ${reasoningSafeMaxTokensPerTurn}`,
+			);
+		}
 		// F1.34c hang forensics 2026-07-25: reviews were observed stuck for 30+ minutes with "bracketed-run enter"
 		// as their last stamp — an un-instrumented window spanning descriptor resolution, workspace/sandbox
 		// acquisition, and the first model turn. These stamps split it so the NEXT hang names its exact segment.
