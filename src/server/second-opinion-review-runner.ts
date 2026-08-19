@@ -1450,18 +1450,34 @@ export async function runSecondOpinionReviewForTask(
 	// Skipped resolutions carry no judgment and record nothing.
 	if (reviewResult.type !== "skipped" && reviewedDiffLines !== null) {
 		try {
+			// P21.6b root cause (2026-08-19): this row is the ONLY input to the per-model review ceiling, and it
+			// recorded the PINNED reviewer — which is null on the default auto path, i.e. on essentially every
+			// review. So `deriveFleetReviewCapacity` got `modelIds: []` and returned no ceiling, forever: all 772
+			// recorded plan-sizing assessments read `no_evidence_at_all` despite 2512 evidence rows existing. The
+			// join key could never match (same class as the 2026-08-02 tool-gate join). The model that ACTUALLY
+			// judged is the `<taskId>::review` session's own summary — session-state truth, not a side channel.
+			const actualReviewer = input.service.getSummary(`${input.taskId}::review`);
+			const reviewerModelId = reviewer?.modelId ?? actualReviewer?.modelId ?? null;
+			const reviewerProviderId = reviewer?.providerId ?? actualReviewer?.providerId ?? null;
 			recordSelfObservation({
 				signal: "custom",
 				severity: "debug",
-				message: `Review capacity evidence for ${input.taskId}: ${reviewResult.type} at ${reviewedDiffLines} diff line(s) by ${reviewer?.modelId ?? "auto"}.`,
+				message: `Review capacity evidence for ${input.taskId}: ${reviewResult.type} at ${reviewedDiffLines} diff line(s) by ${reviewerModelId ?? "unattributed"}.`,
 				taskId: input.taskId,
 				workspacePath: input.workspacePath,
 				metadata: {
 					category: "review_capacity_evidence",
 					outcome: reviewResult.type,
 					diffLines: reviewedDiffLines,
-					reviewerModelId: reviewer?.modelId ?? null,
-					reviewerProviderId: reviewer?.providerId ?? null,
+					reviewerModelId,
+					reviewerProviderId,
+					// Which source attributed the reviewer — an unattributed row is a DIFFERENT fact from a row
+					// whose model reviewed poorly, and the ceiling's denominator must be able to tell them apart.
+					reviewerModelSource: reviewer?.modelId
+						? "explicit_pin"
+						: actualReviewer?.modelId
+							? "review_session_summary"
+							: "unattributed",
 				},
 			});
 		} catch {

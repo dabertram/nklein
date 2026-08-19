@@ -130,4 +130,48 @@ describe("assessPlannedTaskSizing (P21.6b slice 3 — observe-first plan-time ve
 		expect(assessment.verdict?.mustSplit).toBe(true);
 		expect(assessment.verdict?.reason).toContain("cannot be fixed with a bigger model");
 	});
+
+	/**
+	 * The DARK-STREAM regression (root-caused 2026-08-19). 2512 real evidence rows existed and 772 real
+	 * assessments were recorded, and every single assessment read `no_evidence_at_all` — because the writer
+	 * attributed each row to the PINNED reviewer, which is null on the default auto path. The rows were real;
+	 * the join key could never match. These pins fail if that shape ever returns.
+	 */
+	describe("unattributed evidence (the 2026-08-19 dark-stream bug)", () => {
+		it("cannot derive a ceiling from rows whose reviewer is unattributed, however many there are", () => {
+			const unattributed: ReviewCapacityEvidenceRow[] = Array.from({ length: 500 }, () => ({
+				reviewerModelId: null,
+				outcome: "delivered",
+				diffLines: 120,
+			}));
+			// The model list comes from the rows themselves, so unattributed rows yield NO models at all.
+			const modelIds = [
+				...new Set(
+					unattributed.map((r) => r.reviewerModelId).filter((id): id is string => id !== null && id.trim() !== ""),
+				),
+			];
+			expect(modelIds).toEqual([]);
+			expect(deriveFleetReviewCapacity(unattributed, modelIds).ceilingLines).toBeNull();
+			// …and that is exactly what made every plan-time assessment evidence-less.
+			expect(
+				assessPlannedTaskSizing({ rows: unattributed, modelContextTokens: 200_000, estimatedTaskTokens: 4_000 })
+					.basis,
+			).toBe("no_review_evidence");
+		});
+
+		it("the SAME rows, once attributed, produce a real verdict — proving attribution was the whole gap", () => {
+			const attributed: ReviewCapacityEvidenceRow[] = Array.from({ length: 500 }, () => ({
+				reviewerModelId: "qwen3.8-27b-mlx",
+				outcome: "delivered",
+				diffLines: 120,
+			}));
+			const assessment = assessPlannedTaskSizing({
+				rows: attributed,
+				modelContextTokens: 200_000,
+				estimatedTaskTokens: 4_000,
+			});
+			expect(assessment.basis).toBe("verdict");
+			expect(assessment.reviewCeiling.ceilingLines).toBe(120);
+		});
+	});
 });

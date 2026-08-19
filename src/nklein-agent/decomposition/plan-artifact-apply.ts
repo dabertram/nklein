@@ -142,6 +142,12 @@ async function recordPlanSizingObservations(input: {
 				reviewCeilingBasis: assessment.reviewCeiling.basis,
 				estimatedTaskTokens: sizing.fitBudgetTokens,
 				modelContextTokens: largestContextWindow,
+				// 2026-08-19: 772 recorded assessments were ALL `no_evidence_at_all`, and the row could not say
+				// why — "the estimator has no verdict yet" and "the estimator can never produce one" looked
+				// identical. Name both denominators so a dark stream is legible from the evidence itself.
+				evidenceRowCount: evidenceRows.length,
+				attributedEvidenceRowCount: evidenceRows.filter((row) => row.reviewerModelId !== null).length,
+				sizingCandidateCount: input.sizingCandidates?.length ?? 0,
 			},
 		});
 	}
@@ -271,7 +277,13 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 				workspacePath: input.workspacePath,
 				taskGraph: input.taskGraph,
 				sharedContext: input.sharedContext,
-				sizingCandidates: fleetSizingCandidates ?? routingCandidates,
+				// `??` only falls back on null/undefined, and `buildDecompositionRoutingCandidates(…, loadedOnly)`
+				// resolves to `[]` when the loaded-fleet probe finds nothing (or fails into its own `.catch(() => [])`).
+				// An EMPTY list therefore silently defeated this fallback and the sizing assessment lost its context
+				// window — recorded as "no evidence" rather than "the loaded probe returned nothing". Prefer the
+				// loaded fleet when it HAS members; otherwise fall back to the full candidate set.
+				sizingCandidates:
+					fleetSizingCandidates && fleetSizingCandidates.length > 0 ? fleetSizingCandidates : routingCandidates,
 				taskIdByPlanTaskId: result.value.taskIdByPlanTaskId,
 			}).catch(() => undefined);
 		}
