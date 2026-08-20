@@ -706,6 +706,26 @@ async function runDevRolePreflightCommand(options: DevRolePreflightOptions = {})
 
 export function registerDevCommand(program: Command): void {
 	const dev = program.command("dev").description("Developer-only !Klein diagnostics and smoke tests.");
+	// 100+ subcommands: sort them for scanning, and close the (long) help with an orientation map —
+	// with this much scrollback, the tail is the first thing a reader actually sees.
+	dev.configureHelp({ sortSubcommands: true });
+	dev.addHelpText(
+		"after",
+		[
+			"",
+			"Orientation (themes with examples — every command is in the sorted list above):",
+			"  Fleet & models      capacity, advice, model-fit, model-speed, resident-set, role-preflight",
+			"  Evidence & ledger   ledger, evidence, card-timeline, tracking-coverage, ledger-health",
+			"  Reviews & gates     gates, gate-audit, flip-gate, experiment-design, mechanism-decision",
+			"  Specs & planning    spec-index, spec-spine, spec-review, requirement-coverage",
+			"  Grading & runs      oracle-grade, benchmark, nightly, smoke-eval, diagnose",
+			"  Security & supply   security-events, outward-queue, connection-audit, sbom, ai-bom",
+			"  Performance         prefill-cost, serialization-cost, cache-check, served-context",
+			"  Advisors            advisor-prompt, explain-config, analyze-logs, explain-task-failure",
+			"",
+			"Not sure which command answers your question? `nklein dev capability-index --search <topic>`.",
+		].join("\n"),
+	);
 
 	const addAdvisorContextOptions = (command: ReturnType<Command["command"]>) => {
 		return command
