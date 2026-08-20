@@ -14331,8 +14331,21 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   fail-closed. Any future setup-flow caller must declare the operator-shown format BY CONSTRUCTION (the type
   demands it); the acquisition-boundary test still proves the autonomous runtime cannot reach the module at
   all. 8 tests, incl. the pin that no request is ever made for an unsafe format.
-  REMAINING (smaller, on top): publisher allow-listing + a pinned revision hash — bounded by what LM Studio's
-  download API exposes; check its request surface before designing.
+  **▶ RESOLVED 2026-08-20 — the request surface was probed FIRST, and it split the two asks:**
+  · **Publisher allow-listing: SHIPPED.** The live roster (59 entries) carries a first-class `publisher` field,
+    so the allow-list binds on catalogue data. **It must NEVER be parsed from the model key** — measured, not
+    assumed: only 31 of 59 keys carry a namespace at all, and where one exists it can disagree outright
+    (`qwen3.8-27b-mlx` is published by `lmstudio-community`, not `qwen`), so a namespace-parsing allow-list
+    would mis-refuse legitimate models AND mis-admit a typosquat whose namespace merely looks right. The list
+    is operator policy: unset ⇒ no restriction (today's behaviour); set ⇒ an un-listed OR UNDECLARED publisher
+    is refused before any network call (an allow-list that admits "unknown" is not an allow-list). 4 tests.
+  · **Pinned revision hash: NOT IMPLEMENTABLE against this API, and deliberately not faked.** The download
+    endpoint appears in no served spec (`/openapi.json` answers 200 with an empty document; `/api/v1/openapi.json`
+    404s), and our client's request carries only `{model}`. Sending an undocumented `revision` field would give a
+    pin we cannot prove is enforced — and this exact API has a recorded precedent for silently ignoring unknown
+    top-level fields (the GBNF `grammar` case, 2026-07). A pin that might be ignored is worse than no pin: it
+    reads as supply-chain enforcement while providing none. REVISIT only with a documented parameter or a
+    post-download artefact hash we verify ourselves (the honest alternative, if the store exposes one).
 
 - [ ] **P25.3 — PHASED PLAN (each phase independently useful; stop after any one).**
   **▶ 2026-08-08 — THE DEPTH-ROWS LEG WAS BLOCKED BY A DEFECT, NOT BY MISSING RUNS; NOW UNBLOCKED.** Two real

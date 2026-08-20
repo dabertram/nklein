@@ -3,6 +3,7 @@ import {
 	CONSENT_MISMATCH,
 	createLmStudioModelAcquisitionClient,
 	isAutoDownloadSafeFormat,
+	PUBLISHER_NOT_ALLOWED,
 	UNSAFE_FORMAT_REFUSED,
 } from "../../../src/core/lmstudio-model-acquisition";
 import type { LmStudioRestFetch } from "../../../src/core/lmstudio-rest-model-client";
@@ -122,5 +123,61 @@ describe("P25.2b artefact-format hard rule", () => {
 		expect(isAutoDownloadSafeFormat("mlx")).toBe(true);
 		expect(isAutoDownloadSafeFormat("pickle")).toBe(false);
 		expect(isAutoDownloadSafeFormat("unknown")).toBe(false);
+	});
+	it("refuses a publisher outside the allow-list, before any network call", async () => {
+		const doFetch = vi.fn();
+		const client = createLmStudioModelAcquisitionClient({
+			baseUrl: "http://localhost:1234",
+			consent: { modelKey: "evil/qwen3.8-27b", approvedBytes: null, artifactFormat: "gguf", publisher: "qwem" },
+			allowedPublishers: ["qwen", "lmstudio-community"],
+			fetch: doFetch as never,
+		});
+		const result = await client.downloadModel({ model: "evil/qwen3.8-27b" });
+		expect(result.ok).toBe(false);
+		expect(result.ok === false && result.error.type).toBe(PUBLISHER_NOT_ALLOWED);
+		expect(doFetch).not.toHaveBeenCalled();
+	});
+
+	it("refuses an UNDECLARED publisher when an allow-list is configured (no implicit 'unknown' member)", async () => {
+		const doFetch = vi.fn();
+		const client = createLmStudioModelAcquisitionClient({
+			baseUrl: "http://localhost:1234",
+			consent: { modelKey: "some/model", approvedBytes: null, artifactFormat: "gguf" },
+			allowedPublishers: ["qwen"],
+			fetch: doFetch as never,
+		});
+		const result = await client.downloadModel({ model: "some/model" });
+		expect(result.ok === false && result.error.type).toBe(PUBLISHER_NOT_ALLOWED);
+		expect(doFetch).not.toHaveBeenCalled();
+	});
+
+	it("admits an allow-listed publisher even when the KEY has no namespace (the common catalogue shape)", async () => {
+		// Live roster 2026-08-20: only 31 of 59 keys carry a namespace, and `qwen3.8-27b-mlx` is published by
+		// `lmstudio-community`, not `qwen`. A namespace-parsing allow-list would refuse this legitimate model.
+		const doFetch = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }));
+		const client = createLmStudioModelAcquisitionClient({
+			baseUrl: "http://localhost:1234",
+			consent: {
+				modelKey: "qwen3.8-27b-mlx",
+				approvedBytes: null,
+				artifactFormat: "mlx",
+				publisher: "lmstudio-community",
+			},
+			allowedPublishers: ["lmstudio-community"],
+			fetch: doFetch as never,
+		});
+		const result = await client.downloadModel({ model: "qwen3.8-27b-mlx" });
+		expect(result.ok).toBe(true);
+		expect(doFetch).toHaveBeenCalledTimes(1);
+	});
+
+	it("no allow-list configured ⇒ publisher is not consulted (today's behaviour, unchanged)", async () => {
+		const doFetch = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }));
+		const client = createLmStudioModelAcquisitionClient({
+			baseUrl: "http://localhost:1234",
+			consent: { modelKey: "anyone/model", approvedBytes: null, artifactFormat: "gguf" },
+			fetch: doFetch as never,
+		});
+		expect((await client.downloadModel({ model: "anyone/model" })).ok).toBe(true);
 	});
 });

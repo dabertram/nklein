@@ -68,6 +68,18 @@ export interface ModelAcquisitionConsent {
 	 * declaration must travel with the consent, and an undeclared format is refused fail-closed.
 	 */
 	readonly artifactFormat: ModelArtifactFormat;
+	/**
+	 * The PUBLISHER the operator was shown, from the catalogue entry's own `publisher` field.
+	 *
+	 * ⚠️ It is NOT derivable from the model key, and guessing it from the key's namespace would be wrong for
+	 * most of a real catalogue — measured against a live LM Studio roster (59 entries, 2026-08-20): only 31
+	 * keys carry a namespace at all (`nemotron-3.5-lightning`, `muse-glimmer-30b`, …), and where one exists it
+	 * can disagree with the publisher outright (`qwen3.8-27b-mlx` is published by `lmstudio-community`, not by
+	 * `qwen`). A namespace-parsing allow-list would therefore both mis-refuse legitimate models and mis-admit
+	 * a typosquat whose key namespace merely looks right. Absent ⇒ the consent declares no publisher, which an
+	 * allow-list refuses fail-closed.
+	 */
+	readonly publisher?: string;
 }
 
 export interface LmStudioModelAcquisitionClient {
@@ -84,10 +96,19 @@ export interface LmStudioModelAcquisitionClient {
 
 export const CONSENT_MISMATCH = "consent_mismatch";
 export const UNSAFE_FORMAT_REFUSED = "unsafe_format_refused";
+export const PUBLISHER_NOT_ALLOWED = "publisher_not_allowed";
 
 export function createLmStudioModelAcquisitionClient(options: {
 	baseUrl: string;
 	consent: ModelAcquisitionConsent;
+	/**
+	 * P25.2b publisher allow-list (operator policy, setup-time). When non-empty, a model whose declared
+	 * publisher is not on the list is refused BEFORE any network call — defence against approving a
+	 * typosquatted publisher at consent time, which per-model consent alone cannot catch (the operator is
+	 * reading the name they already intended to see). Omitted/empty ⇒ no publisher restriction, exactly
+	 * today's behaviour; the allow-list is a policy the operator opts into, not a roster we invent for them.
+	 */
+	allowedPublishers?: readonly string[];
 	fetch?: LmStudioRestFetch;
 }): LmStudioModelAcquisitionClient {
 	const origin = options.baseUrl.replace(/\/+$/u, "").replace(/\/v1$/u, "");
@@ -107,6 +128,22 @@ export function createLmStudioModelAcquisitionClient(options: {
 						message: `Refusing to download ${input.model}: this client was authorised for ${consent.modelKey}. Acquisition is per-model and setup-time; construct a new client after the operator approves this one.`,
 					},
 				};
+			}
+			// Publisher allow-list binds after identity, before format: an un-allow-listed publisher is refused
+			// even for a safe format, and an UNDECLARED publisher is refused too (an allow-list that admits
+			// "unknown" is not an allow-list). Skipped entirely when the operator configured no list.
+			const allowedPublishers = (options.allowedPublishers ?? []).map((entry) => entry.trim()).filter(Boolean);
+			if (allowedPublishers.length > 0) {
+				const declaredPublisher = consent.publisher?.trim() ?? "";
+				if (!declaredPublisher || !allowedPublishers.includes(declaredPublisher)) {
+					return {
+						ok: false,
+						error: {
+							type: PUBLISHER_NOT_ALLOWED,
+							message: `Refusing to download ${input.model}: publisher ${declaredPublisher ? `"${declaredPublisher}"` : "(undeclared)"} is not on this install's allow-list (${allowedPublishers.join(", ")}). The publisher comes from the catalogue entry, never from the model key — add it deliberately if this is the roster you intend.`,
+						},
+					};
+				}
 			}
 			// P25.2b hard rule: the format gate binds AFTER identity but BEFORE any network call, and consent
 			// cannot override it — a pickle file executes arbitrary code on load no matter who approved it.
