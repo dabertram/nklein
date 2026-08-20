@@ -6,7 +6,9 @@ import { buildMechanismDecision } from "../core/mechanism-decision-report";
 import { joinOffTrackRemedyObservations, toOffTrackRemedyRecord } from "../core/off-track-remedy-observation-join";
 import {
 	buildTaskOutcomeIndex,
+	buildTaskOutcomeIndexFromLaneChanges,
 	joinToolGateObservations,
+	mergeTaskOutcomeIndexes,
 	type ToolGateObservationRecord,
 } from "../core/tool-gate-observation-join";
 import { joinToolTrustObservations, toToolTrustRecord } from "../core/tool-trust-observation-join";
@@ -47,6 +49,10 @@ export interface DevMechanismDecisionOptions {
 	readTrustObservations?: () => Promise<
 		readonly { metadata?: Record<string, unknown> | undefined; taskId?: string | null }[]
 	>;
+	/** Injected in tests; defaults to the real telemetry read of board lane changes (fallback outcome source). */
+	readLaneChangeObservations?: () => Promise<
+		readonly { metadata?: Record<string, unknown> | undefined; taskId?: string | null }[]
+	>;
 }
 
 const GATE_CATEGORY = "tool_catalog_gate_observation";
@@ -54,6 +60,8 @@ const GATE_CATEGORY = "tool_catalog_gate_observation";
 const REMEDY_CATEGORY = "off_track_remedy_observed";
 /** P15.3 mechanism #3: the F12.24 tool-trust shadow (recorded unconditionally; the flag gates the effect). */
 const TRUST_CATEGORY = "tool_trust_decay";
+/** Board lane moves — the outcome source for installs with no durable-scheduler events (the common case). */
+const LANE_CHANGE_CATEGORY = "card_lane_change";
 /** The reader's hard maximum. Asking for less would silently narrow the evidence a FLIP decision rests on. */
 const OBSERVATION_READ_LIMIT = 500;
 
@@ -95,7 +103,25 @@ export async function runDevMechanismDecisionCommand(options: DevMechanismDecisi
 	const trustEvents = await (options.readTrustObservations
 		? options.readTrustObservations()
 		: readSelfObservationEvents({ category: TRUST_CATEGORY, limit: OBSERVATION_READ_LIMIT }));
-	const outcomeByTaskId = buildTaskOutcomeIndex(ledger as never);
+	// Scheduler events exist only under a durable run; ordinary dev-test/rig drains produce none, which left
+	// the outcome index EMPTY and every disagreement unjoinable (measured 2026-08-20: 44 disagreements, 0
+	// evaluable, on a home with 924 transitions and 0 scheduler events). Board lane changes carry the same
+	// fact with a task id, so they fill the gaps; the scheduler index still wins wherever it has an entry.
+	const laneChangeEvents = await (options.readLaneChangeObservations
+		? options.readLaneChangeObservations()
+		: readSelfObservationEvents({ category: LANE_CHANGE_CATEGORY, limit: OBSERVATION_READ_LIMIT }));
+	const outcomeByTaskId = mergeTaskOutcomeIndexes(
+		buildTaskOutcomeIndex(ledger as never),
+		buildTaskOutcomeIndexFromLaneChanges(
+			laneChangeEvents.map((event) => {
+				const metadata = (event.metadata ?? {}) as { toLane?: unknown };
+				return {
+					taskId: typeof event.taskId === "string" ? event.taskId : null,
+					toLane: typeof metadata.toLane === "string" ? metadata.toLane : null,
+				};
+			}),
+		),
+	);
 	const joined = joinToolGateObservations({
 		records: events.map(toGateRecord),
 		outcomeByTaskId,

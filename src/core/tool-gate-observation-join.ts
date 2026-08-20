@@ -124,6 +124,58 @@ export interface SchedulerOutcomeEvent {
  * A task with several terminal records keeps the LAST, because a late `succeeded` legitimately supersedes an
  * earlier `failed` — that exact late-success path is a documented behaviour of `reportCompletion`.
  */
+/** One `card_lane_change` observation: the board move that terminates (or does not terminate) a card. */
+export interface CardLaneChangeRecord {
+	readonly taskId: string | null;
+	readonly toLane: string | null;
+}
+
+/**
+ * Outcome index from BOARD LANE CHANGES — the fallback source when no durable-scheduler events exist.
+ *
+ * Measured 2026-08-20, not assumed: `buildTaskOutcomeIndex` reads `scheduler`/`completed` ledger events, and
+ * those are written ONLY while a durable run owns the workspace. Ordinary dev-test/rig drains never create
+ * one, so their ledgers hold transitions and attempts but ZERO scheduler events — the outcome index came back
+ * empty and every mechanism observation joined to "unknown outcome" forever (44 disagreements, 0 evaluable).
+ * The campaign could not have concluded from those runs at any volume, which is the same "no data yet vs no
+ * data possible" trap this file's own history documents.
+ *
+ * A card's terminal lane IS its outcome and the lane-change stream records it with a task id: `completed`
+ * succeeded, `trash` did not. Any other lane is NON-TERMINAL and deliberately yields no entry — a card still
+ * moving between review and in_progress has no outcome yet, and inventing one would fabricate the very
+ * counterfactual the campaign exists to measure.
+ */
+export function buildTaskOutcomeIndexFromLaneChanges(records: readonly CardLaneChangeRecord[]): Map<string, boolean> {
+	const index = new Map<string, boolean>();
+	for (const record of records) {
+		const taskId = typeof record.taskId === "string" && record.taskId.length > 0 ? record.taskId : null;
+		if (taskId === null) {
+			continue;
+		}
+		if (record.toLane === "completed") {
+			index.set(taskId, true);
+		} else if (record.toLane === "trash") {
+			index.set(taskId, false);
+		}
+	}
+	return index;
+}
+
+/**
+ * Merge outcome indexes, preferring the AUTHORITATIVE scheduler-derived entry where both exist. The fallback
+ * only fills gaps, so enabling it can never overwrite a durable-run verdict.
+ */
+export function mergeTaskOutcomeIndexes(
+	authoritative: ReadonlyMap<string, boolean>,
+	fallback: ReadonlyMap<string, boolean>,
+): Map<string, boolean> {
+	const merged = new Map(fallback);
+	for (const [taskId, succeeded] of authoritative) {
+		merged.set(taskId, succeeded);
+	}
+	return merged;
+}
+
 export function buildTaskOutcomeIndex(events: readonly SchedulerOutcomeEvent[]): Map<string, boolean> {
 	const index = new Map<string, boolean>();
 	for (const event of events) {

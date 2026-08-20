@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { buildMechanismDecision, MIN_OBSERVATIONS_FOR_VERDICT } from "../../../src/core/mechanism-decision-report";
 import {
 	buildTaskOutcomeIndex,
+	buildTaskOutcomeIndexFromLaneChanges,
 	GATE_KEEP_ALL,
 	GATE_RECOMMENDED_WITHHOLD,
 	joinToolGateObservations,
+	mergeTaskOutcomeIndexes,
 } from "../../../src/core/tool-gate-observation-join";
 
 /**
@@ -239,5 +241,46 @@ describe("joining across the session/card id boundary", () => {
 			]),
 		});
 		expect(report.observations[0]?.succeeded).toBe(true);
+	});
+});
+describe("buildTaskOutcomeIndexFromLaneChanges (the 2026-08-20 starved-join fix)", () => {
+	it("derives outcomes from terminal lanes only, ignoring in-flight moves", () => {
+		const index = buildTaskOutcomeIndexFromLaneChanges([
+			{ taskId: "card-done", toLane: "completed" },
+			{ taskId: "card-trashed", toLane: "trash" },
+			{ taskId: "card-working", toLane: "in_progress" },
+			{ taskId: "card-reviewing", toLane: "review" },
+			{ taskId: null, toLane: "completed" },
+		]);
+		expect(index.get("card-done")).toBe(true);
+		expect(index.get("card-trashed")).toBe(false);
+		// A card still moving has NO outcome — inventing one would fabricate the counterfactual being measured.
+		expect(index.has("card-working")).toBe(false);
+		expect(index.has("card-reviewing")).toBe(false);
+		expect(index.size).toBe(2);
+	});
+
+	it("a card that passes through review and later completes ends up succeeded", () => {
+		const index = buildTaskOutcomeIndexFromLaneChanges([
+			{ taskId: "c1", toLane: "review" },
+			{ taskId: "c1", toLane: "in_progress" },
+			{ taskId: "c1", toLane: "review" },
+			{ taskId: "c1", toLane: "completed" },
+		]);
+		expect(index.get("c1")).toBe(true);
+	});
+});
+
+describe("mergeTaskOutcomeIndexes", () => {
+	it("prefers the authoritative scheduler entry and fills only the gaps", () => {
+		const authoritative = new Map([["shared", true]]);
+		const fallback = new Map([
+			["shared", false],
+			["only-lane", true],
+		]);
+		const merged = mergeTaskOutcomeIndexes(authoritative, fallback);
+		// Enabling the fallback can never overwrite a durable-run verdict.
+		expect(merged.get("shared")).toBe(true);
+		expect(merged.get("only-lane")).toBe(true);
 	});
 });
