@@ -2,6 +2,50 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Reviews on slow local models now reliably end in a verdict.** A second-opinion review could spend its whole
+  deadline exploring and never be asked to decide; a truncated verdict was retried with the identical budget that
+  truncated it; an intentionally cut exploration turn kept holding the model's only slot; and a review that DID
+  submit a verdict could still be classified by its turn timeout. All four are fixed: a verdict window is reserved
+  up front, retry budgets double (bounded) on truncation, a cut turn is ended — not abandoned — before the nudge,
+  and the submitted verdict is what classifies the session.
+
+- **A card can no longer sit in Completed while its work never merged.** The delivery chain now enforces the
+  ancestry invariant end-to-end — a commit-mode delivery with an un-merged result commit cannot complete, empty-marker
+  admissions resolve the durable result branch, and a dead-session false positive that superseded live deliveries is
+  removed. When delivery is refused, the admission and merge diagnostics say exactly why.
+
+- **Deliverability now follows who wrote the card, not how it arrived.** A card authored by you (or by a plan you
+  approved) can deliver; text that entered from outside — an A2A seed, a trigger intake — cannot, until a fresh
+  trusted plan covers it. Recovery copies inherit the original's standing, and an unstamped card fails closed.
+
+- **Planning a very large specification no longer drowns the model.** A spec past a size threshold now ships with a
+  line-range section index, and the planner reads sections on demand instead of front-to-back — on a 190KB
+  challenge spec, context stayed bounded where the previous strategy grew every turn until latency collapsed.
+
+- **Every theme now clears WCAG AA contrast — measured, then ratcheted.** All eleven themes were audited in the
+  running app (55 failures in the default theme alone), corrected at the token level without flattening the visual
+  hierarchy, and pinned by a test so a future theme edit cannot quietly regress readability.
+
+- **The chat panel now spans the whole simplicity ladder.** An empty chat opens with a plain composer — type one
+  line and !Klein starts building — while at the other end a per-task wire log can show every request a session
+  actually sent (message sizes, tool names, injections), so "what did the model really see?" has a first-class answer.
+
+- **A dead runtime no longer floods the browser console.** The UI's reconnect loop backs off to a 30-second cadence
+  once an outage looks long (recovery from short blips stays fast), and a hidden tab stops retrying entirely —
+  reconnecting the moment you switch back.
+
+- **Unattended autonomy now has a budget with a loud stop.** A workspace left running on its own pauses — resumably,
+  with the reason on the board — instead of burning hours of model time in silence.
+
+- **Model downloads can be fenced to publishers you trust.** Acquisition consent now records the publisher, and an
+  allow-list refuses anything undeclared or outside it before any bytes move.
+
+- **Test-project runs are now compared honestly — or refused.** Run metrics carry their invalidators (merged-verified
+  vs merely completed, floors under interruption, unmeasured without an oracle), a static complexity score sizes the
+  ask, and comparing runs on different fleets or different-complexity projects returns "not comparable" instead of a
+  misleading delta. A custom scenario file also now scaffolds ITS OWN spec — previously it was silently graded
+  against the default fixture.
+
 - **A held card no longer tells you to redrive it into the same failure.** When !Klein could not capture a card's
   result patch because the sandbox workspace was already gone, the note on the card said the result was unknown
   and to "inspect diagnostics and redrive the task". For a card whose agent never called a tool at all, a redrive
