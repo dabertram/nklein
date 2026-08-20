@@ -4709,7 +4709,16 @@ stays fast + complete.
   sequentially against a fixed resident set. Run the calibrated 24-task repeated A/B tranche; add the Terminal-Bench
   control and execute the now-shipped LiveCodeBench control against the matched resident fleet; obtain a native x86_64
   Docker runner for the quarterly Live tranche; then wire the calibrated delta gate/nightly evidence.
-  - [ ] **F11.3g — Pin and run the repeatable regression tranche (delta, not absolute).** Select a fixed ~20–40 task
+  - [ ] **F11.3g — Pin and run the repeatable regression tranche (delta, not absolute).** *(2026-08-20
+    DISPOSITION under David's "work around the missing fleet": this is **GPU-TIME-bound, not fleet-bound**.
+    Checked rather than assumed — `aider-polyglot-campaign.ts` validates an arbitrary `assignments` array
+    (instanceId + modelId) and imposes NO host requirement; the three-host split lives only in the
+    pre-registered live CONFIG, which is data. A single-host tranche is therefore expressible today. What it
+    costs is real GPU: 24 tasks x >=2 repeats sequentially on one lane. What remains genuinely hardware-gated
+    is only the SWE-bench-Live half — a native x86_64 Docker runner (ARM/QEMU already produced a reproducible
+    gold-oracle failure, correctly quarantined). ⚠️ Do NOT silently re-scope the EXISTING pre-registration to
+    one host: pre-registration exists to stop post-hoc fiddling, so a single-host run must be registered as
+    its own clearly-labelled arm.)* Select a fixed ~20–40 task
     fit-for-fleet set, complete ≥2 gold repeats, quarantine every unstable instance, snapshot the calibrated RESOLVED
     set + per-instance status, and wire it into CI/nightly. Fail only a resolved→unresolved regression; infrastructure
     absence stays inconclusive. Use Aider for daily paired A/B and native SWE-bench-Live Lite for the quarterly repo gate;
@@ -9810,7 +9819,16 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   Statistics delegated to F12.41's `decideDefaultFlip` (McNemar exact), not reimplemented — the same
   one-implementation-per-lever rule F12.28 violated and had to be corrected for. Even the `enforce` verdict
   defers the real decision to a paired A/B rather than claiming its own rate suffices. 9 tests; suite green.
-- [ ] **P15.3 — Default-flip campaign, one mechanism at a time, each with its own evidence.** Flip defaults ONLY
+- [ ] **P15.3 — Default-flip campaign, one mechanism at a time, each with its own evidence.** *(2026-08-20:
+  THE OUTCOME JOIN WAS STRUCTURALLY STARVED AND IS NOW FIXED — `63a3bb2ca`. Ran the report on a real accrued
+  home: 44 tool-trust disagreements, 0 with a known outcome. Cause: `buildTaskOutcomeIndex` reads
+  `scheduler`/`completed` LEDGER events, which are written ONLY under a durable run — ordinary dev-test/rig
+  drains create none, so that home held 924 transitions, 89 attempts and ZERO scheduler events. The report
+  would have said `insufficient_data` forever, which READS as "keep running" while no volume could change it
+  (the third instance this campaign of "no data yet" vs "no data possible"). Board lane changes carry the same
+  fact with a task id and now fill the gaps (completed⇒success, trash⇒failure, any other lane⇒no entry);
+  the scheduler index still wins where present. Measured effect: evaluable 0 → 5. Still `insufficient_data`
+  (12 needed) — now an HONEST keep-running. Remaining: volume, which is GPU time, not fleet.)* Flip defaults ONLY
   where P15.2 produced a verdict. Each flip carries: the evidence, the expected behaviour delta, and a named
   rollback. Mechanisms whose evidence says "this never fired / never disagreed" get DELETED, not defaulted —
   removing an unproven mechanism is a legitimate and preferred outcome, and reduces the maintenance surface the
@@ -11668,7 +11686,14 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   discards work while looking like progress**), and a card with CAPTURED WORK parks instead of restarting —
   a human can often salvage a half-right diff that no fresh attempt recovers.
   The wire is P18.4b.
-- [ ] **P18.4b — Wire the off-track remedy *(split from P18.4 2026-07-20)*.** Feed the drift verdict + live
+- [ ] **P18.4b — Wire the off-track remedy *(split from P18.4 2026-07-20)*.** *(2026-08-20: the acting half is
+  NOT flipped, deliberately — its evidence stream was structurally empty because the drift critic is opt-in and
+  deliberately OFF on David's real sessions, so flipping would mean destroying work (restart/park) on zero
+  observations. FLEET-FREE WORKAROUND APPLIED INSTEAD: the critic is now being exercised in the RIG
+  (`NKLEIN_DRIFT_CRITIC=1` on bed drains — not David's sessions), and the stream is alive for the first time
+  (`drift_critic_on_track` recording). The remedy only computes on FLAGGED cards, so accruing flags is the
+  gate; `dev mechanism-decision` reads that stream and now has a working outcome join (see P15.3). Flip only
+  on its verdict.)* Feed the drift verdict + live
   context utilisation into `decideOffTrackRemedy` and act on the result. **The reconciliation the item asks for
   belongs HERE, where the existing bounce/re-work/park ladder and the new remedy are both visible** — comparing
   them on paper would compare a design against a memory of a design.
