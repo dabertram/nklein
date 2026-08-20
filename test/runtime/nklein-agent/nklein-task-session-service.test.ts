@@ -533,6 +533,9 @@ describe("InMemoryNKleinTaskSessionService", () => {
 	// Per-test temp root so the service's diagnostic writes (task-run summaries + the Agent Attempt Ledger) never
 	// touch the real ~/.nklein home. Assigned in beforeEach, removed in afterEach.
 	let diagnosticStoreRoot: string;
+	// The service namespaces each diagnostic store under its own subdir of the injected root (so the two
+	// hash-keyed stores can never interleave one file) — ledger seeds/reads go through the SAME subdir.
+	const agentLedgerRoot = () => join(diagnosticStoreRoot, "agent-attempt-ledger");
 
 	// All service construction in this suite goes through this wrapper so the diagnostic-store root is always injected.
 	function createDiagnosticIsolatedService(
@@ -2872,7 +2875,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				simplificationLevel: 1,
 				recordedAt: 1,
 			}),
-			{ rootDir: diagnosticStoreRoot },
+			{ rootDir: agentLedgerRoot() },
 		);
 		await appendAgentLedgerEvent(
 			buildAttemptEvent({
@@ -2885,7 +2888,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				outcome: "loop",
 				recordedAt: 2,
 			}),
-			{ rootDir: diagnosticStoreRoot },
+			{ rootDir: agentLedgerRoot() },
 		);
 
 		const { service, runtime } = createTrackedService();
@@ -2922,7 +2925,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				outcome: "success",
 				recordedAt: 1,
 			}),
-			{ rootDir: diagnosticStoreRoot },
+			{ rootDir: agentLedgerRoot() },
 		);
 		for (let index = 0; index < 4; index += 1) {
 			await appendAgentLedgerEvent(
@@ -2940,7 +2943,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 					totalTokens: 20 + index,
 					recordedAt: 2 + index,
 				}),
-				{ rootDir: diagnosticStoreRoot },
+				{ rootDir: agentLedgerRoot() },
 			);
 		}
 
@@ -2976,7 +2979,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			totalTokens: 45,
 		});
 		await waitForSettled(async () => {
-			const events = await readAllAgentLedger({ rootDir: diagnosticStoreRoot });
+			const events = await readAllAgentLedger({ rootDir: agentLedgerRoot() });
 			expect(events).toContainEqual(
 				expect.objectContaining({
 					kind: "retry",
@@ -3162,7 +3165,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		runtime.emitAgentEvent(sessionId, { type: "done", reason: "completed" });
 
 		await waitForSettled(async () => {
-			const taskEvents = (await readAllAgentLedger({ rootDir: diagnosticStoreRoot })).filter(
+			const taskEvents = (await readAllAgentLedger({ rootDir: agentLedgerRoot() })).filter(
 				(event) => event.taskId === "task-ledger-host-key",
 			);
 			const attempts = taskEvents.filter((event) => event.kind === "attempt");

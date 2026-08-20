@@ -1,4 +1,5 @@
 import { readdirSync } from "node:fs";
+import { join } from "node:path";
 import { buildEditorPrompt } from "../core/architect-editor-split";
 import { foldCapturedWorkProbe } from "../core/captured-work-basis";
 import { restrictToolPoliciesForPlanning } from "../core/decompose-tool-policy";
@@ -370,7 +371,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		emitSummary: (summary) => this.emitSummary(summary),
 		emitMessage: (taskId, message) => this.emitMessage(taskId, message),
 		isExplicitDecomposition: (taskId) => this.explicitDecompositionTaskIds.has(taskId),
-		getDiagnosticStoreRoot: () => this.diagnosticStoreRoot,
+		getTaskRunSummaryRoot: () => this.taskRunSummaryRoot,
 		releaseSandboxMcpResources: (taskId) => this.sessionRuntime.releaseTaskMcpTools(taskId),
 	});
 	/** §5.U auxiliary secondary-session runner: acceptance verification against the delivered tree in a sandbox. */
@@ -608,6 +609,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private agentMcpAccess: McpAccess;
 	/** Temp root for diagnostic stores in tests; undefined in production (→ the real `~/.nklein` home). */
 	private readonly diagnosticStoreRoot: string | undefined;
+	/**
+	 * Per-store subdirs of `diagnosticStoreRoot`, mirroring the distinct production defaults
+	 * (`~/.nklein/nklein/agent-attempt-ledger` vs `.../task-runs`). Both stores key files by the same
+	 * workspace-path hash, so a shared FLAT root interleaved task-run summaries and ledger events in one
+	 * `<hash>.jsonl` — and every reader then "skipping schema-invalid record"-dropped the other store's rows.
+	 */
+	private readonly agentLedgerRoot: string | undefined;
+	private readonly taskRunSummaryRoot: string | undefined;
 	/** Latest focus chain each task emitted (todo §5.N), captured into the terminal run summary. */
 	private readonly focusChainStore = createFocusChainStore({
 		now,
@@ -641,7 +650,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							to: `focus:${transition.to}`,
 							reason: `focus_step: ${transition.stepText}`,
 						}),
-						{ rootDir: this.diagnosticStoreRoot },
+						{ rootDir: this.agentLedgerRoot },
 					),
 				);
 			}
@@ -710,6 +719,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.agentSandboxManager = options.agentSandboxManager ?? null;
 		this.pauseController = options.pauseController ?? new NKleinPauseController();
 		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
+		this.agentLedgerRoot = options.diagnosticStoreRoot
+			? join(options.diagnosticStoreRoot, "agent-attempt-ledger")
+			: undefined;
+		this.taskRunSummaryRoot = options.diagnosticStoreRoot
+			? join(options.diagnosticStoreRoot, "task-runs")
+			: undefined;
 		this.onDecompositionApplied = options.onDecompositionApplied;
 		this.onCardPromoted = options.onCardPromoted;
 		this.onFocusChainUpdated = options.onFocusChainUpdated;
@@ -747,9 +762,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			((input) =>
 				runDecompositionResearchPreflight(input, {
 					now: () => new Date(),
-					readLedger: (workspacePathHash) =>
-						readAgentLedger({ workspacePathHash, rootDir: this.diagnosticStoreRoot }),
-					appendLedger: (event) => appendAgentLedgerEvent(event, { rootDir: this.diagnosticStoreRoot }),
+					readLedger: (workspacePathHash) => readAgentLedger({ workspacePathHash, rootDir: this.agentLedgerRoot }),
+					appendLedger: (event) => appendAgentLedgerEvent(event, { rootDir: this.agentLedgerRoot }),
 					runResearch: (taskId, question) =>
 						this.retrievalToolsBuilder.run(taskId, { question, synthesize: false }),
 				}));
@@ -1260,16 +1274,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			profile: emptyModelBehaviorProfile(ledgerModelId, 0),
 			strategyLedger: emptyStrategyEffectivenessLedger(ledgerModelId, 0, taskKind),
 		});
-		if (this.diagnosticStoreRoot) {
+		if (this.agentLedgerRoot) {
 			try {
-				if (!readdirSync(this.diagnosticStoreRoot).some((file) => file.endsWith(".jsonl"))) {
+				if (!readdirSync(this.agentLedgerRoot).some((file) => file.endsWith(".jsonl"))) {
 					return empty();
 				}
 			} catch {
 				return empty();
 			}
 		}
-		const events = await readAllAgentLedger({ rootDir: this.diagnosticStoreRoot }).catch(() => []);
+		const events = await readAllAgentLedger({ rootDir: this.agentLedgerRoot }).catch(() => []);
 		const note = buildAttemptRetryNoteFromLedger(events, { workflowId: taskId }).trim();
 		const profile =
 			buildModelBehaviorProfilesFromLedger(events).find((candidate) => candidate.modelId === ledgerModelId) ??
@@ -1314,7 +1328,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						durationMs: input.observation.durationMs,
 						totalTokens: input.observation.totalTokens,
 					}),
-					{ rootDir: this.diagnosticStoreRoot },
+					{ rootDir: this.agentLedgerRoot },
 				),
 			);
 		} catch {
@@ -4067,7 +4081,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				focusChain: this.focusChainStore.summarize(taskId),
 				patchCaptureStatus: null,
 			},
-			{ rootDir: this.diagnosticStoreRoot },
+			{ rootDir: this.taskRunSummaryRoot },
 		);
 		// §5.AF: also record this terminal run as ONE attempt event in the Agent Attempt Ledger (best-effort; the
 		// ledger is observational control-plane and must never break the session loop). This is the first live WRITER
@@ -4106,7 +4120,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// let the two disagree about which attempts exist for this task.
 				const priorTaskAttempts = await readAgentLedger({
 					workspacePathHash: hashWorkspacePathForLedger(hostWorkspacePath),
-					rootDir: this.diagnosticStoreRoot,
+					rootDir: this.agentLedgerRoot,
 				})
 					.then((events) =>
 						events.filter(
@@ -4167,7 +4181,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						// extension sees the post-transform, SDK-complete list.
 						toolSetOffered: this.sessionRuntime.getSessionOfferedToolNames(taskId),
 					}),
-					{ rootDir: this.diagnosticStoreRoot },
+					{ rootDir: this.agentLedgerRoot },
 				);
 				// F4.19: distill this finished task into the ProceduralSkillBank (opt-in NKLEIN_PROCEDURAL_SKILLS — the SAME
 				// flag the consumer reads). A clean worker finish (`awaiting_review`, not failed/interrupted) with a

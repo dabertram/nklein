@@ -35,7 +35,7 @@ function deps(over: Partial<SandboxReviewFinalizerDeps> = {}, ss = sandboxState(
 		emitSummary: vi.fn(),
 		emitMessage: vi.fn(),
 		isExplicitDecomposition: vi.fn(() => false),
-		getDiagnosticStoreRoot: () => undefined,
+		getTaskRunSummaryRoot: () => undefined,
 		releaseSandboxMcpResources: vi.fn(async () => {}),
 		...over,
 	};

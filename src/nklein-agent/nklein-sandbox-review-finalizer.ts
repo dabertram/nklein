@@ -32,7 +32,8 @@ export interface SandboxReviewFinalizerDeps {
 	emitSummary(summary: RuntimeTaskSessionSummary): void;
 	emitMessage(taskId: string, message: NKleinTaskMessage): void;
 	isExplicitDecomposition(taskId: string): boolean;
-	getDiagnosticStoreRoot(): string | undefined;
+	/** Root for `recordTaskRunSummary` — the service passes its task-runs store subdir, never the shared flat diagnostic root. */
+	getTaskRunSummaryRoot(): string | undefined;
 	releaseSandboxMcpResources(taskId: string): Promise<void>;
 }
 
@@ -135,7 +136,7 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 				focusChain: null,
 				patchCaptureStatus: status,
 			},
-			{ rootDir: deps.getDiagnosticStoreRoot() },
+			{ rootDir: deps.getTaskRunSummaryRoot() },
 		);
 	}
 

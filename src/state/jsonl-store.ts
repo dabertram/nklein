@@ -61,7 +61,9 @@ export function parseValidatedJsonl<T>(content: string, schema: z.ZodType<T>, co
 		process.stderr.write(
 			diagnostic.kind === "unparseable"
 				? `[jsonl-store] ${context}: skipping unparseable line: ${diagnostic.linePreview}\n`
-				: `[jsonl-store] ${context}: skipping schema-invalid record: ${diagnostic.message ?? diagnostic.linePreview}\n`,
+				: // The record itself leads (that's what identifies WHICH row was dropped — a zod issue list alone
+					// was undiagnosable in practice); the error follows, whitespace-collapsed to keep one warn = one line.
+					`[jsonl-store] ${context}: skipping schema-invalid record: ${diagnostic.linePreview} :: ${(diagnostic.message ?? "").replace(/\s+/g, " ")}\n`,
 		);
 	}
 	return [...result.records];
