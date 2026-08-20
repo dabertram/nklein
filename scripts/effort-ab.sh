@@ -87,7 +87,9 @@ run_arm() { # $1 = arm (A|B), $2 = effort (xhigh|medium), $3 = preset
   unload_model  # the rig re-admits at launch, reading the flipped template fresh
   echo "[effort-ab] arm=$arm effort=$effort preset=$preset (max ${MAX_MIN}m)"
   local out
-  out="$("$REPO/scripts/real-model-run.sh" "$preset" --act --worker "$MODEL_ID" --max-min "$MAX_MIN" 2>&1 | tail -20)"
+  # Single-model rig: every role (incl. the child worker, whose default is the un-admittable coder-14b —
+  # the run-0 FATAL) runs the flipped model, so the arm is the ONLY variable.
+  out="$(NKLEIN_CHILD_WORKER_MODEL="$MODEL_ID" "$REPO/scripts/real-model-run.sh" "$preset" --act --worker "$MODEL_ID" --max-min "$MAX_MIN" 2>&1 | tail -20)"
   local run_dir
   run_dir="$(printf '%s\n' "$out" | grep -oE '/[^ ]*\.real-runs/[0-9-]+' | tail -1)"
   # Post-hoc arm verification from the devlog's rendered prompts — a flip that did not take must be LOUD.
