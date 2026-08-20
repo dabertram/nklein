@@ -56,13 +56,13 @@ Run `nklein setup` for the same global + project recommendations in a terminal (
 
 ### Screenshots
 
-The board at the Expert zoom level — columns, cards, the swarm status strip, and the five-level zoom ladder (Chat → Overview → Lean → Expert → Professional):
+The board at the Professional zoom level — columns, cards, the swarm status strip, and the five-level zoom ladder (Minimalistic → Clean → Advanced → Professional → Full):
 
-![The !Klein board (Expert zoom, dark "klein" theme)](docs/assets/screenshot-board.png)
+![The !Klein board (Professional zoom, dark "klein" theme)](docs/assets/screenshot-board.png)
 
-The Overview zoom — cards rolled up into status clusters, built for a quick "what needs me?" read:
+The Clean zoom — cards rolled up into status clusters, built for a quick "what needs me?" read:
 
-![The !Klein overview clusters](docs/assets/screenshot-overview.png)
+![The !Klein Clean-zoom clusters](docs/assets/screenshot-overview.png)
 
 ### Fork Direction
 
