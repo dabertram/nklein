@@ -50,6 +50,7 @@ import { runDevExperimentDesignCommand } from "./dev-experiment-design-command";
 import { runDevFlagsCommand } from "./dev-flags-command";
 import { runDevFlipGateCommand } from "./dev-flip-gate-command";
 import { runDevGatesCommand } from "./dev-gates-command";
+import { runDevHeldOutOracleCommand } from "./dev-held-out-oracle-command";
 import { runDevInterventionsCommand } from "./dev-interventions-command";
 import { runDevLedgerFieldsCommand } from "./dev-ledger-fields-command";
 import { runDevLedgerHealthCommand } from "./dev-ledger-health-command";
@@ -1027,6 +1028,28 @@ export function registerDevCommand(program: Command): void {
 		.action(async (options: { json?: boolean }) => {
 			await runDevMechanismDecisionCommand(options);
 		});
+
+	dev.command("oracle-grade")
+		.description("P23.5: grade a finished workspace against its HELD-OUT oracle (independence checked first).")
+		.requiredOption("--workspace <path>", "The workspace under grade (the agent's writable root).")
+		.option(
+			"--project <id>",
+			"Project id under test/protected/oracle/ (e.g. 02_construction_jobsite_safety_compliance).",
+		)
+		.option("--probe-dir <path>", "Explicit probe directory; overrides --project.")
+		.option("--acceptance-command <cmd>", "The project's own acceptance command, refused as an oracle runner.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(
+			async (options: {
+				workspace: string;
+				project?: string;
+				probeDir?: string;
+				acceptanceCommand?: string;
+				json?: boolean;
+			}) => {
+				process.exitCode = await runDevHeldOutOracleCommand(options);
+			},
+		);
 
 	dev.command("mechanism-doc")
 		.description("P15.1d: generate docs/dev/mechanism-registry.md from BOTH scans (unwired + silent).")
