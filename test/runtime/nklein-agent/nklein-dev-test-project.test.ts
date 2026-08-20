@@ -256,4 +256,29 @@ describe("nklein dev test project", () => {
 		const specification = await readFile(join(project.workspacePath, "specification.md"), "utf8");
 		expect(specification).toContain(resolveNKleinDevTestProjectScenario("wide_fanout").title);
 	});
+	it("a CUSTOM scenario scaffolds ITS specification, not the default preset's (live-found 2026-08-20)", async () => {
+		// The CLI resolved the scaffold from `preset` while seeding the card from `--scenario-file`, so a custom
+		// run got the custom PROMPT and the DEFAULT preset's workspace + specification.md. A self-contained
+		// prompt never notices; the 36/36 master challenge says "read all of specification.md" and was graded
+		// on a 2.4 KB habit-insights spec instead of its own 192 KB one.
+		const parentDir = await createParentDir();
+		const custom = {
+			id: "custom-scenario",
+			title: "Custom Scenario Title",
+			prompt: "Read all of specification.md before planning.",
+			specification: "# Custom specification\n\nThis text proves the scaffold used the CUSTOM scenario.",
+			acceptanceCommand: "npm test",
+		};
+		const project = await scaffoldNKleinDevTestProject({
+			parentDir,
+			initializeGit: false,
+			now: () => 1_700_000_000_000,
+			scenario: custom as never,
+		});
+		const specification = await readFile(join(project.workspacePath, "specification.md"), "utf8");
+		expect(specification).toContain("This text proves the scaffold used the CUSTOM scenario.");
+		expect(specification).toContain("Custom Scenario Title");
+		// …and crucially NOT the default scenario's, which is what the agent was actually reading.
+		expect(specification).not.toContain(getDefaultNKleinDevTestScenario().title);
+	});
 });

@@ -432,7 +432,14 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 	} else {
 		const globalConfig = await loadGlobalRuntimeConfig();
 		const scaffold = await scaffoldNKleinDevTestProject({
-			scenario: resolveNKleinDevTestProjectScenario(preset),
+			// The SCAFFOLD must use the same scenario the CARD is seeded from. It resolved from `preset`
+			// unconditionally, so `--scenario-file` produced a split run: the card carried the custom prompt
+			// while the workspace got the DEFAULT preset's fixture and its `specification.md`. A scenario whose
+			// prompt is self-contained never notices; one that says "read specification.md" — as the 36/36
+			// master challenge does — reads a different project's spec and is graded on work it was never asked
+			// to do. Live-found 2026-08-20 on the Dschinn run (agent read the habit-insights spec, 2.4 KB,
+			// instead of the 192 KB challenge). Same family as the 2026-07-11 default-fixture bug.
+			scenario: scenarioOverride ?? resolveNKleinDevTestProjectScenario(preset),
 			...(globalConfig.workspaceBaseDir ? { workspaceBaseDir: globalConfig.workspaceBaseDir } : {}),
 		});
 		projectPath = scaffold.workspacePath;
