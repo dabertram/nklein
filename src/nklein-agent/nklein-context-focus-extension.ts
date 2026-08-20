@@ -141,6 +141,21 @@ export function getOfferedToolNamesForSession(sessionId: string): readonly strin
 	return offeredToolNamesBySessionId.get(sessionId) ?? null;
 }
 
+/**
+ * P21.6b: the LAST model request's input-token count — the context depth the session actually ran at when it
+ * ended. The SDK's run-result usage AGGREGATES input tokens across every model call in the run (a Dschinn
+ * planning run recorded 449,707 "contextTokens" against a 262,144 window — a sum, not a depth), so the ledger's
+ * depth field must come from here, the per-request measurement. Like the offered-tools map above, this survives
+ * session cleanup on purpose: the terminal attempt recorder reads it at resolution time, which can land after
+ * teardown, and one number per session is a negligible footprint.
+ */
+const lastRequestInputTokensBySessionId = new Map<string, number>();
+
+/** The last request's true prompt size for this session; null when usage was never reported. */
+export function getLastRequestInputTokensForSession(sessionId: string): number | null {
+	return lastRequestInputTokensBySessionId.get(sessionId) ?? null;
+}
+
 const readPathsBySessionId = new Map<string, Set<string>>();
 /** F12.19: per-session read/write mtime history for the stale-read half of write grounding. */
 const readBeforeWriteStateBySessionId = new Map<string, ReadBeforeWriteState>();
@@ -948,6 +963,9 @@ export function createKanbanContextFocusExtension(
 				modelRequestStartedAtMs = null;
 				modelRequestSequence += 1;
 				const requestMetrics = context.assistantMessage.metrics;
+				if (typeof requestMetrics?.inputTokens === "number" && requestMetrics.inputTokens >= 0) {
+					lastRequestInputTokensBySessionId.set(sessionId, requestMetrics.inputTokens);
+				}
 				const messageModelInfo = context.assistantMessage.modelInfo;
 				const providerId = messageModelInfo?.provider ?? servingModel?.providerId ?? null;
 				const modelId = messageModelInfo?.id ?? servingModel?.modelId ?? null;

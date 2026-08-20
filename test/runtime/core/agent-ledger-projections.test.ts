@@ -37,6 +37,35 @@ function attempt(modelId: string, outcome: ModelOutcomeKind, recordedAt: number,
 }
 
 describe("buildModelBehaviorProfilesFromLedger", () => {
+	it("drops an implausible context depth (beyond the attempt's own window) instead of inflating the quality knee", () => {
+		// Historical rows recorded the run-result's SUMMED input tokens as contextTokens (449,707 against a
+		// 262,144 window). A depth beyond the budget is that artifact — the knee must not learn from it.
+		const events = [
+			buildAttemptEvent({
+				...base,
+				attemptId: "sum-artifact",
+				modelId: "model-A",
+				outcome: "success",
+				recordedAt: 1,
+				contextTokens: 449_707,
+				contextBudgetTarget: 262_144,
+				qualityOk: true,
+			}),
+			buildAttemptEvent({
+				...base,
+				attemptId: "true-depth",
+				modelId: "model-A",
+				outcome: "success",
+				recordedAt: 2,
+				contextTokens: 48_000,
+				contextBudgetTarget: 262_144,
+				qualityOk: true,
+			}),
+		];
+		const [profile] = buildModelBehaviorProfilesFromLedger(events);
+		expect(profile.qualityEffectiveContextTokens).toBe(48_000);
+	});
+
 	it("returns no profiles for a ledger with no attempts", () => {
 		expect(buildModelBehaviorProfilesFromLedger([])).toEqual([]);
 		expect(buildModelBehaviorProfilesFromLedger([buildSchedulerEvent({ ...base, event: "queued" })])).toEqual([]);

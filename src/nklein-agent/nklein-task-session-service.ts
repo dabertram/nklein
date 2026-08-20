@@ -4160,7 +4160,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						endpoint: summary.endpoint ?? this.modelEndpoint.getEndpoint(taskId),
 						startedAt: summary.startedAt ?? null,
 						endedAt: summary.updatedAt,
-						promptTokens,
+						// P21.6b: the ledger's `contextTokens` means DEPTH — the last request's true prompt size —
+						// while `usage.inputTokens` (the run result) SUMS input tokens across every model call of the
+						// run (a Dschinn planning attempt recorded 449,707 against a 262,144 window). Depth-fitness
+						// rows built from the sum are wrong-by-construction; null stays honest when no per-request
+						// measurement was observed.
+						promptTokens: this.sessionRuntime.getSessionLastRequestInputTokens(taskId),
 						completionTokens,
 						// N18: reasoning tokens now flow to the ledger too (per-ATTEMPT), from the same
 						// `readSessionUsage` result that `usage` came from. null when the server reported no

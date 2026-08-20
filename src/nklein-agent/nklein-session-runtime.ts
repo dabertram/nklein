@@ -14,6 +14,7 @@ import {
 	clearAllSessionFocusState,
 	createKanbanContextFocusExtension,
 	forgetSessionFocusState,
+	getLastRequestInputTokensForSession,
 	getOfferedToolNamesForSession,
 	recordSessionCardContract,
 	recordSessionFocusChain,
@@ -1461,6 +1462,16 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 	getSessionOfferedToolNames(taskId: string): readonly string[] | null {
 		const sessionId = this.sessionIdByTaskId.get(taskId);
 		return sessionId ? getOfferedToolNamesForSession(sessionId) : null;
+	}
+
+	/**
+	 * P21.6b: the last model request's input-token count for this task's session — the TRUE context depth at
+	 * attempt end. The run-result usage sums input tokens across every model call of the run, so it must never
+	 * be recorded as depth (a planning run summed to 449,707 against a 262,144 window).
+	 */
+	getSessionLastRequestInputTokens(taskId: string): number | null {
+		const sessionId = this.sessionIdByTaskId.get(taskId);
+		return sessionId ? getLastRequestInputTokensForSession(sessionId) : null;
 	}
 
 	/** F2.2b: the active hard broker refusal that can explain a worker's subsequent turn loop. */

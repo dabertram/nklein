@@ -261,6 +261,8 @@ export interface NKleinSessionRuntime {
 	 * was offered nothing and give the behaviour profile a toolCount of zero it never measured.
 	 */
 	getSessionOfferedToolNames(taskId: string): readonly string[] | null;
+	/** P21.6b: the last model request's input-token count — TRUE context depth at attempt end (run usage sums across calls). */
+	getSessionLastRequestInputTokens(taskId: string): number | null;
 	/** F2.2b: latest hard broker refusal for turn-loop attribution, or null when none remains active. */
 	getSessionCapabilityBrokerHardDenial(
 		taskId: string,

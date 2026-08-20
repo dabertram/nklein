@@ -325,6 +325,8 @@ function createFakeNKleinSessionRuntime(): FakeNKleinSessionRuntimeController {
 			},
 			getSessionTaintLabels: () => null,
 			getSessionOfferedToolNames: () => null,
+			// P21.6b pin value: a per-request DEPTH distinct from any cumulative run usage (see the depth assertion).
+			getSessionLastRequestInputTokens: () => 4321,
 			getSessionCapabilityBrokerHardDenial: () => null,
 			async readPersistedTaskSession(taskId: string): Promise<NKleinPersistedTaskSessionSnapshot | null> {
 				return await readPersistedTaskSessionMock(taskId);
@@ -3170,6 +3172,9 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			);
 			const attempts = taskEvents.filter((event) => event.kind === "attempt");
 			expect(attempts).toHaveLength(1);
+			// P21.6b: contextTokens is the last request's TRUE prompt size from the runtime accessor — never the
+			// run-result usage, which SUMS input tokens across every model call of the run.
+			expect(attempts[0]?.kind === "attempt" ? attempts[0].contextTokens : null).toBe(4321);
 			expect(taskEvents.length).toBeGreaterThan(0);
 			expect(new Set(taskEvents.map((event) => event.workspacePathHash))).toEqual(
 				new Set([hashWorkspacePathForLedger("/host/project")]),

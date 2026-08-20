@@ -60,6 +60,26 @@ import {
 import { isDerivedTaskSessionId } from "./synthetic-task-id";
 
 /**
+ * P21.6b: a context DEPTH is bounded by the window the attempt ran in. Historical attempt rows recorded the
+ * run-result's SUMMED input tokens as `contextTokens` (a Dschinn planning attempt banked 449,707 against a
+ * 262,144-token window — a sum over every model call, not a depth), and those rows are immutable history. A
+ * "depth" beyond the attempt's own budget is that measurement artifact, never a deep run — treat it as
+ * depth-unknown instead of letting it inflate quality knees and depth-matched fitness cells.
+ */
+function plausibleContextDepth(attempt: {
+	contextTokens: number | null;
+	contextBudgetTarget: number | null;
+}): number | null {
+	if (attempt.contextTokens === null) {
+		return null;
+	}
+	if (attempt.contextBudgetTarget !== null && attempt.contextTokens > attempt.contextBudgetTarget) {
+		return null;
+	}
+	return attempt.contextTokens;
+}
+
+/**
  * Derive a `ModelBehaviorProfile` per model by folding that model's ledger attempts (chronologically) through the
  * §5.AA online-learning update. Pure; returns one profile per model, sorted by samples desc then modelId. The
  * terminal-run writer is coarse (no per-tool-call format / quality grading yet), so `toolCallFormat` is absent and
@@ -76,7 +96,10 @@ export function buildModelBehaviorProfilesFromLedger(
 		const outcome: ModelAttemptOutcome = {
 			kind: attempt.outcome,
 			retries: attempt.retriesBefore,
-			...(attempt.contextTokens !== null ? { contextTokens: attempt.contextTokens } : {}),
+			...(() => {
+				const depth = plausibleContextDepth(attempt);
+				return depth !== null ? { contextTokens: depth } : {};
+			})(),
 			...(attempt.qualityOk !== null ? { qualityOk: attempt.qualityOk } : {}),
 			...(attempt.toolSetOffered.length > 0 ? { toolCount: attempt.toolSetOffered.length } : {}),
 		};
@@ -362,7 +385,7 @@ export function buildFitnessTableFromLedger(events: readonly AgentLedgerEvent[])
 				// 60-minute drain with 35 terminal attributable sessions yielded no depth rows at all. The fold still
 				// guards on a finite number, so a legacy attempt without the field stays depth-unknown rather than
 				// being manufactured as shallow.
-				usedContextTokens: attempt.contextTokens,
+				usedContextTokens: plausibleContextDepth(attempt),
 			},
 			attempt.completedAt ?? attempt.recordedAt,
 		);
