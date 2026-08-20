@@ -21,6 +21,20 @@ import type {
 
 const STREAM_RECONNECT_BASE_DELAY_MS = 500;
 const STREAM_RECONNECT_MAX_DELAY_MS = 5_000;
+// After this many straight failures (~40s of outage at the 5s cap) the runtime is likely down for a while —
+// stretch the retry cap so a dead server doesn't emit an identical (unpreventable) browser console error
+// every 5s indefinitely. Recovery stays fast for short blips; long outages retry every 30s instead.
+const STREAM_RECONNECT_LONG_OUTAGE_ATTEMPTS = 10;
+const STREAM_RECONNECT_LONG_OUTAGE_DELAY_MS = 30_000;
+
+/** Exported for tests: exponential backoff, 5s cap while the outage is short, 30s cap once it looks long. */
+export function resolveStreamReconnectDelayMs(reconnectAttempt: number): number {
+	const capMs =
+		reconnectAttempt >= STREAM_RECONNECT_LONG_OUTAGE_ATTEMPTS
+			? STREAM_RECONNECT_LONG_OUTAGE_DELAY_MS
+			: STREAM_RECONNECT_MAX_DELAY_MS;
+	return Math.min(capMs, STREAM_RECONNECT_BASE_DELAY_MS * 2 ** reconnectAttempt);
+}
 const MAX_TEAM_PROGRESS_EVENTS_PER_TASK = 30;
 /**
  * High-frequency WS frames (a running agent emits hundreds of `task_chat_message` frames/sec; multiple parallel
@@ -375,6 +389,7 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 		let socket: WebSocket | null = null;
 		let reconnectTimer: number | null = null;
 		let reconnectAttempt = 0;
+		let reconnectWhenVisible = false;
 		let activeWorkspaceId = requestedWorkspaceId;
 		let requestedWorkspaceForConnection = requestedWorkspaceId;
 
@@ -418,7 +433,13 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 			if (reconnectTimer !== null) {
 				return;
 			}
-			const delay = Math.min(STREAM_RECONNECT_MAX_DELAY_MS, STREAM_RECONNECT_BASE_DELAY_MS * 2 ** reconnectAttempt);
+			// Background tabs stop retrying entirely — every attempt logs an unpreventable browser console error,
+			// and nobody is looking at the data. The visibilitychange listener reconnects the moment the tab returns.
+			if (document.hidden) {
+				reconnectWhenVisible = true;
+				return;
+			}
+			const delay = resolveStreamReconnectDelayMs(reconnectAttempt);
 			reconnectAttempt += 1;
 			reconnectTimer = window.setTimeout(() => {
 				connect();
@@ -427,6 +448,12 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 
 		const connect = () => {
 			if (cancelled) {
+				return;
+			}
+			// A retry whose timer fires after the tab went hidden defers to the visibility listener (the initial
+			// mount connect still proceeds hidden so a background-opened tab has data ready on first look).
+			if (document.hidden && reconnectAttempt > 0) {
+				reconnectWhenVisible = true;
 				return;
 			}
 			if (reconnectTimer !== null) {
@@ -598,10 +625,22 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 			};
 		};
 
+		const handleVisibilityChange = () => {
+			if (cancelled || document.hidden) {
+				return;
+			}
+			if (reconnectWhenVisible) {
+				reconnectWhenVisible = false;
+				connect();
+			}
+		};
+		document.addEventListener("visibilitychange", handleVisibilityChange);
+
 		connect();
 
 		return () => {
 			cancelled = true;
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
 			if (reconnectTimer != null) {
 				window.clearTimeout(reconnectTimer);
 			}

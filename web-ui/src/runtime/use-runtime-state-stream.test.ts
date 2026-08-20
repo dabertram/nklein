@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	createInitialRuntimeStateStreamStore,
 	decideSnapshotAdoption,
+	resolveStreamReconnectDelayMs,
 	runtimeStateStreamReducer,
 } from "./use-runtime-state-stream";
 
@@ -69,5 +70,20 @@ describe("decideSnapshotAdoption (the project-switch stall root-cause rule)", ()
 		// Adopting the mismatched id made the per-workspace filters drop every update for the NEW workspace —
 		// the board sat empty until the next snapshot. The rule: skip + refetch (backoff-bounded).
 		expect(decideSnapshotAdoption("new-project", "old-project")).toBe("refetch_stale");
+	});
+});
+
+describe("resolveStreamReconnectDelayMs (WS reconnect spam bound)", () => {
+	it("backs off exponentially to a 5s cap while the outage is short", () => {
+		expect(resolveStreamReconnectDelayMs(0)).toBe(500);
+		expect(resolveStreamReconnectDelayMs(1)).toBe(1_000);
+		expect(resolveStreamReconnectDelayMs(4)).toBe(5_000);
+		expect(resolveStreamReconnectDelayMs(9)).toBe(5_000);
+	});
+	it("stretches the cap to 30s once the outage looks long (attempt 10+), and stays finite forever", () => {
+		expect(resolveStreamReconnectDelayMs(10)).toBe(30_000);
+		expect(resolveStreamReconnectDelayMs(50)).toBe(30_000);
+		// 2**1024 overflows to Infinity — the cap must still win.
+		expect(resolveStreamReconnectDelayMs(1_024)).toBe(30_000);
 	});
 });
