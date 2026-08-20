@@ -281,4 +281,50 @@ describe("nklein dev test project", () => {
 		// …and crucially NOT the default scenario's, which is what the agent was actually reading.
 		expect(specification).not.toContain(getDefaultNKleinDevTestScenario().title);
 	});
+	it("ships a section index beside a LARGE spec, and points the agent at it (live-found 2026-08-20)", async () => {
+		// On the 36/36 master challenge a 27B agent read the 24,000-word spec faithfully — windowed reads,
+		// zero tool errors — and died of quadratic prefill at 67k context before its first decompose call.
+		// Linear reading is the wrong tool for a large spec, and the agent had no other.
+		const parentDir = await createParentDir();
+		const sections = Array.from(
+			{ length: 12 },
+			(_, i) => `## Section ${i}\n\n${"requirement detail words ".repeat(150)}`,
+		).join("\n\n");
+		const project = await scaffoldNKleinDevTestProject({
+			parentDir,
+			initializeGit: false,
+			now: () => 1_700_000_000_000,
+			scenario: {
+				id: "big-spec",
+				title: "Big Spec Challenge",
+				prompt: "Read all of specification.md before planning.",
+				specification: sections,
+				acceptanceCommand: "npm test",
+			} as never,
+		});
+		const index = await readFile(join(project.workspacePath, "specification.index.md"), "utf8");
+		expect(index).toContain("Do NOT read it end-to-end");
+		// Line ranges are what makes the index ACTIONABLE for the agent's own read_files tool.
+		expect(index).toMatch(/\| \d+-\d+ \| \d+ \| ## Section 0 \|/);
+		const spec = await readFile(join(project.workspacePath, "specification.md"), "utf8");
+		expect(spec).toContain("Large specification");
+		expect(spec).toContain("specification.index.md");
+
+		// …and a SMALL spec stays exactly as before: no index, no pointer.
+		const small = await scaffoldNKleinDevTestProject({
+			parentDir,
+			initializeGit: false,
+			now: () => 1_700_000_000_000,
+			scenario: {
+				id: "small-spec",
+				title: "Small Spec",
+				prompt: "do it",
+				specification: "One short requirement.",
+				acceptanceCommand: "npm test",
+			} as never,
+		});
+		await expect(readFile(join(small.workspacePath, "specification.index.md"), "utf8")).rejects.toThrow();
+		const smallSpec = await readFile(join(small.workspacePath, "specification.md"), "utf8");
+		expect(smallSpec).not.toContain("Large specification");
+	});
 });

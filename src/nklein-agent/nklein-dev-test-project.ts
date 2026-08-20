@@ -7,9 +7,13 @@ import { isPathInsideGitWorkTree, resolveSafeCreatedWorkspaceParentDir } from ".
 import { createGitProcessEnv } from "../core/git-process-env";
 import type { RuntimeDevTestProjectPreset } from "../core/projects-api-contract";
 import { toSlug } from "../core/slugify";
+import { buildSpecSectionIndex } from "../core/spec-section-index";
 import { loadDevTestProjectScenario } from "./dev-test-project-registry";
 
 const execFileAsync = promisify(execFile);
+/** Specs at/above this size ship with a section index; smaller ones would only gain noise. */
+const LARGE_SPEC_INDEX_THRESHOLD_WORDS = 4_000;
+
 const DEFAULT_TEMPLATE_NAME = "smoke-ts-cli";
 export const NKLEIN_DEV_TEST_PROJECT_MARKER_PATH = join(".nklein", "nklein", "dev-test-project.json");
 
@@ -223,21 +227,58 @@ export async function scaffoldNKleinDevTestProject(
 		errorOnExist: false,
 		force: true,
 	});
-	await writeFile(
-		join(workspacePath, "specification.md"),
-		[
+	const specificationBody = [
+		`# ${scenario.title}`,
+		"",
+		specification.trim(),
+		"",
+		...getDevTestFixtureToolchainRules(templateName),
+		"## Acceptance",
+		"",
+		`Run \`${scenario.acceptanceCommand}\` successfully.`,
+		"",
+	].join("\n");
+	await writeFile(join(workspacePath, "specification.md"), specificationBody, "utf8");
+	// LARGE-SPEC RETRIEVAL SUPPORT (live-found on the 36/36 master challenge, 2026-08-20): handed a 24,000-word
+	// spec and told to "read it fully", a 27B agent did the faithful thing — windowed reads, paged results, zero
+	// tool errors — and still died of quadratic prefill at 67k context, ~70% through, before its first
+	// decompose call. Reading a large spec LINEARLY INTO CONTEXT is the wrong tool, and the agent had no other:
+	// the section index existed only as a dev CLI. So the scaffold now ships the index NEXT TO the spec, with
+	// line ranges its own read_files can slice, and the spec opens with a pointer. Small specs are unchanged —
+	// an index of a 300-word file would be noise.
+	const specIndex = buildSpecSectionIndex(specificationBody);
+	if (specIndex.totalWords >= LARGE_SPEC_INDEX_THRESHOLD_WORDS && specIndex.sections.length >= 4) {
+		const indexLines = [
+			"# specification.index.md — section map of specification.md",
+			"",
+			`The full specification is ${specIndex.totalWords.toLocaleString()} words. Do NOT read it end-to-end into`,
+			"context: read THIS index, pick the sections your current task needs, and fetch exactly those line",
+			"ranges from specification.md with read_files (start_line/end_line below). Re-fetch other sections",
+			"later when a task needs them — the file does not change.",
+			"",
+			"| lines | words | section |",
+			"| --- | --- | --- |",
+			...specIndex.sections.map(
+				(section) =>
+					`| ${section.startLine}-${section.endLine} | ${section.ownWords} | ${"#".repeat(section.level)} ${section.heading} |`,
+			),
+			"",
+		].join("\n");
+		await writeFile(join(workspacePath, "specification.index.md"), indexLines, "utf8");
+		const pointer = [
 			`# ${scenario.title}`,
 			"",
-			specification.trim(),
+			`> **Large specification (${specIndex.totalWords.toLocaleString()} words).** Read \`specification.index.md\``,
+			"> first and fetch only the sections your current task needs (it lists exact line ranges). Reading this",
+			"> file end-to-end will exhaust your context before you finish.",
 			"",
-			...getDevTestFixtureToolchainRules(templateName),
-			"## Acceptance",
-			"",
-			`Run \`${scenario.acceptanceCommand}\` successfully.`,
-			"",
-		].join("\n"),
-		"utf8",
-	);
+		].join("\n");
+		await writeFile(
+			join(workspacePath, "specification.md"),
+			pointer + specificationBody.slice(specificationBody.indexOf("\n") + 1),
+			"utf8",
+		);
+	}
 	const marker: NKleinDevTestProjectMarker = {
 		createdBy: "nklein-dev-test",
 		scenarioId: scenario.id,
