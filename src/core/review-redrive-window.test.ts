@@ -24,6 +24,7 @@ describe("decideRedriveWindow", () => {
 			incomingFingerprint: FP_EMPTY,
 			incomingSessionStartedAt: 1_787_063_516_000,
 			incomingModelId: "qwen3.8-27b-mlx",
+			redrivePending: true,
 		});
 		expect(decision).toEqual({ absorb: true, reason: "same_session_reclaim" });
 	});
@@ -34,6 +35,7 @@ describe("decideRedriveWindow", () => {
 			incomingFingerprint: FP_EMPTY,
 			incomingSessionStartedAt: null,
 			incomingModelId: "qwen3.8-27b-mlx",
+			redrivePending: true,
 		});
 		expect(decision).toEqual({ absorb: true, reason: "pre_reroute_model_reclaim" });
 	});
@@ -44,6 +46,7 @@ describe("decideRedriveWindow", () => {
 			incomingFingerprint: FP_EMPTY,
 			incomingSessionStartedAt: 1_787_063_790_000, // fresh session after the reroute restart
 			incomingModelId: "qwen/qwen3.6-35b-a3b",
+			redrivePending: true,
 		});
 		expect(decision).toEqual({ absorb: false, reason: "redriven_worker" });
 	});
@@ -54,6 +57,7 @@ describe("decideRedriveWindow", () => {
 			incomingFingerprint: FP_REAL,
 			incomingSessionStartedAt: 1_787_063_516_000,
 			incomingModelId: "qwen3.8-27b-mlx",
+			redrivePending: true,
 		});
 		expect(decision).toEqual({ absorb: false, reason: "fingerprint_changed" });
 	});
@@ -64,6 +68,7 @@ describe("decideRedriveWindow", () => {
 			incomingFingerprint: FP_EMPTY,
 			incomingSessionStartedAt: 1_787_063_516_000,
 			incomingModelId: "qwen3.8-27b-mlx",
+			redrivePending: true,
 		});
 		expect(decision).toEqual({ absorb: false, reason: "absorb_cap_reached" });
 	});
@@ -74,6 +79,7 @@ describe("decideRedriveWindow", () => {
 			incomingFingerprint: FP_EMPTY,
 			incomingSessionStartedAt: 1_787_063_516_000,
 			incomingModelId: "qwen3.8-27b-mlx",
+			redrivePending: true,
 		});
 		expect(decision).toEqual({ absorb: false, reason: "no_observation" });
 	});
@@ -88,6 +94,7 @@ describe("decideRedriveWindow", () => {
 				incomingFingerprint: FP_EMPTY,
 				incomingSessionStartedAt: 1_787_063_516_000,
 				incomingModelId: "qwen3.8-27b-mlx",
+				redrivePending: true,
 			}),
 		).toEqual({ absorb: true, reason: "same_session_reclaim" });
 		expect(
@@ -96,7 +103,33 @@ describe("decideRedriveWindow", () => {
 				incomingFingerprint: FP_EMPTY,
 				incomingSessionStartedAt: 1_787_063_999_000,
 				incomingModelId: "qwen3.8-27b-mlx",
+				redrivePending: true,
 			}),
 		).toEqual({ absorb: false, reason: "redriven_worker" });
+	});
+	it("never absorbs when no re-drive can arrive — a dead worker's re-claim is the artifact's ONLY judgment", () => {
+		// Campaign round 6 (2026-08-20): a card whose worker was INTERRUPTED and watchdog-rebounded into review
+		// still matched same-session + same-fingerprint, so the guard absorbed the only judgment opportunity
+		// against a re-drive that was never coming. The card stranded in Review and the run idled into a stall
+		// abort. "Has not produced a turn yet" only implies "is still coming" while something is actually live.
+		expect(
+			decideRedriveWindow({
+				observation: rerouteObservation(),
+				incomingFingerprint: FP_EMPTY,
+				incomingSessionStartedAt: 1_787_063_516_000,
+				incomingModelId: "qwen3.8-27b-mlx",
+				redrivePending: false,
+			}),
+		).toEqual({ absorb: false, reason: "redrive_not_pending" });
+		// …and the SAME inputs with a live re-drive still absorb, so liveness is the only thing that changed.
+		expect(
+			decideRedriveWindow({
+				observation: rerouteObservation(),
+				incomingFingerprint: FP_EMPTY,
+				incomingSessionStartedAt: 1_787_063_516_000,
+				incomingModelId: "qwen3.8-27b-mlx",
+				redrivePending: true,
+			}),
+		).toEqual({ absorb: true, reason: "same_session_reclaim" });
 	});
 });

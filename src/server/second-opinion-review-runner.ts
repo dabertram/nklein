@@ -32,6 +32,7 @@ import {
 	summarizeReviewAttemptEvidence,
 } from "../core/review-redecompose";
 import { decideRedriveWindow, type PendingRedriveObservation } from "../core/review-redrive-window";
+import { isActiveWorkSessionState } from "../core/session-state-predicates";
 import { resolveSwarmRoleModel } from "../core/swarm-role-selection";
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { addTaskToColumn } from "../core/task-board-mutations";
@@ -557,6 +558,10 @@ export async function runSecondOpinionReviewForTask(
 			incomingFingerprint: evidenceFingerprint,
 			incomingSessionStartedAt: workerSummary?.startedAt ?? null,
 			incomingModelId: workerModelId,
+			// Only absorb while a re-drive can still ARRIVE. A worker that is interrupted/terminal has no turn
+			// coming, so absorbing would discard the artifact's only judgment and strand the card (round 6:
+			// a watchdog-rebounded interrupted card absorbed twice, then the run idled into a stall abort).
+			redrivePending: isActiveWorkSessionState(workerSummary?.state),
 		});
 		if (redriveDecision.absorb) {
 			redriveObservation.absorbedCount += 1;

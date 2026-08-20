@@ -32,7 +32,12 @@ export type RedriveWindowDecision =
 	| { absorb: true; reason: "same_session_reclaim" | "pre_reroute_model_reclaim" }
 	| {
 			absorb: false;
-			reason: "no_observation" | "fingerprint_changed" | "redriven_worker" | "absorb_cap_reached";
+			reason:
+				| "no_observation"
+				| "fingerprint_changed"
+				| "redriven_worker"
+				| "absorb_cap_reached"
+				| "redrive_not_pending";
 	  };
 
 /**
@@ -44,6 +49,17 @@ export function decideRedriveWindow(input: {
 	incomingFingerprint: string | null;
 	incomingSessionStartedAt: number | null;
 	incomingModelId: string | null;
+	/**
+	 * Is the re-driven worker actually PENDING — a live session that can still produce the turn this guard is
+	 * waiting for (queued/running/paused)?
+	 *
+	 * Absorbing is a bet that a remedy is in flight. Live-found 2026-08-20 (campaign round 6): a card whose
+	 * worker had been INTERRUPTED and watchdog-rebounded into review still matched "same session, same
+	 * fingerprint", so the guard absorbed the only judgment opportunity against a re-drive that was never
+	 * coming — the card stranded in Review and the run went idle until the rig's stall watchdog killed it.
+	 * "Has not produced a turn yet" only implies "is still coming" while something is actually running.
+	 */
+	redrivePending: boolean;
 }): RedriveWindowDecision {
 	const observation = input.observation ?? null;
 	if (!observation) {
@@ -54,6 +70,11 @@ export function decideRedriveWindow(input: {
 	}
 	if (observation.absorbedCount >= MAX_ABSORBED_RECLAIMS) {
 		return { absorb: false, reason: "absorb_cap_reached" };
+	}
+	// No live worker ⇒ nothing is in flight to wait for, so this re-claim is the ONLY judgment this artifact
+	// will get. Judge it; the ladder (bounce/escalate/park) then owns the card as usual.
+	if (!input.redrivePending) {
+		return { absorb: false, reason: "redrive_not_pending" };
 	}
 	// Same session as the one the bounce judged ⇒ the re-drive (which restarts the session or switches models)
 	// has not executed yet; this is the old worker re-claiming the artifact that was already judged.
