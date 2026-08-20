@@ -1944,6 +1944,32 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 These are known defects or incomplete migrations. Clear them before widening capability.
 
+- [ ] **P0.DSTALL — A plan-mode card can zombie in `running` for 20+ minutes after decompose-starvation: no session, no park, no escalation.** *(Filed 2026-08-20 from Dschinn run-3 forensics, run dir `.real-runs/20260820-222524` — full evidence banked there.)*
+  **The observed chain (timestamps local):** the architect (qwen3.8, xhigh) finished spec reading via the section
+  index (context bounded — retrieval WORKED) and began emitting the ~49-card dependency graph in its REASONING
+  channel; the turn ended `finish reason=max-tokens; no tool call`; the adaptive ladder's `raise_token_budget` rung
+  retried (22:55, its injected note is visible in the rendered prompt) and starved the same way at 23:08:42. Then:
+  `running → awaiting_review (reason: hook)` — the event adapter maps ANY non-aborted run-finish to awaiting_review,
+  which is wrong for a plan-mode card with nothing to review — `→ running` 1s later (the plan-gate bounce), then
+  **20 minutes of dead air**: no model request ever started again (LM Studio devlog confirms), two zombie attempt
+  rows landed at 23:22:43 (129ms apart, `toolSetOffered: []`), the trouble monitor's silent-heartbeat warn fired at
+  23:29:01 (exactly `heartbeatLostAfterMs` after the bounce) — and it only WARNS by design ("the zero-token wedge
+  sweep and the heartbeat watchdog own terminating dead runs") — and only the RIG's external reactor killed the run.
+  **Suspected swallow point (unverified — verify by REPRODUCTION, not more code reading):**
+  `startTaskSession`'s idempotency guard (`nklein-task-session-service.ts` ~2060) returns the existing summary when
+  the entry state label is `queued|running|awaiting_review` — a summary LABEL, not session liveness; after
+  run-finish no session exists, so every redrive/rebound start is silently swallowed while the label says running.
+  Prior art for the ghost class: the G6.8a v9 parent-reacquire purge in `runtime-server.ts` (~1015).
+  **Fix shape (three layers, smallest honest set):** (1) a plan-mode run-finish WITHOUT an applied decomposition
+  must not take the generic hook→awaiting_review path — either continue the adaptive ladder (rungs remain:
+  `thinking_disable` was NEXT and plausibly cures reasoning starvation) or park INPUT_REQUIRED with a structured
+  "decomposition starved" brief (the review-redecompose rung covers only review-loop worker parks — plan-mode has
+  NO terminal handler today); (2) the start guard must not treat a state label as liveness; (3) whatever attempted
+  at 23:22:43 recorded attempt rows for sessions that never issued a request — find it and make its failure loud.
+  **Gate: an aimock reproduction FIRST** (plan-mode card, architect turn ends max-tokens-no-tool twice) asserting
+  the invariant: within the trouble threshold the card either runs a fresh turn or parks — it never sits `running`
+  sessionless. The reproduction names the true swallow point; fix against it, not against the suspicion.
+
 ### Phase 1 — feature completion: planning, execution, and durable control plane
 
 #### 1A. Planning, decomposition, and work-package construction *(legacy §5.B, §5.S, §5.N, §5.AV, §5.AK)*
