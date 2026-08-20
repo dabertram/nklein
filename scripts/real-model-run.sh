@@ -154,11 +154,18 @@ mkdir -p "$RUN_DIR" "$RUN_HOME"
 # single model slot. Durable EVIDENCE and durable WORKSPACES are different wants: keep the accruing stores,
 # retire the boards. NKLEIN_KEEP_RUN_WORKSPACES=1 opts out (a deliberate resume needs its boards).
 if [ -n "${NKLEIN_RUN_HOME:-}" ] && [ "${NKLEIN_KEEP_RUN_WORKSPACES:-0}" != "1" ]; then
-  RETIRED_WS="$RUN_HOME/.nklein/nklein/workspaces"
-  if [ -d "$RETIRED_WS" ]; then
-    mv "$RETIRED_WS" "$RUN_DIR/retired-workspaces" 2>/dev/null || rm -rf "$RETIRED_WS"
-    echo "[rig] durable home: retired prior workspaces into $RUN_DIR/retired-workspaces (accruing stores kept)"
-  fi
+  # PER-RUN stores are retired; ACCRUING stores (model-performance, telemetry, ledger) are kept — that split is
+  # the whole point of a durable home. Session transcripts belong with workspaces, not with fitness: they
+  # describe one run's conversations. Leaving them made every later bundle carry earlier runs' sessions (a
+  # 5-minute one-card run collected 96), and an mtime `--since` filter CANNOT fix it — the snapshot store is
+  # rewritten in-place during a run, so 106 of 201 stale files carried fresh mtimes. Retire, don't filter.
+  for RETIRE_REL in ".nklein/nklein/workspaces" ".nklein/data/sessions" ".nklein/evidence-session-snapshots"; do
+    RETIRE_SRC="$RUN_HOME/$RETIRE_REL"
+    [ -d "$RETIRE_SRC" ] || continue
+    RETIRE_DEST="$RUN_DIR/retired-$(basename "$RETIRE_REL")"
+    mv "$RETIRE_SRC" "$RETIRE_DEST" 2>/dev/null || rm -rf "$RETIRE_SRC"
+    echo "[rig] durable home: retired prior $(basename "$RETIRE_REL") into $RETIRE_DEST (accruing stores kept)"
+  done
 fi
 RUNTIME_LOG="$RUN_DIR/runtime.log"; DRAIN_JSON="$RUN_DIR/drain.json"; DRAIN_ERR="$RUN_DIR/drain.err"
 DEVLOG="$RUN_DIR/lmstudio-devlog.txt"; RUNLOG="$RUN_DIR/orchestrator.log"; SNAP="$RUN_DIR/snapshots.log"
