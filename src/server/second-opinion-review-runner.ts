@@ -359,6 +359,14 @@ export async function runSecondOpinionReviewForTask(
 	// CORRELATED second opinion (same-family models agree on wrong answers ~60% — research 2026-07-02). Surfaced,
 	// not blocked — an explicit pin is the user's call (the W2.5 auto path prefers a diverse reviewer via
 	// applyDiversityPreference), so the waiver must at least be visible instead of silently monocultural.
+	// The model that ACTUALLY judged, reported by the session runner at resolution time. It cannot be looked up
+	// afterwards: the harness clears the `<taskId>::review` session on teardown (measured — the post-hoc
+	// getSummary approach attributed 0 of 76 evidence rows).
+	// A holder, not a bare `let`: TS's control-flow analysis narrows a closure-assigned local back to `null`
+	// at every read (the same blind spot the verdict capture below documents), and a cast would hide it.
+	const resolvedReviewer: { value: { providerId: string; modelId: string; selectionSource: string } | null } = {
+		value: null,
+	};
 	const workerSummary = input.service.getSummary(input.taskId);
 	const workerModelId = workerSummary?.modelId ?? null;
 	if (reviewer && workerModelId && modelsShareLineage(workerModelId, reviewer.modelId)) {
@@ -1115,6 +1123,10 @@ export async function runSecondOpinionReviewForTask(
 						// Raise-on-retry: the no-verdict ladder's attempt index reaches the per-turn output budget,
 						// so a truncated reviewer gets more room instead of the identical failing turn again.
 						...(sessionArgs.budgetAttempt ? { budgetAttempt: sessionArgs.budgetAttempt } : {}),
+						// P21.6b attribution: capture WHICH model judged, while its session still exists.
+						onReviewerResolved: (resolved) => {
+							resolvedReviewer.value = resolved;
+						},
 						stampPhase,
 					});
 				};
@@ -1464,9 +1476,8 @@ export async function runSecondOpinionReviewForTask(
 			// recorded plan-sizing assessments read `no_evidence_at_all` despite 2512 evidence rows existing. The
 			// join key could never match (same class as the 2026-08-02 tool-gate join). The model that ACTUALLY
 			// judged is the `<taskId>::review` session's own summary — session-state truth, not a side channel.
-			const actualReviewer = input.service.getSummary(`${input.taskId}::review`);
-			const reviewerModelId = reviewer?.modelId ?? actualReviewer?.modelId ?? null;
-			const reviewerProviderId = reviewer?.providerId ?? actualReviewer?.providerId ?? null;
+			const reviewerModelId = reviewer?.modelId ?? resolvedReviewer.value?.modelId ?? null;
+			const reviewerProviderId = reviewer?.providerId ?? resolvedReviewer.value?.providerId ?? null;
 			recordSelfObservation({
 				signal: "custom",
 				severity: "debug",
@@ -1483,9 +1494,12 @@ export async function runSecondOpinionReviewForTask(
 					// whose model reviewed poorly, and the ceiling's denominator must be able to tell them apart.
 					reviewerModelSource: reviewer?.modelId
 						? "explicit_pin"
-						: actualReviewer?.modelId
-							? "review_session_summary"
+						: resolvedReviewer.value?.modelId
+							? "resolved_at_session_start"
 							: "unattributed",
+					...(resolvedReviewer.value?.selectionSource
+						? { reviewerSelectionSource: resolvedReviewer.value.selectionSource }
+						: {}),
 				},
 			});
 		} catch {

@@ -133,6 +133,25 @@ describe("createSecondOpinionReviewRunner", () => {
 		);
 	});
 
+	it("reports the resolved reviewer to the caller BEFORE teardown clears the session (P21.6b attribution)", async () => {
+		// The per-model review ceiling is derived from `review_capacity_evidence.reviewerModelId`, and the
+		// obvious way to get it — look up the `<taskId>::review` summary after the review resolves — cannot
+		// work: the harness clears that synthetic session in its `finally`. Measured, not assumed: the
+		// post-hoc approach attributed 0 of 76 real rows. So the model must be reported while it is known.
+		const d = deps();
+		const runner = createSecondOpinionReviewRunner(d);
+		const seen: { providerId: string; modelId: string; selectionSource: string }[] = [];
+		await runner.runSecondOpinionReviewSession({
+			...input,
+			reviewer: { providerId: "lmstudio", modelId: "critic-m" },
+			onReviewerResolved: (resolved) => seen.push(resolved),
+		});
+		expect(seen).toEqual([{ providerId: "lmstudio", modelId: "critic-m", selectionSource: "explicit_pin" }]);
+		// The session IS torn down afterwards — which is exactly why the callback, not a later lookup, is the
+		// attribution source.
+		expect(d.stopRuntimeSession).toHaveBeenCalledWith("t1::review");
+	});
+
 	it("ends a reviewer turn at the first valid verdict even when the model would keep running", async () => {
 		let settleTurn: (() => void) | null = null;
 		const first = { verdict: "request_changes", feedback: "Fix the import." } as never;

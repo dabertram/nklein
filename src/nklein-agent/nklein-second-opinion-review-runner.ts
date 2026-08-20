@@ -67,6 +67,12 @@ export interface SecondOpinionReviewRunner {
 		timeoutMs?: number;
 		/** No-verdict retry index; each retry raises the per-turn output budget (see runInner). */
 		budgetAttempt?: number;
+		/**
+		 * Reports the RESOLVED reviewer before its first turn. The caller cannot recover this later — the
+		 * harness clears the `<taskId>::review` session on teardown — and the per-model review ceiling
+		 * (P21.6b) depends on the attribution.
+		 */
+		onReviewerResolved?: (reviewer: { providerId: string; modelId: string; selectionSource: string }) => void;
 	}): Promise<NKleinReviewResult | null>;
 	/**
 	 * Whether a review round for this card is CURRENTLY in flight (the single-flight key is held). The rescue
@@ -99,6 +105,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		reviewer?: { providerId: string; modelId: string } | null;
 		timeoutMs?: number;
 		/** Diagnostic phase stamps (todo §12 review-hang autopsy); absent ⇒ zero overhead. */
+		onReviewerResolved?: (reviewer: { providerId: string; modelId: string; selectionSource: string }) => void;
 		stampPhase?: (phase: string) => void;
 	}): Promise<NKleinReviewResult | null> {
 		const stamp = input.stampPhase ?? (() => {});
@@ -143,6 +150,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		reviewer?: { providerId: string; modelId: string } | null;
 		timeoutMs?: number;
 		budgetAttempt?: number;
+		onReviewerResolved?: (reviewer: { providerId: string; modelId: string; selectionSource: string }) => void;
 		stampPhase?: (phase: string) => void;
 	}): Promise<NKleinReviewResult | null> {
 		const stamp = input.stampPhase ?? (() => {});
@@ -197,6 +205,10 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 					? "loaded_fallback"
 					: "worker_fallback";
 		stamp(`session: reviewer=${modelId} (${selectionSource}); bracketed-run enter`);
+		// Report the RESOLVED reviewer while the session still EXISTS: the harness clears the synthetic
+		// `<taskId>::review` session in its finally, so a post-hoc getSummary lookup returns null (measured:
+		// 0 of 76 review-capacity rows were attributed that way). The per-model ceiling depends on this.
+		input.onReviewerResolved?.({ providerId, modelId, selectionSource });
 		// A reasoning reviewer needs headroom to think BEFORE emitting `submit_review` — floor its per-turn budget so the
 		// inherited (worker-sized) budget can't truncate it mid-reasoning into a `no_verdict` hold. Only raises; only for
 		// reasoning models. Live-found 2026-07-18 (rig11, glm-4.6v-flash): name-matching alone missed a model whose

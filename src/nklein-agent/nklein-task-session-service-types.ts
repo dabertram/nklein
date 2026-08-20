@@ -294,6 +294,13 @@ export interface NKleinTaskSessionService {
 		 * 2026-08-19). Absent ⇒ today's budget exactly.
 		 */
 		budgetAttempt?: number;
+		/**
+		 * Called once the reviewer model is resolved, BEFORE its first turn — the only point at which the
+		 * caller can learn which model actually judged. The synthetic `<taskId>::review` session is cleared by
+		 * the harness on teardown, so a later `getSummary` returns null (measured: 0 of 76 review-capacity
+		 * rows attributed that way). The per-model review ceiling (P21.6b) depends on this attribution.
+		 */
+		onReviewerResolved?: (reviewer: { providerId: string; modelId: string; selectionSource: string }) => void;
 		/** Diagnostic phase stamps (todo §12 review-hang autopsy); absent ⇒ zero overhead. */
 		stampPhase?: (phase: string) => void;
 	}): Promise<NKleinReviewResult | null>;
