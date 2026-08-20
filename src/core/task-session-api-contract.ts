@@ -26,6 +26,70 @@ export const runtimeTaskSessionForkResponseSchema = z.object({
 });
 export type RuntimeTaskSessionForkResponse = z.infer<typeof runtimeTaskSessionForkResponseSchema>;
 
+/**
+ * §dsh#31 — the WIRE TRUTH for one card, read-only.
+ *
+ * The runtime already records what the model actually saw (`session-request-log`) and what the runtime
+ * injected into it (`session-injection-log`), but until now those files were reachable only from a terminal,
+ * so the UI's "Full" level — which promises the very fullest detail — stopped short of the finest grain it
+ * owns. This exposes them for INSPECTION only; nothing here can change a run.
+ */
+export const runtimeTaskWireLogRequestSchema = z.object({
+	taskId: z.string().min(1),
+	/** Cap on returned entries per stream, newest last. Keeps a long session from flooding the client. */
+	limit: z.number().int().min(1).max(500).optional(),
+	/** Include the verbatim message text. Off by default — the summary view is what most inspection needs. */
+	includeMessageText: z.boolean().optional(),
+});
+export type RuntimeTaskWireLogRequest = z.infer<typeof runtimeTaskWireLogRequestSchema>;
+
+export const runtimeTaskWireRequestEntrySchema = z.object({
+	recordedAt: z.string(),
+	source: z.string(),
+	purpose: z.string(),
+	modelId: z.string(),
+	/** Canonical hash of the wire messages — equality without re-reading bodies. */
+	messagesSha256: z.string(),
+	messageCount: z.number().int().nonnegative(),
+	/** Total characters across all messages: the size signal, always present even when text is withheld. */
+	totalChars: z.number().int().nonnegative(),
+	toolNames: z.array(z.string()),
+	systemPromptChars: z.number().int().nonnegative().nullable(),
+	/** Per-message role + size; `text` only when the caller asked for it. */
+	messages: z.array(
+		z.object({
+			role: z.string(),
+			chars: z.number().int().nonnegative(),
+			text: z.string().optional(),
+		}),
+	),
+});
+export type RuntimeTaskWireRequestEntry = z.infer<typeof runtimeTaskWireRequestEntrySchema>;
+
+export const runtimeTaskWireInjectionEntrySchema = z.object({
+	recordedAt: z.string(),
+	kind: z.string(),
+	/** The injected message's role, as recorded. */
+	role: z.string(),
+	chars: z.number().int().nonnegative(),
+	text: z.string().optional(),
+});
+export type RuntimeTaskWireInjectionEntry = z.infer<typeof runtimeTaskWireInjectionEntrySchema>;
+
+export const runtimeTaskWireLogResponseSchema = z.object({
+	/** Session ids inspected (a card has a primary session plus derived ones like `::review`). */
+	sessionIds: z.array(z.string()),
+	requests: z.array(runtimeTaskWireRequestEntrySchema),
+	injections: z.array(runtimeTaskWireInjectionEntrySchema),
+	/** True when the request log is switched off — an EMPTY log and a DISABLED log are different facts. */
+	requestLogDisabled: z.boolean(),
+	injectionLogDisabled: z.boolean(),
+	/** Entries dropped by `limit`, so a truncated view never reads as a complete one. */
+	truncatedRequests: z.number().int().nonnegative(),
+	truncatedInjections: z.number().int().nonnegative(),
+});
+export type RuntimeTaskWireLogResponse = z.infer<typeof runtimeTaskWireLogResponseSchema>;
+
 export const runtimeTaskSessionStateSchema = z.enum([
 	"idle",
 	"queued",

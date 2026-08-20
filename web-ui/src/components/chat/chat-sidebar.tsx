@@ -1046,6 +1046,44 @@ function ChatPanel({
 }): React.ReactElement {
 	const chat = useChatData(enabled);
 	const [draft, setDraft] = useState("");
+	// "Say it and it happens" (2026-08-20): at the Minimalistic level the app used to open on a screen with
+	// NO text input at all — the product's whole promise is "describe it and !Klein builds it", and the first
+	// thing it asked for was a click on "New chat". The empty state is now the composer. `sendMessage` reads
+	// the SELECTED session from state, so the first message is queued here and sent once the freshly created
+	// session becomes selected; sending inline would race the state update and silently drop the message.
+	const [firstMessage, setFirstMessage] = useState("");
+	const [queuedFirstMessage, setQueuedFirstMessage] = useState<string | null>(null);
+	const [startingFirstChat, setStartingFirstChat] = useState(false);
+	const chatSendMessage = chat.sendMessage;
+	const selectedSessionIdForFirstMessage = chat.selectedSessionId;
+	useEffect(() => {
+		if (queuedFirstMessage === null || selectedSessionIdForFirstMessage === null) {
+			return;
+		}
+		const message = queuedFirstMessage;
+		setQueuedFirstMessage(null);
+		setStartingFirstChat(false);
+		void chatSendMessage(message);
+	}, [queuedFirstMessage, selectedSessionIdForFirstMessage, chatSendMessage]);
+
+	/** Start a brand-new chat from the empty state with the user's very first sentence. */
+	const startChatWithFirstMessage = async (): Promise<void> => {
+		const text = firstMessage.trim();
+		if (!text || startingFirstChat) {
+			return;
+		}
+		setStartingFirstChat(true);
+		setFirstMessage("");
+		// Title from the first line, so the sidebar entry is recognisable instead of another "New chat".
+		const title = text.split("\n")[0]?.slice(0, 60) || "New chat";
+		const session = await chat.createSession({ title });
+		if (!session) {
+			setStartingFirstChat(false);
+			setFirstMessage(text);
+			return;
+		}
+		setQueuedFirstMessage(text);
+	};
 	// W3.1: per-message timestamp affordance — the SAME persisted preference as the per-card panel (one key,
 	// both surfaces), so collapsing it in one place collapses it everywhere.
 	const [timestampsCollapsed, setTimestampsCollapsed] = useState(
@@ -1287,8 +1325,49 @@ function ChatPanel({
 				{/* Transcript + composer */}
 				<section className="flex-1 min-w-0 flex flex-col bg-surface-0 overflow-hidden">
 					{chat.selectedSessionId === null ? (
-						<div className="flex-1 flex items-center justify-center text-[13px] text-text-tertiary p-4 text-center">
-							Select a chat or start a new one.
+						<div className="flex-1 flex items-center justify-center p-6">
+							<form
+								className="w-full max-w-xl flex flex-col gap-3"
+								onSubmit={(event) => {
+									event.preventDefault();
+									void startChatWithFirstMessage();
+								}}
+							>
+								<div className="text-center">
+									<h2 className="m-0 text-lg font-semibold text-text-primary">What should !Klein build?</h2>
+									<p className="mt-1 mb-0 text-[13px] text-text-secondary">
+										Describe it in your own words. !Klein plans it, breaks it into tasks, and works through
+										them on your machine.
+									</p>
+								</div>
+								<textarea
+									value={firstMessage}
+									onChange={(event) => setFirstMessage(event.target.value)}
+									onKeyDown={(event) => {
+										// Enter sends; Shift+Enter is a newline — the same contract as the main composer,
+										// so the habit learned here keeps working everywhere else.
+										if (event.key === "Enter" && !event.shiftKey) {
+											event.preventDefault();
+											void startChatWithFirstMessage();
+										}
+									}}
+									rows={3}
+									// No autoFocus: the project's a11y rule forbids it, and it costs little here — the
+									// composer is the only control in this view, so the first Tab lands on it.
+									disabled={startingFirstChat}
+									aria-label="Describe what you want built"
+									placeholder="e.g. Add CSV export to the reports page, with tests"
+									className="w-full resize-none rounded-lg border border-border bg-surface-1 px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-60"
+								/>
+								<div className="flex items-center justify-between gap-3">
+									<span className="text-[11px] text-text-tertiary">
+										Enter to start · Shift+Enter for a new line
+									</span>
+									<Button type="submit" variant="primary" disabled={!firstMessage.trim() || startingFirstChat}>
+										{startingFirstChat ? "Starting…" : "Start"}
+									</Button>
+								</div>
+							</form>
 						</div>
 					) : (
 						<>

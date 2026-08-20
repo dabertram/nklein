@@ -189,8 +189,11 @@ import { runtimeBuildIdentitySchema } from "../../core/runtime-build-identity";
 import {
 	runtimeTaskSessionForkRequestSchema,
 	runtimeTaskSessionForkResponseSchema,
+	runtimeTaskWireLogRequestSchema,
+	runtimeTaskWireLogResponseSchema,
 } from "../../core/task-session-api-contract";
 import type { RuntimeTrpcBuilder, RuntimeWorkspaceProcedure } from "../app-router";
+import { collectTaskWireLog } from "../runtime-api/task-wire-log";
 
 export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: RuntimeWorkspaceProcedure) {
 	return t.router({
@@ -386,6 +389,13 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeTaskSessionForkResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.forkTaskSession(ctx.workspaceScope, input);
+			}),
+		/** §dsh#31: read-only wire truth for one card — what the model saw, and what we injected. */
+		taskWireLog: workspaceProcedure
+			.input(runtimeTaskWireLogRequestSchema)
+			.output(runtimeTaskWireLogResponseSchema)
+			.query(async ({ input }) => {
+				return await collectTaskWireLog(input);
 			}),
 		pauseTask: workspaceProcedure
 			.input(runtimeTaskPauseRequestSchema)
