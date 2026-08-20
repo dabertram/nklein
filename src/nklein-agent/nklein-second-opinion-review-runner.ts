@@ -309,6 +309,17 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 						{ reserveMs: REVIEW_VERDICT_RESERVE_MS },
 					),
 				);
+				// CUTTING A TURN MUST ALSO END IT. `runBoundedTurn` races the turn against a timer — it does not
+				// cancel the loser — so a turn cut at the reserve boundary keeps its session, and therefore its
+				// endpoint admission slot, alive with nobody awaiting it. On a 1-concurrency local host that slot
+				// IS the fleet: the nudge below would queue behind the very turn it is replacing, and the primary
+				// worker behind that. This mirrors what the verdict path already does for the same reason ("stop
+				// that synthetic session so the turn promise settles and the next queued review can proceed") —
+				// awaited here, because the point is that the lane is free BEFORE the nudge asks for it.
+				if (verdict === null && turnOutcome === "timeout") {
+					stamp("session: exploration turn cut at the verdict reserve; releasing the endpoint before the nudge");
+					await deps.stopRuntimeSession(reviewTaskId).catch(() => undefined);
+				}
 				// Re-prompt nudge: small models often end a turn without the structured call. Mirror the decomposition
 				// re-prompt — if there's still no verdict, tell the reviewer to call submit_review now, bounded by a
 				// small budget and the overall deadline (the reserve above guarantees this budget is non-empty).
