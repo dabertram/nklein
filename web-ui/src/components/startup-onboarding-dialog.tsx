@@ -112,7 +112,7 @@ export function StartupOnboardingDialog({
 				<div className="mx-auto flex items-center gap-1">
 					{TASK_START_ONBOARDING_SLIDES.map((_, index) =>
 						index === onboardingSlideIndex ? (
-							<CircleDot key={index} size={14} className="text-accent" />
+							<CircleDot key={index} size={14} className="text-accent-text" />
 						) : (
 							<button
 								key={index}

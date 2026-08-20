@@ -65,7 +65,7 @@ export function LeanBoardView({
 	return (
 		<div className="flex flex-1 min-h-0 flex-col p-4" data-testid="lean-board">
 			<div className="mb-3 flex items-center gap-2 text-xs text-text-tertiary">
-				<button type="button" onClick={onBackToOverview} className="text-accent hover:underline">
+				<button type="button" onClick={onBackToOverview} className="text-accent-text hover:underline">
 					◉ Overview
 				</button>
 				<span>/</span>
@@ -117,7 +117,7 @@ export function LeanBoardView({
 											</span>
 										) : null}
 										{live ? (
-											<span className="mt-1 block text-[10.5px] font-normal text-accent">
+											<span className="mt-1 block text-[10.5px] font-normal text-accent-text">
 												{session?.modelId ? shortenModelIdForBadge(session.modelId) : "running"} ·{" "}
 												{session?.latestHookActivity?.toolName ?? "active"}
 											</span>

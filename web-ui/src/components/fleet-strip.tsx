@@ -26,22 +26,22 @@ const ROLE_TAG_LABEL: Record<Exclude<FleetRole, null>, string> = {
 
 // Architect/reviewer = AI (violet); worker = primary (cyan). Mirrors the mockup's .role-* rules.
 const ROLE_TAG_CLASS: Record<Exclude<FleetRole, null>, string> = {
-	architect: "border-accent-2/45 text-accent-2",
-	worker: "border-accent/40 text-accent",
+	architect: "border-accent-2/45 text-accent-2-text",
+	worker: "border-accent/40 text-accent-text",
 	reviewer: "border-status-gold/40 text-status-gold",
 };
 
 // Lineage chip color: gpt-oss reads as primary (cyan) in the mockup; everything else uses the AI violet wash so a
 // fleet's family mix is glanceable. `unknown` stays muted (a per-machine alias we couldn't classify).
 const LINEAGE_CHIP_CLASS: Record<FleetLineage, string> = {
-	"gpt-oss": "bg-accent/12 text-accent",
-	deepseek: "bg-accent-2/12 text-accent-2",
-	nemotron: "bg-accent-2/12 text-accent-2",
-	qwen: "bg-accent-2/12 text-accent-2",
-	phi: "bg-accent-2/12 text-accent-2",
-	gemma: "bg-accent-2/12 text-accent-2",
-	mistral: "bg-accent-2/12 text-accent-2",
-	llama: "bg-accent-2/12 text-accent-2",
+	"gpt-oss": "bg-accent/12 text-accent-text",
+	deepseek: "bg-accent-2/12 text-accent-2-text",
+	nemotron: "bg-accent-2/12 text-accent-2-text",
+	qwen: "bg-accent-2/12 text-accent-2-text",
+	phi: "bg-accent-2/12 text-accent-2-text",
+	gemma: "bg-accent-2/12 text-accent-2-text",
+	mistral: "bg-accent-2/12 text-accent-2-text",
+	llama: "bg-accent-2/12 text-accent-2-text",
 	unknown: "bg-surface-3 text-text-tertiary",
 };
 
@@ -103,7 +103,7 @@ function FleetRowView({ row }: { row: FleetRow }): React.ReactElement {
 				>
 					{row.state === "running" ? (row.drivingCardTitle ?? row.drivingTaskId ?? "running") : row.state}
 					{row.isSpec ? (
-						<span className="ml-1.5 rounded border border-dashed border-accent-2/50 px-1 text-[9px] text-accent-2">
+						<span className="ml-1.5 rounded border border-dashed border-accent-2/50 px-1 text-[9px] text-accent-2-text">
 							A/B spec
 						</span>
 					) : null}
@@ -113,7 +113,7 @@ function FleetRowView({ row }: { row: FleetRow }): React.ReactElement {
 				{row.state === "running" && row.activityText ? (
 					<span
 						data-testid="fleet-row-activity"
-						className="block truncate text-[10px] leading-4 text-accent-2/90"
+						className="block truncate text-[10px] leading-4 text-accent-2-text/90"
 						title={row.activityText}
 					>
 						↳ {row.activityToolName ? `${row.activityToolName} · ` : ""}

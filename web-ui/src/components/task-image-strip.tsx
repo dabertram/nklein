@@ -39,7 +39,7 @@ export function TaskImageStrip({
 								{image.name ?? "Image"}
 							</span>
 							{onRemoveImage ? (
-								<X size={12} className="shrink-0 text-text-tertiary group-hover:text-accent" />
+								<X size={12} className="shrink-0 text-text-tertiary group-hover:text-accent-text" />
 							) : null}
 						</>
 					);

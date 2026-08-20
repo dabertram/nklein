@@ -54,7 +54,7 @@ export function AgentRow({
 		>
 			<div className="flex items-start gap-2 min-w-0">
 				{isSelected ? (
-					<CircleDot size={16} className="text-accent mt-0.5 shrink-0" />
+					<CircleDot size={16} className="text-accent-text mt-0.5 shrink-0" />
 				) : (
 					<Circle
 						size={16}

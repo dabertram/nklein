@@ -562,7 +562,7 @@ export function NKleinSetupSection({
 											href={controller.deviceAuthInfo.verificationUrl}
 											target="_blank"
 											rel="noopener noreferrer"
-											className="break-all text-accent underline"
+											className="break-all text-accent-text underline"
 										>
 											{controller.deviceAuthInfo.verificationUrl}
 										</a>

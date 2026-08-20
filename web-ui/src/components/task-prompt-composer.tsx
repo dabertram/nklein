@@ -397,7 +397,7 @@ export function TaskPromptComposer({
 				</InlineCompletionPicker>
 				{isDragOver ? (
 					<div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md bg-accent/5">
-						<div className="flex items-center gap-1.5 text-[12px] text-accent font-medium">
+						<div className="flex items-center gap-1.5 text-[12px] text-accent-text font-medium">
 							<ImagePlus size={14} />
 							<span>Drop image here</span>
 						</div>

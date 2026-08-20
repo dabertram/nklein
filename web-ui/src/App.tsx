@@ -1181,7 +1181,7 @@ export default function App(): ReactElement {
 														onClick={() => setZoom(entry.level)}
 														className={
 															zoom === entry.level
-																? "flex items-center gap-1.5 border-r border-border bg-accent/15 px-3 py-1 text-[12px] text-accent last:border-r-0"
+																? "flex items-center gap-1.5 border-r border-border bg-accent/15 px-3 py-1 text-[12px] text-accent-text last:border-r-0"
 																: "flex items-center gap-1.5 border-r border-border px-3 py-1 text-[12px] text-text-tertiary hover:text-text-primary last:border-r-0"
 														}
 													>

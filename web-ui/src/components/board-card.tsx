@@ -1254,7 +1254,7 @@ export function BoardCard({
 											"inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[10px] leading-4",
 											isTrashCard
 												? "border-border bg-surface-1 text-text-tertiary"
-												: "border-accent-2/30 bg-accent-2/10 text-accent-2",
+												: "border-accent-2/30 bg-accent-2/10 text-accent-2-text",
 										)}
 									>
 										<span aria-hidden="true" className="shrink-0">
@@ -1277,7 +1277,7 @@ export function BoardCard({
 									<span
 										title={`${pendingMailboxCount} pending note${pendingMailboxCount === 1 ? "" : "s"} from chat — delivered when this card next starts`}
 										data-testid="card-mailbox-badge"
-										className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-xs text-accent"
+										className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-xs text-accent-text"
 									>
 										<Inbox size={12} className="shrink-0" />
 										<span className="tabular-nums">{pendingMailboxCount}</span>
@@ -1301,9 +1301,14 @@ export function BoardCard({
 												rung.state === "now"
 													? rung.id === "park"
 														? "border-status-red/60 bg-status-red/10 text-status-red"
-														: "border-accent/60 bg-accent/10 text-accent"
+														: "border-accent/60 bg-accent/10 text-accent-text"
 													: rung.state === "done"
-														? "border-status-green/30 text-status-green/80"
+														? // Measured 2026-08-20: `text-status-green/80` on the bare card surface came out at
+															// 1.2:1 — the label was effectively invisible. A "done" rung is history, so it
+															// stays quiet, but quiet must still be READABLE: full-strength green over a
+															// faint tint reads at AA while staying clearly subordinate to the accent-filled
+															// "now" rung.
+															"border-status-green/40 bg-status-green/10 text-status-green"
 														: "border-border text-text-tertiary",
 											)}
 										>

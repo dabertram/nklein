@@ -14,7 +14,7 @@ export const Link = forwardRef<HTMLAnchorElement, LinkProps>(function Link(
 		<a
 			ref={ref}
 			className={cn(
-				"cursor-pointer text-accent underline-offset-2 hover:text-accent-hover hover:underline",
+				"cursor-pointer text-accent-text underline-offset-2 hover:text-accent-hover hover:underline",
 				className,
 			)}
 			{...(external ? { target: "_blank", rel: "noreferrer" } : {})}

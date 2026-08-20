@@ -287,7 +287,7 @@ function DirectoryEntryList({
 							{entry.isGitRepository ? (
 								<span className="flex items-center shrink-0 text-text-secondary" title="Git repository">
 									<Folder size={16} className="text-text-secondary" />
-									<GitBranch size={10} className="text-accent -ml-1.5 mb-1.5" />
+									<GitBranch size={10} className="text-accent-text -ml-1.5 mb-1.5" />
 								</span>
 							) : (
 								<Folder size={16} className="text-text-secondary shrink-0" />

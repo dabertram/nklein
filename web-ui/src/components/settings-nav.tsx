@@ -68,7 +68,7 @@ export function SettingsNav({
 							<span
 								data-testid={`settings-nav-badge-${item.id}`}
 								title={item.badge.title}
-								className="ml-auto shrink-0 rounded-full bg-accent/20 text-accent text-[10px] font-semibold px-1.5 py-0.5 leading-none"
+								className="ml-auto shrink-0 rounded-full bg-accent/20 text-accent-text text-[10px] font-semibold px-1.5 py-0.5 leading-none"
 							>
 								{item.badge.count}
 							</span>

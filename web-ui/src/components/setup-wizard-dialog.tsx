@@ -143,7 +143,7 @@ export function SetupWizardDialog({
 							</p>
 						) : null}
 						<h3 className="m-0 text-lg font-semibold text-text-primary">{activeStep.title}</h3>
-						<p className="m-0 text-[15px] font-medium text-accent">{activeStep.recommendation}</p>
+						<p className="m-0 text-[15px] font-medium text-accent-text">{activeStep.recommendation}</p>
 						<p className="m-0 whitespace-pre-line text-[13px] leading-relaxed text-text-secondary">
 							{activeStep.detail}
 						</p>

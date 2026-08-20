@@ -435,7 +435,7 @@ export function NKleinModelRegistryPanel({
 					aria-label="llmfit catalog update status"
 				>
 					<div className="mb-1 flex items-center gap-1.5 font-medium text-text-primary">
-						<CloudDownload size={13} className="text-accent" />
+						<CloudDownload size={13} className="text-accent-text" />
 						<span>llmfit catalog</span>
 						{onPullCatalogUpdate && catalogUpdateCheck?.action === "suggest_update" ? (
 							<ElementTooltip id="model-registry.pull-catalog-update">
@@ -472,7 +472,7 @@ export function NKleinModelRegistryPanel({
 								{suggestion.severity === "warn" ? (
 									<AlertTriangle size={13} className="mt-0.5 text-status-orange" />
 								) : (
-									<Lightbulb size={13} className="mt-0.5 text-accent" />
+									<Lightbulb size={13} className="mt-0.5 text-accent-text" />
 								)}
 								<div className="min-w-0">
 									<div className="font-medium text-text-primary">{suggestion.title}</div>
@@ -535,7 +535,7 @@ export function NKleinModelRegistryPanel({
 										{entry.providerId}/{entry.modelId}
 									</div>
 									{isSelected ? (
-										<span className="ml-auto shrink-0 rounded-sm border border-accent/50 px-1.5 py-0.5 text-[10px] text-accent">
+										<span className="ml-auto shrink-0 rounded-sm border border-accent/50 px-1.5 py-0.5 text-[10px] text-accent-text">
 											Selected
 										</span>
 									) : null}
@@ -651,7 +651,7 @@ export function NKleinModelRegistryPanel({
 																	href={source.url}
 																	target="_blank"
 																	rel="noreferrer"
-																	className="text-accent underline"
+																	className="text-accent-text underline"
 																>
 																	[{sourceId}]
 																</a>

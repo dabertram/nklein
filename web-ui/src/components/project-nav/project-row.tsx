@@ -99,14 +99,14 @@ export function ProjectRow({
 			id: "in_progress",
 			title: "In Progress",
 			shortLabel: "IP",
-			toneClassName: "bg-accent/20 text-accent",
+			toneClassName: "bg-accent/20 text-accent-text",
 			count: project.taskCounts.in_progress,
 		},
 		{
 			id: "review",
 			title: "Review",
 			shortLabel: "R",
-			toneClassName: "bg-accent-2/20 text-accent-2",
+			toneClassName: "bg-accent-2/20 text-accent-2-text",
 			count: project.taskCounts.review,
 		},
 		{
@@ -186,7 +186,9 @@ export function ProjectRow({
 					title={project.path}
 					className={cn(
 						"font-mono text-[10px] whitespace-nowrap overflow-hidden text-ellipsis",
-						isCurrent ? "text-accent-fg/60" : "text-text-secondary",
+						// /60 dropped this path line to 2.65:1 on high-contrast-light — a subordinate line still has
+						// to be readable. /80 keeps it visibly secondary to the project name above while clearing AA.
+						isCurrent ? "text-accent-fg/80" : "text-text-secondary",
 					)}
 				>
 					{displayPath}

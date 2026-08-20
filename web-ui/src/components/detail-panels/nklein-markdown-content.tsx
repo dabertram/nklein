@@ -101,7 +101,7 @@ const markdownComponents: Components = {
 		<li className={cn("leading-snug text-sm text-text-primary", className)} {...props} />
 	),
 	a: ({ className, ...props }) => (
-		<a className={cn("text-accent-2 underline", className)} target="_blank" rel="noreferrer" {...props} />
+		<a className={cn("text-accent-2-text underline", className)} target="_blank" rel="noreferrer" {...props} />
 	),
 	blockquote: ({ className, ...props }) => (
 		<blockquote

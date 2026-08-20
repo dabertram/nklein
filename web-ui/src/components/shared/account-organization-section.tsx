@@ -183,7 +183,7 @@ export function AccountOrganizationSection({
 						</div>
 						{isSwitching ? <Spinner size={14} /> : null}
 						{formattedRole ? (
-							<span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-accent/10 text-accent">
+							<span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-accent/10 text-accent-text">
 								{formattedRole}
 							</span>
 						) : null}

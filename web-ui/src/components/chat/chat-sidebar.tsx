@@ -748,7 +748,7 @@ function FocusChainStrip({
 				className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11.5px] hover:bg-surface-2"
 				title={expanded ? "Collapse the plan" : "Show the full plan"}
 			>
-				<ListChecks size={13} className="shrink-0 text-accent-2" />
+				<ListChecks size={13} className="shrink-0 text-accent-2-text" />
 				<span className="shrink-0 text-text-tertiary">
 					Plan {done}/{chain.steps.length}
 				</span>
@@ -921,7 +921,7 @@ function ActivityTickLine({
 				title="Open the card in the main panel"
 				className={cn(
 					"max-w-[92%] truncate rounded-full px-2.5 py-0.5 text-[11px] text-text-tertiary",
-					onOpenCard ? "hover:bg-surface-2 hover:text-accent cursor-pointer" : "cursor-default",
+					onOpenCard ? "hover:bg-surface-2 hover:text-accent-text cursor-pointer" : "cursor-default",
 				)}
 			>
 				◦ {tick.label} · {time}
@@ -1350,7 +1350,7 @@ function ChatPanel({
 										{chat.activeToolNames.map((toolName, index) => (
 											<span
 												key={`${toolName}-${index}`}
-												className="inline-flex items-center gap-1.5 rounded-full border border-accent-2/35 bg-accent-2/10 px-2 py-0.5 text-[11px] text-accent-2"
+												className="inline-flex items-center gap-1.5 rounded-full border border-accent-2/35 bg-accent-2/10 px-2 py-0.5 text-[11px] text-accent-2-text"
 											>
 												<Spinner size={11} />
 												{toolName}
@@ -1388,7 +1388,7 @@ function ChatPanel({
 										type="button"
 										data-testid="chat-follow-pill"
 										onClick={sticky.follow}
-										className="pointer-events-auto absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-accent/40 bg-surface-1/95 px-3 py-1 text-[11.5px] text-accent shadow-lg hover:bg-surface-2"
+										className="pointer-events-auto absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-accent/40 bg-surface-1/95 px-3 py-1 text-[11.5px] text-accent-text shadow-lg hover:bg-surface-2"
 									>
 										↓ {sticky.newCount > 0 ? `${sticky.newCount} new · ` : ""}Follow
 									</button>
@@ -1426,7 +1426,7 @@ function ChatPanel({
 									<span
 										className={cn(
 											"font-medium",
-											selectedSession.focus.kind === "card" ? "text-accent" : "text-accent-2",
+											selectedSession.focus.kind === "card" ? "text-accent-text" : "text-accent-2-text",
 										)}
 									>
 										{describeFocus(selectedSession.focus, boardCards, boardStreams)}
@@ -1506,7 +1506,7 @@ function ChatPanel({
 												<span
 													className={cn(
 														"shrink-0 text-[10px] font-semibold uppercase",
-														candidate.kind === "card" ? "text-accent" : "text-accent-2",
+														candidate.kind === "card" ? "text-accent-text" : "text-accent-2-text",
 													)}
 												>
 													{candidate.kind === "card" ? "card" : "#"}

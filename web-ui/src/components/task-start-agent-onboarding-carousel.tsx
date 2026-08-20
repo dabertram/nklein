@@ -281,7 +281,7 @@ function LocalEndpointStartGuide({
 									href={guide.downloadUrl}
 									target="_blank"
 									rel="noreferrer"
-									className="inline-flex shrink-0 items-center gap-1 text-[11px] text-accent hover:underline"
+									className="inline-flex shrink-0 items-center gap-1 text-[11px] text-accent-text hover:underline"
 								>
 									Download <ExternalLink size={11} />
 								</a>
@@ -789,7 +789,7 @@ export function TaskStartAgentOnboardingCarousel({
 											href={agent.installUrl}
 											target="_blank"
 											rel="noreferrer"
-											className="text-accent hover:underline"
+											className="text-accent-text hover:underline"
 										>
 											{getInstallLinkLabel(agent.id)}
 										</a>

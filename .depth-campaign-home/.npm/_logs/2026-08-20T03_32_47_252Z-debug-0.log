@@ -1,0 +1,22 @@
+0 verbose cli /opt/homebrew/Cellar/node/25.9.0_2/bin/node /opt/homebrew/lib/node_modules/npm/bin/npm-cli.js
+1 info using npm@11.12.1
+2 info using node@v25.9.0
+3 silly config load:file:/opt/homebrew/lib/node_modules/npm/npmrc
+4 silly config load:file:/private/var/folders/_k/dk3l4h_j0jg7p5pld9t7y65h0000gn/T/nklein-habit-insights-mid-1787194335781-DfvZsu/.npmrc
+5 silly config load:file:/Users/david/GIT/nklein/.depth-campaign-home/.npmrc
+6 silly config load:file:/opt/homebrew/etc/npmrc
+7 verbose title npm exec tsx --test habit-streak.test.ts
+8 verbose argv "exec" "--yes" "--" "tsx" "--test" "habit-streak.test.ts"
+9 verbose logfile logs-max:10 dir:/Users/david/GIT/nklein/.depth-campaign-home/.npm/_logs/2026-08-20T03_32_47_252Z-
+10 verbose logfile /Users/david/GIT/nklein/.depth-campaign-home/.npm/_logs/2026-08-20T03_32_47_252Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+13 http fetch GET 200 https://registry.npmjs.org/tsx 395ms (cache revalidated)
+14 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+15 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+16 verbose cwd /private/var/folders/_k/dk3l4h_j0jg7p5pld9t7y65h0000gn/T/nklein-habit-insights-mid-1787194335781-DfvZsu
+17 verbose os Darwin 25.5.0
+18 verbose node v25.9.0
+19 verbose npm  v11.12.1
+20 verbose exit 1
+21 verbose code 1

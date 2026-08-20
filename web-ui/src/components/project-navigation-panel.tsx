@@ -361,7 +361,7 @@ export function ProjectNavigationPanel({
 							className="shrink-0 self-center"
 						/>
 						<span>
-							<span className="text-accent">!</span>Klein
+							<span className="text-accent-text">!</span>Klein
 						</span>{" "}
 						<span className="text-text-secondary font-normal text-xs">v{__APP_VERSION__}</span>
 					</div>

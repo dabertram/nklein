@@ -3551,7 +3551,7 @@ export function RuntimeSettingsDialog({
 																	</span>
 																	<RadixSelect.ItemText>{theme.label}</RadixSelect.ItemText>
 																	<RadixSelect.ItemIndicator className="ml-auto">
-																		<Check size={14} className="text-accent-2" />
+																		<Check size={14} className="text-accent-2-text" />
 																	</RadixSelect.ItemIndicator>
 																</RadixSelect.Item>
 															))}

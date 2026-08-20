@@ -327,7 +327,7 @@ export function ProjectInitializerForm({
 								onClick={() => setBeginnerStep(index)}
 								className={cn(
 									"rounded px-1 py-1 text-[10px]",
-									index === beginnerStep ? "bg-accent/20 text-accent" : "bg-surface-2 text-text-tertiary",
+									index === beginnerStep ? "bg-accent/20 text-accent-text" : "bg-surface-2 text-text-tertiary",
 								)}
 							>
 								{step}

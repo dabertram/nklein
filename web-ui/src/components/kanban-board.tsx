@@ -1095,7 +1095,7 @@ export function KanbanBoard({
 										onCardSelect(group.firstTaskId);
 									}
 								}}
-								className="rounded-md border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-accent hover:bg-accent/20"
+								className="rounded-md border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-accent-text hover:bg-accent/20"
 								title={`Focus a running ${label} agent`}
 							>
 								{label} {group.count}
@@ -1251,7 +1251,7 @@ export function KanbanBoard({
 				<div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-1 px-4 py-3 text-sm">
 					<div className="flex min-w-0 flex-col gap-1.5">
 						<div className="flex min-w-0 items-center gap-2 text-text-secondary">
-							<Sparkles size={16} className="shrink-0 text-accent" />
+							<Sparkles size={16} className="shrink-0 text-accent-text" />
 							<span>This board is empty — create your first task to start the local swarm on it.</span>
 						</div>
 						{/* F12.57: good-first-task templates scoped to what LOCAL models reliably do, one click → prefilled

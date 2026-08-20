@@ -161,7 +161,7 @@ export function PasscodeGate({ onAuthenticated }: PasscodeGateProps): ReactEleme
 			<div className="w-full max-w-sm">
 				<div className="rounded-xl border border-border bg-surface-1 p-6 shadow-2xl">
 					<div className="mb-5 flex items-center gap-3">
-						<div className="flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 text-accent">
+						<div className="flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 text-accent-text">
 							<KeyRound size={18} />
 						</div>
 						<div>

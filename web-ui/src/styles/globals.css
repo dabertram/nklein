@@ -16,26 +16,28 @@
 
 	/* Text */
 	--color-text-primary: #E6EDF3;
-	--color-text-secondary: #8B949E;
-	--color-text-tertiary: #6E7681;
+	--color-text-secondary: #A7AEB5;
+	--color-text-tertiary: #949BA4;
 
 	/* Accent / brand */
 	--color-accent: #0084FF;
+	--color-accent-text: #379FFF;  /* accent is a FILL colour; as TEXT it read 3.49:1 here */
 	--color-accent-hover: #339DFF;
-	--color-accent-fg: #FFFFFF;
-	--color-accent-2: #7C5CFF;
+	--color-accent-fg: #0B0F14;
+	--color-accent-2: #7756FF;
+	--color-accent-2-text: #A28BFF;  /* accent-2 is a FILL colour; as TEXT it read 2.94:1 here */
 	--color-accent-2-hover: #9B82FF;
 	--color-accent-2-fg: #FFFFFF;
 
 	/* Status colors */
-	--color-status-blue: #4C9AFF;
+	--color-status-blue: #529DFF;
 	--color-status-green: #3FB950;
 	--color-status-orange: #D29922;
-	--color-status-red: #F85149;
-	--color-status-purple: #A371F7;
+	--color-status-red: #F9716A;
+	--color-status-purple: #B186F8;
 	--color-status-gold: #D4A72C;
-	--color-status-violet: #8B5CF6;
-	--color-status-rose: #F43F5E;
+	--color-status-violet: #AB88F8;
+	--color-status-rose: #F76F86;
 	--color-status-cyan: #06B6D4;
 	--color-status-lime: #84CC16;
 
@@ -62,6 +64,9 @@
 /* §5.AX — the cool-technical dark-first !Klein identity. Near-black cool-slate surfaces, CYAN primary accent
    (UI/actions/focus/live), VIOLET accent-2 reserved for AI/agent-authored elements. */
 [data-theme="klein"] {
+	/* Status hues that fail AA on THIS theme's surfaces (2026-08-20); same hue, tuned lightness. */
+	--color-status-violet: #9368F7;
+
 	--color-surface-0: #0A0C10;
 	--color-surface-1: #0F1319;
 	--color-surface-2: #151A22;
@@ -73,16 +78,24 @@
 	--color-divider: #06080B;
 	--color-text-primary: #E8EEF5;
 	--color-text-secondary: #9FB0C3;
-	--color-text-tertiary: #63748A;
+	--color-text-tertiary: #73849B;
 	--color-accent: #3FE0E0;
+	--color-accent-text: #3FE0E0;
 	--color-accent-hover: #6BEAEA;
 	--color-accent-fg: #062024;
 	--color-accent-2: #9D7BFF;
+	--color-accent-2-text: #9D7BFF;
 	--color-accent-2-hover: #B29BFF;
 	--color-accent-2-fg: #140A2E;
 }
 
 [data-theme="graphite"] {
+	/* Status hues that fail AA on THIS theme's surfaces (2026-08-20); same hue, tuned lightness. */
+	--color-status-purple: #AB7DF8;
+	--color-status-red: #F9665F;
+	--color-status-rose: #F6647D;
+	--color-status-violet: #A581F8;
+
 	--color-surface-0: #1E1E1E;
 	--color-surface-1: #252526;
 	--color-surface-2: #2D2D2D;
@@ -93,17 +106,23 @@
 	--color-border-focus: #D4915C;
 	--color-divider: #151515;
 	--color-text-primary: #E0E0E0;
-	--color-text-secondary: #8C8C8C;
-	--color-text-tertiary: #6B6B6B;
+	--color-text-secondary: #A8A8A8;
+	--color-text-tertiary: #959595;
 	--color-accent: #D4915C;
+	--color-accent-text: #D4915C;
 	--color-accent-hover: #E0A574;
-	--color-accent-fg: #FFFFFF;
+	--color-accent-fg: #0B0F14;
 	--color-accent-2: #7A8F9C;
+	--color-accent-2-text: #8598A4;  /* accent-2 is a FILL colour; as TEXT it read 4.09:1 here */
 	--color-accent-2-hover: #8FA3AF;
-	--color-accent-2-fg: #FFFFFF;
+	--color-accent-2-fg: #0B0F14;
 }
 
 [data-theme="midnight"] {
+	/* Status hues that fail AA on THIS theme's surfaces (2026-08-20); same hue, tuned lightness. */
+	--color-status-rose: #F44764;
+	--color-status-violet: #996FF7;
+
 	--color-surface-0: #121214;
 	--color-surface-1: #18181B;
 	--color-surface-2: #1F1F23;
@@ -114,17 +133,22 @@
 	--color-border-focus: #6366F1;
 	--color-divider: #0A0A0C;
 	--color-text-primary: #E4E4E7;
-	--color-text-secondary: #8B8B94;
-	--color-text-tertiary: #6B6B74;
-	--color-accent: #6366F1;
+	--color-text-secondary: #9898A0;
+	--color-text-tertiary: #868690;
+	--color-accent: #6063F1;
+	--color-accent-text: #787BF3;  /* accent is a FILL colour; as TEXT it read 3.56:1 here */
 	--color-accent-hover: #818CF8;
 	--color-accent-fg: #FFFFFF;
 	--color-accent-2: #EC4899;
+	--color-accent-2-text: #EC4899;
 	--color-accent-2-hover: #F472B6;
-	--color-accent-2-fg: #FFFFFF;
+	--color-accent-2-fg: #0B0F14;
 }
 
 [data-theme="pitch"] {
+	/* Status hues that fail AA on THIS theme's surfaces (2026-08-20); same hue, tuned lightness. */
+	--color-status-violet: #8F62F6;
+
 	--color-surface-0: #000000;
 	--color-surface-1: #0A0A0A;
 	--color-surface-2: #141414;
@@ -135,17 +159,26 @@
 	--color-border-focus: #2DD4BF;
 	--color-divider: #000000;
 	--color-text-primary: #E4E4E4;
-	--color-text-secondary: #8A8A8A;
-	--color-text-tertiary: #666666;
+	--color-text-secondary: #919191;
+	--color-text-tertiary: #808080;
 	--color-accent: #2DD4BF;
+	--color-accent-text: #2DD4BF;
 	--color-accent-hover: #5EEAD4;
 	--color-accent-fg: #000000;
 	--color-accent-2: #6B7280;
+	--color-accent-2-text: #79808F;  /* accent-2 is a FILL colour; as TEXT it read 3.81:1 here */
 	--color-accent-2-hover: #9CA3AF;
 	--color-accent-2-fg: #FFFFFF;
 }
 
 [data-theme="solarized-dark"] {
+	/* Status hues that fail AA on THIS theme's surfaces (2026-08-20); same hue, tuned lightness. */
+	--color-status-blue: #60A6FF;
+	--color-status-purple: #B790F9;
+	--color-status-red: #FA7E78;
+	--color-status-rose: #F87D92;
+	--color-status-violet: #B292F9;
+
 	--color-surface-0: #002B36;
 	--color-surface-1: #073642;
 	--color-surface-2: #0E3E4A;
@@ -156,19 +189,35 @@
 	--color-border-focus: #268BD2;
 	--color-divider: #00222C;
 	--color-text-primary: #FDF6E3;
-	--color-text-secondary: #93A1A1;
-	--color-text-tertiary: #657B83;
+	--color-text-secondary: #AEB9B9;
+	--color-text-tertiary: #94A6AC;
 	--color-accent: #268BD2;
+	--color-accent-text: #5EABE2;  /* accent is a FILL colour; as TEXT it read 3.16:1 here */
 	--color-accent-hover: #439EE0;
-	--color-accent-fg: #FFFFFF;
+	--color-accent-fg: #0B0F14;
 	--color-accent-2: #2AA198;
+	--color-accent-2-text: #2FB6AC;  /* accent-2 is a FILL colour; as TEXT it read 3.68:1 here */
 	--color-accent-2-hover: #3DBDB4;
-	--color-accent-2-fg: #FFFFFF;
+	--color-accent-2-fg: #0B0F14;
 }
 
 /* --- Light themes ---------------------------------------------------- */
 
 [data-theme="light"] {
+	/* Light-surface status palette (2026-08-20): the root status colors are tuned for DARK
+	   surfaces and were never overridden per theme, so every light theme painted them at 1.8-4.4:1
+	   — a warning chip you cannot read is worse than no chip. Same hues, darkened to clear AA. */
+	--color-status-blue: #006CF7;
+	--color-status-cyan: #047E93;
+	--color-status-gold: #8D6F1D;
+	--color-status-green: #2D8439;
+	--color-status-lime: #53810E;
+	--color-status-orange: #956C18;
+	--color-status-purple: #8C4EF5;
+	--color-status-red: #E71309;
+	--color-status-rose: #E70D32;
+	--color-status-violet: #8452F5;
+
 	--color-surface-0: #FFFFFF;
 	--color-surface-1: #fefefe;
 	--color-surface-2: #fefefe;
@@ -179,17 +228,33 @@
 	--color-border-focus: #0084FF;
 	--color-divider: #ECF0F6;
 	--color-text-primary: #1F2328;
-	--color-text-secondary: #656D76;
-	--color-text-tertiary: #8C959F;
+	--color-text-secondary: #5E666E;
+	--color-text-tertiary: #6C7682;
 	--color-accent: #0084FF;
+	--color-accent-text: #0073DE;  /* accent is a FILL colour; as TEXT it read 3.62:1 here */
 	--color-accent-hover: #0069CC;
-	--color-accent-fg: #FFFFFF;
-	--color-accent-2: #7C5CFF;
+	--color-accent-fg: #0B0F14;
+	--color-accent-2: #7756FF;
+	--color-accent-2-text: #7554FF;  /* accent-2 is a FILL colour; as TEXT it read 4.31:1 here */
 	--color-accent-2-hover: #6344E0;
 	--color-accent-2-fg: #FFFFFF;
 }
 
 [data-theme="overcast"] {
+	/* Light-surface status palette (2026-08-20): the root status colors are tuned for DARK
+	   surfaces and were never overridden per theme, so every light theme painted them at 1.8-4.4:1
+	   — a warning chip you cannot read is worse than no chip. Same hues, darkened to clear AA. */
+	--color-status-blue: #006CF7;
+	--color-status-cyan: #047E93;
+	--color-status-gold: #8D6F1D;
+	--color-status-green: #2D8439;
+	--color-status-lime: #53810E;
+	--color-status-orange: #956C18;
+	--color-status-purple: #8C4EF5;
+	--color-status-red: #E71309;
+	--color-status-rose: #E70D32;
+	--color-status-violet: #8452F5;
+
 	--color-surface-0: #FFFFFF;
 	--color-surface-1: #fefefe;
 	--color-surface-2: #fefefe;
@@ -201,16 +266,32 @@
 	--color-divider: #E2E4E8;
 	--color-text-primary: #1A1A1A;
 	--color-text-secondary: #5C5C5C;
-	--color-text-tertiary: #858585;
+	--color-text-tertiary: #757575;
 	--color-accent: #0D9488;
+	--color-accent-text: #0B8177;  /* accent is a FILL colour; as TEXT it read 3.71:1 here */
 	--color-accent-hover: #0F766E;
-	--color-accent-fg: #FFFFFF;
+	--color-accent-fg: #0B0F14;
 	--color-accent-2: #D97706;
+	--color-accent-2-text: #AF6005;  /* accent-2 is a FILL colour; as TEXT it read 3.16:1 here */
 	--color-accent-2-hover: #B45309;
-	--color-accent-2-fg: #FFFFFF;
+	--color-accent-2-fg: #0B0F14;
 }
 
 [data-theme="solarized-light"] {
+	/* Light-surface status palette (2026-08-20): the root status colors are tuned for DARK
+	   surfaces and were never overridden per theme, so every light theme painted them at 1.8-4.4:1
+	   — a warning chip you cannot read is worse than no chip. Same hues, darkened to clear AA. */
+	--color-status-blue: #0068EF;
+	--color-status-cyan: #047A8F;
+	--color-status-gold: #886B1C;
+	--color-status-green: #2B7F37;
+	--color-status-lime: #507B0D;
+	--color-status-orange: #8F6817;
+	--color-status-purple: #8645F4;
+	--color-status-red: #DF1209;
+	--color-status-rose: #DD0D30;
+	--color-status-violet: #7F4BF5;
+
 	--color-surface-0: #fdf6e3;
 	--color-surface-1: #fdf6e3;
 	--color-surface-2: #fdf6e3;
@@ -221,17 +302,33 @@
 	--color-border-focus: #4A7C96;
 	--color-divider: #F5EED8;
 	--color-text-primary: #073642;
-	--color-text-secondary: #586E75;
-	--color-text-tertiary: #93A1A1;
+	--color-text-secondary: #50646B;
+	--color-text-tertiary: #647373;
 	--color-accent: #3c8ab5;
+	--color-accent-text: #33769B;  /* accent is a FILL colour; as TEXT it read 3.54:1 here */
 	--color-accent-hover: #3D6A82;
-	--color-accent-fg: #FFFFFF;
+	--color-accent-fg: #0B0F14;
 	--color-accent-2: #347aac;
+	--color-accent-2-text: #3274A4;  /* accent-2 is a FILL colour; as TEXT it read 4.30:1 here */
 	--color-accent-2-hover: #9093b7;
 	--color-accent-2-fg: #FFFFFF;
 }
 
 [data-theme="latte"] {
+	/* Light-surface status palette (2026-08-20): the root status colors are tuned for DARK
+	   surfaces and were never overridden per theme, so every light theme painted them at 1.8-4.4:1
+	   — a warning chip you cannot read is worse than no chip. Same hues, darkened to clear AA. */
+	--color-status-blue: #006CF7;
+	--color-status-cyan: #047E93;
+	--color-status-gold: #8D6F1D;
+	--color-status-green: #2D8439;
+	--color-status-lime: #53810E;
+	--color-status-orange: #956C18;
+	--color-status-purple: #8C4EF5;
+	--color-status-red: #E71309;
+	--color-status-rose: #E70D32;
+	--color-status-violet: #8452F5;
+
 	--color-surface-0: #FFFFFF;
 	--color-surface-1: #FEFEFE;
 	--color-surface-2: #fffefc;
@@ -242,19 +339,24 @@
 	--color-border-focus: #9C8878;
 	--color-divider: #F5F3F0;
 	--color-text-primary: #4A4240;
-	--color-text-secondary: #8A8280;
-	--color-text-tertiary: #ADA5A0;
+	--color-text-secondary: #6B6462;
+	--color-text-tertiary: #7D736C;
 	--color-accent: #9C8878;
+	--color-accent-text: #847161;  /* accent is a FILL colour; as TEXT it read 3.35:1 here */
 	--color-accent-hover: #877060;
-	--color-accent-fg: #FFFFFF;
+	--color-accent-fg: #0B0F14;
 	--color-accent-2: #7A8F9C;
+	--color-accent-2-text: #627683;  /* accent-2 is a FILL colour; as TEXT it read 3.34:1 here */
 	--color-accent-2-hover: #6A7F8C;
-	--color-accent-2-fg: #FFFFFF;
+	--color-accent-2-fg: #0B0F14;
 }
 
 /* --- High contrast --------------------------------------------------- */
 
 [data-theme="high-contrast-dark"] {
+	/* Status hues that fail AA on THIS theme's surfaces (2026-08-20); same hue, tuned lightness. */
+	--color-status-violet: #9368F7;
+
 	--color-surface-0: #000000;
 	--color-surface-1: #0A0A0A;
 	--color-surface-2: #1A1A1A;
@@ -268,14 +370,30 @@
 	--color-text-secondary: #CCCCCC;
 	--color-text-tertiary: #999999;
 	--color-accent: #FFFFFF;
+	--color-accent-text: #FFFFFF;
 	--color-accent-hover: #E0E0E0;
 	--color-accent-fg: #000000;
 	--color-accent-2: #FF4081;
+	--color-accent-2-text: #FF4081;
 	--color-accent-2-hover: #FF6699;
-	--color-accent-2-fg: #FFFFFF;
+	--color-accent-2-fg: #0B0F14;
 }
 
 [data-theme="high-contrast-light"] {
+	/* Light-surface status palette (2026-08-20): the root status colors are tuned for DARK
+	   surfaces and were never overridden per theme, so every light theme painted them at 1.8-4.4:1
+	   — a warning chip you cannot read is worse than no chip. Same hues, darkened to clear AA. */
+	--color-status-blue: #006DF9;
+	--color-status-cyan: #048095;
+	--color-status-gold: #8F711D;
+	--color-status-green: #2D853A;
+	--color-status-lime: #53810E;
+	--color-status-orange: #966E18;
+	--color-status-purple: #8C4EF5;
+	--color-status-red: #E81309;
+	--color-status-rose: #E80D33;
+	--color-status-violet: #8452F5;
+
 	--color-surface-0: #FFFFFF;
 	--color-surface-1: #FFFFFF;
 	--color-surface-2: #ffffff;
@@ -289,9 +407,11 @@
 	--color-text-secondary: #1A1A1A;
 	--color-text-tertiary: #404040;
 	--color-accent: #0050A0;
+	--color-accent-text: #0050A0;
 	--color-accent-hover: #003D7A;
 	--color-accent-fg: #FFFFFF;
 	--color-accent-2: #B91C1C;
+	--color-accent-2-text: #B91C1C;
 	--color-accent-2-hover: #991B1B;
 	--color-accent-2-fg: #FFFFFF;
 }

@@ -311,7 +311,7 @@ function CardReferenceRow({
 					onClick={() => references.onOpenCard(cardId)}
 					onMouseEnter={() => references.onHoverCard?.(cardId)}
 					onMouseLeave={() => references.onHoverCard?.(null)}
-					className="inline-flex max-w-full items-center gap-1 truncate rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[12px] leading-5 text-accent hover:bg-accent/20"
+					className="inline-flex max-w-full items-center gap-1 truncate rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[12px] leading-5 text-accent-text hover:bg-accent/20"
 				>
 					{label}
 					<span aria-hidden className="text-[10px] opacity-70">
