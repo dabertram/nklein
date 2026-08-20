@@ -322,8 +322,17 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 				}
 				// Widen past TS's closure-assignment blind spot: `verdict` is written by the submit_review callback.
 				const submittedVerdict = verdict as NKleinReviewResult | null;
-				const observationOutcome =
-					turnOutcome === "settled" ? (submittedVerdict ? "verdict" : "no_verdict") : turnOutcome;
+				// A SUBMITTED verdict outranks the turn outcome. Since the verdict reserve landed, the exploration
+				// turn is CUT at the reserve boundary on purpose — `mergeTurnOutcome` lets that intentional timeout
+				// dominate, so a session rescued by the nudge (exactly what the reserve exists to enable) was being
+				// recorded as `timeout`. That made the reviewer-health stream unable to distinguish "cut exploration
+				// short and got the verdict" (success) from "got nothing" (failure) — the measurement would have
+				// mis-read the fix's own successes as failures. The artifact is the verdict; classify on it first.
+				const observationOutcome = submittedVerdict
+					? "verdict"
+					: turnOutcome === "settled"
+						? "no_verdict"
+						: turnOutcome;
 				recordSelfObservation({
 					signal: "custom",
 					severity: observationOutcome === "verdict" ? "info" : "warning",
