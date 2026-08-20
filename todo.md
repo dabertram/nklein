@@ -14379,7 +14379,19 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   exactly this ("call submit_review now") is gated on `Date.now() < deadlineMs`, so a turn that consumed the
   whole deadline left it ZERO iterations: the reviewer was never ASKED for the verdict. FIXED (24482ee1f):
   `runBoundedTurn` takes `reserveMs`, the review runner reserves 120s on its exploration turn, and the reserve
-  splits the window rather than starving the turn when the budget is small. Round 4 (running) validates it.
+  splits the window rather than starving the turn when the budget is small. **▶ ROUND 4 (2026-08-20): 3/4 COMPLETE + MERGED, ALL THREE INDEPENDENTLY GREEN ON MAIN**
+  (habit-streak 4/4, cli-parser 23/23, refactor-inventory 19/19 — merge commits present, product tests on the
+  branch, graded by the operator harness not by the classifier). Campaign delivery trend: **0/8 → 1/4 → 2/4 →
+  3/4**. habit-streak had failed rounds 1-3 and now RECOVERED through the ladder (3 no-submissions → verdict →
+  merge) instead of parking, which is the ladder + reserve working together. The one miss, fetch-queue-complex
+  (the hardest scenario: 3 interacting modules + integration test), died on the RIG's own 50-minute wall
+  (`wall_clock_limit`, 3004s) while mid-ladder at review round 2 / budget attempt 2 — a rig budget shortfall on
+  this hardware, not a product gate; give that scenario ≥75 min. **SELF-INFLICTED MEASUREMENT BUG FOUND AND
+  FIXED IN THE SAME ROUND (f6afbea4c):** the verdict reserve makes the exploration turn time out ON PURPOSE, and
+  `mergeTurnOutcome` lets timeout dominate — so sessions RESCUED by the nudge were recorded as `timeout` (round
+  4 read 3 verdict / 8 timeout while 3 of 4 cards delivered on approvals). The session is now classified on its
+  submitted VERDICT with the raw turn outcome kept beside it; otherwise the reviewer-health stream would have
+  reported the fix's own successes as failures and mis-aimed the next diagnosis.
   LESSON WORTH KEEPING: two consecutive rounds produced the same SYMPTOM ("no verdict / reviewer failed") from
   two unrelated CAUSES (deterministic output truncation, then wall-clock starvation of the ask). The symptom
   name was never the diagnosis — `finishReason` + the session-outcome class (`timeout` vs `no_verdict`) were,
