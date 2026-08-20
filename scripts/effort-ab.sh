@@ -79,7 +79,11 @@ print(f"[effort-ab] template default -> {target}")
 PYEOF
 }
 
-unload_model() { lms unload "$MODEL_ID" >/dev/null 2>&1 || true; }
+# LM Studio snapshots the chat template at LOAD time (probed 2026-08-20: an on-disk flip does not change a
+# loaded instance's rendered prompt), so every flip requires a fresh load — and the fresh load needs the
+# WHOLE machine: with another 262k-context resident holding its KV reservation, admission overdraws by
+# ~41 GiB and FATALs. Single-model rig ⇒ unloading everything is correct, and the rig re-admits its model.
+unload_model() { lms unload --all >/dev/null 2>&1 || true; }
 
 run_arm() { # $1 = arm (A|B), $2 = effort (xhigh|medium), $3 = preset
   local arm="$1" effort="$2" preset="$3"
