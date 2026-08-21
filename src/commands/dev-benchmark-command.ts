@@ -563,22 +563,47 @@ async function executeBenchmarkTask(input: BenchmarkTaskExecutionInput): Promise
 		// Deliberately unused: the private benchmark oracle runs later in the official external grader.
 		acceptanceCommand: input.acceptanceCommand,
 	};
-	const execution = await executeDevTestScenario({
-		client: createDevRuntimeClient(runtimeWorkspaceId),
-		workspaceId: runtimeWorkspaceId,
-		scenario,
-		baseRef: "benchmark-baseline",
-		seedTaskId: input.runId,
-		startInPlanMode: input.startInPlanMode,
-		autoReviewEnabled: true,
-		autoReviewMode: "commit",
-		testEvidencePolicy: input.testEvidencePolicy,
-		...(input.modelId
-			? { nkleinSettings: { providerId: input.providerId?.trim() || "lmstudio", modelId: input.modelId } }
-			: {}),
-		...(typeof input.pollIntervalMs === "number" ? { pollIntervalMs: input.pollIntervalMs } : {}),
-		...(typeof input.maxWaitMs === "number" ? { maxWaitMs: input.maxWaitMs } : {}),
-	});
+	// A pinned model on a single-slot host is legitimately BUSY for moments (a lingering review turn, a
+	// decomposed child's session) — the runtime refuses the pinned start and then auto-heals on its next
+	// sweep. That is queueing weather, not model absence: a campaign died at its first full-run attempt on
+	// exactly this (2026-08-21, aider single-host arm) while `lms ps` showed the model loaded and IDLE.
+	// Retry the start (bounded) before declaring the run dead; the runtime's start guard makes a converged
+	// double-start safe (an already-running card returns its live summary as started).
+	const PINNED_START_RETRIES = 5;
+	const PINNED_START_RETRY_DELAY_MS = 60_000;
+	let execution: Awaited<ReturnType<typeof executeDevTestScenario>>;
+	let startAttempt = 0;
+	for (;;) {
+		startAttempt += 1;
+		execution = await executeDevTestScenario({
+			client: createDevRuntimeClient(runtimeWorkspaceId),
+			workspaceId: runtimeWorkspaceId,
+			scenario,
+			baseRef: "benchmark-baseline",
+			seedTaskId: input.runId,
+			startInPlanMode: input.startInPlanMode,
+			autoReviewEnabled: true,
+			autoReviewMode: "commit",
+			testEvidencePolicy: input.testEvidencePolicy,
+			...(input.modelId
+				? { nkleinSettings: { providerId: input.providerId?.trim() || "lmstudio", modelId: input.modelId } }
+				: {}),
+			...(typeof input.pollIntervalMs === "number" ? { pollIntervalMs: input.pollIntervalMs } : {}),
+			...(typeof input.maxWaitMs === "number" ? { maxWaitMs: input.maxWaitMs } : {}),
+		});
+		const startMessage = execution.result.startMessage ?? "";
+		if (
+			execution.result.started ||
+			!startMessage.includes("not currently selectable") ||
+			startAttempt > PINNED_START_RETRIES
+		) {
+			break;
+		}
+		process.stderr.write(
+			`[benchmark] pinned model momentarily unselectable (attempt ${startAttempt}/${PINNED_START_RETRIES + 1}); retrying in ${PINNED_START_RETRY_DELAY_MS / 1000}s: ${startMessage}\n`,
+		);
+		await new Promise((resolveDelay) => setTimeout(resolveDelay, PINNED_START_RETRY_DELAY_MS));
+	}
 	if (!execution.result.started) {
 		throw new Error(`!Klein benchmark task did not start: ${execution.result.startMessage ?? "unknown error"}.`);
 	}
