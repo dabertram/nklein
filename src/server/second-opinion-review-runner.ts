@@ -1345,15 +1345,23 @@ export async function runSecondOpinionReviewForTask(
 				// an integration card gated on the children (see applyNKleinPlanTaskGraphToBoard), so downstream
 				// dependents flow again once the split work actually delivers.
 				const parentGeneration = card.decomposeGeneration ?? 0;
-				const redecomposeDecision = decideReviewRedecompose({
-					parkKind,
-					escalationSpent:
-						escalatedWorkerTaskIds.has(escalatedWorkerKey(input.workspacePath, input.taskId)) ||
-						card.review?.escalated === true ||
-						review.escalated === true,
-					escalationAvailable: Boolean(escalationCandidate),
-					parentGeneration,
-				});
+				// NKLEIN_REVIEW_REDECOMPOSE=0 opts a run OUT of the rung (default ON — the product keeps its
+				// recovery ladder). Measurement harnesses need this: the aider single-host arm's pilot bounce
+				// spawned a redecompose architect whose minutes-long turns held the single slot and blocked every
+				// later pinned campaign start ("external-lms" self-block, 2026-08-21) — and a campaign that
+				// recovers via redecompose measures a different thing than its pre-rung baseline.
+				const redecomposeRungEnabled = process.env.NKLEIN_REVIEW_REDECOMPOSE?.trim() !== "0";
+				const redecomposeDecision = redecomposeRungEnabled
+					? decideReviewRedecompose({
+							parkKind,
+							escalationSpent:
+								escalatedWorkerTaskIds.has(escalatedWorkerKey(input.workspacePath, input.taskId)) ||
+								card.review?.escalated === true ||
+								review.escalated === true,
+							escalationAvailable: Boolean(escalationCandidate),
+							parentGeneration,
+						})
+					: { spawn: false as const, reason: "disabled by NKLEIN_REVIEW_REDECOMPOSE=0" };
 				// Live 2026-08-12 (resume-02): three repeat parks of one card each recorded "SPAWNING" while the
 				// spawn no-opped on the existing deterministic id — the observation lied. Resolve existence FIRST
 				// so the record states what actually happens; a repeat park still RE-SCHEDULES an existing card
