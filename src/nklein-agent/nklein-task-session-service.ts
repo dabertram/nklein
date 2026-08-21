@@ -2061,8 +2061,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			!request.resumeFromPersistence &&
 			existing &&
 			(existing.summary.state === "queued" ||
-				existing.summary.state === "running" ||
-				existing.summary.state === "awaiting_review")
+				// P0.DSTALL: the state LABEL alone is not liveness. `heartbeatStatus: "lost"` is written
+				// EXCLUSIVELY by the terminal turn-end paths (run-finished / done / turn-canceled — a slow live
+				// turn reads healthy/stale), so running/awaiting_review with a lost heartbeat means the last turn
+				// verifiably ENDED and this start is a REDRIVE that must proceed. Swallowing it left a plan-mode
+				// card sessionless in `running` for 20 minutes on 2026-08-20 (run `.real-runs/20260820-222524`:
+				// two zombie attempt rows, dead air, external kill). `queued` still swallows unconditionally —
+				// a start is already in flight.
+				((existing.summary.state === "running" || existing.summary.state === "awaiting_review") &&
+					existing.summary.heartbeatStatus !== "lost"))
 		) {
 			return cloneSummary(existing.summary);
 		}

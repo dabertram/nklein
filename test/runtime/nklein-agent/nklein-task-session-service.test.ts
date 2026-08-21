@@ -6089,6 +6089,39 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			.map((message) => message.content);
 		expect(assistantMessages).toEqual(["Done."]);
 	});
+	it("P0.DSTALL reproduction: a redrive start on a finished plan-mode card starts a session instead of being swallowed by the state label", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-dstall",
+			cwd: "/tmp/worktree",
+			prompt: "Plan the project",
+			startInPlanMode: true,
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-dstall");
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		// The architect's turn ends WITHOUT a decomposition (run-3 forensics: finish=max-tokens, no tool
+		// call) — the generic done/hook mapping lands the card in awaiting_review.
+		runtime.emitAgentEvent(sessionId, { type: "done", text: "thinking ended mid-graph", reason: "completed" });
+		await waitForSettled(() => {
+			expect(service.getSummary("task-dstall")).toMatchObject({ state: "awaiting_review", heartbeatStatus: "lost" });
+		});
+		// The plan gate bounces the plan-less card and re-drives it. On 2026-08-20 this start was silently
+		// swallowed by the idempotency guard (which trusts the state LABEL, not turn liveness): two zombie
+		// attempt rows, then 20 minutes of sessionless dead air until an external kill. A start request on a
+		// card whose turn is OVER is a redrive and must start.
+		await service.startTaskSession({
+			taskId: "task-dstall",
+			cwd: "/tmp/worktree",
+			prompt: "Plan the project",
+			startInPlanMode: true,
+		});
+		await waitForSettled(() => {
+			const started = runtime.startTaskSessionMock.mock.calls.length;
+			const sent = runtime.sendTaskSessionInputMock.mock.calls.length;
+			// Either shape un-swallows the redrive: a fresh session, or a new turn on the resumable one.
+			expect(started >= 2 || sent >= 1, `started=${started} sent=${sent}`).toBe(true);
+		});
+	});
 });
 
 describe("formatRepeatedToolCallParkMessage", () => {

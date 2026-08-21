@@ -1955,11 +1955,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   rows landed at 23:22:43 (129ms apart, `toolSetOffered: []`), the trouble monitor's silent-heartbeat warn fired at
   23:29:01 (exactly `heartbeatLostAfterMs` after the bounce) — and it only WARNS by design ("the zero-token wedge
   sweep and the heartbeat watchdog own terminating dead runs") — and only the RIG's external reactor killed the run.
-  **Suspected swallow point (unverified — verify by REPRODUCTION, not more code reading):**
-  `startTaskSession`'s idempotency guard (`nklein-task-session-service.ts` ~2060) returns the existing summary when
-  the entry state label is `queued|running|awaiting_review` — a summary LABEL, not session liveness; after
-  run-finish no session exists, so every redrive/rebound start is silently swallowed while the label says running.
-  Prior art for the ghost class: the G6.8a v9 parent-reacquire purge in `runtime-server.ts` (~1015).
+  **▶ THE SWALLOW IS CONFIRMED AND FIXED (2026-08-21).** Reproduced at the service level (start plan-mode →
+  run-finish without decomposition → redrive start swallowed, runtime never called), then fixed: the idempotency
+  guard now swallows `running|awaiting_review` only while the heartbeat is NOT `lost` — and `"lost"` is written
+  exclusively by the terminal turn-end paths (run-finished / done / turn-canceled; a slow live turn reads
+  healthy/stale), so a lost-heartbeat start is a REDRIVE and proceeds. `queued` still swallows unconditionally
+  (a start is in flight). Pinned by the reproduction test; suite 13,986/13,986.
+  **STILL OPEN in this entry:** (1) the plan-mode run-finish semantic — a decompose turn ending without an applied
+  decomposition should continue the adaptive ladder (thinking_disable was the untried rung) or park
+  INPUT_REQUIRED with a structured brief, never the generic hook→awaiting_review; (2) the 23:22:43 zombie
+  attempt-row writer must fail loudly; (3) the run-4 walls below (restart brief carrying the builder's node list,
+  the unexplained `attention` ender, durable plan-builder state).
   **Fix shape (three layers, smallest honest set):** (1) a plan-mode run-finish WITHOUT an applied decomposition
   must not take the generic hook→awaiting_review path — either continue the adaptive ladder (rungs remain:
   `thinking_disable` was NEXT and plausibly cures reasoning starvation) or park INPUT_REQUIRED with a structured
