@@ -273,8 +273,25 @@ async function admitRetainedModel(input: {
 			model.indexedModelIdentifier === input.modelId ||
 			model.selectedVariant === input.modelId,
 	);
-	const candidate = matching.find((model) => model.deviceIdentifier === catalogDeviceIdentifier);
+	let candidate = matching.find((model) => model.deviceIdentifier === catalogDeviceIdentifier);
 	if (!candidate) {
+		// A LOADED instance is proof of installation regardless of what the catalog listing says: pulling a
+		// catalog wrapper for already-downloaded weights RE-KEYS the `lms ls` entry (qwen3.8-27b-mlx became a
+		// variant of qwen/qwen3.8-27b, 2026-08-22) and the identifier match above goes dark while `lms ps`
+		// shows the model serving. Consult the runtime truth before refusing.
+		const psResult = await input.run(["ps", "--json"]);
+		if (psResult.exitCode === 0) {
+			try {
+				const loaded = JSON.parse(psResult.stdout) as { identifier?: string; modelKey?: string }[];
+				if (
+					loaded.some((model) => model.identifier === input.modelId || model.modelKey === input.modelId)
+				) {
+					return; // already serving on this host — admission satisfied by the live instance
+				}
+			} catch {
+				// fall through to the catalog refusal
+			}
+		}
 		throw new Error(`${input.modelId} is not installed on requested device ${input.targetDevice}.`);
 	}
 	if ((candidate.maxContextLength ?? 0) < input.contextLength) {
