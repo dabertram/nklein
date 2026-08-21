@@ -4780,7 +4780,18 @@ stays fast + complete.
   sequentially against a fixed resident set. Run the calibrated 24-task repeated A/B tranche; add the Terminal-Bench
   control and execute the now-shipped LiveCodeBench control against the matched resident fleet; obtain a native x86_64
   Docker runner for the quarterly Live tranche; then wire the calibrated delta gate/nightly evidence.
-  - [ ] **F11.3g — Pin and run the repeatable regression tranche (delta, not absolute).** *(2026-08-20
+  - [ ] **F11.3g — Pin and run the repeatable regression tranche (delta, not absolute).** *(2026-08-22 SINGLE-HOST
+    ARM STATUS: eleven launches; every refusal was a real defect, fixed in order — fleet purity, campaign identity,
+    pinned-start retry (d0d857800), harness-commit freeze discipline, redecompose-rung opt-out
+    (NKLEIN_REVIEW_REDECOMPOSE=0, 875719eb6), per-attempt workspace retirement (39048a3be), the surfaced
+    selectionReason (the generic error hid the cause for seven launches), the PINNED best-effort bridge
+    (7df024266 — a P0-class product fix: cold-evidence pins refused difficulty-48 cards forever), and the
+    inter-attempt idle gate 120s→900s. Arm j then ran HONESTLY: 15/96 attempts, 0 infrastructure errors,
+    interim outcomes 7 stagnant / 4 blocked_by_review_cards / 3 acceptance_not_run / 1 needs_attention —
+    0 resolved; the review wall dominates the benchmark exactly as it does the boards, at ~46 min/cycle
+    (25m mean attempt + gate waits), projecting 2.5-3 days exclusive GPU. STOPPED deliberately at 15 receipts
+    (banked under .real-runs/aider-campaigns/aider24-single-host-qwen38med-20260821j); relaunch as arm k with a
+    ~20-min attempt cap once the GPU queue clears — a stagnant attempt yields its verdict long before an hour.)* *(2026-08-20
     DISPOSITION under David's "work around the missing fleet": this is **GPU-TIME-bound, not fleet-bound**.
     Checked rather than assumed — `aider-polyglot-campaign.ts` validates an arbitrary `assignments` array
     (instanceId + modelId) and imposes NO host requirement; the three-host split lives only in the
