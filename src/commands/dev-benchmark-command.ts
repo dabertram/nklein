@@ -619,6 +619,26 @@ async function executeBenchmarkTask(input: BenchmarkTaskExecutionInput): Promise
 		runId: input.runId,
 		taskId: input.runId,
 	});
+	// Retire the attempt's runtime registration once its result is captured. A plan-variant attempt spawns
+	// child cards BY DESIGN, and residue left registered kept looping the dispatch sweeps ("1 startable card
+	// lacks an active session" / rescue HANDOVER) and held the host's admission view — the next attempt's
+	// pinned start then refused "not currently selectable" for minutes (aider single-host arm, 2026-08-21).
+	// Grading reads the FILESYSTEM workspace, which stays; only the runtime forgets the board. Best-effort but
+	// LOUD: a failed retirement is exactly the residue that killed campaigns, never silence it.
+	try {
+		const removal = await createDevRuntimeClient(runtimeWorkspaceId).projects.remove.mutate({
+			projectId: runtimeWorkspaceId,
+		});
+		if (!(removal as { ok?: boolean }).ok) {
+			process.stderr.write(
+				`[benchmark] attempt workspace retirement refused for ${runtimeWorkspaceId}: ${String((removal as { error?: string }).error ?? "unknown")}\n`,
+			);
+		}
+	} catch (error) {
+		process.stderr.write(
+			`[benchmark] attempt workspace retirement failed for ${runtimeWorkspaceId}: ${error instanceof Error ? error.message : String(error)}\n`,
+		);
+	}
 	return {
 		seedTaskId: execution.seedTaskId,
 		durationMs: execution.durationMs,
