@@ -1983,6 +1983,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   campaign task's pinned start was refused "not currently selectable" while `lms ps` showed the model IDLE
   (the runtime auto-healed the pin one sweep later; the campaign runner now retries — d0d857800). The
   dispatch-ownership gap between controller rescue and runtime discovery is the cluster's common root.
+  **▶ FOURTH FACE (aider arm 20260821d, root-caused from telemetry):** the "external" holder was the product
+  ITSELF — the pilot bounce fired the review-redecompose rung, and the redecompose architect's session ground
+  48–248s requests on the single slot while being INVISIBLE to model-turn admission (`lms ps` busy + no
+  tracked session ⇒ synthesized `external-lms` holder ⇒ every pinned start refused, including a 5×60s retry
+  window). A normal board session's turns must never be admission-invisible — find where the redecompose
+  session's turns miss `activeModelTurnsByWorkspaceId`. Interim: `NKLEIN_REVIEW_REDECOMPOSE=0` (875719eb6)
+  opts measurement harnesses out of the rung; the product default stays ON.
   **Fix shape (three layers, smallest honest set):** (1) a plan-mode run-finish WITHOUT an applied decomposition
   must not take the generic hook→awaiting_review path — either continue the adaptive ladder (rungs remain:
   `thinking_disable` was NEXT and plausibly cures reasoning starvation) or park INPUT_REQUIRED with a structured
