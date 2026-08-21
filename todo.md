@@ -1975,6 +1975,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   the rig's 180s idle reactor RACES the product's own needs_operator settle on a dammed resume board — the
   reactor killed the still-monitoring drain (0-byte drain.json misread as a monitor crash). Cycle 4 runs with
   `NKLEIN_STALL_SECS=900` to let the product classify first.
+  **▶ THIRD FACE (aider arm 20260821b, `.real-runs/aider-campaigns/…21b/runtime.log`):** the pilot task
+  decomposed a CHILD card that stayed "1 startable card lacks an active task session" forever on an IDLE
+  single-model host, with the rescue sweep looping "not revivable by the controller (job not failed, or
+  attempt budget exhausted) — the controller's own discovery must dispatch them" — i.e. every layer believes
+  some OTHER layer owns the dispatch, and none does. The same run also showed the START-side symptom: the next
+  campaign task's pinned start was refused "not currently selectable" while `lms ps` showed the model IDLE
+  (the runtime auto-healed the pin one sweep later; the campaign runner now retries — d0d857800). The
+  dispatch-ownership gap between controller rescue and runtime discovery is the cluster's common root.
   **Fix shape (three layers, smallest honest set):** (1) a plan-mode run-finish WITHOUT an applied decomposition
   must not take the generic hook→awaiting_review path — either continue the adaptive ladder (rungs remain:
   `thinking_disable` was NEXT and plausibly cures reasoning starvation) or park INPUT_REQUIRED with a structured
