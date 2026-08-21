@@ -284,7 +284,13 @@ export async function executeDevTestScenario(
 					agentId: runtimeAgentIdSchema.catch("nklein").parse(payload.agentId),
 					...(payload.nkleinSettings ? { nkleinSettings: payload.nkleinSettings } : {}),
 				});
-				return { ok: started.ok, ...(started.error ? { message: started.error } : {}) };
+				// Surface the runtime's full selection reasoning on refusal — the generic error ("not currently
+				// selectable") hid the actual free-first refusal cause across seven aider-arm launches.
+				const startedSelectionReason = (started as { selectionReason?: string | null }).selectionReason;
+				const startFailureMessage = started.error
+					? `${started.error}${startedSelectionReason ? ` [selection: ${startedSelectionReason}]` : ""}`
+					: undefined;
+				return { ok: started.ok, ...(startFailureMessage ? { message: startFailureMessage } : {}) };
 			},
 			readState,
 			...(input.runAcceptance ? { runAcceptance: input.runAcceptance } : {}),
