@@ -106,7 +106,7 @@ import {
 	buildResidencyModelKeySet,
 } from "../../nklein-agent/nklein-stable-routing-candidates";
 import { isExplicitDecompositionPrompt } from "../../nklein-agent/nklein-task-prompt-parsing";
-import { routeNKleinTask } from "../../nklein-agent/nklein-task-router";
+import { CAPABILITY_BEST_EFFORT_MARGIN, routeNKleinTask } from "../../nklein-agent/nklein-task-router";
 import {
 	buildNKleinSandboxStartBlock,
 	buildNKleinStartGuardCandidate,
@@ -1048,7 +1048,44 @@ export async function handleStartTaskSession(
 				taskPinnedModelKey ?? (roleAssignment.source === "pinned" ? (roleAssignment.pick?.modelKey ?? null) : null),
 			weighting: "efficient",
 		});
-		const freeFirstSelection = swarmRoleDecision.selection;
+		let freeFirstSelection = swarmRoleDecision.selection;
+		// P0/§5.AB: the router's best-effort BRIDGE never reached this selection core, so an explicitly PINNED
+		// model on a cold-evidence fleet deadlocked: the honest depth fix removed inflated depth rows, the blend
+		// fell to the flat prior (35), and difficulty-48 cards refused a loaded, context-fitting pin forever
+		// ("no assigned model clears…" — nine aider-arm launches, 2026-08-21). A pin is the operator's explicit
+		// choice: when it fits the context STRICTLY and sits within CAPABILITY_BEST_EFFORT_MARGIN of the
+		// difficulty, honor it as best-effort — the run itself accrues the missing evidence. Context never
+		// bridges (a physical limit), and unpinned selection is unchanged.
+		const bridgePinKey =
+			taskPinnedModelKey ?? (roleAssignment.source === "pinned" ? (roleAssignment.pick?.modelKey ?? null) : null);
+		if (freeFirstSelection.type === "no_fit" && bridgePinKey) {
+			const pinnedCandidate = roleScopedSelectionCandidates.find(
+				(candidate) => candidate.entry.key === bridgePinKey,
+			);
+			const pinnedContext = pinnedCandidate?.entry.contextWindow.effective ?? 0;
+			const pinnedCapability = pinnedCandidate
+				? blendedCapabilityForKey(
+						pinnedCandidate.entry.key,
+						pinnedCandidate.entry.capability.effectiveScore,
+						pinnedCandidate.role,
+						pinnedCandidate.entry.modelId,
+					)
+				: null;
+			if (
+				pinnedCandidate &&
+				pinnedCapability !== null &&
+				pinnedContext >= requiredContextTokens &&
+				taskDifficulty - pinnedCapability <= CAPABILITY_BEST_EFFORT_MARGIN
+			) {
+				freeFirstSelection = {
+					type: "assign",
+					modelKey: bridgePinKey,
+					busyFallback: false,
+					weighting: "efficient",
+					reason: `Pinned ${bridgePinKey} is within the best-effort margin (capability ${pinnedCapability} vs difficulty ${taskDifficulty}, margin ${CAPABILITY_BEST_EFFORT_MARGIN}) and fits ${requiredContextTokens} context tokens — honoring the pin as best-effort; this run accrues the missing evidence.`,
+				};
+			}
+		}
 		const honoredTaskPinKey =
 			taskPinnedModelKey &&
 			freeFirstSelection.type === "assign" &&
