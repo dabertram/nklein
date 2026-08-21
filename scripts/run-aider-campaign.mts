@@ -206,14 +206,17 @@ function fleetIdentity(models: readonly ResidentModel[]): string {
 }
 
 async function waitForFixedIdleFleet(requiredIds: readonly string[], expectedIdentity?: string): Promise<ResidentModel[]> {
-	const deadline = Date.now() + 120_000;
+	// m5max rule: generous timeouts on everything — a 27B's settle tail between attempts (KV cleanup, an
+	// orphaned generation draining) legitimately exceeds two minutes; 120s killed a campaign at 14/96 healthy
+	// attempts (2026-08-21). Idle-wait is cheap; a dead campaign is not.
+	const deadline = Date.now() + 900_000;
 	while (true) {
 		const snapshot = fixedFleetSnapshot(await readResidentModels(), requiredIds);
 		if (expectedIdentity && fleetIdentity(snapshot) !== expectedIdentity) {
 			throw new Error("Fixed resident-set identity changed during the campaign; refusing confounded evidence.");
 		}
 		if (snapshot.every((model) => model.status === "idle")) return snapshot;
-		if (Date.now() >= deadline) throw new Error("Fixed resident set did not become idle within 120 seconds.");
+		if (Date.now() >= deadline) throw new Error("Fixed resident set did not become idle within 900 seconds.");
 		await new Promise((resolveSleep) => setTimeout(resolveSleep, 2_000));
 	}
 }
