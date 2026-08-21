@@ -4791,7 +4791,11 @@ stays fast + complete.
     0 resolved; the review wall dominates the benchmark exactly as it does the boards, at ~46 min/cycle
     (25m mean attempt + gate waits), projecting 2.5-3 days exclusive GPU. STOPPED deliberately at 15 receipts
     (banked under .real-runs/aider-campaigns/aider24-single-host-qwen38med-20260821j); relaunch as arm k with a
-    ~20-min attempt cap once the GPU queue clears — a stagnant attempt yields its verdict long before an hour.)* *(2026-08-20
+    ~20-min attempt cap once the GPU queue clears — a stagnant attempt yields its verdict long before an hour.
+    PAIRED READOUT (7 pairs): plan variants STAGNATE fast (6/7, mostly 4-18m — the P0.DSTALL surface at
+    benchmark prompt sizes); no-plan variants get BLOCKED BY REVIEW (4/7, 9-60m). Both arms point at the two
+    filed defect clusters, so P0.DSTALL's remaining layers are the tranche's critical path — fix first, then
+    arm k.)* *(2026-08-20
     DISPOSITION under David's "work around the missing fleet": this is **GPU-TIME-bound, not fleet-bound**.
     Checked rather than assumed — `aider-polyglot-campaign.ts` validates an arbitrary `assignments` array
     (instanceId + modelId) and imposes NO host requirement; the three-host split lives only in the
