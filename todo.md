@@ -1966,6 +1966,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   INPUT_REQUIRED with a structured brief, never the generic hook→awaiting_review; (2) the 23:22:43 zombie
   attempt-row writer must fail loudly; (3) the run-4 walls below (restart brief carrying the builder's node list,
   the unexplained `attention` ender, durable plan-builder state).
+  **▶ LIVE RECURRENCE WITH THE GUARD FIX IN (resume-02 cycle 3, 2026-08-21, `.real-runs/20260821-041222`):**
+  two worker cards went "marooned In Progress with no live session" (watchdog recovered both to Review, result
+  branches captured) — so a dispatch-loss path past the start guard exists; that is layer (2)'s writer or a
+  sibling. Two rig gaps found the same run: resume mode (`NKLEIN_KEEP_RUN_WORKSPACES=1`) floods the evidence
+  bundle with ALL prior cycles' sessions (retirement is the only working isolation and resume must skip it —
+  resume evidence needs a session-store `--since` that survives rewrite-in-place, or per-run session dirs); and
+  the rig's 180s idle reactor RACES the product's own needs_operator settle on a dammed resume board — the
+  reactor killed the still-monitoring drain (0-byte drain.json misread as a monitor crash). Cycle 4 runs with
+  `NKLEIN_STALL_SECS=900` to let the product classify first.
   **Fix shape (three layers, smallest honest set):** (1) a plan-mode run-finish WITHOUT an applied decomposition
   must not take the generic hook→awaiting_review path — either continue the adaptive ladder (rungs remain:
   `thinking_disable` was NEXT and plausibly cures reasoning starvation) or park INPUT_REQUIRED with a structured
