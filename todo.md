@@ -1969,6 +1969,21 @@ These are known defects or incomplete migrations. Clear them before widening cap
   **Gate: an aimock reproduction FIRST** (plan-mode card, architect turn ends max-tokens-no-tool twice) asserting
   the invariant: within the trouble threshold the card either runs a fresh turn or parks — it never sits `running`
   sessionless. The reproduction names the true swallow point; fix against it, not against the suspicion.
+  **▶ RUN-4 ADDENDUM (2026-08-21, `.real-runs/20260821-031637` — the medium-effort counterfactual):** the effort
+  A/B's winner CURED the emission starvation: same 192KB spec, the architect drove the INCREMENTAL protocol —
+  **34 `add_task` calls, 30 nodes accepted** — with targeted gap reads and a focus chain naming the full plan
+  ("~51-card spine graph … Submit decompose_project"). The next walls are PRODUCT-side and belong to this same
+  cluster: (a) the main session was restarted twice at 03:27 and the drain logged **35 `model_capacity_wait`
+  signals against the host's cap-1** — the drain's own aux sessions contend with the architect; the 3
+  `duplicate_node` rejections are the restart symptom (the model re-declares nodes it already added — the
+  server-side plan builder SURVIVES restarts, which is right, but the restarted model does not know that; the
+  restart brief should carry the builder's current node list); (b) one `add_task` schema friction
+  (`knowledgeDebt`: model sent an array, contract wants a string); (c) the run ended `running → awaiting_review
+  (reason: attention)` at 03:54:05 mid-construction — the attention source is NOT in any session transcript
+  (no user-attention tool call found) and must be identified; (d) the 30 accepted nodes were LOST at teardown —
+  the plan builder's incremental state is not durable, so a 37-minute graph evaporated. Reproduction for (a)+(c)
+  rides the same aimock rig as the main entry; (d) wants the builder state persisted (or snapshotted into
+  evidence) so an interrupted decompose can resume instead of restarting from zero.
 
 ### Phase 1 — feature completion: planning, execution, and durable control plane
 
