@@ -26,6 +26,7 @@ import { buildTaskActivitySteps, getActivityToneClassName } from "@/components/d
 import { TaskDiagnosticsPanel } from "@/components/detail-panels/task-diagnostics-panel";
 import { TaskEscalationPanel } from "@/components/detail-panels/task-escalation-panel";
 import { TaskRecoveryActionsPanel } from "@/components/detail-panels/task-recovery-actions-panel";
+import { WireLogPanel } from "@/components/detail-panels/wire-log-panel";
 import {
 	WorkspaceChangesEmptyPanel,
 	WorkspaceChangesLoadingPanel,
@@ -858,6 +859,7 @@ export function CardDetailView({
 							<ActionTrailPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<CardTimelinePanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<CardEffortPanel workspaceId={currentProjectId} taskId={selection.card.id} />
+							<WireLogPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<SecondOpinionReviewPanel selection={selection} />
 							<PendingPlanArtifactsPanel
 								workspaceId={currentProjectId}
@@ -1053,6 +1055,7 @@ export function CardDetailView({
 								<ActionTrailPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<CardTimelinePanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<CardEffortPanel workspaceId={currentProjectId} taskId={selection.card.id} />
+								<WireLogPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<SecondOpinionReviewPanel selection={selection} />
 								<PendingPlanArtifactsPanel
 									workspaceId={currentProjectId}

@@ -9,6 +9,7 @@ import type {
 	RuntimeTaskDiagnosticsResponse,
 	RuntimeTaskEvidenceResponse,
 	RuntimeTaskPauseResponse,
+	RuntimeTaskWireLogResponse,
 	RuntimeTaskWorktreeMergeResponse,
 } from "@/runtime/types";
 
@@ -167,4 +168,14 @@ export async function fetchCardTimeline(
 export async function fetchCardEffort(workspaceId: string | null, taskId: string): Promise<RuntimeCardEffortResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getCardEffort.query({ taskId });
+}
+
+/** §dsh#31: the card's WIRE TRUTH — recorded model requests + runtime injections, read-only. */
+export async function fetchTaskWireLog(
+	workspaceId: string | null,
+	taskId: string,
+	includeMessageText: boolean,
+): Promise<RuntimeTaskWireLogResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.taskWireLog.query({ taskId, limit: 200, includeMessageText });
 }
