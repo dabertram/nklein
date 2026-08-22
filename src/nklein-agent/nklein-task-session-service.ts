@@ -580,6 +580,19 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly agentSandboxManager: AgentSandboxManager | null;
 	private readonly pauseController: NKleinPauseController;
 	private readonly onDecompositionApplied: NKleinDecompositionAppliedHandler | undefined;
+	/** P0.DSTALL layer 1: which plan-mode tasks actually APPLIED a decomposition — the terminal recorder
+	 *  writes the "decomposition starved" brief only when a decompose session ends without one. */
+	private readonly decompositionAppliedTaskIds = new Set<string>();
+	private wrapDecompositionApplied(
+		handler: NKleinDecompositionAppliedHandler | undefined,
+	): NKleinDecompositionAppliedHandler | undefined {
+		return (event) => {
+			if (event.sourceTaskId) {
+				this.decompositionAppliedTaskIds.add(event.sourceTaskId);
+			}
+			handler?.(event);
+		};
+	}
 	private readonly runDecompositionResearchPreflight: (
 		input: DecompositionResearchPreflightInput,
 	) => Promise<DecompositionResearchPreflightResult>;
@@ -1806,7 +1819,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// Planning seeds: read-only + decompose_project (§5.B). Verdict-only sessions (review/plan-critique):
 				// inspection + submission only — the 32.2KB worker tools block was the post-diet no-submission cause.
 				toolPolicies,
-				onDecompositionApplied: this.onDecompositionApplied,
+				onDecompositionApplied: this.wrapDecompositionApplied(this.onDecompositionApplied),
 				requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(input.taskId, hostWorkspaceRoot),
 				requestClarifyTurn: this.planCritiqueRunner.buildClarifyTurnHandler(input.taskId, hostWorkspaceRoot),
 				onCardPromoted: isHomeAgentSessionId(input.taskId) ? undefined : this.onCardPromoted,
@@ -2771,7 +2784,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 								: {}),
 							// Planning seeds: §5.B restriction; verdict-only sessions: judge narrowing (see resolveSessionToolPolicies).
 							toolPolicies,
-							onDecompositionApplied: this.onDecompositionApplied,
+							onDecompositionApplied: this.wrapDecompositionApplied(this.onDecompositionApplied),
 							requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(request.taskId, request.cwd),
 							requestClarifyTurn: this.planCritiqueRunner.buildClarifyTurnHandler(request.taskId, request.cwd),
 							runExplorerQuery: isTruthyEnv(process.env.NKLEIN_EXPLORER_SUBAGENT)
@@ -3985,7 +3998,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	private emitSummary(summary: RuntimeTaskSessionSummary): void {
-		const guardedSummary = this.repeatedToolCallGuard.check(summary) ?? summary;
+		const briefedSummary = this.withDecompositionStarvedBrief(summary);
+		const guardedSummary = this.repeatedToolCallGuard.check(briefedSummary) ?? briefedSummary;
 		// §5.BG: stamp the STABLE publisher key (when resolved at start) on every emitted summary — this is the central
 		// choke point through which telemetry consumers (fitness, model-behavior) receive summaries, so keying off it
 		// here means a renamed LM Studio instance can't fragment its measured history. Absent ⇒ consumers fall back to
@@ -3994,6 +4008,35 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const keyedSummary = stableModelKey ? { ...guardedSummary, modelKey: stableModelKey } : guardedSummary;
 		this.captureTerminalRunSummary(keyedSummary);
 		this.messageRepository.emitSummary(keyedSummary);
+	}
+
+	/**
+	 * P0.DSTALL layer 1 (the terminal semantic): a plan-mode session that reaches awaiting_review WITHOUT an
+	 * applied decomposition is a STARVED decompose, not reviewable work — there is nothing to review. The
+	 * state machinery stays untouched (the plan gate and operator flows key off awaiting_review); what was
+	 * missing was the card SAYING so and naming the levers. The brief is idempotent (guarded by its own
+	 * marker) and never overwrites an existing warning.
+	 */
+	private withDecompositionStarvedBrief(summary: RuntimeTaskSessionSummary): RuntimeTaskSessionSummary {
+		if (
+			summary.state !== "awaiting_review" ||
+			!this.explicitDecompositionTaskIds.has(summary.taskId) ||
+			this.decompositionAppliedTaskIds.has(summary.taskId) ||
+			isDerivedTaskSessionId(summary.taskId)
+		) {
+			return summary;
+		}
+		if (summary.warningMessage) {
+			return summary;
+		}
+		return {
+			...summary,
+			warningMessage:
+				"Decomposition did not complete: the planning session ended without applying a decompose_project " +
+				"result (typically the output budget ran out mid-graph, or the model stopped short). The board is NOT " +
+				"waiting on a review — restart the card to continue the recovery ladder, lower the reasoning effort, " +
+				"or split the objective by hand.",
+		};
 	}
 
 	/**

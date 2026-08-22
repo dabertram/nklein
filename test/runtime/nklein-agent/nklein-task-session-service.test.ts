@@ -935,7 +935,16 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 		const startRequest = runtime.startTaskSessionMock.mock.calls[0]?.[0];
 		expect(Object.keys(startRequest ?? {})).toContain("onDecompositionApplied");
-		expect(startRequest?.onDecompositionApplied).toBe(onDecompositionApplied);
+		// P0.DSTALL layer 1: the service WRAPS the handler (to track which tasks actually applied a
+		// decomposition), so assert DELEGATION rather than reference identity.
+		await startRequest?.onDecompositionApplied?.({
+			workspacePath: "/tmp/worktree",
+			sourceTaskId: "task-1",
+			planSlug: "plan",
+			rootTaskIds: [],
+			taskIdByPlanTaskId: {},
+		});
+		expect(onDecompositionApplied).toHaveBeenCalledTimes(1);
 	});
 
 	it("passes card likely touched files into NKlein tool approval setup", async () => {
@@ -6089,6 +6098,24 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			.map((message) => message.content);
 		expect(assistantMessages).toEqual(["Done."]);
 	});
+	it("P0.DSTALL layer 1: a plan-mode run that ends without an applied decomposition carries the starved brief", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-starved",
+			cwd: "/tmp/worktree",
+			prompt: "Plan the project",
+			startInPlanMode: true,
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-starved");
+		runtime.emitAgentEvent(sessionId, { type: "done", text: "graph half-built", reason: "completed" });
+		await waitForSettled(() => {
+			const summary = service.getSummary("task-starved");
+			expect(summary?.state).toBe("awaiting_review");
+			expect(summary?.warningMessage).toContain("Decomposition did not complete");
+			expect(summary?.warningMessage).toContain("restart the card");
+		});
+	});
+
 	it("P0.DSTALL reproduction: a redrive start on a finished plan-mode card starts a session instead of being swallowed by the state label", async () => {
 		const { service, runtime } = createTrackedService();
 		await service.startTaskSession({
