@@ -1969,11 +1969,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   exclusively by the terminal turn-end paths (run-finished / done / turn-canceled; a slow live turn reads
   healthy/stale), so a lost-heartbeat start is a REDRIVE and proceeds. `queued` still swallows unconditionally
   (a start is in flight). Pinned by the reproduction test; suite 13,986/13,986.
-  **STILL OPEN in this entry:** (1) the plan-mode run-finish semantic — a decompose turn ending without an applied
-  decomposition should continue the adaptive ladder (thinking_disable was the untried rung) or park
-  INPUT_REQUIRED with a structured brief, never the generic hook→awaiting_review; (2) the 23:22:43 zombie
-  attempt-row writer must fail loudly; (3) the run-4 walls below (restart brief carrying the builder's node list,
-  the unexplained `attention` ender, durable plan-builder state).
+  **▶ LAYER 1's BOUNCE HALF CLOSED (2026-08-22):** the adapter's tool-event revival returned a hook-parked card
+  to `running` even after the run ENDED — both bookkeeping sites now require a live heartbeat (the
+  answered-attention revival stays; a real resume follows it). With the start-guard fix, the zombie's two
+  halves (bounce + swallow) are both closed and pinned.
+  **STILL OPEN in this entry:** (1) the plan-mode TERMINAL semantic — after nudges+ladder exhaust on a decompose
+  card, park with a structured "decomposition starved" brief (name `task redrive` in it) instead of a bare
+  awaiting_review; (2) the 23:22:43 zombie attempt-row writer must fail loudly; (3) the run-4 walls below
+  (restart brief carrying the builder's node list, the unexplained `attention` ender, durable plan-builder
+  state).
   **▶ LIVE RECURRENCE WITH THE GUARD FIX IN (resume-02 cycle 3, 2026-08-21, `.real-runs/20260821-041222`):**
   two worker cards went "marooned In Progress with no live session" (watchdog recovered both to Review, result
   branches captured) — so a dispatch-loss path past the start guard exists; that is layer (2)'s writer or a
