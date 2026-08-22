@@ -582,7 +582,11 @@ async function executeBenchmarkTask(input: BenchmarkTaskExecutionInput): Promise
 			baseRef: "benchmark-baseline",
 			seedTaskId: input.runId,
 			startInPlanMode: input.startInPlanMode,
-			autoReviewEnabled: true,
+			// F11.3g: benchmarks are graded by the GOLD oracle after patch capture — !Klein's own review lane adds
+			// nothing to the receipt and its post-attempt review session held the single model BUSY past the
+			// campaign runner's idle-fleet gate (arm k3, 2026-08-22: pilot green, full run refused "resident set
+			// did not become idle within 900 seconds" while the pilot's review ground on).
+			autoReviewEnabled: false,
 			autoReviewMode: "commit",
 			testEvidencePolicy: input.testEvidencePolicy,
 			...(input.modelId
