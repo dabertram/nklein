@@ -22,6 +22,7 @@ import { expandSavedPlanTaskCommand } from "./task/task-plan-expand-command.js";
 import { listTasks, reportBoardHealth } from "./task/task-read-commands.js";
 import { parseListColumn } from "./task/task-record-format.js";
 import { recordTaskPlanGapCommand } from "./task/task-record-plan-gap-command.js";
+import { redriveTask } from "./task/task-redrive-command.js";
 import { startTask } from "./task/task-start-command.js";
 import { clearTaskSwarmStopCommand, requestTaskSwarmStopCommand } from "./task/task-swarm-commands.js";
 import { runVerifyTaskAcceptanceCommand } from "./task/task-verify-command.js";
@@ -73,6 +74,7 @@ export function registerTaskCommand(program: Command): void {
 	registerTaskFinishCommands(task);
 	registerTaskGraphCommands(task);
 	registerTaskStartCommand(task);
+	registerTaskRedriveCommand(task);
 }
 
 function registerTaskReadCommands(task: Command): void {
@@ -606,6 +608,28 @@ function registerTaskStartCommand(task: Command): void {
 						cwd: process.cwd(),
 						taskId: options.taskId,
 						projectPath: options.projectPath,
+					}),
+			);
+		});
+}
+
+function registerTaskRedriveCommand(task: Command): void {
+	task
+		.command("redrive")
+		.description(
+			"Operator redrive: send a PARKED review card back to work with a re-work brief built from its own review record.",
+		)
+		.requiredOption("--task-id <id>", "Task ID.")
+		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
+		.option("--note <text>", "Operator direction, placed FIRST in the brief (outranks the reviewer text).")
+		.action(async (options: { taskId: string; projectPath?: string; note?: string }) => {
+			await runTaskCommand(
+				async () =>
+					await redriveTask({
+						cwd: process.cwd(),
+						taskId: options.taskId,
+						projectPath: options.projectPath,
+						note: options.note,
 					}),
 			);
 		});

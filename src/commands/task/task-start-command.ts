@@ -25,6 +25,9 @@ export async function startTask(input: {
 	projectPath?: string;
 	queueOnEndpointBusy?: boolean;
 	allowQueuedStart?: boolean;
+	/** Operator-redrive seam: start the session on this prompt instead of the card's own (the card text is
+	 *  unchanged — the override is the re-work BRIEF, which restates the objective inside itself). */
+	promptOverride?: string;
 }): Promise<JsonRecord> {
 	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
 	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
@@ -65,7 +68,7 @@ export async function startTask(input: {
 		// Native NKlein tasks start in their Docker sandbox — no host workspace to prepare (worktrees retired, §5.A).
 		const started = await runtimeClient.runtime.startTaskSession.mutate({
 			taskId: task.id,
-			prompt: task.prompt,
+			prompt: input.promptOverride ?? task.prompt,
 			taskTitle: task.title,
 			startInPlanMode: task.startInPlanMode,
 			baseRef: task.baseRef,
