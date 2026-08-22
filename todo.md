@@ -1980,8 +1980,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   **▶ LAYER 2 CLOSED (2026-08-22):** the zombie writer is loud — the run-3 signature (terminal row, no tools
   offered, no tokens, no tool calls) triggers a registered `zombie_terminal_attempt` warning observation at
   the writer; the row stays (evidence is never silently dropped). Detector pinned both directions.
-  **STILL OPEN in this entry:** (3) the run-4 walls below (restart brief carrying the builder's node list,
-  the unexplained `attention` ender, durable plan-builder state).
+  **▶ LAYER 3 SUBSTANTIALLY CLOSED (2026-08-22, b246fb159):** the incremental construction is DURABLE (every
+  accepted op checkpoints to a (workspace-hash, card)-keyed store; fresh processes resume; apply/revision
+  clears) and the duplicate_node rejection now ORIENTS a restarted model (lists held nodes + the bare-finalize
+  finish move) instead of looping it.
+  **STILL OPEN in this entry:** the run-4 `attention` ender (running → awaiting_review reason "attention" at
+  03:54:05 with no user-attention tool call in any transcript — source unidentified; needs a live trace the
+  next time it fires).
   **▶ LIVE RECURRENCE WITH THE GUARD FIX IN (resume-02 cycle 3, 2026-08-21, `.real-runs/20260821-041222`):**
   two worker cards went "marooned In Progress with no live session" (watchdog recovered both to Review, result
   branches captured) — so a dispatch-loss path past the start guard exists; that is layer (2)'s writer or a
