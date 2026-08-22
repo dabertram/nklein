@@ -13,6 +13,8 @@ export * from "./community-skill-execution-api-contract.js";
 export * from "./community-skill-import-api-contract.js";
 // Runtime config + agents contract domain (agent definition + sandbox status, config response/save) (§5.X #2).
 export * from "./config-api-contract.js";
+// Task-session contract domain (state/mode/usage/context-budget/model-perf-role/summary, hook activity) (§5.X #2).
+export * from "./frontier-research.js";
 // Git history contract domain (commit/ref shapes, git-log, commit-diff file/req/res, refs response) (§5.X #2).
 export * from "./git-history-api-contract.js";
 // Git sync contract domain (repo info, fetch/pull/push sync, checkout, discard) (§5.X #2).
@@ -42,7 +44,6 @@ export * from "./stream-events-api-contract.js";
 export * from "./task-chat-api-contract.js";
 // Task lifecycle + control domain (acceptance, worktree-merge, start/stop/pause/swarm-stop, diagnostics, input) (§5.X #2).
 export * from "./task-lifecycle-api-contract.js";
-// Task-session contract domain (state/mode/usage/context-budget/model-perf-role/summary, hook activity) (§5.X #2).
 export * from "./task-session-api-contract.js";
 // Telemetry stats contract domain (model-performance + knowledge-tool-usage stats) (§5.X #2).
 export * from "./telemetry-stats-api-contract.js";

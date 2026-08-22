@@ -251,6 +251,7 @@ import { type RuntimeTrpcContext, type RuntimeTrpcWorkspaceScope, runtimeAppRout
 import { createProjectsApi } from "../trpc/projects-api";
 import { createRuntimeApi } from "../trpc/runtime-api";
 import { autoLoadedModels } from "../trpc/runtime-api/auto-loaded-models";
+import { getFrontierResearchRunner } from "../trpc/runtime-api/frontier-research";
 import { dispatchWorkflowCommands, getWorkspaceWorkflowQueue } from "../trpc/runtime-api/workflow-queue-registry";
 import {
 	createRuntimeTaskStartQueue,
@@ -287,6 +288,7 @@ import {
 import { type BackgroundEvalRailWiring, wireBackgroundEvalRail } from "./background-eval-rail-wiring";
 import { type BoardLivenessWatchdogHandle, startBoardLivenessWatchdog } from "./board-liveness-watchdog";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
+import { installFrontierResearchRunner } from "./frontier-research-holder";
 import {
 	createDockerManagedSearchBackend,
 	ManagedSearchBackendController,
@@ -398,6 +400,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// Silence the external `ai` package's per-call "system messages in the prompt" warning (we pass them by
 	// design) and log the rationale once, so it stops flooding the runtime log and burying the useful lines.
 	configureNKleinAiSdkWarnings(deps.warn);
+	// Frontier radar: install the real composition behind the web-graph holder boundary (the router reads the
+	// holder; the composition's egress/SSRF/LLM graph must never enter web-ui's typecheck).
+	installFrontierResearchRunner(getFrontierResearchRunner());
 	const nightlyHermetic = isNightlyHermeticEnvironment();
 	// §5.Y #8: compute remote-mode confinement roots once at startup.
 	const isRemoteMode = isKanbanRemoteHost();

@@ -22,6 +22,7 @@ import { DebugDialog } from "@/components/debug-dialog";
 import { type DependencyPickerCard, DependencyPickerDialog } from "@/components/dependency-picker-dialog";
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
 import { EgressConfirmDialog } from "@/components/egress-confirm-dialog";
+import { FrontierRadar } from "@/components/frontier-radar";
 import { GitHistoryView } from "@/components/git-history-view";
 import { KanbanBoard } from "@/components/kanban-board";
 import { LeanBoardView } from "@/components/lean-board-view";
@@ -1670,6 +1671,8 @@ export default function App(): ReactElement {
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialog>
+				{/* Frontier radar — always visible, very bottom right (David 2026-08-22). */}
+				<FrontierRadar workspaceId={currentProjectId} />
 			</div>
 		</LayoutCustomizationsProvider>
 	);

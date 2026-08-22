@@ -141,10 +141,11 @@ export function applyLocalDeviceAlias(
 		return deviceRamBytes;
 	}
 	const localKey = Object.keys(deviceRamBytes).find((key) => key.toLowerCase() === "local");
-	if (localKey === undefined) {
+	const localBytes = localKey === undefined ? undefined : deviceRamBytes[localKey];
+	if (localBytes === undefined) {
 		return deviceRamBytes;
 	}
-	return { ...deviceRamBytes, [localMachineName]: deviceRamBytes[localKey] };
+	return { ...deviceRamBytes, [localMachineName]: localBytes };
 }
 
 /** One linked device that HAS the model available and is a placement candidate. */
@@ -270,6 +271,10 @@ export function selectDeviceForModelLoad(input: DeviceLoadRoutingInput): DeviceL
 		return input.candidates.indexOf(a.candidate) - input.candidates.indexOf(b.candidate);
 	});
 	const [chosen, ...rest] = fitting;
+	if (!chosen) {
+		// Unreachable in practice (the fitting.length===0 branch returned above); typed for the strict graph.
+		throw new Error("device routing: no fitting candidate after the emptiness check");
+	}
 
 	return {
 		fits: true,

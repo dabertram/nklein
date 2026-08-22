@@ -185,6 +185,11 @@ import {
 	runtimeUpdateStatusResponseSchema,
 } from "../../core/api-contract";
 import { runtimeFieldReportCandidatesResponseSchema } from "../../core/field-report-api-contract";
+import {
+	frontierReportSchema,
+	frontierRunResponseSchema,
+	frontierStatusResponseSchema,
+} from "../../core/frontier-research";
 import { runtimeBuildIdentitySchema } from "../../core/runtime-build-identity";
 import {
 	runtimeTaskSessionForkRequestSchema,
@@ -192,6 +197,7 @@ import {
 	runtimeTaskWireLogRequestSchema,
 	runtimeTaskWireLogResponseSchema,
 } from "../../core/task-session-api-contract";
+import { getFrontierRunner } from "../../server/frontier-research-holder";
 import type { RuntimeTrpcBuilder, RuntimeWorkspaceProcedure } from "../app-router";
 import { collectTaskWireLog } from "../runtime-api/task-wire-log";
 
@@ -390,6 +396,16 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.forkTaskSession(ctx.workspaceScope, input);
 			}),
+		/** Frontier radar: status for the always-visible icon; report + run for the panel (egress-gated). */
+		frontierStatus: workspaceProcedure.output(frontierStatusResponseSchema).query(async () => {
+			return await getFrontierRunner().status();
+		}),
+		frontierLatest: workspaceProcedure.output(frontierReportSchema.nullable()).query(async () => {
+			return await getFrontierRunner().latest();
+		}),
+		frontierRun: workspaceProcedure.output(frontierRunResponseSchema).mutation(async () => {
+			return await getFrontierRunner().run();
+		}),
 		/** §dsh#31: read-only wire truth for one card — what the model saw, and what we injected. */
 		taskWireLog: workspaceProcedure
 			.input(runtimeTaskWireLogRequestSchema)

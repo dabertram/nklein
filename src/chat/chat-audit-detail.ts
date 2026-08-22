@@ -67,7 +67,11 @@ function redactSecrets(value: string): string {
 	// Bare high-entropy token pattern: only mask tokens that are standalone (preceded/followed by
 	// whitespace or start/end), and only if they look random enough (no repeating chars, mixed case
 	// or digits). A simple heuristic: more than 4 distinct char classes present.
-	result = result.replace(SECRET_FLAG_PATTERNS[3], (match, token: string) => {
+	const bareTokenPattern = SECRET_FLAG_PATTERNS[3];
+	if (!bareTokenPattern) {
+		return result;
+	}
+	result = result.replace(bareTokenPattern, (match, token: string) => {
 		if (!token) {
 			return match;
 		}
