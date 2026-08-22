@@ -617,6 +617,16 @@ async function executeBenchmarkTask(input: BenchmarkTaskExecutionInput): Promise
 	if (execution.result.infrastructureFailure) {
 		throw new Error(`!Klein benchmark infrastructure failed: ${execution.result.infrastructureFailure}`);
 	}
+	// F11.3g (arm k4 root cause): a capped/classified wait ABANDONS a still-live session — the runtime kept
+	// driving the attempt while the campaign runner waited for an idle fleet that never came. Stop the seed's
+	// session before capture; best-effort (an already-ended session is a no-op stop).
+	try {
+		await createDevRuntimeClient(runtimeWorkspaceId).runtime.stopTaskSession.mutate({ taskId: input.runId });
+	} catch (error) {
+		process.stderr.write(
+			`[benchmark] session stop before capture failed for ${input.runId}: ${error instanceof Error ? error.message : String(error)}\n`,
+		);
+	}
 	const captured = await captureBenchmarkWorkspaceResult({
 		repoPath: input.workspacePath,
 		baseCommit: sealed.baseCommit,
