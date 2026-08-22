@@ -1973,11 +1973,13 @@ These are known defects or incomplete migrations. Clear them before widening cap
   to `running` even after the run ENDED — both bookkeeping sites now require a live heartbeat (the
   answered-attention revival stays; a real resume follows it). With the start-guard fix, the zombie's two
   halves (bounce + swallow) are both closed and pinned.
-  **STILL OPEN in this entry:** (1) the plan-mode TERMINAL semantic — after nudges+ladder exhaust on a decompose
-  card, park with a structured "decomposition starved" brief (name `task redrive` in it) instead of a bare
-  awaiting_review; (2) the 23:22:43 zombie attempt-row writer must fail loudly; (3) the run-4 walls below
-  (restart brief carrying the builder's node list, the unexplained `attention` ender, durable plan-builder
-  state).
+  **▶ LAYER 1 FULLY CLOSED (2026-08-22, three pinned fixes):** the start-guard swallow (894834f1a), the
+  dead-run tool-event bounce (1a0e90ba2), and the TERMINAL brief (6284aba78 — a plan-mode session reaching
+  awaiting_review without an applied decomposition now carries a "Decomposition did not complete" warning
+  naming the operator levers; applied-decomposition tracking via a wrapped handler).
+  **STILL OPEN in this entry:** (2) the 23:22:43 zombie attempt-row writer must fail loudly; (3) the run-4
+  walls below (restart brief carrying the builder's node list, the unexplained `attention` ender, durable
+  plan-builder state).
   **▶ LIVE RECURRENCE WITH THE GUARD FIX IN (resume-02 cycle 3, 2026-08-21, `.real-runs/20260821-041222`):**
   two worker cards went "marooned In Progress with no live session" (watchdog recovered both to Review, result
   branches captured) — so a dispatch-loss path past the start guard exists; that is layer (2)'s writer or a
