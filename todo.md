@@ -78,6 +78,14 @@ Broad blocked phases inherit these named gates (an item's narrower inline gate i
 runs them safely in parallel, reviews and merges their work, and gives the operator a clear view of healthy, stuck,
 risky, and completed work. It must remain useful with one model and exploit role/model diversity when more are present.
 
+**RELEASE TARGET (David 2026-08-22): 0.0.1 is the complete SINGLE-HOST story** — everything that matters for an
+operator with one machine and some local LLM compute must be in 0.0.1: decomposition, routing, sandboxed parallel
+execution, review/merge, recovery/redrive, model management (multiple MODELS on one host is squarely 0.0.1 — the
+multi-model-vs-multi-host correction stands), measurement, and operator clarity. **Anything that DEPENDS on more
+than one real compute host (multi-LM-Link-host topology, cross-host routing proofs, a second physical runner) is
+0.0.2+** — optional compute layered on top, never a prerequisite for core behavior. When triaging an item, ask
+"does this need a second HOST, or just a second MODEL?" — only the former defers.
+
 Keep a package only when it materially improves at least one of: task completion, correctness/safety, local-model
 capability, operator clarity, performance/resource use, maintainability needed by a feature, or release readiness.
 Challenge-found defects become concrete packages at the right position; speculative churn does not.
@@ -4780,7 +4788,9 @@ stays fast + complete.
   sequentially against a fixed resident set. Run the calibrated 24-task repeated A/B tranche; add the Terminal-Bench
   control and execute the now-shipped LiveCodeBench control against the matched resident fleet; obtain a native x86_64
   Docker runner for the quarterly Live tranche; then wire the calibrated delta gate/nightly evidence.
-  - [ ] **F11.3g — Pin and run the repeatable regression tranche (delta, not absolute).** *(2026-08-22 SINGLE-HOST
+  - [ ] **F11.3g — Pin and run the repeatable regression tranche (delta, not absolute).** *(RELEASE SPLIT
+    2026-08-22: the SINGLE-HOST arm is the 0.0.1 deliverable; the pre-registered three-host arm and the
+    SWE-bench-Live native x86_64 runner are 0.0.2+ — multi-host compute on top, not core.)* *(2026-08-22 SINGLE-HOST
     ARM STATUS: eleven launches; every refusal was a real defect, fixed in order — fleet purity, campaign identity,
     pinned-start retry (d0d857800), harness-commit freeze discipline, redecompose-rung opt-out
     (NKLEIN_REVIEW_REDECOMPOSE=0, 875719eb6), per-attempt workspace retirement (39048a3be), the surfaced
