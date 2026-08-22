@@ -614,7 +614,16 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		if (isUserAttentionTool && (entry.summary.state === "running" || entry.summary.state === "idle")) {
 			summaryPatch.state = "awaiting_review";
 			summaryPatch.reviewReason = "hook";
-		} else if (!isUserAttentionTool && canReturnToRunning(entry.summary.reviewReason)) {
+		} else if (
+			!isUserAttentionTool &&
+			canReturnToRunning(entry.summary.reviewReason) &&
+			// P0.DSTALL layer 1: a tool event arriving AFTER the run ended (heartbeat "lost" is written only by
+			// terminal turn-end paths) is bookkeeping, not liveness. Reviving to `running` here produced the
+			// sessionless zombie: awaiting_review(hook) → running with NO session behind it, dead for 20 minutes
+			// (run `.real-runs/20260820-222524`). The card stays where the turn end put it; a REAL new turn
+			// re-marks running through the run-started path.
+			entry.summary.heartbeatStatus !== "lost"
+		) {
 			summaryPatch.state = "running";
 			summaryPatch.reviewReason = null;
 		}
@@ -711,7 +720,12 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		if (isUserAttentionTool && (entry.summary.state === "running" || entry.summary.state === "idle")) {
 			summaryPatch.state = "awaiting_review";
 			summaryPatch.reviewReason = "hook";
-		} else if (!isUserAttentionTool && canReturnToRunning(entry.summary.reviewReason)) {
+		} else if (
+			!isUserAttentionTool &&
+			canReturnToRunning(entry.summary.reviewReason) &&
+			// P0.DSTALL layer 1 (same guard as the tool-call site): post-run bookkeeping must not revive.
+			entry.summary.heartbeatStatus !== "lost"
+		) {
 			summaryPatch.state = "running";
 			summaryPatch.reviewReason = null;
 		}

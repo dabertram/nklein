@@ -77,6 +77,72 @@ function runtimeSnapshot(iteration = 1) {
 }
 
 describe("applyNKleinSessionEvent", () => {
+	it("P0.DSTALL: a tool event after the run ended (heartbeat lost) does NOT revive the card to running", () => {
+		const entry = createEntry("task-1");
+		entry.summary = {
+			...entry.summary,
+			state: "awaiting_review",
+			reviewReason: "hook",
+			heartbeatStatus: "lost",
+		};
+		const { summaries } = applyEvent({
+			entry,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "tool-started",
+						snapshot: runtimeSnapshot(),
+						iteration: 1,
+						toolCall: {
+							type: "tool-call",
+							toolCallId: "tool-late",
+							toolName: "read_files",
+							input: {},
+						},
+					},
+				},
+			},
+		});
+		// The late tool event is bookkeeping: the summary may update activity, but never the STATE — reviving a
+		// finished run to `running` produced the 20-minute sessionless zombie (run .real-runs/20260820-222524).
+		const latest = summaries[summaries.length - 1];
+		expect(latest?.state ?? entry.summary.state).toBe("awaiting_review");
+	});
+
+	it("a tool event on a LIVE run (heartbeat healthy) still revives hook-parked awaiting_review to running", () => {
+		const entry = createEntry("task-1");
+		entry.summary = {
+			...entry.summary,
+			state: "awaiting_review",
+			reviewReason: "hook",
+			heartbeatStatus: "healthy",
+		};
+		const { summaries } = applyEvent({
+			entry,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "tool-started",
+						snapshot: runtimeSnapshot(),
+						iteration: 1,
+						toolCall: {
+							type: "tool-call",
+							toolCallId: "tool-live",
+							toolName: "read_files",
+							input: {},
+						},
+					},
+				},
+			},
+		});
+		const latest = summaries[summaries.length - 1];
+		expect(latest?.state).toBe("running");
+	});
+
 	it("emits a structured execution clarification when the native ask tool starts", () => {
 		const asks: Array<{ taskId: string; toolCallId: string | null; question: string; options: string[] }> = [];
 		applyEvent({
