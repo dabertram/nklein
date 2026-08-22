@@ -193,7 +193,13 @@ function describeDependencyRejection(result: Extract<DagOpResult, { ok: false }>
  * Build the `add_task` + `add_dependency` incremental-construction tools over one shared session state.
  * Each result echoes accepted/rejected per operation with the precise reason, plus the running graph size.
  */
-export function createIncrementalDagTools(state: IncrementalDagSessionState): AgentTool[] {
+export function createIncrementalDagTools(
+	state: IncrementalDagSessionState,
+	hooks?: {
+		/** P0.DSTALL layer 3: called after every accepted mutation so the construction can checkpoint durably. */
+		onCheckpoint?: () => void;
+	},
+): AgentTool[] {
 	const addTask: AgentTool = {
 		name: "add_task",
 		description:
@@ -305,10 +311,25 @@ export function createIncrementalDagTools(state: IncrementalDagSessionState): Ag
 			const nodeOutcome = applyDagOp(state.construction, { op: "add_node", id: task.id, label: task.title });
 			if (!nodeOutcome.result.ok) {
 				state.rejectedOpCount += 1;
-				throw new Error(`add_task rejected (${nodeOutcome.result.reason}): ${nodeOutcome.result.message}`);
+				// P0.DSTALL layer 3(b): a restarted model does not know its construction survived — the bare
+				// duplicate rejection sent it in circles (Dschinn run 4: three duplicate_node loops after
+				// restarts). Orient it: say what the construction already holds and how to finish.
+				const orientation =
+					nodeOutcome.result.reason === "duplicate_node"
+						? ` The construction already holds ${state.construction.nodes.length} task(s): ${state.construction.nodes
+								.slice(0, 40)
+								.map((node) => node.id)
+								.join(
+									", ",
+								)}${state.construction.nodes.length > 40 ? ", …" : ""}. Declare only NEW tasks, or finish now with a bare decompose_project (no tasks argument).`
+						: "";
+				throw new Error(
+					`add_task rejected (${nodeOutcome.result.reason}): ${nodeOutcome.result.message}${orientation}`,
+				);
 			}
 			state.construction = nodeOutcome.state;
 			state.tasksById.set(task.id, task);
+			hooks?.onCheckpoint?.();
 			// Validate the inline dependencies one edge at a time — a bad one is REPORTED, not silently dropped,
 			// and never blocks the already-accepted task declaration.
 			const rejectedDependencies: Array<{ dependsOn: string; reason: string; message: string }> = [];
@@ -318,6 +339,7 @@ export function createIncrementalDagTools(state: IncrementalDagSessionState): Ag
 				if (edgeOutcome.result.ok) {
 					state.construction = edgeOutcome.state;
 					acceptedDependencyCount += 1;
+					hooks?.onCheckpoint?.();
 				} else {
 					state.rejectedOpCount += 1;
 					rejectedDependencies.push({
@@ -386,6 +408,7 @@ export function createIncrementalDagTools(state: IncrementalDagSessionState): Ag
 				);
 			}
 			state.construction = outcome.state;
+			hooks?.onCheckpoint?.();
 			return {
 				ok: true,
 				taskId,

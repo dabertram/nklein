@@ -12,7 +12,7 @@ import { isCrashRecoveryMatrixPhaseEnabled, reachCrashRecoveryMatrixBarrier } fr
 import { loadWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { NKleinPlanTaskGraphQualityAssessment } from "./nklein-decomposition-graph-quality";
-import type { NKleinPlanTaskGraph } from "./nklein-plan-artifacts";
+import type { NKleinPlanTask, NKleinPlanTaskGraph } from "./nklein-plan-artifacts";
 import {
 	nkleinPlanTaskGraphSchema,
 	readNKleinPlanArtifacts,
@@ -204,6 +204,11 @@ import type { DecomposedSubtask } from "../core/decomposition-subtask-dag";
 import { validateSubtaskDag } from "../core/decomposition-subtask-dag";
 import { decidePlanCritique } from "../core/plan-critique-decision";
 import { formatHotFileWarnings } from "../core/work-package-card-shape";
+import {
+	clearDecomposeConstruction,
+	loadDecomposeConstruction,
+	saveDecomposeConstruction,
+} from "../state/decompose-construction-store";
 import { didTaskConsultKnowledge } from "../telemetry/knowledge-tool-usage-stats";
 import {
 	assertFleetReshardGraphAmendment,
@@ -249,6 +254,9 @@ function createDecomposeProjectTool(
 	requestPlanCritique?: NKleinPlanCritiqueRequestHandler,
 	requestClarifyTurn?: NKleinClarifyTurnHandler,
 	incrementalState?: IncrementalDagSessionState,
+	/** P0.DSTALL layer 3(a): drop the DURABLE construction checkpoint when the in-memory one is reset (keyed
+	 *  by the caller — the artifact path here can differ from the construction key's workspace path). */
+	onConstructionConsumed?: () => void,
 ): AgentTool {
 	// The originating card is trusted control-plane input and already carries its objective acceptance command. Small
 	// models often understand it yet omit defaultAcceptanceCommand from the final tool payload; recover that exact
@@ -661,6 +669,7 @@ function createDecomposeProjectTool(
 						// graph makes the advertised revision impossible: add_task rejects the stable ids as duplicates and there
 						// is no remove/update-edge operation. Start the single allowed revision from a clean construction.
 						resetIncrementalDagSessionState(incrementalState);
+						onConstructionConsumed?.();
 					}
 					if (critiqueAttempt >= MAX_PLAN_CRITIQUE_ATTEMPTS_PER_SLUG) {
 						throw new Error(
@@ -769,6 +778,7 @@ function createDecomposeProjectTool(
 				// The construction was consumed (or superseded by an explicit one-shot tasks array); a later
 				// decomposition in the same session starts from a clean slate either way.
 				resetIncrementalDagSessionState(incrementalState);
+				onConstructionConsumed?.();
 			}
 			return {
 				ok: true,
@@ -845,8 +855,45 @@ function getOrCreatePlanningConstructionState(workspacePath: string, sourceTaskI
 		return existing;
 	}
 	const created = createIncrementalDagSessionState();
+	// P0.DSTALL layer 3(a): a runtime teardown must not evaporate a part-built graph (Dschinn run 4 lost 30
+	// accepted nodes at teardown). Resume the durable checkpoint when one exists; a schema mismatch or a
+	// consumed construction simply yields a fresh state.
+	const persisted = loadDecomposeConstruction(workspacePath, sourceTaskId);
+	if (persisted) {
+		created.construction = {
+			nodes: persisted.construction.nodes.map((node) => ({
+				id: node.id,
+				...(node.label ? { label: node.label } : {}),
+			})),
+			edges: persisted.construction.edges.map((edge) => ({ from: edge.from, to: edge.to })),
+		};
+		for (const [id, task] of persisted.tasks) {
+			created.tasksById.set(id, task as NKleinPlanTask);
+		}
+		created.rejectedOpCount = persisted.rejectedOpCount;
+	}
 	planningConstructionStateByTarget.set(key, created);
 	return created;
+}
+
+function buildConstructionCheckpoint(
+	workspacePath: string,
+	sourceTaskId: string,
+	state: IncrementalDagSessionState,
+): () => void {
+	return () => {
+		saveDecomposeConstruction(workspacePath, sourceTaskId, {
+			construction: {
+				nodes: state.construction.nodes.map((node) => ({
+					id: node.id,
+					...(node.label ? { label: node.label } : {}),
+				})),
+				edges: state.construction.edges.map((edge) => ({ from: edge.from, to: edge.to })),
+			},
+			tasks: [...state.tasksById.entries()],
+			rejectedOpCount: state.rejectedOpCount,
+		});
+	};
 }
 
 export function createNKleinDecompositionTools(options: {
@@ -882,8 +929,22 @@ export function createNKleinDecompositionTools(options: {
 			options.requestPlanCritique,
 			options.requestClarifyTurn,
 			incrementalState,
+			options.sourceTaskId
+				? () => clearDecomposeConstruction(options.workspacePath, options.sourceTaskId ?? "")
+				: undefined,
 		),
 		createExpandTaskTool(),
-		...createIncrementalDagTools(incrementalState),
+		...createIncrementalDagTools(
+			incrementalState,
+			options.sourceTaskId
+				? {
+						onCheckpoint: buildConstructionCheckpoint(
+							options.workspacePath,
+							options.sourceTaskId,
+							incrementalState,
+						),
+					}
+				: undefined,
+		),
 	];
 }
