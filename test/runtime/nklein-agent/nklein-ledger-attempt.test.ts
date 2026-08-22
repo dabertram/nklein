@@ -3,9 +3,46 @@ import { agentLedgerEventSchema } from "../../../src/core/agent-attempt-ledger";
 import {
 	buildTerminalAttemptEvent,
 	hashWorkspacePathForLedger,
+	isZombieTerminalAttempt,
 	mapTerminalStateToOutcome,
 	type TerminalAttemptInput,
 } from "../../../src/nklein-agent/nklein-ledger-attempt";
+
+describe("isZombieTerminalAttempt (P0.DSTALL layer 2)", () => {
+	it("flags a terminal row whose session never ran a model turn", () => {
+		expect(
+			isZombieTerminalAttempt({
+				toolCalls: 0,
+				transcriptToolCallCount: 0,
+				promptTokens: null,
+				completionTokens: null,
+				toolSetOffered: [],
+			}),
+		).toBe(true);
+		expect(
+			isZombieTerminalAttempt({
+				toolCalls: 0,
+				transcriptToolCallCount: null,
+				promptTokens: null,
+				completionTokens: null,
+			}),
+		).toBe(true);
+	});
+	it("never flags an attempt with any sign of a real turn", () => {
+		const base = {
+			toolCalls: 0,
+			transcriptToolCallCount: 0,
+			promptTokens: null as number | null,
+			completionTokens: null as number | null,
+			toolSetOffered: [] as string[],
+		};
+		expect(isZombieTerminalAttempt({ ...base, toolCalls: 3 })).toBe(false);
+		expect(isZombieTerminalAttempt({ ...base, promptTokens: 12_000 })).toBe(false);
+		expect(isZombieTerminalAttempt({ ...base, completionTokens: 50 })).toBe(false);
+		expect(isZombieTerminalAttempt({ ...base, toolSetOffered: ["read_files"] })).toBe(false);
+		expect(isZombieTerminalAttempt({ ...base, transcriptToolCallCount: 4 })).toBe(false);
+	});
+});
 
 describe("mapTerminalStateToOutcome", () => {
 	it("maps awaiting_review → success regardless of timeout", () => {

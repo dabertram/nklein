@@ -258,6 +258,15 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	{
+		// ── P0.DSTALL layer 2: loud zombie attempt-row writer (2026-08-22) ──
+		category: "zombie_terminal_attempt",
+		item: "P0.DSTALL",
+		observes:
+			"a terminal ledger attempt recorded for a session that never ran a model turn (no tools offered, no tokens, no tool calls) — a swallowed start or lost dispatch leaving zombie evidence",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
 		// ── F3.38 unattended autonomy budget (2026-08-19) ──
 		category: "unattended_autonomy_hold",
 		item: "F3.38",

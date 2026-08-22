@@ -141,6 +141,7 @@ import {
 import {
 	buildTerminalAttemptEvent,
 	hashWorkspacePathForLedger,
+	isZombieTerminalAttempt,
 	resolveAttemptToolCallDelta,
 	resolveTaskKnowledgeDebtPresent,
 } from "./nklein-ledger-attempt";
@@ -4238,6 +4239,27 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					}),
 					{ rootDir: this.agentLedgerRoot },
 				);
+				// P0.DSTALL layer 2: a terminal row for a session that never ran a model turn is the ZOMBIE
+				// signature (run-3: two rows 129ms apart for swallowed starts). The row stays — evidence is never
+				// silently dropped — but the writer is LOUD so the pattern is diagnosable the moment it recurs.
+				if (
+					isZombieTerminalAttempt({
+						toolCalls: attemptToolCalls.length,
+						transcriptToolCallCount,
+						promptTokens: this.sessionRuntime.getSessionLastRequestInputTokens(taskId),
+						completionTokens,
+						toolSetOffered: this.sessionRuntime.getSessionOfferedToolNames(taskId) ?? undefined,
+					})
+				) {
+					recordSelfObservation({
+						signal: "runtime_error",
+						severity: "warning",
+						message: `Zombie terminal attempt recorded for ${taskId} (state ${state}): the session never ran a model turn — no tools offered, no tokens, no tool calls. A start was likely swallowed or the dispatch was lost (P0.DSTALL).`,
+						taskId,
+						workspacePath: hostWorkspacePath,
+						metadata: { category: "zombie_terminal_attempt", state },
+					});
+				}
 				// F4.19: distill this finished task into the ProceduralSkillBank (opt-in NKLEIN_PROCEDURAL_SKILLS — the SAME
 				// flag the consumer reads). A clean worker finish (`awaiting_review`, not failed/interrupted) with a
 				// substantive completed focus chain becomes a CANDIDATE procedure — never surfaced until the lifecycle

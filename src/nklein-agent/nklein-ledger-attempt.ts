@@ -133,6 +133,29 @@ export function resolveAttemptToolCallDelta(input: {
 }
 
 /** Build the `attempt` ledger event for one terminal task run. Pure (no I/O); the caller appends it best-effort. */
+/**
+ * P0.DSTALL layer 2: the ZOMBIE-attempt signature — a terminal row for a session that never actually ran a
+ * model turn (run `.real-runs/20260820-222524`: two rows 129ms apart, empty tool set, no tokens, no tool
+ * calls, for starts the guard had swallowed). The row itself still gets recorded — evidence is never
+ * silently dropped — but the writer must be LOUD about it, because these rows otherwise poison per-model
+ * outcome stats with failures the model never had a chance at.
+ */
+export function isZombieTerminalAttempt(input: {
+	toolCalls: number;
+	transcriptToolCallCount: number | null;
+	promptTokens: number | null;
+	completionTokens: number | null;
+	toolSetOffered?: readonly string[] | undefined;
+}): boolean {
+	return (
+		input.toolCalls === 0 &&
+		(input.transcriptToolCallCount ?? 0) === 0 &&
+		input.promptTokens === null &&
+		input.completionTokens === null &&
+		(input.toolSetOffered === undefined || input.toolSetOffered.length === 0)
+	);
+}
+
 export function buildTerminalAttemptEvent(input: TerminalAttemptInput): AgentAttemptEvent {
 	const durationMs =
 		input.startedAt !== null && input.endedAt > input.startedAt ? input.endedAt - input.startedAt : null;
