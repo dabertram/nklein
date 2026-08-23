@@ -627,13 +627,10 @@ async function executeBenchmarkTask(input: BenchmarkTaskExecutionInput): Promise
 			`[benchmark] session stop before capture failed for ${input.runId}: ${error instanceof Error ? error.message : String(error)}\n`,
 		);
 	}
-	const captured = await captureBenchmarkWorkspaceResult({
-		repoPath: input.workspacePath,
-		baseCommit: sealed.baseCommit,
-		runId: input.runId,
-		taskId: input.runId,
-	});
-	// Retire the attempt's runtime registration once its result is captured. A plan-variant attempt spawns
+	// Retire the attempt's runtime registration BEFORE capture (arm k5: retiring after left a window in
+	// which the dead-card rescue RESTARTED the just-stopped attempt — "left no captured work — attempting ONE
+	// fresh restart" — and the revived session held the campaign's idle-fleet gate again). A card with no
+	// registered workspace cannot be rescued; grading reads the FILESYSTEM, which stays. A plan-variant attempt spawns
 	// child cards BY DESIGN, and residue left registered kept looping the dispatch sweeps ("1 startable card
 	// lacks an active session" / rescue HANDOVER) and held the host's admission view — the next attempt's
 	// pinned start then refused "not currently selectable" for minutes (aider single-host arm, 2026-08-21).
@@ -653,6 +650,12 @@ async function executeBenchmarkTask(input: BenchmarkTaskExecutionInput): Promise
 			`[benchmark] attempt workspace retirement failed for ${runtimeWorkspaceId}: ${error instanceof Error ? error.message : String(error)}\n`,
 		);
 	}
+	const captured = await captureBenchmarkWorkspaceResult({
+		repoPath: input.workspacePath,
+		baseCommit: sealed.baseCommit,
+		runId: input.runId,
+		taskId: input.runId,
+	});
 	return {
 		seedTaskId: execution.seedTaskId,
 		durationMs: execution.durationMs,
