@@ -142,6 +142,8 @@ export interface ExecuteDevTestScenarioInput {
 	nkleinSettings?: RuntimeTaskNKleinSettings;
 	startInPlanMode?: boolean;
 	autoReviewEnabled?: boolean;
+	/** F11.3g: mark the seed externally supervised — !Klein's rescue machinery leaves its terminals alone. */
+	externallySupervised?: boolean;
 	autoReviewMode?: RuntimeTaskAutoReviewMode;
 	testEvidencePolicy?: RuntimeTaskTestEvidencePolicy;
 	nullAgent?: boolean;
@@ -255,6 +257,7 @@ export async function executeDevTestScenario(
 								// themselves (plan-task-board-apply.ts); the benchmark harness already passed
 								// `true` explicitly. Pass `false` deliberately to exercise the manual-review path.
 								autoReviewEnabled: input.autoReviewEnabled ?? true,
+								...(input.externallySupervised ? { externallySupervised: true } : {}),
 								...(input.autoReviewMode ? { autoReviewMode: input.autoReviewMode } : {}),
 								...(input.testEvidencePolicy ? { testEvidencePolicy: input.testEvidencePolicy } : {}),
 								...(payload.nkleinSettings ? { nkleinSettings: payload.nkleinSettings } : {}),

@@ -211,6 +211,9 @@ export const runtimeBoardCardSchema = z
 		// tier at the auto-delivery gate. Additive optional field (CRDT whole-object LWW), so older boards load as-is.
 		deliveryTierOverride: agentDeliveryTierSchema.optional(),
 		autoReviewEnabled: z.boolean().optional(),
+		/** F11.3g: an EXTERNALLY SUPERVISED card (benchmark harness, external driver) — !Klein's autonomous
+		 *  rescue/redrive machinery must leave its terminal states to the supervisor. Additive; absent = false. */
+		externallySupervised: z.boolean().optional(),
 		autoReviewMode: runtimeTaskAutoReviewModeSchema.optional(),
 		autoReviewStatus: z.enum(["running", "failed"]).optional(),
 		autoReviewMessage: z.string().optional(),

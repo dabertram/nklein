@@ -1772,10 +1772,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				const redriveTaskIds: string[] = [];
 				if (terminalTaskId && !activeSessionTaskIds.has(terminalTaskId) && !pausedHeldTaskIds.has(terminalTaskId)) {
 					const redriveKey = `${scope.workspaceId}:${terminalTaskId}`;
-					const lane = state.board.columns.find((column) =>
-						column.cards.some((card) => card.id === terminalTaskId),
-					)?.id;
-					if (
+					const terminalCardRecord = state.board.columns
+						.flatMap((column) => column.cards.map((card) => ({ laneId: column.id, card })))
+						.find((candidate) => candidate.card.id === terminalTaskId);
+					const lane = terminalCardRecord?.laneId;
+					// F11.3g: an EXTERNALLY SUPERVISED card's terminals belong to its harness — the rescue
+					// restarting a deliberately-stopped benchmark attempt held the campaign's fleet gate hostage
+					// (arms k5/k6). Boards the product owns are unaffected (flag absent = false).
+					if (terminalCardRecord?.card.externallySupervised === true) {
+						deps.warn(
+							`Dead card ${terminalTaskId} is externally supervised — leaving its terminal state to the supervisor (no rescue restart).`,
+						);
+					} else if (
 						(lane === "in_progress" || lane === "planning") &&
 						!terminalRedriveAttemptedTaskKeys.has(redriveKey)
 					) {

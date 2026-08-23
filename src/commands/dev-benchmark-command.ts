@@ -587,6 +587,9 @@ async function executeBenchmarkTask(input: BenchmarkTaskExecutionInput): Promise
 			// campaign runner's idle-fleet gate (arm k3, 2026-08-22: pilot green, full run refused "resident set
 			// did not become idle within 900 seconds" while the pilot's review ground on).
 			autoReviewEnabled: false,
+			// F11.3g: the harness owns this card's lifecycle end to end — the rescue machinery must not restart
+			// its terminals (arm k5/k6: the dead-card rescue revived stopped attempts and held the fleet gate).
+			externallySupervised: true,
 			autoReviewMode: "commit",
 			testEvidencePolicy: input.testEvidencePolicy,
 			...(input.modelId

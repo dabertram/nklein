@@ -42,6 +42,8 @@ export interface RuntimeCreateTaskInput {
 	prompt: string;
 	startInPlanMode?: boolean;
 	autoReviewEnabled?: boolean;
+	/** F11.3g: externally supervised card — autonomous rescue leaves its terminals to the supervisor. */
+	externallySupervised?: boolean;
 	autoReviewMode?: RuntimeTaskAutoReviewMode;
 	testEvidencePolicy?: RuntimeTaskTestEvidencePolicy;
 	/** F1.34b-ext: upfront testability declaration (decompose-time or operator-set; absent ⇒ testable). */
@@ -395,6 +397,7 @@ export function addTaskToColumn(
 		prompt,
 		startInPlanMode: Boolean(input.startInPlanMode),
 		autoReviewEnabled: Boolean(input.autoReviewEnabled),
+		...(input.externallySupervised ? { externallySupervised: true } : {}),
 		autoReviewMode: normalizeTaskAutoReviewMode(input.autoReviewMode),
 		...(input.testEvidencePolicy ? { testEvidencePolicy: input.testEvidencePolicy } : {}),
 		...normalizeTaskTestabilityFields(input.testability, input.testabilityReason),
