@@ -1050,6 +1050,59 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		};
 	}
 
+	/**
+	 * #37 fork-retry ACTING half (David-authorized 2026-08-23; NKLEIN_BOUNCE_FORK_RETRY): restart the SAME
+	 * task with its context REWOUND to the latest safe step boundary and the re-work brief as the new
+	 * instruction — the bounce keeps the worker's orientation while dropping the mistake tail, instead of
+	 * either continuing atop the polluted context or restarting cold. Same card, same sandbox, same identity;
+	 * the fork-plan core supplies the boundary math (the synthetic fork id feeds only provenance/refusals).
+	 */
+	async rewindTaskSessionForRetry(
+		taskId: string,
+		prompt: string,
+	): Promise<{ rewound: boolean; boundaryIndex: number | null; refusalKind: string | null }> {
+		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(taskId).catch(() => null);
+		if (!persistedSnapshot?.messages?.length) {
+			return { rewound: false, boundaryIndex: null, refusalKind: "empty_source" };
+		}
+		const planned = buildSessionForkPlan({
+			sourceTaskId: taskId,
+			forkTaskId: `${taskId}::rewind`,
+			messages: persistedSnapshot.messages,
+			boundary: "latest",
+			forkedAt: new Date().toISOString(),
+		});
+		if ("refusal" in planned) {
+			return { rewound: false, boundaryIndex: null, refusalKind: planned.refusal.kind };
+		}
+		const launchConfig = this.resolveRestartLaunchConfig({ taskId, persistedSnapshot });
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Bounce fork-retry: ${taskId} rewound to message ${planned.plan.provenance.boundaryIndex} of ${persistedSnapshot.messages.length} for the re-work attempt.`,
+				taskId,
+				metadata: {
+					category: "bounce_fork_retry_acted",
+					boundaryIndex: planned.plan.provenance.boundaryIndex,
+					messageCount: persistedSnapshot.messages.length,
+				},
+			});
+		} catch {
+			// Observability must never break the retry.
+		}
+		await this.restartTaskSessionFromResolvedConfig({
+			taskId,
+			prompt,
+			mode: "act",
+			initialMessages: planned.plan.initialMessages,
+			launchConfig,
+			persistedSnapshot,
+			fallbackCwd: persistedSnapshot.record?.cwd ?? null,
+		});
+		return { rewound: true, boundaryIndex: planned.plan.provenance.boundaryIndex, refusalKind: null };
+	}
+
 	async forkTaskSessionAtBoundary(input: {
 		sourceTaskId: string;
 		forkTaskId: string;

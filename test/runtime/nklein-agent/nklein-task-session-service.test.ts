@@ -6098,6 +6098,52 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			.map((message) => message.content);
 		expect(assistantMessages).toEqual(["Done."]);
 	});
+	it("#37 acting: rewindTaskSessionForRetry restarts the SAME task with context cut at the boundary and the brief as prompt", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({ taskId: "task-rw", cwd: "/tmp/worktree", prompt: "Do the work" });
+		await waitForTaskSessionId(runtime, "task-rw");
+		runtime.readPersistedTaskSessionMock.mockResolvedValue({
+			record: {
+				sessionId: "task-rw",
+				source: "core" as NKleinPersistedTaskSessionSnapshot["record"]["source"],
+				status: "completed",
+				startedAt: "2026-08-24T00:00:00.000Z",
+				updatedAt: "2026-08-24T00:01:00.000Z",
+				interactive: true,
+				provider: "lmstudio",
+				model: "qwen/qwen2.5-coder-14b",
+				cwd: "/tmp/worktree",
+				workspaceRoot: "/host/repo",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				isSubagent: false,
+				metadata: {},
+			},
+			messages: [
+				{ role: "user", content: "objective" },
+				{ role: "assistant", content: "step 1 done" },
+				{ role: "assistant", content: [{ type: "tool_use", id: "t1", name: "write_file", input: {} }] },
+			],
+		});
+		const outcome = await service.rewindTaskSessionForRetry?.("task-rw", "REWORK BRIEF: fix it");
+		if (!outcome) throw new Error("rewindTaskSessionForRetry missing");
+		expect(outcome.rewound).toBe(true);
+		// The dangling tool_use at index 2 is not a boundary; index 1 is the latest safe one.
+		expect(outcome.boundaryIndex).toBe(1);
+		const lastStart = runtime.startTaskSessionMock.mock.calls.at(-1)?.[0];
+		expect(lastStart?.taskId).toBe("task-rw");
+		expect(lastStart?.prompt).toBe("REWORK BRIEF: fix it");
+		expect(lastStart?.initialMessages?.length).toBe(2);
+	});
+
+	it("#37 acting: rewind refuses honestly on an empty source", async () => {
+		const { service, runtime } = createTrackedService();
+		runtime.readPersistedTaskSessionMock.mockResolvedValue(null);
+		const outcome = await service.rewindTaskSessionForRetry?.("task-none", "brief");
+		expect(outcome).toEqual({ rewound: false, boundaryIndex: null, refusalKind: "empty_source" });
+	});
+
 	it("P0.DSTALL layer 1: a plan-mode run that ends without an applied decomposition carries the starved brief", async () => {
 		const { service, runtime } = createTrackedService();
 		await service.startTaskSession({

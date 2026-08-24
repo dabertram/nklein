@@ -145,6 +145,7 @@ export interface RunSecondOpinionReviewForTaskInput {
 				| "noteNextAttemptStrategy"
 				| "markSandboxRecaptureExpected"
 				| "previewSessionForkBoundary"
+				| "rewindTaskSessionForRetry"
 			>
 		>;
 	loadWorkspaceState?: typeof loadWorkspaceState;
@@ -1291,6 +1292,41 @@ export async function runSecondOpinionReviewForTask(
 						// Recovery telemetry must never break the re-drive.
 					}
 					return;
+				}
+				// #37 ACTING half (NKLEIN_BOUNCE_FORK_RETRY, David-authorized 2026-08-23): when eligible, REWIND
+				// the worker to its latest safe boundary and deliver the brief there — orientation kept, mistake
+				// tail dropped. Every refusal or error falls through to the ordinary in-context re-drive; the
+				// observe-only stream above keeps recording either way.
+				if (isTruthyEnv(process.env.NKLEIN_BOUNCE_FORK_RETRY) && input.service.rewindTaskSessionForRetry) {
+					try {
+						const preview = (await input.service.previewSessionForkBoundary?.(input.taskId)) ?? null;
+						const actPlan = planBounceForkRetry({
+							preview,
+							alreadyEscalated:
+								escalatedWorkerTaskIds.has(escalatedWorkerKey(input.workspacePath, input.taskId)) ||
+								card.review?.escalated === true,
+							specMirrorActive: Boolean(input.speculativeResultCommit),
+						});
+						if (actPlan.eligible) {
+							const rewound = await input.service.rewindTaskSessionForRetry(
+								input.taskId,
+								`${workerPrompt}${fileScopeNote}`,
+							);
+							if (rewound.rewound) {
+								input.warn?.(
+									`Bounce fork-retry for ${input.taskId}: rewound to boundary ${rewound.boundaryIndex} for the re-work attempt.`,
+								);
+								return;
+							}
+							input.warn?.(
+								`Bounce fork-retry for ${input.taskId} refused (${rewound.refusalKind ?? "unknown"}) — falling back to the in-context re-drive.`,
+							);
+						}
+					} catch (error) {
+						input.warn?.(
+							`Bounce fork-retry for ${input.taskId} failed (${error instanceof Error ? error.message : String(error)}) — falling back to the in-context re-drive.`,
+						);
+					}
 				}
 				await input.service.sendTaskSessionInput(input.taskId, `${workerPrompt}${fileScopeNote}`, "act");
 			},

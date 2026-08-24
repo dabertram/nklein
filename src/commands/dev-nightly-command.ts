@@ -275,6 +275,9 @@ const PROFILE_EXTRA_ENV: Readonly<Record<string, Readonly<Record<string, string>
 		// Added 2026-08-01 with the memory_freshness_audit registration. Same class as NKLEIN_SANDBOX_MCP and
 		// NKLEIN_UNIFIED_MEMORY, already in this lane: it adds agent tooling rather than altering the drain shape.
 		NKLEIN_BASIC_MEMORY: "1",
+		// #37 acting half (David-authorized 2026-08-23): the bounce path rewinds the SAME task to its safe
+		// boundary instead of appending the brief to a poisoned transcript. SIM-safe — worst case is a retried card.
+		NKLEIN_BOUNCE_FORK_RETRY: "1",
 		NKLEIN_DRIFT_CRITIC: "1",
 		// P18.4b acting half (2026-08-11): exercised here where the remedies can only ever discard SIM work; the
 		// production default stays OFF behind the dev mechanism-decision evidence bar.

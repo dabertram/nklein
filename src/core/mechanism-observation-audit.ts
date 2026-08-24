@@ -276,6 +276,15 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 	},
 	{
+		// ── #37 bounce fork-retry, ACTING half (2026-08-24) ──
+		category: "bounce_fork_retry_acted",
+		item: "§5.AW",
+		observes:
+			"a review bounce actually REWOUND the worker to its safe boundary for the re-work attempt (NKLEIN_BOUNCE_FORK_RETRY on) — boundary index + message count recorded",
+		enabledBy: "NKLEIN_BOUNCE_FORK_RETRY",
+		expectation: "exceptional",
+	},
+	{
 		// ── #37 bounce fork-retry, observe-first (2026-08-18) ──
 		category: "bounce_fork_retry_observed",
 		item: "§5.AW",

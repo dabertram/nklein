@@ -74,6 +74,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 	{ flag: "NKLEIN_TOOL_GATE_OBSERVE", mode: "observe_only", gate: "nklein-context-focus-extension.ts" },
 	{ flag: "NKLEIN_TOOL_GATE_ENFORCE", mode: "enforcing", gate: "nklein-context-focus-extension.ts" },
 	{
+		flag: "NKLEIN_BOUNCE_FORK_RETRY",
+		mode: "enforcing",
+		gate: "second-opinion-review-runner.ts (onBounce: rewind-to-boundary retry instead of the in-context re-drive)",
+		note: "#37 acting half, David-authorized 2026-08-23. Eligibility via planBounceForkRetry (the observe stream keeps recording); every refusal/error falls back to the ordinary re-drive.",
+	},
+	{
 		flag: "NKLEIN_DRIFT_REMEDY_ENFORCE",
 		mode: "enforcing",
 		gate: "nklein-session-runtime.ts (hands the extension the onOffTrackRemedy action callback)",

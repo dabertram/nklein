@@ -166,6 +166,11 @@ export interface NKleinTaskSessionService {
 	previewSessionForkBoundary?: (
 		taskId: string,
 	) => Promise<{ messageCount: number; boundaryIndex: number | null } | null>;
+	/** #37 acting half: rewind THIS task to its latest safe boundary and restart on the given brief. */
+	rewindTaskSessionForRetry?: (
+		taskId: string,
+		prompt: string,
+	) => Promise<{ rewound: boolean; boundaryIndex: number | null; refusalKind: string | null }>;
 	onSummary(listener: (summary: RuntimeTaskSessionSummary) => void): () => void;
 	/** F3.2 failover leg: stash the router's ranked candidate model keys (fitness-blended, best first) for a task. */
 	setTaskFailoverCandidates(taskId: string, rankedModelKeys: readonly string[]): void;
