@@ -159,7 +159,6 @@ const ADAPTIVE_TRUNCATION_LADDER_FLAG = "NKLEIN_CHAT_ADAPTIVE_TRUNCATION";
  * thinking (the model's verified soft switch), and retry ONCE with a commit-now nudge — the mid-turn complement
  * to the post-turn §5.AA rungs. Applies only to reasoning models with a verified thinking control.
  */
-const REASONING_BREACH_FLAG = "NKLEIN_REASONING_BREACH";
 /** The visible seam when a breach retry replaces the turn (same UX contract as the continuation marker). */
 export const REASONING_BREACH_MARKER = "\n\n_(reasoning budget exceeded — retrying with thinking off)_\n\n";
 const TRUNCATION_RETRY_MAX_ATTEMPTS = 3;

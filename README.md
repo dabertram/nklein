@@ -41,6 +41,11 @@ after the brief is complete. Pasted and local-file references are treated as unt
 unless retrieval egress is explicitly enabled.
 Run `nklein setup` for the same global + project recommendations in a terminal (`--scope global|project|all`, with
 `--json` for automation); it only inspects configuration and local readiness and does not mark setup complete.
+To install a model, `nklein setup acquire <modelKey>` previews the pick — declared format with a weights-only
+safety verdict, size, publisher, and whether it fits this machine's memory — and downloads only when you re-run
+with `--approve`. Downloads are per-model consent, setup-time only; the autonomous runtime cannot reach the
+capability at all. The frontier radar (bottom-right in the UI) keeps a researched shortlist of new local models
+and renders each recommendation's acquire command — it never downloads anything itself.
 
 ### What It Does
 
