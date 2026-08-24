@@ -4827,8 +4827,14 @@ stays fast + complete.
     itself the first time something resolves). Getting here took seven arms, each converting a launch failure
     into a named product/harness fix: the pinned best-effort bridge, per-attempt workspace retirement, the
     redecompose opt-out, benchmark auto-review off, abandoned-session stops, retire-before-capture, and the
-    `externallySupervised` card flag (c7691fbc6). REMAINING LEAF: wire the campaign as the nightly delta lane
-    (report-only until something resolves). *(2026-08-20
+    `externallySupervised` card flag (c7691fbc6). **DELTA LANE WIRED 2026-08-24:** the armk7 zero-floor
+    snapshots are PINNED in-repo (`benchmark-harness/aider-polyglot/baselines/single-host-qwen38med/`) and
+    `dev nightly` now grades the newest BANKED campaign against them (`summarizeAiderDeltaLane` +
+    `evaluateAiderRegressionGate`, both arms) — the nightly never runs GPU work, it only reads receipts.
+    Idle when nothing fresh is banked; the lane FAILS only on a resolved→unresolved verdict or a lane-config
+    error (fail-closed on arm/repeats drift); with the zero-resolved baseline every grade is "inconclusive —
+    no regression gradient" and PASSES, so the fail rule arms itself at the first banked resolve. F11.3g's
+    single-host 0.0.1 scope is now COMPLETE: campaign + baseline + nightly delta gate. *(2026-08-20
     DISPOSITION under David's "work around the missing fleet": this is **GPU-TIME-bound, not fleet-bound**.
     Checked rather than assumed — `aider-polyglot-campaign.ts` validates an arbitrary `assignments` array
     (instanceId + modelId) and imposes NO host requirement; the three-host split lives only in the

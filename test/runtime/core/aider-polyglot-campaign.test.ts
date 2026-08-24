@@ -11,6 +11,7 @@ import {
 	planAiderCampaign,
 	selectAiderCampaignPilotAttempts,
 	summarizeAiderCampaign,
+	summarizeAiderDeltaLane,
 } from "../../../src/core/aider-polyglot-campaign";
 
 const manifest: AiderPolyglotManifest = {
@@ -193,5 +194,63 @@ describe("Aider paired campaign", () => {
 			inconclusive: ["aider-python-task-1"],
 		});
 		expect(() => evaluateAiderRegressionGate(baseline, { ...unavailable, repeats: 3 })).toThrow(/same repeat count/);
+	});
+
+	it("F11.3g delta lane: idle without a fresh campaign, passes on the zero-floor baseline, fails closed on drift", () => {
+		const config = parseAiderCampaignConfig(rawConfig(), manifest);
+		const attempts = planAiderCampaign(config);
+		const result = (status: "resolved" | "unresolved") =>
+			attempts.map((attempt) => ({
+				...attempt,
+				status,
+				workflowOutcome: "completed",
+				patchBytes: 10,
+				durationMs: 100,
+			}));
+		const zeroFloorBaseline = buildAiderRegressionSnapshot(config, result("unresolved"), "plan");
+
+		expect(summarizeAiderDeltaLane({ baselines: [zeroFloorBaseline], current: null })).toMatchObject({
+			outcome: "idle",
+		});
+		expect(summarizeAiderDeltaLane({ baselines: [], current: null })).toMatchObject({ outcome: "failed" });
+
+		// Zero-resolved baseline: every graded campaign is "inconclusive — no regression gradient" and the lane
+		// PASSES on it (report-only until something resolves — the fail rule arms itself at the first resolve).
+		const fresh = { ...buildAiderRegressionSnapshot(config, result("unresolved"), "plan"), campaignId: "armk8" };
+		const graded = summarizeAiderDeltaLane({
+			baselines: [zeroFloorBaseline],
+			current: { campaignId: "armk8", snapshots: [fresh] },
+		});
+		expect(graded.outcome).toBe("passed");
+		expect(graded.reason).toContain("no regression gradient");
+
+		// A resolved baseline row regressing to unresolved FAILS the lane.
+		const resolvedBaseline = buildAiderRegressionSnapshot(config, result("resolved"), "plan");
+		const regressedRun = {
+			...buildAiderRegressionSnapshot(config, result("unresolved"), "plan"),
+			campaignId: "armk9",
+		};
+		expect(
+			summarizeAiderDeltaLane({
+				baselines: [resolvedBaseline],
+				current: { campaignId: "armk9", snapshots: [regressedRun] },
+			}),
+		).toMatchObject({ outcome: "failed" });
+
+		// Repeats drift between snapshot pairs is a lane-config DEFECT, not an idle: fail closed.
+		expect(
+			summarizeAiderDeltaLane({
+				baselines: [zeroFloorBaseline],
+				current: { campaignId: "armk10", snapshots: [{ ...fresh, repeats: 3 }] },
+			}).outcome,
+		).toBe("failed");
+
+		// A campaign that banked no snapshot for a baseline arm is likewise a loud lane-config failure.
+		expect(
+			summarizeAiderDeltaLane({
+				baselines: [zeroFloorBaseline],
+				current: { campaignId: "armk11", snapshots: [] },
+			}).outcome,
+		).toBe("failed");
 	});
 });

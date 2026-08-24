@@ -417,3 +417,67 @@ export function evaluateAiderRegressionGate(
 		reason,
 	};
 }
+
+export interface AiderDeltaLaneReport {
+	/** idle = no fresh campaign to grade; failed = a regression verdict OR a lane-config error (fail-closed). */
+	outcome: "idle" | "passed" | "failed";
+	reason: string;
+	gates: readonly AiderRegressionGateResult[];
+}
+
+/**
+ * F11.3g nightly delta lane, PURE: grade the newest BANKED campaign against the pinned single-host baseline.
+ * The lane never runs GPU work — campaigns are operator/rig-launched; the nightly only reads their receipts.
+ * With the armk7 zero-floor baseline every graded run is `inconclusive` ("no regression gradient") and the
+ * lane PASSES on it — the resolved→unresolved fail rule arms itself the first time an arm banks a resolve.
+ * A same-arm evaluation error (arm/repeats drift between snapshot pairs) FAILS the lane rather than idling:
+ * a measurement that cannot run is a defect to fix, not an absence to shrug at.
+ */
+export function summarizeAiderDeltaLane(input: {
+	baselines: readonly AiderRegressionSnapshot[];
+	current: { campaignId: string; snapshots: readonly AiderRegressionSnapshot[] } | null;
+}): AiderDeltaLaneReport {
+	if (input.baselines.length === 0) {
+		return { outcome: "failed", reason: "No pinned baseline snapshots were readable.", gates: [] };
+	}
+	if (input.current === null) {
+		return {
+			outcome: "idle",
+			reason: `No campaign banked since baseline ${input.baselines[0]?.campaignId ?? "?"} — nothing to grade.`,
+			gates: [],
+		};
+	}
+	const currentByArm = new Map(input.current.snapshots.map((snapshot) => [snapshot.arm, snapshot]));
+	const gates: AiderRegressionGateResult[] = [];
+	const problems: string[] = [];
+	for (const baseline of input.baselines) {
+		const current = currentByArm.get(baseline.arm);
+		if (!current) {
+			problems.push(`arm ${baseline.arm}: campaign ${input.current.campaignId} banked no snapshot`);
+			continue;
+		}
+		try {
+			gates.push(evaluateAiderRegressionGate(baseline, current));
+		} catch (error) {
+			problems.push(`arm ${baseline.arm}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+	const failedGates = gates.filter((gate) => gate.outcome === "fail");
+	if (failedGates.length > 0 || problems.length > 0) {
+		return {
+			outcome: "failed",
+			reason: [
+				...failedGates.map((gate) => `arm ${gate.arm}: ${gate.reason}`),
+				...problems.map((problem) => `lane-config: ${problem}`),
+			].join(" · "),
+			gates,
+		};
+	}
+	return {
+		outcome: "passed",
+		reason: gates
+			.map((gate) => `arm ${gate.arm} vs ${gate.currentCampaignId}: ${gate.outcome} — ${gate.reason}`)
+			.join(" · "),
+		gates,
+	};
+}

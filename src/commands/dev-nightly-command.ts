@@ -1,8 +1,13 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import {
+	type AiderRegressionSnapshot,
+	parseAiderRegressionSnapshot,
+	summarizeAiderDeltaLane,
+} from "../core/aider-polyglot-campaign";
 import { defaultOnKillSwitches } from "../core/feature-flag-registry";
 import {
 	detectNightlyCostRegressions,
@@ -747,6 +752,57 @@ export async function runDevNightlyCommand(options: {
 		};
 	}
 
+	// F11.3g: the aider DELTA lane — grade the newest BANKED campaign against the pinned single-host baseline.
+	// Never runs GPU work (campaigns are operator/rig-launched; this only reads receipts). Idle when nothing
+	// fresh is banked; FAILS only on a resolved→unresolved gate verdict or a lane-config error (fail-closed).
+	let aiderDelta: { outcome: "idle" | "passed" | "failed" | "not_selected"; reason: string } = {
+		outcome: "not_selected",
+		reason: "project/model filter selected",
+	};
+	if (!options.project && !options.model) {
+		const baselineDir = join("benchmark-harness", "aider-polyglot", "baselines", "single-host-qwen38med");
+		const readSnapshot = async (path: string): Promise<AiderRegressionSnapshot | null> => {
+			try {
+				return parseAiderRegressionSnapshot(JSON.parse(await readFile(path, "utf8")) as unknown);
+			} catch {
+				return null;
+			}
+		};
+		const baselines = (
+			await Promise.all(
+				["regression-plan.json", "regression-no-plan.json"].map((file) => readSnapshot(join(baselineDir, file))),
+			)
+		).filter((snapshot): snapshot is AiderRegressionSnapshot => snapshot !== null);
+		const baselineCampaignIds = new Set(baselines.map((snapshot) => snapshot.campaignId));
+		const campaignsRoot = join(".real-runs", "aider-campaigns");
+		const campaignDirs = await readdir(campaignsRoot).catch(() => [] as string[]);
+		let newest: { campaignId: string; snapshots: AiderRegressionSnapshot[]; bankedAt: number } | null = null;
+		for (const dir of campaignDirs) {
+			const snapshots = (
+				await Promise.all(
+					["regression-plan.json", "regression-no-plan.json"].map((file) =>
+						readSnapshot(join(campaignsRoot, dir, file)),
+					),
+				)
+			).filter((snapshot): snapshot is AiderRegressionSnapshot => snapshot !== null);
+			const campaignId = snapshots[0]?.campaignId;
+			if (!campaignId || baselineCampaignIds.has(campaignId)) {
+				continue;
+			}
+			const bankedAt = await stat(join(campaignsRoot, dir, "regression-plan.json"))
+				.then((info) => info.mtimeMs)
+				.catch(() => 0);
+			if (!newest || bankedAt > newest.bankedAt) {
+				newest = { campaignId, snapshots, bankedAt };
+			}
+		}
+		const laneReport = summarizeAiderDeltaLane({
+			baselines,
+			current: newest ? { campaignId: newest.campaignId, snapshots: newest.snapshots } : null,
+		});
+		aiderDelta = { outcome: laneReport.outcome, reason: laneReport.reason };
+	}
+
 	// N13: the gate sees only non-quarantined cells; quarantined ones still ran and are reported loudly below.
 	const summary = summarizeNightlyRun(quarantineSplit.gated);
 
@@ -915,6 +971,7 @@ export async function runDevNightlyCommand(options: {
 		crashRecoveryOk: crashRecoveryMatrix.outcome !== "failed",
 		invariantPacksOk,
 		uiJourneysOk: uiJourneys.outcome !== "failed",
+		aiderDeltaOk: aiderDelta.outcome !== "failed",
 	});
 	const quarantineReport = formatQuarantineReport({ file: quarantine, newlyQuarantined });
 	if (quarantineReport && !options.json) {
@@ -977,6 +1034,9 @@ export async function runDevNightlyCommand(options: {
 	if (uiJourneys.outcome !== "not_selected" && !options.json) {
 		process.stdout.write(`\nUI journeys: ${uiJourneys.outcome.toUpperCase()} — ${uiJourneys.reason}\n`);
 	}
+	if (aiderDelta.outcome !== "not_selected" && !options.json) {
+		process.stdout.write(`\nAider delta lane (F11.3g): ${aiderDelta.outcome.toUpperCase()} — ${aiderDelta.reason}\n`);
+	}
 
 	// N6: the suite watching its OWN cost. A cell drifting 40s -> 200s is a product regression that presents as
 	// "the nightly got slower" and is usually absorbed rather than investigated.
@@ -1011,7 +1071,7 @@ export async function runDevNightlyCommand(options: {
 	}
 	if (options.json) {
 		process.stdout.write(
-			`${JSON.stringify({ ...summary, ok: overallOk, verdicts, failureReports, regressions, costRegressions, packVerdicts, crashRecoveryMatrix, uiJourneys, quarantine: { entries: quarantine.entries, newlyQuarantined: newlyQuarantined.map((entry) => entry.cellId) } }, null, 2)}\n`,
+			`${JSON.stringify({ ...summary, ok: overallOk, verdicts, failureReports, regressions, costRegressions, packVerdicts, crashRecoveryMatrix, uiJourneys, aiderDelta, quarantine: { entries: quarantine.entries, newlyQuarantined: newlyQuarantined.map((entry) => entry.cellId) } }, null, 2)}\n`,
 		);
 	} else {
 		process.stdout.write(`\n${summary.summary}${overallOk ? "" : " Overall nightly verdict: FAILED."}\n`);

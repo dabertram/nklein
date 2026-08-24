@@ -179,8 +179,16 @@ export function isNightlyOverallOk(input: {
 	readonly invariantPacksOk: boolean;
 	/** N14 UI journey lanes; defaults true so callers without the lanes keep their verdict shape. */
 	readonly uiJourneysOk?: boolean;
+	/** F11.3g aider delta lane; defaults true — idle (no fresh campaign) is not a failure. */
+	readonly aiderDeltaOk?: boolean;
 }): boolean {
-	return input.cellsOk && input.crashRecoveryOk && input.invariantPacksOk && (input.uiJourneysOk ?? true);
+	return (
+		input.cellsOk &&
+		input.crashRecoveryOk &&
+		input.invariantPacksOk &&
+		(input.uiJourneysOk ?? true) &&
+		(input.aiderDeltaOk ?? true)
+	);
 }
 
 /**

@@ -1,0 +1,344 @@
+{
+  "schemaVersion": 1,
+  "campaignId": "aider24-single-host-qwen38med-armk7-20260823",
+  "arm": "no_plan",
+  "repeats": 2,
+  "rows": [
+    {
+      "instanceId": "aider-cpp-all-your-base",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-cpp-allergies",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-cpp-bank-account",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-cpp-binary-search-tree",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-go-alphametics",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-go-beer-song",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-go-book-store",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-go-bottle-song",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-java-affine-cipher",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-java-all-your-base",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-java-alphametics",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-java-bank-account",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-javascript-affine-cipher",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-javascript-alphametics",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-javascript-beer-song",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-javascript-binary",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-python-affine-cipher",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-python-beer-song",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-python-book-store",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-python-bottle-song",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-rust-accumulate",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-rust-acronym",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-rust-alphametics",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    },
+    {
+      "instanceId": "aider-rust-book-store",
+      "status": "unresolved",
+      "attempts": [
+        {
+          "repeat": 1,
+          "status": "unresolved"
+        },
+        {
+          "repeat": 2,
+          "status": "unresolved"
+        }
+      ]
+    }
+  ]
+}
