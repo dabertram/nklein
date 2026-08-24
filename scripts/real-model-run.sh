@@ -119,7 +119,10 @@ if [ -n "${NKLEIN_FLEET:-}" ]; then
 elif [ "$RUN_KIND" != dev-test ]; then
   append_unique "$WORKER"
 elif [ -n "$MODE" ]; then
+  # Act/plan single-card runs still REVIEW: the reviewer's model must be resident too (defaults to $WORKER,
+  # so this is a no-op unless NKLEIN_REVIEWER_MODEL overrides it — round 5's review stranded on exactly that).
   append_unique "$WORKER"
+  append_unique "$REVIEWER_MODEL"
 else
   append_unique "$WORKER"
   append_unique "$ARCHITECT_MODEL"
@@ -203,6 +206,17 @@ if [ "$RUN_KIND" = dev-test ] && [ ! -f "$RUN_CONFIG" ]; then
       reviewer: {providerId: "lmstudio", modelId: $reviewer}
     }
   }' >"$RUN_CONFIG"
+elif [ "$RUN_KIND" = dev-test ]; then
+  # DURABLE-HOME TRAP (live-found round 5, 2026-08-24): a surviving config.json silently overrode this run's
+  # role intent — the boot line printed the INTENDED roles while disk kept a prior round's (unloaded) models,
+  # and the reviewer stranded on a model that was never resident. Reconcile roles IN PLACE so the printed
+  # config and the served config are the same fact; everything else in the durable config is preserved.
+  jq --arg architect "$ARCHITECT_MODEL" --arg worker "$CHILD_WORKER_MODEL" --arg reviewer "$REVIEWER_MODEL" '
+    .modelRoles = {
+      architect: {providerId: "lmstudio", modelId: $architect},
+      worker: {providerId: "lmstudio", modelId: $worker},
+      reviewer: {providerId: "lmstudio", modelId: $reviewer}
+    }' "$RUN_CONFIG" >"$RUN_CONFIG.tmp" && mv "$RUN_CONFIG.tmp" "$RUN_CONFIG"
 fi
 # modelRoles choose models after a role has been assigned; the auto-start cascade still resolves the globally
 # selected provider before applying those overrides. Reproduce the local-provider onboarding state inside the
