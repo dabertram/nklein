@@ -65,6 +65,52 @@ export const frontierSynthesisSchema = z.object({
 });
 export type FrontierSynthesis = z.infer<typeof frontierSynthesisSchema>;
 
+/**
+ * Clamp an untrusted synthesis to the schema's field budgets BEFORE parsing — the structured-output JSON
+ * schema cannot express maxLength to every engine, and a model writing 320 chars of honest reflection must
+ * not sink the whole report (first live flight, 2026-08-24: one overlong `selfReflection.self` rejected an
+ * otherwise-valid run). Truncation is marked with an ellipsis; arrays are sliced to their caps.
+ */
+export function clampFrontierSynthesis(raw: unknown): unknown {
+	if (raw === null || typeof raw !== "object") return raw;
+	const clampText = (value: unknown, max: number): unknown =>
+		typeof value === "string" && value.length > max ? `${value.slice(0, max - 1)}…` : value;
+	const record = raw as Record<string, unknown>;
+	const clampArray = (value: unknown, max: number): unknown[] => (Array.isArray(value) ? value.slice(0, max) : []);
+	return {
+		...record,
+		findings: clampArray(record.findings, 12).map((entry) => {
+			const item = (entry ?? {}) as Record<string, unknown>;
+			return {
+				...item,
+				name: clampText(item.name, 120),
+				summary: clampText(item.summary, 400),
+				sourceUrl: clampText(item.sourceUrl, 500),
+				publisher: clampText(item.publisher, 120),
+			};
+		}),
+		modelRecommendations: clampArray(record.modelRecommendations, 6).map((entry) => {
+			const item = (entry ?? {}) as Record<string, unknown>;
+			return {
+				...item,
+				name: clampText(item.name, 120),
+				publisher: clampText(item.publisher, 120),
+				reason: clampText(item.reason, 300),
+			};
+		}),
+		selfReflection: clampArray(record.selfReflection, 8).map((entry) => {
+			const item = (entry ?? {}) as Record<string, unknown>;
+			return {
+				...item,
+				topic: clampText(item.topic, 120),
+				frontier: clampText(item.frontier, 300),
+				self: clampText(item.self, 300),
+			};
+		}),
+		funLine: clampText(record.funLine, 200),
+	};
+}
+
 export const frontierReportSchema = frontierSynthesisSchema.extend({
 	schemaVersion: z.literal(1),
 	ranAt: z.number().int().positive(),

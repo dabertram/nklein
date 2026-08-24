@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	assessFrontierFreshness,
 	buildFrontierSynthesisMessages,
+	clampFrontierSynthesis,
 	FRONTIER_SYNTHESIS_JSON_SCHEMA,
 	frontierReportSchema,
 	frontierSynthesisSchema,
@@ -33,6 +34,19 @@ describe("frontier research core", () => {
 		});
 		expect(user).toContain("(no sources were fetched)");
 		expect(user).toContain("DEVICE RAM: unknown");
+	});
+
+	it("clamps an overlong synthesis instead of rejecting it (first live flight lesson)", () => {
+		const clamped = clampFrontierSynthesis({
+			findings: [],
+			modelRecommendations: [],
+			selfReflection: [{ topic: "t", frontier: "f", self: "S".repeat(450), verdict: "par" }],
+			funLine: "F".repeat(250),
+		}) as { selfReflection: { self: string }[]; funLine: string };
+		expect(clamped.selfReflection[0]?.self.length).toBe(300);
+		expect(clamped.selfReflection[0]?.self.endsWith("…")).toBe(true);
+		expect(clamped.funLine.length).toBe(200);
+		expect(frontierSynthesisSchema.safeParse(clamped).success).toBe(true);
 	});
 
 	it("freshness ladder: never → fresh (<3d) → aging (<10d) → stale", () => {

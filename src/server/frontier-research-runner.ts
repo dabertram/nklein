@@ -1,6 +1,7 @@
 import {
 	assessFrontierFreshness,
 	buildFrontierSynthesisMessages,
+	clampFrontierSynthesis,
 	FRONTIER_RESEARCH_QUESTIONS,
 	FRONTIER_SYNTHESIS_JSON_SCHEMA,
 	type FrontierEvidenceSource,
@@ -108,7 +109,7 @@ export function createFrontierResearchRunner(deps: FrontierResearchRunnerDeps): 
 					],
 					schema: FRONTIER_SYNTHESIS_JSON_SCHEMA,
 				});
-				const synthesis = frontierSynthesisSchema.parse(raw);
+				const synthesis = frontierSynthesisSchema.parse(clampFrontierSynthesis(raw));
 				const report: FrontierReport = {
 					...synthesis,
 					schemaVersion: 1,
