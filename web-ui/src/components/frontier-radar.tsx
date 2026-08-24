@@ -139,12 +139,20 @@ export function FrontierRadar({ workspaceId }: { workspaceId: string | null }): 
 														: "size unknown"}
 										</span>
 										<div className="text-text-tertiary">{recommendation.reason}</div>
+										{!recommendation.alreadyInstalled ? (
+											<code
+												className="mt-0.5 block w-fit max-w-full truncate rounded bg-text-primary/5 px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
+												title="Previews size, format safety and fit — downloads nothing until you re-run with --approve"
+											>
+												nklein setup acquire "{recommendation.name}"
+											</code>
+										) : null}
 									</div>
 								))}
 							</div>
 							<div className="mt-1 text-[10px] text-text-tertiary">
-								Fetching stays your call: models install via the consent-gated acquisition path, never
-								automatically.
+								Fetching stays your call: `setup acquire` previews first and downloads only on your explicit
+								--approve, never automatically.
 							</div>
 						</div>
 					) : null}
