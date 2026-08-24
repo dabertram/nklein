@@ -17,7 +17,7 @@
  * routine giants.
  */
 
-import { decideTaskSizing, type TaskSizingVerdict } from "./task-sizing-invariant";
+import { decideTaskSizing, requiredSplitCount, type TaskSizingVerdict } from "./task-sizing-invariant";
 
 export interface ReviewCapacityEvidenceRow {
 	readonly reviewerModelId: string | null;
@@ -164,4 +164,50 @@ export function deriveTypicalDiffLines(rows: readonly ReviewCapacityEvidenceRow[
 		return null;
 	}
 	return sizes[Math.floor(sizes.length / 2)] ?? null;
+}
+
+/** A planned task the sizing verdict says MUST split — the enforce half's unit of work. */
+export interface OversizedPlannedTask {
+	readonly planTaskId: string;
+	readonly title: string;
+	readonly verdict: TaskSizingVerdict;
+}
+
+/**
+ * P21.6b ENFORCE half (David-authorized flip 2026-08-23): select the planned tasks whose verdict says split.
+ * Only a PRESENT verdict can enforce — a missing evidence half means the estimator has nothing defensible to
+ * say about THIS task, and enforcing "conservative split" on a cold system would split every card forever.
+ * The missing-half rate stays visible through the observe stream's `basis` field.
+ */
+export function selectOversizedPlannedTasks(
+	assessments: readonly {
+		readonly planTaskId: string;
+		readonly title: string;
+		readonly assessment: PlannedTaskSizingAssessment;
+	}[],
+): OversizedPlannedTask[] {
+	return assessments.flatMap((entry) =>
+		entry.assessment.verdict?.mustSplit
+			? [{ planTaskId: entry.planTaskId, title: entry.title, verdict: entry.assessment.verdict }]
+			: [],
+	);
+}
+
+/**
+ * The rejection message the decompose tool throws when the sizing invariant binds — written for the MODEL:
+ * it names each oversized task, which ceiling binds (the remedy differs completely), and routes the fix
+ * through the tool's own `expansions` mechanism (its documented oversized-task replacement channel).
+ */
+export function formatSizingSplitRejection(tasks: readonly OversizedPlannedTask[]): string {
+	const lines = tasks.map(
+		(task) =>
+			`- "${task.planTaskId}" (${task.title}): ${task.verdict.reason} Split into at least ${requiredSplitCount(
+				task.verdict,
+			)} smaller tasks.`,
+	);
+	return [
+		"Task graph failed the sizing invariant (one task = one context window = one reviewable diff). The following task(s) exceed an empirically proven ceiling:",
+		...lines,
+		"Re-emit using the `expansions` parameter: map each oversized task id above to smaller replacement tasks that together cover the same scope. Do not delete or thin the scope to pass this gate.",
+	].join("\n");
 }

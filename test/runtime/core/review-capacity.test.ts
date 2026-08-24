@@ -4,8 +4,10 @@ import {
 	deriveFleetReviewCapacity,
 	deriveReviewCapacity,
 	deriveTypicalDiffLines,
+	formatSizingSplitRejection,
 	REVIEW_CAPACITY_MIN_SAMPLE,
 	type ReviewCapacityEvidenceRow,
+	selectOversizedPlannedTasks,
 } from "../../../src/core/review-capacity";
 
 /**
@@ -173,5 +175,39 @@ describe("assessPlannedTaskSizing (P21.6b slice 3 — observe-first plan-time ve
 			expect(assessment.basis).toBe("verdict");
 			expect(assessment.reviewCeiling.ceilingLines).toBe(120);
 		});
+	});
+});
+
+describe("P21.6b enforce half (pure)", () => {
+	const fits = assessPlannedTaskSizing({
+		rows: Array.from({ length: 5 }, () => row("m", "delivered", 40)),
+		modelContextTokens: 200_000,
+		estimatedTaskTokens: 10_000,
+	});
+	const overshoots = assessPlannedTaskSizing({
+		rows: Array.from({ length: 5 }, () => row("m", "delivered", 40)),
+		modelContextTokens: 8_000,
+		estimatedTaskTokens: 20_000,
+	});
+
+	it("selects only tasks with a PRESENT mustSplit verdict — a missing evidence half never enforces", () => {
+		const noVerdict = assessPlannedTaskSizing({ rows: [], modelContextTokens: null, estimatedTaskTokens: 20_000 });
+		expect(noVerdict.verdict).toBeNull();
+		const selected = selectOversizedPlannedTasks([
+			{ planTaskId: "ok", title: "Fits", assessment: fits },
+			{ planTaskId: "big", title: "Too big", assessment: overshoots },
+			{ planTaskId: "cold", title: "No evidence", assessment: noVerdict },
+		]);
+		expect(selected.map((task) => task.planTaskId)).toEqual(["big"]);
+	});
+
+	it("writes the rejection FOR THE MODEL: task id, binding reason, split count, and the expansions remedy", () => {
+		const selected = selectOversizedPlannedTasks([{ planTaskId: "big", title: "Too big", assessment: overshoots }]);
+		const message = formatSizingSplitRejection(selected);
+		expect(message).toContain('"big"');
+		expect(message).toContain("MODEL CONTEXT binds");
+		expect(message).toMatch(/Split into at least \d+ smaller tasks/);
+		expect(message).toContain("`expansions`");
+		expect(message).toContain("Do not delete or thin the scope");
 	});
 });

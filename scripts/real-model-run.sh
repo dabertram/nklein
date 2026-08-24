@@ -173,6 +173,10 @@ RUNTIME_LOG="$RUN_DIR/runtime.log"; DRAIN_JSON="$RUN_DIR/drain.json"; DRAIN_ERR=
 # the default-OFF posture; only the rig exports these.
 export NKLEIN_DRIFT_CRITIC=1
 export NKLEIN_DRIFT_REMEDY_ENFORCE=1
+# David-authorized flips 2026-08-23: bounce rewinds to the safe boundary; oversized planned tasks are rejected
+# at decompose (evidence-gated inside — no verdict, no enforcement).
+export NKLEIN_BOUNCE_FORK_RETRY=1
+export NKLEIN_PLAN_SIZING_ENFORCE=1
 DEVLOG="$RUN_DIR/lmstudio-devlog.txt"; RUNLOG="$RUN_DIR/orchestrator.log"; SNAP="$RUN_DIR/snapshots.log"
 EVIDENCE_DIR="$RUN_DIR/evidence"
 SESSION_SNAPSHOT_DIR="$RUN_HOME/.nklein/evidence-session-snapshots"

@@ -291,6 +291,8 @@ const PROFILE_EXTRA_ENV: Readonly<Record<string, Readonly<Record<string, string>
 		NKLEIN_LEDGER_EXEMPLARS: "1",
 		NKLEIN_NATIVE_FORCE_TOOL_CALL: "1",
 		NKLEIN_OPPORTUNISTIC_IDLE_WORK: "1",
+		// P21.6b enforce half (David-authorized 2026-08-23): sizing rejections only ever cost a re-emit in SIM.
+		NKLEIN_PLAN_SIZING_ENFORCE: "1",
 		NKLEIN_PROCEDURAL_SKILLS: "1",
 		NKLEIN_QUEUE_AWARE_FREE_FIRST: "1",
 		NKLEIN_REASONING_BREACH: "1",

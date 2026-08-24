@@ -80,6 +80,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		note: "#37 acting half, David-authorized 2026-08-23. Eligibility via planBounceForkRetry (the observe stream keeps recording); every refusal/error falls back to the ordinary re-drive.",
 	},
 	{
+		flag: "NKLEIN_PLAN_SIZING_ENFORCE",
+		mode: "enforcing",
+		gate: "nklein-decomposition-tool.ts (decompose_project: reject oversized planned tasks, remedy = expansions)",
+		note: "P21.6b enforce half, David-authorized 2026-08-23. Evidence-first: only a PRESENT two-ceiling verdict enforces; missing evidence or a failed evidence read degrades to the observe-only stream.",
+	},
+	{
 		flag: "NKLEIN_DRIFT_REMEDY_ENFORCE",
 		mode: "enforcing",
 		gate: "nklein-session-runtime.ts (hands the extension the onOffTrackRemedy action callback)",

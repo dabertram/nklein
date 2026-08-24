@@ -202,7 +202,9 @@ import type { SubtaskSizing } from "../core/decomposition-redecompose-trigger";
 import { decideRedecomposeTrigger, parseRedecomposeRound } from "../core/decomposition-redecompose-trigger";
 import type { DecomposedSubtask } from "../core/decomposition-subtask-dag";
 import { validateSubtaskDag } from "../core/decomposition-subtask-dag";
+import { isTruthyEnv } from "../core/env-flag";
 import { decidePlanCritique } from "../core/plan-critique-decision";
+import { formatSizingSplitRejection, selectOversizedPlannedTasks } from "../core/review-capacity";
 import { formatHotFileWarnings } from "../core/work-package-card-shape";
 import {
 	clearDecomposeConstruction,
@@ -224,6 +226,7 @@ import {
 } from "./decomposition/incremental-dag-tools";
 import {
 	applyDecomposeProjectArtifactsToWorkspace,
+	assessPlannedTaskSizingForGraph,
 	redactWorkspacePathForAgent,
 	toWorkspaceRelativeArtifactPath,
 } from "./decomposition/plan-artifact-apply";
@@ -494,6 +497,38 @@ function createDecomposeProjectTool(
 				throw new Error(
 					`Task graph failed specification-coverage validation. The following specification statements are not represented clearly enough in any implementation, verification, or acceptance contract:\n${formatUncoveredPlanRequirements(uncoveredRequirements)}\nAdd or strengthen card prompts/acceptance checks so each statement is machine-auditable. Do not delete or weaken the specification to bypass this gate.`,
 				);
+			}
+			// P21.6b ENFORCE half (David-authorized flip 2026-08-23, NKLEIN_PLAN_SIZING_ENFORCE): when the
+			// empirical two-ceiling verdict says a planned task MUST split, reject the graph here — the model is
+			// still in the loop and the tool's own `expansions` channel is the designed remedy. Evidence-first:
+			// only a PRESENT verdict enforces (a missing evidence half never splits a cold system), and an
+			// evidence-read failure degrades to observe-only rather than blocking the decompose.
+			if (isTruthyEnv(process.env.NKLEIN_PLAN_SIZING_ENFORCE)) {
+				const sizingAssessments = await assessPlannedTaskSizingForGraph({
+					workspacePath,
+					tasks: validation.taskGraph.tasks,
+					sharedContext: { spec, decisionsMarkdown: "" },
+				}).catch(() => null);
+				const oversized = sizingAssessments ? selectOversizedPlannedTasks(sizingAssessments) : [];
+				if (oversized.length > 0) {
+					await recordSelfObservation({
+						signal: "custom",
+						severity: "warning",
+						message: `Plan sizing ENFORCED for ${validation.taskGraph.slug}: ${oversized.length} task(s) rejected as oversized (${oversized
+							.map((task) => `${task.planTaskId} ${task.verdict.overshoot.toFixed(1)}x ${task.verdict.binding}`)
+							.join(", ")}).`,
+						taskId: sourceTaskId ?? null,
+						workspacePath,
+						metadata: {
+							category: "plan_sizing_enforced",
+							planSlug: validation.taskGraph.slug,
+							oversizedTaskIds: oversized.map((task) => task.planTaskId),
+							overshoots: oversized.map((task) => task.verdict.overshoot),
+							bindings: oversized.map((task) => task.verdict.binding),
+						},
+					});
+					throw new Error(formatSizingSplitRejection(oversized));
+				}
 			}
 			// §5.B subtask-DAG structural gate + re-decompose trigger — RECORD-ONLY (observe, never bounce/reject).
 			// The apply path above (validateNKleinPlanTaskGraph → writeNKleinPlanArtifacts → apply) is byte-identical;

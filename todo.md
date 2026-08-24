@@ -13995,6 +13995,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   **REMAINING: only the ENFORCE half** — "split when it says to". Correctly gated: nothing enforces until the
   predicted-vs-actual stream has judged the estimator — the same observe-before-enforce posture as P18.4b and
   P20.3b — and that join only accumulates on real drains.
+  **▶ ENFORCE HALF SHIPPED 2026-08-24 (David-authorized flip 2026-08-23, `NKLEIN_PLAN_SIZING_ENFORCE`).** The
+  decompose tool now REJECTS a graph whose planned task the two-ceiling verdict says must split — gate sits
+  after the spec-coverage gate (model still in the loop, before any artifact/card), remedy routed through the
+  tool's own `expansions` oversized-task replacement channel, every rejection recorded (`plan_sizing_enforced`,
+  registered). Evidence-first: only a PRESENT verdict enforces (a cold system never splits on missing evidence;
+  a failed evidence read degrades to observe-only). ON in the flags_on nightly lane + rig runs
+  (`real-model-run.sh`). **Honest limit:** with today's estimator the REVIEW ceiling is structurally near-inert
+  at plan time — predicted diff = pooled MEDIAN of successful judgments, ceiling = best per-model P90 of the
+  same stream, and median ≤ p90 for any one population (only skewed per-model evidence mixes can cross). So the
+  live enforcement is the CONTEXT half ("one task = one context window"); the review half arms for real the day
+  the observe stream's predicted-vs-actual join yields a PER-TASK diff predictor. That predictor is the true
+  remaining leaf.
  Backlog.md's framing is
   the sharpest in the field: *"AI agents can now produce more plausible code in an hour than you can carefully
   read in a day. The bottleneck is no longer writing code. It's your attention."* Their three checkpoints —

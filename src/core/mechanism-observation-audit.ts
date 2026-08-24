@@ -276,6 +276,14 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 	},
 	{
+		category: "plan_sizing_enforced",
+		item: "P21.6b",
+		observes:
+			"the decompose tool REJECTED a task graph because the empirical two-ceiling verdict said a planned task must split (NKLEIN_PLAN_SIZING_ENFORCE on) — oversized ids, overshoots and binding ceilings recorded; the model re-emits via `expansions`",
+		enabledBy: "NKLEIN_PLAN_SIZING_ENFORCE",
+		expectation: "exceptional",
+	},
+	{
 		// ── #37 bounce fork-retry, ACTING half (2026-08-24) ──
 		category: "bounce_fork_retry_acted",
 		item: "§5.AW",

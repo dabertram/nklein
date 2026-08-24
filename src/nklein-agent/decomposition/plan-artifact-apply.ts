@@ -76,16 +76,9 @@ function pluralizeCount(count: number, singular: string, plural = `${singular}s`
  * only — nothing enforces until that stream has judged the estimator. Fire-and-forget AFTER the workspace-state
  * transaction (never inside it — P24.1), and never allowed to fail the apply.
  */
-async function recordPlanSizingObservations(input: {
-	workspacePath: string;
-	taskGraph: NKleinPlanTaskGraph;
-	sharedContext?: NKleinPlanTaskSharedContext;
-	sizingCandidates: readonly NKleinTaskRoutingCandidate[] | undefined;
-	taskIdByPlanTaskId: Readonly<Record<string, string>>;
-}): Promise<void> {
-	const evidenceRows: ReviewCapacityEvidenceRow[] = (
-		await readSelfObservationEvents({ category: "review_capacity_evidence", limit: 500 })
-	).flatMap((record) => {
+/** The empirical evidence stream both sizing consumers read — extracted so observe and enforce cannot drift. */
+async function readReviewCapacityEvidenceRows(): Promise<ReviewCapacityEvidenceRow[]> {
+	return (await readSelfObservationEvents({ category: "review_capacity_evidence", limit: 500 })).flatMap((record) => {
 		const metadata = record.metadata as
 			| { outcome?: unknown; diffLines?: unknown; reviewerModelId?: unknown }
 			| undefined;
@@ -101,6 +94,50 @@ async function recordPlanSizingObservations(input: {
 			},
 		];
 	});
+}
+
+/**
+ * P21.6b enforce half: assess every planned task's sizing BEFORE any artifact is written or card created —
+ * same evidence stream, same deriver, same per-task token estimate as the observe path, but keyed by PLAN
+ * task id because no board ids exist yet. The caller decides what a mustSplit verdict costs.
+ */
+export async function assessPlannedTaskSizingForGraph(input: {
+	workspacePath: string;
+	tasks: NKleinPlanTaskGraph["tasks"];
+	sharedContext?: NKleinPlanTaskSharedContext;
+}): Promise<{ planTaskId: string; title: string; assessment: ReturnType<typeof assessPlannedTaskSizing> }[]> {
+	const evidenceRows = await readReviewCapacityEvidenceRows();
+	const runtimeConfig = await loadRuntimeConfig(input.workspacePath).catch(() => null);
+	const sizingCandidates = runtimeConfig
+		? await buildDecompositionRoutingCandidates(runtimeConfig, { loadedOnly: true }).catch(() => [])
+		: [];
+	const largestContextWindow =
+		sizingCandidates
+			.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
+			.filter((contextWindow) => contextWindow > 0)
+			.sort((left, right) => right - left)[0] ?? null;
+	return input.tasks.map((task) => {
+		const sizing = derivePlanTaskRoutingSizing(task, buildTaskPrompt(task, input.sharedContext), sizingCandidates);
+		return {
+			planTaskId: task.id,
+			title: task.title,
+			assessment: assessPlannedTaskSizing({
+				rows: evidenceRows,
+				modelContextTokens: largestContextWindow,
+				estimatedTaskTokens: sizing.fitBudgetTokens,
+			}),
+		};
+	});
+}
+
+async function recordPlanSizingObservations(input: {
+	workspacePath: string;
+	taskGraph: NKleinPlanTaskGraph;
+	sharedContext?: NKleinPlanTaskSharedContext;
+	sizingCandidates: readonly NKleinTaskRoutingCandidate[] | undefined;
+	taskIdByPlanTaskId: Readonly<Record<string, string>>;
+}): Promise<void> {
+	const evidenceRows = await readReviewCapacityEvidenceRows();
 	const largestContextWindow =
 		input.sizingCandidates
 			?.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
