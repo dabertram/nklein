@@ -400,9 +400,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// Silence the external `ai` package's per-call "system messages in the prompt" warning (we pass them by
 	// design) and log the rationale once, so it stops flooding the runtime log and burying the useful lines.
 	configureNKleinAiSdkWarnings(deps.warn);
-	// Frontier radar: install the real composition behind the web-graph holder boundary (the router reads the
-	// holder; the composition's egress/SSRF/LLM graph must never enter web-ui's typecheck).
-	installFrontierResearchRunner(getFrontierResearchRunner());
+
 	const nightlyHermetic = isNightlyHermeticEnvironment();
 	// §5.Y #8: compute remote-mode confinement roots once at startup.
 	const isRemoteMode = isKanbanRemoteHost();
@@ -426,6 +424,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			operation,
 		);
 	};
+	// Frontier radar: install the real composition behind the web-graph holder boundary, wired to the
+	// managed-search LEASE (which starts the docker backend on demand) and the runtime log (loud failures —
+	// the first run failed silently against a never-started backend, 2026-08-24).
+	installFrontierResearchRunner(getFrontierResearchRunner({ withSearchBackend, onLog: (line) => deps.warn(line) }));
 	// §5.BB: seed the chat adapter's runtime flags from the persisted settings (env overrides still compose at read
 	// time inside the adapter). Re-applied on every config save via the setActiveRuntimeConfig wrapper below.
 	setChatAdapterRuntimeFlags({

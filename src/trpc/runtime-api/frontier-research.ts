@@ -62,8 +62,16 @@ const TOOL_USE_RANK: Record<string, number> = {
 
 let singleton: FrontierResearchRunner | null = null;
 
+export interface FrontierRunnerWiring {
+	/** The runtime's managed-search LEASE: starts the docker SearXNG on demand and hands the live URL.
+	 *  Without it the radar's first run silently searched a never-started backend (2026-08-24). */
+	withSearchBackend?: <T>(operation: (backendUrl: string) => Promise<T>) => Promise<T>;
+	/** Loud failures — the runner's refusals and errors must reach the runtime log. */
+	onLog?: (line: string) => void;
+}
+
 /** The process-wide radar runner (config re-read per call keeps the egress gate live). */
-export function getFrontierResearchRunner(): FrontierResearchRunner {
+export function getFrontierResearchRunner(wiring?: FrontierRunnerWiring): FrontierResearchRunner {
 	if (singleton) {
 		return singleton;
 	}
@@ -75,15 +83,19 @@ export function getFrontierResearchRunner(): FrontierResearchRunner {
 				throw new Error("retrieval egress is off or no search backend is configured");
 			}
 			const backendUrl = settings.searchBackendUrl;
+			const searchAt = (url: string, query: string) =>
+				createSearxngWebSearchClient({
+					backendBaseUrl: url,
+					egressEnabled: settings.egressEnabled,
+				}).search(query);
 			const result = await runRetrievalLoop(
 				question,
 				{
 					search: searchHitsAdapter(
 						(query) =>
-							createSearxngWebSearchClient({
-								backendBaseUrl: backendUrl,
-								egressEnabled: settings.egressEnabled,
-							}).search(query),
+							wiring?.withSearchBackend
+								? wiring.withSearchBackend((url) => searchAt(url, query))
+								: searchAt(backendUrl, query),
 						{ rerankByRelevance: true },
 					),
 					// PRIME DIRECTIVE #1: fetched result URLs are untrusted — same SSRF floor as browse_url.
@@ -104,6 +116,7 @@ export function getFrontierResearchRunner(): FrontierResearchRunner {
 		installedModels: async () => (await loadedModels()).map((model) => model.identifier),
 		mechanisms: async () => MECHANISM_REGISTRY.map((entry) => `${entry.item}: ${entry.category}`).slice(0, 120),
 		deviceRamGb,
+		...(wiring?.onLog ? { onLog: wiring.onLog } : {}),
 	});
 	return singleton;
 }
