@@ -1,0 +1,7 @@
+{
+ "id": "bed-habit-streak",
+ "title": "Habit streak (shallow bed)",
+ "prompt": "Create a file habit-streak.ts in the current directory implementing calculateStreak(dates: string[]): number - the longest run of consecutive calendar days (ISO date strings, unsorted, duplicates allowed). Also create habit-streak.test.ts with 4 test cases using node:test and make sure they pass by running them.\n\nAcceptance command: npx -y tsx --test habit-streak.test.ts",
+ "specification": "Habit streak (shallow bed) — the prompt is self-contained; build exactly what it asks in the current directory. Acceptance: `npx -y tsx --test habit-streak.test.ts`.",
+ "acceptanceCommand": "npx -y tsx --test habit-streak.test.ts"
+}
