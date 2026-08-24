@@ -43,7 +43,8 @@ describe("readOptionalReasoningEffort", () => {
 	});
 
 	it("ignores an unrecognized effort as undefined", () => {
-		expect(readOptionalReasoningEffort({ k: "none" }, "k")).toBeUndefined();
+		// "none" became a first-class value 2026-08-24 (per-task thinking OFF, live-verified on the qwen3.8 line).
+		expect(readOptionalReasoningEffort({ k: "none" }, "k")).toBe("none");
 		expect(readOptionalReasoningEffort({ k: "bogus" }, "k")).toBeUndefined();
 		expect(readOptionalReasoningEffort({ k: 3 }, "k")).toBeUndefined();
 	});

@@ -770,7 +770,13 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			...(request.reasoningEffort === null
 				? { reasoningEffort: "none" as NonNullable<NKleinSdkStartSessionInput["config"]["reasoningEffort"]> }
 				: request.reasoningEffort
-					? { reasoningEffort: request.reasoningEffort }
+					? // "none" is now a first-class enum value; the SDK type lags the wire contract (same cast the
+						// null branch has always used — LM Studio maps the string into the chat template verbatim).
+						{
+							reasoningEffort: request.reasoningEffort as NonNullable<
+								NKleinSdkStartSessionInput["config"]["reasoningEffort"]
+							>,
+						}
 					: {}),
 			...(sdkApiTimeoutMs ? { timeoutMs: sdkApiTimeoutMs } : {}),
 		};
@@ -783,7 +789,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			reasoningEffort:
 				request.reasoningEffort === null
 					? ("none" as NKleinSdkStartSessionInput["config"]["reasoningEffort"])
-					: (request.reasoningEffort ?? undefined),
+					: ((request.reasoningEffort ?? undefined) as NKleinSdkStartSessionInput["config"]["reasoningEffort"]),
 			// The agent's perceived working directory must be the in-container sandbox path (`/workspaces/<taskId>`),
 			// never the host mount — see "agents must never see host details" (AGENTS.md). A task's tools execute in
 			// that sandbox, so this is the logical cwd the model sees and writes paths relative to. Home/chat sessions

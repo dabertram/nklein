@@ -35,6 +35,28 @@ describe("LocalLlmClient local-only enforcement", () => {
 });
 
 describe("LocalLlmClient.complete", () => {
+	it("sends sampling.reasoningEffort as the reasoning_effort request field (qwen3.8 thinking control)", async () => {
+		const bodies: Record<string, unknown>[] = [];
+		const fetchImpl = vi.fn(async (_url: unknown, init: { body: string }) => {
+			bodies.push(JSON.parse(init.body) as Record<string, unknown>);
+			return new Response(JSON.stringify({ choices: [{ message: { content: "4" }, finish_reason: "stop" }] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen/qwen3.8-27b",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await client.complete({
+			messages: [{ role: "user", content: "2+2?" }],
+			sampling: { reasoningEffort: "none" },
+		});
+		expect(bodies[0]?.reasoning_effort).toBe("none");
+	});
+
 	it("recovers a schema-constrained reply emitted only in reasoning_content", async () => {
 		const fetchImpl = vi.fn(
 			async () =>

@@ -39,7 +39,11 @@ export const runtimeTaskAutoReviewModeSchema = z.preprocess(
 );
 export type RuntimeTaskAutoReviewMode = z.infer<typeof runtimeTaskAutoReviewModeEnum>;
 
-export const runtimeNKleinReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
+// "none" = thinking fully OFF for the session's requests — a first-class per-task mode switch, not an absence
+// (absent = provider default). Live-verified on the qwen3.8 line 2026-08-24: reasoning_effort:"none" ⇒ zero
+// reasoning content; the session runtime already mapped explicit-null to "none" at the SDK boundary, so this
+// only names the state the plumbing could always express.
+export const runtimeNKleinReasoningEffortSchema = z.enum(["none", "low", "medium", "high", "xhigh"]);
 export type RuntimeNKleinReasoningEffort = z.infer<typeof runtimeNKleinReasoningEffortSchema>;
 export const runtimeFleetDecompositionModeSchema = z.enum([
 	"auto",

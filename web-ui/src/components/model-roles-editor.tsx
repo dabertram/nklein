@@ -37,6 +37,7 @@ import type {
 
 const REASONING_EFFORT_OPTIONS: Array<RuntimeNKleinReasoningEffort | "inherit"> = [
 	"inherit",
+	"none",
 	"low",
 	"medium",
 	"high",

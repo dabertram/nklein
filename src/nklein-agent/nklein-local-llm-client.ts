@@ -43,6 +43,12 @@ export interface LocalLlmSamplingOptions {
 	/** llama.cpp/LM Studio `repeat_penalty`; light (≈1.05–1.1) suppresses degenerate loops. */
 	repetitionPenalty?: number;
 	maxTokens?: number;
+	/**
+	 * Per-request `reasoning_effort` (OpenAI-compat field LM Studio maps into the chat template). On the
+	 * qwen3.8 line "none" fully disables thinking (live-probed 2026-08-24) — the request-param counterpart of
+	 * the message-token soft switch in model-thinking-control.
+	 */
+	reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh";
 	stop?: string[];
 }
 
@@ -244,6 +250,7 @@ export class LocalLlmClient {
 		// §dsh#31 A2: record the POST-normalization wire messages (the model sees these, not the caller's array).
 		this.recordWireRequest(request, body.messages as Array<{ role: string; content: unknown }>);
 		if (sampling.temperature !== undefined) body.temperature = sampling.temperature;
+		if (sampling.reasoningEffort !== undefined) body.reasoning_effort = sampling.reasoningEffort;
 		if (sampling.topP !== undefined) body.top_p = sampling.topP;
 		if (sampling.topK !== undefined) body.top_k = sampling.topK;
 		if (sampling.minP !== undefined) body.min_p = sampling.minP;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	applyThinkingDisable,
 	getThinkingControl,
+	getThinkingRequestControl,
 	isReasoningModel,
 	isRecognizedModelFamily,
 	supportsThinkingControl,
@@ -143,5 +144,30 @@ describe("isRecognizedModelFamily", () => {
 		expect(isRecognizedModelFamily("totally-unknown-model")).toBe(false);
 		expect(isRecognizedModelFamily("acme-llm-9000")).toBe(false);
 		expect(isRecognizedModelFamily("")).toBe(false);
+	});
+});
+
+describe("qwen3.8 line (live-probed 2026-08-24)", () => {
+	it("gets NO token switch — /no_think GREW reasoning on the probe (67 → 186 chars), worse than inert", () => {
+		expect(getThinkingControl("qwen/qwen3.8-27b")).toBeNull();
+		expect(applyThinkingDisable("do the thing", "qwen/qwen3.8-27b")).toBe("do the thing");
+	});
+
+	it('gets the request-param switch: reasoning_effort:"none" fully disabled thinking on the probe', () => {
+		expect(getThinkingRequestControl("qwen/qwen3.8-27b")).toEqual({
+			param: "reasoning_effort",
+			disableValue: "none",
+		});
+		expect(getThinkingRequestControl("qwopus3.8-27b-local")).toEqual({
+			param: "reasoning_effort",
+			disableValue: "none",
+		});
+	});
+
+	it("does not claim the param switch for unverified families", () => {
+		expect(getThinkingRequestControl("qwen/qwen3-8b")).toBeNull();
+		expect(getThinkingRequestControl("qwen/qwen3.6-35b-a3b")).toBeNull();
+		expect(getThinkingRequestControl("google/gemma-4-31b-qat")).toBeNull();
+		expect(getThinkingRequestControl(null)).toBeNull();
 	});
 });

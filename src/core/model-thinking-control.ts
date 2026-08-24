@@ -48,7 +48,11 @@ const THINKING_CONTROL_MATCHERS: readonly { pattern: RegExp; control: ThinkingCo
  * empty content, `finish:length` at temp 0 either way). So the qwen3 soft switch is a qwen3-ONLY behavior, not qwen3.x;
  * exclude qwen3.5 and let the caller budget for reasoning instead (the §4A truncation-recovery approach).
  */
-const ALWAYS_REASONING_EXCLUDE = /deepseek|[-_/]r1\b|r1[-_]|qwen-?3[._]?5/i;
+// 2026-08-24 extension `[5-9]`: qwen3.8 live-probed (LM Studio /v1, temp 0) — `/no_think` did not disable and
+// actively GREW reasoning (67 → 186 chars; the model reasons about the token), so the whole dotted 3.x line is
+// excluded from the token switch. Its real per-request control is the effort param — see
+// {@link getThinkingRequestControl} (`reasoning_effort:"none"` ⇒ 0 reasoning chars, same probe).
+const ALWAYS_REASONING_EXCLUDE = /deepseek|[-_/]r1\b|r1[-_]|qwen-?3[._]?[5-9]/i;
 
 /**
  * The Qwen3.x reasoning LINE — the `qw…3.5` / `qw…3.6` families (arch `qwen3_5` / `qwen3_6`), covering both the upstream
@@ -158,4 +162,29 @@ export function applyThinkingDisable(text: string, modelId: string): string {
 		return text;
 	}
 	return `${text.trimEnd()} ${control.disableToken}`;
+}
+
+/**
+ * Request-PARAM thinking control — for models whose thinking switch is a chat-completions request field rather
+ * than a message token. Live-verified on qwen/qwen3.8-27b (2026-08-24, temp 0): `reasoning_effort:"none"`
+ * produced ZERO reasoning content with a clean direct answer, while `/no_think` grew reasoning and both
+ * `enable_thinking` request forms were ignored. On this line the mode and level axes collapse into ONE param
+ * (`none` = off; `low`/`medium`/`xhigh` = levels — global default medium per the 2026-08 A/B).
+ */
+export interface ThinkingRequestControl {
+	/** The chat-completions request field that carries the switch. */
+	param: "reasoning_effort";
+	/** The value that fully disables the reasoning channel for the request. */
+	disableValue: "none";
+}
+
+/** The qwen3.8 line (incl. local `qwopus3.8`-style rebrands). Verified on qwen/qwen3.8-27b only — extend per probe. */
+const REQUEST_CONTROL_MATCHERS: readonly { pattern: RegExp; control: ThinkingRequestControl }[] = [
+	{ pattern: /qw[a-z]*-?3[._]8/i, control: { param: "reasoning_effort", disableValue: "none" } },
+];
+
+/** The verified request-param thinking control for a model, or null when none is live-verified. */
+export function getThinkingRequestControl(modelId: string | null | undefined): ThinkingRequestControl | null {
+	if (!modelId) return null;
+	return REQUEST_CONTROL_MATCHERS.find((entry) => entry.pattern.test(modelId))?.control ?? null;
 }

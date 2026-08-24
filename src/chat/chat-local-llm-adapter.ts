@@ -2,7 +2,12 @@ import { answerBudgetPrior } from "../core/answer-budget-prior";
 import { deriveTruncationSignal } from "../core/completion-stop-reason";
 import { extractCompletionUsage } from "../core/completion-usage";
 import { isTruthyEnv, resolveDefaultOnFlag } from "../core/env-flag";
-import { applyThinkingDisable, isReasoningModel, supportsThinkingControl } from "../core/model-thinking-control";
+import {
+	applyThinkingDisable,
+	getThinkingRequestControl,
+	isReasoningModel,
+	supportsThinkingControl,
+} from "../core/model-thinking-control";
 import { downgradeSchemaForProfile } from "../core/provider-schema-downgrade";
 import { schemaProviderFromProviderId, selectProviderSchemaProfile } from "../core/provider-schema-profile";
 import { createReasoningBudgetTracker, REASONING_BUDGET_BREACH_NUDGE } from "../core/reasoning-budget-breach";
@@ -318,7 +323,7 @@ async function streamWithContinuationLadder(
 		isTruthyEnv(process.env.NKLEIN_REASONING_BREACH) &&
 		breachModelId !== undefined &&
 		isReasoningModel(breachModelId) &&
-		supportsThinkingControl(breachModelId);
+		(supportsThinkingControl(breachModelId) || getThinkingRequestControl(breachModelId) !== null);
 	const tracker = breachEligible ? createReasoningBudgetTracker() : null;
 	let first = await completeStream(
 		{ messages, sampling },
@@ -342,11 +347,17 @@ async function streamWithContinuationLadder(
 		} catch {
 			// Telemetry must never break the turn.
 		}
+		const breachRequestControl = getThinkingRequestControl(breachModelId);
 		const disabledMessages = replaceLastUserText(
 			messages,
 			`${applyThinkingDisable(lastUserText(messages), breachModelId)}\n\n${REASONING_BUDGET_BREACH_NUDGE}`,
 		);
-		first = await completeStream({ messages: disabledMessages, sampling }, onToken);
+		// Param-switch models (qwen3.8 line): thinking off rides the REQUEST (`reasoning_effort:"none"`) — the
+		// message token is a live-probed no-op there, so applyThinkingDisable already left the text alone.
+		const breachSampling = breachRequestControl
+			? { ...sampling, reasoningEffort: breachRequestControl.disableValue }
+			: sampling;
+		first = await completeStream({ messages: disabledMessages, sampling: breachSampling }, onToken);
 	}
 	let combined = cleanModelReply(first.content);
 	let lastCompletion = first;
@@ -703,10 +714,13 @@ export function createChatAgentModel(
 				tokenBudget: baseBudget,
 			}).shouldRetryLarger;
 		const modelSupportsThinkingControl = Boolean(options.modelId && supportsThinkingControl(options.modelId));
+		// qwen3.8-line request-param switch (live-probed 2026-08-24): thinking off = `reasoning_effort:"none"` on
+		// the request; the message token is inert there. Either switch makes the thinking_disable rung available.
+		const modelThinkingRequestControl = getThinkingRequestControl(options.modelId);
 		const availableStrategies: RetryStrategy[] = [];
 		if (allowTools && initialTruncated) {
 			availableStrategies.push("raise_token_budget");
-			if (modelSupportsThinkingControl) availableStrategies.push("thinking_disable");
+			if (modelSupportsThinkingControl || modelThinkingRequestControl) availableStrategies.push("thinking_disable");
 		}
 		if (
 			allowTools &&
@@ -747,7 +761,11 @@ export function createChatAgentModel(
 			initialTruncated &&
 			retryCursor.claim("raise_token_budget")
 		) {
-			const bumped = { ...sampling, maxTokens: Math.max(baseBudget * 3, 3072) };
+			const bumped = {
+				...sampling,
+				maxTokens: Math.max(baseBudget * 3, 3072),
+				...(modelThinkingRequestControl ? { reasoningEffort: modelThinkingRequestControl.disableValue } : {}),
+			};
 			// If the model has a thinking soft-switch (e.g. Qwen3 `/no_think`), DISABLE thinking on the retry — that removes
 			// the reasoning_content that caused the truncation (the ROOT cause), which is cheaper + more reliable than just
 			// enlarging the budget (live: qwen3 reasoning 965 → 2 chars, tool call still emitted). Else just re-ask bigger.
@@ -755,6 +773,8 @@ export function createChatAgentModel(
 				options.modelId && modelSupportsThinkingControl
 					? replaceLastUserText(wire, applyThinkingDisable(lastUserText(messages), options.modelId))
 					: wire;
+			if (modelThinkingRequestControl && !modelSupportsThinkingControl)
+				retryCursor.recordCoalesced("thinking_disable");
 			// The established chat retry applies the budget raise and soft-switch in ONE provider call. Record both engine
 			// rungs as coalesced so selection remains no-circles without adding an identical extra model invocation.
 			if (modelSupportsThinkingControl) retryCursor.recordCoalesced("thinking_disable");

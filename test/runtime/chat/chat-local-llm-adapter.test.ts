@@ -640,6 +640,38 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(offeredCounts).toEqual([6]); // no anchor → no retry, no wasted calls
 	});
 
+	it('§5.AA truncation rung on the qwen3.8 line: the retry disables thinking via reasoning_effort:"none" (request param, not message token)', async () => {
+		const efforts: (string | undefined)[] = [];
+		const texts: string[] = [];
+		let callIndex = 0;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (request, _tools) => {
+				efforts.push(request.sampling?.reasoningEffort);
+				const last = request.messages.at(-1);
+				texts.push(typeof last?.content === "string" ? last.content : "");
+				callIndex += 1;
+				if (callIndex === 1) {
+					return { content: "", toolCalls: [], finishReason: "length", raw: {} };
+				}
+				return {
+					content: "",
+					toolCalls: [{ id: "c1", name: "create_card", arguments: { title: "X" } }],
+					finishReason: "tool_calls",
+					raw: {},
+				};
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS, {
+			sampling: { temperature: 0, maxTokens: 1024 },
+			modelId: "qwen/qwen3.8-27b",
+		});
+		const result = await model([{ role: "user", content: "Use create_card to make a card." }], true);
+		expect(result.toolCalls).toEqual([{ id: "c1", name: "create_card", arguments: { title: "X" } }]);
+		// First attempt: no effort override. Retry: thinking OFF on the request; /no_think NOT appended (probe-proven inert).
+		expect(efforts).toEqual([undefined, "none"]);
+		expect(texts[1]).not.toContain("/no_think");
+	});
+
 	it("§5.AA truncation rung: re-asks with a larger token budget when a no-call turn hit finish:length", async () => {
 		const budgets: (number | undefined)[] = [];
 		let callIndex = 0;
