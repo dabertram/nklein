@@ -15309,7 +15309,9 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
     observation-truth spirit we just shipped for spawn skips). Their capability seams + goals service
     parallel what we already have (sandbox executors, focus-chain/reanchor) — validation, not takes.
     **▶ #33 BED LEG 1 PROVEN 2026-08-17: dsh-headless drives OUR qwen3.8 end-to-end.** Checkout at
-    ~/GIT/deepseek-harness (pnpm-built via npx, no global installs); isolated DSH_HOME at
+    ~/GIT/deepseek-harness (pnpm-built via npx, no global installs — UPDATED 2026-08-24 to 0.1.1-rc.2 on
+    David's ask, route RE-KEYED to qwen/qwen3.8-27b after the catalog re-key killed the -mlx id, smoke green:
+    one-shot job round-tripped through LM Studio; manual driver at ~/GIT/nklein-scaffold-bed/dsh.sh); isolated DSH_HOME at
     ~/GIT/nklein-scaffold-bed/dsh-home; headless profile patched with a hand-declared `lmstudio` route
     (api openai-completions, baseURL localhost:1234/v1, qwen3.8-27b-mlx @262k; pi-ai insists on a key even
     for keyless local servers → dummy env LMSTUDIO_API_KEY, not a credential). First task (habit-streak
