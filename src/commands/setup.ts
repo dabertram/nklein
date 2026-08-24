@@ -16,6 +16,7 @@ import { setupDeviceRamGbByMachine, setupModelRoleCounts } from "../core/setup-f
 import { parseEgressAllowlist } from "../nklein-agent/egress-proxy-role-snapshot.js";
 import { resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox-docker.js";
 import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service.js";
+import { runSetupAcquireCommand } from "./setup-acquire-command";
 
 const execFileAsync = promisify(execFile);
 
@@ -179,9 +180,10 @@ export function registerSetupCommand(
 		buildPlans?: typeof buildCliSetupPlans;
 		write?: (text: string) => void;
 		cwd?: () => string;
+		runAcquire?: typeof runSetupAcquireCommand;
 	} = {},
 ): void {
-	program
+	const setup = program
 		.command("setup")
 		.description("Inspect guided setup recommendations without opening the browser.")
 		.option("--project-path <path>", "Project path for project-scoped recommendations (defaults to cwd).")
@@ -199,5 +201,26 @@ export function registerSetupCommand(
 						.map((plan) => renderSetupPlanText(plan, plan.kind === "project" ? projectPath : undefined))
 						.join("\n\n");
 			(deps.write ?? console.log)(output);
+		});
+	setup
+		.command("acquire")
+		.description(
+			"Download ONE model with per-model consent (P25.2a, setup-time only). Without --approve this previews the pick and downloads nothing.",
+		)
+		.argument("<modelKey>", 'Exact catalogue key, e.g. "qwen/qwen3.5-9b".')
+		.option("--format <format>", "Artefact format AS SHOWN by the catalogue: safetensors, gguf, or mlx. Hard gate.")
+		.option("--size-gb <n>", "Download size as shown (recorded, not enforced).")
+		.option("--publisher <name>", "Publisher AS SHOWN by the catalogue entry (never guessed from the key).")
+		.option("--allow-publisher <name...>", "Publisher allow-list; a declared publisher not on it is refused.")
+		.option("--params <billions>", "Parameter count for the fit verdict when the key does not state it.")
+		.option("--quant <bits>", "Bits per weight for the fit verdict (default 4).")
+		.option("--context <tokens>", "Serving context for the fit verdict (default 32768).")
+		.option("--budget-gb <n>", "Memory budget override for the fit verdict.")
+		.option("--base-url <url>", "LM Studio base URL (default http://127.0.0.1:1234).")
+		.option("--approve", "Actually download. Consent is bound to exactly this model key.")
+		.action(async (modelKey: string, options: import("./setup-acquire-command").SetupAcquireOptions) => {
+			process.exitCode = await (deps.runAcquire ?? runSetupAcquireCommand)(modelKey, options, {
+				write: deps.write,
+			});
 		});
 }

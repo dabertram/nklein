@@ -34,7 +34,8 @@ function positiveNumber(value: string | undefined, fallback: number): number {
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function resolveBudget(options: DevModelFitOptions): { bytes: number; source: string } {
+/** Shared budget precedence — setup acquire reuses this so fit verdicts can never disagree about this host's memory. */
+export function resolveBudget(options: DevModelFitOptions): { bytes: number; source: string } {
 	const declared = Number(options.budgetGb);
 	if (Number.isFinite(declared) && declared > 0) {
 		return { bytes: declared * BYTES_PER_GIB, source: "--budget-gb" };

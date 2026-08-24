@@ -14624,6 +14624,15 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
      **▶ THE BOUNDARY SHIPPED 2026-07-31 — `lmstudio-model-acquisition.ts` + `module-import-closure.ts` +
      `test/runtime/model-acquisition-boundary.test.ts`, 27 tests.** Phase 3's remaining work is the setup UI and
      `lms get` roster refresh; the capability it drives is now fenced.
+     **▶ THE SETUP SURFACE SHIPPED 2026-08-24 — `nklein setup acquire <modelKey>` (`setup-acquire-command.ts`,
+     5 tests, live preview smoke green).** Two-step consent: without `--approve` it previews the pick — declared
+     format (safety verdict via the allow-list), size, publisher, and the PHASE-1 FIT VERDICT (reusing
+     `resolveBudget`, now exported, so acquire and `dev model-fit` can never disagree about this host's memory) —
+     and prints the exact re-run command; NOTHING touches the network (pinned: the client is not even
+     constructed). `--approve` binds the operator's declared catalogue facts into the fenced client
+     (format hard-gated, publisher allow-list via `--allow-publisher`, size recorded). Boundary test re-run
+     green — the CLI surface stays outside the runtime's import closure. Remaining phase-3 scope: the guided
+     setup WEB view (the CLI is the product path today; `lms get` stays dev tooling).
      **🔴 THE BOUNDARY WAS ALREADY BREACHED WHEN THIS WAS WRITTEN, AND THE ITEM DID NOT KNOW IT.** `downloadModel`
      was a method on `LmStudioRestModelClient` — *the same object `start-task-session.ts` constructs during a
      normal task run*. Nothing called it, so nothing was broken; but "no caller today" is a fact about the present,
