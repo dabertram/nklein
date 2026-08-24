@@ -101,6 +101,10 @@ fi
 
 WORKER="${WORKER:-qwen/qwen3.6-35b-a3b}"
 ARCHITECT_MODEL="${NKLEIN_ARCHITECT_MODEL:-$WORKER}"
+# Per-role reasoning effort (qwen3.8-line lever, live-probed 2026-08-24): none|low|medium|high|xhigh.
+# Empty = omit the field (model default). Stamped into the run config's modelRoles by the reconcile below.
+WORKER_EFFORT="${NKLEIN_WORKER_EFFORT:-}"
+REVIEWER_EFFORT="${NKLEIN_REVIEWER_EFFORT:-}"
 CHILD_WORKER_MODEL="${NKLEIN_CHILD_WORKER_MODEL:-qwen/qwen2.5-coder-14b}"
 REVIEWER_MODEL="${NKLEIN_REVIEWER_MODEL:-$WORKER}"
 
@@ -197,13 +201,14 @@ if [ "$RUN_KIND" = dev-test ]; then
   mkdir -p "$(dirname "$RUN_CONFIG")" "$SESSION_SNAPSHOT_DIR"
 fi
 if [ "$RUN_KIND" = dev-test ] && [ ! -f "$RUN_CONFIG" ]; then
-  jq -n --arg architect "$ARCHITECT_MODEL" --arg worker "$CHILD_WORKER_MODEL" --arg reviewer "$REVIEWER_MODEL" '{
+  jq -n --arg architect "$ARCHITECT_MODEL" --arg worker "$CHILD_WORKER_MODEL" --arg reviewer "$REVIEWER_MODEL" \
+    --arg workerEffort "$WORKER_EFFORT" --arg reviewerEffort "$REVIEWER_EFFORT" '{
     selectedAgentId: "nklein",
     developerModeEnabled: true,
     modelRoles: {
       architect: {providerId: "lmstudio", modelId: $architect},
-      worker: {providerId: "lmstudio", modelId: $worker},
-      reviewer: {providerId: "lmstudio", modelId: $reviewer}
+      worker: ({providerId: "lmstudio", modelId: $worker} + (if $workerEffort != "" then {reasoningEffort: $workerEffort} else {} end)),
+      reviewer: ({providerId: "lmstudio", modelId: $reviewer} + (if $reviewerEffort != "" then {reasoningEffort: $reviewerEffort} else {} end))
     }
   }' >"$RUN_CONFIG"
 elif [ "$RUN_KIND" = dev-test ]; then
@@ -211,11 +216,12 @@ elif [ "$RUN_KIND" = dev-test ]; then
   # role intent — the boot line printed the INTENDED roles while disk kept a prior round's (unloaded) models,
   # and the reviewer stranded on a model that was never resident. Reconcile roles IN PLACE so the printed
   # config and the served config are the same fact; everything else in the durable config is preserved.
-  jq --arg architect "$ARCHITECT_MODEL" --arg worker "$CHILD_WORKER_MODEL" --arg reviewer "$REVIEWER_MODEL" '
+  jq --arg architect "$ARCHITECT_MODEL" --arg worker "$CHILD_WORKER_MODEL" --arg reviewer "$REVIEWER_MODEL" \
+    --arg workerEffort "$WORKER_EFFORT" --arg reviewerEffort "$REVIEWER_EFFORT" '
     .modelRoles = {
       architect: {providerId: "lmstudio", modelId: $architect},
-      worker: {providerId: "lmstudio", modelId: $worker},
-      reviewer: {providerId: "lmstudio", modelId: $reviewer}
+      worker: ({providerId: "lmstudio", modelId: $worker} + (if $workerEffort != "" then {reasoningEffort: $workerEffort} else {} end)),
+      reviewer: ({providerId: "lmstudio", modelId: $reviewer} + (if $reviewerEffort != "" then {reasoningEffort: $reviewerEffort} else {} end))
     }' "$RUN_CONFIG" >"$RUN_CONFIG.tmp" && mv "$RUN_CONFIG.tmp" "$RUN_CONFIG"
 fi
 # modelRoles choose models after a role has been assigned; the auto-start cascade still resolves the globally
