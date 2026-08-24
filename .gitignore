@@ -51,3 +51,4 @@ screenlog.*
 # `scripts/ablate.mts` scratch output. The ablation deliberately touches nothing in the
 # repo — leaving its own reports tracked here contradicted exactly that.
 .ablation/
+.depth-campaign-home/
