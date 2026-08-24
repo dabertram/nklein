@@ -2,6 +2,41 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **!Klein now watches the model frontier — and measures itself against it.** A radar in the bottom-right corner
+  researches the latest local models and agentic techniques with your own most capable resident model (search runs
+  through the sandboxed local backend, only when you have enabled retrieval), then reflects the findings against
+  what !Klein itself ships — ahead / par / behind, honestly — and sums it up in one playful line. Recommendations
+  never download anything: each one carries the consent-gated preview command instead.
+
+- **Installing a new model is now a first-class, two-step consent flow.** `nklein setup acquire <model>` previews
+  what you would get — declared format with a safety verdict (weights-only formats only; a pickle is refused no
+  matter who approves it), size, publisher, and whether it fits this machine's memory at your serving context —
+  and downloads only when you re-run with `--approve`. The autonomous runtime cannot reach the download capability
+  at all; that is proven by an import-closure test, not policy.
+
+- **Thinking is now a per-task dial, including OFF.** Reasoning effort (`none`/`low`/`medium`/`high`/`xhigh`) can be
+  set per task and per role, and !Klein knows each model family's real switch: families that honor a message token
+  keep it, while families that only respond to the request parameter (probed live, not assumed) get it on the wire.
+  The recovery ladder uses the same knowledge — a turn truncated by runaway reasoning retries with thinking off via
+  whichever switch that model actually has.
+
+- **A card can no longer sit "running" with nothing behind it.** The zombie window is closed from three sides: a
+  session that starved during planning ends with a brief saying exactly that (instead of a silent stall), late
+  tool events from a dead run can no longer revive a finished card, and a partially built decomposition survives
+  a runtime restart — the model resumes an oriented construction instead of starting over or looping.
+
+- **Re-work after a rejected review starts clean instead of digging deeper.** When a review bounces a card, !Klein
+  can rewind the worker to its last safe checkpoint and hand it the re-work brief there — rather than appending
+  instructions to a transcript that already went wrong. If the rewind is not safe, the classic path runs unchanged.
+
+- **Plans can no longer promise tasks too big to review or to fit.** At decompose time every planned task is
+  checked against two empirically derived ceilings — what the available models can hold, and what a reviewer has
+  actually judged successfully — and an oversized task is rejected with the split instruction while the planner is
+  still in the loop. No evidence means no guessing: a cold system never splits on an invented constant.
+
+- **A parked card can be redriven with one command.** `nklein task redrive <card>` builds a re-work brief from the
+  park reason and the last feedback, moves the card back into the lane, and restarts it — with your note leading.
+
 - **Reviews on slow local models now reliably end in a verdict.** A second-opinion review could spend its whole
   deadline exploring and never be asked to decide; a truncated verdict was retried with the identical budget that
   truncated it; an intentionally cut exploration turn kept holding the model's only slot; and a review that DID
