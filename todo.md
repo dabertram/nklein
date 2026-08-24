@@ -4818,7 +4818,17 @@ stays fast + complete.
     PAIRED READOUT (7 pairs): plan variants STAGNATE fast (6/7, mostly 4-18m — the P0.DSTALL surface at
     benchmark prompt sizes); no-plan variants get BLOCKED BY REVIEW (4/7, 9-60m). Both arms point at the two
     filed defect clusters, so P0.DSTALL's remaining layers are the tranche's critical path — fix first, then
-    arm k.)* *(2026-08-20
+    arm k.)*
+    **🏁 ARM K COMPLETED 2026-08-24 (armk7, `.real-runs/aider-campaigns/aider24-single-host-qwen38med-armk7-20260823`):
+    96/96 attempts, 0 infrastructure errors, 48 paired outcomes, every attempt gold-graded — resolve rate 0/96
+    on BOTH arms (plan and no-plan; McNemar p=1). THE PINNED 0.0.1 BASELINE IS A TRUE ZERO FLOOR** for
+    qwen/qwen3.8-27b at medium effort under 20-min caps through the full pipeline — the delta lane's clean
+    starting point (any future resolve is a loud improvement; the resolved→unresolved regression rule arms
+    itself the first time something resolves). Getting here took seven arms, each converting a launch failure
+    into a named product/harness fix: the pinned best-effort bridge, per-attempt workspace retirement, the
+    redecompose opt-out, benchmark auto-review off, abandoned-session stops, retire-before-capture, and the
+    `externallySupervised` card flag (c7691fbc6). REMAINING LEAF: wire the campaign as the nightly delta lane
+    (report-only until something resolves). *(2026-08-20
     DISPOSITION under David's "work around the missing fleet": this is **GPU-TIME-bound, not fleet-bound**.
     Checked rather than assumed — `aider-polyglot-campaign.ts` validates an arbitrary `assignments` array
     (instanceId + modelId) and imposes NO host requirement; the three-host split lives only in the

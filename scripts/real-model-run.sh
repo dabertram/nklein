@@ -168,6 +168,11 @@ if [ -n "${NKLEIN_RUN_HOME:-}" ] && [ "${NKLEIN_KEEP_RUN_WORKSPACES:-0}" != "1" 
   done
 fi
 RUNTIME_LOG="$RUN_DIR/runtime.log"; DRAIN_JSON="$RUN_DIR/drain.json"; DRAIN_ERR="$RUN_DIR/drain.err"
+# P18.4b act-half, RIG-ONLY (David 2026-08-23): the off-track remedy ACTS during rig drains — the drift
+# critic supplies verdicts and the remedy may compact/park an off-track worker. David's real sessions keep
+# the default-OFF posture; only the rig exports these.
+export NKLEIN_DRIFT_CRITIC=1
+export NKLEIN_DRIFT_REMEDY_ENFORCE=1
 DEVLOG="$RUN_DIR/lmstudio-devlog.txt"; RUNLOG="$RUN_DIR/orchestrator.log"; SNAP="$RUN_DIR/snapshots.log"
 EVIDENCE_DIR="$RUN_DIR/evidence"
 SESSION_SNAPSHOT_DIR="$RUN_HOME/.nklein/evidence-session-snapshots"
