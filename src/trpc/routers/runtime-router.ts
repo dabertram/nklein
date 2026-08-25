@@ -2,6 +2,7 @@
 // app-router.ts. Built from the shared `t` + `workspaceProcedure` (passed in; typed via type-only imports — no
 // runtime cycle), so the router type composes identically.
 
+import { z } from "zod";
 import {
 	runtimeAdwListWorkflowsResponseSchema,
 	runtimeAdwRunRequestSchema,
@@ -779,9 +780,14 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.openWorkspaceIn(ctx.workspaceScope, input);
 			}),
-		resetAllState: t.procedure.output(runtimeDebugResetAllStateResponseSchema).mutation(async ({ ctx }) => {
-			return await ctx.runtimeApi.resetAllState(ctx.workspaceScope);
-		}),
+		resetAllState: t.procedure
+			// The wipe must be impossible to trigger by a bare parameterless call (any local process can reach
+			// the unauthenticated loopback): the schema only admits a literal confirm:true.
+			.input(z.object({ confirm: z.literal(true) }))
+			.output(runtimeDebugResetAllStateResponseSchema)
+			.mutation(async ({ ctx }) => {
+				return await ctx.runtimeApi.resetAllState(ctx.workspaceScope);
+			}),
 		openFile: t.procedure
 			.input(runtimeOpenFileRequestSchema)
 			.output(runtimeOpenFileResponseSchema)

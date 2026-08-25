@@ -231,8 +231,10 @@ function classifySegment(segment: string): string | null {
 	// Output redirection is always unsafe: overwrites or appends to files.
 	// We look for bare > or >> that are not inside quotes (pragmatic, not perfect).
 	// The regex matches `>` or `>>` that appear outside single/double-quoted regions.
-	if (/(?:^|[^'"])>>?(?:[^'"]|$)/.test(trimmed)) {
-		return "output redirection (> or >>) can overwrite or create files";
+	// Match `>`/`>>` (and `<`) preceded by start, whitespace, OR a closing quote — the last case was the
+	// finding-7 gap (`echo "x" >/file` hid the redirect behind the quote). `2>`, `&>` variants included.
+	if (/(?:^|[\s'"&\d])>>?/.test(trimmed) || /(?:^|[\s'"])<(?![<(])/.test(trimmed)) {
+		return "I/O redirection (>, >>, <) can overwrite, create, or read files";
 	}
 
 	const { exe, rest } = parseSegment(trimmed);
@@ -379,18 +381,26 @@ function classifySegment(segment: string): string | null {
  * here-docs, and intentionally classifies them as unsafe via the fallback.
  */
 function splitSegments(command: string): string[] {
-	// Split on the operators (&&, ||, ;, |) — simple approach without quote awareness.
-	// We normalise `&&` and `||` before splitting on single `|` to avoid consuming them.
+	// Split on the operators (&&, ||, ;, |), NEWLINES, and process-substitution boundaries — a pragmatic
+	// approach without full quote awareness. Audit 2026-08-25 (HIGH): a bare newline was NOT a separator, so
+	// `ls\nrm -rf /tmp/data` classified on `ls` alone (its first word) and auto-ran the destructive second
+	// line. `$(...)` / backticks are treated as separators too, so the substituted command is classified in its
+	// own right instead of riding invisibly inside a safe first word's arguments.
 	const segments: string[] = [];
-	// Replace && and || with a unique separator, then split on | and ;
 	const normalised = command
-		.replace(/&&/g, "\x00AND\x00")
-		.replace(/\|\|/g, "\x00OR\x00")
+		.replace(/&&/g, "\x00SEP\x00")
+		.replace(/\|\|/g, "\x00SEP\x00")
 		.replace(/;/g, "\x00SEP\x00")
-		.replace(/\|/g, "\x00PIPE\x00");
+		.replace(/[\r\n]+/g, "\x00SEP\x00")
+		.replace(/\|/g, "\x00SEP\x00")
+		// Command substitution: replace the delimiters with separators so the inner command becomes its own
+		// segment. `$(` and the closing `)`, and both backticks.
+		.replace(/\$\(/g, "\x00SEP\x00")
+		.replace(/`/g, "\x00SEP\x00")
+		.replace(/\)/g, "\x00SEP\x00");
 
 	for (const part of normalised.split("\x00")) {
-		const clean = part.replace(/^(?:AND|OR|SEP|PIPE)\s*/, "").trim();
+		const clean = part.replace(/^SEP\s*/, "").trim();
 		if (clean) {
 			segments.push(clean);
 		}

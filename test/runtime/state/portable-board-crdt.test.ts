@@ -76,13 +76,28 @@ describe("portable board CRDT merge", () => {
 
 	it("lets a newer deletion win over a concurrent edit, and vice versa", () => {
 		const base = boardToPortableBoardCrdt(board([{ columnId: "planning", card: card("a", { updatedAt: 5 }) }]), "m1");
-		const deleted = markCardDeleted(base, "a", "m1");
+		const deleted = markCardDeleted(base, "a", "m1", 6);
 		const concurrentEdit = boardToPortableBoardCrdt(
 			board([{ columnId: "completed", card: card("a", { updatedAt: 5 }) }]),
 			"m2",
 		);
 		// Deletion stamp is counter+1 over the edit, so the card stays deleted.
 		const merged = portableBoardCrdtToBoard(mergePortableBoardCrdt(deleted, concurrentEdit));
+		expect(merged.columns.every((column) => column.cards.length === 0)).toBe(true);
+	});
+
+	it("keeps a card deleted even when a concurrent edit carries a strictly NEWER wall clock (audit 2026-08-25)", () => {
+		// The tombstone is stamped from a card at updatedAt:5; the concurrent replica edits the SAME card at a
+		// later wall clock (updatedAt:9). The old counter+1 tombstone (=6) lost to 9 and the card resurrected.
+		const base = boardToPortableBoardCrdt(board([{ columnId: "planning", card: card("a", { updatedAt: 5 }) }]), "m1");
+		// Deletion happens at wall-clock 12, AFTER the other replica's edit at 9 — but the deleting replica has
+		// never seen that edit, so only a wall-clock tombstone stamp can outrank it.
+		const deleted = markCardDeleted(base, "a", "m1", 12);
+		const laterEdit = boardToPortableBoardCrdt(
+			board([{ columnId: "completed", card: card("a", { updatedAt: 9 }) }]),
+			"m2",
+		);
+		const merged = portableBoardCrdtToBoard(mergePortableBoardCrdt(deleted, laterEdit));
 		expect(merged.columns.every((column) => column.cards.length === 0)).toBe(true);
 	});
 
@@ -135,7 +150,7 @@ describe("portable board CRDT merge", () => {
 			),
 			"m1",
 		);
-		const projected = portableBoardCrdtToBoard(markCardDeleted(base, "a", "m1"));
+		const projected = portableBoardCrdtToBoard(markCardDeleted(base, "a", "m1", 6));
 		expect(projected.dependencies).toEqual([]);
 	});
 });

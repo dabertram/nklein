@@ -208,7 +208,7 @@ export async function fetchNKleinCodeIntelligenceStatus(
 
 export async function resetRuntimeDebugState(workspaceId: string | null): Promise<RuntimeDebugResetAllStateResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.resetAllState.mutate();
+	return await trpcClient.runtime.resetAllState.mutate({ confirm: true });
 }
 
 export async function openFileOnHost(workspaceId: string | null, filePath: string): Promise<void> {

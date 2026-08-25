@@ -122,7 +122,7 @@ export async function exportLocalBoardToPortableCrdt(input: {
 	if (committed && localCardIds.size > 0) {
 		for (const cardId of Object.keys(committed.cards)) {
 			if (!localCardIds.has(cardId) && !merged.cards[cardId]?.deleted.value) {
-				merged = markCardDeleted(merged, cardId, input.replicaId);
+				merged = markCardDeleted(merged, cardId, input.replicaId, Date.now());
 			}
 		}
 	}

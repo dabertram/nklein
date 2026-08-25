@@ -120,6 +120,13 @@ export function migratePortableBoardCrdt(
 		dependencies: isPlainObject(current.dependencies)
 			? (current.dependencies as PortableBoardCrdt["dependencies"])
 			: {},
+		// The M2 fields MUST survive this literal (audit 2026-08-25, CRITICAL): every read routes through this
+		// function even at the current version, so omitting them here silently stripped streams and satisfied
+		// edges on each load — and a lost satisfied edge resurrects as a LIVE dependency downstream.
+		...(isPlainObject(current.streams) ? { streams: current.streams as PortableBoardCrdt["streams"] } : {}),
+		...(isPlainObject(current.satisfiedDependencies)
+			? { satisfiedDependencies: current.satisfiedDependencies as PortableBoardCrdt["satisfiedDependencies"] }
+			: {}),
 	};
 }
 
@@ -194,21 +201,43 @@ export function mergePortableBoardCrdt(a: PortableBoardCrdt, b: PortableBoardCrd
 	};
 }
 
-/** Marks a card deleted with a stamp strictly newer than any present field, so the tombstone wins on merge. */
-export function markCardDeleted(crdt: PortableBoardCrdt, cardId: string, replicaId: string): PortableBoardCrdt {
+/**
+ * Marks a card deleted with a stamp strictly newer than any stamp CURRENTLY OBSERVED in the merged CRDT, so the
+ * tombstone wins over every edit already present at deletion time.
+ *
+ * Audit 2026-08-25 (HIGH): the old stamp was `local-card-max + 1`, but the logical clock is the card's
+ * wall-clock `updatedAt`, so a concurrent edit on another replica stamped even one millisecond later beat the
+ * tombstone and `projectCard` resurrected the card. Deletion happens at export time with no per-card wall clock
+ * to draw from, so the defensible tie-break is the maximum stamp across the WHOLE board (every card's fields and
+ * `deleted`, plus streams/satisfiedDependencies) + 1: a tombstone then dominates anything that was concurrent.
+ * (A genuinely LATER edit on another replica still wins — that is correct CRDT semantics, not resurrection.)
+ */
+export function markCardDeleted(
+	crdt: PortableBoardCrdt,
+	cardId: string,
+	replicaId: string,
+	/** Wall-clock ms of the deletion (the caller's clock — this module stays pure). */
+	deletedAtMs: number,
+): PortableBoardCrdt {
 	const card = crdt.cards[cardId];
 	if (!card) {
 		return crdt;
 	}
-	const maxCounter = Math.max(
-		card.deleted.stamp.counter,
-		...Object.values(card.fields).map((register) => register.stamp.counter),
-	);
+	// The tombstone must dominate BOTH every stamp observed locally AND any concurrent edit stamped with an
+	// earlier wall clock on a replica this one has not seen — a bounded local bump can never win the latter.
+	let maxCounter = card.deleted.stamp.counter;
+	for (const other of Object.values(crdt.cards)) {
+		maxCounter = Math.max(maxCounter, other.deleted.stamp.counter);
+		for (const register of Object.values(other.fields)) {
+			maxCounter = Math.max(maxCounter, register.stamp.counter);
+		}
+	}
+	const counter = Math.max(Number.isFinite(deletedAtMs) ? deletedAtMs : 0, maxCounter + 1);
 	return {
 		...crdt,
 		cards: {
 			...crdt.cards,
-			[cardId]: { ...card, deleted: { value: true, stamp: { counter: maxCounter + 1, replicaId } } },
+			[cardId]: { ...card, deleted: { value: true, stamp: { counter, replicaId } } },
 		},
 	};
 }

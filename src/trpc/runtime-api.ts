@@ -2120,6 +2120,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			}
 		},
 		resetAllState: async (_workspaceScope) => {
+			// Audit 2026-08-25 (HIGH): this wipes every !Klein store with no backup. Never reachable in remote
+			// mode, and the router additionally requires an explicit confirm:true input before it dispatches here.
+			if (deps.isRemoteMode) {
+				throw new Error("resetAllState is disabled in remote mode.");
+			}
 			await deps.prepareForStateReset?.();
 			await Promise.all(
 				debugResetTargetPaths.map(async (path) => {

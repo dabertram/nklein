@@ -14,6 +14,18 @@ describe("egress-receipt chain (pure)", () => {
 		taintLabels: [] as string[],
 	};
 
+	it("detects HEAD truncation — a deleted genesis leaves a non-null head prevHash (audit 2026-08-25)", () => {
+		const first = buildEgressReceipt({ ...base, prevHash: null, at: 1 });
+		const second = buildEgressReceipt({ ...base, prevHash: first.hash, at: 2 });
+		const third = buildEgressReceipt({ ...base, prevHash: second.hash, at: 3 });
+		expect(verifyEgressReceiptChain([first, second, third]).valid).toBe(true);
+		// Delete the first (exfiltration) receipt: the surviving chain still links internally, but its new head
+		// carries a non-null prevHash pointing at the vanished genesis — that is the tell.
+		const truncated = verifyEgressReceiptChain([second, third]);
+		expect(truncated.valid).toBe(false);
+		expect(truncated.reason).toContain("truncated");
+	});
+
 	it("builds a verifiable chain and detects content tampering", () => {
 		const first = buildEgressReceipt({ ...base, prevHash: null, at: 1 });
 		const second = buildEgressReceipt({

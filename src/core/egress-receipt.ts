@@ -62,8 +62,19 @@ export function verifyEgressReceiptChain(receipts: readonly EgressReceipt[]): Ch
 		if (!receipt) {
 			return { valid: false, brokenAt: i, reason: `receipt ${i} is missing.` };
 		}
-		const expectedPrev = i === 0 ? receipt.prevHash : (receipts[i - 1]?.hash ?? null);
-		if (i > 0 && receipt.prevHash !== expectedPrev) {
+		if (i === 0) {
+			// Audit 2026-08-25 (MEDIUM): the genesis receipt is built with prevHash === null (see the store).
+			// The old code compared receipt[0].prevHash against itself, so it validated nothing — deleting the
+			// first k receipts (which may hold the exfiltration records) left the chain reporting valid. A
+			// non-null head prevHash now means the true genesis was truncated away.
+			if (receipt.prevHash !== null) {
+				return {
+					valid: false,
+					brokenAt: 0,
+					reason: "receipt 0 has a non-null prevHash — the head of the chain was truncated.",
+				};
+			}
+		} else if (receipt.prevHash !== (receipts[i - 1]?.hash ?? null)) {
 			return { valid: false, brokenAt: i, reason: `receipt ${i} does not link to receipt ${i - 1} (chain break).` };
 		}
 		const recomputed = createHash("sha256").update(canonical(receipt)).digest("hex");

@@ -235,3 +235,22 @@ describe("classifyCommandSafety — re-exported from chat-command-tool", () => {
 		expect(classifyCommandSafetyFromTool("rm -rf /")).toMatchObject({ safety: "unsafe" });
 	});
 });
+
+describe("classifyCommandSafety — audit 2026-08-25 injection gaps", () => {
+	it("classifies a destructive command hidden after a NEWLINE (not just the safe first line)", () => {
+		unsafe("ls\nrm -rf /tmp/data");
+		unsafe("echo hi\nrm -rf ~/important");
+		unsafe("cat file\r\nsudo rm -rf /");
+	});
+
+	it("classifies a destructive command inside COMMAND SUBSTITUTION", () => {
+		unsafe("echo $(rm -rf /tmp/data)");
+		unsafe("echo `rm -rf /tmp/data`");
+	});
+
+	it("detects redirection ADJACENT to a closing quote (finding 7)", () => {
+		unsafe('echo "x" >/etc/hosts');
+		unsafe('echo "payload" >>~/.bashrc');
+		unsafe('cat "x" </etc/passwd');
+	});
+});
