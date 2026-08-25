@@ -107,6 +107,9 @@ WORKER_EFFORT="${NKLEIN_WORKER_EFFORT:-}"
 # NKLEIN_SEED_EFFORT reaches the CARD the run actually executes. The per-role stamps cover decompose CHILDREN;
 # a --model-id seed BYPASSES config roles entirely (found 2026-08-25: an --act single-card round stamped only
 # the child-worker role, so the lever measured nothing). Empty ⇒ no flag ⇒ model default.
+# ⚠️ bash 3.2 (the macOS default, and what this rig runs on) treats `"${EMPTY[@]}"` as an UNBOUND VARIABLE under
+# `set -u` — it killed three beds of depth round 7 mid-campaign, four seconds each, after this array was added.
+# The `${ARR[@]+"${ARR[@]}"}` idiom is the portable expansion: nothing when empty, the elements otherwise.
 SEED_EFFORT_ARGS=()
 [ -n "${NKLEIN_SEED_EFFORT:-}" ] && SEED_EFFORT_ARGS=(--reasoning-effort "$NKLEIN_SEED_EFFORT")
 REVIEWER_EFFORT="${NKLEIN_REVIEWER_EFFORT:-}"
@@ -401,7 +404,7 @@ else
     ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
         "$REPO/node_modules/.bin/tsx" src/cli.ts dev test-project --preset "$PRESET" --resume \
           --project-path "$NKLEIN_RESUME_PROJECT_PATH" \
-          --model-id "$WORKER" --provider-id lmstudio "${SEED_EFFORT_ARGS[@]}" \
+          --model-id "$WORKER" --provider-id lmstudio ${SEED_EFFORT_ARGS[@]+"${SEED_EFFORT_ARGS[@]}"} \
           --max-wait-ms $((MAX_MIN*60000)) --poll-interval-ms 10000 --json \
           >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
   else
@@ -413,7 +416,7 @@ else
   case "$PRESET" in *.json) SCENARIO_ARGS=(--scenario-file "$PRESET");; esac
   ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
       "$REPO/node_modules/.bin/tsx" src/cli.ts dev test-project "${SCENARIO_ARGS[@]}" $MODE $NULL_AGENT_ARG \
-        --model-id "$WORKER" --provider-id lmstudio "${SEED_EFFORT_ARGS[@]}" \
+        --model-id "$WORKER" --provider-id lmstudio ${SEED_EFFORT_ARGS[@]+"${SEED_EFFORT_ARGS[@]}"} \
         --max-wait-ms $((MAX_MIN*60000)) --poll-interval-ms 10000 --json \
         >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
   fi
