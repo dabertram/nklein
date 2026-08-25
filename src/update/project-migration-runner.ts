@@ -286,9 +286,18 @@ export async function runProjectMigrations(
 			};
 		}
 
+		// Audit 2026-08-25 (HIGH, data-loss class): a prior attempt that ROLLED BACK left its journal behind, so
+		// this gate skipped the fresh backup and the retry migrated the CURRENT home against the ORIGINAL backup.
+		// If the retry also failed, rollback restored that stale home — silently discarding every workspace added
+		// between the attempts. A journal that did not COMPLETE is worth exactly as much as no journal here.
+		const priorAttemptDidNotComplete =
+			journal !== null &&
+			journal !== undefined &&
+			(journal.state === "rolling_back" || journal.state === "rolled_back");
 		if (
 			!journal ||
 			journal.state === "completed" ||
+			priorAttemptDidNotComplete ||
 			journal.fromVersion !== 1 ||
 			journal.toVersion !== INDEX_VERSION
 		) {

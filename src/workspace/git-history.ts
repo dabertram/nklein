@@ -69,7 +69,13 @@ export async function getGitLog(options: {
 	];
 
 	if (requestedRefs.length > 0) {
-		logArgs.push(...requestedRefs);
+		// Audit 2026-08-25 (HIGH): client-supplied refs were spliced into argv without an option barrier, so a
+		// value like `--upload-pack=cmd` was parsed as a git OPTION (argv is array-based, so no shell injection —
+		// but option injection remained). NOTE `--` is the WRONG barrier for `git log`: there it separates
+		// revisions from PATHS, so the refs would become path filters and match nothing (caught by
+		// git-history.test.ts on the first attempt). `--end-of-options` (git 2.24+) is the correct barrier: it
+		// ends OPTION parsing while leaving the following tokens as revisions.
+		logArgs.push("--end-of-options", ...requestedRefs);
 	}
 
 	const logResult = await runGit(repoRoot, logArgs);

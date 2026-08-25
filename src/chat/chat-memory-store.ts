@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -125,11 +125,13 @@ export async function deleteChatMemory(memoryId: string, options: ChatMemoryStor
 	}
 	const root = options.rootDir ?? DEFAULT_ROOT;
 	await mkdir(root, { recursive: true });
-	await writeFile(
-		resolveLogPath(options.rootDir),
-		kept.map((memory) => `${JSON.stringify(memory)}\n`).join(""),
-		"utf8",
-	);
+	// Audit 2026-08-25 (MEDIUM): a bare full-rewrite loses the ENTIRE memory log on a crash mid-write and races
+	// concurrent appends. Write the new contents to a temp file and atomically rename over the log, so a crash
+	// leaves either the old complete log or the new one — never a truncated file.
+	const logPath = resolveLogPath(options.rootDir);
+	const tmpPath = `${logPath}.${process.pid}.${(options.now ?? Date.now)()}.tmp`;
+	await writeFile(tmpPath, kept.map((memory) => `${JSON.stringify(memory)}\n`).join(""), "utf8");
+	await rename(tmpPath, logPath);
 	return true;
 }
 

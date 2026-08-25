@@ -320,11 +320,20 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 		void claim.release();
 	}
 
+	const chainByWorkspace = new Map<string, Promise<unknown>>();
+
 	function disposeIfComplete(workspaceId: string): void {
 		const controller = registry.get(workspaceId);
 		if (controller?.isComplete()) {
 			registry.dispose(workspaceId);
 			releaseClaim(workspaceId);
+			// Audit 2026-08-25 (HIGH, scope corrected on verification): ops queued behind a dispose are already
+			// safe — every entry point re-reads `registry.get` after entering the chain and no-ops when the run is
+			// gone. What was NOT handled: the chain entry outlived the run, so the map grew per workspace lifecycle
+			// and a SUCCESSOR run for the same workspace queued behind the dead run's tail. Drop it here; the next
+			// run starts a fresh chain. Deliberately not awaited — disposeIfComplete runs INSIDE a serialized op,
+			// so draining its own chain here would deadlock.
+			chainByWorkspace.delete(workspaceId);
 		}
 	}
 
@@ -332,7 +341,6 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 	// `commit()` awaits a ledger append BETWEEN reading and reassigning `jobs` — so concurrent calls could clobber each
 	// other (lost completions / double-leases). Serialize per workspace: every controller-touching op runs after the prior
 	// one for that workspace settles. The stored tail always resolves (errors are swallowed on the CHAIN, not the caller).
-	const chainByWorkspace = new Map<string, Promise<unknown>>();
 	function runSerial<T>(workspaceId: string, op: () => Promise<T>): Promise<T> {
 		const prior = chainByWorkspace.get(workspaceId) ?? Promise.resolve();
 		const result = prior.then(op, op);

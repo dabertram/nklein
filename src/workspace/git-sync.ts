@@ -227,6 +227,12 @@ async function countUntrackedAdditions(repoRoot: string, untrackedPaths: string[
 }
 
 async function hasGitRef(repoRoot: string, ref: string): Promise<boolean> {
+	// Audit 2026-08-25 (HIGH, option-injection family): `show-ref --verify` takes no `--` separator, so a
+	// leading-dash ref would be parsed as a git OPTION. A ref that starts with `-` is never a valid full ref
+	// name here (callers pass `refs/heads/...`-shaped values), so refuse it outright rather than run git.
+	if (ref.startsWith("-")) {
+		return false;
+	}
 	const result = await runGit(repoRoot, ["show-ref", "--verify", "--quiet", ref]);
 	return result.ok;
 }

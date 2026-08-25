@@ -373,12 +373,34 @@ export async function stageTaskResultUncommitted(input: {
 	const squash = await runGit(input.repoPath, ["merge", "--squash", input.resultCommit]);
 	if (!squash.ok) {
 		// Roll the partial squash back so the workspace is exactly as before; report the conflict for the hold.
-		await runGit(input.repoPath, ["reset", "--merge"]).catch(() => undefined);
-		return {
-			ok: false,
-			conflict: true,
-			reason: squash.error ?? `git merge --squash ${input.resultCommit.slice(0, 12)} failed`,
-		};
+		// Audit 2026-08-25 (HIGH): the rollback result was DISCARDED, so a failed `reset --merge` left a dirty,
+		// half-squashed workspace reported as an ordinary conflict — the operator retried onto broken state. Mirror
+		// the auto-merge sibling's loud abort: surface the failure with a status head so cleanup is actionable.
+		const rollback = await runGit(input.repoPath, ["reset", "--merge"]).catch(() => ({
+			ok: false as const,
+			stdout: "",
+			stderr: "",
+			error: "git reset --merge threw",
+		}));
+		const baseReason = squash.error ?? `git merge --squash ${input.resultCommit.slice(0, 12)} failed`;
+		if (!rollback.ok) {
+			const statusAfterFailedRollback = await runGit(input.repoPath, ["status", "--porcelain"]).catch(() => ({
+				ok: false as const,
+				stdout: "",
+				stderr: "",
+				error: "",
+			}));
+			const statusHead = statusAfterFailedRollback.stdout.split("\n").slice(0, 10).join("\n").trim();
+			return {
+				ok: false,
+				conflict: true,
+				reason:
+					`${baseReason} WARNING: \`git reset --merge\` FAILED (${rollback.stderr || rollback.error || "unknown error"}) — ` +
+					`the squash was NOT rolled back and the base workspace needs manual cleanup. ` +
+					`git status --porcelain (head):\n${statusHead || "(empty)"}`,
+			};
+		}
+		return { ok: false, conflict: true, reason: baseReason };
 	}
 	const staged = await runGit(input.repoPath, ["diff", "--cached", "--name-only"]);
 	const stagedFiles = staged.ok ? staged.stdout.split("\n").filter((line) => line.trim().length > 0).length : 0;

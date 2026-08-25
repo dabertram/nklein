@@ -3096,9 +3096,38 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// history while arming the hold). A positive deny now HOLDS the card in Review for the
 						// operator, exactly like the M4 gate below; gate-EVALUATION failures still fail open.
 						try {
+							// Audit 2026-08-25 (MEDIUM): the read was `.catch(() => [])`, so a FAILED ledger read was
+							// indistinguishable from "this card has no taint" and the gate allowed delivery on lost
+							// evidence. Distinguish the two: a read ERROR is unknown evidence and must HOLD (the gate
+							// exists precisely for the case it can no longer see), while a successful read with no
+							// attempt row stays permissive — the ledger is best-effort, so a missing row is ordinary.
+							let deliveryLedgerReadFailed = false;
 							const deliveryLedgerEvents = await readAgentLedger({
 								workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
-							}).catch(() => []);
+							}).catch(() => {
+								deliveryLedgerReadFailed = true;
+								return [];
+							});
+							if (deliveryLedgerReadFailed) {
+								recordSelfObservation({
+									signal: "custom",
+									severity: "warning",
+									message: `Delivery taint gate held ${taskId} in Review: the attempt ledger could not be READ, so taint evidence is unknown (fail-closed).`,
+									taskId,
+									workspacePath: scope.workspacePath,
+									metadata: {
+										category: "delivery_taint_gate",
+										taintLabels: [],
+										cardTrust: "evidence_unreadable",
+									},
+								});
+								deps.warn(
+									`Delivery held for ${taskId} (taint gate): the attempt ledger could not be read, so taint evidence is unknown. Review and merge manually.`,
+								);
+								await service.stopTaskSession(taskId).catch(() => null);
+								retryWaitingCardsAfterTerminal(scope, service, taskId);
+								return;
+							}
 							const lastAttempt = deliveryLedgerEvents
 								.filter((event) => event.kind === "attempt" && event.taskId === taskId)
 								.at(-1);
