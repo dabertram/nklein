@@ -100,20 +100,45 @@ function isNKleinFileReadToolName(name: string): boolean {
  * Older `read_files` results are compacted by the !Klein host. The newest
  * successful result remains verbatim for the request that analyzes it.
  */
-export function estimateNKleinRequestMessageTokens(
-	message: NKleinChatMessage,
-	options: { retainReadFilesOutput?: boolean } = {},
-): number {
+// Audit 2026-08-25 (finding 16, perf): the history-token reduce BPE-tokenizes every message, and the
+// context-budget memo re-runs it over ALL messages on each new message — O(N²) across a long stream that
+// re-tokenizes on every delta. countNKleinDisplayTokens is the only cost here and it is PURE over the message
+// content, so cache per (immutable) message object. Each message has at most two distinct results — with vs
+// without read-files retention — so cache both slots lazily. New message objects still tokenize once; old ones
+// (unchanged identity) are O(1) lookups, making the reduce O(N) amortized.
+const nkleinMessageTokenCache = new WeakMap<NKleinChatMessage, { retained?: number; compacted?: number }>();
+
+function computeNKleinRequestMessageTokens(message: NKleinChatMessage, retainReadFilesOutput: boolean): number {
 	if (
 		message.role !== "tool" ||
 		!isNKleinFileReadToolName(getNKleinMessageToolName(message)) ||
-		options.retainReadFilesOutput
+		retainReadFilesOutput
 	) {
 		return countNKleinDisplayTokens(message.content);
 	}
 	const outputIndex = message.content.indexOf("\nOutput:");
 	const retained = outputIndex >= 0 ? message.content.slice(0, outputIndex) : message.content;
 	return countNKleinDisplayTokens(retained) + READ_FILES_COMPACTED_OVERHEAD_TOKENS;
+}
+
+export function estimateNKleinRequestMessageTokens(
+	message: NKleinChatMessage,
+	options: { retainReadFilesOutput?: boolean } = {},
+): number {
+	const retain = options.retainReadFilesOutput === true;
+	let cached = nkleinMessageTokenCache.get(message);
+	if (!cached) {
+		cached = {};
+		nkleinMessageTokenCache.set(message, cached);
+	}
+	const slot = retain ? "retained" : "compacted";
+	const hit = cached[slot];
+	if (hit !== undefined) {
+		return hit;
+	}
+	const value = computeNKleinRequestMessageTokens(message, retain);
+	cached[slot] = value;
+	return value;
 }
 
 function findLatestCompletedReadFilesMessageIndex(messages: readonly NKleinChatMessage[]): number {
