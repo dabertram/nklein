@@ -6098,6 +6098,28 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			.map((message) => message.content);
 		expect(assistantMessages).toEqual(["Done."]);
 	});
+	it("finding 27: two concurrent starts for the SAME card share one inner start (single-flight)", async () => {
+		const { service, runtime } = createTrackedService();
+		// Fire two starts for the same taskId in the same tick, before either can commit.
+		const [a, b] = await Promise.all([
+			service.startTaskSession({ taskId: "task-race", cwd: "/tmp/race", prompt: "do it" }),
+			service.startTaskSession({ taskId: "task-race", cwd: "/tmp/race", prompt: "do it" }),
+		]);
+		expect(a.taskId).toBe("task-race");
+		expect(b.taskId).toBe("task-race");
+		// The inner start ran exactly ONCE. The "attempt_started" telemetry fires at the very TOP of the inner —
+		// synchronously, BEFORE the double-start guard and any await — so it is a race-timing-independent proxy for
+		// how many inner starts executed. Without single-flight both concurrent calls run their inner and this is
+		// 2; the shared promise makes it 1. (Runtime start-count can't discriminate: when the harness's awaits
+		// resolve fast the committed-entry guard already catches the second, hiding the real slow-await race.)
+		const attemptStarts = selfObservationMocks.recordSelfObservation.mock.calls.filter(
+			(call) =>
+				(call[0] as { taskId?: string; metadata?: { category?: string } }).taskId === "task-race" &&
+				(call[0] as { metadata?: { category?: string } }).metadata?.category === "attempt_started",
+		);
+		expect(attemptStarts).toHaveLength(1);
+	});
+
 	it("#37 acting: rewindTaskSessionForRetry restarts the SAME task with context cut at the boundary and the brief as prompt", async () => {
 		const { service, runtime } = createTrackedService();
 		await service.startTaskSession({ taskId: "task-rw", cwd: "/tmp/worktree", prompt: "Do the work" });

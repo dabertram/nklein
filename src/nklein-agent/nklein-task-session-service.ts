@@ -632,6 +632,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly agentLedgerRoot: string | undefined;
 	private readonly taskRunSummaryRoot: string | undefined;
 	/** Latest focus chain each task emitted (todo §5.N), captured into the terminal run summary. */
+	// Audit 2026-08-25 (finding 27): startTaskSession reads the double-start guard, then awaits several times
+	// (spec deliberation, model descriptors, framework preamble, persisted-session read) BEFORE it commits the
+	// session entry — so two concurrent starts for the SAME card both pass the guard and both spawn a sandbox run
+	// on the same workdir. Per-task single-flight: concurrent starts share the first call's promise instead of
+	// racing to commit.
+	private readonly inFlightStartsByTaskId = new Map<string, Promise<RuntimeTaskSessionSummary>>();
+
 	private readonly focusChainStore = createFocusChainStore({
 		now,
 		onUpdated: (taskId, chain) => this.onFocusChainUpdated?.(taskId, chain),
@@ -2055,6 +2062,23 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	async startTaskSession(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary> {
+		// Single-flight per task id: if a start for this card is already in flight, return its promise rather than
+		// running a second concurrent start that would pass the (not-yet-committed) double-start guard and spawn a
+		// duplicate sandbox run. The committed-entry guard inside still handles an ALREADY-STARTED card.
+		const alreadyStarting = this.inFlightStartsByTaskId.get(request.taskId);
+		if (alreadyStarting) {
+			return await alreadyStarting;
+		}
+		const startPromise = this.startTaskSessionInner(request);
+		this.inFlightStartsByTaskId.set(request.taskId, startPromise);
+		try {
+			return await startPromise;
+		} finally {
+			this.inFlightStartsByTaskId.delete(request.taskId);
+		}
+	}
+
+	private async startTaskSessionInner(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary> {
 		// N18: mark the attempt's START.
 		//
 		// The ledger records only the attempt's END (`buildTerminalAttemptEvent`), and it does so reliably — even
