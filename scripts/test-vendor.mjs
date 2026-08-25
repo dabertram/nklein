@@ -5,6 +5,18 @@
 // package's suite (each has its OWN vitest.config) and fails if any package fails.
 //
 // Usage: `npm run test:vendor`  (add `-- <pkg>` to run a single package, e.g. `npm run test:vendor -- core`).
+//
+// ⚠️ 2026-08-25 — THIS RUNNER WAS SILENTLY DEAD, and the reason is worth keeping. The re-vendoring flattened the
+// upstream workspace ("no workspace:* protocol", NOTICE.md), so `@cline/shared` had no package link to follow and
+// every cross-package suite died at IMPORT with "Cannot find package '@cline/shared'" — 92 of 123 core files, 2 of
+// 2 agents files. Nobody noticed because the pre-commit hook runs this only when `vendor/**` is STAGED, which is
+// rare. Fixed by aliasing `@cline/*` -> the sibling package's `src` in the agents/core vitest configs.
+//
+// With resolution restored the runner immediately did its job: `core` reports ~10 failures that are OUR
+// `.cline`->`.nklein` rebrand patch meeting upstream tests which still assert the old literals (e.g. expected
+// `/repo/demo/.clinerules/skills`, received `/repo/demo/.nkleinrules/skills`). That is the patch working as
+// documented, not a defect — but it means `core` is EXPECTED-RED until those upstream assertions are rebranded
+// too. Do not read a green `core` as the only acceptable state without checking which failures remain.
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
