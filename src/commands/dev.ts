@@ -21,6 +21,7 @@ import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } fro
 import { createDefaultLmsRunner, fetchLmsPsModels } from "../core/lms-ps-json";
 import { buildLmStudioCapacityReport, formatLmStudioCapacityReport } from "../core/lmstudio-capacity-report";
 import { parseLmStudioRequestStats, renderLmStudioRequestStats } from "../core/lmstudio-request-stats";
+import { normalizeNonNegativeInteger, normalizePositiveInteger } from "../core/normalize-number";
 import { checkRoleModelReadiness, type RoleModelRequirement } from "../core/role-model-readiness";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
 import {
@@ -371,10 +372,14 @@ async function executeDevTestPreset(input: {
 		baseRef: input.baseRef,
 		...(input.nkleinSettings ? { nkleinSettings: input.nkleinSettings } : {}),
 		...(typeof input.startInPlanMode === "boolean" ? { startInPlanMode: input.startInPlanMode } : {}),
-		...(typeof input.pollIntervalMs === "number" ? { pollIntervalMs: input.pollIntervalMs } : {}),
-		...(typeof input.maxWaitMs === "number" ? { maxWaitMs: input.maxWaitMs } : {}),
-		...(typeof input.stablePollsUntilSettled === "number"
-			? { stablePollsUntilSettled: input.stablePollsUntilSettled }
+		...(normalizePositiveInteger(input.pollIntervalMs) !== null
+			? { pollIntervalMs: normalizePositiveInteger(input.pollIntervalMs) as number }
+			: {}),
+		...(normalizePositiveInteger(input.maxWaitMs) !== null
+			? { maxWaitMs: normalizePositiveInteger(input.maxWaitMs) as number }
+			: {}),
+		...(normalizePositiveInteger(input.stablePollsUntilSettled) !== null
+			? { stablePollsUntilSettled: normalizePositiveInteger(input.stablePollsUntilSettled) as number }
 			: {}),
 		...(input.nullAgent ? { nullAgent: true } : {}),
 		...(input.resumeExistingBoard ? { resumeExistingBoard: true } : {}),
@@ -531,8 +536,12 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 		...(options.plan === false ? { startInPlanMode: false } : {}),
 		...(options.nullAgent ? { nullAgent: true } : {}),
 		...(options.resume ? { resumeExistingBoard: true } : {}),
-		...(typeof options.pollIntervalMs === "number" ? { pollIntervalMs: options.pollIntervalMs } : {}),
-		...(typeof options.maxWaitMs === "number" ? { maxWaitMs: options.maxWaitMs } : {}),
+		...(normalizePositiveInteger(options.pollIntervalMs) !== null
+			? { pollIntervalMs: normalizePositiveInteger(options.pollIntervalMs) as number }
+			: {}),
+		...(normalizePositiveInteger(options.maxWaitMs) !== null
+			? { maxWaitMs: normalizePositiveInteger(options.maxWaitMs) as number }
+			: {}),
 	});
 
 	if (options.json) {
@@ -578,8 +587,12 @@ export async function runDevTestSweepCommand(options: DevTestSweepOptions = {}):
 			projectPath,
 			preset: parseDevTestPreset(preset),
 			baseRef,
-			...(typeof options.pollIntervalMs === "number" ? { pollIntervalMs: options.pollIntervalMs } : {}),
-			...(typeof options.maxWaitMs === "number" ? { maxWaitMs: options.maxWaitMs } : {}),
+			...(normalizePositiveInteger(options.pollIntervalMs) !== null
+				? { pollIntervalMs: normalizePositiveInteger(options.pollIntervalMs) as number }
+				: {}),
+			...(normalizePositiveInteger(options.maxWaitMs) !== null
+				? { maxWaitMs: normalizePositiveInteger(options.maxWaitMs) as number }
+				: {}),
 		});
 		return {
 			preset,
@@ -879,8 +892,8 @@ export function registerDevCommand(program: Command): void {
 					sourceTaskId: options.source,
 					forkTaskId: options.fork,
 					prompt: options.prompt,
-					...(typeof options.afterMessageIndex === "number"
-						? { afterMessageIndex: options.afterMessageIndex }
+					...(normalizeNonNegativeInteger(options.afterMessageIndex) !== null
+						? { afterMessageIndex: normalizeNonNegativeInteger(options.afterMessageIndex) as number }
 						: {}),
 				});
 				process.stdout.write(`${JSON.stringify(response)}\n`);

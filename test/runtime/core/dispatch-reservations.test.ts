@@ -8,6 +8,15 @@ import { planDurableAdmission } from "../../../src/core/durable-admission";
  */
 
 describe("createDispatchReservationLedger", () => {
+	it("refuses a NaN/negative/non-integer amount instead of poisoning the pool (audit 2026-08-25)", () => {
+		const ledger = createDispatchReservationLedger([{ kind: "endpoint_slot", key: "m5max", capacity: 4 }]);
+		for (const bad of [Number.NaN, -1, 1.5, Number.POSITIVE_INFINITY]) {
+			expect(ledger.tryReserve("t-bad", [{ kind: "endpoint_slot", key: "m5max", amount: bad }]).ok).toBe(false);
+		}
+		// The pool is UNCORRUPTED: a real request of the full capacity still succeeds afterward.
+		expect(ledger.tryReserve("t-ok", [{ kind: "endpoint_slot", key: "m5max", amount: 4 }])).toEqual({ ok: true });
+	});
+
 	it("grants within capacity, refuses with a precise shortfall, and is all-or-nothing", () => {
 		const ledger = createDispatchReservationLedger([
 			{ kind: "endpoint_slot", key: "m5max", capacity: 2 },

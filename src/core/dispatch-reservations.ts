@@ -140,6 +140,23 @@ export function createDispatchReservationLedger(
 	return {
 		tryReserve(taskId, requests) {
 			expireLeakedHolds();
+			// Audit 2026-08-25 (MEDIUM): a NaN/negative/non-integer `amount` used to slip through — `NaN > available`
+			// is false, so it passed the capacity check and `applyDelta` then wrote NaN into the counter, poisoning
+			// the admission pool until TTL expiry. Validate every request up front and refuse the whole call loudly
+			// (all-or-nothing), rather than corrupt the ledger silently.
+			for (const request of requests) {
+				if (!Number.isInteger(request.amount) || request.amount <= 0) {
+					return {
+						ok: false,
+						shortfall: {
+							kind: request.kind,
+							key: request.key,
+							requested: request.amount,
+							available: Number.NaN,
+						},
+					};
+				}
+			}
 			// Idempotent per task: evaluate against the ledger WITHOUT the task's existing holds.
 			const existing = holdsByTask.get(taskId);
 			if (existing) {
