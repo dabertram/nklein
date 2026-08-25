@@ -59,17 +59,21 @@
 							"options": {
 								"patterns": [
 									{
-										"group": ["@nkleinbot/core", "@nkleinbot/core/**"],
-										"message": "Import NKlein SDK packages only through src/nklein-agent/sdk-provider-boundary.ts or src/nklein-agent/sdk-runtime-boundary.ts."
+										"group": ["@cline/core", "@cline/core/**", "@nkleinbot/core", "@nkleinbot/core/**"],
+										"message": "Import the vendored SDK only through src/nklein-agent/sdk-provider-boundary.ts or src/nklein-agent/sdk-runtime-boundary.ts."
 									},
 									{
 										"group": [
+											"@cline/shared",
+											"@cline/shared/**",
+											"@cline/llms",
+											"@cline/llms/**",
 											"@nkleinbot/shared",
 											"@nkleinbot/shared/**",
 											"@nkleinbot/llms",
 											"@nkleinbot/llms/**"
 										],
-										"message": "Import NKlein SDK packages only through src/nklein-agent/ boundary files."
+										"message": "Import the vendored SDK only through src/nklein-agent/ boundary files."
 									}
 								]
 							}

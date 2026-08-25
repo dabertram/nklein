@@ -25,6 +25,7 @@ import {
 	type ToolApprovalResult,
 	type UserInstructionConfigService,
 } from "@cline/sdk";
+import type { AgentMessage } from "@cline/shared";
 import {
 	type RestructuredPromptShell,
 	restructureSystemPromptForPrefixStability,
@@ -37,6 +38,8 @@ export { TelemetryLoggerSink, TelemetryService } from "@cline/sdk";
 export type NKleinSdkSessionHost = ClineCore;
 export type NKleinSdkBasicLogger = BasicLogger;
 export type NKleinSdkAgentEvent = AgentEvent;
+/** One persisted agent message. Re-exported so consumers read the SDK's shape through the boundary, not directly. */
+export type NKleinSdkAgentMessage = AgentMessage;
 export type NKleinSdkTeamEvent = TeamEvent;
 
 export type NKleinSdkSessionEvent = CoreSessionEvent;

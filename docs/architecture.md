@@ -376,7 +376,7 @@ These are the architectural rules that are most important to preserve.
 
 Some of the highest-value rules are enforced automatically by lint.
 
-- only the two SDK boundary modules may import directly from `@nkleinbot/*`
+- only the two SDK boundary modules may import directly from the vendored SDK (`@cline/*`, and the legacy `@nkleinbot/*` aliases)
 - in the browser app, `createWorkspaceTrpcClient` is reserved for the runtime query helpers
 - the raw home agent session prefix should not be duplicated in app code
 

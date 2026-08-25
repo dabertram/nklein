@@ -5,7 +5,10 @@
 # The container queries public search engines (this is the egress) — the !Klein runtime only reaches localhost:18888.
 services:
   searxng:
-    image: searxng/searxng:latest
+    # Audit 2026-08-25: the only unpinned image in the Docker surface — `latest` silently changes what runs
+    # on the operator's machine between pulls. Pinned by DIGEST (taken from the image this host actually runs,
+    # `docker images --digests`), so a pull is reproducible; bump deliberately after verifying a new digest.
+    image: searxng/searxng@sha256:b7492e1b8fcb376191809982e6a45dc809a5d0e641d81feaa53a1fac6c599b9e
     container_name: nklein-searxng
     ports:
       - "127.0.0.1:18888:8080"   # bind to loopback only — not exposed on the LAN

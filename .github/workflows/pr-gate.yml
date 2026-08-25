@@ -1,0 +1,38 @@
+name: PR gate
+
+# Audit 2026-08-25: the repo's only workflow was the tag-triggered signed release, so nothing gated a pull
+# request. This mirrors what the local pre-commit hook already enforces (biome + tsc + the fast suite), so a
+# change that passes locally passes here — and one that skips the hook no longer reaches main unchecked.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.17.1
+          cache: npm
+      - name: Install (root)
+        run: npm ci --ignore-scripts
+      - name: Lint
+        run: npx @biomejs/biome check .
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Fast tests
+        run: npm run test:fast

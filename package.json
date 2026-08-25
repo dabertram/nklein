@@ -112,10 +112,10 @@
     "vitest": "^4.1.0"
   },
   "optionalDependencies": {
-    "@biomejs/cli-linux-arm64": "2.3.5",
-    "@biomejs/cli-linux-arm64-musl": "2.3.5",
-    "@biomejs/cli-linux-x64": "2.3.5",
-    "@biomejs/cli-linux-x64-musl": "2.3.5",
+    "@biomejs/cli-linux-arm64": "2.5.0",
+    "@biomejs/cli-linux-arm64-musl": "2.5.0",
+    "@biomejs/cli-linux-x64": "2.5.0",
+    "@biomejs/cli-linux-x64-musl": "2.5.0",
     "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.9"
   },
   "dependencies": {

@@ -12,7 +12,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { AgentMessage } from "@cline/shared";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { classifyInjectionKind } from "../core/session-injection-log";
 import {
@@ -22,6 +21,7 @@ import {
 	summarizeSessionDivergence,
 } from "../core/session-request-log";
 import { agentMessageToEndpointText } from "../nklein-agent/local-alternate-endpoint-model";
+import type { NKleinSdkAgentMessage as AgentMessage } from "../nklein-agent/sdk-runtime-boundary";
 import { readSessionInjectionRecords } from "../state/session-injection-log-store";
 import { listSessionRequestLogSessions, readSessionRequestRecords } from "../state/session-request-log-store";
 
