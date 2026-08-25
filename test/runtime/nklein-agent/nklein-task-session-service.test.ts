@@ -6099,7 +6099,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(assistantMessages).toEqual(["Done."]);
 	});
 	it("finding 27: two concurrent starts for the SAME card share one inner start (single-flight)", async () => {
-		const { service, runtime } = createTrackedService();
+		const { service } = createTrackedService();
 		// Fire two starts for the same taskId in the same tick, before either can commit.
 		const [a, b] = await Promise.all([
 			service.startTaskSession({ taskId: "task-race", cwd: "/tmp/race", prompt: "do it" }),
