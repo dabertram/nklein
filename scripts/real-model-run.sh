@@ -104,6 +104,11 @@ ARCHITECT_MODEL="${NKLEIN_ARCHITECT_MODEL:-$WORKER}"
 # Per-role reasoning effort (qwen3.8-line lever, live-probed 2026-08-24): none|low|medium|high|xhigh.
 # Empty = omit the field (model default). Stamped into the run config's modelRoles by the reconcile below.
 WORKER_EFFORT="${NKLEIN_WORKER_EFFORT:-}"
+# NKLEIN_SEED_EFFORT reaches the CARD the run actually executes. The per-role stamps cover decompose CHILDREN;
+# a --model-id seed BYPASSES config roles entirely (found 2026-08-25: an --act single-card round stamped only
+# the child-worker role, so the lever measured nothing). Empty ⇒ no flag ⇒ model default.
+SEED_EFFORT_ARGS=()
+[ -n "${NKLEIN_SEED_EFFORT:-}" ] && SEED_EFFORT_ARGS=(--reasoning-effort "$NKLEIN_SEED_EFFORT")
 REVIEWER_EFFORT="${NKLEIN_REVIEWER_EFFORT:-}"
 CHILD_WORKER_MODEL="${NKLEIN_CHILD_WORKER_MODEL:-qwen/qwen2.5-coder-14b}"
 REVIEWER_MODEL="${NKLEIN_REVIEWER_MODEL:-$WORKER}"
@@ -396,7 +401,7 @@ else
     ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
         "$REPO/node_modules/.bin/tsx" src/cli.ts dev test-project --preset "$PRESET" --resume \
           --project-path "$NKLEIN_RESUME_PROJECT_PATH" \
-          --model-id "$WORKER" --provider-id lmstudio \
+          --model-id "$WORKER" --provider-id lmstudio "${SEED_EFFORT_ARGS[@]}" \
           --max-wait-ms $((MAX_MIN*60000)) --poll-interval-ms 10000 --json \
           >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
   else
@@ -408,7 +413,7 @@ else
   case "$PRESET" in *.json) SCENARIO_ARGS=(--scenario-file "$PRESET");; esac
   ( cd "$REPO" && HOME="$RUN_HOME" NKLEIN_RUNTIME_PORT="$PORT" NKLEIN_INTERNAL_AUTH_TOKEN="$TOKEN" NODE_ENV=development \
       "$REPO/node_modules/.bin/tsx" src/cli.ts dev test-project "${SCENARIO_ARGS[@]}" $MODE $NULL_AGENT_ARG \
-        --model-id "$WORKER" --provider-id lmstudio \
+        --model-id "$WORKER" --provider-id lmstudio "${SEED_EFFORT_ARGS[@]}" \
         --max-wait-ms $((MAX_MIN*60000)) --poll-interval-ms 10000 --json \
         >"$DRAIN_JSON" 2>"$DRAIN_ERR" ) & DRAIN_PID=$!
   fi

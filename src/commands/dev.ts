@@ -6,7 +6,11 @@ import { promisify } from "node:util";
 import type { Command } from "commander";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
-import type { RuntimeTaskNKleinSettings } from "../core/api-contract";
+import {
+	type RuntimeNKleinReasoningEffort,
+	type RuntimeTaskNKleinSettings,
+	runtimeNKleinReasoningEffortSchema,
+} from "../core/api-contract";
 import {
 	adviseContextSizes,
 	buildContextSizeObservations,
@@ -312,6 +316,7 @@ interface DevTestProjectOptions {
 	pollIntervalMs?: number;
 	maxWaitMs?: number;
 	/** §5.AN: force the seed card onto a specific loaded model (provider:model), bypassing stale config roles. */
+	reasoningEffort?: string;
 	modelId?: string;
 	providerId?: string;
 	/** Commander sets `plan: false` for `--no-plan` → start the seed in ACT mode (agent works directly). */
@@ -389,6 +394,19 @@ async function executeDevTestPreset(input: {
 	});
 }
 
+/** Parse the seed card's `--reasoning-effort`, refusing an unknown level loudly rather than silently ignoring it. */
+function parseSeedReasoningEffort(value: string | undefined): RuntimeNKleinReasoningEffort | undefined {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+	const parsed = runtimeNKleinReasoningEffortSchema.safeParse(trimmed);
+	if (!parsed.success) {
+		throw new Error(`--reasoning-effort: unknown level "${trimmed}" (expected none | low | medium | high | xhigh).`);
+	}
+	return parsed.data;
+}
+
 export async function runDevTestProjectCommand(options: DevTestProjectOptions = {}): Promise<void> {
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
 	const cwd = options.cwd ?? process.cwd();
@@ -456,9 +474,17 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 	const workspace = await loadWorkspaceContext(projectPath, { autoCreateIfMissing: true });
 	const client = createDevRuntimeClient(workspace.workspaceId);
 	const modelId = options.modelId?.trim();
-	const nkleinSettings: RuntimeTaskNKleinSettings | undefined = modelId
-		? { providerId: options.providerId?.trim() || "lmstudio", modelId }
-		: undefined;
+	// The rig's per-role effort env stamps modelRoles, but a --model-id seed BYPASSES config roles (found
+	// 2026-08-25 mid-campaign: the stamp landed on the child-worker role, which an --act single-card run never
+	// exercises). Carry the effort on the card itself so the lever reaches the model the card actually runs on.
+	const reasoningEffort = parseSeedReasoningEffort(options.reasoningEffort);
+	const nkleinSettings: RuntimeTaskNKleinSettings | undefined =
+		modelId || reasoningEffort
+			? {
+					...(modelId ? { providerId: options.providerId?.trim() || "lmstudio", modelId } : {}),
+					...(reasoningEffort ? { reasoningEffort } : {}),
+				}
+			: undefined;
 	// Preflight: child cards route by role, so a role whose model isn't loaded silently strands its cards (live-hit
 	// 2026-07-15: a review card stranded because the reviewer model was unloaded). Warn — but don't block — before
 	// seeding so the run isn't started into a guaranteed strand. Best-effort; never fails the run.
@@ -1888,6 +1914,10 @@ export function registerDevCommand(program: Command): void {
 		.option("--base-ref <ref>", "Base git ref for the seed card. Defaults to main.")
 		.option("--model-id <id>", "Force the seed card onto a specific (loaded) model, bypassing config roles.")
 		.option("--provider-id <id>", "Provider for --model-id (default lmstudio).")
+		.option(
+			"--reasoning-effort <level>",
+			"Per-card reasoning effort for the seed: none | low | medium | high | xhigh. 'none' disables thinking on models whose switch is the request param (live-probed on the qwen3.8 line).",
+		)
 		.option("--no-plan", "Start the seed in ACT mode (agent works directly) instead of plan/decompose.")
 		.option("--null-agent", "Seed and grade the real pipeline without starting an agent (grader-integrity baseline).")
 		.option(
