@@ -354,7 +354,7 @@ export default function App(): ReactElement {
 		workspacePath,
 		workspaceGit,
 		workspaceRevision,
-		setWorkspaceRevision,
+		commitWorkspaceRevision,
 		workspaceHydrationNonce,
 		isWorkspaceStateRefreshing,
 		isWorkspaceMetadataPending,
@@ -391,10 +391,10 @@ export default function App(): ReactElement {
 		(state: RuntimeWorkspaceStateResponse) => {
 			setBoard(state.board);
 			setSessions(state.sessions);
-			setWorkspaceRevision(state.revision);
+			commitWorkspaceRevision(state.revision);
 			setCanPersistWorkspaceState(true);
 		},
-		[setWorkspaceRevision],
+		[commitWorkspaceRevision],
 	);
 
 	useEffect(() => {
@@ -639,12 +639,15 @@ export default function App(): ReactElement {
 		[],
 	);
 
-	const handleWorkspaceRevisionChange = useCallback((revision: number) => {
-		setWorkspaceRevision(revision);
-		// A clean sync after a conflict means the boards converged — the stale warning would only invite a
-		// destructive "restore" of agent-made progress (live-found 2026-07-10 on a simulated busy board).
-		setWorkspaceConflictNoticeVisible((visible) => (visible ? false : visible));
-	}, []);
+	const handleWorkspaceRevisionChange = useCallback(
+		(revision: number) => {
+			commitWorkspaceRevision(revision);
+			// A clean sync after a conflict means the boards converged — the stale warning would only invite a
+			// destructive "restore" of agent-made progress (live-found 2026-07-10 on a simulated busy board).
+			setWorkspaceConflictNoticeVisible((visible) => (visible ? false : visible));
+		},
+		[commitWorkspaceRevision],
+	);
 	useWorkspacePersistence({
 		board,
 		currentProjectId,

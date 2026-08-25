@@ -28,7 +28,13 @@ interface UseWorkspaceSyncResult {
 	workspacePath: string | null;
 	workspaceGit: RuntimeGitRepositoryInfo | null;
 	workspaceRevision: number | null;
-	setWorkspaceRevision: Dispatch<SetStateAction<number | null>>;
+	/**
+	 * Raise the applied workspace revision. SYNCHRONOUSLY updates the guard ref (the async effect below leaves a
+	 * race window otherwise — audit finding 19) and is MONOTONIC per project: a lagging lower revision is ignored,
+	 * so a persist-followed-by-stale-update can no longer lower the revision and trigger a spurious OCC conflict
+	 * that discards the user's next edit.
+	 */
+	commitWorkspaceRevision: (revision: number) => void;
 	workspaceHydrationNonce: number;
 	isWorkspaceStateRefreshing: boolean;
 	isWorkspaceMetadataPending: boolean;
@@ -84,6 +90,24 @@ export function useWorkspaceSync({
 		};
 	}, [currentProjectId, workspaceRevision]);
 
+	const commitWorkspaceRevision = useCallback(
+		(revision: number) => {
+			const ref = workspaceVersionRef.current;
+			const sameProject = ref.projectId === currentProjectId;
+			// Never LOWER the applied revision for the same project — a lagging websocket update carrying an older
+			// revision than the one just persisted is exactly what produced the discarded-edit + false "changed
+			// elsewhere" banner (audit finding 19).
+			if (sameProject && ref.revision !== null && revision < ref.revision) {
+				return;
+			}
+			// Update the guard ref SYNCHRONOUSLY (not via the async effect), so a state update arriving between this
+			// call and the effect commit cannot read a stale ref and slip a stale board past the monotonic guard.
+			workspaceVersionRef.current = { projectId: currentProjectId, revision };
+			setWorkspaceRevision(revision);
+		},
+		[currentProjectId],
+	);
+
 	const applyWorkspaceState = useCallback(
 		(nextWorkspaceState: RuntimeWorkspaceStateResponse | null) => {
 			if (!nextWorkspaceState) {
@@ -118,15 +142,11 @@ export function useWorkspaceSync({
 				setBoard(normalized);
 				setWorkspaceHydrationNonce((current) => current + 1);
 			}
-			setWorkspaceRevision(nextWorkspaceState.revision);
-			workspaceVersionRef.current = {
-				projectId: currentProjectId,
-				revision: nextWorkspaceState.revision,
-			};
+			commitWorkspaceRevision(nextWorkspaceState.revision);
 			setAppliedWorkspaceProjectId(currentProjectId);
 			setCanPersistWorkspaceState(true);
 		},
-		[currentProjectId, setBoard, setCanPersistWorkspaceState, setSessions],
+		[commitWorkspaceRevision, currentProjectId, setBoard, setCanPersistWorkspaceState, setSessions],
 	);
 
 	const refreshWorkspaceState = useCallback(async () => {
@@ -196,7 +216,7 @@ export function useWorkspaceSync({
 		workspacePath,
 		workspaceGit,
 		workspaceRevision,
-		setWorkspaceRevision,
+		commitWorkspaceRevision,
 		workspaceHydrationNonce,
 		isWorkspaceStateRefreshing,
 		isWorkspaceMetadataPending,
