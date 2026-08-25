@@ -409,6 +409,10 @@ export function RuntimeSettingsDialog({
 	const [loadingModelRoleProviderIds, setLoadingModelRoleProviderIds] = useState<Record<string, boolean>>({});
 	const modelRoleModelsByProviderIdRef = useRef<Record<string, RuntimeNKleinProviderModel[]>>({});
 	const loadingModelRoleProviderIdsRef = useRef<Record<string, boolean>>({});
+	// Audit 2026-08-25 (finding 18): handleSave awaits notification-permission + provider + MCP saves BEFORE the
+	// hook's save() sets isSaving, so the button stays enabled through that window and a second click interleaves
+	// two saves (a stale draft can overwrite a newer one). This ref blocks a concurrent handleSave synchronously.
+	const saveInFlightRef = useRef(false);
 	const [commitPromptTemplate, setCommitPromptTemplate] = useState("");
 	const [openPrPromptTemplate, setOpenPrPromptTemplate] = useState("");
 	const [selectedPromptVariant, setSelectedPromptVariant] = useState<TaskGitAction>("commit");
@@ -1638,77 +1642,85 @@ export function RuntimeSettingsDialog({
 	}, [nkleinSettings.modelId, nkleinSettings.providerModels, saveError]);
 
 	const handleSave = async () => {
-		setSaveError(null);
-		const numbersResult = validateAndParseSettingsNumbers(draft);
-		if (!numbersResult.ok) {
-			setSaveError(numbersResult.error);
+		if (saveInFlightRef.current) {
 			return;
 		}
-		if (!config) {
-			setSaveError("Runtime settings are still loading. Try again in a moment.");
-			return;
-		}
-		const codeEmbeddingError = validateCodeEmbeddingDefaultsForSave(draftCodeEmbeddingDefaults);
-		if (codeEmbeddingError !== null) {
-			setSaveError(codeEmbeddingError);
-			return;
-		}
-		const selectedAgent = displayedAgents.find((agent) => agent.id === selectedAgentId);
-		if (selectedAgent?.installed !== true) {
-			setSaveError("Selected agent is not installed. Install it first or choose an installed agent.");
-			return;
-		}
-		const shouldRequestNotificationPermission =
-			!configSnapshot.readyForReviewNotificationsEnabled &&
-			readyForReviewNotificationsEnabled &&
-			notificationPermission === "default";
-		if (shouldRequestNotificationPermission) {
-			const nextPermission = await requestBrowserNotificationPermission();
-			setNotificationPermission(nextPermission);
-		}
-		if (selectedAgentId === "nklein" && nkleinSettings.providerId.trim().length === 0) {
-			setSaveError("Choose a !Klein provider before saving.");
-			return;
-		}
-		if (selectedAgentId === "nklein") {
-			const modelRoleAvailabilityWarning = findFirstModelRoleAvailabilityWarning(modelRoleWarningContext);
-			if (modelRoleAvailabilityWarning) {
-				setSaveError(modelRoleAvailabilityWarning);
+		saveInFlightRef.current = true;
+		try {
+			setSaveError(null);
+			const numbersResult = validateAndParseSettingsNumbers(draft);
+			if (!numbersResult.ok) {
+				setSaveError(numbersResult.error);
 				return;
 			}
-			const modelRoleContextWarning = findFirstModelRoleContextWarning(modelRoleWarningContext);
-			if (modelRoleContextWarning) {
-				setSaveError(modelRoleContextWarning);
+			if (!config) {
+				setSaveError("Runtime settings are still loading. Try again in a moment.");
 				return;
 			}
-			const nkleinProviderSaveResult = await nkleinSettings.saveProviderSettings();
-			if (!nkleinProviderSaveResult.ok) {
-				setSaveError(nkleinProviderSaveResult.message ?? "Could not save !Klein provider settings.");
+			const codeEmbeddingError = validateCodeEmbeddingDefaultsForSave(draftCodeEmbeddingDefaults);
+			if (codeEmbeddingError !== null) {
+				setSaveError(codeEmbeddingError);
 				return;
 			}
-			const nkleinMcpSaveResult = await nkleinMcpSettings.saveMcpSettings();
-			if (!nkleinMcpSaveResult.ok) {
-				setSaveError(nkleinMcpSaveResult.message ?? "Could not save !Klein MCP settings.");
+			const selectedAgent = displayedAgents.find((agent) => agent.id === selectedAgentId);
+			if (selectedAgent?.installed !== true) {
+				setSaveError("Selected agent is not installed. Install it first or choose an installed agent.");
 				return;
 			}
+			const shouldRequestNotificationPermission =
+				!configSnapshot.readyForReviewNotificationsEnabled &&
+				readyForReviewNotificationsEnabled &&
+				notificationPermission === "default";
+			if (shouldRequestNotificationPermission) {
+				const nextPermission = await requestBrowserNotificationPermission();
+				setNotificationPermission(nextPermission);
+			}
+			if (selectedAgentId === "nklein" && nkleinSettings.providerId.trim().length === 0) {
+				setSaveError("Choose a !Klein provider before saving.");
+				return;
+			}
+			if (selectedAgentId === "nklein") {
+				const modelRoleAvailabilityWarning = findFirstModelRoleAvailabilityWarning(modelRoleWarningContext);
+				if (modelRoleAvailabilityWarning) {
+					setSaveError(modelRoleAvailabilityWarning);
+					return;
+				}
+				const modelRoleContextWarning = findFirstModelRoleContextWarning(modelRoleWarningContext);
+				if (modelRoleContextWarning) {
+					setSaveError(modelRoleContextWarning);
+					return;
+				}
+				const nkleinProviderSaveResult = await nkleinSettings.saveProviderSettings();
+				if (!nkleinProviderSaveResult.ok) {
+					setSaveError(nkleinProviderSaveResult.message ?? "Could not save !Klein provider settings.");
+					return;
+				}
+				const nkleinMcpSaveResult = await nkleinMcpSettings.saveMcpSettings();
+				if (!nkleinMcpSaveResult.ok) {
+					setSaveError(nkleinMcpSaveResult.message ?? "Could not save !Klein MCP settings.");
+					return;
+				}
+			}
+			const saved = await save(buildRuntimeConfigSaveRequest(draft, numbersResult.parsed));
+			if (!saved) {
+				setSaveError("Could not save runtime settings. Check runtime logs and try again.");
+				return;
+			}
+			if (draftThemeId !== initialThemeId) {
+				saveThemeId(draftThemeId);
+				setInitialThemeId(draftThemeId);
+			}
+			writeLocalStorageItem(LocalStorageKey.TaskStartInPlanMode, String(taskDefaultStartInPlanMode));
+			writeLocalStorageItem(LocalStorageKey.TaskAutoReviewEnabled, String(taskDefaultAutoReviewEnabled));
+			writeLocalStorageItem(LocalStorageKey.TaskAutoReviewMode, taskDefaultAutoReviewMode);
+			setInitialTaskDefaultStartInPlanMode(taskDefaultStartInPlanMode);
+			setInitialTaskDefaultAutoReviewEnabled(taskDefaultAutoReviewEnabled);
+			setInitialTaskDefaultAutoReviewMode(taskDefaultAutoReviewMode);
+			onSaved?.();
+			handleDialogOpenChange(false);
+		} finally {
+			saveInFlightRef.current = false;
 		}
-		const saved = await save(buildRuntimeConfigSaveRequest(draft, numbersResult.parsed));
-		if (!saved) {
-			setSaveError("Could not save runtime settings. Check runtime logs and try again.");
-			return;
-		}
-		if (draftThemeId !== initialThemeId) {
-			saveThemeId(draftThemeId);
-			setInitialThemeId(draftThemeId);
-		}
-		writeLocalStorageItem(LocalStorageKey.TaskStartInPlanMode, String(taskDefaultStartInPlanMode));
-		writeLocalStorageItem(LocalStorageKey.TaskAutoReviewEnabled, String(taskDefaultAutoReviewEnabled));
-		writeLocalStorageItem(LocalStorageKey.TaskAutoReviewMode, taskDefaultAutoReviewMode);
-		setInitialTaskDefaultStartInPlanMode(taskDefaultStartInPlanMode);
-		setInitialTaskDefaultAutoReviewEnabled(taskDefaultAutoReviewEnabled);
-		setInitialTaskDefaultAutoReviewMode(taskDefaultAutoReviewMode);
-		onSaved?.();
-		handleDialogOpenChange(false);
 	};
 
 	const handleRequestPermission = () => {
