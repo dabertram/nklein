@@ -1,12 +1,11 @@
 import {
 	createLmStudioModelAcquisitionClient,
-	isAutoDownloadSafeFormat,
 	type LmStudioModelAcquisitionClient,
 	type ModelAcquisitionConsent,
 	type ModelArtifactFormat,
 } from "../core/lmstudio-model-acquisition";
+import { buildModelAcquisitionPreview } from "../core/model-acquisition-preview";
 import { parseModelAttributes } from "../core/model-attributes";
-import { estimateModelResidency, fitModelResidency } from "../core/model-residency-sizing";
 import { resolveBudget } from "./dev-model-fit-command";
 
 /**
@@ -47,23 +46,29 @@ function parseFormat(value: string | undefined): ModelArtifactFormat | null {
 	return (MODEL_FORMATS as readonly string[]).includes(normalized) ? (normalized as ModelArtifactFormat) : null;
 }
 
-function fitLine(modelKey: string, options: SetupAcquireOptions): string {
+/** Build the shared structured preview from CLI options (the web view builds the SAME structure server-side). */
+function buildPreviewFromOptions(modelKey: string, format: ModelArtifactFormat | null, options: SetupAcquireOptions) {
 	const declaredParams = Number(options.params);
 	const paramB =
-		Number.isFinite(declaredParams) && declaredParams > 0 ? declaredParams : parseModelAttributes(modelKey).paramB;
-	if (paramB === null || paramB === undefined || paramB <= 0) {
-		return "fit: unknown — the key does not state a parameter count; declare --params <billions> for a verdict";
-	}
+		Number.isFinite(declaredParams) && declaredParams > 0
+			? declaredParams
+			: (parseModelAttributes(modelKey).paramB ?? null);
 	const quant = Number(options.quant);
 	const context = Number(options.context);
+	const sizeGb = Number(options.sizeGb);
 	const budget = resolveBudget(options);
-	const estimate = estimateModelResidency({
+	return buildModelAcquisitionPreview({
+		modelKey,
+		format,
+		sizeBytes: Number.isFinite(sizeGb) && sizeGb > 0 ? Math.round(sizeGb * BYTES_PER_GIB) : null,
+		publisher: options.publisher?.trim() || null,
+		allowedPublishers: (options.allowPublisher ?? []).map((entry) => entry.trim()).filter(Boolean),
 		paramB,
 		weightBitsPerParam: Number.isFinite(quant) && quant > 0 ? quant : 4,
 		contextTokens: Number.isFinite(context) && context > 0 ? context : 32_768,
+		budgetBytes: budget.bytes,
+		budgetSource: budget.source,
 	});
-	const fit = fitModelResidency(estimate, budget.bytes);
-	return `fit: ${fit.verdict} — needs ~${(estimate.totalBytes / BYTES_PER_GIB).toFixed(1)} GiB (weights+KV+overhead, ${estimate.basis}) against ${(budget.bytes / BYTES_PER_GIB).toFixed(0)} GiB (${budget.source})`;
 }
 
 export async function runSetupAcquireCommand(
@@ -88,19 +93,14 @@ export async function runSetupAcquireCommand(
 	const approvedBytes = Number.isFinite(sizeGb) && sizeGb > 0 ? Math.round(sizeGb * BYTES_PER_GIB) : null;
 	const publisher = options.publisher?.trim() || undefined;
 	const allowedPublishers = (options.allowPublisher ?? []).map((entry) => entry.trim()).filter(Boolean);
-	const formatSafety = format
-		? isAutoDownloadSafeFormat(format)
-			? `${format} (allow-listed weight format)`
-			: `${format} — REFUSED at download time: not a weights-only format`
-		: "UNDECLARED — the download will be refused fail-closed; declare --format from the catalogue entry";
-
+	const structuredPreview = buildPreviewFromOptions(modelKey, format, options);
 	const preview = [
 		`Model acquisition (setup-mode, per-model consent — P25.2a):`,
-		`  model:     ${modelKey}`,
-		`  format:    ${formatSafety}`,
-		`  size:      ${approvedBytes === null ? "undeclared (recorded only, not enforced)" : `${sizeGb} GiB as shown`}`,
-		`  publisher: ${publisher ?? "undeclared"}${allowedPublishers.length > 0 ? ` (allow-list: ${allowedPublishers.join(", ")})` : ""}`,
-		`  ${fitLine(modelKey, options)}`,
+		`  model:     ${structuredPreview.modelKey}`,
+		`  format:    ${structuredPreview.format.label}`,
+		`  size:      ${structuredPreview.sizeLabel}`,
+		`  publisher: ${structuredPreview.publisherLabel}`,
+		`  fit: ${structuredPreview.fit.label}`,
 	].join("\n");
 	write(preview);
 

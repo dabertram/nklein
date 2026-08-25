@@ -43,12 +43,9 @@ import {
  * Auto-download is therefore restricted to safe-by-design formats; anything pickle-class or UNDECLARED is
  * refused regardless of consent — removing the arbitrary-code-execution class instead of trying to detect it.
  */
-export type ModelArtifactFormat = "safetensors" | "gguf" | "mlx" | "pickle" | "unknown";
+export { isAutoDownloadSafeFormat, type ModelArtifactFormat } from "./model-artifact-format.js";
 
-/** The formats whose LOAD executes no logic — the only ones auto-download may fetch. */
-export function isAutoDownloadSafeFormat(format: ModelArtifactFormat): boolean {
-	return format === "safetensors" || format === "gguf" || format === "mlx";
-}
+import { isAutoDownloadSafeFormat, type ModelArtifactFormat } from "./model-artifact-format.js";
 
 /** What the operator was shown and approved, for exactly one model. */
 export interface ModelAcquisitionConsent {
