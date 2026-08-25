@@ -101,6 +101,31 @@ describe("portable board CRDT merge", () => {
 		expect(merged.columns.every((column) => column.cards.length === 0)).toBe(true);
 	});
 
+	it("preserves concurrent edits to DIFFERENT fields of one card across machines (audit 2026-08-25 finding 21)", () => {
+		// Shared base: both machines start from the same committed CRDT (card at updatedAt 1).
+		const base = boardToPortableBoardCrdt(
+			board([{ columnId: "planning", card: card("a", { title: "orig", prompt: "orig", updatedAt: 1 }) }]),
+			"base",
+		);
+		// Machine A edits TITLE (updatedAt bumps to 5); machine B edits PROMPT (updatedAt bumps to 9). Each passes
+		// the shared base as prior, so its UNCHANGED field keeps the base stamp instead of the new card timestamp.
+		const machineA = boardToPortableBoardCrdt(
+			board([{ columnId: "planning", card: card("a", { title: "A-title", prompt: "orig", updatedAt: 5 }) }]),
+			"A",
+			base,
+		);
+		const machineB = boardToPortableBoardCrdt(
+			board([{ columnId: "planning", card: card("a", { title: "orig", prompt: "B-prompt", updatedAt: 9 }) }]),
+			"B",
+			base,
+		);
+		// Merge in either order — CRDT merge is commutative. BOTH edits must survive.
+		const merged = portableBoardCrdtToBoard(mergePortableBoardCrdt(machineA, machineB));
+		const cardOut = merged.columns.flatMap((column) => column.cards).find((entry) => entry.id === "a");
+		expect(cardOut?.title).toBe("A-title");
+		expect(cardOut?.prompt).toBe("B-prompt");
+	});
+
 	it("round-trips a board through the CRDT", () => {
 		const original = board(
 			[

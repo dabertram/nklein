@@ -242,19 +242,45 @@ export function markCardDeleted(
 	};
 }
 
-export function boardToPortableBoardCrdt(board: RuntimeBoardData, replicaId: string): PortableBoardCrdt {
+/**
+ * When a field's value is UNCHANGED from the prior committed CRDT, keep the prior register (with its earlier
+ * stamp) instead of re-stamping it with the card's current `updatedAt`. Without this, every field of a card
+ * carries the card-level timestamp, so a machine that touched ONE field re-stamps the whole card — and on a
+ * cross-machine merge that later whole-card stamp overwrites another machine's concurrent edit to a DIFFERENT
+ * field (audit 2026-08-25, finding 21: per-field registers that behaved as whole-card LWW). Reusing the prior
+ * stamp for unchanged fields makes the per-field register carry the field's genuine last-change time, so
+ * concurrent edits to different fields of one card now BOTH survive the merge. Value equality is by canonical
+ * JSON — board field values are JSON-serializable.
+ */
+function fieldRegisterFor(
+	value: unknown,
+	freshStamp: CrdtStamp,
+	priorRegister: CrdtRegister<unknown> | undefined,
+): CrdtRegister<unknown> {
+	if (priorRegister && JSON.stringify(priorRegister.value) === JSON.stringify(value)) {
+		return priorRegister;
+	}
+	return { value, stamp: freshStamp };
+}
+
+export function boardToPortableBoardCrdt(
+	board: RuntimeBoardData,
+	replicaId: string,
+	prior?: PortableBoardCrdt,
+): PortableBoardCrdt {
 	const cards: Record<string, CrdtCard> = {};
 	for (const column of board.columns) {
 		for (const card of column.cards) {
 			const stamp: CrdtStamp = { counter: card.updatedAt, replicaId };
+			const priorFields = prior?.cards[card.id]?.fields;
 			const fields: Record<string, CrdtRegister<unknown>> = {
-				[COLUMN_FIELD]: { value: column.id, stamp },
+				[COLUMN_FIELD]: fieldRegisterFor(column.id, stamp, priorFields?.[COLUMN_FIELD]),
 			};
 			for (const [key, value] of Object.entries(card)) {
 				if (key === "id") {
 					continue;
 				}
-				fields[key] = { value, stamp };
+				fields[key] = fieldRegisterFor(value, stamp, priorFields?.[key]);
 			}
 			cards[card.id] = { id: card.id, fields, deleted: { value: false, stamp } };
 		}

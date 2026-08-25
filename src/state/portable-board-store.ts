@@ -102,8 +102,11 @@ export async function exportLocalBoardToPortableCrdt(input: {
 	board: RuntimeBoardData;
 	replicaId: string;
 }): Promise<{ crdt: PortableBoardCrdt; board: RuntimeBoardData; path: string }> {
-	const local = boardToPortableBoardCrdt(input.board, input.replicaId);
 	const committedState = await readCommittedPortableBoardCrdtState(input.repoPath);
+	// Pass the committed CRDT as PRIOR so unchanged fields keep their earlier per-field stamp (audit finding 21:
+	// otherwise a one-field edit re-stamps the whole card and clobbers a concurrent different-field edit).
+	const priorCrdt = committedState.status === "usable" ? committedState.crdt : undefined;
+	const local = boardToPortableBoardCrdt(input.board, input.replicaId, priorCrdt);
 	if (committedState.status === "refused") {
 		// The committed board-crdt.json is a NEWER schema (or corrupt/unreadable) this build cannot safely fold in.
 		// REFUSE to export — overwriting it with a downgraded current-schema write would silently destroy another
