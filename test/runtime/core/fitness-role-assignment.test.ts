@@ -27,9 +27,40 @@ function row(overrides: Partial<FitnessRow> & { modelKey: string }): FitnessRow 
 		knowledgeUseCount: overrides.knowledgeUseCount ?? 0,
 		knowledgeSkipCount: overrides.knowledgeSkipCount ?? 0,
 		depthSamples: overrides.depthSamples ?? { shallow: 0, medium: 0, deep: 0 },
+		depthSuccesses: overrides.depthSuccesses ?? { shallow: 0, medium: 0, deep: 0 },
 		updatedAt: overrides.updatedAt ?? null,
 	};
 }
+
+describe("depth-scoped success rate (P25.3 phase-4)", () => {
+	it("judges a deep card on the model's DEEP success record, not the depth-blind row rate", () => {
+		// Both models: 20 total samples, 10 successes = 50% row rate. But model-deepgood succeeded on ALL its
+		// deep runs while model-deepbad failed all of them — the deep card must go to model-deepgood.
+		const deepGood = row({
+			modelKey: "model-deepgood",
+			sampleCount: 20,
+			successCount: 10,
+			depthSamples: { shallow: 10, medium: 0, deep: 10 },
+			depthSuccesses: { shallow: 0, medium: 0, deep: 10 },
+		});
+		const deepBad = row({
+			modelKey: "model-deepbad",
+			sampleCount: 20,
+			successCount: 10,
+			depthSamples: { shallow: 10, medium: 0, deep: 10 },
+			depthSuccesses: { shallow: 10, medium: 0, deep: 0 },
+		});
+		const decision = assignModelFromFitness({
+			rows: [deepGood, deepBad],
+			neededDepth: "deep",
+			policy: { minConfidence: 0, minDepthMatchedSamples: 5, minDepthMatchedShare: 0, noiseBand: 0.07 },
+		});
+		expect(decision.kind).toBe("assigned");
+		if (decision.kind === "assigned") {
+			expect(decision.modelKey).toBe("model-deepgood");
+		}
+	});
+});
 
 describe("depthMatchedSamples", () => {
 	it("counts only buckets that COVER the needed depth (deep needs deep; medium takes medium+deep; shallow takes all)", () => {

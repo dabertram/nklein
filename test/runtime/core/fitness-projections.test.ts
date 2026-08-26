@@ -17,6 +17,7 @@ const row = (
 	// P22.2: depth counters are part of a row; a fixture omitting them no longer type-checks, which is the point —
 	// every construction site has to say what depth evidence it is claiming.
 	depthSamples: { shallow: 0, medium: 0, deep: 0 },
+	depthSuccesses: { shallow: 0, medium: 0, deep: 0 },
 	failureModes: [],
 	meanWallTimeMs: null,
 	meanWallTimeSamples: 0,

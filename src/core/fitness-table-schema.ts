@@ -67,6 +67,20 @@ export const fitnessRowSchema = fitnessKeySchema.extend({
 			deep: z.number().int().nonnegative().default(0),
 		})
 		.default({ shallow: 0, medium: 0, deep: 0 }),
+	/**
+	 * P25.3 phase-4 follow-up (the "real fix" the routing decider named): per-depth SUCCESS counts, parallel to
+	 * depthSamples. Additive with an all-zero default so every existing row parses unchanged — a row written
+	 * before this reads as zero successes at every depth, which the depth-success rate correctly treats as
+	 * no-evidence rather than all-failure (the rate is only consulted where depthSamples is non-zero). This lets
+	 * a deep card be judged on the model's DEEP success rate, not the depth-blind row rate.
+	 */
+	depthSuccesses: z
+		.object({
+			shallow: z.number().int().nonnegative().default(0),
+			medium: z.number().int().nonnegative().default(0),
+			deep: z.number().int().nonnegative().default(0),
+		})
+		.default({ shallow: 0, medium: 0, deep: 0 }),
 	/** Last-updated timestamp (ms), or null. */
 	updatedAt: z.number().nullable().default(null),
 });
@@ -91,12 +105,17 @@ export function fitnessSuccessRate(row: Pick<FitnessRow, "sampleCount" | "succes
  * "how sure are we this model is good at this?" is a single sortable number. 0 when unsampled. Pure + total.
  */
 export function fitnessConfidenceLowerBound(row: Pick<FitnessRow, "sampleCount" | "successCount">): number {
-	const n = row.sampleCount;
+	return wilsonLowerBound(row.successCount, row.sampleCount);
+}
+
+/** The Wilson 95% lower bound of successes/samples — the sample-size-aware confidence. Pure; 0 when unsampled. */
+export function wilsonLowerBound(successCount: number, sampleCount: number): number {
+	const n = sampleCount;
 	if (n <= 0) {
 		return 0;
 	}
 	const z = 1.96;
-	const phat = Math.min(1, Math.max(0, row.successCount / n));
+	const phat = Math.min(1, Math.max(0, successCount / n));
 	const z2 = z * z;
 	const denom = 1 + z2 / n;
 	const center = phat + z2 / (2 * n);
@@ -201,14 +220,22 @@ export function recordFitnessOutcome(row: FitnessRow, outcome: FitnessOutcome, n
 	// P22.2: file this attempt under the depth it was actually measured at. An unreported context size advances
 	// NOTHING — a depth-unknown attempt must not be filed as shallow, which would manufacture shallow evidence.
 	const depthSamples = { ...row.depthSamples };
+	const depthSuccesses = { ...row.depthSuccesses };
 	if (typeof outcome.usedContextTokens === "number" && Number.isFinite(outcome.usedContextTokens)) {
-		depthSamples[classifyContextDepth(outcome.usedContextTokens)] += 1;
+		const depth = classifyContextDepth(outcome.usedContextTokens);
+		depthSamples[depth] += 1;
+		// Only a depth-KNOWN success advances the per-depth success count — mirroring depthSamples exactly, so
+		// the two stay in lockstep and depthSuccesses[d] can never exceed depthSamples[d].
+		if (outcome.success) {
+			depthSuccesses[depth] += 1;
+		}
 	}
 	return {
 		...row,
 		knowledgeUseCount,
 		knowledgeSkipCount,
 		depthSamples,
+		depthSuccesses,
 		sampleCount: priorCount + 1,
 		successCount: row.successCount + (outcome.success ? 1 : 0),
 		failureModes,
@@ -263,11 +290,17 @@ export function mergeFitnessRows(left: FitnessRow, right: FitnessRow): FitnessRo
 		medium: left.depthSamples.medium + right.depthSamples.medium,
 		deep: left.depthSamples.deep + right.depthSamples.deep,
 	};
+	const depthSuccesses = {
+		shallow: left.depthSuccesses.shallow + right.depthSuccesses.shallow,
+		medium: left.depthSuccesses.medium + right.depthSuccesses.medium,
+		deep: left.depthSuccesses.deep + right.depthSuccesses.deep,
+	};
 	return {
 		modelKey: left.modelKey,
 		role: left.role,
 		difficultyTier: left.difficultyTier,
 		depthSamples,
+		depthSuccesses,
 		sampleCount: left.sampleCount + right.sampleCount,
 		successCount: left.successCount + right.successCount,
 		retryBudget: Math.max(left.retryBudget, right.retryBudget),
@@ -290,6 +323,7 @@ export function emptyFitnessRow(key: FitnessKey): FitnessRow {
 	return {
 		...key,
 		depthSamples: { shallow: 0, medium: 0, deep: 0 },
+		depthSuccesses: { shallow: 0, medium: 0, deep: 0 },
 		sampleCount: 0,
 		successCount: 0,
 		retryBudget: 0,

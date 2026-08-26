@@ -83,6 +83,7 @@ describe("P20.5b — the discipline has a LIVE consumer", () => {
 				role: "worker",
 				difficultyTier: "medium",
 				depthSamples: { shallow: 0, medium: 0, deep: 0 },
+				depthSuccesses: { shallow: 0, medium: 0, deep: 0 },
 				sampleCount: 4,
 				successCount: 3,
 				retryBudget: 2,

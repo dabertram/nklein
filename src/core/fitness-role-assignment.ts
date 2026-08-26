@@ -8,15 +8,15 @@
  * shallow-vs-deep rule is NOT restated here — it is derived per bucket through `fitnessDepthMismatch`, the same
  * function the freshness/re-eval side uses, so the two can never drift apart about what covers what.
  *
- * ── THE HONEST LIMIT, STATED RATHER THAN PAPERED OVER ──
- * `depthSamples` counts samples per depth; there is no per-depth SUCCESS count. So a row's success rate remains
- * depth-blind even when its samples are depth-matched. Two guards keep that from becoming a lie:
+ * ── DEPTH-SCOPED NOW (P25.3 phase-4 real fix shipped 2026-08-26) ──
+ * The row carries per-depth SUCCESS counts (`depthSuccesses`) parallel to `depthSamples`, so the confidence and
+ * success rate are computed from the DEPTH-MATCHED (successes, samples) — a deep card is judged on the model's
+ * DEEP record, not a depth-blind rate other depths produced. The two guards still bound over-read:
  *   · `minDepthMatchedSamples` — the cell must actually have been exercised at this depth (absence of deep
  *     evidence is never read as deep capability, the CodeAct-gate direction), and
- *   · `minDepthMatchedShare` — the depth-matched samples must be a real FRACTION of the row, so a 99%-shallow
- *     cell with one deep run cannot pass on the strength of a rate that other depths produced.
- * Neither turns the rate into a depth-scoped measurement; they bound how far it can be over-read. A per-depth
- * success counter would be the real fix and is named as the follow-up rather than simulated here.
+ *   · `minDepthMatchedShare` — the depth-matched samples must be a real FRACTION of the row.
+ * A row written before `depthSuccesses` existed reads zero successes there and falls back to the row rate, so a
+ * legacy row degrades to the prior behaviour rather than reading as all-failure.
  *
  * ── WHY THE TOP SCORE DOES NOT AUTOMATICALLY WIN ──
  * P22's own research: BFCL V4 has Qwen3-8B at 41.75 and Qwen3-14B at 34.75 on multi-turn — *"any architectural
@@ -27,7 +27,12 @@
  * outrank a 45/50 one.
  */
 
-import { type FitnessRow, fitnessConfidenceLowerBound, fitnessSuccessRate } from "./fitness-table-schema";
+import {
+	type FitnessRow,
+	fitnessConfidenceLowerBound,
+	fitnessSuccessRate,
+	wilsonLowerBound,
+} from "./fitness-table-schema";
 import { type ContextDepthBucket, fitnessDepthMismatch } from "./model-fitness-freshness";
 
 export interface FitnessAssignmentPolicy {
@@ -93,6 +98,19 @@ export function depthMatchedSamples(row: FitnessRow, needed: ContextDepthBucket)
 }
 
 /**
+ * P25.3 phase-4 REAL FIX: the SUCCESS count over the depth buckets that cover the needed depth — the parallel of
+ * {@link depthMatchedSamples}. With this the decider judges a card on the model's DEPTH-SCOPED success rate, not
+ * the depth-blind row rate the honest-limit note above warned about. A row written before depthSuccesses existed
+ * reads zero here, which — paired with the minDepthMatchedSamples floor — correctly abstains rather than lies.
+ */
+export function depthMatchedSuccesses(row: FitnessRow, needed: ContextDepthBucket): number {
+	const buckets: ContextDepthBucket[] = ["shallow", "medium", "deep"];
+	return buckets
+		.filter((bucket) => !fitnessDepthMismatch(bucket, needed))
+		.reduce((total, bucket) => total + row.depthSuccesses[bucket], 0);
+}
+
+/**
  * Pick the model for a (role, difficulty) cell at a given depth, or abstain with the reason.
  *
  * `rows` must already be scoped to the role+difficulty being routed (the caller owns that lookup); every row is
@@ -128,13 +146,28 @@ export function assignModelFromFitness(input: {
 	}
 
 	const contenders: FitnessAssignmentContender[] = depthCovered
-		.map(({ row, matched }) => ({
-			modelKey: row.modelKey,
-			confidence: fitnessConfidenceLowerBound(row),
-			successRate: fitnessSuccessRate(row),
-			depthMatchedSamples: matched,
-			totalSamples: row.sampleCount,
-		}))
+		.map(({ row, matched }) => {
+			// P25.3 phase-4: judge on the DEPTH-SCOPED rate now that per-depth successes exist. The confidence and
+			// rate come from the depth-matched (successes, samples) — a deep card is scored on the model's DEEP
+			// record, not a rate other depths produced. Falls back to the row rate only if the row predates
+			// depthSuccesses (all-zero) yet has depth-matched samples — an impossible state for a freshly folded
+			// row, but handled so a legacy row degrades to today's behaviour rather than reading as all-failure.
+			const depthSuccessesMatched = depthMatchedSuccesses(row, input.neededDepth);
+			const hasDepthSuccessEvidence = depthSuccessesMatched > 0 || row.successCount === 0;
+			return {
+				modelKey: row.modelKey,
+				confidence: hasDepthSuccessEvidence
+					? wilsonLowerBound(depthSuccessesMatched, matched)
+					: fitnessConfidenceLowerBound(row),
+				successRate: hasDepthSuccessEvidence
+					? matched > 0
+						? depthSuccessesMatched / matched
+						: 0
+					: fitnessSuccessRate(row),
+				depthMatchedSamples: matched,
+				totalSamples: row.sampleCount,
+			};
+		})
 		// Deterministic order: confidence, then evidence volume, then key — never insertion order.
 		.sort(
 			(left, right) =>
