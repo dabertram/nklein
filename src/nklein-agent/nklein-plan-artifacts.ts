@@ -16,6 +16,21 @@ import {
 const PLAN_ARTIFACT_KIND = "decomposition";
 const PLAN_ARTIFACT_METADATA_FILENAME = "artifact.json";
 
+/**
+ * `knowledgeDebt` reads as a scalar note but sits among eight list-like sibling fields (preconditions, nonGoals,
+ * acceptanceChecks, …), so architect models routinely emit it as a `string[]` — live-observed on dschinn run-4
+ * (`.real-runs/20260821-031637`), where qwen3.8 hit `add_task rejected — knowledgeDebt: expected string, received
+ * array` and burned a turn on a plan that was otherwise correct. Accept the natural list shape and fold it into the
+ * newline-joined string the card carries downstream (an empty/blank list ⇒ null); scalars pass through untouched.
+ */
+function coerceKnowledgeDebtToString(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		const lines = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+		return lines.length > 0 ? lines.join("\n") : null;
+	}
+	return value;
+}
+
 export const nkleinPlanTaskSchema = z.object({
 	id: z.string().min(1),
 	title: z.string().min(1),
@@ -32,7 +47,7 @@ export const nkleinPlanTaskSchema = z.object({
 	// cannot cover this card's work; the reason rides along for the operator/audit trail.
 	testability: z.enum(["testable", "not_testable"]).optional(),
 	testabilityReason: z.string().nullable().optional(),
-	knowledgeDebt: z.string().nullable().optional(),
+	knowledgeDebt: z.preprocess(coerceKnowledgeDebtToString, z.string().nullable().optional()),
 	// §5.AK/§5.B richer per-card CONTRACT — all OPTIONAL enrichment (absent ⇒ not provided, fully backward-compatible;
 	// a card decomposed without them is unchanged). A decomposition can populate them so a worker executes against an
 	// explicit contract instead of re-deriving it, and downstream nodes know what a card produces + what invalidates

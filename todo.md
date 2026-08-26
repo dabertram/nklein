@@ -2060,8 +2060,12 @@ These are known defects or incomplete migrations. Clear them before widening cap
   signals against the host's cap-1** — the drain's own aux sessions contend with the architect; the 3
   `duplicate_node` rejections are the restart symptom (the model re-declares nodes it already added — the
   server-side plan builder SURVIVES restarts, which is right, but the restarted model does not know that; the
-  restart brief should carry the builder's current node list); (b) one `add_task` schema friction
-  (`knowledgeDebt`: model sent an array, contract wants a string); (c) ✅ RESOLVED 2026-08-27 — the `running →
+  restart brief should carry the builder's current node list); (b) ✅ RESOLVED 2026-08-27 — the `add_task` schema
+  friction (`knowledgeDebt`: model sent an array, contract wanted a string) is gone: `knowledgeDebt` is a scalar
+  note surrounded by eight list-like sibling fields, so models naturally emit a `string[]`; `nkleinPlanTaskSchema`
+  now coerces an array into the newline-joined string the card carries (both incremental `add_task` and batch
+  `decompose_project` paths), and the JSON schema advertises both shapes. Pinned by `nklein-plan-artifacts.test.ts`;
+  (c) ✅ RESOLVED 2026-08-27 — the `running →
   awaiting_review (reason: attention)` at 03:54:05 was the terminal disposition of the starved decompose + the
   external-lms self-block on the rescue restart, both root-caused and fixed (see the "attention ENDER" note above);
   it was never an unidentified tool call; (d) ✅ COVERED by LAYER 3's durable construction (b246fb159, 2026-08-22,

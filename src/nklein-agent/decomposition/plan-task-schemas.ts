@@ -41,9 +41,10 @@ export const decomposeProjectTaskJsonSchema = {
 				"Why automated tests cannot cover this card. Required reasoning when testability is 'not_testable'.",
 		},
 		knowledgeDebt: {
-			type: ["string", "null"],
+			type: ["string", "array", "null"],
+			items: { type: "string" },
 			description:
-				"What this card still does not know about its domain and what a later card should verify. Use for domain-heavy work (e.g. DSP/audio, crypto, hardware) where assumptions are risky.",
+				"What this card still does not know about its domain and what a later card should verify. Use for domain-heavy work (e.g. DSP/audio, crypto, hardware) where assumptions are risky. A single string OR a list of strings is accepted.",
 		},
 		// §5.AK work-package CONTRACT fields (all optional) — advertised here so the architect model can emit them;
 		// they flow through the zod plan-task schema onto the card and into the worker's "## Card contract" brief.
