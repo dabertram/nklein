@@ -354,9 +354,36 @@ function evaluateHostConcurrencyGate(
 	};
 }
 
+/** Synthetic holder-id prefix admission stamps on an untracked `lms ps`-busy model (mirrors runtime-server's snapshot). */
+const EXTERNAL_LMS_HOLDER_PREFIX = "external-lms:";
+
+/**
+ * P0.DSTALL self-block (2026-08-21, run-4 `.real-runs/20260821-031637`): when a session dies its reservation is
+ * purged, yet its model can stay resident+busy in LM Studio for a beat. Admission then synthesizes an
+ * `external-lms:<host>:<model>` holder for that untracked-but-busy instance, and the dead card's OWN rescue restart —
+ * wanting the SAME model — is blocked forever behind the phantom (observed as `holder: external-lms:local:<model>`).
+ * Admitting a same-model turn REUSES the resident model (no second load anywhere), so an untracked external-lms holder
+ * of the requested model is reusable capacity, never an occupant. Drop it before any gate counts it; TRACKED same-model
+ * sessions still count (the real per-model cap), and an external-lms holder of a DIFFERENT model still blocks (a second
+ * load would blow the host's memory).
+ */
+function withoutSameModelExternalLmsReuse(request: NKleinEndpointSchedulingRequest): NKleinEndpointSchedulingRequest {
+	const requestModelId = normalizeModelId(request.modelId);
+	const isReusableSameModelPhantom = (session: NKleinEndpointSessionSnapshot): boolean =>
+		session.taskId.startsWith(EXTERNAL_LMS_HOLDER_PREFIX) && normalizeModelId(session.modelId) === requestModelId;
+	if (!request.runningSessions.some(isReusableSameModelPhantom)) {
+		return request;
+	}
+	return {
+		...request,
+		runningSessions: request.runningSessions.filter((session) => !isReusableSameModelPhantom(session)),
+	};
+}
+
 export function scheduleNKleinEndpointStart(
-	request: NKleinEndpointSchedulingRequest,
+	rawRequest: NKleinEndpointSchedulingRequest,
 ): NKleinEndpointSchedulingDecision {
+	const request = withoutSameModelExternalLmsReuse(rawRequest);
 	// §5.W: the per-PROVIDER cap is an independent gate — check it first so a provider at capacity holds even when the
 	// specific endpoint/model still has room.
 	const providerBlock = evaluateProviderConcurrencyGate(request);

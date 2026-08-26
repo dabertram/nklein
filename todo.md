@@ -1999,9 +1999,26 @@ These are known defects or incomplete migrations. Clear them before widening cap
   accepted op checkpoints to a (workspace-hash, card)-keyed store; fresh processes resume; apply/revision
   clears) and the duplicate_node rejection now ORIENTS a restarted model (lists held nodes + the bare-finalize
   finish move) instead of looping it.
-  **STILL OPEN in this entry:** the run-4 `attention` ender (running → awaiting_review reason "attention" at
-  03:54:05 with no user-attention tool call in any transcript — source unidentified; needs a live trace the
-  next time it fires).
+  **▶ THE `attention` ENDER IS ROOT-CAUSED AND FIXED (2026-08-27, no live trace needed — code+evidence trace of
+  run-4 `.real-runs/20260821-031637`).** It was never a model tool call (that is why no transcript held one): the
+  architect drove the incremental protocol productively to the very end (`snapshots.log` shows tool uses climbing
+  51→70 through 03:54:04) but never emitted `decompose_project`, so the plan-mode session reached a TERMINAL summary
+  mid-graph. `runtime.log` shows the disposition: `admission purged 1 reservation(s) held by dead session (terminal
+  summary)` → `Dead card … left no captured work — attempting ONE fresh restart` → then the restart is blocked
+  forever behind `holder: external-lms:local:qwen3.8-27b-mlx`. Two things combine: (1) the terminal park writes the
+  DEFAULT `reviewReason:"attention"` (the "needs-you" surface) — now made legible by the 2026-08-22 terminal brief
+  (`withDecompositionStarvedBrief`, 6284aba78), which fires on exactly this path (plan-mode → awaiting_review, no
+  applied decomposition); (2) the SELF-BLOCK — when the session dies its reservation is purged but its model stays
+  resident+busy in LM Studio for a beat, so admission synthesizes an `external-lms:<host>:<model>` holder and the
+  dead card's OWN rescue restart, wanting that SAME model, is refused as "host at its 1 concurrent-session cap."
+  **FIXED same day:** an untracked `external-lms` holder of the REQUESTED model is reusable residency (admitting
+  reuses the loaded model — no second load anywhere), so `scheduleNKleinEndpointStart` drops it before any gate
+  counts it and `findExternalLmsHostBlock` excludes the requester's own model from its "busy/queued outside !Klein"
+  check. A DIFFERENT model still blocks (a second load would blow host memory) and a TRACKED same-model session
+  still counts (the real per-host cap). Pinned by `nklein-endpoint-scheduler.test.ts` (self-block reproduction +
+  both regression guards — the scheduler had ZERO tests before). Suite 14,042. The self-block was the "external-lms"
+  cluster's shared root (it is the same phantom the redecompose interim opt-out `NKLEIN_REVIEW_REDECOMPOSE=0`
+  routed around); the redecompose session's admission-invisibility (FOURTH FACE) is a distinct sibling still open.
   **▶ LIVE RECURRENCE WITH THE GUARD FIX IN (resume-02 cycle 3, 2026-08-21, `.real-runs/20260821-041222`):**
   two worker cards went "marooned In Progress with no live session" (watchdog recovered both to Review, result
   branches captured) — so a dispatch-loss path past the start guard exists; that is layer (2)'s writer or a
@@ -2044,12 +2061,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `duplicate_node` rejections are the restart symptom (the model re-declares nodes it already added — the
   server-side plan builder SURVIVES restarts, which is right, but the restarted model does not know that; the
   restart brief should carry the builder's current node list); (b) one `add_task` schema friction
-  (`knowledgeDebt`: model sent an array, contract wants a string); (c) the run ended `running → awaiting_review
-  (reason: attention)` at 03:54:05 mid-construction — the attention source is NOT in any session transcript
-  (no user-attention tool call found) and must be identified; (d) the 30 accepted nodes were LOST at teardown —
-  the plan builder's incremental state is not durable, so a 37-minute graph evaporated. Reproduction for (a)+(c)
-  rides the same aimock rig as the main entry; (d) wants the builder state persisted (or snapshotted into
-  evidence) so an interrupted decompose can resume instead of restarting from zero.
+  (`knowledgeDebt`: model sent an array, contract wants a string); (c) ✅ RESOLVED 2026-08-27 — the `running →
+  awaiting_review (reason: attention)` at 03:54:05 was the terminal disposition of the starved decompose + the
+  external-lms self-block on the rescue restart, both root-caused and fixed (see the "attention ENDER" note above);
+  it was never an unidentified tool call; (d) ✅ COVERED by LAYER 3's durable construction (b246fb159, 2026-08-22,
+  landed the day after this run): every accepted op now checkpoints to a `(workspace-hash, card)`-keyed store and
+  fresh processes resume, so an interrupted decompose no longer evaporates its graph. Remaining live gap in this
+  cluster: (a) the drain's aux sessions contending with the architect on cap-1 (the redecompose admission-invisibility
+  sibling), tracked with the FOURTH FACE above.
 
 ### Phase 1 — feature completion: planning, execution, and durable control plane
 

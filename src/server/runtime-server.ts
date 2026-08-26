@@ -886,12 +886,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				!session.taskId.startsWith("external-lms:") &&
 				(session.hostId?.trim() || machineByModelId.get(session.modelId)?.trim() || null) === hostId,
 		);
-		const hostModels = psModels.filter((model) => model.machineId === hostId);
-		const queued = hostModels.find((model) => model.queued > 0);
+		// P0.DSTALL self-block: an `lms ps` instance of the REQUESTER'S OWN model is REUSED, not contended — typically a
+		// just-dead session's residual residency the dead-card rescue is about to reclaim. It must never block this
+		// card's own restart (the scheduler's tracked-session count is the real same-model concurrency cap). Only a
+		// busy/queued instance of a DIFFERENT model is genuine "outside !Klein" contention worth holding for.
+		const contendingHostModels = psModels.filter(
+			(model) => model.machineId === hostId && model.identifier !== request.modelId,
+		);
+		const queued = contendingHostModels.find((model) => model.queued > 0);
 		if (queued) {
 			return `LM Studio host "${hostId}" already has ${queued.queued} queued request(s) on ${queued.identifier}.`;
 		}
-		const busy = hostModels.find((model) => {
+		const busy = contendingHostModels.find((model) => {
 			const status = model.status?.trim().toLowerCase() ?? "";
 			return status.length > 0 && status !== "idle";
 		});
