@@ -20,6 +20,7 @@ import type {
 } from "../core/egress-confirm-queue";
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { normalizePositiveInteger } from "../core/normalize-number";
 import { isProcessAlive } from "../core/process-identity";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import {
@@ -103,6 +104,25 @@ export {
 
 const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
 const PATCH_CAPTURE_EXEC_TIMEOUT_MS = 120_000;
+/**
+ * Sandbox tools that run USER CODE — a shell command, a property/acceptance test, a browser capture — legitimately
+ * take longer than the fast structured tools on a slow local host: an `npx`/dependency install, a real test suite, a
+ * cold build under thermal throttle. Live-found 2026-08-27 (`.real-runs/20260827-012026`): a worker's
+ * `npx -y tsx --test` first-run install exceeded the 30s DEFAULT, its acceptance never went green, and the card stuck
+ * In Progress until the bed cap. The fast structured tools (read/edit/search) keep the short ceiling so a genuine
+ * hang there still fails fast.
+ */
+const LONG_RUNNING_SANDBOX_TOOLS: ReadonlySet<string> = new Set(["bash", "propertyCheck", "visualCapture"]);
+/** Overridable exec ceiling for the user-code tools above (matches the 120s patch-capture precedent). */
+const LONG_RUNNING_EXEC_TIMEOUT_MS = normalizePositiveInteger(
+	Number.parseInt(process.env.NKLEIN_SANDBOX_COMMAND_TIMEOUT_MS ?? "", 10),
+	120_000,
+);
+
+/** The exec ceiling for one sandbox tool: generous for the user-code tools, short for the fast structured ones. Pure. */
+export function resolveSandboxExecTimeoutMs(tool: string): number {
+	return LONG_RUNNING_SANDBOX_TOOLS.has(tool) ? LONG_RUNNING_EXEC_TIMEOUT_MS : DEFAULT_EXEC_TIMEOUT_MS;
+}
 /** A QUEUED slot acquisition waiting past this (via the injected `warn`) is logged as a possible capacity stall. */
 const SLOT_QUEUE_SLOW_WAIT_LOG_MS = 30_000;
 const DOCKER_UNAVAILABLE_MARKERS = [
@@ -871,7 +891,7 @@ export class AgentSandboxManager {
 				placement.projectRepoPath,
 			],
 			{
-				timeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
+				timeoutMs: resolveSandboxExecTimeoutMs(tool),
 				...(viaStdin ? { stdin: serializedInput } : {}),
 			},
 		);
