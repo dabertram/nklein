@@ -2020,6 +2020,19 @@ These are known defects or incomplete migrations. Clear them before widening cap
   cluster's shared root (it is the same phantom the redecompose interim opt-out `NKLEIN_REVIEW_REDECOMPOSE=0`
   routed around); the redecompose session's supposed admission-invisibility (FOURTH FACE) traced to the SAME
   self-block root — not a tracking bug — and is resolved by this same fix (see the FOURTH FACE RESOLVED note below).
+  **▶ LIVE PLAN-MODE VALIDATION (2026-08-27, `.real-runs/20260827-005614`) — 0 SELF-BLOCKS ON THE EXACT REPRO.** Re-ran
+  the `refactor-inventory` plan-mode bed that self-blocked 35 times as `20260826-095259`: with the fix in, **0
+  `holder: external-lms` lines across 29 turns**, and 0 knowledgeDebt-array rejections. Before/after across all recent
+  plan-mode beds: `095259` refactor-inventory 35, `085746` cli-parser 79, `104820` fetch-queue 36 → **all 0 post-fix**.
+  **⚠️ A SEPARATE weak-model friction surfaced (NOT infra):** the qwen3.8-27b architect burned ~18 turns on
+  `read_files` errors — half `start_line: 0` (0-based despite the one-based contract; the in-error guidance did not
+  cure it), half reading files the card's own brief says to CREATE (`src/inventory.ts` ENOENT). Per §4A's "parse-and-
+  recover, don't teach the model" rule, the durable fix is to coerce a sub-one `start_line`/`end_line` to omitted at the
+  arg boundary — but that boundary (`ReadFileLineRangeSchema` / the `experimental_repairToolCall` seam) lives in the
+  vendored SDK, and a vendor commit trips `test:vendor`, which is **pre-existing RED (36 failures in @cline/core**, plugins/
+  hooks/skills fork-drift — the `test:vendor` red note already filed). So the coercion is DEFERRED behind that gate; the
+  reject+guidance path stays until the vendor suite is reconciled. Written + tested locally (6 passing cases), reverted
+  to avoid a `--no-verify` bypass of the red gate.
   **▶ LIVE RECURRENCE WITH THE GUARD FIX IN (resume-02 cycle 3, 2026-08-21, `.real-runs/20260821-041222`):**
   two worker cards went "marooned In Progress with no live session" (watchdog recovered both to Review, result
   branches captured) — so a dispatch-loss path past the start guard exists; that is layer (2)'s writer or a
