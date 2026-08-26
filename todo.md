@@ -14646,8 +14646,17 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
      and prints the exact re-run command; NOTHING touches the network (pinned: the client is not even
      constructed). `--approve` binds the operator's declared catalogue facts into the fenced client
      (format hard-gated, publisher allow-list via `--allow-publisher`, size recorded). Boundary test re-run
-     green — the CLI surface stays outside the runtime's import closure. Remaining phase-3 scope: the guided
-     setup WEB view (the CLI is the product path today; `lms get` stays dev tooling).
+     green — the CLI surface stays outside the runtime's import closure.
+     **▶ THE GUIDED SETUP WEB VIEW SHIPPED 2026-08-26 — phase 3 is COMPLETE.** A shared pure preview builder
+     (`model-acquisition-preview.ts`, format-safety + residency FIT) now backs BOTH the CLI and the web view, so
+     the two can never disagree. The frontier radar renders a per-recommendation "Check fit here" affordance that
+     computes the REAL preview server-side (a read-only `previewModelAcquisition` tRPC procedure resolving THIS
+     host's memory budget — an upgrade over the LLM-estimated localFit), with the consent-gated CLI command beside
+     it as the download handoff. `ModelArtifactFormat` + `isAutoDownloadSafeFormat` were extracted to a pure
+     non-fenced module so the runtime-reachable preview imports the format knowledge WITHOUT reaching the fenced
+     download client — the acquisition-boundary test stays green (the fence holds). The DOWNLOAD is never wired
+     where the runtime can reach it; it remains the CLI handoff. 8 new tests (builder + handler); 14041 backend +
+     1215 web-ui green. **`lms get` roster refresh stays dev tooling by design — nothing else remains in phase 3.**
      **🔴 THE BOUNDARY WAS ALREADY BREACHED WHEN THIS WAS WRITTEN, AND THE ITEM DID NOT KNOW IT.** `downloadModel`
      was a method on `LmStudioRestModelClient` — *the same object `start-task-session.ts` constructs during a
      normal task run*. Nothing called it, so nothing was broken; but "no caller today" is a fact about the present,
