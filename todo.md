@@ -14691,8 +14691,13 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
      · **THE LIMIT IS STATED, NOT PAPERED OVER:** `depthSamples` counts samples per depth but there is no
        per-depth SUCCESS count, so a row's rate stays depth-blind even when its samples are depth-matched. Two
        guards bound the over-read — a minimum of depth-matched attempts AND a minimum SHARE of the row, so a
-       94%-shallow cell with 6 deep runs cannot pass on a rate the other depths produced. **The real fix is a
-       per-depth success counter in the store; it is NAMED as the follow-up rather than simulated here.**
+       94%-shallow cell with 6 deep runs cannot pass on a rate the other depths produced. **THE REAL FIX SHIPPED
+       2026-08-26: a per-depth success counter (`depthSuccesses`) parallel to `depthSamples`. The decider now
+       scores each contender on the depth-matched (successes, samples) via `depthMatchedSuccesses` +
+       `wilsonLowerBound`, so a deep card goes to the model with the best DEEP record, not a depth-blind row rate.
+       Additive/all-zero default (legacy rows fall back to the row rate); populated on live drains through
+       `recordFitnessOutcome`. This does NOT unlock the observe→steer flip (still depth-VOLUME-gated) but removes
+       the depth-blind limitation the flip would inherit.**
      · Confidence is the Wilson lower bound (a 6/6 cell cannot outrank 57/60), and **within a 0.07 noise band —
        P22's own BFCL finding that multi-turn differences under ~7 points are noise — the tiebreak is MORE
        depth-matched evidence, never the marginally higher number.**
