@@ -73,11 +73,30 @@ function buildSpecLintAdvisory(spec: string): string[] {
 	];
 }
 
+/**
+ * P0.DSTALL: a plan-mode session that RESTARTED resumes its durable decompose construction (the layer-3
+ * `(workspace, card)`-keyed store). Tell the model UP FRONT which task ids it already declared so a slow local
+ * model does not burn whole 48-248s turns re-declaring them into `duplicate_node` rejections (run-4 wasted three
+ * before the reactive orientation recovered it). Empty input ⇒ [] ⇒ the prompt is byte-identical to a fresh start.
+ */
+export function formatResumedDecompositionGuidance(heldTaskIds: readonly string[]): readonly string[] {
+	const ids = heldTaskIds.map((id) => id.trim()).filter((id) => id.length > 0);
+	if (ids.length === 0) {
+		return [];
+	}
+	const shown = ids.slice(0, 40);
+	const listing = `${shown.join(", ")}${ids.length > shown.length ? ", …" : ""}`;
+	return [
+		`A prior attempt on this card already declared ${ids.length} task(s), and !Klein SAVED that graph — it is still your construction: ${listing}. Do NOT re-declare those ids (an add_task for an existing id is rejected as duplicate_node). Continue by declaring only NEW tasks with add_task and add_dependency, or if the graph is already complete call decompose_project with NO arguments to submit it.`,
+	];
+}
+
 function buildNKleinPlanningSystemPrompt(
 	prompt: string,
 	startInPlanMode?: boolean,
 	autoDepth?: AutoDecompositionDepthDecision | null,
 	fleetGuidance?: readonly string[] | null,
+	resumedDecompositionGuidance?: readonly string[] | null,
 ): string | null {
 	if (!startInPlanMode) {
 		return null;
@@ -106,6 +125,9 @@ function buildNKleinPlanningSystemPrompt(
 			autoDepth ? formatAutoDecompositionDepthGuidance(autoDepth) : null,
 			// F12.110 — advisory fleet-sharding guidance (omitted/[] ⇒ byte-identical; cards born routable).
 			...(fleetGuidance ?? []),
+			// P0.DSTALL — on a RESTART, name the tasks the durable construction already holds so the model does not
+			// waste slow-model turns re-declaring them (omitted/[] on a fresh start ⇒ byte-identical).
+			...(resumedDecompositionGuidance ?? []),
 			acceptanceCommand
 				? `Use \`defaultAcceptanceCommand: "${acceptanceCommand}"\` unless a generated leaf needs a narrower objective check.`
 				: null,
@@ -163,9 +185,12 @@ export function buildNKleinStartPromptParts(
 	fleetGuidance?: readonly string[] | null,
 	// F12.111b: pre-code disagreements, already gated/staffed by the runner (omitted/[] ⇒ byte-identical).
 	specDeliberationGuidance?: readonly string[] | null,
+	// P0.DSTALL: held-node guidance when a plan-mode session RESUMES a durable decompose construction on restart
+	// (from `formatResumedDecompositionGuidance`; omitted/[] on a fresh start ⇒ byte-identical).
+	resumedDecompositionGuidance?: readonly string[] | null,
 ): NKleinStartPromptParts {
 	const baseSystemPrompt = startInPlanMode
-		? buildNKleinPlanningSystemPrompt(prompt, startInPlanMode, autoDepth, fleetGuidance)
+		? buildNKleinPlanningSystemPrompt(prompt, startInPlanMode, autoDepth, fleetGuidance, resumedDecompositionGuidance)
 		: isRefinableWorkCard
 			? buildNKleinRefinementSystemPrompt()
 			: null;

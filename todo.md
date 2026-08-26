@@ -2086,9 +2086,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   landed the day after this run): every accepted op now checkpoints to a `(workspace-hash, card)`-keyed store and
   fresh processes resume, so an interrupted decompose no longer evaporates its graph. The aux-session cap-1
   contention (the FOURTH FACE) is resolved by the same self-block fix — see the FOURTH FACE RESOLVED note above.
-  **This closes the external-lms cluster's liveness harm; what remains under P0.DSTALL is a non-liveness optimization
-  (a proactive restart brief listing held nodes — the reactive duplicate_node orientation already recovers the model)
-  and the cosmetic attribution of a cross-process same-model turn (which now serializes correctly regardless).**
+  **This closes the external-lms cluster's liveness harm.** The proactive restart brief (item (a)) is now ALSO
+  shipped 2026-08-27: a plan-mode session that resumes a durable decompose construction gets a start-prompt line
+  naming the already-declared task ids and the finish move (`formatResumedDecompositionGuidance` →
+  `buildNKleinPlanningSystemPrompt`), so a slow local model no longer burns 48-248s turns re-declaring them into
+  `duplicate_node` (run-4 wasted three). Fail-safe: no durable construction ⇒ [] ⇒ byte-identical prompt; pinned by
+  `nklein-task-prompt-builders.test.ts`. **Everything actionable under P0.DSTALL's forensic entries is now done**;
+  the only residue is cosmetic attribution of a cross-process same-model turn (which already serializes correctly),
+  not worth a delicate admission-path change. A fresh full-project dschinn drain is the natural close-out proof.
 
 ### Phase 1 — feature completion: planning, execution, and durable control plane
 

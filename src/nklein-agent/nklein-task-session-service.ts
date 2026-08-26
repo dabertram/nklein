@@ -94,6 +94,7 @@ import { decideTemporalContextInjection } from "../core/temporal-context-injecti
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import type { CommunitySkillSessionAdmission } from "../server/community-skill-execution-service";
 import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { loadDecomposeConstruction } from "../state/decompose-construction-store";
 import { resolveStableRoutingModelId } from "../state/runtime-id-model-key-map-store";
 import { recordTaskRunSummary, type TaskRunTerminalState } from "../state/task-run-summary-store";
 import { loadWorkspaceState } from "../state/workspace-state";
@@ -212,7 +213,11 @@ import { TaskFailureBackoffTracker } from "./nklein-task-failure-backoff-tracker
 import { createTaskFailureEmitter } from "./nklein-task-failure-emitter";
 import { TaskModelEndpointStore, UNCONFIGURED_MODEL_ID } from "./nklein-task-model-endpoint-store";
 import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
-import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
+import {
+	appendSystemPrompt,
+	buildNKleinStartPromptParts,
+	formatResumedDecompositionGuidance,
+} from "./nklein-task-prompt-builders";
 import { buildSessionCardContract } from "./nklein-task-prompt-parsing";
 import { TaskProviderIdStore } from "./nklein-task-provider-id-store";
 import { TaskRequestTimer } from "./nklein-task-request-timer";
@@ -2310,6 +2315,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// F12.89: workspace-stable frontend convention preamble (memoized per cwd; [] for backend workspaces or on any
 		// read failure ⇒ byte-identical; kill-switch NKLEIN_FRAMEWORK_PREAMBLE=off).
 		const frameworkPreamble = await readWorkspaceFrameworkPreamble(request.cwd);
+		// P0.DSTALL: on a plan-mode RESTART, name the tasks the durable decompose construction already holds so a
+		// slow local model does not re-declare them into duplicate_node rejections (run-4 wasted three such turns).
+		// The store key mirrors the decompose tool's `hostWorkspaceRoot`; a missing entry ⇒ [] ⇒ byte-identical.
+		const resumedDecompositionGuidance = request.startInPlanMode
+			? formatResumedDecompositionGuidance(
+					(
+						loadDecomposeConstruction(request.workspaceRoot?.trim() || request.cwd, request.taskId)?.construction
+							.nodes ?? []
+					).map((node) => node.id),
+				)
+			: null;
 		const startPromptParts = buildNKleinStartPromptParts(
 			taskPrompt,
 			request.startInPlanMode,
@@ -2318,6 +2334,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			frameworkPreamble,
 			request.fleetDecompositionGuidance ?? null, // F12.110 — advisory fleet sharding (null ⇒ byte-identical)
 			specDeliberationGuidance,
+			resumedDecompositionGuidance, // P0.DSTALL — resumed decompose held-node brief (null ⇒ byte-identical)
 		);
 		const normalizedPrompt = startPromptParts.userPrompt.trim();
 		const hasRequestImages = Boolean(request.images && request.images.length > 0);
