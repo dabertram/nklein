@@ -2,8 +2,13 @@ import { Radar } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/components/ui/cn";
-import { fetchFrontierLatest, fetchFrontierStatus, runFrontierResearch } from "@/runtime/queries/frontier";
-import type { FrontierReport, FrontierStatusResponse } from "@/runtime/types";
+import {
+	fetchFrontierLatest,
+	fetchFrontierStatus,
+	fetchModelAcquisitionPreview,
+	runFrontierResearch,
+} from "@/runtime/queries/frontier";
+import type { FrontierReport, FrontierStatusResponse, ModelAcquisitionPreview } from "@/runtime/types";
 
 /**
  * Frontier radar — the always-visible trigger (David 2026-08-22: "locate trigger in main ui, always, on
@@ -40,6 +45,33 @@ export function FrontierRadar({ workspaceId }: { workspaceId: string | null }): 
 	const [report, setReport] = useState<FrontierReport | null>(null);
 	const [open, setOpen] = useState(false);
 	const [runMessage, setRunMessage] = useState<string | null>(null);
+	// P25.3 phase-3: per-recommendation real-host fit preview (null = idle, "loading", the preview, or an error string).
+	const [fitPreviews, setFitPreviews] = useState<
+		Record<string, ModelAcquisitionPreview | "loading" | { error: string }>
+	>({});
+	const checkFitHere = useCallback(
+		(modelName: string, publisher: string | null) => {
+			setFitPreviews((prev) => ({ ...prev, [modelName]: "loading" }));
+			void fetchModelAcquisitionPreview(workspaceId, {
+				modelKey: modelName,
+				format: null,
+				sizeBytes: null,
+				publisher,
+				allowedPublishers: [],
+				paramB: null,
+				weightBitsPerParam: 4,
+				contextTokens: 32_768,
+			})
+				.then((preview) => setFitPreviews((prev) => ({ ...prev, [modelName]: preview })))
+				.catch((error: unknown) =>
+					setFitPreviews((prev) => ({
+						...prev,
+						[modelName]: { error: error instanceof Error ? error.message : "preview failed" },
+					})),
+				);
+		},
+		[workspaceId],
+	);
 
 	const refresh = useCallback(() => {
 		void fetchFrontierStatus(workspaceId)
@@ -139,14 +171,48 @@ export function FrontierRadar({ workspaceId }: { workspaceId: string | null }): 
 														: "size unknown"}
 										</span>
 										<div className="text-text-tertiary">{recommendation.reason}</div>
-										{!recommendation.alreadyInstalled ? (
-											<code
-												className="mt-0.5 block w-fit max-w-full truncate rounded bg-text-primary/5 px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
-												title="Previews size, format safety and fit — downloads nothing until you re-run with --approve"
-											>
-												nklein setup acquire "{recommendation.name}"
-											</code>
-										) : null}
+										{!recommendation.alreadyInstalled
+											? (() => {
+													const preview = fitPreviews[recommendation.name];
+													return (
+														<div className="mt-1 space-y-1">
+															{preview === undefined || preview === "loading" ? (
+																<button
+																	type="button"
+																	disabled={preview === "loading"}
+																	onClick={() =>
+																		checkFitHere(recommendation.name, recommendation.publisher)
+																	}
+																	className="rounded bg-text-primary/5 px-1.5 py-0.5 text-[10px] text-text-secondary hover:bg-text-primary/10 disabled:opacity-50"
+																>
+																	{preview === "loading" ? "Checking fit…" : "Check fit here"}
+																</button>
+															) : "error" in preview ? (
+																<div className="text-[10px] text-status-red">
+																	Fit check failed: {preview.error}
+																</div>
+															) : (
+																<div className="rounded bg-text-primary/5 px-1.5 py-1 text-[10px] text-text-secondary">
+																	<div>
+																		<span className="text-text-tertiary">format:</span>{" "}
+																		{preview.format.label}
+																	</div>
+																	<div>
+																		<span className="text-text-tertiary">fit here:</span>{" "}
+																		{preview.fit.label}
+																	</div>
+																</div>
+															)}
+															<code
+																className="block w-fit max-w-full truncate rounded bg-text-primary/5 px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
+																title="Previews size, format safety and fit — downloads nothing until you re-run with --approve"
+															>
+																nklein setup acquire "{recommendation.name}"
+															</code>
+														</div>
+													);
+												})()
+											: null}
 									</div>
 								))}
 							</div>

@@ -186,6 +186,7 @@ import { handleGetFocusChainHistory } from "./runtime-api/focus-chain-history.js
 import { importGitHubIssueContext, importGitHubPrDiffContext } from "./runtime-api/github-context-import.js";
 import { runLocalAdvisorCompletion } from "./runtime-api/local-advisor-completion.js";
 import { handleMergeTaskWorktrees } from "./runtime-api/merge-task-worktrees.js";
+import { handlePreviewModelAcquisition } from "./runtime-api/model-acquisition-preview";
 import {
 	defaultLlmfitCatalogSupplementRegistrar,
 	defaultLlmfitCatalogUpdateChecker,
@@ -1641,6 +1642,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				nkleinProviderService,
 				fetchLoadedModelDescriptors: defaultModelFleetSuggestionDescriptorFetcher,
 			});
+		},
+		previewModelAcquisition: async (workspaceScope, input) => {
+			const config = await (workspaceScope
+				? deps.loadScopedRuntimeConfig(workspaceScope)
+				: loadGlobalRuntimeConfig()
+			).catch(() => null);
+			return handlePreviewModelAcquisition(input, { configuredDeviceRamGb: config?.deviceRamGb ?? null });
 		},
 		checkLlmfitCatalogUpdate: async (workspaceScope) => {
 			const mode = await resolveLlmfitCatalogUpdateMode(workspaceScope, deps);

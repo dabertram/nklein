@@ -250,6 +250,7 @@ import type {
 	RuntimeSessionMemoryResponse,
 } from "../core/chat-api-contract.js";
 import type { RuntimeFieldReportCandidatesResponse } from "../core/field-report-api-contract";
+import type { ModelAcquisitionPreview, ModelAcquisitionPreviewRequest } from "../core/model-acquisition-preview";
 import type { RuntimeBuildIdentity } from "../core/runtime-build-identity";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import { touchWorkspaceAttended } from "../state/workspace-attended-registry";
@@ -541,6 +542,10 @@ export interface RuntimeTrpcContext {
 			input: RuntimeNKleinEndpointModelDiscoveryRequest,
 		) => Promise<RuntimeNKleinEndpointModelDiscoveryResponse>;
 		getNKleinModelRegistry: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeNKleinModelRegistryResponse>;
+		previewModelAcquisition: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: ModelAcquisitionPreviewRequest,
+		) => Promise<ModelAcquisitionPreview>;
 		checkLlmfitCatalogUpdate: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeLlmfitCatalogUpdateCheckResponse>;

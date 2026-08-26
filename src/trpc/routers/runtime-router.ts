@@ -191,6 +191,10 @@ import {
 	frontierRunResponseSchema,
 	frontierStatusResponseSchema,
 } from "../../core/frontier-research";
+import {
+	modelAcquisitionPreviewRequestSchema,
+	modelAcquisitionPreviewResponseSchema,
+} from "../../core/model-acquisition-preview";
 import { runtimeBuildIdentitySchema } from "../../core/runtime-build-identity";
 import {
 	runtimeTaskSessionForkRequestSchema,
@@ -649,6 +653,14 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		getNKleinModelRegistry: t.procedure.output(runtimeNKleinModelRegistryResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getNKleinModelRegistry(ctx.workspaceScope);
 		}),
+		// P25.3 phase-3: read-only setup acquisition PREVIEW (format safety + host-fit). The DOWNLOAD stays the
+		// consent-gated CLI handoff — this procedure imports no download capability, so the fence is intact.
+		previewModelAcquisition: workspaceProcedure
+			.input(modelAcquisitionPreviewRequestSchema)
+			.output(modelAcquisitionPreviewResponseSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.previewModelAcquisition(ctx.workspaceScope, input);
+			}),
 		checkLlmfitCatalogUpdate: t.procedure
 			.output(runtimeLlmfitCatalogUpdateCheckResponseSchema)
 			.mutation(async ({ ctx }) => {

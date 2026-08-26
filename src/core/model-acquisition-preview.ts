@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { isAutoDownloadSafeFormat, type ModelArtifactFormat } from "./model-artifact-format.js";
 import { estimateModelResidency, fitModelResidency, type ResidencyFitVerdict } from "./model-residency-sizing.js";
 
@@ -105,3 +106,41 @@ export function buildModelAcquisitionPreview(input: ModelAcquisitionPreviewInput
 		fit,
 	};
 }
+
+/** Wire request for the read-only setup preview (the host resolves the budget; the client supplies what it knows). */
+export const modelAcquisitionPreviewRequestSchema = z.object({
+	modelKey: z.string().min(1),
+	format: z.enum(["safetensors", "gguf", "mlx", "pickle", "unknown"]).nullable(),
+	sizeBytes: z.number().int().positive().nullable(),
+	publisher: z.string().nullable(),
+	allowedPublishers: z.array(z.string()),
+	/** Declared param count in billions; null ⇒ the host falls back to parsing the key. */
+	paramB: z.number().positive().nullable(),
+	weightBitsPerParam: z.number().positive(),
+	contextTokens: z.number().int().positive(),
+});
+export type ModelAcquisitionPreviewRequest = z.infer<typeof modelAcquisitionPreviewRequestSchema>;
+
+export const modelAcquisitionPreviewResponseSchema = z.object({
+	modelKey: z.string(),
+	format: z.object({
+		value: z.enum(["safetensors", "gguf", "mlx", "pickle", "unknown"]).nullable(),
+		safe: z.boolean(),
+		label: z.string(),
+	}),
+	sizeBytes: z.number().nullable(),
+	sizeLabel: z.string(),
+	publisher: z.string().nullable(),
+	publisherLabel: z.string(),
+	fit: z.union([
+		z.object({
+			known: z.literal(true),
+			verdict: z.enum(["fits", "tight", "exceeds"]),
+			needBytes: z.number(),
+			budgetBytes: z.number(),
+			basis: z.string(),
+			label: z.string(),
+		}),
+		z.object({ known: z.literal(false), label: z.string() }),
+	]),
+});

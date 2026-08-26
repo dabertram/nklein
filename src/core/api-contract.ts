@@ -19,6 +19,7 @@ export * from "./frontier-research.js";
 export * from "./git-history-api-contract.js";
 // Git sync contract domain (repo info, fetch/pull/push sync, checkout, discard) (§5.X #2).
 export * from "./git-sync-api-contract.js";
+export * from "./model-acquisition-preview.js";
 // NKlein MCP contract domain (server config, settings response/save, auth-status, oauth) (§5.X #2).
 export * from "./nklein-mcp-api-contract.js";
 // NKlein misc-ops domain (core-py health, merge history, advisor, dogfood, smoke-eval, task-evidence) (§5.X #2).
