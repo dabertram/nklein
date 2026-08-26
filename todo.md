@@ -2018,7 +2018,8 @@ These are known defects or incomplete migrations. Clear them before widening cap
   still counts (the real per-host cap). Pinned by `nklein-endpoint-scheduler.test.ts` (self-block reproduction +
   both regression guards — the scheduler had ZERO tests before). Suite 14,042. The self-block was the "external-lms"
   cluster's shared root (it is the same phantom the redecompose interim opt-out `NKLEIN_REVIEW_REDECOMPOSE=0`
-  routed around); the redecompose session's admission-invisibility (FOURTH FACE) is a distinct sibling still open.
+  routed around); the redecompose session's supposed admission-invisibility (FOURTH FACE) traced to the SAME
+  self-block root — not a tracking bug — and is resolved by this same fix (see the FOURTH FACE RESOLVED note below).
   **▶ LIVE RECURRENCE WITH THE GUARD FIX IN (resume-02 cycle 3, 2026-08-21, `.real-runs/20260821-041222`):**
   two worker cards went "marooned In Progress with no live session" (watchdog recovered both to Review, result
   branches captured) — so a dispatch-loss path past the start guard exists; that is layer (2)'s writer or a
@@ -2043,6 +2044,19 @@ These are known defects or incomplete migrations. Clear them before widening cap
   window). A normal board session's turns must never be admission-invisible — find where the redecompose
   session's turns miss `activeModelTurnsByWorkspaceId`. Interim: `NKLEIN_REVIEW_REDECOMPOSE=0` (875719eb6)
   opts measurement harnesses out of the rung; the product default stays ON.
+  **▶ FOURTH FACE RESOLVED 2026-08-27 — traced to the shared self-block root, no tracking bug found.** Followed the
+  admission path end to end: aux/redecompose/review sessions run via `startAuxiliaryRuntimeTaskSessionFromLaunchConfig`,
+  which wraps `withModelTurnAdmission` around `startRuntimeTaskSessionFromLaunchConfig` → `sessionRuntime.startTaskSession`,
+  and *that awaits the turn to completion* (the review runner's own comment: "startRuntimeSession awaits the turn").
+  So a redecompose/review turn IS tracked in `activeModelTurnsByWorkspaceId` for its ENTIRE generation — the turns do
+  NOT miss admission. The `external-lms` phantom only materializes in the residual-residency window (turn settled +
+  reservation released, but `lms ps` still shows the model draining) OR CROSS-PROCESS (the aider harness runs a fresh
+  runtime per benchmark task, and one process's in-memory admission map is invisible to another's — it sees only the
+  shared `lms ps`). Both are the SAME self-block, and the fix (c8a4f1797) handles both: an untracked same-model
+  external-lms holder is reusable residency, so a same-model start (every aider task is qwen3.8-27b) admits and
+  serializes at LM Studio instead of being refused indefinitely. The indefinite-block harm the interim opt-out routed
+  around is now cured; `NKLEIN_REVIEW_REDECOMPOSE=0` can stay purely a MEASUREMENT-purity lever (a redecompose recovery
+  measures a different thing than the pre-rung baseline), no longer a liveness workaround.
   **Fix shape (three layers, smallest honest set):** (1) a plan-mode run-finish WITHOUT an applied decomposition
   must not take the generic hook→awaiting_review path — either continue the adaptive ladder (rungs remain:
   `thinking_disable` was NEXT and plausibly cures reasoning starvation) or park INPUT_REQUIRED with a structured
@@ -2070,9 +2084,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   external-lms self-block on the rescue restart, both root-caused and fixed (see the "attention ENDER" note above);
   it was never an unidentified tool call; (d) ✅ COVERED by LAYER 3's durable construction (b246fb159, 2026-08-22,
   landed the day after this run): every accepted op now checkpoints to a `(workspace-hash, card)`-keyed store and
-  fresh processes resume, so an interrupted decompose no longer evaporates its graph. Remaining live gap in this
-  cluster: (a) the drain's aux sessions contending with the architect on cap-1 (the redecompose admission-invisibility
-  sibling), tracked with the FOURTH FACE above.
+  fresh processes resume, so an interrupted decompose no longer evaporates its graph. The aux-session cap-1
+  contention (the FOURTH FACE) is resolved by the same self-block fix — see the FOURTH FACE RESOLVED note above.
+  **This closes the external-lms cluster's liveness harm; what remains under P0.DSTALL is a non-liveness optimization
+  (a proactive restart brief listing held nodes — the reactive duplicate_node orientation already recovers the model)
+  and the cosmetic attribution of a cross-process same-model turn (which now serializes correctly regardless).**
 
 ### Phase 1 — feature completion: planning, execution, and durable control plane
 
