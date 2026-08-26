@@ -148,11 +148,8 @@ async function recordPlanSizingObservations(input: {
 		if (!task) {
 			continue;
 		}
-		const sizing = derivePlanTaskRoutingSizing(
-			task,
-			buildTaskPrompt(task, input.sharedContext),
-			input.sizingCandidates,
-		);
+		const taskPrompt = buildTaskPrompt(task, input.sharedContext);
+		const sizing = derivePlanTaskRoutingSizing(task, taskPrompt, input.sizingCandidates);
 		const assessment = assessPlannedTaskSizing({
 			rows: evidenceRows,
 			modelContextTokens: largestContextWindow,
@@ -174,6 +171,13 @@ async function recordPlanSizingObservations(input: {
 				overshoot: assessment.verdict?.overshoot ?? null,
 				mustSplit: assessment.verdict?.mustSplit ?? null,
 				predictedDiffLines: assessment.estimatedDiffLines,
+				// P21.6b — the per-task FEATURES a future diff predictor calibrates on. The pooled-median estimate is
+				// structurally inert (median ≤ p90 always), so the review ceiling only arms once a PER-TASK predictor
+				// exists; a predictor needs to tell tasks apart. These are the canonical inputs, straight from the task's
+				// own declaration, recorded observe-first beside predicted-vs-actual so the join carries them for the leaf.
+				plannedComplexity: task.complexity,
+				filesLikelyTouchedCount: task.filesLikelyTouched?.length ?? 0,
+				taskPromptChars: taskPrompt.length,
 				reviewCeilingLines: assessment.reviewCeiling.ceilingLines,
 				reviewCeilingSample: assessment.reviewCeiling.sample,
 				reviewCeilingBasis: assessment.reviewCeiling.basis,

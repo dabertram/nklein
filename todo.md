@@ -14085,6 +14085,12 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   live enforcement is the CONTEXT half ("one task = one context window"); the review half arms for real the day
   the observe stream's predicted-vs-actual join yields a PER-TASK diff predictor. That predictor is the true
   remaining leaf.
+  **▶ THE PREDICTOR'S EVIDENCE ENRICHED 2026-08-27 (prerequisite, observe-first).** The `plan_sizing_verdict`
+  observation recorded the pooled-median prediction but NOT the task's own features, so its predicted-vs-actual join
+  could not tell tasks apart — a per-task predictor was uncalibratable from it. It now also records the canonical
+  per-task inputs (`plannedComplexity`, `filesLikelyTouchedCount`, `taskPromptChars`) beside the prediction, straight
+  from the task declaration, no behaviour change. The join now carries what a predictor needs; the leaf becomes
+  buildable once the enriched stream is dense enough on real drains (the accrual campaign feeds it).
  Backlog.md's framing is
   the sharpest in the field: *"AI agents can now produce more plausible code in an hour than you can carefully
   read in a day. The bottleneck is no longer writing code. It's your attention."* Their three checkpoints —
