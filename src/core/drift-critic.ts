@@ -76,6 +76,14 @@ export interface DriftCriticPromptInput {
 	readonly focusChain?: string | null;
 	/** Compact recent-activity summary (tool calls / files touched), already bounded by the caller. */
 	readonly recentActivity: string;
+	/**
+	 * Deterministic distress signals the system already detected for this session (progress-stall / edit-thrash),
+	 * as a short human phrase, or null when none fired. The critic's own pattern list never named being STUCK, so a
+	 * lenient LLM judge cleared genuinely-stalled sessions: P18.4b's off_track_remedy stream sat at 0 while 11
+	 * progress-stall signals fired and the critic returned ON_TRACK 101/101. Feeding it the signal it lacked lets it
+	 * judge stall accurately — evidence, not a forced verdict.
+	 */
+	readonly distressSignals?: string | null;
 }
 
 /**
@@ -97,9 +105,19 @@ export function buildDriftCriticPrompt(input: DriftCriticPromptInput): string {
 		"",
 		"## What the worker has been doing recently",
 		input.recentActivity.trim() || "(no recent activity recorded)",
+	);
+	if (input.distressSignals?.trim()) {
+		lines.push(
+			"",
+			"## Signals the system already detected",
+			`The system's deterministic monitors flagged: ${input.distressSignals.trim()}.`,
+			"Treat this as strong evidence the work may be STUCK. Judge whether the recent activity is actually moving the objective forward or just churning — re-running a failing check, editing the same file back and forth, or repeating a command without changing anything is drift, not progress.",
+		);
+	}
+	lines.push(
 		"",
 		"## Your job",
-		"Judge ONLY whether the recent work still serves the objective. Look for: drifting onto a different subgoal, over-committing to a hypothesis the evidence no longer supports, re-doing work already done, or polishing something the objective never asked for.",
+		"Judge ONLY whether the recent work still serves the objective. Look for: drifting onto a different subgoal, over-committing to a hypothesis the evidence no longer supports, re-doing work already done, polishing something the objective never asked for, or being STUCK — repeating the same command or edit without making progress, or re-running a failing check without changing anything.",
 		"If the work is ON TRACK, say exactly `ON_TRACK` and nothing else — do not invent a concern to seem useful.",
 		"If it has DRIFTED, reply with up to three lines, each `DRIFT: <what drifted> | HINT: <the smallest nudge back>`.",
 		"A HINT names the direction, never the solution: say what to reconsider, not what to write. Do not provide code, diffs, or step-by-step instructions.",

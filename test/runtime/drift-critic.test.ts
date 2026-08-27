@@ -58,6 +58,32 @@ describe("drift critic prompt (F12.92)", () => {
 		const noPlan = buildDriftCriticPrompt({ taskObjective: "Do the thing", recentActivity: "read files" });
 		expect(noPlan).not.toContain("The worker's own plan");
 	});
+
+	it("names being STUCK as drift so a stalled trajectory is not read as on-track (P18.4b)", () => {
+		expect(prompt).toContain("STUCK");
+		expect(prompt).toContain("re-running a failing check without changing anything");
+	});
+
+	it("surfaces the system's deterministic distress signals when present (P18.4b)", () => {
+		const distressed = buildDriftCriticPrompt({
+			taskObjective: "Do the thing",
+			recentActivity: "ran npm test ×12",
+			distressSignals: "a progress-stall signal; 3 edit-thrash signal(s)",
+		});
+		expect(distressed).toContain("Signals the system already detected");
+		expect(distressed).toContain("a progress-stall signal; 3 edit-thrash signal(s)");
+		expect(distressed).toContain("strong evidence the work may be STUCK");
+	});
+
+	it("omits the distress section when no signal fired (never fabricates distress)", () => {
+		expect(prompt).not.toContain("Signals the system already detected");
+		const nullSignal = buildDriftCriticPrompt({
+			taskObjective: "Do the thing",
+			recentActivity: "read files",
+			distressSignals: null,
+		});
+		expect(nullSignal).not.toContain("Signals the system already detected");
+	});
 });
 
 describe("drift critic parsing (F12.92)", () => {

@@ -527,11 +527,27 @@ export function createKanbanContextFocusExtension(
 							lastOfferedToolNames.length > 0
 								? `Tools offered this turn: ${lastOfferedToolNames.slice(0, 20).join(", ")}`
 								: "(no recent tool activity recorded)";
+						// P18.4b: hand the critic the deterministic distress it currently judges without. A stalled
+						// session reads as ON_TRACK to a lenient LLM that was never told to watch for churn — so the
+						// off_track_remedy stream starved at 0 while these monitors fired. This is evidence, not a verdict.
+						const editThrashCount = editThrashFlaggedBySessionId.get(sessionId)?.size ?? 0;
+						const distressSignals =
+							[
+								progressStallFlaggedSessionIds.has(sessionId)
+									? "a progress-stall signal (little or no forward progress across recent turns)"
+									: null,
+								editThrashCount > 0
+									? `${editThrashCount} edit-thrash signal(s) (the same file edited back and forth)`
+									: null,
+							]
+								.filter(Boolean)
+								.join("; ") || null;
 						void driftCriticCaller(
 							buildDriftCriticPrompt({
 								taskObjective: objective,
 								focusChain: chain ? chain.steps.map((step) => `- ${step.text}`).join("\n") : null,
 								recentActivity,
+								distressSignals,
 							}),
 						)
 							.then(async (text) => {
