@@ -21,6 +21,7 @@ describe("agent sandbox polyglot image contract (F12.84b)", () => {
 			"pnpm --version",
 			"yarn --version",
 			"bun --version",
+			"tsx --version",
 			"python3 --version",
 			"cargo --version",
 			"rustc --version",

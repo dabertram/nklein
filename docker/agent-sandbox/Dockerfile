@@ -46,6 +46,17 @@ RUN rm -f /usr/local/bin/yarn /usr/local/bin/yarnpkg \
 	&& npm install -g pnpm@10.13.1 yarn@1.22.22 bun@1.2.18 \
 	&& npm cache clean --force
 
+# tsx (TS/ESM runner) baked GLOBALLY for the same reason as the package managers above: an acceptance command that
+# invokes `npx -y tsx …` must resolve OFFLINE. Under `--network none` a runtime fetch fails outright; even when egress
+# is allowed it is slow + flaky — npx silently leaves an EMPTY cache and the install never completes, burning worker
+# turns (live-found bed 20260827-015045: 14 of 26 turns lost to it; still recurring 2026-08-27 bed -055404). `npx`
+# prefers a $PATH binary over a fetch, so a global install makes `npx -y tsx` run THIS instantly. Pinned to the repo's
+# own vendored tsx (package.json "^4.20.3" ⇒ 4.22.4) for a known-good, consistent version.
+RUN npm install -g tsx@4.22.4 \
+	&& npm cache clean --force \
+	&& tsx --version >/dev/null \
+	&& command -v tsx | grep -q /usr/local/bin/tsx
+
 # Curated MCP servers (§5.AR) baked into the image so they run 100% OFFLINE inside the sandbox (prime-directive #1):
 # !Klein reaches them via `docker exec -i <container> <cmd>` — the host never spawns the process, so strict Docker
 # isolation (invariant #2) holds. Installed at BUILD time (build has network; the running container is `--network none`),
@@ -145,6 +156,7 @@ RUN node --version \
 	&& pnpm --version \
 	&& yarn --version \
 	&& bun --version \
+	&& tsx --version \
 	&& python3 --version \
 	&& cargo --version \
 	&& rustc --version \
