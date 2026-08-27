@@ -14098,7 +14098,8 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   could not tell tasks apart — a per-task predictor was uncalibratable from it. It now also records the canonical
   per-task inputs (`plannedComplexity`, `filesLikelyTouchedCount`, `taskPromptChars`) beside the prediction, straight
   from the task declaration, no behaviour change. The join now carries what a predictor needs; the leaf becomes
-  buildable once the enriched stream is dense enough on real drains (the accrual campaign feeds it).
+   (the accrual campaign feeds it).
+  **▶ FEEDER CORRECTED 2026-08-27 — `--act` drains do NOT feed this stream; only `--plan` does.** Verified by reading: `plan_sizing_verdict` is recorded in a per-created-card loop at plan-apply (`plan-artifact-apply.ts:146`), which `--no-plan`/`--act` bypasses entirely. The durable campaign home held 9 rows (all pre-enrichment, 2026-08-26) and today's `--act` accrual added ZERO. So the enriched stream cannot densify under an `--act`-only campaign no matter how long it runs. Because the verdict is delivery-INDEPENDENT (recorded at decompose, not at delivery), even a stagnating `--plan` decompose contributes rows — and plan variants were stagnating on the P0.DSTALL external-lms self-block, FIXED this session. The accrual harness now interleaves `--plan` beds (2/round) so the stream densifies from the next campaign cycle; the predictor stays correctly deferred (observe-first) until it is dense enough to reveal its functional shape.
  Backlog.md's framing is
   the sharpest in the field: *"AI agents can now produce more plausible code in an hour than you can carefully
   read in a day. The bottleneck is no longer writing code. It's your attention."* Their three checkpoints —
