@@ -26,6 +26,7 @@
 
 import type { RuntimeTaskSessionMode, RuntimeTaskSessionSummary } from "../core/api-contract";
 import { decideDecompositionStallRecovery } from "../core/decomposition-stall";
+import { decideRefinementStallRecovery } from "../core/refinement-stall";
 
 /**
  * Milliseconds to wait before firing the mid-stream chat-only nudge.
@@ -38,6 +39,14 @@ export const DECOMPOSITION_CHAT_NUDGE_MS = 25_000;
  * Matches `NKLEIN_DECOMPOSITION_CHAT_NUDGE_LIMIT` in the original service.
  */
 export const DECOMPOSITION_CHAT_NUDGE_LIMIT = 2;
+
+/**
+ * Max refinement-promotion nudges per card (one — then it parks on its own if still stuck). A sibling of the
+ * decomposition nudge: a `--no-plan` refinable work card is supposed to end its brief refinement pass with
+ * `begin_implementation`; a model that wanders and never promotes leaves the card in Planning with no terminal
+ * outcome (todo P0.DSTALL-adjacent, live-observed `.real-runs/20260827-015045`).
+ */
+export const REFINEMENT_STALL_NUDGE_LIMIT = 1;
 
 /**
  * Pattern that, when found in a running assistant delta, indicates a chat-only decomposition
@@ -108,6 +117,10 @@ export interface DecompositionStallNudgerCallbacks {
 		text: string,
 		mode: RuntimeTaskSessionMode,
 	): Promise<RuntimeTaskSessionSummary | null>;
+	/** Whether `taskId` is a refinable `--no-plan` work card (promotes via `begin_implementation`). Refinement-nudge only. */
+	isRefinableWorkCard?: (taskId: string) => boolean;
+	/** Whether `taskId` already promoted to In Progress (a `begin_implementation` fired). Refinement-nudge only. */
+	hasBegunImplementation?: (taskId: string) => boolean;
 }
 
 /**
@@ -117,6 +130,8 @@ export interface DecompositionStallNudgerCallbacks {
 export class DecompositionStallNudger {
 	private readonly nudgeHandlesByTaskId = new Map<string, NodeJS.Timeout>();
 	private readonly nudgeCountsByTaskId = new Map<string, number>();
+	/** Separate budget for the refinement-promotion nudge (a task is either a decompose card OR a refinable one). */
+	private readonly refinementNudgeCountsByTaskId = new Map<string, number>();
 
 	constructor(private readonly callbacks: DecompositionStallNudgerCallbacks) {}
 
@@ -312,9 +327,66 @@ export class DecompositionStallNudger {
 	 * Reset all nudge state for a single task. Called on task start, restart, or stop so stale
 	 * counts and timers do not carry over to a fresh session.
 	 */
+	/**
+	 * Refinement-promotion stall nudge — the sibling of {@link maybeContinueStalledDecomposition} for a refinable
+	 * `--no-plan` work card that ended a turn in Planning without calling `begin_implementation`. One nudge per card;
+	 * the gating is the pure {@link decideRefinementStallRecovery}. The service calls this ONLY when the
+	 * refinement-stall nudge is enabled (off by default) and no more-specific decomposition recovery already fired.
+	 */
+	maybeNudgeStalledRefinement(taskId: string): boolean {
+		const summary = this.callbacks.getTaskSummary(taskId);
+		if (!summary) {
+			return false;
+		}
+		const activity = summary.latestHookActivity;
+		const finalText = (activity?.finalMessage ?? activity?.activityText ?? "").trim();
+		const nudgeCount = this.refinementNudgeCountsByTaskId.get(taskId) ?? 0;
+		const decision = decideRefinementStallRecovery({
+			isRefinableWorkCard: this.callbacks.isRefinableWorkCard?.(taskId) ?? false,
+			begunImplementation: this.callbacks.hasBegunImplementation?.(taskId) ?? false,
+			state: summary.state,
+			reviewReason: summary.reviewReason ?? null,
+			endedOnQuestion: finalText.endsWith("?"),
+			nudgeCount,
+			nudgeLimit: REFINEMENT_STALL_NUDGE_LIMIT,
+		});
+		if (decision.action === "none") {
+			return false;
+		}
+		this.refinementNudgeCountsByTaskId.set(taskId, nudgeCount + 1);
+		const workspacePath = this.callbacks.resolveWorkspacePath(taskId);
+		const providerId = this.callbacks.resolveProviderId(taskId);
+		const modelId = this.callbacks.resolveModelId(taskId);
+		this.callbacks.recordObservation({
+			taskId,
+			workspacePath,
+			providerId,
+			modelId,
+			message: "!Klein nudged a refinement card that ended a turn without calling begin_implementation.",
+			metadata: {
+				category: "refinement_promotion_stall",
+				lastActivity: activity?.activityText ?? null,
+				lastTool: activity?.toolName ?? null,
+			},
+		});
+		void this.callbacks
+			.sendTaskSessionInput(
+				taskId,
+				[
+					"Your previous turn ended without calling begin_implementation, so this card is still in the Planning lane and no implementation has started.",
+					"You have explored enough. Call the begin_implementation tool NOW to move the card to In Progress, then make the change the card asks for: edit the files, run the acceptance check, and finish.",
+					"Do not keep exploring the workspace or reading more files first. Writing a tool call as text (e.g. a `<tool_call>{...}</tool_call>` block) does NOT execute it — emit begin_implementation as a real tool call.",
+				].join(" "),
+				"act",
+			)
+			.catch(() => undefined);
+		return true;
+	}
+
 	resetTask(taskId: string): void {
 		this.clearDecompositionChatNudge(taskId);
 		this.nudgeCountsByTaskId.delete(taskId);
+		this.refinementNudgeCountsByTaskId.delete(taskId);
 	}
 
 	/**
@@ -325,5 +397,6 @@ export class DecompositionStallNudger {
 			this.clearDecompositionChatNudge(taskId);
 		}
 		this.nudgeCountsByTaskId.clear();
+		this.refinementNudgeCountsByTaskId.clear();
 	}
 }

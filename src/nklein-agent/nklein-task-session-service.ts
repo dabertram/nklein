@@ -599,6 +599,20 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			handler?.(event);
 		};
 	}
+	/** Which `--no-plan` cards started as refinable work cards (promote via `begin_implementation`) — the
+	 *  refinement-stall nudge only fires for these; registered at start alongside `isRefinableWorkCard`. */
+	private readonly refinableWorkCardTaskIds = new Set<string>();
+	/** Which cards have already promoted to In Progress — a `begin_implementation` fired, so the refinement stall
+	 *  is resolved and the nudge must not fire. Recorded by wrapping the promotion handler. */
+	private readonly promotedToImplementationTaskIds = new Set<string>();
+	private wrapCardPromoted(handler: NKleinCardPromotedHandler | undefined): NKleinCardPromotedHandler {
+		return (event) => {
+			if (event.taskId) {
+				this.promotedToImplementationTaskIds.add(event.taskId);
+			}
+			return handler?.(event);
+		};
+	}
 	private readonly runDecompositionResearchPreflight: (
 		input: DecompositionResearchPreflightInput,
 	) => Promise<DecompositionResearchPreflightResult>;
@@ -886,6 +900,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			},
 			cancelTaskTurn: (taskId) => this.cancelTaskTurn(taskId),
 			sendTaskSessionInput: (taskId, text, mode) => this.sendTaskSessionInput(taskId, text, mode),
+			isRefinableWorkCard: (taskId) => this.refinableWorkCardTaskIds.has(taskId),
+			hasBegunImplementation: (taskId) => this.promotedToImplementationTaskIds.has(taskId),
 		};
 	}
 
@@ -1888,7 +1904,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				onDecompositionApplied: this.wrapDecompositionApplied(this.onDecompositionApplied),
 				requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(input.taskId, hostWorkspaceRoot),
 				requestClarifyTurn: this.planCritiqueRunner.buildClarifyTurnHandler(input.taskId, hostWorkspaceRoot),
-				onCardPromoted: isHomeAgentSessionId(input.taskId) ? undefined : this.onCardPromoted,
+				onCardPromoted: isHomeAgentSessionId(input.taskId) ? undefined : this.wrapCardPromoted(this.onCardPromoted),
 				onReviewSubmitted: input.onReviewSubmitted,
 				onPlanCritiqueSubmitted: input.onPlanCritiqueSubmitted,
 				onMergeResolutionSubmitted: input.onMergeResolutionSubmitted,
@@ -2240,6 +2256,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// A work card (not plan-mode, not a home/chat session) gets the Planning/Refinement preamble + the
 		// begin_implementation promotion tool (todo §5.B); home/chat and decompose/plan cards do not.
 		const isRefinableWorkCard = !request.startInPlanMode && !isHomeAgentSessionId(request.taskId);
+		// Register the refinement-stall nudge's target set + reset the promotion flag for this fresh start (a restart
+		// of a card that never promoted must be eligible to nudge again). The nudge itself is off unless the flag is on.
+		if (isRefinableWorkCard) {
+			this.refinableWorkCardTaskIds.add(request.taskId);
+		} else {
+			this.refinableWorkCardTaskIds.delete(request.taskId);
+		}
+		this.promotedToImplementationTaskIds.delete(request.taskId);
 		let specDeliberationGuidance: readonly string[] | null = null;
 		if (
 			isTruthyEnv(process.env.NKLEIN_SPEC_DELIBERATION) &&
@@ -4527,6 +4551,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			// An explicit planning turn that cleanly ended without applying a graph gets first claim on recovery.
 			// The generic loop guard can otherwise park it as attention before this targeted bounded nudge sees `exit`.
 			decompositionRecoveryScheduled = this.decompositionStallNudger.maybeContinueStalledDecomposition(taskId);
+			// Sibling recovery: a refinable --no-plan work card that ended a turn still in Planning (never called
+			// begin_implementation) gets a bounded promotion nudge in the same slot, ahead of the loop guard. OFF by
+			// default (NKLEIN_REFINEMENT_STALL_NUDGE) — a worker-loop behavior change pending live-drain validation.
+			if (!decompositionRecoveryScheduled && isTruthyEnv(process.env.NKLEIN_REFINEMENT_STALL_NUDGE)) {
+				decompositionRecoveryScheduled = this.decompositionStallNudger.maybeNudgeStalledRefinement(taskId);
+			}
 		}
 		// §12 turn-loop ladder: with the turn's text settled (no active assistant stream), scan the trailing
 		// completed turns for a re-raised question/proposal loop. Do not race a more-specific decomposition recovery.

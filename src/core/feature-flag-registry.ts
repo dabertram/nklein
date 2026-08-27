@@ -86,6 +86,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		note: "P21.6b enforce half, David-authorized 2026-08-23. Evidence-first: only a PRESENT two-ceiling verdict enforces; missing evidence or a failed evidence read degrades to the observe-only stream.",
 	},
 	{
+		flag: "NKLEIN_REFINEMENT_STALL_NUDGE",
+		mode: "enforcing",
+		gate: "nklein-task-session-service.ts turn-end seam (DecompositionStallNudger.maybeNudgeStalledRefinement: one begin_implementation re-prompt for a refinable --no-plan card that ended in Planning)",
+		note: "Default-OFF worker-loop behaviour change (F1.21 observe-before-enforce). A refinable card that ends a turn without begin_implementation gets ONE bounded nudge to promote; gating in the pure decideRefinementStallRecovery. Flip ON only after a live-drain shows the model actually transitions (efficacy is empirical), protecting the accrual campaign's evidence from a misfire until then.",
+	},
+	{
 		flag: "NKLEIN_DRIFT_REMEDY_ENFORCE",
 		mode: "enforcing",
 		gate: "nklein-session-runtime.ts (hands the extension the onOffTrackRemedy action callback)",
@@ -363,6 +369,12 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 		kind: "pending_validation",
 		reason:
 			"Same correction as NKLEIN_TRUNCATION_DIAGNOSTICS (2026-08-02): no registered mechanism reads it, so the lane ratchet refuses it and a nightly run cannot change that. Register a consuming mechanism first.",
+	},
+	{
+		flag: "NKLEIN_REFINEMENT_STALL_NUDGE",
+		kind: "pending_validation",
+		reason:
+			"A worker-loop behaviour change (one begin_implementation re-prompt for a wander-stuck refinable card) whose EFFICACY is empirical — does the model actually promote when nudged? Enabling it in the nightly replay lane before a live drain confirms that would bake an unvalidated behaviour into the baseline. The precondition is a live-drain validation (run cli-parser-medium --no-plan with the flag on, confirm the card transitions), not a replay run — then flip it on for real.",
 	},
 	{
 		flag: "NKLEIN_MODEL_CONSULT",
