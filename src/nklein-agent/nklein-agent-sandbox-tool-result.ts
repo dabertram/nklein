@@ -40,5 +40,11 @@ export function formatSandboxToolFailure(tool: string, details: string): string 
 	if (classified.code !== "TOOL_EXECUTION_ERROR" && classified.hint) {
 		return `${base}\nNext step: ${classified.hint}`;
 	}
+	// A command that RAN and returned a non-zero exit code is a command RESULT, not a sandbox/tool malfunction. The
+	// generic "retry with a smaller request" is WRONG advice for it — live-observed a worker running `npm test` ~30
+	// times without ever writing code (.real-runs/20260827-052346), following that hint to re-run instead of fixing.
+	if (/\bexited with (?:a )?(?:non-?zero )?code\b|\bexit code\b|Command exited/i.test(normalizedDetails)) {
+		return `${base}\nNext step: the command RAN and returned a NON-ZERO exit code (its output is above) — this is a command RESULT, not a sandbox failure. If it is a failing test, build, lint, or acceptance check, read the output for what specifically failed, then FIX the underlying code (edit the files) and re-run — do NOT just retry the same command. Only correct and re-issue the command itself if it was malformed.`;
+	}
 	return `${base}\nNext step: inspect the command, file path, permissions, and sandbox output above; then retry with a smaller focused ${normalizedTool} request.`;
 }
