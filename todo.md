@@ -2108,6 +2108,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `nklein-task-prompt-builders.test.ts`. **Everything actionable under P0.DSTALL's forensic entries is now done**;
   the only residue is cosmetic attribution of a cross-process same-model turn (which already serializes correctly),
   not worth a delicate admission-path change. A fresh full-project dschinn drain is the natural close-out proof.
+  **▶ PLAN-MODE VALIDATED ON A REAL --plan DRAIN 2026-08-27 (bed `.real-runs/20260827-141124`, refactor-inventory, post all fixes).** Every forensic invariant clean under HEAVY decompose activity (239 add_task, 24 decompose_project submissions → 10 cards): self-block `holder: external-lms` refusals = 0, zombie_terminal_attempt = 0, heartbeat-lost/sessionless wedge = 0, knowledgeDebt rejections = 0. The card walled on its 45m time limit (capability — 27B), NOT a zombie: a clean wall is the passing criterion. Also seeded P21.6b (10 ENRICHED plan_sizing_verdict rows). This is a DEPTH-bed, so it is strong supporting proof, not the exact full-PROJECT dschinn close-out the entry names — box stays open pending that (or David's review), but the machinery is proven live.
 
 ### Phase 1 — feature completion: planning, execution, and durable control plane
 
