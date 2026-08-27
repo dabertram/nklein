@@ -337,8 +337,14 @@ async function admitRetainedModel(input: {
 		throw new Error(`NKLEIN_LOAD_TARGET_RAM_GB is required for retained admission on remote device ${targetDeviceLabel}.`);
 	}
 	const totalRamBytes = localTarget ? totalmem() : (configuredRemoteRam as number);
+	// The 44 GiB local reserve (OS + runtime + Docker sandbox + codebase-memory MCP headroom) blocks every 70-80B
+	// model on a 128GB machine (they need 87-99 GiB, leaving only 84). Overridable via NKLEIN_LOAD_LOCAL_RESERVE_GB
+	// so a FITTING capable model can be admitted for the capability unblock (2026-08-28) — default 44 unchanged, so
+	// no existing run is affected. Lower it ONLY with headroom evidence: a 75GB model + ~40GB stack = ~115GB leaves
+	// ~13GB, tight but workable; the pressure-guard + swap-delta checks below still fail-closed on real OOM risk.
+	const localReserveBytes = parseGbEnv("NKLEIN_LOAD_LOCAL_RESERVE_GB") ?? 44 * GiB;
 	const retainedBudgetBytes = localTarget
-		? Math.max(0, totalRamBytes - 44 * GiB)
+		? Math.max(0, totalRamBytes - localReserveBytes)
 		: Math.max(0, totalRamBytes * (1 - Math.max(0.35, input.reserveFraction)));
 	const rawMaxResidents = process.env.NKLEIN_LOAD_MAX_RESIDENTS?.trim() || (localTarget ? "3" : "1");
 	const maxResidents = Number(rawMaxResidents);
