@@ -16,23 +16,23 @@ const AbsolutePath = z
 	.string()
 	.describe("The absolute file path of a text file to read content from");
 
+// §5.BD — quantized local models routinely send a 0-based `start_line: 0` (or `end_line: 0`) despite the one-based
+// contract; live-observed 20 times in ONE plan-mode decompose (qwen3.8-27b, 2026-08-27), each a rejected turn the
+// in-error guidance did not prevent. Rejecting it at the boundary burns a whole turn on a formatting mistake the host
+// can resolve unambiguously, so coerce any line number below one to "omitted" — read from the start / to the end, the
+// model's evident intent. A valid one-based integer, null, and omission all pass through unchanged.
+const coerceBelowOneLineToOmitted = (value: unknown): unknown =>
+	typeof value === "number" && Number.isFinite(value) && value < 1 ? undefined : value;
+
 export const ReadFileLineRangeSchema = z
 	.object({
 		start_line: z
-			.number()
-			.int()
-			.positive()
-			.nullable()
-			.optional()
+			.preprocess(coerceBelowOneLineToOmitted, z.number().int().positive().nullable().optional())
 			.describe(
 				"Optional one-based starting line number to read from; use null or omit for the start of the file",
 			),
 		end_line: z
-			.number()
-			.int()
-			.positive()
-			.nullable()
-			.optional()
+			.preprocess(coerceBelowOneLineToOmitted, z.number().int().positive().nullable().optional())
 			.describe(
 				"Optional one-based ending line number to read through; use null or omit to read to the end of the file or the read cap, whichever comes first",
 			),
