@@ -35,8 +35,10 @@ the alias map so old commits, comments, and references remain searchable.
 
 **Live status clarification (2026-07-23, refreshed during the fixed-fleet proof pass):** `[ ]` means executable now, not merely “not started”;
 `[~]` means executable residue and is the current priority; `[>]` means do not start until its inline or phase-inherited
-  gate below is green. The current 147-package remainder is **39 ready + 12 partial + 81 dependency-blocked + 6 external/
-user-gated + 9 deliberately deferred** (2026-07-24: P21.13a/c shipped; campaign forensics added F11.3i (gated) +
+  gate below is green. The current 118-package remainder is **9 ready + 13 partial + 81 dependency-blocked + 6 external/
+user-gated + 9 deliberately deferred** (live marker scan 2026-08-28 — the prior 147/39-ready snapshot had drifted, caught
+by the 2026-08-28 deep audit A11; recount with `rg -c '^\s*- \[[ >~?\-]\]' todo.md` and the per-marker greps, per §7).
+(2026-07-24: P21.13a/c shipped; campaign forensics added F11.3i (gated) +
 F3.38; the auto-start failure guard + paused-set gate shipped directly). (2026-07-23: F1.34b closed by David's directive → its drain-audit residue is the
 F11-gated F1.34c; P20.11 acknowledged → §4A rule; N12 + N13 shipped). These are package counts, not effort estimates. Recalculate the authoritative total
 with `rg -c '^\s*- \[[ >~?\-]\]' todo.md`; do not trust older snapshots in §7 over this live marker scan.

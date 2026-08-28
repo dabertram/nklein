@@ -52,3 +52,8 @@ screenlog.*
 # repo — leaving its own reports tracked here contradicted exactly that.
 .ablation/
 .depth-campaign-home/
+
+# local agent/scratch artifacts (audit 2026-08-28)
+flashget-download.log
+.dsh-audit/
+.dsh-sweep.sh
