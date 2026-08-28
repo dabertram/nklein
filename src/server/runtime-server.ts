@@ -722,6 +722,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// One needs-operator signal per DISTINCT paused-hold set (not per tick): the N15 round-6 freeze logged
 	// "startable … sweeping (frozen-board self-heal)" 106 times over a fully paused board it could never heal.
 	const pausedHoldSignatureByWorkspaceId = new Map<string, string>();
+	// Sibling of the paused-hold debounce: the self-heal warn+observation also fired EVERY 30s tick, so a card
+	// legitimately WAITING for shared-endpoint capacity (a common state once NKLEIN_SHARED_ENDPOINT_MAX_CONCURRENCY
+	// > 1 lets siblings run — 71 identical "1 startable … frozen-board self-heal" lines in one cap-4 drain,
+	// 2026-08-28) buried the log in false-freeze noise. The SWEEP stays every-tick (behavior unchanged); only the
+	// LOG is debounced to once per DISTINCT startable/deferred set, so a persistent capacity-wait says its piece
+	// once and a genuinely NEW stall still surfaces immediately.
+	const boardLivenessSelfHealSignatureByWorkspaceId = new Map<string, string>();
 	// §5.AW opportunistic best-of-N (user decision 2026-07-02): the per-workspace mirror tick + its budgets.
 	// The tick mirrors the hardest RUNNING card onto a lineage-diverse idle model as a `::spec` session; the
 	// A/B arbitration at the review seam picks the winner. Real work always outranks speculation (queued or
@@ -4713,6 +4720,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							pausedHoldSignatureByWorkspaceId.delete(scope.workspaceId); // holds cleared — re-arm the signal
 						}
 						if (startable.length === 0 && deferredCount === 0) {
+							// Actionable set is empty — re-arm the self-heal log so a genuinely new stall logs again.
+							boardLivenessSelfHealSignatureByWorkspaceId.delete(scope.workspaceId);
 							// STALLED-REVIEW rescue: a verdict-less review card with no live session on an
 							// otherwise-idle board is a frozen pipeline (a dropped review finalize — e.g. the
 							// endpoint was busy with a SIBLING project when the card reached review; nothing
@@ -4792,22 +4801,29 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								});
 							return;
 						}
-						deps.warn(
-							`Board-liveness watchdog: ${startable.length} startable + ${deferredCount} deferred${
-								pausedHeld.length > 0 ? ` (+ ${pausedHeld.length} paused-held, not swept)` : ""
-							} card(s) lack an active task session for ${scope.workspacePath} — sweeping (frozen-board self-heal).`,
-						);
-						recordSelfObservation({
-							signal: "custom",
-							severity: "warning",
-							message: `Board-liveness watchdog fired: frozen board self-heal (startable=${startable.length}, deferred=${deferredCount}).`,
-							workspacePath: scope.workspacePath,
-							metadata: {
-								category: "board_liveness_watchdog",
-								startable: startable.length,
-								deferred: deferredCount,
-							},
-						});
+						// Debounce the self-heal LOG (not the sweep) to once per DISTINCT startable/deferred/paused set,
+						// so a card parked on shared-endpoint capacity does not re-log the same false-freeze line every tick.
+						const selfHealSignature = `${[...startable].sort().join(",")}|d${deferredCount}|p${pausedHeld.length}`;
+						if (boardLivenessSelfHealSignatureByWorkspaceId.get(scope.workspaceId) !== selfHealSignature) {
+							boardLivenessSelfHealSignatureByWorkspaceId.set(scope.workspaceId, selfHealSignature);
+							deps.warn(
+								`Board-liveness watchdog: ${startable.length} startable + ${deferredCount} deferred${
+									pausedHeld.length > 0 ? ` (+ ${pausedHeld.length} paused-held, not swept)` : ""
+								} card(s) lack an active task session for ${scope.workspacePath} — sweeping (frozen-board self-heal).`,
+							);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Board-liveness watchdog fired: frozen board self-heal (startable=${startable.length}, deferred=${deferredCount}).`,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "board_liveness_watchdog",
+									startable: startable.length,
+									deferred: deferredCount,
+								},
+							});
+						}
+						// The SWEEP stays every-tick — retrying is what actually heals a frozen board; only the log is debounced.
 						retryWaitingCardsAfterTerminal(scope, trackedService);
 					},
 					onTickEvent: (event) => {
