@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { buildSsrfGuardedPageFetcher } from "../../chat/chat-browser-tool";
 import { loadRuntimeConfig } from "../../config/runtime-config";
 import { effectiveRetrievalSearchBackendUrl } from "../../config/runtime-config-retrieval-resolver";
+import { resolveLocalDeviceRamGb } from "../../core/device-load-routing";
 import type { FrontierEvidenceSource } from "../../core/frontier-research";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
 import { MECHANISM_REGISTRY } from "../../core/mechanism-observation-audit";
@@ -25,8 +26,10 @@ import { createSearxngWebSearchClient } from "../../server/web-search-searxng";
 const LOCAL_GATEWAY_BASE_URL = "http://127.0.0.1:1234/v1";
 
 function deviceRamGb(): number | null {
-	const raw = Number(process.env.NKLEIN_DEVICE_RAM_GB);
-	return Number.isFinite(raw) && raw > 0 ? Math.trunc(raw) : null;
+	// Map-aware (audit 2026-08-28 A7): Number(map-form) was NaN → the radar always saw null device RAM even
+	// with a declared fleet. Scalar or single-entry map resolves; multi-entry stays null (ambiguous locally).
+	const resolved = resolveLocalDeviceRamGb(process.env.NKLEIN_DEVICE_RAM_GB);
+	return resolved === null ? null : Math.trunc(resolved);
 }
 
 async function retrievalSettings(): Promise<{ egressEnabled: boolean; searchBackendUrl: string | null }> {

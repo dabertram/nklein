@@ -102,6 +102,29 @@ export function parseDeviceRamGb(raw: string | null | undefined): Record<string,
 }
 
 /**
+ * Resolve a LOCAL-host RAM budget (in GB) from `NKLEIN_DEVICE_RAM_GB`, which canonically holds a per-DEVICE map
+ * ("m5max:128,m4mini:24"). The map keys are operator-chosen fleet names, NOT hostnames — they cannot be resolved
+ * to "this" machine. So the only honest local readings are: a bare scalar ("128", the legacy single-host form) or
+ * a SINGLE-entry map (unambiguous). A multi-entry map is ambiguous for a local budget and yields null so callers
+ * keep their own fallback — previously both call sites did `Number(map)` → NaN and silently ignored even an
+ * unambiguous declaration (audit 2026-08-28, A7).
+ */
+export function resolveLocalDeviceRamGb(raw: string | null | undefined): number | null {
+	if (raw === undefined || raw === null || raw.trim().length === 0) {
+		return null;
+	}
+	const scalar = Number(raw.trim());
+	if (Number.isFinite(scalar) && scalar > 0) {
+		return scalar;
+	}
+	const entries = Object.values(parseDeviceRamGb(raw));
+	if (entries.length === 1 && typeof entries[0] === "number" && entries[0] > 0) {
+		return entries[0] / GiB;
+	}
+	return null;
+}
+
+/**
  * Resolve the per-device fast-memory map from the legacy-named `NKLEIN_DEVICE_RAM_GB` env var — a power-user knob
  * (mirrors {@link import("./model-load-headroom").resolveRamBudgetBytesFromEnv}). Pure over the injected env.
  */

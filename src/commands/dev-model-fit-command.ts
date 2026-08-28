@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { totalmem } from "node:os";
+import { resolveLocalDeviceRamGb } from "../core/device-load-routing";
 import { type ModelCandidate, rankModelCandidatesByFit } from "../core/model-candidate-ranking";
 import { estimateModelResidency, fitModelResidency, type ModelArchitecture } from "../core/model-residency-sizing";
 
@@ -40,9 +41,12 @@ export function resolveBudget(options: DevModelFitOptions): { bytes: number; sou
 	if (Number.isFinite(declared) && declared > 0) {
 		return { bytes: declared * BYTES_PER_GIB, source: "--budget-gb" };
 	}
-	const envBudget = Number(process.env.NKLEIN_DEVICE_RAM_GB);
-	if (Number.isFinite(envBudget) && envBudget > 0) {
-		return { bytes: envBudget * BYTES_PER_GIB, source: "NKLEIN_DEVICE_RAM_GB" };
+	// Map-aware (audit 2026-08-28 A7): the canonical value is a per-device MAP; Number(map) was NaN, silently
+	// discarding even an unambiguous declaration. A bare scalar or single-entry map resolves; multi-entry is
+	// ambiguous for a local budget (fleet names are not hostnames) and falls through to physical RAM.
+	const envBudgetGb = resolveLocalDeviceRamGb(process.env.NKLEIN_DEVICE_RAM_GB);
+	if (envBudgetGb !== null) {
+		return { bytes: envBudgetGb * BYTES_PER_GIB, source: "NKLEIN_DEVICE_RAM_GB" };
 	}
 	return {
 		bytes: totalmem(),

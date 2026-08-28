@@ -13,6 +13,18 @@ import { vi } from "vitest";
  * for live testing. Tests that set their own temp `process.env.HOME` still override this; their `originalHome` restore
  * just returns to this isolated base instead of the real home.
  */
+/**
+ * Env hermeticity (audit 2026-08-28, A1/A2). App modules read ambient `process.env.NKLEIN_*` at call time, so a
+ * developer-shell export (e.g. `NKLEIN_DEVICE_RAM_GB`) silently flips test outcomes on that machine while staying
+ * green elsewhere — live-hit: model-acquisition-preview-handler failed only under a polluted shell. Scrub every
+ * NKLEIN_* key (plus Sentry DSNs) once per worker before any suite runs; tests that need one set it themselves.
+ */
+for (const key of Object.keys(process.env)) {
+	if (key.startsWith("NKLEIN_") || key === "SENTRY_DSN") {
+		delete process.env[key];
+	}
+}
+
 const isolatedHome = mkdtempSync(join(tmpdir(), "nklein-test-home-"));
 process.env.HOME = isolatedHome;
 process.env.USERPROFILE = isolatedHome;

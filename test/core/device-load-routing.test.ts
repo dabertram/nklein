@@ -8,6 +8,7 @@ import {
 	parseDeviceRamGb,
 	resolveDeviceRamBytes,
 	resolveDeviceRamBytesFromEnv,
+	resolveLocalDeviceRamGb,
 	selectDeviceForModelLoad,
 } from "../../src/core/device-load-routing";
 import { kvCacheBytes } from "../../src/core/kv-cache-size";
@@ -389,5 +390,27 @@ describe("buildEffectiveCandidate", () => {
 			totalRamBytes: gb(64),
 			residentSizeBytes: 0,
 		});
+	});
+});
+
+describe("resolveLocalDeviceRamGb (audit 2026-08-28 A7 — map-form env no longer silently discarded)", () => {
+	it("keeps the legacy bare-scalar form", () => {
+		expect(resolveLocalDeviceRamGb("128")).toBe(128);
+		expect(resolveLocalDeviceRamGb(" 24 ")).toBe(24);
+	});
+
+	it("resolves an unambiguous single-entry map", () => {
+		expect(resolveLocalDeviceRamGb("m5max:128")).toBe(128);
+	});
+
+	it("returns null for a multi-entry map — fleet names are not hostnames, so a local budget is ambiguous", () => {
+		expect(resolveLocalDeviceRamGb("m5max:128,m4mini:24,legion5pro:8")).toBeNull();
+	});
+
+	it("returns null for garbage, empty, and undefined", () => {
+		expect(resolveLocalDeviceRamGb("not-a-ram")).toBeNull();
+		expect(resolveLocalDeviceRamGb("")).toBeNull();
+		expect(resolveLocalDeviceRamGb(undefined)).toBeNull();
+		expect(resolveLocalDeviceRamGb("-5")).toBeNull();
 	});
 });
