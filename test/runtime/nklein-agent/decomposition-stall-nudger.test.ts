@@ -197,3 +197,71 @@ describe("DecompositionStallNudger.maybeContinueStalledDecomposition (#30 turn-e
 		expect(sent[0]).toContain("do not retry that nested payload");
 	});
 });
+
+describe("maybeNudgeStalledRefinement (P18.4b refinement-promotion nudge wiring)", () => {
+	function makeRefinementNudger(
+		over: {
+			refinable?: boolean;
+			begun?: boolean;
+			reviewReason?: RuntimeTaskSessionSummary["reviewReason"];
+			finalMessage?: string | null;
+		} = {},
+	) {
+		const sent: string[] = [];
+		const observed: Array<Record<string, string | null>> = [];
+		const stalledSummary: RuntimeTaskSessionSummary = {
+			...summary(
+				activity({
+					hookEventName: "agent_end",
+					finalMessage: over.finalMessage ?? "I've explored the workspace and read the relevant files.",
+				}),
+			),
+			state: "awaiting_review",
+			reviewReason: over.reviewReason ?? "hook",
+		};
+		const nudger = new DecompositionStallNudger({
+			isExplicitDecompositionTask: () => false,
+			getTaskSummary: () => stalledSummary,
+			resolveProviderId: () => "lmstudio",
+			resolveModelId: () => "qwen3.8-27b",
+			resolveWorkspacePath: () => null,
+			recordObservation: (params) => {
+				observed.push(params.metadata);
+			},
+			cancelTaskTurn: async () => null,
+			sendTaskSessionInput: async (_taskId, text) => {
+				sent.push(text);
+				return null;
+			},
+			isRefinableWorkCard: () => over.refinable ?? true,
+			hasBegunImplementation: () => over.begun ?? false,
+		});
+		return { nudger, sent, observed };
+	}
+
+	it("re-prompts a stalled refinable card to call begin_implementation, one-shot", async () => {
+		const { nudger, sent, observed } = makeRefinementNudger();
+		expect(nudger.maybeNudgeStalledRefinement("t1")).toBe(true);
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(sent).toHaveLength(1);
+		expect(sent[0]).toContain("begin_implementation");
+		expect(sent[0]).toContain("explored enough");
+		expect(observed[0]?.category).toBe("refinement_promotion_stall");
+		// One-shot: a second turn-end within the same card does not re-nudge.
+		expect(nudger.maybeNudgeStalledRefinement("t1")).toBe(false);
+	});
+
+	it("stays silent for a non-refinable card and an already-promoted card", () => {
+		expect(makeRefinementNudger({ refinable: false }).nudger.maybeNudgeStalledRefinement("t1")).toBe(false);
+		expect(makeRefinementNudger({ begun: true }).nudger.maybeNudgeStalledRefinement("t1")).toBe(false);
+	});
+
+	it("does not re-drive an operator-parked card or one that ended on a clarifying question", () => {
+		expect(makeRefinementNudger({ reviewReason: "attention" }).nudger.maybeNudgeStalledRefinement("t1")).toBe(false);
+		expect(
+			makeRefinementNudger({
+				finalMessage: "Which config format should I support?",
+			}).nudger.maybeNudgeStalledRefinement("t1"),
+		).toBe(false);
+	});
+});
