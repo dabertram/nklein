@@ -739,6 +739,8 @@ export function CardDetailView({
 			incomingMessages={streamedNKleinChatMessages}
 			incomingMessage={latestNKleinChatMessage}
 			teamProgress={nkleinTeamProgress}
+			focusChain={selection.card.focusChain ?? null}
+			baseRef={selection.card.baseRef ?? null}
 			onCommit={onAgentCommitTask ? () => onAgentCommitTask(selection.card.id) : undefined}
 			onOpenPr={onAgentOpenPrTask ? () => onAgentOpenPrTask(selection.card.id) : undefined}
 			isCommitLoading={agentCommitTaskLoadingById?.[selection.card.id] ?? false}

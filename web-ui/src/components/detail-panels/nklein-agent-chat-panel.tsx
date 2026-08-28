@@ -3,7 +3,7 @@
 // controller hook so multiple surfaces can share the same behavior.
 
 import { ALL_SPECIAL_TOKENS, countTokens } from "gpt-tokenizer";
-import { AlertTriangle, GitBranch, Users } from "lucide-react";
+import { AlertTriangle, Download, GitBranch, ListChecks, Users } from "lucide-react";
 import React, {
 	type ReactElement,
 	useCallback,
@@ -48,6 +48,7 @@ import {
 import type {
 	RuntimeConfigResponse,
 	RuntimeContextBudgetBreakdown,
+	RuntimeFocusChain,
 	RuntimeNKleinModelRegistryEntry,
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinTeamProgressEvent,
@@ -60,6 +61,7 @@ import { useTrpcQuery } from "@/runtime/use-trpc-query";
 import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
 import type { TaskImage } from "@/types";
 import { useScrollAnchor } from "../../hooks/use-scroll-anchor";
+import { AgentWatchPanel } from "./agent-watch-panel";
 
 const BOTTOM_LOCK_THRESHOLD_PX = 24;
 const NKLEIN_BUY_CREDITS_URL = "https://app.nklein.bot/";
@@ -627,6 +629,10 @@ export interface NKleinAgentChatPanelProps {
 	incomingMessage?: NKleinChatMessage | null;
 	nowMs?: number;
 	teamProgress?: RuntimeNKleinTeamProgressEvent[];
+	/** UI polish 2026-08-29 (dsh-inspired): the card's focus chain for the in-chat plan strip; absent hides it. */
+	focusChain?: RuntimeFocusChain | null;
+	/** Base ref for the Steps (trajectory) view's workspace-changes section. */
+	baseRef?: string | null;
 	onCommit?: () => void;
 	onOpenPr?: () => void;
 	isCommitLoading?: boolean;
@@ -638,6 +644,125 @@ export interface NKleinAgentChatPanelProps {
 	onCancelAutomaticAction?: () => void;
 	cancelAutomaticActionLabel?: string | null;
 	showMoveToTrash?: boolean;
+}
+
+function formatStatsTokens(count: number): string {
+	if (count >= 1_000_000) {
+		return `${(count / 1_000_000).toFixed(1)}M`;
+	}
+	if (count >= 1_000) {
+		return `${(count / 1_000).toFixed(1)}k`;
+	}
+	return String(count);
+}
+
+/**
+ * UI polish 2026-08-29 (dsh-inspired, similar-not-identical): one compact per-session stats line — turns, tool
+ * steps, token in/out, decode rate, and prompt-cache hit rate. Everything derives from data the panel already
+ * holds (`summary.latestUsage` carries cacheReadTokens; the message stream carries turns/steps), so this is
+ * pure presentation: no new wire fields.
+ */
+function NKleinSessionStatsLine({
+	summary,
+	messages,
+}: {
+	summary: RuntimeTaskSessionSummary | null;
+	messages: NKleinChatMessage[];
+}): React.ReactElement | null {
+	const turns = messages.filter((message) => message.role === "user").length;
+	const steps = messages.filter((message) => message.role === "tool").length;
+	const usage = summary?.latestUsage ?? null;
+	const parts: string[] = [];
+	if (turns > 0) {
+		parts.push(`${turns} turn${turns === 1 ? "" : "s"}`);
+	}
+	if (steps > 0) {
+		parts.push(`${steps} step${steps === 1 ? "" : "s"}`);
+	}
+	if (usage) {
+		parts.push(`${formatStatsTokens(usage.inputTokens)} in / ${formatStatsTokens(usage.outputTokens)} out`);
+		const startedAt = summary?.startedAt ?? null;
+		const lastOutputAt = summary?.lastOutputAt ?? null;
+		if (startedAt !== null && lastOutputAt !== null && lastOutputAt > startedAt && usage.outputTokens > 0) {
+			const rate = usage.outputTokens / ((lastOutputAt - startedAt) / 1000);
+			if (Number.isFinite(rate) && rate > 0) {
+				parts.push(`${rate >= 10 ? Math.round(rate) : rate.toFixed(1)} tok/s`);
+			}
+		}
+		const cacheRead = usage.cacheReadTokens ?? 0;
+		if (cacheRead > 0) {
+			const cachePct = Math.round((cacheRead / (cacheRead + usage.inputTokens)) * 100);
+			parts.push(`cache ${cachePct}%`);
+		}
+	}
+	if (parts.length === 0) {
+		return null;
+	}
+	return (
+		<div
+			className="text-[11px] whitespace-nowrap text-text-tertiary"
+			title="Session stats: user turns · tool steps · tokens in/out · decode rate · prompt-cache hit share"
+		>
+			{parts.join(" · ")}
+		</div>
+	);
+}
+
+const FOCUS_STRIP_MARKS: Record<string, { mark: string; className: string }> = {
+	done: { mark: "✓", className: "text-status-green" },
+	in_progress: { mark: "▸", className: "text-status-blue" },
+	pending: { mark: "○", className: "text-text-tertiary" },
+	skipped: { mark: "–", className: "text-text-tertiary" },
+};
+
+/**
+ * UI polish 2026-08-29: the plan, visible WHILE chatting. The full editable focus-chain panel lives in the
+ * detail stack (outside this scroller), so mid-run you could not see plan and messages at once — this strip is
+ * the read-only one-liner ("N done · N active · N pending", click to expand) directly above the composer.
+ */
+function NKleinFocusChainStrip({ focusChain }: { focusChain: RuntimeFocusChain }): React.ReactElement | null {
+	const [expanded, setExpanded] = useState(false);
+	const steps = focusChain.steps ?? [];
+	if (steps.length === 0) {
+		return null;
+	}
+	const done = steps.filter((step) => step.status === "done" || step.status === "skipped").length;
+	const active = steps.filter((step) => step.status === "in_progress").length;
+	const pending = steps.filter((step) => step.status === "pending").length;
+	return (
+		<div className="px-2 pt-2">
+			<button
+				type="button"
+				onClick={() => setExpanded((value) => !value)}
+				className="inline-flex items-center gap-1.5 rounded-full border border-border-primary bg-surface-secondary px-2 py-0.5 text-[11px] text-text-secondary hover:text-text-primary"
+				title="The card's focus chain (read-only here — edit it in the Focus chain panel)"
+				aria-expanded={expanded}
+			>
+				<ListChecks size={11} />
+				<span>
+					{done} done · {active} active · {pending} pending
+				</span>
+			</button>
+			{expanded ? (
+				<ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto rounded-md border border-border-primary bg-surface-secondary px-2 py-1.5">
+					{steps.map((step, index) => {
+						const meta = FOCUS_STRIP_MARKS[step.status] ?? { mark: "○", className: "text-text-tertiary" };
+						return (
+							<li
+								key={`${index}-${step.text}`}
+								className="flex items-start gap-1.5 text-[11px] text-text-secondary"
+							>
+								<span className={meta.className}>{meta.mark}</span>
+								<span className={step.status === "done" ? "line-through opacity-70" : undefined}>
+									{step.text}
+								</span>
+							</li>
+						);
+					})}
+				</ul>
+			) : null}
+		</div>
+	);
 }
 
 export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle, NKleinAgentChatPanelProps>(
@@ -665,6 +790,8 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 			incomingMessage,
 			nowMs: nowMsOverride,
 			teamProgress = [],
+			focusChain = null,
+			baseRef = null,
 			onCommit,
 			onOpenPr,
 			isCommitLoading = false,
@@ -746,6 +873,23 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 		const [isModelRegistryPanelOpen, setIsModelRegistryPanelOpen] = useState(false);
 		const [tickerNowMs, setTickerNowMs] = useState(() => Date.now());
 		const nowMs = nowMsOverride ?? tickerNowMs;
+		const [sessionView, setSessionView] = useState<"chat" | "steps">("chat");
+		// UI polish 2026-08-29: session-log export — the transcript is already in memory; a Blob download needs no
+		// server round-trip. Markdown so the log is readable anywhere.
+		const handleExportSessionLog = useCallback(() => {
+			const lines: string[] = [`# !Klein session — ${taskTitle ?? taskId}`, ""];
+			for (const message of messages) {
+				const at = message.createdAt ? new Date(message.createdAt).toISOString() : "";
+				lines.push(`### ${message.role}${at ? ` · ${at}` : ""}`, "", message.content, "");
+			}
+			const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement("a");
+			link.href = url;
+			link.download = `nklein-session-${taskId}.md`;
+			link.click();
+			URL.revokeObjectURL(url);
+		}, [messages, taskId, taskTitle]);
 		const [timestampsCollapsed, setTimestampsCollapsed] = useState(readChatTimestampsCollapsedDefault);
 		const [contextScope, setContextScope] = useState<"full" | "smart" | "minimal" | "custom">(
 			taskNKleinSettings?.contextScope ?? "smart",
@@ -1235,10 +1379,21 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 
 		return (
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+				{sessionView === "steps" ? (
+					<div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+						<AgentWatchPanel
+							taskId={taskId}
+							workspaceId={workspaceId}
+							baseRef={baseRef}
+							summary={summary}
+							teamProgress={teamProgress}
+						/>
+					</div>
+				) : null}
 				<div
 					ref={scrollContainerRef}
 					data-scroll-anchored="true"
-					className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto px-2 py-3"
+					className={`min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto px-2 py-3 ${sessionView === "steps" ? "hidden" : "flex"}`}
 					onScroll={handleMessageListScroll}
 				>
 					{messages.map((message, index) => {
@@ -1282,12 +1437,47 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 						</div>
 					</div>
 				) : null}
+				{focusChain && sessionView === "chat" ? <NKleinFocusChainStrip focusChain={focusChain} /> : null}
 				<div className="px-2 pt-2">
 					<div className="flex flex-wrap items-center gap-2">
+						<NKleinSessionStatsLine summary={summary} messages={messages} />
 						<div className="text-[11px] text-text-secondary">{cardContentText}</div>
 						{modelActivityText ? <div className="text-[11px] text-text-tertiary">{modelActivityText}</div> : null}
 						{modelRegistryText ? <div className="text-[11px] text-text-tertiary">{modelRegistryText}</div> : null}
 						<div className="ml-auto flex flex-wrap items-center gap-2">
+							<div
+								className="inline-flex overflow-hidden rounded-md border border-border-primary"
+								role="tablist"
+								aria-label="Session view"
+							>
+								<button
+									type="button"
+									role="tab"
+									aria-selected={sessionView === "chat"}
+									onClick={() => setSessionView("chat")}
+									className={`px-2 py-0.5 text-[11px] ${sessionView === "chat" ? "bg-surface-secondary text-text-primary" : "text-text-tertiary hover:text-text-secondary"}`}
+								>
+									Chat
+								</button>
+								<button
+									type="button"
+									role="tab"
+									aria-selected={sessionView === "steps"}
+									onClick={() => setSessionView("steps")}
+									className={`px-2 py-0.5 text-[11px] ${sessionView === "steps" ? "bg-surface-secondary text-text-primary" : "text-text-tertiary hover:text-text-secondary"}`}
+								>
+									Steps
+								</button>
+							</div>
+							<button
+								type="button"
+								onClick={handleExportSessionLog}
+								title="Export the session log as Markdown"
+								aria-label="Export session log"
+								className="rounded-md border border-border-primary p-1 text-text-tertiary hover:text-text-secondary"
+							>
+								<Download size={11} />
+							</button>
 							<NativeSelect
 								value={contextScope}
 								onChange={(event) => {
