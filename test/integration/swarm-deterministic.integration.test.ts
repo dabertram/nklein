@@ -84,8 +84,22 @@ describe.sequential("deterministic swarm harness (W2.1)", () => {
 							summary: "Two cards.",
 							defaultAcceptanceCommand: "npm test",
 							tasks: [
-								{ id: "alpha", title: "Card alpha", prompt: "Do alpha." },
-								{ id: "beta", title: "Card beta", prompt: "Do beta." },
+								// Docs-only scripted work: not_testable upfront, or the default-ON test-driven gate
+								// parks the cards (audit 2026-08-28 A5 — see swarm-deterministic-bounce for the story).
+								{
+									id: "alpha",
+									title: "Card alpha",
+									prompt: "Do alpha.",
+									testability: "not_testable",
+									testabilityReason: "deterministic harness card: writes documentation notes only",
+								},
+								{
+									id: "beta",
+									title: "Card beta",
+									prompt: "Do beta.",
+									testability: "not_testable",
+									testabilityReason: "deterministic harness card: writes documentation notes only",
+								},
 							],
 						},
 					},

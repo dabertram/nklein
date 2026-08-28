@@ -108,7 +108,20 @@ describe.sequential("deterministic swarm harness — bounce → re-work → appr
 									summary: "One card.",
 									// Dependency-free: the ::acceptance clone has no node_modules; the GATE is the pin.
 									defaultAcceptanceCommand: 'node -e "process.exit(0)"',
-									tasks: [{ id: "gamma", title: "Card gamma", prompt: "Do gamma." }],
+									tasks: [
+										// Docs-only scripted work (writes notes/*.md): declare not_testable upfront — the F1.34b
+										// escape hatch — or the default-ON test-driven gate (5e19750a6, post-dates this harness)
+										// bounces every delivery as "touched no test file" and the loop-guard parks the card
+										// (live-found by the 2026-08-28 audit A5: red since the Jul 23 default flip, hidden by
+										// integration tests running in no gate).
+										{
+											id: "gamma",
+											title: "Card gamma",
+											prompt: "Do gamma.",
+											testability: "not_testable",
+											testabilityReason: "deterministic harness card: writes documentation notes only",
+										},
+									],
 								},
 							},
 						],

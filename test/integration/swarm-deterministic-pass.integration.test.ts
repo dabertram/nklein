@@ -103,7 +103,17 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 									// node_modules, so `npm test` can never pass there — the gate itself is what
 									// this scenario pins, not the fixture's test suite.
 									defaultAcceptanceCommand: 'node -e "process.exit(0)"',
-									tasks: [{ id: "gamma", title: "Card gamma", prompt: "Do gamma." }],
+									tasks: [
+										// Docs-only scripted work: not_testable upfront, or the default-ON test-driven gate
+										// parks the card (audit 2026-08-28 A5 — see swarm-deterministic-bounce for the story).
+										{
+											id: "gamma",
+											title: "Card gamma",
+											prompt: "Do gamma.",
+											testability: "not_testable",
+											testabilityReason: "deterministic harness card: writes documentation notes only",
+										},
+									],
 								},
 							},
 						],
