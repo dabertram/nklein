@@ -19,12 +19,20 @@
 // too. Do not read a green `core` as the only acceptable state without checking which failures remain.
 
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const packagesDir = join(repoRoot, "vendor", "cline-sdk", "packages");
+
+// HOME isolation (audit 2026-08-28, A4): the root suite isolates HOME in vitest-setup-home.ts, but the vendored
+// packages run their OWN vitest configs without it — so their tests hit the developer's real ~/.nklein (EPERM on
+// data/logs/hooks.jsonl, sqlite "unable to open database file" when the app holds it). Same per-run throwaway
+// HOME here, so a vendor run can never read or clobber real state and never contends with a live instance.
+const isolatedHome = mkdtempSync(join(tmpdir(), "nklein-vendor-home-"));
+const vendorEnv = { ...process.env, HOME: isolatedHome, USERPROFILE: isolatedHome };
 
 // Packages that ship a vitest config (sdk has none). Order: leaf deps first for readable output.
 const ALL_PACKAGES = ["shared", "llms", "agents", "core"];
@@ -40,7 +48,7 @@ for (const pkg of packages) {
 		continue;
 	}
 	console.log(`\n=== vendored suite: @cline/${pkg} ===`);
-	const result = spawnSync("npx", ["vitest", "run"], { cwd, stdio: "inherit", env: process.env });
+	const result = spawnSync("npx", ["vitest", "run"], { cwd, stdio: "inherit", env: vendorEnv });
 	if (result.status !== 0) {
 		failed += 1;
 		console.error(`✗ @cline/${pkg} vendored suite FAILED (exit ${result.status ?? "signal"}).`);
