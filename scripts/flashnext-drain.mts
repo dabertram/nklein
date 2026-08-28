@@ -109,6 +109,11 @@ await writeFile(
 			developerModeEnabled: true,
 			setupWizardCompletedAt: Date.now(),
 			agentRulesets: { capability: { globalPreset: "strict" }, delivery: { globalPreset: "fully_open" } },
+			// Test-driven mode (default-ON in product) bounces any change that touches no test file. A FIX-THE-BUG bed
+			// (tests pre-exist, correct fix touches only source) can never satisfy it and loops to timeout — so the
+			// harness can disable it (NKLEIN_FLASHNEXT_TEST_DRIVEN=0) to let a correct source-only fix DELIVER, turning
+			// tool observations into EVALUABLE ones. Greenfield beds keep it on (Flash-Next writes tests, gate satisfied).
+			testDrivenModeEnabled: (process.env.NKLEIN_FLASHNEXT_TEST_DRIVEN ?? "1") !== "0",
 			modelRoles: {
 				architect: { modelId: model, providerId: "lmstudio" },
 				worker: { modelId: model, providerId: "lmstudio" },
