@@ -238,14 +238,14 @@ try {
 		{
 			method: "POST",
 			headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
-			body: JSON.stringify({ providerId: "lmstudio", modelId: model, endpoint: LOCAL_BASE, contextWindow: 32768 }),
+			body: JSON.stringify({ providerId: "lmstudio", modelId: model, endpoint: LOCAL_BASE, contextWindow: Number(process.env.NKLEIN_FLASHNEXT_CTX ?? "32768") }),
 		},
 	);
 	const overrideBody = await overrideRes.text();
 	if (!overrideRes.ok || overrideBody.includes('"error"')) {
 		throw new Error(`context-window override failed (HTTP ${overrideRes.status}): ${overrideBody.slice(0, 300)}`);
 	}
-	process.stdout.write(`context-window override set: effective=32768 for ${model.slice(-40)}\n`);
+	process.stdout.write(`context-window override set: effective=${process.env.NKLEIN_FLASHNEXT_CTX ?? "32768"} for ${model.slice(-40)}\n`);
 
 	const prompt = await readFile(promptFile, "utf8");
 	const seeded = await fetch(`http://127.0.0.1:${RUNTIME_PORT}/a2a/v1`, {
