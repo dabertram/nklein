@@ -357,36 +357,18 @@ try {
 			throw new Error(`pauseTask failed (HTTP ${pauseRes.status}): ${pauseBody.slice(0, 300)}`);
 		}
 		process.stdout.write(`card paused (auto-start disarmed): ${seededTaskId}\n`);
-		// SETTLE-WAIT (2026-08-30, the 2-minute killer found by instrumentation): the stop below responds before
-		// its server-side interrupted-stamp fully lands. When the explicit start wins that race, the LATE stamp
-		// poisons the live architect's summary (state=interrupted over healthy turn_start activity — captured
-		// verbatim), and the ~2-min terminal-retry sweep then "rescues" a perfectly healthy session to death.
-		// After stopping, POLL until the summary is genuinely non-running (or absent) before starting.
+		// ONE stop, then a FLAT settle wait (2026-08-30 v2): instrumentation showed BOTH captured stops were the
+		// drain's own seed-time calls (the previous "settle poll" read a wrong field and never waited), and the
+		// ~2-min death is the seed-stop's interrupted-stamp landing AFTER the architect start and poisoning its
+		// summary for the terminal-retry sweep. The card is paused (nothing revives), so a flat 20s outlasts any
+		// async stamp with zero field-path guesswork; then the start below owns a genuinely settled task.
 		await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.stopTaskSession?workspaceId=ws`, {
 			method: "POST",
 			headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
 			body: JSON.stringify({ taskId: seededTaskId }),
 		}).catch(() => null);
-		for (let settlePoll = 0; settlePoll < 20; settlePoll += 1) {
-			await new Promise((tick) => setTimeout(tick, 1_000));
-			const stateNow = await fetch(
-				`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/workspace.getState?workspaceId=ws`,
-				{ headers: { "x-nklein-workspace-id": "ws" } },
-			)
-				.then((res) => res.json() as Promise<{ result?: { data?: { sessions?: Record<string, { state?: string }> } } }>)
-				.catch(() => null);
-			const sessionState = stateNow?.result?.data?.sessions?.[seededTaskId]?.state;
-			if (sessionState === undefined || sessionState !== "running") {
-				process.stdout.write(`pre-start settle confirmed after ${settlePoll + 1}s (state=${sessionState ?? "absent"})\n`);
-				break;
-			}
-		}
-		await new Promise((tick) => setTimeout(tick, 2_000));
-		await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.stopTaskSession?workspaceId=ws`, {
-			method: "POST",
-			headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
-			body: JSON.stringify({ taskId: seededTaskId }),
-		}).catch(() => null); // not-running is fine — we only care that no ACT worker survives
+		process.stdout.write("seed session stopped; settling 20s before the architect start…\n");
+		await new Promise((tick) => setTimeout(tick, 20_000));
 		// VERIFY-ROLE LOOP (2026-08-30): once the capability/ctx pre-seeds made ingress auto-start succeed
 		// instantly, the auto WORKER wins the seed race — the stop above lands mid-spawn and misses, and the
 		// explicit start below short-circuits into the live worker session (ok:true, role:"worker", 3-tool
