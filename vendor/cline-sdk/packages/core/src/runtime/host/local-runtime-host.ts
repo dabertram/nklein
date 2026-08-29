@@ -800,6 +800,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async abort(sessionId: string, reason?: unknown): Promise<void> {
+		if (process.env.NKLEIN_STOP_STACKS === "1") {
+			// !Klein patch (debugger directive 2026-08-30): the abort layer, not just stopSession, needs caller
+			// attribution — a cross-session abort cancelled a healthy successor's LLM requests unseen.
+			console.warn(`[stop-stack] host.abort ${sessionId} reason=${String(reason ?? "-")}\n${new Error("stack").stack}`);
+		}
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
 		session.config.telemetry?.capture({

@@ -28,6 +28,7 @@ function deps(over: Partial<ParkControllerDeps> = {}): ParkControllerDeps {
 		resetRepeatedToolCallGuard: vi.fn(),
 		markTaskParked: vi.fn(),
 		abortTaskSession: vi.fn(() => Promise.resolve()),
+		getTaskSessionId: vi.fn(() => "session-bound-at-decision"),
 		recordObservation: vi.fn(),
 		...over,
 	};
@@ -45,11 +46,21 @@ describe("parkTaskForPause (§5.U extraction)", () => {
 		expect(d.resetAutonomyBudget).toHaveBeenCalledWith("t1");
 		expect(d.resetRepeatedToolCallGuard).toHaveBeenCalledWith("t1");
 		expect(d.markTaskParked).toHaveBeenCalledWith("t1");
-		expect(d.abortTaskSession).toHaveBeenCalledWith("t1");
+		expect(d.abortTaskSession).toHaveBeenCalledWith("t1", { expectedSessionId: "session-bound-at-decision" });
 		expect(d.recordObservation).toHaveBeenCalledWith(expect.objectContaining({ signal: "custom", taskId: "t1" }));
 		expect(d.emitMessage).toHaveBeenCalled(); // park system message
 		expect(result.state).toBe("paused");
 		expect(result.reviewReason).toBeNull();
+	});
+
+	it("skips the abort entirely when no session is bound at the park decision (idle card)", () => {
+		// The fire-and-forget abort used to resolve the task binding at EXECUTION time, so pausing an idle
+		// card could kill a session started moments later (proven live 2026-08-30: a pause aborted the
+		// plan-mode architect the ingress auto-start had just spawned). Idle at decision time = no abort.
+		const d = deps({ getTaskSessionId: vi.fn(() => null) });
+		const result = createParkController(d).parkTaskForPause(parkInput());
+		expect(d.abortTaskSession).not.toHaveBeenCalled();
+		expect(result.state).toBe("paused");
 	});
 });
 

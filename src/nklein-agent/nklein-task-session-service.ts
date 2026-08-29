@@ -712,7 +712,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		resetAutonomyBudget: (taskId) => this.autonomyBudgetWatchdog.resetTask(taskId),
 		resetRepeatedToolCallGuard: (taskId) => this.repeatedToolCallGuard.resetTask(taskId),
 		markTaskParked: (taskId) => this.pauseController.markTaskParked(taskId),
-		abortTaskSession: (taskId) => this.sessionRuntime.abortTaskSession(taskId),
+		abortTaskSession: (taskId, options) => this.sessionRuntime.abortTaskSession(taskId, options),
+		getTaskSessionId: (taskId) => this.sessionRuntime.getTaskSessionId(taskId),
 		recordObservation: (event) => this.recordObservationWithModel(event),
 	});
 	private readonly timeoutController = createTimeoutController({
@@ -3150,6 +3151,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	async abortTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null> {
+		if (process.env.NKLEIN_STOP_STACKS === "1") {
+			process.stderr.write(`[stop-stack] service.abortTaskSession ${taskId}\n${new Error("stack").stack}\n`);
+		}
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
 			return null;
@@ -3181,6 +3185,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	async cancelTaskTurn(taskId: string): Promise<RuntimeTaskSessionSummary | null> {
+		if (process.env.NKLEIN_STOP_STACKS === "1") {
+			process.stderr.write(`[stop-stack] service.cancelTaskTurn ${taskId}\n${new Error("stack").stack}\n`);
+		}
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
 			return null;

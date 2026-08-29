@@ -245,7 +245,7 @@ export interface NKleinSessionRuntime {
 	): boolean;
 	resumeTaskSession(taskId: string): Promise<NKleinPersistedTaskSessionSnapshot | null>;
 	stopTaskSession(taskId: string, options?: { suppressTaskEvents?: boolean }): Promise<void>;
-	abortTaskSession(taskId: string): Promise<void>;
+	abortTaskSession(taskId: string, options?: { expectedSessionId?: string | null }): Promise<void>;
 	clearTaskSessions(taskId: string): Promise<void>;
 	/** Monotonic count of accepted model turns for this exact task id in the current runtime process. */
 	getTaskTurnGeneration(taskId: string): number;

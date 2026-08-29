@@ -1396,8 +1396,19 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		}
 	}
 
-	async abortTaskSession(taskId: string): Promise<void> {
+	async abortTaskSession(taskId: string, options?: { expectedSessionId?: string | null }): Promise<void> {
 		const sessionId = this.sessionIdByTaskId.get(taskId);
+		if (process.env.NKLEIN_STOP_STACKS === "1") {
+			process.stderr.write(
+				`[stop-stack] runtime.abortTaskSession ${taskId} -> session=${sessionId ?? "(unbound)"} expected=${options?.expectedSessionId === undefined ? "(any)" : (options.expectedSessionId ?? "(none)")}\n${new Error("stack").stack}\n`,
+			);
+		}
+		// Scoped abort (2026-08-30, dschinn hunt): an abort issued against session A must never kill successor B.
+		// A caller that captured the binding at DECISION time passes it here; on mismatch the abort is stale —
+		// skip it entirely (including the MCP-bundle release: the successor is using that bundle).
+		if (options && options.expectedSessionId !== undefined && sessionId !== options.expectedSessionId) {
+			return;
+		}
 		if (!sessionId) {
 			await this.releaseTaskMcpToolBundle(taskId);
 			return;
@@ -1555,6 +1566,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			this.taskIdBySessionId.delete(previousSessionId);
 		}
 		this.sessionIdByTaskId.set(taskId, sessionId);
+		if (process.env.NKLEIN_STOP_STACKS === "1") {
+			process.stderr.write(`[stop-stack] session BOUND ${taskId} -> ${sessionId}\n`);
+		}
 		this.taskIdBySessionId.set(sessionId, taskId);
 	}
 

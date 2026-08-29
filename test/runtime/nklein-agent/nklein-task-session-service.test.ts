@@ -4424,6 +4424,8 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			providerId: "lmstudio",
 			modelId: "qwen3",
 		});
+		// Running tasks are runtime-bound in production; bind explicitly so the park has a decision-time target.
+		runtime.bindTaskSession("task-1", "session-task-1");
 
 		const summary = service.applyTurnCheckpoint("task-1", {
 			turn: 12,
@@ -4445,7 +4447,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				source: "kanban",
 			},
 		});
-		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(runtime.abortTaskSessionMock.mock.calls.some((call) => call[0] === "task-1")).toBe(true);
 		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 			expect.objectContaining({
 				signal: "budget_wall",
@@ -4474,6 +4476,8 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			providerId: "lmstudio",
 			modelId: "qwen3",
 		});
+		// Running tasks are runtime-bound in production; bind explicitly so the park has a decision-time target.
+		runtime.bindTaskSession("task-1", "session-task-1");
 
 		const summary = service.applyTurnCheckpoint("task-1", {
 			turn: 3,
@@ -4487,7 +4491,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			reviewReason: "attention",
 			warningMessage: expect.stringContaining("3 autonomous turns"),
 		});
-		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(runtime.abortTaskSessionMock.mock.calls.some((call) => call[0] === "task-1")).toBe(true);
 		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadata: expect.objectContaining({ guardrail: "max_autonomous_turns", turn: 3, limit: 3 }),
@@ -4528,6 +4532,8 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			providerId: "lmstudio",
 			modelId: "qwen3",
 		});
+		// Running tasks are runtime-bound in production; bind explicitly so the park has a decision-time target.
+		runtime.bindTaskSession("task-1", "session-task-1");
 
 		service.setBoardPaused(true);
 		const pausedSummary = service.applyTurnCheckpoint("task-1", {
@@ -4546,7 +4552,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				source: "kanban",
 			},
 		});
-		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(runtime.abortTaskSessionMock.mock.calls.some((call) => call[0] === "task-1")).toBe(true);
 
 		service.setBoardPaused(false);
 		const resumed = await service.resumePausedTasks();
@@ -4572,6 +4578,8 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			providerId: "lmstudio",
 			modelId: "qwen3",
 		});
+		// Running tasks are runtime-bound in production; bind explicitly so the park has a decision-time target.
+		runtime.bindTaskSession("task-1", "session-task-1");
 
 		service.setBoardPaused(true);
 
@@ -4582,7 +4590,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				source: "kanban",
 			},
 		});
-		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(runtime.abortTaskSessionMock.mock.calls.some((call) => call[0] === "task-1")).toBe(true);
 	});
 
 	it("does not dispatch queued input to the SDK while the board is paused", async () => {
@@ -4647,6 +4655,8 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				providerId: "lmstudio",
 				modelId: "qwen3",
 			});
+			// Running tasks are runtime-bound in production; bind explicitly so the park has a decision-time target.
+			runtime.bindTaskSession("task-1", "session-task-1");
 
 			nowSpy.mockReturnValue(1_000 + 2 * 60 * 60 * 1000 + 60_000);
 			const summary = service.applyTurnCheckpoint("task-1", {
@@ -4669,7 +4679,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 					source: "kanban",
 				},
 			});
-			expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+			expect(runtime.abortTaskSessionMock.mock.calls.some((call) => call[0] === "task-1")).toBe(true);
 			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 				expect.objectContaining({
 					signal: "budget_wall",
@@ -4700,6 +4710,8 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			providerId: "lmstudio",
 			modelId: "qwen3",
 		});
+		// Running tasks are runtime-bound in production; bind explicitly so the park has a decision-time target.
+		runtime.bindTaskSession("task-1", "session-task-1");
 
 		for (let turn = 1; turn <= 3; turn += 1) {
 			const summary = service.applyTurnCheckpoint("task-1", {
@@ -4731,7 +4743,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				source: "kanban",
 			},
 		});
-		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(runtime.abortTaskSessionMock.mock.calls.some((call) => call[0] === "task-1")).toBe(true);
 		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 			expect.objectContaining({
 				signal: "budget_wall",

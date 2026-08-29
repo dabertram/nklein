@@ -39,7 +39,9 @@ export interface ParkControllerDeps {
 	resetAutonomyBudget(taskId: string): void;
 	resetRepeatedToolCallGuard(taskId: string): void;
 	markTaskParked(taskId: string): void;
-	abortTaskSession(taskId: string): Promise<void>;
+	abortTaskSession(taskId: string, options?: { expectedSessionId?: string | null }): Promise<void>;
+	/** The session currently bound to the task, read SYNCHRONOUSLY so park aborts can be decision-time scoped. */
+	getTaskSessionId(taskId: string): string | null;
 	recordObservation(event: SelfObservationEventInput & { taskId: string }): void;
 }
 
@@ -73,7 +75,14 @@ export function createParkController(deps: ParkControllerDeps): ParkController {
 	function parkTaskForPause(input: ParkInput): RuntimeTaskSessionSummary {
 		resetGuardsForPark(input.taskId);
 		deps.markTaskParked(input.taskId);
-		void deps.abortTaskSession(input.taskId).catch(() => undefined);
+		// Capture the bound session SYNCHRONOUSLY at the park decision (2026-08-30): the fire-and-forget abort
+		// otherwise resolves the binding at EXECUTION time and can kill a successor session started meanwhile
+		// (proven live: a pause aborted the plan-mode architect the auto-start had just spawned). No binding at
+		// decision time means nothing to abort — pausing an idle card must not poison a future session.
+		const boundSessionId = deps.getTaskSessionId(input.taskId);
+		if (boundSessionId) {
+			void deps.abortTaskSession(input.taskId, { expectedSessionId: boundSessionId }).catch(() => undefined);
+		}
 		deps.recordObservation({
 			signal: "custom",
 			severity: "info",
@@ -102,7 +111,10 @@ export function createParkController(deps: ParkControllerDeps): ParkController {
 
 	function parkTaskForAutonomyBudget(input: ParkInput): RuntimeTaskSessionSummary {
 		resetGuardsForPark(input.taskId);
-		void deps.abortTaskSession(input.taskId).catch(() => undefined);
+		const boundSessionId = deps.getTaskSessionId(input.taskId);
+		if (boundSessionId) {
+			void deps.abortTaskSession(input.taskId, { expectedSessionId: boundSessionId }).catch(() => undefined);
+		}
 		deps.recordObservation({
 			signal: "budget_wall",
 			severity: "warning",
