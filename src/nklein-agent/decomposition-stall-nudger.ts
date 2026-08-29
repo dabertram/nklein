@@ -132,7 +132,7 @@ export class DecompositionStallNudger {
 	private readonly nudgeCountsByTaskId = new Map<string, number>();
 	/** Separate budget for the refinement-promotion nudge (a task is either a decompose card OR a refinable one). */
 	private readonly narratedToolCallNudgedTaskIds = new Set<string>();
-	private readonly emptyFinalNudgedTaskIds = new Set<string>();
+	private readonly emptyFinalNudgeCountsByTaskId = new Map<string, number>();
 	private readonly refinementNudgeCountsByTaskId = new Map<string, number>();
 
 	constructor(private readonly callbacks: DecompositionStallNudgerCallbacks) {}
@@ -366,10 +366,15 @@ export class DecompositionStallNudger {
 		}
 		const finalText = (activity?.finalMessage ?? "").trim();
 		const placeholderOnly = finalText.length === 0 || finalText === "Agent active";
-		if (!placeholderOnly || this.emptyFinalNudgedTaskIds.has(taskId)) {
+		// Bounded, env-widenable (2026-08-29): the glitch recurs every ~15-30 min of session time, so a strict
+		// one-shot died on the SECOND glitch mid-decompose. Default stays 1 (a genuinely finished model ends
+		// again immediately); a rig chasing a long run raises NKLEIN_EMPTY_FINAL_REDRIVE_LIMIT.
+		const redriveLimit = Math.max(1, Number.parseInt(process.env.NKLEIN_EMPTY_FINAL_REDRIVE_LIMIT ?? "1", 10) || 1);
+		const priorRedrives = this.emptyFinalNudgeCountsByTaskId.get(taskId) ?? 0;
+		if (!placeholderOnly || priorRedrives >= redriveLimit) {
 			return false;
 		}
-		this.emptyFinalNudgedTaskIds.add(taskId);
+		this.emptyFinalNudgeCountsByTaskId.set(taskId, priorRedrives + 1);
 		this.callbacks.recordObservation({
 			taskId,
 			workspacePath: this.callbacks.resolveWorkspacePath(taskId),
@@ -495,7 +500,7 @@ export class DecompositionStallNudger {
 		this.nudgeCountsByTaskId.delete(taskId);
 		this.refinementNudgeCountsByTaskId.delete(taskId);
 		this.narratedToolCallNudgedTaskIds.delete(taskId);
-		this.emptyFinalNudgedTaskIds.delete(taskId);
+		this.emptyFinalNudgeCountsByTaskId.delete(taskId);
 	}
 
 	/**
