@@ -4562,6 +4562,26 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			if (!decompositionRecoveryScheduled && isTruthyEnv(process.env.NKLEIN_REFINEMENT_STALL_NUDGE)) {
 				decompositionRecoveryScheduled = this.decompositionStallNudger.maybeNudgeStalledRefinement(taskId);
 			}
+			// Turn-end recovery decision trail (2026-08-29): six consecutive silent architect deaths — every one
+			// "agent_end then heartbeat lost" — were undiagnosable because nothing recorded what this seam SAW and
+			// which recovery (if any) claimed the turn. One compact observation per non-running turn-end.
+			{
+				const seamActivity = entry.summary.latestHookActivity;
+				this.recordObservationWithModel({
+					signal: "custom",
+					severity: "info",
+					message: `Turn-end recovery seam: state=${entry.summary.state} reason=${entry.summary.reviewReason ?? "-"} hook=${seamActivity?.hookEventName ?? "-"} recovery=${decompositionRecoveryScheduled ? "scheduled" : "none"}.`,
+					taskId,
+					metadata: {
+						category: "turn_end_recovery_decision",
+						state: entry.summary.state,
+						reviewReason: entry.summary.reviewReason ?? null,
+						hookEventName: seamActivity?.hookEventName ?? null,
+						finalPreview: (seamActivity?.finalMessage ?? seamActivity?.activityText ?? "").slice(0, 120) || null,
+						recovery: decompositionRecoveryScheduled ? "scheduled" : "none",
+					},
+				});
+			}
 		}
 		// §12 turn-loop ladder: with the turn's text settled (no active assistant stream), scan the trailing
 		// completed turns for a re-raised question/proposal loop. Do not race a more-specific decomposition recovery.
