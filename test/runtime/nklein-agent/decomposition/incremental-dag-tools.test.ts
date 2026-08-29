@@ -457,3 +457,21 @@ describe("decompose_project completion route (shared session state)", () => {
 		).resolves.toMatchObject({ ok: true, taskId: "a" });
 	});
 });
+
+describe("numeric-scalar tolerance (Flash-Next id:1 slip, live-found 2026-08-29)", () => {
+	it("add_task coerces numeric id/title to strings and registers the task", async () => {
+		const { state, addTask } = getTools();
+		const result = (await addTask.execute({ id: 1, title: 42, prompt: "Do the thing." }, ctx)) as { ok: boolean };
+		expect(result.ok).toBe(true);
+		expect(state.tasksById.has("1")).toBe(true);
+		expect(state.tasksById.get("1")?.title).toBe("42");
+	});
+
+	it("add_dependency coerces numeric ids", async () => {
+		const { addTask, addDependency } = getTools();
+		await addTask.execute({ id: "1", title: "a", prompt: "p" }, ctx);
+		await addTask.execute({ id: "2", title: "b", prompt: "p" }, ctx);
+		const result = (await addDependency.execute({ taskId: 2, dependsOn: 1 }, ctx)) as { ok: boolean };
+		expect(result.ok).toBe(true);
+	});
+});

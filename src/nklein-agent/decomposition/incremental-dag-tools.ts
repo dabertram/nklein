@@ -229,6 +229,16 @@ export function createIncrementalDagTools(
 		}),
 		async execute(input) {
 			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+			// Numeric-scalar tolerance (live-found 2026-08-29, Flash-Next architect): the model sent id/title as
+			// NUMBERS (id: 1) — a grammar-dialect slip, self-diagnosed in its own final ("numbers instead of
+			// strings") — and three type-rejections burned the recovery bounds and ended a productive session.
+			// Numbers stringify losslessly and unambiguously; coerce them for the string fields instead of
+			// failing the turn. Non-scalar shapes still hit the schema error with its teaching text.
+			for (const key of ["id", "title", "prompt", "testabilityReason"]) {
+				if (typeof record[key] === "number" && Number.isFinite(record[key] as number)) {
+					record[key] = String(record[key]);
+				}
+			}
 			const parsed = nkleinPlanTaskSchema.safeParse(repairJsonStringValue(record));
 			if (!parsed.success) {
 				// Live 20260811-000253: after four perfect 1-2KB add_task calls the model degenerated to EMPTY
@@ -384,6 +394,12 @@ export function createIncrementalDagTools(
 		}),
 		async execute(input) {
 			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+			// Same numeric-scalar tolerance as add_task (2026-08-29): ids sent as numbers stringify losslessly.
+			for (const key of ["taskId", "dependsOn"]) {
+				if (typeof record[key] === "number" && Number.isFinite(record[key] as number)) {
+					record[key] = String(record[key]);
+				}
+			}
 			const taskId = typeof record.taskId === "string" ? record.taskId.trim() : "";
 			const dependsOn = typeof record.dependsOn === "string" ? record.dependsOn.trim() : "";
 			if (!taskId || !dependsOn) {
