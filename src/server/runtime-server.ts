@@ -5916,7 +5916,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const trpcHttpHandler = createHTTPHandler({
 		basePath: "/api/trpc/",
 		router: runtimeAppRouter,
-		createContext: async ({ req }) => await createTrpcContext(req),
+		createContext: async ({ req }) => {
+			// Debugger directive 2026-08-30 (NKLEIN_STOP_STACKS=1): a second, unattributed HTTP stop kills the
+			// architect ~2min in — with the UI detached and the drain making exactly one stop. Name the PEER of
+			// every stop-route call: remote address, user agent, and URL, straight to the runtime log.
+			if (process.env.NKLEIN_STOP_STACKS === "1" && (req.url ?? "").includes("stopTaskSession")) {
+				deps.warn(
+					`[stop-peer] ${req.url} from ${req.socket?.remoteAddress ?? "?"}:${req.socket?.remotePort ?? "?"} ua="${String(req.headers["user-agent"] ?? "-").slice(0, 80)}" referer="${String(req.headers.referer ?? "-").slice(0, 80)}"`,
+				);
+			}
+			return await createTrpcContext(req);
+		},
 	});
 
 	const tlsConfig = getKanbanRuntimeTls();
