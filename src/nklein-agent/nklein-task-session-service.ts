@@ -2962,6 +2962,23 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// boundary-hold path passes "protected_write" so the operator inbox surfaces the held card distinctly.
 		options: { reviewReason?: RuntimeTaskSessionReviewReason; abortActiveTurn?: boolean } = {},
 	): Promise<RuntimeTaskSessionSummary | null> {
+		// Debugger-grade caller capture (David directive 2026-08-30, NKLEIN_STOP_STACKS=1): the breakpoint we
+		// cannot sit on in a headless drain — record WHO stops each session, so a silent kill names its caller
+		// from the stack instead of costing an archaeology session. Rig flag; zero cost when off.
+		if (isTruthyEnv(process.env.NKLEIN_STOP_STACKS)) {
+			const stack = (new Error("stop-caller").stack ?? "")
+				.split("\n")
+				.slice(2, 10)
+				.map((line) => line.trim())
+				.join(" <- ");
+			this.recordObservationWithModel({
+				signal: "custom",
+				severity: "info",
+				message: `stopTaskSession(${taskId}) caller stack captured.`,
+				taskId,
+				metadata: { category: "stop_stack", reviewReason: options.reviewReason ?? "interrupted", stack },
+			});
+		}
 		let entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
 			// Runtime restarts can clear in-memory task entries while the SDK still has a persisted

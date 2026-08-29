@@ -92,6 +92,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		note: "Default-OFF worker-loop behaviour change (F1.21 observe-before-enforce). A refinable card that ends a turn without begin_implementation gets ONE bounded nudge to promote; gating in the pure decideRefinementStallRecovery. Flip ON only after a live-drain shows the model actually transitions (efficacy is empirical), protecting the accrual campaign's evidence from a misfire until then.",
 	},
 	{
+		flag: "NKLEIN_STOP_STACKS",
+		mode: "dev_only",
+		gate: "nklein-task-session-service.ts stopTaskSession + vendored local-runtime-host.stopSession (caller-stack capture)",
+		note: "Debugger directive 2026-08-30: headless-drain breakpoint equivalent — records the caller stack of every session stop (telemetry category stop_stack + runtime-log warn). Rig diagnosis only; zero cost when off.",
+	},
+	{
 		flag: "NKLEIN_EMPTY_FINAL_REDRIVE",
 		mode: "enforcing",
 		gate: "nklein-task-session-service.ts turn-end seam (DecompositionStallNudger.maybeNudgeEmptyFinal: one continue re-prompt when a run ends on an EMPTY final — glitched-completion recovery, last rung)",

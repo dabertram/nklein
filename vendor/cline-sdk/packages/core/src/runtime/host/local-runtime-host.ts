@@ -812,6 +812,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async stopSession(sessionId: string): Promise<void> {
+		// !Klein patch (debugger directive 2026-08-30): headless-run breakpoint equivalent — name the caller of
+		// every session stop when NKLEIN_STOP_STACKS=1. Six silent architect deaths cost hours; a stack names
+		// the killer in one line.
+		if (process.env.NKLEIN_STOP_STACKS === "1") {
+			const stack = (new Error("host-stop-caller").stack ?? "")
+				.split("\n")
+				.slice(2, 10)
+				.map((line) => line.trim())
+				.join(" <- ");
+			// eslint-disable-next-line no-console
+			console.warn(`[nklein][stop-stack] host.stopSession(${sessionId}) <- ${stack}`);
+		}
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
 		session.config.telemetry?.capture({
