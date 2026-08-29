@@ -342,6 +342,21 @@ try {
 			throw new Error(`plan-mode card flip failed (HTTP ${saveRes.status}): ${saveBody.slice(0, 300)}`);
 		}
 		process.stdout.write(`card flipped to plan mode: ${seededTaskId}\n`);
+		// PAUSE the card (2026-08-30): the ingress auto-start revives a WORKER session instantly after every
+		// stop — three verify-loop attempts all short-circuited into it. Paused cards are exempt from ALL
+		// auto-start machinery (the product's own documented semantics), so the explicit plan-mode start below
+		// owns the card uncontested. The pause also blocks the Dead-card auto-restart; in-session recovery
+		// (empty-final redrive, limit 8) carries liveness instead, and a hard death settles the drain honestly.
+		const pauseRes = await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.pauseTask?workspaceId=ws`, {
+			method: "POST",
+			headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
+			body: JSON.stringify({ taskId: seededTaskId }),
+		});
+		const pauseBody = await pauseRes.text();
+		if (!pauseRes.ok || pauseBody.includes('"error"')) {
+			throw new Error(`pauseTask failed (HTTP ${pauseRes.status}): ${pauseBody.slice(0, 300)}`);
+		}
+		process.stdout.write(`card paused (auto-start disarmed): ${seededTaskId}\n`);
 		await new Promise((tick) => setTimeout(tick, 2_000));
 		await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.stopTaskSession?workspaceId=ws`, {
 			method: "POST",
