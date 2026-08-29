@@ -311,6 +311,37 @@ try {
 		if (!seededTaskId) {
 			throw new Error("NKLEIN_FLASHNEXT_PLAN=1 but the A2A seed response carried no task id");
 		}
+		// Make the CARD itself a plan card (2026-08-29 root-cause): the A2A seed hardcodes a WORK card
+		// (startInPlanMode:false, autoReviewEnabled:true), and only the SESSION was started in plan mode — so
+		// every card-level guard misclassified the architect as a worker: delivery admission captured its
+		// sandbox, acceptance ran "npm test" against a plan, auto-review raced the architect ~2min in and the
+		// single-flight bracket ended the main session (six identical deaths: agent_end → heartbeat lost).
+		// Flip the persisted card to plan mode BEFORE starting; the plan-mode guards then exclude it from the
+		// worker-only machinery, exactly as a dev-test plan seed is treated.
+		const stateRes = await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/workspace.getState?workspaceId=ws`, {
+			headers: { "x-nklein-workspace-id": "ws" },
+		});
+		const stateBody = (await stateRes.json()) as {
+			result?: { data?: { board?: { columns?: { cards?: { id: string; startInPlanMode?: boolean }[] }[] } } };
+		};
+		const stateData = stateBody.result?.data;
+		const seededCardRef = stateData?.board?.columns
+			?.flatMap((column) => column.cards ?? [])
+			.find((card) => card.id === seededTaskId);
+		if (!seededCardRef || !stateData?.board) {
+			throw new Error(`plan-mode card flip: seeded card ${seededTaskId} not found in workspace state`);
+		}
+		seededCardRef.startInPlanMode = true;
+		const saveRes = await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/workspace.saveState?workspaceId=ws`, {
+			method: "POST",
+			headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
+			body: JSON.stringify(stateData),
+		});
+		const saveBody = await saveRes.text();
+		if (!saveRes.ok || saveBody.includes('"error"')) {
+			throw new Error(`plan-mode card flip failed (HTTP ${saveRes.status}): ${saveBody.slice(0, 300)}`);
+		}
+		process.stdout.write(`card flipped to plan mode: ${seededTaskId}\n`);
 		await new Promise((tick) => setTimeout(tick, 2_000));
 		await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.stopTaskSession?workspaceId=ws`, {
 			method: "POST",
