@@ -342,7 +342,21 @@ try {
 			throw new Error(`plan-mode card flip failed (HTTP ${saveRes.status}): ${saveBody.slice(0, 300)}`);
 		}
 		process.stdout.write(`card flipped to plan mode: ${seededTaskId}\n`);
-		// PAUSE the card (2026-08-30): the ingress auto-start revives a WORKER session instantly after every
+		// ONE stop, then a FLAT settle wait (2026-08-30 v2): instrumentation showed BOTH captured stops were the
+		// drain's own seed-time calls (the previous "settle poll" read a wrong field and never waited), and the
+		// ~2-min death is the seed-stop's interrupted-stamp landing AFTER the architect start and poisoning its
+		// summary for the terminal-retry sweep. The card is paused (nothing revives), so a flat 20s outlasts any
+		// async stamp with zero field-path guesswork; then the start below owns a genuinely settled task.
+		await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.stopTaskSession?workspaceId=ws`, {
+			method: "POST",
+			headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
+			body: JSON.stringify({ taskId: seededTaskId }),
+		}).catch(() => null);
+		process.stdout.write("seed session stopped; settling 20s before the architect start…\n");
+		await new Promise((tick) => setTimeout(tick, 20_000));
+		// PAUSE the card AFTER the settled stop (2026-08-30 v2): pauseTask fire-and-forgets an abort whose
+		// Docker-dispose await made its interrupted-stamp land minutes late on the NEXT session — pausing a
+		// stopped card makes that abort a fast no-op. (Original rationale: the ingress auto-start revives a WORKER session instantly after every
 		// stop — three verify-loop attempts all short-circuited into it. Paused cards are exempt from ALL
 		// auto-start machinery (the product's own documented semantics), so the explicit plan-mode start below
 		// owns the card uncontested. The pause also blocks the Dead-card auto-restart; in-session recovery
@@ -357,18 +371,6 @@ try {
 			throw new Error(`pauseTask failed (HTTP ${pauseRes.status}): ${pauseBody.slice(0, 300)}`);
 		}
 		process.stdout.write(`card paused (auto-start disarmed): ${seededTaskId}\n`);
-		// ONE stop, then a FLAT settle wait (2026-08-30 v2): instrumentation showed BOTH captured stops were the
-		// drain's own seed-time calls (the previous "settle poll" read a wrong field and never waited), and the
-		// ~2-min death is the seed-stop's interrupted-stamp landing AFTER the architect start and poisoning its
-		// summary for the terminal-retry sweep. The card is paused (nothing revives), so a flat 20s outlasts any
-		// async stamp with zero field-path guesswork; then the start below owns a genuinely settled task.
-		await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.stopTaskSession?workspaceId=ws`, {
-			method: "POST",
-			headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
-			body: JSON.stringify({ taskId: seededTaskId }),
-		}).catch(() => null);
-		process.stdout.write("seed session stopped; settling 20s before the architect start…\n");
-		await new Promise((tick) => setTimeout(tick, 20_000));
 		// VERIFY-ROLE LOOP (2026-08-30): once the capability/ctx pre-seeds made ingress auto-start succeed
 		// instantly, the auto WORKER wins the seed race — the stop above lands mid-spawn and misses, and the
 		// explicit start below short-circuits into the live worker session (ok:true, role:"worker", 3-tool

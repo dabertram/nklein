@@ -3154,10 +3154,22 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!entry) {
 			return null;
 		}
+		// Identity guard (2026-08-30, found by debugger-directive instrumentation): this method awaits a Docker
+		// workspace dispose that can take MINUTES on a loaded box, and then stamped `interrupted` on whatever
+		// session existed at COMPLETION time. A pause's fire-and-forget abort therefore assassinated a healthy
+		// architect started long after the abort began (state=interrupted over healthy turn_start activity — the
+		// week's recurring 2-minute death). Capture the session identity now; only stamp if it is STILL the same
+		// session when the awaits are done.
+		const abortedStartedAt = entry.summary.startedAt ?? null;
 		this.resetInterruptedTaskState(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
 		this.forgetSandboxTask(taskId);
+		const entryAfter = this.messageRepository.getTaskEntry(taskId);
+		if (!entryAfter || (entryAfter.summary.startedAt ?? null) !== abortedStartedAt) {
+			// A NEW session took over while the abort settled — its summary is not ours to stamp.
+			return entryAfter ? cloneSummary(entryAfter.summary) : null;
+		}
 		const summary = updateSummary(entry, {
 			state: "interrupted",
 			reviewReason: "interrupted",
