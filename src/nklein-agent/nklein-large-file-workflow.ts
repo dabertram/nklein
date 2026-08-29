@@ -348,7 +348,9 @@ export class NKleinLargeFileWorkflow {
 		await this.ensureLoaded();
 		const path = pathInput.trim();
 		if (!path) {
-			throw new Error("read_large_file requires a non-empty path.");
+			throw new Error(
+				'read_large_file requires a non-empty path. Call it as {"path":"<workspace-relative file>"} (add "cursor" from a prior page to continue).',
+			);
 		}
 		this.recordContextWindow(contextWindow);
 		const contained = confineToolPath(this.workspacePath, path);

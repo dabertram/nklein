@@ -19,6 +19,12 @@ const POLICY_GUIDANCE_PATTERNS: readonly RegExp[] = [
 	/outside the workspace/i,
 	// F12.63 post-edit syntax guard rejection wording (matched on wording, not tool name — see the N2 cell).
 	/would break|left the file broken|syntactically broken/i,
+	// Tool ARG-VALIDATION rejections (live-found 2026-08-29, dschinn architect on Flash-Next): the model called
+	// get_file_size with empty args 3× and mangled a result:// handle — each rejection carries the corrective
+	// wording ("requires a non-empty path" / "requires a valid result://<tool>/<id> handle"), which is exactly
+	// guidance-to-retry, not a genuine execution failure. Counting them GENUINE stop-killed a productive
+	// architect at 3 strikes — the header's own bug class. Narrow wording, mirrors the fences above.
+	/requires a non-empty \w+|requires a valid result:\/\//i,
 ];
 
 const GENUINE_OVERRIDE_PATTERNS: readonly RegExp[] = [

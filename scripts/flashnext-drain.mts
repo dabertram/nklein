@@ -147,6 +147,41 @@ await writeFile(
 	),
 );
 
+// Pre-seed the model registry BEFORE the runtime boots: (a) the context-window override (the auto-start floor
+// gate reads it on the very first attempt) and (b) an HONEST capability score — a fresh entry's flat static
+// prior 35 trips the decomposition candidate guard on difficulty~48 cards ("No connected model satisfies both
+// difficulty 48 and the candidate-specific context fit guard" → 5 failures → paused; the capability-prior
+// deadlock, live-hit 2026-08-29). Flash-Next is a 125B frontier-class MoE; NKLEIN_FLASHNEXT_CAPABILITY (default
+// 85) sets externalScore/effectiveScore so routing admits it. File shape mirrors nklein-model-registry.ts.
+{
+	const ctxTokens = Number(process.env.NKLEIN_FLASHNEXT_CTX ?? "32768");
+	const capScore = Number(process.env.NKLEIN_FLASHNEXT_CAPABILITY ?? "85");
+	const modelForRegistry = process.env.NKLEIN_FLASHNEXT_MODEL_ID?.trim()
+		|| "/Users/david/.lmstudio/models/unsloth/Qwen3.8-Flash-Next-GGUF/Qwen3.8-Flash-Next-UD-Q3_K_XL-00001-of-00003.gguf";
+	const endpointForRegistry = LOCAL_BASE.replace("127.0.0.1", "localhost");
+	const registryKey = `lmstudio:${modelForRegistry}:${endpointForRegistry}`;
+	await writeFile(
+		join(home, ".nklein", "nklein", "model-registry.json"),
+		`${JSON.stringify({
+			schemaVersion: 1,
+			updatedAt: Date.now(),
+			models: {
+				[registryKey]: {
+					key: registryKey,
+					providerId: "lmstudio",
+					modelId: modelForRegistry,
+					endpoint: endpointForRegistry,
+					contextWindow: { advertised: null, observed: null, userOverride: ctxTokens, effective: ctxTokens },
+					speed: { samples: 0, promptTokensEwma: null, outputTokensEwma: null, totalTokensEwma: null, prefillTokensPerSecondEwma: null, decodeTokensPerSecondEwma: null, ttftMsEwma: null, wallTimeMsEwma: null, wallTimeMsPer1kPromptTokensEwma: null, lastPromptTokens: null, lastOutputTokens: null, lastWallTimeMs: null, lastObservedAt: null },
+					capability: { samples: 0, staticPrior: capScore, evalScore: null, externalScore: capScore, observedPassRate: null, effectiveScore: capScore, lastObservedAt: null },
+					constraints: { maxConcurrentRequests: null },
+				},
+			},
+		}, null, 1)}\n`,
+	);
+	process.stdout.write(`model registry pre-seeded: ctx=${ctxTokens} capability=${capScore}\n`);
+}
+
 let runtime: ChildProcess | null = null;
 const shutdown = async (): Promise<void> => {
 	runtime?.kill("SIGTERM");
@@ -265,6 +300,41 @@ try {
 		throw new Error(`A2A SendMessage failed (HTTP ${seeded.status}): ${seededBody.slice(0, 400)}`);
 	}
 	process.stdout.write(`card seeded: ${seededBody.slice(0, 200)}\n draining for up to ${maxMinutes}m…\n`);
+
+	// PLAN-MODE START (dschinn 2026-08-29): the A2A ingress creates ACT work cards only — the decompose tools
+	// (add_task/decompose_project) live in ARCHITECT sessions. With NKLEIN_FLASHNEXT_PLAN=1, stop whatever the
+	// auto-start began and restart the SAME card explicitly with startInPlanMode:true. This replaces the
+	// dev-test-project supervisor path, whose board-growth productivity heuristic cannot see plan-artifact
+	// staging (6 staged add_task = "unproductive") and stopped a productive architect mid-decompose.
+	if ((process.env.NKLEIN_FLASHNEXT_PLAN ?? "0") === "1") {
+		const seededTaskId = (JSON.parse(seededBody) as { result?: { task?: { id?: string } } }).result?.task?.id;
+		if (!seededTaskId) {
+			throw new Error("NKLEIN_FLASHNEXT_PLAN=1 but the A2A seed response carried no task id");
+		}
+		await new Promise((tick) => setTimeout(tick, 2_000));
+		await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.stopTaskSession?workspaceId=ws`, {
+			method: "POST",
+			headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
+			body: JSON.stringify({ taskId: seededTaskId }),
+		}).catch(() => null); // not-running is fine — we only care that no ACT worker survives
+		const planStart = await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.startTaskSession?workspaceId=ws`, {
+			method: "POST",
+			headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
+			body: JSON.stringify({
+				taskId: seededTaskId,
+				prompt,
+				taskTitle: "Dark Factory Dschinn — plan the vertical spine",
+				startInPlanMode: true,
+				baseRef: "main",
+				agentId: "nklein",
+			}),
+		});
+		const planStartBody = await planStart.text();
+		if (!planStart.ok || planStartBody.includes('"error"')) {
+			throw new Error(`plan-mode start failed (HTTP ${planStart.status}): ${planStartBody.slice(0, 400)}`);
+		}
+		process.stdout.write(`plan-mode architect started on ${seededTaskId}: ${planStartBody.slice(0, 160)}\n`);
+	}
 
 	const boardPath = join(workspace, ".nklein", "nklein", "workspace", "board.json");
 	const deadline = Date.now() + maxMinutes * 60_000;

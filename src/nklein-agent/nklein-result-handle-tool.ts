@@ -148,7 +148,9 @@ export function createSessionResultHandles(): { store: ResultHandleStore; tool: 
 					? (input as { handle: string }).handle.trim()
 					: "";
 			if (!handle || parseResultHandle(handle) === null) {
-				throw new Error("resolve_result requires a valid result://<tool>/<id> handle.");
+				throw new Error(
+					'resolve_result requires a valid result://<tool>/<id> handle — pass the EXACT handle string from the tool result that said "replaced by a session result handle", e.g. {"handle":"result://read_files/abc123"}.',
+				);
 			}
 			const value = store.get(handle);
 			if (value === undefined) {

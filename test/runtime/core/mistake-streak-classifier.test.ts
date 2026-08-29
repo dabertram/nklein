@@ -71,3 +71,26 @@ describe("classifyMistakeStreak (David 2026-07-29: soften policy-guard streaks)"
 		expect(message).toContain("Do not repeat a blocked call verbatim");
 	});
 });
+
+describe("arg-validation rejections are guidance, not genuine failures (dschinn live-find 2026-08-29)", () => {
+	it("classifies empty-arg and bad-handle rejections as policy_guidance", () => {
+		expect(
+			classifyMistakeStreak(
+				'1 tool call(s) failed: [get_file_size] {"error":"get_file_size requires a non-empty path."}',
+			),
+		).toBe("policy_guidance");
+		expect(
+			classifyMistakeStreak(
+				'1 tool call(s) failed: [resolve_result] {"error":"resolve_result requires a valid result://<tool>/<id> handle."}',
+			),
+		).toBe("policy_guidance");
+	});
+
+	it("keeps a mixed streak (arg rejection + real crash) genuine", () => {
+		expect(
+			classifyMistakeStreak(
+				"[get_file_size] requires a non-empty path.; [run_commands] Segmentation fault (core dumped)",
+			),
+		).toBe("genuine");
+	});
+});

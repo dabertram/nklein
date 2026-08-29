@@ -296,7 +296,9 @@ function createGetFileSizeTool(
 			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
 			const rawPath = asString(record.path);
 			if (!rawPath) {
-				throw new Error("get_file_size requires a non-empty path.");
+				throw new Error(
+					'get_file_size requires a non-empty path. Call it as {"path":"<workspace-relative file>"} — e.g. {"path":"specification.md"}.',
+				);
 			}
 			const absolutePath = resolveWorkspacePath(workspacePath, rawPath, hostWorkspacePath);
 			const info = await lstat(absolutePath);

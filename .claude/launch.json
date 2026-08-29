@@ -1,17 +1,13 @@
 {
-	"version": "0.0.1",
-	"configurations": [
-		{
-			"name": "web-ui",
-			"runtimeExecutable": "npm",
-			"runtimeArgs": ["run", "dev", "--prefix", "web-ui"],
-			"port": 4173
-		},
-		{
-			"name": "dev-full",
-			"runtimeExecutable": "npm",
-			"runtimeArgs": ["run", "dev:full"],
-			"port": 4173
-		}
-	]
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-ui-dschinn",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "web-ui",
+      "env": { "NKLEIN_RUNTIME_PORT": "3502" },
+      "port": 4173
+    }
+  ]
 }
