@@ -383,7 +383,10 @@ try {
 					headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
 					body: JSON.stringify({ taskId: seededTaskId }),
 				}).catch(() => null);
-				await new Promise((tick) => setTimeout(tick, 3_000));
+				// Same 20s settle as the seed stop (2026-08-30): the 3s retry wait reintroduced the exact
+				// late-stamp race the seed settle closed — a retry stop's interrupted-stamp landed after the
+				// next start and poisoned the live architect for the ~2-min terminal-retry sweep.
+				await new Promise((tick) => setTimeout(tick, 20_000));
 			}
 			const planStart = await fetch(
 				`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.startTaskSession?workspaceId=ws`,
@@ -404,7 +407,28 @@ try {
 			if (!planStart.ok || planStartBody.includes('"error"')) {
 				throw new Error(`plan-mode start failed (HTTP ${planStart.status}): ${planStartBody.slice(0, 400)}`);
 			}
-			architectConfirmed = planStartBody.includes('"role":"architect"');
+			// Verify via a FRESH read a moment after the start — the start response can carry a stale summary
+			// (the prior worker's retained entry), which caused a false non-architect verdict and a needless
+			// retry stop (the race reseeder).
+			await new Promise((tick) => setTimeout(tick, 3_000));
+			const freshStart = await fetch(
+				`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.startTaskSession?workspaceId=ws`,
+				{
+					method: "POST",
+					headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
+					body: JSON.stringify({
+						taskId: seededTaskId,
+						prompt,
+						taskTitle: "Dark Factory Dschinn — plan the vertical spine",
+						startInPlanMode: true,
+						baseRef: "main",
+						agentId: "nklein",
+					}),
+				},
+			).then((res) => res.text()).catch(() => "");
+			// An already-running architect answers this idempotent re-start with its live summary.
+			architectConfirmed =
+				freshStart.includes('"role":"architect"') || planStartBody.includes('"role":"architect"');
 			if (!architectConfirmed) {
 				process.stdout.write(`start attempt ${attempt + 1} landed on a non-architect session — stopping it and retrying\n`);
 			}
