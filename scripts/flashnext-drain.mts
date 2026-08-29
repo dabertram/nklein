@@ -357,6 +357,30 @@ try {
 			throw new Error(`pauseTask failed (HTTP ${pauseRes.status}): ${pauseBody.slice(0, 300)}`);
 		}
 		process.stdout.write(`card paused (auto-start disarmed): ${seededTaskId}\n`);
+		// SETTLE-WAIT (2026-08-30, the 2-minute killer found by instrumentation): the stop below responds before
+		// its server-side interrupted-stamp fully lands. When the explicit start wins that race, the LATE stamp
+		// poisons the live architect's summary (state=interrupted over healthy turn_start activity — captured
+		// verbatim), and the ~2-min terminal-retry sweep then "rescues" a perfectly healthy session to death.
+		// After stopping, POLL until the summary is genuinely non-running (or absent) before starting.
+		await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.stopTaskSession?workspaceId=ws`, {
+			method: "POST",
+			headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
+			body: JSON.stringify({ taskId: seededTaskId }),
+		}).catch(() => null);
+		for (let settlePoll = 0; settlePoll < 20; settlePoll += 1) {
+			await new Promise((tick) => setTimeout(tick, 1_000));
+			const stateNow = await fetch(
+				`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/workspace.getState?workspaceId=ws`,
+				{ headers: { "x-nklein-workspace-id": "ws" } },
+			)
+				.then((res) => res.json() as Promise<{ result?: { data?: { sessions?: Record<string, { state?: string }> } } }>)
+				.catch(() => null);
+			const sessionState = stateNow?.result?.data?.sessions?.[seededTaskId]?.state;
+			if (sessionState === undefined || sessionState !== "running") {
+				process.stdout.write(`pre-start settle confirmed after ${settlePoll + 1}s (state=${sessionState ?? "absent"})\n`);
+				break;
+			}
+		}
 		await new Promise((tick) => setTimeout(tick, 2_000));
 		await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.stopTaskSession?workspaceId=ws`, {
 			method: "POST",
