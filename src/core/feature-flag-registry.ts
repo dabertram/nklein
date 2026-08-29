@@ -92,6 +92,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		note: "Default-OFF worker-loop behaviour change (F1.21 observe-before-enforce). A refinable card that ends a turn without begin_implementation gets ONE bounded nudge to promote; gating in the pure decideRefinementStallRecovery. Flip ON only after a live-drain shows the model actually transitions (efficacy is empirical), protecting the accrual campaign's evidence from a misfire until then.",
 	},
 	{
+		flag: "NKLEIN_EMPTY_FINAL_REDRIVE",
+		mode: "enforcing",
+		gate: "nklein-task-session-service.ts turn-end seam (DecompositionStallNudger.maybeNudgeEmptyFinal: one continue re-prompt when a run ends on an EMPTY final — glitched-completion recovery, last rung)",
+		note: "Rig/drain opt-in (2026-08-29, dschinn on Flash-Next): llama.cpp multi-slot slot-reuse degradation returned empty completions mid-run and the SDK read them as the final answer. Default OFF — mock/manual flows end legitimately on empty finals.",
+	},
+	{
 		flag: "NKLEIN_DRIFT_REMEDY_ENFORCE",
 		mode: "enforcing",
 		gate: "nklein-session-runtime.ts (hands the extension the onOffTrackRemedy action callback)",
@@ -375,6 +381,12 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 		kind: "pending_validation",
 		reason:
 			"A worker-loop behaviour change (one begin_implementation re-prompt for a wander-stuck refinable card) whose EFFICACY is empirical — does the model actually promote when nudged? Enabling it in the nightly replay lane before a live drain confirms that would bake an unvalidated behaviour into the baseline. The precondition is a live-drain validation (run cli-parser-medium --no-plan with the flag on, confirm the card transitions), not a replay run — then flip it on for real.",
+	},
+	{
+		flag: "NKLEIN_EMPTY_FINAL_REDRIVE",
+		kind: "pending_validation",
+		reason:
+			"A rig-recovery behaviour (one continue re-prompt when a run ends on an EMPTY final) targeting the llama.cpp multi-slot slot-reuse degradation observed live 2026-08-29. In the replay lane an empty final is a RECORDED legitimate ending — re-driving it would send an input the recording never contained and guarantee unmatched requests. Validation is a live Flash-Next drain with the flag on (does a glitched session resume and complete?), not a replay; flip for the lane only if it ever becomes default-relevant.",
 	},
 	{
 		flag: "NKLEIN_MODEL_CONSULT",

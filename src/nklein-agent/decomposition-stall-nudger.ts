@@ -132,6 +132,7 @@ export class DecompositionStallNudger {
 	private readonly nudgeCountsByTaskId = new Map<string, number>();
 	/** Separate budget for the refinement-promotion nudge (a task is either a decompose card OR a refinable one). */
 	private readonly narratedToolCallNudgedTaskIds = new Set<string>();
+	private readonly emptyFinalNudgedTaskIds = new Set<string>();
 	private readonly refinementNudgeCountsByTaskId = new Map<string, number>();
 
 	constructor(private readonly callbacks: DecompositionStallNudgerCallbacks) {}
@@ -344,6 +345,57 @@ export class DecompositionStallNudger {
 	 * Applies to ANY task kind (unlike the decompose-specific rungs): a formatting slip is model-dialect, not
 	 * task-shape. One-shot bound keeps a dialect-stuck model from ping-ponging forever.
 	 */
+	/**
+	 * Empty-final recovery (live-found 2026-08-29, single remaining architect killer after the review-race fix):
+	 * the model returned an EMPTY completion mid-run (a llama.cpp multi-slot degradation class), the SDK read it
+	 * as the final answer, and a productive session ended as agent_end with only the "Agent active" placeholder.
+	 * When a session ends with reviewReason "exit"/"hook" and NO substantive final text, send ONE "continue"
+	 * re-prompt — a real empty-handed model will just end again (bounded), a glitched completion resumes work.
+	 */
+	maybeNudgeEmptyFinal(taskId: string): boolean {
+		const summary = this.callbacks.getTaskSummary(taskId);
+		if (!summary || summary.state === "running") {
+			return false;
+		}
+		if (summary.reviewReason !== "exit" && summary.reviewReason !== "hook") {
+			return false;
+		}
+		const activity = summary.latestHookActivity;
+		if (activity?.hookEventName !== "agent_end") {
+			return false;
+		}
+		const finalText = (activity?.finalMessage ?? "").trim();
+		const placeholderOnly = finalText.length === 0 || finalText === "Agent active";
+		if (!placeholderOnly || this.emptyFinalNudgedTaskIds.has(taskId)) {
+			return false;
+		}
+		this.emptyFinalNudgedTaskIds.add(taskId);
+		this.callbacks.recordObservation({
+			taskId,
+			workspacePath: this.callbacks.resolveWorkspacePath(taskId),
+			providerId: this.callbacks.resolveProviderId(taskId),
+			modelId: this.callbacks.resolveModelId(taskId),
+			message:
+				"!Klein re-drove a session whose run ended on an EMPTY final (glitched completion, not a real finish).",
+			metadata: {
+				category: "empty_final_redriven",
+				lastTool: activity?.toolName ?? null,
+			},
+		});
+		void this.callbacks
+			.sendTaskSessionInput(
+				taskId,
+				[
+					"Your last reply came through EMPTY (a transient inference glitch — not your fault, and the run is not finished).",
+					"Continue exactly where you left off: re-issue the tool call or text you intended.",
+					"If you had genuinely completed the objective, state the completion explicitly instead of an empty reply.",
+				].join(" "),
+				"act",
+			)
+			.catch(() => undefined);
+		return true;
+	}
+
 	maybeNudgeNarratedToolCall(taskId: string): boolean {
 		const summary = this.callbacks.getTaskSummary(taskId);
 		if (!summary || summary.state === "running") {
@@ -443,6 +495,7 @@ export class DecompositionStallNudger {
 		this.nudgeCountsByTaskId.delete(taskId);
 		this.refinementNudgeCountsByTaskId.delete(taskId);
 		this.narratedToolCallNudgedTaskIds.delete(taskId);
+		this.emptyFinalNudgedTaskIds.delete(taskId);
 	}
 
 	/**

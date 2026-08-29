@@ -4562,6 +4562,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			if (!decompositionRecoveryScheduled && isTruthyEnv(process.env.NKLEIN_REFINEMENT_STALL_NUDGE)) {
 				decompositionRecoveryScheduled = this.decompositionStallNudger.maybeNudgeStalledRefinement(taskId);
 			}
+			// LAST rung, generic catch-all, OPT-IN (NKLEIN_EMPTY_FINAL_REDRIVE — rig/drain flag, default OFF =
+			// byte-identical): only when no task-shape-specific recovery claimed the turn does the empty-final
+			// re-drive fire. Ordering matters (placed first it stole the decompose rung's exits), and the gate
+			// matters: a mock/manual flow may END legitimately on an empty final — only a rig chasing glitched
+			// completions (llama.cpp slot-reuse degradation) should re-drive those.
+			if (!decompositionRecoveryScheduled && isTruthyEnv(process.env.NKLEIN_EMPTY_FINAL_REDRIVE)) {
+				decompositionRecoveryScheduled = this.decompositionStallNudger.maybeNudgeEmptyFinal(taskId);
+			}
 			// Turn-end recovery decision trail (2026-08-29): six consecutive silent architect deaths — every one
 			// "agent_end then heartbeat lost" — were undiagnosable because nothing recorded what this seam SAW and
 			// which recovery (if any) claimed the turn. One compact observation per non-running turn-end.
