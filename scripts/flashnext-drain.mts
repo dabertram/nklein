@@ -348,21 +348,48 @@ try {
 			headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
 			body: JSON.stringify({ taskId: seededTaskId }),
 		}).catch(() => null); // not-running is fine — we only care that no ACT worker survives
-		const planStart = await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.startTaskSession?workspaceId=ws`, {
-			method: "POST",
-			headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
-			body: JSON.stringify({
-				taskId: seededTaskId,
-				prompt,
-				taskTitle: "Dark Factory Dschinn — plan the vertical spine",
-				startInPlanMode: true,
-				baseRef: "main",
-				agentId: "nklein",
-			}),
-		});
-		const planStartBody = await planStart.text();
-		if (!planStart.ok || planStartBody.includes('"error"')) {
-			throw new Error(`plan-mode start failed (HTTP ${planStart.status}): ${planStartBody.slice(0, 400)}`);
+		// VERIFY-ROLE LOOP (2026-08-30): once the capability/ctx pre-seeds made ingress auto-start succeed
+		// instantly, the auto WORKER wins the seed race — the stop above lands mid-spawn and misses, and the
+		// explicit start below short-circuits into the live worker session (ok:true, role:"worker", 3-tool
+		// manifest — captured verbatim in the request log). Loop stop→start until the summary really says
+		// architect; three misses is a genuine error, not a race.
+		let planStartBody = "";
+		let architectConfirmed = false;
+		for (let attempt = 0; attempt < 3 && !architectConfirmed; attempt += 1) {
+			if (attempt > 0) {
+				await fetch(`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.stopTaskSession?workspaceId=ws`, {
+					method: "POST",
+					headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
+					body: JSON.stringify({ taskId: seededTaskId }),
+				}).catch(() => null);
+				await new Promise((tick) => setTimeout(tick, 3_000));
+			}
+			const planStart = await fetch(
+				`http://127.0.0.1:${RUNTIME_PORT}/api/trpc/runtime.startTaskSession?workspaceId=ws`,
+				{
+					method: "POST",
+					headers: { "content-type": "application/json", "x-nklein-workspace-id": "ws" },
+					body: JSON.stringify({
+						taskId: seededTaskId,
+						prompt,
+						taskTitle: "Dark Factory Dschinn — plan the vertical spine",
+						startInPlanMode: true,
+						baseRef: "main",
+						agentId: "nklein",
+					}),
+				},
+			);
+			planStartBody = await planStart.text();
+			if (!planStart.ok || planStartBody.includes('"error"')) {
+				throw new Error(`plan-mode start failed (HTTP ${planStart.status}): ${planStartBody.slice(0, 400)}`);
+			}
+			architectConfirmed = planStartBody.includes('"role":"architect"');
+			if (!architectConfirmed) {
+				process.stdout.write(`start attempt ${attempt + 1} landed on a non-architect session — stopping it and retrying\n`);
+			}
+		}
+		if (!architectConfirmed) {
+			throw new Error(`plan-mode start never yielded an architect after 3 attempts: ${planStartBody.slice(0, 300)}`);
 		}
 		process.stdout.write(`plan-mode architect started on ${seededTaskId}: ${planStartBody.slice(0, 160)}\n`);
 	}
