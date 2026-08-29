@@ -1898,8 +1898,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							} catch {
 								// fall through to the plain redrive.
 							}
+							// Observability (2026-08-29, dschinn hunt): four consecutive silent session deaths cost hours
+							// of guessing because this line never said WHY the session ended. Name the terminal facts.
+							const deadSummary = service.getSummary(terminalTaskId);
+							const deadWhy = deadSummary
+								? ` [state=${deadSummary.state} reviewReason=${deadSummary.reviewReason ?? "-"} exit=${deadSummary.exitCode ?? "-"} heartbeat=${(deadSummary as { heartbeatStatus?: string | null }).heartbeatStatus ?? "-"} lastActivity=${deadSummary.latestHookActivity?.hookEventName ?? "-"}:${(deadSummary.latestHookActivity?.activityText ?? "").slice(0, 60)}]`
+								: " [no summary retained]";
 							deps.warn(
-								`Dead card ${terminalTaskId} left no captured work — attempting ONE fresh restart before leaving it for the operator.${redriveNote}`,
+								`Dead card ${terminalTaskId} left no captured work — attempting ONE fresh restart before leaving it for the operator.${redriveNote}${deadWhy}`,
 							);
 							redriveTaskIds.push(terminalTaskId);
 						}

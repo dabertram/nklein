@@ -275,6 +275,49 @@ function createFindFilesTool(workspacePath: string, hostWorkspacePath?: string |
 	};
 }
 
+/**
+ * Coerce a tool "path" argument from the shapes weak/grammar-constrained models actually send. Live-found
+ * 2026-08-29 (dschinn architect, Flash-Next via llama.cpp --jinja): the schema declares `path: string`, the
+ * model sent `{"path":[[]]}` and `{"path":[{"path":"[\"specification.md\"]"}]}` — the INTENT is present,
+ * nested inside arrays/objects/JSON-encoded strings. Dig it out instead of failing the turn: unwrap arrays,
+ * follow nested `path` keys, parse JSON-string-encoded arrays, and return the first non-empty string. Returns
+ * null only when no string exists anywhere — the strict error (with its teaching example) still covers that.
+ */
+export function coercePathArgument(value: unknown, depth = 0): string | null {
+	if (depth > 6 || value === null || value === undefined) {
+		return null;
+	}
+	if (typeof value === "string") {
+		const text = value.trim();
+		if (text.length === 0) {
+			return null;
+		}
+		// A JSON-encoded array/object smuggled as a string: '["specification.md"]'.
+		if ((text.startsWith("[") && text.endsWith("]")) || (text.startsWith("{") && text.endsWith("}"))) {
+			try {
+				return coercePathArgument(JSON.parse(text), depth + 1) ?? text;
+			} catch {
+				return text;
+			}
+		}
+		return text;
+	}
+	if (Array.isArray(value)) {
+		for (const item of value) {
+			const found = coercePathArgument(item, depth + 1);
+			if (found) {
+				return found;
+			}
+		}
+		return null;
+	}
+	if (typeof value === "object") {
+		const record = value as Record<string, unknown>;
+		return coercePathArgument(record.path ?? record.file ?? record.filename, depth + 1);
+	}
+	return null;
+}
+
 function createGetFileSizeTool(
 	workspacePath: string,
 	contextWindow?: number | null,
@@ -294,7 +337,7 @@ function createGetFileSizeTool(
 		},
 		async execute(input) {
 			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
-			const rawPath = asString(record.path);
+			const rawPath = asString(record.path) ?? coercePathArgument(record.path ?? input);
 			if (!rawPath) {
 				throw new Error(
 					'get_file_size requires a non-empty path. Call it as {"path":"<workspace-relative file>"} — e.g. {"path":"specification.md"}.',

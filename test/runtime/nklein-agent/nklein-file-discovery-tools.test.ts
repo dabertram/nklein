@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createFileDiscoveryTools } from "../../../src/nklein-agent/nklein-file-discovery-tools";
+import { coercePathArgument, createFileDiscoveryTools } from "../../../src/nklein-agent/nklein-file-discovery-tools";
 import type { AgentToolContext } from "../../../src/nklein-agent/sdk-agent-types";
 
 const TEMP_PREFIX = "kanban-file-discovery-tools-";
@@ -164,5 +164,22 @@ describe("createFileDiscoveryTools", () => {
 		const listFiles = getTool(createFileDiscoveryTools({ workspacePath }), "list_files");
 
 		await expect(listFiles.execute({ path: ".." }, TOOL_CONTEXT)).rejects.toThrow("outside the workspace");
+	});
+});
+
+describe("coercePathArgument (Flash-Next nested-arg tolerance, live-found 2026-08-29)", () => {
+	it("digs the path out of the shapes the model actually sent", () => {
+		expect(coercePathArgument([[]])).toBeNull();
+		expect(coercePathArgument([{ path: '["specification.md"]' }])).toBe("specification.md");
+		expect(coercePathArgument(["notes/a.md"])).toBe("notes/a.md");
+		expect(coercePathArgument({ path: { path: "x.ts" } })).toBe("x.ts");
+		expect(coercePathArgument('["b.md"]')).toBe("b.md");
+	});
+
+	it("passes plain strings through and refuses shapes with no string anywhere", () => {
+		expect(coercePathArgument("plain.md")).toBe("plain.md");
+		expect(coercePathArgument(null)).toBeNull();
+		expect(coercePathArgument(42)).toBeNull();
+		expect(coercePathArgument({ other: 1 })).toBeNull();
 	});
 });

@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { getRuntimeHomePath } from "../state/workspace-state";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
+import { coercePathArgument } from "./nklein-file-discovery-tools";
 import {
 	coveredLineCount,
 	findRangeContainingLine,
@@ -731,6 +732,16 @@ function createReadLargeFileToolForWorkflow(
 			additionalProperties: false,
 		},
 		async execute(input) {
+			// Coerce nested/misshapen path args (same live-found tolerance as get_file_size — see
+			// coercePathArgument in nklein-file-discovery-tools.ts): the schema says string, grammar-constrained
+			// models send arrays/objects around the intended value. Dig the string out; only truly path-less
+			// calls still get the teaching error.
+			if (input && typeof input === "object" && typeof (input as Record<string, unknown>).path !== "string") {
+				const coerced = coercePathArgument((input as Record<string, unknown>).path ?? input);
+				if (coerced) {
+					(input as Record<string, unknown>).path = coerced;
+				}
+			}
 			if (!input || typeof input !== "object" || typeof (input as Record<string, unknown>).path !== "string") {
 				throw new Error("read_large_file requires a string path field.");
 			}
