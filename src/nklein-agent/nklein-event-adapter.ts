@@ -375,6 +375,31 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		}
 
 		const status = typeof result?.status === "string" ? result.status : "completed";
+		// Debugger directive 2026-08-30 (NKLEIN_STOP_STACKS=1): the vendored run END is the unexplained event —
+		// no stop call precedes it (proven by the stop-stack seams staying silent through a death). Dump the RAW
+		// result shape at every agent_end so the terminating turn explains itself: status, finalText length,
+		// every result key, and any error/finishReason the SDK carried. Rig flag; zero cost when off.
+		if (process.env.NKLEIN_STOP_STACKS === "1") {
+			try {
+				const resultKeys = result ? Object.keys(result).join(",") : "(null result)";
+				const errorPeek = result?.error ? String(JSON.stringify(result.error)).slice(0, 200) : null;
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `agent_end raw: status=${status} finalLen=${finalText.length} keys=[${resultKeys}]${errorPeek ? ` error=${errorPeek}` : ""}`,
+					taskId,
+					metadata: {
+						category: "agent_end_raw",
+						status,
+						finalLength: finalText.length,
+						resultKeys,
+						errorPeek,
+					},
+				});
+			} catch {
+				// Debug telemetry must never break the turn end.
+			}
+		}
 
 		// N18: record this TURN's token usage against the card, with the model that served it.
 		//

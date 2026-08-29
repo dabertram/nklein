@@ -1153,6 +1153,9 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
  * observation side rather than the flag side.
  */
 export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
+	// Debugger directive 2026-08-30 (NKLEIN_STOP_STACKS rig flag): raw agent_end dump — the vendored run's
+	// terminating turn explains itself (status/finalLen/result keys) after stop-stack seams proved no one stops it.
+	"agent_end_raw",
 	"agent_sandbox_result_cleanup",
 	"agent_sandbox_result_patch",
 	"attempt_started",
