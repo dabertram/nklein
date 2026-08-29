@@ -76,6 +76,13 @@ export interface ResultHandleStore {
 
 	/** Return `true` when the handle is known to this store (i.e. `get` would return a value). */
 	has(handle: string): boolean;
+
+	/**
+	 * The most recently issued handle, or null when none has been issued. Lets the resolver recover the obvious
+	 * intent of `resolve_result` with a null/omitted handle (live-found 2026-08-29: the model sent handle:null
+	 * for "the last big result" — there is exactly one sensible referent when any exists).
+	 */
+	latestHandle(): string | null;
 }
 
 /**
@@ -92,6 +99,7 @@ export interface ResultHandleStore {
 export function createResultHandleStore(): ResultHandleStore {
 	const store = new Map<string, unknown>();
 	let counter = 0;
+	let latest: string | null = null;
 
 	return {
 		put(tool: string, value: unknown): string {
@@ -99,6 +107,7 @@ export function createResultHandleStore(): ResultHandleStore {
 			const id = String(counter);
 			const handle = formatResultHandle(tool, id);
 			store.set(handle, value);
+			latest = handle;
 			return handle;
 		},
 
@@ -116,6 +125,10 @@ export function createResultHandleStore(): ResultHandleStore {
 				return false;
 			}
 			return store.has(handle);
+		},
+
+		latestHandle(): string | null {
+			return latest;
 		},
 	};
 }

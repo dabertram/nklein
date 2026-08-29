@@ -92,3 +92,28 @@ describe("live result-handle bridge (F4.7)", () => {
 		expect(nested).not.toContain('"maximum"');
 	});
 });
+
+describe("null-handle fallback (Flash-Next handle:null live-find 2026-08-29)", () => {
+	it("resolves the latest handle when the model omits/nulls it and one exists", () => {
+		const { store, tool } = createSessionResultHandles();
+		store.put("read_files", "old-doc");
+		const latest = store.put("read_files", "new-doc-content");
+		const context = { agentId: "agent", iteration: 1 };
+		const out = String(tool.execute({ handle: null }, context));
+		expect(out).toContain(latest);
+		expect(out).toContain("new-doc-content");
+	});
+
+	it("teaches instead of failing when NO handle has ever been issued", () => {
+		const { tool } = createSessionResultHandles();
+		const context = { agentId: "agent", iteration: 1 };
+		expect(() => tool.execute({ handle: null }, context)).toThrow(/no result handle has been issued/);
+	});
+
+	it("still errors on an explicit malformed handle even when a latest exists", () => {
+		const { store, tool } = createSessionResultHandles();
+		store.put("read_files", "doc");
+		const context = { agentId: "agent", iteration: 1 };
+		expect(() => tool.execute({ handle: "bad" }, context)).toThrow(/valid result/);
+	});
+});

@@ -143,11 +143,26 @@ export function createSessionResultHandles(): { store: ResultHandleStore; tool: 
 			additionalProperties: true,
 		},
 		execute(input) {
-			const handle =
+			let handle =
 				input && typeof input === "object" && typeof (input as { handle?: unknown }).handle === "string"
 					? (input as { handle: string }).handle.trim()
 					: "";
-			if (!handle || parseResultHandle(handle) === null) {
+			if (!handle) {
+				// Null/omitted handle (live-found 2026-08-29, Flash-Next architect sent handle:null): the model
+				// means "the last big result". When that referent exists, resolve it instead of failing the turn;
+				// the error covers the truly empty case — no handle ever issued (speculative call). An EXPLICIT
+				// but malformed handle still errors below: it references something specific, and quietly serving
+				// the latest instead could hand back the wrong document.
+				const latest = store.latestHandle();
+				if (latest !== null) {
+					handle = latest;
+				} else {
+					throw new Error(
+						'resolve_result: no result handle has been issued in this session yet — nothing to resolve. Large tool results say "replaced by a session result handle" and include a result://<tool>/<id> string; until one appears, read files directly (read_files / read_large_file).',
+					);
+				}
+			}
+			if (parseResultHandle(handle) === null) {
 				throw new Error(
 					'resolve_result requires a valid result://<tool>/<id> handle — pass the EXACT handle string from the tool result that said "replaced by a session result handle", e.g. {"handle":"result://read_files/abc123"}.',
 				);
