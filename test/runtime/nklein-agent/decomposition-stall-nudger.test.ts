@@ -265,3 +265,63 @@ describe("maybeNudgeStalledRefinement (P18.4b refinement-promotion nudge wiring)
 		).toBe(false);
 	});
 });
+
+describe("maybeNudgeNarratedToolCall (Flash-Next dialect slip, live-found 2026-08-29)", () => {
+	function makeNarratedNudger(
+		finalMessage: string | null,
+		state: RuntimeTaskSessionSummary["state"] = "awaiting_review",
+	) {
+		const sent: string[] = [];
+		const observed: Array<Record<string, string | null>> = [];
+		const stalled: RuntimeTaskSessionSummary = {
+			...summary(activity({ hookEventName: "agent_end", finalMessage })),
+			state,
+			reviewReason: "hook",
+		};
+		const nudger = new DecompositionStallNudger({
+			isExplicitDecompositionTask: () => false,
+			getTaskSummary: () => stalled,
+			resolveProviderId: () => "lmstudio",
+			resolveModelId: () => "qwen3.8-flash-next",
+			resolveWorkspacePath: () => null,
+			recordObservation: (params) => {
+				observed.push(params.metadata);
+			},
+			cancelTaskTurn: async () => null,
+			sendTaskSessionInput: async (_taskId, text) => {
+				sent.push(text);
+				return null;
+			},
+		});
+		return { nudger, sent, observed };
+	}
+
+	it("recovers the exact live slip — bracket header + XML tails + JSON body — one-shot", async () => {
+		const slip =
+			'[tool_call id=call01_Qw3 name=resolve_result] {"handle":"result://read_files/1","offset":0} </parameter> </function> </tool_call>';
+		const { nudger, sent, observed } = makeNarratedNudger(slip);
+		expect(nudger.maybeNudgeNarratedToolCall("t1")).toBe(true);
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(sent).toHaveLength(1);
+		expect(sent[0]).toContain("PLAIN TEXT");
+		expect(sent[0]).toContain("resolve_result");
+		expect(sent[0]).toContain("REAL tool call");
+		expect(observed[0]?.category).toBe("narrated_tool_call_recovered");
+		expect(nudger.maybeNudgeNarratedToolCall("t1")).toBe(false);
+	});
+
+	it("recovers an XML-tail slip without the bracket header", () => {
+		const { nudger } = makeNarratedNudger('{"path":"spec.md"} </tool_call>');
+		expect(nudger.maybeNudgeNarratedToolCall("t1")).toBe(true);
+	});
+
+	it("never fires on ordinary prose, running sessions, or empty finals", () => {
+		expect(makeNarratedNudger("The plan is complete; handing over.").nudger.maybeNudgeNarratedToolCall("t1")).toBe(
+			false,
+		);
+		expect(makeNarratedNudger(null).nudger.maybeNudgeNarratedToolCall("t1")).toBe(false);
+		expect(makeNarratedNudger('[tool_call name=x] {"a":1}', "running").nudger.maybeNudgeNarratedToolCall("t1")).toBe(
+			false,
+		);
+	});
+});

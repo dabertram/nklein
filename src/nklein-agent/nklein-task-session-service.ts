@@ -4550,7 +4550,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.activeToolTaskIds.delete(taskId);
 			// An explicit planning turn that cleanly ended without applying a graph gets first claim on recovery.
 			// The generic loop guard can otherwise park it as attention before this targeted bounded nudge sees `exit`.
-			decompositionRecoveryScheduled = this.decompositionStallNudger.maybeContinueStalledDecomposition(taskId);
+			// Narrated-tool-call slip first (any task kind): a mangled call emitted as text ended the run —
+			// one corrective re-prompt beats every downstream rescue (live-found 2026-08-29, Flash-Next dialect slip).
+			decompositionRecoveryScheduled = this.decompositionStallNudger.maybeNudgeNarratedToolCall(taskId);
+			if (!decompositionRecoveryScheduled) {
+				decompositionRecoveryScheduled = this.decompositionStallNudger.maybeContinueStalledDecomposition(taskId);
+			}
 			// Sibling recovery: a refinable --no-plan work card that ended a turn still in Planning (never called
 			// begin_implementation) gets a bounded promotion nudge in the same slot, ahead of the loop guard. OFF by
 			// default (NKLEIN_REFINEMENT_STALL_NUDGE) — a worker-loop behavior change pending live-drain validation.

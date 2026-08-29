@@ -131,6 +131,7 @@ export class DecompositionStallNudger {
 	private readonly nudgeHandlesByTaskId = new Map<string, NodeJS.Timeout>();
 	private readonly nudgeCountsByTaskId = new Map<string, number>();
 	/** Separate budget for the refinement-promotion nudge (a task is either a decompose card OR a refinable one). */
+	private readonly narratedToolCallNudgedTaskIds = new Set<string>();
 	private readonly refinementNudgeCountsByTaskId = new Map<string, number>();
 
 	constructor(private readonly callbacks: DecompositionStallNudgerCallbacks) {}
@@ -333,6 +334,60 @@ export class DecompositionStallNudger {
 	 * the gating is the pure {@link decideRefinementStallRecovery}. The service calls this ONLY when the
 	 * refinement-stall nudge is enabled (off by default) and no more-specific decomposition recovery already fired.
 	 */
+	/**
+	 * Narrated-TOOL-CALL recovery (live-found 2026-08-29, dschinn architect on Flash-Next): the model emitted a
+	 * syntactically-mangled tool call as PLAIN TEXT (`[tool_call id=… name=resolve_result] {…} </parameter>
+	 * </function> </tool_call>` — a slip into Qwen's XML tool dialect), the parser saw ordinary text, the agent
+	 * ended its run, and the heartbeat-lost rung culled a productive session. Detection is deliberately narrow —
+	 * the final text must LOOK like a tool invocation (a `[tool_call … name=…]` header or `</tool_call>` tail
+	 * with a JSON body) — and recovery is ONE corrective re-prompt per session: re-issue the call for real.
+	 * Applies to ANY task kind (unlike the decompose-specific rungs): a formatting slip is model-dialect, not
+	 * task-shape. One-shot bound keeps a dialect-stuck model from ping-ponging forever.
+	 */
+	maybeNudgeNarratedToolCall(taskId: string): boolean {
+		const summary = this.callbacks.getTaskSummary(taskId);
+		if (!summary || summary.state === "running") {
+			return false;
+		}
+		const activity = summary.latestHookActivity;
+		const finalText = (activity?.finalMessage ?? activity?.activityText ?? "").trim();
+		if (finalText.length === 0 || this.narratedToolCallNudgedTaskIds.has(taskId)) {
+			return false;
+		}
+		const header = /\[tool_call[^\]]*name=([\w.-]+)\]/i.exec(finalText);
+		const xmlTail = /<\/(?:tool_call|function|parameter)>/i.test(finalText);
+		const hasJsonBody = /\{\s*"/.test(finalText);
+		if (!header && !(xmlTail && hasJsonBody)) {
+			return false;
+		}
+		const toolName = header?.[1] ?? null;
+		this.narratedToolCallNudgedTaskIds.add(taskId);
+		this.callbacks.recordObservation({
+			taskId,
+			workspacePath: this.callbacks.resolveWorkspacePath(taskId),
+			providerId: this.callbacks.resolveProviderId(taskId),
+			modelId: this.callbacks.resolveModelId(taskId),
+			message: "!Klein recovered a tool call that was emitted as plain text (narrated tool-call slip).",
+			metadata: {
+				category: "narrated_tool_call_recovered",
+				tool: toolName,
+				finalPreview: finalText.slice(0, 120),
+			},
+		});
+		void this.callbacks
+			.sendTaskSessionInput(
+				taskId,
+				[
+					`Your last message wrote a tool call as PLAIN TEXT${toolName ? ` (${toolName})` : ""}, so it was NOT executed — a formatting slip, not a tool failure.`,
+					"Re-issue it now as a REAL tool call: same tool, same arguments, through the tool-calling channel only.",
+					"Do not apologize, summarize, or re-plan — just make the call and continue where you left off.",
+				].join(" "),
+				"act",
+			)
+			.catch(() => undefined);
+		return true;
+	}
+
 	maybeNudgeStalledRefinement(taskId: string): boolean {
 		const summary = this.callbacks.getTaskSummary(taskId);
 		if (!summary) {
@@ -387,6 +442,7 @@ export class DecompositionStallNudger {
 		this.clearDecompositionChatNudge(taskId);
 		this.nudgeCountsByTaskId.delete(taskId);
 		this.refinementNudgeCountsByTaskId.delete(taskId);
+		this.narratedToolCallNudgedTaskIds.delete(taskId);
 	}
 
 	/**
