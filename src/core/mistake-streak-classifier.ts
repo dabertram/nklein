@@ -28,6 +28,8 @@ const POLICY_GUIDANCE_PATTERNS: readonly RegExp[] = [
 	// add_task/add_dependency arg-validation coaching (live 2026-08-30: two batch-shape rejections marched a
 	// healthy Flash-Next architect toward the kill streak) — teaching text, not a capability failure.
 	/needs id, title, and prompt|Fix the call and resend/i,
+	// decompose_project protocol coaching (incremental-route redirects): teaching text, not capability failure.
+	/STOP retrying the full nested|NOTHING to submit yet/i,
 ];
 
 const GENUINE_OVERRIDE_PATTERNS: readonly RegExp[] = [

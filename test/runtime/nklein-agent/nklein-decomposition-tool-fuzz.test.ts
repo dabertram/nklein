@@ -167,13 +167,13 @@ describe("decompose_project malformed-call recovery", () => {
 		expect(message.length).toBeLessThan(600);
 	}
 
-	it("rejects an empty {} call with a short mandatory incremental-protocol switch", async () => {
-		await expectShortRejection({}, /no arguments[\s\S]*STOP retrying[\s\S]*add_task[\s\S]*add_dependency/i);
+	it("rejects an empty {} call by naming the empty graph and the add_task-first path", async () => {
+		await expectShortRejection({}, /NOTHING to submit yet[\s\S]*add_task[\s\S]*add_dependency/i);
 	});
 
-	it("rejects a call missing the tasks field", async () => {
+	it("rejects a call missing the tasks field with the same add_task-first coaching", async () => {
 		const { tasks: _tasks, ...withoutTasks } = basePayload();
-		await expectShortRejection(withoutTasks, /missing required fields[\s\S]*tasks/i);
+		await expectShortRejection(withoutTasks, /NOTHING to submit yet[\s\S]*add_task/i);
 	});
 
 	it("rejects a task with a typo'd id field (tasks_id instead of id) with a compact message", async () => {

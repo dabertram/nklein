@@ -389,6 +389,23 @@ function createDecomposeProjectTool(
 					};
 				}
 			}
+			// Live 2026-08-30 (Flash-Next dschinn architect): the recovery hint's closing line — "call
+			// decompose_project with NO arguments" — was followed LITERALLY before any add_task, and the generic
+			// missing-fields error then scolded the model for "retrying the full nested payload" it never sent.
+			// Name the actual problem instead: an empty graph with no inline tasks has nothing to submit.
+			if (incrementalState && incrementalState.construction.nodes.length === 0) {
+				const recordForEmptyCheck = effectiveInput as Record<string, unknown>;
+				const hasInlineTasks =
+					(Array.isArray(recordForEmptyCheck.tasks) && recordForEmptyCheck.tasks.length > 0) ||
+					typeof recordForEmptyCheck.tasks === "string";
+				if (!hasInlineTasks) {
+					throw new Error(
+						"decompose_project has NOTHING to submit yet: the incremental graph is EMPTY and this call carries no tasks. " +
+							"Declare the cards FIRST — call add_task with id, title, and prompt for each card (a batch array in `tasks` is also accepted), " +
+							"add dependencies with add_dependency, THEN call decompose_project with no arguments to submit the accumulated graph.",
+					);
+				}
+			}
 			const { slug, spec, plan, summary, questions, taskGraph, expansions } =
 				normalizeDecomposeProjectToolInput(effectiveInput);
 			if (sourceTaskId) {

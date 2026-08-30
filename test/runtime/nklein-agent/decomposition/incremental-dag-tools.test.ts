@@ -283,7 +283,7 @@ describe("decompose_project completion route (shared session state)", () => {
 		if (!decompose) {
 			throw new Error("expected decompose_project in the toolset");
 		}
-		await expect(decompose.execute({}, ctx)).rejects.toThrow(/called with no arguments/);
+		await expect(decompose.execute({}, ctx)).rejects.toThrow(/NOTHING to submit yet/);
 	});
 
 	it("add_task and add_dependency boundaries carry no validation keywords the SDK could pre-reject against", () => {
@@ -378,7 +378,7 @@ describe("decompose_project completion route (shared session state)", () => {
 		// A DIFFERENT card in the same workspace starts empty — no cross-card bleed.
 		const otherCard = createNKleinDecompositionTools({ workspacePath, sourceTaskId: "card-2" });
 		const decomposeOther = new Map(otherCard.map((tool) => [tool.name, tool])).get("decompose_project");
-		await expect(decomposeOther?.execute({}, ctx)).rejects.toThrow(/called with no arguments/);
+		await expect(decomposeOther?.execute({}, ctx)).rejects.toThrow(/NOTHING to submit yet/);
 	});
 
 	it("a tasks-less decompose_project submits the incremental construction, then the state resets", async () => {
@@ -411,10 +411,24 @@ describe("decompose_project completion route (shared session state)", () => {
 		expect(result.taskCount).toBe(3);
 		expect(result.dependencyCount).toBe(2);
 
-		// Consumed: a repeat tasks-less call has nothing to submit and gets the standard missing-fields guidance.
+		// Consumed: a repeat tasks-less call has nothing to submit — the empty-graph guard names the real
+		// problem (declare cards first) instead of the misleading "full nested payload" scolding.
 		await expect(
 			decompose.execute({ slug: "incremental-demo", spec: "Three-step build.", plan: "Again." }, ctx),
-		).rejects.toThrow(/missing required fields: tasks/);
+		).rejects.toThrow(/NOTHING to submit yet/);
+	});
+
+	it("a bare decompose_project with an EMPTY graph coaches add_task-first, not the nested-payload scolding", async () => {
+		// Live 2026-08-30: the recovery hint's "call decompose_project with NO arguments" was followed
+		// LITERALLY before any add_task; the generic error then accused the model of retrying a nested
+		// payload it never sent, looping it. The empty-graph case now names the actual next step.
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-incremental-dag-"));
+		const tools = createNKleinDecompositionTools({ workspacePath });
+		const decompose = tools.find((tool) => tool.name === "decompose_project");
+		if (!decompose) {
+			throw new Error("expected decompose_project in the toolset");
+		}
+		await expect(decompose.execute({}, ctx)).rejects.toThrow(/NOTHING to submit yet.*add_task/s);
 	});
 
 	it("clears the submitted incremental graph when the critic requests a revision", async () => {
