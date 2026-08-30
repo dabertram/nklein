@@ -25,6 +25,9 @@ const POLICY_GUIDANCE_PATTERNS: readonly RegExp[] = [
 	// guidance-to-retry, not a genuine execution failure. Counting them GENUINE stop-killed a productive
 	// architect at 3 strikes — the header's own bug class. Narrow wording, mirrors the fences above.
 	/requires a non-empty \w+|requires a valid result:\/\//i,
+	// add_task/add_dependency arg-validation coaching (live 2026-08-30: two batch-shape rejections marched a
+	// healthy Flash-Next architect toward the kill streak) — teaching text, not a capability failure.
+	/needs id, title, and prompt|Fix the call and resend/i,
 ];
 
 const GENUINE_OVERRIDE_PATTERNS: readonly RegExp[] = [

@@ -200,10 +200,161 @@ export function createIncrementalDagTools(
 		onCheckpoint?: () => void;
 	},
 ): AgentTool[] {
+	/** The single-task add path (validation, idempotent replay, bounce-replace, node+edges). Batch loops this. */
+	async function executeSingleAddTask(record: Record<string, unknown>): Promise<unknown> {
+		// Numeric-scalar tolerance (live-found 2026-08-29, Flash-Next architect): the model sent id/title as
+		// NUMBERS (id: 1) — a grammar-dialect slip, self-diagnosed in its own final ("numbers instead of
+		// strings") — and three type-rejections burned the recovery bounds and ended a productive session.
+		// Numbers stringify losslessly and unambiguously; coerce them for the string fields instead of
+		// failing the turn. Non-scalar shapes still hit the schema error with its teaching text.
+		for (const key of ["id", "title", "prompt", "testabilityReason"]) {
+			if (typeof record[key] === "number" && Number.isFinite(record[key] as number)) {
+				record[key] = String(record[key]);
+			}
+		}
+		const parsed = nkleinPlanTaskSchema.safeParse(repairJsonStringValue(record));
+		if (!parsed.success) {
+			// Live 20260811-000253: after four perfect 1-2KB add_task calls the model degenerated to EMPTY
+			// calls — it planned "S05" in its reasoning, then emitted `<function=add_task></function>` three
+			// times and the mistake streak stopped a healthy session. For the empty case, anchor the coaching
+			// to the model's OWN recent success (it demonstrably knows the format) instead of restating the
+			// schema it just used correctly.
+			if (Object.keys(record).length === 0 && state.construction.nodes.length > 0) {
+				const lastId = state.construction.nodes[state.construction.nodes.length - 1]?.id ?? "the last task";
+				throw new Error(
+					`add_task arrived with NO arguments — you planned the task in your reasoning but emitted an empty call. ` +
+						`Re-send it with the fields written INSIDE the tool call, exactly like your successful add_task for "${lastId}": ` +
+						`id, title, and prompt (plus optional card fields).`,
+				);
+			}
+			const issue = parsed.error.issues[0];
+			throw new Error(
+				`add_task needs id, title, and prompt (non-empty strings)${issue ? ` — ${issue.path.join(".") || "(root)"}: ${issue.message}` : ""}. Fix the call and resend it.`,
+			);
+		}
+		const task = parsed.data;
+		const existing = state.tasksById.get(task.id);
+		if (existing) {
+			// Idempotent replay: a session restarted with its conversation intact (or a model re-sending its
+			// list) re-declares tasks it already declared. An IDENTICAL payload is a no-op success, same as
+			// add_dependency's duplicate-edge handling — never a rejection spiral.
+			if (JSON.stringify(existing) === JSON.stringify(task)) {
+				return {
+					ok: true,
+					taskId: task.id,
+					alreadyPresent: true,
+					acceptedDependencyCount: 0,
+					rejectedDependencies: [],
+					instruction: `Task "${task.id}" was already declared with this exact content. No change was needed. ${progressLine(state)}`,
+				};
+			}
+			// Post-bounce repair (live 20260810-103422): after the assembled graph was REJECTED by validation
+			// ("S01 touches 5 likely files"), the model's instinct — re-declare the task smaller under the
+			// same id — bounced as duplicate_node, leaving NO small-call repair path: the stale construction
+			// resubmitted the same oversized task forever. After a bounce, same-id add_task REPLACES the
+			// earlier declaration (edges kept; inline dependsOn processed with duplicates tolerated).
+			if (state.allowTaskArrayRevision) {
+				state.tasksById.set(task.id, task);
+				let acceptedDependencyCount = 0;
+				const rejectedDependencies: Array<{ dependsOn: string; reason: string; message: string }> = [];
+				for (const dependency of task.dependsOn) {
+					const edgeOutcome = applyDagOp(state.construction, {
+						op: "add_edge",
+						from: dependency,
+						to: task.id,
+					});
+					if (edgeOutcome.result.ok) {
+						state.construction = edgeOutcome.state;
+						acceptedDependencyCount += 1;
+					} else if (edgeOutcome.result.reason !== "duplicate_edge") {
+						state.rejectedOpCount += 1;
+						rejectedDependencies.push({
+							dependsOn: dependency,
+							reason: edgeOutcome.result.reason,
+							message: describeDependencyRejection(edgeOutcome.result),
+						});
+					}
+				}
+				const rejectionNote =
+					rejectedDependencies.length > 0
+						? ` ${rejectedDependencies.length} dependency(ies) were REJECTED: ${rejectedDependencies
+								.map((entry) => `"${entry.dependsOn}" (${entry.message})`)
+								.join("; ")}.`
+						: "";
+				return {
+					ok: true,
+					taskId: task.id,
+					replaced: true,
+					acceptedDependencyCount,
+					rejectedDependencies,
+					instruction: `Task "${task.id}" REPLACED the earlier declaration (existing edges were kept).${rejectionNote} ${progressLine(state)}`,
+				};
+			}
+		}
+		const nodeOutcome = applyDagOp(state.construction, { op: "add_node", id: task.id, label: task.title });
+		if (!nodeOutcome.result.ok) {
+			state.rejectedOpCount += 1;
+			// P0.DSTALL layer 3(b): a restarted model does not know its construction survived — the bare
+			// duplicate rejection sent it in circles (Dschinn run 4: three duplicate_node loops after
+			// restarts). Orient it: say what the construction already holds and how to finish.
+			const orientation =
+				nodeOutcome.result.reason === "duplicate_node"
+					? ` The construction already holds ${state.construction.nodes.length} task(s): ${state.construction.nodes
+							.slice(0, 40)
+							.map((node) => node.id)
+							.join(
+								", ",
+							)}${state.construction.nodes.length > 40 ? ", …" : ""}. Declare only NEW tasks, or finish now with a bare decompose_project (no tasks argument).`
+					: "";
+			throw new Error(
+				`add_task rejected (${nodeOutcome.result.reason}): ${nodeOutcome.result.message}${orientation}`,
+			);
+		}
+		state.construction = nodeOutcome.state;
+		state.tasksById.set(task.id, task);
+		hooks?.onCheckpoint?.();
+		// Validate the inline dependencies one edge at a time — a bad one is REPORTED, not silently dropped,
+		// and never blocks the already-accepted task declaration.
+		const rejectedDependencies: Array<{ dependsOn: string; reason: string; message: string }> = [];
+		let acceptedDependencyCount = 0;
+		for (const dependency of task.dependsOn) {
+			const edgeOutcome = applyDagOp(state.construction, { op: "add_edge", from: dependency, to: task.id });
+			if (edgeOutcome.result.ok) {
+				state.construction = edgeOutcome.state;
+				acceptedDependencyCount += 1;
+				hooks?.onCheckpoint?.();
+			} else {
+				state.rejectedOpCount += 1;
+				rejectedDependencies.push({
+					dependsOn: dependency,
+					reason: edgeOutcome.result.reason,
+					message: describeDependencyRejection(edgeOutcome.result),
+				});
+			}
+		}
+		const rejectionNote =
+			rejectedDependencies.length > 0
+				? ` ${rejectedDependencies.length} dependency(ies) were REJECTED: ${rejectedDependencies
+						.map((entry) => `"${entry.dependsOn}" (${entry.message})`)
+						.join("; ")}. Fix each with add_dependency once the missing task exists.`
+				: "";
+		const acceptedEdgeNote =
+			acceptedDependencyCount > 0
+				? ` ${acceptedDependencyCount} inline dependency edge(s) were accepted; do NOT repeat them with add_dependency.`
+				: "";
+		return {
+			ok: true,
+			taskId: task.id,
+			acceptedDependencyCount,
+			rejectedDependencies,
+			instruction: `Task "${task.id}" added.${acceptedEdgeNote}${rejectionNote} ${progressLine(state)}`,
+		};
+	}
+
 	const addTask: AgentTool = {
 		name: "add_task",
 		description:
-			"Incrementally declare ONE decomposition task (validated immediately). Optional alternative to sending a full tasks array: declare tasks one by one, add dependencies with add_dependency, then call decompose_project WITHOUT tasks to submit the accumulated graph.",
+			"Incrementally declare decomposition tasks (validated immediately). Preferred: ONE task per call (id, title, prompt). Also accepted: a BATCH — an array of {id, title, prompt} objects in the `tasks` field — validated per item. Add dependencies with add_dependency, then call decompose_project WITHOUT tasks to submit the accumulated graph.",
 		// Live 20260810-195244: ten add_task calls (truncated {} emissions) were SDK-pre-rejected against this
 		// schema's required/type keywords, each answered with a multi-KB Zod dump the execute path would have
 		// answered compactly ("add_task needs id, title, and prompt... resend"). Same permissive-boundary rule
@@ -228,154 +379,53 @@ export function createIncrementalDagTools(
 			additionalProperties: true,
 		}),
 		async execute(input) {
-			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
-			// Numeric-scalar tolerance (live-found 2026-08-29, Flash-Next architect): the model sent id/title as
-			// NUMBERS (id: 1) — a grammar-dialect slip, self-diagnosed in its own final ("numbers instead of
-			// strings") — and three type-rejections burned the recovery bounds and ended a productive session.
-			// Numbers stringify losslessly and unambiguously; coerce them for the string fields instead of
-			// failing the turn. Non-scalar shapes still hit the schema error with its teaching text.
-			for (const key of ["id", "title", "prompt", "testabilityReason"]) {
-				if (typeof record[key] === "number" && Number.isFinite(record[key] as number)) {
-					record[key] = String(record[key]);
+			// Batch tolerance (live-found 2026-08-30, Flash-Next architect): the model sent its ENTIRE ~51-card
+			// spine as ONE call — an array of task objects stuffed into `id` — twice, verbatim, after the type
+			// error. The instinct is efficient (51 serial round-trips at ~23 tok/s is hours), so accept it:
+			// an array of {id,title,prompt} objects (in `id`, in `tasks`, or as the input itself) runs the
+			// normal single-task path per item and reports per-item outcomes. Genuinely broken calls still
+			// get the single-task teaching errors.
+			const record =
+				input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+			const looksLikeTask = (value: unknown): value is Record<string, unknown> =>
+				typeof value === "object" && value !== null && !Array.isArray(value) && ("id" in value || "title" in value);
+			const batchSource = Array.isArray(input)
+				? input
+				: Array.isArray(record.id)
+					? record.id
+					: Array.isArray(record.tasks)
+						? record.tasks
+						: null;
+			const batchItems =
+				batchSource && batchSource.length > 0 && batchSource.every(looksLikeTask) ? batchSource : null;
+			if (batchItems) {
+				const accepted: string[] = [];
+				const failed: Array<{ id: string; error: string }> = [];
+				for (const item of batchItems) {
+					try {
+						const itemResult = (await executeSingleAddTask({ ...item })) as { taskId?: string };
+						accepted.push(itemResult.taskId ?? String(item.id ?? "?"));
+					} catch (error) {
+						failed.push({
+							id: String(item.id ?? "?"),
+							error: error instanceof Error ? error.message : String(error),
+						});
+					}
 				}
-			}
-			const parsed = nkleinPlanTaskSchema.safeParse(repairJsonStringValue(record));
-			if (!parsed.success) {
-				// Live 20260811-000253: after four perfect 1-2KB add_task calls the model degenerated to EMPTY
-				// calls — it planned "S05" in its reasoning, then emitted `<function=add_task></function>` three
-				// times and the mistake streak stopped a healthy session. For the empty case, anchor the coaching
-				// to the model's OWN recent success (it demonstrably knows the format) instead of restating the
-				// schema it just used correctly.
-				if (Object.keys(record).length === 0 && state.construction.nodes.length > 0) {
-					const lastId = state.construction.nodes[state.construction.nodes.length - 1]?.id ?? "the last task";
+				if (accepted.length === 0) {
 					throw new Error(
-						`add_task arrived with NO arguments — you planned the task in your reasoning but emitted an empty call. ` +
-							`Re-send it with the fields written INSIDE the tool call, exactly like your successful add_task for "${lastId}": ` +
-							`id, title, and prompt (plus optional card fields).`,
+						`add_task batch: all ${failed.length} task(s) were rejected. First error — ${failed[0]?.error ?? "unknown"}`,
 					);
 				}
-				const issue = parsed.error.issues[0];
-				throw new Error(
-					`add_task needs id, title, and prompt (non-empty strings)${issue ? ` — ${issue.path.join(".") || "(root)"}: ${issue.message}` : ""}. Fix the call and resend it.`,
-				);
+				return {
+					ok: true,
+					batch: true,
+					acceptedTaskIds: accepted,
+					rejectedTasks: failed,
+					instruction: `Batch accepted ${accepted.length}/${batchItems.length} task(s)${failed.length > 0 ? `; ${failed.length} REJECTED — fix and resend ONLY those: ${failed.map((entry) => `"${entry.id}" (${entry.error})`).join("; ")}` : ""}. ${progressLine(state)}`,
+				};
 			}
-			const task = parsed.data;
-			const existing = state.tasksById.get(task.id);
-			if (existing) {
-				// Idempotent replay: a session restarted with its conversation intact (or a model re-sending its
-				// list) re-declares tasks it already declared. An IDENTICAL payload is a no-op success, same as
-				// add_dependency's duplicate-edge handling — never a rejection spiral.
-				if (JSON.stringify(existing) === JSON.stringify(task)) {
-					return {
-						ok: true,
-						taskId: task.id,
-						alreadyPresent: true,
-						acceptedDependencyCount: 0,
-						rejectedDependencies: [],
-						instruction: `Task "${task.id}" was already declared with this exact content. No change was needed. ${progressLine(state)}`,
-					};
-				}
-				// Post-bounce repair (live 20260810-103422): after the assembled graph was REJECTED by validation
-				// ("S01 touches 5 likely files"), the model's instinct — re-declare the task smaller under the
-				// same id — bounced as duplicate_node, leaving NO small-call repair path: the stale construction
-				// resubmitted the same oversized task forever. After a bounce, same-id add_task REPLACES the
-				// earlier declaration (edges kept; inline dependsOn processed with duplicates tolerated).
-				if (state.allowTaskArrayRevision) {
-					state.tasksById.set(task.id, task);
-					let acceptedDependencyCount = 0;
-					const rejectedDependencies: Array<{ dependsOn: string; reason: string; message: string }> = [];
-					for (const dependency of task.dependsOn) {
-						const edgeOutcome = applyDagOp(state.construction, {
-							op: "add_edge",
-							from: dependency,
-							to: task.id,
-						});
-						if (edgeOutcome.result.ok) {
-							state.construction = edgeOutcome.state;
-							acceptedDependencyCount += 1;
-						} else if (edgeOutcome.result.reason !== "duplicate_edge") {
-							state.rejectedOpCount += 1;
-							rejectedDependencies.push({
-								dependsOn: dependency,
-								reason: edgeOutcome.result.reason,
-								message: describeDependencyRejection(edgeOutcome.result),
-							});
-						}
-					}
-					const rejectionNote =
-						rejectedDependencies.length > 0
-							? ` ${rejectedDependencies.length} dependency(ies) were REJECTED: ${rejectedDependencies
-									.map((entry) => `"${entry.dependsOn}" (${entry.message})`)
-									.join("; ")}.`
-							: "";
-					return {
-						ok: true,
-						taskId: task.id,
-						replaced: true,
-						acceptedDependencyCount,
-						rejectedDependencies,
-						instruction: `Task "${task.id}" REPLACED the earlier declaration (existing edges were kept).${rejectionNote} ${progressLine(state)}`,
-					};
-				}
-			}
-			const nodeOutcome = applyDagOp(state.construction, { op: "add_node", id: task.id, label: task.title });
-			if (!nodeOutcome.result.ok) {
-				state.rejectedOpCount += 1;
-				// P0.DSTALL layer 3(b): a restarted model does not know its construction survived — the bare
-				// duplicate rejection sent it in circles (Dschinn run 4: three duplicate_node loops after
-				// restarts). Orient it: say what the construction already holds and how to finish.
-				const orientation =
-					nodeOutcome.result.reason === "duplicate_node"
-						? ` The construction already holds ${state.construction.nodes.length} task(s): ${state.construction.nodes
-								.slice(0, 40)
-								.map((node) => node.id)
-								.join(
-									", ",
-								)}${state.construction.nodes.length > 40 ? ", …" : ""}. Declare only NEW tasks, or finish now with a bare decompose_project (no tasks argument).`
-						: "";
-				throw new Error(
-					`add_task rejected (${nodeOutcome.result.reason}): ${nodeOutcome.result.message}${orientation}`,
-				);
-			}
-			state.construction = nodeOutcome.state;
-			state.tasksById.set(task.id, task);
-			hooks?.onCheckpoint?.();
-			// Validate the inline dependencies one edge at a time — a bad one is REPORTED, not silently dropped,
-			// and never blocks the already-accepted task declaration.
-			const rejectedDependencies: Array<{ dependsOn: string; reason: string; message: string }> = [];
-			let acceptedDependencyCount = 0;
-			for (const dependency of task.dependsOn) {
-				const edgeOutcome = applyDagOp(state.construction, { op: "add_edge", from: dependency, to: task.id });
-				if (edgeOutcome.result.ok) {
-					state.construction = edgeOutcome.state;
-					acceptedDependencyCount += 1;
-					hooks?.onCheckpoint?.();
-				} else {
-					state.rejectedOpCount += 1;
-					rejectedDependencies.push({
-						dependsOn: dependency,
-						reason: edgeOutcome.result.reason,
-						message: describeDependencyRejection(edgeOutcome.result),
-					});
-				}
-			}
-			const rejectionNote =
-				rejectedDependencies.length > 0
-					? ` ${rejectedDependencies.length} dependency(ies) were REJECTED: ${rejectedDependencies
-							.map((entry) => `"${entry.dependsOn}" (${entry.message})`)
-							.join("; ")}. Fix each with add_dependency once the missing task exists.`
-					: "";
-			const acceptedEdgeNote =
-				acceptedDependencyCount > 0
-					? ` ${acceptedDependencyCount} inline dependency edge(s) were accepted; do NOT repeat them with add_dependency.`
-					: "";
-			return {
-				ok: true,
-				taskId: task.id,
-				acceptedDependencyCount,
-				rejectedDependencies,
-				instruction: `Task "${task.id}" added.${acceptedEdgeNote}${rejectionNote} ${progressLine(state)}`,
-			};
+			return executeSingleAddTask(record);
 		},
 	};
 

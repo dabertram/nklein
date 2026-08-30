@@ -475,3 +475,48 @@ describe("numeric-scalar tolerance (Flash-Next id:1 slip, live-found 2026-08-29)
 		expect(result.ok).toBe(true);
 	});
 });
+
+describe("batch tolerance (Flash-Next 51-card array-in-id, live-found 2026-08-30)", () => {
+	it("accepts an array of task objects stuffed into the id field and adds each", async () => {
+		const { state, addTask } = getTools();
+		const result = (await addTask.execute(
+			{
+				id: [
+					{ id: "S01", title: "Skeleton", prompt: "Create the skeleton.", dependsOn: [] },
+					{ id: "S02", title: "Config", prompt: "Add config.", dependsOn: ["S01"] },
+				],
+			},
+			ctx,
+		)) as { ok: boolean; batch: boolean; acceptedTaskIds: string[]; rejectedTasks: unknown[] };
+		expect(result.ok).toBe(true);
+		expect(result.batch).toBe(true);
+		expect(result.acceptedTaskIds).toEqual(["S01", "S02"]);
+		expect(state.tasksById.has("S01")).toBe(true);
+		expect(state.construction.edges).toContainEqual({ from: "S01", to: "S02" });
+	});
+
+	it("accepts the same batch via a tasks field and reports per-item rejections without failing the call", async () => {
+		const { state, addTask } = getTools();
+		const result = (await addTask.execute(
+			{
+				tasks: [
+					{ id: "S01", title: "Skeleton", prompt: "Create the skeleton." },
+					{ id: "S02", title: "" }, // missing prompt — this ITEM fails, the batch does not
+				],
+			},
+			ctx,
+		)) as { ok: boolean; acceptedTaskIds: string[]; rejectedTasks: Array<{ id: string }> };
+		expect(result.ok).toBe(true);
+		expect(result.acceptedTaskIds).toEqual(["S01"]);
+		expect(result.rejectedTasks).toHaveLength(1);
+		expect(result.rejectedTasks[0]?.id).toBe("S02");
+		expect(state.tasksById.has("S01")).toBe(true);
+	});
+
+	it("an all-invalid batch throws the single-task teaching error", async () => {
+		const { addTask } = getTools();
+		await expect(addTask.execute({ id: [{ id: "", title: "" }] }, ctx)).rejects.toThrow(
+			/all 1 task\(s\) were rejected/,
+		);
+	});
+});
