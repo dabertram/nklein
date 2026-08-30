@@ -115,3 +115,22 @@ describe("toPermissiveAgentInputSchema", () => {
 		expect(nested).not.toContain('"number"');
 	});
 });
+
+describe("recoverQuestionFieldShapes (object-shaped assumptions, live 2026-08-30)", () => {
+	it("coerces object assumptions/questions to their string content", async () => {
+		const { recoverQuestionFieldShapes } = await import(
+			"../../../src/nklein-agent/decomposition/plan-task-input-parse"
+		);
+		const out = recoverQuestionFieldShapes({
+			questions: [
+				{ question: "Which store?", assumption: { text: "Use the event log." } },
+				{ question: { value: "Clock source?" }, assumption: { answer: "Virtual clock." } },
+				{ question: "Already fine", assumption: "Stays." },
+			],
+		}) as { questions: Array<{ question: unknown; assumption: unknown }> };
+		expect(out.questions[0]?.assumption).toBe("Use the event log.");
+		expect(out.questions[1]?.question).toBe("Clock source?");
+		expect(out.questions[1]?.assumption).toBe("Virtual clock.");
+		expect(out.questions[2]?.assumption).toBe("Stays.");
+	});
+});

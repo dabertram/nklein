@@ -173,10 +173,60 @@ export function recoverStringifiedDecomposeArrays(input: unknown): unknown {
 	return changed ? next : input;
 }
 
+/**
+ * Parse-and-recover for QUESTION fields sent as objects (live 2026-08-30: the dschinn architect's finalize bounced
+ * three times on `questions[].assumption: expected string, received object` — the model nested the assumption as
+ * {text: …}-style structure). Coerce object-shaped question/assumption/resolution values to their obvious string
+ * content; anything unrecoverable is left for schema validation's compact error.
+ */
+export function recoverQuestionFieldShapes(input: unknown): unknown {
+	if (typeof input !== "object" || input === null) {
+		return input;
+	}
+	const record = input as Record<string, unknown>;
+	if (!Array.isArray(record.questions)) {
+		return input;
+	}
+	const toText = (value: unknown): unknown => {
+		if (typeof value !== "object" || value === null || Array.isArray(value)) {
+			return value;
+		}
+		const inner = value as Record<string, unknown>;
+		for (const key of ["text", "assumption", "answer", "value", "content", "description"]) {
+			if (typeof inner[key] === "string" && inner[key].trim().length > 0) {
+				return inner[key];
+			}
+		}
+		const strings = Object.values(inner).filter(
+			(entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+		);
+		return strings.length > 0 ? strings.join(" — ") : value;
+	};
+	let changed = false;
+	const questions = record.questions.map((question) => {
+		if (typeof question !== "object" || question === null) {
+			return question;
+		}
+		const q = question as Record<string, unknown>;
+		const next: Record<string, unknown> = { ...q };
+		for (const field of ["question", "assumption", "resolution"]) {
+			const coerced = toText(next[field]);
+			if (coerced !== next[field]) {
+				next[field] = coerced;
+				changed = true;
+			}
+		}
+		return next;
+	});
+	return changed ? { ...record, questions } : input;
+}
+
 export function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToolInput {
 	assertUsableDecomposeProjectInput(input);
 	const result = decomposeProjectToolInputSchema.safeParse(
-		recoverMissingTaskPrompts(recoverMissingDecomposeProjectTitle(recoverStringifiedDecomposeArrays(input))),
+		recoverQuestionFieldShapes(
+			recoverMissingTaskPrompts(recoverMissingDecomposeProjectTitle(recoverStringifiedDecomposeArrays(input))),
+		),
 	);
 	if (!result.success) {
 		throw new Error(
