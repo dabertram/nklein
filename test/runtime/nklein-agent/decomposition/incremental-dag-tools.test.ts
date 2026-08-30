@@ -534,3 +534,21 @@ describe("batch tolerance (Flash-Next 51-card array-in-id, live-found 2026-08-30
 		);
 	});
 });
+
+describe("plan-mode sandbox toolset (architect implementation-drift guard, live 2026-08-30)", () => {
+	it("excludes write_files/write_file/edit_file in plan mode and keeps them otherwise", async () => {
+		const { createAgentSandboxExtraTools } = await import(
+			"../../../../src/nklein-agent/nklein-agent-sandbox-extra-tools"
+		);
+		const fakeManager = { runTool: async () => "{}" } as never;
+		const names = (planMode: boolean) =>
+			createAgentSandboxExtraTools(fakeManager, "task-1", { sessionId: "s1", planMode }).map((tool) => tool.name);
+		const planNames = names(true);
+		const actNames = names(false);
+		for (const writer of ["write_files", "write_file", "edit_file"]) {
+			expect(planNames).not.toContain(writer);
+			expect(actNames).toContain(writer);
+		}
+		expect(planNames).toContain("repo_map"); // read/discovery tools stay offered
+	});
+});

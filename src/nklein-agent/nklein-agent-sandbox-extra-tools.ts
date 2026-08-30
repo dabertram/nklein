@@ -12,6 +12,13 @@ export interface AgentSandboxExtraToolOptions {
 	sessionId: string;
 	contextWindow?: number | null;
 	maxFileLines?: number | null;
+	/**
+	 * Plan-mode (architect) sessions get NO write tools: their deliverable is the task graph
+	 * (add_task/add_dependency/decompose_project), and offering edit_file invited implementation drift —
+	 * live 2026-08-30, a Flash-Next architect burned ~15 turns fighting edit_file rejections over a
+	 * package.json it was never supposed to write, degrading its tool-call syntax in the process.
+	 */
+	planMode?: boolean;
 }
 
 function parseSandboxToolResult(result: string): unknown {
@@ -62,18 +69,22 @@ export function createAgentSandboxExtraTools(
 			contextWindow: options.contextWindow,
 			storageRoot: "/tmp/nklein-sandbox-definition",
 		}),
-		createWriteFilesTool({
-			workspacePath: definitionWorkspacePath,
-			maxFileLines: options.maxFileLines,
-		}),
-		createWriteFileTool({
-			workspacePath: definitionWorkspacePath,
-			maxFileLines: options.maxFileLines,
-		}),
-		createEditFileTool({
-			workspacePath: definitionWorkspacePath,
-			maxFileLines: options.maxFileLines,
-		}),
+		...(options.planMode
+			? []
+			: [
+					createWriteFilesTool({
+						workspacePath: definitionWorkspacePath,
+						maxFileLines: options.maxFileLines,
+					}),
+					createWriteFileTool({
+						workspacePath: definitionWorkspacePath,
+						maxFileLines: options.maxFileLines,
+					}),
+					createEditFileTool({
+						workspacePath: definitionWorkspacePath,
+						maxFileLines: options.maxFileLines,
+					}),
+				]),
 	];
 	releaseNKleinLargeFileWorkflow(readLargeFileDefinitionSessionId);
 	return tools.map((tool) => proxySandboxTool(tool, manager, taskId, options));

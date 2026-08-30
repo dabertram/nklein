@@ -1749,6 +1749,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						sessionId: createSessionId(input.taskId),
 						contextWindow: requestContextWindow,
 						maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+						// Restarted plan-mode sessions must stay write-tool-free (the flag survives via the
+						// explicit-decomposition set — startTaskSession keeps it in sync with startInPlanMode).
+						planMode: this.explicitDecompositionTaskIds.has(input.taskId),
 					})
 				: undefined);
 		// §5.AC step 3: append the egress-gated web_search tool AFTER the sandbox tools (never mutate what
@@ -2752,6 +2755,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 								sessionId: createSessionId(request.taskId),
 								contextWindow: requestContextWindow,
 								maxFileLines: request.maxAgentWritableFileLines ?? null,
+								planMode: request.startInPlanMode === true,
 							})
 						: undefined,
 					this.retrievalToolsBuilder.build(request.taskId),

@@ -1040,10 +1040,17 @@ describe("InMemoryNKleinTaskSessionService", () => {
 					expect.objectContaining({ name: "search_code", execute: expect.any(Function) }),
 					expect.objectContaining({ name: "list_files", execute: expect.any(Function) }),
 					expect.objectContaining({ name: "read_large_file", execute: expect.any(Function) }),
-					expect.objectContaining({ name: "write_files", execute: expect.any(Function) }),
 				]),
 			}),
 		);
+		// Plan-mode architect toolsets carry NO write tools (2026-08-30): the deliverable is the task graph,
+		// and offering edit_file invited implementation drift on a live Flash-Next architect.
+		const planExtraToolNames = (
+			runtime.startTaskSessionMock.mock.calls[0]?.[0] as { extraTools?: Array<{ name: string }> }
+		).extraTools?.map((tool) => tool.name);
+		expect(planExtraToolNames).not.toContain("write_files");
+		expect(planExtraToolNames).not.toContain("write_file");
+		expect(planExtraToolNames).not.toContain("edit_file");
 	});
 
 	// §5.AC — the egress-gated `research` tool (the retrieval LOOP; single online-retrieval path) at the session
