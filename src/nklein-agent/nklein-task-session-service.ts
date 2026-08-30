@@ -1473,6 +1473,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (entry?.summary.state !== "running") {
 			return;
 		}
+		// A capacity wait is documented liveness, not model silence: on a single-slot endpoint a queued card can
+		// wait hours before its first token, and the stream-inactivity timeout (reset only by streamed tokens)
+		// killed exactly such turns (live 2026-08-30: mi-l1-types + s41 both died at 3600s with last activity
+		// "Waiting for model capacity", then needed maroon-salvage). Re-arm the stream window on every wait tick
+		// so it measures silence AFTER admission, not queue depth.
+		this.timeoutController.scheduleStreamTimeout(taskId);
 		const activityText = `Waiting for model capacity — ${reason}`;
 		this.emitSummary(
 			updateSummary(entry, {

@@ -974,7 +974,18 @@ export class AgentSandboxManager {
 						timeoutMs: PATCH_CAPTURE_EXEC_TIMEOUT_MS,
 					});
 				}
-				assertSandboxExecOk(staged, "stage sandbox workspace changes");
+				// A worker that writes its own .gitignore covering node_modules makes git treat our explicit
+				// `:(exclude)node_modules` pathspec as "you named an ignored path" — it stages every valid file,
+				// prints "The following paths are ignored by one of your .gitignore files", and exits 1 anyway
+				// (repro'd host+container 2026-08-30; advice.addIgnoredFile=false does not change the exit code).
+				// That refusal IS the desired semantics (ignored deps stay unstaged), and it cost s01's entire
+				// 272-message delivery when the capture aborted on it. Treat exactly this failure as success.
+				const ignoredPathRefusal =
+					staged.exitCode !== 0 &&
+					`${staged.stderr ?? ""}${staged.stdout ?? ""}`.includes("paths are ignored by one of your .gitignore");
+				if (!ignoredPathRefusal) {
+					assertSandboxExecOk(staged, "stage sandbox workspace changes");
+				}
 			}
 			const diffArgs = ["git", "diff", "--staged", "--binary"];
 			const baseRef = options.baseRef?.trim();
