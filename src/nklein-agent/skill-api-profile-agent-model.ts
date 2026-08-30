@@ -115,6 +115,13 @@ export function createSkillApiProfileAgentModel(
 	options: SkillApiProfileAgentModelOptions,
 ): AgentModel {
 	if (!options.profile || Object.keys(options.profile).length === 0) return base;
+	// NKLEIN_SKILL_API_DIRECT=off (2026-08-30, dschinn tee-capture): the direct forced-tool path flattens the
+	// WHOLE conversation into "[tool_call id=…]" pseudo-text (toDirectMessages) and grammar-forces the reply
+	// (toolChoice required + forced_tool_call budget prior). Right hammer for one-shot structured answers on
+	// stubborn LM Studio models; on a marathon agentic session it TAUGHT a live Flash-Next architect the
+	// pseudo-syntax while grammar truncation degraded its payloads to minimal-valid junk ({"id":"0",
+	// "title":"1"}). The kill-switch keeps such rigs on the SDK-native wire; unset = unchanged behavior.
+	if (process.env.NKLEIN_SKILL_API_DIRECT === "off") return base;
 	const resolved = resolveApiProfileRequest(options.profile, options.modelId);
 	return {
 		stream(request): AsyncIterable<AgentModelEvent> {

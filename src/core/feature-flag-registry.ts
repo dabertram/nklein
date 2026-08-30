@@ -92,6 +92,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		note: "Default-OFF worker-loop behaviour change (F1.21 observe-before-enforce). A refinable card that ends a turn without begin_implementation gets ONE bounded nudge to promote; gating in the pure decideRefinementStallRecovery. Flip ON only after a live-drain shows the model actually transitions (efficacy is empirical), protecting the accrual campaign's evidence from a misfire until then.",
 	},
 	{
+		flag: "NKLEIN_SKILL_API_DIRECT",
+		mode: "dev_only",
+		gate: 'skill-api-profile-agent-model.ts (value "off" bypasses the direct forced-tool/structured path; the SDK-native wire serves profile turns)',
+		note: "Dschinn tee-capture 2026-08-30: the direct path's text-flattened history + toolChoice:required degraded a Flash-Next architect's payloads to minimal-valid junk. Rig kill-switch; unset keeps the validated forced path.",
+	},
+	{
 		flag: "NKLEIN_ALTERNATE_ENDPOINT",
 		mode: "dev_only",
 		gate: 'nklein-session-runtime.ts model wiring (value "off" removes the text-wire alternate-endpoint recovery strategy)',
