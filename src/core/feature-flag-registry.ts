@@ -92,6 +92,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		note: "Default-OFF worker-loop behaviour change (F1.21 observe-before-enforce). A refinable card that ends a turn without begin_implementation gets ONE bounded nudge to promote; gating in the pure decideRefinementStallRecovery. Flip ON only after a live-drain shows the model actually transitions (efficacy is empirical), protecting the accrual campaign's evidence from a misfire until then.",
 	},
 	{
+		flag: "NKLEIN_ALTERNATE_ENDPOINT",
+		mode: "dev_only",
+		gate: 'nklein-session-runtime.ts model wiring (value "off" removes the text-wire alternate-endpoint recovery strategy)',
+		note: 'Dschinn hunt 2026-08-30: one alternate-wire turn taught a Flash-Next architect the "[tool_call id=…]" pseudo-syntax and poisoned the session. Rig kill-switch; unset keeps the recovery available.',
+	},
+	{
 		flag: "NKLEIN_STOP_STACKS",
 		mode: "dev_only",
 		gate: "nklein-task-session-service.ts stopTaskSession + vendored local-runtime-host.stopSession (caller-stack capture)",

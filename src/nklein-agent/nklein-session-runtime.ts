@@ -974,55 +974,63 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 							contextWindow: request.contextWindow,
 							...(directClient ? { directClient } : {}),
 						};
-						const alternateEndpointModel = request.baseUrl?.trim()
-							? createLocalAlternateEndpointModel({
-									baseUrl: request.baseUrl,
-									modelId: request.modelId,
-									baseMaxTokens: request.maxTokensPerTurn,
-									headers: request.apiKey?.trim()
-										? { authorization: `Bearer ${request.apiKey.trim()}` }
-										: undefined,
-									preferredKind: request.behaviorProfile
-										? preferredEndpointKind(request.behaviorProfile)
-										: null,
-									onWinningKind: (kind) => {
-										try {
-											recordSelfObservation({
-												signal: "custom",
-												severity: "info",
-												message: `Alternate endpoint ${kind} recovered the model turn for ${request.taskId}.`,
-												taskId: request.taskId,
-												providerId: request.providerId,
-												modelId: request.modelId,
-												workspacePath: agentPerceivedCwd,
-												metadata: { category: "swarm_alternate_endpoint", kind },
-											});
-										} catch {
-											// Telemetry must never alter endpoint recovery.
-										}
-									},
-									onNativeSessionObservation: (observation) => {
-										try {
-											recordSelfObservation({
-												signal: "custom",
-												severity: observation.type === "stateless_fallback" ? "warning" : "info",
-												message: `Native LM Studio session ${observation.type} for ${request.taskId}: ${observation.detail}`,
-												taskId: request.taskId,
-												providerId: request.providerId,
-												modelId: request.modelId,
-												workspacePath: agentPerceivedCwd,
-												metadata: {
-													category: "native_lmstudio_session",
-													type: observation.type,
-													detail: observation.detail,
-												},
-											});
-										} catch {
-											// Telemetry must never alter endpoint recovery.
-										}
-									},
-								})
-							: undefined;
+						// NKLEIN_ALTERNATE_ENDPOINT=off (2026-08-30, dschinn hunt): the text-wire fallback serializes
+						// history tool calls as "[tool_call id=… name=…]" pseudo-text; one recovered turn through it
+						// taught a live Flash-Next architect that pseudo-syntax, poisoning every later native turn
+						// (perfect calls narrated as text + junk on the structured channel). The rig disables the
+						// strategy entirely so failures retry on the PRIMARY native-tools wire instead.
+						const alternateEndpointModel =
+							process.env.NKLEIN_ALTERNATE_ENDPOINT === "off"
+								? undefined
+								: request.baseUrl?.trim()
+									? createLocalAlternateEndpointModel({
+											baseUrl: request.baseUrl,
+											modelId: request.modelId,
+											baseMaxTokens: request.maxTokensPerTurn,
+											headers: request.apiKey?.trim()
+												? { authorization: `Bearer ${request.apiKey.trim()}` }
+												: undefined,
+											preferredKind: request.behaviorProfile
+												? preferredEndpointKind(request.behaviorProfile)
+												: null,
+											onWinningKind: (kind) => {
+												try {
+													recordSelfObservation({
+														signal: "custom",
+														severity: "info",
+														message: `Alternate endpoint ${kind} recovered the model turn for ${request.taskId}.`,
+														taskId: request.taskId,
+														providerId: request.providerId,
+														modelId: request.modelId,
+														workspacePath: agentPerceivedCwd,
+														metadata: { category: "swarm_alternate_endpoint", kind },
+													});
+												} catch {
+													// Telemetry must never alter endpoint recovery.
+												}
+											},
+											onNativeSessionObservation: (observation) => {
+												try {
+													recordSelfObservation({
+														signal: "custom",
+														severity: observation.type === "stateless_fallback" ? "warning" : "info",
+														message: `Native LM Studio session ${observation.type} for ${request.taskId}: ${observation.detail}`,
+														taskId: request.taskId,
+														providerId: request.providerId,
+														modelId: request.modelId,
+														workspacePath: agentPerceivedCwd,
+														metadata: {
+															category: "native_lmstudio_session",
+															type: observation.type,
+															detail: observation.detail,
+														},
+													});
+												} catch {
+													// Telemetry must never alter endpoint recovery.
+												}
+											},
+										})
+									: undefined;
 						const adaptiveModel = createAdaptiveSwarmRecoveryModel(guardedBase, {
 							modelId: request.modelId,
 							profile: request.behaviorProfile,
