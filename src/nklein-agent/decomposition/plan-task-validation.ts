@@ -202,10 +202,23 @@ export function validateNKleinPlanTaskGraph(input: {
 		selectTaskRoutingCandidate(task, buildTaskPrompt(task), input.routingCandidates);
 	}
 	if (sizingViolations.length > 0) {
+		// Live 2026-08-30 (dschinn finalize): ALL 66 tasks bounced on the missing acceptanceCommand at once, and
+		// the worklist never named the ONE-FIELD fix — resubmitting with `defaultAcceptanceCommand` applies a
+		// shared objective check to every task. Lead with that shortcut when it is the dominant violation, so
+		// the model does not re-declare its whole graph card by card.
+		const missingAcceptance = sizingViolations.filter((violation) =>
+			violation.includes("missing an acceptanceCommand"),
+		).length;
+		const defaultAcceptanceHint =
+			missingAcceptance >= 3 && missingAcceptance === sizingViolations.length
+				? `All ${missingAcceptance} violations are the same missing acceptanceCommand. If one objective check covers the graph (e.g. the project's test suite), resubmit ONCE with just {"defaultAcceptanceCommand": "npm test"} — it applies to every accumulated task. Otherwise fix per task:\n- `
+				: null;
 		throw new Error(
 			sizingViolations.length === 1
 				? (sizingViolations[0] as string)
-				: `${sizingViolations.length} tasks failed the sizing contract — fix ALL of them, then resubmit once:\n- ${sizingViolations.join("\n- ")}`,
+				: defaultAcceptanceHint
+					? `${sizingViolations.length} tasks failed the sizing contract. ${defaultAcceptanceHint}${sizingViolations.join("\n- ")}`
+					: `${sizingViolations.length} tasks failed the sizing contract — fix ALL of them, then resubmit once:\n- ${sizingViolations.join("\n- ")}`,
 		);
 	}
 	const dependencyCount = validateTaskGraphReferences(taskGraph);
