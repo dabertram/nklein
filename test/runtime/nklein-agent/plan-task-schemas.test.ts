@@ -5,14 +5,15 @@ import {
 } from "../../../src/nklein-agent/decomposition/plan-task-schemas";
 
 // `relaxJsonSchemaNode` deep-relaxes a JSON Schema for the SDK tool boundary (§5.O): strip every `required`, every
-// closed `additionalProperties`, AND every validation keyword (`type`, `enum`, bounds…) so the SDK never pre-rejects
-// a weak model's slightly-off call before the in-handler repair runs. Live 20260810-103422: stripping `required`
-// alone still let a full decompose_project payload bounce with "Type validation failed" and a multi-KB dump — a
-// type mismatch at ANY depth was as fatal as a missing key. Descriptions and structure survive as documentation.
+// closed `additionalProperties`, and every validation keyword EXCEPT plain `type: "string"` — kept since 2026-08-30:
+// llama.cpp builds its tool grammar FROM the advertised schema, and a typeless property admits any JSON value, which
+// a hedging model fills with minimal tokens ({"id": null} / {"id": "0"} — eleven junk drain runs). String types are
+// grammar guidance for exactly the fields a model must FILL; {}-vs-required and numeric/length clamps (the documented
+// pre-rejection incidents, 20260810) keep their relaxation. Descriptions and structure survive as documentation.
 describe("relaxJsonSchemaNode", () => {
 	it("strips `required` and every validation keyword, keeping structure", () => {
 		expect(relaxJsonSchemaNode({ type: "object", required: ["a"], properties: { a: { type: "string" } } })).toEqual({
-			properties: { a: {} },
+			properties: { a: { type: "string" } },
 		});
 	});
 
@@ -30,7 +31,7 @@ describe("relaxJsonSchemaNode", () => {
 		};
 		expect(relaxJsonSchemaNode(input)).toEqual({
 			properties: {
-				outer: { properties: { inner: {} } },
+				outer: { properties: { inner: { type: "string" } } },
 			},
 		});
 	});
@@ -42,7 +43,7 @@ describe("relaxJsonSchemaNode", () => {
 				additionalProperties: { type: "object", required: ["x"], properties: { x: { type: "number" } } },
 			}),
 		).toEqual({
-			additionalProperties: { properties: { x: {} } },
+			additionalProperties: { properties: { x: {} } }, // number type stays stripped (clamp-class keyword family)
 		});
 	});
 
@@ -53,7 +54,7 @@ describe("relaxJsonSchemaNode", () => {
 				items: { type: "object", required: ["a"], properties: { a: { type: "string" } } },
 			}),
 		).toEqual({
-			items: { properties: { a: {} } },
+			items: { properties: { a: { type: "string" } } },
 		});
 	});
 
@@ -74,7 +75,7 @@ describe("relaxJsonSchemaNode", () => {
 			}),
 		).toEqual({
 			description: "the task",
-			properties: { a: { description: "field a" } },
+			properties: { a: { type: "string", description: "field a" } },
 		});
 	});
 });
@@ -89,7 +90,7 @@ describe("toPermissiveAgentInputSchema", () => {
 		expect(toPermissiveAgentInputSchema(schema)).toEqual({
 			type: "object",
 			additionalProperties: true,
-			properties: { a: { description: "field a" } },
+			properties: { a: { type: "string", description: "field a" } },
 		});
 	});
 
@@ -108,7 +109,9 @@ describe("toPermissiveAgentInputSchema", () => {
 			},
 		});
 		const nested = JSON.stringify((relaxed as { properties: unknown }).properties);
-		expect(nested).not.toContain('"type"');
+		// `type: "string"` survives BY DESIGN (grammar guidance); everything else stays stripped.
 		expect(nested).not.toContain('"required"');
+		expect(nested).not.toContain('"minLength"');
+		expect(nested).not.toContain('"number"');
 	});
 });

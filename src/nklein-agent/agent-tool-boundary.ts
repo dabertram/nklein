@@ -50,6 +50,17 @@ export function relaxJsonSchemaNode(node: unknown): unknown {
 	}
 	const result: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+		if (key === "type" && value === "string") {
+			// KEEP plain string types (2026-08-30, dschinn wire capture): llama.cpp's --jinja tool grammar is
+			// built FROM the advertised schema, so a typeless property admits any JSON value — and a hedging
+			// model under a permissive grammar emits the shortest valid tokens. Eleven drain runs of add_task
+			// junk ({"id": null}, {"id": false}, {"id": "0", "title": "1"}) came exclusively from type-stripped
+			// tools while the still-typed vendored read tools stayed clean. "string" is grammar guidance for
+			// exactly the fields a model must FILL; every documented pre-rejection case ({} vs required,
+			// numeric/length clamps) keeps its relaxation below.
+			result[key] = value;
+			continue;
+		}
 		if (key === "required" || JSON_SCHEMA_VALIDATION_KEYWORDS.has(key)) {
 			continue;
 		}

@@ -26,7 +26,9 @@ describe("relaxAgentToolSchemas", () => {
 		expect(schema.type).toBe("object");
 		expect(schema.required).toBeUndefined();
 		const nested = JSON.stringify(schema.properties);
-		expect(nested).not.toContain('"type"');
+		// `type: "string"` survives relaxation BY DESIGN (2026-08-30 grammar guidance); clamps/required stay gone.
+		expect(nested).not.toContain('"required"');
+		expect(nested).not.toContain('"minLength"');
 		expect(nested).toContain("where");
 	});
 

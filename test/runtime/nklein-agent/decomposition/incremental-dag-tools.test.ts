@@ -295,8 +295,9 @@ describe("decompose_project completion route (shared session state)", () => {
 			expect(schema.type).toBe("object");
 			expect(schema.required).toBeUndefined();
 			const nested = JSON.stringify(schema.properties);
-			expect(nested).not.toContain('"type"');
+			// String types survive relaxation (grammar guidance, 2026-08-30); required/clamps stay stripped.
 			expect(nested).not.toContain('"required"');
+			expect(nested).not.toContain('"minLength"');
 		}
 	});
 
