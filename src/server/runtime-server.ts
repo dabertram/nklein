@@ -1249,6 +1249,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const unresolvedStartNotifiedTaskKeys = new Set<string>();
 	/** How long a swept start may stay unresolved before it is REPORTED (not aborted — visibility only). */
 	const SWEPT_START_UNRESOLVED_REPORT_MS = 60_000;
+	// N23 escalation (live 2026-08-31): a start that stays unresolved does not just look frozen — it HOLDS its
+	// endpoint admission slot, and on a 1-concurrency local host that slot is the fleet: every later auto-start
+	// logged "concurrency limit; deferred for retry on the next completion" while the completion it waited for
+	// belonged to the wedged start itself (4h board livelock, broken by a manual stopTaskSession). After this
+	// bound the sweep force-stops the phantom to reclaim the slot; the card re-enters the normal start path.
+	const SWEPT_START_FORCE_RECLAIM_MS = 10 * 60_000;
 
 	const autoStartTaskIds = async (
 		scope: RuntimeTrpcWorkspaceScope,
@@ -1481,6 +1487,25 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					});
 				}, SWEPT_START_UNRESOLVED_REPORT_MS);
 				unresolvedWatch.unref?.();
+				let sweptStartResolved = false;
+				const unresolvedRescue = setTimeout(() => {
+					if (sweptStartResolved) {
+						return;
+					}
+					deps.warn(
+						`Swept start of ${task.id} still unresolved after ${Math.round(SWEPT_START_FORCE_RECLAIM_MS / 60000)}m — force-stopping the phantom session to reclaim its admission slot (a wedged start on a 1-concurrency endpoint livelocks the whole board).`,
+					);
+					recordSelfObservation({
+						signal: "runtime_error",
+						severity: "warning",
+						message: `Swept start of ${task.id} force-reclaimed after ${Math.round(SWEPT_START_FORCE_RECLAIM_MS / 60000)}m unresolved.`,
+						taskId: task.id,
+						workspacePath: scope.workspacePath,
+						metadata: { category: "swept_start_unresolved", escalation: "force_reclaim" },
+					});
+					void runtimeApi.stopTaskSession(scope, { taskId: task.id }).catch(() => undefined);
+				}, SWEPT_START_FORCE_RECLAIM_MS);
+				unresolvedRescue.unref?.();
 				const started = await runtimeApi.startTaskSession(scope, {
 					taskId: task.id,
 					prompt: task.prompt,
@@ -1496,6 +1521,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					queueOnEndpointBusy: true,
 				});
 				clearTimeout(unresolvedWatch);
+				sweptStartResolved = true;
+				clearTimeout(unresolvedRescue);
 				if (!started.ok && !started.queued) {
 					// Live-found 2026-07-02 (runs 9/10 cascade deadlock): a CONCURRENCY-limit block is transient — a
 					// just-finished session (e.g. the decompose seed at root-start time) can hold a slot for a moment —
