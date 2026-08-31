@@ -31,7 +31,13 @@ const REASONING_REVIEWER_BUDGET_FLOOR = 4096;
  * a turn. Sized from the campaign's own numbers: verdict-emitting nudge turns settled in ~10-70s on the 27B
  * local models, so two minutes covers the ask plus a slow first token.
  */
-const REVIEW_VERDICT_RESERVE_MS = 120_000;
+// Flat 120s starves slow local rigs (live 2026-08-31, Flash-Next ~600 tok/s prefill: re-prompting a 30k-token
+// review context alone eats the reserve, so the verdict nudge got cut three rounds straight and every big-diff
+// review parked "for a human decision"). Rig-tunable; unset keeps the validated default.
+const REVIEW_VERDICT_RESERVE_MS =
+	Number(process.env.NKLEIN_REVIEW_VERDICT_RESERVE_MS ?? "") > 0
+		? Number(process.env.NKLEIN_REVIEW_VERDICT_RESERVE_MS)
+		: 120_000;
 /** Hard ceiling for the raise-on-retry ladder — a reviewer that needs more than this is not budget-starved. */
 export const REVIEW_RETRY_BUDGET_CEILING = 32_768;
 /** At most this many doublings, so the ceiling is approached deliberately rather than by exponent growth. */
