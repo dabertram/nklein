@@ -37,3 +37,16 @@ describe("shouldWaiveAcceptanceAsPreexisting", () => {
 		expect(shouldWaiveAcceptanceAsPreexisting(null, failed)).toBe(false);
 	});
 });
+
+describe("no-test-files guard (live 2026-08-31, s41a merged untested)", () => {
+	it("never waives when the delivered tree's failure is a missing test suite", async () => {
+		const { shouldWaiveAcceptanceAsPreexisting } = await import("../../../src/server/acceptance-waiver-decision");
+		const failed = { present: true, passed: false };
+		expect(
+			shouldWaiveAcceptanceAsPreexisting(failed, failed, {
+				deliveredOutput: "RUN v4\n\nNo test files found, exiting with code 1",
+			}),
+		).toBe(false);
+		expect(shouldWaiveAcceptanceAsPreexisting(failed, failed, { deliveredOutput: "3 tests failed" })).toBe(true);
+	});
+});

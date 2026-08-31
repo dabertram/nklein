@@ -235,7 +235,9 @@ function createCaptureBarrierExecFileStub(): {
 			done(null, { stdout: "container-id\n", stderr: "" });
 			return {} as ReturnType<typeof execFile>;
 		}
-		if (args[0] === "exec" && args.includes(":(glob,exclude)**/node_modules/**")) {
+		// Barrier on the `-A` stage pass only: since 2026-08-31 the `-u` pass carries the node_modules
+		// excludes too, and a pathspec-only match would queue TWO barriers per capture.
+		if (args[0] === "exec" && args.includes("-A") && args.includes(":(glob,exclude)**/node_modules/**")) {
 			captureCallbacks.push(done);
 			return {} as ReturnType<typeof execFile>;
 		}
@@ -1621,7 +1623,16 @@ describe("AgentSandboxManager", () => {
 		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
 
 		await expect(manager.captureWorkspacePatch("task-1", { baseRef: "main" })).resolves.toBe(patch);
-		expect(calls.map(dockerExecCommand)).toContainEqual(["git", "add", "-u", "--", ".", ":(exclude).nklein/nklein"]);
+		expect(calls.map(dockerExecCommand)).toContainEqual([
+			"git",
+			"add",
+			"-u",
+			"--",
+			".",
+			":(exclude).nklein/nklein",
+			":(exclude)node_modules",
+			":(glob,exclude)**/node_modules/**",
+		]);
 		expect(calls.map(dockerExecCommand)).toContainEqual([
 			"git",
 			"add",

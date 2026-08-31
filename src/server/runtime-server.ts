@@ -272,7 +272,7 @@ import {
 } from "../workspace/task-result-branches";
 import { mergeTaskWorktreesInDependencyOrder, stageTaskResultUncommitted } from "../workspace/task-worktree-auto-merge";
 import { A2A_RPC_PATH, handleA2aHttpRequest } from "./a2a-http-handler";
-import { acceptancePresentAndFailed } from "./acceptance-waiver-decision";
+import { acceptancePresentAndFailed, shouldWaiveAcceptanceAsPreexisting } from "./acceptance-waiver-decision";
 import {
 	buildAgentSandboxPoolConfig,
 	buildChatAgentSandboxPoolConfig,
@@ -2661,7 +2661,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							}
 						})();
 						acceptanceBaseline = baseline;
-						if (acceptancePresentAndFailed(baseline)) {
+						if (
+							baseline &&
+							shouldWaiveAcceptanceAsPreexisting(acceptance, baseline, {
+								deliveredOutput: acceptance.output ?? null,
+							})
+						) {
 							recordSelfObservation({
 								signal: "custom",
 								severity: "warning",

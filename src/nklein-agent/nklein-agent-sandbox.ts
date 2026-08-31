@@ -946,7 +946,20 @@ export class AgentSandboxManager {
 			// untracked files while excluding the runtime-only code index and dependency trees. This prevents a normal
 			// `npm install` needed for acceptance from turning thousands of dependency files into an out-of-scope patch.
 			const stageCommands = [
-				["git", "add", "-u", "--", ".", ":(exclude).nklein/nklein"],
+				// `-u` restages TRACKED files — and a worker that ran its own `git add -A` may have TRACKED its
+				// node_modules (live 2026-08-31: the s41-orchestrator delivery carried 654k inserted lines of
+				// dependency trees straight into its result branch). Exclude dependency dirs here too, so even
+				// worker-tracked garbage never reaches the patch.
+				[
+					"git",
+					"add",
+					"-u",
+					"--",
+					".",
+					":(exclude).nklein/nklein",
+					":(exclude)node_modules",
+					":(glob,exclude)**/node_modules/**",
+				],
 				[
 					"git",
 					"add",

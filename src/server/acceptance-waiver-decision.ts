@@ -32,6 +32,13 @@ export function acceptancePresentAndFailed<T extends AcceptanceResultLike>(
 export function shouldWaiveAcceptanceAsPreexisting(
 	acceptance: AcceptanceResultLike | null | undefined,
 	baseline: AcceptanceResultLike | null | undefined,
+	options: { deliveredOutput?: string | null } = {},
 ): boolean {
+	// "No test files found" on the DELIVERED tree is never pre-existing debt (live 2026-08-31, s41a: a card
+	// merged untested because the base was equally test-less). A missing test suite is exactly the worker's
+	// deliverable gap — writable inside any declared scope — unlike genuinely inherited breakage.
+	if (/no test files found/i.test(options.deliveredOutput ?? "")) {
+		return false;
+	}
 	return acceptancePresentAndFailed(acceptance) && acceptancePresentAndFailed(baseline);
 }
