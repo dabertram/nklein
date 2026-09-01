@@ -114,10 +114,13 @@ await writeFile(
 			// harness can disable it (NKLEIN_FLASHNEXT_TEST_DRIVEN=0) to let a correct source-only fix DELIVER, turning
 			// tool observations into EVALUABLE ones. Greenfield beds keep it on (Flash-Next writes tests, gate satisfied).
 			testDrivenModeEnabled: (process.env.NKLEIN_FLASHNEXT_TEST_DRIVEN ?? "1") !== "0",
+			// FLEET ROLES (2026-09-02): the tee proxy routes by model id (flash-next -> llama.cpp:8080, all
+			// other ids -> the LM Studio gateway:1234, which executes device-scoped models on legion5pro/m4mini),
+			// so per-role model ids ARE the whole multi-host wiring. Unset = single-model (byte-identical).
 			modelRoles: {
-				architect: { modelId: model, providerId: "lmstudio" },
-				worker: { modelId: model, providerId: "lmstudio" },
-				reviewer: { modelId: model, providerId: "lmstudio" },
+				architect: { modelId: process.env.NKLEIN_ROLE_ARCHITECT_MODEL?.trim() || model, providerId: "lmstudio" },
+				worker: { modelId: process.env.NKLEIN_ROLE_WORKER_MODEL?.trim() || model, providerId: "lmstudio" },
+				reviewer: { modelId: process.env.NKLEIN_ROLE_REVIEWER_MODEL?.trim() || model, providerId: "lmstudio" },
 			},
 		},
 		null,
