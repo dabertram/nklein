@@ -50,6 +50,8 @@ export interface UncoveredPlanRequirement {
 	missingExactTokens: string[];
 	matchedTokenCount: number;
 	requiredTokenCount: number;
+	/** Up to 8 unmatched anchor candidates — echo enough of them verbatim to reach the quota. */
+	missingAnchorTokens: readonly string[];
 }
 
 function normalizeToken(token: string): string {
@@ -162,7 +164,17 @@ export function findUncoveredPlanRequirements(
 				? []
 				: exactCoverageTokens(requirement, tokens).filter((token) => !contractTokens.has(token));
 		if (matchedTokenCount < requiredTokenCount || missingExactTokens.length > 0) {
-			uncovered.push({ requirement, missingExactTokens, matchedTokenCount, requiredTokenCount });
+			// Name the missing anchors (2026-09-01, v21 finalize): the bounce listed counts ("0/1 required
+			// anchors") without the WORDS, so the model guessed for 10 attempts. With candidates named, closing
+			// a gap is mechanical — echo them verbatim in a covering card's prompt or acceptance check.
+			const missingAnchorTokens = tokens.filter((token) => !contractTokens.has(token)).slice(0, 8);
+			uncovered.push({
+				requirement,
+				missingExactTokens,
+				matchedTokenCount,
+				requiredTokenCount,
+				missingAnchorTokens,
+			});
 		}
 	}
 	return uncovered;
@@ -175,7 +187,12 @@ export function formatUncoveredPlanRequirements(uncovered: readonly UncoveredPla
 				item.missingExactTokens.length > 0
 					? ` Missing exact invariant term(s): ${item.missingExactTokens.join(", ")}.`
 					: "";
-			return `- ${item.requirement} (contract coverage ${item.matchedTokenCount}/${item.requiredTokenCount} required anchors).${exact}`;
+			const anchorGap = item.requiredTokenCount - item.matchedTokenCount;
+			const anchors =
+				anchorGap > 0 && item.missingAnchorTokens.length > 0
+					? ` Echo ${anchorGap} more of these verbatim: ${item.missingAnchorTokens.join(", ")}.`
+					: "";
+			return `- ${item.requirement} (contract coverage ${item.matchedTokenCount}/${item.requiredTokenCount} required anchors).${exact}${anchors}`;
 		})
 		.join("\n");
 }
