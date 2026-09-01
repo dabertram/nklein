@@ -35,6 +35,13 @@ export interface IncrementalDagSessionState {
 	rejectedOpCount: number;
 	/** A rejected assembled submission may be replaced by an explicit corrected tasks array on the next call. */
 	allowTaskArrayRevision: boolean;
+	/**
+	 * STICKY shared acceptance command (live 2026-09-01, v21 finalize ping-pong): defaultAcceptanceCommand is a
+	 * SUBMIT-call parameter, so a model juggling multiple finalize bounces (coverage vs sizing) kept dropping it
+	 * on retries — 9 attempts alternating between the two gates, worsened by context compaction eating its own
+	 * earlier successful-parameter call. Once supplied it is remembered and re-injected into bare retries.
+	 */
+	defaultAcceptanceCommand: string | null;
 }
 
 export function createIncrementalDagSessionState(): IncrementalDagSessionState {
@@ -42,6 +49,7 @@ export function createIncrementalDagSessionState(): IncrementalDagSessionState {
 		construction: emptyDagConstruction(),
 		tasksById: new Map(),
 		rejectedOpCount: 0,
+		defaultAcceptanceCommand: null,
 		allowTaskArrayRevision: false,
 	};
 }
@@ -165,6 +173,15 @@ export function recoverIncrementalDecomposeMeta(input: unknown, state: Increment
 	const planPresent = typeof next.plan === "string" && next.plan.trim().length > 0;
 	if (!planPresent) {
 		next.plan = synthesizePlanFromConstruction(state);
+		changed = true;
+	}
+	const acceptancePresent =
+		typeof next.defaultAcceptanceCommand === "string" && next.defaultAcceptanceCommand.trim().length > 0;
+	if (acceptancePresent) {
+		// Remember it for the next bare retry (sticky — see the state field's comment).
+		state.defaultAcceptanceCommand = (next.defaultAcceptanceCommand as string).trim();
+	} else if (state.defaultAcceptanceCommand) {
+		next.defaultAcceptanceCommand = state.defaultAcceptanceCommand;
 		changed = true;
 	}
 	return changed ? next : input;

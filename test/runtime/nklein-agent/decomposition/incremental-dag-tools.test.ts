@@ -553,3 +553,19 @@ describe("plan-mode sandbox toolset (architect implementation-drift guard, live 
 		expect(planNames).toContain("repo_map"); // read/discovery tools stay offered
 	});
 });
+
+describe("sticky defaultAcceptanceCommand (v21 finalize ping-pong, 2026-09-01)", () => {
+	it("remembers the acceptance command across bare retries", async () => {
+		const { createIncrementalDagSessionState, recoverIncrementalDecomposeMeta } = await import(
+			"../../../../src/nklein-agent/decomposition/incremental-dag-tools"
+		);
+		const state = createIncrementalDagSessionState();
+		state.construction = { nodes: [{ id: "a", label: "A" }], edges: [] } as never;
+		// First finalize supplies the command — it sticks.
+		recoverIncrementalDecomposeMeta({ defaultAcceptanceCommand: "npm test" }, state);
+		expect(state.defaultAcceptanceCommand).toBe("npm test");
+		// A later BARE retry gets it re-injected.
+		const bare = recoverIncrementalDecomposeMeta({}, state) as { defaultAcceptanceCommand?: string };
+		expect(bare.defaultAcceptanceCommand).toBe("npm test");
+	});
+});
