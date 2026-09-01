@@ -4998,6 +4998,9 @@ describe("InMemoryNKleinTaskSessionService", () => {
 	});
 
 	it("parks a task after repeated failed plan artifact inspections across different tools", async () => {
+		const nowSpy = vi.spyOn(Date, "now");
+		let fakeNow = 1_000_000;
+		nowSpy.mockImplementation(() => fakeNow);
 		const { service, runtime } = createTrackedService();
 		await service.startTaskSession({
 			taskId: "task-1",
@@ -5029,6 +5032,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 		for (const [index, call] of toolCalls.entries()) {
 			const toolCallId = `tool-${index + 1}`;
+			fakeNow += 1_000; // distinct failures carry distinct hook timestamps (guard dedups re-emissions)
 			runtime.emitAgentEvent(sessionId, {
 				type: "content_start",
 				contentType: "tool",
@@ -5073,9 +5077,12 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				}),
 			}),
 		);
+		nowSpy.mockRestore();
 	});
-
 	it("parks a task after repeated decompose_project graph-validation failures (varied input)", async () => {
+		const nowSpy = vi.spyOn(Date, "now");
+		let fakeNow = 1_000_000;
+		nowSpy.mockImplementation(() => fakeNow);
 		const { service, runtime } = createTrackedService();
 		await service.startTaskSession({
 			taskId: "task-1",
@@ -5095,6 +5102,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				slug: "professional-daw-core",
 				tasks: [{ id: `t${attempt}`, title: `Implement layer ${attempt}`, dependsOn: [] }],
 			};
+			fakeNow += 1_000; // distinct failures carry distinct hook timestamps (guard dedups re-emissions)
 			runtime.emitAgentEvent(sessionId, {
 				type: "content_start",
 				contentType: "tool",
@@ -5131,9 +5139,12 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				}),
 			}),
 		);
+		nowSpy.mockRestore();
 	});
-
 	it("gives each ranked architect a fresh decomposition budget and continues bounded failover hops", async () => {
+		const nowSpy = vi.spyOn(Date, "now");
+		let fakeNow = 1_000_000;
+		nowSpy.mockImplementation(() => fakeNow);
 		const { service, runtime } = createTrackedService();
 		service.setTaskFailoverCandidates("task-1", ["qwen3", "gemma", "qwopus"]);
 		await service.startTaskSession({
@@ -5147,6 +5158,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 		for (let attempt = 1; attempt <= 4; attempt += 1) {
 			const toolCallId = `decompose-failover-${attempt}`;
+			fakeNow += 1_000; // distinct failures carry distinct hook timestamps (guard dedups re-emissions)
 			runtime.emitAgentEvent(sessionId, {
 				type: "content_start",
 				contentType: "tool",
@@ -5177,6 +5189,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const secondSessionId = await waitForTaskSessionId(runtime, "task-1");
 		for (let attempt = 1; attempt <= 4; attempt += 1) {
 			const toolCallId = `gemma-decompose-failover-${attempt}`;
+			fakeNow += 1_000; // distinct failures carry distinct hook timestamps (guard dedups re-emissions)
 			runtime.emitAgentEvent(secondSessionId, {
 				type: "content_start",
 				contentType: "tool",
@@ -5200,8 +5213,8 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		await waitForSettled(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(3));
 		expect(runtime.startTaskSessionMock.mock.calls[2]?.[0].modelId).toBe("qwopus");
 		expect(service.getSummary("task-1")).toMatchObject({ state: "running", modelId: "qwopus" });
+		nowSpy.mockRestore();
 	});
-
 	it("creates task entry and session mapping before start() resolves", async () => {
 		const { service, runtime } = createTrackedService();
 		const startDeferred = createDeferred<StartNKleinSessionRuntimeResult>();

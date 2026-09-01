@@ -67,6 +67,8 @@ interface NKleinTaskRepeatedFailureTargetState {
 	count: number;
 	targetSummary: string;
 	toolNames: string[];
+	/** lastHookAt of the last COUNTED failure — dedups re-emissions of the same tool_result (see isNewHook). */
+	lastHookAt: number | null;
 }
 
 interface NKleinTaskRepeatedToolCycleState {
@@ -393,6 +395,14 @@ export class RepeatedToolCallGuard {
 			return null;
 		}
 		const previous = this.repeatedFailureTargetByTaskId.get(summary.taskId);
+		// Count DISTINCT failures, not summary re-emissions (live 2026-09-01, v19 architect): heartbeat and
+		// admission-wait summaries re-emit while the SAME failed tool_result stays the latest activity, so one
+		// real decompose_project bounce was counted to the park threshold during the model's slow post-failure
+		// pause. Mirror the cycle guard's isNewHook dedup: a failure counts once per lastHookAt.
+		const failureHookAt = summary.lastHookAt ?? null;
+		if (previous?.fingerprint === target.fingerprint && previous.lastHookAt === failureHookAt) {
+			return null;
+		}
 		const toolNames = Array.from(new Set([...(previous?.toolNames ?? []), target.toolName]));
 		const nextState: NKleinTaskRepeatedFailureTargetState =
 			previous?.fingerprint === target.fingerprint
@@ -401,12 +411,14 @@ export class RepeatedToolCallGuard {
 						count: previous.count + 1,
 						targetSummary: target.targetSummary,
 						toolNames,
+						lastHookAt: failureHookAt,
 					}
 				: {
 						fingerprint: target.fingerprint,
 						count: 1,
 						targetSummary: target.targetSummary,
 						toolNames: [target.toolName],
+						lastHookAt: failureHookAt,
 					};
 		this.repeatedFailureTargetByTaskId.set(summary.taskId, nextState);
 		if (nextState.count < NKLEIN_REPEATED_PLAN_ARTIFACT_FAILURE_THRESHOLD) {

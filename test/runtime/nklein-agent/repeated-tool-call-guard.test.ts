@@ -233,3 +233,41 @@ describe("formatRepeatedToolCallParkMessage", () => {
 		expect(message).toContain("2 repeated decompose_project tool calls");
 	});
 });
+
+describe("failure-target dedup (v19 architect park, 2026-09-01)", () => {
+	it("counts a failing decompose_project once per hook event, not per summary re-emission", () => {
+		const parked: unknown[] = [];
+		const guard = new RepeatedToolCallGuard({
+			getMaxRepeatedToolCallsPerTask: () => 99,
+			getTaskEntry: () => ({ summary: { taskId: "t1", reviewReason: null } }) as never,
+			parkTaskForAutonomyBudget: (input: unknown) => {
+				parked.push(input);
+				return { taskId: "t1" } as never;
+			},
+			recordObservation: () => {},
+		} as never);
+		const failedSummary = (hookAt: number) =>
+			({
+				taskId: "t1",
+				state: "running",
+				lastHookAt: hookAt,
+				latestHookActivity: {
+					source: "nklein-sdk",
+					hookEventName: "tool_result",
+					activityText: "Failed decompose_project: graph validation",
+					toolName: "decompose_project",
+					toolInputSummary: null,
+				},
+			}) as never;
+		// One real failure, re-observed by three heartbeat re-emissions: counts ONCE.
+		guard.check(failedSummary(1000));
+		guard.check(failedSummary(1000));
+		guard.check(failedSummary(1000));
+		expect(parked).toHaveLength(0);
+		// Three more DISTINCT failures reach the threshold (4) and park.
+		guard.check(failedSummary(2000));
+		guard.check(failedSummary(3000));
+		guard.check(failedSummary(4000));
+		expect(parked).toHaveLength(1);
+	});
+});
