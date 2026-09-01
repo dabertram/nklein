@@ -2,7 +2,7 @@ import { buildTransitionEvent } from "../../core/agent-attempt-ledger";
 import type { RuntimeTaskWorktreeMergeRequest, RuntimeTaskWorktreeMergeResponse } from "../../core/api-contract";
 import { hashWorkspacePathForLedger } from "../../nklein-agent/nklein-ledger-attempt";
 import { appendAgentLedgerEvent } from "../../state/agent-attempt-ledger-store";
-import { loadWorkspaceState } from "../../state/workspace-state";
+import { loadWorkspaceState, mutateWorkspaceState } from "../../state/workspace-state";
 import { recordSelfObservation } from "../../telemetry/self-observation-sink";
 import {
 	mergeTaskWorktreesInDependencyOrder,
@@ -90,6 +90,35 @@ export async function handleMergeTaskWorktrees(
 				controllerDecision: "operator",
 			}),
 		).catch(() => {});
+	}
+	// Autonomy directive 2026-09-01: an operator merge is a completion — advance the merged cards to the
+	// completed lane HERE instead of relying on the workflow queue's tick (live: merged cards stayed stranded
+	// in the review lane for hours and re-tripped review-hold watchers until a manual board move).
+	if (result.mergedTaskIds.length > 0) {
+		const mergedIds = new Set(result.mergedTaskIds);
+		await mutateWorkspaceState(workspaceScope.workspacePath, (current) => {
+			const movedCards: unknown[] = [];
+			const columns = current.board.columns
+				.map((column) => {
+					if (column.id === (input.column ?? "review")) {
+						const staying = column.cards.filter((card) => {
+							if (mergedIds.has(card.id)) {
+								movedCards.push(card);
+								return false;
+							}
+							return true;
+						});
+						return { ...column, cards: staying };
+					}
+					return column;
+				})
+				.map((column) =>
+					column.id === "completed" && movedCards.length > 0
+						? { ...column, cards: [...column.cards, ...(movedCards as typeof column.cards)] }
+						: column,
+				);
+			return { board: { ...current.board, columns }, value: null };
+		}).catch(() => undefined);
 	}
 	return {
 		ok: result.ok,

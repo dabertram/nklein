@@ -9,6 +9,8 @@ const { mergeMock, recordObservationMock } = vi.hoisted(() => ({
 
 vi.mock("../../../../src/state/workspace-state", () => ({
 	loadWorkspaceState: vi.fn(async () => ({ board: { columns: [], dependencies: [] } })),
+	// Autonomy 2026-09-01: the handler now advances merged cards to the completed lane itself.
+	mutateWorkspaceState: vi.fn(async () => ({ board: { columns: [], dependencies: [] }, value: null })),
 }));
 vi.mock("../../../../src/workspace/task-worktree-auto-merge", () => ({
 	mergeTaskWorktreesInDependencyOrder: mergeMock,

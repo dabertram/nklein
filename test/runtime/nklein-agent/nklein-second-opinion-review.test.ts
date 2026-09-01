@@ -465,6 +465,39 @@ describe("runNKleinSecondOpinionReview", () => {
 		expect(bounce.review.lastFeedback).toContain("Add or update a test");
 	});
 
+	it("falls back to APPROVE from green acceptance evidence when the reviewer never verdicts (autonomy 2026-09-01)", async () => {
+		const deps = makeDeps({ submission: null });
+		const result = await runNKleinSecondOpinionReview({
+			...base,
+			deps,
+			acceptanceEvidence: { state: "green", detail: "(npm test passed)" },
+		});
+		expect(result.type).toBe("delivered");
+		expect(deps.onPark).not.toHaveBeenCalled();
+		expect(deps.onDeliver).toHaveBeenCalled();
+	});
+
+	it("falls back to REQUEST_CHANGES from red acceptance evidence when the reviewer never verdicts", async () => {
+		const deps = makeDeps({ submission: null });
+		const result = await runNKleinSecondOpinionReview({
+			...base,
+			deps,
+			acceptanceEvidence: { state: "red", detail: "1 test failed: capability.test.ts" },
+		});
+		expect(result.type).toBe("bounced");
+		expect(deps.onPark).not.toHaveBeenCalled();
+		expect(deps.onBounce).toHaveBeenCalled();
+		const bounce = deps.onBounce.mock.calls[0]?.[0] as { workerPrompt: string };
+		expect(bounce.workerPrompt).toContain("capability.test.ts");
+	});
+
+	it("still parks without acceptance evidence when the reviewer never verdicts", async () => {
+		const deps = makeDeps({ submission: null });
+		const result = await runNKleinSecondOpinionReview({ ...base, deps, acceptanceEvidence: null });
+		expect(result.type).toBe("parked");
+		expect(deps.onPark).toHaveBeenCalled();
+	});
+
 	it("escalates the output budget on every no-verdict retry — an identical re-run cannot fix a truncation", async () => {
 		// Campaign round 2 (2026-08-19): reviewer turns ended `max-tokens` at the SAME output-token count on
 		// each attempt (1535, 1535, 1535 …). At temperature 0 a byte-identical re-run re-truncates by

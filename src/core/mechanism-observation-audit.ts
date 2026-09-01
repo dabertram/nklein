@@ -1156,6 +1156,9 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	// Debugger directive 2026-08-30 (NKLEIN_STOP_STACKS rig flag): raw agent_end dump — the vendored run's
 	// terminating turn explains itself (status/finalLen/result keys) after stop-stack seams proved no one stops it.
 	"agent_end_raw",
+	// Autonomy 2026-09-01: the no-verdict fallback (acceptance evidence gates deliver/bounce when the reviewer
+	// cannot produce a verdict) — operational marker for auditing how often the fallback carries the outcome.
+	"review_fallback_verdict",
 	"agent_sandbox_result_cleanup",
 	"agent_sandbox_result_patch",
 	"attempt_started",

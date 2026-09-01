@@ -953,9 +953,21 @@ export async function runSecondOpinionReviewForTask(
 	stampPhase("review-resolution start");
 	// Hoisted: the same summary feeds the reviewer seed, the re-work brief, and the re-decompose card prompt.
 	const acceptanceSummaryForReview = formatAcceptanceSummaryForReview(acceptance, getBaselineProbe(input.taskId));
+	// Autonomy directive 2026-09-01: objective evidence for the no-verdict FALLBACK — green delivers, red
+	// bounces, park only without evidence. `acceptance` here is this round's own sandbox acceptance run.
+	const fallbackAcceptanceEvidence =
+		acceptance?.present === true
+			? acceptance.passed === true
+				? { state: "green" as const, detail: `(${acceptance.command ?? "acceptance"} passed)` }
+				: {
+						state: "red" as const,
+						detail: (acceptance.output ?? acceptance.command ?? "acceptance failed").slice(0, 3000),
+					}
+			: null;
 	const reviewResult = await runNKleinSecondOpinionReview({
 		taskId: input.taskId,
 		columnId,
+		acceptanceEvidence: fallbackAcceptanceEvidence,
 		stampPhase,
 		enabled: config.secondOpinionReviewEnabled,
 		...(preReviewVerdict ? { preReviewVerdict } : {}),

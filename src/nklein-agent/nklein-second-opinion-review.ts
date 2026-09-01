@@ -23,6 +23,7 @@ import {
 	resolveReviewTransition,
 	shouldReviewCard,
 } from "../core/review-orchestration";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 
 /** Extra context the reviewer should judge against: the worker's reasoning + the card's place in the board/plan. */
 export interface ReviewContext {
@@ -90,6 +91,14 @@ export interface RunNKleinSecondOpinionReviewInput {
 	 *  this submission rides the standard transition machinery — so a synthetic `request_changes` bounces via the
 	 *  normal onBounce, and a REPEATED identical gate feedback trips the identical-loop PARK guard (never spins). */
 	preReviewVerdict?: ReviewSubmissionInput | null;
+	/**
+	 * Objective acceptance evidence for the FALLBACK VERDICT (autonomy directive 2026-09-01): when the reviewer
+	 * exhausts its no-verdict budget, a green acceptance delivers and a red one bounces to re-work — the park
+	 * remains only for cards with no objective evidence at all. Before this, every no-verdict card parked "for a
+	 * human decision" and a human (or operating agent) had to audit + merge by hand — ~6 operator merges in one
+	 * factory day, each of which the acceptance evidence already justified.
+	 */
+	acceptanceEvidence?: { state: "green" | "red"; detail: string } | null;
 	now?: () => number;
 	/**
 	 * Diagnostic phase stamps (2026-07-11 review-hang autopsy, todo §12): a silently-wedged review pinpoints its
@@ -313,9 +322,46 @@ export async function runNKleinSecondOpinionReview(
 				noVerdictStreakByTaskId.set(streakKey, { fingerprint: streakFingerprint, count });
 			}
 		}
+		if (!submission && count >= NO_VERDICT_PARK_STREAK && input.acceptanceEvidence) {
+			// FALLBACK VERDICT from objective evidence: the reviewer cannot verdict, but the card's own acceptance
+			// already can. Synthesize the submission and fall through to the NORMAL verdict path (deliver / bounce),
+			// so lanes, merges, and re-work briefs behave exactly as for a real reviewer verdict.
+			const evidence = input.acceptanceEvidence;
+			noVerdictStreakByTaskId.delete(streakKey);
+			stamp(
+				`core: fallback verdict from acceptance evidence (${evidence.state}) after ${count} no-verdict sessions`,
+			);
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Fallback ${evidence.state === "green" ? "approve" : "request_changes"} for ${input.taskId}: reviewer produced no verdict in ${count} sessions; the acceptance evidence gates the outcome.`,
+				taskId: input.taskId,
+				metadata: { category: "review_fallback_verdict", state: evidence.state, noVerdictSessions: count },
+			});
+			submission =
+				evidence.state === "green"
+					? {
+							verdict: "approve",
+							summary:
+								`Fallback verdict (no reviewer submission in ${count} sessions): the card's acceptance command passed on the delivered tree. ${evidence.detail}`.trim(),
+							feedback: null,
+							insight: null,
+							preferred: null,
+							blocking: false,
+						}
+					: {
+							verdict: "request_changes",
+							summary: `Fallback verdict (no reviewer submission in ${count} sessions): the card's acceptance command FAILS on the delivered tree.`,
+							feedback: `Fix the acceptance failure, then redeliver. Acceptance output:
+${evidence.detail}`.slice(0, 4000),
+							insight: null,
+							preferred: null,
+							blocking: false,
+						};
+		}
 		if (!submission && count >= NO_VERDICT_PARK_STREAK) {
 			noVerdictStreakByTaskId.delete(streakKey);
-			const parkedReason = `The reviewer ended ${count} consecutive sessions without a verdict on the same unchanged work — parking for a human decision (reviewer cannot produce a verdict on this artifact).`;
+			const parkedReason = `The reviewer ended ${count} consecutive sessions without a verdict on the same unchanged work — parking for a human decision (reviewer cannot produce a verdict on this artifact, and no objective acceptance evidence exists to gate a fallback).`;
 			// Spread-preserve first (audit 2026-08-12 M4): field-enumerating rebuilds silently drop optional review
 			// fields (`preferredCandidate`, `resultArtifact`, and any future additive one).
 			const review: RuntimeCardReview = {
