@@ -320,6 +320,10 @@ function createFakeNKleinSessionRuntime(): FakeNKleinSessionRuntimeController {
 			getTaskProviderId(taskId: string): string | null {
 				return lastStartRequestByTaskId.get(taskId)?.providerId ?? null;
 			},
+			getTaskHostWorkspaceRoot(taskId: string): string | null {
+				const request = lastStartRequestByTaskId.get(taskId);
+				return request ? request.workspaceRoot?.trim() || request.cwd || null : null;
+			},
 			canRestartTaskSession(taskId: string): boolean {
 				return lastStartRequestByTaskId.has(taskId);
 			},

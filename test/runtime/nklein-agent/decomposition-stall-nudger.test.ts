@@ -325,3 +325,46 @@ describe("maybeNudgeNarratedToolCall (Flash-Next dialect slip, live-found 2026-0
 		);
 	});
 });
+
+describe("exploration-drift nudge (v21 architect, 2026-09-01)", () => {
+	it("nudges a plan-mode session with no graph progress past the threshold, then re-arms", () => {
+		process.env.NKLEIN_EXPLORATION_DRIFT_NUDGE_MS = "1000";
+		const nowSpy = vi.spyOn(Date, "now");
+		let fakeNow = 1_000_000;
+		nowSpy.mockImplementation(() => fakeNow);
+		try {
+			const sent: string[] = [];
+			const nudger = new DecompositionStallNudger({
+				getTaskSummary: () => ({ taskId: "t1", state: "running" }) as never,
+				sendTaskSessionInput: async (_taskId: string, text: string) => {
+					sent.push(text);
+					return null as never;
+				},
+				cancelTaskTurn: async () => null as never,
+				resolveWorkspacePath: () => null,
+				resolveProviderId: () => null,
+				resolveModelId: () => null,
+				recordObservation: () => {},
+			} as never);
+			// First sighting arms the window — no nudge.
+			expect(nudger.maybeNudgeExplorationDrift("t1", [])).toBe(false);
+			// Still inside the window — no nudge.
+			fakeNow += 500;
+			expect(nudger.maybeNudgeExplorationDrift("t1", [])).toBe(false);
+			// Past the window with no progress — nudge fires and names held cards.
+			fakeNow += 600;
+			expect(nudger.maybeNudgeExplorationDrift("t1", ["s01", "s02"])).toBe(true);
+			expect(sent[0]).toContain("PROTOCOL RESET");
+			expect(sent[0]).toContain("s01");
+			// Window re-armed: immediate re-check does not double-fire.
+			expect(nudger.maybeNudgeExplorationDrift("t1", ["s01", "s02"])).toBe(false);
+			// Progress resets the streak entirely.
+			fakeNow += 1_100;
+			nudger.noteConstructionProgress("t1");
+			expect(nudger.maybeNudgeExplorationDrift("t1", ["s01"])).toBe(false);
+		} finally {
+			nowSpy.mockRestore();
+			delete process.env.NKLEIN_EXPLORATION_DRIFT_NUDGE_MS;
+		}
+	});
+});

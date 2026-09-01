@@ -251,6 +251,7 @@ export interface NKleinSessionRuntime {
 	getTaskTurnGeneration(taskId: string): number;
 	getTaskSessionId(taskId: string): string | null;
 	getTaskProviderId(taskId: string): string | null;
+	getTaskHostWorkspaceRoot(taskId: string): string | null;
 	canRestartTaskSession(taskId: string): boolean;
 	/** F1.21: the taint labels the task's session accumulated (broker state), or null when unknown. */
 	getSessionTaintLabels(taskId: string): readonly string[] | null;

@@ -132,6 +132,11 @@ export class DecompositionStallNudger {
 	private readonly nudgeCountsByTaskId = new Map<string, number>();
 	/** Separate budget for the refinement-promotion nudge (a task is either a decompose card OR a refinable one). */
 	private readonly narratedToolCallNudgedTaskIds = new Set<string>();
+	/** Exploration-drift nudge (2026-09-01, v21 architect): last CONSTRUCTION progress (add_task/add_dependency/
+	 * decompose success) per plan-mode task, plus how many drift nudges were sent. A session whose turns keep
+	 * "succeeding" at exploration tools while the graph stops growing triggers neither existing nudge. */
+	private readonly constructionProgressAtByTaskId = new Map<string, number>();
+	private readonly explorationDriftNudgeCountsByTaskId = new Map<string, number>();
 	private readonly emptyFinalNudgeCountsByTaskId = new Map<string, number>();
 	private readonly refinementNudgeCountsByTaskId = new Map<string, number>();
 
@@ -445,6 +450,73 @@ export class DecompositionStallNudger {
 		return true;
 	}
 
+	/** Record real graph progress; re-arms the drift detector and (on progress) clears its nudge streak. */
+	noteConstructionProgress(taskId: string): void {
+		this.constructionProgressAtByTaskId.set(taskId, Date.now());
+		this.explorationDriftNudgeCountsByTaskId.delete(taskId);
+	}
+
+	/**
+	 * Plan-mode exploration drift (live 2026-09-01, v21): 200+ messages of successful read/search tool turns
+	 * with the durable construction stuck — turns end "cleanly with tools", so neither the chat-only nudge nor
+	 * the turn-end stall recovery fires. When a plan-mode session goes NKLEIN_EXPLORATION_DRIFT_NUDGE_MS
+	 * (default 20min) without add_task/add_dependency/decompose progress, re-anchor it to the one-pass
+	 * protocol. Bounded per drift episode; real progress resets the budget.
+	 */
+	maybeNudgeExplorationDrift(taskId: string, heldCardIds: readonly string[]): boolean {
+		const summary = this.callbacks.getTaskSummary(taskId);
+		if (!summary || summary.state !== "running") {
+			return false;
+		}
+		const thresholdMs =
+			Number(process.env.NKLEIN_EXPLORATION_DRIFT_NUDGE_MS ?? "") > 0
+				? Number(process.env.NKLEIN_EXPLORATION_DRIFT_NUDGE_MS)
+				: 20 * 60_000;
+		const lastProgressAt = this.constructionProgressAtByTaskId.get(taskId);
+		if (lastProgressAt === undefined) {
+			// First sighting: arm the detector from now — a session gets a full window before its first nudge.
+			this.constructionProgressAtByTaskId.set(taskId, Date.now());
+			return false;
+		}
+		if (Date.now() - lastProgressAt < thresholdMs) {
+			return false;
+		}
+		const nudgeCount = this.explorationDriftNudgeCountsByTaskId.get(taskId) ?? 0;
+		if (nudgeCount >= 3) {
+			return false;
+		}
+		this.explorationDriftNudgeCountsByTaskId.set(taskId, nudgeCount + 1);
+		// Re-arm the window so the next nudge (if still stuck) waits another full threshold.
+		this.constructionProgressAtByTaskId.set(taskId, Date.now());
+		const held = heldCardIds.slice(0, 40).join(", ");
+		this.callbacks.recordObservation({
+			taskId,
+			workspacePath: this.callbacks.resolveWorkspacePath(taskId),
+			providerId: this.callbacks.resolveProviderId(taskId),
+			modelId: this.callbacks.resolveModelId(taskId),
+			message: `!Klein nudged a plan-mode session that made no graph progress for ${Math.round(thresholdMs / 60000)}m (exploration drift).`,
+			metadata: {
+				category: "decomposition_exploration_drift",
+				heldCards: String(heldCardIds.length),
+				nudge: String(nudgeCount + 1),
+			},
+		});
+		void this.callbacks
+			.sendTaskSessionInput(
+				taskId,
+				[
+					`PROTOCOL RESET: you have made no graph progress (add_task/add_dependency/decompose_project) for ${Math.round(thresholdMs / 60000)} minutes — you are exploring instead of building.`,
+					heldCardIds.length > 0
+						? `The durable graph already holds ${heldCardIds.length} card(s): ${held}. They survive restarts — declare only NEW cards.`
+						: "The durable graph is still EMPTY.",
+					"Resume the ONE-PASS protocol NOW: read the NEXT unconverted specification.md section with read_large_file, then immediately add_task each card that section defines (id, title, prompt). Do not search the workspace; specification.md is the only source. When every section is converted, call decompose_project with no arguments.",
+				].join(" "),
+				"act",
+			)
+			.catch(() => undefined);
+		return true;
+	}
+
 	maybeNudgeStalledRefinement(taskId: string): boolean {
 		const summary = this.callbacks.getTaskSummary(taskId);
 		if (!summary) {
@@ -501,6 +573,8 @@ export class DecompositionStallNudger {
 		this.refinementNudgeCountsByTaskId.delete(taskId);
 		this.narratedToolCallNudgedTaskIds.delete(taskId);
 		this.emptyFinalNudgeCountsByTaskId.delete(taskId);
+		this.constructionProgressAtByTaskId.delete(taskId);
+		this.explorationDriftNudgeCountsByTaskId.delete(taskId);
 	}
 
 	/**

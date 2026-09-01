@@ -4655,8 +4655,31 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.clearTaskTimeout(taskId, "stream");
 			this.timeoutController.scheduleToolTimeout(taskId);
 		} else if (entry.summary.state === "running" && hookEventName === "tool_result") {
-			if (isDecompositionProgressTool(entry.summary.latestHookActivity?.toolName)) {
+			const resultToolName = entry.summary.latestHookActivity?.toolName ?? null;
+			if (isDecompositionProgressTool(resultToolName)) {
 				this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
+			}
+			// Exploration-drift detection (2026-09-01, v21 architect): graph-tool RESULTS note construction
+			// progress; every other tool result on an explicit-decomposition session runs the cheap drift check —
+			// 200+ messages of "successful" read/search turns with a frozen graph triggered no existing nudge.
+			if (this.explicitDecompositionTaskIds.has(taskId)) {
+				const activityText = entry.summary.latestHookActivity?.activityText ?? "";
+				const failedResult = activityText.toLowerCase().startsWith("failed ");
+				if (
+					!failedResult &&
+					(resultToolName === "add_task" ||
+						resultToolName === "add_dependency" ||
+						resultToolName === "decompose_project")
+				) {
+					this.decompositionStallNudger.noteConstructionProgress(taskId);
+				} else {
+					const constructionRoot =
+						this.sessionRuntime.getTaskHostWorkspaceRoot(taskId) ?? entry.summary.workspacePath ?? "";
+					const heldCardIds = (loadDecomposeConstruction(constructionRoot, taskId)?.construction.nodes ?? []).map(
+						(node) => node.id,
+					);
+					this.decompositionStallNudger.maybeNudgeExplorationDrift(taskId, heldCardIds);
+				}
 			}
 			this.activeToolTaskIds.delete(taskId);
 			this.clearTaskTimeout(taskId, "tool");
