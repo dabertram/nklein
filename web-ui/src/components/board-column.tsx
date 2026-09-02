@@ -1,6 +1,6 @@
 import { Droppable } from "@hello-pangea/dnd";
 import { Play, Plus, Trash2 } from "lucide-react";
-import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import { type MouseEvent as ReactMouseEvent, type ReactNode, useMemo } from "react";
 
 import { BoardCard } from "@/components/board-card";
 import { BoardLaneHealth } from "@/components/board-lane-health";
@@ -100,6 +100,21 @@ export function BoardColumn({
 	replayCardsEnabled?: boolean;
 	defaultAgentId?: string | null;
 }): React.ReactElement {
+	// F2.33 (David 2026-09-02, "show active cards to top of their lanes"): cards with a LIVE session float to
+	// the top of their column — on an 88-card board the working cards were buried mid-lane and invisible.
+	// Stable partition: board order is preserved within each group; the float is display-only (a DnD reorder
+	// still persists the explicit board order underneath).
+	const orderedCards = useMemo(() => {
+		const isActive = (cardId: string): boolean => {
+			const state = taskSessions[cardId]?.state;
+			return state === "running" || state === "queued";
+		};
+		const active = column.cards.filter((card) => isActive(card.id));
+		if (active.length === 0) {
+			return column.cards;
+		}
+		return [...active, ...column.cards.filter((card) => !isActive(card.id))];
+	}, [column.cards, taskSessions]);
 	const canCreate = column.id === "backlog" && onCreateTask;
 	const canStartAllTasks = column.id === "backlog" && onStartAllTasks;
 	const canClearTrash = column.id === "trash" && onClearTrash;
@@ -184,7 +199,7 @@ export function BoardColumn({
 							{(() => {
 								const items: ReactNode[] = [];
 								let draggableIndex = 0;
-								for (const card of column.cards) {
+								for (const card of orderedCards) {
 									if (column.id === "backlog" && editingTaskId === card.id) {
 										items.push(
 											<div

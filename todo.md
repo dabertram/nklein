@@ -2837,6 +2837,11 @@ These are known defects or incomplete migrations. Clear them before widening cap
   persistence (a dismissed dialog must NOT re-annoy on reload), Escape/keyboard behavior, validation errors, and
   safe cancel; plus a UX judgment pass — fix clear annoyances found while testing, file the rest here.
 
+- [x] **F2.33 — Active cards float to the top of their lanes (David directive 2026-09-02, verbatim: "show
+  active cards to tp of their lanes..").** SHIPPED same night: BoardColumn partitions cards with a live
+  (running/queued) session to the top, stable within groups, display-only (DnD still persists explicit board
+  order). Live-verified on the 84-card planning lane.
+
 - [ ] **F2.31 — DAG overview: layered tree layout with temporal flow, EARLY→RIGHT (David directive 2026-09-02,
   verbatim: "the dag graph overview .. should try to visualize tree structure as good as possible .. and flow ..
   like early to the right .. late on left side").** The board-dag-view should lay cards out by dependency depth
