@@ -1165,6 +1165,8 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"stream_liveness_reclaim",
 	// Stale-input guard (2026-09-02): late nudges/steers must not resurrect a decompose-completed source card.
 	"input_after_decomposition_dropped",
+	// Model-unavailable self-recovery (2026-09-02): parked cards resume themselves when their model reappears.
+	"model_unavailable_recovered",
 	// Exploration-drift nudge (2026-09-01): plan-mode session made no graph progress for the threshold window.
 	"decomposition_exploration_drift",
 	"agent_sandbox_result_cleanup",

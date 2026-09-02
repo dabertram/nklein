@@ -194,6 +194,7 @@ import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../n
 import { runNKleinMutationAdequacy } from "../nklein-agent/nklein-mutation-adequacy-runner";
 import { readNKleinPlanArtifacts } from "../nklein-agent/nklein-plan-artifacts";
 import { getPropertyCheckEvidence } from "../nklein-agent/nklein-property-evidence-registry";
+import { isLocalModelUnavailableWarning } from "../nklein-agent/nklein-session-state";
 import { SpeculativeAttemptRegistry } from "../nklein-agent/nklein-speculative-attempt-registry";
 import {
 	hasDeliverySessionWaitingForModelTurn,
@@ -679,6 +680,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// F1.10: per-workspace "already notified" map for the running-task trouble read (taskId → episode kind), so a
 	// troubled card is steered ONCE per episode kind instead of every watchdog tick; cleared when the trouble clears.
 	const troubleNotifiedKindByWorkspaceId = new Map<string, Map<string, string>>();
+	// Model-unavailable self-recovery books (probe cooldown + bounded per-card recoveries).
+	const modelUnavailableProbeAtByTaskKey = new Map<string, number>();
+	const modelUnavailableRecoveryCountByTaskKey = new Map<string, number>();
 	/** F12.110c: require two identical non-empty loaded-fleet observations before any board mutation. */
 	const fleetReshardObservationByWorkspaceId = new Map<string, { fingerprint: string; count: number }>();
 	// Record-only PRM dedup: workspaceId → (taskId → last-recorded peak "pattern:level"), so a persistent trajectory
@@ -4497,6 +4501,69 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								metadata: { category: "board_liveness_watchdog", zeroTokenWedgedTaskId: wedge.taskId },
 							});
 							await trackedService.stopTaskSession(wedge.taskId).catch(() => null);
+						}
+						// Model-unavailable SELF-RECOVERY (live 2026-09-02: a 1s endpoint blip mid-decompose parked the
+						// architect with "reload the model ... then resume this task" — reloading may be the human's job,
+						// but RESUMING is ours). Probe the parked card's own endpoint for its model; when it is loadable
+						// again, redrive the card. Bounded: 60s per-card cooldown, 3 recoveries per card (a crash-looping
+						// model must still land on the operator).
+						for (const summary of trackedService.listSummaries()) {
+							if (
+								summary.state !== "awaiting_review" ||
+								summary.reviewReason !== "error" ||
+								summary.paused === true ||
+								isHomeAgentSessionId(summary.taskId) ||
+								!isLocalModelUnavailableWarning(summary.warningMessage)
+							) {
+								continue;
+							}
+							const modelId = summary.modelId?.trim();
+							const endpoint = summary.endpoint?.trim();
+							if (!modelId || !endpoint) {
+								continue;
+							}
+							const recoveryKey = `${scope.workspaceId}:${summary.taskId}`;
+							const nowMs = Date.now();
+							const lastProbeAt = modelUnavailableProbeAtByTaskKey.get(recoveryKey) ?? 0;
+							if (nowMs - lastProbeAt < 60_000) {
+								continue;
+							}
+							modelUnavailableProbeAtByTaskKey.set(recoveryKey, nowMs);
+							if ((modelUnavailableRecoveryCountByTaskKey.get(recoveryKey) ?? 0) >= 3) {
+								continue;
+							}
+							let modelBack = false;
+							try {
+								const listingUrl = `${endpoint.replace(/\/+$/u, "").replace(/\/v1$/u, "")}/v1/models`;
+								const response = await fetch(listingUrl, { signal: AbortSignal.timeout(5_000) });
+								if (response.ok) {
+									const listing = (await response.json()) as { data?: Array<{ id?: string }> };
+									modelBack =
+										Array.isArray(listing.data) &&
+										listing.data.some((entry) => (entry.id ?? "").trim() === modelId);
+								}
+							} catch {
+								continue; // endpoint still down — next tick probes again after the cooldown
+							}
+							if (!modelBack) {
+								continue;
+							}
+							modelUnavailableRecoveryCountByTaskKey.set(
+								recoveryKey,
+								(modelUnavailableRecoveryCountByTaskKey.get(recoveryKey) ?? 0) + 1,
+							);
+							deps.warn(
+								`Model ${modelId} is loadable again at ${endpoint} — auto-resuming ${summary.taskId} (was parked model-unavailable; recovery ${modelUnavailableRecoveryCountByTaskKey.get(recoveryKey)}/3).`,
+							);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "info",
+								message: `Model-unavailable self-recovery: ${modelId} reappeared at ${endpoint}; auto-resuming ${summary.taskId}.`,
+								taskId: summary.taskId,
+								workspacePath: scope.workspacePath,
+								metadata: { category: "model_unavailable_recovered", modelId },
+							});
+							autoStartTaskIds(scope, [summary.taskId], { bypassDurableGuard: true });
 						}
 						// F1.10 first-class stuck/at-risk read: evaluate the unified trouble signal for every RUNNING
 						// session on this board (ledger attempt stream + summary activity ages). Trouble is RECORDED

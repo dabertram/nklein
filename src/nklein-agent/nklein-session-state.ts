@@ -103,6 +103,12 @@ export function buildLocalModelUnavailableGuidance(modelId: string | null, endpo
 	return `Local model "${model}" on ${endpoint?.trim() || "its endpoint"} became unavailable mid-run (crashed or unloaded — local hosts like LM Studio drop a model under memory pressure, which a reasoning model at a large context window on limited hardware can trigger). Reload the model in your local host, or pick a smaller / non-reasoning model or a smaller context window, then resume this task.`;
 }
 
+/** Does this summary warning carry the model-unavailable reload guidance? (Single source with the builder above —
+ * the self-recovery sweep keys on it to resume cards once the named model is loadable again.) */
+export function isLocalModelUnavailableWarning(warning: string | null | undefined): boolean {
+	return typeof warning === "string" && warning.includes("became unavailable mid-run");
+}
+
 const WINDOWS_INVALID_SESSION_ID_CHARS = /[<>:"/\\|?*]/g;
 
 export interface NKleinTaskSessionEntry {
