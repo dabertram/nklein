@@ -117,9 +117,24 @@ describe.sequential("durable scheduler concurrency-defer rescue (C3 §5.AF)", ()
 									defaultAcceptanceCommand: 'node -e "process.exit(0)"',
 									// Two INDEPENDENT cards (no dependsOn) — both become ready at once, but cap=1 admits one
 									// at a time, so the second is leased-then-deferred at the first's awaiting_review handoff.
+									// Docs-only scripted cards (write notes/*.md): not_testable upfront or the default-ON
+									// test-driven gate bounces every delivery as "touched no test file" (this test pins the
+									// scheduler rescue, not the gate).
 									tasks: [
-										{ id: "alpha", title: "Card alpha", prompt: "Do alpha." },
-										{ id: "beta", title: "Card beta", prompt: "Do beta." },
+										{
+											id: "alpha",
+											title: "Card alpha",
+											prompt: "Do alpha.",
+											testability: "not_testable",
+											testabilityReason: "deterministic harness card: writes documentation notes only",
+										},
+										{
+											id: "beta",
+											title: "Card beta",
+											prompt: "Do beta.",
+											testability: "not_testable",
+											testabilityReason: "deterministic harness card: writes documentation notes only",
+										},
 									],
 								},
 							},

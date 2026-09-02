@@ -664,6 +664,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	// on the same workdir. Per-task single-flight: concurrent starts share the first call's promise instead of
 	// racing to commit.
 	private readonly inFlightStartsByTaskId = new Map<string, Promise<RuntimeTaskSessionSummary>>();
+	/** Source cards whose decomposition APPLIED — finished work; late queued inputs must not resurrect them.
+	 * (The summary's decomposition_applied hook marker is clobbered by the aborted session's trailing ended event,
+	 * so this is a service-level fact. Cleared by an explicit fresh start — the operator lever.) */
+	private readonly decompositionCompletedTaskIds = new Set<string>();
 
 	private readonly focusChainStore = createFocusChainStore({
 		now,
@@ -2133,6 +2137,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (alreadyStarting) {
 			return await alreadyStarting;
 		}
+		this.decompositionCompletedTaskIds.delete(request.taskId);
 		const startPromise = this.startTaskSessionInner(request);
 		this.inFlightStartsByTaskId.set(request.taskId, startPromise);
 		try {
@@ -3135,6 +3140,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return null;
 		}
 		this.resetInterruptedTaskState(taskId);
+		this.decompositionCompletedTaskIds.add(taskId);
 		this.launchConfigByTaskId.delete(taskId);
 		this.communitySkillAdmissionByTaskId.delete(taskId);
 		this.communitySkillSuggestionFragmentByTaskId.delete(taskId);
@@ -3385,6 +3391,20 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!entry) {
 			return null;
 		}
+		// A decompose-completed SOURCE card is finished work: a late queued input (nudge, steer, controller
+		// redrive) must NOT resurrect its architect session. Live 2026-09-02 (durable-concurrency-rescue RED): two
+		// stale deliveries raced 8ms apart, each restarting a ghost session on the single endpoint slot — the real
+		// cards then queued behind the ghosts until the deadline. Drop the input loudly; restart stays the operator lever.
+		if (this.decompositionCompletedTaskIds.has(taskId) && entry.summary.state !== "running") {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Dropped a late input for decompose-completed source ${taskId} (would have resurrected a ghost session): ${text.trim().slice(0, 160)}`,
+				taskId,
+				metadata: { category: "input_after_decomposition_dropped" },
+			});
+			return null;
+		}
 		const interruptedRecaptureOwed =
 			entry.summary.state === "interrupted" && this.sandboxState.recaptureExpectedReason(taskId) !== null;
 		if (
@@ -3446,6 +3466,20 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				assistantCountBeforeSend: number;
 			}> => {
 				if (this.messageRepository.getTaskEntry(taskId) !== entry) {
+					return { result: null, assistantCountBeforeSend: entry.messages.length };
+				}
+				// AUTHORITATIVE stale-input re-check (the entry-level guard runs BEFORE model-turn admission, and a
+				// delivery can wait in that queue across the decompose completion — live 2026-09-02: two queued
+				// inputs resumed after the slot freed and each restarted a ghost architect session on the completed
+				// source card, stranding the real cards behind the occupied endpoint).
+				if (this.decompositionCompletedTaskIds.has(taskId)) {
+					recordSelfObservation({
+						signal: "custom",
+						severity: "info",
+						message: `Dropped a late input for decompose-completed source ${taskId} (would have resurrected a ghost session): ${normalized.slice(0, 160)}`,
+						taskId,
+						metadata: { category: "input_after_decomposition_dropped" },
+					});
 					return { result: null, assistantCountBeforeSend: entry.messages.length };
 				}
 				const message = createMessage(taskId, "user", normalized, images);

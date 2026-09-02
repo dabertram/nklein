@@ -183,6 +183,10 @@ export const runtimeTaskSessionSummarySchema = z.object({
 	lastOutputAt: z.number().nullable(),
 	paused: z.boolean().optional(),
 	lastTokenAt: z.number().nullable().optional(),
+	/** When the runtime actually ISSUED the first model turn for this session (null while startup — worktree/
+	 * sandbox/admission — is still in flight). The zero-token wedge sweep ages from THIS stamp, not `startedAt`:
+	 * a slow start is not a wedged request (live 2026-09-02: 5s-bound test killed healthy sessions mid-startup). */
+	firstTurnSentAt: z.number().nullable().optional(),
 	lastHeartbeatAt: z.number().nullable().optional(),
 	heartbeatStatus: z.enum(["healthy", "stale", "lost"]).nullable().optional(),
 	providerId: z.string().nullable().optional(),

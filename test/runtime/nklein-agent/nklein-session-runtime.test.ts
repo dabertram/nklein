@@ -2537,6 +2537,9 @@ describe("InMemoryNKleinSessionRuntime", () => {
 			systemPrompt: "You are a helpful coding assistant.",
 		});
 
+		// The start itself legitimately emits nklein_turn_send_started (the wedge sweep's first-send stamp);
+		// this test pins that the SUPPRESSED STOP leaks nothing.
+		onTaskEvent.mockClear();
 		await runtime.stopTaskSession("task-restart", { suppressTaskEvents: true });
 
 		expect(onTaskEvent).not.toHaveBeenCalled();

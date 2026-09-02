@@ -18,6 +18,8 @@ function summary(overrides: Partial<RuntimeTaskSessionSummary> = {}): RuntimeTas
 		// Production primary starts optimistically stamp this before the SDK call. It is a renewable timestamp, not
 		// permanent evidence that the first turn is alive.
 		lastHeartbeatAt: NOW - DEFAULT_ZERO_TOKEN_WEDGE_MS - 60_000,
+		// The first model turn went out long ago too — the wedge ages from THIS stamp (startup is exempt).
+		firstTurnSentAt: NOW - DEFAULT_ZERO_TOKEN_WEDGE_MS - 60_000,
 		heartbeatStatus: "healthy",
 		reviewReason: null,
 		exitCode: null,
@@ -37,7 +39,10 @@ describe("listZeroTokenWedgedSessions", () => {
 	});
 
 	it("leaves a session under the bound alone (a slow low-power prefill is legitimate)", () => {
-		const young = summary({ startedAt: NOW - DEFAULT_ZERO_TOKEN_WEDGE_MS + 30_000 });
+		const young = summary({
+			startedAt: NOW - DEFAULT_ZERO_TOKEN_WEDGE_MS + 30_000,
+			firstTurnSentAt: NOW - DEFAULT_ZERO_TOKEN_WEDGE_MS + 30_000,
+		});
 		expect(listZeroTokenWedgedSessions([young], NOW)).toHaveLength(0);
 	});
 
@@ -67,8 +72,25 @@ describe("listZeroTokenWedgedSessions", () => {
 		expect(listZeroTokenWedgedSessions([summary({ startedAt: null })], NOW)).toHaveLength(0);
 	});
 
+	it("skips a session whose first turn has not been issued yet (startup is not a wedged request)", () => {
+		// Live 2026-09-02 (zero-token-self-heal RED): worktree/sandbox/admission prep exceeded a tight bound and
+		// the watchdog killed healthy sessions MID-STARTUP, before any model request existed. No first send — no
+		// wedge; wedged starts belong to the force-reclaim sweep.
+		expect(listZeroTokenWedgedSessions([summary({ firstTurnSentAt: null })], NOW)).toHaveLength(0);
+		expect(listZeroTokenWedgedSessions([summary({ firstTurnSentAt: undefined })], NOW)).toHaveLength(0);
+	});
+
+	it("ages from the first send, not the optimistic start (slow startup + fresh request is healthy)", () => {
+		const slowStartup = summary({
+			startedAt: NOW - 30 * 60_000, // optimistic stamp long ago
+			lastHeartbeatAt: NOW - 1_000,
+			firstTurnSentAt: NOW - 2_000, // request just went out
+		});
+		expect(listZeroTokenWedgedSessions([slowStartup], NOW)).toHaveLength(0);
+	});
+
 	it("honours a custom bound and rejects a nonsensical one", () => {
-		const twoMinOld = summary({ startedAt: NOW - 2 * 60_000 });
+		const twoMinOld = summary({ startedAt: NOW - 2 * 60_000, firstTurnSentAt: NOW - 2 * 60_000 });
 		expect(listZeroTokenWedgedSessions([twoMinOld], NOW, { wedgeAfterMs: 60_000 })).toHaveLength(1);
 		// invalid bounds fall back to the (not yet exceeded) default
 		expect(listZeroTokenWedgedSessions([twoMinOld], NOW, { wedgeAfterMs: -5 })).toHaveLength(0);

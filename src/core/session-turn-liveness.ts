@@ -70,12 +70,22 @@ export function listZeroTokenWedgedSessions(
 		if (summary.lastTokenAt != null) {
 			continue; // token history exists — the normal heartbeat/stream machinery owns it
 		}
+		const firstTurnSentAt =
+			typeof summary.firstTurnSentAt === "number" && Number.isFinite(summary.firstTurnSentAt)
+				? summary.firstTurnSentAt
+				: null;
+		if (firstTurnSentAt === null) {
+			// No model turn has been ISSUED yet — the session is still in startup (worktree/sandbox/admission) or
+			// predates the stamp. Startup is not a wedged request (live 2026-09-02: healthy sessions were killed
+			// mid-startup under a tight bound); wedged STARTS have their own force-reclaim sweep.
+			continue;
+		}
 		const ageMs = Math.max(0, nowMs - summary.startedAt);
 		const lastHeartbeatAt =
 			typeof summary.lastHeartbeatAt === "number" && Number.isFinite(summary.lastHeartbeatAt)
 				? summary.lastHeartbeatAt
-				: summary.startedAt;
-		const silentSinceMs = Math.max(summary.startedAt, lastHeartbeatAt);
+				: firstTurnSentAt;
+		const silentSinceMs = Math.max(firstTurnSentAt, lastHeartbeatAt);
 		const silentMs = Math.max(0, nowMs - silentSinceMs);
 		if (silentMs <= bound) {
 			continue;

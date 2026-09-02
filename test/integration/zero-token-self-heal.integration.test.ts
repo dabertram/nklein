@@ -119,7 +119,19 @@ describe.sequential("zero-token session self-healing (P0.3)", () => {
 									plan: "One card.",
 									summary: "One card.",
 									defaultAcceptanceCommand: 'node -e "process.exit(0)"',
-									tasks: [{ id: "gamma", title: "Recovered card gamma", prompt: "Do recovered gamma." }],
+									tasks: [
+										// Docs-only scripted work (writes notes/*.md): declare not_testable upfront (F1.34b escape
+										// hatch) or the default-ON test-driven gate bounces every delivery as "touched no test
+										// file" until the ladder redecomposes (surfaced 2026-09-02 once the startup-latency
+										// false interrupts were fixed and gamma finally reached review).
+										{
+											id: "gamma",
+											title: "Recovered card gamma",
+											prompt: "Do recovered gamma.",
+											testability: "not_testable",
+											testabilityReason: "deterministic harness card: writes documentation notes only",
+										},
+									],
 								},
 							},
 						],

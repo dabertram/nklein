@@ -169,6 +169,12 @@ export function extractNKleinSessionId(event: unknown): string | null {
 export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): void {
 	const { entry, event, taskId } = input;
 	const eventRecord = asRecord(event);
+	if (eventRecord?.type === "nklein_turn_send_started") {
+		// The runtime just handed a turn to the model host. Stamp the FIRST send (the zero-token wedge sweep ages
+		// from it — startup latency before this point is not a wedged request) and renew liveness for every send.
+		emitSummary(input, withHeartbeat(entry.summary.firstTurnSentAt ? {} : { firstTurnSentAt: now() }));
+		return;
+	}
 	if (eventRecord?.type === "nklein_buffered_model_token") {
 		// The swarm retry decorator withholds model deltas until it knows whether an aborted attempt must be replaced.
 		// Renew liveness out-of-band so buffering cannot look like a zero-token zombie or trip the stream watchdog.

@@ -164,6 +164,7 @@ export function createDefaultSummary(taskId: string): RuntimeTaskSessionSummary 
 		updatedAt: now(),
 		lastOutputAt: null,
 		lastTokenAt: null,
+		firstTurnSentAt: null,
 		lastHeartbeatAt: null,
 		heartbeatStatus: null,
 		providerId: null,

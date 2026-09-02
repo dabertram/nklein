@@ -399,6 +399,14 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 	}
 
 	async startTaskSession(request: StartNKleinSessionRuntimeRequest): Promise<StartNKleinSessionRuntimeResult> {
+		if (process.env.NKLEIN_STOP_STACKS === "1") {
+			// Symmetric with the abort/cancel stack prints: WHO dispatched this start (double-dispatch forensics).
+			process.stderr.write(
+				`[stop-stack] runtime.startTaskSession ${request.taskId}
+${new Error("stack").stack ?? ""}
+`,
+			);
+		}
 		const requestedSessionId = createSessionId(request.taskId);
 		const resolvedMode: RuntimeTaskSessionMode = request.mode ?? "act";
 		this.lastStartRequestByTaskId.set(request.taskId, {
@@ -881,6 +889,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		try {
 			if (runInitialTurnInStart) {
 				this.bumpTaskTurnGeneration(request.taskId);
+				this.onTaskEvent?.(request.taskId, { type: "nklein_turn_send_started" });
 			}
 			// Hub-backed SDK hosts create the interactive session in start; the first turn runs through send.
 			startResult = await sessionHost.start({
@@ -1242,6 +1251,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		if (shouldSendInitialTurn && !runInitialTurnInStart) {
 			try {
 				this.bumpTaskTurnGeneration(request.taskId);
+				this.onTaskEvent?.(request.taskId, { type: "nklein_turn_send_started" });
 				result = await sessionHost.send({
 					sessionId: startResult.sessionId,
 					prompt: request.prompt,
@@ -1317,6 +1327,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				? launchConfigOverrides.turnTimeoutMs
 				: this.lastStartRequestByTaskId.get(taskId)?.turnTimeoutMs;
 		this.bumpTaskTurnGeneration(taskId);
+		this.onTaskEvent?.(taskId, { type: "nklein_turn_send_started" });
 		return await sessionHost.send({
 			sessionId,
 			prompt,
