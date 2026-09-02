@@ -124,12 +124,15 @@ await writeFile(
 				architect: {
 					modelId: process.env.NKLEIN_ROLE_ARCHITECT_MODEL?.trim() || model,
 					providerId: "lmstudio",
-					modelSelectionMode: "pinned",
+					// Pin only when the operator SET the role env: an unconditional pin hard-fails the start when
+					// the pinned endpoint looks momentarily busy (live 2026-09-02: "honoring the configured pin.
+					// Selected best free efficient fit ornith…" -> pinned_model_unavailable at seed settle).
+					...(process.env.NKLEIN_ROLE_ARCHITECT_MODEL?.trim() ? { modelSelectionMode: "pinned" } : {}),
 				},
 				worker: {
 					modelId: process.env.NKLEIN_ROLE_WORKER_MODEL?.trim() || model,
 					providerId: "lmstudio",
-					modelSelectionMode: "pinned",
+					...(process.env.NKLEIN_ROLE_WORKER_MODEL?.trim() ? { modelSelectionMode: "pinned" } : {}),
 					...(process.env.NKLEIN_ROLE_WORKER_EXTRA_MODEL?.trim()
 						? { additionalModels: [{ modelId: process.env.NKLEIN_ROLE_WORKER_EXTRA_MODEL.trim(), providerId: "lmstudio" }] }
 						: {}),
@@ -137,7 +140,7 @@ await writeFile(
 				reviewer: {
 					modelId: process.env.NKLEIN_ROLE_REVIEWER_MODEL?.trim() || model,
 					providerId: "lmstudio",
-					modelSelectionMode: "pinned",
+					...(process.env.NKLEIN_ROLE_REVIEWER_MODEL?.trim() ? { modelSelectionMode: "pinned" } : {}),
 				},
 			},
 		},
@@ -428,7 +431,7 @@ try {
 			);
 			planStartBody = await planStart.text();
 			if (!planStart.ok || planStartBody.includes('"error"')) {
-				throw new Error(`plan-mode start failed (HTTP ${planStart.status}): ${planStartBody.slice(0, 400)}`);
+				throw new Error(`plan-mode start failed (HTTP ${planStart.status}): ${planStartBody.slice(0, 1600)}`);
 			}
 			// Verify via a FRESH read a moment after the start — the start response can carry a stale summary
 			// (the prior worker's retained entry), which caused a false non-architect verdict and a needless
