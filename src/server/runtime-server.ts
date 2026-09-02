@@ -1704,6 +1704,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// concurrency/overlap-deferred — nothing else will restart them) WITH the bypass; the discovery legs (ready/sweep/
 	// redrive) stay the controller's job (lease → dispatch, reclaim → retry), so we never start a card its DAG hasn't
 	// unblocked. Off durable (`hasRun` false) ⇒ today's full-candidate union, byte-identical.
+	// Rescue-handover chant dedup: last logged not-revivable residue per workspace (log only when it changes).
+	const rescueHandoverDroppedKeyByWorkspaceId = new Map<string, string>();
 	const startRescueCandidates = async (
 		scope: RuntimeTrpcWorkspaceScope,
 		deferredTaskIds: readonly string[],
@@ -1730,9 +1732,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					);
 				}
 				if (dropped.length > 0) {
-					deps.warn(
-						`Rescue HANDOVER: ${dropped.length} candidate(s) [${dropped.slice(0, 5).join(", ")}] not revivable by the controller (job not failed, or attempt budget exhausted) — the controller's own discovery must dispatch them, or they park for the operator.`,
-					);
+					// Dedup per (workspace, dropped-set): every watchdog tick re-derives the same residue, and the
+					// unchanged line chanted unbounded (8+ repeats in a 3-min window live 2026-09-02). Log on CHANGE.
+					const droppedKey = `${scope.workspaceId}:${[...dropped].sort().join(",")}`;
+					if (rescueHandoverDroppedKeyByWorkspaceId.get(scope.workspaceId) !== droppedKey) {
+						rescueHandoverDroppedKeyByWorkspaceId.set(scope.workspaceId, droppedKey);
+						deps.warn(
+							`Rescue HANDOVER: ${dropped.length} candidate(s) [${dropped.slice(0, 5).join(", ")}] not revivable by the controller (job not failed, or attempt budget exhausted) — the controller's own discovery must dispatch them, or they park for the operator.`,
+						);
+					}
+				} else {
+					rescueHandoverDroppedKeyByWorkspaceId.delete(scope.workspaceId);
 				}
 			}
 			if (deferred.length > 0) {
