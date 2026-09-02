@@ -220,3 +220,35 @@ describe("resolveBubbleLabelLayout", () => {
 		expect(layout.get("b")?.above).toBe(true); // flipped, not overprinted
 	});
 });
+
+describe("active-center ordering (F2.33 companion, 2026-09-03)", () => {
+	it("sorts each cluster running-first so actives claim the inner ring, done drifts outward", () => {
+		const columns = [
+			{
+				id: "planning",
+				title: "Planning",
+				cards: [
+					{ id: "idle-1", title: "Idle 1", updatedAt: 0 },
+					{ id: "run-1", title: "Running 1", updatedAt: 0 },
+					{ id: "idle-2", title: "Idle 2", updatedAt: 0 },
+				],
+			},
+			{ id: "completed", title: "Done", cards: [{ id: "done-1", title: "Done 1", updatedAt: 0 }] },
+			{ id: "review", title: "Review", cards: [{ id: "rev-1", title: "Review 1", updatedAt: 0 }] },
+		] as never;
+		const map = composeActivityMap({
+			columns,
+			dependencies: [],
+			sessions: { "run-1": { taskId: "run-1", state: "running" } } as never,
+			now: () => 1_000_000,
+		});
+		const cluster = map.clusters.find((entry) => entry.bubbles.length === 5);
+		expect(cluster, "all five cards share the unplanned cluster").toBeTruthy();
+		const order = (cluster?.bubbles ?? []).map((bubble) => bubble.id);
+		expect(order[0]).toBe("run-1"); // running claims the center slot
+		expect(order[1]).toBe("rev-1"); // review next
+		expect(order[order.length - 1]).toBe("done-1"); // done drifts outermost
+		// Stable within a state: idle cards keep their board order.
+		expect(order.indexOf("idle-1")).toBeLessThan(order.indexOf("idle-2"));
+	});
+});

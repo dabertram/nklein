@@ -194,11 +194,22 @@ export function composeActivityMap(input: ComposeActivityMapInput): ActivityMap 
 			right.bubbles.length - left.bubbles.length ||
 			left.label.localeCompare(right.label),
 	);
+	// F2.33 companion (David 2026-09-03, "also in the clean view graph"): ring slots fill in array order
+	// (innermost first), so the FULL state ranking puts running work at the heart of its constellation, review
+	// next, and done drifting to the outer rings — actives stop drowning in an 88-bubble blob. Title breaks
+	// ties within a state (deterministic, as before).
+	const stateRingRank: Record<ActivityBubbleState, number> = {
+		running: 0,
+		review: 1,
+		waiting: 2,
+		blocked: 3,
+		idle: 4,
+		done: 5,
+	};
 	for (const cluster of clusters) {
 		cluster.bubbles.sort(
 			(left, right) =>
-				(left.state === "running" ? 0 : 1) - (right.state === "running" ? 0 : 1) ||
-				left.title.localeCompare(right.title),
+				stateRingRank[left.state] - stateRingRank[right.state] || left.title.localeCompare(right.title),
 		);
 	}
 	for (const cluster of clusters) {
