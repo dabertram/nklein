@@ -184,24 +184,40 @@ await writeFile(
 		|| "/Users/david/.lmstudio/models/unsloth/Qwen3.8-Flash-Next-GGUF/Qwen3.8-Flash-Next-UD-Q3_K_XL-00001-of-00003.gguf";
 	const endpointForRegistry = LOCAL_BASE.replace("127.0.0.1", "localhost");
 	const registryKey = `lmstudio:${modelForRegistry}:${endpointForRegistry}`;
+	// FLEET PRE-SEEDS (2026-09-02): the same capability-prior deadlock that froze flash-next froze the fleet —
+	// dirk/ornith at the flat prior 35 fail difficulty~47 feasibility, get dropped BEFORE the pin check, and the
+	// pin path hard-refuses ("honoring the configured pin" then best-free-fit). Every role model an env names
+	// gets an honest prior + ctx so routing admits it.
+	const registryEntry = (modelId: string, cap: number, ctx: number) => ({
+		key: `lmstudio:${modelId}:${endpointForRegistry}`,
+		providerId: "lmstudio",
+		modelId,
+		endpoint: endpointForRegistry,
+		contextWindow: { advertised: null, observed: null, userOverride: ctx, effective: ctx },
+		speed: { samples: 0, promptTokensEwma: null, outputTokensEwma: null, totalTokensEwma: null, prefillTokensPerSecondEwma: null, decodeTokensPerSecondEwma: null, ttftMsEwma: null, wallTimeMsEwma: null, wallTimeMsPer1kPromptTokensEwma: null, lastPromptTokens: null, lastOutputTokens: null, lastWallTimeMs: null, lastObservedAt: null },
+		capability: { samples: 0, staticPrior: cap, evalScore: null, externalScore: cap, observedPassRate: null, effectiveScore: cap, lastObservedAt: null },
+		constraints: { maxConcurrentRequests: null },
+	});
+	const fleetModels: Record<string, ReturnType<typeof registryEntry>> = {
+		[registryKey]: registryEntry(modelForRegistry, capScore, ctxTokens),
+	};
+	for (const [envModel, envCap, envCtx, defCap] of [
+		[process.env.NKLEIN_ROLE_WORKER_MODEL, process.env.NKLEIN_ROLE_WORKER_CAPABILITY, process.env.NKLEIN_ROLE_WORKER_CTX, "75"],
+		[process.env.NKLEIN_ROLE_WORKER_EXTRA_MODEL, process.env.NKLEIN_ROLE_EXTRA_CAPABILITY, process.env.NKLEIN_ROLE_EXTRA_CTX, "60"],
+		[process.env.NKLEIN_ROLE_REVIEWER_MODEL, process.env.NKLEIN_ROLE_REVIEWER_CAPABILITY, process.env.NKLEIN_ROLE_REVIEWER_CTX, "60"],
+	] as const) {
+		const id = envModel?.trim();
+		if (id && !fleetModels[`lmstudio:${id}:${endpointForRegistry}`]) {
+			fleetModels[`lmstudio:${id}:${endpointForRegistry}`] = registryEntry(
+				id,
+				Number(envCap ?? defCap),
+				Number(envCtx ?? "16384"),
+			);
+		}
+	}
 	await writeFile(
 		join(home, ".nklein", "nklein", "model-registry.json"),
-		`${JSON.stringify({
-			schemaVersion: 1,
-			updatedAt: Date.now(),
-			models: {
-				[registryKey]: {
-					key: registryKey,
-					providerId: "lmstudio",
-					modelId: modelForRegistry,
-					endpoint: endpointForRegistry,
-					contextWindow: { advertised: null, observed: null, userOverride: ctxTokens, effective: ctxTokens },
-					speed: { samples: 0, promptTokensEwma: null, outputTokensEwma: null, totalTokensEwma: null, prefillTokensPerSecondEwma: null, decodeTokensPerSecondEwma: null, ttftMsEwma: null, wallTimeMsEwma: null, wallTimeMsPer1kPromptTokensEwma: null, lastPromptTokens: null, lastOutputTokens: null, lastWallTimeMs: null, lastObservedAt: null },
-					capability: { samples: 0, staticPrior: capScore, evalScore: null, externalScore: capScore, observedPassRate: null, effectiveScore: capScore, lastObservedAt: null },
-					constraints: { maxConcurrentRequests: null },
-				},
-			},
-		}, null, 1)}\n`,
+		`${JSON.stringify({ schemaVersion: 1, updatedAt: Date.now(), models: fleetModels }, null, 1)}\n`,
 	);
 	process.stdout.write(`model registry pre-seeded: ctx=${ctxTokens} capability=${capScore}\n`);
 }
