@@ -132,7 +132,13 @@ await writeFile(
 				worker: {
 					modelId: process.env.NKLEIN_ROLE_WORKER_MODEL?.trim() || model,
 					providerId: "lmstudio",
-					...(process.env.NKLEIN_ROLE_WORKER_MODEL?.trim() ? { modelSelectionMode: "pinned" } : {}),
+					// Workers default UNPINNED (2026-09-02 dual-lane): a pin hard-assigns every card to the
+					// primary and additionalModels never engage — legion's 27B idled while cards queued behind
+					// the busy mini. Unpinned, free-first selection spreads across the role's own pool (and
+					// ONLY the pool — flash-next stays the architect). NKLEIN_ROLE_WORKER_PIN=1 restores the pin.
+					...(process.env.NKLEIN_ROLE_WORKER_PIN === "1" && process.env.NKLEIN_ROLE_WORKER_MODEL?.trim()
+						? { modelSelectionMode: "pinned" }
+						: {}),
 					...(process.env.NKLEIN_ROLE_WORKER_EXTRA_MODEL?.trim()
 						? { additionalModels: [{ modelId: process.env.NKLEIN_ROLE_WORKER_EXTRA_MODEL.trim(), providerId: "lmstudio" }] }
 						: {}),
