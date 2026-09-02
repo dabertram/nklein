@@ -12,6 +12,7 @@ import {
 import { createBrowserTools } from "../../chat/chat-browser-tool";
 import { createCommandRunTool } from "../../chat/chat-command-tool";
 import { describeHostActionConfirmation } from "../../chat/chat-confirmation-description";
+import { createNKleinControlTools, type NKleinControlDeps } from "../../chat/chat-control-interface";
 import { recordChatEgressAttempt } from "../../chat/chat-egress-attempt-audit-store";
 import type { ChatExecutionMode } from "../../chat/chat-execution-mode";
 import { createFocusChainTools, readChatFocusChain } from "../../chat/chat-focus-chain";
@@ -61,6 +62,9 @@ export function buildChatAgentToolDepsResolver(input: {
 	} | null;
 	/** §5.AU mailbox writer (defaults live inside the tool wiring; injected for tests). */
 	queueCardMailboxNote?: (taskId: string, text: string) => Promise<number>;
+	/** F2.30 chat-as-control-plane: the full control interface (start/stop/pause/move/config). Offered to can-act
+	 *  scopes only; absent ⇒ the `nklein_control` tool is never offered. */
+	getNKleinControlDeps?: () => NKleinControlDeps | null;
 	/** §5.L: current capability-broker opt-in (read per-turn so a config flip takes effect next turn). Absent ⇒ off. */
 	getCapabilityBrokerEnabled?: () => Promise<boolean>;
 	/**
@@ -132,6 +136,9 @@ export function buildChatAgentToolDepsResolver(input: {
 		const board = createBoardReadTools(workspacePath);
 		const focus = createFocusChainTools(session.id);
 		const mutations = canAct ? createBoardMutationTools(workspacePath) : { tools: [], definitions: [] };
+		// F2.30: the full control interface rides the same can-act gate as board mutations (control_plane class).
+		const controlDeps = canAct ? (input.getNKleinControlDeps?.() ?? null) : null;
+		const control = controlDeps ? createNKleinControlTools(controlDeps) : { tools: [], definitions: [] };
 		// §5.AU relay: `send_to_card` for can-act scopes (control_plane, like create_card). Live delivery needs the
 		// active task-session view; without it (or with no live session) messages fall back to the durable mailbox.
 		const taskSessions = input.getActiveTaskSessions?.() ?? null;
@@ -182,6 +189,7 @@ export function buildChatAgentToolDepsResolver(input: {
 			...board.tools,
 			...focus.tools,
 			...mutations.tools,
+			...control.tools,
 			...relay.tools,
 			...commands.tools,
 			...browser.tools,
@@ -196,6 +204,7 @@ export function buildChatAgentToolDepsResolver(input: {
 			...board.definitions,
 			...focus.definitions,
 			...mutations.definitions,
+			...control.definitions,
 			...relay.definitions,
 			...commands.definitions,
 			...browser.definitions,

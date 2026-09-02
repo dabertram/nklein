@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import { applyCardMessageRelay, applyStreamMessageBroadcast } from "../chat/chat-board-tools";
+import type { NKleinControlDeps } from "../chat/chat-control-interface";
 import { applyOperatorChatFocusChainUpdate, readChatFocusChain } from "../chat/chat-focus-chain";
 import { readChatHostActionAudit } from "../chat/chat-host-action-audit-store";
 import { resolveLoadedChatMemoryEmbedder } from "../chat/chat-memory-embedding";
@@ -110,6 +111,7 @@ import { isBusySessionState } from "../core/session-state-predicates";
 import { setupDeviceRamGbByMachine, setupModelRoleCounts } from "../core/setup-facts";
 import type { SkillId } from "../core/skill-registry";
 import { deriveStreams } from "../core/stream-derivation";
+import { moveTaskToColumn } from "../core/task-board-mutations";
 import { computeProjectTimeTracking, computeTimeTracking, type TimeTrackingActivity } from "../core/time-tracking";
 import { computeZeroTouchKpis } from "../core/zero-touch-kpis.js";
 import { parseEgressAllowlist } from "../nklein-agent/egress-proxy-role-snapshot";
@@ -164,7 +166,7 @@ import { readMergeHistory } from "../state/merge-history-store";
 import { appendModelEvalRuns } from "../state/model-eval-run-store";
 import { loadRailControlSettings, saveRailControlSettings } from "../state/rail-control-store";
 import { appendReasoningObservations } from "../state/reasoning-observation-store";
-import { loadWorkspaceState } from "../state/workspace-state";
+import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { readMergedFitnessRows, recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { readAllCombinedModelBehaviorProfiles } from "../telemetry/model-behavior-profile-store";
 import { readModelPerformanceStats } from "../telemetry/model-performance-stats.js";
@@ -441,6 +443,9 @@ function buildResidentSetGuidanceView(
 }
 
 export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrpcContext["runtimeApi"] {
+	// F2.30: late-bound self-reference so injected chat-control closures reuse the API's own procedures
+	// (start goes through the FULL start path — guards, model selection, queueing — not a raw service call).
+	let apiSelf: RuntimeTrpcContext["runtimeApi"] | null = null;
 	// F4.53: process-local CPU delta state; no timer. It advances only while the fleet rail is open and polling.
 	const resourceSampler = createRuntimeResourceSampler();
 	const nkleinProviderService = createNKleinProviderService();
@@ -567,6 +572,63 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				...(deps.withSearchBackend ? { withSearchBackend: deps.withSearchBackend } : {}),
 				// §5.AU relay: the ACTIVE workspace's live task sessions, so `send_to_card` can deliver into a running
 				// agent's turn (falls back to the durable mailbox when the service isn't loaded or the card isn't live).
+				// F2.30 chat-as-control-plane: the full control interface for can-act scopes. Closures reuse the
+				// API's OWN procedures via the late-bound self reference (start runs the full guarded start path).
+				getNKleinControlDeps: (): NKleinControlDeps | null => {
+					const workspaceId = deps.getActiveWorkspaceId();
+					const workspacePath = deps.getActiveWorkspacePath();
+					if (!workspaceId || !workspacePath) {
+						return null;
+					}
+					const scope = { workspaceId, workspacePath };
+					return {
+						loadBoard: async () => (await loadWorkspaceState(workspacePath)).board,
+						moveCard: async (taskId, column) => {
+							const result = await mutateWorkspaceState(workspacePath, (state) => {
+								const moved = moveTaskToColumn(state.board, taskId, column);
+								return { board: moved.board, save: moved.moved, value: moved.moved ? moved.task : null };
+							});
+							const task = result.value;
+							return task ? { title: task.title } : null;
+						},
+						startCard: async (taskId, options) => {
+							const board = (await loadWorkspaceState(workspacePath)).board;
+							const card = board.columns.flatMap((column) => column.cards).find((entry) => entry.id === taskId);
+							if (!card) {
+								return { ok: false, error: `card ${taskId} not found on the board` };
+							}
+							const response = await apiSelf?.startTaskSession(scope, {
+								taskId,
+								prompt: card.prompt,
+								taskTitle: card.title,
+								startInPlanMode: options.planMode ?? card.startInPlanMode ?? false,
+								baseRef: card.baseRef ?? "HEAD",
+								...(card.agentId ? { agentId: card.agentId } : {}),
+								...(card.nkleinSettings ? { nkleinSettings: card.nkleinSettings } : {}),
+							});
+							return {
+								ok: response?.ok === true,
+								error: response?.ok === true ? null : (response?.error ?? "the runtime API is not ready"),
+							};
+						},
+						stopCard: async (taskId) => (await apiSelf?.stopTaskSession(scope, { taskId }))?.ok === true,
+						pauseCard: async (taskId) => (await apiSelf?.pauseTask(scope, { taskId }))?.ok === true,
+						resumeCard: async (taskId) => (await apiSelf?.resumeTask(scope, { taskId }))?.ok === true,
+						listSessions: async () => {
+							const service = deps.getLoadedScopedNKleinTaskSessionService?.(scope);
+							if (!service) {
+								return [];
+							}
+							return service.listSummaries().map((summary) => ({
+								taskId: summary.taskId,
+								state: summary.state,
+								modelId: summary.modelId ?? null,
+							}));
+						},
+						setMaxConcurrentTasks: async (value) =>
+							(await apiSelf?.saveConfig(scope, { maxConcurrentTasks: value })) != null,
+					};
+				},
 				getActiveTaskSessions: () => {
 					const workspaceId = deps.getActiveWorkspaceId();
 					const workspacePath = deps.getActiveWorkspacePath();
@@ -862,7 +924,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			deps.getAgentSandboxStatus?.(),
 		);
 
-	return {
+	const api: RuntimeTrpcContext["runtimeApi"] = {
 		loadConfig: async (workspaceScope) =>
 			handleLoadConfig(workspaceScope, {
 				buildConfigResponse,
@@ -2248,4 +2310,6 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		startAutonomousChatRun: (input) => autonomousChatRun.start(input),
 		getAutonomousChatRunStatus: (input) => autonomousChatRun.status(input),
 	};
+	apiSelf = api;
+	return api;
 }

@@ -2798,6 +2798,21 @@ These are known defects or incomplete migrations. Clear them before widening cap
   board-chat-feedback-wiring); absent dep ⇒ pre-F2.13 behavior byte-identical (tested both ways).
 #### 2B. Board↔chat, streams, and operator surfaces *(legacy §5.AG, §5.AH, §5.AT, §5.AU, §5.BB)*
 
+- [ ] **F2.30 — CHAT-AS-FULL-CONTROL-PLANE (David directive 2026-09-02, verbatim: "add ui ux tests that use the
+  chat .. use ai mock for this .. make sure the user can control everything of nklein directly from chat .. maybe
+  sth like an nklein mcp might be interesting? .. nklein could forward chat messages asking to do sth .. to a
+  prompt that knows a full interface").** Design: a typed CONTROL-ACTION REGISTRY (one place: name, description,
+  params schema, risk class, executor over the runtime API) behind a single `nklein_control` chat tool whose
+  generated description enumerates the whole interface — the "prompt that knows a full interface". Increments:
+  (a) registry + `nklein_control` tool + resolver wiring for can-act scopes, risk-gated through the existing
+  chat confirmation classifier (reads auto-approve; control mutations allowed; destructive confirm-gated);
+  actions: start/stop/pause/resume card, move/trash/complete card, review verdict (approve/request_changes),
+  board pause/resume, get/set model roles, max-concurrent, fleet/status reads. (b) aimock UI/UX e2e: scripted
+  chat turns drive the mock model's `nklein_control` calls, tests assert REAL board/session/config effects
+  (pattern: autonomous-chat-run.test.ts + mock-llm helper). (c) `nklein-mcp`: expose the SAME registry as an MCP
+  server so external agents drive !Klein (registry IS the tool list; adapter is mechanical). (d) nightly aimock
+  cell registration per the name-contract once (b) is stable.
+
 - [x] **F2.16 (narrowed by audit 2026-07-13) — stream drill-down: verify focus/back only.** The drill is
   substantially built (W3.4 flagship UI): stream-overview → `onSelectStream`, `board-dag-view` → `onSelectCard`,
   DAG nodes keyboard-accessible (`role="button"` + `tabIndex=0` + Enter/Space; Escape closes). RESIDUE: confirm
