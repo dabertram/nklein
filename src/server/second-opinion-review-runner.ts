@@ -78,6 +78,8 @@ const escalatedWorkerKey = (workspacePath: string, taskId: string): string => `$
 // re-claims from the OLD worker are absorbed instead of burning review rounds toward the stall park. In-memory
 // like `escalatedWorkerTaskIds` — a restart just reverts to the pre-guard behavior for in-flight cards.
 const pendingRedriveObservations = new Map<string, PendingRedriveObservation>();
+/** Consecutive pinned-reviewer-unavailable rounds per task (degrade-to-auto after the first). */
+const pinnedReviewerUnavailableStreakByTaskId = new Map<string, number>();
 
 function shouldQuiescePrimaryWorkerBeforeReview(summary: ReturnType<NKleinTaskSessionService["getSummary"]>): boolean {
 	if (summary?.state !== "running") {
