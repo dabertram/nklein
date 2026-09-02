@@ -529,6 +529,52 @@ describe("routeNKleinTask", () => {
 			expect(decision).toMatchObject({ type: "assign", modelKey: "lmstudio:cap34:default" });
 		});
 
+		it("assigns an in-margin PIN even when a stronger rival is strictly feasible (no route_up away from a pin)", () => {
+			// Live 2026-09-01: role pin at the flat prior 35, difficulty 37, a stronger rival fully feasible —
+			// route_up to the rival made the caller's pin guard hard-refuse the start. A pin within the margin
+			// is the operator's explicit choice and must be assigned, not routed up from.
+			const decision = routeNKleinTask({
+				difficulty: 37,
+				fitBudgetTokens: 8_000,
+				preferredModelKey: "lmstudio:pinned:default",
+				pinnedModelKey: "lmstudio:pinned:default",
+				candidates: [
+					{ entry: createEntry({ key: "lmstudio:pinned:default", capability: 35, contextWindow: 32_000 }) },
+					{ entry: createEntry({ key: "lmstudio:rival:default", capability: 95, contextWindow: 32_000 }) },
+				],
+			});
+			expect(decision).toMatchObject({ type: "assign", modelKey: "lmstudio:pinned:default" });
+			expect((decision as { reason: string }).reason).toContain("best-effort");
+		});
+
+		it("still routes up from a pin beyond the margin (pin genuinely unavailable)", () => {
+			const decision = routeNKleinTask({
+				difficulty: 60,
+				fitBudgetTokens: 8_000,
+				preferredModelKey: "lmstudio:pinned:default",
+				pinnedModelKey: "lmstudio:pinned:default",
+				candidates: [
+					{ entry: createEntry({ key: "lmstudio:pinned:default", capability: 35, contextWindow: 32_000 }) },
+					{ entry: createEntry({ key: "lmstudio:rival:default", capability: 95, contextWindow: 32_000 }) },
+				],
+			});
+			// 60 - 35 = 25 > margin (15) → the pin does not qualify; routing up stays correct.
+			expect(decision).toMatchObject({ type: "route_up", modelKey: "lmstudio:rival:default" });
+		});
+
+		it("a mere PREFERENCE (no pin) still routes up to the feasible rival", () => {
+			const decision = routeNKleinTask({
+				difficulty: 37,
+				fitBudgetTokens: 8_000,
+				preferredModelKey: "lmstudio:preferred:default",
+				candidates: [
+					{ entry: createEntry({ key: "lmstudio:preferred:default", capability: 35, contextWindow: 32_000 }) },
+					{ entry: createEntry({ key: "lmstudio:rival:default", capability: 95, contextWindow: 32_000 }) },
+				],
+			});
+			expect(decision).toMatchObject({ type: "route_up", modelKey: "lmstudio:rival:default" });
+		});
+
 		it("honors a pinned model for best-effort when it qualifies (context-fit + within margin)", () => {
 			const decision = routeNKleinTask({
 				difficulty: 40,

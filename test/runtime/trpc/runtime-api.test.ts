@@ -2249,6 +2249,88 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
+	it("honors an in-margin worker pin even when a stronger unpinned model is feasible (best-effort bridge)", async () => {
+		// Regression (live 2026-09-01, mixed fleet): the pin sat below the blended floor (prior 35 vs difficulty
+		// ~37) so the feasibility filter dropped it BEFORE the pin lookup, free-first assigned the stronger rival
+		// ("Selected best free efficient fit …"), and the mismatch guard hard-refused a loaded, in-margin pin.
+		// The best-effort bridge must fire on that assign-of-another-model shape, not only on no_fit.
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		const endpoint = "http://127.0.0.1:1234/v1";
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "strong-rival-9b",
+			apiKey: "anthropic-api-key",
+			baseUrl: endpoint,
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				[`anthropic:strong-rival-9b:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:strong-rival-9b:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "strong-rival-9b",
+					endpoint,
+					contextWindow: 40_960,
+					capability: 95,
+				}),
+				[`anthropic:pinned-weak-27b:${endpoint}`]: createModelRegistryEntry({
+					key: `anthropic:pinned-weak-27b:${endpoint}`,
+					providerId: "anthropic",
+					modelId: "pinned-weak-27b",
+					endpoint,
+					contextWindow: 40_960,
+					capability: 35,
+				}),
+			},
+		});
+
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					worker: {
+						providerId: "anthropic",
+						modelId: "pinned-weak-27b",
+						modelSelectionMode: "pinned",
+					},
+				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		// "Refactor" trips HARD_TASK_TEXT: difficulty 25+12=37 — above the pin's 35, within the margin of 15.
+		const response = await api.startTaskSession(
+			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Refactor the habit score aggregation seam.",
+			},
+		);
+
+		expect(response.errorCode).not.toBe("pinned_model_unavailable");
+		expect(response.ok).toBe(true);
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "anthropic",
+				modelId: "pinned-weak-27b",
+			}),
+		);
+		expect(response.selectionReason).toContain("best-effort margin");
+	});
+
 	it("does not let cache-warmth displace an available configured worker pin", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);

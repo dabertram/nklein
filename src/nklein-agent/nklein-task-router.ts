@@ -33,6 +33,9 @@ export interface NKleinTaskRoutingRequest {
 	promptTokens?: number | null;
 	outputTokens?: number | null;
 	preferredModelKey?: string | null;
+	/** An explicit operator PIN (task or role). Unlike `preferredModelKey` (a soft preference), a context-fitting
+	 * pin within CAPABILITY_BEST_EFFORT_MARGIN of the difficulty is ASSIGNED, never routed up from. */
+	pinnedModelKey?: string | null;
 	candidates: readonly NKleinTaskRoutingCandidate[];
 	/**
 	 * Best-fit tags the TASK needs (e.g. a code-editing card → `"code"`; a planning card → `"reasoning"`), derived by
@@ -273,6 +276,28 @@ export function routeNKleinTask(request: NKleinTaskRoutingRequest): NKleinTaskRo
 				role: preferred.role ?? null,
 				reason: `Selected feasible preferred model for difficulty ${difficulty}.`,
 			};
+		}
+		// An explicit pin below the strict floor but within the best-effort margin is HONORED, not routed up from
+		// (live 2026-09-01: a loaded in-margin role pin was routed up to a stronger rival, and the caller's pin
+		// guard then hard-refused the start — the pin doctrine says the operator's choice wins inside the margin).
+		const pinnedKey = request.pinnedModelKey ?? null;
+		if (pinnedKey && preferred && preferred.entry.key === pinnedKey) {
+			const pinScored = candidates.find((candidate) => candidate.entry.key === pinnedKey);
+			if (
+				pinScored &&
+				pinScored.contextWindow >= pinScored.requiredContextWindow &&
+				difficulty - pinScored.capability <= CAPABILITY_BEST_EFFORT_MARGIN
+			) {
+				return {
+					type: "assign",
+					modelKey: pinScored.entry.key,
+					role: pinScored.role ?? null,
+					reason:
+						`Pinned model ${pinScored.entry.key} (capability ${pinScored.capability}) sits below difficulty ` +
+						`${difficulty} but within the best-effort margin (${CAPABILITY_BEST_EFFORT_MARGIN}) and fits its ` +
+						`context guard — honoring the explicit pin best-effort instead of routing up.`,
+				};
+			}
 		}
 		const selected = feasible[0];
 		if (preferred) {

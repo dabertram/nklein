@@ -1058,7 +1058,15 @@ export async function handleStartTaskSession(
 		// bridges (a physical limit), and unpinned selection is unchanged.
 		const bridgePinKey =
 			taskPinnedModelKey ?? (roleAssignment.source === "pinned" ? (roleAssignment.pick?.modelKey ?? null) : null);
-		if (freeFirstSelection.type === "no_fit" && bridgePinKey) {
+		// The bridge fires whenever free-first did NOT land on the pin: `no_fit` (nothing cleared the floor) or an
+		// `assign` of a DIFFERENT model (the pin alone fell below the blended floor while a stronger candidate
+		// cleared it — the common mixed-fleet case; the feasibility filter silently drops the pin before the pin
+		// lookup, free-first then "Selected best free efficient fit <other>" and the mismatch guard hard-refused a
+		// loaded, in-margin pin). Class-ineligible pins (tool-unsuitable for a tool-requiring role) never bridge.
+		const freeFirstMissedPin =
+			freeFirstSelection.type === "no_fit" ||
+			(freeFirstSelection.type === "assign" && freeFirstSelection.modelKey !== bridgePinKey);
+		if (freeFirstMissedPin && bridgePinKey && swarmRoleDecision.classEligibleKeys.includes(bridgePinKey)) {
 			const pinnedCandidate = roleScopedSelectionCandidates.find(
 				(candidate) => candidate.entry.key === bridgePinKey,
 			);
@@ -1080,7 +1088,7 @@ export async function handleStartTaskSession(
 				freeFirstSelection = {
 					type: "assign",
 					modelKey: bridgePinKey,
-					busyFallback: false,
+					busyFallback: !isModelFree(pinnedCandidate.entry.key, pinnedCandidate.entry.modelId),
 					weighting: "efficient",
 					reason: `Pinned ${bridgePinKey} is within the best-effort margin (capability ${pinnedCapability} vs difficulty ${taskDifficulty}, margin ${CAPABILITY_BEST_EFFORT_MARGIN}) and fits ${requiredContextTokens} context tokens — honoring the pin as best-effort; this run accrues the missing evidence.`,
 				};
@@ -1389,6 +1397,8 @@ export async function handleStartTaskSession(
 			outputTokens: routingOutputTokens,
 			behaviorSkippedModelKeys,
 			preferredModelKey: honoredTaskPinKey ?? honoredRolePinKey ?? optimizationPreferredKey,
+			// Pins are binding within the router's best-effort margin (preferences are not) — see routeNKleinTask.
+			pinnedModelKey: honoredTaskPinKey ?? honoredRolePinKey ?? null,
 			candidates: roleScopedSelectionCandidates.map((candidate) => {
 				const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
 				return {
