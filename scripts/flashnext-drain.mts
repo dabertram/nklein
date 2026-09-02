@@ -118,9 +118,27 @@ await writeFile(
 			// other ids -> the LM Studio gateway:1234, which executes device-scoped models on legion5pro/m4mini),
 			// so per-role model ids ARE the whole multi-host wiring. Unset = single-model (byte-identical).
 			modelRoles: {
-				architect: { modelId: process.env.NKLEIN_ROLE_ARCHITECT_MODEL?.trim() || model, providerId: "lmstudio" },
-				worker: { modelId: process.env.NKLEIN_ROLE_WORKER_MODEL?.trim() || model, providerId: "lmstudio" },
-				reviewer: { modelId: process.env.NKLEIN_ROLE_REVIEWER_MODEL?.trim() || model, providerId: "lmstudio" },
+				// PINNED, not auto (live 2026-09-02): auto mode only ADDS the role model to the candidate pool and
+				// the capability-ranked selector kept picking flash-next for every role — the whole fleet idled
+				// while one endpoint serialized the board. Role envs are hard assignments.
+				architect: {
+					modelId: process.env.NKLEIN_ROLE_ARCHITECT_MODEL?.trim() || model,
+					providerId: "lmstudio",
+					modelSelectionMode: "pinned",
+				},
+				worker: {
+					modelId: process.env.NKLEIN_ROLE_WORKER_MODEL?.trim() || model,
+					providerId: "lmstudio",
+					modelSelectionMode: "pinned",
+					...(process.env.NKLEIN_ROLE_WORKER_EXTRA_MODEL?.trim()
+						? { additionalModels: [{ modelId: process.env.NKLEIN_ROLE_WORKER_EXTRA_MODEL.trim(), providerId: "lmstudio" }] }
+						: {}),
+				},
+				reviewer: {
+					modelId: process.env.NKLEIN_ROLE_REVIEWER_MODEL?.trim() || model,
+					providerId: "lmstudio",
+					modelSelectionMode: "pinned",
+				},
 			},
 		},
 		null,
