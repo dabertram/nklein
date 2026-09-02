@@ -258,7 +258,16 @@ try {
 	// day before anyone noticed, because the drain itself works fine either way.
 	runtime = spawn(TSX, ["src/cli.ts", "--host", "127.0.0.1", "--port", String(RUNTIME_PORT), "--no-open"], {
 		cwd: REPO,
-		env: { ...process.env, HOME: home, NODE_ENV: "development", NKLEIN_A2A_SERVER: "1" },
+		env: {
+			...process.env,
+			HOME: home,
+			NODE_ENV: "development",
+			NKLEIN_A2A_SERVER: "1",
+			// Heap headroom (live 2026-09-02 v31): the server died at node's DEFAULT 4GB heap limit 6h into the
+			// factory run, minutes after the 88-card flood (FATAL heap OOM on an fs.readFile utf8 decode) — the
+			// in-memory session transcripts alone outgrow 4GB on long runs. 24GB on a 128GB box; override via env.
+			NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --max-old-space-size=${process.env.NKLEIN_DRAIN_HEAP_MB ?? "24576"}`.trim(),
+		},
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 	runtime.stdout?.pipe(runtimeLog);

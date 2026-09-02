@@ -1970,6 +1970,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### Phase 0 — stop-the-line correctness and liveness
 
+- [ ] **P0.HEAP — The server's JS heap grows unbounded across a long factory run and dies at node's default 4GB
+  limit.** *(Live 2026-09-02 v31: 6h in, minutes after an 88-card flood with 3 workers running, `FATAL ERROR:
+  Reached heap limit` — the fatal allocation was an fs.readFile promise resolving a huge UTF-8 string; stack in
+  `real-drain-MniEmY/runtime.log`.)* Two halves: (a) BOUND the in-memory session state — the message repository
+  holds every session's FULL transcript for the process lifetime; completed/stopped sessions should spill to the
+  session store and evict, keeping only summaries hot (the transcript is already persisted durably — the in-memory
+  copy is a cache, not the truth). (b) find the single-giant-readFile consumer (heap was near-full, but a
+  multi-hundred-MB utf8 decode helped; instrument the next long run with `--heapsnapshot-near-limit=1`). Interim
+  mitigation SHIPPED: the drain launches the server with `--max-old-space-size=24576` (NKLEIN_DRAIN_HEAP_MB).
+
 These are known defects or incomplete migrations. Clear them before widening capability.
 
 - [ ] **P0.DSTALL — A plan-mode card can zombie in `running` for 20+ minutes after decompose-starvation: no session, no park, no escalation.** *(Filed 2026-08-20 from Dschinn run-3 forensics, run dir `.real-runs/20260820-222524` — full evidence banked there.)*
