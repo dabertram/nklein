@@ -324,6 +324,9 @@ function createFakeNKleinSessionRuntime(): FakeNKleinSessionRuntimeController {
 				const request = lastStartRequestByTaskId.get(taskId);
 				return request ? request.workspaceRoot?.trim() || request.cwd || null : null;
 			},
+			getTaskEndpointBaseUrl(taskId: string): string | null {
+				return lastStartRequestByTaskId.get(taskId)?.baseUrl?.trim() || null;
+			},
 			canRestartTaskSession(taskId: string): boolean {
 				return lastStartRequestByTaskId.has(taskId);
 			},

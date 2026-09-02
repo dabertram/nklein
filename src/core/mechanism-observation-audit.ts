@@ -1161,6 +1161,8 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"review_fallback_verdict",
 	// Reviewer pin degraded to auto after consecutive unavailable rounds (fleet host vanished, 2026-09-02).
 	"review_pin_degraded",
+	// Dead-stream detection (David directive 2026-09-02): open turn + no tokens + endpoint slots idle -> cancel now.
+	"stream_liveness_reclaim",
 	// Exploration-drift nudge (2026-09-01): plan-mode session made no graph progress for the threshold window.
 	"decomposition_exploration_drift",
 	"agent_sandbox_result_cleanup",

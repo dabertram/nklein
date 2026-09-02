@@ -763,6 +763,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			} catch {
 				// The sweep must never destabilize the service.
 			}
+			// STREAM-LIVENESS PROBE (David directive 2026-09-02: "if you can detect the stopped stream, nklein
+			// shall detect it too instead of relying on the 60min timeout"). Evidence !Klein already holds: an
+			// OPEN assistant stream, NO tokens for the probe window, NO tool in flight — then ask the ENDPOINT
+			// whether it is actually processing (llama.cpp /slots). Idle slot under an open turn = dead stream →
+			// cancel the turn now; endpoints without /slots stay on the timeout backstop (fail-safe).
+			void this.sweepDeadStreams().catch(() => undefined);
 		}, 5 * 60_000);
 		this.explorationDriftSweep.unref?.();
 
@@ -3219,6 +3225,54 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		});
 		this.emitSummary(summary);
 		return summary;
+	}
+
+	/** Stream-liveness probe window: an open turn with no tokens for this long triggers the endpoint check. */
+	private static readonly DEAD_STREAM_PROBE_MS = 4 * 60_000;
+
+	private async sweepDeadStreams(): Promise<void> {
+		for (const summary of this.messageRepository.listSummaries()) {
+			const taskId = summary.taskId;
+			if (summary.state !== "running" || this.activeToolTaskIds.has(taskId)) {
+				continue;
+			}
+			const entry = this.messageRepository.getTaskEntry(taskId);
+			if (!entry?.activeAssistantMessageId) {
+				continue;
+			}
+			const lastSignalAt = Math.max(summary.lastTokenAt ?? 0, summary.lastOutputAt ?? 0);
+			if (!lastSignalAt || Date.now() - lastSignalAt < InMemoryNKleinTaskSessionService.DEAD_STREAM_PROBE_MS) {
+				continue;
+			}
+			const baseUrl = this.sessionRuntime.getTaskEndpointBaseUrl(taskId);
+			if (!baseUrl) {
+				continue;
+			}
+			const slotsUrl = `${baseUrl.replace(/\/v1\/?$/u, "")}/slots`;
+			let endpointIdle = false;
+			try {
+				const response = await fetch(slotsUrl, { signal: AbortSignal.timeout(5_000) });
+				if (!response.ok) {
+					continue; // unobservable — the stream timeout stays the backstop
+				}
+				const slots = (await response.json()) as Array<{ is_processing?: boolean }>;
+				endpointIdle = Array.isArray(slots) && slots.every((slot) => slot.is_processing !== true);
+			} catch {
+				continue; // unreachable — unobservable, fail safe
+			}
+			if (!endpointIdle) {
+				continue;
+			}
+			const silentMinutes = Math.round((Date.now() - lastSignalAt) / 60_000);
+			this.recordObservationWithModel({
+				signal: "runtime_error",
+				severity: "warning",
+				message: `Dead stream detected for ${taskId}: turn open, no tokens for ${silentMinutes}m, endpoint slots idle — cancelling the turn for an immediate retry (stream timeout not waited for).`,
+				taskId,
+				metadata: { category: "stream_liveness_reclaim", silentMinutes: String(silentMinutes) },
+			});
+			await this.cancelTaskTurn(taskId).catch(() => null);
+		}
 	}
 
 	async cancelTaskTurn(taskId: string): Promise<RuntimeTaskSessionSummary | null> {

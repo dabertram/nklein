@@ -1468,6 +1468,11 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		return this.lastStartRequestByTaskId.get(taskId)?.providerId ?? null;
 	}
 
+	/** The endpoint base URL of the task's last start (for the stream-liveness probe). */
+	getTaskEndpointBaseUrl(taskId: string): string | null {
+		return this.lastStartRequestByTaskId.get(taskId)?.baseUrl?.trim() || null;
+	}
+
 	/** The HOST workspace root of the task's last start — the decompose-construction store's key derivation. */
 	getTaskHostWorkspaceRoot(taskId: string): string | null {
 		const request = this.lastStartRequestByTaskId.get(taskId);
