@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Circle, CircleDot } from "lucide-react";
+import { ChevronLeft, ChevronRight, Circle, CircleDot, X } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useState } from "react";
 
 import {
@@ -53,6 +53,24 @@ export function StartupOnboardingDialog({
 		setOnboardingDoneAction(null);
 	}, [open]);
 
+	// F2.32 (live-caught by the flow spec): Radix's Escape handling sits on the dialog CONTENT, and when focus
+	// never entered the trap the keydown went to <body> — the welcome dialog was undismissable by keyboard.
+	// A window-level listener closes through the SAME persisting handler, so a keyboard dismissal is remembered
+	// exactly like a completed tour (never re-annoy on the next visit).
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		const onKeyDown = (event: KeyboardEvent): void => {
+			if (event.key === "Escape") {
+				event.preventDefault();
+				onClose();
+			}
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [open, onClose]);
+
 	const handleOnboardingDoneActionChange = useCallback(
 		(action: (() => Promise<{ ok: boolean; message?: string }>) | null) => {
 			setOnboardingDoneAction(() => action);
@@ -85,7 +103,17 @@ export function StartupOnboardingDialog({
 				if (!isOpen) onClose();
 			}}
 		>
-			<DialogHeader title="Get started" />
+			<DialogHeader title="Get started">
+				<button
+					type="button"
+					aria-label="Skip the tour"
+					data-testid="onboarding-skip"
+					onClick={onClose}
+					className="rounded-md p-1.5 text-text-tertiary hover:bg-surface-3 hover:text-text-primary"
+				>
+					<X size={16} />
+				</button>
+			</DialogHeader>
 			<DialogBody className="px-4 pt-2 pb-4">
 				<TaskStartAgentOnboardingCarousel
 					open={open}

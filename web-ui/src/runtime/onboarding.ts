@@ -121,8 +121,9 @@ export function shouldShowStartupOnboardingDialog(input: {
 	if (!input.hasShownOnboardingDialog) {
 		return true;
 	}
-	if (input.selectedAgentId === "nklein" && !isLocalNKleinProviderSettings(input.nkleinProviderSettings)) {
-		return true;
-	}
+	// F2.32 (David 2026-09-02, "not annoying"): incomplete provider setup used to FORCE the dialog back on every
+	// page load even after an explicit dismissal — the definition of a nag. A dismissal is durable; users with
+	// unfinished setup are guided contextually (settings, and the task-start flow refuses with clear setup
+	// guidance) instead of being re-modal-ed forever.
 	return false;
 }

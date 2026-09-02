@@ -2828,6 +2828,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   per-card and per-chat; capture layer = a bounded model-traffic store written at the request seam (the
   scratchpad tee proxy proved the value; productize it — local-only, size-capped, off-switch).
 
+- [ ] **F2.32 — Welcome/setup dialog UI tests + UX pass (David directive 2026-09-02, verbatim: "also add ui
+  tests for the welcome and setup dialogues etc .. make sure everything is smooth, covered, makes sense, is user
+  friendly, not annoying, intuitive ..").** Surfaces: startup-onboarding-dialog, setup-wizard-dialog,
+  task-start-agent-onboarding-carousel, project-initializer-form (+ nklein-setup-section, runtime-settings first-run
+  paths). Coverage today: one onboarding smoke test + guided-setup capability plans; the wizard/carousel/initializer
+  have no page-level specs. Deliver: Playwright specs on the page-level runtime mock for step flow, skip/dismiss
+  persistence (a dismissed dialog must NOT re-annoy on reload), Escape/keyboard behavior, validation errors, and
+  safe cancel; plus a UX judgment pass — fix clear annoyances found while testing, file the rest here.
+
 - [ ] **F2.31 — DAG overview: layered tree layout with temporal flow, EARLY→RIGHT (David directive 2026-09-02,
   verbatim: "the dag graph overview .. should try to visualize tree structure as good as possible .. and flow ..
   like early to the right .. late on left side").** The board-dag-view should lay cards out by dependency depth

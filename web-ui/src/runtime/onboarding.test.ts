@@ -59,7 +59,7 @@ describe("runtime onboarding helpers", () => {
 		).toBe(false);
 	});
 
-	it("reopens startup onboarding for NKlein without a configured local model", () => {
+	it("does NOT reopen after dismissal even with unfinished NKlein setup (F2.32: a dismissal is durable)", () => {
 		expect(
 			shouldShowStartupOnboardingDialog({
 				hasShownOnboardingDialog: true,
@@ -76,7 +76,7 @@ describe("runtime onboarding helpers", () => {
 					oauthExpiresAt: null,
 				},
 			}),
-		).toBe(true);
+		).toBe(false);
 	});
 
 	it("recognizes built-in and local-endpoint NKlein providers", () => {
