@@ -332,7 +332,7 @@ export async function runSecondOpinionReviewForTask(
 	// instead of waiving the pin to the service's lineage-diverse auto-pick. Lenient exactly like
 	// `shouldBlockUnloadedModel`: an unknown/empty loaded set honors the pin, so an unreachable probe never wedges a
 	// review. The probe is skipped under the test runner unless injected, mirroring the task-start residency gate.
-	const reviewer = pinnedReviewer;
+	let reviewer = pinnedReviewer;
 	if (pinnedReviewer) {
 		const residencyCheckEnabled = !(process.env.VITEST || process.env.NODE_ENV === "test");
 		const probeLoadedModelIds =
@@ -349,12 +349,35 @@ export async function runSecondOpinionReviewForTask(
 				candidates: loadedIds.map((id) => ({ modelKey: id, modelId: id, score: 0 })),
 			});
 			if (pinDecision.source === "unmatched_pin") {
-				const message =
-					`Configured reviewer ${pinnedReviewer.providerId}/${pinnedReviewer.modelId} for ${input.taskId} ` +
-					`is pinned but not currently loaded/runnable. Load that model or switch the reviewer assignment back to Auto. ` +
-					pinDecision.reasons.join(" ");
-				input.warn?.(message);
-				return { type: "blocked", reason: "pinned_reviewer_unavailable", message };
+				// Autonomy directive 2026-09-02: fleet hosts DISAPPEAR (a sleeping laptop took the pinned
+				// reviewer with it and the review re-blocked every sweep for hours). One blocked round is the
+				// legitimate "load it back" nudge; from the second consecutive round the pin degrades to AUTO
+				// for THIS review so delivery is not wedged — the streak resets when the model answers again.
+				const unavailableStreak = (pinnedReviewerUnavailableStreakByTaskId.get(input.taskId) ?? 0) + 1;
+				pinnedReviewerUnavailableStreakByTaskId.set(input.taskId, unavailableStreak);
+				if (unavailableStreak <= 1) {
+					const message =
+						`Configured reviewer ${pinnedReviewer.providerId}/${pinnedReviewer.modelId} for ${input.taskId} ` +
+						`is pinned but not currently loaded/runnable. Load that model or switch the reviewer assignment back to Auto. ` +
+						pinDecision.reasons.join(" ");
+					input.warn?.(message);
+					return { type: "blocked", reason: "pinned_reviewer_unavailable", message };
+				}
+				input.warn?.(
+					`Pinned reviewer ${pinnedReviewer.providerId}/${pinnedReviewer.modelId} still unavailable ` +
+						`(round ${unavailableStreak}) — degrading to AUTO reviewer selection for this review so delivery is not wedged.`,
+				);
+				recordSelfObservation({
+					signal: "custom",
+					severity: "warning",
+					message: `Pinned reviewer unavailable ${unavailableStreak} rounds for ${input.taskId}; degraded to auto selection.`,
+					taskId: input.taskId,
+					workspacePath: input.workspacePath,
+					metadata: { category: "review_pin_degraded", rounds: String(unavailableStreak) },
+				});
+				reviewer = null;
+			} else {
+				pinnedReviewerUnavailableStreakByTaskId.delete(input.taskId);
 			}
 		}
 	}

@@ -1159,6 +1159,8 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	// Autonomy 2026-09-01: the no-verdict fallback (acceptance evidence gates deliver/bounce when the reviewer
 	// cannot produce a verdict) — operational marker for auditing how often the fallback carries the outcome.
 	"review_fallback_verdict",
+	// Reviewer pin degraded to auto after consecutive unavailable rounds (fleet host vanished, 2026-09-02).
+	"review_pin_degraded",
 	// Exploration-drift nudge (2026-09-01): plan-mode session made no graph progress for the threshold window.
 	"decomposition_exploration_drift",
 	"agent_sandbox_result_cleanup",
