@@ -1842,6 +1842,34 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// (decideArchitectEditorSplit) engages when routing exposes those signals at this seam; the operator flag
 		// is the explicit opt-in until then.
 		let effectiveStartPrompt = input.prompt;
+		// Held-construction orientation (live 2026-09-02 v31): a RESTARTED decompose session re-explored for ~30
+		// minutes before stumbling into the held graph via duplicate_node rejections, then repeated the exact
+		// coverage failures the previous session had already been told about. Surface the held state and the last
+		// finalize rejection UP FRONT so the resume goes straight to closing the named gaps and submitting.
+		if (input.mode === "plan" && !isDerivedTaskSessionId(input.taskId) && !isHomeAgentSessionId(input.taskId)) {
+			try {
+				const constructionRoot =
+					this.sessionRuntime.getTaskHostWorkspaceRoot(input.taskId) ??
+					input.workspaceRoot ??
+					launchConfig.workspaceRoot ??
+					input.cwd;
+				const held = constructionRoot ? loadDecomposeConstruction(constructionRoot, input.taskId) : null;
+				const heldNodeCount = held?.construction.nodes.length ?? 0;
+				if (held && heldNodeCount > 0) {
+					const rejection = held.lastFinalizeRejection
+						? `\n\nThe LAST decompose_project submission of that graph was rejected with:\n${held.lastFinalizeRejection.message.slice(0, 1600)}\nClose exactly those gaps (update or add the specific cards named), then submit.`
+						: "";
+					effectiveStartPrompt =
+						`${input.prompt}\n\n[!Klein held-construction brief] A prior architect session for this card already built ` +
+						`${heldNodeCount} task(s) and ${held.construction.edges.length} dependency(ies); they are PRESERVED — your ` +
+						`add_task calls for existing ids will report duplicate_node with the held list (expected). Do NOT rebuild ` +
+						`the graph or re-read the whole specification.${rejection}\nWhen the gaps are closed, call ` +
+						`decompose_project with NO arguments to submit the held graph.`;
+				}
+			} catch {
+				// Orientation is best-effort — a store read failure must never block the start.
+			}
+		}
 		if (
 			isTruthyEnv(process.env.NKLEIN_ARCHITECT_EDITOR) &&
 			!isDerivedTaskSessionId(input.taskId) &&

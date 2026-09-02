@@ -29,6 +29,8 @@ const persistedConstructionSchema = z.object({
 	/** Full task payloads by id (opaque plan-task JSON). */
 	tasks: z.array(z.tuple([z.string(), z.unknown()])),
 	rejectedOpCount: z.number().int().nonnegative(),
+	/** The last rejected finalize (gate text) — restart orientation goes straight to the named gaps. */
+	lastFinalizeRejection: z.object({ message: z.string(), at: z.number() }).optional(),
 });
 export type PersistedDecomposeConstruction = z.infer<typeof persistedConstructionSchema>;
 

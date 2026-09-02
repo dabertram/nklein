@@ -42,6 +42,9 @@ export interface IncrementalDagSessionState {
 	 * earlier successful-parameter call. Once supplied it is remembered and re-injected into bare retries.
 	 */
 	defaultAcceptanceCommand: string | null;
+	/** The last rejected decompose_project submission (coverage/sizing gate text) — persisted with the durable
+	 * checkpoint so a RESTARTED session is oriented straight at the named gaps instead of re-exploring. */
+	lastFinalizeRejection: { message: string; at: number } | null;
 }
 
 export function createIncrementalDagSessionState(): IncrementalDagSessionState {
@@ -51,6 +54,7 @@ export function createIncrementalDagSessionState(): IncrementalDagSessionState {
 		rejectedOpCount: 0,
 		defaultAcceptanceCommand: null,
 		allowTaskArrayRevision: false,
+		lastFinalizeRejection: null,
 	};
 }
 
@@ -58,6 +62,7 @@ export function createIncrementalDagSessionState(): IncrementalDagSessionState {
 export function resetIncrementalDagSessionState(state: IncrementalDagSessionState): void {
 	state.construction = emptyDagConstruction();
 	state.tasksById.clear();
+	state.lastFinalizeRejection = null;
 	state.rejectedOpCount = 0;
 	state.allowTaskArrayRevision = false;
 }

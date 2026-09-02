@@ -511,9 +511,15 @@ function createDecomposeProjectTool(
 			}
 			const uncoveredRequirements = findUncoveredPlanRequirements(spec, validation.taskGraph.tasks);
 			if (uncoveredRequirements.length > 0) {
-				throw new Error(
-					`Task graph failed specification-coverage validation. The following specification statements are not represented clearly enough in any implementation, verification, or acceptance contract:\n${formatUncoveredPlanRequirements(uncoveredRequirements)}\nAdd or strengthen card prompts/acceptance checks so each statement is machine-auditable. Do not delete or weaken the specification to bypass this gate.`,
-				);
+				const coverageRejection = `Task graph failed specification-coverage validation. The following specification statements are not represented clearly enough in any implementation, verification, or acceptance contract:\n${formatUncoveredPlanRequirements(uncoveredRequirements)}\nAdd or strengthen card prompts/acceptance checks so each statement is machine-auditable. Do not delete or weaken the specification to bypass this gate.`;
+				// Persist the rejection with the durable checkpoint (live 2026-09-02 v31: a restarted session
+				// re-explored for ~30 minutes before rediscovering 3 named 1-anchor gaps — the restart brief
+				// reads this and goes straight to closing them).
+				if (incrementalState && sourceTaskId) {
+					incrementalState.lastFinalizeRejection = { message: coverageRejection, at: Date.now() };
+					buildConstructionCheckpoint(workspacePath, sourceTaskId, incrementalState)();
+				}
+				throw new Error(coverageRejection);
 			}
 			// P21.6b ENFORCE half (David-authorized flip 2026-08-23, NKLEIN_PLAN_SIZING_ENFORCE): when the
 			// empirical two-ceiling verdict says a planned task MUST split, reject the graph here — the model is
@@ -923,6 +929,7 @@ function getOrCreatePlanningConstructionState(workspacePath: string, sourceTaskI
 			created.tasksById.set(id, task as NKleinPlanTask);
 		}
 		created.rejectedOpCount = persisted.rejectedOpCount;
+		created.lastFinalizeRejection = persisted.lastFinalizeRejection ?? null;
 	}
 	planningConstructionStateByTarget.set(key, created);
 	return created;
@@ -944,6 +951,7 @@ function buildConstructionCheckpoint(
 			},
 			tasks: [...state.tasksById.entries()],
 			rejectedOpCount: state.rejectedOpCount,
+			...(state.lastFinalizeRejection ? { lastFinalizeRejection: state.lastFinalizeRejection } : {}),
 		});
 	};
 }
