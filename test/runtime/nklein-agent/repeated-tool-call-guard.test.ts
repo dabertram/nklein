@@ -270,4 +270,42 @@ describe("failure-target dedup (v19 architect park, 2026-09-01)", () => {
 		guard.check(failedSummary(4000));
 		expect(parked).toHaveLength(1);
 	});
+	it("clears the decomposition streak on accepted construction progress (convergence, not looping)", () => {
+		// Live 2026-09-02 (v31): two premature finalizes early, 23 minutes of productive add_task/add_dependency
+		// building, then two rejections at the real finalize — the accumulated 4 parked the architect seconds
+		// from the flood. Accepted construction ops must reset the streak.
+		const parked: unknown[] = [];
+		const guard = new RepeatedToolCallGuard({
+			getMaxRepeatedToolCallsPerTask: () => 99,
+			getTaskEntry: () => ({ summary: { taskId: "t1", reviewReason: null } }) as never,
+			parkTaskForAutonomyBudget: (input: unknown) => {
+				parked.push(input);
+				return { taskId: "t1" } as never;
+			},
+			recordObservation: () => {},
+		} as never);
+		const failedSummary = (hookAt: number) =>
+			({
+				taskId: "t1",
+				state: "running",
+				lastHookAt: hookAt,
+				latestHookActivity: {
+					source: "nklein-sdk",
+					hookEventName: "tool_result",
+					activityText: "Failed decompose_project: graph validation",
+					toolName: "decompose_project",
+					toolInputSummary: null,
+				},
+			}) as never;
+		guard.check(failedSummary(1000));
+		guard.check(failedSummary(2000));
+		guard.check(failedSummary(3000));
+		guard.noteDecompositionProgress("t1"); // an accepted add_task lands
+		guard.check(failedSummary(4000));
+		guard.check(failedSummary(5000));
+		guard.check(failedSummary(6000));
+		expect(parked).toHaveLength(0); // streak restarted at the progress mark — 3 since, under the threshold
+		guard.check(failedSummary(7000));
+		expect(parked).toHaveLength(1); // 4 consecutive WITHOUT progress still parks
+	});
 });

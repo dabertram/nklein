@@ -5133,8 +5133,10 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			reviewReason: "attention",
 			warningMessage: expect.stringContaining("decomposition attempts that kept failing graph validation"),
 		});
-		expect(summary?.warningMessage).toContain("automatically hand");
-		expect(summary?.warningMessage).toContain("Human correction is needed only if");
+		// The message states what actually happens (2026-09-02): the preserved construction resumes on restart —
+		// the old wording promised an automatic architect hand-off that was never implemented.
+		expect(summary?.warningMessage).toContain("graph built so far is preserved");
+		expect(summary?.warningMessage).toContain("restarting this card resumes");
 		expect(summary?.warningMessage).not.toContain("send a corrected instruction");
 		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
 		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(

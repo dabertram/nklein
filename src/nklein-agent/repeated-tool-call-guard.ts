@@ -431,7 +431,7 @@ export class RepeatedToolCallGuard {
 		const toolNamesText = nextState.toolNames.join(", ");
 		const isDecomposition = target.kind === "decomposition";
 		const message = isDecomposition
-			? `!Klein paused this architect after ${nextState.count} decomposition attempts that kept failing graph validation. !Klein will automatically hand the preserved specification, code context, and validation feedback to the next eligible loaded architect. Human correction is needed only if automatic model failover is unavailable or every eligible architect is exhausted.`
+			? `!Klein paused this architect after ${nextState.count} decomposition attempts that kept failing graph validation. The incremental graph built so far is preserved — restarting this card resumes from the held nodes with the validation feedback in context. Consider a stronger architect model if retries keep failing the same check.`
 			: `!Klein paused this task after ${nextState.count} failed attempts to inspect the same plan artifact path (${nextState.targetSummary}) with ${toolNamesText}. Plan artifacts are trusted control-plane state; review progress, then continue from the generated cards instead of retrying sandbox file reads.`;
 		return this.callbacks.parkTaskForAutonomyBudget({
 			taskId: summary.taskId,
@@ -445,6 +445,18 @@ export class RepeatedToolCallGuard {
 				toolNames: nextState.toolNames,
 			},
 		});
+	}
+
+	/** An ACCEPTED construction op (add_task/add_dependency, or an applied decompose) proves the architect is
+	 * converging on the validation feedback — clear the decomposition-failure streak so early rejected finalizes
+	 * don't accumulate against a later, productive one (live 2026-09-02: two premature attempts at minute 73 +
+	 * two at the real finalize crossed the 4-threshold and parked the architect seconds from the flood, after
+	 * 23 minutes of productive graph-building in between). Plan-artifact streaks are untouched. */
+	noteDecompositionProgress(taskId: string): void {
+		const state = this.repeatedFailureTargetByTaskId.get(taskId);
+		if (state?.fingerprint === "decomposition\ndecompose_project") {
+			this.repeatedFailureTargetByTaskId.delete(taskId);
+		}
 	}
 
 	private readRepeatedFailureTargetCandidate(summary: RuntimeTaskSessionSummary): {

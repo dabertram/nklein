@@ -4788,6 +4788,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						resultToolName === "decompose_project")
 				) {
 					this.decompositionStallNudger.noteConstructionProgress(taskId);
+					// Accepted construction ops also clear the decompose-failure park streak (convergence, not looping).
+					this.repeatedToolCallGuard.noteDecompositionProgress(taskId);
 				} else {
 					const constructionRoot =
 						this.sessionRuntime.getTaskHostWorkspaceRoot(taskId) ?? entry.summary.workspacePath ?? "";
