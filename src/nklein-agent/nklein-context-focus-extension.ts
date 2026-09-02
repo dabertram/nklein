@@ -64,6 +64,7 @@ import {
 } from "./nklein-repo-map-rail-messages";
 import { handleLargeToolResult } from "./nklein-result-handle-tool";
 import { reviewNKleinAfterModelCompletion } from "./nklein-self-review-hook";
+import { releaseCompactedReadFilesTargets } from "./nklein-task-tool-approval";
 import type { AgentAfterToolContext, AgentBeforeModelContext, AgentBeforeModelResult } from "./sdk-agent-types";
 import type { NKleinSdkPersistedMessage, NKleinSdkStartSessionInput } from "./sdk-runtime-boundary";
 import { buildStallReplanMessage } from "./stall-replan-message";
@@ -1301,7 +1302,12 @@ export function createKanbanContextFocusExtension(
 			api.registerMessageBuilder({
 				name: "kanban-read-files-focus",
 				build(messages) {
-					const built = focusKanbanReadFilesForNextRequest(messages) ?? messages;
+					const built =
+						focusKanbanReadFilesForNextRequest(messages, (toolInput) => {
+							// Elision invalidates the anti-re-read guard's "already in context" premise for these
+							// targets — release them so ONE legitimate re-read is allowed again.
+							releaseCompactedReadFilesTargets(taskId ?? sessionId, toolInput);
+						}) ?? messages;
 					// §dsh#31 B1: the messageBuilder runs BELOW the beforeModel exit diff (orchestrator-side), so the
 					// focus brief it injects/rewrites needs its own write-ahead capture. Persisted-message rows carry
 					// no stable ids here, so the diff is a (role, flattened-content) multiset: outgoing rows without

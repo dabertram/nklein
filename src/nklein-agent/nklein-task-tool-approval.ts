@@ -19,12 +19,48 @@ interface TaskToolApprovalWrapperDeps {
 	onCardPromoted: StartNKleinSessionRuntimeRequest["onCardPromoted"];
 }
 
+/**
+ * Per-task release channel for the anti-re-read guard (live 2026-09-02): when the CONTEXT-FOCUS policy compacts
+ * a read_files result out of active context, the guard's "content already in context" premise turns FALSE — the
+ * compaction note even tells the model to "re-read explicit ranges", which the guard then blocked, and the
+ * architect churned range variations until one slipped past. Elision calls this to forget the elided targets so
+ * one legitimate re-read is allowed again.
+ */
+const readFilesGuardMemoryByTaskId = new Map<
+	string,
+	{ targets: Set<string>; fullPaths: Set<string>; fingerprints: Set<string> }
+>();
+
+export function releaseCompactedReadFilesTargets(taskId: string, toolInput: unknown): void {
+	const memory = readFilesGuardMemoryByTaskId.get(taskId);
+	if (!memory) {
+		return;
+	}
+	const keys = buildReadFilesTargetKeys(toolInput);
+	for (const key of keys) {
+		memory.targets.delete(key.rangeKey);
+		if (key.fullFile) {
+			memory.fullPaths.delete(key.path);
+		}
+	}
+	const fingerprint = buildReadFilesRequestFingerprint(keys);
+	if (fingerprint) {
+		memory.fingerprints.delete(fingerprint);
+	}
+}
+
 export function createTaskToolApprovalWrapper(deps: TaskToolApprovalWrapperDeps): RequestToolApproval {
 	const { baseRequestToolApproval, largeFileWorkflow, taskId, hostWorkspaceRoot, onCardPromoted } = deps;
 	const fileReadToolByTurn = new Map<string, { toolName: string; toolCallId: string }>();
-	const approvedReadFilesRequestFingerprints = new Set<string>();
-	const successfulReadFilesTargetKeys = new Set<string>();
-	const successfulFullReadFilesPaths = new Set<string>();
+	const guardMemory = {
+		targets: new Set<string>(),
+		fullPaths: new Set<string>(),
+		fingerprints: new Set<string>(),
+	};
+	readFilesGuardMemoryByTaskId.set(taskId, guardMemory);
+	const approvedReadFilesRequestFingerprints = guardMemory.fingerprints;
+	const successfulReadFilesTargetKeys = guardMemory.targets;
+	const successfulFullReadFilesPaths = guardMemory.fullPaths;
 	// §5.B Increment C — one-shot guard so the auto-promote recovery mutates the board at most once per session.
 	let autoPromoteSettled = false;
 	const approvalTurnKey = (approvalRequest: NKleinSdkToolApprovalRequest): string =>

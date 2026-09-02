@@ -593,6 +593,10 @@ function buildEmergencyCompactionMessage(
 export function compactKanbanMessagesForContextTarget(
 	messagesInput: readonly NKleinSdkPersistedMessage[],
 	targetTokens: number,
+	/** Called once per ELIDED read_files result with its original tool input — so the anti-re-read guard can
+	 *  forget targets whose verbatim content just left active context (live 2026-09-02: the guard blocked the
+	 *  very re-reads the compaction note asks for, churning the architect through range variations). */
+	onElidedReadFiles?: (toolInput: unknown) => void,
 ): NKleinSdkPersistedMessage[] | null {
 	const toolResults = collectToolResults(messagesInput);
 	const readFileToolResults = toolResults.filter((result) => isReadFilesToolName(result.toolName));
@@ -638,6 +642,7 @@ export function compactKanbanMessagesForContextTarget(
 			continue;
 		}
 		replaceToolResultContent(messages, result, buildReadFilesSummary(result));
+		onElidedReadFiles?.(result.toolInput);
 		changed.value = true;
 	}
 
@@ -691,8 +696,9 @@ async function compactKanbanMessagesForContextTargetWithModelProvider(
 
 export function focusKanbanReadFilesForNextRequest(
 	messages: readonly NKleinSdkPersistedMessage[],
+	onElidedReadFiles?: (toolInput: unknown) => void,
 ): NKleinSdkPersistedMessage[] | null {
-	return compactKanbanMessagesForContextTarget(messages, Number.MAX_SAFE_INTEGER);
+	return compactKanbanMessagesForContextTarget(messages, Number.MAX_SAFE_INTEGER, onElidedReadFiles);
 }
 
 export async function compactKanbanFocusedMessages(

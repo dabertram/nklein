@@ -108,3 +108,43 @@ describe("createTaskToolApprovalWrapper", () => {
 		expect(reread?.approved).toBe(true);
 	});
 });
+
+describe("compaction releases the anti-re-read guard (2026-09-02 spec-churn fix)", () => {
+	it("allows ONE re-read of a target after its result was elided from context", async () => {
+		const { createTaskToolApprovalWrapper, releaseCompactedReadFilesTargets } = await import(
+			"../../../src/nklein-agent/nklein-task-tool-approval"
+		);
+		const approveMaybe = createTaskToolApprovalWrapper({
+			baseRequestToolApproval: async () => ({ approved: true }),
+			largeFileWorkflow: {
+				getReadFilesBlockingReason: async () => null,
+				getReadLargeFileBlockingReason: async () => null,
+			},
+			taskId: "task-guard-release",
+			hostWorkspaceRoot: "/tmp/x",
+		} as never);
+		if (!approveMaybe) {
+			throw new Error("wrapper expected when a base approval exists");
+		}
+		const approve = approveMaybe;
+		const input = { files: [{ path: "spec.md", start_line: 100, end_line: 140 }] };
+		const request = (id: string) =>
+			({
+				toolName: "read_files",
+				toolCallId: id,
+				input,
+				sessionId: "s",
+				agentId: "a",
+				conversationId: "c",
+				iteration: id,
+			}) as never;
+		expect((await approve(request("r1"))).approved).toBe(true);
+		// Same range again: blocked (content is in context).
+		expect((await approve(request("r2"))).approved).toBe(false);
+		// Context focus elides the result → release → one re-read allowed.
+		releaseCompactedReadFilesTargets("task-guard-release", input);
+		expect((await approve(request("r3"))).approved).toBe(true);
+		// And the guard re-arms after that read.
+		expect((await approve(request("r4"))).approved).toBe(false);
+	});
+});
