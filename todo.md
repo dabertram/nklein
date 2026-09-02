@@ -2811,7 +2811,19 @@ These are known defects or incomplete migrations. Clear them before widening cap
   chat turns drive the mock model's `nklein_control` calls, tests assert REAL board/session/config effects
   (pattern: autonomous-chat-run.test.ts + mock-llm helper). (c) `nklein-mcp`: expose the SAME registry as an MCP
   server so external agents drive !Klein (registry IS the tool list; adapter is mechanical). (d) nightly aimock
-  cell registration per the name-contract once (b) is stable.
+  cell registration per the name-contract once (b) is stable. (e) MODEL I/O TRANSPARENCY (David 2026-09-02: "i
+  always want to be able to see all in and out from the models .. chat would fit .. with hide options etc
+  maybe"): every model request/response observable in-product — chat-style rendering of the raw wire traffic
+  (system prompt, full context, tool schemas, raw response incl. reasoning), collapsible/hideable per entry,
+  per-card and per-chat; capture layer = a bounded model-traffic store written at the request seam (the
+  scratchpad tee proxy proved the value; productize it — local-only, size-capped, off-switch).
+
+- [ ] **F2.31 — DAG overview: layered tree layout with temporal flow, EARLY→RIGHT (David directive 2026-09-02,
+  verbatim: "the dag graph overview .. should try to visualize tree structure as good as possible .. and flow ..
+  like early to the right .. late on left side").** The board-dag-view should lay cards out by dependency depth
+  (layered/topological): roots (no prerequisites, run first) in the RIGHTMOST column, each dependency layer one
+  column further LEFT, so work flows right→left and the tree structure is visible (children grouped under
+  parents, crossing-minimized within layers). Keep node interactivity (click/keyboard) from F2.16 intact.
 
 - [x] **F2.16 (narrowed by audit 2026-07-13) — stream drill-down: verify focus/back only.** The drill is
   substantially built (W3.4 flagship UI): stream-overview → `onSelectStream`, `board-dag-view` → `onSelectCard`,
