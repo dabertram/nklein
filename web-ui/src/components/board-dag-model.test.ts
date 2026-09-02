@@ -78,10 +78,11 @@ describe("buildDagGraph", () => {
 		expect(graph.edges.map((e) => e.id)).toEqual(["a->b"]); // a->gone (trash) and x->a (unknown) dropped
 	});
 
-	it("lays BLOCKERS left and dependents rightward by depth (execution order)", () => {
+	it("lays BLOCKERS left under the early-left toggle (2026-07-10 board-aligned direction)", () => {
 		const columns = [column("backlog", ["a", "b"])];
-		// dep(a, b) = "a depends on b" (core semantics): b must land FIRST, so b is the left/root layer.
-		const graph = buildDagGraph(columns, [dep("a", "b")], noSessions);
+		// dep(a, b) = "a depends on b" (core semantics): b must land FIRST. Under early-left b is the left/root
+		// layer. F2.31 (2026-09-02) flipped the DEFAULT to early-right; this direction lives behind the toggle.
+		const graph = buildDagGraph(columns, [dep("a", "b")], noSessions, { flowDirection: "early-left" });
 		const a = graph.positions.get("a");
 		const b = graph.positions.get("b");
 		expect(a).toBeDefined();
@@ -117,5 +118,67 @@ describe("buildDagGraph", () => {
 		const columns = [column("backlog", ["a", "b", "c"])];
 		const graph = buildDagGraph(columns, [dep("a", "b"), dep("b", "c"), dep("c", "a")], noSessions);
 		expect(graph.cycleEdgeIds.size).toBeGreaterThan(0);
+	});
+});
+
+describe("buildDagGraph layout (F2.31 flow + tree structure)", () => {
+	const col = (id: string, cards: { id: string; title: string }[]) => ({ id, title: id, cards }) as never;
+	const dep = (from: string, to: string) => ({ id: `${from}->${to}`, fromTaskId: from, toTaskId: to }) as never;
+
+	it("early-right (default): depth-0 roots sit in the RIGHTMOST column, dependents flow left", () => {
+		const graph = buildDagGraph(
+			[
+				col("planning", [
+					{ id: "root", title: "Root" },
+					{ id: "mid", title: "Mid" },
+					{ id: "leaf", title: "Leaf" },
+				]),
+			],
+			[dep("mid", "root"), dep("leaf", "mid")],
+			{},
+		);
+		const x = (id: string) => graph.positions.get(id)?.x ?? -1;
+		expect(x("root")).toBeGreaterThan(x("mid"));
+		expect(x("mid")).toBeGreaterThan(x("leaf"));
+	});
+
+	it("early-left preserves the 2026-07-10 board-aligned direction behind the toggle", () => {
+		const graph = buildDagGraph(
+			[
+				col("planning", [
+					{ id: "root", title: "Root" },
+					{ id: "leaf", title: "Leaf" },
+				]),
+			],
+			[dep("leaf", "root")],
+			{},
+			{ flowDirection: "early-left" },
+		);
+		const x = (id: string) => graph.positions.get(id)?.x ?? -1;
+		expect(x("root")).toBeLessThan(x("leaf"));
+	});
+
+	it("barycenter ordering groups children under their parents (tree structure)", () => {
+		// Two roots, each with two children; board order interleaves the children (a1, b1, a2, b2).
+		// After the barycenter sweeps, a-children sit adjacent to each other, as do b-children.
+		const graph = buildDagGraph(
+			[
+				col("planning", [
+					{ id: "rootA", title: "A" },
+					{ id: "rootB", title: "B" },
+					{ id: "a1", title: "a1" },
+					{ id: "b1", title: "b1" },
+					{ id: "a2", title: "a2" },
+					{ id: "b2", title: "b2" },
+				]),
+			],
+			[dep("a1", "rootA"), dep("a2", "rootA"), dep("b1", "rootB"), dep("b2", "rootB")],
+			{},
+		);
+		const y = (id: string) => graph.positions.get(id)?.y ?? -1;
+		const aBand = [y("a1"), y("a2")].sort((p, q) => p - q) as [number, number];
+		const bBand = [y("b1"), y("b2")].sort((p, q) => p - q) as [number, number];
+		const disjoint = aBand[1] < bBand[0] || bBand[1] < aBand[0];
+		expect(disjoint, `a-band ${aBand} and b-band ${bBand} must not interleave`).toBe(true);
 	});
 });

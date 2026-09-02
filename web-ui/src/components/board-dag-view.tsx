@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { buildDagGraph, DAG_LAYOUT, type DagNode } from "@/components/board-dag-model";
+import { buildDagGraph, DAG_LAYOUT, type DagFlowDirection, type DagNode } from "@/components/board-dag-model";
 import { cn } from "@/components/ui/cn";
 import type { BoardColumn as BoardColumnModel, BoardDependency } from "@/types";
 
@@ -64,7 +64,13 @@ export function BoardDagView({
 		capturing: boolean;
 	} | null>(null);
 
-	const graph = useMemo(() => buildDagGraph(columns, dependencies, sessions), [columns, dependencies, sessions]);
+	// F2.31 flow direction: early-right is David's 2026-09-02 directive; the toggle keeps the 2026-07-10
+	// board-aligned early-left one click away (the two directives conflict — both stay reachable).
+	const [flowDirection, setFlowDirection] = useState<DagFlowDirection>("early-right");
+	const graph = useMemo(
+		() => buildDagGraph(columns, dependencies, sessions, { flowDirection }),
+		[columns, dependencies, sessions, flowDirection],
+	);
 
 	// Escape closes the full-screen graph like every other overlay (live-found 2026-07-10: it only closed via ×).
 	useEffect(() => {
@@ -100,10 +106,24 @@ export function BoardDagView({
 				</span>
 				<button
 					type="button"
+					data-testid="board-dag-flow-toggle"
+					aria-label="Toggle flow direction"
+					title={
+						flowDirection === "early-right"
+							? "Early work on the right (click for early-left)"
+							: "Early work on the left (click for early-right)"
+					}
+					onClick={() => setFlowDirection((current) => (current === "early-right" ? "early-left" : "early-right"))}
+					className="ml-auto rounded-md px-2 py-1 text-[11px] text-text-tertiary hover:bg-surface-3 hover:text-text-primary"
+				>
+					{flowDirection === "early-right" ? "early → right" : "early → left"}
+				</button>
+				<button
+					type="button"
 					aria-label="Close dependency graph"
 					data-testid="board-dag-close"
 					onClick={onClose}
-					className="ml-auto rounded-md p-1.5 text-text-tertiary hover:bg-surface-3 hover:text-text-primary"
+					className="rounded-md p-1.5 text-text-tertiary hover:bg-surface-3 hover:text-text-primary"
 				>
 					<X size={16} />
 				</button>
