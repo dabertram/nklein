@@ -576,6 +576,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly autonomyBudgetWatchdog: AutonomyBudgetWatchdog;
 	private readonly explicitDecompositionTaskIds = new Set<string>();
 	private readonly decompositionStallNudger: DecompositionStallNudger;
+	/**
+	 * Timer leg of the exploration-drift detector (live 2026-09-02, v27): the tool_result-driven check goes
+	 * BLIND when a session's turn loop silently stops (59 minutes of no requests after a decompose bounce —
+	 * no events, so no evaluation, so no nudge). A 5-minute sweep over explicit-decomposition running tasks
+	 * re-runs the same check on TIME, so a silent stop self-heals at the drift threshold.
+	 */
+	private readonly explorationDriftSweep: ReturnType<typeof setInterval>;
 	private readonly repeatedToolCallGuard: RepeatedToolCallGuard;
 	private readonly turnLoopGuard: TurnLoopGuard;
 	private readonly activeToolTaskIds = new Set<string>();
@@ -739,6 +746,26 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	});
 
 	constructor(options: CreateInMemoryNKleinTaskSessionServiceOptions) {
+		this.explorationDriftSweep = setInterval(() => {
+			try {
+				for (const taskId of this.explicitDecompositionTaskIds) {
+					const entry = this.messageRepository.getTaskEntry(taskId);
+					if (entry?.summary.state !== "running") {
+						continue;
+					}
+					const constructionRoot =
+						this.sessionRuntime.getTaskHostWorkspaceRoot(taskId) ?? entry.summary.workspacePath ?? "";
+					const heldCardIds = (loadDecomposeConstruction(constructionRoot, taskId)?.construction.nodes ?? []).map(
+						(node) => node.id,
+					);
+					this.decompositionStallNudger.maybeNudgeExplorationDrift(taskId, heldCardIds);
+				}
+			} catch {
+				// The sweep must never destabilize the service.
+			}
+		}, 5 * 60_000);
+		this.explorationDriftSweep.unref?.();
+
 		if (!options.agentSandboxManager && options.allowUnisolatedTestRuntime !== true) {
 			throw new Error(
 				"NKlein task sessions require an AgentSandboxManager. Unit tests that stub the SDK runtime must pass allowUnisolatedTestRuntime: true.",
@@ -4130,6 +4157,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	async dispose(): Promise<void> {
+		clearInterval(this.explorationDriftSweep);
 		for (const taskId of this.timeoutController.taskIds()) {
 			this.clearTaskTimeouts(taskId);
 		}
