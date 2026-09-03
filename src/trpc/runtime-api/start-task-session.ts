@@ -1014,10 +1014,21 @@ export async function handleStartTaskSession(
 				return cardRoleGuardCandidates;
 			}
 			const seen = new Set(cardRoleGuardCandidates.map((candidate) => candidate.entry.key));
-			return [
-				...cardRoleGuardCandidates,
-				...autoPoolCandidates.filter((candidate) => !seen.has(candidate.entry.key)),
-			];
+			const absorbed = autoPoolCandidates.filter((candidate) => !seen.has(candidate.entry.key));
+			if (absorbed.length > 0) {
+				// F2.34 mechanism evidence: the auto pool actually WIDENED a configured worker pool.
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Worker auto-pool absorbed ${absorbed.length} loaded model(s) for ${body.taskId}: ${absorbed.map((candidate) => candidate.entry.modelId).join(", ")}.`,
+					taskId: body.taskId,
+					metadata: {
+						category: "worker_auto_pool_absorb",
+						absorbedModelIds: absorbed.map((candidate) => candidate.entry.modelId),
+					},
+				});
+			}
+			return [...cardRoleGuardCandidates, ...absorbed];
 		})();
 		const roleScopedSelectionCandidates =
 			!taskModelPin && !cardRolePin && cardRoleHasConfiguredModel && cardRoleGuardCandidates.length > 0
