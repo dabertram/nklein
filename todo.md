@@ -2834,8 +2834,9 @@ These are known defects or incomplete migrations. Clear them before widening cap
   actions: start/stop/pause/resume card, move/trash/complete card, review verdict (approve/request_changes),
   board pause/resume, get/set model roles, max-concurrent, fleet/status reads. (b) aimock UI/UX e2e: scripted
   chat turns drive the mock model's `nklein_control` calls, tests assert REAL board/session/config effects
-  (pattern: autonomous-chat-run.test.ts + mock-llm helper). (c) `nklein-mcp`: expose the SAME registry as an MCP
-  server so external agents drive !Klein (registry IS the tool list; adapter is mechanical). (d) nightly aimock
+  (pattern: autonomous-chat-run.test.ts + mock-llm helper). (c) `nklein-mcp` SHIPPED 2026-09-03: src/mcp/nklein-control-mcp.ts + scripts/nklein-mcp.mts (stdio;
+  loopback-only; one MCP tool per registry action; live-smoked against the running factory — `claude mcp add
+  nklein -- npx tsx scripts/nklein-mcp.mts`). (d) nightly aimock
   cell registration per the name-contract once (b) is stable. (e) MODEL I/O TRANSPARENCY (David 2026-09-02: "i
   always want to be able to see all in and out from the models .. chat would fit .. with hide options etc
   maybe"): every model request/response observable in-product — chat-style rendering of the raw wire traffic
