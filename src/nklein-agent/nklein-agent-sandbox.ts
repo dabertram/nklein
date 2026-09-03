@@ -748,10 +748,14 @@ export class AgentSandboxManager {
 				// with "destination path already exists and is not an empty directory", blocking the start. Every caller of
 				// prepareWorkspace wants a FRESH clone (start / review-at-result / acceptance-at-result), and the clone always
 				// overwrites anyway, so removing a stale dir first only turns a hard failure into a clean fresh clone.
+				// Clear AS ROOT (live 2026-09-03, v31 factory): a stale tree can hold foreign-uid files (a prior
+				// placement's uid, or root-written build artifacts), and the task-user rm then dies with
+				// "Operation not permitted" — which fail-closed the acceptance re-check and HELD every approved
+				// delivery ("tests NOT passed — acceptance evidence unavailable"; three approved cards stranded
+				// in Review). Deletion of a dir this same function recreates fresh is janitorial lifecycle work,
+				// not agent-reachable exec — root is correct here (mkdir above already runs as root).
 				assertSandboxExecOk(
-					await this.execAsTaskUser(placement, ["rm", "-rf", placement.workdir], {
-						workdir: AGENT_SANDBOX_WORKSPACES_DIR,
-					}),
+					await this.execAsRoot(placement, ["rm", "-rf", placement.workdir]),
 					"clear any stale sandbox task workspace",
 				);
 				assertSandboxExecOk(
