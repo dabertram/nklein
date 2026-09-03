@@ -1127,6 +1127,14 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 	},
 	{
+		category: "main_custodian_review",
+		item: "F2.35",
+		observes:
+			"each custodian sweep over the integration branch's new merge range (verdict, commit count) — the standing 'keep reviewing merged work' role; request_changes files a finding card",
+		enabledBy: "NKLEIN_MAIN_CUSTODIAN",
+		expectation: "exceptional",
+	},
+	{
 		category: "worker_auto_pool_absorb",
 		item: "F2.34",
 		observes:

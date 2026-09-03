@@ -290,6 +290,7 @@ import { type BackgroundEvalRailWiring, wireBackgroundEvalRail } from "./backgro
 import { type BoardLivenessWatchdogHandle, startBoardLivenessWatchdog } from "./board-liveness-watchdog";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { installFrontierResearchRunner } from "./frontier-research-holder";
+import { custodianFindingTaskId, maybeRunMainBranchCustodian } from "./main-branch-custodian";
 import {
 	createDockerManagedSearchBackend,
 	ManagedSearchBackendController,
@@ -4547,6 +4548,48 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							});
 							await trackedService.stopTaskSession(wedge.taskId).catch(() => null);
 						}
+						// F2.35 main-branch custodian (David 2026-09-04: "some role should keep reviewing main/merged
+						// work"): fire-and-forget sweep — reviews the integration branch's new merge range on a strong
+						// model, files finding cards on request_changes. Gated NKLEIN_MAIN_CUSTODIAN=1; single-flight +
+						// commit-mark live inside the module.
+						void maybeRunMainBranchCustodian({
+							workspacePath: scope.workspacePath,
+							runReviewSession: (custodianInput) => trackedService.runSecondOpinionReviewSession(custodianInput),
+							pickCustodianModel: () => {
+								const preferred = process.env.NKLEIN_CUSTODIAN_MODEL?.trim() || "qwen3.8-flash-next";
+								return { providerId: "lmstudio", modelId: preferred };
+							},
+							fileFindingCard: async ({ title, prompt }) => {
+								const taskId = custodianFindingTaskId();
+								await retryWorkspaceStateLock(() =>
+									mutateWorkspaceState(scope.workspacePath, (latestState) => {
+										const { board } = addTaskToColumn(
+											latestState.board,
+											"backlog",
+											{
+												taskId,
+												title,
+												prompt,
+												startInPlanMode: false,
+												autoReviewEnabled: true,
+												autoReviewMode: "commit",
+												agentId: "nklein",
+												baseRef: "HEAD",
+												trustedOrigin: "operator",
+											},
+											() => taskId,
+										);
+										return { board, save: true, value: taskId };
+									}),
+								);
+								void deps.runtimeStateHub.broadcastRuntimeWorkspaceStateUpdated(
+									scope.workspaceId,
+									scope.workspacePath,
+								);
+								return taskId;
+							},
+							warn: deps.warn,
+						}).catch(() => undefined);
 						// Model-unavailable SELF-RECOVERY (live 2026-09-02: a 1s endpoint blip mid-decompose parked the
 						// architect with "reload the model ... then resume this task" — reloading may be the human's job,
 						// but RESUMING is ours). Probe the parked card's own endpoint for its model; when it is loadable

@@ -263,6 +263,8 @@ const PROFILE_EXTRA_ENV: Readonly<Record<string, Readonly<Record<string, string>
 	flags_on: {
 		// F2.34 (2026-09-03): worker auto-pool — fold every suitable loaded model into the worker pool.
 		NKLEIN_WORKER_USE_ALL_LOADED: "1",
+		// F2.35 (2026-09-04): main-branch custodian — quiet unless ≥3 commits land during the drain.
+		NKLEIN_MAIN_CUSTODIAN: "1",
 		// Added 2026-08-03 with the a2a_task_ingress registration (P17.8). Opens a QUIET loopback listener
 		// route only — no replay traffic reaches it, so the drain shape is untouched; coverage here just
 		// proves the flag-ON posture boots and drains clean.

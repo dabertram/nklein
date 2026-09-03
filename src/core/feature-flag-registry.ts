@@ -172,6 +172,7 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 	{ flag: "NKLEIN_REVIEW_PANEL", mode: "enforcing", gate: "second-opinion-review-runner.ts (panel assembly)" },
 	{ flag: "NKLEIN_RUNAWAY_ABORT", mode: "enforcing", gate: "nklein-session-runtime.ts (wraps the model)" },
 	{ flag: "NKLEIN_WORKER_USE_ALL_LOADED", mode: "enforcing", gate: "start-task-session.ts (F2.34 worker auto-pool)" },
+	{ flag: "NKLEIN_MAIN_CUSTODIAN", mode: "enforcing", gate: "runtime-server.ts (F2.35 main-branch custodian sweep)" },
 	{ flag: "NKLEIN_SANDBOX_MCP", mode: "enforcing", gate: "nklein-task-session-service.ts (agent MCP access)" },
 	{ flag: "NKLEIN_SKILL_PROMPT_FRAGMENTS", mode: "enforcing", gate: "nklein-session-skill-fragments.ts" },
 	{ flag: "NKLEIN_SPEC_DELIBERATION", mode: "enforcing", gate: "nklein-task-session-service.ts (plan mode)" },

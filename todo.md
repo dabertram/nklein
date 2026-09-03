@@ -2863,6 +2863,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   per-card and per-chat; capture layer = a bounded model-traffic store written at the request seam (the
   scratchpad tee proxy proved the value; productize it — local-only, size-capped, off-switch).
 
+- [x] **F2.35 — Main-branch CUSTODIAN (David directive 2026-09-04, verbatim: "architect should always keep
+  reviewing main branch etc etc and merged work etc etc .. maybe not exactly architect .. but some role should
+  do it").** SHIPPED same night: a standing role reviewing the INTEGRATED tree — every ≥3 new commits on the
+  integration branch triggers one bracketed review session over the merge range (reuses the second-opinion
+  machinery; custodian model = NKLEIN_CUSTODIAN_MODEL, default flash-next — its extra duty beside worker cards),
+  verdict recorded as `main_custodian_review`, request_changes FILES A FINDING CARD in the backlog for the
+  normal factory loop. Observe-first (never mutates the tree); commit-mark advances even on failed sweeps; gated
+  NKLEIN_MAIN_CUSTODIAN=1 (flags_on lane covered; default-flip = P15.3 evidence decision). 4 unit tests on a
+  real temp repo. Note: "flash next can still do normal work too" — it already sits in the worker pool
+  (additionalModels); custodianship is additive.
+
 - [x] **F2.34 — Worker auto-pool: "use all available" per host (David directive 2026-09-03, verbatim: "new
   models available .. i want nklein to auto detect and use any suitable model on lm studio host .. like an 'use
   all avaiallble' option per 'host'").** SHIPPED same night: config `workerUseAllLoadedModels` (+
