@@ -1970,6 +1970,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### Phase 0 — stop-the-line correctness and liveness
 
+- [ ] **P0.QWAIT-TIMEOUT — Queue-wait burns the conversation-timeout budget.** *(Live 2026-09-03 ~08:00, v31:
+  s44 parked "conversation timeout after 28800 seconds" — the session spent most of those 8h WAITING for
+  endpoint capacity behind other cards on the same serialized host, not conversing. Admission wait must pause
+  the conversation clock (or the timeout should measure active-turn time only) — on a saturated fleet every
+  long-queued card eventually times out through no fault of its own.)*
+
 - [ ] **P0.CTX500 — An engine "Context size has been exceeded" 500 parks the card instead of triggering a
   context-shrink retry.** *(Live 2026-09-03 ~05:00, v31 factory: ornith-local-9b (65k window) as WORKER on
   s42-invariant-battery — "Engine protocol predict stream returned an error: {code:500, message:'Context size
