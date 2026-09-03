@@ -50,8 +50,48 @@ export const sessionRequestRecordSchema = z.object({
 	toolNames: z.array(z.string()).optional(),
 	/** Canonical hash of `messages` (see hashWireMessages) for cheap equality without re-reading bodies. */
 	messagesSha256: z.string(),
+	/** Record discriminator; absent on legacy rows ⇒ "request". */
+	kind: z.literal("request").optional(),
+	/** F2.30(e): correlates this request to its response record (same id on both). Absent on legacy rows. */
+	turnId: z.string().optional(),
 });
 export type SessionRequestRecord = z.infer<typeof sessionRequestRecordSchema>;
+
+/** One tool call the model emitted in a response (arguments capped by the tap before recording). */
+export const sessionResponseToolCallSchema = z.object({
+	toolName: z.string(),
+	/** The call's argument text, possibly truncated by the tap's per-field cap (see `truncated`). */
+	argumentsText: z.string(),
+});
+
+/**
+ * F2.30(e) — the OUT half ("i always want to be able to see all in and out from the models", David 2026-09-02):
+ * one record per completed model response, correlated to its request by `turnId`. Written by the same SDK tap
+ * that records the request; deltas are accumulated stream-side so recording never delays a chunk.
+ */
+export const sessionResponseRecordSchema = z.object({
+	schemaVersion: z.literal(1),
+	kind: z.literal("response"),
+	sessionId: z.string().min(1),
+	/** Correlates response to request: the tap stamps the same id on both records of a turn. */
+	turnId: z.string().min(1),
+	purpose: z.string(),
+	modelId: z.string(),
+	recordedAt: z.string(),
+	/** Accumulated visible text (possibly capped; see `truncated`). */
+	text: z.string(),
+	/** Accumulated reasoning/thinking text (possibly capped). */
+	reasoningText: z.string(),
+	toolCalls: z.array(sessionResponseToolCallSchema),
+	finishReason: z.string().nullable(),
+	error: z.string().nullable(),
+	inputTokens: z.number().nullable(),
+	outputTokens: z.number().nullable(),
+	durationMs: z.number(),
+	/** True when any field was cut by the tap's bounded-capture caps (full capture: NKLEIN_SESSION_REQUEST_LOG=1). */
+	truncated: z.boolean(),
+});
+export type SessionResponseRecord = z.infer<typeof sessionResponseRecordSchema>;
 
 /**
  * Stable content hash over (role, content) pairs. Length-prefixed framing: a separator-based scheme lets
@@ -78,6 +118,7 @@ export function buildSessionRequestRecord(input: {
 	systemPrompt?: string;
 	messages: readonly SessionRequestWireMessage[];
 	toolNames?: readonly string[];
+	turnId?: string;
 }): SessionRequestRecord {
 	return sessionRequestRecordSchema.parse({
 		schemaVersion: 1,
@@ -89,6 +130,7 @@ export function buildSessionRequestRecord(input: {
 		...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt } : {}),
 		messages: [...input.messages],
 		...(input.toolNames ? { toolNames: [...input.toolNames] } : {}),
+		...(input.turnId ? { kind: "request", turnId: input.turnId } : {}),
 		messagesSha256: hashWireMessages(input.messages),
 	});
 }

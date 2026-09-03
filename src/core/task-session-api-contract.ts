@@ -76,10 +76,32 @@ export const runtimeTaskWireInjectionEntrySchema = z.object({
 });
 export type RuntimeTaskWireInjectionEntry = z.infer<typeof runtimeTaskWireInjectionEntrySchema>;
 
+/** F2.30(e) "out" half: one model RESPONSE, correlated to its request by turnId. */
+export const runtimeTaskWireResponseEntrySchema = z.object({
+	recordedAt: z.string(),
+	turnId: z.string(),
+	purpose: z.string(),
+	modelId: z.string(),
+	textChars: z.number().int().nonnegative(),
+	reasoningChars: z.number().int().nonnegative(),
+	text: z.string().optional(),
+	reasoningText: z.string().optional(),
+	toolCalls: z.array(z.object({ toolName: z.string(), argumentsText: z.string() })),
+	finishReason: z.string().nullable(),
+	error: z.string().nullable(),
+	inputTokens: z.number().nullable(),
+	outputTokens: z.number().nullable(),
+	durationMs: z.number(),
+	truncated: z.boolean(),
+});
+export type RuntimeTaskWireResponseEntry = z.infer<typeof runtimeTaskWireResponseEntrySchema>;
+
 export const runtimeTaskWireLogResponseSchema = z.object({
 	/** Session ids inspected (a card has a primary session plus derived ones like `::review`). */
 	sessionIds: z.array(z.string()),
 	requests: z.array(runtimeTaskWireRequestEntrySchema),
+	/** F2.30(e): model responses ("out"), newest-last like requests. Empty on legacy logs. */
+	responses: z.array(runtimeTaskWireResponseEntrySchema).optional(),
 	injections: z.array(runtimeTaskWireInjectionEntrySchema),
 	/** True when the request log is switched off — an EMPTY log and a DISABLED log are different facts. */
 	requestLogDisabled: z.boolean(),

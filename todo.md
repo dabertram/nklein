@@ -2837,7 +2837,8 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (pattern: autonomous-chat-run.test.ts + mock-llm helper). (c) `nklein-mcp` SHIPPED 2026-09-03: src/mcp/nklein-control-mcp.ts + scripts/nklein-mcp.mts (stdio;
   loopback-only; one MCP tool per registry action; live-smoked against the running factory — `claude mcp add
   nklein -- npx tsx scripts/nklein-mcp.mts`). (d) nightly aimock
-  cell registration per the name-contract once (b) is stable. (e) MODEL I/O TRANSPARENCY (David 2026-09-02: "i
+  cell registration per the name-contract once (b) is stable. (e) SHIPPED 2026-09-03 (capture default-ON bounded +
+  response half + wire panel "out" rows — see commit): MODEL I/O TRANSPARENCY (David 2026-09-02: "i
   always want to be able to see all in and out from the models .. chat would fit .. with hide options etc
   maybe"): every model request/response observable in-product — chat-style rendering of the raw wire traffic
   (system prompt, full context, tool schemas, raw response incl. reasoning), collapsible/hideable per entry,

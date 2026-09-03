@@ -12,7 +12,11 @@
 
 import type { RuntimeTaskWireLogRequest, RuntimeTaskWireLogResponse } from "../../core/task-session-api-contract";
 import { isSessionInjectionLogEnabled, readSessionInjectionRecords } from "../../state/session-injection-log-store";
-import { isSessionRequestLogEnabled, readSessionRequestRecords } from "../../state/session-request-log-store";
+import {
+	isSessionRequestLogEnabled,
+	readSessionRequestRecords,
+	readSessionWireRecords,
+} from "../../state/session-request-log-store";
 
 const DEFAULT_LIMIT = 100;
 
@@ -42,12 +46,18 @@ export async function collectTaskWireLog(
 	const requestRecords = (await Promise.all(sessionIds.map((id) => readRequests(id).catch(() => []))))
 		.flat()
 		.sort((left, right) => left.recordedAt.localeCompare(right.recordedAt));
+	// F2.30(e) "out": response records live in the same per-session files; the union reader surfaces them.
+	const responseRecords = (await Promise.all(sessionIds.map((id) => readSessionWireRecords(id).catch(() => []))))
+		.flat()
+		.flatMap((record) => ("kind" in record && record.kind === "response" ? [record] : []))
+		.sort((left, right) => left.recordedAt.localeCompare(right.recordedAt));
 	const injectionRecords = (await Promise.all(sessionIds.map((id) => readInjections(id).catch(() => []))))
 		.flat()
 		.sort((left, right) => left.recordedAt.localeCompare(right.recordedAt));
 
 	// Newest last: keep the TAIL, which is the part an operator is almost always asking about.
 	const keptRequests = requestRecords.slice(Math.max(0, requestRecords.length - limit));
+	const keptResponses = responseRecords.slice(Math.max(0, responseRecords.length - limit));
 	const keptInjections = injectionRecords.slice(Math.max(0, injectionRecords.length - limit));
 
 	return {
@@ -67,6 +77,25 @@ export async function collectTaskWireLog(
 				chars: message.content.length,
 				...(includeText ? { text: message.content } : {}),
 			})),
+		})),
+		responses: keptResponses.map((record) => ({
+			recordedAt: record.recordedAt,
+			turnId: record.turnId,
+			purpose: record.purpose,
+			modelId: record.modelId,
+			textChars: record.text.length,
+			reasoningChars: record.reasoningText.length,
+			...(includeText ? { text: record.text, reasoningText: record.reasoningText } : {}),
+			toolCalls: record.toolCalls.map((call) => ({
+				toolName: call.toolName,
+				argumentsText: includeText ? call.argumentsText : call.argumentsText.slice(0, 200),
+			})),
+			finishReason: record.finishReason,
+			error: record.error,
+			inputTokens: record.inputTokens,
+			outputTokens: record.outputTokens,
+			durationMs: record.durationMs,
+			truncated: record.truncated,
 		})),
 		injections: keptInjections.map((record) => ({
 			recordedAt: record.recordedAt,

@@ -37,6 +37,7 @@ export function WireLogPanel({
 	const [wireLog, setWireLog] = useState<RuntimeTaskWireLogResponse | null>(null);
 	const [loadFailed, setLoadFailed] = useState(false);
 	const [expandedRequest, setExpandedRequest] = useState<number | null>(null);
+	const [expandedResponse, setExpandedResponse] = useState<number | null>(null);
 	useEffect(() => {
 		if (!open || workspaceId === null) {
 			return;
@@ -141,6 +142,61 @@ export function WireLogPanel({
 															{message.text}
 														</pre>
 													) : null}
+												</div>
+											))}
+										</div>
+									) : null}
+								</div>
+							))
+						)}
+						<div className="pt-2 font-medium text-text-primary">
+							Responses ({(wireLog.responses ?? []).length})
+						</div>
+						{(wireLog.responses ?? []).length === 0 ? (
+							<div className="text-text-tertiary">No recorded responses yet (out half — F2.30e).</div>
+						) : (
+							(wireLog.responses ?? []).map((response, index) => (
+								<div key={`${response.recordedAt}-${index}`} className="rounded border border-border p-1.5">
+									<button
+										type="button"
+										className="flex w-full cursor-pointer items-center justify-between gap-2 text-left"
+										onClick={() => setExpandedResponse((current) => (current === index ? null : index))}
+									>
+										<span className="min-w-0 truncate">
+											<span className="text-text-tertiary">{formatTime(response.recordedAt)}</span>{" "}
+											<span className="font-medium">{response.finishReason ?? "…"}</span>{" "}
+											<span className="text-text-tertiary">{response.modelId}</span>
+											{response.error ? <span className="text-status-red"> · error</span> : null}
+										</span>
+										<span className="shrink-0 text-text-tertiary">
+											{formatChars(response.textChars)} ch
+											{response.reasoningChars > 0 ? ` · think ${formatChars(response.reasoningChars)}` : ""}
+											{response.toolCalls.length > 0 ? ` · ${response.toolCalls.length} calls` : ""}
+											{response.outputTokens !== null ? ` · ${response.outputTokens} tok` : ""} ·{" "}
+											{Math.round(response.durationMs / 1000)}s{response.truncated ? " · capped" : ""}
+										</span>
+									</button>
+									{expandedResponse === index ? (
+										<div className="space-y-1 pt-1.5">
+											{response.error ? (
+												<div className="break-words text-status-red">{response.error}</div>
+											) : null}
+											{response.reasoningText ? (
+												<pre className="mt-0.5 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-surface-2 p-1 text-[10px] text-text-tertiary">
+													{response.reasoningText}
+												</pre>
+											) : null}
+											{response.text !== undefined && response.text.length > 0 ? (
+												<pre className="mt-0.5 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-surface-2 p-1 text-[10px] text-text-secondary">
+													{response.text}
+												</pre>
+											) : null}
+											{response.toolCalls.map((call, callIndex) => (
+												<div key={`${callIndex}-${call.toolName}`}>
+													<span className="text-text-tertiary">→ {call.toolName}</span>
+													<pre className="mt-0.5 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-surface-2 p-1 text-[10px] text-text-secondary">
+														{call.argumentsText}
+													</pre>
 												</div>
 											))}
 										</div>

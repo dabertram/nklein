@@ -98,9 +98,14 @@ describe("session-request-log store", () => {
 		toolNames: ["read_files"],
 	});
 
-	it("is a no-op while the observe-first gate is closed", async () => {
-		await appendSessionRequestRecord(record, { rootDir: root, env: {} });
+	it("is a no-op when explicitly disabled (NKLEIN_SESSION_REQUEST_LOG=0)", async () => {
+		await appendSessionRequestRecord(record, { rootDir: root, env: { NKLEIN_SESSION_REQUEST_LOG: "0" } });
 		expect(await readSessionRequestRecords("consult:task-1", { rootDir: root })).toHaveLength(0);
+	});
+
+	it("records by DEFAULT (bounded mode — F2.30(e): the wire view must always have something to show)", async () => {
+		await appendSessionRequestRecord(record, { rootDir: root, env: {} });
+		expect(await readSessionRequestRecords("consult:task-1", { rootDir: root })).toHaveLength(1);
 	});
 
 	it("appends, sanitizes the file name, and reads back verbatim when enabled", async () => {
@@ -108,7 +113,8 @@ describe("session-request-log store", () => {
 		await appendSessionRequestRecord(record, { rootDir: root, env });
 		await appendSessionRequestRecord(record, { rootDir: root, env });
 		const records = await readSessionRequestRecords("consult:task-1", { rootDir: root });
-		expect(records).toHaveLength(2);
+		// One record leaked in from the default-mode test above (deliberate: default is ON now) + these two.
+		expect(records).toHaveLength(3);
 		expect(records[0]?.messagesSha256).toBe(hashWireMessages(record.messages));
 		expect(sessionRequestLogPath("consult:task-1", root)).not.toContain(":");
 		expect(await listSessionRequestLogSessions({ rootDir: root })).toEqual(["consult_task-1"]);

@@ -1,8 +1,14 @@
-import { appendFile, mkdir, readdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
-import { type SessionRequestRecord, sessionRequestRecordSchema } from "../core/session-request-log";
+import {
+	type SessionRequestRecord,
+	type SessionResponseRecord,
+	sessionRequestRecordSchema,
+	sessionResponseRecordSchema,
+} from "../core/session-request-log";
 import { parseValidatedJsonl } from "./jsonl-store";
 
 /**
@@ -21,9 +27,40 @@ const DEFAULT_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "session-requ
 const REQUEST_LOG_ENV_VAR = "NKLEIN_SESSION_REQUEST_LOG";
 const REQUEST_LOG_ROOT_ENV_VAR = "NKLEIN_SESSION_REQUEST_LOG_ROOT";
 
-/** True when the observe-first gate is open (recording enabled for this process). */
+/**
+ * Capture mode (F2.30(e), David 2026-09-02 "i always want to be able to see all in and out from the models"):
+ *  - "bounded" (DEFAULT): always-on capture with per-field caps applied by the tap and a per-session file cap
+ *    here — safe to leave on for real runs; the wire view always has something to show.
+ *  - "full" (`NKLEIN_SESSION_REQUEST_LOG=1`): verbatim capture, no caps — measurement rigs (unchanged).
+ *  - "off" (`NKLEIN_SESSION_REQUEST_LOG=0`): no capture at all.
+ */
+export type SessionRequestLogMode = "off" | "bounded" | "full";
+
+export function sessionRequestLogMode(env: NodeJS.ProcessEnv = process.env): SessionRequestLogMode {
+	const raw = env[REQUEST_LOG_ENV_VAR]?.trim();
+	if (raw === "1") {
+		return "full";
+	}
+	if (raw === "0") {
+		return "off";
+	}
+	return "bounded";
+}
+
+/** True when the gate is open in any mode (bounded default included). */
 export function isSessionRequestLogEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-	return env[REQUEST_LOG_ENV_VAR]?.trim() === "1";
+	return sessionRequestLogMode(env) !== "off";
+}
+
+/** Bounded mode's per-session file cap — appends beyond it are dropped (full mode is uncapped). */
+const BOUNDED_FILE_CAP_BYTES = 16 * 1024 * 1024;
+
+async function underBoundedCap(path: string): Promise<boolean> {
+	try {
+		return (await stat(path)).size < BOUNDED_FILE_CAP_BYTES;
+	} catch {
+		return true; // no file yet
+	}
 }
 
 function resolveRootDir(rootDir?: string): string {
@@ -52,13 +89,50 @@ export async function appendSessionRequestRecord(
 	try {
 		const parsed = sessionRequestRecordSchema.parse(record);
 		await mkdir(resolveRootDir(options?.rootDir), { recursive: true });
-		await appendFile(
-			sessionRequestLogPath(parsed.sessionId, options?.rootDir),
-			`${JSON.stringify(parsed)}\n`,
-			"utf8",
-		);
+		const path = sessionRequestLogPath(parsed.sessionId, options?.rootDir);
+		if (sessionRequestLogMode(options?.env ?? process.env) === "bounded" && !(await underBoundedCap(path))) {
+			return; // per-session cap reached — bounded mode drops silently (full mode never caps)
+		}
+		await appendFile(path, `${JSON.stringify(parsed)}\n`, "utf8");
 	} catch {
 		// Best-effort observational log; a write failure must never break the request that produced it.
+	}
+}
+
+/** Append one RESPONSE record (F2.30(e) "out" half). Same gate, cap, and best-effort contract as requests. */
+export async function appendSessionResponseRecord(
+	record: SessionResponseRecord,
+	options?: { rootDir?: string; env?: NodeJS.ProcessEnv },
+): Promise<void> {
+	if (!isSessionRequestLogEnabled(options?.env ?? process.env)) {
+		return;
+	}
+	try {
+		const parsed = sessionResponseRecordSchema.parse(record);
+		await mkdir(resolveRootDir(options?.rootDir), { recursive: true });
+		const path = sessionRequestLogPath(parsed.sessionId, options?.rootDir);
+		if (sessionRequestLogMode(options?.env ?? process.env) === "bounded" && !(await underBoundedCap(path))) {
+			return;
+		}
+		await appendFile(path, `${JSON.stringify(parsed)}\n`, "utf8");
+	} catch {
+		// Best-effort observational log; a write failure must never break the response that produced it.
+	}
+}
+
+const sessionWireRecordSchema = z.union([sessionResponseRecordSchema, sessionRequestRecordSchema]);
+export type SessionWireRecord = z.infer<typeof sessionWireRecordSchema>;
+
+/** Read one session's FULL wire history (requests + responses) in append order. Missing file ⇒ empty. */
+export async function readSessionWireRecords(
+	sessionId: string,
+	options?: { rootDir?: string },
+): Promise<SessionWireRecord[]> {
+	try {
+		const content = await readFile(sessionRequestLogPath(sessionId, options?.rootDir), "utf8");
+		return parseValidatedJsonl(content, sessionWireRecordSchema, "session-request-log");
+	} catch {
+		return [];
 	}
 }
 
