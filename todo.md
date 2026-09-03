@@ -2929,6 +2929,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
 
 ### Phase 3 — feature completion: adaptive local-model execution and routing
 
+- [ ] **F3.39 — FreeToken runtime on legion5pro (David 2026-09-04: "freetoken is a runtime .. go online" — researched
+  same night).** FreeToken (FlashML, Apache-2.0, github.com/FlashML-org/FreeToken): MoE-specialized serving —
+  active experts in VRAM, rest in host RAM, FTW mmap weights, OpenAI+Anthropic APIs (`pip install
+  "freetoken[accel]"`; `ft serve <model>` on :8000). Platforms: NVIDIA RTX 30/40/50 on Windows/Linux ONLY (no
+  Apple Silicon) ⇒ legion5pro is the one eligible host. Qwen3.8-Flash-Next is supported but pins a 47.7GiB PLE
+  n-gram table in host RAM ⇒ does NOT fit legion's 32GB (and m5max is Metal). THE PLAY: Qwen3.6-35B-A3B on
+  legion's 8GB GPU (~39 tok/s reported; 2.25× Ollama measured by Better Stack) — likely a large upgrade over the
+  q6-27B partial offload there. Steps: (1) David installs + `ft serve` on legion; (2) verify direct LAN
+  reachability from m5max (July finding "gateway only" may be stale post-move); (3) tee-proxy route by model id
+  → legion:8000 + registry pre-seed (cap ~72, ctx per serve config); (4) worker-pool entry (manual first; a
+  FreeToken-aware auto-pool leg later); (5) A/B t/s + junk-args probe before trusting it with cards.
+
 #### 3A. Adaptive recovery controller *(legacy §5.O, §5.AA)*
 
 - [~] **F3.37 — Wire model-initiated peer consultation (`consult_stronger_model`; adopted pattern, docs/attributions.md; David 2026-07-23).**
