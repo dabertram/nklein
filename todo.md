@@ -1970,6 +1970,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### Phase 0 — stop-the-line correctness and liveness
 
+- [ ] **P0.REVRANK — Reviewer/escalation candidate ranking is CAPABILITY-BLIND (class fit only) — a 9B
+  "escalates" a 27B's stuck review.** *(Live 2026-09-03 ~23:50: s44's stuck review loop "Escalated … to
+  ornith-local-9b" — the 9B whose 3× no-verdict sessions CAUSED the loop; `buildReviewerCandidates` ranks by
+  catalog reviewer-class fit with no capability signal, and the escalation path reuses it via
+  pickDiverseReviewerModel(sessionKind "worker").)* Fix: thread registry/blended capability into the candidate
+  score (class fit gates, capability ranks) and require an ESCALATION pick to be STRICTLY stronger than the
+  model it takes over from; while at it, surface the pick + basis as an observation. Interim: reviewer role
+  re-pointed to the legion 27B (q6) — verdicts emit again; ornith's no-verdict ceiling stops taxing every
+  review 3 sessions.
+
 - [ ] **P0.POOLLOSS — A crashed pool model disappears silently; the operator learns by asking.** *(Live
   2026-09-03: dirk@iq4_xs crashed at 03:41 — one 500 then 400s — and the unpinned worker pool routed around it
   for 17h with no observation, no board banner; David noticed the idle m4 himself. The fleet-change resharder
