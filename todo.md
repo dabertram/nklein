@@ -1970,7 +1970,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### Phase 0 — stop-the-line correctness and liveness
 
-- [ ] **P0.QWAIT-TIMEOUT — Queue-wait burns the conversation-timeout budget.** *(Live 2026-09-03 ~08:00, v31:
+- [ ] **P0.POOLLOSS — A crashed pool model disappears silently; the operator learns by asking.** *(Live
+  2026-09-03: dirk@iq4_xs crashed at 03:41 — one 500 then 400s — and the unpinned worker pool routed around it
+  for 17h with no observation, no board banner; David noticed the idle m4 himself. The fleet-change resharder
+  handles LOADED-set changes for running work but nothing SURFACES "a role-pool model vanished (last seen
+  <t>, crash signature 500→400s)".)* Mechanism: a fleet sweep that diffs the role pools' models against
+  lms-visible loaded instances and records a warning observation + board notice on loss (and recovery); pair
+  with a per-model crash-signature line in the wire log (the 500's error body is now captured by F2.30(e)).
+
+- [ ] **P0.QWAIT — Queue-wait burns the conversation-timeout budget.** *(Live 2026-09-03 ~08:00, v31:
   s44 parked "conversation timeout after 28800 seconds" — the session spent most of those 8h WAITING for
   endpoint capacity behind other cards on the same serialized host, not conversing. Admission wait must pause
   the conversation clock (or the timeout should measure active-turn time only) — on a saturated fleet every
