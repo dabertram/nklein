@@ -150,6 +150,11 @@ export const runtimeConfigResponseSchema = z.object({
 	shortcuts: z.array(runtimeProjectShortcutSchema),
 	nkleinProviderSettings: runtimeNKleinProviderSettingsSchema,
 	modelRoles: runtimeModelRolesSchema,
+	/** F2.34 (David 2026-09-03 "use all available option per host"): fold EVERY suitable LM-Studio-loaded model
+	 * into the WORKER pool automatically — no manual role listing, immune to model-id drift on reloads. */
+	workerUseAllLoadedModels: z.boolean().optional(),
+	/** Optional host allowlist for the auto pool (lms machine ids / "local"); empty or absent = every host. */
+	workerUseAllLoadedHosts: z.array(z.string()).optional(),
 	modelRolesOverride: runtimeModelRolesSchema.nullable().optional(),
 	effectiveModelRoles: runtimeModelRolesSchema.optional(),
 	// Optional during rollout: the runtime omits it until the config loader populates it (consumers default to
@@ -235,6 +240,8 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	concurrencyOverride: concurrencyOverrideSchema.nullable().optional(),
 	shortcuts: z.array(runtimeProjectShortcutSchema).optional(),
 	modelRoles: runtimeModelRolesSchema.optional(),
+	workerUseAllLoadedModels: z.boolean().optional(),
+	workerUseAllLoadedHosts: z.array(z.string()).optional(),
 	modelRolesOverride: runtimeModelRolesSchema.nullable().optional(),
 	agentRulesets: agentRulesetsConfigSchema.optional(),
 	agentRulesetsOverride: agentRulesetsConfigSchema.nullable().optional(),

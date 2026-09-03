@@ -204,6 +204,11 @@ function toRuntimeConfigState({
 		hardTaskRoutingMode:
 			globalConfig?.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
 		testDrivenModeEnabled: globalConfig?.testDrivenModeEnabled ?? TEST_DRIVEN_MODE_DEFAULT,
+		// F2.34: worker auto-pool ("use all available per host") — plain global fields, project override later.
+		workerUseAllLoadedModels: globalConfig?.workerUseAllLoadedModels === true,
+		workerUseAllLoadedHosts: Array.isArray(globalConfig?.workerUseAllLoadedHosts)
+			? globalConfig.workerUseAllLoadedHosts.filter((host): host is string => typeof host === "string")
+			: [],
 		testDrivenModeOverride: normalizeTestDrivenModeOverride(projectConfig?.testDrivenModeOverride),
 		effectiveTestDrivenMode: resolveEffectiveTestDrivenMode(
 			globalConfig?.testDrivenModeEnabled,

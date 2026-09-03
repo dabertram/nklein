@@ -95,6 +95,8 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("decompositionAutoApplyEnabled"),
 	runtimeConfigChangeField("hardTaskRoutingMode"),
 	runtimeConfigChangeField("testDrivenModeEnabled"),
+	runtimeConfigChangeField("workerUseAllLoadedModels"),
+	runtimeConfigChangeField("workerUseAllLoadedHosts"),
 	runtimeConfigChangeField("secondOpinionReviewEnabled"),
 	runtimeConfigChangeField("reviewMaxRounds"),
 	runtimeConfigChangeField("readyForReviewNotificationsEnabled"),

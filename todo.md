@@ -2853,6 +2853,15 @@ These are known defects or incomplete migrations. Clear them before widening cap
   per-card and per-chat; capture layer = a bounded model-traffic store written at the request seam (the
   scratchpad tee proxy proved the value; productize it — local-only, size-capped, off-switch).
 
+- [x] **F2.34 — Worker auto-pool: "use all available" per host (David directive 2026-09-03, verbatim: "new
+  models available .. i want nklein to auto detect and use any suitable model on lm studio host .. like an 'use
+  all avaiallble' option per 'host'").** SHIPPED same night: config `workerUseAllLoadedModels` (+
+  `workerUseAllLoadedHosts` allowlist; env NKLEIN_WORKER_USE_ALL_LOADED for rigs) — the configured worker pool
+  ABSORBS every suitability-gated auto-discovered loaded model (role-less candidates), host-filtered via the lms
+  machine map. Kills the recurring model-id-drift re-pointing (live: legion's qwen/qwen3.8-27b → dirk-qwen3.8-27b
+  swap orphaned the pool id twice in one day). Pins/task models still narrow. Follow-ups: project-level override,
+  settings UI toggle, reviewer/architect variants.
+
 - [ ] **F2.32 — Welcome/setup dialog UI tests + UX pass (David directive 2026-09-02, verbatim: "also add ui
   tests for the welcome and setup dialogues etc .. make sure everything is smooth, covered, makes sense, is user
   friendly, not annoying, intuitive ..").** Surfaces: startup-onboarding-dialog, setup-wizard-dialog,

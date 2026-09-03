@@ -985,9 +985,43 @@ export async function handleStartTaskSession(
 				: null;
 		const allGuardCandidates = [...guardCandidates.values()];
 		const cardRoleGuardCandidates = allGuardCandidates.filter((candidate) => candidate.role === cardRole);
+		// F2.34 (David 2026-09-03, "use all available option per host"): when the worker auto-pool is ON, the
+		// configured worker pool ABSORBS every suitable auto-discovered loaded model (role === null — already
+		// suitability-gated + class-capped above), optionally filtered to allowlisted lms hosts. This makes the
+		// pool immune to model-id drift (a reloaded model under a new id joins on the next start, a crashed id
+		// simply stops being offered) — the recurring manual re-pointing this replaces was the live 2026-09-03
+		// dirk/legion drift. Pins and explicit task models still narrow exactly as before.
+		const workerAutoPoolEnabled =
+			cardRole === "worker" &&
+			(scopedRuntimeConfig.workerUseAllLoadedModels === true ||
+				isTruthyEnv(process.env.NKLEIN_WORKER_USE_ALL_LOADED));
+		const autoPoolHostAllowlist = new Set(
+			(scopedRuntimeConfig.workerUseAllLoadedHosts ?? []).map((host) => host.trim()).filter(Boolean),
+		);
+		const machineIdByRuntimeModelId = new Map(
+			lmsPsModelsForResidency.map((model) => [model.identifier, model.machineId]),
+		);
+		const autoPoolCandidates = workerAutoPoolEnabled
+			? allGuardCandidates.filter(
+					(candidate) =>
+						candidate.role === null &&
+						(autoPoolHostAllowlist.size === 0 ||
+							autoPoolHostAllowlist.has(machineIdByRuntimeModelId.get(candidate.entry.modelId) ?? "local")),
+				)
+			: [];
+		const workerPoolWithAuto = (() => {
+			if (autoPoolCandidates.length === 0) {
+				return cardRoleGuardCandidates;
+			}
+			const seen = new Set(cardRoleGuardCandidates.map((candidate) => candidate.entry.key));
+			return [
+				...cardRoleGuardCandidates,
+				...autoPoolCandidates.filter((candidate) => !seen.has(candidate.entry.key)),
+			];
+		})();
 		const roleScopedSelectionCandidates =
 			!taskModelPin && !cardRolePin && cardRoleHasConfiguredModel && cardRoleGuardCandidates.length > 0
-				? cardRoleGuardCandidates
+				? workerPoolWithAuto
 				: allGuardCandidates;
 		const roleAssignment = resolveSwarmRoleModel({
 			role: cardRole,

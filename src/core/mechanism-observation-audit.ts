@@ -1127,6 +1127,15 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 	},
 	{
+		category: "worker_auto_pool_absorb",
+		item: "F2.34",
+		observes:
+			"a worker start whose selection pool absorbed auto-discovered loaded models (count + which model won) — the per-host 'use all available' option working; silence with the flag on means configured pools already cover the fleet",
+		enabledBy: "NKLEIN_WORKER_USE_ALL_LOADED",
+		// `exceptional`: fires only when the auto pool actually widens a configured worker pool AND a start runs.
+		expectation: "exceptional",
+	},
+	{
 		category: "a2a_task_ingress",
 		item: "P17.8",
 		observes: "each accepted A2A SendMessage that seeded a board card (taskId, sourceMessageId, prompt bytes)",

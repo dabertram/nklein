@@ -97,6 +97,8 @@ export interface RuntimeConfigState {
 	decompositionAutoApplyEnabled: boolean;
 	hardTaskRoutingMode: "wait_for_best" | "attempt_with_available";
 	testDrivenModeEnabled: boolean;
+	workerUseAllLoadedModels?: boolean;
+	workerUseAllLoadedHosts?: string[];
 	/** F1.34: per-project test-driven override (true/false both meaningful; null → inherit the global setting). */
 	testDrivenModeOverride: boolean | null;
 	/** F1.34: resolved test-driven mode for this project (`override ?? global`, explicit default OFF). */
@@ -210,6 +212,8 @@ export interface RuntimeConfigUpdateInput {
 	decompositionAutoApplyEnabled?: boolean;
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
 	testDrivenModeEnabled?: boolean;
+	workerUseAllLoadedModels?: boolean;
+	workerUseAllLoadedHosts?: string[];
 	testDrivenModeOverride?: boolean | null;
 	secondOpinionReviewEnabled?: boolean;
 	reviewMaxRounds?: number;
@@ -287,6 +291,8 @@ export interface RuntimeGlobalConfigFileShape {
 	decompositionAutoApplyEnabled?: boolean;
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
 	testDrivenModeEnabled?: boolean;
+	workerUseAllLoadedModels?: boolean;
+	workerUseAllLoadedHosts?: string[];
 	secondOpinionReviewEnabled?: boolean;
 	reviewMaxRounds?: number;
 	readyForReviewNotificationsEnabled?: boolean;

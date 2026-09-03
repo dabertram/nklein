@@ -134,6 +134,8 @@ export interface RuntimeConfigStateFromValuesInput {
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
 	/** §5.V test-driven delivery gate (default ON since 2026-07-23; per-card `testability` declares exemptions). */
 	testDrivenModeEnabled?: boolean;
+	workerUseAllLoadedModels?: boolean;
+	workerUseAllLoadedHosts?: string[];
 	/** F1.34: per-project test-driven override (true/false both meaningful; null/omitted → inherit the global). */
 	testDrivenModeOverride?: boolean | null;
 	secondOpinionReviewEnabled: boolean;
@@ -261,6 +263,8 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(input.lostHeartbeatPolicy),
 		hardTaskRoutingMode: input.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
 		testDrivenModeEnabled: input.testDrivenModeEnabled ?? TEST_DRIVEN_MODE_DEFAULT,
+		workerUseAllLoadedModels: input.workerUseAllLoadedModels ?? false,
+		workerUseAllLoadedHosts: input.workerUseAllLoadedHosts ?? [],
 		...deriveTestDrivenFields(input.testDrivenModeEnabled, input.testDrivenModeOverride),
 		...resolveRuntimeReviewConfig({
 			decompositionAutoApplyEnabled: input.decompositionAutoApplyEnabled,
