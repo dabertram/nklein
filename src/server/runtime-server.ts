@@ -1055,6 +1055,41 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				}
 			}
 		}
+		// Leaked-reservation staleness purge (live 2026-09-03, v31 factory: a review turn's reservation on host
+		// "local" never released — the host cap counted the ghost and the fairness reservation cycled on it, so
+		// every later review queued forever; hours of throughput lost). A reservation is a LIVE turn: when its
+		// model is ps-VISIBLE and IDLE while the reservation is old, the turn is gone and the entry is a leak —
+		// purge loudly (the true owner's later identity-release is a harmless no-op, parent-reacquire doctrine).
+		// ps-invisible models (llama.cpp) are skipped: fail-safe, never purge what we cannot observe.
+		{
+			const staleReservationMs = 20 * 60_000;
+			const activeTurns = activeModelTurnsByWorkspaceId.get(scope.workspaceId) ?? [];
+			const idleModelIds = new Set(
+				freshPsModels
+					.filter((model) => model.queued === 0 && (model.status?.trim().toLowerCase() ?? "idle") === "idle")
+					.map((model) => model.identifier),
+			);
+			const leaked = activeTurns.filter(
+				(turn) =>
+					turn.taskId !== request.taskId &&
+					typeof turn.startedAt === "number" &&
+					Date.now() - turn.startedAt > staleReservationMs &&
+					turn.modelId.length > 0 &&
+					idleModelIds.has(turn.modelId),
+			);
+			if (leaked.length > 0) {
+				deps.warn(
+					`Model-turn admission purged ${leaked.length} STALE reservation(s) (model idle in lms ps, reservation >20min): ${leaked.map((turn) => `${turn.taskId} on ${turn.modelId}`).join(", ")}.`,
+				);
+				const leakedIds = new Set(leaked.map((turn) => turn.taskId));
+				const nextTurns = activeTurns.filter((turn) => !leakedIds.has(turn.taskId));
+				if (nextTurns.length > 0) {
+					activeModelTurnsByWorkspaceId.set(scope.workspaceId, nextTurns);
+				} else {
+					activeModelTurnsByWorkspaceId.delete(scope.workspaceId);
+				}
+			}
+		}
 		const runningSessions = collectModelTurnSchedulingSessions(scope.workspaceId, request, freshPsModels).filter(
 			(session) =>
 				(admissionParentTaskId === null || session.taskId !== admissionParentTaskId) &&
