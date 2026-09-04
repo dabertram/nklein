@@ -80,6 +80,7 @@ import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { type MemoryAuditCandidate, readMemoryAuditCandidates } from "../core/memory-audit-production";
 import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
+import { clearModelDeadMark, markModelDead } from "../core/model-liveness-ledger";
 import { findActiveSameTaskModelTurn } from "../core/model-turn-admission";
 import { ModelTurnAdmissionWaitQueue } from "../core/model-turn-admission-wait-queue";
 import { planMutationAdequacy } from "../core/mutation-adequacy-plan";
@@ -4561,44 +4562,86 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							// P0.POOLLOSS classifier (live 2026-09-04: m4mini's model vanished mid-drain and the
 							// gateway QUEUES requests for absent models instead of erroring — the wedge interrupt's
 							// frozen-config restart then re-entered the same black hole every ~15 min for 3 hours).
-							// When the wedged session's model is confirmed ABSENT from its endpoint listing, the
-							// restart-same-model doctrine is wrong: clear the card's pin and redrive through the
-							// router so the fresh start's live-residency validation picks a model that exists.
-							// Endpoint unreachable/listing-failed stays UNCLASSIFIED (legacy stop-only behavior).
+							// Two dead shapes, both live-observed the same day:
+							//   1. ABSENT — the model is gone from its endpoint's /v1/models listing.
+							//   2. LISTED-BUT-DEAD — the gateway still ADVERTISES the model (relay registration
+							//      outlives the host) and requests for it hang forever; presence in a listing is
+							//      not liveness, only a served token is. A 1-token probe that TIMES OUT token-less
+							//      is the proof (a fast non-ok answer is NOT dead — the endpoint answers for it).
+							// Either way the restart-same-model doctrine is wrong: mark the model dead in the
+							// liveness ledger (start-path candidates exclude it), clear the card's pin, and redrive
+							// through the router. Endpoint unreachable stays UNCLASSIFIED (legacy stop-only).
 							const wedgedSummary = trackedService
 								.listSummaries()
 								.find((summary) => summary.taskId === wedge.taskId);
 							const wedgedModelId = wedgedSummary?.modelId?.trim();
 							const wedgedEndpoint = wedgedSummary?.endpoint?.trim();
-							let modelVanished = false;
+							let deadReason: "absent_from_listing" | "listed_but_dead" | null = null;
 							if (wedgedModelId && wedgedEndpoint) {
+								const endpointRoot = wedgedEndpoint.replace(/\/+$/u, "").replace(/\/v1$/u, "");
+								let listedState: "absent" | "present" | "unknown" = "unknown";
 								try {
-									const listingUrl = `${wedgedEndpoint.replace(/\/+$/u, "").replace(/\/v1$/u, "")}/v1/models`;
-									const response = await fetch(listingUrl, { signal: AbortSignal.timeout(5_000) });
+									const response = await fetch(`${endpointRoot}/v1/models`, {
+										signal: AbortSignal.timeout(5_000),
+									});
 									if (response.ok) {
 										const listing = (await response.json()) as { data?: Array<{ id?: string }> };
-										modelVanished =
-											Array.isArray(listing.data) &&
-											!listing.data.some((entry) => (entry.id ?? "").trim() === wedgedModelId);
+										if (Array.isArray(listing.data)) {
+											listedState = listing.data.some((entry) => (entry.id ?? "").trim() === wedgedModelId)
+												? "present"
+												: "absent";
+										}
 									}
 								} catch {
 									// endpoint down entirely — the parked-card model-unavailable recovery owns that case
 								}
+								if (listedState === "absent") {
+									deadReason = "absent_from_listing";
+								} else if (listedState === "present") {
+									try {
+										const probe = await fetch(`${endpointRoot}/v1/chat/completions`, {
+											method: "POST",
+											headers: { "Content-Type": "application/json" },
+											body: JSON.stringify({
+												model: wedgedModelId,
+												messages: [{ role: "user", content: "ok" }],
+												max_tokens: 1,
+												stream: false,
+											}),
+											signal: AbortSignal.timeout(12_000),
+										});
+										// Any completed HTTP answer (even an error status) proves the endpoint responds
+										// for this model — that is not the silent-queue shape; leave it unclassified.
+										void probe.text().catch(() => "");
+									} catch {
+										deadReason = "listed_but_dead";
+									}
+								}
 							}
 							await trackedService.stopTaskSession(wedge.taskId).catch(() => null);
-							if (!modelVanished || !wedgedModelId) {
+							if (!deadReason || !wedgedModelId) {
 								continue;
 							}
+							markModelDead({
+								modelId: wedgedModelId,
+								endpoint: wedgedEndpoint ?? "",
+								reason: deadReason,
+							});
 							const vanishKey = `${scope.workspaceId}:${wedge.taskId}`;
 							const vanishCount = (zeroTokenWedgeVanishCountByTaskKey.get(vanishKey) ?? 0) + 1;
 							zeroTokenWedgeVanishCountByTaskKey.set(vanishKey, vanishCount);
 							recordSelfObservation({
 								signal: "custom",
 								severity: "warning",
-								message: `Model pool loss: ${wedgedModelId} is no longer listed at ${wedgedEndpoint} while ${wedge.taskId} wedged token-less on it — clearing the card's pin and redriving via Auto routing (strike ${vanishCount}/3).`,
+								message: `Model pool loss (${deadReason}): ${wedgedModelId} at ${wedgedEndpoint} while ${wedge.taskId} wedged token-less on it — marked dead for routing, clearing any pin, redriving via Auto (strike ${vanishCount}/3).`,
 								taskId: wedge.taskId,
 								workspacePath: scope.workspacePath,
-								metadata: { category: "model_pool_loss", modelId: wedgedModelId, endpoint: wedgedEndpoint },
+								metadata: {
+									category: "model_pool_loss",
+									modelId: wedgedModelId,
+									endpoint: wedgedEndpoint,
+									reason: deadReason,
+								},
 							});
 							if (vanishCount >= 3) {
 								deps.warn(
@@ -4728,6 +4771,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								recoveryKey,
 								(modelUnavailableRecoveryCountByTaskKey.get(recoveryKey) ?? 0) + 1,
 							);
+							clearModelDeadMark(modelId);
 							deps.warn(
 								`Model ${modelId} is loadable again at ${endpoint} — auto-resuming ${summary.taskId} (was parked model-unavailable; recovery ${modelUnavailableRecoveryCountByTaskKey.get(recoveryKey)}/3).`,
 							);

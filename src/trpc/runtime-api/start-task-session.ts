@@ -54,6 +54,7 @@ import {
 	resolveActiveModelSuitabilityPolicy,
 } from "../../core/model-capability-catalog";
 import { classifyModelClass, isModelAllowedByClassCap } from "../../core/model-class-cap";
+import { isModelMarkedDead } from "../../core/model-liveness-ledger";
 import { DEFAULT_MODEL_IDLE_TTL_MS } from "../../core/model-load-policy";
 import { derivePoolCaps, derivePoolKeyForCandidate } from "../../core/model-pool-key";
 import { computePoolFreeSlots } from "../../core/model-pool-routing";
@@ -983,7 +984,26 @@ export async function handleStartTaskSession(
 						modelId: cardRoleSettings?.modelId ?? null,
 					}
 				: null;
-		const allGuardCandidates = [...guardCandidates.values()];
+		// P0.POOLLOSS enforcement (2026-09-04): the liveness ledger holds models a wedge classifier PROVED
+		// dead (absent from their endpoint, or listed-but-hanging token-less). Listings alone can't be
+		// trusted — the gateway advertises dead relays and queues their requests forever — so routing must
+		// exclude marked models until the TTL re-admits them or a recovery probe clears the mark.
+		const allGuardCandidatesUnfiltered = [...guardCandidates.values()];
+		const allGuardCandidates = allGuardCandidatesUnfiltered.filter(
+			(candidate) => !isModelMarkedDead(candidate.entry.modelId),
+		);
+		if (allGuardCandidates.length < allGuardCandidatesUnfiltered.length) {
+			const excluded = allGuardCandidatesUnfiltered
+				.filter((candidate) => isModelMarkedDead(candidate.entry.modelId))
+				.map((candidate) => candidate.entry.modelId);
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Routing for ${body.taskId} excluded ${excluded.length} liveness-ledger-dead model(s): ${[...new Set(excluded)].join(", ")}.`,
+				taskId: body.taskId,
+				metadata: { category: "model_pool_loss", excludedModelIds: [...new Set(excluded)] },
+			});
+		}
 		const cardRoleGuardCandidates = allGuardCandidates.filter((candidate) => candidate.role === cardRole);
 		// F2.34 (David 2026-09-03, "use all available option per host"): when the worker auto-pool is ON, the
 		// configured worker pool ABSORBS every suitable auto-discovered loaded model (role === null — already
