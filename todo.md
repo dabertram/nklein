@@ -3025,6 +3025,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   probe (4-bit vs our Q3: watch quality); (4) if good: retire the 89GB-wired llama-server ⇒ frees ~40GB on m5max
   (room for a second big model) at ~2× speed; (5) when LM Studio's MLX engine lands qwen4_exp, migrate in for
   lms-ps fleet visibility. Watch: `lms runtime get mlx --list --channel beta` + bug #2345 + PR #1788.
+  **▶ 2026-09-04 SWAPPED (David: "go for it .. that speed would be crazy"):** `ddalcu/Qwen3.8-Flash-Next-MLX-Serve-
+  mixed-4-8bit` (107GB on disk — 32GB n-gram table — not the card's 75GB; ~100GB resolved) served by **mlx-serve
+  26.9.1** (brew tap ddalcu/mlx-serve) on :8080 with the same model id, so the tee-proxy route and dsh URL were
+  untouched. Measured on the m5max: **86 tok/s decode on code (server timings), 82 incl. prefill; prose ~48 tok/s**
+  vs llama.cpp+ngram-mod 41.8 ⇒ **2.06×**; coherent. The pack ships NO mtp tensors (index has none) — the gain is
+  mlx-serve's prompt-lookup speculation, not MTP. Serve script: `~/llama.cpp-flashnext/serve-flashnext-mlx.sh`
+  (skip-preflight + 78GB resident cap: the pre-flight ignores ~20GB reclaimable file cache and refused a load
+  that fits). Memory is TIGHT: wired ~109GB with LM Studio's JIT-loaded local `qwen/qwen3.8-27b` MLX-8bit
+  (29.5GB) alongside — David's call whether that local 27B stays (three other 27Bs are on the fleet: legion q6,
+  m4mini q2, the new LM-Link host ABT-C-00335). Revert line: scratchpad `llama-server-cmdline.txt`.
 
 - [ ] **F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can target the SMALLEST
   model tier that can do each card (David 2026-09-04: "find out which cards can be done by a 9b model .. which
