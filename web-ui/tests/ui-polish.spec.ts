@@ -166,15 +166,16 @@ test.describe("UI polish regression guards", () => {
 			}),
 		});
 		await gotoBoard(page);
-		await expect(page.getByTestId("open-dag-view")).toBeVisible();
+		// 2026-09-04: the graph is a MODE TAB (always in the bar) — the old side "DAG" button is gone.
+		await expect(page.getByRole("button", { name: "G Graph" })).toBeVisible();
+		await expect(page.getByTestId("open-dag-view")).toHaveCount(0);
 		// Non-vacuous baseline: the terminal affordance exists at Advanced before the diet hides it.
 		await expect(page.getByRole("button", { name: /open terminal|close terminal/i })).toBeVisible();
 		await page.getByRole("button", { name: "0 Minimalistic" }).click();
-		// The pure conversation: no DAG chrome, no terminal affordance, chat pane fronted.
+		// The pure conversation: no terminal affordance, chat pane fronted (the mode bar itself stays).
 		await expect(page.getByTestId("chat-primary-pane")).toBeVisible();
-		await expect(page.getByTestId("open-dag-view")).toHaveCount(0);
 		await expect(page.getByRole("button", { name: /open terminal|close terminal/i })).toHaveCount(0);
 		await page.getByRole("button", { name: "1 Clean" }).click();
-		await expect(page.getByTestId("open-dag-view")).toBeVisible();
+		await expect(page.getByRole("button", { name: "G Graph" })).toBeVisible();
 	});
 });

@@ -9,7 +9,15 @@ import { useCallback, useState } from "react";
 
 import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
 
-export type ZoomLevel = 0 | 1 | 2 | 3 | 4;
+/**
+ * 0–4 = the detail ladder; 5 = the GRAPH view (David 2026-09-04: "make the dag view just look like the other
+ * mode tabs .. it can basically be part of them" — the full-screen overlay with its far-corner close was the
+ * lost state). Graph is a sibling mode in the same bar, not a detail level: `zoom >= n` gates keep working
+ * because nothing detail-gated renders at 5.
+ */
+export type ZoomLevel = 0 | 1 | 2 | 3 | 4 | 5;
+
+export const GRAPH_ZOOM_LEVEL: ZoomLevel = 5;
 
 export const ZOOM_LEVELS: readonly { level: ZoomLevel; label: string; short: string }[] = [
 	{ level: 0, label: "Minimalistic", short: "0" },
@@ -17,13 +25,17 @@ export const ZOOM_LEVELS: readonly { level: ZoomLevel; label: string; short: str
 	{ level: 2, label: "Advanced", short: "2" },
 	{ level: 3, label: "Professional", short: "3" },
 	{ level: 4, label: "Full", short: "4" },
+	{ level: GRAPH_ZOOM_LEVEL, label: "Graph", short: "G" },
 ];
+
+/** The detail ladder only (onboarding's "how much do you want to see?" — Graph is a view, not a level). */
+export const DETAIL_ZOOM_LEVELS = ZOOM_LEVELS.filter((entry) => entry.level !== GRAPH_ZOOM_LEVEL);
 
 /** The default entry for users with no stored preference: Minimalistic — easy first (David 2026-08-16). */
 export const DEFAULT_ZOOM_LEVEL: ZoomLevel = 0;
 
 function isZoomLevel(value: number): value is ZoomLevel {
-	return value === 0 || value === 1 || value === 2 || value === 3 || value === 4;
+	return value === 0 || value === 1 || value === 2 || value === 3 || value === 4 || value === 5;
 }
 
 /** v2 ladder (0 chat · 1 overview · 2 lean · 3 expert · 4 professional) → v3: lean merges into Clean. */

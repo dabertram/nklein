@@ -1,7 +1,6 @@
 import type { RuntimeTaskSessionSummary } from "@runtime-contract";
-import { X } from "lucide-react";
 import type React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { buildDagGraph, DAG_LAYOUT, type DagFlowDirection, type DagNode } from "@/components/board-dag-model";
 import { cn } from "@/components/ui/cn";
@@ -11,8 +10,10 @@ import type { BoardColumn as BoardColumnModel, BoardDependency } from "@/types";
  * W3.4 — the dedicated, comprehensive DAG view over the WHOLE board: status-colored nodes (column × live session),
  * dependency edges in build order (from → to), pan (drag) + zoom (wheel), and CYCLE edges marked loud (red, dashed) —
  * a cycle is a planning bug the operator should see, not a line to hide. The kanban board keeps the LEAN treatment
- * (§5.BC overlay toggle); this is the complete picture, opened from the zoom bar at any zoom level. The pure layout +
- * cycle-detection model lives in `board-dag-model.ts` (unit-tested); this file is the SVG view + pan/zoom over it.
+ * (§5.BC overlay toggle); this is the complete picture. 2026-09-04 (David: "make the dag view just look like the
+ * other mode tabs"): it renders INLINE as the Graph mode of the zoom bar — no full-screen overlay, no far-corner
+ * close, leaving is picking another mode. The pure layout + cycle-detection model lives in `board-dag-model.ts`
+ * (unit-tested); this file is the SVG view + pan/zoom over it.
  */
 
 const { nodeW: NODE_W, nodeH: NODE_H } = DAG_LAYOUT;
@@ -39,20 +40,16 @@ function nodeStyle(node: DagNode): { fill: string; stroke: string } {
 }
 
 export function BoardDagView({
-	open,
 	columns,
 	dependencies,
 	sessions,
-	onClose,
 	onSelectCard,
 }: {
-	open: boolean;
 	columns: readonly BoardColumnModel[];
 	dependencies: readonly BoardDependency[];
 	sessions: Record<string, RuntimeTaskSessionSummary>;
-	onClose: () => void;
 	onSelectCard: (cardId: string) => void;
-}): React.ReactElement | null {
+}): React.ReactElement {
 	// Pan/zoom: a viewBox transform driven by pointer drag + wheel.
 	const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
 	const dragRef = useRef<{
@@ -72,37 +69,17 @@ export function BoardDagView({
 		[columns, dependencies, sessions, flowDirection],
 	);
 
-	// Escape closes the full-screen graph like every other overlay (live-found 2026-07-10: it only closed via ×).
-	useEffect(() => {
-		if (!open) {
-			return;
-		}
-		const onKeyDown = (event: KeyboardEvent): void => {
-			if (event.key === "Escape") {
-				onClose();
-			}
-		};
-		window.addEventListener("keydown", onKeyDown);
-		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [open, onClose]);
-
-	if (!open) {
-		return null;
-	}
-
 	const viewW = graph.width / view.scale;
 	const viewH = graph.height / view.scale;
 
 	return (
-		<div className="fixed inset-0 z-50 flex flex-col bg-surface-0/95 backdrop-blur-sm" data-testid="board-dag-view">
-			<div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface-1 px-4 py-2">
-				<span className="text-sm font-semibold text-text-primary">Dependency graph</span>
+		<div className="flex h-full min-h-0 flex-1 flex-col bg-surface-0" data-testid="board-dag-view">
+			<div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface-1 px-4 py-1.5">
 				<span className="text-[11.5px] text-text-tertiary">
 					{graph.nodes.length} cards · {graph.edges.length} edges
 					{graph.cycleEdgeIds.size > 0 ? (
 						<span className="ml-1 text-status-red">· {graph.cycleEdgeIds.size} cycle edge(s)!</span>
 					) : null}
-					{" — drag to pan, scroll to zoom, click a card to open it"}
 				</span>
 				<button
 					type="button"
@@ -117,15 +94,6 @@ export function BoardDagView({
 					className="ml-auto rounded-md px-2 py-1 text-[11px] text-text-tertiary hover:bg-surface-3 hover:text-text-primary"
 				>
 					{flowDirection === "early-right" ? "early → right" : "early → left"}
-				</button>
-				<button
-					type="button"
-					aria-label="Close dependency graph"
-					data-testid="board-dag-close"
-					onClick={onClose}
-					className="rounded-md p-1.5 text-text-tertiary hover:bg-surface-3 hover:text-text-primary"
-				>
-					<X size={16} />
 				</button>
 			</div>
 			<div className="relative min-h-0 flex-1 overflow-hidden">

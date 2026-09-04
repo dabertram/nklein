@@ -73,7 +73,7 @@ import { useTaskSessions } from "@/hooks/use-task-sessions";
 import { useTaskStartActions } from "@/hooks/use-task-start-actions";
 import { isShellTerminalTaskId, useTerminalPanels } from "@/hooks/use-terminal-panels";
 import { useWorkspaceSync } from "@/hooks/use-workspace-sync";
-import { useZoomLevel, ZOOM_LEVELS } from "@/hooks/use-zoom-level";
+import { GRAPH_ZOOM_LEVEL, useZoomLevel, ZOOM_LEVELS } from "@/hooks/use-zoom-level";
 import { LayoutCustomizationsProvider } from "@/resize/layout-customizations";
 import { ResizableBottomPane } from "@/resize/resizable-bottom-pane";
 import { useProjectNavigationLayout } from "@/resize/use-project-navigation-layout";
@@ -140,7 +140,6 @@ export default function App(): ReactElement {
 	// §5.BB map spotlight: the card whose chat chip is hovered — its bubble gets a ring on the activity map (Z1).
 	const [chatHoverCardId, setChatHoverCardId] = useState<string | null>(null);
 	// W3.4: the dedicated full-board dependency-graph view (pan/zoom, cycle edges marked).
-	const [isDagViewOpen, setIsDagViewOpen] = useState(false);
 	// §5.BB: the chat surfaces' board context (card chips + @-mention candidates), shared by the right rail
 	// (zoom ≥ 1) and the zoom-0 chat-primary pane.
 	const chatBoardCards = useMemo(
@@ -1196,19 +1195,6 @@ export default function App(): ReactElement {
 													</button>
 												))}
 											</div>
-											{zoom >= 1 ? (
-												// §5.BB S5 (chrome diet): Minimalistic is the pure conversation — no DAG chrome.
-												<button
-													type="button"
-													data-testid="open-dag-view"
-													title="Open the full dependency graph (pan/zoom, cycles marked)"
-													onClick={() => setIsDagViewOpen(true)}
-													className="inline-flex items-center gap-1 rounded-lg border border-border-bright bg-surface-2 px-2.5 py-1 text-[12px] text-text-tertiary hover:text-text-primary"
-												>
-													<GitFork size={13} />
-													DAG
-												</button>
-											) : null}
 											{needsYouCount > 0 ? (
 												// W3.4: the needs-you badge — a JUMP affordance for the zoomed-out views. On the full board
 												// (zoom 3) the board header's F12.52 queue chip is the single, richer affordance on WIDE
@@ -1232,6 +1218,10 @@ export default function App(): ReactElement {
 											) : zoom === 1 ? (
 												<span className="text-[11px] text-text-tertiary">
 													click a cluster to drill into its stream · chat steers the swarm
+												</span>
+											) : zoom === GRAPH_ZOOM_LEVEL ? (
+												<span className="text-[11px] text-text-tertiary">
+													dependency graph — drag to pan, scroll to zoom, click a card to open it
 												</span>
 											) : null}
 										</div>
@@ -1278,6 +1268,15 @@ export default function App(): ReactElement {
 												onSelectCard={handleCardSelect}
 												onZoomToStream={zoomToStream}
 												highlightCardId={chatHoverCardId}
+											/>
+										) : zoom === GRAPH_ZOOM_LEVEL ? (
+											// W3.4 → 2026-09-04: the dependency graph is a MODE TAB like the others (David: the
+											// full-screen overlay's far-corner close was bad usability) — inline pane, same bar.
+											<BoardDagView
+												columns={board.columns}
+												dependencies={board.dependencies ?? []}
+												sessions={sessions}
+												onSelectCard={handleCardSelect}
 											/>
 										) : (
 											<KanbanBoard
@@ -1597,18 +1596,6 @@ export default function App(): ReactElement {
 					onNKleinSetupSaved={handleOnboardingNKleinSetupSaved}
 				/>
 
-				{/* W3.4: the dedicated dependency-graph view (any zoom). */}
-				<BoardDagView
-					open={isDagViewOpen}
-					columns={board.columns}
-					dependencies={board.dependencies ?? []}
-					sessions={sessions}
-					onClose={() => setIsDagViewOpen(false)}
-					onSelectCard={(cardId) => {
-						setIsDagViewOpen(false);
-						handleCardSelect(cardId);
-					}}
-				/>
 				{/* §5.BA guided-setup wizards. Global takes precedence; project is suppressed while global is open. */}
 				<SetupWizardDialog
 					open={globalSetupWizard.isOpen}

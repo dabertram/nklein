@@ -4,7 +4,7 @@ import { type ReactElement, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NKleinMark } from "@/components/ui/nklein-mark";
-import { ZOOM_LEVELS, type ZoomLevel } from "@/hooks/use-zoom-level";
+import { DETAIL_ZOOM_LEVELS, type ZoomLevel } from "@/hooks/use-zoom-level";
 import type { RuntimeSetupPlanStep } from "@/runtime/types";
 
 /**
@@ -31,6 +31,8 @@ const ZOOM_LEVEL_DESCRIPTIONS: Record<ZoomLevel, string> = {
 	2: "Advanced — the full board: every lane, control, and detail panel.",
 	3: "Professional — the board with the model fleet and dependency edges always in view.",
 	4: "Full — the very fullest detail, including developer and diagnostic surfaces.",
+	// Not offered by the chooser (DETAIL_ZOOM_LEVELS) — Graph is a view you switch into, not a starting level.
+	5: "Graph — the whole board as a dependency graph.",
 };
 
 export function SetupWizardDialog({
@@ -108,7 +110,7 @@ export function SetupWizardDialog({
 							only changes what's shown, never what !Klein can do.
 						</p>
 						<div className="flex flex-col gap-1.5" role="radiogroup" aria-label="Starting view">
-							{ZOOM_LEVELS.map((entry) => (
+							{DETAIL_ZOOM_LEVELS.map((entry) => (
 								<button
 									key={entry.level}
 									type="button"
