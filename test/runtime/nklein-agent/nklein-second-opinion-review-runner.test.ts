@@ -10,6 +10,9 @@ const h = vi.hoisted(() => ({
 
 vi.mock("../../../src/nklein-agent/nklein-reviewer-model-selection", () => ({
 	pickDiverseReviewerModel: h.pickDiverseReviewerModel,
+	// Routability filtering (liveness ledger + fleet identifier collisions) is the chooser module's concern and
+	// is unit-tested there; the runner tests see every fixture descriptor as routable.
+	excludeUnroutableDescriptors: async (descriptors: readonly unknown[]) => [...descriptors],
 }));
 vi.mock("../../../src/core/lmstudio-loaded-model-descriptors", async (importOriginal) => ({
 	...(await importOriginal<typeof import("../../../src/core/lmstudio-loaded-model-descriptors")>()),

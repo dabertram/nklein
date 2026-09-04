@@ -27,6 +27,7 @@ import {
 	buildFleetDecompositionGuidance,
 	selectDepthTargetClass,
 } from "../../core/fleet-aware-decomposition";
+import { machinesByIdentifier as groupMachinesByIdentifier } from "../../core/fleet-identifier-collision";
 import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { assessQuantizationFloor, planThinkingBudget, toReasoningEffort } from "../../core/inference-lever-planning";
@@ -1039,12 +1040,7 @@ async function handleStartTaskSessionInner(
 		// and the new M1 both served `dirk-qwen3.8-27b`) makes the gateway answer every request with
 		// "Failed to resolve model metadata for <id>" (internal_error) — it cannot pick a host. Such an id is
 		// unroutable until one host renames its instance; routing excludes it and says so once per start.
-		const machinesByIdentifier = new Map<string, Set<string>>();
-		for (const model of lmsPsModelsForResidency) {
-			const machines = machinesByIdentifier.get(model.identifier) ?? new Set<string>();
-			machines.add(model.machineId);
-			machinesByIdentifier.set(model.identifier, machines);
-		}
+		const machinesByIdentifier = groupMachinesByIdentifier(lmsPsModelsForResidency);
 		const collidingIdentifiers = new Set(
 			[...machinesByIdentifier.entries()].filter(([, machines]) => machines.size > 1).map(([id]) => id),
 		);

@@ -8,7 +8,7 @@ import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools
 import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 import type { NKleinReviewResult } from "./nklein-review-tool";
-import { pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
+import { excludeUnroutableDescriptors, pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
 import type {
 	RuntimeTaskSessionStartResult,
 	StartRuntimeTaskSessionFromLaunchConfigInput,
@@ -190,9 +190,12 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 			// resolve a reviewer from → the review would return null here → `no_verdict` → the card is HELD FOREVER (no
 			// model turn ever runs). Fall back to the first non-embedding LOADED model so the review can still run — this
 			// picks what's actually serving (avoids the trap of resolving a CONFIGURED role model that isn't loaded).
-			const loaded = await fetchLoadedModelDescriptors(
-				workerLaunch?.baseUrl?.trim() || resolveDefaultLocalModelBaseUrl(),
-			).catch(() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>);
+			const loaded = await excludeUnroutableDescriptors(
+				await fetchLoadedModelDescriptors(workerLaunch?.baseUrl?.trim() || resolveDefaultLocalModelBaseUrl()).catch(
+					() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+				),
+				{ taskId: input.taskId, purpose: "reviewer fallback" },
+			);
 			const fallback = pickReviewFallbackDescriptor(loaded);
 			if (fallback) {
 				providerId = providerId || workerLaunch?.providerId?.trim() || "lmstudio";

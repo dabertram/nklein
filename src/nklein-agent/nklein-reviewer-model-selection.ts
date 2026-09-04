@@ -1,8 +1,11 @@
 import { applyWarmthPreference, type PromptSessionKind, type PromptWarmthLedgerEntry } from "../core/cache-warmth";
+import { collidingIdentifiers, describeIdentifierCollision } from "../core/fleet-identifier-collision";
+import { createDefaultLmsRunner, fetchLmsPsModelsCached, type LmsPsModel } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { applyDiversityPreference } from "../core/model-diversity";
 import { resolveLineage } from "../core/model-lineage";
+import { isModelMarkedDead } from "../core/model-liveness-ledger";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
 import { buildReviewerCandidates, resolveWorkerRealId } from "./nklein-reviewer-candidate-selection";
@@ -11,6 +14,59 @@ import { now } from "./nklein-session-state";
 /** The cache-warmth ledger (kind→shell per model), read to batch back-to-back same-kind turns onto a warm shell. */
 export interface ReviewerModelSelectionDeps {
 	lastShellKeyByModel: Map<string, PromptWarmthLedgerEntry>;
+}
+
+/**
+ * Drop descriptors the fleet cannot actually serve (live 2026-09-05): the loaded-model listing keeps showing a
+ * model the liveness ledger has PROVED dead, and an identifier loaded on two LM-Link hosts that the gateway
+ * refuses to route ("Failed to resolve model metadata"). The worker start path already excludes both; the
+ * reviewer/escalation chooser drew from the raw listing and walked un-parked reviews straight back into the
+ * collision (three no-verdict sessions → park). Shared by the diverse chooser and the review runner's
+ * loaded-model fallback so every reviewer resolution sees the same truth. lms ps is consulted with a short
+ * timeout and any failure means "no collision knowledge" — never a refusal.
+ */
+export async function excludeUnroutableDescriptors<T extends { runtimeId: string; modelKey: string }>(
+	descriptors: readonly T[],
+	context: { taskId: string; purpose: string },
+): Promise<T[]> {
+	if (descriptors.length === 0) {
+		return [];
+	}
+	const fleet = await fetchLmsPsModelsCached(createDefaultLmsRunner(5_000)).catch(() => [] as LmsPsModel[]);
+	const colliding = collidingIdentifiers(fleet);
+	const excluded: { id: string; reason: "liveness_ledger_dead" | "fleet_identifier_collision" }[] = [];
+	const routable = descriptors.filter((descriptor) => {
+		if (isModelMarkedDead(descriptor.runtimeId) || isModelMarkedDead(descriptor.modelKey)) {
+			excluded.push({ id: descriptor.runtimeId, reason: "liveness_ledger_dead" });
+			return false;
+		}
+		if (colliding.has(descriptor.runtimeId)) {
+			excluded.push({ id: descriptor.runtimeId, reason: "fleet_identifier_collision" });
+			return false;
+		}
+		return true;
+	});
+	if (excluded.length > 0) {
+		recordSelfObservation({
+			signal: "custom",
+			severity: "warning",
+			message: `${context.purpose} selection for ${context.taskId} excluded ${excluded.length} unroutable model(s): ${excluded
+				.map((entry) =>
+					entry.reason === "fleet_identifier_collision"
+						? describeIdentifierCollision(entry.id, fleet)
+						: `${entry.id} (held dead by the liveness ledger)`,
+				)
+				.join("; ")}.`,
+			taskId: context.taskId,
+			metadata: {
+				category: excluded.some((entry) => entry.reason === "fleet_identifier_collision")
+					? "fleet_identifier_collision"
+					: "model_pool_loss",
+				excluded,
+			},
+		});
+	}
+	return routable;
 }
 
 function describeDiversePickPurpose(sessionKind: PromptSessionKind): {
@@ -64,8 +120,11 @@ export async function pickDiverseReviewerModel(
 ): Promise<{ providerId: string; modelId: string } | null> {
 	const purpose = describeDiversePickPurpose(sessionKind);
 	const baseUrl = workerLaunch.baseUrl?.trim() || resolveDefaultLocalModelBaseUrl();
-	const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(
-		() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+	const descriptors = await excludeUnroutableDescriptors(
+		await fetchLoadedModelDescriptors(baseUrl).catch(
+			() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+		),
+		{ taskId, purpose: purpose.label },
 	);
 	if (descriptors.length === 0) {
 		return null;
