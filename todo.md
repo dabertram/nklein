@@ -2004,8 +2004,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   cycles for 3h (q2 dirk vanished mid-drain, whole factory stalled). Zero-token wedge watchdog now probes the
   session's endpoint `/v1/models` at interrupt time: confirmed-absent ⇒ `model_pool_loss` observation + pin
   clear (mirrors the pinned_model_unavailable auto-heal) + redrive via Auto routing (fresh-start residency
-  validation picks a live model), 3-strike cap. REMAINING: the proactive fleet sweep + board banner + crash
-  signature line (loss should surface without waiting for a victim session to wedge).**
+  validation picks a live model), 3-strike cap. **Leg 2 same day (`1eb98d110`) after the redrive routed BACK
+  to dirk: the gateway still LISTS dead relay models (listing ≠ liveness — and the earlier "absent" read came
+  from the `/api/v1` catalog lens, wrong surface; `/v1/models` is the fleet lens). Added
+  `src/core/model-liveness-ledger.ts` (mark absent_from_listing|listed_but_dead, TTL 15min, clear on
+  recovery): classifier now 1-token-probes a LISTED model (only a token-less TIMEOUT marks dead — a fast
+  non-ok answer stays unclassified), start-path guard candidates filter through the ledger (exclusion
+  observation), parked-card model-unavailable recovery clears the mark when the model serves again.**
+  REMAINING: the proactive fleet sweep + board banner + crash signature line (loss should surface without
+  waiting for a victim session to wedge).
 
 - [ ] **P0.QWAIT — Queue-wait burns the conversation-timeout budget.** *(Live 2026-09-03 ~08:00, v31:
   s44 parked "conversation timeout after 28800 seconds" — the session spent most of those 8h WAITING for
