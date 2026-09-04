@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	decideOpportunisticIdleWork,
+	findBouncedStrandedReviewTaskIds,
 	findMemoryAuditCandidates,
 	findReviewCandidateTaskIds,
 	findStalledReviewTaskIds,
@@ -219,5 +220,30 @@ describe("findMemoryAuditCandidates", () => {
 
 	it("empty when every recent note was already audited", () => {
 		expect(findMemoryAuditCandidates(["a", "b"], new Set(["a", "b"]))).toEqual([]);
+	});
+});
+
+describe("findBouncedStrandedReviewTaskIds (bounced-worker redrive, 2026-09-04)", () => {
+	const board = (cards: { id: string; review?: { status?: string } | null }[]) => ({
+		columns: [{ id: "review", cards }],
+	});
+	it("picks only changes_requested cards with no live session and not already dispatched", () => {
+		const cards = [
+			{ id: "bounced-1", review: { status: "changes_requested" } },
+			{ id: "bounced-live", review: { status: "changes_requested" } },
+			{ id: "bounced-done", review: { status: "changes_requested" } },
+			{ id: "approved-1", review: { status: "approved" } },
+			{ id: "parked-1", review: { status: "parked" } },
+			{ id: "verdictless", review: null },
+		];
+		const picked = findBouncedStrandedReviewTaskIds(
+			board(cards),
+			new Set(["bounced-live"]),
+			new Set(["bounced-done"]),
+		);
+		expect(picked).toEqual(["bounced-1"]);
+	});
+	it("returns empty without a review column", () => {
+		expect(findBouncedStrandedReviewTaskIds({ columns: [] }, new Set(), new Set())).toEqual([]);
 	});
 });

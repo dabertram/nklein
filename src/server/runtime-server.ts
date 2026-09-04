@@ -91,6 +91,7 @@ import {
 } from "../core/nightly-hermeticity";
 import {
 	decideOpportunisticIdleWork,
+	findBouncedStrandedReviewTaskIds,
 	findMemoryAuditCandidates,
 	findReviewCandidateTaskIds,
 	findStalledReviewTaskIds,
@@ -795,6 +796,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		).catch(() => {});
 	};
 	const idleReviewDispatchedByWorkspaceId = new Map<string, Set<string>>();
+	const bouncedRedriveDispatchedByWorkspaceId = new Map<string, Set<string>>();
 	/** F4.32 content-version refs already completed/in flight for this process; persisted hashes survive restarts. */
 	const idleMemoryAuditDispatchedByWorkspaceId = new Map<string, Set<string>>();
 	const idleMemoryAuditInFlightRefs = new Set<string>();
@@ -4924,6 +4926,57 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						if (startable.length === 0 && deferredCount === 0) {
 							// Actionable set is empty — re-arm the self-heal log so a genuinely new stall logs again.
 							boardLivenessSelfHealSignatureByWorkspaceId.delete(scope.workspaceId);
+							// BOUNCED-STRANDED redrive (2026-09-04): a `changes_requested` review card with no live
+							// session never re-works — the bounce's single re-drive send dies with a dead session and
+							// nothing retries it (the factory only moved via manual stop→start redrives all night;
+							// this mechanizes that exact recipe). One per tick, dedup+TTL like the rescue below.
+							const bounceRedriven =
+								bouncedRedriveDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
+							const bouncedStranded = findBouncedStrandedReviewTaskIds(
+								board,
+								activelyHandledTaskIds,
+								bounceRedriven,
+							);
+							const bouncedTaskId = bouncedStranded[0];
+							if (bouncedTaskId !== undefined) {
+								bounceRedriven.add(bouncedTaskId);
+								bouncedRedriveDispatchedByWorkspaceId.set(scope.workspaceId, bounceRedriven);
+								if (!nightlyHermetic) {
+									const bounceRetryTimer = setTimeout(
+										() => {
+											bouncedRedriveDispatchedByWorkspaceId.get(scope.workspaceId)?.delete(bouncedTaskId);
+										},
+										15 * 60 * 1000,
+									);
+									bounceRetryTimer.unref?.();
+								}
+								const bouncedCard = board.columns
+									.flatMap((column) => column.cards)
+									.find((card) => card.id === bouncedTaskId);
+								deps.warn(
+									`Board-liveness watchdog: bounced review card ${bouncedTaskId} has no live session — redriving the worker (stop→start).`,
+								);
+								recordSelfObservation({
+									signal: "custom",
+									severity: "warning",
+									message: `Board-liveness watchdog fired: bounced-stranded worker redrive for ${bouncedTaskId}.`,
+									workspacePath: scope.workspacePath,
+									metadata: { category: "board_liveness_watchdog", bouncedRedriveTaskId: bouncedTaskId },
+								});
+								void (async () => {
+									await trackedService.stopTaskSession(bouncedTaskId).catch(() => null);
+									await runtimeApi
+										.startTaskSession(scope, {
+											taskId: bouncedTaskId,
+											prompt: bouncedCard?.prompt ?? "",
+											taskTitle: bouncedCard?.title,
+											baseRef: bouncedCard?.baseRef ?? "HEAD",
+											agentId: bouncedCard?.agentId ?? "nklein",
+										})
+										.catch(() => null);
+								})();
+								return; // one action per tick — the rescue below runs on the next tick if still needed
+							}
 							// STALLED-REVIEW rescue: a verdict-less review card with no live session on an
 							// otherwise-idle board is a frozen pipeline (a dropped review finalize — e.g. the
 							// endpoint was busy with a SIBLING project when the card reached review; nothing

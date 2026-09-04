@@ -94,6 +94,38 @@ export function findStalledReviewTaskIds(
 }
 
 /**
+ * BOUNCED-STRANDED reviews (pure) — the watchdog's worker-redrive rescue: review-lane cards whose review
+ * BOUNCED (`changes_requested`) but whose worker never re-drove (no live session). The bounce path sends ONE
+ * re-work message at resolution time; when that send lands on a dead/stopped session nothing retries it, and
+ * the card sits bounced forever while its dependents block the board (live 2026-09-04: repeated manual
+ * stop→start redrives were the only thing moving the factory — this mechanizes that exact recipe). Parked and
+ * approved cards are excluded: parked is the operator's, approved is the delivery pipeline's.
+ */
+export function findBouncedStrandedReviewTaskIds(
+	board: {
+		columns: readonly {
+			id: string;
+			cards: readonly { id: string; review?: { status?: string } | null }[];
+		}[];
+	},
+	activeSessionTaskIds: ReadonlySet<string>,
+	alreadyDispatched: ReadonlySet<string>,
+): string[] {
+	const reviewColumn = board.columns.find((column) => column.id === "review");
+	if (!reviewColumn) {
+		return [];
+	}
+	return reviewColumn.cards
+		.filter(
+			(card) =>
+				card.review?.status === "changes_requested" &&
+				!activeSessionTaskIds.has(card.id) &&
+				!alreadyDispatched.has(card.id),
+		)
+		.map((card) => card.id);
+}
+
+/**
  * The `memory_audit` picker (pure): note refs written/edited since their last audit that a strong idle model should
  * re-verify. `alreadyAudited` gives per-workspace idempotency (a ref whose current version was already audited is
  * skipped), so a tick never re-audits an unchanged note.
