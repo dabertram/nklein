@@ -2014,6 +2014,34 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   REMAINING: the proactive fleet sweep + board banner + crash signature line (loss should surface without
   waiting for a victim session to wedge).
 
+- [ ] **P0.AUDIT0904 — Holistic audit findings (David 2026-09-04: "check everything, from every lowlevel to
+  UI/UX .. klein actually approaching 'it works as it seems'").** Read-only Explore pass over the recovery
+  legs, routing, sandbox lifecycle, session restarts, web-ui, observability and test coverage — 25 findings,
+  full text in the session scratchpad `holistic-audit-2026-09-04.md` (persisted here in compressed form).
+  Pattern across the top items: plausible green signals standing in for facts never established, and
+  concurrent legs without an owner. **P0 (mechanism gaps):** (3) board-liveness watchdog tick can overlap
+  itself — no in-flight guard, per-tick dedup sets read after awaits; (4) pool-loss redrive `autoStartTaskIds`
+  un-awaited → the marooned-in-progress reconcile in the same tick moves the card mid-redrive; (5)
+  `resolveRestartLaunchConfig`/`resolvePersistedLaunchConfig` reuse the persisted model with NO liveness check
+  — every restart path (overflow recovery, bounce fork-retry, fork, sendTaskSessionInput restart) re-enters a
+  dead model, THE 3h-loop root; (6) start path: `preferredCandidate = classSelected ?? selectedCandidate` — the
+  unfiltered primary bypasses the ledger filter; (7) `resolveLoadedFallbackLaunchConfig` picks the first cached
+  listing id, no ledger; (8) ledger keyed by modelId only, endpoint stored but never read (one dead host
+  globally excludes a model resident elsewhere). **P1:** (9) P0.QWAIT is one line — `scheduleConversationTimeout`
+  fires BEFORE the admission wait; (10) pool-loss 3-strike park is warn-only (no blockedKind/observation →
+  invisible to the needs-you inbox); (11) dead marks have no tRPC exposure / clear; (12) all recovery budgets
+  (six strike/dedup maps) are process-local, never cleared on success, never persisted — "bounded to 3" is per
+  restart; (13) bounced redrive ignores `start_in_flight` yet records a 15-min dedup; (14) custodian
+  hard-codes its model, no residency/ledger check, swallows failures; (15) custodian finding cards stamped
+  `trustedOrigin: "operator"` though machine-authored; (16) custodian commit mark process-local → re-reviews
+  after restart; (17) sandbox dispose lacks the root/owner-uid clear (workdir leaks, throw eaten); (18)
+  `prepareWorkspace` serializes but doesn't dedup — second caller rm -rf's the first's live workspace; (19)
+  blockedKind auto-clear failures warn-only; (20) bounced-stranded redrive has no strike cap; (21) residency
+  guard reads a 30s cache that returns last-good on probe failure, never ledger-checked. **P2:** (22) DAG
+  zoom/pan (fixed 2026-09-04); (23) DAG node tooltips/aria/search; (24) board-card has no memoization (80+
+  cards re-render every tick); (25) no unit tests for the single-flight guard, worker auto-pool widening, wedge
+  classifier probe (extract to `src/core/wedge-model-classifier.ts` with injected fetch).
+
 - [ ] **P0.QWAIT — Queue-wait burns the conversation-timeout budget.** *(Live 2026-09-03 ~08:00, v31:
   s44 parked "conversation timeout after 28800 seconds" — the session spent most of those 8h WAITING for
   endpoint capacity behind other cards on the same serialized host, not conversing. Admission wait must pause
@@ -2997,6 +3025,22 @@ These are known defects or incomplete migrations. Clear them before widening cap
   probe (4-bit vs our Q3: watch quality); (4) if good: retire the 89GB-wired llama-server ⇒ frees ~40GB on m5max
   (room for a second big model) at ~2× speed; (5) when LM Studio's MLX engine lands qwen4_exp, migrate in for
   lms-ps fleet visibility. Watch: `lms runtime get mlx --list --channel beta` + bug #2345 + PR #1788.
+
+- [ ] **F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can target the SMALLEST
+  model tier that can do each card (David 2026-09-04: "find out which cards can be done by a 9b model .. which
+  by maybe even smaller .. or maybe bigger .. focus on the best in class — online research — for <5B <10B <15B
+  <30B <35B .. properly take dense/moe into account .. the idea is to improve how fine grained the cards end
+  up .. to get them really small, so that a lot of compute can happen efficiently on small models").** Two
+  halves: (a) a RESEARCHED reference table — best-in-class open-weights coding/agentic model per size tier
+  with a numeric capability score on !Klein's existing 0-100 capability scale (the catalog's
+  `effectiveScore` / `blendedCapabilityForKey` the router already ranks on), dense vs MoE handled by scoring
+  on ACTIVE parameters with a total-parameter knowledge bonus (an A3B MoE is a ~3B-cost model with ~30B-class
+  knowledge — it belongs in the cheap tier for routing but not for quality); (b) a pure core that maps a
+  card's difficulty (the decomposition `complexity` 0-100 + `difficulty` label + likely-file count) to a
+  REQUIRED capability floor and hence the minimum tier, and feeds the decomposer a target ("split until every
+  child fits tier T") through the existing fleet-aware decomposition guidance (`fleet-aware-decomposition.ts`:
+  `selectDepthTargetClass`). Calibration closes the loop from the fitness store (observed pass/fail per
+  complexity band per model class) so the table's priors get replaced by measured floors over time.
 
 #### 3A. Adaptive recovery controller *(legacy §5.O, §5.AA)*
 
