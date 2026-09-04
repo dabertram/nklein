@@ -15,6 +15,7 @@
  */
 
 import type { RuntimeFleetDecompositionMode } from "./api-contract";
+import { fleetClassCapabilityPrior, maxComplexityForCapability } from "./model-size-tier-capability";
 
 export type FleetDecompositionMode = RuntimeFleetDecompositionMode;
 
@@ -51,8 +52,37 @@ function classRank(entry: FleetModelClassInput): number {
 	if (entry.workerCapability !== null) {
 		return entry.workerCapability;
 	}
-	// Unmeasured: paramB as a weak prior on a lower band so measured classes outrank same-size unknowns.
-	return entry.paramB !== null ? Math.min(49, entry.paramB) : 0;
+	// Unmeasured: the F3.41 size-tier prior (typical, not best-in-class) — still a lower band than any measured
+	// class of the same size, but anchored on the researched tier table instead of raw billions.
+	return entry.paramB !== null ? fleetClassCapabilityPrior({ totalParamB: entry.paramB }) : 0;
+}
+
+/** The capability a class is credited with for SIZING guidance: measured when available, else the tier prior. */
+function classCapabilityForSizing(entry: FleetModelClassInput): number | null {
+	if (entry.workerCapability !== null) {
+		return entry.workerCapability;
+	}
+	return entry.paramB !== null ? fleetClassCapabilityPrior({ totalParamB: entry.paramB }) : null;
+}
+
+/**
+ * F3.41 granularity line: the numeric ceiling a child card may carry so the TARGET class can complete it alone —
+ * the inverse of the card-difficulty → capability-floor mapping, stated in the decomposer's own units
+ * (complexity 0-100 + likely files). Empty when the target's capability is unknown.
+ */
+function granularityLine(target: FleetModelClassInput | null): string[] {
+	if (!target) {
+		return [];
+	}
+	const capability = classCapabilityForSizing(target);
+	if (capability === null) {
+		return [];
+	}
+	const singleFile = maxComplexityForCapability(capability, { likelyFileCount: 1, difficulty: "medium" });
+	const twoFiles = maxComplexityForCapability(capability, { likelyFileCount: 2, difficulty: "medium" });
+	return [
+		`Granularity target (F3.41): keep every child at complexity ≤ ${singleFile} for a single-file change (≤ ${twoFiles} when it touches two files); a card above that needs a stronger class or another split. Prefer more, smaller, single-file cards with explicit acceptance checks over fewer broad ones.`,
+	];
 }
 
 /** Summarize the loaded snapshot: dedupe by modelKey, rank, name the strongest/weakest classes. */
@@ -123,6 +153,7 @@ export function buildFleetDecompositionGuidance(
 		return [
 			header,
 			`Fleet sharding (SMALLEST mode): size EVERY card for the ${basis} — ${target ? describeClass(target) : "n/a"} — so it can complete the card alone: tight scope, one focused change per card, explicit acceptance checks. More small cards beats fewer large ones here.`,
+			...granularityLine(target),
 		];
 	}
 	if (mode === "fixed_target") {
@@ -132,6 +163,7 @@ export function buildFleetDecompositionGuidance(
 		return [
 			header,
 			`Fleet sharding (FIXED-TARGET mode): size every card for ${target ? describeClass(target) : (fixedTargetModelKey ?? "the named class")} regardless of the rest of the fleet.`,
+			...granularityLine(target),
 		];
 	}
 	// auto / capability_weighted — the mixed shape.
@@ -140,5 +172,6 @@ export function buildFleetDecompositionGuidance(
 	return [
 		header,
 		`Fleet sharding (MIXED mode): shard a MIX — reserve the few genuinely complex, cross-cutting cards for ${strongest} (mark them with a higher difficulty), and size the bulk of the cards so ${weakest} can complete each one alone (tight scope, explicit acceptance checks). Every card must be completable by at least one loaded class.`,
+		...granularityLine(summary.weakest),
 	];
 }

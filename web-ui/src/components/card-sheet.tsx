@@ -37,6 +37,7 @@ export function CardSheet({
 	reasoningSnippet,
 	onOpenFullDetail,
 	onBack,
+	onSplitCard,
 }: {
 	selection: CardSelection;
 	session: RuntimeTaskSessionSummary | null;
@@ -45,6 +46,8 @@ export function CardSheet({
 	/** Progressive disclosure: swap this sheet for the full CardDetailView (level stays put). */
 	onOpenFullDetail: () => void;
 	onBack: () => void;
+	/** Explicit re-decompose (David 2026-09-04): split THIS card into smaller cards. Absent ⇒ no button. */
+	onSplitCard?: () => void;
 }): React.ReactElement {
 	const { card, column } = selection;
 	const title = card.title?.trim() || card.prompt.trim().split("\n")[0] || "Untitled card";
@@ -97,6 +100,17 @@ export function CardSheet({
 					<Button variant="ghost" size="sm" icon={<ArrowLeft size={14} />} onClick={onBack}>
 						Back
 					</Button>
+					{onSplitCard && column.id !== "completed" && column.id !== "trash" ? (
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={onSplitCard}
+							data-testid="card-sheet-split"
+							title="Split this card into smaller cards (files + starts a decompose card)"
+						>
+							Split up
+						</Button>
+					) : null}
 					<Button
 						variant="primary"
 						size="sm"

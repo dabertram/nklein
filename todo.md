@@ -3041,6 +3041,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   child fits tier T") through the existing fleet-aware decomposition guidance (`fleet-aware-decomposition.ts`:
   `selectDepthTargetClass`). Calibration closes the loop from the fitness store (observed pass/fail per
   complexity band per model class) so the table's priors get replaced by measured floors over time.
+  **▶ 2026-09-04 (a)+(b) SHIPPED — `src/core/model-size-tier-capability.ts`:** researched tier table (xs ≤5B,
+  s ≤10B, m ≤15B, l ≤30B, xl ≤35B, beyond) with best-in-class + typical capability priors anchored on
+  SWE-bench Verified / Terminal-Bench as reported (Ornith-1.0-9B 69.4/43.1 — the 9B specialist doubles
+  Qwen3.5-9B; Qwen3.6-27B 77.2/59.3; Qwen3.6-35B-A3B 73.4/51.5 MoE; Gemma-4-31B TB 42.9; sub-5B unpublished);
+  dense/MoE = size tier (total) vs compute tier (active), MoE prior discounted 70/30 toward its compute tier
+  (the measured 35B-A3B vs 27B gap); `requiredCapabilityForCard(complexity, files, label)` +
+  `maxComplexityForCapability` inverse + `smallestTierClearing`. Wired: fleet-aware decomposition's unmeasured
+  fallback uses the tier prior (was raw billions), and every guidance mode now emits a numeric "Granularity
+  target" line (max child complexity for 1/2 files at the target class). **REMAINING:** (c) calibration loop
+  from the fitness store (per-class pass rate by complexity band → measured floors replacing priors); (d)
+  persist per-card difficulty facts on board cards so the DAG/ETA and the router see the floor; (e) validate
+  live that decompose output shrinks under the granularity line (compare child complexity distributions).
 
 #### 3A. Adaptive recovery controller *(legacy §5.O, §5.AA)*
 

@@ -3,7 +3,7 @@
 // push runtime-specific orchestration down into hooks and service modules.
 
 import { summarizeBoardHealth } from "@runtime-operator-board-health";
-import { FolderOpen, GitFork } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { composeActivityMap } from "@/components/activity-map-model";
@@ -1195,6 +1195,45 @@ export default function App(): ReactElement {
 													</button>
 												))}
 											</div>
+											{zoom >= 2 && currentProjectId ? (
+												// Explicit re-decompose, board scope (David 2026-09-04): every unfinished card gets a
+												// decompose card filed + started. Confirmed first — it fans out work across the fleet.
+												<button
+													type="button"
+													data-testid="redecompose-unfinished"
+													title="Split every unfinished card into smaller cards (files + starts a decompose card per card)"
+													onClick={() => {
+														if (
+															!window.confirm(
+																"Split every unfinished card into smaller cards? A decompose card is filed and started for each one.",
+															)
+														) {
+															return;
+														}
+														void getRuntimeTrpcClient(currentProjectId)
+															.runtime.requestRedecompose.mutate({ scope: "project_unfinished" })
+															.then((result) => {
+																const skippedNote =
+																	result.skipped.length > 0
+																		? ` — skipped: ${result.skipped
+																				.slice(0, 4)
+																				.map((entry) => `${entry.taskId}: ${entry.reason}`)
+																				.join(" · ")}`
+																		: "";
+																showAppToast({
+																	message: `Re-decompose: ${result.filed.length} card(s) filed, ${result.skipped.length} skipped${skippedNote}`,
+																	intent: result.filed.length > 0 ? "success" : "warning",
+																});
+															})
+															.catch((error: unknown) =>
+																notifyError(error instanceof Error ? error.message : String(error)),
+															);
+													}}
+													className="inline-flex items-center gap-1 rounded-lg border border-border-bright bg-surface-2 px-2.5 py-1 text-[12px] text-text-tertiary hover:text-text-primary"
+												>
+													split unfinished
+												</button>
+											) : null}
 											{needsYouCount > 0 ? (
 												// W3.4: the needs-you badge — a JUMP affordance for the zoomed-out views. On the full board
 												// (zoom 3) the board header's F12.52 queue chip is the single, richer affordance on WIDE
@@ -1376,6 +1415,27 @@ export default function App(): ReactElement {
 									reasoningSnippet={reasoningSnippetByTaskId[selectedCard.card.id]}
 									onOpenFullDetail={() => setSheetExpandedTaskId(selectedCard.card.id)}
 									onBack={handleBack}
+									onSplitCard={
+										currentProjectId
+											? () => {
+													const taskId = selectedCard.card.id;
+													void getRuntimeTrpcClient(currentProjectId)
+														.runtime.requestRedecompose.mutate({ scope: "card", taskId })
+														.then((result) => {
+															const filed = result.filed[0];
+															showAppToast({
+																message: filed
+																	? `Filed ${filed.redecomposeTaskId}${filed.started ? " and started it" : ""}`
+																	: `Not split: ${result.skipped[0]?.reason ?? "no card affected"}`,
+																intent: filed ? "success" : "warning",
+															});
+														})
+														.catch((error: unknown) =>
+															notifyError(error instanceof Error ? error.message : String(error)),
+														);
+												}
+											: undefined
+									}
 								/>
 							</div>
 						) : selectedCard && detailSession ? (

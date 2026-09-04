@@ -58,10 +58,13 @@ describe("fleet-aware decomposition (F12.110)", () => {
 	it("renders the mixed-mode guidance naming strongest and weakest, capped and deterministic", () => {
 		const summary = buildFleetCapabilitySummary([gemma, ministral, unmeasured7b]);
 		const lines = buildFleetDecompositionGuidance(summary, "auto");
-		expect(lines).toHaveLength(2);
+		// header + mixed-mode instruction + the F3.41 numeric granularity target for the weakest class.
+		expect(lines).toHaveLength(3);
 		expect(lines[0]).toContain("Available model fleet (LOADED, 3 class(es))");
 		expect(lines[1]).toContain("google/gemma-4-31b-qat");
 		expect(lines[1]).toContain("tiny-7b");
+		expect(lines[2]).toContain("Granularity target (F3.41)");
+		expect(lines[2]).toMatch(/complexity ≤ \d+/u);
 		expect(buildFleetDecompositionGuidance(summary, "auto")).toEqual(lines);
 	});
 
