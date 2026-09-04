@@ -2964,6 +2964,26 @@ These are known defects or incomplete migrations. Clear them before widening cap
   → legion:8000 + registry pre-seed (cap ~72, ctx per serve config); (4) worker-pool entry (manual first; a
   FreeToken-aware auto-pool leg later); (5) A/B t/s + junk-args probe before trusting it with cards.
 
+- [ ] **F3.40 — Flash-Next serving upgrade: LM Studio GGUF now possible; MLX+MTP is the 2× play (researched
+  2026-09-04, David: "can we get flash next working in lmstudio? with proper performance?").** Facts: llama.cpp
+  merged qwen4exp 2026-08-27 (PR#27742, follow-ups #27836 NextN/MTP draft, #27941); LM Studio **llama.cpp engine
+  2.33.0 CONTAINS qwen4exp** (binary-verified via `strings`; installed on m5max 2026-09-04 — engines ≤2.31.2 did
+  NOT) so the existing UD-Q3_K_XL loads in LM Studio today (symlink/hardlink the 90GB GGUF into
+  `~/.lmstudio/models/unsloth/...`; needs the standalone llama-server STOPPED first — RAM). But LM Studio GGUF ≈
+  27-32 tok/s (no `--spec-type ngram-mod` surface in its UI) vs our standalone 41.8 ⇒ fleet-visibility
+  convenience, NOT a perf win. **The perf win is MLX with the retained MTP head**: measured on M4 Max 128GB
+  (unsloth GGUF discussion #50): MLX 4/8-bit pack + MTP spec = **90.07 tok/s @ 46.9-49.1GB resident** (45GB
+  n-gram table mmap'd, not resident) vs 45.01 no-MTP vs 27.33 GGUF — within-pack MTP alone = 2×; caveat:
+  cross-format halves quant-unmatched + abliterated pack (single machine, single day). GGUF conversions STRIP the
+  MTP head by design ⇒ MTP is MLX-only. Blockers: mlx-lm qwen4_exp **PR #1788 still open** (community packs ship
+  own runtime code; oMLX/mlx-vlm forks); LM Studio MLX engine capped at 1.11.0 (no qwen4_exp; their bug-tracker
+  #2345 open, no ETA). Steps when picked up: (1) pick a NON-abliterated 4/8-bit MLX pack that keeps the 76 MTP
+  tensors (~48GB download — David acks); (2) run via mlx-lm@PR#1788 branch (same move as our llama.cpp PR build)
+  or mlx-serve (P17.1 custom-provider route already proven); (3) A/B on m5max vs 41.8 tok/s baseline + coherence
+  probe (4-bit vs our Q3: watch quality); (4) if good: retire the 89GB-wired llama-server ⇒ frees ~40GB on m5max
+  (room for a second big model) at ~2× speed; (5) when LM Studio's MLX engine lands qwen4_exp, migrate in for
+  lms-ps fleet visibility. Watch: `lms runtime get mlx --list --channel beta` + bug #2345 + PR #1788.
+
 #### 3A. Adaptive recovery controller *(legacy §5.O, §5.AA)*
 
 - [~] **F3.37 — Wire model-initiated peer consultation (`consult_stronger_model`; adopted pattern, docs/attributions.md; David 2026-07-23).**
