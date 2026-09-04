@@ -80,7 +80,7 @@ import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { type MemoryAuditCandidate, readMemoryAuditCandidates } from "../core/memory-audit-production";
 import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
-import { clearModelDeadMark, markModelDead } from "../core/model-liveness-ledger";
+import { clearModelDeadMark, isModelMarkedDead, markModelDead } from "../core/model-liveness-ledger";
 import { findActiveSameTaskModelTurn } from "../core/model-turn-admission";
 import { ModelTurnAdmissionWaitQueue } from "../core/model-turn-admission-wait-queue";
 import { planMutationAdequacy } from "../core/mutation-adequacy-plan";
@@ -4775,18 +4775,55 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							if ((modelUnavailableRecoveryCountByTaskKey.get(recoveryKey) ?? 0) >= 3) {
 								continue;
 							}
+							// Parked-by-400 IS proof of absence (live 2026-09-04 evening): LM Studio answers "Invalid
+							// model identifier … No matching loaded model found" instantly for a relay whose host went
+							// away, so the session parks without ever wedging — the classifier never sees it, nothing
+							// marks the model, and the next redrive (and every other card's routing) picks it again.
+							// The park itself is the endpoint's own verdict: record it in the liveness ledger so routing
+							// excludes the id until this leg PROVES it serves again.
+							if (!isModelMarkedDead(modelId)) {
+								markModelDead({ modelId, endpoint, reason: "absent_from_listing" });
+								recordSelfObservation({
+									signal: "custom",
+									severity: "warning",
+									message: `Model pool loss (parked_unavailable): ${modelId} at ${endpoint} — ${summary.taskId} parked on the endpoint's own "model unavailable" answer; marked dead for routing until it serves again.`,
+									taskId: summary.taskId,
+									workspacePath: scope.workspacePath,
+									metadata: { category: "model_pool_loss", modelId, endpoint, reason: "parked_unavailable" },
+								});
+							}
 							let modelBack = false;
 							try {
-								const listingUrl = `${endpoint.replace(/\/+$/u, "").replace(/\/v1$/u, "")}/v1/models`;
-								const response = await fetch(listingUrl, { signal: AbortSignal.timeout(5_000) });
+								const endpointRoot = endpoint.replace(/\/+$/u, "").replace(/\/v1$/u, "");
+								const response = await fetch(`${endpointRoot}/v1/models`, {
+									signal: AbortSignal.timeout(5_000),
+								});
 								if (response.ok) {
 									const listing = (await response.json()) as { data?: Array<{ id?: string }> };
-									modelBack =
+									const listed =
 										Array.isArray(listing.data) &&
 										listing.data.some((entry) => (entry.id ?? "").trim() === modelId);
+									// Listing presence is not liveness (the gateway keeps advertising dead relays): the
+									// model is BACK only when it actually answers a 1-token completion with 2xx. A 4xx
+									// "Invalid model identifier" or a timeout keeps it gone.
+									if (listed) {
+										const probe = await fetch(`${endpointRoot}/v1/chat/completions`, {
+											method: "POST",
+											headers: { "Content-Type": "application/json" },
+											body: JSON.stringify({
+												model: modelId,
+												messages: [{ role: "user", content: "ok" }],
+												max_tokens: 1,
+												stream: false,
+											}),
+											signal: AbortSignal.timeout(20_000),
+										});
+										void probe.text().catch(() => "");
+										modelBack = probe.ok;
+									}
 								}
 							} catch {
-								continue; // endpoint still down — next tick probes again after the cooldown
+								continue; // endpoint still down / probe timed out — next tick probes again after the cooldown
 							}
 							if (!modelBack) {
 								continue;
