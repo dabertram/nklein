@@ -17,10 +17,21 @@ export const nkleinReviewSubmissionSchema = z
 		verdict: z.enum(["approve", "request_changes"]),
 		/** A short second-opinion summary: what was checked and the headline judgment. */
 		summary: z.string().min(1),
-		/** Concrete, actionable change requests; required (non-empty) when requesting changes. */
-		feedback: z.string().nullable().optional(),
-		/** Optional positive observations / insight worth recording even on approval. */
-		insight: z.string().nullable().optional(),
+		/**
+		 * Concrete, actionable change requests; required (non-empty) when requesting changes. TOLERANT of a
+		 * non-string value (live 2026-09-05, v31: flash-next submitted `feedback: 1.0386…` — the junk-args shape —
+		 * next to a perfect verdict and a 600-char summary; the type error rejected the whole verdict three times
+		 * and parked the card). Junk becomes null; `execute` then falls back to the summary for request_changes.
+		 */
+		feedback: z.preprocess(
+			(value) => (typeof value === "string" ? value : value === undefined ? undefined : null),
+			z.string().nullable().optional(),
+		),
+		/** Optional positive observations / insight worth recording even on approval (junk → null, as above). */
+		insight: z.preprocess(
+			(value) => (typeof value === "string" ? value : value === undefined ? undefined : null),
+			z.string().nullable().optional(),
+		),
 		/**
 		 * §5.AW best-of-N arbitration: when the seed presented TWO candidate diffs (A = primary, B =
 		 * speculative), the reviewer names the one to deliver. Absent/null on ordinary single-candidate
@@ -69,6 +80,36 @@ export interface NKleinReviewResult {
 }
 
 export type NKleinReviewSubmittedHandler = (result: NKleinReviewResult) => void | Promise<void>;
+
+/**
+ * A `request_changes` whose `feedback` is missing or junk but whose `summary` already carries the concrete
+ * findings is a READABLE review: the summary becomes the feedback instead of the whole verdict being refused
+ * (the refusal cost the reviewer its last turn and parked the card — live 2026-09-05). Anything without a valid
+ * verdict or a non-empty summary is still refused with the actionable instruction.
+ */
+export function withSummaryAsFeedbackFallback(input: unknown): unknown {
+	if (typeof input !== "object" || input === null || Array.isArray(input)) {
+		return input;
+	}
+	const record = input as Record<string, unknown>;
+	if (record.verdict !== "request_changes") {
+		return input;
+	}
+	const feedbackUsable = typeof record.feedback === "string" && record.feedback.trim().length > 0;
+	const summary = typeof record.summary === "string" ? record.summary.trim() : "";
+	// Two readable shapes: the model TRIED to send feedback and the wire mangled it (non-string, non-null),
+	// or the summary is long enough to carry findings on its own. A bare "Needs work." with no feedback still
+	// gets the corrective ok:false (§5.BD) — that reviewer has a turn left and needs the nudge.
+	const feedbackMangled =
+		record.feedback !== undefined && record.feedback !== null && typeof record.feedback !== "string";
+	if (!feedbackUsable && summary.length > 0 && (feedbackMangled || summary.length >= SUBSTANTIVE_SUMMARY_CHARS)) {
+		return { ...record, feedback: summary };
+	}
+	return input;
+}
+
+/** A summary at least this long is treated as carrying the change requests when `feedback` is absent. */
+const SUBSTANTIVE_SUMMARY_CHARS = 120;
 
 export function createNKleinReviewTool(options: { onSubmitted?: NKleinReviewSubmittedHandler }): AgentTool {
 	return {
@@ -125,7 +166,7 @@ export function createNKleinReviewTool(options: { onSubmitted?: NKleinReviewSubm
 			additionalProperties: false,
 		},
 		async execute(input) {
-			const validation = nkleinReviewSubmissionSchema.safeParse(input);
+			const validation = nkleinReviewSubmissionSchema.safeParse(withSummaryAsFeedbackFallback(input));
 			if (!validation.success) {
 				return {
 					ok: false,

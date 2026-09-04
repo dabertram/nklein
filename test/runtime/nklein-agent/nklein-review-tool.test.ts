@@ -34,6 +34,32 @@ describe("submit_review tool", () => {
 		expect((output as { instruction: string }).instruction).toContain("verdict");
 	});
 
+	it("live 2026-09-05: a request_changes whose feedback is junk but whose summary carries the findings is READ, not refused", async () => {
+		// The exact flash-next payload that parked two v31 reviews three strikes in a row: verdict + a 600-char
+		// summary, `feedback` a stray float, the tolerated extras null.
+		const { result, output } = await run({
+			name: null,
+			verdict: "request_changes",
+			summary: "Verified the tree: the real gap is one missing export (`systemClock()`) plus a test asserting it.",
+			feedback: 1.0386579723358154,
+			insight: null,
+			preferred: null,
+		});
+		expect(output).toMatchObject({ ok: true, verdict: "request_changes" });
+		expect(result).toMatchObject({
+			verdict: "request_changes",
+			feedback: "Verified the tree: the real gap is one missing export (`systemClock()`) plus a test asserting it.",
+			insight: null,
+			preferred: null,
+		});
+	});
+
+	it("still refuses a request_changes that carries neither feedback nor a summary", async () => {
+		const { result, output } = await run({ verdict: "request_changes", summary: "", feedback: 42 });
+		expect(result).toBeNull();
+		expect(output).toMatchObject({ ok: false });
+	});
+
 	it("§5.AW: defaults preferred to null on an ordinary single-candidate review", async () => {
 		const { result } = await run({ verdict: "approve", summary: "Fine." });
 		expect(result?.preferred).toBeNull();
