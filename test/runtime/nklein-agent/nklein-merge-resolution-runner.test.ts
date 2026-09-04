@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../src/telemetry/self-observation-sink", () => ({ recordSelfObservation: vi.fn() }));
+vi.mock("../../../src/core/lmstudio-loaded-model-descriptors", () => ({
+	// Restart-durability fallback (2026-09-04): unit tests must not leak to a live gateway — empty by default;
+	// individual tests override via the mocked module.
+	fetchLoadedModelDescriptors: vi.fn(async () => []),
+	pickReviewFallbackDescriptor: vi.fn((loaded: unknown[]) => (loaded.length > 0 ? loaded[0] : null)),
+}));
 vi.mock("../../../src/nklein-agent/nklein-agent-sandbox", () => ({
 	createAgentSandboxToolExecutors: vi.fn(() => ({})),
 }));
@@ -83,9 +89,23 @@ describe("createMergeResolutionRunner", () => {
 		).toBeNull();
 	});
 
-	it("returns null when neither a diverse critic nor a worker launch yields a model", async () => {
+	it("returns null when no model resolves ANYWHERE (no critic, no launch, no loaded fallback)", async () => {
 		const d = deps({ pickEscalationModel: async () => null, getLaunchConfig: () => null });
 		expect(await createMergeResolutionRunner(d).runMergeResolutionSession(input)).toBeNull();
+	});
+
+	it("falls back to the first LOADED model when the launch config is gone (post-restart merge conflicts)", async () => {
+		const { fetchLoadedModelDescriptors } = await import("../../../src/core/lmstudio-loaded-model-descriptors");
+		(fetchLoadedModelDescriptors as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+			{ runtimeId: "loaded-model-1", modelKey: "loaded-model-1", isEmbedding: false },
+		]);
+		const mgr = manager(execRouter({ merge: ok() })); // clean reproduction — no model turn needed
+		const d = deps({
+			pickEscalationModel: async () => null,
+			getLaunchConfig: () => null,
+			getAgentSandboxManager: () => mgr as never,
+		});
+		expect(await createMergeResolutionRunner(d).runMergeResolutionSession(input)).toEqual({ outcome: "clean" });
 	});
 
 	it("returns {clean} without a model turn when the sandbox merge reproduction is conflict-free", async () => {

@@ -1,3 +1,5 @@
+import { fetchLoadedModelDescriptors, pickReviewFallbackDescriptor } from "../core/lmstudio-loaded-model-descriptors";
+import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
 import { createAgentSandboxToolExecutors } from "./nklein-agent-sandbox";
@@ -87,9 +89,39 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 		// High-stakes merge: prefer the lineage-diverse (typically stronger) escalation pick when one is loaded;
 		// the task's own launch config is the fallback. With neither there is no way to run a session at all.
 		const diverse = await deps.pickEscalationModel(input.taskId).catch(() => null);
-		const providerId = (diverse?.providerId ?? workerLaunch?.providerId ?? "").trim();
-		const modelId = (diverse?.modelId ?? workerLaunch?.modelId ?? "").trim();
+		let providerId = (diverse?.providerId ?? workerLaunch?.providerId ?? "").trim();
+		let modelId = (diverse?.modelId ?? workerLaunch?.modelId ?? "").trim();
 		if (!providerId || !modelId) {
+			// Restart-durability fallback (live 2026-09-04: after server restarts BOTH sources are empty — the
+			// launch config is in-memory and the escalation pick derives from it — so every post-restart merge
+			// conflict aborted SILENTLY and approved cards stranded in Review). Mirror the reviewer's fallback:
+			// the first non-embedding LOADED model can always run the bounded merge session.
+			const loaded = await fetchLoadedModelDescriptors(resolveDefaultLocalModelBaseUrl()).catch(
+				() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+			);
+			const fallback = pickReviewFallbackDescriptor(loaded);
+			if (fallback) {
+				providerId = providerId || "lmstudio";
+				modelId = fallback.runtimeId;
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Merge-resolution model fell back to loaded ${modelId} for ${input.taskId} (launch config gone after restart).`,
+					taskId: `${input.taskId}::merge`,
+					workspacePath: input.projectRepoPath,
+					metadata: { category: "merge_resolution_loaded_fallback" },
+				});
+			}
+		}
+		if (!providerId || !modelId) {
+			recordSelfObservation({
+				signal: "runtime_error",
+				severity: "warning",
+				message: `Merge-resolution session for ${input.taskId} could not resolve ANY model (no launch config, no loaded fallback) — conflict falls back to abort-and-surface.`,
+				taskId: `${input.taskId}::merge`,
+				workspacePath: input.projectRepoPath,
+				metadata: { category: "merge_resolution_no_model" },
+			});
 			return null;
 		}
 		const launchConfig: NKleinTaskRestartLaunchConfig = {

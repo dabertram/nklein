@@ -1180,6 +1180,9 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"review_pin_degraded",
 	// Dead-stream detection (David directive 2026-09-02): open turn + no tokens + endpoint slots idle -> cancel now.
 	"stream_liveness_reclaim",
+	// ::merge conflict-agent model resolution (2026-09-04): restart-durability fallback + honest no-model miss.
+	"merge_resolution_loaded_fallback",
+	"merge_resolution_no_model",
 	// Stale-input guard (2026-09-02): late nudges/steers must not resurrect a decompose-completed source card.
 	"input_after_decomposition_dropped",
 	// Model-unavailable self-recovery (2026-09-02): parked cards resume themselves when their model reappears.
