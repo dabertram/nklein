@@ -89,9 +89,14 @@ describe("createMergeResolutionRunner", () => {
 		).toBeNull();
 	});
 
-	it("returns null when no model resolves ANYWHERE (no critic, no launch, no loaded fallback)", async () => {
-		const d = deps({ pickEscalationModel: async () => null, getLaunchConfig: () => null });
-		expect(await createMergeResolutionRunner(d).runMergeResolutionSession(input)).toBeNull();
+	it("returns null when no model resolves ANYWHERE (preference disabled, no loaded fallback)", async () => {
+		process.env.NKLEIN_MERGE_FALLBACK_MODEL = ""; // explicit empty = no preferred model
+		try {
+			const d = deps({ pickEscalationModel: async () => null, getLaunchConfig: () => null });
+			expect(await createMergeResolutionRunner(d).runMergeResolutionSession(input)).toBeNull();
+		} finally {
+			delete process.env.NKLEIN_MERGE_FALLBACK_MODEL;
+		}
 	});
 
 	it("falls back to the first LOADED model when the launch config is gone (post-restart merge conflicts)", async () => {

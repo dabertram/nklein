@@ -96,11 +96,23 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 			// launch config is in-memory and the escalation pick derives from it — so every post-restart merge
 			// conflict aborted SILENTLY and approved cards stranded in Review). Mirror the reviewer's fallback:
 			// the first non-embedding LOADED model can always run the bounded merge session.
+			// Prefer the OPERATOR-NAMED strong model (default: the flash-next architect — the capability-blind
+			// "first loaded" pick landed on the weakest 9B for the highest-stakes seam, live 2026-09-04; the
+			// full capability-ranked fix is P0.REVRANK). The named model rides the same gateway the workers use,
+			// so it need not appear in the descriptor list (llama.cpp models don't).
+			// Unset ⇒ the flash-next default; EXPLICITLY empty ("") ⇒ no preference (first-loaded fallback only).
+			const preferredMergeModel =
+				process.env.NKLEIN_MERGE_FALLBACK_MODEL === undefined
+					? "qwen3.8-flash-next"
+					: process.env.NKLEIN_MERGE_FALLBACK_MODEL.trim();
 			const loaded = await fetchLoadedModelDescriptors(resolveDefaultLocalModelBaseUrl()).catch(
 				() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
 			);
 			const fallback = pickReviewFallbackDescriptor(loaded);
-			if (fallback) {
+			if (preferredMergeModel) {
+				providerId = providerId || "lmstudio";
+				modelId = preferredMergeModel;
+			} else if (fallback) {
 				providerId = providerId || "lmstudio";
 				modelId = fallback.runtimeId;
 				recordSelfObservation({
