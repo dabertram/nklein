@@ -132,5 +132,14 @@ export function createHttpNKleinControlDeps(options: {
 			await post("runtime.saveConfig", { maxConcurrentTasks: value });
 			return true;
 		},
+		requestRedecompose: async (input) => {
+			const data = await post("runtime.requestRedecompose", input);
+			return {
+				filed: Array.isArray(data.filed)
+					? (data.filed as { taskId: string; redecomposeTaskId: string; title: string; started: boolean }[])
+					: [],
+				skipped: Array.isArray(data.skipped) ? (data.skipped as { taskId: string; reason: string }[]) : [],
+			};
+		},
 	};
 }

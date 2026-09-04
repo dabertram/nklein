@@ -172,6 +172,8 @@ import type {
 	RuntimeRailTunablesRequest,
 	RuntimeRecordNKleinPlanGapRequest,
 	RuntimeRecordNKleinPlanGapResponse,
+	RuntimeRedecomposeRequest,
+	RuntimeRedecomposeResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeSelfImprovementProjectRequest,
 	RuntimeSelfImprovementProjectResponse,
@@ -572,6 +574,11 @@ export interface RuntimeTrpcContext {
 		) => Promise<RuntimeNKleinCodeIntelligenceStatusResponse>;
 		getKleinCorePyHealth: () => Promise<RuntimeKleinCorePyHealthResponse>;
 		getMergeHistory: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeMergeHistoryResponse>;
+		/** Explicit re-decompose (David 2026-09-04): one card or every unfinished card → decompose cards, started. */
+		requestRedecompose: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeRedecomposeRequest,
+		) => Promise<RuntimeRedecomposeResponse>;
 		buildNKleinModelFreshnessAdvisor: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeNKleinAdvisorRequest>;

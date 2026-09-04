@@ -96,7 +96,11 @@ import {
 	preferredToolCallFormat,
 } from "../core/model-behavior-profile";
 import { buildModelTuningRecommendations } from "../core/model-tuning-recommendations";
-import type { RuntimeModelEvalSummary } from "../core/nklein-ops-api-contract";
+import type {
+	RuntimeModelEvalSummary,
+	RuntimeRedecomposeRequest,
+	RuntimeRedecomposeResponse,
+} from "../core/nklein-ops-api-contract";
 import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import { summarizeOpportunisticValue } from "../core/opportunistic-work-value";
 import { assemblePromptFragmentsForIntent } from "../core/prompt-fragment-assembly";
@@ -104,6 +108,7 @@ import { parsePromptIntentMode } from "../core/prompt-intent-mode";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { buildResidentSetGuidance } from "../core/resident-set-guidance";
 import { summarizeRetrievalUsefulness } from "../core/retrieval-ledger-projection";
+import { buildRedecomposeCardPrompt, REVIEW_REDECOMPOSE_GENERATION_CAP } from "../core/review-redecompose";
 import { isKanbanRemoteHost } from "../core/runtime-endpoint";
 import { buildModelVerdictBadges } from "../core/runtime-model-verdict";
 import { createRuntimeResourceSampler } from "../core/runtime-resource-sampler";
@@ -111,7 +116,7 @@ import { isBusySessionState } from "../core/session-state-predicates";
 import { setupDeviceRamGbByMachine, setupModelRoleCounts } from "../core/setup-facts";
 import type { SkillId } from "../core/skill-registry";
 import { deriveStreams } from "../core/stream-derivation";
-import { moveTaskToColumn } from "../core/task-board-mutations";
+import { addTaskToColumn, moveTaskToColumn } from "../core/task-board-mutations";
 import { computeProjectTimeTracking, computeTimeTracking, type TimeTrackingActivity } from "../core/time-tracking";
 import { computeZeroTouchKpis } from "../core/zero-touch-kpis.js";
 import { parseEgressAllowlist } from "../nklein-agent/egress-proxy-role-snapshot";
@@ -158,7 +163,9 @@ import { readVerifiedCommunitySkillSnapshot } from "../server/community-skill-sn
 import { createCommunitySkillSuggestionService } from "../server/community-skill-suggestion-service";
 import { memoryFreshnessRuntimeStatus } from "../server/memory-freshness-audit-runner";
 import { createRailControlCoordinator, type RailControlCoordinator } from "../server/rail-control-service";
+import { buildReviewBoardContext } from "../server/second-opinion-review-runner";
 import { createSearxngWebSearchClient } from "../server/web-search-searxng";
+import { retryWorkspaceStateLock } from "../server/workspace-state-lock-retry";
 import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-mailbox-store";
 import { appendDistractorObservations } from "../state/distractor-observation-store";
@@ -627,6 +634,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						},
 						setMaxConcurrentTasks: async (value) =>
 							(await apiSelf?.saveConfig(scope, { maxConcurrentTasks: value })) != null,
+						requestRedecompose: async (input) =>
+							apiSelf
+								? await apiSelf.requestRedecompose(scope, input)
+								: {
+										filed: [],
+										skipped: [{ taskId: input.taskId ?? "*", reason: "the runtime API is not ready" }],
+									},
 					};
 				},
 				getActiveTaskSessions: () => {
@@ -1777,6 +1791,130 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					reason: record.reason,
 				})),
 			};
+		},
+		// Explicit re-decompose (David 2026-09-04): the operator's handle on the review rung's machinery — file a
+		// `redecompose-<card>` decompose card (full board context, generation stamped, parent converted into an
+		// integration card by the plan apply) for ONE card or for EVERY unfinished card, then start it through the
+		// guarded start path. Idempotent per card (an existing decompose card is reported as skipped, not duplicated).
+		requestRedecompose: async (
+			workspaceScope,
+			input: RuntimeRedecomposeRequest,
+		): Promise<RuntimeRedecomposeResponse> => {
+			if (!workspaceScope) {
+				return { filed: [], skipped: [{ taskId: input.taskId ?? "*", reason: "no active workspace" }] };
+			}
+			const { workspacePath } = workspaceScope;
+			const state = await loadWorkspaceState(workspacePath);
+			const allCards = state.board.columns.flatMap((column) =>
+				column.cards.map((card) => ({ card, columnId: column.id })),
+			);
+			const existingIds = new Set(allCards.map(({ card }) => card.id));
+			const targets =
+				input.scope === "card"
+					? allCards.filter(({ card }) => card.id === input.taskId)
+					: allCards.filter(
+							({ columnId }) =>
+								columnId === "backlog" ||
+								columnId === "planning" ||
+								columnId === "ready" ||
+								columnId === "in_progress",
+						);
+			const filed: RuntimeRedecomposeResponse["filed"] = [];
+			const skipped: RuntimeRedecomposeResponse["skipped"] = [];
+			if (input.scope === "card" && targets.length === 0) {
+				skipped.push({ taskId: input.taskId ?? "", reason: "card not found on the board" });
+			}
+			for (const { card, columnId } of targets) {
+				if (card.id.startsWith("redecompose-")) {
+					skipped.push({ taskId: card.id, reason: "already a decompose card" });
+					continue;
+				}
+				const redecomposeTaskId = `redecompose-${card.id}`;
+				if (existingIds.has(redecomposeTaskId)) {
+					skipped.push({ taskId: card.id, reason: `decompose card ${redecomposeTaskId} already exists` });
+					continue;
+				}
+				const parentGeneration = card.decomposeGeneration ?? 0;
+				// The generation cap bounds the AUTONOMOUS rung; a project-wide sweep honors it, an explicit
+				// single-card request is operator authority and may go one generation deeper.
+				if (input.scope === "project_unfinished" && parentGeneration >= REVIEW_REDECOMPOSE_GENERATION_CAP) {
+					skipped.push({
+						taskId: card.id,
+						reason: `decompose generation cap ${REVIEW_REDECOMPOSE_GENERATION_CAP} reached (split it explicitly if you must)`,
+					});
+					continue;
+				}
+				const title = `Decompose: ${card.title ?? card.id}`;
+				const prompt = buildRedecomposeCardPrompt({
+					taskTitle: card.title ?? card.id,
+					taskObjective: card.prompt,
+					boardContext: buildReviewBoardContext(state.board, card),
+					generation: parentGeneration + 1,
+				});
+				const spawned = await retryWorkspaceStateLock(() =>
+					mutateWorkspaceState(workspacePath, (current) => {
+						const exists = current.board.columns.some((column) =>
+							column.cards.some((entry) => entry.id === redecomposeTaskId),
+						);
+						if (exists) {
+							return { board: current.board, save: false, value: null };
+						}
+						const created = addTaskToColumn(
+							current.board,
+							"backlog",
+							{
+								taskId: redecomposeTaskId,
+								title,
+								prompt,
+								baseRef: card.baseRef,
+								startInPlanMode: true,
+								autoReviewEnabled: card.autoReviewEnabled ?? true,
+								...(card.trustedOrigin !== undefined ? { trustedOrigin: card.trustedOrigin } : {}),
+								...(card.autoReviewMode !== undefined ? { autoReviewMode: card.autoReviewMode } : {}),
+								...(card.testEvidencePolicy !== undefined
+									? { testEvidencePolicy: card.testEvidencePolicy }
+									: {}),
+								...(card.agentId !== undefined ? { agentId: card.agentId } : {}),
+								...(card.nkleinSettings !== undefined ? { nkleinSettings: card.nkleinSettings } : {}),
+								redecomposeOf: card.id,
+								decomposeGeneration: parentGeneration + 1,
+							},
+							() => globalThis.crypto.randomUUID(),
+						);
+						return { board: created.board, value: redecomposeTaskId };
+					}),
+				);
+				if (!spawned.value) {
+					skipped.push({ taskId: card.id, reason: "decompose card appeared concurrently" });
+					continue;
+				}
+				existingIds.add(redecomposeTaskId);
+				let started = false;
+				if (apiSelf) {
+					const response = await apiSelf
+						.startTaskSession(workspaceScope, {
+							taskId: redecomposeTaskId,
+							prompt,
+							taskTitle: title,
+							startInPlanMode: true,
+							baseRef: card.baseRef,
+							...(card.agentId ? { agentId: card.agentId } : {}),
+							...(card.nkleinSettings ? { nkleinSettings: card.nkleinSettings } : {}),
+						})
+						.catch(() => null);
+					started = response?.ok === true;
+				}
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Explicit re-decompose (${input.scope}): filed ${redecomposeTaskId} for ${card.id} (${columnId}, generation ${parentGeneration + 1})${started ? " and started it" : " — queued in the backlog"}.`,
+					taskId: card.id,
+					workspacePath,
+					metadata: { category: "explicit_redecompose", scope: input.scope, redecomposeTaskId, started },
+				});
+				filed.push({ taskId: card.id, redecomposeTaskId, title: card.title ?? card.id, started });
+			}
+			return { filed, skipped };
 		},
 		buildNKleinModelFreshnessAdvisor: async (_workspaceScope) => {
 			return await buildNKleinModelFreshnessAdvisorRequest();

@@ -12,6 +12,7 @@ function fakeDeps(): NKleinControlDeps {
 		resumeCard: async () => true,
 		listSessions: async () => [],
 		setMaxConcurrentTasks: async () => true,
+		requestRedecompose: async () => ({ filed: [], skipped: [] }),
 	};
 }
 

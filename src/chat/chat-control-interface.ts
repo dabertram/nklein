@@ -44,6 +44,14 @@ export interface NKleinControlDeps {
 	resumeCard: (taskId: string) => Promise<boolean>;
 	listSessions: () => Promise<readonly NKleinControlSessionSummary[]>;
 	setMaxConcurrentTasks: (value: number) => Promise<boolean>;
+	/**
+	 * Explicit re-decompose (David 2026-09-04): file a decompose card for ONE card or for EVERY unfinished card
+	 * and start it through the guarded start path. Returns what was filed and what was skipped (with reasons).
+	 */
+	requestRedecompose: (input: { scope: "card" | "project_unfinished"; taskId?: string }) => Promise<{
+		filed: readonly { taskId: string; redecomposeTaskId: string; title: string; started: boolean }[];
+		skipped: readonly { taskId: string; reason: string }[];
+	}>;
 }
 
 export interface NKleinControlAction {
@@ -181,6 +189,43 @@ export function buildNKleinControlRegistry(): readonly NKleinControlAction[] {
 				return (await deps.setMaxConcurrentTasks(value))
 					? `Max concurrent tasks set to ${value}.`
 					: "Could not update the concurrency cap.";
+			},
+		},
+		{
+			name: "redecompose",
+			description:
+				"Split work into smaller cards: file a decompose card (full board context) for ONE card, or for EVERY unfinished card on the board, and start it. Use when cards are too big for the available models.",
+			params: {
+				scope: {
+					type: "string",
+					description: "`card` = one card (needs taskId); `project_unfinished` = every unfinished card.",
+					enum: ["card", "project_unfinished"] as const,
+				},
+				taskId: { type: "string", description: "The card id to split (scope=card)." },
+			},
+			required: ["scope"],
+			execute: async (deps, params) => {
+				const scope = requireString(params, "scope");
+				if (scope !== "card" && scope !== "project_unfinished") {
+					return "redecompose requires `scope` = card | project_unfinished.";
+				}
+				const taskId = requireString(params, "taskId") ?? undefined;
+				if (scope === "card" && !taskId) {
+					return "redecompose with scope=card requires a non-empty `taskId`.";
+				}
+				const result = await deps.requestRedecompose({ scope, ...(taskId ? { taskId } : {}) });
+				const filed = result.filed.map(
+					(entry) => `${entry.taskId} → ${entry.redecomposeTaskId}${entry.started ? " (started)" : " (queued)"}`,
+				);
+				const skipped = result.skipped.map((entry) => `${entry.taskId}: ${entry.reason}`);
+				return [
+					filed.length > 0
+						? `Filed ${filed.length} decompose card(s):\n${filed.join("\n")}`
+						: "Filed no decompose cards.",
+					skipped.length > 0 ? `Skipped ${skipped.length}:\n${skipped.join("\n")}` : "",
+				]
+					.filter(Boolean)
+					.join("\n\n");
 			},
 		},
 	];

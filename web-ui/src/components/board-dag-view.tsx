@@ -1,6 +1,6 @@
 import type { RuntimeTaskSessionSummary } from "@runtime-contract";
 import type React from "react";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildDagGraph, DAG_LAYOUT, type DagFlowDirection, type DagNode } from "@/components/board-dag-model";
 import { cn } from "@/components/ui/cn";
@@ -19,6 +19,9 @@ import type { BoardColumn as BoardColumnModel, BoardDependency } from "@/types";
 const { nodeW: NODE_W, nodeH: NODE_H } = DAG_LAYOUT;
 /** Pointer movement (px) below which a gesture is still a CLICK, not a pan — see the onPointerDown note. */
 const DRAG_SLOP_PX = 4;
+/** Zoom bounds: far enough out to see a 200-card board whole, close enough in to read a node comfortably. */
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 4;
 
 function nodeStyle(node: DagNode): { fill: string; stroke: string } {
 	if (node.failed) {
@@ -50,8 +53,14 @@ export function BoardDagView({
 	sessions: Record<string, RuntimeTaskSessionSummary>;
 	onSelectCard: (cardId: string) => void;
 }): React.ReactElement {
-	// Pan/zoom: a viewBox transform driven by pointer drag + wheel.
-	const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
+	// Pan/zoom (rewritten 2026-09-04, David: "fix dag zooming and panning"): the SVG is 1 unit = 1 CSS pixel of
+	// the pane and the graph sits inside ONE `<g transform>` — pans are pixel deltas, wheel zoom is anchored on the
+	// cursor (the point under the pointer stays put), and "Fit" recenters the whole graph. The old viewBox-scaling
+	// approach zoomed toward the top-left and, inside the mode pane, let the page scroll instead of zooming.
+	const containerRef = useRef<HTMLDivElement>(null);
+	const svgRef = useRef<SVGSVGElement>(null);
+	const [size, setSize] = useState({ width: 960, height: 640 });
+	const [view, setView] = useState({ tx: 0, ty: 0, scale: 1 });
 	const dragRef = useRef<{
 		startX: number;
 		startY: number;
@@ -69,8 +78,69 @@ export function BoardDagView({
 		[columns, dependencies, sessions, flowDirection],
 	);
 
-	const viewW = graph.width / view.scale;
-	const viewH = graph.height / view.scale;
+	// Fit the whole graph into the pane: scale to the smaller axis (never above 1:1), centered.
+	const fitView = useCallback(
+		(paneWidth: number, paneHeight: number): { tx: number; ty: number; scale: number } => {
+			const scale = Math.min(1, (paneWidth - 24) / graph.width, (paneHeight - 24) / graph.height);
+			const clamped = Math.max(MIN_SCALE, scale);
+			return {
+				tx: (paneWidth - graph.width * clamped) / 2,
+				ty: (paneHeight - graph.height * clamped) / 2,
+				scale: clamped,
+			};
+		},
+		[graph.width, graph.height],
+	);
+
+	// Track the pane size; the first measurement (and every graph re-layout) refits, later user transforms persist.
+	const fittedForRef = useRef<string>("");
+	useEffect(() => {
+		const container = containerRef.current;
+		if (!container) {
+			return;
+		}
+		const measure = (): void => {
+			const width = container.clientWidth || 960;
+			const height = container.clientHeight || 640;
+			setSize({ width, height });
+			const fitKey = `${graph.width}x${graph.height}`;
+			if (fittedForRef.current !== fitKey) {
+				fittedForRef.current = fitKey;
+				setView(fitView(width, height));
+			}
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(container);
+		return () => observer.disconnect();
+	}, [fitView, graph.width, graph.height]);
+
+	// Wheel zoom must be a NON-passive listener: React's onWheel cannot preventDefault, so inside the mode pane the
+	// page scrolled instead of the graph zooming. Anchored on the cursor: the graph point under the pointer stays.
+	useEffect(() => {
+		const svg = svgRef.current;
+		if (!svg) {
+			return;
+		}
+		const onWheel = (event: WheelEvent): void => {
+			event.preventDefault();
+			const bounds = svg.getBoundingClientRect();
+			const cursorX = event.clientX - bounds.left;
+			const cursorY = event.clientY - bounds.top;
+			const factor = event.deltaY > 0 ? 1 / 1.12 : 1.12;
+			setView((current) => {
+				const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, current.scale * factor));
+				const applied = scale / current.scale;
+				return {
+					scale,
+					tx: cursorX - (cursorX - current.tx) * applied,
+					ty: cursorY - (cursorY - current.ty) * applied,
+				};
+			});
+		};
+		svg.addEventListener("wheel", onWheel, { passive: false });
+		return () => svg.removeEventListener("wheel", onWheel);
+	}, []);
 
 	return (
 		<div className="flex h-full min-h-0 flex-1 flex-col bg-surface-0" data-testid="board-dag-view">
@@ -95,8 +165,17 @@ export function BoardDagView({
 				>
 					{flowDirection === "early-right" ? "early → right" : "early → left"}
 				</button>
+				<button
+					type="button"
+					data-testid="board-dag-fit"
+					title="Fit the whole graph into view (double-click the canvas does the same)"
+					onClick={() => setView(fitView(size.width, size.height))}
+					className="rounded-md px-2 py-1 text-[11px] text-text-tertiary hover:bg-surface-3 hover:text-text-primary"
+				>
+					fit · {Math.round(view.scale * 100)}%
+				</button>
 			</div>
-			<div className="relative min-h-0 flex-1 overflow-hidden">
+			<div ref={containerRef} className="relative min-h-0 flex-1 overflow-hidden">
 				{graph.nodes.length > 0 && graph.edges.length === 0 ? (
 					// A board can have cards but no dependency EDGES — a flat decompose (common with weaker local
 					// models) or a genuinely parallel plan. Without this hint the vertical stack of nodes reads as a
@@ -115,12 +194,18 @@ export function BoardDagView({
 					</div>
 				) : (
 					<svg
+						ref={svgRef}
 						width="100%"
 						height="100%"
-						viewBox={`${view.x} ${view.y} ${viewW} ${viewH}`}
+						viewBox={`0 0 ${size.width} ${size.height}`}
 						role="img"
 						aria-label="Board dependency graph"
 						className="cursor-grab active:cursor-grabbing"
+						onDoubleClick={(event) => {
+							if (event.target === event.currentTarget) {
+								setView(fitView(size.width, size.height));
+							}
+						}}
 						onPointerDown={(event) => {
 							// LIVE-FOUND 2026-07-19 (F2.16 Playwright pass): capturing the pointer HERE stole the click
 							// from the nodes — the browser retargets the click to the capturing element, so a node's
@@ -131,8 +216,8 @@ export function BoardDagView({
 							dragRef.current = {
 								startX: event.clientX,
 								startY: event.clientY,
-								originX: view.x,
-								originY: view.y,
+								originX: view.tx,
+								originY: view.ty,
 								capturing: false,
 							};
 						}}
@@ -151,204 +236,208 @@ export function BoardDagView({
 								drag.capturing = true;
 								event.currentTarget.setPointerCapture(event.pointerId);
 							}
-							const bounds = event.currentTarget.getBoundingClientRect();
-							const unitsPerPixel = viewW / bounds.width;
+							// 1 unit = 1 pixel: the pan is the raw pointer delta.
 							setView((current) => ({
 								...current,
-								x: drag.originX - (event.clientX - drag.startX) * unitsPerPixel,
-								y: drag.originY - (event.clientY - drag.startY) * unitsPerPixel,
+								tx: drag.originX + (event.clientX - drag.startX),
+								ty: drag.originY + (event.clientY - drag.startY),
 							}));
 						}}
 						onPointerUp={() => {
 							dragRef.current = null;
 						}}
-						onWheel={(event) => {
-							const factor = event.deltaY > 0 ? 0.9 : 1.1;
-							setView((current) => ({
-								...current,
-								scale: Math.min(4, Math.max(0.25, current.scale * factor)),
-							}));
+						onPointerCancel={() => {
+							dragRef.current = null;
 						}}
 					>
 						<title>Board dependency graph</title>
-						{(() => {
-							// EXECUTION-ORDER flow (David 2026-07-10): `from` depends on `to`, so the line runs
-							// blocker → dependent with the arrow-dot at the dependent end ("what runs next").
-							// Overlap minimization (David 2026-09-04 "minimize overlapping edges"):
-							//  1. Connection SIDES face the other endpoint (under early-right the mirrored layout made
-							//     every edge exit the far side and double back across its own node).
-							//  2. PORT FAN-OUT — a node's edges spread along its side (sorted by the far end's y)
-							//     instead of all fusing at the vertical center.
-							//  3. Long edges follow their model-routed WAYPOINTS through empty corridor slots rather
-							//     than cutting straight across intermediate layers (spline through graph.edgeRoutes).
-							interface EdgePoints {
-								edge: BoardDependency;
-								points: { x: number; y: number }[];
-							}
-							const drawable: EdgePoints[] = [];
-							const sidePorts = new Map<string, { edgeId: string; adjacentY: number }[]>();
-							const sideKey = (taskId: string, side: "left" | "right"): string => `${taskId}:${side}`;
-							for (const edge of graph.edges) {
-								const blocker = graph.positions.get(edge.toTaskId);
-								const dependent = graph.positions.get(edge.fromTaskId);
-								if (!blocker || !dependent) {
-									continue;
+						<g transform={`translate(${view.tx} ${view.ty}) scale(${view.scale})`}>
+							{(() => {
+								// EXECUTION-ORDER flow (David 2026-07-10): `from` depends on `to`, so the line runs
+								// blocker → dependent with the arrow-dot at the dependent end ("what runs next").
+								// Overlap minimization (David 2026-09-04 "minimize overlapping edges"):
+								//  1. Connection SIDES face the other endpoint (under early-right the mirrored layout made
+								//     every edge exit the far side and double back across its own node).
+								//  2. PORT FAN-OUT — a node's edges spread along its side (sorted by the far end's y)
+								//     instead of all fusing at the vertical center.
+								//  3. Long edges follow their model-routed WAYPOINTS through empty corridor slots rather
+								//     than cutting straight across intermediate layers (spline through graph.edgeRoutes).
+								interface EdgePoints {
+									edge: BoardDependency;
+									points: { x: number; y: number }[];
 								}
-								const route = graph.edgeRoutes.get(edge.id) ?? [];
-								const firstMid = route[0] ?? {
-									x: dependent.x + NODE_W / 2,
-									y: dependent.y + NODE_H / 2,
-								};
-								const lastMid = route[route.length - 1] ?? {
-									x: blocker.x + NODE_W / 2,
-									y: blocker.y + NODE_H / 2,
-								};
-								const blockerSide: "left" | "right" = firstMid.x >= blocker.x + NODE_W / 2 ? "right" : "left";
-								const dependentSide: "left" | "right" =
-									lastMid.x >= dependent.x + NODE_W / 2 ? "right" : "left";
-								sidePorts.set(sideKey(edge.toTaskId, blockerSide), [
-									...(sidePorts.get(sideKey(edge.toTaskId, blockerSide)) ?? []),
-									{ edgeId: edge.id, adjacentY: firstMid.y },
-								]);
-								sidePorts.set(sideKey(edge.fromTaskId, dependentSide), [
-									...(sidePorts.get(sideKey(edge.fromTaskId, dependentSide)) ?? []),
-									{ edgeId: edge.id, adjacentY: lastMid.y },
-								]);
-								drawable.push({ edge, points: [] });
-							}
-							// Port y-offset per (node side): spread across the node height in adjacent-y order.
-							const portY = new Map<string, number>(); // `${edgeId}@${taskId}` -> y
-							for (const [key, ports] of sidePorts) {
-								const taskId = key.slice(0, key.lastIndexOf(":"));
-								const nodeY = graph.positions.get(taskId)?.y ?? 0;
-								const sorted = [...ports].sort(
-									(a, b) => a.adjacentY - b.adjacentY || a.edgeId.localeCompare(b.edgeId),
-								);
-								sorted.forEach((port, index) => {
-									portY.set(`${port.edgeId}@${taskId}`, nodeY + (NODE_H * (index + 1)) / (sorted.length + 1));
+								const drawable: EdgePoints[] = [];
+								const sidePorts = new Map<string, { edgeId: string; adjacentY: number }[]>();
+								const sideKey = (taskId: string, side: "left" | "right"): string => `${taskId}:${side}`;
+								for (const edge of graph.edges) {
+									const blocker = graph.positions.get(edge.toTaskId);
+									const dependent = graph.positions.get(edge.fromTaskId);
+									if (!blocker || !dependent) {
+										continue;
+									}
+									const route = graph.edgeRoutes.get(edge.id) ?? [];
+									const firstMid = route[0] ?? {
+										x: dependent.x + NODE_W / 2,
+										y: dependent.y + NODE_H / 2,
+									};
+									const lastMid = route[route.length - 1] ?? {
+										x: blocker.x + NODE_W / 2,
+										y: blocker.y + NODE_H / 2,
+									};
+									const blockerSide: "left" | "right" =
+										firstMid.x >= blocker.x + NODE_W / 2 ? "right" : "left";
+									const dependentSide: "left" | "right" =
+										lastMid.x >= dependent.x + NODE_W / 2 ? "right" : "left";
+									sidePorts.set(sideKey(edge.toTaskId, blockerSide), [
+										...(sidePorts.get(sideKey(edge.toTaskId, blockerSide)) ?? []),
+										{ edgeId: edge.id, adjacentY: firstMid.y },
+									]);
+									sidePorts.set(sideKey(edge.fromTaskId, dependentSide), [
+										...(sidePorts.get(sideKey(edge.fromTaskId, dependentSide)) ?? []),
+										{ edgeId: edge.id, adjacentY: lastMid.y },
+									]);
+									drawable.push({ edge, points: [] });
+								}
+								// Port y-offset per (node side): spread across the node height in adjacent-y order.
+								const portY = new Map<string, number>(); // `${edgeId}@${taskId}` -> y
+								for (const [key, ports] of sidePorts) {
+									const taskId = key.slice(0, key.lastIndexOf(":"));
+									const nodeY = graph.positions.get(taskId)?.y ?? 0;
+									const sorted = [...ports].sort(
+										(a, b) => a.adjacentY - b.adjacentY || a.edgeId.localeCompare(b.edgeId),
+									);
+									sorted.forEach((port, index) => {
+										portY.set(
+											`${port.edgeId}@${taskId}`,
+											nodeY + (NODE_H * (index + 1)) / (sorted.length + 1),
+										);
+									});
+								}
+								for (const item of drawable) {
+									const { edge } = item;
+									const blocker = graph.positions.get(edge.toTaskId);
+									const dependent = graph.positions.get(edge.fromTaskId);
+									if (!blocker || !dependent) {
+										continue;
+									}
+									const route = graph.edgeRoutes.get(edge.id) ?? [];
+									const firstMid = route[0] ?? { x: dependent.x + NODE_W / 2, y: 0 };
+									const lastMid = route[route.length - 1] ?? { x: blocker.x + NODE_W / 2, y: 0 };
+									const startX = firstMid.x >= blocker.x + NODE_W / 2 ? blocker.x + NODE_W : blocker.x;
+									const endX = lastMid.x >= dependent.x + NODE_W / 2 ? dependent.x + NODE_W : dependent.x;
+									const startY = portY.get(`${edge.id}@${edge.toTaskId}`) ?? blocker.y + NODE_H / 2;
+									const endY = portY.get(`${edge.id}@${edge.fromTaskId}`) ?? dependent.y + NODE_H / 2;
+									// A waypoint is a column-center lane point; expand it into an ENTRY + EXIT pair at the
+									// column's edges so the edge runs horizontally across the column inside its lane and
+									// only bends in the inter-column gap (a single center point put every S-bend ~10px
+									// inside the next column — straight through whatever card sat there).
+									const expanded: { x: number; y: number }[] = [];
+									let cursorX = startX;
+									for (const waypoint of route) {
+										const entering =
+											waypoint.x >= cursorX ? waypoint.x - NODE_W / 2 : waypoint.x + NODE_W / 2;
+										const leaving = waypoint.x >= cursorX ? waypoint.x + NODE_W / 2 : waypoint.x - NODE_W / 2;
+										expanded.push({ x: entering, y: waypoint.y }, { x: leaving, y: waypoint.y });
+										cursorX = leaving;
+									}
+									item.points = [{ x: startX, y: startY }, ...expanded, { x: endX, y: endY }];
+								}
+								return drawable.map(({ edge, points }) => {
+									const isCycle = graph.cycleEdgeIds.has(edge.id);
+									// Routed long edges travel in lane BUNDLES; at full opacity thirty parallel lanes fuse
+									// into a solid band, so they render as soft ribbons and adjacent-layer edges (the local
+									// structure a reader follows) stay the visual foreground.
+									const isRouted = graph.edgeRoutes.has(edge.id);
+									const segments = points
+										.slice(1)
+										.map((point, index) => {
+											const previous = points[index] ?? point;
+											const midX = (previous.x + point.x) / 2;
+											return `C ${midX} ${previous.y}, ${midX} ${point.y}, ${point.x} ${point.y}`;
+										})
+										.join(" ");
+									const first = points[0] ?? { x: 0, y: 0 };
+									const last = points[points.length - 1] ?? first;
+									return (
+										<g key={edge.id} data-testid={isCycle ? "dag-cycle-edge" : "dag-edge"}>
+											<path
+												d={`M ${first.x} ${first.y} ${segments}`}
+												fill="none"
+												stroke={isCycle ? "var(--color-status-red)" : "var(--color-accent)"}
+												strokeOpacity={isCycle ? 0.9 : isRouted ? 0.18 : 0.35}
+												strokeWidth={isCycle ? 2 : 1.5}
+												strokeDasharray={isCycle ? "6 4" : undefined}
+											/>
+											<circle
+												cx={last.x}
+												cy={last.y}
+												r={2.5}
+												fill={isCycle ? "var(--color-status-red)" : "var(--color-accent)"}
+											/>
+										</g>
+									);
 								});
-							}
-							for (const item of drawable) {
-								const { edge } = item;
-								const blocker = graph.positions.get(edge.toTaskId);
-								const dependent = graph.positions.get(edge.fromTaskId);
-								if (!blocker || !dependent) {
-									continue;
+							})()}
+							{graph.nodes.map((node) => {
+								const position = graph.positions.get(node.id);
+								if (!position) {
+									return null;
 								}
-								const route = graph.edgeRoutes.get(edge.id) ?? [];
-								const firstMid = route[0] ?? { x: dependent.x + NODE_W / 2, y: 0 };
-								const lastMid = route[route.length - 1] ?? { x: blocker.x + NODE_W / 2, y: 0 };
-								const startX = firstMid.x >= blocker.x + NODE_W / 2 ? blocker.x + NODE_W : blocker.x;
-								const endX = lastMid.x >= dependent.x + NODE_W / 2 ? dependent.x + NODE_W : dependent.x;
-								const startY = portY.get(`${edge.id}@${edge.toTaskId}`) ?? blocker.y + NODE_H / 2;
-								const endY = portY.get(`${edge.id}@${edge.fromTaskId}`) ?? dependent.y + NODE_H / 2;
-								// A waypoint is a column-center lane point; expand it into an ENTRY + EXIT pair at the
-								// column's edges so the edge runs horizontally across the column inside its lane and
-								// only bends in the inter-column gap (a single center point put every S-bend ~10px
-								// inside the next column — straight through whatever card sat there).
-								const expanded: { x: number; y: number }[] = [];
-								let cursorX = startX;
-								for (const waypoint of route) {
-									const entering = waypoint.x >= cursorX ? waypoint.x - NODE_W / 2 : waypoint.x + NODE_W / 2;
-									const leaving = waypoint.x >= cursorX ? waypoint.x + NODE_W / 2 : waypoint.x - NODE_W / 2;
-									expanded.push({ x: entering, y: waypoint.y }, { x: leaving, y: waypoint.y });
-									cursorX = leaving;
-								}
-								item.points = [{ x: startX, y: startY }, ...expanded, { x: endX, y: endY }];
-							}
-							return drawable.map(({ edge, points }) => {
-								const isCycle = graph.cycleEdgeIds.has(edge.id);
-								// Routed long edges travel in lane BUNDLES; at full opacity thirty parallel lanes fuse
-								// into a solid band, so they render as soft ribbons and adjacent-layer edges (the local
-								// structure a reader follows) stay the visual foreground.
-								const isRouted = graph.edgeRoutes.has(edge.id);
-								const segments = points
-									.slice(1)
-									.map((point, index) => {
-										const previous = points[index] ?? point;
-										const midX = (previous.x + point.x) / 2;
-										return `C ${midX} ${previous.y}, ${midX} ${point.y}, ${point.x} ${point.y}`;
-									})
-									.join(" ");
-								const first = points[0] ?? { x: 0, y: 0 };
-								const last = points[points.length - 1] ?? first;
+								const style = nodeStyle(node);
 								return (
-									<g key={edge.id} data-testid={isCycle ? "dag-cycle-edge" : "dag-edge"}>
-										<path
-											d={`M ${first.x} ${first.y} ${segments}`}
-											fill="none"
-											stroke={isCycle ? "var(--color-status-red)" : "var(--color-accent)"}
-											strokeOpacity={isCycle ? 0.9 : isRouted ? 0.18 : 0.35}
-											strokeWidth={isCycle ? 2 : 1.5}
-											strokeDasharray={isCycle ? "6 4" : undefined}
+									<g
+										key={node.id}
+										data-testid={`dag-node-${node.id}`}
+										aria-label={node.title}
+										role="button"
+										tabIndex={0}
+										className="cursor-pointer"
+										onClick={() => onSelectCard(node.id)}
+										onKeyDown={(event) => {
+											if (event.key === "Enter" || event.key === " ") {
+												onSelectCard(node.id);
+											}
+										}}
+									>
+										<rect
+											x={position.x}
+											y={position.y}
+											width={NODE_W}
+											height={NODE_H}
+											rx={8}
+											fill="var(--color-surface-2)"
+											stroke={style.stroke}
+											strokeWidth={1.5}
 										/>
-										<circle
-											cx={last.x}
-											cy={last.y}
-											r={2.5}
-											fill={isCycle ? "var(--color-status-red)" : "var(--color-accent)"}
-										/>
+										<rect x={position.x} y={position.y} width={4} height={NODE_H} rx={2} fill={style.fill} />
+										<text
+											x={position.x + 12}
+											y={position.y + NODE_H / 2 + 4}
+											className={cn("text-[11.5px]", node.running && "font-semibold")}
+											fill="var(--color-text-primary)"
+										>
+											{node.title.length > 24 ? `${node.title.slice(0, 23)}…` : node.title}
+										</text>
+										<title>{node.title}</title>
+										{node.running ? (
+											<circle
+												cx={position.x + NODE_W - 10}
+												cy={position.y + 10}
+												r={3.5}
+												fill="var(--color-accent)"
+											>
+												<animate
+													attributeName="opacity"
+													values="1;0.3;1"
+													dur="1.6s"
+													repeatCount="indefinite"
+												/>
+											</circle>
+										) : null}
 									</g>
 								);
-							});
-						})()}
-						{graph.nodes.map((node) => {
-							const position = graph.positions.get(node.id);
-							if (!position) {
-								return null;
-							}
-							const style = nodeStyle(node);
-							return (
-								<g
-									key={node.id}
-									data-testid={`dag-node-${node.id}`}
-									role="button"
-									tabIndex={0}
-									className="cursor-pointer"
-									onClick={() => onSelectCard(node.id)}
-									onKeyDown={(event) => {
-										if (event.key === "Enter" || event.key === " ") {
-											onSelectCard(node.id);
-										}
-									}}
-								>
-									<rect
-										x={position.x}
-										y={position.y}
-										width={NODE_W}
-										height={NODE_H}
-										rx={8}
-										fill="var(--color-surface-2)"
-										stroke={style.stroke}
-										strokeWidth={1.5}
-									/>
-									<rect x={position.x} y={position.y} width={4} height={NODE_H} rx={2} fill={style.fill} />
-									<text
-										x={position.x + 12}
-										y={position.y + NODE_H / 2 + 4}
-										className={cn("text-[11.5px]", node.running && "font-semibold")}
-										fill="var(--color-text-primary)"
-									>
-										{node.title.length > 24 ? `${node.title.slice(0, 23)}…` : node.title}
-									</text>
-									{node.running ? (
-										<circle
-											cx={position.x + NODE_W - 10}
-											cy={position.y + 10}
-											r={3.5}
-											fill="var(--color-accent)"
-										>
-											<animate
-												attributeName="opacity"
-												values="1;0.3;1"
-												dur="1.6s"
-												repeatCount="indefinite"
-											/>
-										</circle>
-									) : null}
-								</g>
-							);
-						})}
+							})}
+						</g>
 					</svg>
 				)}
 			</div>

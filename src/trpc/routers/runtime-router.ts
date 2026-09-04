@@ -144,6 +144,8 @@ import {
 	runtimeRailTunablesRequestSchema,
 	runtimeRecordNKleinPlanGapRequestSchema,
 	runtimeRecordNKleinPlanGapResponseSchema,
+	runtimeRedecomposeRequestSchema,
+	runtimeRedecomposeResponseSchema,
 	runtimeRunUpdateResponseSchema,
 	runtimeSetupPlanResponseSchema,
 	runtimeShellSessionStartRequestSchema,
@@ -705,6 +707,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		getMergeHistory: t.procedure.output(runtimeMergeHistoryResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getMergeHistory(ctx.workspaceScope);
 		}),
+		requestRedecompose: t.procedure
+			.input(runtimeRedecomposeRequestSchema)
+			.output(runtimeRedecomposeResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.requestRedecompose(ctx.workspaceScope, input);
+			}),
 		buildNKleinModelFreshnessAdvisor: t.procedure.output(runtimeNKleinAdvisorRequestSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.buildNKleinModelFreshnessAdvisor(ctx.workspaceScope);
 		}),

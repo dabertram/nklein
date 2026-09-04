@@ -32,6 +32,31 @@ export const runtimeMergeHistoryResponseSchema = z.object({
 });
 export type RuntimeMergeHistoryResponse = z.infer<typeof runtimeMergeHistoryResponseSchema>;
 
+// Explicit re-decompose (David 2026-09-04: "a feature that allows user to explicitly trigger further decompose
+// for either full project unfinished cards .. or single cards"). The autonomous review rung spawns
+// `redecompose-<parent>` cards only when a park exhausts the remedy ladder; this is the OPERATOR's handle on
+// the same machinery: file a decompose card (full board context, generation stamped) for one card or for every
+// unfinished card, and start it through the guarded start path.
+export const runtimeRedecomposeRequestSchema = z.object({
+	scope: z.enum(["card", "project_unfinished"]),
+	/** Required for scope=card; ignored for project_unfinished. */
+	taskId: z.string().min(1).optional(),
+});
+export type RuntimeRedecomposeRequest = z.infer<typeof runtimeRedecomposeRequestSchema>;
+export const runtimeRedecomposeResponseSchema = z.object({
+	filed: z.array(
+		z.object({
+			taskId: z.string(),
+			redecomposeTaskId: z.string(),
+			title: z.string(),
+			/** Whether the decompose card's session was started (false ⇒ it sits in the backlog for the next sweep). */
+			started: z.boolean(),
+		}),
+	),
+	skipped: z.array(z.object({ taskId: z.string(), reason: z.string() })),
+});
+export type RuntimeRedecomposeResponse = z.infer<typeof runtimeRedecomposeResponseSchema>;
+
 export const runtimeNKleinAdvisorKindSchema = z.enum([
 	"model_freshness",
 	"mcp_discovery",

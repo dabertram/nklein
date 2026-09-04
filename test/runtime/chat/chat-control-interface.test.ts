@@ -46,6 +46,17 @@ function fakeDeps(overrides: Partial<NKleinControlDeps> = {}): NKleinControlDeps
 			calls.push(`cap:${value}`);
 			return true;
 		},
+		requestRedecompose: async (input) => {
+			calls.push(`redecompose:${input.scope}:${input.taskId ?? "*"}`);
+			return input.scope === "card" && input.taskId !== "card-1"
+				? { filed: [], skipped: [{ taskId: input.taskId ?? "", reason: "card not found on the board" }] }
+				: {
+						filed: [
+							{ taskId: "card-1", redecomposeTaskId: "redecompose-card-1", title: "Card one", started: true },
+						],
+						skipped: [],
+					};
+		},
 		...overrides,
 	};
 }
@@ -116,6 +127,25 @@ describe("nklein_control (F2.30 chat-as-control-plane)", () => {
 		expect(await runTool(deps, "set_max_concurrent_tasks", { value: 4 })).toContain("set to 4");
 		expect(await runTool(deps, "set_max_concurrent_tasks", { value: 0 })).toContain("between 1 and 16");
 		expect(await runTool(deps, "set_max_concurrent_tasks", { value: "many" })).toContain("between 1 and 16");
+	});
+
+	it("redecompose validates scope/taskId, routes to the executor, and reports filed vs skipped", async () => {
+		const deps = fakeDeps();
+		expect(await runTool(deps, "redecompose", { scope: "nope" })).toContain("scope");
+		expect(await runTool(deps, "redecompose", { scope: "card" })).toContain("requires a non-empty `taskId`");
+		const filed = await runTool(deps, "redecompose", { scope: "card", taskId: "card-1" });
+		expect(filed).toContain("Filed 1 decompose card(s)");
+		expect(filed).toContain("card-1 → redecompose-card-1 (started)");
+		const missing = await runTool(deps, "redecompose", { scope: "card", taskId: "card-9" });
+		expect(missing).toContain("Filed no decompose cards");
+		expect(missing).toContain("card-9: card not found on the board");
+		const sweep = await runTool(deps, "redecompose", { scope: "project_unfinished" });
+		expect(sweep).toContain("Filed 1 decompose card(s)");
+		expect(deps.calls).toEqual([
+			"redecompose:card:card-1",
+			"redecompose:card:card-9",
+			"redecompose:project_unfinished:*",
+		]);
 	});
 
 	it("an unknown action names the valid interface instead of failing silently", async () => {
