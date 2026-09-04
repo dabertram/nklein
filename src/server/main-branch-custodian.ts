@@ -43,10 +43,41 @@ export interface MainBranchCustodianDeps {
 		timeoutMs?: number;
 	}) => Promise<NKleinReviewResult | null>;
 	/** Preferred custodian model (e.g. flash-next); null lets the review runner's fallback chain pick. */
-	pickCustodianModel: () => { providerId: string; modelId: string } | null;
+	pickCustodianModel: () => Promise<CustodianModel | null> | CustodianModel | null;
 	/** File a finding card in the backlog; returns the new card id (null when filing failed). */
 	fileFindingCard: (input: { title: string; prompt: string }) => Promise<string | null>;
 	warn: (message: string) => void;
+}
+
+export interface CustodianModel {
+	providerId: string;
+	modelId: string;
+}
+
+/**
+ * Audit 2026-09-04 #14: the custodian was the last chooser that handed a model to the review runner without
+ * checking it is LOADED and routable (liveness ledger, cross-host identifier collision) — the same blind spot
+ * that walked un-parked reviews into the collision. The preferred model is used only when it appears among the
+ * routable loaded descriptors; otherwise null lets the runner's (filtered) fallback chain pick and the sweep
+ * records the miss.
+ */
+export async function resolveCustodianModel(input: {
+	preferred: string;
+	loadRoutable: () => Promise<readonly { runtimeId: string; modelKey: string }[]>;
+	warn: (message: string) => void;
+}): Promise<CustodianModel | null> {
+	const preferred = input.preferred.trim();
+	if (!preferred) {
+		return null;
+	}
+	const routable = await input.loadRoutable().catch(() => []);
+	if (routable.some((descriptor) => descriptor.runtimeId === preferred || descriptor.modelKey === preferred)) {
+		return { providerId: "lmstudio", modelId: preferred };
+	}
+	input.warn(
+		`Main-branch custodian: preferred model ${preferred} is not loaded/routable — letting the review runner's fallback chain pick.`,
+	);
+	return null;
 }
 
 /** Build the custodian's seed prompt for one merge range. Exported for tests. */
@@ -110,7 +141,7 @@ export async function maybeRunMainBranchCustodian(deps: MainBranchCustodianDeps)
 				projectRepoPath: workspacePath,
 				baseRef: branch,
 				seedPrompt: buildCustodianSeedPrompt({ branch, rangeLog, diffstat }),
-				reviewer: deps.pickCustodianModel(),
+				reviewer: await deps.pickCustodianModel(),
 				timeoutMs: 20 * 60_000,
 			})
 			.catch(() => null);

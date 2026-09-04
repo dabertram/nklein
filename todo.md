@@ -2068,8 +2068,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   Plus two live-found siblings: the classifier's BUSY≠dead guard (`c4d359125`) and parked-on-400 → ledger mark
   with served-token recovery (`c587d1970`), and cross-host identifier collisions excluded (`f33325410`).
   **REMAINING:** (8) endpoint-keyed ledger marks; (11) marks over tRPC + fleet strip
-  row; (12) persisted, success-cleared recovery budgets; (14-16) custodian model gate / trust origin /
-  persisted commit mark; (17-18) sandbox dispose clear + prepare ownership; (19) blockedKind auto-clear
+  row; (12) persisted, success-cleared recovery budgets; (15-16) custodian trust origin / persisted commit
+  mark *(14 shipped 2026-09-05: `resolveCustodianModel` uses the preferred model only when it is among the
+  routable loaded descriptors — `excludeUnroutableDescriptors` — else null → the runner's filtered chain)*;
+  (17-18) sandbox dispose clear + prepare ownership; (19) blockedKind auto-clear
   observation; (23) DAG node search; (24) board-card memoization; (25) unit tests for the guard, auto-pool
   and an extracted wedge classifier.
 

@@ -7,7 +7,58 @@ import {
 	buildCustodianSeedPrompt,
 	maybeRunMainBranchCustodian,
 	resetMainBranchCustodianForTests,
+	resolveCustodianModel,
 } from "../../../src/server/main-branch-custodian";
+
+describe("resolveCustodianModel (audit 2026-09-04 #14: the custodian was the last unfiltered chooser)", () => {
+	const loaded = [
+		{ runtimeId: "qwen3.8-flash-next", modelKey: "qwen/qwen3.8-flash-next" },
+		{ runtimeId: "ornith-local-9b", modelKey: "ornith-local-9b" },
+	];
+
+	it("uses the preferred model only when it is among the routable loaded descriptors", async () => {
+		const warnings: string[] = [];
+		await expect(
+			resolveCustodianModel({
+				preferred: "qwen3.8-flash-next",
+				loadRoutable: async () => loaded,
+				warn: (message) => warnings.push(message),
+			}),
+		).resolves.toEqual({ providerId: "lmstudio", modelId: "qwen3.8-flash-next" });
+		await expect(
+			resolveCustodianModel({
+				preferred: "qwen/qwen3.8-flash-next",
+				loadRoutable: async () => loaded,
+				warn: (message) => warnings.push(message),
+			}),
+		).resolves.toEqual({ providerId: "lmstudio", modelId: "qwen/qwen3.8-flash-next" });
+		expect(warnings).toEqual([]);
+	});
+
+	it("falls back to null (the runner's filtered chain) when the preferred model is dead, colliding or unloaded", async () => {
+		const warnings: string[] = [];
+		await expect(
+			resolveCustodianModel({
+				preferred: "dirk-qwen3.8-27b",
+				loadRoutable: async () => loaded.filter((descriptor) => descriptor.runtimeId !== "dirk-qwen3.8-27b"),
+				warn: (message) => warnings.push(message),
+			}),
+		).resolves.toBeNull();
+		expect(warnings).toEqual([
+			"Main-branch custodian: preferred model dirk-qwen3.8-27b is not loaded/routable — letting the review runner's fallback chain pick.",
+		]);
+		// A failed listing is "no knowledge", never a crash — and never a blind pick either.
+		await expect(
+			resolveCustodianModel({
+				preferred: "qwen3.8-flash-next",
+				loadRoutable: async () => {
+					throw new Error("lms down");
+				},
+				warn: () => undefined,
+			}),
+		).resolves.toBeNull();
+	});
+});
 
 const repo = mkdtempSync(join(tmpdir(), "nklein-custodian-"));
 function git(...args: string[]): void {

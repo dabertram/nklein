@@ -196,6 +196,7 @@ import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../n
 import { runNKleinMutationAdequacy } from "../nklein-agent/nklein-mutation-adequacy-runner";
 import { readNKleinPlanArtifacts } from "../nklein-agent/nklein-plan-artifacts";
 import { getPropertyCheckEvidence } from "../nklein-agent/nklein-property-evidence-registry";
+import { excludeUnroutableDescriptors } from "../nklein-agent/nklein-reviewer-model-selection";
 import { isLocalModelUnavailableWarning } from "../nklein-agent/nklein-session-state";
 import { SpeculativeAttemptRegistry } from "../nklein-agent/nklein-speculative-attempt-registry";
 import {
@@ -292,7 +293,12 @@ import { type BackgroundEvalRailWiring, wireBackgroundEvalRail } from "./backgro
 import { type BoardLivenessWatchdogHandle, startBoardLivenessWatchdog } from "./board-liveness-watchdog";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { installFrontierResearchRunner } from "./frontier-research-holder";
-import { custodianFindingTaskId, maybeRunMainBranchCustodian } from "./main-branch-custodian";
+import {
+	custodianFindingTaskId,
+	MAIN_CUSTODIAN_TASK_ID,
+	maybeRunMainBranchCustodian,
+	resolveCustodianModel,
+} from "./main-branch-custodian";
 import {
 	createDockerManagedSearchBackend,
 	ManagedSearchBackendController,
@@ -4761,10 +4767,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						void maybeRunMainBranchCustodian({
 							workspacePath: scope.workspacePath,
 							runReviewSession: (custodianInput) => trackedService.runSecondOpinionReviewSession(custodianInput),
-							pickCustodianModel: () => {
-								const preferred = process.env.NKLEIN_CUSTODIAN_MODEL?.trim() || "qwen3.8-flash-next";
-								return { providerId: "lmstudio", modelId: preferred };
-							},
+							pickCustodianModel: () =>
+								resolveCustodianModel({
+									preferred: process.env.NKLEIN_CUSTODIAN_MODEL?.trim() || "qwen3.8-flash-next",
+									loadRoutable: async () =>
+										excludeUnroutableDescriptors(
+											await fetchLoadedModelDescriptors(resolveDefaultLocalModelBaseUrl()).catch(
+												() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+											),
+											{ taskId: MAIN_CUSTODIAN_TASK_ID, purpose: "main-branch custodian" },
+										),
+									warn: deps.warn,
+								}),
 							fileFindingCard: async ({ title, prompt }) => {
 								const taskId = custodianFindingTaskId();
 								await retryWorkspaceStateLock(() =>
