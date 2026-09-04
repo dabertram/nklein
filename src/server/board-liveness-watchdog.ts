@@ -7,6 +7,7 @@ export type BoardLivenessWatchdogTickStage =
 	| "entered"
 	| "snapshot_loaded"
 	| "snapshot_timeout"
+	| "skipped_overlap"
 	| "scope_mismatch"
 	| "skipped"
 	| "completed"
@@ -79,10 +80,20 @@ export function startBoardLivenessWatchdog<T>(
 		}
 	};
 
+	// Ticks never overlap (audit 2026-09-04 #3): handleSnapshot awaits endpoint probes (5s listing + up to 12s
+	// completion probe per wedged session), ledger reads and board mutations, so a slow pass can outlast the
+	// interval — and every per-tick dedup set inside it is read after an await. Two overlapping passes would
+	// both pass those checks and both act. An overrun is skipped and made observable instead.
+	let tickInFlight = false;
 	const runNow = (): void => {
 		if (disposed) {
 			return;
 		}
+		if (tickInFlight) {
+			emit({ tick: tick + 1, stage: "skipped_overlap", elapsedMs: 0, reason: "previous tick still running" });
+			return;
+		}
+		tickInFlight = true;
 		const currentTick = ++tick;
 		const startedAt = now();
 		emit({ tick: currentTick, stage: "entered", elapsedMs: 0 });
@@ -146,7 +157,9 @@ export function startBoardLivenessWatchdog<T>(
 					reason: error instanceof Error ? error.message : String(error),
 				});
 			}
-		})();
+		})().finally(() => {
+			tickInFlight = false;
+		});
 	};
 
 	const timer = options.automaticTicks === false ? null : setInterval(runNow, intervalMs);

@@ -254,7 +254,9 @@ export async function resolveLoadedFallbackLaunchConfig(input: {
 }): Promise<ResolvedNKleinLaunchConfig | null> {
 	const loadedIds = await fetchLoadedModelIdsCached(input.baseUrl, input.fetchImpl).catch(() => [] as string[]);
 	for (const modelId of loadedIds) {
-		if (!modelId || FALLBACK_EMBEDDING_ID_PATTERN.test(modelId)) {
+		// Listing presence is not liveness (P0.POOLLOSS): a model the liveness ledger holds as dead stays out of
+		// the fallback too — the cached listing is exactly the surface that keeps advertising dead relays.
+		if (!modelId || FALLBACK_EMBEDDING_ID_PATTERN.test(modelId) || isModelMarkedDead(modelId)) {
 			continue;
 		}
 		try {
@@ -582,12 +584,16 @@ async function handleStartTaskSessionInner(
 			shouldReadLocalResidency && lmsPsAppliesToResidencyEndpoint
 				? await fetchLmsPsModelsCached(createDefaultLmsRunner()).catch(() => [])
 				: [];
-		const loadedModelIds = shouldReadLocalResidency
-			? mergeLoadedModelIds(
-					await fetchLoadedModelIdsCached(residencyBaseUrl),
-					loadedModelIdsFromLmsPsModels(lmsPsModelsForResidency),
-				)
-			: [];
+		// The residency view is a 30s-cached listing that returns its last-good snapshot on probe failure —
+		// subtract the liveness ledger's dead marks so a proven-dead model never reads as "loaded" here.
+		const loadedModelIds = (
+			shouldReadLocalResidency
+				? mergeLoadedModelIds(
+						await fetchLoadedModelIdsCached(residencyBaseUrl),
+						loadedModelIdsFromLmsPsModels(lmsPsModelsForResidency),
+					)
+				: []
+		).filter((modelId) => !isModelMarkedDead(modelId));
 		if (
 			residencyCheckEnabled &&
 			nkleinLaunchConfig.modelId &&
@@ -1275,6 +1281,29 @@ async function handleStartTaskSessionInner(
 		}
 		const classSelectedCandidate =
 			freeFirstSelection.type === "assign" ? (guardCandidates.get(freeFirstSelection.modelKey) ?? null) : null;
+		// The terminal fallback is the UNFILTERED primary launch config: when the ranked set came up empty because
+		// the ledger excluded everything, it must not resurrect a proven-dead (or colliding) model — refuse
+		// honestly instead (audit 2026-09-04 #6; the common shape is "the default model IS the dead one").
+		if (
+			!classSelectedCandidate &&
+			(isModelMarkedDead(selectedCandidate.entry.modelId) ||
+				collidingIdentifiers.has(selectedCandidate.entry.modelId))
+		) {
+			return {
+				ok: false,
+				summary: null,
+				error: `Model "${selectedCandidate.entry.modelId}" is ${
+					collidingIdentifiers.has(selectedCandidate.entry.modelId)
+						? "loaded on more than one LM-Link host (the gateway cannot route it)"
+						: "held as unavailable by the liveness ledger"
+				} and no other loaded model qualifies for ${body.taskId}. Load or rename a model, then start again.`,
+				errorCode: "model_not_loaded",
+				modelNotLoaded: {
+					requestedModelId: selectedCandidate.entry.modelId,
+					loadedModelIds,
+				},
+			};
+		}
 		const preferredCandidate = classSelectedCandidate ?? selectedCandidate;
 		const freeFirstModelKey =
 			runningModelKeys.has(preferredCandidate.entry.key) &&

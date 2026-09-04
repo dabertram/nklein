@@ -4,6 +4,7 @@ import { buildEditorPrompt } from "../core/architect-editor-split";
 import { foldCapturedWorkProbe } from "../core/captured-work-basis";
 import { restrictToolPoliciesForPlanning } from "../core/decompose-tool-policy";
 import { restrictToolPoliciesForVerdictSession, VERDICT_ONLY_SESSION_KINDS } from "../core/judge-tool-policy";
+import { isModelMarkedDead } from "../core/model-liveness-ledger";
 import {
 	applyModelStatsTrackingLevel,
 	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
@@ -1065,14 +1066,25 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		taskId: string;
 		persistedSnapshot?: NKleinPersistedTaskSessionSnapshot | null;
 	}): NKleinTaskRestartLaunchConfig | null {
+		// A frozen launch config that names a model the liveness ledger holds as DEAD must not be reused: every
+		// restart path (overflow recovery, bounce fork-retry, fork, sendTaskSessionInput restart) inherits this
+		// resolver, and reusing the corpse is exactly the P0.POOLLOSS 3-hour loop (audit 2026-09-04 #5).
+		// Returning null forces the caller onto the fresh-start path, whose routing consults the ledger.
 		const cached = this.launchConfigByTaskId.get(input.taskId);
 		if (cached) {
+			if (cached.modelId && isModelMarkedDead(cached.modelId)) {
+				this.launchConfigByTaskId.delete(input.taskId);
+				return null;
+			}
 			return cached;
 		}
 		const persisted = input.persistedSnapshot
 			? readKanbanLaunchConfigFromSessionRecord(input.persistedSnapshot.record)
 			: null;
 		if (!persisted) {
+			return null;
+		}
+		if (persisted.modelId && isModelMarkedDead(persisted.modelId)) {
 			return null;
 		}
 		return this.cacheLaunchConfig(input.taskId, persisted);

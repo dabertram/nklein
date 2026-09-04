@@ -799,6 +799,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	};
 	const idleReviewDispatchedByWorkspaceId = new Map<string, Set<string>>();
 	const bouncedRedriveDispatchedByWorkspaceId = new Map<string, Set<string>>();
+	/** Bounced-stranded redrives per card (audit 2026-09-04 #20): capped so a deterministically dying worker parks. */
+	const bouncedRedriveAttemptsByTaskKey = new Map<string, number>();
 	/** F4.32 content-version refs already completed/in flight for this process; persisted hashes survive restarts. */
 	const idleMemoryAuditDispatchedByWorkspaceId = new Map<string, Set<string>>();
 	const idleMemoryAuditInFlightRefs = new Set<string>();
@@ -4518,6 +4520,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// IN_PROGRESS lane ONLY: a card already in review has been (or is being) judged, and a
 						// HELD card there has an interrupted session by design (#33 stops held sessions to free
 						// the slot) — re-rescuing it would loop hold → stop → rebind → re-review forever.
+						// Cards a leg already acted on THIS tick (audit 2026-09-04 #4): later legs in the same pass
+						// (marooned reconcile, bounced/stalled redrives) must not re-judge a card whose session was
+						// just stopped-and-redriven — they would see the transient no-session state as abandonment.
+						const handledThisTick = new Set<string>();
 						const inProgressTaskIds = new Set<string>();
 						for (const column of board.columns) {
 							if (column.id !== "in_progress") {
@@ -4671,6 +4677,47 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								deps.warn(
 									`Model-pool-loss redrive cap reached for ${wedge.taskId} (${wedgedModelId} still absent) — leaving it parked for the operator.`,
 								);
+								// Make the terminal state VISIBLE (audit 2026-09-04 #10): a warn line reaches nobody; the
+								// needs-you inbox keys on review.status === "parked", so park the card there with the
+								// reason when it carries a review record (a card without one gets the observation only).
+								const cappedCard = board.columns
+									.flatMap((column) => column.cards)
+									.find((card) => card.id === wedge.taskId);
+								if (cappedCard?.review) {
+									await retryWorkspaceStateLock(() =>
+										mutateWorkspaceState(scope.workspacePath, (latestState) => ({
+											board: {
+												...latestState.board,
+												columns: latestState.board.columns.map((column) => ({
+													...column,
+													cards: column.cards.map((card) =>
+														card.id === wedge.taskId && card.review
+															? {
+																	...card,
+																	review: {
+																		...card.review,
+																		status: "parked" as const,
+																		parkedReason: `Model pool loss: ${wedgedModelId} stayed unavailable through 3 redrives — load/rename a model and restart this card.`,
+																		updatedAt: Date.now(),
+																	},
+																	updatedAt: Date.now(),
+																}
+															: card,
+													),
+												})),
+											},
+											value: null,
+										})),
+									).catch(() => null);
+								}
+								recordSelfObservation({
+									signal: "custom",
+									severity: "warning",
+									message: `Model pool loss: ${wedge.taskId} parked for the operator — ${wedgedModelId} stayed unavailable through 3 redrives.`,
+									taskId: wedge.taskId,
+									workspacePath: scope.workspacePath,
+									metadata: { category: "model_pool_loss", modelId: wedgedModelId, reason: "redrive_cap" },
+								});
 								continue;
 							}
 							const wedgedCard = board.columns
@@ -4701,7 +4748,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							deps.warn(
 								`Model pool loss: redriving ${wedge.taskId} via Auto routing (was wedged on vanished ${wedgedModelId}).`,
 							);
-							autoStartTaskIds(scope, [wedge.taskId], { bypassDurableGuard: true });
+							// AWAITED (audit 2026-09-04 #4): un-awaited, execution fell straight through to the marooned
+							// reconcile later in this same tick, which saw the just-stopped session and moved the card
+							// while the redrive was still resolving.
+							await autoStartTaskIds(scope, [wedge.taskId], { bypassDurableGuard: true });
+							handledThisTick.add(wedge.taskId);
 						}
 						// F2.35 main-branch custodian (David 2026-09-04: "some role should keep reviewing main/merged
 						// work"): fire-and-forget sweep — reviews the integration branch's new merge range on a strong
@@ -4992,6 +5043,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								(card) =>
 									!busySessionTaskIds.has(card.id) &&
 									!pausedSessionTaskIds.has(card.id) &&
+									!handledThisTick.has(card.id) &&
 									Date.now() - (card.updatedAt ?? 0) > 90_000,
 							);
 						if (maroonedCard) {
@@ -5116,11 +5168,57 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								bouncedRedriveDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
 							const bouncedStranded = findBouncedStrandedReviewTaskIds(
 								board,
-								activelyHandledTaskIds,
+								new Set([...activelyHandledTaskIds, ...handledThisTick]),
 								bounceRedriven,
 							);
 							const bouncedTaskId = bouncedStranded[0];
 							if (bouncedTaskId !== undefined) {
+								const bounceAttemptKey = `${scope.workspaceId}:${bouncedTaskId}`;
+								const bounceAttempts = (bouncedRedriveAttemptsByTaskKey.get(bounceAttemptKey) ?? 0) + 1;
+								bouncedRedriveAttemptsByTaskKey.set(bounceAttemptKey, bounceAttempts);
+								if (bounceAttempts > 2) {
+									// Strike cap (audit 2026-09-04 #20): two redrives that both died mean the worker dies
+									// deterministically on this card — stop burning slots and hand it to the operator.
+									bounceRedriven.add(bouncedTaskId);
+									bouncedRedriveDispatchedByWorkspaceId.set(scope.workspaceId, bounceRedriven);
+									deps.warn(
+										`Board-liveness watchdog: bounced review card ${bouncedTaskId} died on ${bounceAttempts - 1} redrives — parking it for the operator.`,
+									);
+									await retryWorkspaceStateLock(() =>
+										mutateWorkspaceState(scope.workspacePath, (latestState) => ({
+											board: {
+												...latestState.board,
+												columns: latestState.board.columns.map((column) => ({
+													...column,
+													cards: column.cards.map((card) =>
+														card.id === bouncedTaskId && card.review
+															? {
+																	...card,
+																	review: {
+																		...card.review,
+																		status: "parked" as const,
+																		parkedReason: `The worker died on ${bounceAttempts - 1} automatic redrives after review requested changes — the re-work needs a human look.`,
+																		updatedAt: Date.now(),
+																	},
+																	updatedAt: Date.now(),
+																}
+															: card,
+													),
+												})),
+											},
+											value: null,
+										})),
+									).catch(() => null);
+									recordSelfObservation({
+										signal: "custom",
+										severity: "warning",
+										message: `Bounced-stranded redrive cap reached for ${bouncedTaskId} (${bounceAttempts - 1} redrives died) — parked for the operator.`,
+										taskId: bouncedTaskId,
+										workspacePath: scope.workspacePath,
+										metadata: { category: "board_liveness_watchdog", bouncedRedriveCapTaskId: bouncedTaskId },
+									});
+									return;
+								}
 								bounceRedriven.add(bouncedTaskId);
 								bouncedRedriveDispatchedByWorkspaceId.set(scope.workspaceId, bounceRedriven);
 								if (!nightlyHermetic) {
@@ -5147,7 +5245,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								});
 								void (async () => {
 									await trackedService.stopTaskSession(bouncedTaskId).catch(() => null);
-									await runtimeApi
+									const started = await runtimeApi
 										.startTaskSession(scope, {
 											taskId: bouncedTaskId,
 											prompt: bouncedCard?.prompt ?? "",
@@ -5156,6 +5254,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 											agentId: bouncedCard?.agentId ?? "nklein",
 										})
 										.catch(() => null);
+									// A refused start is NOT a dispatch (audit 2026-09-04 #13): the single-flight guard's
+									// start_in_flight (or any other refusal) used to leave the 15-minute dedup armed while
+									// nothing had actually started. Roll the dedup and the strike back so the next tick
+									// retries instead of waiting out a redrive that never happened.
+									if (!started || started.ok !== true) {
+										bouncedRedriveDispatchedByWorkspaceId.get(scope.workspaceId)?.delete(bouncedTaskId);
+										bouncedRedriveAttemptsByTaskKey.set(bounceAttemptKey, Math.max(0, bounceAttempts - 1));
+										deps.warn(
+											`Board-liveness watchdog: bounced redrive of ${bouncedTaskId} was refused (${started?.errorCode ?? started?.error ?? "no response"}) — dedup released for the next tick.`,
+										);
+									}
 								})();
 								return; // one action per tick — the rescue below runs on the next tick if still needed
 							}
