@@ -2067,17 +2067,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   outcome) instead of hanging on DNS/TCP timeouts.
   Plus two live-found siblings: the classifier's BUSY≠dead guard (`c4d359125`) and parked-on-400 → ledger mark
   with served-token recovery (`c587d1970`), and cross-host identifier collisions excluded (`f33325410`).
-  **REMAINING:** (8) endpoint-keyed ledger marks; (9) P0.QWAIT one-liner; (11) marks over tRPC + fleet strip
+  **REMAINING:** (8) endpoint-keyed ledger marks; (11) marks over tRPC + fleet strip
   row; (12) persisted, success-cleared recovery budgets; (14-16) custodian model gate / trust origin /
   persisted commit mark; (17-18) sandbox dispose clear + prepare ownership; (19) blockedKind auto-clear
   observation; (23) DAG node search; (24) board-card memoization; (25) unit tests for the guard, auto-pool
   and an extracted wedge classifier.
 
-- [ ] **P0.QWAIT — Queue-wait burns the conversation-timeout budget.** *(Live 2026-09-03 ~08:00, v31:
+- [x] **P0.QWAIT — Queue-wait burns the conversation-timeout budget.** *(Live 2026-09-03 ~08:00, v31:
   s44 parked "conversation timeout after 28800 seconds" — the session spent most of those 8h WAITING for
-  endpoint capacity behind other cards on the same serialized host, not conversing. Admission wait must pause
-  the conversation clock (or the timeout should measure active-turn time only) — on a saturated fleet every
-  long-queued card eventually times out through no fault of its own.)*
+  endpoint capacity behind other cards on the same serialized host, not conversing.)* **SHIPPED 2026-09-05:**
+  every admission-wait tick re-arms the conversation budget exactly like it already re-armed the stream window
+  (`recordModelTurnAdmissionWait`), so the budget measures conversing from admission, not queue depth. Test:
+  primary start held in the gate with a 400ms budget, wait tick at 300ms → still running at 600ms, fires 400ms
+  after the tick (fails without the fix with "awaiting_review" at 600ms).
 
 - [ ] **P0.CTX500 — An engine "Context size has been exceeded" 500 parks the card instead of triggering a
   context-shrink retry.** *(Live 2026-09-03 ~05:00, v31 factory: ornith-local-9b (65k window) as WORKER on

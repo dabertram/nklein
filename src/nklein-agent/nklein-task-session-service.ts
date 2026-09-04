@@ -1526,8 +1526,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// wait hours before its first token, and the stream-inactivity timeout (reset only by streamed tokens)
 		// killed exactly such turns (live 2026-08-30: mi-l1-types + s41 both died at 3600s with last activity
 		// "Waiting for model capacity", then needed maroon-salvage). Re-arm the stream window on every wait tick
-		// so it measures silence AFTER admission, not queue depth.
+		// so it measures silence AFTER admission, not queue depth. The CONVERSATION budget re-arms for the same
+		// reason (P0.QWAIT, live 2026-09-03: s44 parked "conversation timeout after 28800 seconds" having spent
+		// most of it queued behind other cards on the serialized host) — the budget bounds conversing, not waiting.
 		this.timeoutController.scheduleStreamTimeout(taskId);
+		this.timeoutController.scheduleConversationTimeout(taskId);
 		const activityText = `Waiting for model capacity — ${reason}`;
 		this.emitSummary(
 			updateSummary(entry, {

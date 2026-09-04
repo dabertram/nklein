@@ -1884,6 +1884,58 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		).toBe(true);
 	});
 
+	it("re-arms the conversation budget on every admission-wait tick so queue time is not conversation time (P0.QWAIT)", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const gateEntered = createDeferred<void>();
+		const gateRelease = createDeferred<void>();
+		const gateRequests: NKleinModelTurnAdmissionRequest[] = [];
+		// The PRIMARY start is the path that parked s44 live: its conversation budget is armed before the SDK start
+		// enters admission, so a long queue wait burned the whole budget before the first token.
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			modelTurnAdmissionGate: async (request, run) => {
+				gateRequests.push(request);
+				gateEntered.resolve();
+				await gateRelease.promise;
+				return await run();
+			},
+			allowUnisolatedTestRuntime: true,
+		});
+		services.push(service);
+		const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+		const startPromise = service
+			.startTaskSession({
+				taskId: "task-queued-budget",
+				cwd: "/tmp/worktree",
+				prompt: "Investigate queued budget",
+				providerId: "lmstudio",
+				modelId: "qwen3-8b",
+				baseUrl: "http://127.0.0.1:1234/v1",
+				conversationTimeoutMs: 400,
+			})
+			.catch(() => undefined);
+		await gateEntered.promise;
+		// 300ms into a 400ms budget the queue reports a wait tick: the budget must restart from here.
+		await sleep(300);
+		await gateRequests[0]?.onWaiting?.({
+			reason:
+				'LM Studio host "local" is at its 1 concurrent-session cap; another !Klein task on this host must finish first.',
+			retryAfterMs: null,
+		});
+		await sleep(300);
+		expect(service.getSummary("task-queued-budget")?.state).toBe("running");
+		expect(service.getSummary("task-queued-budget")?.warningMessage ?? "").not.toContain("conversation timeout");
+		// …and it is a re-arm, not a cancel: 400ms after the last wait tick the budget still fires.
+		await waitForSettled(() => {
+			expect(service.getSummary("task-queued-budget")?.warningMessage).toContain("conversation timeout");
+		});
+		gateRelease.resolve();
+		await startPromise;
+	});
+
 	it("keeps an in-place model override authoritative for the next unqualified re-drive", async () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const service = createDiagnosticIsolatedService({
