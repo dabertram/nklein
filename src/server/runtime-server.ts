@@ -6353,6 +6353,35 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		getLoadedScopedNKleinTaskSessionService: (workspaceScope) =>
 			nkleinTaskSessionServiceByWorkspaceId.get(workspaceScope.workspaceId) ?? null,
 		getDispatchReservationSnapshot: () => dispatchReservations.snapshot(),
+		// Un-park handle (2026-09-05): re-run the review of a card the operator un-parked, with the same
+		// delivered→finalize cascade the stalled-review rescue uses (a detached review that delivers without the
+		// finalize strands the approved card in Review).
+		dispatchReview: async (workspaceScope, taskId) => {
+			const service = nkleinTaskSessionServiceByWorkspaceId.get(workspaceScope.workspaceId) ?? null;
+			if (!service) {
+				return false;
+			}
+			void runSecondOpinionReviewForTask({
+				workspacePath: workspaceScope.workspacePath,
+				taskId,
+				service,
+				warn: deps.warn,
+				onRedecomposeCardSpawned: async (redecomposeTaskId) => {
+					await autoStartTaskIds(workspaceScope, [redecomposeTaskId], { bypassDurableGuard: true });
+				},
+			})
+				.then((outcome) => {
+					if (outcome.type === "delivered") {
+						finalizeHeadlessAutoReviewTask(workspaceScope, service, taskId);
+					}
+				})
+				.catch((error) => {
+					deps.warn(
+						`Un-parked review dispatch for ${taskId} errored: ${error instanceof Error ? error.message : String(error)}`,
+					);
+				});
+			return true;
+		},
 		getSandboxWorkspaceReadTools: async (session, workspacePath) => {
 			if (agentSandboxStatus.state !== "ready") {
 				return null;

@@ -57,6 +57,12 @@ function fakeDeps(overrides: Partial<NKleinControlDeps> = {}): NKleinControlDeps
 						skipped: [],
 					};
 		},
+		unparkReview: async (taskId) => {
+			calls.push(`unpark:${taskId}`);
+			return taskId === "card-1"
+				? { ok: true, previousParkedReason: "Review is looping", dispatched: true, error: null }
+				: { ok: false, previousParkedReason: null, dispatched: false, error: "card is not a parked review card" };
+		},
 		...overrides,
 	};
 }
@@ -146,6 +152,17 @@ describe("nklein_control (F2.30 chat-as-control-plane)", () => {
 			"redecompose:card:card-9",
 			"redecompose:project_unfinished:*",
 		]);
+	});
+
+	it("unpark_review clears a parked review through the executor and reports the prior park", async () => {
+		const deps = fakeDeps();
+		expect(await runTool(deps, "unpark_review", {})).toContain("requires a non-empty `taskId`");
+		const ok = await runTool(deps, "unpark_review", { taskId: "card-1" });
+		expect(ok).toContain("Un-parked [card-1] and re-dispatched its review");
+		expect(ok).toContain("was parked: Review is looping");
+		const refused = await runTool(deps, "unpark_review", { taskId: "card-9" });
+		expect(refused).toContain("Could not un-park [card-9]: card is not a parked review card");
+		expect(deps.calls).toEqual(["unpark:card-1", "unpark:card-9"]);
 	});
 
 	it("an unknown action names the valid interface instead of failing silently", async () => {

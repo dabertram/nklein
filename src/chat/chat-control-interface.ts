@@ -52,6 +52,13 @@ export interface NKleinControlDeps {
 		filed: readonly { taskId: string; redecomposeTaskId: string; title: string; started: boolean }[];
 		skipped: readonly { taskId: string; reason: string }[];
 	}>;
+	/** Un-park a review-lane card (2026-09-05): clear the park and re-dispatch its review. */
+	unparkReview: (taskId: string) => Promise<{
+		ok: boolean;
+		previousParkedReason: string | null;
+		dispatched: boolean;
+		error: string | null;
+	}>;
 }
 
 export interface NKleinControlAction {
@@ -226,6 +233,26 @@ export function buildNKleinControlRegistry(): readonly NKleinControlAction[] {
 				]
 					.filter(Boolean)
 					.join("\n\n");
+			},
+		},
+		{
+			name: "unpark_review",
+			description:
+				"Un-park a review-lane card that was parked for a human decision (no verdict / review loop / integration gate): clears the park and re-runs the review. Use after the underlying cause (dead reviewer model, fleet change) is fixed.",
+			params: { taskId: { type: "string", description: "The parked review-lane card id." } },
+			required: ["taskId"],
+			execute: async (deps, params) => {
+				const taskId = requireString(params, "taskId");
+				if (!taskId) {
+					return "unpark_review requires a non-empty `taskId`.";
+				}
+				const result = await deps.unparkReview(taskId);
+				if (!result.ok) {
+					return `Could not un-park [${taskId}]: ${result.error ?? "no reason given"}.`;
+				}
+				return `Un-parked [${taskId}]${result.dispatched ? " and re-dispatched its review" : " — the watchdog picks up the review on its next pass"}${
+					result.previousParkedReason ? ` (was parked: ${result.previousParkedReason.slice(0, 160)})` : ""
+				}.`;
 			},
 		},
 	];

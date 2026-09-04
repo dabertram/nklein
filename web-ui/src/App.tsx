@@ -1449,6 +1449,26 @@ export default function App(): ReactElement {
 									reasoningSnippet={reasoningSnippetByTaskId[selectedCard.card.id]}
 									onOpenFullDetail={() => setSheetExpandedTaskId(selectedCard.card.id)}
 									onBack={handleBack}
+									onUnparkReview={
+										currentProjectId
+											? () => {
+													const taskId = selectedCard.card.id;
+													void getRuntimeTrpcClient(currentProjectId)
+														.runtime.unparkReview.mutate({ taskId })
+														.then((result) => {
+															showAppToast({
+																message: result.ok
+																	? `Un-parked ${taskId}${result.dispatched ? " — review re-dispatched" : " — the watchdog re-runs the review"}`
+																	: `Could not un-park: ${result.error ?? "unknown reason"}`,
+																intent: result.ok ? "success" : "warning",
+															});
+														})
+														.catch((error: unknown) =>
+															notifyError(error instanceof Error ? error.message : String(error)),
+														);
+												}
+											: undefined
+									}
 									onSplitCard={
 										currentProjectId
 											? () => {

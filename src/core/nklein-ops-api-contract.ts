@@ -79,6 +79,23 @@ export const runtimeBoardScheduleResponseSchema = z.object({
 });
 export type RuntimeBoardScheduleResponse = z.infer<typeof runtimeBoardScheduleResponseSchema>;
 
+// Un-park a review (2026-09-05): a card parked "for a human decision" (no-verdict / review-loop / integration
+// gate) had NO operator handle at all — the only way forward was a manual stop→start worker redrive, which
+// re-does the work instead of re-running the judgment. This clears the park and re-dispatches the review.
+export const runtimeUnparkReviewRequestSchema = z.object({
+	taskId: z.string().min(1),
+});
+export type RuntimeUnparkReviewRequest = z.infer<typeof runtimeUnparkReviewRequestSchema>;
+export const runtimeUnparkReviewResponseSchema = z.object({
+	ok: z.boolean(),
+	/** What the park said, for the operator's record. */
+	previousParkedReason: z.string().nullable(),
+	/** Whether the review was re-dispatched immediately (false ⇒ the watchdog's rescue picks it up). */
+	dispatched: z.boolean(),
+	error: z.string().nullable(),
+});
+export type RuntimeUnparkReviewResponse = z.infer<typeof runtimeUnparkReviewResponseSchema>;
+
 export const runtimeNKleinAdvisorKindSchema = z.enum([
 	"model_freshness",
 	"mcp_discovery",

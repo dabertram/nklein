@@ -186,6 +186,8 @@ import {
 	runtimeTaskWorktreeMergeResponseSchema,
 	runtimeTimeTrackingResponseSchema,
 	runtimeTrustPostureResponseSchema,
+	runtimeUnparkReviewRequestSchema,
+	runtimeUnparkReviewResponseSchema,
 	runtimeUpdateStatusResponseSchema,
 } from "../../core/api-contract";
 import { runtimeFieldReportCandidatesResponseSchema } from "../../core/field-report-api-contract";
@@ -717,6 +719,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		getBoardSchedule: t.procedure.output(runtimeBoardScheduleResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getBoardSchedule(ctx.workspaceScope);
 		}),
+		unparkReview: t.procedure
+			.input(runtimeUnparkReviewRequestSchema)
+			.output(runtimeUnparkReviewResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.unparkReview(ctx.workspaceScope, input);
+			}),
 		buildNKleinModelFreshnessAdvisor: t.procedure.output(runtimeNKleinAdvisorRequestSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.buildNKleinModelFreshnessAdvisor(ctx.workspaceScope);
 		}),

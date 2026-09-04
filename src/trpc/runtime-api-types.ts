@@ -33,6 +33,14 @@ export interface CreateRuntimeApiDependencies {
 	/** F4.53 read-only clone of in-flight dispatch holds for the fleet resource panel. */
 	getDispatchReservationSnapshot?: () => { taskId: string; requests: ReservationRequest[] }[];
 	/**
+	 * Re-dispatch a review-lane card's second-opinion review (2026-09-05, the un-park handle). Owned by the
+	 * runtime server because a DELIVERED verdict needs its finalize cascade. Resolves true when dispatched.
+	 */
+	dispatchReview?: (
+		workspaceScope: { workspaceId: string; workspacePath: string },
+		taskId: string,
+	) => Promise<boolean>;
+	/**
 	 * F12.53 fix (review-found): pushes the refreshed board state to connected clients after a mutation the
 	 * websocket hub doesn't observe itself — without it, an on-demand Verify run persisted `card.verification`
 	 * but the board (and the Commit/PR warn-gate reading it) kept the STALE value until an unrelated refresh.

@@ -38,6 +38,7 @@ export function CardSheet({
 	onOpenFullDetail,
 	onBack,
 	onSplitCard,
+	onUnparkReview,
 }: {
 	selection: CardSelection;
 	session: RuntimeTaskSessionSummary | null;
@@ -48,6 +49,8 @@ export function CardSheet({
 	onBack: () => void;
 	/** Explicit re-decompose (David 2026-09-04): split THIS card into smaller cards. Absent ⇒ no button. */
 	onSplitCard?: () => void;
+	/** Un-park (2026-09-05): clear a "parked for a human decision" review and re-run the judgment. */
+	onUnparkReview?: () => void;
 }): React.ReactElement {
 	const { card, column } = selection;
 	const title = card.title?.trim() || card.prompt.trim().split("\n")[0] || "Untitled card";
@@ -100,6 +103,17 @@ export function CardSheet({
 					<Button variant="ghost" size="sm" icon={<ArrowLeft size={14} />} onClick={onBack}>
 						Back
 					</Button>
+					{onUnparkReview && column.id === "review" && card.review?.status === "parked" ? (
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={onUnparkReview}
+							data-testid="card-sheet-unpark"
+							title={`Clear the park and re-run the review${card.review?.parkedReason ? ` (parked: ${card.review.parkedReason})` : ""}`}
+						>
+							Un-park & re-review
+						</Button>
+					) : null}
 					{onSplitCard && column.id !== "completed" && column.id !== "trash" ? (
 						<Button
 							variant="ghost"

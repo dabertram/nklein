@@ -13,6 +13,7 @@ function fakeDeps(): NKleinControlDeps {
 		listSessions: async () => [],
 		setMaxConcurrentTasks: async () => true,
 		requestRedecompose: async () => ({ filed: [], skipped: [] }),
+		unparkReview: async () => ({ ok: true, previousParkedReason: null, dispatched: true, error: null }),
 	};
 }
 

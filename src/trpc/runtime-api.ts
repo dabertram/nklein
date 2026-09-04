@@ -101,6 +101,8 @@ import type {
 	RuntimeModelEvalSummary,
 	RuntimeRedecomposeRequest,
 	RuntimeRedecomposeResponse,
+	RuntimeUnparkReviewRequest,
+	RuntimeUnparkReviewResponse,
 } from "../core/nklein-ops-api-contract";
 import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import { summarizeOpportunisticValue } from "../core/opportunistic-work-value";
@@ -620,6 +622,15 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							};
 						},
 						stopCard: async (taskId) => (await apiSelf?.stopTaskSession(scope, { taskId }))?.ok === true,
+						unparkReview: async (taskId) =>
+							apiSelf
+								? await apiSelf.unparkReview(scope, { taskId })
+								: {
+										ok: false,
+										previousParkedReason: null,
+										dispatched: false,
+										error: "the runtime API is not ready",
+									},
 						pauseCard: async (taskId) => (await apiSelf?.pauseTask(scope, { taskId }))?.ok === true,
 						resumeCard: async (taskId) => (await apiSelf?.resumeTask(scope, { taskId }))?.ok === true,
 						listSessions: async () => {
@@ -1974,6 +1985,76 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				generatedAt: Date.now(),
 				tasks: [...byTask.entries()].map(([taskId, entry]) => ({ taskId, ...entry })),
 			};
+		},
+		// Un-park a review (2026-09-05): parked cards ("for a human decision") had no operator handle except a
+		// worker stop→start that RE-DOES the work. This clears the park (history kept — the loop detector still
+		// sees prior rounds) and re-dispatches the judgment through the runtime server's review path.
+		unparkReview: async (workspaceScope, input: RuntimeUnparkReviewRequest): Promise<RuntimeUnparkReviewResponse> => {
+			if (!workspaceScope) {
+				return { ok: false, previousParkedReason: null, dispatched: false, error: "no active workspace" };
+			}
+			const { workspacePath } = workspaceScope;
+			const state = await loadWorkspaceState(workspacePath);
+			const located = state.board.columns
+				.map((column) => ({ columnId: column.id, card: column.cards.find((card) => card.id === input.taskId) }))
+				.find((entry) => entry.card !== undefined);
+			if (!located?.card) {
+				return { ok: false, previousParkedReason: null, dispatched: false, error: "card not found on the board" };
+			}
+			if (located.columnId !== "review") {
+				return {
+					ok: false,
+					previousParkedReason: null,
+					dispatched: false,
+					error: `card is in ${located.columnId}, not the review lane`,
+				};
+			}
+			const review = located.card.review;
+			if (!review || review.status !== "parked") {
+				return {
+					ok: false,
+					previousParkedReason: null,
+					dispatched: false,
+					error: review ? `review status is ${review.status}, not parked` : "card has no review record to un-park",
+				};
+			}
+			const previousParkedReason = review.parkedReason ?? null;
+			const now = Date.now();
+			await retryWorkspaceStateLock(() =>
+				mutateWorkspaceState(workspacePath, (current) => ({
+					board: {
+						...current.board,
+						columns: current.board.columns.map((column) => ({
+							...column,
+							cards: column.cards.map((card) =>
+								card.id === input.taskId && card.review
+									? {
+											...card,
+											review: {
+												...card.review,
+												status: "in_review" as const,
+												parkedReason: null,
+												updatedAt: now,
+											},
+											updatedAt: now,
+										}
+									: card,
+							),
+						})),
+					},
+					value: null,
+				})),
+			);
+			const dispatched = (await deps.dispatchReview?.(workspaceScope, input.taskId).catch(() => false)) ?? false;
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Review un-parked for ${input.taskId}${dispatched ? " and re-dispatched" : " (no dispatcher — the watchdog rescue picks it up)"}; was parked: ${previousParkedReason ?? "(no reason recorded)"}.`,
+				taskId: input.taskId,
+				workspacePath,
+				metadata: { category: "review_unparked", dispatched, previousParkedReason },
+			});
+			return { ok: true, previousParkedReason, dispatched, error: null };
 		},
 		buildNKleinModelFreshnessAdvisor: async (_workspaceScope) => {
 			return await buildNKleinModelFreshnessAdvisorRequest();

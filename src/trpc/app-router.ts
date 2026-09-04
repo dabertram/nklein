@@ -221,6 +221,8 @@ import type {
 	RuntimeTaskWorktreeMergeResponse,
 	RuntimeTimeTrackingResponse,
 	RuntimeTrustPostureResponse,
+	RuntimeUnparkReviewRequest,
+	RuntimeUnparkReviewResponse,
 	RuntimeUpdateStatusResponse,
 	RuntimeWorkspaceChangesRequest,
 	RuntimeWorkspaceChangesResponse,
@@ -582,6 +584,11 @@ export interface RuntimeTrpcContext {
 		) => Promise<RuntimeRedecomposeResponse>;
 		/** Per-task observed attempt time + estimated difficulty for the DAG's durations/ETA/critical path. */
 		getBoardSchedule: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeBoardScheduleResponse>;
+		/** Un-park a review-lane card (2026-09-05): clear the park and re-dispatch the review. */
+		unparkReview: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeUnparkReviewRequest,
+		) => Promise<RuntimeUnparkReviewResponse>;
 		buildNKleinModelFreshnessAdvisor: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeNKleinAdvisorRequest>;

@@ -132,6 +132,15 @@ export function createHttpNKleinControlDeps(options: {
 			await post("runtime.saveConfig", { maxConcurrentTasks: value });
 			return true;
 		},
+		unparkReview: async (taskId) => {
+			const data = await post("runtime.unparkReview", { taskId });
+			return {
+				ok: data.ok === true,
+				previousParkedReason: typeof data.previousParkedReason === "string" ? data.previousParkedReason : null,
+				dispatched: data.dispatched === true,
+				error: typeof data.error === "string" ? data.error : null,
+			};
+		},
 		requestRedecompose: async (input) => {
 			const data = await post("runtime.requestRedecompose", input);
 			return {
