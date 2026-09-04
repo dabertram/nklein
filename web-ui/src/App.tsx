@@ -1260,7 +1260,7 @@ export default function App(): ReactElement {
 																notifyError(error instanceof Error ? error.message : String(error)),
 															);
 													}}
-													className="inline-flex items-center gap-1 rounded-lg border border-border-bright bg-surface-2 px-2.5 py-1 text-[12px] text-text-tertiary hover:text-text-primary"
+													className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-border-bright bg-surface-2 px-2.5 py-1 text-[12px] text-text-tertiary hover:text-text-primary"
 												>
 													split unfinished
 												</button>
