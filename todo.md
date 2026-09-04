@@ -2041,6 +2041,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   zoom/pan (fixed 2026-09-04); (23) DAG node tooltips/aria/search; (24) board-card has no memoization (80+
   cards re-render every tick); (25) no unit tests for the single-flight guard, worker auto-pool widening, wedge
   classifier probe (extract to `src/core/wedge-model-classifier.ts` with injected fetch).
+  **▶ 2026-09-05 SHIPPED (`f6aee1c1e` + same-day predecessors):** (3) watchdog overlap guard; (4) awaited redrive
+  + per-tick `handledThisTick` consulted by the marooned reconcile and the bounced leg; (5) restart configs
+  return null for ledger-dead models; (6) terminal fallback refuses dead/colliding primaries; (7) loaded
+  fallback skips dead marks; (10) pool-loss strike cap parks visibly; (13) refused bounced redrive releases
+  its dedup; (20) bounced redrive strike cap (2) parks; (21) residency minus dead marks; (22) DAG pan/zoom.
+  Plus two live-found siblings: the classifier's BUSY≠dead guard (`c4d359125`) and parked-on-400 → ledger mark
+  with served-token recovery (`c587d1970`), and cross-host identifier collisions excluded (`f33325410`).
+  **REMAINING:** (8) endpoint-keyed ledger marks; (9) P0.QWAIT one-liner; (11) marks over tRPC + fleet strip
+  row; (12) persisted, success-cleared recovery budgets; (14-16) custodian model gate / trust origin /
+  persisted commit mark; (17-18) sandbox dispose clear + prepare ownership; (19) blockedKind auto-clear
+  observation; (23) DAG node search; (24) board-card memoization; (25) unit tests for the guard, auto-pool
+  and an extracted wedge classifier.
 
 - [ ] **P0.QWAIT — Queue-wait burns the conversation-timeout budget.** *(Live 2026-09-03 ~08:00, v31:
   s44 parked "conversation timeout after 28800 seconds" — the session spent most of those 8h WAITING for

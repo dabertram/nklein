@@ -5258,7 +5258,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									// start_in_flight (or any other refusal) used to leave the 15-minute dedup armed while
 									// nothing had actually started. Roll the dedup and the strike back so the next tick
 									// retries instead of waiting out a redrive that never happened.
-									if (!started || started.ok !== true) {
+									if (started?.ok !== true) {
 										bouncedRedriveDispatchedByWorkspaceId.get(scope.workspaceId)?.delete(bouncedTaskId);
 										bouncedRedriveAttemptsByTaskKey.set(bounceAttemptKey, Math.max(0, bounceAttempts - 1));
 										deps.warn(
