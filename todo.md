@@ -3045,6 +3045,18 @@ These are known defects or incomplete migrations. Clear them before widening cap
   the fast lane: EITHER unload the local LM Studio 27B (fleet has three others) and rerun mlx-serve with ctx
   40960 + `--prefix-cache-mem 512MB`, THEN A/B on a 35k-token factory prompt (the number that matters), OR
   wait for a smaller pack (a 3-bit MLX-Serve build would sit ~55GB). Decision = David's (loads/unloads).
+  **▶ 2026-09-04 evening — FLASH-NEXT NOW SERVED BY LM STUDIO (David: "is flash next ready2use for lmlink
+  hosts .. on the new m1?"):** the standalone llama-server is retired; `lms load qwen3.8-flash-next --identifier
+  qwen3.8-flash-next --context-length 65536 --gpu max` (engine 2.33.0, 89.99GB, parallel 4) after unloading
+  the JIT-loaded local 27B (LM Studio's guardrail refused the load beside it: "~89.53 GB would overload").
+  It now RELAYS over LM-Link: every fleet host (M1 = ABT-C-00335, m4mini, legion) uses it as
+  `qwen3.8-flash-next` against its OWN local gateway `http://localhost:1234/v1` — no direct route needed on
+  the isolated hotspot. The rig tee-proxy (:8081) routes everything to :1234 and synthesizes /slots from its
+  in-flight counter (backup of the llama.cpp version: `tee-proxy.py.bak-llamacpp`). Cost: no ngram/MTP
+  speculation in LM Studio (decode measured below). The mlx-serve fast lane stays a documented option.
+  GOTCHA (product-relevant, P0.POOLLOSS-adjacent): a remote LM-Link model id that ALSO exists in the local
+  downloads gets JIT-LOADED LOCALLY by LM Studio when !Klein routes to it — that is how the 29.5GB 27B
+  appeared on the m5max uninvited. Registry seeds for remote ids should avoid colliding with local catalog ids.
 
 - [ ] **F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can target the SMALLEST
   model tier that can do each card (David 2026-09-04: "find out which cards can be done by a 9b model .. which
