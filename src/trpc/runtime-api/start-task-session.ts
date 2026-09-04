@@ -1029,20 +1029,60 @@ async function handleStartTaskSessionInner(
 		// trusted — the gateway advertises dead relays and queues their requests forever — so routing must
 		// exclude marked models until the TTL re-admits them or a recovery probe clears the mark.
 		const allGuardCandidatesUnfiltered = [...guardCandidates.values()];
+		// Fleet IDENTIFIER COLLISION (live 2026-09-04): the same identifier loaded on two LM-Link hosts (legion
+		// and the new M1 both served `dirk-qwen3.8-27b`) makes the gateway answer every request with
+		// "Failed to resolve model metadata for <id>" (internal_error) — it cannot pick a host. Such an id is
+		// unroutable until one host renames its instance; routing excludes it and says so once per start.
+		const machinesByIdentifier = new Map<string, Set<string>>();
+		for (const model of lmsPsModelsForResidency) {
+			const machines = machinesByIdentifier.get(model.identifier) ?? new Set<string>();
+			machines.add(model.machineId);
+			machinesByIdentifier.set(model.identifier, machines);
+		}
+		const collidingIdentifiers = new Set(
+			[...machinesByIdentifier.entries()].filter(([, machines]) => machines.size > 1).map(([id]) => id),
+		);
 		const allGuardCandidates = allGuardCandidatesUnfiltered.filter(
-			(candidate) => !isModelMarkedDead(candidate.entry.modelId),
+			(candidate) =>
+				!isModelMarkedDead(candidate.entry.modelId) && !collidingIdentifiers.has(candidate.entry.modelId),
 		);
 		if (allGuardCandidates.length < allGuardCandidatesUnfiltered.length) {
-			const excluded = allGuardCandidatesUnfiltered
+			const excludedDead = allGuardCandidatesUnfiltered
 				.filter((candidate) => isModelMarkedDead(candidate.entry.modelId))
 				.map((candidate) => candidate.entry.modelId);
-			recordSelfObservation({
-				signal: "custom",
-				severity: "info",
-				message: `Routing for ${body.taskId} excluded ${excluded.length} liveness-ledger-dead model(s): ${[...new Set(excluded)].join(", ")}.`,
-				taskId: body.taskId,
-				metadata: { category: "model_pool_loss", excludedModelIds: [...new Set(excluded)] },
-			});
+			if (excludedDead.length > 0) {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Routing for ${body.taskId} excluded ${excludedDead.length} liveness-ledger-dead model(s): ${[...new Set(excludedDead)].join(", ")}.`,
+					taskId: body.taskId,
+					metadata: { category: "model_pool_loss", excludedModelIds: [...new Set(excludedDead)] },
+				});
+			}
+			const excludedColliding = [
+				...new Set(
+					allGuardCandidatesUnfiltered
+						.filter((candidate) => collidingIdentifiers.has(candidate.entry.modelId))
+						.map((candidate) => candidate.entry.modelId),
+				),
+			];
+			if (excludedColliding.length > 0) {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "warning",
+					message: `Routing for ${body.taskId} excluded ${excludedColliding.length} identifier(s) loaded on more than one LM-Link host — the gateway cannot route them ("Failed to resolve model metadata"): ${excludedColliding
+						.map((id) => `${id} on ${[...(machinesByIdentifier.get(id) ?? [])].join("+")}`)
+						.join(", ")}. Rename the instance on one host (e.g. lms load … --identifier <id>@<host>).`,
+					taskId: body.taskId,
+					metadata: {
+						category: "fleet_identifier_collision",
+						identifiers: excludedColliding,
+						machinesByIdentifier: Object.fromEntries(
+							excludedColliding.map((id) => [id, [...(machinesByIdentifier.get(id) ?? [])]]),
+						),
+					},
+				});
+			}
 		}
 		const cardRoleGuardCandidates = allGuardCandidates.filter((candidate) => candidate.role === cardRole);
 		// F2.34 (David 2026-09-03, "use all available option per host"): when the worker auto-pool is ON, the

@@ -1192,6 +1192,9 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"model_pool_loss",
 	// Explicit re-decompose (2026-09-04): the operator filed a decompose card for one card / every unfinished card.
 	"explicit_redecompose",
+	// Fleet identifier collision (2026-09-04): one identifier loaded on 2+ LM-Link hosts — the gateway answers
+	// "Failed to resolve model metadata" for it, so routing excludes it until one host renames its instance.
+	"fleet_identifier_collision",
 	// Exploration-drift nudge (2026-09-01): plan-mode session made no graph progress for the threshold window.
 	"decomposition_exploration_drift",
 	"agent_sandbox_result_cleanup",
