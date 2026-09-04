@@ -2010,7 +2010,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				};
 			}
 			const review = located.card.review;
-			if (!review || review.status !== "parked") {
+			if (review?.status !== "parked") {
 				return {
 					ok: false,
 					previousParkedReason: null,

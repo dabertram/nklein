@@ -2046,6 +2046,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   return null for ledger-dead models; (6) terminal fallback refuses dead/colliding primaries; (7) loaded
   fallback skips dead marks; (10) pool-loss strike cap parks visibly; (13) refused bounced redrive releases
   its dedup; (20) bounced redrive strike cap (2) parks; (21) residency minus dead marks; (22) DAG pan/zoom.
+  Also NEW operator handle `runtime.unparkReview` (`0d58483ac`: chat `unpark_review`, MCP, card-sheet
+  "Un-park & re-review") — parked reviews previously had no way forward except a worker stop→start that
+  re-did the work; live-used on the two no-verdict redecompose parks the identifier collision caused.
   Plus two live-found siblings: the classifier's BUSY≠dead guard (`c4d359125`) and parked-on-400 → ledger mark
   with served-token recovery (`c587d1970`), and cross-host identifier collisions excluded (`f33325410`).
   **REMAINING:** (8) endpoint-keyed ledger marks; (9) P0.QWAIT one-liner; (11) marks over tRPC + fleet strip
