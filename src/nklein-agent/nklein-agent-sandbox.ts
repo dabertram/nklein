@@ -754,8 +754,22 @@ export class AgentSandboxManager {
 				// delivery ("tests NOT passed — acceptance evidence unavailable"; three approved cards stranded
 				// in Review). Deletion of a dir this same function recreates fresh is janitorial lifecycle work,
 				// not agent-reachable exec — root is correct here (mkdir above already runs as root).
+				// SECOND LAYER (live 2026-09-04, v31 again): the sandbox runs cap-dropped, so in-container uid 0
+				// has NO CAP_DAC_OVERRIDE — a stale dir chain created `mkdir -m 700` by a PRIOR placement's task
+				// uid refuses even root ("Permission denied"), and the acceptance re-check fail-closed exactly as
+				// before. Under the hardening the only principal that can traverse a 700 tree is its OWNER: when
+				// root's rm fails, read the top dir's uid and delete AS that uid, then assert the path is gone —
+				// the assert is on the OUTCOME (clean), not on any single rm's exit code.
+				const rootClear = await this.execAsRoot(placement, ["rm", "-rf", placement.workdir]);
+				if (rootClear.exitCode !== 0) {
+					const statOwner = await this.execAsRoot(placement, ["stat", "-c", "%u", placement.workdir]);
+					const ownerUid = Number(statOwner.stdout.trim());
+					if (statOwner.exitCode === 0 && Number.isFinite(ownerUid) && ownerUid > 0) {
+						await this.execAsUid(placement, ownerUid, ["rm", "-rf", placement.workdir]);
+					}
+				}
 				assertSandboxExecOk(
-					await this.execAsRoot(placement, ["rm", "-rf", placement.workdir]),
+					await this.execAsRoot(placement, ["sh", "-c", `[ ! -e ${placement.workdir} ]`]),
 					"clear any stale sandbox task workspace",
 				);
 				assertSandboxExecOk(
@@ -1798,6 +1812,31 @@ export class AgentSandboxManager {
 					String(placement.uid),
 					"-w",
 					options?.workdir ?? placement.workdir,
+					createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace),
+					...argv,
+				],
+				options,
+			),
+		);
+	}
+
+	/** Exec as an ARBITRARY uid — janitorial only (e.g. deleting a prior placement's 700-mode tree, which a
+	 * cap-dropped root cannot traverse). Never exposed to agent-reachable tool paths. */
+	private async execAsUid(
+		placement: TaskPlacement,
+		uid: number,
+		argv: string[],
+		options?: { timeoutMs?: number },
+	): Promise<AgentSandboxExecResult> {
+		return await this.withExecSlot(() =>
+			this.runDocker(
+				[
+					"exec",
+					...this.egressProxyExecEnvArgs(placement),
+					"-u",
+					`${Math.trunc(uid)}:${Math.trunc(uid)}`,
+					"-w",
+					AGENT_SANDBOX_WORKSPACES_DIR,
 					createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace),
 					...argv,
 				],
