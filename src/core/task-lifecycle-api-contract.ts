@@ -209,6 +209,7 @@ export const runtimeTaskSessionStartResponseSchema = z.object({
 			"concurrency_limit",
 			"model_not_loaded",
 			"pinned_model_unavailable",
+			"start_in_flight",
 		])
 		.optional(),
 	modelNotLoaded: z

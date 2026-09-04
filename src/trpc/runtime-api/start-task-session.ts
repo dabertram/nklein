@@ -292,7 +292,47 @@ export function dispatchWorkflowStartCommands(
 	})().catch(() => {});
 }
 
+/**
+ * Single-flight guard per (workspace, task): two watchdog legs redriving the same card in one tick
+ * (live 2026-09-04: pool-loss redrive + bounced-review redrive) raced two prepareWorkspace calls on
+ * the shared `/workspaces/<taskId>` volume — the second clone found the first clone's content and
+ * died "destination path already exists and is not an empty directory", parking the card. A start
+ * that arrives while another start for the SAME task is still resolving is a duplicate by
+ * construction; refuse it fast instead of letting the sandbox race decide.
+ */
+const inFlightStartByTaskKey = new Map<string, Promise<RuntimeTaskSessionStartResponse>>();
+
 export async function handleStartTaskSession(
+	workspaceScope: RuntimeTrpcWorkspaceScope,
+	input: RuntimeTaskSessionStartRequest,
+	deps: StartTaskSessionDeps,
+): Promise<RuntimeTaskSessionStartResponse> {
+	const startKeyTaskId = (input as { taskId?: unknown }).taskId;
+	const startKey =
+		typeof startKeyTaskId === "string" && startKeyTaskId.length > 0
+			? `${workspaceScope.workspaceId}:${startKeyTaskId}`
+			: null;
+	if (startKey) {
+		if (inFlightStartByTaskKey.has(startKey)) {
+			return {
+				ok: false,
+				summary: null,
+				error: `A start for ${startKeyTaskId} is already in flight — refusing the duplicate (single-flight per task).`,
+				errorCode: "start_in_flight",
+			};
+		}
+		const flight = handleStartTaskSessionInner(workspaceScope, input, deps);
+		inFlightStartByTaskKey.set(startKey, flight);
+		try {
+			return await flight;
+		} finally {
+			inFlightStartByTaskKey.delete(startKey);
+		}
+	}
+	return handleStartTaskSessionInner(workspaceScope, input, deps);
+}
+
+async function handleStartTaskSessionInner(
 	workspaceScope: RuntimeTrpcWorkspaceScope,
 	input: RuntimeTaskSessionStartRequest,
 	deps: StartTaskSessionDeps,

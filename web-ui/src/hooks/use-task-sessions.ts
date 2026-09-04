@@ -42,7 +42,8 @@ interface StartTaskSessionResult {
 		| "concurrency_limit"
 		| "agent_sandbox_unavailable"
 		| "model_not_loaded"
-		| "pinned_model_unavailable";
+		| "pinned_model_unavailable"
+		| "start_in_flight";
 	modelNotLoaded?: {
 		requestedModelId: string;
 		loadedModelIds: string[];

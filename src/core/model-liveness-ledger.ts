@@ -26,8 +26,13 @@ export interface DeadModelMark {
 }
 
 const DEFAULT_DEAD_MODEL_TTL_MS = 15 * 60_000;
+const MAX_DEAD_MODEL_TTL_MS = 4 * 60 * 60_000;
 
 const deadModelMarksByModelId = new Map<string, DeadModelMark>();
+// Survives TTL expiry on purpose: a host that has been dead for hours keeps getting re-proven dead by
+// fresh victims (live 2026-09-04: 15 min re-admitted a relay that had been gone all day). Each re-mark
+// doubles the TTL up to the cap; only an explicit clear (the model demonstrably SERVED) resets it.
+const deadMarkCountByModelId = new Map<string, number>();
 
 export function markModelDead(input: {
 	modelId: string;
@@ -37,12 +42,15 @@ export function markModelDead(input: {
 	ttlMs?: number;
 }): DeadModelMark {
 	const nowMs = input.nowMs ?? Date.now();
+	const markCount = (deadMarkCountByModelId.get(input.modelId) ?? 0) + 1;
+	deadMarkCountByModelId.set(input.modelId, markCount);
+	const escalatedTtlMs = Math.min(DEFAULT_DEAD_MODEL_TTL_MS * 2 ** (markCount - 1), MAX_DEAD_MODEL_TTL_MS);
 	const mark: DeadModelMark = {
 		modelId: input.modelId,
 		endpoint: input.endpoint,
 		reason: input.reason,
 		markedAtMs: nowMs,
-		expiresAtMs: nowMs + (input.ttlMs ?? DEFAULT_DEAD_MODEL_TTL_MS),
+		expiresAtMs: nowMs + (input.ttlMs ?? escalatedTtlMs),
 	};
 	deadModelMarksByModelId.set(input.modelId, mark);
 	return mark;
@@ -67,6 +75,7 @@ export function isModelMarkedDead(modelId: string, nowMs = Date.now()): boolean 
 
 /** Explicit re-admission (a recovery probe saw the model serve, or the operator intervened). */
 export function clearModelDeadMark(modelId: string): boolean {
+	deadMarkCountByModelId.delete(modelId);
 	return deadModelMarksByModelId.delete(modelId);
 }
 
@@ -85,4 +94,5 @@ export function listModelDeadMarks(nowMs = Date.now()): DeadModelMark[] {
 /** Test seam: drop every mark. */
 export function resetModelLivenessLedgerForTests(): void {
 	deadModelMarksByModelId.clear();
+	deadMarkCountByModelId.clear();
 }
