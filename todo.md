@@ -3035,6 +3035,16 @@ These are known defects or incomplete migrations. Clear them before widening cap
   that fits). Memory is TIGHT: wired ~109GB with LM Studio's JIT-loaded local `qwen/qwen3.8-27b` MLX-8bit
   (29.5GB) alongside — David's call whether that local 27B stays (three other 27Bs are on the fleet: legion q6,
   m4mini q2, the new LM-Link host ABT-C-00335). Revert line: scratchpad `llama-server-cmdline.txt`.
+  **▶ REVERTED same evening after ~40 min live:** under real factory load (35k-token prompts, 30KB tool schemas)
+  mlx-serve crashed with a Metal GPU OOM (`kIOGPUCommandBufferCallbackErrorOutOfMemory`; swap 8.7/10GB) —
+  70GB of WIRED weights + KV + an 8.6GB prefix disk-cache resident set cannot share 128GB with the local 27B
+  (29.5GB) + node + Docker; llama.cpp's mmap'd pages are evictable and coexist. Two more facts from the crash
+  log: (1) **MTP WAS active** ("mtp=enabled depth=6", 80% per-draft acceptance) — the head is in the pack under
+  a prefix my `"mtp` grep missed; (2) at 35k context decode was only **25-26 tok/s** on both prompts observed —
+  the 86 tok/s is a short-context number; the factory's long prompts are bandwidth/KV-bound. Path back to
+  the fast lane: EITHER unload the local LM Studio 27B (fleet has three others) and rerun mlx-serve with ctx
+  40960 + `--prefix-cache-mem 512MB`, THEN A/B on a 35k-token factory prompt (the number that matters), OR
+  wait for a smaller pack (a 3-bit MLX-Serve build would sit ~55GB). Decision = David's (loads/unloads).
 
 - [ ] **F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can target the SMALLEST
   model tier that can do each card (David 2026-09-04: "find out which cards can be done by a 9b model .. which
