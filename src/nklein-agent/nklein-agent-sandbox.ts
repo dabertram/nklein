@@ -103,6 +103,17 @@ export {
 };
 
 const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
+/** Host-side slack past the in-container deadline so the container-side kill lands first and its exit code is read. */
+const CONTAINER_DEADLINE_GRACE_MS = 10_000;
+
+/**
+ * Wrap an exec argv in the container's GNU `timeout` so a deadline kills the command's process group INSIDE the
+ * container (P1.ACCEPT-ORPHAN): `timeout -k 5 <secs> <argv…>` — TERM at the deadline, KILL 5s later.
+ */
+export function withContainerDeadline(argv: readonly string[], timeoutMs: number): string[] {
+	const seconds = Math.max(1, Math.ceil(timeoutMs / 1000));
+	return ["timeout", "-k", "5", String(seconds), ...argv];
+}
 const PATCH_CAPTURE_EXEC_TIMEOUT_MS = 120_000;
 /**
  * Sandbox tools that run USER CODE — a shell command, a property/acceptance test, a browser capture — legitimately
@@ -1813,9 +1824,13 @@ export class AgentSandboxManager {
 					"-w",
 					options?.workdir ?? placement.workdir,
 					createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace),
-					...argv,
+					// P1.ACCEPT-ORPHAN (live 2026-09-04/05): killing the host `docker exec` client on timeout leaves the
+					// in-container process running — an orphaned `npm install` held every later acceptance run of the
+					// shared container. A caller-supplied deadline is enforced INSIDE the container too (GNU timeout
+					// kills the command's whole process group); the host deadline becomes the backstop, with grace.
+					...(options?.timeoutMs ? withContainerDeadline(argv, options.timeoutMs) : argv),
 				],
-				options,
+				options?.timeoutMs ? { ...options, timeoutMs: options.timeoutMs + CONTAINER_DEADLINE_GRACE_MS } : options,
 			),
 		);
 	}

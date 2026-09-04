@@ -2060,11 +2060,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   *(Live 2026-09-05: two `npm install` processes from 22:34 were still alive in the review sandbox 50+ min
   later; the strict-isolation sandbox has no route to the npm registry so the install never returns, the
   5-min gate timeout fired on !Klein's side, but `docker exec` does not kill the child — every subsequent
-  review on that placement queued behind the orphans until I `pkill`ed them.)* Two fixes: (1) on exec timeout
-  kill the process group inside the container (`kill -- -<pgid>` via the placement's root exec) and assert
-  it is gone; (2) an acceptance/verify command that needs the registry must fail FAST in an egress-off sandbox
-  (npm `--offline`/`--prefer-offline` + a pre-seeded cache, or an explicit "registry unreachable" acceptance
-  outcome) instead of hanging on DNS/TCP timeouts.
+  review on that placement queued behind the orphans until I `pkill`ed them.)* Two fixes: (1) **SHIPPED
+  2026-09-05** — every task exec that carries a caller deadline runs as `timeout -k 5 <secs> <argv…>` INSIDE
+  the container (`withContainerDeadline`, GNU timeout kills the whole process group); the host `docker exec`
+  deadline is now the backstop with 10s grace. (2) REMAINING: an acceptance/verify command that needs the
+  registry must fail FAST in an egress-off sandbox (npm `--offline`/`--prefer-offline` + a pre-seeded cache, or
+  an explicit "registry unreachable" acceptance outcome) instead of hanging on DNS/TCP timeouts.
   Plus two live-found siblings: the classifier's BUSY≠dead guard (`c4d359125`) and parked-on-400 → ledger mark
   with served-token recovery (`c587d1970`), and cross-host identifier collisions excluded (`f33325410`).
   **REMAINING:** (8) endpoint-keyed ledger marks; (11) marks over tRPC + fleet strip

@@ -25,6 +25,7 @@ import {
 	normalizeAgentSandboxPoolConfig,
 	resolveAgentSandboxNetworkArgs,
 	resolveNKleinAgentPerceivedCwd,
+	withContainerDeadline,
 } from "../../../src/nklein-agent/nklein-agent-sandbox";
 import { NKleinPauseController } from "../../../src/nklein-agent/nklein-pause-controller";
 import type { AgentToolContext } from "../../../src/nklein-agent/sdk-agent-types";
@@ -51,7 +52,17 @@ interface ExecFileStubOptions {
 function dockerExecCommand(args: readonly string[]): string[] {
 	if (args[0] !== "exec") return [];
 	const containerIndex = args.findIndex((arg, index) => index > 0 && arg.startsWith("nklein-agent-sandbox"));
-	return containerIndex >= 0 ? args.slice(containerIndex + 1) : [];
+	const command = containerIndex >= 0 ? args.slice(containerIndex + 1) : [];
+	// P1.ACCEPT-ORPHAN: a deadline-carrying exec is prefixed `timeout -k 5 <secs>` INSIDE the container; the
+	// payload assertions below stay byte-identical past that prefix (asserted on its own further down).
+	return dockerExecDeadline(command) ? command.slice(4) : command;
+}
+
+/** The in-container deadline prefix of an exec payload (`timeout -k 5 <secs>`), or null when none. */
+function dockerExecDeadline(command: readonly string[]): { seconds: number } | null {
+	return command[0] === "timeout" && command[1] === "-k" && command[2] === "5" && command[3]
+		? { seconds: Number(command[3]) }
+		: null;
 }
 
 function createExecFileStub(options?: ExecFileStubOptions): {
@@ -1591,6 +1602,10 @@ describe("AgentSandboxManager", () => {
 		const execCall = calls.find((args) => args[0] === "exec" && args.includes("/opt/nklein/tool-runner.cjs"));
 		expect(execCall?.[1]).not.toBe("-i");
 		expect(stdinPayloads).toEqual([]);
+		// P1.ACCEPT-ORPHAN: the default 30s tool deadline is enforced inside the container ahead of the payload.
+		const containerIndex =
+			execCall?.findIndex((arg, index) => index > 0 && arg.startsWith("nklein-agent-sandbox")) ?? -1;
+		expect(dockerExecDeadline(execCall?.slice(containerIndex + 1) ?? [])).toEqual({ seconds: 30 });
 	});
 
 	it("adds next-step guidance when sandbox tool execution fails", async () => {
@@ -1875,5 +1890,21 @@ describe("resolveNKleinAgentPerceivedCwd + agent system-prompt host-path isolati
 		});
 		expect(prompt).not.toContain(hostCwd);
 		expect(prompt).toContain("/workspaces/task-7");
+	});
+});
+
+describe("P1.ACCEPT-ORPHAN: a caller deadline is enforced inside the container", () => {
+	it("wraps the argv in GNU timeout with a 5s TERM→KILL grace, rounding the deadline up to whole seconds", () => {
+		expect(withContainerDeadline(["/bin/sh", "-lc", "npm install"], 300_000)).toEqual([
+			"timeout",
+			"-k",
+			"5",
+			"300",
+			"/bin/sh",
+			"-lc",
+			"npm install",
+		]);
+		expect(withContainerDeadline(["true"], 1)).toEqual(["timeout", "-k", "5", "1", "true"]);
+		expect(withContainerDeadline(["true"], 1_500)).toEqual(["timeout", "-k", "5", "2", "true"]);
 	});
 });
