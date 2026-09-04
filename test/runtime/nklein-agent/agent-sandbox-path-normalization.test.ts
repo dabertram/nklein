@@ -4,11 +4,47 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+	coerceShellSyntaxToShellString,
+	looksLikeShellSyntax,
 	normalizeHostPathInputs,
 	normalizeSandboxBashInput,
 	rewriteHostProjectPath,
 	rewriteHostProjectPathsInCommand,
 } from "../../../src/nklein-agent/agent-sandbox/path-normalization";
+
+describe('structured bash input carrying shell syntax (live 2026-09-05: spawn "pwd && ls -la" ENOENT)', () => {
+	it("turns a structured command with shell syntax into /bin/sh -c of the joined line", () => {
+		expect(normalizeSandboxBashInput({ command: "pwd && ls -la" }, null, "/work")).toEqual({
+			command: "/bin/sh",
+			args: ["-c", "pwd && ls -la"],
+		});
+		expect(
+			normalizeSandboxBashInput(
+				{ command: "git", args: ["status", "--porcelain=v1", "2>/dev/null", "|", "head", "-50"] },
+				null,
+				"/work",
+			),
+		).toEqual({ command: "/bin/sh", args: ["-c", "git status --porcelain=v1 2>/dev/null | head -50"] });
+		expect(coerceShellSyntaxToShellString({ command: "ls", args: ["node_modules/.bin", "| head -20"] })).toEqual({
+			command: "/bin/sh",
+			args: ["-c", "ls node_modules/.bin | head -20"],
+		});
+	});
+
+	it("keeps a plain structured command structured and quotes whitespace args only when collapsing", () => {
+		expect(normalizeSandboxBashInput({ command: "npm", args: ["test"] }, null, "/work")).toEqual({
+			command: "npm",
+			args: ["test"],
+		});
+		expect(coerceShellSyntaxToShellString({ command: "grep", args: ["a phrase", "src/*.ts"] })).toEqual({
+			command: "/bin/sh",
+			args: ["-c", "grep 'a phrase' src/*.ts"],
+		});
+		expect(looksLikeShellSyntax("npm run build")).toBe(false);
+		expect(looksLikeShellSyntax("cat $(git ls-files)")).toBe(true);
+		expect(looksLikeShellSyntax("echo `date`")).toBe(true);
+	});
+});
 
 describe("sandbox path normalization", () => {
 	it("maps structured host project paths to sandbox-relative paths", async () => {
@@ -50,7 +86,9 @@ describe("sandbox path normalization", () => {
 				cwd,
 			),
 		).toEqual({
-			command: "cd . && ls",
+			// The `&&` chain only means something to a shell (live 2026-09-05: spawned as an executable → ENOENT).
+			command: "/bin/sh",
+			args: ["-c", "cd . && ls"],
 			path: "src/plugin.ts",
 			reason: "inspect /host/project literally",
 		});

@@ -94,5 +94,36 @@ export function normalizeSandboxBashInput(input: unknown, hostProjectPath: strin
 			normalized[entryKey] = normalizeHostPathInputs(entryValue, hostProjectPath, cwd, entryKey);
 		}
 	}
-	return normalized;
+	return coerceShellSyntaxToShellString(normalized);
+}
+
+const SHELL_SYNTAX_PATTERN = /&&|\|\||[|;<>]|\$\(|\$\{|`|\*|(?:^|\s)~\//u;
+
+/** True when a structured command's text only makes sense to a shell (pipes, chains, redirects, globs, subshells). */
+export function looksLikeShellSyntax(text: string): boolean {
+	return SHELL_SYNTAX_PATTERN.test(text);
+}
+
+/**
+ * The SDK's structured bash input (`{ command, args }`) is spawned as an EXECUTABLE — no shell. Models routinely
+ * put shell syntax in it anyway (live 2026-09-05, v31 review: `{"command": "pwd && ls -la"}` and
+ * `{"command": "ls", "args": ["node_modules/.bin", "| head -20"]}` → `spawn "pwd && ls -la" ENOENT`, every
+ * exploration command of the turn dead). When the command or any arg carries shell syntax the ONLY faithful
+ * reading is a shell line, so the structured form becomes `/bin/sh -c "<line>"` — still structured, so every
+ * other field rides along; args without shell syntax but with whitespace are single-quoted to stay one word.
+ */
+export function coerceShellSyntaxToShellString(input: Record<string, unknown>): Record<string, unknown> {
+	const command = input.command;
+	if (typeof command !== "string" || command.trim().length === 0) {
+		return input;
+	}
+	const args = Array.isArray(input.args) ? input.args.filter((arg): arg is string => typeof arg === "string") : [];
+	if (!looksLikeShellSyntax(command) && !args.some(looksLikeShellSyntax)) {
+		return input;
+	}
+	const words = [
+		command.trim(),
+		...args.map((arg) => (!looksLikeShellSyntax(arg) && /\s/u.test(arg) ? `'${arg.replace(/'/gu, "'\\''")}'` : arg)),
+	];
+	return { ...input, command: "/bin/sh", args: ["-c", words.join(" ")] };
 }
