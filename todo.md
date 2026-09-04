@@ -1970,6 +1970,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### Phase 0 — stop-the-line correctness and liveness
 
+- [ ] **P0.RECONCILE-SKIP — The boot reconcile silently skips APPROVED review cards whose merge previously
+  conflicted.** *(Live 2026-09-04, two boots in a row: reconcile processed verdict-less s44 — review phases in
+  the log — but produced ZERO lines for the two APPROVED cards s51/s03 whose deliveries had conflicted; after an
+  operator hand-merge landed s51's result, the NEXT boot completed it via the already-merged path — so the skip
+  is specific to the approved+conflicted shape, not the candidates selection (refs existed, autoReview commit
+  set). Find the early bail in finalizeHeadlessAutoReviewTask/second-opinion "durable approval reused" path for
+  that shape and make it either re-attempt the merge or record WHY it held; silence is the defect.)* Context:
+  the merge chain itself is fixed (root-clear owner-uid fallback, strong merge model, reproduction onto the
+  host's CURRENT head — commits d3d23be3b/9c23ec0fc/25aa476c0); this skip is the remaining trigger gap.
+
 - [ ] **P0.REVRANK — Reviewer/escalation candidate ranking is CAPABILITY-BLIND (class fit only) — a 9B
   "escalates" a 27B's stuck review.** *(Live 2026-09-03 ~23:50: s44's stuck review loop "Escalated … to
   ornith-local-9b" — the 9B whose 3× no-verdict sessions CAUSED the loop; `buildReviewerCandidates` ranks by
