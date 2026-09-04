@@ -2049,6 +2049,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   Also NEW operator handle `runtime.unparkReview` (`0d58483ac`: chat `unpark_review`, MCP, card-sheet
   "Un-park & re-review") — parked reviews previously had no way forward except a worker stop→start that
   re-did the work; live-used on the two no-verdict redecompose parks the identifier collision caused.
+  **Reviewer path had its own bypass (`509fe943a`):** the un-parked reviews resolved `reviewer=dirk-qwen3.8-27b
+  (auto_diverse)` — the colliding id — because `pickDiverseReviewerModel` and the runner's loaded-model
+  fallback draw from the raw descriptor listing; `excludeUnroutableDescriptors` (ledger + collisions via the
+  shared `src/core/fleet-identifier-collision.ts`) now filters both. Live-proven: next resolution =
+  `qwen3.8-flash-next (auto_diverse)`, verdicts landed. LESSON: every model-choosing path (worker start,
+  reviewer, escalation, plan critic, custodian, merge agent) needs the SAME routability filter — audit #14
+  (custodian) is the last unfiltered chooser.
+- [ ] **P1.ACCEPT-ORPHAN — an acceptance-verify timeout leaves the command running inside the sandbox.**
+  *(Live 2026-09-05: two `npm install` processes from 22:34 were still alive in the review sandbox 50+ min
+  later; the strict-isolation sandbox has no route to the npm registry so the install never returns, the
+  5-min gate timeout fired on !Klein's side, but `docker exec` does not kill the child — every subsequent
+  review on that placement queued behind the orphans until I `pkill`ed them.)* Two fixes: (1) on exec timeout
+  kill the process group inside the container (`kill -- -<pgid>` via the placement's root exec) and assert
+  it is gone; (2) an acceptance/verify command that needs the registry must fail FAST in an egress-off sandbox
+  (npm `--offline`/`--prefer-offline` + a pre-seeded cache, or an explicit "registry unreachable" acceptance
+  outcome) instead of hanging on DNS/TCP timeouts.
   Plus two live-found siblings: the classifier's BUSY≠dead guard (`c4d359125`) and parked-on-400 → ledger mark
   with served-token recovery (`c587d1970`), and cross-host identifier collisions excluded (`f33325410`).
   **REMAINING:** (8) endpoint-keyed ledger marks; (9) P0.QWAIT one-liner; (11) marks over tRPC + fleet strip
