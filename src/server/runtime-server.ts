@@ -4795,7 +4795,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 												autoReviewMode: "commit",
 												agentId: "nklein",
 												baseRef: "HEAD",
-												trustedOrigin: "operator",
+												// Audit 2026-09-04 #15: a custodian finding is MODEL-authored from the operator's own merged
+												// work — "plan" (machine-generated, trusted) is the honest stamp; "operator" claimed a human
+												// typed it.
+												trustedOrigin: "plan",
 											},
 											() => taskId,
 										);

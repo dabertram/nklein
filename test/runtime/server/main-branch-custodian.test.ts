@@ -76,8 +76,8 @@ commit("seed.txt");
 afterAll(() => rmSync(repo, { recursive: true, force: true }));
 
 describe("main-branch custodian (F2.35)", () => {
-	beforeEach(() => {
-		resetMainBranchCustodianForTests();
+	beforeEach(async () => {
+		await resetMainBranchCustodianForTests(repo);
 		process.env.NKLEIN_MAIN_CUSTODIAN = "1";
 	});
 	afterEach(() => {
@@ -142,6 +142,18 @@ describe("main-branch custodian (F2.35)", () => {
 		await maybeRunMainBranchCustodian(d);
 		await maybeRunMainBranchCustodian(d); // no new commits — quiet
 		expect(calls.reviews).toHaveLength(1);
+	});
+
+	it("audit #16: the mark survives a restart — merges that land across it are reviewed, not re-baselined", async () => {
+		const { calls, deps: d } = deps();
+		await maybeRunMainBranchCustodian(d); // baseline (persisted)
+		commit("h.txt");
+		commit("i.txt");
+		commit("j.txt");
+		await resetMainBranchCustodianForTests(); // in-memory state gone, persisted mark kept = a server restart
+		await maybeRunMainBranchCustodian(d);
+		expect(calls.reviews).toHaveLength(1);
+		expect(calls.reviews[0]).toContain("h.txt");
 	});
 
 	it("stays fully quiet when the gate is off", async () => {

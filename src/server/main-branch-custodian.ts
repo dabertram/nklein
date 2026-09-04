@@ -13,6 +13,8 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { NKleinReviewResult } from "../nklein-agent/nklein-review-tool";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { runGit } from "../workspace/git-utils";
@@ -112,12 +114,14 @@ export async function maybeRunMainBranchCustodian(deps: MainBranchCustodianDeps)
 		if (!head) {
 			return;
 		}
-		const last = lastReviewedCommitByWorkspace.get(workspacePath);
+		const last = lastReviewedCommitByWorkspace.get(workspacePath) ?? (await readPersistedMark(workspacePath));
 		if (!last) {
 			// First sight of this workspace: baseline silently — the custodian reviews NEW integration, not history.
 			lastReviewedCommitByWorkspace.set(workspacePath, head);
+			await persistMark(workspacePath, head);
 			return;
 		}
+		lastReviewedCommitByWorkspace.set(workspacePath, last);
 		if (last === head) {
 			return;
 		}
@@ -148,6 +152,7 @@ export async function maybeRunMainBranchCustodian(deps: MainBranchCustodianDeps)
 		// Advance the mark WHATEVER happened: a failed sweep must not re-review the same range forever — the
 		// next merges produce the next sweep (the observation records the miss).
 		lastReviewedCommitByWorkspace.set(workspacePath, head);
+		await persistMark(workspacePath, head);
 		const verdict = result?.verdict ?? null;
 		recordSelfObservation({
 			signal: "custom",
@@ -187,7 +192,47 @@ export async function maybeRunMainBranchCustodian(deps: MainBranchCustodianDeps)
 }
 
 /** Test seam: reset the per-process custodian memory. */
-export function resetMainBranchCustodianForTests(): void {
+/**
+ * Audit 2026-09-04 #16: the mark lived only in memory, so every server restart re-baselined silently and the
+ * merges that landed across the restart were never reviewed. Persisted per workspace under its `.nklein/` state
+ * dir; best-effort on both sides (an unreadable file means "first sight", an unwritable one keeps the in-memory
+ * mark for this process).
+ */
+function persistedMarkPath(workspacePath: string): string {
+	return join(workspacePath, ".nklein", "custodian-mark.json");
+}
+
+async function readPersistedMark(workspacePath: string): Promise<string | null> {
+	try {
+		const parsed = JSON.parse(await readFile(persistedMarkPath(workspacePath), "utf8")) as {
+			lastReviewedCommit?: unknown;
+		};
+		return typeof parsed?.lastReviewedCommit === "string" && parsed.lastReviewedCommit.trim()
+			? parsed.lastReviewedCommit.trim()
+			: null;
+	} catch {
+		return null;
+	}
+}
+
+async function persistMark(workspacePath: string, head: string): Promise<void> {
+	try {
+		await mkdir(join(workspacePath, ".nklein"), { recursive: true });
+		await writeFile(
+			persistedMarkPath(workspacePath),
+			`${JSON.stringify({ lastReviewedCommit: head, updatedAt: new Date().toISOString() }, null, 2)}\n`,
+			"utf8",
+		);
+	} catch {
+		// best-effort: the in-memory mark still guards this process
+	}
+}
+
+/** Clears the in-memory mark and, when a workspace is given, its persisted mark file. */
+export async function resetMainBranchCustodianForTests(workspacePath?: string): Promise<void> {
+	if (workspacePath) {
+		await rm(persistedMarkPath(workspacePath), { force: true });
+	}
 	lastReviewedCommitByWorkspace.clear();
 	inFlightWorkspaces.clear();
 }
