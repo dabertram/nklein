@@ -19,6 +19,7 @@ import {
 import {
 	runtimeAnswerPlanQuestionRequestSchema,
 	runtimeAnswerPlanQuestionResponseSchema,
+	runtimeBoardScheduleResponseSchema,
 	runtimeCapabilityGrantListRequestSchema,
 	runtimeCapabilityGrantListResponseSchema,
 	runtimeCapabilityGrantRevokeRequestSchema,
@@ -713,6 +714,9 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.requestRedecompose(ctx.workspaceScope, input);
 			}),
+		getBoardSchedule: t.procedure.output(runtimeBoardScheduleResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getBoardSchedule(ctx.workspaceScope);
+		}),
 		buildNKleinModelFreshnessAdvisor: t.procedure.output(runtimeNKleinAdvisorRequestSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.buildNKleinModelFreshnessAdvisor(ctx.workspaceScope);
 		}),

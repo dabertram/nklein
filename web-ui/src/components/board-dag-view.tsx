@@ -3,6 +3,7 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildDagGraph, DAG_LAYOUT, type DagFlowDirection, type DagNode } from "@/components/board-dag-model";
+import { computeDagSchedule, formatDurationShort, formatEtaClock } from "@/components/board-dag-schedule";
 import { cn } from "@/components/ui/cn";
 import type { BoardColumn as BoardColumnModel, BoardDependency } from "@/types";
 
@@ -47,11 +48,24 @@ export function BoardDagView({
 	dependencies,
 	sessions,
 	onSelectCard,
+	schedule,
 }: {
 	columns: readonly BoardColumnModel[];
 	dependencies: readonly BoardDependency[];
 	sessions: Record<string, RuntimeTaskSessionSummary>;
 	onSelectCard: (cardId: string) => void;
+	/**
+	 * Per-task schedule facts from `runtime.getBoardSchedule` (observed attempt time + difficulty). Absent/null ⇒
+	 * estimates fall back to defaults; the durations/ETA/critical-path overlay still renders.
+	 */
+	schedule?: {
+		tasks: readonly {
+			taskId: string;
+			observedMs: number | null;
+			difficulty: string | null;
+			lastCompletedAt: number | null;
+		}[];
+	} | null;
 }): React.ReactElement {
 	// Pan/zoom (rewritten 2026-09-04, David: "fix dag zooming and panning"): the SVG is 1 unit = 1 CSS pixel of
 	// the pane and the graph sits inside ONE `<g transform>` — pans are pixel deltas, wheel zoom is anchored on the
@@ -76,6 +90,26 @@ export function BoardDagView({
 	const graph = useMemo(
 		() => buildDagGraph(columns, dependencies, sessions, { flowDirection }),
 		[columns, dependencies, sessions, flowDirection],
+	);
+	// Durations / ETAs / critical path (David 2026-09-04) — pure derivation over the graph + schedule facts.
+	const now = Date.now();
+	const dagSchedule = useMemo(
+		() =>
+			computeDagSchedule({
+				nodes: graph.nodes,
+				edges: graph.edges,
+				facts: new Map(
+					(schedule?.tasks ?? []).map((task) => [
+						task.taskId,
+						{ observedMs: task.observedMs, difficulty: task.difficulty, lastCompletedAt: task.lastCompletedAt },
+					]),
+				),
+				sessionStartedAt: new Map(
+					Object.entries(sessions).map(([taskId, session]) => [taskId, session.startedAt ?? null]),
+				),
+				now,
+			}),
+		[graph, schedule, sessions, now],
 	);
 
 	// Fit the whole graph into the pane: scale to the smaller axis (never above 1:1), centered.
@@ -147,6 +181,20 @@ export function BoardDagView({
 			<div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface-1 px-4 py-1.5">
 				<span className="text-[11.5px] text-text-tertiary">
 					{graph.nodes.length} cards · {graph.edges.length} edges
+					{dagSchedule.boardEtaAt !== null && dagSchedule.boardFinishOffsetMs !== null ? (
+						<span className="ml-1" data-testid="board-dag-eta">
+							· ETA ≈ {formatEtaClock(dagSchedule.boardEtaAt, now)} (
+							{formatDurationShort(dagSchedule.boardFinishOffsetMs)} left on the critical path,{" "}
+							{dagSchedule.criticalNodeIds.size} card
+							{dagSchedule.criticalNodeIds.size === 1 ? "" : "s"}; estimates from{" "}
+							{dagSchedule.estimateBasis === "observed-median"
+								? "this board's observed pace"
+								: dagSchedule.estimateBasis === "difficulty-labels"
+									? "difficulty labels"
+									: "defaults"}
+							)
+						</span>
+					) : null}
 					{graph.cycleEdgeIds.size > 0 ? (
 						<span className="ml-1 text-status-red">· {graph.cycleEdgeIds.size} cycle edge(s)!</span>
 					) : null}
@@ -348,6 +396,8 @@ export function BoardDagView({
 									// into a solid band, so they render as soft ribbons and adjacent-layer edges (the local
 									// structure a reader follows) stay the visual foreground.
 									const isRouted = graph.edgeRoutes.has(edge.id);
+									// Critical path (longest remaining chain) reads gold and on top of the bundles.
+									const isCritical = dagSchedule.criticalEdgeIds.has(edge.id);
 									const segments = points
 										.slice(1)
 										.map((point, index) => {
@@ -363,9 +413,15 @@ export function BoardDagView({
 											<path
 												d={`M ${first.x} ${first.y} ${segments}`}
 												fill="none"
-												stroke={isCycle ? "var(--color-status-red)" : "var(--color-accent)"}
-												strokeOpacity={isCycle ? 0.9 : isRouted ? 0.18 : 0.35}
-												strokeWidth={isCycle ? 2 : 1.5}
+												stroke={
+													isCycle
+														? "var(--color-status-red)"
+														: isCritical
+															? "var(--color-status-gold)"
+															: "var(--color-accent)"
+												}
+												strokeOpacity={isCycle ? 0.9 : isCritical ? 0.95 : isRouted ? 0.18 : 0.35}
+												strokeWidth={isCycle || isCritical ? 2.5 : 1.5}
 												strokeDasharray={isCycle ? "6 4" : undefined}
 											/>
 											<circle
@@ -406,18 +462,49 @@ export function BoardDagView({
 											height={NODE_H}
 											rx={8}
 											fill="var(--color-surface-2)"
-											stroke={style.stroke}
-											strokeWidth={1.5}
+											stroke={
+												dagSchedule.criticalNodeIds.has(node.id) ? "var(--color-status-gold)" : style.stroke
+											}
+											strokeWidth={dagSchedule.criticalNodeIds.has(node.id) ? 2.5 : 1.5}
 										/>
 										<rect x={position.x} y={position.y} width={4} height={NODE_H} rx={2} fill={style.fill} />
 										<text
 											x={position.x + 12}
-											y={position.y + NODE_H / 2 + 4}
-											className={cn("text-[11.5px]", node.running && "font-semibold")}
+											y={position.y + 17}
+											className={cn("text-[11px]", node.running && "font-semibold")}
 											fill="var(--color-text-primary)"
 										>
 											{node.title.length > 24 ? `${node.title.slice(0, 23)}…` : node.title}
 										</text>
+										{(() => {
+											// Second line: observed time for done cards, elapsed/estimate + ETA for live and
+											// open ones (David 2026-09-04). "≈" marks an estimate; gold text = critical path.
+											const nodeSchedule = dagSchedule.byNodeId.get(node.id);
+											if (!nodeSchedule) {
+												return null;
+											}
+											const done = node.columnId === "completed";
+											const label = done
+												? `✓ ${formatDurationShort(nodeSchedule.estimateMs)}${nodeSchedule.estimated ? " (est.)" : ""}`
+												: nodeSchedule.elapsedMs !== null
+													? `▶ ${formatDurationShort(nodeSchedule.elapsedMs)} / ≈${formatDurationShort(nodeSchedule.estimateMs)} · ETA ${nodeSchedule.etaAt !== null ? formatEtaClock(nodeSchedule.etaAt, now) : "–"}`
+													: `≈${formatDurationShort(nodeSchedule.estimateMs)} · ETA ${nodeSchedule.etaAt !== null ? formatEtaClock(nodeSchedule.etaAt, now) : "–"}`;
+											return (
+												<text
+													x={position.x + 12}
+													y={position.y + 33}
+													className="text-[9.5px]"
+													fill={
+														nodeSchedule.onCriticalPath
+															? "var(--color-status-gold)"
+															: "var(--color-text-tertiary)"
+													}
+													data-testid={`dag-node-schedule-${node.id}`}
+												>
+													{label}
+												</text>
+											);
+										})()}
 										<title>{node.title}</title>
 										{node.running ? (
 											<circle

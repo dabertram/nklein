@@ -57,6 +57,28 @@ export const runtimeRedecomposeResponseSchema = z.object({
 });
 export type RuntimeRedecomposeResponse = z.infer<typeof runtimeRedecomposeResponseSchema>;
 
+// Board schedule facts (David 2026-09-04: "make the dag show observed and estimated durations and eta
+// timestamps .. highlight critical path"). ONE ledger read per board: per task, the observed attempt time and
+// the difficulty the runtime estimated — the DAG derives estimates, the critical path and ETAs from these.
+export const runtimeBoardScheduleTaskSchema = z.object({
+	taskId: z.string(),
+	/** Terminal attempts recorded for the task. */
+	attempts: z.number().int().nonnegative(),
+	/** Sum of attempt wall time (completedAt − startedAt) across attempts; null when no attempt carried both. */
+	observedMs: z.number().nonnegative().nullable(),
+	firstStartedAt: z.number().nullable(),
+	lastCompletedAt: z.number().nullable(),
+	/** §5.AB difficulty label from the latest attempt that carried one (trivial … very-hard). */
+	difficulty: z.string().nullable(),
+	lastOutcome: z.string().nullable(),
+});
+export type RuntimeBoardScheduleTask = z.infer<typeof runtimeBoardScheduleTaskSchema>;
+export const runtimeBoardScheduleResponseSchema = z.object({
+	generatedAt: z.number(),
+	tasks: z.array(runtimeBoardScheduleTaskSchema),
+});
+export type RuntimeBoardScheduleResponse = z.infer<typeof runtimeBoardScheduleResponseSchema>;
+
 export const runtimeNKleinAdvisorKindSchema = z.enum([
 	"model_freshness",
 	"mcp_discovery",

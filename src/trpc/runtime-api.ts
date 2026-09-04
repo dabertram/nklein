@@ -97,6 +97,7 @@ import {
 } from "../core/model-behavior-profile";
 import { buildModelTuningRecommendations } from "../core/model-tuning-recommendations";
 import type {
+	RuntimeBoardScheduleResponse,
 	RuntimeModelEvalSummary,
 	RuntimeRedecomposeRequest,
 	RuntimeRedecomposeResponse,
@@ -1915,6 +1916,64 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				filed.push({ taskId: card.id, redecomposeTaskId, title: card.title ?? card.id, started });
 			}
 			return { filed, skipped };
+		},
+		// Board schedule facts (David 2026-09-04): one workspace ledger read → per-task observed attempt time and
+		// the runtime's difficulty estimate. The DAG turns these into estimates, the critical path and ETAs.
+		getBoardSchedule: async (workspaceScope): Promise<RuntimeBoardScheduleResponse> => {
+			if (!workspaceScope) {
+				return { generatedAt: Date.now(), tasks: [] };
+			}
+			const events = await readAgentLedger({
+				workspacePathHash: hashWorkspacePathForLedger(workspaceScope.workspacePath),
+			}).catch(() => []);
+			const byTask = new Map<
+				string,
+				{
+					attempts: number;
+					observedMs: number | null;
+					firstStartedAt: number | null;
+					lastCompletedAt: number | null;
+					difficulty: string | null;
+					lastOutcome: string | null;
+				}
+			>();
+			for (const attempt of selectAttempts(events)) {
+				const entry = byTask.get(attempt.taskId) ?? {
+					attempts: 0,
+					observedMs: null,
+					firstStartedAt: null,
+					lastCompletedAt: null,
+					difficulty: null,
+					lastOutcome: null,
+				};
+				entry.attempts += 1;
+				if (
+					attempt.startedAt !== null &&
+					attempt.completedAt !== null &&
+					attempt.completedAt >= attempt.startedAt
+				) {
+					entry.observedMs = (entry.observedMs ?? 0) + (attempt.completedAt - attempt.startedAt);
+				}
+				if (attempt.startedAt !== null) {
+					entry.firstStartedAt =
+						entry.firstStartedAt === null ? attempt.startedAt : Math.min(entry.firstStartedAt, attempt.startedAt);
+				}
+				if (attempt.completedAt !== null) {
+					entry.lastCompletedAt =
+						entry.lastCompletedAt === null
+							? attempt.completedAt
+							: Math.max(entry.lastCompletedAt, attempt.completedAt);
+				}
+				if (attempt.difficulty) {
+					entry.difficulty = attempt.difficulty;
+				}
+				entry.lastOutcome = attempt.outcome;
+				byTask.set(attempt.taskId, entry);
+			}
+			return {
+				generatedAt: Date.now(),
+				tasks: [...byTask.entries()].map(([taskId, entry]) => ({ taskId, ...entry })),
+			};
 		},
 		buildNKleinModelFreshnessAdvisor: async (_workspaceScope) => {
 			return await buildNKleinModelFreshnessAdvisorRequest();

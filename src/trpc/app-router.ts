@@ -20,6 +20,7 @@ import type {
 import type {
 	RuntimeAnswerPlanQuestionRequest,
 	RuntimeAnswerPlanQuestionResponse,
+	RuntimeBoardScheduleResponse,
 	RuntimeCapabilityGrantListRequest,
 	RuntimeCapabilityGrantListResponse,
 	RuntimeCapabilityGrantRevokeRequest,
@@ -579,6 +580,8 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeRedecomposeRequest,
 		) => Promise<RuntimeRedecomposeResponse>;
+		/** Per-task observed attempt time + estimated difficulty for the DAG's durations/ETA/critical path. */
+		getBoardSchedule: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeBoardScheduleResponse>;
 		buildNKleinModelFreshnessAdvisor: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeNKleinAdvisorRequest>;

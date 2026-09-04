@@ -208,6 +208,37 @@ export default function App(): ReactElement {
 	} = useProjectNavigation({
 		onProjectSwitchStart: handleProjectSwitchStart,
 	});
+	// Graph mode's schedule facts (durations/ETA/critical path): one ledger read per 30s while the graph shows.
+	const [boardSchedule, setBoardSchedule] = useState<{
+		tasks: readonly {
+			taskId: string;
+			observedMs: number | null;
+			difficulty: string | null;
+			lastCompletedAt: number | null;
+		}[];
+	} | null>(null);
+	useEffect(() => {
+		if (zoom !== GRAPH_ZOOM_LEVEL || !currentProjectId) {
+			return;
+		}
+		let cancelled = false;
+		const load = (): void => {
+			void getRuntimeTrpcClient(currentProjectId)
+				.runtime.getBoardSchedule.query()
+				.then((response) => {
+					if (!cancelled) {
+						setBoardSchedule(response);
+					}
+				})
+				.catch(() => undefined);
+		};
+		load();
+		const timer = window.setInterval(load, 30_000);
+		return () => {
+			cancelled = true;
+			window.clearInterval(timer);
+		};
+	}, [zoom, currentProjectId]);
 	const activeNotificationWorkspaceId = navigationCurrentProjectId;
 	const isDocumentVisible = useDocumentVisibility();
 	const isInitialRuntimeLoad =
@@ -1316,6 +1347,7 @@ export default function App(): ReactElement {
 												dependencies={board.dependencies ?? []}
 												sessions={sessions}
 												onSelectCard={handleCardSelect}
+												schedule={boardSchedule}
 											/>
 										) : (
 											<KanbanBoard
