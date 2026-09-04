@@ -28,6 +28,12 @@ export interface DagGraph {
 	 */
 	edgeRoutes: Map<string, { x: number; y: number }[]>;
 	cycleEdgeIds: Set<string>;
+	/**
+	 * Edges retired into `board.satisfiedDependencies` (their blocker landed). Rendered dimmed/dashed so finished
+	 * work keeps its place in the structure (David 2026-09-04: "deps for finished cards might help") — they take
+	 * part in layering, so a completed prerequisite sits upstream of its dependents instead of floating loose.
+	 */
+	satisfiedEdgeIds: Set<string>;
 	width: number;
 	height: number;
 }
@@ -105,7 +111,7 @@ export function buildDagGraph(
 	columns: readonly BoardColumnModel[],
 	dependencies: readonly BoardDependency[],
 	sessions: Record<string, RuntimeTaskSessionSummary>,
-	options: { flowDirection?: DagFlowDirection } = {},
+	options: { flowDirection?: DagFlowDirection; satisfiedDependencies?: readonly BoardDependency[] } = {},
 ): DagGraph {
 	const flowDirection: DagFlowDirection = options.flowDirection ?? "early-right";
 	const { nodeW, nodeH, gapX, gapY, pad } = DAG_LAYOUT;
@@ -122,7 +128,12 @@ export function buildDagGraph(
 	);
 	const ids = nodes.map((node) => node.id);
 	const idSet = new Set(ids);
-	const edges = dependencies.filter((edge) => idSet.has(edge.fromTaskId) && idSet.has(edge.toTaskId));
+	const liveIds = new Set(dependencies.map((edge) => edge.id));
+	const satisfied = (options.satisfiedDependencies ?? []).filter((edge) => !liveIds.has(edge.id));
+	const satisfiedEdgeIds = new Set(satisfied.map((edge) => edge.id));
+	const edges = [...dependencies, ...satisfied].filter(
+		(edge) => idSet.has(edge.fromTaskId) && idSet.has(edge.toTaskId),
+	);
 	const dependsOn = new Map<string, string[]>();
 	for (const edge of edges) {
 		// Core semantics (task-board-ready-sweep.ts): `from` DEPENDS ON `to` — `to` must land first. Depth flows
@@ -318,6 +329,7 @@ export function buildDagGraph(
 		positions,
 		edgeRoutes,
 		cycleEdgeIds,
+		satisfiedEdgeIds,
 		width: Math.max(width, 320),
 		height: Math.max(height, 200),
 	};

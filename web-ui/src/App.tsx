@@ -1332,6 +1332,7 @@ export default function App(): ReactElement {
 												map={composeActivityMap({
 													columns: board.columns,
 													dependencies: board.dependencies,
+													satisfiedDependencies: board.satisfiedDependencies ?? [],
 													sessions,
 													now: Date.now,
 												})}
@@ -1348,6 +1349,7 @@ export default function App(): ReactElement {
 												sessions={sessions}
 												onSelectCard={handleCardSelect}
 												schedule={boardSchedule}
+												satisfiedDependencies={board.satisfiedDependencies ?? []}
 											/>
 										) : (
 											<KanbanBoard

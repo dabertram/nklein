@@ -49,9 +49,12 @@ export function BoardDagView({
 	sessions,
 	onSelectCard,
 	schedule,
+	satisfiedDependencies,
 }: {
 	columns: readonly BoardColumnModel[];
 	dependencies: readonly BoardDependency[];
+	/** Retired edges (`board.satisfiedDependencies`) — drawn dimmed so finished work keeps its structure. */
+	satisfiedDependencies?: readonly BoardDependency[];
 	sessions: Record<string, RuntimeTaskSessionSummary>;
 	onSelectCard: (cardId: string) => void;
 	/**
@@ -88,8 +91,8 @@ export function BoardDagView({
 	// board-aligned early-left one click away (the two directives conflict — both stay reachable).
 	const [flowDirection, setFlowDirection] = useState<DagFlowDirection>("early-right");
 	const graph = useMemo(
-		() => buildDagGraph(columns, dependencies, sessions, { flowDirection }),
-		[columns, dependencies, sessions, flowDirection],
+		() => buildDagGraph(columns, dependencies, sessions, { flowDirection, satisfiedDependencies }),
+		[columns, dependencies, sessions, flowDirection, satisfiedDependencies],
 	);
 	// Durations / ETAs / critical path (David 2026-09-04) — pure derivation over the graph + schedule facts.
 	const now = Date.now();
@@ -398,6 +401,8 @@ export function BoardDagView({
 									const isRouted = graph.edgeRoutes.has(edge.id);
 									// Critical path (longest remaining chain) reads gold and on top of the bundles.
 									const isCritical = dagSchedule.criticalEdgeIds.has(edge.id);
+									// Retired (blocker landed) edges: kept for structure, drawn as faint dashes.
+									const isSatisfied = graph.satisfiedEdgeIds.has(edge.id);
 									const segments = points
 										.slice(1)
 										.map((point, index) => {
@@ -420,9 +425,11 @@ export function BoardDagView({
 															? "var(--color-status-gold)"
 															: "var(--color-accent)"
 												}
-												strokeOpacity={isCycle ? 0.9 : isCritical ? 0.95 : isRouted ? 0.18 : 0.35}
+												strokeOpacity={
+													isCycle ? 0.9 : isCritical ? 0.95 : isSatisfied ? 0.2 : isRouted ? 0.18 : 0.35
+												}
 												strokeWidth={isCycle || isCritical ? 2.5 : 1.5}
-												strokeDasharray={isCycle ? "6 4" : undefined}
+												strokeDasharray={isCycle ? "6 4" : isSatisfied ? "2 4" : undefined}
 											/>
 											<circle
 												cx={last.x}

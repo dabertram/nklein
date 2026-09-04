@@ -395,6 +395,30 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 					board = linked.board;
 					createdDependencies.push(linked.dependency);
 				}
+				// Upstream INHERITANCE (David 2026-09-04: "why do cards s44a and s44b not have their blocking
+				// dependencies? should be same or similar to what s44 had"): the prerequisites the parent was still
+				// waiting on gate its children just the same — copy every unmet `parent DEPENDS ON X` edge onto each
+				// ROOT child (children with plan-internal prerequisites inherit transitively through them). Without
+				// this a child could start before the upstream work its parent was blocked behind. Landed
+				// prerequisites are refused by addTaskDependency (completed endpoints) and need no gate.
+				const inheritedUpstreamIds = board.dependencies
+					.filter((dependency) => dependency.fromTaskId === integrationParentTaskId)
+					.map((dependency) => dependency.toTaskId)
+					.filter((upstreamId) => !createdTasks.some((created) => created.id === upstreamId));
+				const rootChildIds = taskGraph.tasks
+					.filter((task) => task.dependsOn.length === 0)
+					.map((task) => taskIdByPlanTaskId[task.id])
+					.filter((childId): childId is string => Boolean(childId));
+				for (const childId of rootChildIds) {
+					for (const upstreamId of inheritedUpstreamIds) {
+						const inherited = addTaskDependency(board, childId, upstreamId);
+						if (!inherited.added || !inherited.dependency) {
+							continue;
+						}
+						board = inherited.board;
+						createdDependencies.push(inherited.dependency);
+					}
+				}
 			}
 		}
 	}

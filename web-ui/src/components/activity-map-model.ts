@@ -49,6 +49,8 @@ export interface ActivityEdge {
 	fromCardId: string;
 	toCardId: string;
 	crossCluster: boolean;
+	/** A retired edge (its blocker landed) — drawn faint so finished work keeps its structure. */
+	satisfied: boolean;
 }
 
 export interface ActivityMap {
@@ -115,6 +117,8 @@ function clusterKeyFor(card: BoardCard): { id: string; label: string } {
 export interface ComposeActivityMapInput {
 	columns: readonly BoardColumn[];
 	dependencies: readonly BoardDependency[];
+	/** Retired edges (`board.satisfiedDependencies`), rendered faint (David 2026-09-04). */
+	satisfiedDependencies?: readonly BoardDependency[];
 	sessions: Readonly<Record<string, RuntimeTaskSessionSummary>>;
 	now: () => number;
 }
@@ -174,7 +178,14 @@ export function composeActivityMap(input: ComposeActivityMapInput): ActivityMap 
 	}
 
 	const edges: ActivityEdge[] = [];
-	for (const dependency of input.dependencies) {
+	const liveEdgeIds = new Set(input.dependencies.map((dependency) => dependency.id));
+	const allEdges = [
+		...input.dependencies.map((dependency) => ({ dependency, satisfied: false })),
+		...(input.satisfiedDependencies ?? [])
+			.filter((dependency) => !liveEdgeIds.has(dependency.id))
+			.map((dependency) => ({ dependency, satisfied: true })),
+	];
+	for (const { dependency, satisfied } of allEdges) {
 		const fromCluster = clusterIdByCardId.get(dependency.fromTaskId);
 		const toCluster = clusterIdByCardId.get(dependency.toTaskId);
 		if (!fromCluster || !toCluster) {
@@ -184,6 +195,7 @@ export function composeActivityMap(input: ComposeActivityMapInput): ActivityMap 
 			fromCardId: dependency.fromTaskId,
 			toCardId: dependency.toTaskId,
 			crossCluster: fromCluster !== toCluster,
+			satisfied,
 		});
 	}
 

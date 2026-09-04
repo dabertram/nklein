@@ -296,6 +296,81 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 		}
 	});
 
+	it("root children INHERIT the parent's still-open upstream prerequisites (David 2026-09-04: s44a/s44b lacked s44's blockers)", () => {
+		const board = createBoard();
+		const parkedParent = {
+			id: "exporter",
+			title: "Build the report exporter",
+			prompt: "Export weekly safety reports as signed PDFs.",
+			startInPlanMode: false,
+			baseRef: "main",
+			createdAt: 1,
+			updatedAt: 50,
+		};
+		const upstream = {
+			id: "auth-lib",
+			title: "Auth library",
+			prompt: "Ship the signing keys helper.",
+			startInPlanMode: false,
+			baseRef: "main",
+			createdAt: 1,
+			updatedAt: 1,
+		};
+		const redecomposeCard = {
+			id: "split-exporter-2",
+			title: "Decompose: Build the report exporter",
+			prompt: "Split it.",
+			startInPlanMode: true,
+			redecomposeOf: "exporter",
+			decomposeGeneration: 1,
+			baseRef: "main",
+			createdAt: 60,
+			updatedAt: 60,
+		};
+		board.columns.find((column) => column.id === "review")?.cards.push(parkedParent);
+		board.columns.find((column) => column.id === "in_progress")?.cards.push(upstream);
+		board.columns.find((column) => column.id === "planning")?.cards.push(redecomposeCard);
+		// The parent was waiting on auth-lib (still in flight) — its children must wait on it too.
+		board.dependencies.push({ id: "dep-upstream", fromTaskId: "exporter", toTaskId: "auth-lib", createdAt: 1 });
+
+		const result = applyNKleinPlanTaskGraphToBoard({
+			board,
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			sourceTaskId: "split-exporter-2",
+			now: 100,
+		});
+
+		const storageId = result.taskIdByPlanTaskId.storage;
+		const uiId = result.taskIdByPlanTaskId.ui;
+		expect(storageId).toBeDefined();
+		expect(uiId).toBeDefined();
+		// The ROOT child (no plan-internal prerequisite) inherits the parent's open blocker …
+		expect(
+			result.board.dependencies.some(
+				(dependency) => dependency.fromTaskId === storageId && dependency.toTaskId === "auth-lib",
+			),
+		).toBe(true);
+		// … the non-root child inherits transitively through its own plan prerequisite (no direct duplicate edge).
+		expect(
+			result.board.dependencies.some(
+				(dependency) => dependency.fromTaskId === uiId && dependency.toTaskId === "auth-lib",
+			),
+		).toBe(false);
+		expect(
+			result.board.dependencies.some(
+				(dependency) => dependency.fromTaskId === uiId && dependency.toTaskId === storageId,
+			),
+		).toBe(true);
+		// The parent still waits on its children (integration gate) and on nothing else new.
+		expect(
+			result.board.dependencies.some(
+				(dependency) => dependency.fromTaskId === "exporter" && dependency.toTaskId === storageId,
+			),
+		).toBe(true);
+	});
+
 	it("leaves a terminal (already-completed) re-decompose parent untouched", () => {
 		const board = createBoard();
 		board.columns

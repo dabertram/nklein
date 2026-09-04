@@ -284,9 +284,9 @@ export function ActivityMapView({
 							d={`M ${from.x} ${from.y} Q ${controlX} ${controlY} ${to.x} ${to.y}`}
 							fill="none"
 							stroke={edge.crossCluster ? "var(--color-accent-2)" : "var(--color-accent)"}
-							strokeOpacity={edge.crossCluster ? 0.4 : 0.45}
-							strokeWidth={1.5}
-							strokeDasharray={edge.crossCluster ? "5 5" : undefined}
+							strokeOpacity={edge.satisfied ? 0.16 : edge.crossCluster ? 0.4 : 0.45}
+							strokeWidth={edge.satisfied ? 1 : 1.5}
+							strokeDasharray={edge.satisfied ? "2 4" : edge.crossCluster ? "5 5" : undefined}
 							markerEnd={edge.crossCluster ? "url(#activity-edge-arrow-cross)" : "url(#activity-edge-arrow)"}
 						/>
 					);
