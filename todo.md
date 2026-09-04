@@ -1992,13 +1992,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   re-pointed to the legion 27B (q6) — verdicts emit again; ornith's no-verdict ceiling stops taxing every
   review 3 sessions.
 
-- [ ] **P0.POOLLOSS — A crashed pool model disappears silently; the operator learns by asking.** *(Live
+- [~] **P0.POOLLOSS — A crashed pool model disappears silently; the operator learns by asking.** *(Live
   2026-09-03: dirk@iq4_xs crashed at 03:41 — one 500 then 400s — and the unpinned worker pool routed around it
   for 17h with no observation, no board banner; David noticed the idle m4 himself. The fleet-change resharder
   handles LOADED-set changes for running work but nothing SURFACES "a role-pool model vanished (last seen
   <t>, crash signature 500→400s)".)* Mechanism: a fleet sweep that diffs the role pools' models against
   lms-visible loaded instances and records a warning observation + board notice on loss (and recovery); pair
   with a per-model crash-signature line in the wire log (the 500's error body is now captured by F2.30(e)).
+  **▶ 2026-09-04 worst-shape leg SHIPPED (`37b9cbef3`): the gateway QUEUES requests for a vanished model
+  (90s+, zero bytes, NO error — worse than the 500→400s signature), so a wedged session restart-looped ~15min
+  cycles for 3h (q2 dirk vanished mid-drain, whole factory stalled). Zero-token wedge watchdog now probes the
+  session's endpoint `/v1/models` at interrupt time: confirmed-absent ⇒ `model_pool_loss` observation + pin
+  clear (mirrors the pinned_model_unavailable auto-heal) + redrive via Auto routing (fresh-start residency
+  validation picks a live model), 3-strike cap. REMAINING: the proactive fleet sweep + board banner + crash
+  signature line (loss should surface without waiting for a victim session to wedge).**
 
 - [ ] **P0.QWAIT — Queue-wait burns the conversation-timeout budget.** *(Live 2026-09-03 ~08:00, v31:
   s44 parked "conversation timeout after 28800 seconds" — the session spent most of those 8h WAITING for
