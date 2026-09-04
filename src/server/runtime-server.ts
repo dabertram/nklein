@@ -3556,10 +3556,19 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										// byte-identical to before.
 										resolveConflict: async ({ taskId: conflictTaskId, headCommit, conflictedPaths }) => {
 											try {
+												// The reproduction must merge onto the host's CURRENT integration head — the commit the
+												// failing merge actually ran against. The card's baseRef is its HISTORICAL fork point,
+												// where its own result merges clean by construction (live 2026-09-04: every sandbox
+												// reproduction came back "unmerged: []" while the host conflicted, so the agent
+												// fail-safed to abort forever). Resolve the head at call time; "HEAD" is the fallback
+												// (a fresh clone's default tip = the same current head via the live /repos bind).
+												const hostHead = await runGitCommand(scope.workspacePath, ["rev-parse", "HEAD"])
+													.then((result) => result.stdout.trim())
+													.catch(() => "");
 												const session = await service.runMergeResolutionSession({
 													taskId: conflictTaskId,
 													projectRepoPath: scope.workspacePath,
-													mainRef: deliveryCard?.baseRef ?? "HEAD",
+													mainRef: hostHead || "HEAD",
 													resultCommit: headCommit,
 													conflictedPaths,
 												});
