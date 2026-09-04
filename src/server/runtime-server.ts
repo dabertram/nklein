@@ -685,6 +685,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// Model-unavailable self-recovery books (probe cooldown + bounded per-card recoveries).
 	const modelUnavailableProbeAtByTaskKey = new Map<string, number>();
 	const modelUnavailableRecoveryCountByTaskKey = new Map<string, number>();
+	const zeroTokenWedgeVanishCountByTaskKey = new Map<string, number>();
 	/** F12.110c: require two identical non-empty loaded-fleet observations before any board mutation. */
 	const fleetReshardObservationByWorkspaceId = new Map<string, { fingerprint: string; count: number }>();
 	// Record-only PRM dedup: workspaceId → (taskId → last-recorded peak "pattern:level"), so a persistent trajectory
@@ -4557,7 +4558,83 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								workspacePath: scope.workspacePath,
 								metadata: { category: "board_liveness_watchdog", zeroTokenWedgedTaskId: wedge.taskId },
 							});
+							// P0.POOLLOSS classifier (live 2026-09-04: m4mini's model vanished mid-drain and the
+							// gateway QUEUES requests for absent models instead of erroring — the wedge interrupt's
+							// frozen-config restart then re-entered the same black hole every ~15 min for 3 hours).
+							// When the wedged session's model is confirmed ABSENT from its endpoint listing, the
+							// restart-same-model doctrine is wrong: clear the card's pin and redrive through the
+							// router so the fresh start's live-residency validation picks a model that exists.
+							// Endpoint unreachable/listing-failed stays UNCLASSIFIED (legacy stop-only behavior).
+							const wedgedSummary = trackedService
+								.listSummaries()
+								.find((summary) => summary.taskId === wedge.taskId);
+							const wedgedModelId = wedgedSummary?.modelId?.trim();
+							const wedgedEndpoint = wedgedSummary?.endpoint?.trim();
+							let modelVanished = false;
+							if (wedgedModelId && wedgedEndpoint) {
+								try {
+									const listingUrl = `${wedgedEndpoint.replace(/\/+$/u, "").replace(/\/v1$/u, "")}/v1/models`;
+									const response = await fetch(listingUrl, { signal: AbortSignal.timeout(5_000) });
+									if (response.ok) {
+										const listing = (await response.json()) as { data?: Array<{ id?: string }> };
+										modelVanished =
+											Array.isArray(listing.data) &&
+											!listing.data.some((entry) => (entry.id ?? "").trim() === wedgedModelId);
+									}
+								} catch {
+									// endpoint down entirely — the parked-card model-unavailable recovery owns that case
+								}
+							}
 							await trackedService.stopTaskSession(wedge.taskId).catch(() => null);
+							if (!modelVanished || !wedgedModelId) {
+								continue;
+							}
+							const vanishKey = `${scope.workspaceId}:${wedge.taskId}`;
+							const vanishCount = (zeroTokenWedgeVanishCountByTaskKey.get(vanishKey) ?? 0) + 1;
+							zeroTokenWedgeVanishCountByTaskKey.set(vanishKey, vanishCount);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Model pool loss: ${wedgedModelId} is no longer listed at ${wedgedEndpoint} while ${wedge.taskId} wedged token-less on it — clearing the card's pin and redriving via Auto routing (strike ${vanishCount}/3).`,
+								taskId: wedge.taskId,
+								workspacePath: scope.workspacePath,
+								metadata: { category: "model_pool_loss", modelId: wedgedModelId, endpoint: wedgedEndpoint },
+							});
+							if (vanishCount >= 3) {
+								deps.warn(
+									`Model-pool-loss redrive cap reached for ${wedge.taskId} (${wedgedModelId} still absent) — leaving it parked for the operator.`,
+								);
+								continue;
+							}
+							const wedgedCard = board.columns
+								.flatMap((column) => column.cards)
+								.find((card) => card.id === wedge.taskId);
+							if (wedgedCard?.nkleinSettings?.modelId) {
+								await retryWorkspaceStateLock(() =>
+									mutateWorkspaceState(scope.workspacePath, (latestState) => ({
+										board: {
+											...latestState.board,
+											columns: latestState.board.columns.map((column) => ({
+												...column,
+												cards: column.cards.map((card) =>
+													card.id === wedge.taskId
+														? {
+																...card,
+																nkleinSettings: { ...(card.nkleinSettings ?? {}), modelId: undefined },
+																updatedAt: Date.now(),
+															}
+														: card,
+												),
+											})),
+										},
+										value: null,
+									})),
+								).catch(() => null);
+							}
+							deps.warn(
+								`Model pool loss: redriving ${wedge.taskId} via Auto routing (was wedged on vanished ${wedgedModelId}).`,
+							);
+							autoStartTaskIds(scope, [wedge.taskId], { bypassDurableGuard: true });
 						}
 						// F2.35 main-branch custodian (David 2026-09-04: "some role should keep reviewing main/merged
 						// work"): fire-and-forget sweep — reviews the integration branch's new merge range on a strong

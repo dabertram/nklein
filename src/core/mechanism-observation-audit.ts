@@ -1187,6 +1187,9 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"input_after_decomposition_dropped",
 	// Model-unavailable self-recovery (2026-09-02): parked cards resume themselves when their model reappears.
 	"model_unavailable_recovered",
+	// P0.POOLLOSS classifier (2026-09-04): a zero-token wedge whose model VANISHED from its endpoint listing
+	// (gateway queues absent-model requests forever instead of erroring) — pin cleared, card redriven via Auto.
+	"model_pool_loss",
 	// Exploration-drift nudge (2026-09-01): plan-mode session made no graph progress for the threshold window.
 	"decomposition_exploration_drift",
 	"agent_sandbox_result_cleanup",
