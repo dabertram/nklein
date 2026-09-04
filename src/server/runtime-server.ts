@@ -4598,6 +4598,30 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								if (listedState === "absent") {
 									deadReason = "absent_from_listing";
 								} else if (listedState === "present") {
+									// BUSY ≠ DEAD (live 2026-09-04: a single-slot m4mini q2 prefilling a 35k prompt could
+									// not answer the 1-token probe — it queued behind the wedged request itself — and
+									// was marked listed_but_dead three times to the strike cap). When lms ps shows any
+									// instance of this identifier PROCESSING/GENERATING, the endpoint is provably alive
+									// and merely slow: leave the wedge to the legacy stop, mark nothing.
+									const busyInstances = await fetchLmsPsModelsCached(
+										createDefaultLmsRunner(MODEL_TURN_LMS_PS_TIMEOUT_MS),
+									)
+										.then((models) =>
+											models.filter(
+												(model) =>
+													model.identifier === wedgedModelId &&
+													/processing|generating/iu.test(String(model.status ?? "")),
+											),
+										)
+										.catch(() => [] as LmsPsModel[]);
+									if (busyInstances.length > 0) {
+										deps.warn(
+											`Zero-token wedge on ${wedge.taskId}: ${wedgedModelId} is BUSY (${busyInstances.map((model) => model.status).join("/")}) per lms ps — slow, not dead; no pool-loss mark.`,
+										);
+										listedState = "unknown";
+									}
+								}
+								if (listedState === "present") {
 									try {
 										const probe = await fetch(`${endpointRoot}/v1/chat/completions`, {
 											method: "POST",
