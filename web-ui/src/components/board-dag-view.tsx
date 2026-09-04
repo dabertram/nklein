@@ -203,40 +203,127 @@ export function BoardDagView({
 						}}
 					>
 						<title>Board dependency graph</title>
-						{graph.edges.map((edge) => {
+						{(() => {
 							// EXECUTION-ORDER flow (David 2026-07-10): `from` depends on `to`, so the line runs
-							// blocker (to, left layer) → dependent (from, right layer) — with the arrow-dot at the
-							// dependent end ("what runs next"), matching the board's left→right time flow.
-							const blocker = graph.positions.get(edge.toTaskId);
-							const dependent = graph.positions.get(edge.fromTaskId);
-							if (!blocker || !dependent) {
-								return null;
+							// blocker → dependent with the arrow-dot at the dependent end ("what runs next").
+							// Overlap minimization (David 2026-09-04 "minimize overlapping edges"):
+							//  1. Connection SIDES face the other endpoint (under early-right the mirrored layout made
+							//     every edge exit the far side and double back across its own node).
+							//  2. PORT FAN-OUT — a node's edges spread along its side (sorted by the far end's y)
+							//     instead of all fusing at the vertical center.
+							//  3. Long edges follow their model-routed WAYPOINTS through empty corridor slots rather
+							//     than cutting straight across intermediate layers (spline through graph.edgeRoutes).
+							interface EdgePoints {
+								edge: BoardDependency;
+								points: { x: number; y: number }[];
 							}
-							const isCycle = graph.cycleEdgeIds.has(edge.id);
-							const x1 = blocker.x + NODE_W;
-							const y1 = blocker.y + NODE_H / 2;
-							const x2 = dependent.x;
-							const y2 = dependent.y + NODE_H / 2;
-							const midX = (x1 + x2) / 2;
-							return (
-								<g key={edge.id} data-testid={isCycle ? "dag-cycle-edge" : "dag-edge"}>
-									<path
-										d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
-										fill="none"
-										stroke={isCycle ? "var(--color-status-red)" : "var(--color-accent)"}
-										strokeOpacity={isCycle ? 0.9 : 0.35}
-										strokeWidth={isCycle ? 2 : 1.5}
-										strokeDasharray={isCycle ? "6 4" : undefined}
-									/>
-									<circle
-										cx={x2}
-										cy={y2}
-										r={2.5}
-										fill={isCycle ? "var(--color-status-red)" : "var(--color-accent)"}
-									/>
-								</g>
-							);
-						})}
+							const drawable: EdgePoints[] = [];
+							const sidePorts = new Map<string, { edgeId: string; adjacentY: number }[]>();
+							const sideKey = (taskId: string, side: "left" | "right"): string => `${taskId}:${side}`;
+							for (const edge of graph.edges) {
+								const blocker = graph.positions.get(edge.toTaskId);
+								const dependent = graph.positions.get(edge.fromTaskId);
+								if (!blocker || !dependent) {
+									continue;
+								}
+								const route = graph.edgeRoutes.get(edge.id) ?? [];
+								const firstMid = route[0] ?? {
+									x: dependent.x + NODE_W / 2,
+									y: dependent.y + NODE_H / 2,
+								};
+								const lastMid = route[route.length - 1] ?? {
+									x: blocker.x + NODE_W / 2,
+									y: blocker.y + NODE_H / 2,
+								};
+								const blockerSide: "left" | "right" = firstMid.x >= blocker.x + NODE_W / 2 ? "right" : "left";
+								const dependentSide: "left" | "right" =
+									lastMid.x >= dependent.x + NODE_W / 2 ? "right" : "left";
+								sidePorts.set(sideKey(edge.toTaskId, blockerSide), [
+									...(sidePorts.get(sideKey(edge.toTaskId, blockerSide)) ?? []),
+									{ edgeId: edge.id, adjacentY: firstMid.y },
+								]);
+								sidePorts.set(sideKey(edge.fromTaskId, dependentSide), [
+									...(sidePorts.get(sideKey(edge.fromTaskId, dependentSide)) ?? []),
+									{ edgeId: edge.id, adjacentY: lastMid.y },
+								]);
+								drawable.push({ edge, points: [] });
+							}
+							// Port y-offset per (node side): spread across the node height in adjacent-y order.
+							const portY = new Map<string, number>(); // `${edgeId}@${taskId}` -> y
+							for (const [key, ports] of sidePorts) {
+								const taskId = key.slice(0, key.lastIndexOf(":"));
+								const nodeY = graph.positions.get(taskId)?.y ?? 0;
+								const sorted = [...ports].sort(
+									(a, b) => a.adjacentY - b.adjacentY || a.edgeId.localeCompare(b.edgeId),
+								);
+								sorted.forEach((port, index) => {
+									portY.set(`${port.edgeId}@${taskId}`, nodeY + (NODE_H * (index + 1)) / (sorted.length + 1));
+								});
+							}
+							for (const item of drawable) {
+								const { edge } = item;
+								const blocker = graph.positions.get(edge.toTaskId);
+								const dependent = graph.positions.get(edge.fromTaskId);
+								if (!blocker || !dependent) {
+									continue;
+								}
+								const route = graph.edgeRoutes.get(edge.id) ?? [];
+								const firstMid = route[0] ?? { x: dependent.x + NODE_W / 2, y: 0 };
+								const lastMid = route[route.length - 1] ?? { x: blocker.x + NODE_W / 2, y: 0 };
+								const startX = firstMid.x >= blocker.x + NODE_W / 2 ? blocker.x + NODE_W : blocker.x;
+								const endX = lastMid.x >= dependent.x + NODE_W / 2 ? dependent.x + NODE_W : dependent.x;
+								const startY = portY.get(`${edge.id}@${edge.toTaskId}`) ?? blocker.y + NODE_H / 2;
+								const endY = portY.get(`${edge.id}@${edge.fromTaskId}`) ?? dependent.y + NODE_H / 2;
+								// A waypoint is a column-center lane point; expand it into an ENTRY + EXIT pair at the
+								// column's edges so the edge runs horizontally across the column inside its lane and
+								// only bends in the inter-column gap (a single center point put every S-bend ~10px
+								// inside the next column — straight through whatever card sat there).
+								const expanded: { x: number; y: number }[] = [];
+								let cursorX = startX;
+								for (const waypoint of route) {
+									const entering = waypoint.x >= cursorX ? waypoint.x - NODE_W / 2 : waypoint.x + NODE_W / 2;
+									const leaving = waypoint.x >= cursorX ? waypoint.x + NODE_W / 2 : waypoint.x - NODE_W / 2;
+									expanded.push({ x: entering, y: waypoint.y }, { x: leaving, y: waypoint.y });
+									cursorX = leaving;
+								}
+								item.points = [{ x: startX, y: startY }, ...expanded, { x: endX, y: endY }];
+							}
+							return drawable.map(({ edge, points }) => {
+								const isCycle = graph.cycleEdgeIds.has(edge.id);
+								// Routed long edges travel in lane BUNDLES; at full opacity thirty parallel lanes fuse
+								// into a solid band, so they render as soft ribbons and adjacent-layer edges (the local
+								// structure a reader follows) stay the visual foreground.
+								const isRouted = graph.edgeRoutes.has(edge.id);
+								const segments = points
+									.slice(1)
+									.map((point, index) => {
+										const previous = points[index] ?? point;
+										const midX = (previous.x + point.x) / 2;
+										return `C ${midX} ${previous.y}, ${midX} ${point.y}, ${point.x} ${point.y}`;
+									})
+									.join(" ");
+								const first = points[0] ?? { x: 0, y: 0 };
+								const last = points[points.length - 1] ?? first;
+								return (
+									<g key={edge.id} data-testid={isCycle ? "dag-cycle-edge" : "dag-edge"}>
+										<path
+											d={`M ${first.x} ${first.y} ${segments}`}
+											fill="none"
+											stroke={isCycle ? "var(--color-status-red)" : "var(--color-accent)"}
+											strokeOpacity={isCycle ? 0.9 : isRouted ? 0.18 : 0.35}
+											strokeWidth={isCycle ? 2 : 1.5}
+											strokeDasharray={isCycle ? "6 4" : undefined}
+										/>
+										<circle
+											cx={last.x}
+											cy={last.y}
+											r={2.5}
+											fill={isCycle ? "var(--color-status-red)" : "var(--color-accent)"}
+										/>
+									</g>
+								);
+							});
+						})()}
 						{graph.nodes.map((node) => {
 							const position = graph.positions.get(node.id);
 							if (!position) {

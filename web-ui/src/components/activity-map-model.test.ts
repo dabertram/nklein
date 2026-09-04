@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { composeActivityMap, resolveBubbleLabelLayout, UNPLANNED_CLUSTER_ID } from "@/components/activity-map-model";
+import {
+	composeActivityMap,
+	orderRingSlots,
+	resolveBubbleLabelLayout,
+	UNPLANNED_CLUSTER_ID,
+} from "@/components/activity-map-model";
 import type { RuntimeTaskSessionSummary } from "@/runtime/types";
 import type { BoardCard, BoardColumn } from "@/types";
 
@@ -250,5 +255,46 @@ describe("active-center ordering (F2.33 companion, 2026-09-03)", () => {
 		expect(order[order.length - 1]).toBe("done-1"); // done drifts outermost
 		// Stable within a state: idle cards keep their board order.
 		expect(order.indexOf("idle-1")).toBeLessThan(order.indexOf("idle-2"));
+	});
+});
+
+describe("orderRingSlots (David 2026-09-04: minimize overlapping edges in the clean view)", () => {
+	it("keeps ring MEMBERSHIP in array order (state ranking) while reordering within rings by connectivity", () => {
+		const ids = ["r0", "r1", "r2", "r3", "r4", "r5", "o0", "o1", "o2", "o3"];
+		const neighbors = new Map<string, string[]>([
+			["o3", ["r0"]],
+			["r0", ["o3"]],
+			["o0", ["r5"]],
+			["r5", ["o0"]],
+		]);
+		const slots = orderRingSlots(ids, [6, 4], neighbors);
+		for (const id of ids.slice(0, 6)) {
+			expect(slots.get(id)?.ring).toBe(0);
+		}
+		for (const id of ids.slice(6)) {
+			expect(slots.get(id)?.ring).toBe(1);
+		}
+		// Connected outer bubbles sit at the angular fraction closest to their inner neighbor.
+		const fraction = (id: string): number => {
+			const slot = slots.get(id);
+			return slot ? slot.indexInRing / slot.ringSize : Number.NaN;
+		};
+		const circular = (a: number, b: number): number => {
+			const raw = Math.abs(a - b) % 1;
+			return Math.min(raw, 1 - raw);
+		};
+		expect(circular(fraction("o3"), fraction("r0"))).toBeLessThanOrEqual(0.25);
+		expect(circular(fraction("o0"), fraction("r5"))).toBeLessThanOrEqual(0.25);
+	});
+
+	it("is deterministic and assigns every bubble exactly one slot", () => {
+		const ids = ["a", "b", "c", "d", "e", "f", "g", "h"];
+		const neighbors = new Map<string, string[]>([["h", ["a"]]]);
+		const first = orderRingSlots(ids, [6, 2], neighbors);
+		const second = orderRingSlots(ids, [6, 2], neighbors);
+		expect([...first.entries()]).toEqual([...second.entries()]);
+		expect(first.size).toBe(ids.length);
+		const slotKeys = new Set([...first.values()].map((slot) => `${slot.ring}:${slot.indexInRing}`));
+		expect(slotKeys.size).toBe(ids.length);
 	});
 });

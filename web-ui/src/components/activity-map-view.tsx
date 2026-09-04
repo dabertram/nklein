@@ -5,7 +5,12 @@
 
 import { type ReactElement, useEffect, useRef, useState } from "react";
 
-import { type ActivityBubbleState, type ActivityMap, resolveBubbleLabelLayout } from "@/components/activity-map-model";
+import {
+	type ActivityBubbleState,
+	type ActivityMap,
+	orderRingSlots,
+	resolveBubbleLabelLayout,
+} from "@/components/activity-map-model";
 
 const STATE_STYLE: Record<ActivityBubbleState, { fill: string; stroke: string }> = {
 	running: { fill: "color-mix(in srgb, var(--color-accent) 20%, transparent)", stroke: "var(--color-accent)" },
@@ -40,11 +45,12 @@ interface BubblePosition {
 }
 
 /**
- * Distribute a cluster's bubbles over CONCENTRIC RINGS instead of one fixed circle — a 12-card cluster on a
- * single ring stacked every label on its neighbor (the "lazy sketch" impression, David 2026-07-09). Ring
- * capacities grow outward (6, 11, 16, …); rings are angle-staggered so bubbles don't align radially.
+ * Ring capacities for a cluster of `count` bubbles — rings grow outward (6, 11, 16, …). Distributing over
+ * CONCENTRIC RINGS instead of one fixed circle fixed the "lazy sketch" label pile-up (David 2026-07-09);
+ * slot ORDER within each ring is connectivity-driven via {@link orderRingSlots} (David 2026-09-04:
+ * "minimize overlapping edges") so dependency lines run radially instead of slicing chords.
  */
-function ringAssignments(count: number): { ring: number; indexInRing: number; ringSize: number; rings: number }[] {
+function ringCapacities(count: number): number[] {
 	const capacities: number[] = [];
 	let remaining = count;
 	for (let ring = 0; remaining > 0; ring++) {
@@ -52,13 +58,7 @@ function ringAssignments(count: number): { ring: number; indexInRing: number; ri
 		capacities.push(capacity);
 		remaining -= capacity;
 	}
-	const assignments: { ring: number; indexInRing: number; ringSize: number; rings: number }[] = [];
-	capacities.forEach((ringSize, ring) => {
-		for (let indexInRing = 0; indexInRing < ringSize; indexInRing++) {
-			assignments.push({ ring, indexInRing, ringSize, rings: capacities.length });
-		}
-	});
-	return assignments;
+	return capacities;
 }
 
 export function ActivityMapView({
@@ -101,20 +101,31 @@ export function ActivityMapView({
 
 	const { width, height } = size;
 	const positions = new Map<string, BubblePosition>();
+	// Dependency adjacency (both directions) — drives the within-ring slot ordering below.
+	const neighborIdsById = new Map<string, string[]>();
+	for (const edge of map.edges) {
+		neighborIdsById.set(edge.fromCardId, [...(neighborIdsById.get(edge.fromCardId) ?? []), edge.toCardId]);
+		neighborIdsById.set(edge.toCardId, [...(neighborIdsById.get(edge.toCardId) ?? []), edge.fromCardId]);
+	}
 	const clusterGeometry = map.clusters.map((cluster, index) => {
 		const anchor = CLUSTER_ANCHORS[index % CLUSTER_ANCHORS.length] ?? { x: 0.5, y: 0.5 };
 		const cx = anchor.x * width;
 		const cy = anchor.y * height;
-		const assignments = ringAssignments(cluster.bubbles.length);
-		const ringsTotal = assignments[0]?.rings ?? 1;
+		const capacities = ringCapacities(cluster.bubbles.length);
+		const slotById = orderRingSlots(
+			cluster.bubbles.map((bubble) => bubble.id),
+			capacities,
+			neighborIdsById,
+		);
+		const ringsTotal = capacities.length || 1;
 		// Halo cap scales with the CANVAS, not just card count: a fixed 230px halo is wider than a phone viewport,
 		// so outer-ring bubbles rendered half off-canvas (live-found 2026-07-10 at 375px — the in-review bubble was
 		// clipped at the left edge). ~38% of the smaller canvas side keeps the ring inside every anchor position;
 		// desktop canvases stay above the fixed cap and are unchanged.
 		const canvasCap = Math.max(72, Math.min(width, height) * 0.38);
 		const haloRadius = Math.min(230, canvasCap, 64 + ringsTotal * 52 + cluster.bubbles.length * 2);
-		cluster.bubbles.forEach((bubble, bubbleIndex) => {
-			const slot = assignments[bubbleIndex] ?? { ring: 0, indexInRing: 0, ringSize: 1, rings: 1 };
+		cluster.bubbles.forEach((bubble) => {
+			const slot = slotById.get(bubble.id) ?? { ring: 0, indexInRing: 0, ringSize: 1, rings: 1 };
 			// Radial fraction per ring: a lone ring sits mid-halo; multiple rings spread 0.30 → 0.72.
 			const fraction = ringsTotal === 1 ? 0.45 : 0.3 + (slot.ring / Math.max(1, ringsTotal - 1)) * 0.42;
 			// Stagger ring start angles so bubbles never align radially (label pile-up).

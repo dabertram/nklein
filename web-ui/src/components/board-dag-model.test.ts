@@ -182,3 +182,78 @@ describe("buildDagGraph layout (F2.31 flow + tree structure)", () => {
 		expect(disjoint, `a-band ${aBand} and b-band ${bBand} must not interleave`).toBe(true);
 	});
 });
+
+describe("buildDagGraph — overlap minimization (David 2026-09-04)", () => {
+	const sessions: Record<string, RuntimeTaskSessionSummary> = {};
+
+	/** Count crossings between adjacent-layer edge pairs from the laid-out positions (straight segments). */
+	function countCrossings(graph: ReturnType<typeof buildDagGraph>): number {
+		const segments = graph.edges.flatMap((edge) => {
+			const route = graph.edgeRoutes.get(edge.id) ?? [];
+			const from = graph.positions.get(edge.toTaskId);
+			const to = graph.positions.get(edge.fromTaskId);
+			if (!from || !to) {
+				return [];
+			}
+			const points = [from, ...route, to];
+			return points.slice(1).map((point, index) => ({ a: points[index] ?? point, b: point }));
+		});
+		let crossings = 0;
+		for (let i = 0; i < segments.length; i += 1) {
+			for (let j = i + 1; j < segments.length; j += 1) {
+				const s = segments[i];
+				const t = segments[j];
+				if (!s || !t) {
+					continue;
+				}
+				// Same-span segments cross when their y-order flips between the two x columns.
+				const sameSpan = Math.abs(s.a.x - t.a.x) < 1 && Math.abs(s.b.x - t.b.x) < 1;
+				if (sameSpan && Math.sign(s.a.y - t.a.y) * Math.sign(s.b.y - t.b.y) < 0) {
+					crossings += 1;
+				}
+			}
+		}
+		return crossings;
+	}
+
+	it("orders layers so a permuted 2-layer bipartite chain has zero crossings", () => {
+		// Board order deliberately scrambles the dependents: a1..a4 blockers; b's depend crosswise.
+		const columns = [column("backlog", ["b3", "b1", "b4", "b2", "a1", "a2", "a3", "a4"])];
+		const deps = [dep("b1", "a1"), dep("b2", "a2"), dep("b3", "a3"), dep("b4", "a4")];
+		const graph = buildDagGraph(columns, deps, sessions);
+		expect(countCrossings(graph)).toBe(0);
+	});
+
+	it("routes an edge spanning several layers through waypoints in every intermediate layer", () => {
+		// r → m1 → m2 → leaf, plus a long edge leaf → r (depth 0 → depth 3): 2 waypoints (depths 1 and 2).
+		const columns = [column("backlog", ["r", "m1", "m2", "leaf"])];
+		const deps = [dep("m1", "r"), dep("m2", "m1"), dep("leaf", "m2"), dep("leaf", "r")];
+		const graph = buildDagGraph(columns, deps, sessions, { flowDirection: "early-left" });
+		const route = graph.edgeRoutes.get("leaf->r");
+		expect(route).toHaveLength(2);
+		const xs = (route ?? []).map((point) => point.x);
+		const columnX = (id: string): number => graph.positions.get(id)?.x ?? Number.NaN;
+		// Waypoints sit centered inside the intermediate columns, strictly between the endpoints.
+		expect(xs[0]).toBeGreaterThan(columnX("r"));
+		expect(xs[1]).toBeGreaterThan(xs[0] ?? 0);
+		expect(xs[1]).toBeLessThan(columnX("leaf"));
+		// Adjacent-layer edges get no route.
+		expect(graph.edgeRoutes.has("m1->r")).toBe(false);
+	});
+
+	it("keeps virtual corridors out of node positions and is deterministic", () => {
+		const columns = [column("backlog", ["r", "m1", "m2", "leaf", "x"])];
+		const deps = [dep("m1", "r"), dep("m2", "m1"), dep("leaf", "m2"), dep("leaf", "r"), dep("x", "r")];
+		const first = buildDagGraph(columns, deps, sessions);
+		const second = buildDagGraph(columns, deps, sessions);
+		expect([...first.positions.entries()]).toEqual([...second.positions.entries()]);
+		expect([...first.edgeRoutes.entries()]).toEqual([...second.edgeRoutes.entries()]);
+		// Every real node still has a position; no node shares a slot with another in its column.
+		const seen = new Set<string>();
+		for (const [, position] of first.positions) {
+			const key = `${position.x}:${position.y}`;
+			expect(seen.has(key)).toBe(false);
+			seen.add(key);
+		}
+	});
+});

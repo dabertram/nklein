@@ -226,6 +226,104 @@ export function composeActivityMap(input: ComposeActivityMapInput): ActivityMap 
 	return { clusters, edges, totalCards, runningCount };
 }
 
+// --- ring-slot ordering (pure; rendered by activity-map-view) ----------------------------------------------------------
+
+export interface RingSlot {
+	ring: number;
+	indexInRing: number;
+	ringSize: number;
+	rings: number;
+}
+
+/**
+ * Assign a cluster's bubbles to ring slots with edge crossings minimized (David 2026-09-04: "minimize
+ * overlapping edges .. user needs visual structure"). Ring MEMBERSHIP is untouched — bubbles fill rings in
+ * array order, preserving the F2.33 state ranking (running at the heart, done drifting outward). What this
+ * changes is the order AROUND each circle: within a ring, bubbles are placed at the circular-mean angle of
+ * their already-placed dependency neighbors (inner rings first), then refined by adjacent swaps that shorten
+ * total angular edge span — connected work lines up radially instead of slicing chords across the cluster.
+ * Deterministic: stable sorts, original index as the tiebreak and the no-neighbor fallback.
+ */
+export function orderRingSlots(
+	bubbleIds: readonly string[],
+	ringSizes: readonly number[],
+	neighborIdsById: ReadonlyMap<string, readonly string[]>,
+): Map<string, RingSlot> {
+	const rings = ringSizes.length;
+	const slots = new Map<string, RingSlot>();
+	// Angular fraction (0..1 around the circle) of every already-placed bubble.
+	const placedFraction = new Map<string, number>();
+	const circularMean = (fractions: readonly number[]): number => {
+		let sumX = 0;
+		let sumY = 0;
+		for (const fraction of fractions) {
+			sumX += Math.cos(fraction * Math.PI * 2);
+			sumY += Math.sin(fraction * Math.PI * 2);
+		}
+		if (sumX === 0 && sumY === 0) {
+			return Number.NaN;
+		}
+		const angle = Math.atan2(sumY, sumX) / (Math.PI * 2);
+		return (angle + 1) % 1;
+	};
+	const circularDistance = (a: number, b: number): number => {
+		const raw = Math.abs(a - b) % 1;
+		return Math.min(raw, 1 - raw);
+	};
+	let offset = 0;
+	ringSizes.forEach((ringSize, ring) => {
+		const members = bubbleIds.slice(offset, offset + ringSize);
+		offset += ringSize;
+		// Target fraction per member: circular mean of its placed neighbors; fallback keeps original spread.
+		const targets = members.map((id, index) => {
+			const anchors = (neighborIdsById.get(id) ?? [])
+				.map((neighborId) => placedFraction.get(neighborId))
+				.filter((value): value is number => value !== undefined);
+			const mean = circularMean(anchors);
+			return { id, index, target: Number.isNaN(mean) ? index / Math.max(1, ringSize) : mean };
+		});
+		const ordered = [...targets].sort((a, b) => a.target - b.target || a.index - b.index);
+		const fractionAt = (indexInRing: number): number => indexInRing / Math.max(1, ringSize);
+		const assign = (): void => {
+			ordered.forEach((member, indexInRing) => {
+				slots.set(member.id, { ring, indexInRing, ringSize, rings });
+				placedFraction.set(member.id, fractionAt(indexInRing));
+			});
+		};
+		assign();
+		// Adjacent-swap refinement (circular): swap neighbors when it shortens the summed angular distance to
+		// placed dependency neighbors (inner rings AND already-assigned same-ring members).
+		const costOf = (id: string, fraction: number): number =>
+			(neighborIdsById.get(id) ?? [])
+				.map((neighborId) => placedFraction.get(neighborId))
+				.filter((value): value is number => value !== undefined)
+				.reduce((sum, neighborFraction) => sum + circularDistance(fraction, neighborFraction), 0);
+		for (let pass = 0; pass < 2; pass += 1) {
+			let improved = false;
+			for (let index = 0; index < ordered.length && ordered.length > 1; index += 1) {
+				const nextIndex = (index + 1) % ordered.length;
+				const a = ordered[index];
+				const b = ordered[nextIndex];
+				if (!a || !b) {
+					continue;
+				}
+				const before = costOf(a.id, fractionAt(index)) + costOf(b.id, fractionAt(nextIndex));
+				const after = costOf(a.id, fractionAt(nextIndex)) + costOf(b.id, fractionAt(index));
+				if (after < before) {
+					ordered[index] = b;
+					ordered[nextIndex] = a;
+					assign();
+					improved = true;
+				}
+			}
+			if (!improved) {
+				break;
+			}
+		}
+	});
+	return slots;
+}
+
 // --- bubble-label collision layout (pure; rendered by activity-map-view) -----------------------------------------------
 
 /** One label the view wants to draw: bubble center, radius, caption, and the ring-parity preferred side. */
