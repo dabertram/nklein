@@ -1976,7 +1976,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   operator hand-merge landed s51's result, the NEXT boot completed it via the already-merged path — so the skip
   is specific to the approved+conflicted shape, not the candidates selection (refs existed, autoReview commit
   set). Find the early bail in finalizeHeadlessAutoReviewTask/second-opinion "durable approval reused" path for
-  that shape and make it either re-attempt the merge or record WHY it held; silence is the defect.)* Context:
+  that shape and make it either re-attempt the merge or record WHY it held; silence is the defect. 08:20
+  UPDATE: the skip may already be resolved by 25aa476c0 — the old divergence signature stopped at that fix and
+  the NEXT boot's reconcile completed s51; needs ONE clean fresh-conflict observation to close.)* Context:
   the merge chain itself is fixed (root-clear owner-uid fallback, strong merge model, reproduction onto the
   host's CURRENT head — commits d3d23be3b/9c23ec0fc/25aa476c0); this skip is the remaining trigger gap.
 
