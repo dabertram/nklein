@@ -8,7 +8,28 @@ import { type EnvironmentPlan, planEnvironmentSetup } from "../core/language-too
 export interface SandboxToolchainSetupExecution {
 	readonly command: string;
 	readonly timeoutMs: number;
+	/** Invocation-scoped environment additions (the sandbox adapter forwards them through `/usr/bin/env`). */
+	readonly env?: Readonly<Record<string, string>>;
 }
+
+/**
+ * P1.ACCEPT-ORPHAN (2): an egress-off sandbox must learn it is offline in SECONDS. npm's defaults retry each
+ * registry fetch with a 5-minute timeout, so every `npm install` in the strict-isolation sandbox burned ~280s
+ * before printing the ENOTFOUND that `isOfflineInstallFailure` classifies (telemetry 2026-09-02: 280464ms,
+ * 280446ms, 280570ms per card). The same knobs make a warm per-task cache usable offline (`prefer-offline`).
+ * pnpm honours the npm_config_* names; yarn classic reads YARN_NETWORK_TIMEOUT.
+ */
+export const INSTALL_FAIL_FAST_ENV: Readonly<Record<string, string>> = {
+	npm_config_fetch_retries: "0",
+	npm_config_fetch_timeout: "15000",
+	npm_config_fetch_retry_mintimeout: "1000",
+	npm_config_fetch_retry_maxtimeout: "2000",
+	npm_config_prefer_offline: "true",
+	npm_config_audit: "false",
+	npm_config_fund: "false",
+	npm_config_update_notifier: "false",
+	YARN_NETWORK_TIMEOUT: "15000",
+};
 
 export interface SandboxToolchainSetupStep {
 	readonly kind: "runtime_probe" | "install";
@@ -51,10 +72,11 @@ async function executeStep(
 	options: RunSandboxToolchainSetupOptions,
 	kind: SandboxToolchainSetupStep["kind"],
 	command: string,
+	env?: Readonly<Record<string, string>>,
 ): Promise<SandboxToolchainSetupStep> {
 	const now = options.now ?? Date.now;
 	const startedAt = now();
-	const result = await options.runCommand({ command, timeoutMs: options.timeoutMs });
+	const result = await options.runCommand({ command, timeoutMs: options.timeoutMs, ...(env ? { env } : {}) });
 	return {
 		kind,
 		command,
@@ -140,7 +162,7 @@ export async function runSandboxToolchainSetup(
 	}
 
 	for (const command of plan.installSteps) {
-		const step = await executeStep(options, "install", command);
+		const step = await executeStep(options, "install", command, INSTALL_FAIL_FAST_ENV);
 		steps.push(step);
 		if (step.exitCode !== 0) {
 			// N10 forensics 2026-07-25: an install failing because the sandbox has NO NETWORK (the deliberate

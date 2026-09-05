@@ -34,6 +34,15 @@ describe("runSandboxToolchainSetup (F12.84b)", () => {
 			"npm ci",
 			"go mod download",
 		]);
+		// P1.ACCEPT-ORPHAN (2): install steps fail fast in an egress-off sandbox (npm's 5-minute fetch timeout ×
+		// retries burned ~280s per card before the ENOTFOUND verdict); probes carry no such env.
+		const byCommand = new Map(runCommand.mock.calls.map(([execution]) => [execution.command, execution.env]));
+		expect(byCommand.get("command -v npm")).toBeUndefined();
+		expect(byCommand.get("npm ci")).toMatchObject({
+			npm_config_fetch_retries: "0",
+			npm_config_fetch_timeout: "15000",
+			npm_config_prefer_offline: "true",
+		});
 		expect(report.plan.testSteps).toEqual(["npm run test", "go test ./..."]);
 		expect(report.plan.coverageSteps).toEqual([
 			"NODE_V8_COVERAGE=.nklein-coverage npm run test",

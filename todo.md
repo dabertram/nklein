@@ -2072,9 +2072,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   review on that placement queued behind the orphans until I `pkill`ed them.)* Two fixes: (1) **SHIPPED
   2026-09-05** — every task exec that carries a caller deadline runs as `timeout -k 5 <secs> <argv…>` INSIDE
   the container (`withContainerDeadline`, GNU timeout kills the whole process group); the host `docker exec`
-  deadline is now the backstop with 10s grace. (2) REMAINING: an acceptance/verify command that needs the
-  registry must fail FAST in an egress-off sandbox (npm `--offline`/`--prefer-offline` + a pre-seeded cache, or
-  an explicit "registry unreachable" acceptance outcome) instead of hanging on DNS/TCP timeouts.
+  deadline is now the backstop with 10s grace. (2) **SHIPPED 2026-09-05** — toolchain-setup install steps carry
+  `INSTALL_FAIL_FAST_ENV` (`npm_config_fetch_retries=0`, `fetch_timeout=15000`, `prefer_offline`, audit/fund off;
+  `YARN_NETWORK_TIMEOUT`) through the sandbox adapter's `/usr/bin/env`, so an egress-off sandbox proves offline in
+  seconds instead of npm's 5-minute fetch timeout (telemetry: 280464 / 280446 / 280570 ms per card before). The
+  run-level offline verdict cache then skips later installs as before.
   Plus two live-found siblings: the classifier's BUSY≠dead guard (`c4d359125`) and parked-on-400 → ledger mark
   with served-token recovery (`c587d1970`), and cross-host identifier collisions excluded (`f33325410`).
   **REMAINING:** (8) endpoint-keyed ledger marks; (11) marks over tRPC + fleet strip
@@ -2083,8 +2085,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   — else null → the runner's filtered chain; finding cards stamped `trustedOrigin: "plan"`; the sweep mark
   persists in `<workspace>/.nklein/custodian-mark.json` so a restart no longer re-baselines silently)*;
   (17-18) sandbox dispose clear + prepare ownership; (19) blockedKind auto-clear
-  observation; (23) DAG node search; (24) board-card memoization; (25) unit tests for the guard, auto-pool
-  and an extracted wedge classifier.
+  observation; (23) DAG node search; (24) board-card memoization; (25) unit tests for the auto-pool redrive
+  and an extracted wedge classifier *(the single-flight start guard test shipped 2026-09-05, `99ca6e3b9`)*.
 
 - [x] **P0.QWAIT — Queue-wait burns the conversation-timeout budget.** *(Live 2026-09-03 ~08:00, v31:
   s44 parked "conversation timeout after 28800 seconds" — the session spent most of those 8h WAITING for
