@@ -1,5 +1,9 @@
 import { applyWarmthPreference, type PromptSessionKind, type PromptWarmthLedgerEntry } from "../core/cache-warmth";
-import { collidingIdentifiers, describeIdentifierCollision } from "../core/fleet-identifier-collision";
+import {
+	collidingIdentifiers,
+	describeIdentifierCollision,
+	isCollidingIdentifierRoutable,
+} from "../core/fleet-identifier-collision";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached, type LmsPsModel } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
@@ -33,7 +37,17 @@ export async function excludeUnroutableDescriptors<T extends { runtimeId: string
 		return [];
 	}
 	const fleet = await fetchLmsPsModelsCached(createDefaultLmsRunner(5_000)).catch(() => [] as LmsPsModel[]);
-	const colliding = collidingIdentifiers(fleet);
+	// Evidence-based collision exclusion (2026-09-05): only identifiers whose cached gateway probe fails.
+	const probeBaseUrl = resolveDefaultLocalModelBaseUrl();
+	const colliding = new Set(
+		(
+			await Promise.all(
+				[...collidingIdentifiers(fleet)].map(async (id) =>
+					(await isCollidingIdentifierRoutable(id, probeBaseUrl)) ? null : id,
+				),
+			)
+		).filter((id): id is string => id !== null),
+	);
 	const excluded: { id: string; reason: "liveness_ledger_dead" | "fleet_identifier_collision" }[] = [];
 	const routable = descriptors.filter((descriptor) => {
 		if (isModelMarkedDead(descriptor.runtimeId) || isModelMarkedDead(descriptor.modelKey)) {

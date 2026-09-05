@@ -36,3 +36,53 @@ export function describeIdentifierCollision(identifier: string, instances: reado
 	const machines = [...(machinesByIdentifier(instances).get(identifier) ?? [])];
 	return `${identifier} is loaded on ${machines.length} LM-Link hosts (${machines.join(" + ")}) — the gateway cannot route it; rename the instance on one host (e.g. lms load … --identifier ${identifier}@<host>)`;
 }
+
+/**
+ * A colliding identifier is not ALWAYS unroutable (live 2026-09-05 22:xx: `dirk-qwen3.8-27b` on legion5pro + the
+ * M1 answered a 1-token probe fine while the 09-04 collision failed every request). David: "use all available
+ * compute" — so the exclusion is now evidence-based: a colliding identifier stays routable while a cheap 1-token
+ * probe through the gateway succeeds, cached per identifier for {@link COLLISION_PROBE_TTL_MS}. A failed or
+ * errored probe (or a timeout) is the collision refusal as before.
+ */
+export const COLLISION_PROBE_TTL_MS = 10 * 60_000;
+const collisionRoutabilityCache = new Map<string, { routable: boolean; checkedAt: number }>();
+
+export async function isCollidingIdentifierRoutable(
+	identifier: string,
+	baseUrl: string,
+	options: { fetchImpl?: typeof fetch; nowMs?: number; timeoutMs?: number } = {},
+): Promise<boolean> {
+	const now = options.nowMs ?? Date.now();
+	const cached = collisionRoutabilityCache.get(identifier);
+	if (cached && now - cached.checkedAt < COLLISION_PROBE_TTL_MS) {
+		return cached.routable;
+	}
+	const fetchImpl = options.fetchImpl ?? fetch;
+	let routable = false;
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 30_000);
+	try {
+		const response = await fetchImpl(`${baseUrl.replace(/\/$/u, "")}/chat/completions`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				model: identifier,
+				messages: [{ role: "user", content: "OK" }],
+				max_tokens: 1,
+				stream: false,
+			}),
+			signal: controller.signal,
+		});
+		routable = response.ok;
+	} catch {
+		routable = false;
+	} finally {
+		clearTimeout(timer);
+	}
+	collisionRoutabilityCache.set(identifier, { routable, checkedAt: now });
+	return routable;
+}
+
+export function resetCollisionRoutabilityCacheForTests(): void {
+	collisionRoutabilityCache.clear();
+}

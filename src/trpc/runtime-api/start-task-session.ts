@@ -27,7 +27,10 @@ import {
 	buildFleetDecompositionGuidance,
 	selectDepthTargetClass,
 } from "../../core/fleet-aware-decomposition";
-import { machinesByIdentifier as groupMachinesByIdentifier } from "../../core/fleet-identifier-collision";
+import {
+	machinesByIdentifier as groupMachinesByIdentifier,
+	isCollidingIdentifierRoutable,
+} from "../../core/fleet-identifier-collision";
 import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { assessQuantizationFloor, planThinkingBudget, toReasoningEffort } from "../../core/inference-lever-planning";
@@ -1041,8 +1044,20 @@ async function handleStartTaskSessionInner(
 		// "Failed to resolve model metadata for <id>" (internal_error) — it cannot pick a host. Such an id is
 		// unroutable until one host renames its instance; routing excludes it and says so once per start.
 		const machinesByIdentifier = groupMachinesByIdentifier(lmsPsModelsForResidency);
+		const collidingIdentifierCandidates = [...machinesByIdentifier.entries()]
+			.filter(([, machines]) => machines.size > 1)
+			.map(([id]) => id);
+		// Evidence-based (David 2026-09-05 "use all available compute"): a colliding identifier is excluded only
+		// while a cached 1-token probe through the gateway FAILS — the 09-05 fleet routed the shared id fine.
+		const collisionProbeBaseUrl = resolveDefaultLocalModelBaseUrl();
 		const collidingIdentifiers = new Set(
-			[...machinesByIdentifier.entries()].filter(([, machines]) => machines.size > 1).map(([id]) => id),
+			(
+				await Promise.all(
+					collidingIdentifierCandidates.map(async (id) =>
+						(await isCollidingIdentifierRoutable(id, collisionProbeBaseUrl)) ? null : id,
+					),
+				)
+			).filter((id): id is string => id !== null),
 		);
 		const allGuardCandidates = allGuardCandidatesUnfiltered.filter(
 			(candidate) =>
@@ -1072,7 +1087,7 @@ async function handleStartTaskSessionInner(
 				recordSelfObservation({
 					signal: "custom",
 					severity: "warning",
-					message: `Routing for ${body.taskId} excluded ${excludedColliding.length} identifier(s) loaded on more than one LM-Link host — the gateway cannot route them ("Failed to resolve model metadata"): ${excludedColliding
+					message: `Routing for ${body.taskId} excluded ${excludedColliding.length} identifier(s) loaded on more than one LM-Link host whose gateway probe FAILED — the gateway cannot route them ("Failed to resolve model metadata"): ${excludedColliding
 						.map((id) => `${id} on ${[...(machinesByIdentifier.get(id) ?? [])].join("+")}`)
 						.join(", ")}. Rename the instance on one host (e.g. lms load … --identifier <id>@<host>).`,
 					taskId: body.taskId,

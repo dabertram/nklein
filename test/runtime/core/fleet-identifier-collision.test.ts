@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
 	collidingIdentifiers,
 	describeIdentifierCollision,
+	isCollidingIdentifierRoutable,
 	machinesByIdentifier,
+	resetCollisionRoutabilityCacheForTests,
 } from "../../../src/core/fleet-identifier-collision";
 
 describe("fleet identifier collisions (live 2026-09-04: legion + M1 both served dirk-qwen3.8-27b)", () => {
@@ -30,5 +32,37 @@ describe("fleet identifier collisions (live 2026-09-04: legion + M1 both served 
 		expect(text).toContain("legion5pro");
 		expect(text).toContain("ABT-C-00335");
 		expect(text).toContain("--identifier dirk-qwen3.8-27b@<host>");
+	});
+});
+
+describe("isCollidingIdentifierRoutable (evidence-based exclusion, David 2026-09-05 'use all available compute')", () => {
+	it("routes when a 1-token gateway probe succeeds, refuses when it fails, and caches per identifier", async () => {
+		resetCollisionRoutabilityCacheForTests();
+		const calls: string[] = [];
+		const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
+			const body = JSON.parse(String(init?.body)) as { model: string; max_tokens: number };
+			calls.push(`${url} ${body.model} ${body.max_tokens}`);
+			return new Response(body.model === "good" ? "{}" : "nope", { status: body.model === "good" ? 200 : 500 });
+		}) as unknown as typeof fetch;
+		await expect(isCollidingIdentifierRoutable("good", "http://gw/v1", { fetchImpl, nowMs: 1_000 })).resolves.toBe(
+			true,
+		);
+		await expect(isCollidingIdentifierRoutable("bad", "http://gw/v1", { fetchImpl, nowMs: 1_000 })).resolves.toBe(
+			false,
+		);
+		// Cached inside the TTL: no second probe for either identifier.
+		await expect(isCollidingIdentifierRoutable("good", "http://gw/v1", { fetchImpl, nowMs: 2_000 })).resolves.toBe(
+			true,
+		);
+		await expect(isCollidingIdentifierRoutable("bad", "http://gw/v1", { fetchImpl, nowMs: 2_000 })).resolves.toBe(
+			false,
+		);
+		expect(calls).toEqual(["http://gw/v1/chat/completions good 1", "http://gw/v1/chat/completions bad 1"]);
+		// A throwing fetch is a refusal, never an exception.
+		resetCollisionRoutabilityCacheForTests();
+		const throwing = (async () => {
+			throw new Error("ECONNREFUSED");
+		}) as unknown as typeof fetch;
+		await expect(isCollidingIdentifierRoutable("good", "http://gw/v1", { fetchImpl: throwing })).resolves.toBe(false);
 	});
 });
