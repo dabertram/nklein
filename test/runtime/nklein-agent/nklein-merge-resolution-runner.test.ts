@@ -89,6 +89,33 @@ describe("createMergeResolutionRunner", () => {
 		).toBeNull();
 	});
 
+	it("live 2026-09-05: the reproduction merge pins a git identity and a failed merge reports its exit + stderr", async () => {
+		// The sandbox's fresh HOME has no .gitconfig: `merge --no-ff` died on "unable to auto-detect email
+		// address" (exit 128, zero unmerged paths) and the check read it as "diverged from the host conflict".
+		const exec = execRouter({
+			merge: { exitCode: 128, stdout: "", stderr: "fatal: unable to auto-detect email address (got 'u@host')" },
+			diff: ok(""),
+		});
+		const mgr = manager(exec);
+		const d = deps({ getAgentSandboxManager: () => mgr as never });
+		expect(await createMergeResolutionRunner(d).runMergeResolutionSession(input)).toBeNull();
+		const mergeCall = exec.mock.calls.find(([, args]) => args.join(" ").includes("merge --no-ff"));
+		expect(mergeCall?.[1]).toEqual(
+			expect.arrayContaining([
+				"-c",
+				"user.name=nklein-merge-resolution",
+				"user.email=merge-resolution@nklein.local",
+			]),
+		);
+		const { recordSelfObservation } = await import("../../../src/telemetry/self-observation-sink");
+		const messages = (recordSelfObservation as ReturnType<typeof vi.fn>).mock.calls.map(
+			([event]) => (event as { message: string }).message,
+		);
+		expect(
+			messages.some((message) => message.includes("git merge exit 128") && message.includes("auto-detect")),
+		).toBe(true);
+	});
+
 	it("returns null when no model resolves ANYWHERE (preference disabled, no loaded fallback)", async () => {
 		process.env.NKLEIN_MERGE_FALLBACK_MODEL = ""; // explicit empty = no preferred model
 		try {

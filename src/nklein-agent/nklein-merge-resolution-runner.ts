@@ -212,9 +212,25 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 			// tree — exactly the state the agent must fix. A CLEAN merge is instant success without a model turn.
 			// Explicit generous timeout: the 30s exec default can kill the docker CLIENT mid-merge on a large
 			// merge / slow machine (exitCode null, merge still running in-container) — a poisoned reproduction.
+			// Identity is pinned on the command: the sandbox's fresh per-task HOME has no .gitconfig, and a
+			// `--no-ff` merge that needs a merge commit dies on "unable to auto-detect email address" — exit 128
+			// with NO unmerged paths, which the check below reads as "diverged from the host conflict" (live
+			// 2026-09-05: every s03 resolution attempt died there; the host merge conflicted for real).
 			const reproduce = await manager.exec(
 				mergeTaskId,
-				["git", "-C", workspace.workdir, "merge", "--no-ff", "--no-edit", input.resultCommit],
+				[
+					"git",
+					"-c",
+					"user.name=nklein-merge-resolution",
+					"-c",
+					"user.email=merge-resolution@nklein.local",
+					"-C",
+					workspace.workdir,
+					"merge",
+					"--no-ff",
+					"--no-edit",
+					input.resultCommit,
+				],
 				{ timeoutMs: 600_000 },
 			);
 			if (reproduce.exitCode === 0) {
@@ -226,6 +242,7 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 				);
 				return null;
 			}
+			const reproductionStderr = (reproduce.stderr ?? "").trim().slice(0, 400);
 			// VERIFY the reproduction matches the host conflict EXACTLY: a merge can fail differently in the
 			// sandbox (missing host merge drivers, git-version drift, unmergeable sha), and every downstream
 			// guard only inspects the host-provided conflictedPaths — a divergent reproduction could otherwise
@@ -259,7 +276,7 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 				[...sandboxSet].every((path) => hostSet.has(path));
 			if (!conflictSetsMatch) {
 				recordMergeSessionError(
-					`sandbox merge reproduction diverged from the host conflict — host unmerged: [${[...hostSet].join(", ")}]; sandbox unmerged: ${
+					`sandbox merge reproduction diverged from the host conflict (git merge exit ${reproduce.exitCode}${reproductionStderr ? `: ${reproductionStderr}` : ""}) — host unmerged: [${[...hostSet].join(", ")}]; sandbox unmerged: ${
 						sandboxConflictedPaths === null
 							? `(unreadable — git diff exit ${sandboxUnmerged.exitCode ?? "null"})`
 							: `[${[...sandboxSet].join(", ")}]`

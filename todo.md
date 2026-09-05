@@ -2069,6 +2069,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   it — `settleUnknownAsApprovedNoOp` treats approved + no result branch + no live session as the settled
   `empty_patch` it is (the reviewer's approval is the evidence). Sibling root cause fixed the same night: the
   custodian's mark file outside `.nklein/nklein/` dirtied the base and blocked EVERY merge (`2f47f7ab5`).
+  (4) The §5.AK merge-resolution agent never got to run on the s03 conflict: its sandbox REPRODUCTION merge
+  (`git merge --no-ff …` in a fresh per-task HOME with no `.gitconfig`) died on "unable to auto-detect email
+  address" — exit 128, zero unmerged paths — and the divergence check read that as "sandbox merge reproduction
+  diverged from the host conflict — sandbox unmerged: []". The identity is now pinned on the command
+  (`-c user.name/user.email`, like the agent's commit step already did) and the divergence message carries the
+  git exit code + stderr so the next such failure is self-describing.
 
 - [ ] **P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).**
   The fix ships INSIDE the sandbox image (`docker/agent-sandbox/Dockerfile` copies the esbuild bundle) and the
