@@ -38,7 +38,7 @@ import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { classifyTaskComplexity } from "../core/task-complexity";
 import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-contract";
-import { decideTestDrivenDelivery } from "../core/test-driven-delivery";
+import { decideTestDrivenDelivery, isVerificationOnlyPrompt } from "../core/test-driven-delivery";
 import { decideVerificationFirst } from "../core/verification-first-gate";
 import { buildVerificationRubric, renderRubricLensStance } from "../core/verification-rubric";
 import { recordCommunitySkillEffectivenessForTask } from "../nklein-agent/community-skill-effectiveness-recorder";
@@ -62,6 +62,7 @@ import { readAgentLedger } from "../state/agent-attempt-ledger-store";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { deleteTaskResultBranch, getTaskResultBranchDiff } from "../workspace/task-result-branches";
+import { shouldWaiveAcceptanceAsPreexisting } from "./acceptance-waiver-decision";
 import { retryWorkspaceStateLock } from "./workspace-state-lock-retry";
 
 /** Suffix the service uses for the isolated reviewer session id; guards against reviewing a review. */
@@ -871,15 +872,23 @@ export async function runSecondOpinionReviewForTask(
 		const isDecompositionSource = state.board.columns.some((column) =>
 			column.cards.some((candidate) => candidate.generatedFromPlan?.sourceTaskId === input.taskId),
 		);
+		// Verification-only cards (David 2026-09-06 "why need me"): the prompt declares evidence, not a diff, as
+		// the deliverable — demanding a test file from it only loops the worker into a park.
+		const isVerificationOnly = !card.testability && isVerificationOnlyPrompt(card.prompt);
 		const gate = decideTestDrivenDelivery({
 			enabled: true,
 			changedFilePaths,
 			...(card.testability
 				? { testability: card.testability }
-				: isDecompositionSource
+				: isDecompositionSource || isVerificationOnly
 					? { testability: "not_testable" as const }
 					: {}),
 		});
+		if (isVerificationOnly) {
+			input.warn?.(
+				`Test-driven gate: ${input.taskId} is a verification-only card by its prompt — not demanding a test file.`,
+			);
+		}
 		if (!gate.allowReview && changedFilePaths.length > 0) {
 			preReviewVerdict = {
 				verdict: "request_changes",
@@ -1031,8 +1040,22 @@ export async function runSecondOpinionReviewForTask(
 	const acceptanceSummaryForReview = formatAcceptanceSummaryForReview(acceptance, getBaselineProbe(input.taskId));
 	// Autonomy directive 2026-09-01: objective evidence for the no-verdict FALLBACK — green delivers, red
 	// bounces, park only without evidence. `acceptance` here is this round's own sandbox acceptance run.
+	// Live 2026-09-05 (stripe-throws): a RED acceptance that fails identically on the BASE tree (offline sandbox,
+	// no @types/node) is inherited breakage, not the worker's — bouncing "fix the acceptance failure" on it only
+	// looped the card into a park. The same pre-existing waiver the delivery gate applies decides here too:
+	// waived red = no objective evidence either way (the reviewer's verdict has to carry it).
+	const fallbackBaseline = getBaselineProbe(input.taskId);
+	const inheritedRed =
+		acceptance?.present === true &&
+		acceptance.passed === false &&
+		shouldWaiveAcceptanceAsPreexisting(acceptance, fallbackBaseline, { deliveredOutput: acceptance.output ?? null });
+	if (inheritedRed) {
+		input.warn?.(
+			`Fallback evidence for ${input.taskId}: acceptance is red on the BASE tree too — inherited breakage is not a verdict.`,
+		);
+	}
 	const fallbackAcceptanceEvidence =
-		acceptance?.present === true
+		acceptance?.present === true && !inheritedRed
 			? acceptance.passed === true
 				? { state: "green" as const, detail: `(${acceptance.command ?? "acceptance"} passed)` }
 				: {

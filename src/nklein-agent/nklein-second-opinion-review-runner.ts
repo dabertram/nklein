@@ -8,6 +8,7 @@ import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools
 import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 import type { NKleinReviewResult } from "./nklein-review-tool";
+import { buildReviewerCandidates, resolveWorkerRealId } from "./nklein-reviewer-candidate-selection";
 import { excludeUnroutableDescriptors, pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
 import type {
 	RuntimeTaskSessionStartResult,
@@ -40,6 +41,8 @@ const REVIEW_VERDICT_RESERVE_MS =
 		: 120_000;
 /** Hard ceiling for the raise-on-retry ladder — a reviewer that needs more than this is not budget-starved. */
 export const REVIEW_RETRY_BUDGET_CEILING = 32_768;
+/** The no-verdict retry index (0-based) at which the reviewer pick escalates to the strongest routable model. */
+const REVIEW_ESCALATE_TO_STRONGEST_ON_ATTEMPT = 2;
 /** The output budget never exceeds this share of the reviewer's loaded context (the prompt needs the rest). */
 const REVIEWER_OUTPUT_CONTEXT_SHARE = 0.35;
 const REVIEWER_OUTPUT_BUDGET_FLOOR = 2_048;
@@ -173,12 +176,43 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		// own model — the model reviewing its own work, the worst monoculture form. Auto-pick a lineage-DIVERSE
 		// loaded model instead (best-effort; when nothing diverse is loaded the waiver is recorded and the old
 		// fallback stands, so behavior only ever improves).
+		// LAST-RETRY ESCALATION (David 2026-09-06 "why need me"): the third no-verdict session used to be a
+		// byte-identical replay on the same reviewer and then a park for a human. On the last retry pick the
+		// STRONGEST routable non-worker model (catalog fit, then context, then quantization — lineage diversity
+		// waived) so the park is only ever reached after the best available judge had its turn.
+		const escalateToStrongest =
+			!input.reviewer &&
+			(input.budgetAttempt ?? 0) >= REVIEW_ESCALATE_TO_STRONGEST_ON_ATTEMPT &&
+			!!workerLaunch?.modelId;
+		const strongestReviewer = escalateToStrongest
+			? await (async () => {
+					const loaded = await excludeUnroutableDescriptors(
+						await fetchLoadedModelDescriptors(
+							workerLaunch?.baseUrl?.trim() || resolveDefaultLocalModelBaseUrl(),
+						).catch(() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>),
+						{ taskId: input.taskId, purpose: "no-verdict escalation reviewer" },
+					);
+					const workerModelId = workerLaunch?.modelId ?? "";
+					const best = buildReviewerCandidates(
+						loaded,
+						workerModelId,
+						resolveWorkerRealId(loaded, workerModelId),
+					)[0];
+					return best ? { providerId: workerLaunch?.providerId ?? "lmstudio", modelId: best.modelKey } : null;
+				})().catch(() => null)
+			: null;
+		if (strongestReviewer) {
+			stamp(
+				`session: no-verdict escalation → strongest reviewer ${strongestReviewer.modelId} (lineage diversity waived)`,
+			);
+		}
 		const autoReviewer =
-			!input.reviewer && workerLaunch?.providerId && workerLaunch.modelId
+			strongestReviewer ??
+			(!input.reviewer && workerLaunch?.providerId && workerLaunch.modelId
 				? await pickDiverseReviewerModel(workerLaunch, input.taskId, "review", {
 						lastShellKeyByModel: deps.getShellKeyByModelId(),
 					}).catch(() => null)
-				: null;
+				: null);
 		let providerId = (
 			input.reviewer?.providerId ??
 			autoReviewer?.providerId ??

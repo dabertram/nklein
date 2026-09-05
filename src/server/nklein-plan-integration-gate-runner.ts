@@ -4,7 +4,7 @@ import {
 	resolvePlanAcceptanceCommand,
 	resolvePlanFailureSurfaceCardId,
 } from "../core/plan-integration-gate";
-import { addTaskToColumn } from "../core/task-board-mutations";
+import { addTaskToColumn, findBoardCardWithColumn, moveTaskToColumn } from "../core/task-board-mutations";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -156,14 +156,68 @@ export function createPlanIntegrationGateRunner(deps: PlanIntegrationGateRunnerD
 		}
 	};
 
+	// David 2026-09-06 ("why need me"): a completed REPAIR card is the signal the park was waiting for — re-run
+	// the gate for its plan and, on a pass, resolve the park without an operator.
+	const resolveParkOnPass = async (scope: RuntimeTrpcWorkspaceScope, planSlug: string): Promise<void> => {
+		let resolvedTaskId: string | null = null;
+		await retryWorkspaceStateLock(() =>
+			mutateWorkspaceState(scope.workspacePath, (latestState) => {
+				const surfaceTaskId = resolvePlanFailureSurfaceCardId(latestState.board, planSlug);
+				const located = surfaceTaskId ? findBoardCardWithColumn(latestState.board, surfaceTaskId) : null;
+				const parkedForGate =
+					located?.card.review?.status === "parked" &&
+					(located.card.review.parkedReason ?? "").startsWith("Plan integration gate failed");
+				if (!surfaceTaskId || !located || !parkedForGate) {
+					return { board: latestState.board, save: false, value: null };
+				}
+				resolvedTaskId = surfaceTaskId;
+				const review: RuntimeCardReview = {
+					...(located.card.review ?? {}),
+					status: "approved",
+					round: located.card.review?.round ?? 0,
+					history: located.card.review?.history ?? [],
+					lastVerdict: "approve",
+					lastSummary: `Plan-level integration gate PASSED for plan "${planSlug}" after the repair card delivered.`,
+					lastFeedback: null,
+					lastInsight: null,
+					signOff: `Integration gate passed on the merged tree after plan-gate-repair-${planSlug} delivered.`,
+					parkedReason: null,
+					updatedAt: Date.now(),
+				};
+				const withReview = applyCardReviewToBoard(latestState.board, surfaceTaskId, review, located.columnId);
+				return { board: moveTaskToColumn(withReview, surfaceTaskId, "completed").board, value: null };
+			}),
+		);
+		if (resolvedTaskId) {
+			deps.warn(
+				`Plan integration gate PASSED for plan "${planSlug}" after its repair — park on ${resolvedTaskId} resolved, card completed.`,
+			);
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Plan integration gate park resolved for "${planSlug}": the repair card delivered and the gate passed.`,
+				taskId: resolvedTaskId,
+				workspacePath: scope.workspacePath,
+				metadata: { category: "plan_gate_repair_resolved", planSlug },
+			});
+		}
+	};
 	const runForCompletion = (
 		scope: RuntimeTrpcWorkspaceScope,
 		service: NKleinTaskSessionService,
 		completedTaskId: string,
 		board: RuntimeBoardData,
 	): void => {
-		for (const planSlug of findJustCompletedPlans({ board, completedTaskId })) {
+		const repairSlug = completedTaskId.startsWith("plan-gate-repair-")
+			? completedTaskId.slice("plan-gate-repair-".length)
+			: null;
+		const planSlugs = [...findJustCompletedPlans({ board, completedTaskId }), ...(repairSlug ? [repairSlug] : [])];
+		for (const planSlug of planSlugs) {
 			const gateKey = `${scope.workspaceId}:${planSlug}`;
+			if (planSlug === repairSlug) {
+				// A repair completion always earns a fresh run — the previous run is the one that failed.
+				completedPlanGateRunKeys.delete(gateKey);
+			}
 			if (completedPlanGateRunKeys.has(gateKey)) {
 				continue;
 			}
@@ -200,6 +254,9 @@ export function createPlanIntegrationGateRunner(deps: PlanIntegrationGateRunnerD
 						workspacePath: scope.workspacePath,
 						metadata: { category: "plan_integration_gate", planSlug, command, verdict: "pass" },
 					});
+					if (planSlug === repairSlug) {
+						await resolveParkOnPass(scope, planSlug);
+					}
 					return;
 				}
 				// N10 crash forensics 2026-07-25: exit 128+N means the acceptance CHILD died by signal — most

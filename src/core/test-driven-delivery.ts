@@ -93,6 +93,22 @@ export interface TestDrivenDeliveryDecision {
  * the agent can act on (write/update a test for this change). Pure + total — an empty change with the mode on is
  * blocked.
  */
+/**
+ * A VERIFICATION-ONLY card (live 2026-09-05, `s44a-…-wallclock-allowlist`: "Verification slice of S44a (no new
+ * product code): prove that … the S02 no-wallclock guard still passes") delivers evidence, not a diff — the
+ * test-driven gate bounced its worker eight rounds in a row for "touched no test file" until the loop guard
+ * parked it for a human. The prompt says what kind of card it is; read that instead of demanding a test.
+ */
+export function isVerificationOnlyPrompt(prompt: string | null | undefined): boolean {
+	const text = (prompt ?? "").slice(0, 1_500);
+	return (
+		/\bverification slice\b/iu.test(text) ||
+		/\bno new product code\b/iu.test(text) ||
+		/\b(?:prove|verify|confirm) that\b[^.\n]{0,160}\b(?:still|remains?|passes|green)\b/iu.test(text) ||
+		/\bverification[- ]only\b/iu.test(text)
+	);
+}
+
 export function decideTestDrivenDelivery(input: TestDrivenDeliveryInput): TestDrivenDeliveryDecision {
 	const changedTests = input.changedFilePaths.some(isLikelyTestFile);
 	if (!input.enabled) {

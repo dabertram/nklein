@@ -1203,6 +1203,8 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"merge_resolution_salvaged",
 	// 2026-09-05: the watchdog re-runs a failed delivery merge without a restart.
 	"merge_redelivery_retry",
+	// 2026-09-06: a completed repair card re-ran the plan integration gate and the pass cleared the park.
+	"plan_gate_repair_resolved",
 	// Exploration-drift nudge (2026-09-01): plan-mode session made no graph progress for the threshold window.
 	"decomposition_exploration_drift",
 	"agent_sandbox_result_cleanup",

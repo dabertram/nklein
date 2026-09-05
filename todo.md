@@ -2138,6 +2138,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   turns a todo card into a real worker run on this repo (dev-only, confirmation-gated — the existing
   self-improvement project flow).
 
+- [x] **P0.NOHUMAN — parks resolve themselves (David 2026-09-06: "why need me .. just make it brilliant").**
+  SHIPPED 2026-09-06: (1) a completed `plan-gate-repair-<slug>` card re-runs the plan integration gate and, on
+  a pass, clears the gate park on the surface card and completes it (`plan_gate_repair_resolved`); (2)
+  verification-only cards (prompt says "verification slice" / "no new product code" / "prove|verify that …
+  still passes") are `not_testable` at the test-driven gate instead of looping the worker; (3) the no-verdict
+  fallback no longer bounces on acceptance that is red on the BASE tree too (inherited breakage —
+  `shouldWaiveAcceptanceAsPreexisting`); (4) the LAST no-verdict retry escalates to the strongest routable
+  non-worker model (fit → context → quantization, diversity waived) before any park; (5) the sandbox egress
+  proxy is ON with `registry.npmjs.org` allowlisted, so `npm install`/typecheck/vitest can actually run in the
+  isolated sandbox instead of failing offline on every acceptance and plan gate. Remaining human-only parks
+  should now be genuine judgment calls; anything else is a bug to file here.
+
 - [ ] **P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).**
   The fix ships INSIDE the sandbox image (`docker/agent-sandbox/Dockerfile` copies the esbuild bundle) and the
   running container's rootfs is read-only (strict isolation — `docker cp` is refused), so it is live only after

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	decideTestDrivenDelivery,
 	isLikelyTestFile,
+	isVerificationOnlyPrompt,
 	resolveEffectiveTestDrivenMode,
 	TEST_DRIVEN_MODE_DEFAULT,
 } from "../../../src/core/test-driven-delivery";
@@ -120,5 +121,18 @@ describe("no identical-loop churn (F1.34)", () => {
 		const backed = decideTestDrivenDelivery({ enabled: true, changedFilePaths: [...testless, "test/a.test.ts"] });
 		expect(backed.allowReview).toBe(true);
 		expect(backed.reason).toBe("");
+	});
+});
+
+describe("isVerificationOnlyPrompt (live 2026-09-05: wallclock-allowlist looped 8 rounds on the test gate)", () => {
+	it("recognizes verification slices and prove/verify-that prompts, not ordinary feature prompts", () => {
+		expect(
+			isVerificationOnlyPrompt(
+				"Verification slice of S44a (no new product code): prove that after `systemClock()` was added the S02 no-wallclock guard still passes.",
+			),
+		).toBe(true);
+		expect(isVerificationOnlyPrompt("Verify that the invariant suite remains green after the merge.")).toBe(true);
+		expect(isVerificationOnlyPrompt("Implement CSV export for the reports page, with tests.")).toBe(false);
+		expect(isVerificationOnlyPrompt(null)).toBe(false);
 	});
 });
