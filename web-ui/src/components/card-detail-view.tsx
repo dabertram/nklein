@@ -209,7 +209,7 @@ function TaskActivitySurface({
 			<div className="mb-2 flex min-w-0 items-center gap-2 text-[12px] font-medium text-text-primary">
 				<Activity size={14} className="shrink-0 text-text-secondary" />
 				<span>Activity</span>
-				<span className="truncate text-text-tertiary">{sessionSummary?.state ?? "No session"}</span>
+				<span className="break-words text-text-tertiary">{sessionSummary?.state ?? "No session"}</span>
 			</div>
 			{/* auto-fit ≥150px tiles: wraps to more rows instead of truncating labels into fragments (a fixed
 			    7-column grid squeezed each phase to ~140px and every label became "Pl…"/"Re…" noise). */}
@@ -225,10 +225,10 @@ function TaskActivitySurface({
 								className={cn("h-2 w-2 shrink-0 rounded-full border", getActivityToneClassName(step.tone))}
 								aria-hidden="true"
 							/>
-							<span className="truncate text-[11px] font-medium text-text-primary">{step.label}</span>
-							<span className="truncate text-[11px] text-text-tertiary">{step.status}</span>
+							<span className="break-words text-[11px] font-medium text-text-primary">{step.label}</span>
+							<span className="break-words text-[11px] text-text-tertiary">{step.status}</span>
 						</div>
-						<div className="mt-1 truncate text-[11px] text-text-secondary">{step.detail}</div>
+						<div className="mt-1 break-words text-[11px] text-text-secondary">{step.detail}</div>
 					</div>
 				))}
 			</div>

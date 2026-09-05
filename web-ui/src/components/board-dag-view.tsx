@@ -2,6 +2,7 @@ import type { RuntimeTaskSessionSummary } from "@runtime-contract";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { classifyDagEdge, dagEdgeStyle } from "@/components/board-dag-edge-style";
 import { buildDagGraph, DAG_LAYOUT, type DagFlowDirection, type DagNode } from "@/components/board-dag-model";
 import { computeDagSchedule, formatDurationShort, formatEtaClock } from "@/components/board-dag-schedule";
 import { cn } from "@/components/ui/cn";
@@ -94,6 +95,9 @@ export function BoardDagView({
 		() => buildDagGraph(columns, dependencies, sessions, { flowDirection, satisfiedDependencies }),
 		[columns, dependencies, sessions, flowDirection, satisfiedDependencies],
 	);
+	const nodeById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph.nodes]);
+	// Per-node heights: titles wrap instead of truncating (David 2026-09-05), so boxes grow with their text.
+	const heightOf = useCallback((id: string) => graph.nodeHeights.get(id) ?? NODE_H, [graph.nodeHeights]);
 	// Durations / ETAs / critical path (David 2026-09-04) — pure derivation over the graph + schedule facts.
 	const now = Date.now();
 	const dagSchedule = useMemo(
@@ -201,6 +205,16 @@ export function BoardDagView({
 					{graph.cycleEdgeIds.size > 0 ? (
 						<span className="ml-1 text-status-red">· {graph.cycleEdgeIds.size} cycle edge(s)!</span>
 					) : null}
+				</span>
+				<span
+					className="flex items-center gap-2 text-[10.5px] text-text-tertiary"
+					data-testid="board-dag-edge-legend"
+				>
+					<span className="text-status-green">— finished</span>
+					<span className="text-accent">— active</span>
+					<span className="text-status-gold">— critical path</span>
+					<span className="text-status-red">— problem</span>
+					<span>— not started</span>
 				</span>
 				<button
 					type="button"
@@ -329,11 +343,11 @@ export function BoardDagView({
 									const route = graph.edgeRoutes.get(edge.id) ?? [];
 									const firstMid = route[0] ?? {
 										x: dependent.x + NODE_W / 2,
-										y: dependent.y + NODE_H / 2,
+										y: dependent.y + heightOf(edge.fromTaskId) / 2,
 									};
 									const lastMid = route[route.length - 1] ?? {
 										x: blocker.x + NODE_W / 2,
-										y: blocker.y + NODE_H / 2,
+										y: blocker.y + heightOf(edge.toTaskId) / 2,
 									};
 									const blockerSide: "left" | "right" =
 										firstMid.x >= blocker.x + NODE_W / 2 ? "right" : "left";
@@ -360,7 +374,7 @@ export function BoardDagView({
 									sorted.forEach((port, index) => {
 										portY.set(
 											`${port.edgeId}@${taskId}`,
-											nodeY + (NODE_H * (index + 1)) / (sorted.length + 1),
+											nodeY + (heightOf(taskId) * (index + 1)) / (sorted.length + 1),
 										);
 									});
 								}
@@ -376,8 +390,10 @@ export function BoardDagView({
 									const lastMid = route[route.length - 1] ?? { x: blocker.x + NODE_W / 2, y: 0 };
 									const startX = firstMid.x >= blocker.x + NODE_W / 2 ? blocker.x + NODE_W : blocker.x;
 									const endX = lastMid.x >= dependent.x + NODE_W / 2 ? dependent.x + NODE_W : dependent.x;
-									const startY = portY.get(`${edge.id}@${edge.toTaskId}`) ?? blocker.y + NODE_H / 2;
-									const endY = portY.get(`${edge.id}@${edge.fromTaskId}`) ?? dependent.y + NODE_H / 2;
+									const startY =
+										portY.get(`${edge.id}@${edge.toTaskId}`) ?? blocker.y + heightOf(edge.toTaskId) / 2;
+									const endY =
+										portY.get(`${edge.id}@${edge.fromTaskId}`) ?? dependent.y + heightOf(edge.fromTaskId) / 2;
 									// A waypoint is a column-center lane point; expand it into an ENTRY + EXIT pair at the
 									// column's edges so the edge runs horizontally across the column inside its lane and
 									// only bends in the inter-column gap (a single center point put every S-bend ~10px
@@ -413,29 +429,30 @@ export function BoardDagView({
 										.join(" ");
 									const first = points[0] ?? { x: 0, y: 0 };
 									const last = points[points.length - 1] ?? first;
+									// Edge colour by the state of the work it waits on (David 2026-09-05): finished green,
+									// active blue, problem red, critical gold, not-yet-started grey.
+									const edgeStatus = classifyDagEdge({ edge, nodeById, isCycle, isCritical, isSatisfied });
+									const style = dagEdgeStyle(edgeStatus, { isRouted, isSatisfied, isCycle });
 									return (
-										<g key={edge.id} data-testid={isCycle ? "dag-cycle-edge" : "dag-edge"}>
+										<g
+											key={edge.id}
+											data-testid={isCycle ? "dag-cycle-edge" : "dag-edge"}
+											data-edge-status={edgeStatus}
+										>
 											<path
 												d={`M ${first.x} ${first.y} ${segments}`}
 												fill="none"
-												stroke={
-													isCycle
-														? "var(--color-status-red)"
-														: isCritical
-															? "var(--color-status-gold)"
-															: "var(--color-accent)"
-												}
-												strokeOpacity={
-													isCycle ? 0.9 : isCritical ? 0.95 : isSatisfied ? 0.2 : isRouted ? 0.18 : 0.35
-												}
-												strokeWidth={isCycle || isCritical ? 2.5 : 1.5}
-												strokeDasharray={isCycle ? "6 4" : isSatisfied ? "2 4" : undefined}
+												stroke={style.stroke}
+												strokeOpacity={style.strokeOpacity}
+												strokeWidth={style.strokeWidth}
+												strokeDasharray={style.strokeDasharray}
 											/>
 											<circle
 												cx={last.x}
 												cy={last.y}
 												r={2.5}
-												fill={isCycle ? "var(--color-status-red)" : "var(--color-accent)"}
+												fill={style.stroke}
+												fillOpacity={Math.min(1, style.strokeOpacity + 0.3)}
 											/>
 										</g>
 									);
@@ -466,7 +483,7 @@ export function BoardDagView({
 											x={position.x}
 											y={position.y}
 											width={NODE_W}
-											height={NODE_H}
+											height={heightOf(node.id)}
 											rx={8}
 											fill="var(--color-surface-2)"
 											stroke={
@@ -474,15 +491,25 @@ export function BoardDagView({
 											}
 											strokeWidth={dagSchedule.criticalNodeIds.has(node.id) ? 2.5 : 1.5}
 										/>
-										<rect x={position.x} y={position.y} width={4} height={NODE_H} rx={2} fill={style.fill} />
-										<text
-											x={position.x + 12}
-											y={position.y + 17}
-											className={cn("text-[11px]", node.running && "font-semibold")}
-											fill="var(--color-text-primary)"
-										>
-											{node.title.length > 24 ? `${node.title.slice(0, 23)}…` : node.title}
-										</text>
+										<rect
+											x={position.x}
+											y={position.y}
+											width={4}
+											height={heightOf(node.id)}
+											rx={2}
+											fill={style.fill}
+										/>
+										{(graph.titleLines.get(node.id) ?? [node.title]).map((line, lineIndex) => (
+											<text
+												key={`${node.id}:${lineIndex}`}
+												x={position.x + 12}
+												y={position.y + 17 + lineIndex * DAG_LAYOUT.lineH}
+												className={cn("text-[11px]", node.running && "font-semibold")}
+												fill="var(--color-text-primary)"
+											>
+												{line}
+											</text>
+										))}
 										{(() => {
 											// Second line: observed time for done cards, elapsed/estimate + ETA for live and
 											// open ones (David 2026-09-04). "≈" marks an estimate; gold text = critical path.
@@ -499,7 +526,7 @@ export function BoardDagView({
 											return (
 												<text
 													x={position.x + 12}
-													y={position.y + 33}
+													y={position.y + heightOf(node.id) - 11}
 													className="text-[9.5px]"
 													fill={
 														nodeSchedule.onCriticalPath

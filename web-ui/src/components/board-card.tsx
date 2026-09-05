@@ -212,12 +212,9 @@ export function shortenModelIdForBadge(modelId: string): string {
 	while (shortId.length > MODEL_BADGE_MAX_CHARS && MODEL_BADGE_NOISE_TOKEN.test(shortId)) {
 		shortId = shortId.replace(MODEL_BADGE_NOISE_TOKEN, "");
 	}
-	if (shortId.length <= MODEL_BADGE_MAX_CHARS) {
-		return shortId;
-	}
-	const headLength = Math.ceil((MODEL_BADGE_MAX_CHARS - 1) / 2);
-	const tailLength = MODEL_BADGE_MAX_CHARS - 1 - headLength;
-	return `${shortId.slice(0, headLength)}…${shortId.slice(-tailLength)}`;
+	// No middle-truncation any more (David 2026-09-05: "truncation avoidance everywhere") — the badge wraps
+	// instead; noise-suffix stripping above is the only shortening.
+	return shortId;
 }
 
 type ReviewLadderRungId = "bounce" | "escalate" | "park";
@@ -996,7 +993,7 @@ export function BoardCard({
 											<p
 												title={displayTitle}
 												className={cn(
-													"kb-line-clamp-2 m-0 min-w-0 font-medium text-sm",
+													"m-0 min-w-0 break-words font-medium text-sm",
 													isTrashCard && "line-through text-text-tertiary",
 												)}
 											>
@@ -1023,7 +1020,7 @@ export function BoardCard({
 										<p
 											title={displayTitle}
 											className={cn(
-												"kb-line-clamp-2 m-0 font-medium text-sm",
+												"m-0 break-words font-medium text-sm",
 												isTrashCard && "line-through text-text-tertiary",
 											)}
 										>
@@ -1220,7 +1217,7 @@ export function BoardCard({
 									)}
 								>
 									<Bot size={12} className="shrink-0" />
-									<span className="truncate">{roleBadge.label}</span>
+									<span className="whitespace-normal break-words">{roleBadge.label}</span>
 								</span>
 								{/* §5.A paused-card UX: a clear paused-state chip (the resume button alone was easy to miss). */}
 								{isPausedSession ? (
@@ -1243,7 +1240,7 @@ export function BoardCard({
 										)}
 									>
 										<Bot size={12} className="shrink-0" />
-										<span className="truncate">{taskAgentSettingsLabel}</span>
+										<span className="whitespace-normal break-words">{taskAgentSettingsLabel}</span>
 									</span>
 								) : null}
 								{sessionModelId ? (
@@ -1260,7 +1257,9 @@ export function BoardCard({
 										<span aria-hidden="true" className="shrink-0">
 											◈
 										</span>
-										<span className="truncate">{shortenModelIdForBadge(sessionModelId)}</span>
+										<span className="whitespace-normal break-all">
+											{shortenModelIdForBadge(sessionModelId)}
+										</span>
 									</span>
 								) : null}
 								{restarting ? (
@@ -1375,12 +1374,12 @@ export function BoardCard({
 										}}
 									/>
 									<div className="min-w-0 flex-1">
-										<p className="m-0 font-mono truncate" style={{ fontSize: 12 }}>
+										<p className="m-0 font-mono break-all" style={{ fontSize: 12 }}>
 											{sessionActivity.text}
 										</p>
 										{sessionTelemetryLine ? (
 											<p
-												className="m-0 mt-0.5 font-mono truncate text-text-tertiary"
+												className="m-0 mt-0.5 font-mono break-all text-text-tertiary"
 												style={{ fontSize: 10 }}
 											>
 												{sessionTelemetryLine}

@@ -1,6 +1,12 @@
 import type { RuntimeTaskSessionSummary } from "@runtime-contract";
 import { describe, expect, it } from "vitest";
-import { buildDagGraph, computeDepths, findCycleEdgeIds } from "@/components/board-dag-model";
+import {
+	buildDagGraph,
+	computeDepths,
+	dagNodeHeight,
+	findCycleEdgeIds,
+	wrapDagTitle,
+} from "@/components/board-dag-model";
 import type { BoardColumn as BoardColumnModel, BoardDependency } from "@/types";
 
 function dep(from: string, to: string): BoardDependency {
@@ -255,5 +261,39 @@ describe("buildDagGraph — overlap minimization (David 2026-09-04)", () => {
 			expect(seen.has(key)).toBe(false);
 			seen.add(key);
 		}
+	});
+});
+
+describe("wrapped titles + per-node heights (David 2026-09-05: no truncation in DAG cards)", () => {
+	it("word-wraps to the node width, hard-splits over-long words, and never drops text", () => {
+		expect(wrapDagTitle("short")).toEqual(["short"]);
+		expect(wrapDagTitle("S44a production system clock single wall-clock file", 22)).toEqual([
+			"S44a production system",
+			"clock single",
+			"wall-clock file",
+		]);
+		expect(wrapDagTitle("a".repeat(50), 22)).toEqual(["a".repeat(22), "a".repeat(22), "a".repeat(6)]);
+		expect(dagNodeHeight(1)).toBe(44);
+		expect(dagNodeHeight(3)).toBe(44 + 2 * 13);
+	});
+
+	it("stacks a layer by each node's own height", () => {
+		const columns = [
+			{
+				id: "planning",
+				title: "Planning",
+				cards: [
+					{ id: "tall", title: "a very long title that wraps onto three separate lines for sure", prompt: "" },
+					{ id: "next", title: "next", prompt: "" },
+				],
+			},
+		] as never;
+		const graph = buildDagGraph(columns, [], {});
+		expect(graph.titleLines.get("tall")?.length).toBeGreaterThan(1);
+		const tallHeight = graph.nodeHeights.get("tall") ?? 0;
+		expect(tallHeight).toBeGreaterThan(44);
+		const tall = graph.positions.get("tall");
+		const next = graph.positions.get("next");
+		expect((next?.y ?? 0) - (tall?.y ?? 0)).toBe(tallHeight + 18);
 	});
 });

@@ -34,12 +34,66 @@ export interface DagGraph {
 	 * part in layering, so a completed prerequisite sits upstream of its dependents instead of floating loose.
 	 */
 	satisfiedEdgeIds: Set<string>;
+	/** Wrapped title lines per node (never truncated) and the resulting per-node box heights. */
+	titleLines: Map<string, string[]>;
+	nodeHeights: Map<string, number>;
 	width: number;
 	height: number;
 }
 
 /** Node box + gap geometry (px). Exported so the view and its tests share one source of truth. */
-export const DAG_LAYOUT = { nodeW: 168, nodeH: 44, gapX: 64, gapY: 18, pad: 28, lanePx: 8, laneGapPx: 6 } as const;
+export const DAG_LAYOUT = {
+	nodeW: 168,
+	/** Height of a ONE-line node (title line + schedule line); every extra title line adds `lineH`. */
+	nodeH: 44,
+	lineH: 13,
+	/** Characters that fit one title line at the node's 11px font inside its 12px padding. */
+	titleCharsPerLine: 22,
+	gapX: 64,
+	gapY: 18,
+	pad: 28,
+	lanePx: 8,
+	laneGapPx: 6,
+} as const;
+
+/**
+ * Word-wrap a card title into lines that fit the node width (David 2026-09-05: "truncation avoidance
+ * everywhere, especially cards and dag cards") — the whole title is always shown; a single over-long word is
+ * hard-split rather than clipped.
+ */
+export function wrapDagTitle(title: string, maxChars: number = DAG_LAYOUT.titleCharsPerLine): string[] {
+	const words = title.trim().split(/\s+/u).filter(Boolean);
+	const lines: string[] = [];
+	let current = "";
+	for (const rawWord of words) {
+		let word = rawWord;
+		while (word.length > maxChars) {
+			if (current) {
+				lines.push(current);
+				current = "";
+			}
+			lines.push(word.slice(0, maxChars));
+			word = word.slice(maxChars);
+		}
+		if (!current) {
+			current = word;
+		} else if (current.length + 1 + word.length <= maxChars) {
+			current = `${current} ${word}`;
+		} else {
+			lines.push(current);
+			current = word;
+		}
+	}
+	if (current) {
+		lines.push(current);
+	}
+	return lines.length > 0 ? lines : [""];
+}
+
+/** A node's box height: one-line base plus one `lineH` per extra wrapped title line. */
+export function dagNodeHeight(titleLineCount: number): number {
+	return DAG_LAYOUT.nodeH + Math.max(0, titleLineCount - 1) * DAG_LAYOUT.lineH;
+}
 
 /** Longest-path depth per node over the dependency edges (cycle-guarded — a cycle re-entry contributes depth 0). */
 export function computeDepths(ids: readonly string[], dependsOn: Map<string, string[]>): Map<string, number> {
@@ -123,10 +177,14 @@ export function buildDagGraph(
 					title: card.title,
 					columnId: column.id,
 					running: sessions[card.id]?.state === "running",
-					failed: sessions[card.id]?.state === "failed" || card.blockedKind != null,
+					// A parked review is a problem too (David 2026-09-05: "problem edges red") — the chain through it is stuck.
+					failed:
+						sessions[card.id]?.state === "failed" || card.blockedKind != null || card.review?.status === "parked",
 				})),
 	);
 	const ids = nodes.map((node) => node.id);
+	const titleLines = new Map(nodes.map((node) => [node.id, wrapDagTitle(node.title)]));
+	const nodeHeights = new Map(nodes.map((node) => [node.id, dagNodeHeight(titleLines.get(node.id)?.length ?? 1)]));
 	const idSet = new Set(ids);
 	const liveIds = new Set(dependencies.map((edge) => edge.id));
 	const satisfied = (options.satisfiedDependencies ?? []).filter((edge) => !liveIds.has(edge.id));
@@ -299,7 +357,7 @@ export function buildDagGraph(
 		for (const item of layers[depth] ?? []) {
 			if (item.nodeId) {
 				positions.set(item.nodeId, { x, y });
-				y += nodeH + gapY;
+				y += (nodeHeights.get(item.nodeId) ?? nodeH) + gapY;
 				previousWasNode = true;
 			} else {
 				if (previousWasNode) {
@@ -330,6 +388,8 @@ export function buildDagGraph(
 		edgeRoutes,
 		cycleEdgeIds,
 		satisfiedEdgeIds,
+		titleLines,
+		nodeHeights,
 		width: Math.max(width, 320),
 		height: Math.max(height, 200),
 	};
