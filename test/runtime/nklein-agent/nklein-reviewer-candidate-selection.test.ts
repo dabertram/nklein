@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { LoadedModelDescriptor } from "../../../src/core/lmstudio-loaded-model-descriptors";
 import {
 	buildReviewerCandidates,
+	quantizationPenalty,
 	resolveWorkerRealId,
 } from "../../../src/nklein-agent/nklein-reviewer-candidate-selection";
 
@@ -72,5 +73,36 @@ describe("buildReviewerCandidates (§5.U extraction)", () => {
 			desc({ runtimeId: "emb", modelKey: "publisher/emb", isEmbedding: true }),
 		];
 		expect(buildReviewerCandidates(descriptors, "worker-alias", "publisher/worker")).toEqual([]);
+	});
+});
+
+describe("P0.REVRANK lite (live 2026-09-05): fit ties prefer the larger context and the lighter quantization", () => {
+	const descriptor = (runtimeId: string, modelKey: string, loadedContextLength: number) =>
+		({ runtimeId, modelKey, isEmbedding: false, loadedContextLength }) as never;
+
+	it("orders three instances of the same 27B by quant penalty, then loaded context", () => {
+		const candidates = buildReviewerCandidates(
+			[
+				descriptor("dirk-qwen3.8-27b@m4mini", "dirk-qwen3.8-27b@q2_k_xl", 32768),
+				descriptor("dirk-qwen3.8-27b", "dirk-qwen3.8-27b@q4_k_s", 50432),
+				descriptor("dirk-qwen3.8-27b@legion", "dirk-qwen3.8-27b@q6_k", 60160),
+			],
+			"qwen3.8-flash-next",
+			"qwen3.8-flash-next",
+		);
+		expect(candidates.map((candidate) => candidate.modelKey)).toEqual([
+			"dirk-qwen3.8-27b@legion",
+			"dirk-qwen3.8-27b",
+			"dirk-qwen3.8-27b@m4mini",
+		]);
+		expect(candidates[0]).not.toHaveProperty("contextLength");
+	});
+
+	it("reads the quantization from served ids and real keys", () => {
+		expect(quantizationPenalty("dirk-qwen3.8-27b@q2_k_xl")).toBe(2);
+		expect(quantizationPenalty("model iq2_xxs")).toBe(2);
+		expect(quantizationPenalty("dirk-qwen3.8-27b@iq3_xs")).toBe(1);
+		expect(quantizationPenalty("dirk-qwen3.8-27b@q4_k_s")).toBe(0);
+		expect(quantizationPenalty("qwen3.8-flash-next")).toBe(0);
 	});
 });

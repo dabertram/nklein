@@ -63,6 +63,31 @@ export function buildReviewerCandidates(
 			modelKey: descriptor.runtimeId,
 			modelId: descriptor.modelKey,
 			score: reviewerFitScore(descriptor.modelKey),
+			contextLength: descriptor.loadedContextLength ?? descriptor.maxContextLength ?? 0,
+			quantPenalty: quantizationPenalty(`${descriptor.runtimeId} ${descriptor.modelKey}`),
 		}))
-		.sort((a, b) => b.score - a.score || a.modelKey.localeCompare(b.modelKey));
+		.sort(
+			(a, b) =>
+				b.score - a.score ||
+				// Live 2026-09-05 (P0.REVRANK lite): three instances of the SAME 27B tied on catalog fit and the
+				// alphabetical tie-break picked the m4mini's q2_k_xl @32k over the M1's q4 @50k and legion's q6 @60k
+				// — it then over-explored, got cut at the verdict reserve twice and errored at the raised 16k output
+				// budget. Prefer the larger loaded context, then the less aggressive quantization.
+				a.quantPenalty - b.quantPenalty ||
+				b.contextLength - a.contextLength ||
+				a.modelKey.localeCompare(b.modelKey),
+		)
+		.map(({ contextLength: _contextLength, quantPenalty: _quantPenalty, ...candidate }) => candidate);
+}
+
+/** 2 for ≤2-bit quants, 1 for 3-bit, 0 otherwise — read from the served identifier / real key (`@q2_k_xl`, `iq3_xs`). */
+export function quantizationPenalty(text: string): number {
+	const lowered = text.toLowerCase();
+	if (/\b(?:i?q2|q2_k|2bit|2-bit)/u.test(lowered) || /[@_-]i?q2/u.test(lowered)) {
+		return 2;
+	}
+	if (/\b(?:i?q3|q3_k|3bit|3-bit)/u.test(lowered) || /[@_-]i?q3/u.test(lowered)) {
+		return 1;
+	}
+	return 0;
 }

@@ -40,6 +40,9 @@ const REVIEW_VERDICT_RESERVE_MS =
 		: 120_000;
 /** Hard ceiling for the raise-on-retry ladder — a reviewer that needs more than this is not budget-starved. */
 export const REVIEW_RETRY_BUDGET_CEILING = 32_768;
+/** The output budget never exceeds this share of the reviewer's loaded context (the prompt needs the rest). */
+const REVIEWER_OUTPUT_CONTEXT_SHARE = 0.35;
+const REVIEWER_OUTPUT_BUDGET_FLOOR = 2_048;
 /** At most this many doublings, so the ceiling is approached deliberately rather than by exponent growth. */
 export const REVIEW_RETRY_BUDGET_MAX_DOUBLINGS = 3;
 
@@ -242,16 +245,34 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		// ordering for `aborted`/`no_tool_call`. Attempt 0 (the first try) is unchanged, so nothing moves for a
 		// reviewer that verdicts normally. A null base budget stays null: the provider default is not ours to guess.
 		const budgetAttempt = Math.max(0, Math.trunc(input.budgetAttempt ?? 0));
-		const reasoningSafeMaxTokensPerTurn =
+		const escalatedMaxTokensPerTurn =
 			baseMaxTokensPerTurn === null
 				? null
 				: Math.min(
 						REVIEW_RETRY_BUDGET_CEILING,
 						baseMaxTokensPerTurn * 2 ** Math.min(budgetAttempt, REVIEW_RETRY_BUDGET_MAX_DOUBLINGS),
 					);
+		// Live 2026-09-05: the third retry raised the budget to 16k on the m4mini's 32k instance — the review prompt
+		// plus 16k of output exceeds the window and the engine errors the turn (a strike with no verdict). Clamp the
+		// output budget to a share of the reviewer's LOADED context so the prompt always keeps the larger part.
+		const reviewerContextLength =
+			reasoningDescriptors.find((descriptor) => descriptor.runtimeId === modelId || descriptor.modelKey === modelId)
+				?.loadedContextLength ?? null;
+		const contextSafeCeiling =
+			reviewerContextLength !== null
+				? Math.max(REVIEWER_OUTPUT_BUDGET_FLOOR, Math.floor(reviewerContextLength * REVIEWER_OUTPUT_CONTEXT_SHARE))
+				: null;
+		const reasoningSafeMaxTokensPerTurn =
+			escalatedMaxTokensPerTurn !== null && contextSafeCeiling !== null
+				? Math.min(escalatedMaxTokensPerTurn, contextSafeCeiling)
+				: escalatedMaxTokensPerTurn;
 		if (budgetAttempt > 0 && reasoningSafeMaxTokensPerTurn !== null) {
 			stamp(
-				`session: retry ${budgetAttempt} raises the per-turn output budget ${baseMaxTokensPerTurn} → ${reasoningSafeMaxTokensPerTurn}`,
+				`session: retry ${budgetAttempt} raises the per-turn output budget ${baseMaxTokensPerTurn} → ${reasoningSafeMaxTokensPerTurn}${
+					escalatedMaxTokensPerTurn !== null && reasoningSafeMaxTokensPerTurn < escalatedMaxTokensPerTurn
+						? ` (clamped from ${escalatedMaxTokensPerTurn}: reviewer context ${reviewerContextLength})`
+						: ""
+				}`,
 			);
 		}
 		// F1.34c hang forensics 2026-07-25: reviews were observed stuck for 30+ minutes with "bracketed-run enter"
