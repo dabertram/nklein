@@ -162,6 +162,11 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 			// only those files ever reach the host.
 			filesLikelyTouched: null,
 			maxAgentWritableFileLines: null,
+			// The merge model is usually NOT the worker's (lineage-diverse pick / flash-next fallback), so the
+			// worker's context window must not ride along (live 2026-09-05: the merge session ran at the worker's
+			// 80k while flash-next's effective window is 40k → "Context size has been exceeded" twice, no verdict).
+			// null lets the context-budget resolver look the NEW model up in the registry.
+			contextWindow: modelId === (workerLaunch?.modelId ?? "").trim() ? (workerLaunch?.contextWindow ?? null) : null,
 		};
 		const mergeTaskId = `${input.taskId}::merge`;
 		await manager.assertAvailable();

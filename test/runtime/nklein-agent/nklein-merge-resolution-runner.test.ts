@@ -154,6 +154,23 @@ describe("createMergeResolutionRunner", () => {
 		expect(sendTaskSessionInput.mock.calls[0]?.[1]).toContain("half of your merge budget");
 	});
 
+	it("live 2026-09-05: a merge model that differs from the worker's does not inherit the worker's context window", async () => {
+		const d = deps({
+			getLaunchConfig: () => ({ providerId: "lmstudio", modelId: "worker-m", contextWindow: 80_000 }) as never,
+			pickEscalationModel: async () => ({ providerId: "lmstudio", modelId: "critic-m" }),
+		});
+		await createMergeResolutionRunner(d).runMergeResolutionSession(input);
+		const launch = (d.startRuntimeSession as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]?.launchConfig;
+		expect(launch).toMatchObject({ modelId: "critic-m", contextWindow: null });
+		const same = deps({
+			getLaunchConfig: () => ({ providerId: "lmstudio", modelId: "worker-m", contextWindow: 80_000 }) as never,
+			pickEscalationModel: async () => null,
+		});
+		await createMergeResolutionRunner(same).runMergeResolutionSession(input);
+		const sameLaunch = (same.startRuntimeSession as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]?.launchConfig;
+		expect(sameLaunch).toMatchObject({ modelId: "worker-m", contextWindow: 80_000 });
+	});
+
 	it("returns null when no model resolves ANYWHERE (preference disabled, no loaded fallback)", async () => {
 		process.env.NKLEIN_MERGE_FALLBACK_MODEL = ""; // explicit empty = no preferred model
 		try {
