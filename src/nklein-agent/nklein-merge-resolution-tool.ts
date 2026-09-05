@@ -119,7 +119,7 @@ export function buildMergeResolutionSeedPrompt(input: {
 				input.conflictDigest.text,
 				input.conflictDigest.omittedPaths.length > 0
 					? `Not shown (over the excerpt budget — read them yourself): ${input.conflictDigest.omittedPaths.join(", ")}`
-					: "Every conflict is shown above — do NOT spend turns rediscovering them (no `git show`, no spec archaeology): decide each one, write the merged file, submit.",
+					: "Every conflict is shown above — do NOT spend turns rediscovering them (no `git show`, no spec archaeology): decide each one, resolve it IN PLACE with edit_file (replace the marker block with the merged lines; a whole-file write_file costs minutes at local decode speed), submit.",
 			].join("\n\n")
 		: null;
 	return [

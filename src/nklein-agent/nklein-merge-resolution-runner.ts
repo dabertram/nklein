@@ -15,17 +15,19 @@ import type {
 import { createSessionId } from "./nklein-session-state";
 
 /** Merge sessions are bounded to the same overall budget as a review session and get the same nudge count. */
-// 30 min (was 10): live 2026-09-05 the FIRST agent session that ever got past the reproduction step (see the
-// identity fix) spent 12 tool-call turns on a 4-file conflict and was cut off at 10:00 sharp — a throttled
-// m5max decodes ~9 tok/s under factory load, and every deadline miss costs another full delivery round.
-const DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS = 30 * 60 * 1000;
+// 60 min (was 10, then 30): live 2026-09-05 the FIRST agent session that ever got past the reproduction step
+// (see the identity fix) spent 12 tool-call turns on a 4-file conflict and was cut off at 10:00 sharp; with the
+// conflict hunks in the seed the fourth session WROTE 2 of the 4 files (11 model requests in 30 minutes — a
+// throttled m5max decodes ~9 tok/s and a whole-file write_file costs minutes) and was cut off mid-resolution.
+// Every deadline miss costs another full delivery round; the budget must fit the observed pace.
+const DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS = 60 * 60 * 1000;
 const MAX_MERGE_RESOLUTION_NUDGES = 2;
 /** §5.AK Phase B: conflicted files this large (or binary) are beyond a bounded text-edit session — fall back to abort. */
 const MAX_MERGE_RESOLUTION_FILE_BYTES = 1024 * 1024;
 /** Fraction of the merge budget after which a still-exploring first turn is cancelled and nudged to write. */
 const MERGE_RESOLUTION_HURRY_FRACTION = 0.5;
 const MERGE_RESOLUTION_HURRY_PROMPT =
-	"You have used half of your merge budget without recording a resolution. STOP exploring — the conflict regions were in your first message. For every conflicted file, write the merged content now (edit_file or write_file), remove every <<<<<<< / ======= / >>>>>>> line, then call submit_merge_resolution exactly once. If a conflict genuinely cannot be decided, call it with outcome cannot_resolve and the concrete blocker instead of reading more.";
+	"You have used half of your merge budget without recording a resolution. STOP exploring — the conflict regions were in your first message. For every conflicted file, resolve the marker regions IN PLACE with edit_file (replace each <<<<<<< … >>>>>>> block with the merged lines; do NOT rewrite whole files — a whole-file write_file costs minutes at local decode speed), then call submit_merge_resolution exactly once. If a conflict genuinely cannot be decided, call it with outcome cannot_resolve and the concrete blocker instead of reading more.";
 const MERGE_RESOLUTION_NUDGE_PROMPT =
 	"You ended your turn without calling `submit_merge_resolution`, so no resolution was recorded. Your outcome is delivered ONLY by that tool. Finish resolving the conflict markers, then call `submit_merge_resolution` now: `resolved`, or `cannot_resolve` with the concrete blocker. Do not answer in prose.";
 

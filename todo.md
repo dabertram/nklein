@@ -2092,7 +2092,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   came back as a THIRD defect: the seeded session died on the engine's 500 "Context size has been exceeded" —
   the merge launch config spread the WORKER's `contextWindow` (80k) onto the flash-next merge model whose
   effective window is 40k. Fixed `e88b9d212` (contextWindow null when the model changed → registry lookup).
-  P0.CTX500 (a 500 should trigger a context-shrink rung, not a dead turn) still applies to this seam.
+  P0.CTX500 (a 500 should trigger a context-shrink rung, not a dead turn) still applies to this seam. Round FOUR (context fixed) finally WROTE: with the hunks in the seed the agent resolved CHANGELOG.md and
+  vitest.config.ts in place and was grepping for markers when the 30-minute deadline fired — 11 model requests
+  in 30 min (per-turn 0:15–5:21; a whole-file `write_file` of prng.test.ts costs ~5 min at ~9 tok/s). Deadline
+  now 60 min and both the seed and the hurry prompt steer to IN-PLACE `edit_file` of the marker blocks instead
+  of whole-file writes. Follow-up worth building: at the deadline, if the marker scan is already clean across
+  all conflicted files, salvage the resolution instead of discarding two files of finished work.
 
 - [ ] **P0.REVIEWNOVERDICT — small split children park on "3 no-verdict reviewer sessions" and on a
   verification-only card looping through the test-driven gate.** *(Live 2026-09-05 07:00–17:30, after the
