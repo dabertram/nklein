@@ -199,7 +199,11 @@ export async function maybeRunMainBranchCustodian(deps: MainBranchCustodianDeps)
  * mark for this process).
  */
 function persistedMarkPath(workspacePath: string): string {
-	return join(workspacePath, ".nklein", "custodian-mark.json");
+	// Under `.nklein/nklein/` — the workspace STATE dir the delivery merge's clean-base check excludes
+	// (`git status --porcelain -- . ':(exclude).nklein/nklein'`). Live 2026-09-05 04:07: the first cut wrote
+	// `.nklein/custodian-mark.json`, one level up, and that single untracked file blocked EVERY delivery merge
+	// ("Base workspace has uncommitted changes") until it was removed.
+	return join(workspacePath, ".nklein", "nklein", "custodian-mark.json");
 }
 
 async function readPersistedMark(workspacePath: string): Promise<string | null> {
@@ -217,7 +221,7 @@ async function readPersistedMark(workspacePath: string): Promise<string | null> 
 
 async function persistMark(workspacePath: string, head: string): Promise<void> {
 	try {
-		await mkdir(join(workspacePath, ".nklein"), { recursive: true });
+		await mkdir(join(workspacePath, ".nklein", "nklein"), { recursive: true });
 		await writeFile(
 			persistedMarkPath(workspacePath),
 			`${JSON.stringify({ lastReviewedCommit: head, updatedAt: new Date().toISOString() }, null, 2)}\n`,
