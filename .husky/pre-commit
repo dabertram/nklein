@@ -23,6 +23,17 @@ if [ ! -f package.json ] || ! grep -q '"name": "nklein"' package.json 2>/dev/nul
 	exit 0
 fi
 
+# Self-project board (David 2026-09-05): mirror todo.md / done.md / the git log into !Klein's own board and stage
+# the committed portable CRDT so every commit carries the plan's state. Best-effort: a sync failure must never
+# block a commit (the next commit catches up).
+if [ "${NKLEIN_SKIP_SELF_BOARD:-0}" != "1" ]; then
+	if node_modules/.bin/tsx scripts/self-board-sync.ts --quiet; then
+		git add .nklein/nklein/workspace/board-crdt.json 2>/dev/null || true
+	else
+		echo "pre-commit: self-board sync failed (non-blocking) — run 'npx tsx scripts/self-board-sync.ts' to see why."
+	fi
+fi
+
 STAGED_FILES=$(git diff --cached --name-only)
 
 # Binary-pollution guard (audit 2026-08-28, A6): literal 0x00 bytes in source make git/grep treat the file as

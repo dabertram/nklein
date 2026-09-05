@@ -7,7 +7,15 @@ playwright-report
 .worktrees
 # !Klein runtime workspace state for this repo-as-a-project (board/config/sessions/CRDT +
 # generated plan artifacts) — per-machine generated data, never commit.
-.nklein/
+# !Klein's own project state (David 2026-09-05, "an nklein project will become our own plan"): everything under
+# .nklein/ stays local EXCEPT the portable board CRDT, which is committed so the self-project's DAG travels with
+# the repo and updates with each commit (scripts/self-board-sync.ts, run from the pre-commit hook).
+.nklein/*
+!.nklein/nklein/
+.nklein/nklein/*
+!.nklein/nklein/workspace/
+.nklein/nklein/workspace/*
+!.nklein/nklein/workspace/board-crdt.json
 # Isolated data + home dir for `./start.sh --test` (its own ~/.nklein board/config + any npm cache — throwaway).
 .nklein-test-home/
 # Per-machine Claude Code settings and agent worktrees are local runtime state. Keep tracked

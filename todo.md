@@ -2122,6 +2122,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   not a diff), and the gate should stop a card whose diffs never touch product code after 2 identical bounces,
   not 8. Operator decision pending on both cards (David).
 
+- [ ] **F2.36 — !Klein's OWN project board (David 2026-09-05: "create a project for nklein itself … make the
+  dag reflect everything that was already done in reasonable work packages which are set to finished … part of
+  git .. updated with each git commit … a soft switch").** SHIPPED v1 the same night: `scripts/self-board-sync.ts`
+  mirrors done.md sections (COMPLETED work packages chained as the historical spine), todo.md §5 open items
+  (PLANNING cards hanging off the newest done package; auto-completed when todo.md stops listing them) and the
+  git log (commits naming an item id land on that card's prompt; the rest on one rolling card) into the repo's
+  own board (`~/.nklein/nklein/workspaces/kanban`, the dev checkout's workspace) and exports the committed
+  portable CRDT `.nklein/nklein/workspace/board-crdt.json` (§14.2). The pre-commit hook runs the sync (0.5s)
+  and stages the CRDT, so every commit carries the plan's state; `.gitignore` tracks exactly that one file under
+  `.nklein/`. The June default-fixture cards (habit-insights) were moved to trash. REMAINING for the soft switch:
+  (a) a `done.md` section per real milestone instead of the 15 coarse ones (the 126-item "Phase 0" package is
+  one card); (b) dependencies BETWEEN open items (today all hang off the spine head); (c) card `difficulty` /
+  `testability` from the todo text so !Klein can size them; (d) a "work this card with !Klein" affordance that
+  turns a todo card into a real worker run on this repo (dev-only, confirmation-gated — the existing
+  self-improvement project flow).
+
 - [ ] **P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).**
   The fix ships INSIDE the sandbox image (`docker/agent-sandbox/Dockerfile` copies the esbuild bundle) and the
   running container's rootfs is read-only (strict isolation — `docker cp` is refused), so it is live only after
