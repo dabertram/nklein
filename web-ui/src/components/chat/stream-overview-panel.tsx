@@ -79,7 +79,7 @@ export function StreamOverviewPanel({
 						<span className={cn("shrink-0 rounded border px-1 py-0.5 text-[10px]", style.cls)}>
 							{style.label}
 						</span>
-						<span className="truncate font-medium text-text-primary">{stream.title}</span>
+						<span className="break-words font-medium text-text-primary">{stream.title}</span>
 						<span className="ml-auto shrink-0 text-text-tertiary">
 							{stream.done}/{stream.total}
 							{stream.running > 0 ? ` · ${stream.running} running` : ""}

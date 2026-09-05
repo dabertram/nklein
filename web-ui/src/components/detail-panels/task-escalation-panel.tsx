@@ -139,7 +139,7 @@ export function TaskEscalationPanel({
 				>
 					<History size={14} className="shrink-0 text-text-secondary" />
 					<span>What was tried</span>
-					<span className="truncate text-text-tertiary">{summaryLabel}</span>
+					<span className="break-words text-text-tertiary">{summaryLabel}</span>
 				</button>
 				<Button
 					size="sm"
@@ -165,10 +165,10 @@ export function TaskEscalationPanel({
 									className="flex min-w-0 items-center gap-2 border-b border-border/60 py-1 last:border-b-0"
 								>
 									<span className="font-mono text-text-tertiary">#{row.rung}</span>
-									<span className="truncate font-mono text-text-secondary" title={row.modelId}>
+									<span className="break-words font-mono text-text-secondary" title={row.modelId}>
 										{shortenModelIdForBadge(row.modelId)}
 									</span>
-									<span className="truncate text-text-tertiary">{row.approach}</span>
+									<span className="break-words text-text-tertiary">{row.approach}</span>
 									<span className={cn("ml-auto shrink-0 font-mono", getOutcomeClassName(row.outcome))}>
 										{row.outcome}
 									</span>
@@ -234,7 +234,9 @@ export function TaskEscalationPanel({
 													}
 													title={suggestion.detail}
 												>
-													<span className="min-w-0 truncate text-text-tertiary">• {suggestion.title}</span>
+													<span className="min-w-0 break-words text-text-tertiary">
+														• {suggestion.title}
+													</span>
 													{resume.mode === "direct_redrive" && onRedrive ? (
 														<Button
 															size="sm"

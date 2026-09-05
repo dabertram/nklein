@@ -227,7 +227,7 @@ export function GitRefsPanel({
 								onSelect={() => onSelectRef(detachedRef)}
 							>
 								<Locate size={12} />
-								<span className="kb-line-clamp-1" style={{ flex: 1 }}>
+								<span className="break-words" style={{ flex: 1 }}>
 									HEAD ({detachedRef.name})
 								</span>
 							</RefRow>
@@ -236,7 +236,7 @@ export function GitRefsPanel({
 						{headBranch ? (
 							<RefRow isSelected={isHeadBranchSelected} onSelect={() => onSelectRef(headBranch)}>
 								<GitBranch size={12} />
-								<span className="kb-line-clamp-1" style={{ flex: 1 }}>
+								<span className="break-words" style={{ flex: 1 }}>
 									{headBranch.name}
 								</span>
 								<AheadBehindIndicator
@@ -287,7 +287,7 @@ export function GitRefsPanel({
 									checkoutLabel={`Switch to ${ref.name}`}
 								>
 									<GitBranch size={12} />
-									<span className="kb-line-clamp-1" style={{ flex: 1 }}>
+									<span className="break-words" style={{ flex: 1 }}>
 										{renderFuzzyHighlightedText(
 											ref.name,
 											fuzzyBranchResultsByName.get(ref.name)?.positions,
@@ -307,7 +307,7 @@ export function GitRefsPanel({
 									return (
 										<RefRow key={ref.name} isSelected={isSelected} onSelect={() => onSelectRef(ref)}>
 											<Cloud size={12} />
-											<span className="kb-line-clamp-1" style={{ flex: 1 }}>
+											<span className="break-words" style={{ flex: 1 }}>
 												{renderFuzzyHighlightedText(
 													ref.name,
 													fuzzyBranchResultsByName.get(ref.name)?.positions,

@@ -557,8 +557,8 @@ const NKleinTeamProgressStrip = React.memo(function NKleinTeamProgressStrip({
 		<div className="mx-1 flex min-w-0 items-center gap-2 rounded-md border border-border-bright bg-surface-2 px-2.5 py-2 text-xs text-text-secondary">
 			<Users size={14} className="shrink-0 text-status-purple" />
 			<div className="min-w-0 flex-1">
-				<div className="truncate text-text-primary">{latestEvent.message}</div>
-				<div className="mt-0.5 truncate text-[11px] text-text-tertiary">
+				<div className="break-words text-text-primary">{latestEvent.message}</div>
+				<div className="mt-0.5 break-words text-[11px] text-text-tertiary">
 					{latestEvent.teamName ? `${latestEvent.teamName} · ` : ""}
 					{latestLabel}
 				</div>

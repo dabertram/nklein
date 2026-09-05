@@ -137,7 +137,7 @@ export function DependencyPickerDialog({
 											<span className="text-[11px] text-text-tertiary shrink-0">
 												{isDependent ? "waits on" : "blocks"}
 											</span>
-											<span className="text-[12px] text-text-primary truncate flex-1 min-w-0">
+											<span className="text-[12px] text-text-primary break-words flex-1 min-w-0">
 												{otherTitle}
 											</span>
 											<button

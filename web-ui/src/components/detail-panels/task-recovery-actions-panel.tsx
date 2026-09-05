@@ -198,7 +198,7 @@ export function TaskRecoveryActionsPanel({
 			<div className="mb-2 flex min-w-0 items-center gap-2 text-[12px] font-medium text-text-primary">
 				<GitCompareArrows size={14} className="shrink-0 text-text-secondary" />
 				<span>Review actions</span>
-				<span className="truncate text-text-tertiary">Verify, merge, recover, or create evidence</span>
+				<span className="break-words text-text-tertiary">Verify, merge, recover, or create evidence</span>
 			</div>
 			<div className="flex flex-wrap gap-2">
 				{canCollectEvidence ? (

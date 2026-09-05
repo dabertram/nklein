@@ -118,7 +118,7 @@ export function InlineCompletionPicker({
 											{item.label}
 										</div>
 										{item.detail ? (
-											<div className="truncate text-xs text-text-secondary">{item.detail}</div>
+											<div className="break-words text-xs text-text-secondary">{item.detail}</div>
 										) : null}
 									</div>
 								</button>

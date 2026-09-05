@@ -297,7 +297,7 @@ function AgentTerminalPanelLayout({
 							</span>
 							{telemetryLabel ? (
 								<span
-									className="truncate font-mono text-text-tertiary"
+									className="break-words font-mono text-text-tertiary"
 									style={{ fontSize: 11 }}
 									title={telemetryLabel}
 								>
@@ -339,7 +339,7 @@ function AgentTerminalPanelLayout({
 						</span>
 						{minimalHeaderSubtitle ? (
 							<span
-								className="truncate font-mono text-text-secondary"
+								className="break-words font-mono text-text-secondary"
 								style={{ fontSize: 10 }}
 								title={minimalHeaderSubtitle}
 							>

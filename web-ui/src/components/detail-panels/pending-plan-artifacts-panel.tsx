@@ -124,7 +124,7 @@ export function PendingPlanArtifactsPanel({
 			<div className="mb-2 flex min-w-0 items-center gap-2 text-[12px] font-medium text-text-primary">
 				<Activity size={14} className="shrink-0 text-text-secondary" />
 				<span>Pending plan artifacts</span>
-				<span className="truncate text-text-tertiary">
+				<span className="break-words text-text-tertiary">
 					{artifacts.length > 0 ? `${artifacts.length} ready` : isLoading ? "Loading" : "Needs attention"}
 				</span>
 				{isLoading ? <Spinner size={12} className="ml-auto" /> : null}
@@ -137,7 +137,7 @@ export function PendingPlanArtifactsPanel({
 						<div key={artifact.artifactId} className="rounded-md border border-border bg-surface-0 px-2 py-2">
 							<div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 								<div className="min-w-0">
-									<div className="truncate text-[13px] font-medium text-text-primary">{artifact.title}</div>
+									<div className="break-words text-[13px] font-medium text-text-primary">{artifact.title}</div>
 									<div className="mt-1 text-[11px] text-text-secondary">
 										{artifact.taskCount} tasks, {artifact.dependencyCount} dependencies ·{" "}
 										{formatArtifactTimestamp(artifact.createdAt)}

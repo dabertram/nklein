@@ -41,7 +41,7 @@ function FileTreeRow({
 				}}
 			>
 				{isDirectory ? <Folder size={14} /> : <FileText size={14} />}
-				<span className="truncate">{node.name}</span>
+				<span className="break-words">{node.name}</span>
 				{fileStats ? (
 					<span className="font-mono" style={{ marginLeft: "auto", fontSize: 10, display: "flex", gap: 4 }}>
 						{fileStats.added > 0 ? <span className={addedStatClassName}>+{fileStats.added}</span> : null}

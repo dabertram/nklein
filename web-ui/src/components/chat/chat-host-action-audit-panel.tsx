@@ -112,7 +112,7 @@ export function ChatHostActionAuditPanel({ sessionId }: { sessionId: string }): 
 									<span className={cn("shrink-0 font-mono", DECISION_CLASS[entry.decision])}>
 										{entry.decision}
 									</span>
-									<span className="min-w-0 flex-1 truncate text-text-secondary">{entry.detail ?? "—"}</span>
+									<span className="min-w-0 flex-1 break-words text-text-secondary">{entry.detail ?? "—"}</span>
 									<span className="shrink-0 text-text-tertiary">{entry.executed ? "ran" : "not run"}</span>
 									<span className="shrink-0 text-text-tertiary">{formatTime(entry.recordedAt)}</span>
 								</div>

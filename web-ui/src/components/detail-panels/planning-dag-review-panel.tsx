@@ -40,7 +40,7 @@ export function PlanningDagReviewPanel({
 				<div className="flex min-w-0 flex-1 items-center gap-2">
 					<GitBranch size={14} className="shrink-0 text-text-secondary" />
 					<span>Plan DAG</span>
-					<span className="truncate text-text-tertiary">
+					<span className="break-words text-text-tertiary">
 						{edgeCount > 0 ? `${edgeCount} linked ${edgeCount === 1 ? "card" : "cards"}` : "No linked cards"}
 					</span>
 				</div>
@@ -70,10 +70,10 @@ export function PlanningDagReviewPanel({
 							className={cn("min-w-0 rounded-md border px-2 py-1.5", getDagNodeToneClassName(node.relation))}
 						>
 							<div className="flex min-w-0 items-center gap-1.5">
-								<span className="truncate text-[11px] font-medium text-text-primary">{node.card.title}</span>
+								<span className="break-words text-[11px] font-medium text-text-primary">{node.card.title}</span>
 								<span className="shrink-0 text-[11px] text-text-tertiary">{node.columnTitle}</span>
 							</div>
-							<div className="mt-1 truncate text-[11px] text-text-secondary">
+							<div className="mt-1 break-words text-[11px] text-text-secondary">
 								{node.relation === "selected"
 									? "Selected card"
 									: node.relation === "blocked-by"
@@ -100,10 +100,10 @@ export function PlanningDagReviewPanel({
 								>
 									{modelFit.label}
 								</span>
-								<span className="truncate">{formatDagModelLabel(node.card)}</span>
+								<span className="break-words">{formatDagModelLabel(node.card)}</span>
 							</div>
 							{likelyFiles.length > 0 ? (
-								<div className="mt-1 truncate text-[11px] text-text-tertiary">
+								<div className="mt-1 break-words text-[11px] text-text-tertiary">
 									{likelyFiles.slice(0, 3).join(", ")}
 									{likelyFiles.length > 3 ? ` +${likelyFiles.length - 3}` : ""}
 								</div>

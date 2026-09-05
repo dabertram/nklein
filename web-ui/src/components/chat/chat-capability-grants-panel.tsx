@@ -92,7 +92,7 @@ export function ChatCapabilityGrantsPanel({ sessionId }: { sessionId: string }):
 									className="flex min-w-0 items-center gap-2 border-b border-border/60 py-1 last:border-b-0"
 									title={grant.key}
 								>
-									<span className="min-w-0 flex-1 truncate font-mono text-text-primary">{grant.key}</span>
+									<span className="min-w-0 flex-1 break-words font-mono text-text-primary">{grant.key}</span>
 									<span className="shrink-0 text-text-tertiary">{formatExpiry(grant.expiresAt, now)}</span>
 									<Button
 										variant="ghost"

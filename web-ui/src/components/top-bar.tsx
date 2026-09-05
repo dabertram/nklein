@@ -136,7 +136,7 @@ function GitBranchStatusControl({
 					)}
 					title={branchLabel}
 				>
-					<span className="truncate w-full text-left">{branchLabel}</span>
+					<span className="break-words w-full text-left">{branchLabel}</span>
 				</Button>
 				<span className="font-mono text-xs text-text-tertiary ml-1.5 shrink-0 whitespace-nowrap">
 					({changedFiles} {changedFiles === 1 ? "file" : "files"}
@@ -437,7 +437,7 @@ export function TopBar({
 					) : displayWorkspacePath ? (
 						<div className={cn("shrink min-w-0 overflow-hidden", isMobile ? "max-w-[180px]" : "max-w-[640px]")}>
 							<span
-								className="font-mono truncate block w-full min-w-0 text-xs max-w-full text-text-secondary"
+								className="font-mono break-words block w-full min-w-0 text-xs max-w-full text-text-secondary"
 								title={workspacePath}
 								data-testid="workspace-path"
 							>

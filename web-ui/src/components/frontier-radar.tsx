@@ -204,7 +204,7 @@ export function FrontierRadar({ workspaceId }: { workspaceId: string | null }): 
 																</div>
 															)}
 															<code
-																className="block w-fit max-w-full truncate rounded bg-text-primary/5 px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
+																className="block w-fit max-w-full break-words rounded bg-text-primary/5 px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary"
 																title="Previews size, format safety and fit — downloads nothing until you re-run with --approve"
 															>
 																nklein setup acquire "{recommendation.name}"

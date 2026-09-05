@@ -19,7 +19,7 @@ function ResourceMetric({ label, value, detail }: { label: string; value: string
 		<div className="rounded-md border border-border bg-surface-0 px-2 py-1.5">
 			<div className="text-[9px] uppercase tracking-wide text-text-tertiary">{label}</div>
 			<div className="text-xs font-medium tabular-nums text-text-primary">{value}</div>
-			{detail ? <div className="truncate text-[9px] text-text-tertiary">{detail}</div> : null}
+			{detail ? <div className="break-words text-[9px] text-text-tertiary">{detail}</div> : null}
 		</div>
 	);
 }
@@ -126,7 +126,7 @@ export function FleetResourcePanel({ resources }: { resources: Resources }): Rea
 							</div>
 							{device.residents.length > 0 ? (
 								<div
-									className="mt-0.5 truncate text-text-secondary"
+									className="mt-0.5 break-words text-text-secondary"
 									title={device.residents.map((r) => r.identifier).join(", ")}
 								>
 									{device.residents

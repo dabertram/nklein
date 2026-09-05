@@ -69,12 +69,15 @@ export function dagEdgeStyle(
 				strokeDasharray: undefined,
 			};
 		case "finished":
+			// Clearly green (David 2026-09-06 "still see no green edges": every edge into finished work on a live
+			// board is a RETIRED one, and 0.35-opacity 2px dashes vanished at the fit-to-view zoom). Retired edges
+			// keep a dash so "this blocker already landed" stays readable, but at full strength.
 			return {
 				status,
 				stroke: "var(--color-status-green)",
-				strokeOpacity: options.isSatisfied ? 0.35 : 0.5,
-				strokeWidth: 1.5,
-				strokeDasharray: options.isSatisfied ? "2 4" : undefined,
+				strokeOpacity: options.isSatisfied ? 0.75 : 0.85,
+				strokeWidth: 1.75,
+				strokeDasharray: options.isSatisfied ? "5 3" : undefined,
 			};
 		case "active":
 			return {

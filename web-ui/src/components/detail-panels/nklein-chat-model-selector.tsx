@@ -322,7 +322,7 @@ export function NKleinChatModelSelector({
 						fill && "w-full",
 					)}
 				>
-					<span className="flex-1 truncate text-left">{selectedModelButtonText}</span>
+					<span className="flex-1 break-words text-left">{selectedModelButtonText}</span>
 				</Button>
 			</RadixPopover.Trigger>
 			<RadixPopover.Portal>

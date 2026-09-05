@@ -1106,7 +1106,7 @@ export function KanbanBoard({
 						<span
 							key={endpoint.endpointId}
 							title={endpoint.endpointId}
-							className="inline-flex max-w-64 items-center truncate rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-text-secondary"
+							className="inline-flex max-w-64 items-center break-words rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-text-secondary"
 						>
 							{/* Endpoint ids are URLs/shared-endpoint ids — condensed to the machine label ("local", host:port)
 							    so the chip never truncates mid-URL ("htt…"); the raw id lives in the tooltip. */}

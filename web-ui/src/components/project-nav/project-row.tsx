@@ -171,7 +171,7 @@ export function ProjectRow({
 			}}
 		>
 			<div className="flex-1 min-w-0">
-				{/* title tooltips: the name/path truncate with an ellipsis (project names here are long and often
+				{/* title tooltips: the name/path break-words with an ellipsis (project names here are long and often
 				    identical up to a suffix), so hovering must reveal the full value — matching the collapsed rail. */}
 				<div
 					title={project.name}

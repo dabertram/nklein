@@ -513,7 +513,7 @@ export function GitCommitListPanel({
 											}}
 										>
 											<span
-												className="kb-line-clamp-1 kb-git-commit-row-meta"
+												className="break-words kb-git-commit-row-meta"
 												style={{ color: "var(--color-text-tertiary)" }}
 											>
 												{commit.authorName}
@@ -594,7 +594,7 @@ export function GitCommitListPanel({
 												{commit.shortHash}
 											</code>
 											<span
-												className="kb-line-clamp-1 kb-git-commit-row-message"
+												className="break-words kb-git-commit-row-message"
 												style={{
 													color: isSelected
 														? "var(--color-text-primary)"

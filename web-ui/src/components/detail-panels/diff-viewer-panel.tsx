@@ -871,7 +871,11 @@ export function DiffViewerPanel({
 										}}
 									>
 										{isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-										<span className="truncate" title={group.path} style={{ flex: "1 1 auto", minWidth: 0 }}>
+										<span
+											className="break-words"
+											title={group.path}
+											style={{ flex: "1 1 auto", minWidth: 0 }}
+										>
 											{truncatePathMiddle(group.path)}
 										</span>
 										<span style={{ flexShrink: 0 }}>

@@ -210,7 +210,9 @@ export function ExpandPlanTaskPanel({
 			>
 				<Scissors size={14} className="shrink-0 text-text-secondary" />
 				<span>Expand plan task</span>
-				<span className="truncate text-text-tertiary">Split this task into replacement tasks in the plan DAG</span>
+				<span className="break-words text-text-tertiary">
+					Split this task into replacement tasks in the plan DAG
+				</span>
 				<ChevronDown
 					size={12}
 					className={`ml-auto shrink-0 text-text-tertiary transition-transform ${isOpen ? "rotate-180" : ""}`}

@@ -123,7 +123,7 @@ function ToolMessageBlock({ message }: { message: NKleinChatMessage }): ReactEle
 				{toolDisplay.inputSummary ? (
 					<span
 						className={cn(
-							"min-w-0 truncate group-hover:text-text-secondary",
+							"min-w-0 break-words group-hover:text-text-secondary",
 							expanded ? "text-text-secondary" : "text-text-tertiary",
 						)}
 					>
@@ -162,7 +162,7 @@ function ToolMessageBlock({ message }: { message: NKleinChatMessage }): ReactEle
 						toolOutput.results.map((result, i) => (
 							<div key={i}>
 								{toolOutput.results.length > 1 ? (
-									<div className="mb-0.5 truncate text-xs text-text-tertiary">{result.query}</div>
+									<div className="mb-0.5 break-words text-xs text-text-tertiary">{result.query}</div>
 								) : null}
 								{result.error ? (
 									<pre className="max-h-60 overflow-auto rounded bg-status-red/5 px-2 py-1.5 text-xs leading-relaxed whitespace-pre-wrap break-all text-status-red">
@@ -311,7 +311,7 @@ function CardReferenceRow({
 					onClick={() => references.onOpenCard(cardId)}
 					onMouseEnter={() => references.onHoverCard?.(cardId)}
 					onMouseLeave={() => references.onHoverCard?.(null)}
-					className="inline-flex max-w-full items-center gap-1 truncate rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[12px] leading-5 text-accent-text hover:bg-accent/20"
+					className="inline-flex max-w-full items-center gap-1 break-words rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[12px] leading-5 text-accent-text hover:bg-accent/20"
 				>
 					{label}
 					<span aria-hidden className="text-[10px] opacity-70">

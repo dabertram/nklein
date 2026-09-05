@@ -110,7 +110,7 @@ export function WireLogPanel({
 										className="flex w-full cursor-pointer items-center justify-between gap-2 text-left"
 										onClick={() => setExpandedRequest((current) => (current === index ? null : index))}
 									>
-										<span className="min-w-0 truncate">
+										<span className="min-w-0 break-words">
 											<span className="text-text-tertiary">{formatTime(request.recordedAt)}</span>{" "}
 											<span className="font-medium">{request.purpose}</span>{" "}
 											<span className="text-text-tertiary">{request.modelId}</span>
@@ -162,7 +162,7 @@ export function WireLogPanel({
 										className="flex w-full cursor-pointer items-center justify-between gap-2 text-left"
 										onClick={() => setExpandedResponse((current) => (current === index ? null : index))}
 									>
-										<span className="min-w-0 truncate">
+										<span className="min-w-0 break-words">
 											<span className="text-text-tertiary">{formatTime(response.recordedAt)}</span>{" "}
 											<span className="font-medium">{response.finishReason ?? "…"}</span>{" "}
 											<span className="text-text-tertiary">{response.modelId}</span>

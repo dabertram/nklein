@@ -317,7 +317,7 @@ export function SearchSelectDropdown({
 					style={buttonStyle}
 					title={typeof resolvedButtonText === "string" ? resolvedButtonText : undefined}
 				>
-					<span className="flex-1 truncate text-left">{resolvedButtonText}</span>
+					<span className="flex-1 break-words text-left">{resolvedButtonText}</span>
 				</Button>
 			</RadixPopover.Trigger>
 			<RadixPopover.Portal>

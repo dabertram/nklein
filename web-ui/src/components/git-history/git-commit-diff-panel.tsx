@@ -391,7 +391,7 @@ export function GitCommitDiffPanel({
 									) : (
 										<ChevronRight size={12} className="shrink-0" />
 									)}
-									<span className="truncate flex-1" title={path}>
+									<span className="break-words flex-1" title={path}>
 										{truncatePathMiddle(path)}
 									</span>
 									<span className="shrink-0 text-xs">

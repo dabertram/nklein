@@ -1384,5 +1384,5 @@ function TableHead({ children }: { children: ReactNode }): JSX.Element {
 }
 
 function TableCell({ children }: { children: ReactNode }): JSX.Element {
-	return <td className="max-w-[260px] truncate px-3 py-2 align-top">{children}</td>;
+	return <td className="max-w-[260px] break-words px-3 py-2 align-top">{children}</td>;
 }

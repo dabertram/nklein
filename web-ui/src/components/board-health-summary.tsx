@@ -213,7 +213,7 @@ export function BoardHealthSummary({
 										onSelectTask?.(entry.taskId);
 									}}
 								>
-									<span className="w-full truncate text-[12px] text-text-primary">
+									<span className="w-full break-words text-[12px] text-text-primary">
 										{titleByTaskId?.get(entry.taskId) ?? entry.taskId}
 									</span>
 									<span className="text-[11px] text-status-gold">{entry.action}</span>

@@ -120,7 +120,7 @@ export function DevTestRegistryPicker({
 										<ChevronDown size={12} className="shrink-0 text-text-tertiary" />
 									)}
 									<FlaskConical size={12} className="shrink-0 text-status-purple" />
-									<span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-text-primary">
+									<span className="min-w-0 flex-1 break-words text-[11px] font-semibold text-text-primary">
 										{tier}
 									</span>
 									<span className="shrink-0 text-[10px] text-text-tertiary">{groupEntries.length}</span>
@@ -137,11 +137,14 @@ export function DevTestRegistryPicker({
 													className="flex items-center gap-1.5 rounded-sm px-1.5 py-1 hover:bg-surface-3"
 												>
 													<div className="min-w-0 flex-1">
-														<p className="m-0 truncate text-[11px] text-text-primary" title={entry.title}>
+														<p
+															className="m-0 break-words text-[11px] text-text-primary"
+															title={entry.title}
+														>
 															{entry.title}
 														</p>
 														{entry.tags && entry.tags.length > 0 ? (
-															<p className="m-0 truncate text-[10px] text-text-tertiary">
+															<p className="m-0 break-words text-[10px] text-text-tertiary">
 																{entry.tags.slice(0, 3).join(", ")}
 																{entry.tags.length > 3 ? "…" : ""}
 															</p>

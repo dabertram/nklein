@@ -77,7 +77,7 @@ export function PlanGapActionsPanel({
 			<div className="mb-2 flex min-w-0 items-center gap-2 text-[12px] font-medium text-text-primary">
 				<Flag size={14} className="shrink-0 text-text-secondary" />
 				<span>Report a plan gap</span>
-				<span className="truncate text-text-tertiary">Flag a missing decision, integration, or scope issue</span>
+				<span className="break-words text-text-tertiary">Flag a missing decision, integration, or scope issue</span>
 			</div>
 			<div className="flex flex-col gap-2">
 				<NativeSelect

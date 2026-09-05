@@ -108,7 +108,7 @@ export function TimeTrackingPanel({ workspaceId }: { workspaceId: string | null 
 						</tr>
 						{sortedCards.map((card) => (
 							<tr key={card.taskId} className="border-t border-border text-text-primary">
-								<td className="max-w-[220px] truncate px-3 py-1.5" title={card.title}>
+								<td className="max-w-[220px] break-words px-3 py-1.5" title={card.title}>
 									{card.title}
 								</td>
 								<MetricCells metrics={card.metrics} />

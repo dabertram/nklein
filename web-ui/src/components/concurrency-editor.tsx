@@ -50,7 +50,7 @@ function ConcurrencyMapEditor({
 				<div className="mb-1.5 flex flex-col gap-1">
 					{entries.map(([key, cap]) => (
 						<div key={key} className="flex items-center gap-2">
-							<span className="min-w-0 flex-1 truncate font-mono text-[12px] text-text-primary" title={key}>
+							<span className="min-w-0 flex-1 break-words font-mono text-[12px] text-text-primary" title={key}>
 								{key}
 							</span>
 							<input

@@ -531,7 +531,7 @@ export function NKleinModelRegistryPanel({
 							>
 								<div className="flex min-w-0 items-center gap-2">
 									<Server size={14} className="shrink-0 text-text-tertiary" />
-									<div className="min-w-0 truncate text-xs font-medium text-text-primary">
+									<div className="min-w-0 break-words text-xs font-medium text-text-primary">
 										{entry.providerId}/{entry.modelId}
 									</div>
 									{isSelected ? (

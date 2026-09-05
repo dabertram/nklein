@@ -74,7 +74,7 @@ export function KleinCorePyHealthLine({ workspaceId }: KleinCorePyHealthLineProp
 			</div>
 			{/* §5.H model-loaded detail: the core's resident embedding models (basenames — the path is host detail). */}
 			{isUp && (health?.loadedModels?.length ?? 0) > 0 ? (
-				<div className="mt-0.5 truncate text-[11px] text-text-tertiary" data-testid="core-py-loaded-models">
+				<div className="mt-0.5 break-words text-[11px] text-text-tertiary" data-testid="core-py-loaded-models">
 					Model loaded: {health?.loadedModels.map((path) => path.split("/").at(-1) ?? path).join(", ")}
 				</div>
 			) : null}

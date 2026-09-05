@@ -181,7 +181,7 @@ function RemoteFileBrowserContent({
 		<>
 			{/* Root path indicator */}
 			<div className="px-4 pt-3">
-				<div className="text-[11px] text-text-tertiary font-mono truncate" title={rootPath}>
+				<div className="text-[11px] text-text-tertiary font-mono break-words" title={rootPath}>
 					Server root: {rootPath}
 				</div>
 			</div>
@@ -292,7 +292,7 @@ function DirectoryEntryList({
 							) : (
 								<Folder size={16} className="text-text-secondary shrink-0" />
 							)}
-							<span className="truncate">{entry.name}</span>
+							<span className="break-words">{entry.name}</span>
 							<ChevronRight size={12} className="text-text-tertiary ml-auto shrink-0" />
 						</button>
 					))}

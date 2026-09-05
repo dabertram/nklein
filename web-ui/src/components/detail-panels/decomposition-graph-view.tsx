@@ -1,5 +1,6 @@
 import type React from "react";
 import { useMemo } from "react";
+import { wrapDagTitle } from "@/components/board-dag-model";
 
 /**
  * Renders the task-graph a `decompose_project` tool call proposed as a small visual DAG inside the chat (todo §5.B).
@@ -16,7 +17,9 @@ interface DecompositionNode {
 }
 
 const NODE_WIDTH = 150;
+/** Base height for a one-line title; the layout grows every row to fit the longest wrapped title (no truncation). */
 const NODE_HEIGHT = 38;
+const TITLE_LINE_HEIGHT = 12;
 const GAP_X = 22;
 const GAP_Y = 44;
 const PADDING = 12;
@@ -81,8 +84,9 @@ function computeNodeDepths(nodes: DecompositionNode[]): Map<string, number> {
 	return depthById;
 }
 
-function truncate(text: string): string {
-	return text.length > MAX_TITLE_CHARS ? `${text.slice(0, MAX_TITLE_CHARS - 1)}…` : text;
+/** Titles wrap instead of truncating (David 2026-09-05: "truncation avoidance everywhere"). */
+function titleLines(text: string): string[] {
+	return wrapDagTitle(text, MAX_TITLE_CHARS);
 }
 
 export function DecompositionGraphView({
@@ -105,9 +109,11 @@ export function DecompositionGraphView({
 			layers[depthById.get(node.id) ?? 0]?.push(node);
 		}
 		const maxNodesInLayer = Math.max(1, ...layers.map((layer) => layer.length));
+		const maxTitleLines = Math.max(1, ...nodes.map((node) => titleLines(node.title).length));
 		const innerWidth = maxNodesInLayer * NODE_WIDTH + (maxNodesInLayer - 1) * GAP_X;
 		const width = innerWidth + PADDING * 2;
-		const height = layers.length * NODE_HEIGHT + (layers.length - 1) * GAP_Y + PADDING * 2;
+		const nodeHeight = NODE_HEIGHT + (maxTitleLines - 1) * TITLE_LINE_HEIGHT;
+		const height = layers.length * nodeHeight + (layers.length - 1) * GAP_Y + PADDING * 2;
 
 		const centerById = new Map<string, { x: number; y: number }>();
 		layers.forEach((layer, depth) => {
@@ -116,7 +122,7 @@ export function DecompositionGraphView({
 			layer.forEach((node, index) => {
 				centerById.set(node.id, {
 					x: startX + index * (NODE_WIDTH + GAP_X),
-					y: PADDING + depth * (NODE_HEIGHT + GAP_Y),
+					y: PADDING + depth * (nodeHeight + GAP_Y),
 				});
 			});
 		});
@@ -127,7 +133,7 @@ export function DecompositionGraphView({
 				.map((dependencyId) => ({ from: dependencyId, to: node.id })),
 		);
 
-		return { nodes, layers, centerById, edges, width, height };
+		return { nodes, layers, centerById, edges, width, height, nodeHeight };
 	}, [input]);
 
 	if (!layout) {
@@ -165,7 +171,7 @@ export function DecompositionGraphView({
 							return null;
 						}
 						const startX = from.x + NODE_WIDTH / 2;
-						const startY = from.y + NODE_HEIGHT;
+						const startY = from.y + layout.nodeHeight;
 						const endX = to.x + NODE_WIDTH / 2;
 						const endY = to.y;
 						const midY = (startY + endY) / 2;
@@ -189,30 +195,33 @@ export function DecompositionGraphView({
 								<title>{`${node.id}: ${node.title}`}</title>
 								<rect
 									width={NODE_WIDTH}
-									height={NODE_HEIGHT}
+									height={layout.nodeHeight}
 									rx={6}
 									fill="var(--color-surface-2)"
 									stroke="var(--color-border-bright)"
 									strokeWidth={1}
 								/>
+								{titleLines(node.title).map((line, lineIndex) => (
+									<text
+										key={`${node.id}:${lineIndex}`}
+										x={8}
+										y={15 + lineIndex * TITLE_LINE_HEIGHT}
+										fill="var(--color-text-primary)"
+										fontSize={11}
+										fontWeight={600}
+										style={{ fontFamily: "inherit" }}
+									>
+										{line}
+									</text>
+								))}
 								<text
 									x={8}
-									y={15}
-									fill="var(--color-text-primary)"
-									fontSize={11}
-									fontWeight={600}
-									style={{ fontFamily: "inherit" }}
-								>
-									{truncate(node.title)}
-								</text>
-								<text
-									x={8}
-									y={29}
+									y={15 + titleLines(node.title).length * TITLE_LINE_HEIGHT + 2}
 									fill="var(--color-text-tertiary)"
 									fontSize={9}
 									style={{ fontFamily: "monospace" }}
 								>
-									{truncate(node.id)}
+									{node.id}
 								</text>
 							</g>
 						);

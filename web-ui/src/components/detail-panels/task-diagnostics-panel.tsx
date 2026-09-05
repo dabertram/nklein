@@ -79,7 +79,7 @@ export function TaskDiagnosticsPanel({
 				>
 					<Activity size={14} className="shrink-0 text-text-secondary" />
 					<span>Diagnostics</span>
-					<span className="truncate text-text-tertiary">
+					<span className="break-words text-text-tertiary">
 						{error ? "Issue" : open ? `${events.length} events` : "Local telemetry"}
 					</span>
 				</button>
@@ -110,7 +110,7 @@ export function TaskDiagnosticsPanel({
 									{event.severity}
 								</span>
 								<span className="font-mono text-text-tertiary">{formatDiagnosticTime(event.createdAt)}</span>
-								<span className="truncate font-mono text-text-secondary">{event.signal}</span>
+								<span className="break-words font-mono text-text-secondary">{event.signal}</span>
 							</div>
 							<div className="mt-0.5 break-words text-text-primary">{event.message}</div>
 						</div>

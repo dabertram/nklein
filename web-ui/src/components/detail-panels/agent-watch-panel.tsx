@@ -148,7 +148,7 @@ export function AgentWatchPanel({
 								className="flex items-center gap-2 rounded-sm px-2 py-1 text-xs hover:bg-surface-1"
 							>
 								{FILE_STATUS_ICON[file.status] ?? <FilePen size={13} className="text-text-secondary" />}
-								<span className="min-w-0 flex-1 truncate font-mono">{file.path}</span>
+								<span className="min-w-0 flex-1 break-words font-mono">{file.path}</span>
 								<span className="shrink-0 tabular-nums text-status-green">+{file.additions}</span>
 								<span className="shrink-0 tabular-nums text-status-red">−{file.deletions}</span>
 							</li>

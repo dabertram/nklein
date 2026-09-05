@@ -51,7 +51,10 @@ describe("classifyDagEdge (David 2026-09-05: finished green, problem red, active
 		});
 		expect(dagEdgeStyle("active", options).stroke).toBe("var(--color-accent)");
 		expect(dagEdgeStyle("critical", options).stroke).toBe("var(--color-status-gold)");
-		expect(dagEdgeStyle("finished", { ...options, isSatisfied: true }).strokeDasharray).toBe("2 4");
+		expect(dagEdgeStyle("finished", { ...options, isSatisfied: true })).toMatchObject({
+			strokeDasharray: "5 3",
+			strokeOpacity: 0.75,
+		});
 		expect(dagEdgeStyle("pending", { ...options, isRouted: true }).strokeOpacity).toBeLessThan(0.2);
 	});
 });

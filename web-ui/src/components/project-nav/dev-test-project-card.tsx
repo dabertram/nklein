@@ -154,7 +154,7 @@ export function DevTestProjectCard({
 				</Button>
 			</div>
 			{evidencePath ? (
-				<p className="mt-2 mb-0 truncate font-mono text-[11px] text-text-tertiary" title={evidencePath}>
+				<p className="mt-2 mb-0 break-words font-mono text-[11px] text-text-tertiary" title={evidencePath}>
 					{evidencePath}
 				</p>
 			) : null}

@@ -103,7 +103,7 @@ export function UpdateAvailableDialog({
 						</p>
 						<p>Run the following command in your terminal to update:</p>
 						<div className="flex items-center gap-2 rounded-md border border-border bg-surface-2 px-3 py-2 font-mono text-[12px] text-text-primary">
-							<code className="flex-1 truncate">{installCommand}</code>
+							<code className="flex-1 break-words">{installCommand}</code>
 							<button
 								type="button"
 								onClick={() => {

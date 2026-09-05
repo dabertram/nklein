@@ -35,7 +35,7 @@ export function TaskImageStrip({
 								alt={image.name ?? "attached image"}
 								className="h-5 w-5 rounded object-cover"
 							/>
-							<span className="min-w-0 max-w-32 truncate text-[11px] text-text-secondary">
+							<span className="min-w-0 max-w-32 break-words text-[11px] text-text-secondary">
 								{image.name ?? "Image"}
 							</span>
 							{onRemoveImage ? (

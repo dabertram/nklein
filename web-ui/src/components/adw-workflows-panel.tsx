@@ -157,16 +157,16 @@ export function AdwWorkflowsPanel({ workspaceId }: { workspaceId: string | null 
 						{workflows.map((workflow) => (
 							<div key={workflow.name} className="flex items-center justify-between gap-2">
 								<div className="min-w-0">
-									<div className="truncate text-[12px] text-text-primary">
+									<div className="break-words text-[12px] text-text-primary">
 										{workflow.name}
 										<span className="ml-2 text-text-tertiary">
 											{workflow.stepCount} step(s), {workflow.agentStepCount} agent
 										</span>
 									</div>
 									{workflow.invalid ? (
-										<div className="truncate text-[11px] text-status-red">{workflow.invalid}</div>
+										<div className="break-words text-[11px] text-status-red">{workflow.invalid}</div>
 									) : workflow.description ? (
-										<div className="truncate text-[11px] text-text-tertiary">{workflow.description}</div>
+										<div className="break-words text-[11px] text-text-tertiary">{workflow.description}</div>
 									) : null}
 								</div>
 								<Button
@@ -206,7 +206,7 @@ export function AdwWorkflowsPanel({ workspaceId }: { workspaceId: string | null 
 										<StepIcon status={step.status} />
 										<span className="text-text-primary">{step.id}</span>
 										<span className="text-text-tertiary">[{step.kind}]</span>
-										{step.detail ? <span className="truncate">{step.detail}</span> : null}
+										{step.detail ? <span className="break-words">{step.detail}</span> : null}
 										{step.cardId ? <span className="text-text-tertiary">card {step.cardId}</span> : null}
 									</div>
 								))}

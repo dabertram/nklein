@@ -260,7 +260,7 @@ export function DirectoryAutocomplete({
 							) : (
 								<Folder size={14} className="text-text-secondary shrink-0" />
 							)}
-							<span className="truncate font-mono">{entry.name}</span>
+							<span className="break-words font-mono">{entry.name}</span>
 						</div>
 					))}
 				</div>

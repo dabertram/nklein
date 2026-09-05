@@ -79,12 +79,12 @@ function FleetRowView({ row }: { row: FleetRow }): React.ReactElement {
 	return (
 		// Name column widens with the viewport (fixed per breakpoint so rows stay column-aligned — each row is its own
 		// grid). 150px truncated every deepseek variant to the same "lmstudio:deepseek/d…" (live-found 2026-07-17,
-		// four indistinguishable rows) while the 1fr activity column sat empty on an idle fleet; never truncate what
+		// four indistinguishable rows) while the 1fr activity column sat empty on an idle fleet; never break-words what
 		// the width can show (density rule).
 		<div className="grid grid-cols-[150px_1fr_auto_auto] items-center gap-2 rounded-md px-2 py-1 text-xs hover:bg-surface-2 md:grid-cols-[300px_1fr_auto_auto] xl:grid-cols-[400px_1fr_auto_auto]">
 			<span className="flex min-w-0 items-center gap-1.5 font-medium text-text-primary">
 				<LivenessDot row={row} />
-				<span className="truncate" title={row.servedId}>
+				<span className="break-words" title={row.servedId}>
 					{displayFleetModelName(row.servedId)}
 				</span>
 				{roleTag ? (
@@ -96,7 +96,7 @@ function FleetRowView({ row }: { row: FleetRow }): React.ReactElement {
 			<span className="min-w-0">
 				<span
 					className={cn(
-						"block truncate",
+						"block break-words",
 						row.state === "running" ? "text-text-secondary" : "italic text-text-tertiary",
 					)}
 					title={row.drivingCardTitle ?? undefined}
@@ -113,7 +113,7 @@ function FleetRowView({ row }: { row: FleetRow }): React.ReactElement {
 				{row.state === "running" && row.activityText ? (
 					<span
 						data-testid="fleet-row-activity"
-						className="block truncate text-[10px] leading-4 text-accent-2-text/90"
+						className="block break-words text-[10px] leading-4 text-accent-2-text/90"
 						title={row.activityText}
 					>
 						↳ {row.activityToolName ? `${row.activityToolName} · ` : ""}

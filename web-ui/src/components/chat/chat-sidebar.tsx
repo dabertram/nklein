@@ -573,11 +573,11 @@ function SessionRow({
 		>
 			<div className="flex-1 min-w-0 flex flex-col gap-0.5">
 				{/* Title + role */}
-				<div className="truncate font-medium leading-tight">{session.title}</div>
-				<div className="text-[11px] text-text-tertiary truncate">{session.role.replace(/_/g, " ")}</div>
+				<div className="break-words font-medium leading-tight">{session.title}</div>
+				<div className="text-[11px] text-text-tertiary break-words">{session.role.replace(/_/g, " ")}</div>
 				{/* Metadata line: started timestamp + optional message count */}
 				<div className="text-[10px] text-text-tertiary flex items-center gap-1.5 flex-wrap mt-0.5 leading-tight">
-					<span className="truncate">Started {meta.startedLabel}</span>
+					<span className="break-words">Started {meta.startedLabel}</span>
 					{meta.messageCount !== null && meta.messageCount > 0 ? (
 						<>
 							<span className="text-text-tertiary opacity-40">·</span>
@@ -589,13 +589,13 @@ function SessionRow({
 					{meta.lastActivityLabel !== null ? (
 						<>
 							<span className="text-text-tertiary opacity-40">·</span>
-							<span className="shrink-0 truncate">Last {meta.lastActivityLabel}</span>
+							<span className="shrink-0 break-words">Last {meta.lastActivityLabel}</span>
 						</>
 					) : null}
 					{meta.tokenLabel !== null ? (
 						<>
 							<span className="text-text-tertiary opacity-40">·</span>
-							<span className="shrink-0 truncate">{meta.tokenLabel}</span>
+							<span className="shrink-0 break-words">{meta.tokenLabel}</span>
 						</>
 					) : null}
 				</div>
@@ -752,7 +752,7 @@ function FocusChainStrip({
 				<span className="shrink-0 text-text-tertiary">
 					Plan {done}/{chain.steps.length}
 				</span>
-				<span className="min-w-0 truncate text-text-secondary">
+				<span className="min-w-0 break-words text-text-secondary">
 					{allDone ? "✓ all steps done" : (current?.text ?? "")}
 				</span>
 				<span className="ml-auto shrink-0 text-text-tertiary">
@@ -920,7 +920,7 @@ function ActivityTickLine({
 				disabled={!onOpenCard}
 				title="Open the card in the main panel"
 				className={cn(
-					"max-w-[92%] truncate rounded-full px-2.5 py-0.5 text-[11px] text-text-tertiary",
+					"max-w-[92%] break-words rounded-full px-2.5 py-0.5 text-[11px] text-text-tertiary",
 					onOpenCard ? "hover:bg-surface-2 hover:text-accent-text cursor-pointer" : "cursor-default",
 				)}
 			>
@@ -1011,7 +1011,7 @@ function AutonomousRunBar({
 				</Button>
 			</div>
 			{status && (running || status.stopReason || status.finalText) ? (
-				<div data-testid="chat-autonomous-status" className="text-[11px] text-text-secondary truncate">
+				<div data-testid="chat-autonomous-status" className="text-[11px] text-text-secondary break-words">
 					{running
 						? `Working autonomously${steps}…`
 						: `${formatAutonomousStopReason(status.stopReason)} · ${status.turns} turn${status.turns === 1 ? "" : "s"}${steps}`}
@@ -1264,7 +1264,7 @@ function ChatPanel({
 			<div className="flex items-center justify-between px-3 py-2 bg-surface-2 border-b border-border shrink-0 min-w-0">
 				<div className="flex items-center gap-2 text-sm font-semibold text-text-primary min-w-0">
 					<MessageSquare size={16} className="text-text-secondary shrink-0" />
-					<span className="truncate">Chat</span>
+					<span className="break-words">Chat</span>
 				</div>
 				{hideCollapse ? null : (
 					<button
@@ -1590,8 +1590,8 @@ function ChatPanel({
 												>
 													{candidate.kind === "card" ? "card" : "#"}
 												</span>
-												<span className="truncate">{candidate.title}</span>
-												<span className="ml-auto shrink-0 truncate text-[10.5px] text-text-tertiary">
+												<span className="break-words">{candidate.title}</span>
+												<span className="ml-auto shrink-0 break-words text-[10.5px] text-text-tertiary">
 													{candidate.id}
 												</span>
 											</button>
@@ -1609,7 +1609,7 @@ function ChatPanel({
 												className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-1 text-[11px] text-text-secondary"
 											>
 												<ImagePlus size={11} className="shrink-0" />
-												<span className="max-w-[120px] truncate">{image.name ?? "image"}</span>
+												<span className="max-w-[120px] break-words">{image.name ?? "image"}</span>
 												<button
 													type="button"
 													aria-label={`Remove ${image.name ?? "image"}`}

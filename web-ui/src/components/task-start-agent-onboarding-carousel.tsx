@@ -231,7 +231,7 @@ function SetupCommand({ label, command }: { label: string; command: string }): R
 	return (
 		<div className="min-w-0">
 			<div className="mb-0.5 text-[10px] font-medium uppercase text-text-tertiary">{label}</div>
-			<code className="block truncate rounded-sm border border-border bg-surface-2 px-1.5 py-1 font-mono text-[11px] text-text-secondary">
+			<code className="block break-words rounded-sm border border-border bg-surface-2 px-1.5 py-1 font-mono text-[11px] text-text-secondary">
 				{command}
 			</code>
 		</div>
