@@ -36,8 +36,11 @@ describe("handleStartTaskSession single-flight guard", () => {
 				rejected: error,
 			}),
 		);
-		// Let the first flight reach its awaited dependency.
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		// Let the first flight reach its awaited dependency — poll instead of a fixed sleep (a 20ms sleep lost the
+		// race under the loaded pre-commit run, N12 intermittent, 2026-09-05).
+		for (let attempt = 0; attempt < 200 && configLoads < 1; attempt += 1) {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		}
 		expect(configLoads).toBe(1);
 
 		const duplicate = await handleStartTaskSession(

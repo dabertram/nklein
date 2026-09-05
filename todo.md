@@ -2088,8 +2088,28 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   lines per file, 24k-char budget, whole files omitted past the budget and named as such) with an explicit "do
   NOT rediscover these — decide, write, submit"; **(b) half-budget hurry-up**: a first turn still calling tools at
   50% of the budget is CANCELLED (cancel-then-send, new optional `cancelTaskTurn` dep wired from the service) and
-  the next nudge says so ("STOP exploring … write the merged content now … or cannot_resolve"). Live proof owed
-  on the s03 conflict.
+  the next nudge says so ("STOP exploring … write the merged content now … or cannot_resolve"). Live proof on the s03 conflict
+  came back as a THIRD defect: the seeded session died on the engine's 500 "Context size has been exceeded" —
+  the merge launch config spread the WORKER's `contextWindow` (80k) onto the flash-next merge model whose
+  effective window is 40k. Fixed `e88b9d212` (contextWindow null when the model changed → registry lookup).
+  P0.CTX500 (a 500 should trigger a context-shrink rung, not a dead turn) still applies to this seam.
+
+- [ ] **P0.REVIEWNOVERDICT — small split children park on "3 no-verdict reviewer sessions" and on a
+  verification-only card looping through the test-driven gate.** *(Live 2026-09-05 07:00–17:30, after the
+  tolerant submit_review parser was live.)* (a) `s44b-live-stubs-split-s44b-live-stripe-throws`: flash-next
+  ended 3 review sessions without a verdict; the fallback verdict turned a BASE-RED acceptance (`tsc --noEmit`:
+  "Cannot find type definition file for 'node'" — the offline sandbox has no node_modules, the base tree fails
+  identically) into "fix the acceptance failure, then redeliver" → 2 bounces → "Review is looping" park. Two
+  gaps: the fallback verdict must apply the same pre-existing waiver the delivery gate applies
+  (`shouldWaiveAcceptanceAsPreexisting`) instead of bouncing on inherited breakage, and the reviewer session
+  needs the merge agent's medicine (evidence in the seed, half-budget hurry) — its no-verdict rate on
+  flash-next is the actual park generator. (b) `s44a-system-clock-split-sc-wallclock-allowlist`: a
+  verification slice ("no new product code: run the frozen guard suite and prove …") with no `testability`
+  declaration; the worker delivered junk (`ESCALATION-S02-reviewer.md`, `_setup_nm.sh`, `.gitignore`,
+  CHANGELOG) 8 rounds in a row and the test-driven gate bounced it every time until the loop park. The
+  decomposition must stamp verification-only cards `testability: not_testable` (their deliverable is evidence,
+  not a diff), and the gate should stop a card whose diffs never touch product code after 2 identical bounces,
+  not 8. Operator decision pending on both cards (David).
 
 - [ ] **P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).**
   The fix ships INSIDE the sandbox image (`docker/agent-sandbox/Dockerfile` copies the esbuild bundle) and the
