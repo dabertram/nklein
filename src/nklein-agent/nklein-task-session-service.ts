@@ -438,6 +438,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		sendTaskSessionInput: (taskId, prompt) => this.sendAuxiliaryTaskSessionInput(taskId, prompt),
 		clearTaskSessions: (taskId) => this.sessionRuntime.clearTaskSessions(taskId),
 		forgetSyntheticState: (taskId) => this.forgetSyntheticSessionState(taskId),
+		cancelTaskTurn: (taskId) => this.cancelTaskTurn(taskId),
 	});
 	/** §5.U auxiliary secondary-session runner: the §5.AB second-opinion reviewer session (owns its single-flight guard). */
 	private readonly secondOpinionReviewRunner = createSecondOpinionReviewRunner({

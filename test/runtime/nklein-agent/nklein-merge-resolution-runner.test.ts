@@ -116,6 +116,44 @@ describe("createMergeResolutionRunner", () => {
 		).toBe(true);
 	});
 
+	it("live 2026-09-05: the seed carries the conflict hunks read from the sandbox tree", async () => {
+		const marked = "a\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> sha\nz\n";
+		const exec = execRouter({ cat: ok(marked) });
+		const d = deps({ getAgentSandboxManager: () => manager(exec) as never });
+		await createMergeResolutionRunner(d).runMergeResolutionSession(input);
+		const { buildMergeResolutionSeedPrompt } = await import("../../../src/nklein-agent/nklein-merge-resolution-tool");
+		const seedInput = (buildMergeResolutionSeedPrompt as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+			conflictDigest?: { text: string; omittedPaths: string[] };
+		};
+		expect(seedInput.conflictDigest?.text).toContain("### a.txt — 1 conflict");
+		expect(seedInput.conflictDigest?.text).toContain("<<<<<<< HEAD");
+		expect(seedInput.conflictDigest?.omittedPaths).toEqual([]);
+	});
+
+	it("live 2026-09-05: a first turn still exploring at half the budget is cancelled and hurried to write", async () => {
+		let releaseTurn: (() => void) | null = null;
+		const cancelTaskTurn = vi.fn(async () => {
+			releaseTurn?.();
+		});
+		const sendTaskSessionInput = vi.fn(async (_taskId: string, _prompt: string) => {});
+		const d = deps({
+			cancelTaskTurn,
+			sendTaskSessionInput,
+			// The first turn never ends on its own — it only settles when the runner cancels it.
+			startRuntimeSession: vi.fn(
+				() =>
+					new Promise((resolve) => {
+						releaseTurn = () => resolve({ result: {} } as never);
+					}),
+			) as unknown as MergeResolutionRunnerDeps["startRuntimeSession"],
+		});
+		const started = Date.now();
+		await createMergeResolutionRunner(d).runMergeResolutionSession({ ...input, timeoutMs: 2_000 });
+		expect(cancelTaskTurn).toHaveBeenCalledWith("t1::merge");
+		expect(Date.now() - started).toBeGreaterThanOrEqual(900); // ~half of the 2s budget, not the full deadline
+		expect(sendTaskSessionInput.mock.calls[0]?.[1]).toContain("half of your merge budget");
+	});
+
 	it("returns null when no model resolves ANYWHERE (preference disabled, no loaded fallback)", async () => {
 		process.env.NKLEIN_MERGE_FALLBACK_MODEL = ""; // explicit empty = no preferred model
 		try {

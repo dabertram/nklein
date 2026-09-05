@@ -2081,7 +2081,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `read_files` results before its next request ("previous read_files result compacted"), so it re-read
   `test/kernel/prng.test.ts` four times; and one call sent `start_line: "85"` (a numeric STRING — junk-args) which
   the SDK rejected ("✖ Invalid input"). Both burn the merge budget; the compaction policy for aux merge sessions
-  and numeric-string coercion at the read_files boundary are the two follow-ups.
+  and numeric-string coercion at the read_files boundary are the two follow-ups. Under the 30-minute deadline the
+  agent STILL never wrote (39 messages: 10 `run_commands`, 7 `read_files`, 2 `get_file_size` — `git show :2:…`,
+  `cat package.json`, spec greps) → two mechanisms shipped 2026-09-05: **(a) the seed carries the conflict
+  hunks** read from the mid-merge sandbox tree (`merge-conflict-hunks.ts`: marker regions ±6 numbered context
+  lines per file, 24k-char budget, whole files omitted past the budget and named as such) with an explicit "do
+  NOT rediscover these — decide, write, submit"; **(b) half-budget hurry-up**: a first turn still calling tools at
+  50% of the budget is CANCELLED (cancel-then-send, new optional `cancelTaskTurn` dep wired from the service) and
+  the next nudge says so ("STOP exploring … write the merged content now … or cannot_resolve"). Live proof owed
+  on the s03 conflict.
 
 - [ ] **P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).**
   The fix ships INSIDE the sandbox image (`docker/agent-sandbox/Dockerfile` copies the esbuild bundle) and the

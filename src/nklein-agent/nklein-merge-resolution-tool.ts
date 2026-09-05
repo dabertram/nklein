@@ -102,13 +102,32 @@ export function createNKleinMergeResolutionTool(options: {
 }
 
 /** The merge session's seed prompt: the conflict facts + the one-tool-call contract. */
-export function buildMergeResolutionSeedPrompt(input: { taskId: string; conflictedPaths: readonly string[] }): string {
+export function buildMergeResolutionSeedPrompt(input: {
+	taskId: string;
+	conflictedPaths: readonly string[];
+	/**
+	 * The conflict regions as they sit in the working tree (live 2026-09-05: without them the agent spent its
+	 * whole budget on `git show :2:…` / `cat` / spec greps and never wrote a file). `omittedPaths` names files
+	 * whose hunks did not fit the budget — the agent reads those itself.
+	 */
+	conflictDigest?: { text: string; omittedPaths: readonly string[] } | null;
+}): string {
 	const pathLines = input.conflictedPaths.map((path) => `- ${path}`).join("\n");
+	const digest = input.conflictDigest?.text.trim()
+		? [
+				"## The conflict regions, exactly as they sit in your working tree (numbered lines)",
+				input.conflictDigest.text,
+				input.conflictDigest.omittedPaths.length > 0
+					? `Not shown (over the excerpt budget — read them yourself): ${input.conflictDigest.omittedPaths.join(", ")}`
+					: "Every conflict is shown above — do NOT spend turns rediscovering them (no `git show`, no spec archaeology): decide each one, write the merged file, submit.",
+			].join("\n\n")
+		: null;
 	return [
 		`You are a merge-resolution agent. The delivered result branch of card "${input.taskId}" conflicts with the project's main tree, and your working tree has been left mid-merge with conflict markers (<<<<<<< / ======= / >>>>>>>) in place.`,
 		`Conflicted files:\n${pathLines}`,
 		`The two sides of every conflict: OURS (the <<<<<<< side) is the project's main tree — work already merged from other cards. THEIRS (the >>>>>>> side) is this card's delivered result branch. Keep BOTH intents where possible; where the card's own declared scope is in conflict, prefer THEIRS (the card owns that change).`,
 		`Resolve EVERY conflict marker by editing the conflicted files directly — remove all <<<<<<< / ======= / >>>>>>> lines and leave the merged content you intend to ship. Avoid writing outside the conflicted files: ONLY the conflicted files listed above are captured back — any other edit is discarded. If a quick sanity check is available (a type-check or a targeted test), run it.`,
 		`Then call submit_merge_resolution EXACTLY ONCE: outcome "resolved" when no markers remain, or "cannot_resolve" with the concrete blocker. Do not answer in prose.`,
+		...(digest ? [digest] : []),
 	].join("\n\n");
 }

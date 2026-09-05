@@ -1,6 +1,7 @@
 import { fetchLoadedModelDescriptors, pickReviewFallbackDescriptor } from "../core/lmstudio-loaded-model-descriptors";
 import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { renderConflictHunkDigest } from "./merge-conflict-hunks";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
 import { createAgentSandboxToolExecutors } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
@@ -21,6 +22,10 @@ const DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS = 30 * 60 * 1000;
 const MAX_MERGE_RESOLUTION_NUDGES = 2;
 /** §5.AK Phase B: conflicted files this large (or binary) are beyond a bounded text-edit session — fall back to abort. */
 const MAX_MERGE_RESOLUTION_FILE_BYTES = 1024 * 1024;
+/** Fraction of the merge budget after which a still-exploring first turn is cancelled and nudged to write. */
+const MERGE_RESOLUTION_HURRY_FRACTION = 0.5;
+const MERGE_RESOLUTION_HURRY_PROMPT =
+	"You have used half of your merge budget without recording a resolution. STOP exploring — the conflict regions were in your first message. For every conflicted file, write the merged content now (edit_file or write_file), remove every <<<<<<< / ======= / >>>>>>> line, then call submit_merge_resolution exactly once. If a conflict genuinely cannot be decided, call it with outcome cannot_resolve and the concrete blocker instead of reading more.";
 const MERGE_RESOLUTION_NUDGE_PROMPT =
 	"You ended your turn without calling `submit_merge_resolution`, so no resolution was recorded. Your outcome is delivered ONLY by that tool. Finish resolving the conflict markers, then call `submit_merge_resolution` now: `resolved`, or `cannot_resolve` with the concrete blocker. Do not answer in prose.";
 
@@ -54,6 +59,12 @@ export interface MergeResolutionRunnerDeps {
 	sendTaskSessionInput(taskId: string, prompt: string): Promise<unknown>;
 	clearTaskSessions(taskId: string): Promise<unknown>;
 	forgetSyntheticState(taskId: string): void;
+	/**
+	 * Cancel the agent's CURRENT turn (the cancel-then-send nudge pattern). Optional: without it the half-budget
+	 * hurry-up below cannot interrupt a turn that keeps calling tools until the deadline (live 2026-09-05: 19
+	 * exploration calls in one turn, 30 minutes, no write).
+	 */
+	cancelTaskTurn?(taskId: string): Promise<unknown>;
 }
 
 export interface MergeResolutionRunner {
@@ -310,6 +321,34 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 					};
 				}
 			}
+			// The conflict regions go INTO the seed (live 2026-09-05: the agent burned its whole budget rediscovering
+			// them). Read each conflicted file from the mid-merge sandbox tree; a failed read just leaves that file
+			// to the agent (the digest names it as omitted only when it had hunks that did not fit the budget).
+			const conflictedFileContents: { path: string; content: string }[] = [];
+			for (const path of input.conflictedPaths) {
+				const read = await manager.exec(mergeTaskId, ["cat", "--", path]);
+				if (read.exitCode === 0) {
+					conflictedFileContents.push({ path, content: read.stdout });
+				}
+			}
+			const conflictDigest = renderConflictHunkDigest(conflictedFileContents);
+			// Half-budget hurry-up: a first turn that is still calling tools at 50% of the budget is cancelled
+			// (cancel-then-send) so the nudge loop below can redirect it to WRITING; without a cancel dep this is
+			// a no-op and the deadline alone bounds the turn, as before.
+			const hurryTimer = deps.cancelTaskTurn
+				? setTimeout(
+						() => {
+							if (verdict === null) {
+								void Promise.resolve(deps.cancelTaskTurn?.(mergeTaskId)).catch(() => undefined);
+							}
+						},
+						Math.max(
+							1_000,
+							(input.timeoutMs ?? DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS) * MERGE_RESOLUTION_HURRY_FRACTION,
+						),
+					)
+				: null;
+			hurryTimer?.unref?.();
 			// First turn: seed prompt + the submit_merge_resolution tool, file/bash tools routed into the sandbox.
 			lastTurnSettled = await runBoundedTurn(
 				deps.startRuntimeSession({
@@ -319,6 +358,7 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 					prompt: buildMergeResolutionSeedPrompt({
 						taskId: input.taskId,
 						conflictedPaths: input.conflictedPaths,
+						conflictDigest,
 					}),
 					launchConfig,
 					contextScope: "minimal",
@@ -335,14 +375,23 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 					}),
 				}),
 			);
+			let hurried = false;
 			for (
 				let nudge = 0;
 				verdict === null && nudge < MAX_MERGE_RESOLUTION_NUDGES && Date.now() < deadlineMs;
 				nudge += 1
 			) {
-				lastTurnSettled = await runBoundedTurn(
-					deps.sendTaskSessionInput(mergeTaskId, MERGE_RESOLUTION_NUDGE_PROMPT),
-				);
+				// The first nudge after the half-budget cancel says WHY the turn ended and what to do instead;
+				// later nudges keep today's "you ended without submitting" wording.
+				const pastHalf =
+					Date.now() - (deadlineMs - (input.timeoutMs ?? DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS)) >=
+					(input.timeoutMs ?? DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS) * MERGE_RESOLUTION_HURRY_FRACTION;
+				const prompt = pastHalf && !hurried ? MERGE_RESOLUTION_HURRY_PROMPT : MERGE_RESOLUTION_NUDGE_PROMPT;
+				hurried ||= pastHalf;
+				lastTurnSettled = await runBoundedTurn(deps.sendTaskSessionInput(mergeTaskId, prompt));
+			}
+			if (hurryTimer) {
+				clearTimeout(hurryTimer);
 			}
 			// Widen past TS's closure-assignment blind spot: `verdict` is only ever written inside the
 			// onMergeResolutionSubmitted callback, so control-flow analysis still sees the `null` initializer here.
