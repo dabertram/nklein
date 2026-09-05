@@ -14,7 +14,10 @@ import type {
 import { createSessionId } from "./nklein-session-state";
 
 /** Merge sessions are bounded to the same overall budget as a review session and get the same nudge count. */
-const DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS = 10 * 60 * 1000;
+// 30 min (was 10): live 2026-09-05 the FIRST agent session that ever got past the reproduction step (see the
+// identity fix) spent 12 tool-call turns on a 4-file conflict and was cut off at 10:00 sharp — a throttled
+// m5max decodes ~9 tok/s under factory load, and every deadline miss costs another full delivery round.
+const DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS = 30 * 60 * 1000;
 const MAX_MERGE_RESOLUTION_NUDGES = 2;
 /** §5.AK Phase B: conflicted files this large (or binary) are beyond a bounded text-edit session — fall back to abort. */
 const MAX_MERGE_RESOLUTION_FILE_BYTES = 1024 * 1024;
@@ -345,6 +348,14 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 			// onMergeResolutionSubmitted callback, so control-flow analysis still sees the `null` initializer here.
 			const submission = verdict as NKleinMergeResolutionResult | null;
 			if (!submission) {
+				// Loud, not silent (live 2026-09-05): the agent's turns ended without a submit_merge_resolution
+				// verdict — the deadline fired mid-work or the model stopped short — and the delivery only ever
+				// said "conflict". Name the reason so the next miss is diagnosable from telemetry alone.
+				recordMergeSessionError(
+					lastTurnSettled
+						? "the merge agent's turns ended without a verdict (no submit_merge_resolution call)"
+						: `the ${Math.round((input.timeoutMs ?? DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS) / 60_000)}-minute deadline fired while the merge agent was still working`,
+				);
 				return null;
 			}
 			if (submission.outcome === "cannot_resolve") {

@@ -2074,7 +2074,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   address" — exit 128, zero unmerged paths — and the divergence check read that as "sandbox merge reproduction
   diverged from the host conflict — sandbox unmerged: []". The identity is now pinned on the command
   (`-c user.name/user.email`, like the agent's commit step already did) and the divergence message carries the
-  git exit code + stderr so the next such failure is self-describing.
+  git exit code + stderr so the next such failure is self-describing. With that, the FIRST merge-agent session
+  ever bound (05:58) — 12 tool-call turns on the 4-file conflict, cut off at the 10-minute deadline with a silent
+  `null` → default deadline now 30 min and a deadline/no-verdict miss records a `Merge-resolution session
+  failed: …` observation. **OPEN (observed in that session):** the context-focus compaction discarded the agent's
+  `read_files` results before its next request ("previous read_files result compacted"), so it re-read
+  `test/kernel/prng.test.ts` four times; and one call sent `start_line: "85"` (a numeric STRING — junk-args) which
+  the SDK rejected ("✖ Invalid input"). Both burn the merge budget; the compaction policy for aux merge sessions
+  and numeric-string coercion at the read_files boundary are the two follow-ups.
 
 - [ ] **P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).**
   The fix ships INSIDE the sandbox image (`docker/agent-sandbox/Dockerfile` copies the esbuild bundle) and the
