@@ -1,3 +1,5 @@
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { fetchLoadedModelDescriptors, pickReviewFallbackDescriptor } from "../core/lmstudio-loaded-model-descriptors";
 import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -30,6 +32,60 @@ const MERGE_RESOLUTION_HURRY_PROMPT =
 	"You have used half of your merge budget without recording a resolution. STOP exploring — the conflict regions were in your first message. For every conflicted file, resolve the marker regions IN PLACE with edit_file (replace each <<<<<<< … >>>>>>> block with the merged lines; do NOT rewrite whole files — a whole-file write_file costs minutes at local decode speed), then call submit_merge_resolution exactly once. If a conflict genuinely cannot be decided, call it with outcome cannot_resolve and the concrete blocker instead of reading more.";
 const MERGE_RESOLUTION_NUDGE_PROMPT =
 	"You ended your turn without calling `submit_merge_resolution`, so no resolution was recorded. Your outcome is delivered ONLY by that tool. Finish resolving the conflict markers, then call `submit_merge_resolution` now: `resolved`, or `cannot_resolve` with the concrete blocker. Do not answer in prose.";
+
+/**
+ * Partial progress across merge rounds (live 2026-09-05, v31 s03): every delivery round starts a FRESH sandbox,
+ * so round four's two resolved files and round five's third were thrown away at each deadline and the agent
+ * started over from four conflicts every time. Marker-free conflicted files are persisted per task at the end
+ * of a round without a verdict, keyed by the exact (resultCommit, mainRef) pair they were resolved against, and
+ * pre-applied into the next round's sandbox so the agent only sees what is still conflicted. Best-effort on
+ * both sides; a stale key (either side moved) is ignored.
+ */
+export interface NKleinMergeProgress {
+	resultCommit: string;
+	mainRef: string;
+	files: NKleinMergeResolutionResolvedFile[];
+	updatedAt: string;
+}
+
+export function mergeProgressPath(projectRepoPath: string, taskId: string): string {
+	return join(
+		projectRepoPath,
+		".nklein",
+		"nklein",
+		"merge-progress",
+		`${taskId.replace(/[^A-Za-z0-9._-]/gu, "_")}.json`,
+	);
+}
+
+async function readMergeProgress(projectRepoPath: string, taskId: string): Promise<NKleinMergeProgress | null> {
+	try {
+		const parsed = JSON.parse(
+			await readFile(mergeProgressPath(projectRepoPath, taskId), "utf8"),
+		) as NKleinMergeProgress;
+		return typeof parsed?.resultCommit === "string" && Array.isArray(parsed.files) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
+async function writeMergeProgress(
+	projectRepoPath: string,
+	taskId: string,
+	progress: NKleinMergeProgress,
+): Promise<void> {
+	try {
+		const path = mergeProgressPath(projectRepoPath, taskId);
+		await mkdir(join(path, ".."), { recursive: true });
+		await writeFile(path, `${JSON.stringify(progress, null, 2)}\n`, "utf8");
+	} catch {
+		// best-effort: the next round simply starts from the full conflict again
+	}
+}
+
+async function clearMergeProgress(projectRepoPath: string, taskId: string): Promise<void> {
+	await rm(mergeProgressPath(projectRepoPath, taskId), { force: true }).catch(() => undefined);
+}
 
 /** One conflicted file's agent-resolved contents, captured from the `::merge` sandbox (§5.AK Phase B). */
 export interface NKleinMergeResolutionResolvedFile {
@@ -328,6 +384,45 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 					};
 				}
 			}
+			// Pre-apply the files an EARLIER round already resolved against this exact (resultCommit, mainRef) pair, so
+			// the agent only sees what is still conflicted (a fresh sandbox per round otherwise resets everything).
+			const preResolvedPaths: string[] = [];
+			const priorProgress = await readMergeProgress(input.projectRepoPath, input.taskId);
+			if (
+				priorProgress &&
+				priorProgress.resultCommit === input.resultCommit &&
+				priorProgress.mainRef === (input.mainRef?.trim() || "HEAD")
+			) {
+				for (const file of priorProgress.files) {
+					if (!input.conflictedPaths.includes(file.path)) {
+						continue;
+					}
+					const applied = await manager.exec(mergeTaskId, ["sh", "-c", 'cat > "$0"', file.path], {
+						stdin: file.content,
+					});
+					const stillMarked = await manager.exec(mergeTaskId, [
+						"grep",
+						"-l",
+						"-E",
+						"^(<<<<<<<|>>>>>>>)",
+						"--",
+						file.path,
+					]);
+					if (applied.exitCode === 0 && stillMarked.exitCode === 1) {
+						preResolvedPaths.push(file.path);
+					}
+				}
+				if (preResolvedPaths.length > 0) {
+					recordSelfObservation({
+						signal: "custom",
+						severity: "info",
+						message: `Merge-resolution for ${input.taskId} resumes from an earlier round: ${preResolvedPaths.length} of ${input.conflictedPaths.length} conflicted file(s) already resolved (${preResolvedPaths.join(", ")}).`,
+						taskId: mergeTaskId,
+						workspacePath: input.projectRepoPath,
+						metadata: { category: "merge_resolution_resumed", preResolvedPaths },
+					});
+				}
+			}
 			// The conflict regions go INTO the seed (live 2026-09-05: the agent burned its whole budget rediscovering
 			// them). Read each conflicted file from the mid-merge sandbox tree; a failed read just leaves that file
 			// to the agent (the digest names it as omitted only when it had hunks that did not fit the budget).
@@ -366,6 +461,7 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 						taskId: input.taskId,
 						conflictedPaths: input.conflictedPaths,
 						conflictDigest,
+						alreadyResolvedPaths: preResolvedPaths,
 					}),
 					launchConfig,
 					contextScope: "minimal",
@@ -402,17 +498,60 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 			}
 			// Widen past TS's closure-assignment blind spot: `verdict` is only ever written inside the
 			// onMergeResolutionSubmitted callback, so control-flow analysis still sees the `null` initializer here.
-			const submission = verdict as NKleinMergeResolutionResult | null;
+			let submission = verdict as NKleinMergeResolutionResult | null;
 			if (!submission) {
 				// Loud, not silent (live 2026-09-05): the agent's turns ended without a submit_merge_resolution
 				// verdict — the deadline fired mid-work or the model stopped short — and the delivery only ever
 				// said "conflict". Name the reason so the next miss is diagnosable from telemetry alone.
-				recordMergeSessionError(
-					lastTurnSettled
-						? "the merge agent's turns ended without a verdict (no submit_merge_resolution call)"
-						: `the ${Math.round((input.timeoutMs ?? DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS) / 60_000)}-minute deadline fired while the merge agent was still working`,
-				);
-				return null;
+				const missReason = lastTurnSettled
+					? "the merge agent's turns ended without a verdict (no submit_merge_resolution call)"
+					: `the ${Math.round((input.timeoutMs ?? DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS) / 60_000)}-minute deadline fired while the merge agent was still working`;
+				// Hard-stop a still-running turn BEFORE reading the tree (the TOCTOU rule below applies here too).
+				if (!lastTurnSettled) {
+					await deps.clearTaskSessions(mergeTaskId).catch(() => undefined);
+					lastTurnSettled = true;
+				}
+				// Salvage what the round finished: every conflicted file that is marker-free (and a regular text
+				// file) is persisted for the next round; when ALL of them are clean the resolution is complete in
+				// everything but the tool call, so it proceeds exactly like a submitted "resolved".
+				const cleanFiles: NKleinMergeResolutionResolvedFile[] = [];
+				const pendingPaths: string[] = [];
+				for (const path of input.conflictedPaths) {
+					const marked = await manager.exec(mergeTaskId, ["grep", "-l", "-E", "^(<<<<<<<|>>>>>>>)", "--", path]);
+					const symlinkProbe = await manager.exec(mergeTaskId, ["test", "-L", path]);
+					const content =
+						marked.exitCode === 1 && symlinkProbe.exitCode === 1
+							? await manager.exec(mergeTaskId, ["cat", "--", path])
+							: null;
+					if (content && content.exitCode === 0 && content.stdout.trim().length > 0) {
+						cleanFiles.push({ path, content: content.stdout });
+					} else {
+						pendingPaths.push(path);
+					}
+				}
+				if (cleanFiles.length > 0) {
+					await writeMergeProgress(input.projectRepoPath, input.taskId, {
+						resultCommit: input.resultCommit,
+						mainRef: input.mainRef?.trim() || "HEAD",
+						files: cleanFiles,
+						updatedAt: new Date().toISOString(),
+					});
+				}
+				if (pendingPaths.length > 0) {
+					recordMergeSessionError(
+						`${missReason} — ${cleanFiles.length} of ${input.conflictedPaths.length} conflicted file(s) resolved and kept for the next round (${cleanFiles.map((file) => file.path).join(", ") || "none"}); still conflicted: ${pendingPaths.join(", ")}`,
+					);
+					return null;
+				}
+				recordSelfObservation({
+					signal: "custom",
+					severity: "warning",
+					message: `Merge-resolution for ${input.taskId} salvaged: ${missReason}, but every conflicted file is marker-free — proceeding as resolved.`,
+					taskId: mergeTaskId,
+					workspacePath: input.projectRepoPath,
+					metadata: { category: "merge_resolution_salvaged", files: cleanFiles.map((file) => file.path) },
+				});
+				submission = { outcome: "resolved", summary: `salvaged at deadline: ${missReason}`, reason: null };
 			}
 			if (submission.outcome === "cannot_resolve") {
 				return { outcome: "cannot_resolve", reason: submission.reason ?? submission.summary };
@@ -512,6 +651,7 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 				}
 				resolvedFiles.push({ path, content: content.stdout });
 			}
+			await clearMergeProgress(input.projectRepoPath, input.taskId);
 			return { outcome: "resolved", resolvedFiles };
 		} finally {
 			await deps.clearTaskSessions(mergeTaskId).catch(() => undefined);

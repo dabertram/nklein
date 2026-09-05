@@ -829,7 +829,7 @@ export class AgentSandboxManager {
 	async exec(
 		taskId: string,
 		argv: readonly string[],
-		options?: { timeoutMs?: number },
+		options?: { timeoutMs?: number; stdin?: string },
 	): Promise<AgentSandboxExecResult> {
 		const placement = this.requirePlacement(taskId);
 		return await this.execAsTaskUser(placement, [...argv], options);

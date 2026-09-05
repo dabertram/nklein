@@ -171,6 +171,86 @@ describe("createMergeResolutionRunner", () => {
 		expect(sameLaunch).toMatchObject({ modelId: "worker-m", contextWindow: 80_000 });
 	});
 
+	it("live 2026-09-05: a round that ends without a verdict but with every file marker-free is salvaged as resolved", async () => {
+		const d = deps({
+			// The turn ends without ever calling submit_merge_resolution.
+			startRuntimeSession: vi.fn(async () => ({
+				result: {},
+			})) as unknown as MergeResolutionRunnerDeps["startRuntimeSession"],
+		});
+		const result = await createMergeResolutionRunner(d).runMergeResolutionSession(input);
+		expect(result).toEqual({ outcome: "resolved", resolvedFiles: [{ path: "a.txt", content: "resolved content" }] });
+		const { recordSelfObservation } = await import("../../../src/telemetry/self-observation-sink");
+		const categories = (recordSelfObservation as ReturnType<typeof vi.fn>).mock.calls.map(
+			([event]) => (event as { metadata?: { category?: string } }).metadata?.category,
+		);
+		expect(categories).toContain("merge_resolution_salvaged");
+	});
+
+	it("live 2026-09-05: partial progress persists across rounds and is pre-applied into the next sandbox", async () => {
+		const { mkdtempSync } = await import("node:fs");
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+		const { readFile } = await import("node:fs/promises");
+		const repo = mkdtempSync(join(tmpdir(), "nklein-merge-progress-"));
+		const twoFiles = { ...input, projectRepoPath: repo, conflictedPaths: ["a.txt", "b.txt"] };
+		// Round 1: a.txt is clean, b.txt still carries markers; no verdict.
+		const exec1 = vi.fn(async (_taskId: string, args: string[]): Promise<ExecResult> => {
+			const cmd = args.join(" ");
+			if (cmd.includes("merge --no-ff")) return { exitCode: 1, stdout: "", stderr: "CONFLICT" };
+			if (cmd.includes("diff --name-only --diff-filter=U")) return ok("a.txt\0b.txt\0");
+			if (args[0] === "wc") return ok("100 x");
+			if (args[0] === "grep" && args[1] === "-Iq") return ok();
+			if (args[0] === "grep" && args[1] === "-l")
+				return args.at(-1) === "b.txt" ? ok("b.txt") : { exitCode: 1, stdout: "", stderr: "" };
+			if (args[0] === "test" && args[1] === "-L") return { exitCode: 1, stdout: "", stderr: "" };
+			if (args[0] === "cat")
+				return ok(args.at(-1) === "a.txt" ? "merged a" : "<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> sha\n");
+			return ok();
+		});
+		const d1 = deps({
+			getAgentSandboxManager: () => manager(exec1) as never,
+			startRuntimeSession: vi.fn(async () => ({
+				result: {},
+			})) as unknown as MergeResolutionRunnerDeps["startRuntimeSession"],
+		});
+		expect(await createMergeResolutionRunner(d1).runMergeResolutionSession(twoFiles)).toBeNull();
+		const progress = JSON.parse(
+			await readFile(join(repo, ".nklein", "nklein", "merge-progress", "t1.json"), "utf8"),
+		) as { resultCommit: string; files: { path: string; content: string }[] };
+		expect(progress.resultCommit).toBe("sha");
+		expect(progress.files).toEqual([{ path: "a.txt", content: "merged a" }]);
+		// Round 2: the persisted a.txt is written into the fresh sandbox before the agent starts, and the seed says so.
+		const exec2 = vi.fn(
+			async (_taskId: string, args: string[], options?: { stdin?: string }): Promise<ExecResult> => {
+				const cmd = args.join(" ");
+				if (cmd.includes("merge --no-ff")) return { exitCode: 1, stdout: "", stderr: "CONFLICT" };
+				if (cmd.includes("diff --name-only --diff-filter=U")) return ok("a.txt\0b.txt\0");
+				if (args[0] === "wc") return ok("100 x");
+				if (args[0] === "grep" && args[1] === "-Iq") return ok();
+				if (args[0] === "sh" && options?.stdin === "merged a") return ok();
+				if (args[0] === "grep" && args[1] === "-l")
+					return args.at(-1) === "b.txt" ? ok("b.txt") : { exitCode: 1, stdout: "", stderr: "" };
+				if (args[0] === "test" && args[1] === "-L") return { exitCode: 1, stdout: "", stderr: "" };
+				if (args[0] === "cat")
+					return ok(args.at(-1) === "a.txt" ? "merged a" : "<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> sha\n");
+				return ok();
+			},
+		);
+		const d2 = deps({ getAgentSandboxManager: () => manager(exec2 as never) as never });
+		await createMergeResolutionRunner(d2).runMergeResolutionSession(twoFiles);
+		expect(
+			exec2.mock.calls.some(
+				([, args, options]) => args[0] === "sh" && args.at(-1) === "a.txt" && options?.stdin === "merged a",
+			),
+		).toBe(true);
+		const { buildMergeResolutionSeedPrompt } = await import("../../../src/nklein-agent/nklein-merge-resolution-tool");
+		const seedInput = (buildMergeResolutionSeedPrompt as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+			alreadyResolvedPaths?: string[];
+		};
+		expect(seedInput.alreadyResolvedPaths).toEqual(["a.txt"]);
+	});
+
 	it("returns null when no model resolves ANYWHERE (preference disabled, no loaded fallback)", async () => {
 		process.env.NKLEIN_MERGE_FALLBACK_MODEL = ""; // explicit empty = no preferred model
 		try {

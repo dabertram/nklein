@@ -2096,8 +2096,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   vitest.config.ts in place and was grepping for markers when the 30-minute deadline fired — 11 model requests
   in 30 min (per-turn 0:15–5:21; a whole-file `write_file` of prng.test.ts costs ~5 min at ~9 tok/s). Deadline
   now 60 min and both the seed and the hurry prompt steer to IN-PLACE `edit_file` of the marker blocks instead
-  of whole-file writes. Follow-up worth building: at the deadline, if the marker scan is already clean across
-  all conflicted files, salvage the resolution instead of discarding two files of finished work.
+  of whole-file writes. Round FIVE (60 min): one more file (prng.ts) written in place, then the post-hurry nudge request at 18:50
+  never produced a token until the deadline (19:18) — 8 model requests in 60 min. BUILT the same night: (a)
+  **cross-round progress** — at a no-verdict end every marker-free conflicted file is persisted under
+  `<ws>/.nklein/nklein/merge-progress/<task>.json` keyed by (resultCommit, mainRef) and pre-applied into the next
+  round's sandbox (the seed marks them ALREADY RESOLVED), so rounds accumulate instead of restarting from four
+  conflicts; (b) **deadline salvage** — when every conflicted file is already marker-free the round proceeds as
+  `resolved` without the tool call (`merge_resolution_salvaged`). OPEN: the post-cancel nudge turn that sat
+  28 minutes without a first token — aux sessions need the worker watchdog's zero-token wedge treatment.
 
 - [ ] **P0.REVIEWNOVERDICT — small split children park on "3 no-verdict reviewer sessions" and on a
   verification-only card looping through the test-driven gate.** *(Live 2026-09-05 07:00–17:30, after the

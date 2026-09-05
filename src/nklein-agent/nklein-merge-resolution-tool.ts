@@ -111,8 +111,16 @@ export function buildMergeResolutionSeedPrompt(input: {
 	 * whose hunks did not fit the budget — the agent reads those itself.
 	 */
 	conflictDigest?: { text: string; omittedPaths: readonly string[] } | null;
+	/** Files an earlier round already resolved and this round pre-applied — the agent must leave them alone. */
+	alreadyResolvedPaths?: readonly string[];
 }): string {
-	const pathLines = input.conflictedPaths.map((path) => `- ${path}`).join("\n");
+	const pathLines = input.conflictedPaths
+		.map((path) =>
+			input.alreadyResolvedPaths?.includes(path)
+				? `- ${path} — ALREADY RESOLVED in an earlier round (pre-applied; do not touch)`
+				: `- ${path}`,
+		)
+		.join("\n");
 	const digest = input.conflictDigest?.text.trim()
 		? [
 				"## The conflict regions, exactly as they sit in your working tree (numbered lines)",
