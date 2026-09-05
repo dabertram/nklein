@@ -290,6 +290,22 @@ export function formatAcceptanceSummaryForReview(
 	].join("\n");
 }
 
+/**
+ * An EXPLICIT decompose card — its deliverable is child cards, never a diff. Today that is the `redecompose-*`
+ * card (review ladder rung + the operator's "split" request); plan-FIRST cards (`startInPlanMode` on an ordinary
+ * card) plan and then implement, so they are deliberately not matched — they deliver a diff.
+ */
+export function isExplicitDecomposeCard(card: Pick<RuntimeBoardCard, "id">): boolean {
+	return card.id.startsWith("redecompose-");
+}
+
+/** The one instruction a starved architect needs; identical across bounces so the loop guard can recognize it. */
+export const DECOMPOSITION_STARVED_FEEDBACK =
+	"The planning session ended WITHOUT applying a decompose_project result, so this card delivered nothing " +
+	"(no child cards reference it). Do not implement anything and do not explore further than needed: call " +
+	"decompose_project with the child cards (each independently verifiable, with an acceptance command) that " +
+	"together cover the objective verbatim.";
+
 export async function runSecondOpinionReviewForTask(
 	input: RunSecondOpinionReviewForTaskInput,
 ): Promise<NKleinSecondOpinionReviewOutcome> {
@@ -741,6 +757,41 @@ export async function runSecondOpinionReviewForTask(
 	// coming back testless trips the identical-feedback PARK guard instead of bouncing forever. The changed-file
 	// list is parsed from the same result-branch diff the reviewer sees (`+++ b/<path>` headers).
 	let preReviewVerdict: ReviewSubmissionInput | null = null;
+	// P0.DSTALL layer 2 (live 2026-09-05, v31 `redecompose-…-live-stubs`): an EXPLICIT decompose card whose planning
+	// session ended without applying a decompose_project result has NOTHING to review — the diff is empty, and the
+	// reviewer burned three no-verdict sessions into a park (layer 1 only labels the card). The board carries the
+	// truth: a delivered decomposition leaves children referencing this card via generatedFromPlan.sourceTaskId.
+	// No children ⇒ a deterministic request_changes on the preReviewVerdict seam re-drives the ARCHITECT with the
+	// one instruction that matters (zero reviewer tokens); a card that never plans still trips the
+	// identical-feedback park guard instead of bouncing forever.
+	if (isExplicitDecomposeCard(card)) {
+		const hasChildren = state.board.columns.some((column) =>
+			column.cards.some((candidate) => candidate.generatedFromPlan?.sourceTaskId === input.taskId),
+		);
+		if (!hasChildren) {
+			preReviewVerdict = {
+				verdict: "request_changes",
+				summary: "Decomposition did not complete",
+				feedback: DECOMPOSITION_STARVED_FEEDBACK,
+				insight: null,
+			};
+			input.warn?.(
+				`Decomposition-starved gate: bouncing ${input.taskId} back to the architect — no child cards reference it.`,
+			);
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "warning",
+					message: `Decomposition-starved gate bounced ${input.taskId}: its planning session ended without a decompose_project result, so there is nothing to review.`,
+					taskId: input.taskId,
+					workspacePath: input.workspacePath,
+					metadata: { category: "decomposition_starved_bounce" },
+				});
+			} catch {
+				// Telemetry must never break a review round.
+			}
+		}
+	}
 	// F12.87b: current-build visual verification is an opt-in deterministic delivery gate. Candidate code, its dev
 	// server, and Chromium all execute in one network-none task sandbox; the host receives only screenshot evidence.
 	// Run only for an actual UI diff. A non-frontend repository is explicitly not-applicable; missing evidence or a

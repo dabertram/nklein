@@ -2056,6 +2056,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `qwen3.8-flash-next (auto_diverse)`, verdicts landed. LESSON: every model-choosing path (worker start,
   reviewer, escalation, plan critic, custodian, merge agent) needs the SAME routability filter — audit #14
   (custodian) is the last unfiltered chooser.
+- [ ] **P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).**
+  The fix ships INSIDE the sandbox image (`docker/agent-sandbox/Dockerfile` copies the esbuild bundle) and the
+  running container's rootfs is read-only (strict isolation — `docker cp` is refused), so it is live only after
+  `node scripts/build-agent-sandbox.mjs` + fresh containers. 2026-09-05: the rebuild stalled 76 min on
+  `load metadata` — only the node base digest is local; the pinned rust/go/gradle/maven digests are multi-GB pulls,
+  and David is on an Android hotspot. Killed it (downloads are consent-gated). Run the rebuild on a real connection,
+  or export `NKLEIN_AGENT_SANDBOX_{RUST,GO,GRADLE,MAVEN}_IMAGE` to locally-present images for a hotspot build.
+  Until then models keep working around the dead `pwd && ls` shape (they fall back to argv form on the next turn).
+
 - [ ] **P1.ACCEPT-ORPHAN — an acceptance-verify timeout leaves the command running inside the sandbox.**
   *(Live 2026-09-05: two `npm install` processes from 22:34 were still alive in the review sandbox 50+ min
   later; the strict-isolation sandbox has no route to the npm registry so the install never returns, the
@@ -2107,6 +2116,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 These are known defects or incomplete migrations. Clear them before widening capability.
 
 - [ ] **P0.DSTALL — A plan-mode card can zombie in `running` for 20+ minutes after decompose-starvation: no session, no park, no escalation.** *(Filed 2026-08-20 from Dschinn run-3 forensics, run dir `.real-runs/20260820-222524` — full evidence banked there.)*
+  **▶ LAYER 2 SHIPPED 2026-09-05 — a starved decompose card no longer enters the diff review.** *(Live v31:
+  `redecompose-…-live-stubs` planned nothing, went to review with an empty diff, and flash-next burned 3 no-verdict
+  sessions into a park — twice; layer 1 only LABELED the card.)* `runSecondOpinionReviewForTask` now checks the
+  board for children referencing an explicit decompose card (`generatedFromPlan.sourceTaskId`); none ⇒ a
+  deterministic `request_changes` on the preReviewVerdict seam (`DECOMPOSITION_STARVED_FEEDBACK`: "call
+  decompose_project…") re-drives the ARCHITECT with zero reviewer tokens, and the identical-feedback park guard still
+  bounds a card that never plans. Observation `decomposition_starved_bounce`. Only `redecompose-*` ids match — plan-
+  first cards deliver a diff and are deliberately not gated.
   **▶ AUDIT-A5 RESIDUE RESOLVED 2026-09-02 (`7305159b5`) — both reds were NOT the suspected summary-swallow.** Instrumented
   (start/abort caller stacks via NKLEIN_STOP_STACKS + spawned-backend log tee): every watchdog interrupt PRECEDED its
   session's first bind — the zero-token wedge clock aged from the optimistic `running` write and counted

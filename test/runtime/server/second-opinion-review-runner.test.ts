@@ -15,60 +15,83 @@ function boardWithCardInReview(options?: {
 	review?: RuntimeCardReview;
 	testability?: "testable" | "not_testable";
 	decomposeGeneration?: number;
+	/** The reviewed card's id (default task-1); a `redecompose-*` id makes it an explicit decompose card. */
+	cardId?: string;
+	/** Add a Planning child that references the reviewed card via generatedFromPlan.sourceTaskId. */
+	childOfCard?: boolean;
 }): RuntimeBoardData {
+	const cardId = options?.cardId ?? "task-1";
 	return {
 		columns: COLUMN_IDS.map((id) => ({
 			id,
 			title: id,
 			cards:
-				id === "review"
+				id === "planning" && options?.childOfCard
 					? [
 							{
-								id: "task-1",
-								title: "Add login",
-								prompt: "Implement login.",
+								id: `${cardId}-child-1`,
+								title: "Child 1",
+								prompt: "Do the first slice.",
 								startInPlanMode: false,
 								baseRef: "main",
-								...(options?.testability ? { testability: options.testability } : {}),
-								...(options?.decomposeGeneration !== undefined
-									? { decomposeGeneration: options.decomposeGeneration }
-									: {}),
-								...(options?.review
-									? { review: options.review }
-									: options?.preexistingRedecompose
-										? {
-												review: {
-													status: "changes_requested" as const,
-													round: 1,
-													history: [],
-													lastVerdict: "request_changes" as const,
-													lastSummary: "Escalated",
-													lastFeedback: "Split it",
-													lastInsight: null,
-													signOff: null,
-													parkedReason: null,
-													escalated: true,
-													updatedAt: 2,
-												},
-											}
-										: {}),
-								createdAt: 1,
-								updatedAt: 2,
+								generatedFromPlan: {
+									artifactKind: "decomposition" as const,
+									planSlug: "split",
+									planTaskId: "child-1",
+									sourceTaskId: cardId,
+								},
+								createdAt: 3,
+								updatedAt: 3,
 							},
 						]
-					: id === "backlog" && options?.preexistingRedecompose
+					: id === "review"
 						? [
 								{
-									id: "redecompose-task-1",
-									title: "Decompose: Add login",
-									prompt: "Split it.",
-									startInPlanMode: true,
+									id: cardId,
+									title: "Add login",
+									prompt: "Implement login.",
+									startInPlanMode: false,
 									baseRef: "main",
+									...(options?.testability ? { testability: options.testability } : {}),
+									...(options?.decomposeGeneration !== undefined
+										? { decomposeGeneration: options.decomposeGeneration }
+										: {}),
+									...(options?.review
+										? { review: options.review }
+										: options?.preexistingRedecompose
+											? {
+													review: {
+														status: "changes_requested" as const,
+														round: 1,
+														history: [],
+														lastVerdict: "request_changes" as const,
+														lastSummary: "Escalated",
+														lastFeedback: "Split it",
+														lastInsight: null,
+														signOff: null,
+														parkedReason: null,
+														escalated: true,
+														updatedAt: 2,
+													},
+												}
+											: {}),
 									createdAt: 1,
 									updatedAt: 2,
 								},
 							]
-						: [],
+						: id === "backlog" && options?.preexistingRedecompose
+							? [
+									{
+										id: "redecompose-task-1",
+										title: "Decompose: Add login",
+										prompt: "Split it.",
+										startInPlanMode: true,
+										baseRef: "main",
+										createdAt: 1,
+										updatedAt: 2,
+									},
+								]
+							: [],
 		})),
 		dependencies: [],
 	};
@@ -86,12 +109,16 @@ function makeDeps(overrides: {
 	effectiveTestDrivenMode?: boolean;
 	cardTestability?: "testable" | "not_testable";
 	decomposeGeneration?: number;
+	cardId?: string;
+	childOfCard?: boolean;
 }) {
 	const board = boardWithCardInReview({
 		preexistingRedecompose: overrides.preexistingRedecompose,
 		review: overrides.review,
 		...(overrides.cardTestability ? { testability: overrides.cardTestability } : {}),
 		...(overrides.decomposeGeneration !== undefined ? { decomposeGeneration: overrides.decomposeGeneration } : {}),
+		...(overrides.cardId ? { cardId: overrides.cardId } : {}),
+		...(overrides.childOfCard ? { childOfCard: true } : {}),
 	});
 	const operationOrder: string[] = [];
 	const reviewerRole = {
@@ -370,6 +397,36 @@ describe("runSecondOpinionReviewForTask", () => {
 		expect(outcome).toEqual({ type: "bounced", round: 1 });
 		expect(deps.runSecondOpinionReviewSession).not.toHaveBeenCalled();
 		expect(deps.sendTaskSessionInput.mock.calls[0]?.[1]).toContain("touched no test file");
+	});
+
+	it("P0.DSTALL layer 2: a redecompose card with no child cards bounces to the architect WITHOUT calling the reviewer", async () => {
+		const deps = makeDeps({ cardId: "redecompose-task-1", diff: "" });
+		const outcome = await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "redecompose-task-1",
+			service: service(deps),
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+		});
+		expect(outcome).toEqual({ type: "bounced", round: 1 });
+		expect(deps.runSecondOpinionReviewSession).not.toHaveBeenCalled();
+		expect(deps.sendTaskSessionInput.mock.calls[0]?.[1]).toContain("decompose_project");
+	});
+
+	it("P0.DSTALL layer 2: a redecompose card whose children exist is not bounced by the starved gate", async () => {
+		const deps = makeDeps({ cardId: "redecompose-task-1", childOfCard: true, diff: "" });
+		await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "redecompose-task-1",
+			service: service(deps),
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+		});
+		expect(deps.runSecondOpinionReviewSession).toHaveBeenCalled();
 	});
 
 	it("F1.34b-ext: a card DECLARED not_testable passes the effective gate without tests and reaches the reviewer", async () => {
