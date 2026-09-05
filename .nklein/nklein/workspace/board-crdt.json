@@ -98,9 +98,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1782648357177,
+          "counter": 1788646196781,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -296,7 +296,7 @@
         "title": {
           "value": "P25.2b — 🔴 SUPPLY CHAIN remains the open constraint (acquisition is now consent…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -357,9 +357,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -367,7 +367,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -652,7 +652,7 @@
         "title": {
           "value": "P15.3 — Default-flip campaign, one mechanism at a time, each with its own eviden…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -713,9 +713,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -723,7 +723,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -741,7 +741,7 @@
         "title": {
           "value": "F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -802,9 +802,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -812,7 +812,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -830,7 +830,7 @@
         "title": {
           "value": "F3.40 — Flash-Next serving upgrade: LM Studio GGUF now possible; MLX+MTP is the…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -891,9 +891,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -901,7 +901,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -919,7 +919,7 @@
         "title": {
           "value": "F3.39 — FreeToken runtime on legion5pro (David 2026-09-04: \"freetoken is a runti…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -980,9 +980,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -990,7 +990,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1008,7 +1008,7 @@
         "title": {
           "value": "F2.31 — DAG overview: layered tree layout with temporal flow, EARLY→RIGHT (David…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1069,9 +1069,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -1079,7 +1079,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1097,7 +1097,7 @@
         "title": {
           "value": "F2.32 — Welcome/setup dialog UI tests + UX pass (David directive 2026-09-02, ver…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1158,9 +1158,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -1168,7 +1168,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1186,7 +1186,7 @@
         "title": {
           "value": "F2.30 — CHAT-AS-FULL-CONTROL-PLANE (David directive 2026-09-02, verbatim: \"add u…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1247,9 +1247,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -1257,7 +1257,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1275,7 +1275,7 @@
         "title": {
           "value": "P0.DSTALL — A plan-mode card can zombie in `running` for 20+ minutes after decom…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1336,9 +1336,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -1346,7 +1346,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1364,7 +1364,7 @@
         "title": {
           "value": "P0.HEAP — The server's JS heap grows unbounded across a long factory run and die…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1425,9 +1425,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -1435,7 +1435,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1453,7 +1453,7 @@
         "title": {
           "value": "P0.CTX500 — An engine \"Context size has been exceeded\" 500 parks the card instea…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1514,9 +1514,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -1524,7 +1524,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1542,7 +1542,7 @@
         "title": {
           "value": "P1.ACCEPT-ORPHAN — an acceptance-verify timeout leaves the command running insid…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1603,9 +1603,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -1613,7 +1613,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1631,7 +1631,7 @@
         "title": {
           "value": "P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syn…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1692,9 +1692,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -1702,7 +1702,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1720,7 +1720,7 @@
         "title": {
           "value": "P0.REVIEWNOVERDICT — small split children park on \"3 no-verdict reviewer session…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1781,9 +1781,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -1791,7 +1791,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1809,7 +1809,7 @@
         "title": {
           "value": "P0.AUDIT0904 — Holistic audit findings (David 2026-09-04: \"check everything, fro…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1870,9 +1870,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -1880,7 +1880,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1898,7 +1898,7 @@
         "title": {
           "value": "P0.REVRANK — Reviewer/escalation candidate ranking is CAPABILITY-BLIND (class fi…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1959,9 +1959,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -1969,7 +1969,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1987,7 +1987,7 @@
         "title": {
           "value": "P0.RECONCILE-SKIP — The boot reconcile silently skips APPROVED review cards whos…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -2048,9 +2048,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -2058,7 +2058,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -2185,9 +2185,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196782,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -2307,9 +2307,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196783,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -2429,9 +2429,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196784,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -2551,9 +2551,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196785,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -2666,9 +2666,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196786,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -2781,9 +2781,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196787,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -2896,9 +2896,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196788,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -3011,9 +3011,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196789,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -3126,9 +3126,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196790,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -3241,9 +3241,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196791,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -3363,9 +3363,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196792,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -3485,9 +3485,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196793,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -3607,9 +3607,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196794,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -3753,9 +3753,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196795,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -3923,9 +3923,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196796,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -4128,9 +4128,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196797,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -5038,7 +5038,7 @@
         "title": {
           "value": "2026-07-23 test-driven delivery: default ON + upfront testability (F1.34b closed…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -5099,9 +5099,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -5109,7 +5109,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -5981,9 +5981,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196798,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -6250,9 +6250,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196799,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -6358,9 +6358,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196800,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -6466,9 +6466,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196801,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -6574,9 +6574,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1788644392988,
+          "counter": 1788646196802,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -6691,9 +6691,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1782732274917,
+          "counter": 1788646196803,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -6808,9 +6808,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1782732274917,
+          "counter": 1788646196804,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -6925,9 +6925,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1782732274917,
+          "counter": 1788646196805,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7042,9 +7042,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1782732274917,
+          "counter": 1788646196806,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7160,9 +7160,9 @@
         }
       },
       "deleted": {
-        "value": false,
+        "value": true,
         "stamp": {
-          "counter": 1782732274917,
+          "counter": 1788646196807,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7180,14 +7180,14 @@
         "title": {
           "value": "F2.36 — !Klein's OWN project board (David 2026-09-05: \"create a project for nkle…",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
         "prompt": {
-          "value": "Open backlog item F2.36 (todo.md §5).\n\n- [ ] **F2.36 — !Klein's OWN project board (David 2026-09-05: \"create a project for nklein itself … make the\n  dag reflect everything that was already done in reasonable work packages which are set to finished … part of\n  git .. updated with each git commit … a soft switch\").** SHIPPED v1 the same night: `scripts/self-board-sync.ts`\n  mirrors done.md sections (COMPLETED work packages chained as the historical spine), todo.md §5 open items\n  (PLANNING cards hanging off the newest done package; auto-completed when todo.md stops listing them) and the\n  git log (commits naming an item id land on that card's prompt; the rest on one rolling card) into the repo's\n  own board (`~/.nklein/nklein/workspaces/kanban`, the dev checkout's workspace) and exports the committed\n  portable CRDT `.nklein/nklein/workspace/board-crdt.json` (§14.2). The pre-commit hook runs the sync (0.5s)\n  and stages the CRDT, so every commit carries the plan's state; `.gitignore` tracks exactly that one file under\n  `.nklein/`. The June default-fixture cards (habit-insights) were moved to trash. REMAINING for the soft switch:\n  (a) a `done.md` section per real milestone instead of the 15 coarse ones (the 126-item \"Phase 0\" package is\n  one card); (b) dependencies BETWEEN open items (today all hang off the spine head); (c) card `difficulty` /\n  `testability` from the todo text so !Klein can size them; (d) a \"work this card with !Klein\" affordance that\n  turns a todo card into a real worker run on this repo (dev-only, confirmation-gated — the existing\n  self-improvement project flow).",
+          "value": "Open backlog item F2.36 (todo.md §5).\n\n- [ ] **F2.36 — !Klein's OWN project board (David 2026-09-05: \"create a project for nklein itself … make the\n  dag reflect everything that was already done in reasonable work packages which are set to finished … part of\n  git .. updated with each git commit … a soft switch\").** SHIPPED v1 the same night: `scripts/self-board-sync.ts`\n  mirrors done.md sections (COMPLETED work packages chained as the historical spine), todo.md §5 open items\n  (PLANNING cards hanging off the newest done package; auto-completed when todo.md stops listing them) and the\n  git log (commits naming an item id land on that card's prompt; the rest on one rolling card) into the repo's\n  own board (`~/.nklein/nklein/workspaces/kanban`, the dev checkout's workspace) and exports the committed\n  portable CRDT `.nklein/nklein/workspace/board-crdt.json` (§14.2). The pre-commit hook runs the sync (0.5s)\n  and stages the CRDT, so every commit carries the plan's state; `.gitignore` tracks exactly that one file under\n  `.nklein/`. The June default-fixture cards (habit-insights) were moved to trash. REMAINING for the soft switch:\n  (a) a `done.md` section per real milestone instead of the 15 coarse ones (the 126-item \"Phase 0\" package is\n  one card); (b) dependencies BETWEEN open items (today all hang off the spine head); (c) card `difficulty` /\n  `testability` from the todo text so !Klein can size them; (d) a \"work this card with !Klein\" affordance that\n  turns a todo card into a real worker run on this repo (dev-only, confirmation-gated — the existing\n  self-improvement project flow).\n\nCommits (newest first):\n- 3c6cc41d2 feat(self-board): !Klein's own project board mirrors done.md/todo.md/git and travels with the repo (F2.36 v1)",
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646197081,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -7247,9 +7247,9 @@
           }
         },
         "updatedAt": {
-          "value": 1788644421081,
+          "value": 1788646277650,
           "stamp": {
-            "counter": 1788644421081,
+            "counter": 1788646277650,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         }
@@ -7257,7 +7257,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7475,7 +7475,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7487,7 +7487,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7499,7 +7499,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7511,7 +7511,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7523,7 +7523,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7535,7 +7535,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7547,7 +7547,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7559,7 +7559,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7571,7 +7571,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7583,7 +7583,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7595,7 +7595,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7607,7 +7607,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7619,7 +7619,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7631,7 +7631,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7643,7 +7643,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7655,7 +7655,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7667,7 +7667,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7679,7 +7679,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7691,7 +7691,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7703,7 +7703,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7715,7 +7715,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7727,7 +7727,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7739,7 +7739,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7751,7 +7751,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7763,7 +7763,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7775,7 +7775,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7787,7 +7787,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7799,7 +7799,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7811,7 +7811,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7823,7 +7823,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7835,7 +7835,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7847,7 +7847,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7859,7 +7859,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7871,7 +7871,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7883,7 +7883,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7895,7 +7895,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7907,7 +7907,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7919,7 +7919,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1788644421081,
+          "counter": 1788646277650,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -8688,11 +8688,11 @@
         "fromTaskId": "todo:F2.36",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788644421081,
-        "releasedAt": 1788644421219,
+        "releasedAt": 1788646196770,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644421219,
+        "counter": 1788646196770,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     }
