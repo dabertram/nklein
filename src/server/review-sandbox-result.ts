@@ -80,6 +80,31 @@ export interface ReviewSandboxResultProbe {
 const realSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * Live 2026-09-05 (v31): an APPROVED card whose capture marker was lost (server restarts drop the in-memory
+ * summary) and that never produced a result branch resolved `unknown` on every finalize — "capture has not
+ * settled" — and sat in Review for hours as a delivered-but-never-completed no-op. The reviewer's approval IS
+ * the evidence the capture was meant to provide: with no result branch and no live session there is nothing
+ * left to settle, so the delivery proceeds as the settled `empty_patch` it is. Anything still running, unreviewed,
+ * or with a durable branch keeps today's fail-closed hold.
+ */
+export function settleUnknownAsApprovedNoOp(input: {
+	result: ReviewSandboxResult;
+	reviewStatus: string | null | undefined;
+	hasResultBranch: boolean;
+	sessionState: Parameters<typeof isActiveWorkSessionState>[0];
+}): ReviewSandboxResult {
+	if (
+		input.result.status === "unknown" &&
+		input.reviewStatus === "approved" &&
+		!input.hasResultBranch &&
+		!isActiveWorkSessionState(input.sessionState)
+	) {
+		return { status: "empty_patch", resultCommit: null };
+	}
+	return input.result;
+}
+
+/**
  * Poll for a review's sandbox result: `empty_patch` as soon as the summary reports one, else `result_branch` once the
  * result commit resolves, else `unknown` after the schedule is exhausted. The first pass is immediate (no sleep).
  */

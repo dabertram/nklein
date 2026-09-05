@@ -315,7 +315,11 @@ import {
 } from "./nklein-runtime-terminal-telemetry";
 import { persistCardVerification } from "./persist-card-verification";
 import { isReviewDeliverySuperseded } from "./review-delivery-supersession";
-import { resolveReviewSandboxResult, runWithSettledReviewSandboxArtifact } from "./review-sandbox-result";
+import {
+	resolveReviewSandboxResult,
+	runWithSettledReviewSandboxArtifact,
+	settleUnknownAsApprovedNoOp,
+} from "./review-sandbox-result";
 import {
 	getRemoteIp,
 	INGRESS_REQUEST_BODY_MAX_BYTES,
@@ -2401,10 +2405,27 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						...loadedReviewState,
 						board: moveTaskToColumn(loadedReviewState.board, taskId, "review").board,
 					};
-					const sandboxResult = await resolveReviewSandboxResult(
+					const polledSandboxResult = await resolveReviewSandboxResult(
 						{ repoPath: scope.workspacePath, taskId },
 						{ getSummary: (id) => service.getSummary(id), resolveResultCommit: resolveTaskResultBranchCommit },
 					);
+					const reviewedCardForSettle = reviewState.board.columns
+						.flatMap((column) => column.cards)
+						.find((card) => card.id === taskId);
+					const sandboxResult = settleUnknownAsApprovedNoOp({
+						result: polledSandboxResult,
+						reviewStatus: reviewedCardForSettle?.review?.status ?? null,
+						hasResultBranch:
+							polledSandboxResult.status === "unknown"
+								? Boolean(await resolveTaskResultBranchCommit({ repoPath: scope.workspacePath, taskId }))
+								: true,
+						sessionState: service.getSummary(taskId)?.state ?? null,
+					});
+					if (sandboxResult !== polledSandboxResult) {
+						deps.warn(
+							`Task result capture never settled for ${taskId}, but the card is APPROVED with no result branch and no live session — delivering it as the settled no-op it is.`,
+						);
+					}
 					const gatedDelivery = await runWithSettledReviewSandboxArtifact(sandboxResult, async () => true);
 					if (!gatedDelivery.delivered) {
 						// P0.8: `awaiting_review` is emitted before asynchronous patch capture settles. Unknown is still

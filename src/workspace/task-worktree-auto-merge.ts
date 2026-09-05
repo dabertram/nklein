@@ -459,8 +459,47 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 			taskIds: input.taskIds,
 		}),
 	);
+	// Live 2026-09-05 (v31): one conflicting card must not strand every approved card queued behind it. A conflict
+	// records its step and the run CONTINUES with the remaining candidates; only cards that (transitively) depend
+	// on a conflicted card are skipped, since their base would lack that result. The FIRST conflict stays the
+	// result's `conflict` (ok:false) so every existing consumer still sees the failure.
+	const prerequisitesByTaskId = new Map<string, string[]>();
+	for (const dependency of input.board.dependencies) {
+		const prerequisites = prerequisitesByTaskId.get(dependency.fromTaskId) ?? [];
+		prerequisites.push(dependency.toTaskId);
+		prerequisitesByTaskId.set(dependency.fromTaskId, prerequisites);
+	}
+	const conflictedTaskIds = new Set<string>();
+	let firstConflict: TaskWorktreeAutoMergeConflict | null = null;
+	const dependsOnConflicted = (taskId: string, seen = new Set<string>()): string | null => {
+		for (const prerequisite of prerequisitesByTaskId.get(taskId) ?? []) {
+			if (conflictedTaskIds.has(prerequisite)) {
+				return prerequisite;
+			}
+			if (!seen.has(prerequisite)) {
+				seen.add(prerequisite);
+				const deeper = dependsOnConflicted(prerequisite, seen);
+				if (deeper) {
+					return deeper;
+				}
+			}
+		}
+		return null;
+	};
 	for (const candidate of candidates) {
 		const task = candidate.task;
+		const conflictedPrerequisite = dependsOnConflicted(task.id);
+		if (conflictedPrerequisite) {
+			const skipped: TaskWorktreeAutoMergeSuccess = {
+				type: "skipped",
+				taskId: task.id,
+				headCommit: "",
+				reason: `prerequisite "${conflictedPrerequisite}" conflicted in this merge run; its dependents wait for the resolution.`,
+			};
+			steps.push(skipped);
+			skippedTaskIds.push(task.id);
+			continue;
+		}
 		// P21.4a — LEGITIMACY before consistency. The check below verifies the host is checked out on the card's
 		// declared base, which says nothing about whether that base is a REAL base: a card created while the host sat
 		// on a sibling's result branch carries that branch as `baseRef`, and the consistency check then passes
@@ -502,7 +541,7 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 				type: "skipped",
 				taskId: task.id,
 				headCommit: "",
-				reason: "no task result branch to merge.",
+				reason: NO_RESULT_BRANCH_REASON,
 			};
 			steps.push(skipped);
 			skippedTaskIds.push(task.id);
@@ -578,7 +617,9 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 				message: (merge.stderr || merge.error || `Merge conflict while merging task "${task.id}".`) + abortWarning,
 			};
 			steps.push(conflict);
-			return { ok: false, steps, mergedTaskIds, skippedTaskIds, conflict };
+			conflictedTaskIds.add(task.id);
+			firstConflict ??= conflict;
+			continue;
 		}
 		const merged: TaskWorktreeAutoMergeSuccess = {
 			type: "merged",
@@ -590,6 +631,9 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 		mergedTaskIds.push(task.id);
 	}
 
+	if (firstConflict) {
+		return { ok: false, steps, mergedTaskIds, skippedTaskIds, conflict: firstConflict };
+	}
 	return {
 		ok: true,
 		steps,
@@ -597,3 +641,6 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 		skippedTaskIds,
 	};
 }
+
+/** The skip reason for an approved card that produced no result branch — a genuine no-op delivery. */
+export const NO_RESULT_BRANCH_REASON = "no task result branch to merge.";

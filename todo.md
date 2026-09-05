@@ -2056,6 +2056,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `qwen3.8-flash-next (auto_diverse)`, verdicts landed. LESSON: every model-choosing path (worker start,
   reviewer, escalation, plan critic, custodian, merge agent) needs the SAME routability filter — audit #14
   (custodian) is the last unfiltered chooser.
+- [x] **P1.STRANDEDAPPROVALS — approved cards sat in Review for hours: three no-ops and one blocked behind a
+  sibling's conflict.** *(Live 2026-09-05 v31, found while chasing why `mergeTaskWorktrees` merged nothing.)*
+  Three defects, all SHIPPED 2026-09-05: (1) the delivery-merge loop RETURNED on the first conflict, so every
+  approved card queued behind a conflicting sibling was never merged (nor completed as a no-op) — it now records
+  the conflict, aborts that merge, continues with independent candidates and skips only the conflicted card's
+  (transitive) dependents (`reason: prerequisite … conflicted`); the first conflict stays the result's
+  `conflict` (ok:false). (2) The operator merge (`runtime.mergeTaskWorktrees`) completed MERGED cards only — an
+  APPROVED card whose step is `skipped: no task result branch` (a genuine no-op) now advances to Completed too
+  (`NO_RESULT_BRANCH_REASON`). (3) Delivery held approved no-ops forever on "Task result capture has not
+  settled": restarts drop the in-memory capture marker, the poll resolves `unknown`, and nothing ever re-settles
+  it — `settleUnknownAsApprovedNoOp` treats approved + no result branch + no live session as the settled
+  `empty_patch` it is (the reviewer's approval is the evidence). Sibling root cause fixed the same night: the
+  custodian's mark file outside `.nklein/nklein/` dirtied the base and blocked EVERY merge (`2f47f7ab5`).
+
 - [ ] **P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).**
   The fix ships INSIDE the sandbox image (`docker/agent-sandbox/Dockerfile` copies the esbuild bundle) and the
   running container's rootfs is read-only (strict isolation — `docker cp` is refused), so it is live only after

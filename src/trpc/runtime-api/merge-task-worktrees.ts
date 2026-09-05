@@ -6,6 +6,7 @@ import { loadWorkspaceState, mutateWorkspaceState } from "../../state/workspace-
 import { recordSelfObservation } from "../../telemetry/self-observation-sink";
 import {
 	mergeTaskWorktreesInDependencyOrder,
+	NO_RESULT_BRANCH_REASON,
 	type TaskWorktreeAutoMergeStep,
 } from "../../workspace/task-worktree-auto-merge";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
@@ -94,7 +95,15 @@ export async function handleMergeTaskWorktrees(
 	// Autonomy directive 2026-09-01: an operator merge is a completion — advance the merged cards to the
 	// completed lane HERE instead of relying on the workflow queue's tick (live: merged cards stayed stranded
 	// in the review lane for hours and re-tripped review-hold watchers until a manual board move).
-	if (result.mergedTaskIds.length > 0) {
+	// Live 2026-09-05 (v31): three APPROVED cards with nothing to merge (a no-op repair, two plan-only decompose
+	// cards) sat in Review for hours — the merge skipped them ("no task result branch") and only merged cards
+	// advanced. An approved genuine no-op is delivered work too: complete it here on the same operator merge.
+	const approvedNoOpIds = new Set(
+		result.steps
+			.filter((step) => step.type === "skipped" && step.reason === NO_RESULT_BRANCH_REASON)
+			.map((step) => step.taskId),
+	);
+	if (result.mergedTaskIds.length > 0 || approvedNoOpIds.size > 0) {
 		const mergedIds = new Set(result.mergedTaskIds);
 		await mutateWorkspaceState(workspaceScope.workspacePath, (current) => {
 			const movedCards: unknown[] = [];
@@ -102,7 +111,10 @@ export async function handleMergeTaskWorktrees(
 				.map((column) => {
 					if (column.id === (input.column ?? "review")) {
 						const staying = column.cards.filter((card) => {
-							if (mergedIds.has(card.id)) {
+							if (
+								mergedIds.has(card.id) ||
+								(approvedNoOpIds.has(card.id) && card.review?.status === "approved")
+							) {
 								movedCards.push(card);
 								return false;
 							}

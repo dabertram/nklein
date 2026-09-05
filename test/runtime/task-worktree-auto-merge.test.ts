@@ -328,6 +328,50 @@ describe("task worktree auto merge", () => {
 		expect(runGit).toHaveBeenCalledWith("/repo", ["merge", "--abort"]);
 	});
 
+	it("live 2026-09-05: a conflict no longer strands the cards queued behind it — independents merge, dependents wait", async () => {
+		const board = createBoard();
+		const reviewColumn = board.columns.find((column) => column.id === "review");
+		reviewColumn?.cards.push(createTask("docs"));
+		const runGit = vi.fn(async (cwd: string, args: string[]) => {
+			const key = `${cwd} ${args.join(" ")}`;
+			if (key === "/repo status --porcelain -- . :(exclude).nklein/nklein") return gitOk("");
+			if (key === "/repo branch --show-current") return gitOk("main");
+			if (key.startsWith("/repo merge-base --is-ancestor ")) return gitFail("not ancestor");
+			if (key === "/repo merge --no-ff --no-edit storage-head") {
+				return gitFail("merge failed", 1, "CONFLICT (content): Merge conflict in src/storage.ts");
+			}
+			if (key === "/repo merge --no-ff --no-edit docs-head") return gitOk("");
+			if (key === "/repo diff --name-only --diff-filter=U -z") return gitOk("src/storage.ts\0");
+			if (key === "/repo rev-parse -q --verify MERGE_HEAD") return gitOk("merge-head-sha");
+			if (key === "/repo merge --abort") return gitOk("");
+			throw new Error(`Unexpected git call: ${key}`);
+		});
+
+		const result = await mergeTaskWorktreesInDependencyOrder({
+			repoPath: "/repo",
+			board,
+			columns: ["review"],
+			runGit,
+			resolveTaskResultBranchCommit: vi.fn(async ({ taskId }: { taskId: string }) => `${taskId}-head`),
+		});
+
+		expect(result.ok).toBe(false);
+		expect(result.conflict?.taskId).toBe("storage");
+		expect(result.mergedTaskIds).toEqual(["docs"]);
+		expect(result.skippedTaskIds).toEqual(["ui"]);
+		// Order between the two roots (storage, docs) is the integration order's business; the CONTENT is the claim.
+		expect(result.steps.map((step) => `${step.type}:${step.taskId}`).sort()).toEqual([
+			"conflict:storage",
+			"merged:docs",
+			"skipped:ui",
+		]);
+		expect(result.steps.find((step) => step.taskId === "ui")).toMatchObject({
+			reason: expect.stringContaining('prerequisite "storage" conflicted'),
+		});
+		// The conflicted merge was aborted before the next candidate touched the tree.
+		expect(runGit).toHaveBeenCalledWith("/repo", ["merge", "--abort"]);
+	});
+
 	it("completes a conflicted merge with the agent's resolution instead of aborting (§5.AK Phase B)", async () => {
 		const runGit = vi.fn(async (cwd: string, args: string[]) => {
 			const key = `${cwd} ${args.join(" ")}`;

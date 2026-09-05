@@ -7,7 +7,67 @@ import {
 	isSettledReviewSandboxArtifact,
 	resolveReviewSandboxResult,
 	runWithSettledReviewSandboxArtifact,
+	settleUnknownAsApprovedNoOp,
 } from "../../../src/server/review-sandbox-result";
+
+describe("settleUnknownAsApprovedNoOp (live 2026-09-05: approved no-op cards held in Review after restarts)", () => {
+	const unknown = { status: "unknown" as const, resultCommit: null };
+
+	it("settles an unknown capture as empty_patch only for an approved card with no result branch and no live session", () => {
+		expect(
+			settleUnknownAsApprovedNoOp({
+				result: unknown,
+				reviewStatus: "approved",
+				hasResultBranch: false,
+				sessionState: "awaiting_review",
+			}),
+		).toEqual({ status: "empty_patch", resultCommit: null });
+		expect(
+			settleUnknownAsApprovedNoOp({
+				result: unknown,
+				reviewStatus: "approved",
+				hasResultBranch: false,
+				sessionState: null,
+			}),
+		).toEqual({ status: "empty_patch", resultCommit: null });
+	});
+
+	it("keeps the fail-closed hold when the card is unreviewed, has a durable branch, or is still working", () => {
+		expect(
+			settleUnknownAsApprovedNoOp({
+				result: unknown,
+				reviewStatus: "changes_requested",
+				hasResultBranch: false,
+				sessionState: null,
+			}),
+		).toBe(unknown);
+		expect(
+			settleUnknownAsApprovedNoOp({
+				result: unknown,
+				reviewStatus: "approved",
+				hasResultBranch: true,
+				sessionState: null,
+			}),
+		).toBe(unknown);
+		expect(
+			settleUnknownAsApprovedNoOp({
+				result: unknown,
+				reviewStatus: "approved",
+				hasResultBranch: false,
+				sessionState: "running",
+			}),
+		).toBe(unknown);
+		const settled = { status: "result_branch" as const, resultCommit: "abc" };
+		expect(
+			settleUnknownAsApprovedNoOp({
+				result: settled,
+				reviewStatus: "approved",
+				hasResultBranch: true,
+				sessionState: null,
+			}),
+		).toBe(settled);
+	});
+});
 
 const emptyPatchSummary = {
 	latestHookActivity: { hookEventName: "sandbox_patch_empty" },
