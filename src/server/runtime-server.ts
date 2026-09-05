@@ -230,7 +230,7 @@ import {
 } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote } from "../state/card-mailbox-store";
 import { claimDurableSchedulerLedger } from "../state/durable-scheduler-claim";
-import { recordMergeHistory } from "../state/merge-history-store";
+import { readMergeHistory, recordMergeHistory } from "../state/merge-history-store";
 import { appendModelEvalRuns, readAllModelEvalRuns } from "../state/model-eval-run-store";
 import { appendRailRunHistory, readRailRunHistory } from "../state/rail-run-history-store";
 import {
@@ -306,6 +306,7 @@ import {
 } from "./managed-search-backend";
 import { runIdleMemoryAudit } from "./memory-audit-runner";
 import { runScheduledMemoryFreshnessAudit } from "./memory-freshness-audit-runner";
+import { selectApprovedUnmergedRedelivery } from "./merge-redelivery-decision";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import { resolveNetworkAccessInfo } from "./network-access-info";
 import { createPlanIntegrationGateRunner } from "./nklein-plan-integration-gate-runner";
@@ -5115,6 +5116,41 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									targetLane,
 								},
 							});
+							return;
+						}
+						// Approved-but-unmerged REDELIVERY (David 2026-09-05 21:16 "seems sth stalled"): after a failed
+						// merge resolution nothing re-ran the delivery until a server restart — the fleet sat idle an hour
+						// between merge rounds while 77 cards waited on one conflict. With cross-round merge progress every
+						// retry is worth its budget. One card per tick; the pure decision owns the gap/cap/liveness rules.
+						const redeliveryHistory = await readMergeHistory({
+							workspacePath: scope.workspacePath,
+							limit: 200,
+						}).catch(() => []);
+						const redelivery = selectApprovedUnmergedRedelivery({
+							reviewCards: board.columns.find((column) => column.id === "review")?.cards ?? [],
+							history: redeliveryHistory,
+							activeTaskIds: new Set([...busySessionTaskIds, ...pausedSessionTaskIds]),
+							handledThisTick,
+							now: Date.now(),
+						});
+						if (redelivery) {
+							handledThisTick.add(redelivery.taskId);
+							deps.warn(
+								`Board-liveness watchdog: re-running the delivery of approved ${redelivery.taskId} (${redelivery.reason}; attempt ${redelivery.attemptsInWindow + 1} in 24h, last ${Math.round((Date.now() - redelivery.lastAttemptAt) / 60_000)} min ago).`,
+							);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "info",
+								message: `Board-liveness watchdog re-delivers approved-but-unmerged ${redelivery.taskId}: ${redelivery.reason}.`,
+								taskId: redelivery.taskId,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "merge_redelivery_retry",
+									attemptsInWindow: redelivery.attemptsInWindow,
+									lastAttemptAt: redelivery.lastAttemptAt,
+								},
+							});
+							finalizeHeadlessAutoReviewTask(scope, trackedService, redelivery.taskId);
 							return;
 						}
 						// P24.1 step-1 SHADOW: sample every card's lane against the kernel-phase projection. Read-only;

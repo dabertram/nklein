@@ -1201,6 +1201,8 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	// 2026-09-05 merge-resolution: a round resumed from persisted partial progress / a marker-free round salvaged.
 	"merge_resolution_resumed",
 	"merge_resolution_salvaged",
+	// 2026-09-05: the watchdog re-runs a failed delivery merge without a restart.
+	"merge_redelivery_retry",
 	// Exploration-drift nudge (2026-09-01): plan-mode session made no graph progress for the threshold window.
 	"decomposition_exploration_drift",
 	"agent_sandbox_result_cleanup",
