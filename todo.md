@@ -1970,6 +1970,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### Phase 0 — stop-the-line correctness and liveness
 
+- [x] **P0.TMPSWEEP — the v31 factory silently died at 03:41 because its runtime home lived in the macOS temp folder.**
+  ROOT CAUSE 2026-09-06: the drain root was `mktemp -d` → `/var/folders/…/T/real-drain-*`; `com.apple.bsd.dirhelper`
+  (daily 03:35, `CLEAN_FILES_OLDER_THAN_DAYS=3`) deleted every file untouched for 3 days — `nklein-provider-selection.json`,
+  `data/settings/providers.json`, `workspaces/index.json`, `replica-id`, old session dirs, the oldest telemetry day.
+  Every start then refused "No native !Klein provider is configured", hidden for 9h inside the bounced-redrive livelock
+  (64ba3594e); after the 12:18 restart the auto-start failure guard paused the only ready card, and nothing retried once
+  the files were restored. SHIPPED: (1) `healMissingProviderSelection` — a vanished selection is re-derived from the
+  last-used provider settings, else from the model registry's newest LOCAL entry (+ its endpoint), persisted, and
+  observed (`provider_selection_restored`); still local-only, still fail-closed. (2) `classifyVolatilePath` — the CLI
+  warns at boot when the runtime home sits under a swept folder (macOS dirhelper `/var/folders/*/*/T`, `/tmp`,
+  `os.tmpdir()`) and workspace registration records `volatile_runtime_path` for a non-fixture repo there.
+  (3) `auto-start-hold.ts` — the guard's pauses are named in `auto-start-holds.json`; each boot releases still-paused
+  holds once and retries (`auto_start_hold_released`); a manual pause/resume clears the marker so an operator's own
+  pause is never lifted. Factory: drain root relocated to `~/.nklein/factory-drains/` (symlink left at the old path),
+  factory scripts copied to `~/.nklein/factory-drains/bin/`. Open: the card UI still shows a guard hold as a plain
+  pause — surface the hold reason on the card.
+
 - [ ] **P0.RECONCILE-SKIP — The boot reconcile silently skips APPROVED review cards whose merge previously
   conflicted.** *(Live 2026-09-04, two boots in a row: reconcile processed verdict-less s44 — review phases in
   the log — but produced ZERO lines for the two APPROVED cards s51/s03 whose deliveries had conflicted; after an

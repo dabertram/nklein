@@ -8,6 +8,7 @@ if (process.env.NKLEIN_DISABLE_MODEL_FEEDS === undefined) {
 
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { Command, Option } from "commander";
 import packageJson from "../package.json" with { type: "json" };
@@ -23,6 +24,7 @@ import { registerWorkflowCommand } from "./commands/workflow";
 import { runLegacyNameMigration } from "./config/legacy-name-migration";
 import { loadDotEnv } from "./config/load-dotenv";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "./config/runtime-config";
+import { resolveNkleinRuntimeHomePath } from "./config/runtime-paths";
 import type { RuntimeCommandRunResponse } from "./core/api-contract";
 import {
 	installGracefulShutdownHandlers,
@@ -44,6 +46,7 @@ import {
 	setKanbanRuntimePublicHost,
 	setKanbanRuntimeTls,
 } from "./core/runtime-endpoint";
+import { classifyVolatilePath, formatVolatilePathWarning } from "./core/volatile-runtime-path";
 import { buildWorkspaceScopeHeaders } from "./core/workspace-scope";
 import { disposeCliTelemetryService } from "./nklein-agent/nklein-telemetry-service.js";
 import { disablePasscode, generateInternalToken, generatePasscode } from "./security/passcode-manager";
@@ -445,6 +448,13 @@ async function runMainCommand(options: CliOptions, shouldAutoOpenBrowser: boolea
 	if (options.publicHost) {
 		setKanbanRuntimePublicHost(options.publicHost);
 		console.log(`Advertising runtime host ${options.publicHost}.`);
+	}
+	// 2026-09-06: a runtime home under the OS temp folder loses its provider selection / workspace index to the
+	// daily janitor after three quiet days (macOS dirhelper took the v31 drain down at 03:41). Say so at boot.
+	const runtimeHomePath = resolveNkleinRuntimeHomePath(homedir());
+	const volatileHome = classifyVolatilePath(runtimeHomePath, { tmpdir: tmpdir(), platform: process.platform });
+	if (volatileHome) {
+		console.warn(formatVolatilePathWarning(volatileHome, "The runtime home"));
 	}
 
 	const [{ openInBrowser }, { autoUpdateOnStartup, runPendingAutoUpdateOnShutdown }] = await Promise.all([

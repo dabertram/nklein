@@ -2,10 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../src/nklein-agent/nklein-provider-selection-store", () => ({
 	readKanbanSelectedProviderId: vi.fn(),
+	writeKanbanSelectedProviderId: vi.fn(),
 }));
 vi.mock("../../../src/nklein-agent/sdk-provider-boundary", () => ({
 	// Force the fallback `{ provider: id }` path so isLocalProvider (real) decides purely from the id.
 	getSdkProviderSettings: vi.fn(() => undefined),
+	// The 2026-09-06 heal consults these when no provider is selected; nothing to derive here.
+	getLastUsedSdkProviderSettings: vi.fn(() => null),
+	saveSdkProviderSettings: vi.fn(),
 }));
 
 import {

@@ -4,6 +4,7 @@
 
 import { toErrorMessage as formatErrorMessage } from "../core/error-message";
 import { isLocalProvider } from "./nklein-local-only-policy";
+import { healMissingProviderSelection } from "./nklein-provider-selection-heal";
 import { readKanbanSelectedProviderId } from "./nklein-provider-selection-store";
 import { getSdkProviderSettings, type SdkProviderSettings } from "./sdk-provider-boundary";
 
@@ -19,7 +20,10 @@ function isLocalProviderSettings(settings: Pick<SdkProviderSettings, "provider" 
 export function getSelectedProviderSettings(): SdkProviderSettings | null {
 	const resolvedProviderId = readKanbanSelectedProviderId();
 	if (!resolvedProviderId) {
-		return null;
+		// 2026-09-06: a vanished selection file (temp-folder sweep) is healed from the runtime home's own evidence
+		// instead of refusing every start until a human opens Settings — still local-only, still fail-closed.
+		const healed = healMissingProviderSelection();
+		return healed && isLocalProviderSettings(healed.settings) ? healed.settings : null;
 	}
 	const settings = getSdkProviderSettings(resolvedProviderId) ?? { provider: resolvedProviderId };
 	return isLocalProviderSettings(settings) ? settings : null;

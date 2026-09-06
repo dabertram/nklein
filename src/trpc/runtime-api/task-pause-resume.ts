@@ -1,5 +1,6 @@
 import type { RuntimeTaskPauseRequest, RuntimeTaskPauseResponse } from "../../core/api-contract";
 import { parseTaskPauseRequest } from "../../core/api-validation";
+import { clearAutoStartHold } from "../../core/auto-start-hold";
 import { readPausedTasks, setCardPaused } from "../../core/card-pause";
 import type { NKleinTaskSessionService } from "../../nklein-agent/nklein-task-session-service";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
@@ -27,6 +28,8 @@ export async function handlePauseTask(
 			taskId: body.taskId,
 			paused: true,
 		});
+		// The operator's gesture owns the card now — a guard hold marker would release it again at the next boot.
+		await clearAutoStartHold({ workspacePath: workspaceScope.workspacePath, taskId: body.taskId }).catch(() => false);
 		const nkleinTaskSessionService = deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope) ?? null;
 		nkleinTaskSessionService?.setCardPaused(body.taskId, true);
 		const summary = withTaskPausedState(nkleinTaskSessionService?.getSummary(body.taskId) ?? null, pausedTaskIds);
@@ -65,6 +68,7 @@ export async function handleResumeTask(
 			taskId: body.taskId,
 			paused: false,
 		});
+		await clearAutoStartHold({ workspacePath: workspaceScope.workspacePath, taskId: body.taskId }).catch(() => false);
 		const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
 		nkleinTaskSessionService.setCardPaused(body.taskId, false);
 		const resumedSummaries = await nkleinTaskSessionService.resumePausedTasks();

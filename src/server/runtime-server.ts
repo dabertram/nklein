@@ -40,6 +40,13 @@ import type {
 } from "../core/api-contract";
 import { modelUseReservationId } from "../core/auto-loaded-model-registry";
 import { createAutoStartFailureGuard, formatAutoStartPauseMessage } from "../core/auto-start-failure-guard";
+import {
+	clearAutoStartHold,
+	formatAutoStartHoldReleaseMessage,
+	readAutoStartHolds,
+	recordAutoStartHold,
+	selectAutoStartHoldsToRelease,
+} from "../core/auto-start-hold";
 import { buildBackgroundEvalEvidenceByModel } from "../core/background-eval-evidence-feed";
 import { selectBackgroundEvalTarget } from "../core/background-eval-selection";
 import { nodeBasicMemoryFsDeps, readBasicMemoryNotes } from "../core/basic-memory-note-reader";
@@ -630,6 +637,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// next completion (when the overlapping task's file lock is released); `autoStartTaskIds` re-checks live overlap on
 	// each retry, so a still-overlapping card is simply deferred again. (In-memory for now; §5.AF could persist it.)
 	const deferredOverlapTaskIdsByWorkspaceId = new Map<string, Set<string>>();
+	// 2026-09-06: guard-held cards are released once per boot (auto-start-hold.ts); this set marks the workspaces
+	// whose holds this process already reviewed.
+	const autoStartHoldsReleasedByWorkspaceId = new Set<string>();
 	const queuedStartDrainUnsubscribeByWorkspaceId = new Map<string, () => void>();
 	const nkleinWatcherRegistry = createNKleinWatcherRegistry();
 	// §5.AF durable queued-start store: one global JSONL snapshot under the runtime home, persisted on every queue
@@ -1337,6 +1347,39 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		// no live session was still auto-startable — and the failure guard below RELIES on a paused card staying
 		// down. One read per drain; fail-open to empty (an unreadable pause file must not block legitimate starts).
 		const pausedTaskIds = await readPausedTasks(scope.workspacePath).catch(() => new Set<string>());
+		// 2026-09-06 (provider files swept away → guard paused the only ready card → nothing ever retried after the
+		// files were restored): holds the failure guard placed are released ONCE per boot and re-attempted here —
+		// boots are when environments get fixed. A manual pause/resume clears the marker, so an operator's own
+		// pause is never lifted; a persisting cause re-pauses after five more failures.
+		if (!autoStartHoldsReleasedByWorkspaceId.has(scope.workspaceId)) {
+			autoStartHoldsReleasedByWorkspaceId.add(scope.workspaceId);
+			const holds = await readAutoStartHolds(scope.workspacePath).catch(() => ({}));
+			for (const release of selectAutoStartHoldsToRelease({ holds, pausedTaskIds })) {
+				await clearAutoStartHold({ workspacePath: scope.workspacePath, taskId: release.taskId }).catch(() => false);
+				if (release.stale) {
+					continue;
+				}
+				await setCardPaused({ workspacePath: scope.workspacePath, taskId: release.taskId, paused: false }).catch(
+					() => null,
+				);
+				pausedTaskIds.delete(release.taskId);
+				autoStartFailureGuard.reset(`${scope.workspaceId}:${release.taskId}`);
+				const releaseMessage = formatAutoStartHoldReleaseMessage({ taskId: release.taskId, hold: release.hold });
+				deps.warn(releaseMessage);
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: releaseMessage,
+					taskId: release.taskId,
+					workspacePath: scope.workspacePath,
+					metadata: {
+						category: "auto_start_hold_released",
+						errorCode: release.hold.errorCode,
+						consecutiveFailures: release.hold.consecutiveFailures,
+					},
+				});
+			}
+		}
 		// F3.38: the workspace-level unattended autonomy budget. When no operator gesture (workspace mutation)
 		// or driver call has touched this workspace for the budget span, autonomous starts PAUSE the candidate
 		// cards through the same persisted pause set the failure guard uses — loud in the UI, and the resume
@@ -1690,6 +1733,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								() => null,
 							);
 							pausedTaskIds.add(task.id);
+							// 2026-09-06: name the hold as the guard's, so the next boot re-attempts it once (see
+							// auto-start-hold.ts) — the pause set alone cannot tell it from an operator's pause.
+							await recordAutoStartHold({
+								workspacePath: scope.workspacePath,
+								taskId: task.id,
+								hold: {
+									errorCode: startErrorCode,
+									error: started.error ?? null,
+									consecutiveFailures: failureDecision.consecutiveFailures,
+									heldAt: Date.now(),
+								},
+							}).catch(() => null);
 							// The hold owns the card now — a lingering overlap-deferral entry would keep it counted
 							// as retry-pending forever (phantom "deferred" in the watchdog's board summary).
 							deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(task.id);

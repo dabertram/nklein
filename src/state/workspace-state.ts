@@ -1,4 +1,5 @@
 import { realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
 	type RuntimeBoardData,
@@ -10,6 +11,7 @@ import {
 } from "../core/api-contract";
 import { diffCardLanes } from "../core/card-lane-changes";
 import { updateTaskDependencies } from "../core/task-board-mutations";
+import { classifyVolatilePath, formatVolatilePathWarning } from "../core/volatile-runtime-path";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
@@ -50,6 +52,29 @@ export {
 	getWorkspaceDirectoryPath,
 	getWorkspacesRootPath,
 };
+
+// 2026-09-06 temp-folder sweep: a workspace registered under the OS temp folder loses untouched files to the daily
+// janitor (macOS dirhelper, 3 days). Observed once per process per repo path; fixture repos kanban created itself
+// are exempt (short-lived by design). The runtime home gets the same check at CLI boot.
+const volatilePathObservedRepoPaths = new Set<string>();
+
+function noteVolatileWorkspacePath(repoPath: string): void {
+	if (volatilePathObservedRepoPaths.has(repoPath)) {
+		return;
+	}
+	volatilePathObservedRepoPaths.add(repoPath);
+	const verdict = classifyVolatilePath(repoPath, { tmpdir: tmpdir(), platform: process.platform });
+	if (!verdict) {
+		return;
+	}
+	recordSelfObservation({
+		signal: "custom",
+		severity: "warning",
+		message: formatVolatilePathWarning(verdict, "Workspace"),
+		workspacePath: repoPath,
+		metadata: { category: "volatile_runtime_path", sweeper: verdict.sweeper, role: "workspace" },
+	});
+}
 
 import {
 	INDEX_VERSION,
@@ -589,6 +614,9 @@ export async function loadWorkspaceContext(
 		index = ensured.index;
 		if (ensured.changed) {
 			await writeWorkspaceIndex(index);
+		}
+		if (options.gitRepositoryCreatedByKanban !== true) {
+			noteVolatileWorkspacePath(repoPath);
 		}
 		recordWorkspaceResolutionDecision({
 			repoPath,

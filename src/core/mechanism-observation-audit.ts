@@ -1205,6 +1205,12 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"merge_redelivery_retry",
 	// 2026-09-06: a completed repair card re-ran the plan integration gate and the pass cleared the park.
 	"plan_gate_repair_resolved",
+	// 2026-09-06 temp-folder sweep: the selection file vanished and was re-derived from the runtime home's evidence.
+	"provider_selection_restored",
+	// 2026-09-06: a runtime home / workspace path lives where an OS janitor deletes untouched files after 3 days.
+	"volatile_runtime_path",
+	// 2026-09-06: a card the auto-start failure guard held was released once at boot and re-attempted.
+	"auto_start_hold_released",
 	// Exploration-drift nudge (2026-09-01): plan-mode session made no graph progress for the threshold window.
 	"decomposition_exploration_drift",
 	"agent_sandbox_result_cleanup",
