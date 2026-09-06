@@ -243,3 +243,60 @@ describe("swarm prompt variation", () => {
 		expect(base.requests).toHaveLength(1);
 	});
 });
+
+describe("planSwarmPromptVariation — delivered-work guard (2026-09-07 empty-final redrive)", () => {
+	function deliveredRequest(deliveryTool: string, instruction: string): AgentModelRequest {
+		return {
+			systemPrompt: "stable system prefix",
+			messages: [
+				{ id: "u0", role: "user", content: [{ type: "text", text: instruction }], createdAt: 1 },
+				{
+					id: "a-write",
+					role: "assistant",
+					content: [{ type: "tool-call", toolCallId: "c1", toolName: deliveryTool, input: {} }],
+					createdAt: 2,
+				},
+				{
+					id: "t-write",
+					role: "tool",
+					content: [{ type: "tool-result", toolCallId: "c1", toolName: deliveryTool, output: { ok: true } }],
+					createdAt: 3,
+				},
+			],
+			tools: [tool("edit_file"), tool("write_files"), tool("run_commands")],
+		};
+	}
+
+	it("does NOT re-drive a worker that already wrote files, even when the instruction names edit_file", () => {
+		// The dschinn worker card text says "prefer the edit_file tool ..."; a delivered card must not loop on it.
+		for (const deliveryTool of ["write_files", "write_file", "edit_file", "editor"]) {
+			expect(
+				planSwarmPromptVariation(
+					deliveredRequest(
+						deliveryTool,
+						"Implement the card. Prefer the edit_file tool with a small search/replace block.",
+					),
+					"worker",
+				),
+			).toBeNull();
+		}
+	});
+
+	it("still re-drives a worker that only READ files and then stalled without delivering", () => {
+		const req: AgentModelRequest = {
+			systemPrompt: "s",
+			messages: [
+				{ id: "u0", role: "user", content: [{ type: "text", text: "Implement it with edit_file." }], createdAt: 1 },
+				{
+					id: "a-read",
+					role: "assistant",
+					content: [{ type: "tool-call", toolCallId: "r1", toolName: "read_files", input: {} }],
+					createdAt: 2,
+				},
+			],
+			tools: [tool("edit_file"), tool("read_files")],
+		};
+		const plan = planSwarmPromptVariation(req, "worker");
+		expect(plan?.toolName).toBe("edit_file");
+	});
+});

@@ -28,6 +28,18 @@ function textFromMessage(message: AgentMessage): string {
 	return message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
 }
 
+/** File-writing tools whose use means the worker delivered code (captured to the result branch). */
+const FILE_DELIVERY_TOOL_NAMES: ReadonlySet<string> = new Set(["write_file", "write_files", "edit_file", "editor"]);
+
+/** True when any prior assistant turn in the session made a file-mutating tool call (a real delivery). */
+function sessionDeliveredFileChanges(messages: readonly AgentMessage[]): boolean {
+	return messages.some(
+		(message) =>
+			message.role === "assistant" &&
+			message.content.some((part) => part.type === "tool-call" && FILE_DELIVERY_TOOL_NAMES.has(part.toolName)),
+	);
+}
+
 function toolMentionIndex(text: string, toolName: string): number {
 	const escaped = toolName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 	return new RegExp(`(^|[^\\p{L}\\p{N}_])${escaped}([^\\p{L}\\p{N}_]|$)`, "iu").exec(text)?.index ?? -1;
@@ -79,6 +91,12 @@ export function planSwarmPromptVariation(
 	// live decomposition recovery to force an endless read loop (run 20260721-144558).
 	const instruction = stripFocusBrief(textFromMessage(userMessage)).trim();
 	if (!instruction) return null;
+	// 2026-09-07: a worker that already wrote files has DELIVERED — a following prose turn is a legitimate summary,
+	// not a stall. Re-driving it forced a complete, green card (dschinn S01) to churn indefinitely on an `edit_file`
+	// anchor lifted from the card's own advice text ("prefer the edit_file tool ..."). If any prior assistant turn in
+	// this session made a file-mutating tool call, do NOT reframe the completion into another action. (Architect and
+	// reviewer terminals — decompose_project / submit_review — are `completesRun` tools handled below, unaffected.)
+	if (sessionDeliveredFileChanges(request.messages)) return null;
 	const namedTool = request.tools
 		.map((tool, order) => ({ tool, order, index: toolMentionIndex(instruction, tool.name) }))
 		.filter((candidate) => candidate.index >= 0)
