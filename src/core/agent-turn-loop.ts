@@ -204,8 +204,17 @@ const ACCEPTANCE_CHECK_PATTERN = /^Acceptance (?:check|command):\s*(.+?)\s*$/im;
 
 /** Extract the card's embedded acceptance command from its prompt text, or null when absent. */
 export function extractAcceptanceCheckCommand(promptText: string): string | null {
-	const command = promptText.match(ACCEPTANCE_CHECK_PATTERN)?.[1]?.trim();
-	return command && command.length > 0 ? command : null;
+	const raw = promptText.match(ACCEPTANCE_CHECK_PATTERN)?.[1]?.trim();
+	if (!raw) {
+		return null;
+	}
+	// 2026-09-07: an inlined project spec can carry a PROSE acceptance line (`npm test — **BUT SEE ...**`), which
+	// is the first match and must not run verbatim. Cut the prose tail (em/en-dash clause, ** emphasis, backtick
+	// aside) while keeping shell syntax like `--`. This is kept dependency-free here; the shared pure mirror is
+	// src/core/acceptance-command.ts (sanitizeAcceptanceCommand).
+	const tail = raw.search(/\s(?:—|–|\*\*|`)/u);
+	const command = (tail >= 0 ? raw.slice(0, tail) : raw).trim();
+	return command.length > 0 ? command : null;
 }
 
 /** The next move once a turn loop is confirmed (pure; the caller effects it). */

@@ -1,3 +1,4 @@
+import { sanitizeAcceptanceCommandOrNull } from "./acceptance-command";
 import type { RuntimeBoardCard, RuntimeBoardData } from "./api-contract";
 import { findBoardCardWithColumn } from "./task-board-mutations";
 
@@ -99,7 +100,7 @@ export function resolvePlanAcceptanceCommand(input: ResolvePlanAcceptanceCommand
 	const tallies = new Map<string, { count: number; firstIndex: number }>();
 	let index = 0;
 	for (const member of listPlanMemberCards(input.board, input.planSlug)) {
-		const command = member.prompt.match(PLAN_ACCEPTANCE_CHECK_PATTERN)?.[1]?.trim();
+		const command = sanitizeAcceptanceCommandOrNull(member.prompt.match(PLAN_ACCEPTANCE_CHECK_PATTERN)?.[1]);
 		if (command) {
 			const tally = tallies.get(command);
 			if (tally) {

@@ -184,3 +184,31 @@ local models on the real v31 factory:
 What worked: the incremental add_task/add_dependency protocol, error messages that named every offender with an
 exact repair recipe, and the governed sandbox itself (writes scoped, egress gated, acceptance re-run from evidence).
 The spine is sound; the harness around a weak model is where the time goes.
+
+## Addenda (drive continued 2026-09-07)
+
+20. **"Compaction" that grows the prompt.** On resume the runtime logged "Pre-send context guard compacted history
+    before provider dispatch (~6,946 → ~7,079 projected tokens)": the compaction pass made the request larger, and
+    the prose final answer that preceded the pause is absent from the resumed transcript (only tool-call turns
+    survive), so the model is asked to "Continue from the paused checkpoint" with its own conclusion erased.
+    Verdict: harness bug (minor): a compaction must never increase the projected size, and a final answer is part
+    of the checkpoint.
+
+21. **The acceptance gate runs the spec's prose line as the shell command.** `extractNKleinAcceptanceCommand`
+    scans the whole task prompt with `/^Acceptance (?:check|command):\s*(.+?)\s*$/im` and takes the FIRST match. The
+    harness inlines the shared spec into every card prompt, and specification.md's sixth line is "Acceptance
+    command: npm test — **BUT SEE "`npm test` IS NOT AN INDEPENDENT ORACLE" BELOW …", so the executed command was
+    that sentence: `/bin/sh: 1: Syntax error: Unterminated quoted string`, exit 2, "The acceptance command failed
+    for an unrecognized reason". The card's structured `acceptanceCommand: "npm test"` and the contract's own
+    "Acceptance check: npm test" line (which comes later in the prompt) were ignored. Every dschinn card fails
+    acceptance this way; the worker is then told "Fix only the issue revealed by the acceptance failure" and the
+    reviewer is told the check FAILED. Verdict: harness bug, project-wide. Use the card field; when scanning prose,
+    scan only the contract section, never inlined spec text.
+
+22. **Pausing a card destroys its uncommitted work; resuming restores the base ref and says "continue".** After
+    the pause the runtime logged "Sandbox workspace disposed"; on resume, "Restored the disposed sandbox workspace
+    … (checked out the base ref)". The three files S01 had written (and `npm test` had verified) were gone, the
+    result branch had "no file changes", and the model was prompted "Continue from the paused checkpoint" with a
+    transcript that still shows the successful writes. Verdict: harness bug, and the likely origin of the real
+    factory's "worker made no changes" parks. A pause (or any dispose/restore between turns) must capture the
+    working tree as a patch and re-apply it on restore, or the transcript must be told the tree was reset.

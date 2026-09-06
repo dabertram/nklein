@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { sanitizeAcceptanceCommandOrNull } from "../core/acceptance-command";
 import { type AcceptanceFailureCategory, classifyAcceptanceFailure } from "../core/acceptance-failure-taxonomy";
 import { type DiagnosticLanguage, parseCompilerDiagnostics, planTypeCheckRepair } from "../core/compiler-diagnostics";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
@@ -75,9 +76,9 @@ export interface RunNKleinAcceptanceGateInSandboxOptions
 }
 
 export function extractNKleinAcceptanceCommand(taskPrompt: string): string | null {
-	const match = taskPrompt.match(ACCEPTANCE_CHECK_PATTERN);
-	const command = match?.[1]?.trim();
-	return command ? command : null;
+	// 2026-09-07: sanitize the captured value — an inlined spec's `Acceptance command: npm test — **BUT SEE ...**`
+	// line is the FIRST match and must not be executed verbatim (it fails every card as a shell-syntax error).
+	return sanitizeAcceptanceCommandOrNull(taskPrompt.match(ACCEPTANCE_CHECK_PATTERN)?.[1]);
 }
 
 export function resolveShellExecution(command: string): { binary: string; args: string[] } {
