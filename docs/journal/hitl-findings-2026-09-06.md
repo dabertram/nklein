@@ -238,3 +238,24 @@ The spine is sound; the harness around a weak model is where the time goes.
     autonomy ceiling: on dschinn today the harness, not the model, is the binding constraint. The fixes are known
     and small (use the card's structured acceptance command and write scope; refresh scope on card edit; judge
     completion on captured work, not the last tool call; capture the tree as a patch across pause/dispose).
+
+## Conclusion of the hand-drive (2026-09-07)
+
+25. **S01 is un-completable at its declared scope, and the two generalizable defects are now fixed.** With both
+    fixes live, S01 settled to review without a redrive loop (#19 fixed) and its `npm test` acceptance ran clean
+    (#21 fixed). It still cannot complete because the derived `npm run typecheck` needs tsconfig.json, which the
+    3-file write scope forbade (#16); widening the card's writeScope let the worker deliver five files, but across
+    the review/repair cycles the delivered tsconfig did not reach the acceptance-verified tree (`tsc --noEmit`
+    printed its usage help = no tsconfig on the branch). Some of that inconsistency was induced by the heavy manual
+    operator churn (stop/resume, lane moves, three drain restarts), so #22 is not cleanly reproduced here — but the
+    ROOT block is #16: a scaffolding card whose recipe lists five files cannot pass with a three-file write scope.
+
+    **Shipped this drive (both confirmed live, helping the v31 factory too):**
+    - `sanitizeAcceptanceCommand` (P0.ACCEPTCMD) — the acceptance gate no longer runs the inlined spec's prose line;
+      dschinn cards pass `npm test` acceptance for the first time.
+    - `sessionDeliveredFileChanges` guard in `planSwarmPromptVariation` (P0.EMPTYFINALREDRIVE) — a worker that wrote
+      files is not re-driven for ending in prose; the S01 redrive loop is gone.
+
+    **Recommended next (not shipped): the write-scope model (#16).** The decomposer should seed a card's `writeScope`
+    from every file its recipe names (not a hard 3-file cap), or the write scope should not be capped below the
+    card's stated files. Until then, scaffolding-style cards that legitimately touch 4–5 files cannot complete.
