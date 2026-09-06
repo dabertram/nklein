@@ -28,3 +28,29 @@ First journal entry. Where !Klein stands driving the dschinn build (v31 drain, s
 
 ![2026-09-06-0023-v31-graph.png](2026-09-06-0023-v31-graph.png)
 
+## 2026-09-06 13:09 — v31
+
+Overnight the factory crawled to 7–18 requests/hour: flash-next had been reloaded at 262k context, pushed the m5max 9 GB into swap and wedged the LM Studio daemon (only 'lms server stop/start' cleared PROCESSINGPROMPT; reloaded at 131072/parallel 1). Then at 03:41 macOS dirhelper (daily 03:35, 3-day rule) swept the drain root — it lived in /var/folders/…/T — and deleted the provider selection, providers.json, the workspace index and the replica id; every start refused 'No native !Klein provider is configured' for nine hours, hidden inside the bounced-redrive livelock (≈1400 refusals, fixed in 64ba3594e), and after the 12:18 restart the auto-start guard paused the only ready card. Fixes shipped (521969a4b, P0.TMPSWEEP): provider-selection self-heal from the model registry, a boot warning for temp-folder runtime homes, and guard holds released once per boot. The drain root now lives under ~/.nklein/factory-drains (symlink at the old path). After the 13:07 restart four reviews restarted immediately and the redecompose card attempted on dirk@m4mini.
+
+- **Lanes:** (board file not given)
+- **Fleet:** qwen3.8-flash-next (local, ctx 131072, processingPrompt); dirk-qwen3.8-27b@m4mini (local, ctx 32768, processingPrompt); dirk-qwen3.8-27b (local, ctx 60160, processingPrompt)
+- **Merges:** (no merge history)
+- **Fitness (most-sampled cells):**
+
+| model | role | tier | n | success | confidence |
+|---|---|---|---|---|---|
+| qwen3.8-flash-next | worker | easy | 62 | 92% | high |
+| dirk-qwen3.8-27b@q2_k_xl | worker | easy | 32 | 100% | high |
+| dirk-qwen3.8-27b@q6_k | worker | easy | 21 | 100% | high |
+| qwen/qwen3.8-27b | worker | easy | 19 | 89% | high |
+| ornith-1.0-9b@q4_k_m | worker | easy | 10 | 100% | high |
+| dirk-qwen3.8-27b@iq4_xs | worker | easy | 8 | 88% | medium |
+| dirk-qwen3.8-27b@q2_k_xl | architect | easy | 4 | 100% | medium |
+| dirk-qwen3.8-27b@q6_k | architect | easy | 4 | 100% | medium |
+| qwen/qwen3.8-27b | architect | easy | 3 | 100% | medium |
+| qwen3.8-flash-next | architect | easy | 3 | 100% | medium |
+
+![2026-09-06-1309-v31-board.png](2026-09-06-1309-v31-board.png)
+
+![2026-09-06-1309-v31-graph.png](2026-09-06-1309-v31-graph.png)
+
