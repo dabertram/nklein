@@ -1983,6 +1983,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   (`egress_bundle_stale`). Factory ops: `~/.nklein/factory-drains/bin/restart-v31.sh` removes the proxy + sandbox
   containers and restarts the server (the runtime reuses running containers otherwise).
 
+- [x] **P0.SANDBOXDISK — concurrent acceptance installs filled the sandbox's 512 MB tmpfs (ENOSPC), filed as plain setup failures.**
+  Live 2026-09-06, minutes after P0.EGRESSCLAIM made `npm install` reach the registry: with four acceptance
+  placements installing at once, two died with `ENOSPC` / `TAR_ENTRY_ERROR` — every placement's npm/cargo/go/gradle
+  cache lived under its tmpfs HOME (`/tmp/nklein-home-<uid>-<task>`, `--tmpfs /tmp:size=512m`, RAM-backed). SHIPPED:
+  caches moved to a per-task dir on the disk-backed workspaces volume (`/workspaces/.nklein-cache/<uid>-<task>`, mode
+  700 under a sticky 1777 root created with the workspaces root; removed with the workdir; a re-placement of the same
+  task reuses its content-addressed cache), HOME stays on tmpfs; `isDiskFullInstallFailure` names ENOSPC/TAR_ENTRY_ERROR
+  as a sandbox capacity problem in the setup reason. Open: a shared read-only npm cache across tasks would cut the
+  ~30–40 s install per acceptance run further.
+
 - [x] **P0.TMPSWEEP — the v31 factory silently died at 03:41 because its runtime home lived in the macOS temp folder.**
   ROOT CAUSE 2026-09-06: the drain root was `mktemp -d` → `/var/folders/…/T/real-drain-*`; `com.apple.bsd.dirhelper`
   (daily 03:35, `CLEAN_FILES_OLDER_THAN_DAYS=3`) deleted every file untouched for 3 days — `nklein-provider-selection.json`,

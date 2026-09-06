@@ -770,7 +770,11 @@ export class AgentSandboxManager {
 				// The shared cache root is sticky-world-writable like the workspaces root: every task uid creates its
 				// OWN 700 cache dir under it (see taskCachePath) and cannot touch a sibling's.
 				assertSandboxExecOk(
-					await this.execAsRoot(placement, ["sh", "-c", `mkdir -p ${AGENT_SANDBOX_CACHE_ROOT} && chmod 1777 ${AGENT_SANDBOX_CACHE_ROOT}`]),
+					await this.execAsRoot(placement, [
+						"sh",
+						"-c",
+						`mkdir -p ${AGENT_SANDBOX_CACHE_ROOT} && chmod 1777 ${AGENT_SANDBOX_CACHE_ROOT}`,
+					]),
 					"create sandbox cache root",
 				);
 				// Clear any STALE workspace left at this path before cloning. The sandbox workspaces dir is a host-level

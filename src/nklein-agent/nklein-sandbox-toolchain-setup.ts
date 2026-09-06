@@ -109,6 +109,17 @@ export function isOfflineInstallFailure(output: string): boolean {
 	return OFFLINE_INSTALL_SIGNATURES.some((signature) => output.includes(signature));
 }
 
+/**
+ * Disk-exhaustion signatures (live 2026-09-06: four concurrent acceptance installs filled the sandbox's 512 MB tmpfs
+ * HOME — `ENOSPC` while writing tarballs, `TAR_ENTRY_ERROR ENOENT` while extracting into a full fs). Not a manifest
+ * or network verdict: the environment ran out of room, and the fix is capacity, not the card.
+ */
+const DISK_FULL_INSTALL_SIGNATURES = ["ENOSPC", "no space left on device", "TAR_ENTRY_ERROR"];
+
+export function isDiskFullInstallFailure(output: string): boolean {
+	return DISK_FULL_INSTALL_SIGNATURES.some((signature) => output.includes(signature));
+}
+
 export async function runSandboxToolchainSetup(
 	options: RunSandboxToolchainSetupOptions,
 ): Promise<SandboxToolchainSetupReport> {
@@ -179,6 +190,16 @@ export async function runSandboxToolchainSetup(
 					durationMs: Math.max(0, now() - startedAt),
 					failedCommand: command,
 					reason: `dependency installation unreachable from the offline sandbox (${command}); proceeding to the acceptance command without installed dependencies`,
+				};
+			}
+			if (isDiskFullInstallFailure(step.output)) {
+				return {
+					status: "failed",
+					plan,
+					steps,
+					durationMs: Math.max(0, now() - startedAt),
+					failedCommand: command,
+					reason: `dependency installation ran out of disk inside the sandbox (${command}): the task cache or tmpfs is full — a capacity problem of the sandbox, not of the card`,
 				};
 			}
 			return {

@@ -396,9 +396,13 @@ function createDisposeBarrierExecFileStub(): {
 		if (
 			hold &&
 			command.join("\0") ===
-				["rm", "-rf", "/workspaces/task-1", `/tmp/nklein-home-${createAgentSandboxTaskUid("task-1")}-task-1`].join(
-					"\0",
-				)
+				[
+					"rm",
+					"-rf",
+					"/workspaces/task-1",
+					`/tmp/nklein-home-${createAgentSandboxTaskUid("task-1")}-task-1`,
+					`/workspaces/.nklein-cache/${createAgentSandboxTaskUid("task-1")}-task-1`,
+				].join("\0")
 		) {
 			heldCbs.push(() => done(null, { stdout: "", stderr: "" }));
 			return {} as ReturnType<typeof execFile>;
@@ -829,8 +833,13 @@ describe("AgentSandboxManager", () => {
 			(args) => dockerExecCommand(args).join(" ") === "rm -rf /workspaces/task-1",
 		);
 		const taskHome = `/tmp/nklein-home-${createAgentSandboxTaskUid("task-1")}-task-1`;
+		// 2026-09-06: package-manager caches live on the workspaces volume, not the 512 MB tmpfs HOME.
+		const taskCache = `/workspaces/.nklein-cache/${createAgentSandboxTaskUid("task-1")}-task-1`;
 		const mkdirHomeCallIndex = calls.findIndex(
 			(args) => dockerExecCommand(args).join(" ") === `mkdir -m 700 -p ${taskHome}`,
+		);
+		const mkdirCacheCallIndex = calls.findIndex(
+			(args) => dockerExecCommand(args).join(" ") === `mkdir -m 700 -p ${taskCache}`,
 		);
 		const cloneCallIndex = calls.findIndex((args) => args.includes("clone"));
 		const cloneCall = calls[cloneCallIndex] ?? [];
@@ -840,11 +849,13 @@ describe("AgentSandboxManager", () => {
 		expect(rmStaleCallIndex).toBeGreaterThan(chmodRootCallIndex);
 		expect(mkdirTaskCallIndex).toBeGreaterThan(rmStaleCallIndex);
 		expect(mkdirHomeCallIndex).toBeGreaterThan(mkdirTaskCallIndex);
-		expect(cloneCallIndex).toBeGreaterThan(mkdirHomeCallIndex);
+		expect(mkdirCacheCallIndex).toBeGreaterThan(mkdirHomeCallIndex);
+		expect(cloneCallIndex).toBeGreaterThan(mkdirCacheCallIndex);
 		expect(cloneCall).toContain(`HOME=${taskHome}`);
-		expect(cloneCall).toContain(`CARGO_HOME=${taskHome}/.cargo`);
-		expect(cloneCall).toContain(`GOPATH=${taskHome}/go`);
-		expect(cloneCall).toContain(`GRADLE_USER_HOME=${taskHome}/.gradle`);
+		expect(cloneCall).toContain(`NPM_CONFIG_CACHE=${taskCache}/npm`);
+		expect(cloneCall).toContain(`CARGO_HOME=${taskCache}/cargo`);
+		expect(cloneCall).toContain(`GOPATH=${taskCache}/go`);
+		expect(cloneCall).toContain(`GRADLE_USER_HOME=${taskCache}/gradle`);
 		expect(cloneCall).toContain(`MAVEN_OPTS=-Duser.home=${taskHome}`);
 		expect(dockerExecCommand(cloneCall)).toEqual([
 			"git",
@@ -916,8 +927,9 @@ describe("AgentSandboxManager", () => {
 
 	it("reports workspace cleanup failures without leaking the pool slot", async () => {
 		const taskHome = `/tmp/nklein-home-${createAgentSandboxTaskUid("task-1")}-task-1`;
+		const taskCache = `/workspaces/.nklein-cache/${createAgentSandboxTaskUid("task-1")}-task-1`;
 		const { execFile: execFileStub, calls } = createExecFileStub({
-			failExecCommand: ["rm", "-rf", "/workspaces/task-1", taskHome],
+			failExecCommand: ["rm", "-rf", "/workspaces/task-1", taskHome, taskCache],
 		});
 		const manager = new AgentSandboxManager({
 			image: "test-image",
@@ -935,7 +947,7 @@ describe("AgentSandboxManager", () => {
 			taskId: "task-2",
 			slot: 1,
 		});
-		expect(calls.map(dockerExecCommand)).toContainEqual(["rm", "-rf", "/workspaces/task-1", taskHome]);
+		expect(calls.map(dockerExecCommand)).toContainEqual(["rm", "-rf", "/workspaces/task-1", taskHome, taskCache]);
 	});
 
 	it("derives one canonical project key for every spelling of the same directory (run19)", async () => {

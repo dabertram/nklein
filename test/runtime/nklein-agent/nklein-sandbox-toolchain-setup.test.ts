@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+	isDiskFullInstallFailure,
 	isOfflineInstallFailure,
 	runSandboxToolchainSetup,
 	type SandboxToolchainSetupExecution,
@@ -124,6 +125,23 @@ describe("offline-install classification (N10 forensics 2026-07-25)", () => {
 						},
 		});
 		expect(report.status).toBe("failed");
+	});
+
+	it("names a disk-full install failure as a sandbox capacity problem (2026-09-06 tmpfs ENOSPC)", async () => {
+		const output =
+			"npm error code ENOSPC\nnpm error syscall write\nnpm error nospc Invalid response body while trying to fetch https://registry.npmjs.org/esbuild";
+		const report = await runSandboxToolchainSetup({
+			rootFileNames: ["package.json"],
+			timeoutMs: 1_000,
+			runCommand: async (execution) =>
+				execution.command.startsWith("command -v")
+					? { ok: true, stdout: "ok", stderr: "", output: "ok", error: null, exitCode: 0 }
+					: { ok: false, stdout: "", stderr: output, output, error: "exit 1", exitCode: 1 },
+		});
+		expect(report.status).toBe("failed");
+		expect(report.reason).toContain("ran out of disk inside the sandbox");
+		expect(isDiskFullInstallFailure("npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory")).toBe(true);
+		expect(isDiskFullInstallFailure("ERESOLVE unable to resolve dependency tree")).toBe(false);
 	});
 
 	it("isOfflineInstallFailure keys on the cross-package-manager signatures", () => {
