@@ -812,6 +812,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const bouncedRedriveDispatchedByWorkspaceId = new Map<string, Set<string>>();
 	/** Bounced-stranded redrives per card (audit 2026-09-04 #20): capped so a deterministically dying worker parks. */
 	const bouncedRedriveAttemptsByTaskKey = new Map<string, number>();
+	/** The last start refusal per bounced card, quoted in the strike-cap park reason (live 2026-09-06). */
+	const bouncedRedriveLastRefusalByTaskKey = new Map<string, string>();
 	/** F4.32 content-version refs already completed/in flight for this process; persisted hashes survive restarts. */
 	const idleMemoryAuditDispatchedByWorkspaceId = new Map<string, Set<string>>();
 	const idleMemoryAuditInFlightRefs = new Set<string>();
@@ -5271,7 +5273,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 																	review: {
 																		...card.review,
 																		status: "parked" as const,
-																		parkedReason: `The worker died on ${bounceAttempts - 1} automatic redrives after review requested changes — the re-work needs a human look.`,
+																		parkedReason: bouncedRedriveLastRefusalByTaskKey.has(
+																			bounceAttemptKey,
+																		)
+																			? `The automatic re-drive after review requested changes was refused ${bounceAttempts - 1} times (${bouncedRedriveLastRefusalByTaskKey.get(bounceAttemptKey)}) — the card cannot be restarted as configured.`
+																			: `The worker died on ${bounceAttempts - 1} automatic redrives after review requested changes — the re-work needs a human look.`,
 																		updatedAt: Date.now(),
 																	},
 																	updatedAt: Date.now(),
@@ -5319,6 +5325,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								});
 								void (async () => {
 									await trackedService.stopTaskSession(bouncedTaskId).catch(() => null);
+									// Live 2026-09-06 (11 hours of 30-second ticks): the redrive carried no provider/model, so
+									// resolveNKleinLaunchConfig refused every one of ~1400 attempts with "No native !Klein provider
+									// is configured" — and the refusal rollback below re-armed the next tick forever. Carry the
+									// card's own persisted launch (provider + model) so the redrive resolves like the original start.
+									const persistedLaunch = bouncedCard?.nkleinSettings;
 									const started = await runtimeApi
 										.startTaskSession(scope, {
 											taskId: bouncedTaskId,
@@ -5326,17 +5337,20 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 											taskTitle: bouncedCard?.title,
 											baseRef: bouncedCard?.baseRef ?? "HEAD",
 											agentId: bouncedCard?.agentId ?? "nklein",
+											...(persistedLaunch?.providerId ? { providerId: persistedLaunch.providerId } : {}),
+											...(persistedLaunch?.modelId ? { modelId: persistedLaunch.modelId } : {}),
 										})
 										.catch(() => null);
-									// A refused start is NOT a dispatch (audit 2026-09-04 #13): the single-flight guard's
-									// start_in_flight (or any other refusal) used to leave the 15-minute dedup armed while
-									// nothing had actually started. Roll the dedup and the strike back so the next tick
-									// retries instead of waiting out a redrive that never happened.
+									// A refused start is NOT a dispatch (audit 2026-09-04 #13): release the 15-minute dedup so
+									// the next tick can retry — but a refusal IS a strike (never rolled back any more): two
+									// identical refusals mean the redrive is deterministically impossible and the cap above
+									// parks the card with the refusal as its reason instead of looping every tick.
 									if (started?.ok !== true) {
+										const refusal = started?.errorCode ?? started?.error ?? "no response";
 										bouncedRedriveDispatchedByWorkspaceId.get(scope.workspaceId)?.delete(bouncedTaskId);
-										bouncedRedriveAttemptsByTaskKey.set(bounceAttemptKey, Math.max(0, bounceAttempts - 1));
+										bouncedRedriveLastRefusalByTaskKey.set(bounceAttemptKey, String(refusal));
 										deps.warn(
-											`Board-liveness watchdog: bounced redrive of ${bouncedTaskId} was refused (${started?.errorCode ?? started?.error ?? "no response"}) — dedup released for the next tick.`,
+											`Board-liveness watchdog: bounced redrive of ${bouncedTaskId} was refused (${refusal}) — strike ${bounceAttempts}; the cap parks it after 2.`,
 										);
 									}
 								})();
