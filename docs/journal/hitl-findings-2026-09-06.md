@@ -212,3 +212,29 @@ The spine is sound; the harness around a weak model is where the time goes.
     transcript that still shows the successful writes. Verdict: harness bug, and the likely origin of the real
     factory's "worker made no changes" parks. A pause (or any dispose/restore between turns) must capture the
     working tree as a patch and re-apply it on restore, or the transcript must be told the tree was reset.
+
+## Addenda (drive continued 2026-09-07, part 2)
+
+23. **THE acceptance-command bug — found AND fixed on the drive (commit shipped).** `extractNKleinAcceptanceCommand`
+    scanned the whole card prompt with `/^Acceptance (check|command): (.+?)$/im` and took the first match; the
+    runtime inlines the 192 KB spec into every card prompt and specification.md line 6 is
+    `Acceptance command: npm test — **BUT SEE "npm test" IS NOT AN INDEPENDENT ORACLE" BELOW ...**`, so the gate ran
+    that prose: `/bin/sh: 1: Syntax error: Unterminated quoted string`, exit 2. EVERY dschinn worker/reviewer card
+    failed acceptance this way — on this drain AND the v31 factory. Fix: `src/core/acceptance-command.ts`
+    (`sanitizeAcceptanceCommand`) trims the prose tail (em/en-dash clause, `**`, backtick aside) while keeping shell
+    syntax (`--`, `|`, `&&`); applied at all three extractors. CONFIRMED live: after the fix, S01's acceptance ran a
+    clean `npm test` and passed for the first time ("acceptance-verify done", no shell error). This is the single
+    highest-value output of the drive — a one-commit fix that unblocks the whole benchmark.
+
+24. **A trivial scaffold card cannot be completed even by a perfect hand-driven model.** With `npm test` finally
+    passing, S01 still fails on the runtime's derived `npm run typecheck` because it needs tsconfig.json — a file the
+    card's 3-file write scope forbids though the S01 recipe lists it (#16). Widening the card's `filesLikelyTouched`
+    on the board did NOT reach the running session (the write scope is snapshotted at session start), so the worker's
+    tsconfig write was still blocked. Stopping the session to force a fresh scope then lost the uncommitted delivery
+    and failed to capture ("Could not capture sandbox task result patch: Could not stage sandbox workspace changes"),
+    and the prose-final redrive (#19) kept re-issuing the same turn throughout. Verdict: the compounding of
+    write-scope-snapshot (#16), empty-final redrive (#19), and stop/dispose-loses-work + capture-failure (#22) makes
+    a five-file scaffold un-completable by a flawless operator. This is the drive's central finding about the
+    autonomy ceiling: on dschinn today the harness, not the model, is the binding constraint. The fixes are known
+    and small (use the card's structured acceptance command and write scope; refresh scope on card edit; judge
+    completion on captured work, not the last tool call; capture the tree as a patch across pause/dispose).
