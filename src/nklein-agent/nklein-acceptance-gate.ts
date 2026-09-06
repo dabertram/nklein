@@ -535,6 +535,15 @@ export async function runNKleinAcceptanceGateInSandbox(
 						toolchains: setup.plan.toolchains.map((toolchain) => toolchain.buildSystem),
 						installStepCount: setup.plan.installSteps.length,
 						failedCommand: setup.failedCommand,
+						// 2026-09-06: the failing step's own words (proxy credentials redacted) — an `npm install` that died
+						// on an egress 403 was indistinguishable from "no network" without opening session files.
+						outputTail:
+							setup.status === "failed"
+								? (setup.steps.at(-1)?.output ?? "")
+										.replace(/:\/\/[^/@\s]+@/g, "://***@")
+										.trim()
+										.slice(0, 500)
+								: null,
 					},
 					createdAt: Date.now(),
 				});

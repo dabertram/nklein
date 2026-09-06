@@ -1970,6 +1970,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### Phase 0 — stop-the-line correctness and liveness
 
+- [x] **P0.EGRESSCLAIM — every acceptance/review sandbox ran offline: the egress proxy rejected percent-encoded placement ids.**
+  ROOT CAUSE 2026-09-06: placement ids carry `::` (`<task>::acceptance-2`, `::review`); the runtime percent-encodes them
+  into the proxy URL (`http://<id>:<token>@proxy:3129`), npm forwards the userinfo still encoded in `Proxy-Authorization`,
+  and the proxy compared the raw claim → 403 `task_identity_required` → `npm install` "E403 GET registry.npmjs.org/…" in
+  ~500 ms, filed as a plain setup failure — acceptance runs, plan gates and reviewer verification ran without
+  dependencies for weeks. Found by issuing an identity by hand: a plain id passed, `probe::acceptance-2` failed
+  identically. SHIPPED: the proxy's claim parser percent-decodes taskId + token (both claim forms validate);
+  `sandbox_environment_setup` observations carry an `outputTail` (credentials redacted) so the next such failure names
+  itself; the egress bundle is stamped at build (`dist/egress-proxy/build-stamp.json`) and stamp-checked before every
+  proxy start — a stale/unstamped bundle is rebuilt in place (`egress_bundle_rebuilt`) or, when that fails, named
+  (`egress_bundle_stale`). Factory ops: `~/.nklein/factory-drains/bin/restart-v31.sh` removes the proxy + sandbox
+  containers and restarts the server (the runtime reuses running containers otherwise).
+
 - [x] **P0.TMPSWEEP — the v31 factory silently died at 03:41 because its runtime home lived in the macOS temp folder.**
   ROOT CAUSE 2026-09-06: the drain root was `mktemp -d` → `/var/folders/…/T/real-drain-*`; `com.apple.bsd.dirhelper`
   (daily 03:35, `CLEAN_FILES_OLDER_THAN_DAYS=3`) deleted every file untouched for 3 days — `nklein-provider-selection.json`,

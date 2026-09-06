@@ -30,6 +30,7 @@ import {
 } from "../core/sandbox-orphan-ownership";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { TOOL_RUNNER_STDIN_INPUT_ARG, TOOL_RUNNER_STDIN_THRESHOLD_BYTES } from "./agent-sandbox/tool-runner-protocol";
+import { ensureEgressBundleFresh } from "./egress-bundle-freshness";
 import {
 	issueEgressTaskIdentity,
 	listPendingEgressConfirms,
@@ -258,6 +259,19 @@ interface TaskPlacement {
 
 function taskHomePath(placement: Pick<TaskPlacement, "taskId" | "uid">): string {
 	return `/tmp/nklein-home-${placement.uid}-${normalizeTaskIdForSandboxPath(placement.taskId)}`;
+}
+
+/**
+ * Per-task package-manager cache root ON THE WORKSPACES VOLUME (live 2026-09-06): the container's `/tmp` is a
+ * 512 MB tmpfs and every placement's npm/cargo/go/gradle cache used to live under its tmpfs HOME — four concurrent
+ * acceptance installs filled it and `npm install` died with ENOSPC / TAR_ENTRY_ERROR, filed as a plain setup
+ * failure. The volume is disk-backed (terabytes, not RAM), the dir is owned by the task uid (mode 700, like the
+ * workdir), and a re-placement of the same task id reuses its content-addressed cache. Removed with the workdir.
+ */
+export const AGENT_SANDBOX_CACHE_ROOT = `${AGENT_SANDBOX_WORKSPACES_DIR}/.nklein-cache`;
+
+function taskCachePath(placement: Pick<TaskPlacement, "taskId" | "uid">): string {
+	return `${AGENT_SANDBOX_CACHE_ROOT}/${placement.uid}-${normalizeTaskIdForSandboxPath(placement.taskId)}`;
 }
 
 interface QueueEntry {
@@ -753,6 +767,12 @@ export class AgentSandboxManager {
 					await this.execAsRoot(placement, ["chmod", "1777", AGENT_SANDBOX_WORKSPACES_DIR]),
 					"set sandbox workspace root permissions",
 				);
+				// The shared cache root is sticky-world-writable like the workspaces root: every task uid creates its
+				// OWN 700 cache dir under it (see taskCachePath) and cannot touch a sibling's.
+				assertSandboxExecOk(
+					await this.execAsRoot(placement, ["sh", "-c", `mkdir -p ${AGENT_SANDBOX_CACHE_ROOT} && chmod 1777 ${AGENT_SANDBOX_CACHE_ROOT}`]),
+					"create sandbox cache root",
+				);
 				// Clear any STALE workspace left at this path before cloning. The sandbox workspaces dir is a host-level
 				// shared volume keyed by taskId, so a prior run that didn't dispose cleanly (an interrupted/aborted session,
 				// or a reused taskId across processes) leaves a non-empty `/workspaces/<taskId>` — and `git clone` then fails
@@ -796,6 +816,12 @@ export class AgentSandboxManager {
 						workdir: "/tmp",
 					}),
 					"create sandbox task home",
+				);
+				assertSandboxExecOk(
+					await this.execAsTaskUser(placement, ["mkdir", "-m", "700", "-p", taskCachePath(placement)], {
+						workdir: AGENT_SANDBOX_WORKSPACES_DIR,
+					}),
+					"create sandbox task cache",
 				);
 				assertSandboxExecOk(
 					await this.execAsTaskUser(placement, ["git", "clone", "--no-hardlinks", repoSource, placement.workdir], {
@@ -1319,6 +1345,11 @@ export class AgentSandboxManager {
 		if (!bundleHostPath) {
 			return { available: false, networkName, internalIp: null };
 		}
+		// 2026-09-06: a source-tree run never rebuilt the bundle — the proxy ran a build from another month and
+		// fail-closed every sandbox network call. Stamp-check it against the running sources; rebuild when stale.
+		await ensureEgressBundleFresh(bundleHostPath, { warn: this.warn, observe: recordSelfObservation }).catch(
+			() => undefined,
+		);
 		// From here Docker resources (the `--internal` network, the proxy container) MAY be created — mark the sticky
 		// teardown guard BEFORE the call so stopNow reaps them even if the probe later fails or is memo-reset.
 		this.egressProxyEnsured = true;
@@ -1777,7 +1808,7 @@ export class AgentSandboxManager {
 		try {
 			const removal = await this.execAsTaskUser(
 				placement,
-				["rm", "-rf", placement.workdir, taskHomePath(placement)],
+				["rm", "-rf", placement.workdir, taskHomePath(placement), taskCachePath(placement)],
 				{
 					workdir: AGENT_SANDBOX_WORKSPACES_DIR,
 				},
@@ -1794,6 +1825,7 @@ export class AgentSandboxManager {
 		options?: { timeoutMs?: number; workdir?: string; stdin?: string },
 	): Promise<AgentSandboxExecResult> {
 		const taskHome = taskHomePath(placement);
+		const taskCache = taskCachePath(placement);
 		return await this.withExecSlot(() =>
 			this.runDocker(
 				[
@@ -1807,16 +1839,17 @@ export class AgentSandboxManager {
 					...this.egressProxyExecEnvArgs(placement),
 					"-e",
 					`HOME=${taskHome}`,
+					// Caches live on the disk-backed workspaces volume, not the 512 MB tmpfs HOME (2026-09-06 ENOSPC).
 					"-e",
-					`XDG_CACHE_HOME=${taskHome}/.cache`,
+					`XDG_CACHE_HOME=${taskCache}/xdg`,
 					"-e",
-					`NPM_CONFIG_CACHE=${taskHome}/.npm`,
+					`NPM_CONFIG_CACHE=${taskCache}/npm`,
 					"-e",
-					`CARGO_HOME=${taskHome}/.cargo`,
+					`CARGO_HOME=${taskCache}/cargo`,
 					"-e",
-					`GOPATH=${taskHome}/go`,
+					`GOPATH=${taskCache}/go`,
 					"-e",
-					`GRADLE_USER_HOME=${taskHome}/.gradle`,
+					`GRADLE_USER_HOME=${taskCache}/gradle`,
 					"-e",
 					`MAVEN_OPTS=-Duser.home=${taskHome}`,
 					"-u",

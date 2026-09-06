@@ -1211,6 +1211,10 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"volatile_runtime_path",
 	// 2026-09-06: a card the auto-start failure guard held was released once at boot and re-attempted.
 	"auto_start_hold_released",
+	// 2026-09-06: the egress proxy bundle no longer matches its sources (a source-tree run never rebuilt it); a stale
+	// proxy fail-closes every sandbox network call. `rebuilt` = the guard rebuilt it in place before starting the proxy.
+	"egress_bundle_stale",
+	"egress_bundle_rebuilt",
 	// Exploration-drift nudge (2026-09-01): plan-mode session made no graph progress for the threshold window.
 	"decomposition_exploration_drift",
 	"agent_sandbox_result_cleanup",

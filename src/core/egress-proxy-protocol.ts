@@ -426,9 +426,83 @@ export interface EgressProxyIdentityClaim {
 /**
  * F2.5 — extract the `Proxy-Authorization: Basic <base64(taskId:token)>` claim from a COMPLETE request head.
  * Attribution-only: malformed/absent auth returns null and never affects the target parse or the verdict. The
- * first colon splits taskId from token (task ids never contain colons; tokens may). Case-insensitive header
- * name and scheme per RFC 7235.
+ * first colon splits taskId from token, so a task id that itself contains colons (every `<task>::acceptance-N` /
+ * `::review` placement) MUST arrive percent-encoded — which is exactly what the runtime's proxy URL does
+ * (`buildTaskProxyUrl` → `encodeURIComponent`) and what clients forward: the WHATWG URL userinfo stays encoded, so
+ * npm sends `s44a%3A%3Aacceptance-2`. Both halves are percent-DECODED here (2026-09-06: comparing the raw claim
+ * 403'd every acceptance/review sandbox for weeks — `npm install` "E403" in 500 ms, filed as a plain setup failure).
+ * A malformed escape keeps the raw text. Case-insensitive header name and scheme per RFC 7235.
  */
+function percentDecodeClaimPart(part: string): string {
+	if (!part.includes("%")) {
+		return part;
+	}
+	try {
+		return decodeURIComponent(part);
+	} catch {
+		return part;
+	}
+}
+
+/**
+ * Every (taskId, token) reading of the Basic userinfo, most specific first. Clients percent-DECODE the URL userinfo
+ * before Basic-encoding it (npm's agent, curl), so a placement id `s44a::acceptance-2` arrives with its colons raw
+ * and no single split is unambiguous — the caller validates each candidate against the identity registry (a Map
+ * lookup) and keeps the first that matches. Ordered from the LAST colon backwards: the runtime's tokens are hex,
+ * so the last colon is the real separator whenever the task id carries colons; a client that still sends the
+ * encoded form yields one candidate that the percent-decoding makes canonical.
+ */
+export function parseProxyAuthorizationClaims(head: Buffer | string): EgressProxyIdentityClaim[] {
+	const userinfo = readBasicProxyAuthorizationUserinfo(head);
+	if (userinfo === null) {
+		return [];
+	}
+	const claims: EgressProxyIdentityClaim[] = [];
+	const seen = new Set<string>();
+	for (let split = userinfo.lastIndexOf(":"); split > 0; split = userinfo.lastIndexOf(":", split - 1)) {
+		if (split === userinfo.length - 1) {
+			continue;
+		}
+		const claim = {
+			taskId: percentDecodeClaimPart(userinfo.slice(0, split)),
+			token: percentDecodeClaimPart(userinfo.slice(split + 1)),
+		};
+		const key = `${claim.taskId}\0${claim.token}`;
+		if (!seen.has(key)) {
+			seen.add(key);
+			claims.push(claim);
+		}
+	}
+	return claims;
+}
+
+/** The decoded `user:pass` text of a `Proxy-Authorization: Basic …` header in a complete head, or null. */
+function readBasicProxyAuthorizationUserinfo(head: Buffer | string): string | null {
+	const text = typeof head === "string" ? head : head.toString("latin1");
+	const terminator = text.indexOf("\r\n\r\n");
+	const headText = terminator === -1 ? text : text.slice(0, terminator);
+	for (const line of headText.split("\r\n").slice(1)) {
+		const colon = line.indexOf(":");
+		if (colon <= 0) {
+			continue;
+		}
+		if (line.slice(0, colon).trim().toLowerCase() !== "proxy-authorization") {
+			continue;
+		}
+		const value = line.slice(colon + 1).trim();
+		const match = /^basic\s+([a-z0-9+/=]+)$/i.exec(value);
+		if (!match) {
+			return null;
+		}
+		try {
+			return Buffer.from(match[1], "base64").toString("latin1");
+		} catch {
+			return null;
+		}
+	}
+	return null;
+}
+
 export function parseProxyAuthorizationHeader(head: Buffer | string): EgressProxyIdentityClaim | null {
 	const text = typeof head === "string" ? head : head.toString("latin1");
 	const terminator = text.indexOf("\r\n\r\n");
@@ -456,7 +530,10 @@ export function parseProxyAuthorizationHeader(head: Buffer | string): EgressProx
 		if (split <= 0 || split === decoded.length - 1) {
 			return null;
 		}
-		return { taskId: decoded.slice(0, split), token: decoded.slice(split + 1) };
+		return {
+			taskId: percentDecodeClaimPart(decoded.slice(0, split)),
+			token: percentDecodeClaimPart(decoded.slice(split + 1)),
+		};
 	}
 	return null;
 }

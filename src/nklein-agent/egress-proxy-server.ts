@@ -14,7 +14,7 @@ import {
 	EGRESS_PROXY_MAX_HEAD_BYTES,
 	type EgressProxyHeadParseResult,
 	parseHttpConnectHead,
-	parseProxyAuthorizationHeader,
+	parseProxyAuthorizationClaims,
 } from "../core/egress-proxy-protocol";
 import {
 	decideProxyVerdict,
@@ -522,8 +522,14 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 					const head = await readHead(client);
 					const parsed = head.parsed;
 					// F2.5: a valid claimed (taskId, token) attributes the attempt; production requires it below.
-					const identityClaim = parseProxyAuthorizationHeader(head.rawHead);
-					if (identityClaim && deps.validateTaskIdentity?.(identityClaim.taskId, identityClaim.token)) {
+					// 2026-09-06: clients Basic-encode the DECODED userinfo, so a placement id with colons
+					// (`<task>::acceptance-2`) has no unambiguous split — every candidate reading is checked against the
+					// registry and the first match wins (the first-colon reading alone 403'd every acceptance sandbox).
+					const identityClaim =
+						parseProxyAuthorizationClaims(head.rawHead).find((claim) =>
+							deps.validateTaskIdentity?.(claim.taskId, claim.token),
+						) ?? null;
+					if (identityClaim) {
 						attributedTaskId = identityClaim.taskId;
 					}
 					const transport: EgressProxyAuditTransport = parsed.ok

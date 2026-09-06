@@ -55,7 +55,10 @@ describe("handleStartTaskSession single-flight guard", () => {
 		const other = handleStartTaskSession(scope, { taskId: "task-2", baseRef: "main", prompt: "other" }, deps).catch(
 			(error: unknown) => ({ rejected: error }),
 		);
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		// Same poll as above: a fixed 20ms sleep lost this race under the loaded pre-commit run (2026-09-06).
+		for (let attempt = 0; attempt < 200 && configLoads < 2; attempt += 1) {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		}
 		expect(configLoads).toBe(2);
 
 		// Settle both flights (the minimal deps make the inner start fail later — the guard must still release).
@@ -66,7 +69,9 @@ describe("handleStartTaskSession single-flight guard", () => {
 		const again = handleStartTaskSession(scope, { taskId: "task-1", baseRef: "main", prompt: "third" }, deps).catch(
 			(error: unknown) => ({ rejected: error }),
 		);
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		for (let attempt = 0; attempt < 200 && configLoads < 3; attempt += 1) {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		}
 		expect(configLoads).toBe(3); // the key was released: the third start entered the inner start
 		const third = await again;
 		expect((third as { errorCode?: string }).errorCode).not.toBe("start_in_flight");
