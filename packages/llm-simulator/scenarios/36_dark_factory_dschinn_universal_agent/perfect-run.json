@@ -965,8 +965,9 @@
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": false,
-											"testability": "testable",
-											"acceptanceTestPrompt": "No new test: npm run typecheck clean and the existing test suite stays green after the barrel re-exports."
+											"testability": "not_testable",
+											"acceptanceTestPrompt": "No new test: npm run typecheck clean and the existing test suite stays green after the barrel re-exports.",
+											"testabilityReason": "Barrel/docs-only card: no test file of its own; the suite's green run is its acceptance."
 										},
 										{
 											"id": "s50",

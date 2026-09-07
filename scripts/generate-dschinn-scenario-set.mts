@@ -63,6 +63,10 @@ interface AddTaskArgs {
 	title: string;
 	prompt: string;
 	dependsOn?: string[];
+	filesLikelyTouched?: string[];
+	testability?: string;
+	testFirst?: boolean;
+	testabilityReason?: string;
 	[key: string]: unknown;
 }
 interface DeliveryFile {
@@ -191,6 +195,17 @@ async function main(): Promise<void> {
 		const delivered = (deliveries.get(card.id)?.files ?? []).map((file) => file.path).filter((path) => !isCoarsePath(path));
 		const declared = Array.isArray(card.filesLikelyTouched) ? (card.filesLikelyTouched as string[]) : [];
 		card.filesLikelyTouched = [...new Set([...declared, ...delivered])];
+		// Testability follows the delivery: a card whose delivery carries no test file (S49's barrel, S96's barrel +
+		// docs, the charter) must be `not_testable`, or the test-driven gate bounces it twice ("touched no test
+		// file"), the review parks it and a redecompose card is spawned (run 9, 2026-09-07: S49). The drive's board
+		// carried S49 as not_testable; the planner's add_task said testable.
+		const deliversTests = (deliveries.get(card.id)?.files ?? []).some((file) => /^test\//u.test(file.path));
+		if (!deliversTests && card.testability !== "not_testable") {
+			card.testability = "not_testable";
+			card.testFirst = false;
+			card.testabilityReason =
+				card.testabilityReason ?? "Barrel/docs-only card: no test file of its own; the suite's green run is its acceptance.";
+		}
 		if (card.filesLikelyTouched.length > MAX_LIKELY_FILES) {
 			throw new Error(`${card.id} declares ${card.filesLikelyTouched.length} likely files (cap ${MAX_LIKELY_FILES}): ${card.filesLikelyTouched.join(", ")}`);
 		}
