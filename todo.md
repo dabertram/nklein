@@ -2027,6 +2027,37 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   turn although the classifier had already read the model as BUSY per `lms ps` (that verdict only withheld the
   pool-loss mark). SHIPPED: `decideZeroTokenWedgeAction` — busy ⇒ wait (hard cap 3× the bound, one observation
   `zero_token_wedge_busy_wait`); idle/vanished ⇒ the historical interrupt.
+- [x] **P0.GATEHOLD — a failed delivery gate left no merge-history record, so an approved card held forever.**
+  HITL slice 2 2026-09-07 (s63/s77): the approved-but-unmerged redelivery only re-runs cards whose newest merge
+  record failed; a gate failure never wrote one. SHIPPED (8f1da447c): `recordDeliveryGateFailure` in both the
+  re-drive and the hold branch — the existing 10-min gap / 24-per-day / liveness rules re-gate the card.
+- [x] **P1.STALEBASE — a result captured on an older base head is re-captured onto the current base before review.**
+  Every gate judges the result commit's OWN tree (acceptance + repo verify) and its first-parent diff (boundary
+  check); a card that started before an undeclared dependency merged failed `npm run typecheck` on its tree forever
+  while `main...result` was clean. SHIPPED (dbff5273b): `refreshTaskResultOntoBase` replays the first-parent patch
+  onto the base head via `applyTaskPatchToResultBranch` (evidence pin moved, reused acceptance evidence dropped;
+  a non-applying patch is a conflict left to the merge machinery); `NKLEIN_RESULT_BASE_REFRESH=0` disables.
+- [ ] **P1.NPMSEED — warm npm-cache seed per workspace so sandbox installs are offline-fast.**
+  2026-09-07: four `npm ci` failures in one afternoon (S94/S95 prime, s63 gate, S72 acceptance) over the hotspot
+  uplink; `fetch-retries` is 0 by design, the transient signatures miss timeouts, every placement re-downloads into
+  its own cache, and the 400-char prime tail shows npm's EventEmitter warning instead of the error. Mechanism: a
+  content-addressed `_cacache` seed under `/workspaces/.nklein-cache/.seed/npm` merged from every successful prime
+  and hard-linked into each new placement's cache before `npm ci --prefer-offline`; npm verifies integrity on read,
+  so a poisoned entry cannot cross tasks. Also: surface the `npm error` lines in the prime observation. Unblocks a
+  truthful in-sandbox acceptance for the Dschinn replay set (below).
+- [ ] **P1.REVIEWNUDGE — a reviewer cut at the verdict reserve spawns a fresh session per nudge; admission waiting eats its deadline.**
+  2026-09-07 S72: three `startTaskSession …::review` within 50 ms after the reserve cut (each nudge restarted the
+  stopped session from scratch), and under one-endpoint contention the reviewer's deadline was consumed by
+  admission waiting before its first token → "no verdict in 3 sessions" parked a card whose reviewer never spoke.
+  Fix shape: the bounded-turn clock starts at admission, and a post-cut nudge resumes ONE session.
+- [ ] **P1.SIMFLOWDSCHINN — prove the Dschinn HITL replay set drains through the harness.**
+  `scripts/generate-dschinn-scenario-set.mts` → `packages/llm-simulator/scenarios/36_dark_factory_dschinn_universal_agent/`
+  (97 cards, 197 tracks; sources in `sources.json`; raw material stays in `~/.nklein/factory-drains/hitl-drain/`
+  {queue/answers, deliveries}). Run: `HOME=$(mktemp -d /tmp/nklein-simflow-XXXX) NKLEIN_SIMFLOW_SCENARIO=36
+  NKLEIN_SIMFLOW_TIMEOUT_MS=14400000 npx tsx scripts/verify-simulated-flow.mts`; until P1.NPMSEED the in-sandbox
+  acceptance is red on base and work alike (offline sandbox, vitest not installed) and deliveries ride the
+  reviewer's verdict under the pre-existing-breakage waiver — prove the drained repo on the host
+  (`npm ci && npx vitest run && npx tsc --noEmit`: 97 files / 222 tests, tsc clean).
 - [x] **P0.EMPTYFINALREDRIVE — a delivered, green worker turn that ended in prose was re-driven as `no_tool_call`.**
   `planSwarmPromptVariation` anchored on the first tool NAME in the card text ("prefer the edit_file tool …") and
   re-drove a complete delivery indefinitely (dschinn S01, hand-driven 2026-09-07). SHIPPED: if any assistant turn in

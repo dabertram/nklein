@@ -54,12 +54,21 @@ describe("checked-in scenario sets", () => {
 
 				// A worker session's user text is the card PROMPT — every worker needle must literally appear in
 				// some decomposed card prompt or the track can never match on the wire (titles alone don't).
+				// Two plan protocols exist on the wire: the one-shot `decompose_project({ tasks })` payload (generated
+				// lower-20 sets) and the incremental `add_task` graph submitted by an argument-less `decompose_project`
+				// (the live planner protocol; the Dschinn HITL replay set 36 uses it). Harvest prompts from both.
 				const cardPrompts = decomposeEmitters.flatMap((track) =>
 					track.turns.flatMap((turn) =>
 						turn.behavior.kind === "tool_calls"
-							? turn.behavior.calls
-									.filter((call) => call.name === "decompose_project")
-									.flatMap((call) => ((call.arguments as { tasks?: Array<{ prompt?: string }> }).tasks ?? []).map((task) => (task.prompt ?? "").toLowerCase()))
+							? turn.behavior.calls.flatMap((call) =>
+									call.name === "decompose_project"
+										? ((call.arguments as { tasks?: Array<{ prompt?: string }> }).tasks ?? []).map((task) =>
+												(task.prompt ?? "").toLowerCase(),
+											)
+										: call.name === "add_task"
+											? [String((call.arguments as { prompt?: string }).prompt ?? "").toLowerCase()]
+											: [],
+								)
 							: [],
 					),
 				);

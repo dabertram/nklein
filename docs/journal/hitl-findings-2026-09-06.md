@@ -475,3 +475,66 @@ was found on main; s09a (an obsolete "make npm work offline" workaround card and
 completed as void so s09b/s09c flow; redecompose-s03-prng-tree completed (its plan gate failure was the toolchain
 leak); s05a and s44a re-driven from the repaired main; s15/s22/s44b/s05 left in Review for the lazy-baseline-aware
 review. Both remote hosts are processing; flash-next stays idle.
+
+## Slice 2 (S52–S96) — the sim-driven factory, 2026-09-07 12:00–14:36
+
+David's directive at 11:50: avoid the local LLMs entirely and synthesize every model response through the HITL rig.
+The v31 server was stopped (models left loaded, idle), the HITL runtime re-pinned so no role can reach LM Studio, and
+slice 2 — 45 cards I planned as the architect — was driven with pre-verified deliveries. 45/45 completed in 2 h 39 min
+(≈17 cards/h, zero GPU); dschinn-hitl main ends at 97 test files / 222 tests green, `tsc --noEmit` clean.
+
+49. **The delivery gate judges the result commit's OWN tree, so a stale capture can never pass.** s63/s77 started
+    before S57 (the `HookedPack` seam both packs import — an edge my plan did not declare) merged; their captured
+    trees lack `degraded-brain.ts`, so `npm run typecheck` on the delivered tree fails forever although
+    `main...result` is clean. vitest still passed (the test files import only what exists), the reviewer approved,
+    the gate failed on the merged tree — three times. Shipped **P1.STALEBASE**: `refreshTaskResultOntoBase`
+    replays the result's first-parent patch onto the current base head before the review (single parent = base
+    head, first-parent diff = the card's own change), drops the reused acceptance evidence and moves the evidence
+    pin; a patch that no longer applies is a conflict left to the merge machinery.
+
+50. **A failed delivery gate wrote no merge-history record, so the hold was permanent.** The approved-but-unmerged
+    redelivery only considers cards whose newest merge record failed; a gate failure (no merge attempted) left
+    nothing, and after the one re-drive the card sat in Review with `acceptancePassed: false` for good. Shipped
+    **P0.GATEHOLD**: the gate failure is recorded as a failed delivery attempt (`recordDeliveryGateFailure`) in
+    both the re-drive and the hold branch, so the existing gap/cap/liveness rules re-gate it. Hand-seeding two
+    records (aged 11 min) proved the path live — and showed the loop shape without the record: the redelivery
+    fired every tick until the branch was fixed.
+
+51. **Merging main INTO a stale result branch is the wrong repair shape.** The work-package boundary check diffs
+    `commit^..commit`; a merge commit's first parent is the old result, so every file main gained since read as an
+    `out_of_scope_write` and the card was held again. The right shape is a linear re-capture on the current base
+    (what P1.STALEBASE does): checkout main, take the card's files from the branch, commit, move the task + evidence
+    refs.
+
+52. **Sandbox `npm ci` flaked all afternoon.** S94's prime, s63's second gate, S72's acceptance ("the BASE tree
+    already failed"), S95's prime — every one "dependency installation failed inside the sandbox: npm ci". The
+    uplink is a phone hotspot; `fetch-retries` is 0 by design (fast offline detection), the transient signatures
+    cover 502/503/504/ECONNRESET but not timeouts, every placement re-downloads through its own cache, and the
+    prime's 400-char output tail ends in npm's EventEmitter warning, not the error. Open **P1.NPMSEED**: a warm
+    per-workspace npm cache seed (content-addressed, integrity-checked by npm) copied into each placement so
+    installs are offline-fast and the flake class disappears; plus the `npm error` lines in the observation.
+
+53. **A reviewer cut at the verdict reserve spawns a fresh session per nudge.** After the exploration turn is cut
+    and the session stopped, each nudge `sendTaskSessionInput` restarted the reviewer from scratch (three
+    `startTaskSession dschinn-slice2-s72::review` within 50 ms; S94 twice) — three model requests for one review,
+    and under endpoint contention the reviewer's deadline is consumed by ADMISSION WAITING before its first token,
+    so "no verdict in 3 sessions" parks a card whose reviewer never got to speak (S72 parked; un-parked via the
+    API). Open **P1.REVIEWNUDGE**: the deadline clock must start at admission, and a nudge after a cut must resume
+    ONE session (or the reserve cut must not stop the session it is about to nudge).
+
+54. **Auto-driver lessons (rig, not product):** one unanswerable request blocked every later one (the loop exited
+    on the first miss) — skip and continue; a red `typecheck-exit` was papered over by the final prose (this is how
+    s63/s77 got approved) — refuse; explicit starts must pass `queueOnEndpointBusy: true`; the runtime's re-drive
+    text is "the acceptance check still FAILS"; a prime failure needs a background install + poll because
+    `run_commands` caps at 30 s; an install flake that fails the base tree too is the environment, not the work.
+
+55. **Dependency edges are the plan's weakest artifact.** My slice-2 plan declared 62 edges and missed the S57
+    seam for four packs; the replay generator now derives edges from the deliveries' imports (574 derived, 566
+    transitive pruned, 185 kept) — the same derivation could validate a live plan against its deliveries.
+
+56. **The Dschinn replay set exists.** `scripts/generate-dschinn-scenario-set.mts` folds the two HITL
+    decompositions (answers 17/19/20/21 + 343/345) and all 97 deliveries (S00/S01/S03/S04/S07 reconstructed from
+    git) into `packages/llm-simulator/scenarios/36_dark_factory_dschinn_universal_agent/perfect-run.json` (197
+    tracks, 490 fixtures). Caveat: the harness keeps sandboxes offline and Dschinn's acceptance needs vitest, so
+    until P1.NPMSEED the in-sandbox acceptance is red on base and work alike and deliveries ride the reviewer's
+    verdict under the pre-existing-breakage waiver; the drained repo is proven on the host afterwards.
