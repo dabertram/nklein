@@ -5,7 +5,7 @@ model request through the HITL model server; the auto-driver delivered pre-verif
 Dschinn progress through the real runtime: one decompose (97 cards: spine S01–S51 + the charter,
 slice 2 S52–S96; 185 dependency edges of which 574 are import-derived cross-slice edges), one
 worker track and one review track per card, a chat track and an any-class fallback (197 tracks,
-977 compiled fixtures).
+976 compiled fixtures).
 
 - **perfect-run.json** — the replay. Worker needle: `Implement spine card <title>` (the charter: its opening line);
   review needle: `the card "<first 60 title chars>` (the board truncates long titles); decompose: class `any` keyed on

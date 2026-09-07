@@ -46,8 +46,16 @@ const GENERATED_LOCKFILES = new Set(["package-lock.json"]);
 const FLAKY_CARD_COUNT = 10;
 /** The board renders long titles as an 80-char prefix + "…" (S40/S85), so the review needle keys on a shorter prefix. */
 const REVIEW_TITLE_NEEDLE_CHARS = 60;
-/** Files of the harness's `ts-starter` fixture that S01 replaces outright (its node:test starter would run under vitest). */
-const FIXTURE_LEFTOVERS = ["test/starter.test.js", "scripts/run-tests.mjs"];
+/** The planner's sizing cap on `filesLikelyTouched` (plan-task-validation.ts). */
+const MAX_LIKELY_FILES = 3;
+/** Root manifests / lockfiles / root configs — exempt from the write + boundary gates (work-package-card-shape.ts). */
+function isCoarsePath(path: string): boolean {
+	// Mirrors isCoarseScopePath (src/core/work-package-dispatch.ts): manifest/lockfile/tsconfig basenames anywhere,
+	// tool configs only at the root.
+	const basename = path.split("/").at(-1) ?? path;
+	if (/^(package\.json|package-lock\.json|yarn\.lock|pnpm-lock\.yaml|tsconfig(\..+)?\.json|biome\.json|\.gitignore|\.npmrc)$/u.test(basename)) return true;
+	return !path.includes("/") && /^[\w.-]+\.config\.(c|m)?[jt]s$/u.test(basename);
+}
 const PROVENANCE = "HITL drive 2026-09-06/07 (Claude as the model; generate-dschinn-scenario-set.mts)";
 
 interface AddTaskArgs {
@@ -175,13 +183,17 @@ async function main(): Promise<void> {
 
 	// 2b. The write scope the runtime enforces is `filesLikelyTouched`: it must cover every file the delivery writes
 	// (run 4, 2026-09-07: S01's tsconfig.json was "outside this card's write scope" → blocked write → empty patch →
-	// a no-op completion that left main at the fixture). The harness fixture (`ts-starter`) also leaves a node:test
-	// starter and its runner behind that vitest would pick up — S01 removes them, so they enter its scope too.
+	// a no-op completion that left main at the fixture). COARSE paths (root manifests, lockfiles, root configs) are
+	// exempt from both gates and do not count against the planner's 3-file sizing cap (run 5: "Task s01 touches 8
+	// likely files") — so they stay out of the declared scope. The harness fixture's node:test starter is ignored by
+	// S01's vitest.config.ts include pattern (`test/**/*.test.ts`), so nothing needs deleting.
 	for (const card of finalCards) {
-		const delivered = (deliveries.get(card.id)?.files ?? []).map((file) => file.path);
+		const delivered = (deliveries.get(card.id)?.files ?? []).map((file) => file.path).filter((path) => !isCoarsePath(path));
 		const declared = Array.isArray(card.filesLikelyTouched) ? (card.filesLikelyTouched as string[]) : [];
-		const extra = card.id === "s01" ? FIXTURE_LEFTOVERS : [];
-		card.filesLikelyTouched = [...new Set([...declared, ...delivered, ...extra])];
+		card.filesLikelyTouched = [...new Set([...declared, ...delivered])];
+		if (card.filesLikelyTouched.length > MAX_LIKELY_FILES) {
+			throw new Error(`${card.id} declares ${card.filesLikelyTouched.length} likely files (cap ${MAX_LIKELY_FILES}): ${card.filesLikelyTouched.join(", ")}`);
+		}
 	}
 
 	// 3. Edges: declared + the planner's add_dependency calls + import-derived (earlier owners only, acyclic).
@@ -318,14 +330,6 @@ async function main(): Promise<void> {
 							name: "begin_implementation",
 							arguments: { refinementNotes: `Deliver ${card.title} per its spec block within the write scope.` },
 						},
-						...(card.id === "s01"
-							? [
-									{
-										name: "run_commands",
-										arguments: { commands: [`rm -f ${FIXTURE_LEFTOVERS.join(" ")}`] },
-									},
-								]
-							: []),
 						{ name: "write_files", arguments: { files: delivery.files.filter((file) => !GENERATED_LOCKFILES.has(file.path)) } },
 						{ name: "run_commands", arguments: { commands: ["npm test 2>&1 | tail -n 12"] } },
 					],

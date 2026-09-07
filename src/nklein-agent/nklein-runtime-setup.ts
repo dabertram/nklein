@@ -14,6 +14,7 @@ import {
 } from "../core/agent-write-guard";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { type ProtectedTestApprovalStore, protectedTestApprovalStore } from "../core/protected-test-approval-store";
+import { isCoarseScopePath } from "../core/work-package-dispatch";
 import { buildAgentSandboxWorkdir } from "./nklein-agent-sandbox";
 import { parseApplyPatchTargets } from "./nklein-apply-patch-targets";
 import {
@@ -214,6 +215,13 @@ function approveScopedWriteTargets(
 					reason: `Blocked ${request.toolName}: ${targetPath} is inside this card's FORBIDDEN paths (${Array.from(forbiddenGlobs).join(", ")}). Those files belong to another card — do not touch them.`,
 				};
 			}
+		}
+		// Coarse paths (root manifests, lockfiles, root configs) are exempt from the WRITE scope exactly as they are
+		// from the merge-time boundary check (work-package-card-shape.ts) — a scaffold or dependency card legitimately
+		// touches package.json / tsconfig.json / vitest.config.ts without listing them (Dschinn replay 2026-09-07:
+		// S01's tsconfig.json was blocked, the empty patch became a no-op completion). Forbidden paths still win above.
+		if (isCoarseScopePath(normalizedTarget)) {
+			continue;
 		}
 		if (scopeGlobs.size > 0) {
 			if (![...scopeGlobs].some((scopeGlob) => isTargetWithinScopeGlob(normalizedTarget, scopeGlob))) {

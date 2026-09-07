@@ -147,6 +147,34 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.approved).toBe(true);
 	});
 
+	it("lets a scoped card write COARSE paths (root manifests, lockfiles, root configs) it never listed", async () => {
+		// Dschinn replay 2026-09-07: the scaffold card declared 3 likely files (the planner's sizing cap) and wrote
+		// tsconfig.json / vitest.config.ts / package-lock.json too — the merge-time boundary check exempts those,
+		// the write gate blocked them, and the empty patch became a no-op completion.
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, {
+			taskId: "task-2",
+			filesLikelyTouched: ["src/index.ts"],
+		});
+		for (const path of ["tsconfig.json", "vitest.config.ts", "package-lock.json", "package.json"]) {
+			const result = await policy.requestToolApproval(
+				createApprovalRequest({
+					toolName: "write_file",
+					input: { path: `/workspaces/task-2/${path}`, content: "{}\n" },
+				}),
+			);
+			expect(result.approved, path).toBe(true);
+		}
+		const nested = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_file",
+				input: { path: "/workspaces/task-2/src/vitest.config.ts", content: "export default {};\n" },
+			}),
+		);
+		expect(nested.approved).toBe(false);
+	});
+
 	it("blocks scoped write tools from editing files outside declared likely files", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);

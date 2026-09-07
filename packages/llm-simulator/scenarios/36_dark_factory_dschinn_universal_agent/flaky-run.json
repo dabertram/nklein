@@ -25,12 +25,7 @@
 											"filesLikelyTouched": [
 												"package.json",
 												"test/smoke.test.ts",
-												"src/index.ts",
-												"tsconfig.json",
-												"vitest.config.ts",
-												"package-lock.json",
-												"test/starter.test.js",
-												"scripts/run-tests.mjs"
+												"src/index.ts"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": true,
@@ -67,8 +62,7 @@
 											"suggestedRole": "worker",
 											"filesLikelyTouched": [
 												"src/kernel/prng.ts",
-												"test/kernel/prng.test.ts",
-												"package-lock.json"
+												"test/kernel/prng.test.ts"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": true,
@@ -86,8 +80,7 @@
 											"suggestedRole": "worker",
 											"filesLikelyTouched": [
 												"src/kernel/events.ts",
-												"test/kernel/events.test.ts",
-												"package-lock.json"
+												"test/kernel/events.test.ts"
 											],
 											"acceptanceCommand": "npm test",
 											"testFirst": true,
@@ -272,21 +265,6 @@
 								"name": "begin_implementation",
 								"arguments": {
 									"refinementNotes": "Deliver S01 — Repo + tooling skeleton per its spec block within the write scope."
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "run_commands",
-								"arguments": {
-									"commands": [
-										"rm -f test/starter.test.js scripts/run-tests.mjs"
-									]
 								}
 							}
 						]

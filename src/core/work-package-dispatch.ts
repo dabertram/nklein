@@ -131,7 +131,13 @@ const COARSE_SCOPE_BASENAMES: ReadonlySet<string> = new Set([
 /** True for a low-signal coarse path (manifest / lockfile / repo-root config / barrel index) — Yellow, not Red. */
 export function isCoarseScopePath(normalizedGlob: string): boolean {
 	const basename = normalizedGlob.split("/").at(-1) ?? normalizedGlob;
-	return COARSE_SCOPE_BASENAMES.has(basename) || /^tsconfig\..+\.json$/u.test(basename);
+	if (COARSE_SCOPE_BASENAMES.has(basename) || /^tsconfig\..+\.json$/u.test(basename)) {
+		return true;
+	}
+	// A ROOT-level tool config (`vitest.config.ts`, `eslint.config.mjs`, `playwright.config.js`) is repo tooling like
+	// tsconfig.json, not a card's product file (Dschinn replay 2026-09-07: the scaffold card's vitest.config.ts was
+	// judged an out-of-scope write). Nested configs stay specific — a package's own config belongs to its card.
+	return !normalizedGlob.includes("/") && /^[\w.-]+\.config\.(c|m)?[jt]s$/u.test(basename);
 }
 
 /** Does a normalized glob escape its root (a `..` segment)? Such a scope is ill-formed and rejected by validation. */

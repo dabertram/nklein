@@ -37,6 +37,13 @@ describe("isCoarseScopePath", () => {
 			expect(isCoarseScopePath(normalizeScopeGlob(coarse))).toBe(true);
 		}
 	});
+	it("treats a ROOT tool config as coarse and a nested one as specific (Dschinn replay 2026-09-07)", () => {
+		for (const coarse of ["vitest.config.ts", "eslint.config.mjs", "playwright.config.js"]) {
+			expect(isCoarseScopePath(normalizeScopeGlob(coarse))).toBe(true);
+		}
+		expect(isCoarseScopePath("packages/web/vitest.config.ts")).toBe(false);
+	});
+
 	it("treats a normal source path as specific (not coarse)", () => {
 		expect(isCoarseScopePath("src/core/work-package-dispatch.ts")).toBe(false);
 		expect(isCoarseScopePath("src/components/board.tsx")).toBe(false);
