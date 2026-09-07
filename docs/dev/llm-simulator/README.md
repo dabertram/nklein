@@ -18,6 +18,7 @@ LLM compute. Research trail: [existing-solutions.md](existing-solutions.md) (bui
 | Same, flaky variant (catalog failure injections + recovery) | `… NKLEIN_SIMFLOW_RUN=flaky …` |
 | ≥3-model swarm role-routing verification (todo §5 ★) | `… NKLEIN_SIMFLOW_MULTI_MODEL=1 …` |
 | Per-machine pools plumbing (fake `lms` two-machine feed) | `… NKLEIN_SIMFLOW_POOLS=1 …` |
+| Replay the Dschinn HITL drive (set 36: 97 cards, hours) with real offline acceptance | `HOME=$(mktemp -d /tmp/nklein-simflow-XXXX) NKLEIN_SIMFLOW_SCENARIO=36 NKLEIN_SIMFLOW_TIMEOUT_MS=14400000 NKLEIN_SIMFLOW_NPM_SEED=<host _cacache dir> npx tsx scripts/verify-simulated-flow.mts` |
 | Eval-harness repeated-run loop (corpus answer keys as fixtures) | `npx tsx scripts/verify-simulated-eval.mts` |
 | "Evaluate connected models" mutation end-to-end (2 loaded models) | `HOME=$(mktemp -d /tmp/nklein-evalcm-XXXX) npx tsx scripts/verify-evaluate-connected-models.mts` |
 | Regenerate the lower-20 scenario sets from the specs | `npx tsx scripts/generate-scenario-sets.mts [NN…]` |
@@ -38,11 +39,20 @@ accidentally queue behind a busy real-model campaign. Every run fails on even on
 
 ## Scenario sets (packages/llm-simulator/scenarios/)
 
-One directory per lower-20 dev-test project: `perfect-run.json`, `flaky-run.json`, `README.md`. Set 01 is
-hand-authored (deep domain content); 02–20 come from `scripts/generate-scenario-sets.mts` (tier-ramped 18–50
-cards; zero-dependency ESM + `node:test` card content so `npm test` acceptance is genuinely green offline).
-`packages/llm-simulator/test/scenario-sets.test.ts` walks every set through the real compiler and enforces the
-wire truths below — run it before trusting an edited set.
+One directory per lower-20 dev-test project (plus the Dschinn replay, 36): `perfect-run.json`, `flaky-run.json`,
+`README.md`. Set 01 is hand-authored (deep domain content); 02–20 come from `scripts/generate-scenario-sets.mts`
+(tier-ramped 18–50 cards; zero-dependency ESM + `node:test` card content so `npm test` acceptance is genuinely green
+offline). `packages/llm-simulator/test/scenario-sets.test.ts` walks every set through the real compiler and enforces
+the wire truths below — run it before trusting an edited set.
+
+`36_dark_factory_dschinn_universal_agent` is the **Dschinn HITL replay** (journal #56): `scripts/generate-dschinn-scenario-set.mts`
+folds the two HITL decompositions and all 97 deliveries of the 2026-09-06/07 drive (Claude answered every model request
+through the HITL model server) into 97 cards / 197 tracks — one decompose, one worker + one review track per card, a
+chat track and an any-class fallback; `sources.json` names the drain answer/delivery behind each track and
+`flaky-run.json` runs the first 10 spine cards under the five catalog modes. It drives the `ts-starter` dev-test
+fixture, a full drain takes hours (`NKLEIN_SIMFLOW_TIMEOUT_MS=14400000`), and a truthful in-sandbox acceptance needs
+`NKLEIN_SIMFLOW_NPM_SEED` (wire truth 14). Prove the drained repo on the host afterwards: `npm ci && npx vitest run &&
+npx tsc --noEmit` (97 test files / 222 tests, tsc clean). Backlog: P1.SIMFLOWDSCHINN; transport gap: P2.SIMMULTICALL.
 
 ## The wire truths (hard-won; encoded in request-classifier.test.ts + scenario-sets.test.ts)
 
@@ -64,7 +74,7 @@ wire truths below — run it before trusting an edited set.
    use the per-card `Files for THIS card: src/<slug>.mjs` phrase — never titles, spec bullets, or bare paths.
 7. **Close every tool ladder with a text turn** (the runner re-prompts until a non-tool turn) and set
    `repeatLastTurn` so nudges/redrives never strict-miss; per-card review tracks, `any`-class fallback per set.
-8. **Review tracks must `cycleTurns`, not `repeatLastTurn`** (wire truth 11, 2026-07-10): the runtime RESUMES the
+8. **Review tracks must `cycleTurns`, not `repeatLastTurn`** (2026-07-10): the runtime RESUMES the
    `<taskId>::review` session with its prior transcript across review rounds, so a linear `[approve, text]` ladder
    answers text-only (no verdict!) from round 2 on and the card freezes verdict-less in Review. `cycleTurns: true`
    conditions turns on `count % turns.length` so the verdict re-emits every cycle. Bounce ladders
@@ -77,6 +87,32 @@ wire truths below — run it before trusting an edited set.
     Otherwise every TypeScript card compiles to the same predicate and the first captured worker shadows the rest.
     Retry sessions with an identical compiled key are also indistinguishable on the wire: keep every raw fixture, but
     select one deterministic most-complete transcript for executable replay and disclose the others in the manifest.
+11. **A simulated turn executes only its FIRST tool call** (2026-09-07, Dschinn replay; open P2.SIMMULTICALL): aimock
+    streams `delta.tool_calls[{index}]` per call, yet the runtime persisted and ran ONE call of a 53-call planning
+    turn — the same batch the HITL model server returned as a non-streaming `tool_calls` array and the runtime ran in
+    full. Every checked-in set is single-call-per-turn until it lands; where the protocol offers a batch form, use it
+    — the planner's `add_task({ tasks: [...] })`, one call per slice — instead of one call per card.
+12. **A planning session that overflows its simulated window restarts with a brief that quotes card prompts, so
+    worker needles leak** (journal #58): the restart brief's "Recent transcript previews" carried `Implement spine
+    card S63 — …` verbatim, the S63 worker track (class-scoped needle) out-ranked the any-class decompose track, and
+    the planner was answered with `write_files`. Wire truth 6 extends to restart briefs: a worker needle must not be
+    quotable from the planner's own transcript. Keep the plan small enough for ONE session (the batch form never
+    restarts); `NKLEIN_SIMFLOW_CONTEXT_TOKENS` sets the simulated models' advertised window (default 65536) — a
+    scenario parameter, not a constant.
+13. **The harness is not the drive** (journal #61/#62, replay runs 3–6): (a) the dev-test fixture is `ts-starter`, a
+    `node:test` scaffold with a starter test + runner, not an empty repo — a card that runs vitest must leave them out
+    of its include pattern or vitest executes them; (b) `filesLikelyTouched` is the ENFORCED write scope — a write
+    outside it is blocked, the empty patch becomes a no-op completion and main stays at the fixture — so derive every
+    card's scope from its delivery; coarse paths (root manifests, lockfiles, root tool configs: `isCoarseScopePath`)
+    are exempt; (c) every card must depend on the scaffold card: "dependsOn: none" was true on the drive's merged main
+    and false on the fixture, so S54/S74 ran their vitest suites under the fixture's node:test runner. The scaffold
+    keeps its lockfile so placements run `npm ci` against pinned integrity.
+14. **Offline sandboxes need a seeded npm cache before the acceptance verdict means anything** (P1.NPMSEED):
+    `NKLEIN_SIMFLOW_NPM_SEED=<host _cacache dir>` (e.g. `npm ci --cache <dir>` run on the host for the replayed
+    project) is imported into the sandbox seed at container boot; `npm ci --prefer-offline` then succeeds without
+    egress and the gate judges the real suite. Without it the acceptance is red on base and work alike, and every
+    delivery rides the reviewer's verdict under the pre-existing-breakage waiver. A cached offline verdict must never
+    skip a seeded placement's install (85541a67b) — a network fact cannot veto what the seed satisfies offline.
 
 ## Reflection loop (§13d)
 
