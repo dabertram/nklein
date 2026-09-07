@@ -334,3 +334,10 @@ went start→review in under 5 minutes. The hand-written part is the code itself
     install env has zero retries. SHIPPED (P0.INSTALLRETRY): one retry after 2 s for E502/E503/E504/ECONNRESET
     class failures; offline signatures still fail fast. The proxy-side cause (why a CONNECT tunnel 502s under
     ~4 parallel installs) is still open.
+
+34. **Custodian follow-up cards are born un-deliverable.** The custodian's `request_changes` created a follow-up
+    card with no `Acceptance check:` line and no test expectation; the worker's minimal fix (drop the alias) was
+    then bounced by the test-driven delivery gate ("touched no test file") AND held for "NO acceptance command
+    exists on this card". The worker had to invent a guard test and the operator had to append `Acceptance check:
+    npm test` to the card by hand. Verdict: harness gap: cards the runtime creates itself must inherit the plan's
+    default acceptance command and testability, exactly like decomposition children do.
