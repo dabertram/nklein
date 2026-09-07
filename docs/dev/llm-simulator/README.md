@@ -29,7 +29,10 @@ LLM compute. Research trail: [existing-solutions.md](existing-solutions.md) (bui
 The harness (`scripts/verify-simulated-flow.mts`) refuses `HOME=/Users/david`, provisions an isolated HOME,
 boots the runtime on :3986, seeds via `dev test-project --preset <registry-id>` (any `dev-test-projects/` folder
 id is a valid preset), dumps the simulator request journal + `journal.json`/`runtime.log` into the HOME, and — in
-scenario perfect-run mode — FAILS unless the board fully drains to Completed.
+scenario perfect-run mode — FAILS unless the board fully drains to Completed. While the seed monitor runs it prints
+`[progress HH:MM:SS] planning=90 review=4 completed=2` on every lane-count change (the workspace's `board.json` under
+the HOME, polled every 30 s — `NKLEIN_SIMFLOW_PROGRESS_INTERVAL_MS`), so a multi-hour drain is visible mid-run instead
+of only at the final `runtime.log`/`journal.json` dump.
 The harness supplies a fake `lms ps` inventory matching its simulator catalog, so its capacity controller cannot
 accidentally queue behind a busy real-model campaign. Every run fails on even one `no_fixture_match`.
 

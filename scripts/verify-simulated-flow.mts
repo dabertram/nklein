@@ -31,6 +31,10 @@
  *         sim models are pinned per role (architect/worker/reviewer, modelSelectionMode "pinned"); after the run
  *         the simulator journal must show decompose on the architect model, every write_files worker turn on the
  *         worker model, every review on the reviewer model, and the two worker sessions overlapping in time.
+ *         NKLEIN_SIMFLOW_PROGRESS_INTERVAL_MS — live progress poll (default 30000). While the seed monitor runs the
+ *         harness prints `[progress HH:MM:SS] planning=90 review=4 completed=2` on every lane-count change (the
+ *         workspace's board.json under the isolated HOME), and stays quiet while nothing moves — a multi-hour
+ *         scenario drain (the Dschinn replay) was otherwise invisible until the final runtime.log/journal.json dump.
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
@@ -467,6 +471,106 @@ async function collectPostTeardownResidue(input: {
 	};
 }
 
+// ---- Live progress (2026-09-07) ----------------------------------------------------------------------------------
+// A multi-hour scenario drain (the Dschinn replay, 4 h budget) printed nothing between "Seeding the dev-test
+// scenario…" and the final dumps: runtime.log / journal.json only land at the END, and the seed monitor's own JSON
+// arrives at exit. The reporter polls the seeded workspace's board.json under the isolated HOME — the runtime's own
+// durable projection, so no API round-trip and no effect on the run — and prints ONE line per lane-count change.
+const PROGRESS_POLL_INTERVAL_MS = Math.max(1_000, Number(process.env.NKLEIN_SIMFLOW_PROGRESS_INTERVAL_MS) || 30_000);
+/** Board lanes in flow order; a lane the runtime adds later still prints, sorted after these. */
+const PROGRESS_LANE_ORDER: readonly string[] = [
+	"backlog",
+	"planning",
+	"ready",
+	"in_progress",
+	"review",
+	"completed",
+	"trash",
+];
+
+/** Card count per lane summed over every workspace registered under the isolated HOME; null until a board exists. */
+async function readBoardLaneCounts(home: string): Promise<Record<string, number> | null> {
+	const workspacesDir = join(home, ".nklein", "nklein", "workspaces");
+	let entries: Record<string, { workspaceId?: string }> = {};
+	try {
+		const index = JSON.parse(await readFile(join(workspacesDir, "index.json"), "utf8")) as {
+			entries?: Record<string, { workspaceId?: string }>;
+		};
+		entries = index.entries ?? {};
+	} catch {
+		return null; // the dev-test scaffold has not registered its workspace yet
+	}
+	const counts: Record<string, number> = {};
+	let boards = 0;
+	for (const entry of Object.values(entries)) {
+		if (!entry.workspaceId) continue;
+		try {
+			const board = JSON.parse(await readFile(join(workspacesDir, entry.workspaceId, "board.json"), "utf8")) as {
+				columns?: { id?: string; cards?: unknown[] }[];
+			};
+			boards += 1;
+			for (const column of board.columns ?? []) {
+				if (!column.id) continue;
+				counts[column.id] = (counts[column.id] ?? 0) + (column.cards?.length ?? 0);
+			}
+		} catch {
+			/* board not written yet (or mid-write) — the next poll reads it */
+		}
+	}
+	return boards > 0 ? counts : null;
+}
+
+/** `planning=90 review=4 completed=2` — non-empty lanes only, flow order first. */
+function formatLaneCounts(counts: Record<string, number>): string {
+	const extra = Object.keys(counts)
+		.filter((lane) => !PROGRESS_LANE_ORDER.includes(lane))
+		.sort();
+	const parts = [...PROGRESS_LANE_ORDER, ...extra]
+		.filter((lane) => (counts[lane] ?? 0) > 0)
+		.map((lane) => `${lane}=${counts[lane]}`);
+	return parts.length > 0 ? parts.join(" ") : "empty board";
+}
+
+/**
+ * Print `[progress HH:MM:SS] <lanes>` whenever the lane counts differ from the last line; quiet otherwise.
+ * `stop()` is idempotent and takes one final reading so the terminal lanes are printed even if the last poll missed them.
+ */
+function startBoardProgressReporter(home: string): { stop: () => Promise<void> } {
+	let last: string | null = null;
+	let inFlight: Promise<void> | null = null;
+	const tick = async (): Promise<void> => {
+		const counts = await readBoardLaneCounts(home);
+		if (!counts) return;
+		const line = formatLaneCounts(counts);
+		if (line === last) return;
+		last = line;
+		const now = new Date();
+		const clock = [now.getHours(), now.getMinutes(), now.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":");
+		console.log(`[progress ${clock}] ${line}`);
+	};
+	const guardedTick = (): Promise<void> => {
+		if (!inFlight) {
+			inFlight = tick()
+				.catch(() => undefined)
+				.finally(() => {
+					inFlight = null;
+				});
+		}
+		return inFlight;
+	};
+	const timer = setInterval(() => void guardedTick(), PROGRESS_POLL_INTERVAL_MS);
+	timer.unref();
+	let stopped = false;
+	return {
+		stop: async () => {
+			if (stopped) return;
+			stopped = true;
+			clearInterval(timer);
+			await guardedTick();
+		},
+	};
+}
+
 async function main(): Promise<void> {
 	const home = process.env.HOME as string;
 	console.log(`Isolated HOME: ${home}`);
@@ -722,6 +826,7 @@ async function main(): Promise<void> {
 		}
 	};
 
+	let progress: ReturnType<typeof startBoardProgressReporter> | null = null;
 	try {
 		// Wait for the runtime API.
 		await waitForRuntime(60_000).catch(() => {
@@ -767,6 +872,8 @@ async function main(): Promise<void> {
 				})()
 			: Promise.resolve();
 
+		// Live lane counts while the (silent until exit) seed monitor runs — see startBoardProgressReporter.
+		progress = startBoardProgressReporter(home);
 		const seed = spawn(
 			"npx",
 			[
@@ -1037,6 +1144,7 @@ async function main(): Promise<void> {
 				})()
 			: Promise.resolve();
 		const seedExit: number = await new Promise((resolve) => seed.on("close", (code) => resolve(code ?? 1)));
+		await progress?.stop();
 		await triggerDriver;
 		await taintDriver;
 		await parkResumeDriver;
@@ -1324,6 +1432,7 @@ async function main(): Promise<void> {
 				: "PASS ✓ simulated fast path drove a real runtime flow with zero LLM compute.",
 		);
 	} finally {
+		await progress?.stop();
 		await writeFile(join(home, "runtime.log"), runtimeLogs.join("")).catch(() => undefined);
 		console.log(`Full runtime log: ${join(home, "runtime.log")}`);
 		stopRuntime();
