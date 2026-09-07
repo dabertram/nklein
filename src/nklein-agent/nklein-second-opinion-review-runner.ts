@@ -5,6 +5,7 @@ import { isReasoningModel } from "../core/model-thinking-control";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { type AgentSandboxManager, createAgentSandboxToolExecutors } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
+import { isAuxiliarySessionTranscriptUnavailableError } from "./nklein-auxiliary-session-transcript";
 import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 import type { NKleinReviewResult } from "./nklein-review-tool";
@@ -49,6 +50,43 @@ const REVIEWER_OUTPUT_BUDGET_FLOOR = 2_048;
 /** At most this many doublings, so the ceiling is approached deliberately rather than by exponent growth. */
 export const REVIEW_RETRY_BUDGET_MAX_DOUBLINGS = 3;
 
+/**
+ * P0.REVIEWNOVERDICT: the objective shape of a reviewer session that ended without a verdict, in one sentence the
+ * park reason / fallback summary can quote. Pure; exported for tests.
+ */
+export function describeReviewNoVerdict(input: {
+	neverAdmitted: boolean;
+	cutAtReserve: boolean;
+	startOutcome: SecondaryTurnOutcome;
+	explorationMs: number;
+	nudgeOutcomes: readonly SecondaryTurnOutcome[];
+	nudgeRefusal: string | null;
+	maxNudges: number;
+	budgetExhausted: boolean;
+}): string {
+	if (input.neverAdmitted) {
+		return "the start was never admitted to its model endpoint within the budget (queued behind another session) — no transcript existed to nudge";
+	}
+	const seconds = Math.max(0, Math.round(input.explorationMs / 1000));
+	const nudges = input.nudgeOutcomes.length;
+	const nudgeText = input.nudgeRefusal
+		? `the verdict nudge could not reach the reviewer's transcript (${input.nudgeRefusal})`
+		: nudges > 0
+			? `${nudges} verdict nudge turn(s)${input.cutAtReserve ? " resumed its persisted transcript and" : ""} ended ${input.nudgeOutcomes.join("/")} without a submit_review call`
+			: input.maxNudges <= 0
+				? "no verdict nudge is configured"
+				: input.budgetExhausted
+					? "no budget remained for a verdict nudge"
+					: "no verdict nudge ran";
+	if (input.cutAtReserve) {
+		return `the exploration turn was cut at the verdict reserve after ${seconds}s without a submit_review call; ${nudgeText}`;
+	}
+	if (input.startOutcome === "error") {
+		return `the reviewer turn failed after ${seconds}s; ${nudgeText}`;
+	}
+	return `the reviewer ended its turn after ${seconds}s without calling submit_review; ${nudgeText}`;
+}
+
 /** Re-prompt the reviewer if it ended a turn without the structured `submit_review` call (small models often do). */
 const SECOND_OPINION_REVIEW_NUDGE_PROMPT =
 	"You ended your turn without calling `submit_review`, so no review was recorded. Your verdict is delivered ONLY by that tool. Call `submit_review` now: `approve`, or `request_changes` with concrete, actionable feedback. Do not answer in prose.";
@@ -85,6 +123,12 @@ export interface SecondOpinionReviewRunner {
 		 * (P21.6b) depends on the attribution.
 		 */
 		onReviewerResolved?: (reviewer: { providerId: string; modelId: string; selectionSource: string }) => void;
+		/**
+		 * P0.REVIEWNOVERDICT: called when the session ends WITHOUT a verdict, with its objective shape (cut at the
+		 * verdict reserve after Ns, never admitted, nudge refused because no transcript could be resumed, …) so a
+		 * park or a fallback verdict can say why the reviewer never spoke instead of only counting sessions.
+		 */
+		onNoVerdict?: (reason: string) => void;
 	}): Promise<NKleinReviewResult | null>;
 	/**
 	 * Whether a review round for this card is CURRENTLY in flight (the single-flight key is held). The rescue
@@ -118,6 +162,12 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		timeoutMs?: number;
 		/** Diagnostic phase stamps (todo §12 review-hang autopsy); absent ⇒ zero overhead. */
 		onReviewerResolved?: (reviewer: { providerId: string; modelId: string; selectionSource: string }) => void;
+		/**
+		 * P0.REVIEWNOVERDICT: called when the session ends WITHOUT a verdict, with its objective shape (cut at the
+		 * verdict reserve after Ns, never admitted, nudge refused because no transcript could be resumed, …) so a
+		 * park or a fallback verdict can say why the reviewer never spoke instead of only counting sessions.
+		 */
+		onNoVerdict?: (reason: string) => void;
 		stampPhase?: (phase: string) => void;
 	}): Promise<NKleinReviewResult | null> {
 		const stamp = input.stampPhase ?? (() => {});
@@ -163,6 +213,12 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		timeoutMs?: number;
 		budgetAttempt?: number;
 		onReviewerResolved?: (reviewer: { providerId: string; modelId: string; selectionSource: string }) => void;
+		/**
+		 * P0.REVIEWNOVERDICT: called when the session ends WITHOUT a verdict, with its objective shape (cut at the
+		 * verdict reserve after Ns, never admitted, nudge refused because no transcript could be resumed, …) so a
+		 * park or a fallback verdict can say why the reviewer never spoke instead of only counting sessions.
+		 */
+		onNoVerdict?: (reason: string) => void;
 		stampPhase?: (phase: string) => void;
 	}): Promise<NKleinReviewResult | null> {
 		const stamp = input.stampPhase ?? (() => {});
@@ -346,55 +402,57 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 				let turnOutcome: SecondaryTurnOutcome = "settled";
 				// P1.REVIEWNUDGE: the budget starts when the session is admitted to its endpoint, not when it is queued.
 				let admitted = false;
+				let admittedAt: number | null = null;
 				let markAdmitted: () => void = () => {};
 				const admission = new Promise<void>((resolve) => {
 					markAdmitted = () => {
 						admitted = true;
+						admittedAt ??= Date.now();
 						resolve();
 					};
 				});
+				const driveStartedAt = Date.now();
 				// First turn: seed prompt + the submit_review tool. startRuntimeSession awaits the turn, so the
 				// tool's verdict (if emitted) is captured by the time it settles.
-				turnOutcome = mergeTurnOutcome(
-					turnOutcome,
-					await runBoundedTurn(
-						deps.startRuntimeSession({
-							taskId: reviewTaskId,
-							admissionParentTaskId: input.taskId,
-							onAdmitted: markAdmitted,
-							cwd: workspace.workdir,
-							workspaceRoot: input.projectRepoPath,
-							prompt: input.seedPrompt,
-							launchConfig,
-							contextScope: "minimal",
-							onReviewSubmitted: (result) => {
-								// The verdict tool is the terminal protocol event. Some local models ignore its "stop now"
-								// result and continue inspecting files/submitting contradictory verdicts, monopolizing the
-								// reviewer host until timeout. First valid submission wins; actively stop that synthetic
-								// session so the turn promise settles and the next queued review can proceed.
-								if (verdict !== null) {
-									return;
-								}
-								verdict = result;
-								void deps.stopRuntimeSession(reviewTaskId).catch(() => undefined);
-							},
-							// Route the reviewer's file/bash tools into its sandbox container (so the host cwd is never
-							// touched), exactly like a worker session — keeps strict isolation and lets the reviewer inspect.
-							toolExecutors: createAgentSandboxToolExecutors(sandboxManager, reviewTaskId, {
-								pauseController: deps.getPauseController(),
-							}),
-							extraTools: createAgentSandboxExtraTools(sandboxManager, reviewTaskId, {
-								sessionId: createSessionId(reviewTaskId),
-								contextWindow: launchConfig.contextWindow ?? undefined,
-								maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-							}),
+				const startOutcome = await runBoundedTurn(
+					deps.startRuntimeSession({
+						taskId: reviewTaskId,
+						admissionParentTaskId: input.taskId,
+						onAdmitted: markAdmitted,
+						cwd: workspace.workdir,
+						workspaceRoot: input.projectRepoPath,
+						prompt: input.seedPrompt,
+						launchConfig,
+						contextScope: "minimal",
+						onReviewSubmitted: (result) => {
+							// The verdict tool is the terminal protocol event. Some local models ignore its "stop now"
+							// result and continue inspecting files/submitting contradictory verdicts, monopolizing the
+							// reviewer host until timeout. First valid submission wins; actively stop that synthetic
+							// session so the turn promise settles and the next queued review can proceed.
+							if (verdict !== null) {
+								return;
+							}
+							verdict = result;
+							void deps.stopRuntimeSession(reviewTaskId).catch(() => undefined);
+						},
+						// Route the reviewer's file/bash tools into its sandbox container (so the host cwd is never
+						// touched), exactly like a worker session — keeps strict isolation and lets the reviewer inspect.
+						toolExecutors: createAgentSandboxToolExecutors(sandboxManager, reviewTaskId, {
+							pauseController: deps.getPauseController(),
 						}),
-						// Campaign round 3 (2026-08-19): reviewers spent the ENTIRE deadline on exploration tool calls,
-						// so the nudge loop below (gated on the deadline) never ran and three sessions timed out without
-						// ever being ASKED for a verdict. Reserve a slice for the ask.
-						{ reserveMs: REVIEW_VERDICT_RESERVE_MS, clockStartsOn: admission },
-					),
+						extraTools: createAgentSandboxExtraTools(sandboxManager, reviewTaskId, {
+							sessionId: createSessionId(reviewTaskId),
+							contextWindow: launchConfig.contextWindow ?? undefined,
+							maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+						}),
+					}),
+					// Campaign round 3 (2026-08-19): reviewers spent the ENTIRE deadline on exploration tool calls,
+					// so the nudge loop below (gated on the deadline) never ran and three sessions timed out without
+					// ever being ASKED for a verdict. Reserve a slice for the ask.
+					{ reserveMs: REVIEW_VERDICT_RESERVE_MS, clockStartsOn: admission },
 				);
+				turnOutcome = mergeTurnOutcome(turnOutcome, startOutcome);
+				const explorationMs = Date.now() - (admittedAt ?? driveStartedAt);
 				// CUTTING A TURN MUST ALSO END IT. `runBoundedTurn` races the turn against a timer — it does not
 				// cancel the loser — so a turn cut at the reserve boundary keeps its session, and therefore its
 				// endpoint admission slot, alive with nobody awaiting it. On a 1-concurrency local host that slot
@@ -402,7 +460,15 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 				// worker behind that. This mirrors what the verdict path already does for the same reason ("stop
 				// that synthetic session so the turn promise settles and the next queued review can proceed") —
 				// awaited here, because the point is that the lane is free BEFORE the nudge asks for it.
-				if (verdict === null && turnOutcome === "timeout") {
+				//
+				// P0.REVIEWNOVERDICT (2026-09-07): the stop ENDS the SDK session, so the nudge cannot be a plain send —
+				// the service rebuilds the reviewer from its PERSISTED transcript (every completed iteration is on
+				// disk) in a fresh session carrying the nudge as the next user turn. Before that, every post-cut
+				// nudge threw "No active !Klein session" within milliseconds, both nudges burned, and the inline
+				// retry ladder ran two more fresh explorations to the same cut: the "3 no-verdict sessions" park on
+				// every review whose exploration outlived (timeout − reserve) — the park generator on slow-prefill rigs.
+				const cutAtReserve = verdict === null && turnOutcome === "timeout";
+				if (cutAtReserve) {
 					stamp("session: exploration turn cut at the verdict reserve; releasing the endpoint before the nudge");
 					await deps.stopRuntimeSession(reviewTaskId).catch(() => undefined);
 				}
@@ -417,20 +483,64 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 				// Re-prompt nudge: small models often end a turn without the structured call. Mirror the decomposition
 				// re-prompt — if there's still no verdict, tell the reviewer to call submit_review now, bounded by a
 				// small budget and the overall deadline (the reserve above guarantees this budget is non-empty).
+				const nudgeOutcomes: SecondaryTurnOutcome[] = [];
+				let nudgeRefusal: string | null = null;
 				for (
 					let nudge = 0;
-					verdict === null && !neverAdmitted && nudge < deps.maxNudges && Date.now() < deadline();
+					verdict === null &&
+					!neverAdmitted &&
+					nudgeRefusal === null &&
+					nudge < deps.maxNudges &&
+					Date.now() < deadline();
 					nudge += 1
 				) {
-					turnOutcome = mergeTurnOutcome(
-						turnOutcome,
-						await runBoundedTurn(
-							deps.sendTaskSessionInput(reviewTaskId, SECOND_OPINION_REVIEW_NUDGE_PROMPT, input.taskId),
-						),
+					const nudgeTurn = deps.sendTaskSessionInput(
+						reviewTaskId,
+						SECOND_OPINION_REVIEW_NUDGE_PROMPT,
+						input.taskId,
 					);
+					// Side-channel on the same promise: the bounded turn records every failure; the runner only needs
+					// to know whether this one was the deterministic "no transcript to resume" refusal — retrying
+					// that changes nothing, so it ends the nudging and becomes the park's objective reason.
+					const refusal = nudgeTurn.then(
+						() => null,
+						(error: unknown) => (isAuxiliarySessionTranscriptUnavailableError(error) ? error.message : null),
+					);
+					const nudgeOutcome = await runBoundedTurn(nudgeTurn);
+					nudgeOutcomes.push(nudgeOutcome);
+					turnOutcome = mergeTurnOutcome(turnOutcome, nudgeOutcome);
+					if (nudgeOutcome === "error") {
+						nudgeRefusal = await refusal;
+						if (nudgeRefusal) {
+							stamp(`session: nudge ${nudge + 1} cannot reach the reviewer's transcript — ${nudgeRefusal}`);
+						}
+					}
 				}
 				// Widen past TS's closure-assignment blind spot: `verdict` is written by the submit_review callback.
 				const submittedVerdict = verdict as NKleinReviewResult | null;
+				// P0.REVIEWNOVERDICT: a session that produced no verdict names its objective shape — the park and the
+				// fallback verdict quote it, and the reviewer-health stream can separate "budget too small for this
+				// diff" from "the model never verdicts" (both used to read as the same three silent sessions).
+				const noVerdictReason = submittedVerdict
+					? null
+					: describeReviewNoVerdict({
+							neverAdmitted,
+							cutAtReserve,
+							startOutcome,
+							explorationMs,
+							nudgeOutcomes,
+							nudgeRefusal,
+							maxNudges: deps.maxNudges,
+							budgetExhausted: Date.now() >= deadline(),
+						});
+				if (noVerdictReason) {
+					stamp(`session: no verdict — ${noVerdictReason}`);
+					try {
+						input.onNoVerdict?.(noVerdictReason);
+					} catch {
+						// A caller-side listener must never break the session's own accounting.
+					}
+				}
 				// A SUBMITTED verdict outranks the turn outcome. Since the verdict reserve landed, the exploration
 				// turn is CUT at the reserve boundary on purpose — `mergeTurnOutcome` lets that intentional timeout
 				// dominate, so a session rescued by the nudge (exactly what the reserve exists to enable) was being
@@ -463,6 +573,14 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 						turnOutcome,
 						outcome: observationOutcome,
 						verdict: submittedVerdict?.verdict ?? null,
+						// P0.REVIEWNOVERDICT: the session's shape, so the health stream can count cuts and resumes.
+						// `transcriptResumed` is OBSERVED, not guessed: after the cut there is no live session, so a nudge
+						// that was not met by the typed "cannot be resumed" refusal reached the model through the service's
+						// transcript rebuild. A nudge that then errors or times out MODEL-side was still resumed.
+						cutAtReserve,
+						nudges: nudgeOutcomes.length,
+						transcriptResumed: cutAtReserve && nudgeOutcomes.length > 0 && nudgeRefusal === null,
+						noVerdictReason,
 					},
 				});
 				return submittedVerdict;

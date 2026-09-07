@@ -123,6 +123,7 @@ import {
 	SANDBOX_CAPTURE_OWED_RECAPTURE,
 } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
+import { AuxiliarySessionTranscriptUnavailableError, countAssistantTurns } from "./nklein-auxiliary-session-transcript";
 import { forgetBaselineProbe } from "./nklein-baseline-probe-registry";
 import { createContextBudgetController } from "./nklein-context-budget-controller";
 import { buildContextBudgetBreakdown, estimateKanbanToolSchemaTokens } from "./nklein-context-budget-tokens";
@@ -354,6 +355,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	});
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
 	private readonly launchConfigByTaskId = new Map<string, NKleinTaskRestartLaunchConfig>();
+	/**
+	 * P0.REVIEWNOVERDICT (2026-09-07): the ORIGINAL start input of each auxiliary (`::review`/`::merge`/…) session,
+	 * kept for the bracket's lifetime so a follow-up prompt can rebuild the session from its persisted transcript once
+	 * the live SDK session is gone (a runner stops the session to free the endpoint when it cuts a turn). Forgotten with
+	 * the rest of the synthetic state at teardown.
+	 */
+	private readonly auxiliarySessionStartInputByTaskId = new Map<
+		string,
+		StartRuntimeTaskSessionFromLaunchConfigInput
+	>();
 	/** F4.26: host-verified activation grants retained only for this live task/restart lifecycle. */
 	private readonly communitySkillAdmissionByTaskId = new Map<string, CommunitySkillSessionAdmission>();
 	private readonly communitySkillSuggestionFragmentByTaskId = new Map<string, PromptFragment>();
@@ -1585,6 +1596,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		prompt: string,
 		admissionParentTaskId?: string | null,
 	): Promise<unknown> {
+		if (!this.sessionRuntime.getTaskSessionId(taskId)) {
+			// P0.REVIEWNOVERDICT: no live session — a plain send would throw "No active !Klein session" before it ever
+			// reached the model. Rebuild the session from its persisted transcript instead (see the method).
+			return await this.resumeAuxiliaryTaskSessionFromTranscript(taskId, prompt, admissionParentTaskId);
+		}
 		return await this.withModelTurnAdmissionForTask(
 			taskId,
 			undefined,
@@ -1593,7 +1609,101 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		);
 	}
 
+	/**
+	 * P0.REVIEWNOVERDICT (2026-09-07, live 2026-09-05 `s44b-live-stubs-split` and every "3 no-verdict sessions" park
+	 * since the verdict-reserve cut landed): a follow-up prompt (the "call submit_review now" nudge, the merge agent's
+	 * half-budget hurry) for an auxiliary session whose LIVE session is gone. The runners STOP the session when they cut
+	 * a turn at the reserve so the endpoint slot frees before the nudge — but a stopped SDK session cannot be sent to
+	 * (the local host removes it; `send` throws session-not-found), and this seam threw "No active !Klein session" in
+	 * milliseconds. Every post-cut nudge therefore burned instantly, the retry ladder ran two more fresh explorations
+	 * to the same cut, and the card parked — while the reviewer's exploration transcript sat persisted on disk (the SDK
+	 * persists the primary agent's messages on every `iteration_end`).
+	 *
+	 * This mirrors what the PRIMARY send path (`dispatchResolvedTaskInput`) has always done for a worker after a
+	 * cancel-then-send: read the persisted transcript, fit it to the context window, and start a fresh SDK session
+	 * carrying it as `initialMessages` with the follow-up as the next user turn — one session that still holds the
+	 * reviewer's work, exactly what the nudge needs. The original start input (tool executors, verdict callbacks,
+	 * launch config) is reused from the cache, so the resumed session has the same tools and the same `submit_review`
+	 * hand-back. A transcript without an assistant turn is NOT resumed: that would be the ghost restart P1.REVIEWNUDGE
+	 * ruled out — the typed refusal lets the runner stop nudging and park with the objective reason.
+	 */
+	private async resumeAuxiliaryTaskSessionFromTranscript(
+		taskId: string,
+		prompt: string,
+		admissionParentTaskId?: string | null,
+	): Promise<RuntimeTaskSessionStartResult> {
+		const startInput = this.auxiliarySessionStartInputByTaskId.get(taskId);
+		if (!startInput) {
+			throw new AuxiliarySessionTranscriptUnavailableError(taskId, "no_cached_start");
+		}
+		const snapshot = await this.sessionRuntime.readPersistedTaskSession(taskId);
+		if (!snapshot) {
+			throw new AuxiliarySessionTranscriptUnavailableError(taskId, "no_persisted_session");
+		}
+		const assistantTurns = countAssistantTurns(snapshot.messages);
+		if (assistantTurns === 0) {
+			throw new AuxiliarySessionTranscriptUnavailableError(taskId, "no_assistant_turn");
+		}
+		const contextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(
+			taskId,
+			startInput.launchConfig.contextWindow,
+		);
+		let initialMessages: NKleinSdkPersistedMessage[] | undefined;
+		try {
+			initialMessages = this.contextBudgetController.prepareMessagesForKnownContextWindow({
+				taskId,
+				messages: snapshot.messages,
+				prompt,
+				contextWindow,
+			});
+		} catch (error) {
+			throw new AuxiliarySessionTranscriptUnavailableError(taskId, "transcript_overflows_window", { cause: error });
+		}
+		if (!initialMessages || countAssistantTurns(initialMessages) === 0) {
+			// Compaction may only drop tool output, never whole assistant turns — but never resume on a hollow history.
+			throw new AuxiliarySessionTranscriptUnavailableError(taskId, "no_assistant_turn");
+		}
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Auxiliary session ${taskId} resumed from its persisted transcript (${assistantTurns} assistant turn(s), ${snapshot.messages.length} message(s)) for a follow-up prompt — its live session was gone.`,
+				taskId,
+				metadata: {
+					category: "aux_session_transcript_resume",
+					assistantTurns,
+					persistedMessages: snapshot.messages.length,
+					resumedMessages: initialMessages.length,
+					compacted: initialMessages.length !== snapshot.messages.length,
+				},
+			});
+		} catch {
+			// Telemetry must never break the resume.
+		}
+		return await this.admitAuxiliaryRuntimeTaskSessionStart({
+			...startInput,
+			admissionParentTaskId: admissionParentTaskId ?? startInput.admissionParentTaskId ?? null,
+			// The runner's budget clock already started at the original admission; a resume must not re-fire it.
+			onAdmitted: undefined,
+			prompt,
+			initialMessages,
+		});
+	}
+
 	private async startAuxiliaryRuntimeTaskSessionFromLaunchConfig(
+		input: StartRuntimeTaskSessionFromLaunchConfigInput,
+	): Promise<RuntimeTaskSessionStartResult> {
+		// P0.REVIEWNOVERDICT: remember the original start so a follow-up can rebuild the session from its transcript.
+		// SYNTHETIC ids only — this seam also serves the context-overflow controller, which restarts PRIMARY worker
+		// sessions through it, and only synthetic sessions run the bracket teardown that forgets this entry again.
+		if (isDerivedTaskSessionId(input.taskId)) {
+			this.auxiliarySessionStartInputByTaskId.set(input.taskId, input);
+		}
+		return await this.admitAuxiliaryRuntimeTaskSessionStart(input);
+	}
+
+	/** The admission-gated auxiliary start (shared by the first start and a transcript resume). */
+	private async admitAuxiliaryRuntimeTaskSessionStart(
 		input: StartRuntimeTaskSessionFromLaunchConfigInput,
 	): Promise<RuntimeTaskSessionStartResult> {
 		// F1.34c v5: the last un-instrumented span was "runner dispatched" → "first admission evaluation" — this
@@ -4162,14 +4272,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}).catch(() => null);
 	}
 
-	async runSecondOpinionReviewSession(input: {
-		taskId: string;
-		projectRepoPath: string;
-		baseRef: string;
-		seedPrompt: string;
-		reviewer?: { providerId: string; modelId: string } | null;
-		timeoutMs?: number;
-	}): Promise<NKleinReviewResult | null> {
+	async runSecondOpinionReviewSession(
+		// The interface's own input type, so `budgetAttempt` / `onReviewerResolved` / `onNoVerdict` / `stampPhase` are
+		// VISIBLE here on their way to the runner. Method-parameter bivariance let the previous inline subset omit
+		// them and still satisfy the interface — they always rode through at runtime, but nothing typed said so.
+		input: Parameters<NKleinTaskSessionService["runSecondOpinionReviewSession"]>[0],
+	): Promise<NKleinReviewResult | null> {
 		return this.secondOpinionReviewRunner.runSecondOpinionReviewSession(input);
 	}
 
@@ -4656,6 +4764,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	/** The shared teardown-forgets for an auxiliary synthetic session (§5.U harness + speculative-mirror runner). */
 	private forgetSyntheticSessionState(taskId: string): void {
 		this.launchConfigByTaskId.delete(taskId);
+		this.auxiliarySessionStartInputByTaskId.delete(taskId);
 		this.communitySkillAdmissionByTaskId.delete(taskId);
 		this.communitySkillSuggestionFragmentByTaskId.delete(taskId);
 		this.providerIdStore.forget(taskId);

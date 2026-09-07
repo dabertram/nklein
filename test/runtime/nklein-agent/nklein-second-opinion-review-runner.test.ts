@@ -27,9 +27,14 @@ vi.mock("../../../src/nklein-agent/nklein-agent-sandbox-extra-tools", () => ({
 }));
 vi.mock("../../../src/nklein-agent/nklein-session-state", () => ({ createSessionId: (id: string) => id }));
 
-import type { RuntimeTaskSessionStartResult } from "../../../src/nklein-agent/nklein-runtime-session-input";
+import { AuxiliarySessionTranscriptUnavailableError } from "../../../src/nklein-agent/nklein-auxiliary-session-transcript";
+import type {
+	RuntimeTaskSessionStartResult,
+	StartRuntimeTaskSessionFromLaunchConfigInput,
+} from "../../../src/nklein-agent/nklein-runtime-session-input";
 import {
 	createSecondOpinionReviewRunner,
+	describeReviewNoVerdict,
 	type SecondOpinionReviewRunnerDeps,
 } from "../../../src/nklein-agent/nklein-second-opinion-review-runner";
 
@@ -310,5 +315,220 @@ describe("createSecondOpinionReviewRunner", () => {
 				}),
 			}),
 		);
+	});
+
+	/** A bracket whose FIRST bounded turn (the start, carrying `clockStartsOn`) is cut; later turns run to settlement. */
+	function cutStartHarness() {
+		return {
+			runBracketed: vi.fn(async (_config: unknown, drive: (ctx: unknown) => Promise<unknown>) => {
+				const deadlineMs = Date.now() + 8_000;
+				return drive({
+					workspace: { workdir: "/wd" },
+					deadlineMs,
+					deadline: () => deadlineMs,
+					runBoundedTurn: async (p: Promise<unknown>, options?: { clockStartsOn?: Promise<unknown> }) => {
+						if (options?.clockStartsOn) {
+							return "timeout";
+						}
+						try {
+							await p;
+							return "settled";
+						} catch {
+							return "error";
+						}
+					},
+				});
+			}),
+		};
+	}
+
+	it("P0.REVIEWNOVERDICT: a reviewer cut at the verdict reserve is stopped and then nudged — the nudge lands on the transcript-resumed session and its verdict wins", async () => {
+		// Live 2026-09-05 (s44b, flash-next): the reserve cut STOPS the SDK session to free the endpoint, and a stopped
+		// session cannot be sent to — every post-cut nudge died in milliseconds, three sessions in a row, park. The
+		// service now rebuilds the reviewer from its persisted transcript for the nudge (same submit_review hand-back);
+		// the runner's contract is the ORDER (stop before nudge) and that the nudge's verdict outranks the cut.
+		const calls: string[] = [];
+		let seedStart: StartRuntimeTaskSessionFromLaunchConfigInput | null = null;
+		const d = deps({
+			getHarness: () => cutStartHarness() as never,
+			startRuntimeSession: vi.fn((startInput) => {
+				seedStart = startInput;
+				startInput.onAdmitted?.();
+				calls.push("start");
+				return new Promise<RuntimeTaskSessionStartResult>(() => {});
+			}),
+			stopRuntimeSession: vi.fn(async () => {
+				calls.push("stop");
+			}),
+			// The service's transcript resume re-issues the ORIGINAL start input (tools + callbacks) with the nudge as
+			// the next user turn, so the verdict arrives through the seed start's own onReviewSubmitted.
+			sendTaskSessionInput: vi.fn(async () => {
+				calls.push("nudge");
+				(seedStart as StartRuntimeTaskSessionFromLaunchConfigInput | null)?.onReviewSubmitted?.(APPROVE);
+			}),
+		});
+		const reasons: string[] = [];
+		const result = await createSecondOpinionReviewRunner(d).runSecondOpinionReviewSession({
+			...input,
+			reviewer: { providerId: "lmstudio", modelId: "critic-m" },
+			onNoVerdict: (reason) => reasons.push(reason),
+		});
+		expect(result).toEqual(APPROVE);
+		// stop (release the endpoint) → nudge → stop (the verdict path ends the resumed session too).
+		expect(calls).toEqual(["start", "stop", "nudge", "stop"]);
+		expect(d.sendTaskSessionInput).toHaveBeenCalledWith("t1::review", expect.stringContaining("submit_review"), "t1");
+		expect(reasons).toEqual([]);
+		expect(h.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "t1::review",
+				severity: "info",
+				metadata: expect.objectContaining({
+					category: "second_opinion_review_session",
+					outcome: "verdict",
+					cutAtReserve: true,
+					nudges: 1,
+					transcriptResumed: true,
+					noVerdictReason: null,
+				}),
+			}),
+		);
+	});
+
+	it("P0.REVIEWNOVERDICT: a nudge refused for want of a resumable transcript ends the nudging and becomes the objective no-verdict reason", async () => {
+		// The service refuses to resume a transcript with no assistant turn (that would be P1.REVIEWNUDGE's ghost
+		// restart). The refusal is deterministic, so a second nudge is pointless: one attempt, then the reason.
+		const d = deps({
+			getHarness: () => cutStartHarness() as never,
+			startRuntimeSession: vi.fn((startInput) => {
+				startInput.onAdmitted?.();
+				return new Promise<RuntimeTaskSessionStartResult>(() => {});
+			}),
+			sendTaskSessionInput: vi.fn(async () => {
+				throw new AuxiliarySessionTranscriptUnavailableError("t1::review", "no_assistant_turn");
+			}),
+			maxNudges: 2,
+		});
+		const reasons: string[] = [];
+		const result = await createSecondOpinionReviewRunner(d).runSecondOpinionReviewSession({
+			...input,
+			reviewer: { providerId: "lmstudio", modelId: "critic-m" },
+			onNoVerdict: (reason) => reasons.push(reason),
+		});
+		expect(result).toBeNull();
+		expect(d.sendTaskSessionInput).toHaveBeenCalledTimes(1);
+		expect(reasons).toHaveLength(1);
+		expect(reasons[0]).toContain("cut at the verdict reserve");
+		expect(reasons[0]).toContain("could not reach the reviewer's transcript");
+		expect(reasons[0]).toContain("no assistant turn");
+		expect(h.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "t1::review",
+				severity: "warning",
+				metadata: expect.objectContaining({
+					category: "second_opinion_review_session",
+					outcome: "timeout",
+					cutAtReserve: true,
+					nudges: 1,
+					transcriptResumed: false,
+					noVerdictReason: reasons[0],
+				}),
+			}),
+		);
+	});
+
+	it("P0.REVIEWNOVERDICT: a transient nudge failure keeps the nudge budget (it is not the typed refusal) and the reason names every outcome", async () => {
+		const d = deps({
+			getHarness: () => cutStartHarness() as never,
+			startRuntimeSession: vi.fn((startInput) => {
+				startInput.onAdmitted?.();
+				return new Promise<RuntimeTaskSessionStartResult>(() => {});
+			}),
+			sendTaskSessionInput: vi.fn(async () => {
+				throw new Error("model-side error on the nudge turn");
+			}),
+			maxNudges: 2,
+		});
+		const reasons: string[] = [];
+		await createSecondOpinionReviewRunner(d).runSecondOpinionReviewSession({
+			...input,
+			reviewer: { providerId: "lmstudio", modelId: "critic-m" },
+			onNoVerdict: (reason) => reasons.push(reason),
+		});
+		expect(d.sendTaskSessionInput).toHaveBeenCalledTimes(2);
+		expect(reasons[0]).toContain("2 verdict nudge turn(s) resumed its persisted transcript and ended error/error");
+	});
+
+	it("P0.REVIEWNOVERDICT: a settled no-verdict session reports its shape too (no cut, nudged in place)", async () => {
+		const reasons: string[] = [];
+		const d = deps({
+			startRuntimeSession: vi.fn(async () => ({ result: {} })),
+			sendTaskSessionInput: vi.fn(async () => {}),
+			maxNudges: 1,
+		});
+		await createSecondOpinionReviewRunner(d).runSecondOpinionReviewSession({
+			...input,
+			reviewer: { providerId: "lmstudio", modelId: "critic-m" },
+			onNoVerdict: (reason) => reasons.push(reason),
+		});
+		expect(d.stopRuntimeSession).not.toHaveBeenCalled();
+		expect(reasons).toHaveLength(1);
+		expect(reasons[0]).toMatch(
+			/^the reviewer ended its turn after \d+s without calling submit_review; 1 verdict nudge turn\(s\) ended settled without a submit_review call$/,
+		);
+	});
+
+	describe("describeReviewNoVerdict", () => {
+		const shape = {
+			neverAdmitted: false,
+			cutAtReserve: false,
+			startOutcome: "settled" as const,
+			explorationMs: 480_400,
+			nudgeOutcomes: [] as const,
+			nudgeRefusal: null,
+			maxNudges: 2,
+			budgetExhausted: false,
+		};
+
+		it("a never-admitted start names the queue, not the model", () => {
+			expect(describeReviewNoVerdict({ ...shape, neverAdmitted: true, startOutcome: "timeout" })).toBe(
+				"the start was never admitted to its model endpoint within the budget (queued behind another session) — no transcript existed to nudge",
+			);
+		});
+
+		it("a cut exploration followed by transcript-resumed nudges reads as a budget fact", () => {
+			expect(
+				describeReviewNoVerdict({
+					...shape,
+					cutAtReserve: true,
+					startOutcome: "timeout",
+					nudgeOutcomes: ["settled", "timeout"],
+				}),
+			).toBe(
+				"the exploration turn was cut at the verdict reserve after 480s without a submit_review call; 2 verdict nudge turn(s) resumed its persisted transcript and ended settled/timeout without a submit_review call",
+			);
+		});
+
+		it("a cut with no nudge budget left says so instead of implying a nudge ran", () => {
+			expect(
+				describeReviewNoVerdict({ ...shape, cutAtReserve: true, startOutcome: "timeout", budgetExhausted: true }),
+			).toBe(
+				"the exploration turn was cut at the verdict reserve after 480s without a submit_review call; no budget remained for a verdict nudge",
+			);
+		});
+
+		it("a failed turn is named as a failure, with the refusal quoted when the nudge was refused", () => {
+			expect(
+				describeReviewNoVerdict({
+					...shape,
+					startOutcome: "error",
+					explorationMs: 1_500,
+					nudgeOutcomes: ["error"],
+					nudgeRefusal:
+						"Auxiliary session t1::review has no live session and cannot be resumed from its transcript: the SDK persisted no session record for it.",
+				}),
+			).toBe(
+				"the reviewer turn failed after 2s; the verdict nudge could not reach the reviewer's transcript (Auxiliary session t1::review has no live session and cannot be resumed from its transcript: the SDK persisted no session record for it.)",
+			);
+		});
 	});
 });

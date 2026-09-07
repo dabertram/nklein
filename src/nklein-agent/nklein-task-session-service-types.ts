@@ -314,6 +314,11 @@ export interface NKleinTaskSessionService {
 		 * rows attributed that way). The per-model review ceiling (P21.6b) depends on this attribution.
 		 */
 		onReviewerResolved?: (reviewer: { providerId: string; modelId: string; selectionSource: string }) => void;
+		/**
+		 * P0.REVIEWNOVERDICT: called when the session ends WITHOUT a verdict, with its objective shape (cut at the
+		 * verdict reserve after Ns, never admitted, nudge refused because no transcript could be resumed, …).
+		 */
+		onNoVerdict?: (reason: string) => void;
 		/** Diagnostic phase stamps (todo §12 review-hang autopsy); absent ⇒ zero overhead. */
 		stampPhase?: (phase: string) => void;
 	}): Promise<NKleinReviewResult | null>;

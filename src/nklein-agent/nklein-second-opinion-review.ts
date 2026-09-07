@@ -140,6 +140,13 @@ export interface RunNKleinSecondOpinionReviewInput {
 			 */
 			budgetAttempt?: number;
 		}): Promise<ReviewSubmissionInput | null>;
+		/**
+		 * P0.REVIEWNOVERDICT: the objective shape of the LAST reviewer session that produced no verdict (cut at the
+		 * verdict reserve after Ns, never admitted, nudge refused because no transcript could be resumed, …), when
+		 * the runner reported one — quoted by the park reason and the fallback-verdict summary so an operator (or
+		 * the next agent) reads WHY the reviewer never spoke instead of a bare session count. Absent ⇒ unchanged text.
+		 */
+		describeLastNoVerdict?(): string | null;
 		/** Approved: persist the review state and proceed to delivery with the sign-off. */
 		onDeliver(input: { taskId: string; review: RuntimeCardReview }): Promise<void>;
 		/** Changes requested: persist the review state, send the worker the feedback, move the card back. */
@@ -328,6 +335,11 @@ export async function runNKleinSecondOpinionReview(
 				noVerdictStreakByTaskId.set(streakKey, { fingerprint: streakFingerprint, count });
 			}
 		}
+		// P0.REVIEWNOVERDICT: the last session's objective shape (from the runner) rides on the fallback summary and
+		// the park reason — "cut at the verdict reserve after 480s; the nudge resumed its transcript and still ended
+		// in prose" is a budget/rig fact an operator can act on; a bare "3 sessions" is not.
+		const lastSessionShape = input.deps.describeLastNoVerdict?.() ?? null;
+		const lastSessionSuffix = lastSessionShape ? ` Last reviewer session: ${lastSessionShape}.` : "";
 		if (!submission && count >= NO_VERDICT_PARK_STREAK && input.acceptanceEvidence) {
 			// FALLBACK VERDICT from objective evidence: the reviewer cannot verdict, but the card's own acceptance
 			// already can. Synthesize the submission and fall through to the NORMAL verdict path (deliver / bounce),
@@ -340,16 +352,21 @@ export async function runNKleinSecondOpinionReview(
 			recordSelfObservation({
 				signal: "custom",
 				severity: "info",
-				message: `Fallback ${evidence.state === "green" ? "approve" : "request_changes"} for ${input.taskId}: reviewer produced no verdict in ${count} sessions; the acceptance evidence gates the outcome.`,
+				message: `Fallback ${evidence.state === "green" ? "approve" : "request_changes"} for ${input.taskId}: reviewer produced no verdict in ${count} sessions; the acceptance evidence gates the outcome.${lastSessionSuffix}`,
 				taskId: input.taskId,
-				metadata: { category: "review_fallback_verdict", state: evidence.state, noVerdictSessions: count },
+				metadata: {
+					category: "review_fallback_verdict",
+					state: evidence.state,
+					noVerdictSessions: count,
+					lastSessionShape,
+				},
 			});
 			submission =
 				evidence.state === "green"
 					? {
 							verdict: "approve",
 							summary:
-								`Fallback verdict (no reviewer submission in ${count} sessions): the card's acceptance command passed on the delivered tree. ${evidence.detail}`.trim(),
+								`Fallback verdict (no reviewer submission in ${count} sessions): the card's acceptance command passed on the delivered tree.${lastSessionSuffix} ${evidence.detail}`.trim(),
 							feedback: null,
 							insight: null,
 							preferred: null,
@@ -357,7 +374,7 @@ export async function runNKleinSecondOpinionReview(
 						}
 					: {
 							verdict: "request_changes",
-							summary: `Fallback verdict (no reviewer submission in ${count} sessions): the card's acceptance command FAILS on the delivered tree.`,
+							summary: `Fallback verdict (no reviewer submission in ${count} sessions): the card's acceptance command FAILS on the delivered tree.${lastSessionSuffix}`,
 							feedback: `Fix the acceptance failure, then redeliver. Acceptance output:
 ${evidence.detail}`.slice(0, 4000),
 							insight: null,
@@ -367,7 +384,7 @@ ${evidence.detail}`.slice(0, 4000),
 		}
 		if (!submission && count >= NO_VERDICT_PARK_STREAK) {
 			noVerdictStreakByTaskId.delete(streakKey);
-			const parkedReason = `The reviewer ended ${count} consecutive sessions without a verdict on the same unchanged work — parking for a human decision (reviewer cannot produce a verdict on this artifact, and no objective acceptance evidence exists to gate a fallback).`;
+			const parkedReason = `The reviewer ended ${count} consecutive sessions without a verdict on the same unchanged work — parking for a human decision (reviewer cannot produce a verdict on this artifact, and no objective acceptance evidence exists to gate a fallback).${lastSessionSuffix}`;
 			// Spread-preserve first (audit 2026-08-12 M4): field-enumerating rebuilds silently drop optional review
 			// fields (`preferredCandidate`, `resultArtifact`, and any future additive one).
 			const review: RuntimeCardReview = {

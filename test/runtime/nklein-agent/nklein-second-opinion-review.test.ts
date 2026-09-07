@@ -122,6 +122,32 @@ describe("runNKleinSecondOpinionReview", () => {
 		expect((await runNKleinSecondOpinionReview({ ...base2, deps: submitting })).type).not.toBe("parked");
 	});
 
+	it("P0.REVIEWNOVERDICT: the park reason carries the last session's OBJECTIVE shape, not just a session count", async () => {
+		// "3 sessions without a verdict" reads as a judgement about the artifact — a reviewer that looked and could
+		// not decide. Live 2026-09-07 (clinical-med-safety-s07 on a one-at-a-time HITL endpoint) it meant the
+		// opposite: the reviewer never got a turn inside its budget. Both shapes produced the same sentence, so the
+		// park could not be triaged. The runner now hands the resolution the last session's shape and it rides here.
+		const shape =
+			"the exploration turn was cut at the verdict reserve after 480s without a submit_review call; " +
+			"the verdict nudge could not reach the reviewer's transcript (no assistant turn)";
+		const deps = { ...makeDeps({ submission: null }), describeLastNoVerdict: vi.fn(() => shape) };
+		const outcome = await runNKleinSecondOpinionReview({ ...base, taskId: "task-noverdict-shape", deps });
+		expect(outcome.type).toBe("parked");
+		const parked = firstArg<{ review: RuntimeCardReview; reason: string }>(deps.onPark);
+		expect(parked.reason).toContain(`Last reviewer session: ${shape}.`);
+		expect(parked.review.parkedReason).toContain("cut at the verdict reserve");
+	});
+
+	it("P0.REVIEWNOVERDICT: a resolution with no reported shape parks with the unchanged sentence", async () => {
+		const deps = makeDeps({ submission: null });
+		expect((await runNKleinSecondOpinionReview({ ...base, taskId: "task-noverdict-noshape", deps })).type).toBe(
+			"parked",
+		);
+		const parked = firstArg<{ reason: string }>(deps.onPark);
+		expect(parked.reason).toContain("without a verdict");
+		expect(parked.reason).not.toContain("Last reviewer session:");
+	});
+
 	it("a verdict on an inline retry recovers to the normal path (no park, no skip)", async () => {
 		const base2 = { ...base, taskId: "task-recovers" };
 		const deps2 = makeDeps({});

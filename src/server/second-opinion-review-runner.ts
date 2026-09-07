@@ -419,6 +419,10 @@ export async function runSecondOpinionReviewForTask(
 	const resolvedReviewer: { value: { providerId: string; modelId: string; selectionSource: string } | null } = {
 		value: null,
 	};
+	// P0.REVIEWNOVERDICT: the LAST reviewer session's objective no-verdict shape (set by the runner: cut at the
+	// reserve after Ns, never admitted, nudge refused, …) so a park or a fallback verdict says WHY the reviewer never
+	// spoke instead of only counting sessions. Same holder shape as `resolvedReviewer`, for the same TS reason.
+	const lastNoVerdictReason: { value: string | null } = { value: null };
 	const workerSummary = input.service.getSummary(input.taskId);
 	const workerModelId = workerSummary?.modelId ?? null;
 	if (reviewer && workerModelId && modelsShareLineage(workerModelId, reviewer.modelId)) {
@@ -1229,6 +1233,8 @@ export async function runSecondOpinionReviewForTask(
 				review: card.review,
 				focusChain: card.focusChain ?? null,
 			}),
+			// P0.REVIEWNOVERDICT: the park reason / fallback summary quote the last session's objective shape.
+			describeLastNoVerdict: () => lastNoVerdictReason.value,
 			getTaskDiff: async () =>
 				getDiff({
 					repoPath: input.workspacePath,
@@ -1374,6 +1380,9 @@ export async function runSecondOpinionReviewForTask(
 						// P21.6b attribution: capture WHICH model judged, while its session still exists.
 						onReviewerResolved: (resolved) => {
 							resolvedReviewer.value = resolved;
+						},
+						onNoVerdict: (reason) => {
+							lastNoVerdictReason.value = reason;
 						},
 						stampPhase,
 					});

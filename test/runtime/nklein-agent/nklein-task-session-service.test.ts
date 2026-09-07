@@ -1225,6 +1225,171 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 	});
 
+	it("P0.REVIEWNOVERDICT: the post-cut verdict nudge resumes the reviewer's persisted transcript instead of dying on the stopped session", async () => {
+		// Live 2026-09-05 (s44b split children, flash-next): the reserve cut STOPS the reviewer session so the endpoint
+		// is free before the nudge — but a stopped session has no binding, so the nudge's `sendTaskSessionInput` threw
+		// "No active !Klein session" in milliseconds, both nudges burned, and three sessions in a row ended with no
+		// verdict → park. The nudge must reach ONE session that still holds the reviewer's exploration transcript.
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ models: [] }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		try {
+			const runtime = createFakeNKleinSessionRuntime();
+			const runtimeSetup = createFakeRuntimeSetup();
+			const sandboxManager = createFakeAgentSandboxManager();
+			const reviewerTranscript: NKleinSdkPersistedMessage[] = [
+				{ role: "user", content: "Review the delivered diff." },
+				{ role: "assistant", content: "I read four files; the change looks consistent so far." },
+			];
+			runtime.readPersistedTaskSessionMock.mockImplementation(async (taskId: string) =>
+				taskId === "task-review-resume::review"
+					? {
+							record: {
+								sessionId: "task-review-resume::review-1",
+								source: "core" as NKleinPersistedTaskSessionSnapshot["record"]["source"],
+								status: "cancelled",
+								startedAt: "2026-09-05T07:00:00.000Z",
+								updatedAt: "2026-09-05T07:08:00.000Z",
+								interactive: true,
+								provider: "lmstudio",
+								model: "critic-m",
+								cwd: "/workspaces/task-review-resume::review",
+								workspaceRoot: "/tmp/project",
+								enableTools: true,
+								enableSpawn: false,
+								enableTeams: false,
+								isSubagent: false,
+							},
+							messages: reviewerTranscript,
+						}
+					: null,
+			);
+			// The exploration turn never settles, so the bounded turn is cut at the verdict reserve; every later start
+			// (the transcript resume carrying the nudge) settles immediately.
+			runtime.startTaskSessionMock.mockImplementationOnce(
+				async () => await new Promise<StartNKleinSessionRuntimeResult>(() => {}),
+			);
+			const service = createDiagnosticIsolatedService({
+				createSessionRuntime: (options) => runtime.createRuntime(options),
+				createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+				agentSandboxManager: sandboxManager.manager,
+			});
+			services.push(service);
+
+			const noVerdictReasons: string[] = [];
+			const verdict = await service.runSecondOpinionReviewSession({
+				taskId: "task-review-resume",
+				projectRepoPath: "/tmp/project",
+				baseRef: "main",
+				seedPrompt: "Review the delivered diff.",
+				reviewer: { providerId: "lmstudio", modelId: "critic-m" },
+				// Small enough that the exploration turn is cut at half the window (the 120s reserve exceeds it).
+				timeoutMs: 1_000,
+				onNoVerdict: (reason) => noVerdictReasons.push(reason),
+			});
+
+			expect(verdict).toBeNull();
+			expect(runtime.stopTaskSessionMock).toHaveBeenCalledWith("task-review-resume::review");
+			const reviewStarts = runtime.startTaskSessionMock.mock.calls
+				.map((call) => call[0])
+				.filter((request) => request.taskId === "task-review-resume::review");
+			// TWO starts, not three: the cut exploration and ONE transcript-carrying nudge session.
+			expect(reviewStarts).toHaveLength(2);
+			expect(reviewStarts[0]?.initialMessages).toBeUndefined();
+			expect(reviewStarts[1]?.prompt).toContain("submit_review");
+			// The nudge lands on the reviewer's own work — not a ghost restart from the seed prompt.
+			expect(reviewStarts[1]?.initialMessages).toEqual(reviewerTranscript);
+			// And when the resumed session still says nothing, the park carries an objective reason.
+			expect(noVerdictReasons).toHaveLength(1);
+			expect(noVerdictReasons[0]).toContain("cut at the verdict reserve");
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it("P0.REVIEWNOVERDICT: a reviewer transcript with no assistant turn is REFUSED, not restarted — the park names why", async () => {
+		// The other half of the mechanism. Resuming a transcript that holds only the seed prompt would be exactly the
+		// ghost restart P1.REVIEWNUDGE ruled out (a fresh reviewer answering the card from scratch, its "verdict" a
+		// first impression dressed as a second opinion). The service refuses with a typed, deterministic reason, the
+		// runner stops nudging on it, and the reason — not a bare session count — is what the park carries.
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ models: [] }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		try {
+			const runtime = createFakeNKleinSessionRuntime();
+			const runtimeSetup = createFakeRuntimeSetup();
+			const sandboxManager = createFakeAgentSandboxManager();
+			runtime.readPersistedTaskSessionMock.mockImplementation(async (taskId: string) =>
+				taskId === "task-review-ghost::review"
+					? {
+							record: {
+								sessionId: "task-review-ghost::review-1",
+								source: "core" as NKleinPersistedTaskSessionSnapshot["record"]["source"],
+								status: "cancelled",
+								startedAt: "2026-09-07T07:00:00.000Z",
+								updatedAt: "2026-09-07T07:00:30.000Z",
+								interactive: true,
+								provider: "lmstudio",
+								model: "critic-m",
+								cwd: "/workspaces/task-review-ghost::review",
+								workspaceRoot: "/tmp/project",
+								enableTools: true,
+								enableSpawn: false,
+								enableTeams: false,
+								isSubagent: false,
+							},
+							// The reviewer was cut before it finished a single iteration: the seed prompt, nothing else.
+							messages: [{ role: "user", content: "Review the delivered diff." }],
+						}
+					: null,
+			);
+			runtime.startTaskSessionMock.mockImplementationOnce(
+				async () => await new Promise<StartNKleinSessionRuntimeResult>(() => {}),
+			);
+			const service = createDiagnosticIsolatedService({
+				createSessionRuntime: (options) => runtime.createRuntime(options),
+				createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+				agentSandboxManager: sandboxManager.manager,
+			});
+			services.push(service);
+
+			const noVerdictReasons: string[] = [];
+			const verdict = await service.runSecondOpinionReviewSession({
+				taskId: "task-review-ghost",
+				projectRepoPath: "/tmp/project",
+				baseRef: "main",
+				seedPrompt: "Review the delivered diff.",
+				reviewer: { providerId: "lmstudio", modelId: "critic-m" },
+				timeoutMs: 1_000,
+				onNoVerdict: (reason) => noVerdictReasons.push(reason),
+			});
+
+			expect(verdict).toBeNull();
+			const reviewStarts = runtime.startTaskSessionMock.mock.calls
+				.map((call) => call[0])
+				.filter((request) => request.taskId === "task-review-ghost::review");
+			// ONE start: the cut exploration. The refused nudge started nothing — no ghost reviewer.
+			expect(reviewStarts).toHaveLength(1);
+			expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
+			// The refusal is deterministic, so the runner spends only one of its two nudges on it.
+			expect(noVerdictReasons).toHaveLength(1);
+			expect(noVerdictReasons[0]).toContain("could not reach the reviewer's transcript");
+			expect(noVerdictReasons[0]).toContain("no assistant turn");
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
 	it("resumes trashed sandbox tasks from the task result branch when it exists", async () => {
 		taskResultBranchMocks.resolveTaskResultBranchCommit.mockResolvedValue("result-branch-commit");
 		const runtime = createFakeNKleinSessionRuntime();
