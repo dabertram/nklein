@@ -639,3 +639,24 @@ slice 2 — 45 cards I planned as the architect — was driven with pre-verified
     stale offline verdict skipping seeded installs, the record-less redelivery loop, the missing scaffold root
     edges, the platform-wrong npm seed, and the barrel card's testability. A replay set is a regression test for
     the FACTORY, not for the project it builds — that is what made it worth ten runs.
+
+67. **Haiku in the model seat: the factory works with a model that is not Claude-in-the-loop.** David 2026-09-07
+    17:10, "try it using haiku model". The canned-delivery auto-driver was stopped and a Haiku agent was put in the
+    HITL responder seat, answering the queue for all three roles on a fresh dev-test project (tier 1/20, offline
+    sandbox, `npm test` acceptance). In ~45 min and 35 answered requests it planned a 14-card DAG (28 edges,
+    accepted by the sizing + coverage gates on its second turn) and drove **3 implementation cards to Completed
+    with acceptance genuinely PASSED** — scaffold, domain model, audit trail. Independently verified by cloning the
+    drained repo and running its suite on the host: **19 tests pass, exit 0**, 482 lines across 7 files. It hit a
+    failing test on the scaffold, read the error and repaired itself twice without help; it reviewed and approved
+    its own diffs; the sizing/write-scope/test-driven gates all held.
+
+    **Three honest limits.** (a) The first session died after 13 requests by exhausting the SUBAGENT's context — an
+    artifact of a one-long-conversation harness, not of the model; a served endpoint answers each request
+    independently. A second session resumed and continued. (b) Throughput: one serial responder at ~1 request/min
+    against a factory that starts worker and reviewer sessions CONCURRENTLY. Card s07's reviewer session timed out
+    twice ("Second-opinion review session timeout … No active !Klein session") before the third attempt landed the
+    verdict — the retry ladder recovered it, but the factory clearly assumes model concurrency and a serial model
+    violates that assumption. P1.REVIEWNUDGE does not help here: the session WAS admitted, the model was simply
+    elsewhere. (c) The cards reached were the easy end of the plan; the integration and golden-test cards were never
+    started. **Verdict: autonomy moved from unproven to partially demonstrated.** Small sample, easy cards, real
+    gates, real tests, no help.
