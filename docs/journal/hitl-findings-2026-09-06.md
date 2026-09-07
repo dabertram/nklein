@@ -460,6 +460,16 @@ ff5e2ec-series on `feat/nklein-upcoming`); the operator steps taken to unwedge t
     identifier dirk-qwen3.8-27b" while legion5pro was off the link); the pool-loss classifier and the
     model-unavailable recovery already own that failure.
 
+48. **The watchdog killed a worker whose model was busy processing that very prompt.** legion5pro needs 15+
+    minutes to prefill a 40k-token worker prompt; the zero-token wedge bound is 15 minutes, and the classifier
+    already said "BUSY (processingPrompt) per lms ps — slow, not dead" — but only to withhold the pool-loss mark;
+    the interrupt fired anyway, the card was re-driven, and the next attempt was killed the same way (s05a, 10:52).
+    Shipped **P0.BUSYWEDGE**: while `lms ps` reports the model processing/generating the session waits (one log
+    line, one observation), hard-capped at 3× the wedge bound; an idle or vanished model keeps the interrupt.
+    Same minute: `git rev-parse --show-toplevel` failed transiently under host load (the pre-commit test run on
+    the same machine) and the finalizer reported "No git repository detected" — a spawn failure read as a missing
+    repo; the capture was held and re-tried by the next summary edge, so no loss, but the message lies.
+
 **Board after the repair (10:40):** s13 completed by the runtime's crash-recovery path the moment its merged commit
 was found on main; s09a (an obsolete "make npm work offline" workaround card and its three children) trashed and
 completed as void so s09b/s09c flow; redecompose-s03-prng-tree completed (its plan gate failure was the toolchain

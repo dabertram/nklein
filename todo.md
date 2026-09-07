@@ -2022,6 +2022,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   A redecompose card trashed via a state save kept its architect session on legion; s14 and the custodian waited on
   each other for an hour and explicit starts were refused. SHIPPED: the board-liveness watchdog stops any active
   session whose card sits only in trash (`trashed_card_session_stopped`).
+- [x] **P0.BUSYWEDGE — the zero-token watchdog interrupted a worker whose model was busy prefilling its prompt.**
+  v31 2026-09-07: legion5pro takes 15+ min to prefill a 40k-token worker prompt; the 15-min wedge bound killed the
+  turn although the classifier had already read the model as BUSY per `lms ps` (that verdict only withheld the
+  pool-loss mark). SHIPPED: `decideZeroTokenWedgeAction` — busy ⇒ wait (hard cap 3× the bound, one observation
+  `zero_token_wedge_busy_wait`); idle/vanished ⇒ the historical interrupt.
 - [x] **P0.EMPTYFINALREDRIVE — a delivered, green worker turn that ended in prose was re-driven as `no_tool_call`.**
   `planSwarmPromptVariation` anchored on the first tool NAME in the card text ("prefer the edit_file tool …") and
   re-drove a complete delivery indefinitely (dschinn S01, hand-driven 2026-09-07). SHIPPED: if any assistant turn in
