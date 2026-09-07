@@ -1224,6 +1224,17 @@ source repo went private — so if it vanishes the buildable source still lives 
 
 ### Misc. tribal knowledge (engineering invariants & hard-won gotchas)
 
+- **A NULLABLE RESOLVER OVER A THREE-STATE PROBE IS A SILENT SKIP WAITING TO HAPPEN (P0.RECONCILE-SKIP,
+  2026-09-07).** `resolveTaskResultBranchCommit` returns `null` for BOTH `missing` and `error`
+  (`probeTaskResultBranchCommit` knows the difference; `runGit` never throws, so a spawn failure is an `error`
+  probe, not an exception). Feed that into `if (commit) act()` and a transient git failure becomes "no result",
+  with no line, for as long as the caller runs — the boot reconcile runs ONCE per process, so two approved cards
+  vanished from two boots in a row. Rule: at a seam that decides NOT to act, consume the probe's full shape
+  (act / hold / skip) and record the non-action with its reason; a `null` that means two things is the
+  "confident negative" from the 2026-08-01 rule wearing a type signature. The same seam must isolate per-item
+  errors (one throw must not abort the remaining candidates) and, when it re-drives failed work, apply the SAME
+  gap/cap rules its runtime-alive twin (the watchdog) applies — a restart is not a licence to spend a fresh
+  merge-agent budget on an unchanged base.
 - **The Docker-isolation COST is accepted deliberately — state it, don't leave it unanswered (P21.10, recorded
   2026-07-24).** Fusion measured sandbox startup overheads (Wasm ~1–10 ms, Bubblewrap ~5–20 ms, Firecracker
   ~100 ms, **Docker 50–500 ms**, gVisor 200–500 ms), does not containerize agent tasks, and rejected Docker partly
@@ -2126,7 +2137,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   factory scripts copied to `~/.nklein/factory-drains/bin/`. Open: the card UI still shows a guard hold as a plain
   pause — surface the hold reason on the card.
 
-- [ ] **P0.RECONCILE-SKIP — The boot reconcile silently skips APPROVED review cards whose merge previously
+- [x] **P0.RECONCILE-SKIP — The boot reconcile silently skips APPROVED review cards whose merge previously
   conflicted.** *(Live 2026-09-04, two boots in a row: reconcile processed verdict-less s44 — review phases in
   the log — but produced ZERO lines for the two APPROVED cards s51/s03 whose deliveries had conflicted; after an
   operator hand-merge landed s51's result, the NEXT boot completed it via the already-merged path — so the skip
@@ -2137,6 +2148,32 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   the NEXT boot's reconcile completed s51; needs ONE clean fresh-conflict observation to close.)* Context:
   the merge chain itself is fixed (root-clear owner-uid fallback, strong merge model, reproduction onto the
   host's CURRENT head — commits d3d23be3b/9c23ec0fc/25aa476c0); this skip is the remaining trigger gap.
+  **SHIPPED 2026-09-07 — root cause is in the RECONCILE LOOP, not the finalizer.** Read against the code: once
+  `finalizeHeadlessAutoReviewTask` runs for an approved card WITH a result branch it cannot end without a line
+  naming the card ("Delivery admission …" precedes every later exit), so a zero-line skip has to happen before
+  it — and `reconcileCapturedHeadlessAutoReviewTasks` was `if (resolveTaskResultBranchCommit(...)) finalize(...)`:
+  (1) that resolver collapses the three-state probe (`found`/`missing`/`error`) to null, so a FAILED git probe
+  (`runGit` never throws — a spawn EBADF under the boot-time git burst comes back `ok:false`, exit -1 ⇒ `error`)
+  read as "no result" and the card was dropped for the process lifetime (the reconcile runs once per boot);
+  (2) a per-candidate throw aborted every remaining candidate under a message naming no card; (3) an approved
+  card with NO branch (the settled no-op shape 83c6466b1 made deliverable) was never finalized at boot at all;
+  (4) merge history was never consulted, so an approved card whose last delivery FAILED was re-merged blind —
+  no gap, no cap — while the watchdog path honoured both. Which exit fired on 2026-09-04 is not recoverable from
+  the code alone (the live logs are on the v31 drain); all four are closed structurally. Mechanism: pure
+  `decideReviewReconcileCandidate` (src/server/review-reconcile-decision.ts) gives EVERY candidate a named fate —
+  `finalize` (never attempted / last merged / unapproved review / approved no-op; for approved+failed after the
+  gap it is a RE-DELIVERY recorded as `merge_redelivery_retry` with `source: boot_reconcile` and stamped into the
+  watchdog's in-process attempt map), `hold` (`redelivery_gap` with retryAt / `redelivery_cap` with the window
+  roll time), or `skip` (`no_result_branch` for unapproved cards, `result_branch_probe_error` fail-closed after a
+  500 ms/2 s retry schedule, `plan_mode`). Holds/skips record `review_reconcile_hold` (registered operational
+  category) + one warn line; one summary line per workspace per boot lists every candidate's fate by id.
+  `classifyApprovedUnmergedCard` (merge-redelivery-decision.ts) now names every leg of the watchdog rules and
+  `selectApprovedUnmergedRedelivery` is derived from it (behaviour unchanged, tests untouched); the watchdog also
+  records the one hold it kept silent for up to 24h — a spent daily cap — once per (card, attempt count).
+  Kill switch `NKLEIN_RECONCILE_REDELIVERY_RULES=0` (registered default-ON) restores the pre-fix immediate
+  boot re-merge. Tests: test/runtime/server/review-reconcile-decision.test.ts + the classifier block in
+  merge-redelivery-decision.test.ts. The entry's "ONE clean fresh-conflict observation" is now produced by the
+  mechanism itself: the next boot after a conflict logs `re-deliver`/`held: redelivery_gap` for that card.
 
 - [ ] **P0.REVRANK — Reviewer/escalation candidate ranking is CAPABILITY-BLIND (class fit only) — a 9B
   "escalates" a 27B's stuck review.** *(Live 2026-09-03 ~23:50: s44's stuck review loop "Escalated … to

@@ -286,6 +286,7 @@ import {
 	deleteTaskResultBranch,
 	getTaskResultBranchDiff,
 	pinTaskResultEvidenceCommit,
+	probeTaskResultBranchCommit,
 	refreshTaskResultOntoBase,
 	resolveTaskResultBranchCommit,
 } from "../workspace/task-result-branches";
@@ -323,7 +324,11 @@ import {
 } from "./managed-search-backend";
 import { runIdleMemoryAudit } from "./memory-audit-runner";
 import { runScheduledMemoryFreshnessAudit } from "./memory-freshness-audit-runner";
-import { selectApprovedUnmergedRedelivery } from "./merge-redelivery-decision";
+import {
+	buildApprovedUnmergedCapHoldObservation,
+	classifyApprovedUnmergedCards,
+	selectApprovedUnmergedRedelivery,
+} from "./merge-redelivery-decision";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import { resolveNetworkAccessInfo } from "./network-access-info";
 import { createPlanIntegrationGateRunner } from "./nklein-plan-integration-gate-runner";
@@ -333,6 +338,12 @@ import {
 } from "./nklein-runtime-terminal-telemetry";
 import { persistCardVerification } from "./persist-card-verification";
 import { isReviewDeliverySuperseded } from "./review-delivery-supersession";
+import {
+	buildReviewReconcileHoldObservation,
+	decideReviewReconcileCandidate,
+	RECONCILE_RESULT_BRANCH_PROBE_RETRY_DELAYS_MS,
+	summarizeReviewReconcileDecision,
+} from "./review-reconcile-decision";
 import {
 	resolveReviewSandboxResult,
 	runWithSettledReviewSandboxArtifact,
@@ -715,6 +726,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// to the worker; a second failure leaves the hold for the operator.
 	/** P0.GATEHOLD follow-up: the watchdog's last re-delivery per card — a re-run that leaves no record still honours the gap. */
 	const mergeRedeliveryAttemptAtByTaskId = new Map<string, number>();
+	/** P0.RECONCILE-SKIP watchdog twin: cap-held approved cards already announced (workspace:task → attempts in window). */
+	const approvedUnmergedCapHoldNotifiedByTaskKey = new Map<string, number>();
 	const acceptanceFailureRedriveAttemptsByTaskKey = new Map<string, number>();
 	// F1.9b: a result whose ACTUAL changed files violate the card's work-package bounds gets ONE re-drive naming
 	// the violating paths (mirrors the #28 rung), then holds in Review for the operator.
@@ -4024,6 +4037,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			}
 		})();
 	};
+	// P0.RECONCILE-SKIP (live 2026-09-04): this loop used to be `if (resolveTaskResultBranchCommit(...)) finalize(...)`
+	// — a resolver that returns null for BOTH "no branch" and "probe FAILED", an `if` that dropped the card with no
+	// line for the rest of the process (the reconcile runs once per boot), no error isolation (one throw aborted
+	// every remaining candidate under a message naming no card), and no look at merge history (an approved card
+	// whose last delivery FAILED was re-merged blind, without the watchdog's gap/cap). Two approved+conflicted cards
+	// produced zero lines across two boots. Now every candidate ends in a named fate (pure
+	// `decideReviewReconcileCandidate`), a re-delivery is recorded exactly like the watchdog's, a hold/skip records
+	// WHY, an erroring probe is retried then held fail-closed, and one summary line per workspace names every
+	// candidate's fate.
 	const reconcileCapturedHeadlessAutoReviewTasks = (
 		scope: RuntimeTrpcWorkspaceScope,
 		service: NKleinTaskSessionService,
@@ -4031,15 +4053,63 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		void (async () => {
 			const state = await loadWorkspaceState(scope.workspacePath);
 			const candidates = selectHeadlessAutoReviewReconcileCandidates(state.board);
+			if (candidates.length === 0) {
+				deps.warn(`Boot reconcile for ${scope.workspacePath}: no In-Progress/Review auto-review candidates.`);
+				return;
+			}
+			const history = await readMergeHistory({ workspacePath: scope.workspacePath, limit: 200 }).catch(() => []);
+			const honourRedeliveryRules = isEnabledByDefaultEnv(process.env.NKLEIN_RECONCILE_REDELIVERY_RULES);
+			const fates: string[] = [];
 			for (const card of candidates) {
-				const resultCommit = await resolveTaskResultBranchCommit({
-					repoPath: scope.workspacePath,
-					taskId: card.id,
-				});
-				if (resultCommit) {
-					finalizeHeadlessAutoReviewTask(scope, service, card.id);
+				try {
+					let probe = await probeTaskResultBranchCommit({ repoPath: scope.workspacePath, taskId: card.id });
+					for (const delayMs of RECONCILE_RESULT_BRANCH_PROBE_RETRY_DELAYS_MS) {
+						if (probe.status !== "error") {
+							break;
+						}
+						await sleep(delayMs);
+						probe = await probeTaskResultBranchCommit({ repoPath: scope.workspacePath, taskId: card.id });
+					}
+					const now = Date.now();
+					const decision = decideReviewReconcileCandidate({ card, probe, history, now, honourRedeliveryRules });
+					fates.push(`${card.id} → ${summarizeReviewReconcileDecision(decision, now)}`);
+					if (decision.action === "finalize") {
+						if (decision.redelivery) {
+							// Same bookkeeping as the watchdog's re-delivery: the in-process attempt stamp keeps the
+							// watchdog from queueing a second run inside the gap while this one is still in flight.
+							mergeRedeliveryAttemptAtByTaskId.set(card.id, now);
+							deps.warn(
+								`Boot reconcile: re-running the delivery of approved ${card.id} (${decision.redelivery.reason}; attempt ${decision.redelivery.attemptsInWindow + 1} in 24h, last ${Math.round((now - decision.redelivery.lastAttemptAt) / 60_000)} min ago).`,
+							);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "info",
+								message: `Boot reconcile re-delivers approved-but-unmerged ${card.id}: ${decision.redelivery.reason}.`,
+								taskId: card.id,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "merge_redelivery_retry",
+									source: "boot_reconcile",
+									attemptsInWindow: decision.redelivery.attemptsInWindow,
+									lastAttemptAt: decision.redelivery.lastAttemptAt,
+								},
+							});
+						}
+						finalizeHeadlessAutoReviewTask(scope, service, card.id);
+						continue;
+					}
+					const hold = buildReviewReconcileHoldObservation(decision);
+					deps.warn(hold.message);
+					recordSelfObservation({ ...hold, workspacePath: scope.workspacePath });
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error);
+					fates.push(`${card.id} → error (${message})`);
+					deps.warn(`Boot reconcile: could not reconcile ${card.id} for ${scope.workspacePath}: ${message}`);
 				}
 			}
+			deps.warn(
+				`Boot reconcile for ${scope.workspacePath}: ${candidates.length} candidate(s) — ${fates.join("; ")}.`,
+			);
 		})().catch((error) => {
 			const message = error instanceof Error ? error.message : String(error);
 			deps.warn(`Could not reconcile captured auto-review tasks for ${scope.workspacePath}: ${message}`);
@@ -5364,14 +5434,33 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							workspacePath: scope.workspacePath,
 							limit: 200,
 						}).catch(() => []);
-						const redelivery = selectApprovedUnmergedRedelivery({
+						const redeliveryInput = {
 							reviewCards: board.columns.find((column) => column.id === "review")?.cards ?? [],
 							history: redeliveryHistory,
 							activeTaskIds: new Set([...busySessionTaskIds, ...pausedSessionTaskIds]),
 							handledThisTick,
 							now: Date.now(),
 							recentAttempts: mergeRedeliveryAttemptAtByTaskId,
-						});
+						};
+						const redelivery = selectApprovedUnmergedRedelivery(redeliveryInput);
+						if (!redelivery) {
+							// P0.RECONCILE-SKIP runtime-alive twin: a card whose DAILY CAP is spent is the one redelivery
+							// hold the rules keep silent for up to 24h (the gap resolves itself within minutes). Say so
+							// once per (card, attempt count) so the operator sees a deliberate hold, not a dead machine.
+							for (const hold of classifyApprovedUnmergedCards(redeliveryInput)) {
+								if (hold.kind !== "cap") {
+									continue;
+								}
+								const holdKey = `${scope.workspaceId}:${hold.taskId}`;
+								if (approvedUnmergedCapHoldNotifiedByTaskKey.get(holdKey) === hold.attemptsInWindow) {
+									continue;
+								}
+								approvedUnmergedCapHoldNotifiedByTaskKey.set(holdKey, hold.attemptsInWindow);
+								const capHold = buildApprovedUnmergedCapHoldObservation(hold, redeliveryInput.now);
+								deps.warn(capHold.message);
+								recordSelfObservation({ ...capHold, workspacePath: scope.workspacePath });
+							}
+						}
 						if (redelivery) {
 							handledThisTick.add(redelivery.taskId);
 							mergeRedeliveryAttemptAtByTaskId.set(redelivery.taskId, Date.now());

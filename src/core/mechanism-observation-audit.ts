@@ -1219,8 +1219,13 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	// 2026-09-05 merge-resolution: a round resumed from persisted partial progress / a marker-free round salvaged.
 	"merge_resolution_resumed",
 	"merge_resolution_salvaged",
-	// 2026-09-05: the watchdog re-runs a failed delivery merge without a restart.
+	// 2026-09-05: the watchdog re-runs a failed delivery merge without a restart (metadata.source names the seam:
+	// the watchdog tick, or the boot reconcile since P0.RECONCILE-SKIP).
 	"merge_redelivery_retry",
+	// P0.RECONCILE-SKIP (2026-09-07): a Review auto-review card the boot reconcile deliberately did NOT drive — held
+	// on the redelivery gap/cap, or skipped (no result branch, probe error, plan-mode) — and the watchdog's twin for
+	// a card whose daily re-delivery cap is spent. `outcome` names why; `retryAt` says when a hold lifts by itself.
+	"review_reconcile_hold",
 	// 2026-09-06: a completed repair card re-ran the plan integration gate and the pass cleared the park.
 	"plan_gate_repair_resolved",
 	// 2026-09-06 temp-folder sweep: the selection file vanished and was re-derived from the runtime home's evidence.

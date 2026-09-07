@@ -307,6 +307,13 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 	{ flag: "NKLEIN_ARCHITECT_PROMPT_DIET", mode: "enforcing", defaultOn: true, gate: "prompt builders" },
 	{ flag: "NKLEIN_JUDGE_PROMPT_DIET", mode: "enforcing", defaultOn: true, gate: "review prompt builders" },
 	{ flag: "NKLEIN_SWARM_PROMPT_VARIATION", mode: "enforcing", defaultOn: true, gate: "swarm prompt builder" },
+	{
+		flag: "NKLEIN_RECONCILE_REDELIVERY_RULES",
+		mode: "enforcing",
+		defaultOn: true,
+		gate: "runtime-server.ts (P0.RECONCILE-SKIP boot reconcile — decideReviewReconcileCandidate honourRedeliveryRules)",
+		note: "kill switch — off restores the pre-fix boot: an approved card whose last delivery failed is re-finalized at once, the watchdog's 10-min gap and 24/day cap ignored (the re-delivery is still recorded)",
+	},
 ];
 
 /** N11 lane (c) turns these OFF. Exposed alongside the safe set so a flag cannot fall between the two lanes. */
