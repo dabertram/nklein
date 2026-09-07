@@ -36,7 +36,7 @@ describe("P1.NPMSEED scripts (the trust boundary is in the shell that root runs)
 		expect(harvest).toContain('cp -Rpn "$src/content-v2/." "$seed/_cacache/content-v2/"');
 		expect(harvest).toContain(`grep -q '\\.tgz"' "$f" || continue`);
 		expect(harvest).toContain('[ -e "$dest" ] && continue');
-		expect(harvest).toContain('chmod -R a+rX "$seed"');
+		expect(harvest).toContain('chmod -R a+rX "$seed" 2>/dev/null; echo "harvested');
 		expect(harvest).toContain("skipped: seed full");
 		// Packuments never cross the task boundary: nothing copies index-v5 wholesale.
 		expect(harvest).not.toMatch(/cp -R[a-z]* "\$src\/index-v5/u);

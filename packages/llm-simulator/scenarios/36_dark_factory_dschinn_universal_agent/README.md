@@ -15,10 +15,18 @@ worker track and one review track per card, a chat track and an any-class fallba
   reasoning-only, SSE stall, truncated tool JSON) injected before the first worker turn, then the same recovery ladder.
 - **sources.json** — provenance: which drain answer/delivery each track came from (sha256-prefixed).
 
-Run: `HOME=$(mktemp -d /tmp/nklein-simflow-XXXX) NKLEIN_SIMFLOW_SCENARIO=36 NKLEIN_SIMFLOW_TIMEOUT_MS=14400000 npx tsx scripts/verify-simulated-flow.mts`
+Run (the sandbox is offline, so seed its npm cache first — built for the SANDBOX platform, not the host: the
+sandbox image is linux/arm64 glibc, and vitest 4's rolldown needs its native binding from the cache):
 
-Caveat (2026-09-07): the harness keeps sandboxes OFFLINE, and Dschinn's acceptance (`vitest run`) needs installed
-dependencies (vitest, zod, typescript). Without a seeded npm cache the acceptance is red on the base tree too, so
-deliveries proceed on the reviewer's verdict under the pre-existing-breakage waiver; prove the code afterwards with
-`npm ci && npx vitest run && npx tsc --noEmit` on the drained repo (expected: 97 test files / 222 tests, tsc clean).
-A truthful in-sandbox acceptance needs the warm npm-cache seed mechanism (todo P1.NPMSEED).
+```bash
+SEED=$(mktemp -d /tmp/dschinn-npm-seed-XXXX)   # from a checkout of the drained Dschinn repo (package.json + package-lock.json)
+npm ci --cache "$SEED" --no-audit --no-fund --os linux --cpu arm64 --libc glibc && npm ci   # second npm ci restores host bindings
+HOME=$(mktemp -d /tmp/nklein-simflow-XXXX) NKLEIN_SIMFLOW_SCENARIO=36 NKLEIN_SIMFLOW_TIMEOUT_MS=14400000 \
+  NKLEIN_SIMFLOW_CONTEXT_TOKENS=262144 NKLEIN_SIMFLOW_NPM_SEED="$SEED" npx tsx scripts/verify-simulated-flow.mts
+```
+
+Without `NKLEIN_SIMFLOW_NPM_SEED` the acceptance is red on the base tree too (offline, vitest missing) and deliveries
+proceed on the reviewer's verdict under the pre-existing-breakage waiver; with the seed (P1.NPMSEED) the real suite
+runs in the sandbox. Either way, prove the drained repo afterwards with `npm ci && npx vitest run && npx tsc --noEmit`
+(expected: 97 test files / 222 tests, tsc clean). `NKLEIN_SIMFLOW_CONTEXT_TOKENS` must exceed the 97-card planning
+transcript (~70k tokens); the batch `add_task({ tasks })` form keeps it to four turns.

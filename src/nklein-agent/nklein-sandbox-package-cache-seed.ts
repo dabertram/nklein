@@ -90,7 +90,8 @@ export function buildHarvestIntoSeedScript(paths: PackageCacheSeedPaths): string
 		`  dest="$seed/_cacache/index-v5/\${f#./}"; [ -e "$dest" ] && continue`,
 		`  mkdir -p "$(dirname "$dest")" && cp -p "$f" "$dest"`,
 		`done); fi`,
-		`chmod -R a+rX "$seed" && echo "harvested $(du -sk "$seed" 2>/dev/null | cut -f1)k"`,
+		// Imported (host-owned) files refuse chmod from cap-dropped root; they are readable already — never fail on it.
+		`chmod -R a+rX "$seed" 2>/dev/null; echo "harvested $(du -sk "$seed" 2>/dev/null | cut -f1)k"`,
 	].join("\n");
 }
 

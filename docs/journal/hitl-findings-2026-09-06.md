@@ -592,3 +592,12 @@ slice 2 — 45 cards I planned as the architect — was driven with pre-verified
     placement ran `npm install` offline (vitest never installed, exit 127) — S01 keeps its lockfile. Also seen: a
     re-driven card's capture raced its workspace disposal ("workspace_disposed_before_capture") and the harness
     classified the run as failed — a runtime race to watch, not a replay defect.
+
+63. **Replay run 7: the seed worked — for the wrong platform.** `npm ci --prefer-offline` from the seed came back
+    `ready` in every acceptance placement, and vitest then died at startup: "Cannot find native binding …
+    @rolldown/binding-wasm32-wasi". The seed was built on the host (darwin/arm64), so npm's optional native
+    packages in it were the macOS ones; inside the sandbox (linux/arm64, glibc 2.36, node 22, npm 11.19) the
+    linux binding was an optional dependency npm could not fetch offline and silently skipped. A seed is built
+    for the SANDBOX platform: `npm ci --cache <seed> --os linux --cpu arm64 --libc glibc` on the host (then a
+    plain `npm ci` to restore the host's own bindings). The harvest path never has this problem — it grows the
+    seed from installs that ran inside the sandbox.
