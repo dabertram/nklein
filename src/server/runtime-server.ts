@@ -713,6 +713,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// bounces fire only on request_changes and the empty-patch re-drive only on empty patches, so the card sat
 	// held in Review forever with the whole fleet idle. ONE re-drive carries the failing acceptance output back
 	// to the worker; a second failure leaves the hold for the operator.
+	/** P0.GATEHOLD follow-up: the watchdog's last re-delivery per card — a re-run that leaves no record still honours the gap. */
+	const mergeRedeliveryAttemptAtByTaskId = new Map<string, number>();
 	const acceptanceFailureRedriveAttemptsByTaskKey = new Map<string, number>();
 	// F1.9b: a result whose ACTUAL changed files violate the card's work-package bounds gets ONE re-drive naming
 	// the violating paths (mirrors the #28 rung), then holds in Review for the operator.
@@ -5368,9 +5370,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							activeTaskIds: new Set([...busySessionTaskIds, ...pausedSessionTaskIds]),
 							handledThisTick,
 							now: Date.now(),
+							recentAttempts: mergeRedeliveryAttemptAtByTaskId,
 						});
 						if (redelivery) {
 							handledThisTick.add(redelivery.taskId);
+							mergeRedeliveryAttemptAtByTaskId.set(redelivery.taskId, Date.now());
 							deps.warn(
 								`Board-liveness watchdog: re-running the delivery of approved ${redelivery.taskId} (${redelivery.reason}; attempt ${redelivery.attemptsInWindow + 1} in 24h, last ${Math.round((Date.now() - redelivery.lastAttemptAt) / 60_000)} min ago).`,
 							);

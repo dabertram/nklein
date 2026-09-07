@@ -59,6 +59,26 @@ describe("selectApprovedUnmergedRedelivery (watchdog re-runs a failed delivery m
 		).toBeNull();
 	});
 
+	it("honours the gap for a re-run the watchdog already started even when it left no record (replay 2026-09-07)", () => {
+		const history = [record("s03", now - MERGE_REDELIVERY_MIN_GAP_MS - 1, false)];
+		const base = {
+			reviewCards: [approved("s03")],
+			history,
+			activeTaskIds: new Set<string>(),
+			handledThisTick: new Set<string>(),
+			now,
+		};
+		expect(
+			selectApprovedUnmergedRedelivery({ ...base, recentAttempts: new Map([["s03", now - 30_000]]) }),
+		).toBeNull();
+		expect(
+			selectApprovedUnmergedRedelivery({
+				...base,
+				recentAttempts: new Map([["s03", now - MERGE_REDELIVERY_MIN_GAP_MS - 1]]),
+			}),
+		).toMatchObject({ taskId: "s03" });
+	});
+
 	it("leaves cards whose last merge succeeded or that were never attempted, and caps attempts per day", () => {
 		expect(
 			selectApprovedUnmergedRedelivery({

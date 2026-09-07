@@ -28,10 +28,20 @@ export function selectApprovedUnmergedRedelivery(input: {
 	activeTaskIds: ReadonlySet<string>;
 	handledThisTick: ReadonlySet<string>;
 	now: number;
+	/**
+	 * When the watchdog last RE-RAN each card's delivery (in-process). A re-run that fails before it can write a
+	 * merge-history record (Dschinn replay 2026-09-07: s54 re-delivered every 30 s tick for 3 minutes) must still
+	 * respect the gap — the record is the durable basis, this map the in-flight one.
+	 */
+	recentAttempts?: ReadonlyMap<string, number>;
 }): MergeRedeliveryDecision | null {
 	const dayAgo = input.now - 24 * 60 * 60_000;
 	for (const card of input.reviewCards) {
 		if (card.review?.status !== "approved" || input.handledThisTick.has(card.id)) {
+			continue;
+		}
+		const recentAttemptAt = input.recentAttempts?.get(card.id);
+		if (recentAttemptAt !== undefined && input.now - recentAttemptAt < MERGE_REDELIVERY_MIN_GAP_MS) {
 			continue;
 		}
 		if (

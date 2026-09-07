@@ -513,17 +513,23 @@ export async function runNKleinAcceptanceGateInSandbox(
 			const setupStartedAt = Date.now();
 			const rootFileNames = (await options.sandboxManager.listSandboxRootFileNames?.(sandboxTaskId)) ?? [];
 			// P1.NPMSEED: the acceptance placement starts from the workspace's warm npm cache seed, not an empty cache.
-			await seedSandboxPackageCache({
+			const seedOutcome = await seedSandboxPackageCache({
 				manager: options.sandboxManager,
 				taskId: sandboxTaskId,
 				...(options.recordObservation ? { recordObservation: options.recordObservation } : {}),
 			});
+			// A seeded cache can satisfy `npm ci --prefer-offline` WITHOUT the network, so the cached offline verdict
+			// (a network fact) must not skip the install for it (Dschinn replay 2026-09-07: every setup for ten minutes
+			// was skipped after one honest EAI_AGAIN, the seed never got its chance).
+			const seeded = seedOutcome?.status === "seeded";
 			const setup = await runSandboxToolchainSetup({
 				rootFileNames,
 				timeoutMs: options.timeoutMs ?? DEFAULT_ACCEPTANCE_TIMEOUT_MS,
 				runCommand: async (execution) => await executeInSandbox({ ...execution, cwd: workspace.workdir }, false),
 				assumeOffline:
-					sandboxOfflineVerdictAt !== null && Date.now() - sandboxOfflineVerdictAt < OFFLINE_VERDICT_TTL_MS,
+					!seeded &&
+					sandboxOfflineVerdictAt !== null &&
+					Date.now() - sandboxOfflineVerdictAt < OFFLINE_VERDICT_TTL_MS,
 			});
 			if (setup.status === "ready") {
 				await harvestSandboxPackageCache({
