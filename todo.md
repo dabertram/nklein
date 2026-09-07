@@ -1978,6 +1978,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `excludeUnroutableDescriptors` (reviewer/custodian), merge fallback, explorer, sibling consult, spec deliberation,
   decomposition routing. Unmapped ⇒ `local` (fail-closed). GOTCHA: allowlist values are lms `deviceIdentifier`
   hashes, not the DEVICE names `lms ps` prints; `perHost` cap `0` means UNCAPPED (normalizeCap), not blocked.
+- [x] **P0.WORKERPRIME — the worker sandbox was never dependency-installed; every card's first `npm install` overran the 30 s tool cap.**
+  Dschinn hand-drive 2026-09-07 (#26): cold per-task caches + the 30 s `run_commands` cap = 3–4 wasted turns per card,
+  truncated native binaries (`vitest` → `Bus error`), lockfile churn in every result branch; a local model loops on
+  "vitest: not found". SHIPPED: `primeSandboxToolchain` runs the acceptance gate's own toolchain plan (full install,
+  4-minute budget, `npm ci` when a lockfile exists) right after `prepareWorkspace` for non-plan-mode starts;
+  default-on (`NKLEIN_WORKER_TOOLCHAIN_PRIME=0` disables), failure non-fatal + one observation. Validated live: S04
+  primed in 76 s, first `npm test` green with zero install turns.
 - [x] **P0.EMPTYFINALREDRIVE — a delivered, green worker turn that ended in prose was re-driven as `no_tool_call`.**
   `planSwarmPromptVariation` anchored on the first tool NAME in the card text ("prefer the edit_file tool …") and
   re-drove a complete delivery indefinitely (dschinn S01, hand-driven 2026-09-07). SHIPPED: if any assistant turn in

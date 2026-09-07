@@ -293,3 +293,17 @@ The spine is sound; the harness around a weak model is where the time goes.
     same endpoint, and nothing said why. Verdict: prompt/telemetry gap — an admission wait should log ONE line
     naming the blocker ("waiting for endpoint slot held by <task>") and the reviewer should be schedulable ahead of
     a fresh worker start (a review closes a card; a worker opens one).
+
+29. **A green card waiting in Review for an endpoint slot is re-driven as a fresh WORKER, discarding its delivery.**
+    S02 and S04 sat in `review` for ~15 min while their reviewer sessions spun in admission (#28). At 02:19:01 the
+    board-liveness watchdog started new worker attempts on both ("Attempt started … with claude-hitl") and moved
+    them `review → planning`; their captured result branches (green, acceptance PASSED) were simply abandoned.
+    Verdict: harness bug — a card with a captured result and a pending review is never "stranded"; the redrive
+    must target the REVIEW (or wait), not restart implementation.
+
+30. **Lockfile churn: every in-sandbox `npm install` rewrote package-lock.json into the result branch.** The
+    capture takes the whole tree (not just the write scope), so S02's review diff opened with a 1,355-line
+    package-lock.json ("FATIGUE WARNING") ahead of the three real files, and every card ships a different lockfile
+    that will collide at delivery. Verdict: harness bug: captures should exclude generated lockfiles outside the
+    write scope; with P0.WORKERPRIME (`npm ci` when a lockfile exists) workers no longer need to install at all,
+    which removes the churn at the source.
