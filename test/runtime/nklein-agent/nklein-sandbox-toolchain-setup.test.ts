@@ -150,3 +150,53 @@ describe("offline-install classification (N10 forensics 2026-07-25)", () => {
 		expect(isOfflineInstallFailure("ERESOLVE unable to resolve dependency tree")).toBe(false);
 	});
 });
+
+describe("transient install failures (2026-09-07: E502 from the egress proxy under concurrent installs)", () => {
+	it("retries a transiently failed install step once and reports ready when the retry succeeds", async () => {
+		const { isTransientInstallFailure, runSandboxToolchainSetup } = await import(
+			"../../../src/nklein-agent/nklein-sandbox-toolchain-setup"
+		);
+		expect(
+			isTransientInstallFailure(
+				"npm error code E502\nnpm error 502 Bad Gateway - GET https://registry.npmjs.org/zod/-/zod-3.25.76.tgz",
+			),
+		).toBe(true);
+		expect(isTransientInstallFailure("npm error code E403")).toBe(false);
+		let installs = 0;
+		const report = await runSandboxToolchainSetup({
+			rootFileNames: ["package.json", "package-lock.json"],
+			timeoutMs: 1_000,
+			transientRetryDelayMs: 0,
+			runCommand: async ({ command }) => {
+				if (command.startsWith("command -v")) return { exitCode: 0, stdout: "/usr/bin/node" };
+				installs += 1;
+				return installs === 1
+					? {
+							exitCode: 1,
+							stderr: "npm error code E502\nnpm error 502 Bad Gateway - GET https://registry.npmjs.org/x.tgz",
+						}
+					: { exitCode: 0, stdout: "added 48 packages" };
+			},
+		});
+		expect(installs).toBe(2);
+		expect(report.status).toBe("ready");
+		expect(report.steps.filter((step) => step.kind === "install")).toHaveLength(2);
+	});
+
+	it("does not retry an offline failure", async () => {
+		const { runSandboxToolchainSetup } = await import("../../../src/nklein-agent/nklein-sandbox-toolchain-setup");
+		let installs = 0;
+		const report = await runSandboxToolchainSetup({
+			rootFileNames: ["package.json"],
+			timeoutMs: 1_000,
+			transientRetryDelayMs: 0,
+			runCommand: async ({ command }) => {
+				if (command.startsWith("command -v")) return { exitCode: 0, stdout: "/usr/bin/node" };
+				installs += 1;
+				return { exitCode: 1, stderr: "npm error code EAI_AGAIN getaddrinfo EAI_AGAIN registry.npmjs.org" };
+			},
+		});
+		expect(installs).toBe(1);
+		expect(report.status).toBe("skipped_offline");
+	});
+});

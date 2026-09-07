@@ -59,6 +59,8 @@ export interface RunSandboxToolchainSetupOptions {
 	readonly now?: () => number;
 	/** Caller's cached run-level verdict that the sandbox network is offline — skips install steps up front. */
 	readonly assumeOffline?: boolean;
+	/** Pause before the single retry of a transiently failed install step (tests pass 0). */
+	readonly transientRetryDelayMs?: number;
 }
 
 function joinOutput(stdout: string | undefined, stderr: string | undefined): string {
@@ -115,6 +117,24 @@ export function isOfflineInstallFailure(output: string): boolean {
  * or network verdict: the environment ran out of room, and the fix is capacity, not the card.
  */
 const DISK_FULL_INSTALL_SIGNATURES = ["ENOSPC", "no space left on device", "TAR_ENTRY_ERROR"];
+
+/** Registry/proxy hiccups that a second attempt usually clears (never offline signatures). */
+const TRANSIENT_INSTALL_SIGNATURES = [
+	"E502",
+	"502 Bad Gateway",
+	"E503",
+	"503 Service Unavailable",
+	"E504",
+	"504 Gateway",
+	"ECONNRESET",
+	"socket hang up",
+	"EPIPE",
+];
+const TRANSIENT_RETRY_DELAY_MS = 2_000;
+
+export function isTransientInstallFailure(output: string): boolean {
+	return TRANSIENT_INSTALL_SIGNATURES.some((signature) => output.includes(signature));
+}
 
 export function isDiskFullInstallFailure(output: string): boolean {
 	return DISK_FULL_INSTALL_SIGNATURES.some((signature) => output.includes(signature));
@@ -173,8 +193,18 @@ export async function runSandboxToolchainSetup(
 	}
 
 	for (const command of plan.installSteps) {
-		const step = await executeStep(options, "install", command, INSTALL_FAIL_FAST_ENV);
+		let step = await executeStep(options, "install", command, INSTALL_FAIL_FAST_ENV);
 		steps.push(step);
+		// Transient registry/proxy failure (dschinn drive 2026-09-07: `npm ci` → `E502 Bad Gateway` on a tarball GET
+		// while four sandboxes installed at once; fetch-retries is 0 by design): retry the step ONCE after a short
+		// pause instead of filing a false acceptance failure. Offline signatures are NOT transient (handled below).
+		if (step.exitCode !== 0 && isTransientInstallFailure(step.output) && !isOfflineInstallFailure(step.output)) {
+			await new Promise<void>((resolve) =>
+				setTimeout(resolve, options.transientRetryDelayMs ?? TRANSIENT_RETRY_DELAY_MS),
+			);
+			step = await executeStep(options, "install", command, INSTALL_FAIL_FAST_ENV);
+			steps.push(step);
+		}
 		if (step.exitCode !== 0) {
 			// N10 forensics 2026-07-25: an install failing because the sandbox has NO NETWORK (the deliberate
 			// offline/egress-fenced posture — EAI_AGAIN/ENOTFOUND/proxy-refused) is not a setup verdict, and it
