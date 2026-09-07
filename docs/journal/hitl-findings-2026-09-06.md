@@ -538,3 +538,20 @@ slice 2 — 45 cards I planned as the architect — was driven with pre-verified
     tracks, 490 fixtures). Caveat: the harness keeps sandboxes offline and Dschinn's acceptance needs vitest, so
     until P1.NPMSEED the in-sandbox acceptance is red on base and work alike and deliveries ride the reviewer's
     verdict under the pre-existing-breakage waiver; the drained repo is proven on the host afterwards.
+
+57. **The simulator transport delivers only the FIRST tool call of a multi-call turn.** aimock's OpenAI stream
+    builder emits `delta.tool_calls[{index: tcIdx}]` per call, yet the runtime persisted and executed exactly one
+    of the replay's 53-call planning turn (`[tool_call …update_focus_chain]`, nothing else) — the same batch the HITL
+    model server returned as a non-streaming `tool_calls` array and the runtime ran in full. Every checked-in set
+    is single-call-per-turn, so the path was never exercised. Open **P2.SIMMULTICALL** (repro: any track turn with
+    two `calls`; compare the persisted `[tool_call …]` markers). The replay set uses the planner's batch form
+    instead (`add_task({ tasks: [...] })`, one call per slice) so the transcript stays small.
+
+58. **A planning session that overflows its context restarts with a brief that quotes card prompts — and worker
+    needles leak.** With one add_task per turn the seed transcript passed the simulated model's 65k window after
+    ~65 cards; the restart brief's "Recent transcript previews" carried `Implement spine card S63 — …` verbatim, so
+    the S63 worker track (class-scoped needle) out-ranked the any-class decompose track and answered the planner
+    with `write_files` ("This is a planning card, not a work card"). Two consequences: the harness gained
+    `NKLEIN_SIMFLOW_CONTEXT_TOKENS` (the simulated window is a scenario parameter, not a constant), and wire truth
+    6 extends to restart briefs — a worker needle must not be quotable from the planner's own transcript, which the
+    batch form guarantees by never restarting.

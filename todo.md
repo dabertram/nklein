@@ -2050,6 +2050,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   stopped session from scratch), and under one-endpoint contention the reviewer's deadline was consumed by
   admission waiting before its first token → "no verdict in 3 sessions" parked a card whose reviewer never spoke.
   Fix shape: the bounded-turn clock starts at admission, and a post-cut nudge resumes ONE session.
+- [ ] **P2.SIMMULTICALL — the simulator transport delivers only the first tool call of a multi-call turn.**
+  2026-09-07 replay set 36: a 53-call planning turn (update_focus_chain + 52 add_task) reached the runtime as ONE
+  persisted `[tool_call …]`; aimock streams `delta.tool_calls[{index: tcIdx}]` per call, the HITL model server's
+  non-streaming `tool_calls` array ran in full. Repro: any scenario turn with two `calls`, count the persisted
+  markers. Until fixed every set is single-call-per-turn (batch tools like `add_task({tasks})` where the protocol
+  offers them); a real multi-call model turn over this transport would lose calls the same way — find the layer
+  (aimock SSE shape vs the runtime's stream consumer) with a wire capture.
 - [ ] **P1.SIMFLOWDSCHINN — prove the Dschinn HITL replay set drains through the harness.**
   `scripts/generate-dschinn-scenario-set.mts` → `packages/llm-simulator/scenarios/36_dark_factory_dschinn_universal_agent/`
   (97 cards, 197 tracks; sources in `sources.json`; raw material stays in `~/.nklein/factory-drains/hitl-drain/`

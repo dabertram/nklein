@@ -473,28 +473,32 @@ async function main(): Promise<void> {
 	const scenarioMode = await resolveScenario();
 
 	// 1) Simulator (chat surface + LM Studio /api shim on one origin).
+	// NKLEIN_SIMFLOW_CONTEXT_TOKENS: the simulated models' advertised context window (default 65536). The Dschinn
+	// replay set (36) carries 97 verbatim spec-block card prompts through one planning session; at 65k the session
+	// overflowed after ~65 add_task turns and the restart brief leaked card needles into the planner (2026-09-07).
+	const SIM_CONTEXT_TOKENS = Math.max(8_192, Number(process.env.NKLEIN_SIMFLOW_CONTEXT_TOKENS) || 65_536);
 	const simulatedModels = POOLS
 		? Object.values(POOL_MODELS).map((id) => ({
 				id,
 				state: "loaded" as const,
 				family: "qwen",
-				maxContextLength: 65536,
+				maxContextLength: SIM_CONTEXT_TOKENS,
 			}))
 		: MULTI_MODEL
 			? [
-					{ id: SWARM_MODELS.architect, state: "loaded" as const, family: "qwen", maxContextLength: 65536 },
-					{ id: SWARM_MODELS.worker, state: "loaded" as const, family: "qwen", maxContextLength: 65536 },
-					{ id: SWARM_MODELS.reviewer, state: "loaded" as const, family: "qwen", maxContextLength: 65536 },
+					{ id: SWARM_MODELS.architect, state: "loaded" as const, family: "qwen", maxContextLength: SIM_CONTEXT_TOKENS },
+					{ id: SWARM_MODELS.worker, state: "loaded" as const, family: "qwen", maxContextLength: SIM_CONTEXT_TOKENS },
+					{ id: SWARM_MODELS.reviewer, state: "loaded" as const, family: "qwen", maxContextLength: SIM_CONTEXT_TOKENS },
 				]
 			: SCENARIO_RUN === "failover-run"
 				? [
 						// N2 model_failover profile: TWO loaded models under Auto routing. Cold-equal scores keep the
 						// stable sort in roster order, so the primary is picked first deterministically; its recorded
 						// terminal failure re-drives the card on the fallback candidate (model-keyed tracks).
-						{ id: SIM_MODEL, state: "loaded" as const, family: "qwen", maxContextLength: 65536 },
-						{ id: "sim/zz-fallback-coder", state: "loaded" as const, family: "qwen", maxContextLength: 65536 },
+						{ id: SIM_MODEL, state: "loaded" as const, family: "qwen", maxContextLength: SIM_CONTEXT_TOKENS },
+						{ id: "sim/zz-fallback-coder", state: "loaded" as const, family: "qwen", maxContextLength: SIM_CONTEXT_TOKENS },
 					]
-				: [{ id: SIM_MODEL, state: "loaded" as const, family: "qwen", maxContextLength: 65536 }];
+				: [{ id: SIM_MODEL, state: "loaded" as const, family: "qwen", maxContextLength: SIM_CONTEXT_TOKENS }];
 	const simulator = createSimulatorServer(scenarioMode?.scenario ?? script, { models: simulatedModels });
 	await simulator.start();
 	const simBase = simulator.url(); // http://127.0.0.1:<port>/v1
