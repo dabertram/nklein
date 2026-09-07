@@ -16,10 +16,18 @@ describe("selectTrashedCardSessions (P0.TRASHSTOP)", () => {
 			{ taskId: "t1", columnId: "trash" },
 			{ taskId: "t2", columnId: "trash" },
 			{ taskId: "done", columnId: "completed" },
+			{ taskId: "unknown", columnId: "absent" },
 		]);
 	});
 
-	it("keeps a session whose card also has a live-lane copy, and derived/absent ids", () => {
-		expect(selectTrashedCardSessions(board, ["shadow", "b", "main-branch-custodian::review"])).toEqual([]);
+	it("keeps a session whose card has a live-lane copy and every derived session id", () => {
+		expect(selectTrashedCardSessions(board, ["shadow", "b", "main-branch-custodian::review", "b::review"])).toEqual(
+			[],
+		);
+	});
+
+	it("stops a session whose card was deleted from the board outright (no lane at all)", () => {
+		expect(selectTrashedCardSessions(board, ["gone-card"])).toEqual([{ taskId: "gone-card", columnId: "absent" }]);
+		expect(selectTrashedCardSessions({ columns: [] }, ["gone-card"])).toEqual([]);
 	});
 });

@@ -21,6 +21,7 @@ import { buildHistoryBlindCorrectorPrompt } from "../core/history-blind-correcto
 import { fetchLoadedModelDescriptors, type LoadedModelDescriptor } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
+import { normalizeProviderId } from "../core/model-identity";
 import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
 import { planReviewEffort } from "../core/review-effort-scaling";
 import type { ReviewBoardContext, ReviewRelatedCard, ReviewSubmissionInput } from "../core/review-orchestration";
@@ -354,7 +355,11 @@ export async function runSecondOpinionReviewForTask(
 	// `shouldBlockUnloadedModel`: an unknown/empty loaded set honors the pin, so an unreachable probe never wedges a
 	// review. The probe is skipped under the test runner unless injected, mirroring the task-start residency gate.
 	let reviewer = pinnedReviewer;
-	if (pinnedReviewer) {
+	// The residency probe lists LM STUDIO's loaded models — it can only judge a pin on an LM Studio provider. A pin
+	// on any other provider (HITL sim 2026-09-07: `openai-compatible/claude-hitl` on :8095) was read as "not
+	// loaded" against :1234's listing, blocked one round and then degraded to an auto pick that the loaded-host
+	// allowlist (rightly) left empty. Honor such pins; the session start reports an unreachable endpoint loudly.
+	if (pinnedReviewer && normalizeProviderId(pinnedReviewer.providerId) === "lmstudio") {
 		const residencyCheckEnabled = !(process.env.VITEST || process.env.NODE_ENV === "test");
 		const probeLoadedModelIds =
 			input.fetchLoadedModelIds ??

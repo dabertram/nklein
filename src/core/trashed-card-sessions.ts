@@ -19,6 +19,11 @@ export interface TerminalLaneSession {
 
 const TERMINAL_LANES: ReadonlySet<string> = new Set(["trash", "completed"]);
 
+/** Derived session ids (`<card>::review`, `<card>::spec`, `main-branch-custodian::review`) name no board card. */
+function isDerivedSessionId(taskId: string): boolean {
+	return taskId.includes("::");
+}
+
 export function selectTrashedCardSessions(
 	board: TerminalLaneSessionBoard,
 	activeSessionTaskIds: Iterable<string>,
@@ -37,11 +42,18 @@ export function selectTrashedCardSessions(
 	const stops: TerminalLaneSession[] = [];
 	const seen = new Set<string>();
 	for (const taskId of activeSessionTaskIds) {
-		const columnId = terminalLaneByTaskId.get(taskId);
-		if (columnId !== undefined && !live.has(taskId) && !seen.has(taskId)) {
-			seen.add(taskId);
-			stops.push({ taskId, columnId });
+		if (seen.has(taskId) || live.has(taskId) || isDerivedSessionId(taskId)) {
+			continue;
 		}
+		const columnId = terminalLaneByTaskId.get(taskId);
+		// A card deleted from the board outright (HITL 2026-09-07: a purged redecompose clone whose session the
+		// context-overflow controller kept restarting on every nudge) is the same occupancy with no lane at all.
+		const terminalColumn = columnId ?? (board.columns.length > 0 ? "absent" : undefined);
+		if (terminalColumn === undefined) {
+			continue;
+		}
+		seen.add(taskId);
+		stops.push({ taskId, columnId: terminalColumn });
 	}
 	return stops;
 }
