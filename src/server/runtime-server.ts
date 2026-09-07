@@ -169,6 +169,7 @@ import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { planTerminalRedriveEscalation } from "../core/terminal-redrive-escalation";
 import { isTestFilePath } from "../core/test-misinterpretation-detector";
 import { DELIVERY_ACTION_MANIFEST } from "../core/tool-capability-manifest";
+import { selectTrashedCardSessions } from "../core/trashed-card-sessions";
 import { parseAddedLinesFromUnifiedDiff } from "../core/unified-diff-added-lines";
 import { combineVerifierVerdicts } from "../core/verifier-ensemble";
 import { findWorkPackageBoundaryViolations } from "../core/work-package-card-shape";
@@ -4460,6 +4461,24 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								)
 								.map((summary) => summary.taskId),
 						);
+						// P0.TRASHSTOP (v31 2026-09-07): a card trashed through a state save kept its architect session
+						// running and held a single-slot host for an hour. A trashed card's session is pure occupancy —
+						// stop it (once per card; the summary leaves the active set after the stop).
+						for (const terminal of selectTrashedCardSessions(board, activeSessionTaskIds)) {
+							deps.warn(
+								`Board-liveness watchdog: stopping the live session of ${terminal.columnId} card ${terminal.taskId} — it holds a model slot with nothing to deliver.`,
+							);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Card ${terminal.taskId} sits in ${terminal.columnId} but still had a live session; the watchdog stopped it.`,
+								taskId: terminal.taskId,
+								workspacePath: scope.workspacePath,
+								metadata: { category: "trashed_card_session_stopped", columnId: terminal.columnId },
+							});
+							await trackedService.stopTaskSession(terminal.taskId).catch(() => null);
+							activeSessionTaskIds.delete(terminal.taskId);
+						}
 						// Secondary reviewers run outside the task-session service, so their card is absent from
 						// `activeSessionTaskIds`. Correlate the finalizer's own in-flight set as well; otherwise a
 						// watchdog tick can launch a duplicate reviewer while the first one is still awaiting its
