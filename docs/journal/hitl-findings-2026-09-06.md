@@ -572,3 +572,13 @@ slice 2 — 45 cards I planned as the architect — was driven with pre-verified
     endpoint (`onAdmitted` → `clockStartsOn`; the wait extends the deadline, capped at one timeout), and a start cut
     while still queued is not nudged. Under one-endpoint contention a reviewer now waits its turn and then gets its
     full budget — the shape every single-model rig needs.
+
+61. **Replay runs 3–4: the harness is not the drive.** Three environment truths the HITL rig never met: (a) the
+    dev-test fixture (`ts-starter`) is a node:test scaffold, not an empty repo — S01 now removes its starter test and
+    runner before writing, or vitest executes them; (b) the runtime enforces `filesLikelyTouched` as the WRITE
+    scope — S01's `tsconfig.json` was blocked, the empty patch became a no-op completion and main stayed at the
+    fixture, so the generator derives every card's scope from its delivery; (c) the acceptance gate's cached offline
+    verdict (10 min after one EAI_AGAIN) skipped the install of every seeded placement — a network fact must not veto
+    an install the seed can satisfy offline. Also seen: the watchdog re-delivered s54 every 30 s because the re-run
+    failed before it could write a merge-history record — the redelivery decision now honours the in-process time
+    of the last attempt as well. Each is a product fix (85541a67b), not a replay-only patch.
