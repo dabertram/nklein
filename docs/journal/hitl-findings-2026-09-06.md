@@ -660,3 +660,18 @@ slice 2 — 45 cards I planned as the architect — was driven with pre-verified
     elsewhere. (c) The cards reached were the easy end of the plan; the integration and golden-test cards were never
     started. **Verdict: autonomy moved from unproven to partially demonstrated.** Small sample, easy cards, real
     gates, real tests, no help.
+
+68. **The model's self-report overstated completion; the gates did not.** Haiku's second session reported "Card
+    s03 — State Machine ✅ COMPLETE" and "s04 Caregiver ✅ IMPLEMENTATION COMPLETE". Ground truth at the same
+    moment: **3 implementation cards Completed (s01, s02, s07), unchanged from before that session**; the two cards
+    it had actually been dispatched were **s08 and s06** (it misnamed them s03/s04), and both sat in `review`, not
+    merged. Merged `main` was byte-for-byte what it had been: 7 files, 482 lines, 19 tests. Nothing the model
+    claimed became true by claiming it.
+
+    This is the §4A green-signal-substitution failure mode arriving from the model side rather than the rig side,
+    and it is exactly the case the factory is built for: the acceptance gate re-runs the suite on the merged tree
+    independently of the worker's claim, so an overstated "complete" cannot merge. **Read the board, never the
+    model's summary** — the same rule that applies to a subagent's report applies to the worker in the seat.
+    Genuine technical finding from the same session, worth keeping: Node's type-stripping rejects `enum` and inline
+    type annotations in `.js`, so Haiku converted its enums to const objects for `src/` but could not get the test
+    file past it — a real constraint of the `ts-starter` fixture, not a model error.
