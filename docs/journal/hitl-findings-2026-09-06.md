@@ -606,3 +606,19 @@ slice 2 — 45 cards I planned as the architect — was driven with pre-verified
     for the SANDBOX platform: `npm ci --cache <seed> --os linux --cpu arm64 --libc glibc` on the host (then a
     plain `npm ci` to restore the host's own bindings). The harvest path never has this problem — it grows the
     seed from installs that ran inside the sandbox.
+
+64. **Replay run 9: the first real end-to-end drain — 92 of 97 cards, real acceptance, no local model.** With the
+    platform-correct npm seed every placement installed offline and `vitest run` was the actual gate; cards merged at
+    roughly four per minute. The five that did not finish trace to two causes, both now understood: (a) S49's barrel
+    card was declared `testable` by the planner while the drive's board had it `not_testable` — the test-driven gate
+    bounced "touched no test file" twice, the review parked it, a redecompose card was spawned and its four
+    dependents stalled (fixed: testability follows the delivery, 5af68c008); (b) that redecompose CLONE quotes its
+    parent's card prompt, so the S49 worker track answered a PLANNING card with `write_files` / `run_commands` —
+    rejected as unavailable tools, three strikes, abandoned. The HITL auto-driver had the same hazard and guards it
+    by refusing to answer a redecompose clone with the parent's delivery; a scenario set cannot express that guard,
+    which is an argument for the product's own redecompose prompt to stop quoting the parent verbatim.
+65. **The capture/dispose race is real and terminal, not cosmetic.** The same run ended `failed` because a
+    `sandbox_workspace_disposed` landed one second before the capture: "the sandbox workspace was unavailable before
+    capture (workspace_disposed_before_capture) … recovery=none". The npm-cache seed exec hit the same race from the
+    other side ("OCI runtime exec failed … chdir to cwd … no such file or directory"). Filed as P1.CAPTURERACE with
+    this evidence.
