@@ -199,6 +199,10 @@ async function main(): Promise<void> {
 	// 3. Edges: declared + the planner's add_dependency calls + import-derived (earlier owners only, acyclic).
 	const edges = new Map<string, Set<string>>(finalCards.map((card) => [card.id, new Set(card.dependsOn ?? [])]));
 	for (const [from, to] of EXTRA_EDGES) edges.get(from)?.add(to);
+	// Every card builds on the S01 scaffold (run 6, 2026-09-07: S54/S74 declared "dependsOn: none" — true on the
+	// drive's merged main, false on the harness fixture — and ran their vitest tests under the fixture's node:test
+	// runner). The transitive reduction below keeps only the edges that are not implied.
+	for (const card of finalCards) if (card.id !== "s01") (edges.get(card.id) as Set<string>).add("s01");
 	let derived = 0;
 	for (const card of finalCards) {
 		const position = index.get(card.id) ?? 0;
@@ -330,7 +334,15 @@ async function main(): Promise<void> {
 							name: "begin_implementation",
 							arguments: { refinementNotes: `Deliver ${card.title} per its spec block within the write scope.` },
 						},
-						{ name: "write_files", arguments: { files: delivery.files.filter((file) => !GENERATED_LOCKFILES.has(file.path)) } },
+						// The scaffold's lockfile is deliberate (npm ci + the seed); every other card's lockfile write is install
+						// churn the runtime's capture drops anyway (P0.LOCKFILECAPTURE) — run 6 filtered S01's too, so its
+						// acceptance placement ran `npm install` offline and vitest was never installed (exit 127).
+						{
+							name: "write_files",
+							arguments: {
+								files: delivery.files.filter((file) => card.id === "s01" || !GENERATED_LOCKFILES.has(file.path)),
+							},
+						},
 						{ name: "run_commands", arguments: { commands: ["npm test 2>&1 | tail -n 12"] } },
 					],
 					`Refinement: scaffold present. Delivering ${card.title} within scope, test-first, then running the acceptance check.`,

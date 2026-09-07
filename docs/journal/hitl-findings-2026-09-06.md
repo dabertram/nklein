@@ -582,3 +582,13 @@ slice 2 — 45 cards I planned as the architect — was driven with pre-verified
     an install the seed can satisfy offline. Also seen: the watchdog re-delivered s54 every 30 s because the re-run
     failed before it could write a merge-history record — the redelivery decision now honours the in-process time
     of the last attempt as well. Each is a product fix (85541a67b), not a replay-only patch.
+
+62. **Replay runs 5–6: the plan is accepted; the scaffold must be the root.** With the batch add_task form both
+    batches were accepted (97 tasks, 185 edges) and the coverage gate passed. Then: (a) the planner's sizing cap
+    (3 likely files) clashed with the write gate — coarse paths are now writable by any bounded card and root tool
+    configs count as coarse (c3b5f9bfa); (b) S54/S74 declared "dependsOn: none" (true on the drive's merged main,
+    false on the fixture) and ran their vitest suites under the fixture's node:test runner — every replay card now
+    depends on S01; (c) my own lockfile filter stripped the scaffold's package-lock.json, so S01's acceptance
+    placement ran `npm install` offline (vitest never installed, exit 127) — S01 keeps its lockfile. Also seen: a
+    re-driven card's capture raced its workspace disposal ("workspace_disposed_before_capture") and the harness
+    classified the run as failed — a runtime race to watch, not a replay defect.
