@@ -1219,6 +1219,9 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"result_base_refresh",
 	// P1.NPMSEED (2026-09-07): a placement's npm cache was seeded from / harvested into the workspace seed (or failed to).
 	"sandbox_npm_cache_seed",
+	// P0.REVIEWNOVERDICT (2026-09-07): a cut auxiliary session was resumed from its persisted transcript so the
+	// verdict nudge reaches the reviewer's own exploration instead of restarting a fresh agent on the seed prompt.
+	"aux_session_transcript_resume",
 	// P0.TRASHSTOP (2026-09-07): the watchdog stopped a live session whose card sits only in trash.
 	"trashed_card_session_stopped",
 	// P0.BUSYWEDGE (2026-09-07): a token-less session was left running because its model is busy per lms ps.
