@@ -368,3 +368,11 @@ went start→review in under 5 minutes. The hand-written part is the code itself
     or they park for the operator". The explicit start API works but demands `prompt` and `baseRef` the card
     already carries. Verdict: harness gap — a `ready` card with a live dependency graph must always be dispatchable
     (re-absorb the job), and `startTaskSession` should default prompt/baseRef from the card.
+
+**Progress note (03:40):** 33 of 51 spine cards delivered and completed by the hand-driven model through the
+unmodified pipeline (worker → acceptance → reviewer → delivery → completed), most at 3 model turns per card with
+the auto-driver handling the mechanical turns. Remaining friction is all in the harness: `ready` cards the
+controller will not dispatch (#38 — the driver now "kicks" them through the start API after each session ends),
+one endpoint slot per shared endpoint (`sharedEndpointId` in the registry — perHost/perEndpoint/perProvider caps
+do not lift it), and the occasional acceptance failure caused by a card's declared dependencies missing a file its
+acceptance clause names (#31: S19→S11, S11→S19, S13→S03).
