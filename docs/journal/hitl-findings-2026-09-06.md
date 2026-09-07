@@ -376,3 +376,29 @@ controller will not dispatch (#38 — the driver now "kicks" them through the st
 one endpoint slot per shared endpoint (`sharedEndpointId` in the registry — perHost/perEndpoint/perProvider caps
 do not lift it), and the occasional acceptance failure caused by a card's declared dependencies missing a file its
 acceptance clause names (#31: S19→S11, S11→S19, S13→S03).
+
+## Drive complete (2026-09-07 04:20): the whole first vertical slice, S01–S51 plus the charter, through the pipeline
+
+All 51 spine cards and the S00 charter are in `completed`; the integrated `main` (106 commits) was cloned fresh
+on the host: **52 test files / 139 tests green, typecheck clean**. Every card went through the unmodified
+worker → acceptance → reviewer → delivery path with the hand-driven model; the harness fixes shipped during the
+drive (acceptance-command sanitizer, delivered-turn redrive guard, worker toolchain priming, transient install
+retry, HEAD base ref, host allowlist, failover runtime id) are what made the tail run at ~3 model turns per card.
+
+Operator deliveries (merged by hand onto main, then marked completed): S01 (the initial scope/capture tangle),
+S03 (held after an E502 install failure), S24 (repair loop that never captured its fix), S49 (parked by the
+test-driven gate). Everything else was delivered by the runtime itself.
+
+39. **The test-driven gate parks cards whose whole point is to touch no test.** S49 (the index barrel) was parked
+    with "touched no test file" and a redecompose clone was spawned, exactly like the custodian follow-up (#34).
+    A card with `testability: not_testable` — or a change confined to re-exports/docs — must pass that gate; the
+    decomposer should mark barrel/doc cards not_testable at creation.
+
+40. **Completed cards re-spawn planning sessions from a lane shadow.** After S49 was moved to `completed`, the
+    board kept a planning-lane copy ("sits in planning but the kernel never heard of it") and the watchdog
+    started plan-mode sessions for it every sweep, each nagging "your previous turn ended without calling a tool".
+    The driver now answers those with a no-op; the product fix is for the CRDT/board reconcile to drop a card
+    from every non-terminal lane the moment it lands in `completed`.
+
+**Throughput:** 54 cards in about 4.5 hours wall-clock including every harness investigation and fix; the last
+20 cards took under 70 minutes.

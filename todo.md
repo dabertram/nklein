@@ -1978,6 +1978,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `excludeUnroutableDescriptors` (reviewer/custodian), merge fallback, explorer, sibling consult, spec deliberation,
   decomposition routing. Unmapped ⇒ `local` (fail-closed). GOTCHA: allowlist values are lms `deviceIdentifier`
   hashes, not the DEVICE names `lms ps` prints; `perHost` cap `0` means UNCAPPED (normalizeCap), not blocked.
+- [x] **P0.INSTALLRETRY — a single transient `E502 Bad Gateway` from the egress proxy failed a whole acceptance run.**
+  Dschinn drive 2026-09-07 (#33): with ~4 sandboxes installing at once, `npm ci` died on one tarball GET and the
+  card was reported as "dependency installation failed". SHIPPED: one retry after 2 s for E502/E503/E504/ECONNRESET
+  class failures inside `runSandboxToolchainSetup`; offline signatures still fail fast. Proxy-side cause still open.
 - [x] **P0.WORKERPRIME — the worker sandbox was never dependency-installed; every card's first `npm install` overran the 30 s tool cap.**
   Dschinn hand-drive 2026-09-07 (#26): cold per-task caches + the 30 s `run_commands` cap = 3–4 wasted turns per card,
   truncated native binaries (`vitest` → `Bus error`), lockfile churn in every result branch; a local model loops on
