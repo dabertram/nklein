@@ -622,3 +622,20 @@ slice 2 — 45 cards I planned as the architect — was driven with pre-verified
     capture (workspace_disposed_before_capture) … recovery=none". The npm-cache seed exec hit the same race from the
     other side ("OCI runtime exec failed … chdir to cwd … no such file or directory"). Filed as P1.CAPTURERACE with
     this evidence.
+
+66. **Replay run 10: the full Dschinn progress re-ran from the recording — 98/98 Completed, exit 0.** Twenty
+    minutes, real `vitest run` acceptance in offline sandboxes, no model with weights anywhere in the loop. The
+    drained repo verifies independently (`npm ci && npx vitest run && npx tsc --noEmit`: 96 files / 221 tests, tsc
+    clean) and its tree is byte-identical to the hand-driven one — all 99 `src/` files and all 96 spine `test/`
+    files; the only differences are a custodian-authored test the plan never contained and the fixture's own
+    starter file, which vitest's include pattern ignores. David's directive of 12:05 ("make sure we're collecting
+    everything needed for having aimock rerun the full Dschinn progress") is satisfied, and the collection is
+    reproducible: `scripts/generate-dschinn-scenario-set.mts` rebuilds the set from
+    `~/.nklein/factory-drains/hitl-drain/{queue/answers,deliveries}` at any time.
+
+    **What ten runs cost and bought.** Every failure was a defect in the product or the harness, and each became a
+    fix rather than a scenario patch: the multi-call tool cut (P2.SIMMULTICALL — a swarm path, not the transport),
+    the context-window overflow and its needle-leaking restart brief, the write-scope/coarse-path mismatch, the
+    stale offline verdict skipping seeded installs, the record-less redelivery loop, the missing scaffold root
+    edges, the platform-wrong npm seed, and the barrel card's testability. A replay set is a regression test for
+    the FACTORY, not for the project it builds — that is what made it worth ten runs.
