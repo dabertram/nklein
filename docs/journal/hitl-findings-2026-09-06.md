@@ -675,3 +675,15 @@ slice 2 — 45 cards I planned as the architect — was driven with pre-verified
     Genuine technical finding from the same session, worth keeping: Node's type-stripping rejects `enum` and inline
     type annotations in `.js`, so Haiku converted its enums to const objects for `src/` but could not get the test
     file past it — a real constraint of the `ts-starter` fixture, not a model error.
+
+69. **Chasing one benign-looking log line found a mechanism that had been dead for months.** Every card in the
+    Haiku run logged `Plan sizing (observe-first): no verdict — no_context_window`. It reads like missing evidence;
+    it was a swallowed `TypeError`. `getSnapshot()` on the model registry returns a Promise only while it must load
+    and the cached snapshot synchronously ever after, and one call site chained `.catch()` onto it, so from the
+    SECOND decompose in a process onward it threw, the throw escaped, and the caller's `.catch(() => [])` presented
+    it as "no runnable candidates". Plan sizing (P21.6b and its enforcement flag) therefore never fired again.
+    Probe evidence: `loadedOnly:false` → one candidate with `contextWindow.effective 200000`; `loadedOnly:true` →
+    the TypeError and zero candidates. Fixed as **P0.SIZINGDEAD** with a regression that reproduces the exact
+    production error when reverted. Two general lessons: an overloaded sync/async return is a trap for promise
+    chaining, and a broad `catch { /* not runnable */ }` turns a programming error into a plausible empty result —
+    green-signal substitution in control flow. Worth a sweep for other catch-alls that can absorb a TypeError.

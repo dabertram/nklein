@@ -21,13 +21,18 @@ export async function buildDecompositionRoutingCandidates(
 	options: { loadedOnly?: boolean } = {},
 ): Promise<NKleinTaskRoutingCandidate[]> {
 	const nkleinProviderService = createNKleinProviderService();
-	const modelRegistry = await getDefaultNKleinModelRegistry()
-		.getSnapshot()
-		.catch(() => ({
-			schemaVersion: 1 as const,
-			updatedAt: 0,
-			models: {},
-		}));
+	// `getSnapshot()` is OVERLOADED: it returns a Promise only while the registry still has to load, and the CACHED
+	// snapshot synchronously ever after (nklein-model-registry.ts). Chaining `.catch()` on it therefore threw
+	// `TypeError: … .catch is not a function` on every call once the registry had warmed up — and because that throw
+	// escaped this function entirely, every caller's own `.catch(() => [])` turned it into ZERO candidates. Plan
+	// sizing (P21.6b, `NKLEIN_PLAN_SIZING_ENFORCE` included) was silently dead from the second decompose onward, and
+	// the sizing observation reported `no verdict — no_context_window` for every card (live 2026-09-07). The three
+	// other call sites in the repo already wrap with `Promise.resolve(...)`; this one did not.
+	const modelRegistry = await Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot()).catch(() => ({
+		schemaVersion: 1 as const,
+		updatedAt: 0,
+		models: {},
+	}));
 	const candidates = new Map<string, NKleinTaskRoutingCandidate>();
 	const loadedCandidateKeys = new Set<string>();
 	try {

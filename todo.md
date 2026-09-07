@@ -2228,6 +2228,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   merge-redelivery-decision.test.ts. The entry's "ONE clean fresh-conflict observation" is now produced by the
   mechanism itself: the next boot after a conflict logs `re-deliver`/`held: redelivery_gap` for that card.
 
+- [x] **P0.SIZINGDEAD — plan sizing was silently dead from the second decompose onward (a `TypeError` eaten by a catch-all).**
+  Found 2026-09-07 while probing why every card in the Haiku model-seat run logged `Plan sizing (observe-first): no
+  verdict — no_context_window`. The model registry's `getSnapshot()` is OVERLOADED — a Promise only while it still
+  has to LOAD, the cached snapshot SYNCHRONOUSLY ever after (`nklein-model-registry.ts:376-381`) — and
+  `build-decomposition-routing-candidates.ts` chained `.catch()` straight onto it. Once the registry warmed up that
+  threw `TypeError: … .catch is not a function`; the throw escaped the function, and every caller's own
+  `.catch(() => [])` turned it into ZERO routing candidates. Consequences: `largestContextWindow` null ⇒
+  `assessPlannedTaskSizing` returns `no_context_window` for every card, so **P21.6b sizing never fires again in that
+  process — `NKLEIN_PLAN_SIZING_ENFORCE` included** — and `derivePlanTaskRoutingSizing` runs against an empty
+  candidate list. Proven by probe: `loadedOnly:false` → 1 candidate with `contextWindow.effective 200000`;
+  `loadedOnly:true` → the TypeError and 0 candidates. The repo's three OTHER call sites already wrap with
+  `Promise.resolve(...)`; this one did not. SHIPPED: the same wrap, plus a regression
+  (`test/runtime/nklein-agent/decomposition/build-decomposition-routing-candidates.test.ts`) that drives the
+  synchronous cached shape and fails with the exact production TypeError when the fix is reverted.
+  **Lesson for §4A:** an overloaded sync/async return is a trap for `.catch()` chaining, and a broad
+  `catch { /* not runnable */ }` around it converts a programming error into a plausible-looking empty result — the
+  green-signal-substitution rule applied to control flow.
 - [ ] **P0.REVRANK — Reviewer/escalation candidate ranking is CAPABILITY-BLIND (class fit only) — a 9B
   "escalates" a 27B's stuck review.** *(Live 2026-09-03 ~23:50: s44's stuck review loop "Escalated … to
   ornith-local-9b" — the 9B whose 3× no-verdict sessions CAUSED the loop; `buildReviewerCandidates` ranks by
