@@ -2050,11 +2050,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `NKLEIN_SIMFLOW_NPM_SEED` through — its offline sandboxes can then run the real `vitest` acceptance. Observation
   category `sandbox_npm_cache_seed`; `NKLEIN_SANDBOX_NPM_CACHE_SEED=0` disables. Still open from #52: surface the
   `npm error` lines in the prime observation.
-- [ ] **P1.REVIEWNUDGE — a reviewer cut at the verdict reserve spawns a fresh session per nudge; admission waiting eats its deadline.**
-  2026-09-07 S72: three `startTaskSession …::review` within 50 ms after the reserve cut (each nudge restarted the
-  stopped session from scratch), and under one-endpoint contention the reviewer's deadline was consumed by
-  admission waiting before its first token → "no verdict in 3 sessions" parked a card whose reviewer never spoke.
-  Fix shape: the bounded-turn clock starts at admission, and a post-cut nudge resumes ONE session.
+- [x] **P1.REVIEWNUDGE — a reviewer cut at the verdict reserve spawned a fresh session per nudge; admission waiting ate its deadline.**
+  2026-09-07 S72: the bounded start turn's timer ran while the start was still QUEUED behind another session on the
+  shared endpoint; the reserve cut fired before the first token, stopped nothing, and each nudge restarted a fresh
+  reviewer from the seed prompt (three `startTaskSession …::review` within 50 ms once the endpoint freed) → "no
+  verdict in 3 sessions" parked a card whose reviewer never spoke. SHIPPED: `onAdmitted` on the launch-config start
+  (fired inside the admission gate), `runBoundedTurn({ clockStartsOn })` in the secondary-session harness starts the
+  budget at admission and extends the deadline by the wait (capped at one timeout; `ctx.deadline()` is the moving
+  value), and a start cut while still queued is never nudged (no transcript → a nudge is a ghost restart).
 - [ ] **P2.SIMMULTICALL — the simulator transport delivers only the first tool call of a multi-call turn.**
   2026-09-07 replay set 36: a 53-call planning turn (update_focus_chain + 52 add_task) reached the runtime as ONE
   persisted `[tool_call …]`; aimock streams `delta.tool_calls[{index: tcIdx}]` per call, the HITL model server's

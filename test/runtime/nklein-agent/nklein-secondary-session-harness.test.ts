@@ -135,6 +135,27 @@ describe("createSecondarySessionHarness.runBracketed", () => {
 		expect(msLeftForNudge).toBeGreaterThan(0);
 	});
 
+	it("P1.REVIEWNUDGE: the budget starts at admission — the admission wait extends the deadline (capped at one timeout)", async () => {
+		const mgr = sandboxManager();
+		let outcome: unknown;
+		let deadlineShiftMs = 0;
+		await createSecondarySessionHarness(deps(mgr)).runBracketed(
+			{ ...config, timeoutMs: 300 },
+			async ({ runBoundedTurn, deadlineMs, deadline }) => {
+				// Admission arrives after 200 ms; the turn then settles 150 ms later — 350 ms wall clock against a
+				// 300 ms budget, but only 150 ms of it counts.
+				const admitted = new Promise<void>((resolve) => setTimeout(resolve, 200));
+				const turn = admitted.then(() => new Promise<void>((resolve) => setTimeout(resolve, 150)));
+				outcome = await runBoundedTurn(turn, { clockStartsOn: admitted });
+				deadlineShiftMs = deadline() - deadlineMs;
+				return outcome;
+			},
+		);
+		expect(outcome).toBe("settled");
+		expect(deadlineShiftMs).toBeGreaterThanOrEqual(150);
+		expect(deadlineShiftMs).toBeLessThanOrEqual(300);
+	});
+
 	it("a reserve never starves the turn itself — it splits the window rather than yielding zero", async () => {
 		const mgr = sandboxManager();
 		let outcome: unknown = null;

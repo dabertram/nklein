@@ -22,6 +22,11 @@ export interface StartRuntimeTaskSessionFromLaunchConfigInput {
 	 * parent's reservation to the child and back, preserving cap=1 without deadlock or general bypass.
 	 */
 	admissionParentTaskId?: string | null;
+	/**
+	 * P1.REVIEWNUDGE: invoked the moment the session's first model turn is ADMITTED to its endpoint (after any
+	 * shared-endpoint queueing) — bounded runners start their budget clock here, not at the queued start.
+	 */
+	onAdmitted?: () => void;
 	cwd: string;
 	workspaceRoot?: string | null;
 	prompt: string;

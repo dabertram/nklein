@@ -40,9 +40,11 @@ function harness(over: { hang?: boolean } = {}) {
 	return {
 		runBracketed: vi.fn(async (_config: unknown, drive: (ctx: unknown) => Promise<unknown>) => {
 			if (over.hang) return new Promise(() => {}); // never resolves → keeps the round in-flight
+			const deadlineMs = Date.now() + 8_000;
 			return drive({
 				workspace: { workdir: "/wd" },
-				deadlineMs: Date.now() + 8_000,
+				deadlineMs,
+				deadline: () => deadlineMs,
 				runBoundedTurn: async (p: Promise<unknown>) => {
 					await p;
 					return "settled";
@@ -61,6 +63,7 @@ function deps(over: Partial<SecondOpinionReviewRunnerDeps> = {}): SecondOpinionR
 		getHarness: () => harness() as never,
 		// The reviewer turn delivers its verdict through the onReviewSubmitted callback.
 		startRuntimeSession: vi.fn(async (input) => {
+			input.onAdmitted?.();
 			input.onReviewSubmitted?.(APPROVE);
 			return { result: {} };
 		}),
@@ -173,6 +176,58 @@ describe("createSecondOpinionReviewRunner", () => {
 		await expect(createSecondOpinionReviewRunner(d).runSecondOpinionReviewSession(input)).resolves.toEqual(first);
 		expect(d.stopRuntimeSession).toHaveBeenCalledTimes(1);
 		expect(d.sendTaskSessionInput).not.toHaveBeenCalled();
+	});
+
+	it("P1.REVIEWNUDGE: a start that was never admitted to its endpoint is not nudged — no ghost reviewers", async () => {
+		// The bracket cuts the start turn (timeout) while it is still queued behind another session: no transcript
+		// exists, so a nudge would restart a fresh reviewer from the seed prompt (HITL 2026-09-07: three within 50 ms).
+		const d = deps({
+			getHarness: () =>
+				({
+					runBracketed: vi.fn(async (_config: unknown, drive: (ctx: unknown) => Promise<unknown>) => {
+						const deadlineMs = Date.now() + 8_000;
+						return drive({
+							workspace: { workdir: "/wd" },
+							deadlineMs,
+							deadline: () => deadlineMs,
+							runBoundedTurn: async () => "timeout",
+						});
+					}),
+				}) as never,
+			startRuntimeSession: vi.fn(() => new Promise<RuntimeTaskSessionStartResult>(() => {})),
+		});
+		await expect(createSecondOpinionReviewRunner(d).runSecondOpinionReviewSession(input)).resolves.toBeNull();
+		expect(d.sendTaskSessionInput).not.toHaveBeenCalled();
+		// The queued start is still released (stop) so it cannot hold the endpoint later.
+		expect(d.stopRuntimeSession).toHaveBeenCalledWith("t1::review");
+	});
+
+	it("P1.REVIEWNUDGE: an admitted-but-cut reviewer IS nudged, with the admission signal wired to the bounded turn", async () => {
+		const seenOptions: unknown[] = [];
+		const d = deps({
+			getHarness: () =>
+				({
+					runBracketed: vi.fn(async (_config: unknown, drive: (ctx: unknown) => Promise<unknown>) => {
+						const deadlineMs = Date.now() + 8_000;
+						return drive({
+							workspace: { workdir: "/wd" },
+							deadlineMs,
+							deadline: () => deadlineMs,
+							runBoundedTurn: async (p: Promise<unknown>, options?: unknown) => {
+								seenOptions.push(options);
+								return seenOptions.length === 1 ? "timeout" : (await p, "settled");
+							},
+						});
+					}),
+				}) as never,
+			startRuntimeSession: vi.fn((input) => {
+				input.onAdmitted?.();
+				return new Promise<RuntimeTaskSessionStartResult>(() => {});
+			}),
+		});
+		await createSecondOpinionReviewRunner(d).runSecondOpinionReviewSession(input);
+		expect(d.sendTaskSessionInput).toHaveBeenCalled();
+		expect(seenOptions[0]).toMatchObject({ reserveMs: expect.any(Number), clockStartsOn: expect.any(Promise) });
 	});
 
 	it("floors a REASONING reviewer's per-turn budget so it can't truncate before submit_review (live fix 2026-07-14)", async () => {

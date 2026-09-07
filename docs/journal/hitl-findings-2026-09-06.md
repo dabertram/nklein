@@ -565,3 +565,10 @@ slice 2 — 45 cards I planned as the architect — was driven with pre-verified
     host `_cacache` can be imported at boot; the simulated-flow harness passes it through (`NKLEIN_SIMFLOW_NPM_SEED`),
     which is what lets the offline Dschinn replay run the real vitest acceptance instead of riding the waiver. The
     replay scaffold (S01) now carries the drive's lockfile so placements run `npm ci` against pinned integrity.
+
+60. **P1.REVIEWNUDGE shipped.** The three concurrent S72 reviewers (#53) were queued admissions, not a runner
+    loop: the bracket's clock started at the queued start, the reserve cut fired before admission, and every nudge
+    to the never-started session restarted a fresh one. The budget now starts when the session is admitted to its
+    endpoint (`onAdmitted` → `clockStartsOn`; the wait extends the deadline, capped at one timeout), and a start cut
+    while still queued is not nudged. Under one-endpoint contention a reviewer now waits its turn and then gets its
+    full budget — the shape every single-model rig needs.

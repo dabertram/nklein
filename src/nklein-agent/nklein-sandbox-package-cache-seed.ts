@@ -99,7 +99,9 @@ export function buildFinalizeImportedSeedScript(paths: Pick<PackageCacheSeedPath
 	return [
 		`seed=${sq(paths.seedDir)}`,
 		`[ -d "$seed/_cacache" ] || { echo "skipped: import has no _cacache"; exit 0; }`,
-		`chmod -R a+rX "$seed" && touch "$seed/${NPM_CACHE_SEED_IMPORTED_MARKER}" && echo "imported $(du -sk "$seed" 2>/dev/null | cut -f1)k"`,
+		// `docker cp` keeps the host uid on the copied files and cap-dropped root has no CAP_FOWNER over them, so a
+		// chmod may be refused — the host files are world-readable already; only the marker and the count matter.
+		`chmod -R a+rX "$seed" 2>/dev/null; touch "$seed/${NPM_CACHE_SEED_IMPORTED_MARKER}" && echo "imported $(du -sk "$seed" 2>/dev/null | cut -f1)k"`,
 	].join("\n");
 }
 

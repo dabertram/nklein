@@ -1619,7 +1619,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				endpoint: input.launchConfig.baseUrl ?? null,
 				freshSessionStart: true,
 			},
-			() => this.startRuntimeTaskSessionFromLaunchConfig(input),
+			() => {
+				// P1.REVIEWNUDGE: admission granted — the runner's budget clock starts now.
+				try {
+					input.onAdmitted?.();
+				} catch {
+					// A runner-side listener must never break the start.
+				}
+				return this.startRuntimeTaskSessionFromLaunchConfig(input);
+			},
 		);
 	}
 

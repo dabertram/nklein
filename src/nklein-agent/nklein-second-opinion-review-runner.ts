@@ -340,10 +340,19 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 				defaultTimeoutMs: deps.defaultTimeoutMs,
 				errorLabel: "Second-opinion reviewer session",
 			},
-			async ({ workspace, deadlineMs, runBoundedTurn }) => {
+			async ({ workspace, runBoundedTurn, deadline }) => {
 				stamp("session: bracket workspace acquired; starting reviewer turn");
 				let verdict: NKleinReviewResult | null = null;
 				let turnOutcome: SecondaryTurnOutcome = "settled";
+				// P1.REVIEWNUDGE: the budget starts when the session is admitted to its endpoint, not when it is queued.
+				let admitted = false;
+				let markAdmitted: () => void = () => {};
+				const admission = new Promise<void>((resolve) => {
+					markAdmitted = () => {
+						admitted = true;
+						resolve();
+					};
+				});
 				// First turn: seed prompt + the submit_review tool. startRuntimeSession awaits the turn, so the
 				// tool's verdict (if emitted) is captured by the time it settles.
 				turnOutcome = mergeTurnOutcome(
@@ -352,6 +361,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 						deps.startRuntimeSession({
 							taskId: reviewTaskId,
 							admissionParentTaskId: input.taskId,
+							onAdmitted: markAdmitted,
 							cwd: workspace.workdir,
 							workspaceRoot: input.projectRepoPath,
 							prompt: input.seedPrompt,
@@ -380,9 +390,9 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 							}),
 						}),
 						// Campaign round 3 (2026-08-19): reviewers spent the ENTIRE deadline on exploration tool calls,
-						// so the nudge loop below (gated on `Date.now() < deadlineMs`) never ran and three sessions
-						// timed out without ever being ASKED for a verdict. Reserve a slice for the ask.
-						{ reserveMs: REVIEW_VERDICT_RESERVE_MS },
+						// so the nudge loop below (gated on the deadline) never ran and three sessions timed out without
+						// ever being ASKED for a verdict. Reserve a slice for the ask.
+						{ reserveMs: REVIEW_VERDICT_RESERVE_MS, clockStartsOn: admission },
 					),
 				);
 				// CUTTING A TURN MUST ALSO END IT. `runBoundedTurn` races the turn against a timer — it does not
@@ -396,10 +406,22 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 					stamp("session: exploration turn cut at the verdict reserve; releasing the endpoint before the nudge");
 					await deps.stopRuntimeSession(reviewTaskId).catch(() => undefined);
 				}
+				// P1.REVIEWNUDGE: a session that was never ADMITTED has no transcript to nudge — every nudge to it would
+				// restart a fresh reviewer from the seed prompt (HITL 2026-09-07: three concurrent S72 reviewers within
+				// 50 ms, all answering the same card). The outcome is the honest one: no verdict, no ghosts.
+				// A start that SETTLED ran (a test double may not signal admission); only a cut-while-queued start has none.
+				const neverAdmitted = !admitted && turnOutcome === "timeout";
+				if (verdict === null && neverAdmitted) {
+					stamp("session: start was never admitted to the endpoint within the budget; skipping the nudge");
+				}
 				// Re-prompt nudge: small models often end a turn without the structured call. Mirror the decomposition
 				// re-prompt — if there's still no verdict, tell the reviewer to call submit_review now, bounded by a
 				// small budget and the overall deadline (the reserve above guarantees this budget is non-empty).
-				for (let nudge = 0; verdict === null && nudge < deps.maxNudges && Date.now() < deadlineMs; nudge += 1) {
+				for (
+					let nudge = 0;
+					verdict === null && !neverAdmitted && nudge < deps.maxNudges && Date.now() < deadline();
+					nudge += 1
+				) {
 					turnOutcome = mergeTurnOutcome(
 						turnOutcome,
 						await runBoundedTurn(

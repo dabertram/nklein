@@ -32,7 +32,19 @@ export interface SecondarySessionContext {
 	 * consume the entire budget must leave a slice for the conclusion. Omitted ⇒ the full remaining budget, exactly
 	 * as before.
 	 */
-	runBoundedTurn(turn: Promise<unknown>, options?: { reserveMs?: number }): Promise<SecondaryTurnOutcome>;
+	runBoundedTurn(
+		turn: Promise<unknown>,
+		options?: {
+			reserveMs?: number;
+			/**
+			 * P1.REVIEWNUDGE: resolves when the turn's session was ADMITTED to its model endpoint; the budget only starts
+			 * ticking then, and the admission wait extends the deadline (capped at one extra timeout).
+			 */
+			clockStartsOn?: Promise<unknown>;
+		},
+	): Promise<SecondaryTurnOutcome>;
+	/** The CURRENT deadline (ms epoch) — `deadlineMs` is the value at bracket start; admission waits move it. */
+	deadline(): number;
 }
 
 export interface SecondarySessionConfig {
@@ -94,7 +106,14 @@ export function createSecondarySessionHarness(deps: SecondarySessionHarnessDeps)
 			maxQueueWaitMs: 180_000,
 		});
 		deps.setSandbox(config.syntheticTaskId, config.projectRepoPath, effectiveBaseRef?.trim() || "HEAD");
-		const deadlineMs = Date.now() + (config.timeoutMs ?? config.defaultTimeoutMs);
+		const timeoutMs = config.timeoutMs ?? config.defaultTimeoutMs;
+		// P1.REVIEWNUDGE (HITL 2026-09-07): the clock used to start before the session was ADMITTED to its model
+		// endpoint, so under one-endpoint contention a reviewer burned its whole budget queued behind a worker, was cut
+		// at the verdict reserve before its first token, and every nudge restarted a fresh session (three concurrent
+		// reviewers, "no verdict in 3 sessions", card parked). Admission waiting now extends the deadline (capped at one
+		// extra timeout) — `runBoundedTurn` learns the admission moment from the runner's `clockStartsOn` promise.
+		let deadlineMs = Date.now() + timeoutMs;
+		let admissionExtensionMs = 0;
 		const recordSessionError = (error: unknown): void => {
 			recordSelfObservation({
 				signal: "runtime_error",
@@ -107,8 +126,33 @@ export function createSecondarySessionHarness(deps: SecondarySessionHarnessDeps)
 		};
 		const runBoundedTurn = async (
 			turn: Promise<unknown>,
-			options?: { reserveMs?: number },
+			options?: { reserveMs?: number; clockStartsOn?: Promise<unknown> },
 		): Promise<SecondaryTurnOutcome> => {
+			if (options?.clockStartsOn) {
+				// Wait for admission (or for the turn to settle/fail first) before the budget starts ticking.
+				const waitStartedAt = Date.now();
+				let settledEarly = false;
+				await Promise.race([
+					options.clockStartsOn.then(
+						() => undefined,
+						() => undefined,
+					),
+					turn.then(
+						() => {
+							settledEarly = true;
+						},
+						() => {
+							settledEarly = true;
+						},
+					),
+				]);
+				if (!settledEarly) {
+					const waitedMs = Date.now() - waitStartedAt;
+					const grant = Math.min(waitedMs, Math.max(0, timeoutMs - admissionExtensionMs));
+					admissionExtensionMs += grant;
+					deadlineMs += grant;
+				}
+			}
 			const untilDeadlineMs = deadlineMs - Date.now();
 			if (untilDeadlineMs <= 0) {
 				return "timeout";
@@ -139,7 +183,12 @@ export function createSecondarySessionHarness(deps: SecondarySessionHarnessDeps)
 			return outcome;
 		};
 		try {
-			return await drive({ workspace, deadlineMs, runBoundedTurn });
+			return await drive({
+				workspace,
+				deadlineMs,
+				runBoundedTurn,
+				deadline: () => deadlineMs,
+			});
 		} finally {
 			await deps.clearTaskSessions(config.syntheticTaskId).catch(() => undefined);
 			await sandboxManager.disposeWorkspace(config.syntheticTaskId).catch(() => undefined);
