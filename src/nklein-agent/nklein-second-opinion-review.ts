@@ -16,6 +16,7 @@ import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain"
 import type { ReviewLens } from "../core/review-lenses";
 import {
 	buildReviewSeedPrompt,
+	capReviewHistory,
 	collectPriorReviewConcerns,
 	fingerprintReviewArtifact,
 	type ReviewBoardContext,
@@ -177,7 +178,7 @@ function buildNextReview(input: {
 	return {
 		status: input.status,
 		round: input.round,
-		history: [...input.history, input.record],
+		history: capReviewHistory([...input.history, input.record]),
 		lastVerdict: input.submission.verdict,
 		lastSummary: input.submission.summary,
 		lastFeedback: input.submission.feedback,
@@ -249,7 +250,8 @@ export async function runNKleinSecondOpinionReview(
 	const history = card.review?.history ?? [];
 	// Audit 2026-08-12 F10: scope the no-verdict streak key by caller-supplied scope (workspace) + task id.
 	const streakKey = `${input.streakScope ?? ""}::${input.taskId}`;
-	const round = history.length + 1;
+	// The persisted counter is the round; the history is capped (P1.REVIEWHISTORYCAP) so its length is not.
+	const round = (card.review?.round ?? history.length) + 1;
 	stamp("core: context-load");
 	const reviewContext = (await input.deps.getReviewContext?.(input.taskId)) ?? null;
 	// §5.AW: a captured speculative candidate arms the A/B arbitration seed. Only a non-empty PRIMARY diff

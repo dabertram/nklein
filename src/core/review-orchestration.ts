@@ -541,3 +541,20 @@ export function resolveReviewTransition(input: ResolveReviewTransitionInput): Re
 	}
 	return { action: "park", reason: decision.reason, record };
 }
+
+/**
+ * P1.REVIEWHISTORYCAP (v31 2026-09-07): one card's review history reached 2,466 records (a 2.6 MB board) before
+ * the parked-loop hold. The loop guards read only the tail (identical/recurring feedback, the previous round) and
+ * the re-work briefs present DISTINCT concerns, so the persisted history keeps the first few rounds (the original
+ * concerns) plus a long tail; the round counter itself is persisted separately and never derived from the length.
+ */
+export const REVIEW_HISTORY_HEAD_KEEP = 5;
+export const REVIEW_HISTORY_TAIL_KEEP = 55;
+
+export function capReviewHistory<T>(history: readonly T[]): T[] {
+	const limit = REVIEW_HISTORY_HEAD_KEEP + REVIEW_HISTORY_TAIL_KEEP;
+	if (history.length <= limit) {
+		return [...history];
+	}
+	return [...history.slice(0, REVIEW_HISTORY_HEAD_KEEP), ...history.slice(history.length - REVIEW_HISTORY_TAIL_KEEP)];
+}

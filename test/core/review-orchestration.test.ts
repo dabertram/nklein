@@ -5,6 +5,7 @@ import {
 	buildReviewBouncePrompt,
 	buildReviewSeedPrompt,
 	buildReviewSignOff,
+	capReviewHistory,
 	collectPriorReviewConcerns,
 	fingerprintReviewArtifact,
 	resolveReviewTransition,
@@ -430,5 +431,17 @@ describe("resolveReviewTransition", () => {
 			maxRounds: 3,
 		});
 		expect(transition.action).toBe("park");
+	});
+});
+
+describe("capReviewHistory (P1.REVIEWHISTORYCAP)", () => {
+	it("keeps the first rounds and a long tail once the persisted history outgrows the cap", () => {
+		const history = Array.from({ length: 200 }, (_, index) => ({ round: index + 1 }));
+		const capped = capReviewHistory(history);
+		expect(capped).toHaveLength(60);
+		expect(capped.slice(0, 5).map((record) => record.round)).toEqual([1, 2, 3, 4, 5]);
+		expect(capped.at(-1)?.round).toBe(200);
+		expect(capped[5]?.round).toBe(146);
+		expect(capReviewHistory(history.slice(0, 60))).toHaveLength(60);
 	});
 });

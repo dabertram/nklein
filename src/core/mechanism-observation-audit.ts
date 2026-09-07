@@ -1188,6 +1188,8 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"capture_dropped_generated_lockfile",
 	// P0.PARKEDLOOP (2026-09-07): a parked review held instead of re-reviewed on unchanged work.
 	"review_parked_hold",
+	// P0.SANDBOXLEAK (2026-09-07): deterministic pre-review bounce of deliveries coupled to the sandbox image.
+	"sandbox_leak_gate",
 	"merge_resolution_no_model",
 	// Stale-input guard (2026-09-02): late nudges/steers must not resurrect a decompose-completed source card.
 	"input_after_decomposition_dropped",

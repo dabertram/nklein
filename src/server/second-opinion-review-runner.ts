@@ -14,7 +14,7 @@ import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../c
 import { planBounceForkRetry } from "../core/bounce-fork-retry";
 import { REVIEW_PHASE_CATEGORY } from "../core/card-tracking-coverage";
 import { isCrashRecoveryMatrixPhaseEnabled, reachCrashRecoveryMatrixBarrier } from "../core/crash-recovery-matrix";
-import { isTruthyEnv } from "../core/env-flag";
+import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { arbitrateByExecution, type CandidateExecutionRun } from "../core/execution-arbitration";
 import { deriveFrontendRouteFromChangedPaths } from "../core/frontend-preview-plan";
 import { buildHistoryBlindCorrectorPrompt } from "../core/history-blind-corrector";
@@ -32,6 +32,7 @@ import {
 	summarizeReviewAttemptEvidence,
 } from "../core/review-redecompose";
 import { decideRedriveWindow, type PendingRedriveObservation } from "../core/review-redrive-window";
+import { decideSandboxLeak, SANDBOX_LEAK_GATE_ENV } from "../core/sandbox-leak-gate";
 import { isActiveWorkSessionState } from "../core/session-state-predicates";
 import { resolveSwarmRoleModel } from "../core/swarm-role-selection";
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
@@ -585,6 +586,8 @@ export async function runSecondOpinionReviewForTask(
 	stampPhase("acceptance-verify start");
 	// Same diff basis the review core fingerprints (getTaskDiff below) — a cheap git call vs a sandbox run.
 	let reviewedDiffLines: number | null = null;
+	// P0.SANDBOXLEAK: the same probe's text feeds the deterministic sandbox-leak gate below (no second git call).
+	const evidenceDiff: { text: string | null } = { text: null };
 	const evidenceFingerprint = config.secondOpinionReviewEnabled
 		? await getDiff({
 				repoPath: input.workspacePath,
@@ -596,6 +599,7 @@ export async function runSecondOpinionReviewForTask(
 					// P21.6b: the reviewed diff's SIZE is the review-capacity evidence the sizing invariant
 					// derives its ceiling from — captured here because this is the diff the reviewer judges.
 					reviewedDiffLines = diff ? diff.split("\n").length : 0;
+					evidenceDiff.text = diff ?? null;
 					return fingerprintReviewArtifact(diff || "(no file changes)");
 				})
 				.catch(() => null)
@@ -961,6 +965,45 @@ export async function runSecondOpinionReviewForTask(
 					testability: card.testability ?? "testable",
 					changedFiles: changedFilePaths.length,
 					reason: gate.reason,
+				},
+			});
+		} catch {
+			// Telemetry must never break the gate.
+		}
+	}
+	// P0.SANDBOXLEAK (v31 2026-09-07): a delivery that couples the repository to the sandbox — symlinks into the
+	// image, `/opt/nklein` runners, manifest scripts bound to absolute binaries, committed install logs — is bounced
+	// deterministically with a brief naming every leak. A weak reviewer approved exactly that once and every later
+	// card inherited a toolchain that exits 127 off the sandbox. Default ON; NKLEIN_SANDBOX_LEAK_GATE=0 disables.
+	// Runs after the test-driven gate (a missing test is the more specific bounce) and only on a real diff.
+	if (
+		preReviewVerdict === null &&
+		config.secondOpinionReviewEnabled &&
+		isEnabledByDefaultEnv(process.env[SANDBOX_LEAK_GATE_ENV]) &&
+		evidenceDiff.text
+	) {
+		const leak = decideSandboxLeak(evidenceDiff.text);
+		if (leak.verdict === "bounce") {
+			preReviewVerdict = {
+				verdict: "request_changes",
+				summary: leak.summary,
+				feedback: leak.feedback ?? leak.summary,
+				insight: null,
+			};
+			input.warn?.(`Sandbox-leak gate: bouncing ${input.taskId} — ${leak.findings.length} leak(s).`);
+		}
+		// F4.8b: record the DECISION either way (see the test-driven gate above).
+		try {
+			recordSelfObservation({
+				signal: leak.verdict === "bounce" ? "verification_failed" : "custom",
+				severity: leak.verdict === "bounce" ? "warning" : "info",
+				message: `Sandbox-leak gate for ${input.taskId}: ${leak.verdict === "bounce" ? "BOUNCED" : "passed"}${leak.findings.length > 0 ? ` — ${leak.findings.map((finding) => `${finding.path} (${finding.kind})`).join(", ")}` : ""}.`,
+				taskId: input.taskId,
+				workspacePath: input.workspacePath,
+				metadata: {
+					category: "sandbox_leak_gate",
+					verdict: leak.verdict,
+					findings: leak.findings.map((finding) => ({ path: finding.path, kind: finding.kind })),
 				},
 			});
 		} catch {
