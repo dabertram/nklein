@@ -2095,14 +2095,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   (`chat-local-llm-adapter.ts` `proactive.toolCalls[0]`, untouched — its force-advance steer offers one tool by
   design), and whether a keyword-activated `structuredOutput` should route PLANNER turns off the SDK-native wire at
   all (the direct path also flattens history into `[tool_call id=…]` pseudo-text, the 2026-08-30 hazard).
-- [ ] **P1.SIMFLOWDSCHINN — prove the Dschinn HITL replay set drains through the harness.**
+- [x] **P1.SIMFLOWDSCHINN — the Dschinn HITL replay set drains through the harness. PROVEN 2026-09-07 17:10.**
   `scripts/generate-dschinn-scenario-set.mts` → `packages/llm-simulator/scenarios/36_dark_factory_dschinn_universal_agent/`
-  (97 cards, 197 tracks; sources in `sources.json`; raw material stays in `~/.nklein/factory-drains/hitl-drain/`
-  {queue/answers, deliveries}). Run: `HOME=$(mktemp -d /tmp/nklein-simflow-XXXX) NKLEIN_SIMFLOW_SCENARIO=36
-  NKLEIN_SIMFLOW_TIMEOUT_MS=14400000 npx tsx scripts/verify-simulated-flow.mts`; until P1.NPMSEED the in-sandbox
-  acceptance is red on base and work alike (offline sandbox, vitest not installed) and deliveries ride the
-  reviewer's verdict under the pre-existing-breakage waiver — prove the drained repo on the host
-  (`npm ci && npx vitest run && npx tsc --noEmit`: 97 files / 222 tests, tsc clean).
+  (97 cards: spine S01–S51 + charter + slice 2 S52–S96; 197 tracks; `sources.json` names the drain answer/delivery
+  behind every track). Run 10 drained **98/98 cards to Completed, 0 failed, exit 0** in ~20 minutes with the REAL
+  `vitest run` acceptance inside offline sandboxes (P1.NPMSEED seed) and no local model anywhere. Independent
+  verification of the drained repo: `npm ci && npx vitest run && npx tsc --noEmit` → **96 files / 221 tests green,
+  tsc clean**, and its tree is byte-identical to the hand-driven repo (all 99 `src/` files, all 96 spine `test/`
+  files; the drive's extra `test/tooling/tsconfig.test.ts` came from a CUSTODIAN card outside the plan, the replay's
+  extra `test/starter.test.js` is the untouched fixture starter vitest's include pattern ignores).
+  Recipe (the seed must be built for the SANDBOX platform, not the host):
+  `npm ci --cache "$SEED" --no-audit --no-fund --os linux --cpu arm64 --libc glibc && npm ci`, then
+  `HOME=$(mktemp -d /tmp/nklein-simflow-XXXX) NKLEIN_SIMFLOW_SCENARIO=36 NKLEIN_SIMFLOW_TIMEOUT_MS=14400000 NKLEIN_SIMFLOW_CONTEXT_TOKENS=262144 NKLEIN_SIMFLOW_NPM_SEED="$SEED" npx tsx scripts/verify-simulated-flow.mts`.
+  Ten runs were needed; each failure was a product or harness defect, not a replay patch (journal #57–#66).
 - [x] **P0.EMPTYFINALREDRIVE — a delivered, green worker turn that ended in prose was re-driven as `no_tool_call`.**
   `planSwarmPromptVariation` anchored on the first tool NAME in the card text ("prefer the edit_file tool …") and
   re-drove a complete delivery indefinitely (dschinn S01, hand-driven 2026-09-07). SHIPPED: if any assistant turn in
