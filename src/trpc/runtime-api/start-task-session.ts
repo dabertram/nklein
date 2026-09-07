@@ -50,6 +50,7 @@ import {
 	targetsSameLocalModelDaemon,
 } from "../../core/lmstudio-loaded-models";
 import { createLmStudioRestModelClient } from "../../core/lmstudio-rest-model-client";
+import { filterByLoadedHostAllowlist, getLoadedHostAllowlist } from "../../core/loaded-host-allowlist";
 import { resolveDefaultLocalModelBaseUrl } from "../../core/local-model-endpoint";
 import { parseModelAttributes } from "../../core/model-attributes";
 import {
@@ -1059,7 +1060,43 @@ async function handleStartTaskSessionInner(
 				)
 			).filter((id): id is string => id !== null),
 		);
-		const allGuardCandidates = allGuardCandidatesUnfiltered.filter(
+		// David 2026-09-07 ("m5max idle for nklein"): an AUTO-DISCOVERED candidate (role === null — the default
+		// provider model or a loaded model the residency scan found) on a host outside `workerUseAllLoadedHosts` is
+		// not routable for ANY role. Live: the swarm role resolver picked flash-next for an architect start from the
+		// discovered set minutes after every role was re-pointed. Explicitly configured role models (role !== null)
+		// are the operator's choice and stay; an unmapped model counts as `local` (fail-closed).
+		const loadedHostAllowlist = getLoadedHostAllowlist();
+		const hostFilteredGuardCandidates =
+			loadedHostAllowlist.size === 0
+				? { kept: allGuardCandidatesUnfiltered, excluded: [] as { id: string; machineId: string }[] }
+				: (() => {
+						const machineIdByAlias = buildLmStudioMachineByModelId(lmsPsModelsForResidency);
+						const discovered = allGuardCandidatesUnfiltered.filter((candidate) => candidate.role === null);
+						const filtered = filterByLoadedHostAllowlist(discovered, {
+							allowlist: loadedHostAllowlist,
+							machineIdByModelId: machineIdByAlias,
+							idsOf: (candidate) => [candidate.entry.modelId, candidate.entry.key],
+						});
+						const excludedIds = new Set(filtered.excluded.map((entry) => entry.id));
+						return {
+							kept: allGuardCandidatesUnfiltered.filter(
+								(candidate) => candidate.role !== null || !excludedIds.has(candidate.entry.modelId),
+							),
+							excluded: filtered.excluded,
+						};
+					})();
+		if (hostFilteredGuardCandidates.excluded.length > 0) {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Model selection for ${body.taskId} skipped ${hostFilteredGuardCandidates.excluded.length} auto-discovered model(s) on non-allowlisted host(s): ${hostFilteredGuardCandidates.excluded
+					.map((entry) => `${entry.id} (${entry.machineId})`)
+					.join(", ")}.`,
+				taskId: body.taskId,
+				metadata: { category: "loaded_host_allowlist_excluded", excluded: hostFilteredGuardCandidates.excluded },
+			});
+		}
+		const allGuardCandidates = hostFilteredGuardCandidates.kept.filter(
 			(candidate) =>
 				!isModelMarkedDead(candidate.entry.modelId) && !collidingIdentifiers.has(candidate.entry.modelId),
 		);

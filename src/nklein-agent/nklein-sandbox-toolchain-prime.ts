@@ -107,7 +107,7 @@ export async function primeSandboxToolchain(
 		message:
 			report.status === "failed"
 				? `Sandbox toolchain priming for ${input.taskId} failed before the first model turn: ${describePrimeFailure(report)}. The model will see the uninstalled tree.`
-				: `Sandbox toolchain primed for ${input.taskId} before the first model turn: ${report.status} in ${report.durationMs}ms (${report.plan.toolchains.join(", ") || "no toolchain"}).`,
+				: `Sandbox toolchain primed for ${input.taskId} before the first model turn: ${report.status} in ${report.durationMs}ms (${report.plan.toolchains.map((toolchain) => toolchain.language).join(", ") || "no toolchain"}).`,
 		taskId: input.taskId,
 		metadata: {
 			category: "sandbox_toolchain_prime",

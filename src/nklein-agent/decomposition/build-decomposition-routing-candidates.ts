@@ -1,7 +1,7 @@
 import type { RuntimeConfigState } from "../../config/runtime-config";
 import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import { loadOptInLlmfitCapabilityPriorResolver } from "../nklein-llmfit-routing-prior";
-import { excludeDisallowedHostDescriptors } from "../nklein-loaded-host-filter";
+import { excludeDisallowedHostDescriptors, isModelIdOnAllowedHost } from "../nklein-loaded-host-filter";
 import { buildLoadedModelRoutingCandidates } from "../nklein-loaded-model-candidates";
 import { resolveLoadedModelProfile } from "../nklein-loaded-model-profile";
 import { getDefaultNKleinModelRegistry } from "../nklein-model-registry";
@@ -81,6 +81,15 @@ export async function buildDecompositionRoutingCandidates(
 		}
 	} catch {
 		// A workspace without a runnable default NKlein provider can still decompose from explicit role models.
+	}
+
+	// Loaded-host allowlist (David 2026-09-07): auto-discovered candidates (default provider model, loaded scan) on
+	// a non-allowlisted host are not routable for decomposition either; explicit role models below stay.
+	for (const [key, candidate] of [...candidates.entries()]) {
+		if (candidate.role === null && !(await isModelIdOnAllowedHost(candidate.entry.modelId))) {
+			candidates.delete(key);
+			loadedCandidateKeys.delete(key);
+		}
 	}
 
 	for (const [role, settings] of Object.entries(runtimeConfig.effectiveModelRoles)) {
