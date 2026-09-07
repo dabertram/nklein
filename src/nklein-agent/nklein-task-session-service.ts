@@ -185,6 +185,7 @@ import type {
 import { createNKleinRuntimeSetup } from "./nklein-runtime-setup";
 import { createRuntimeSetupLeaseCache } from "./nklein-runtime-setup-lease-cache";
 import { createSandboxReviewFinalizer } from "./nklein-sandbox-review-finalizer";
+import { primeSandboxToolchain } from "./nklein-sandbox-toolchain-prime";
 import { createSecondOpinionReviewRunner } from "./nklein-second-opinion-review-runner";
 import { createSecondarySessionHarness } from "./nklein-secondary-session-harness";
 import {
@@ -972,6 +973,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			onQueued: options?.onQueued,
 		});
 		this.sandboxState.setSandbox(request.taskId, projectRepoPath, baseRef?.trim() || "HEAD");
+		// Prime the toolchain (dependency install) BEFORE the first model turn — the acceptance sandbox already does
+		// this with a 5-minute budget; the worker sandbox did not, so every card's first `npm install` overran the
+		// 30 s tool cap on a cold per-task cache (dschinn hand-drive 2026-09-07, finding #26). Plan-mode (architect)
+		// sessions only read the tree; skip them. Non-fatal: the session starts either way.
+		if (!request.startInPlanMode) {
+			await primeSandboxToolchain({ manager: this.agentSandboxManager, taskId: request.taskId });
+		}
 		return {
 			manager: this.agentSandboxManager,
 			workdir: workspace.workdir,
