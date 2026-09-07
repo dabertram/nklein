@@ -555,3 +555,13 @@ slice 2 — 45 cards I planned as the architect — was driven with pre-verified
     `NKLEIN_SIMFLOW_CONTEXT_TOKENS` (the simulated window is a scenario parameter, not a constant), and wire truth
     6 extends to restart briefs — a worker needle must not be quotable from the planner's own transcript, which the
     batch form guarantees by never restarting.
+
+59. **P1.NPMSEED shipped.** The install flake class (#52) is a download problem, so the mechanism removes the
+    download from the hot path: a per-workspace npm cache seed copied into every fresh placement before its first
+    install and grown from every successful one. The cap-dropped sandbox shaped the design — in-container root has
+    no CAP_DAC_OVERRIDE and cannot read a task's `700` cache, so the harvest is two execs (task user exposes, root
+    merges) and the trust boundary is root's filter: content blobs plus tarball-keyed index entries only, never
+    packuments, no-clobber, size-capped. Seeding copies (no shared inodes) so tasks never touch each other. A trusted
+    host `_cacache` can be imported at boot; the simulated-flow harness passes it through (`NKLEIN_SIMFLOW_NPM_SEED`),
+    which is what lets the offline Dschinn replay run the real vitest acceptance instead of riding the waiver. The
+    replay scaffold (S01) now carries the drive's lockfile so placements run `npm ci` against pinned integrity.

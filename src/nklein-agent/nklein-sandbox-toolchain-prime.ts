@@ -16,6 +16,11 @@ import { isEnabledByDefaultEnv } from "../core/env-flag";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
 import {
+	harvestSandboxPackageCache,
+	type PackageCacheSeedManager,
+	seedSandboxPackageCache,
+} from "./nklein-sandbox-package-cache-seed";
+import {
 	isDiskFullInstallFailure,
 	isOfflineInstallFailure,
 	runSandboxToolchainSetup,
@@ -28,7 +33,7 @@ export const DEFAULT_WORKER_TOOLCHAIN_PRIME_TIMEOUT_MS = 4 * 60 * 1000;
 const OUTPUT_TAIL_CHARS = 400;
 
 export interface PrimeSandboxToolchainInput {
-	manager: Pick<AgentSandboxManager, "exec" | "listSandboxRootFileNames">;
+	manager: Pick<AgentSandboxManager, "exec" | "listSandboxRootFileNames"> & PackageCacheSeedManager;
 	taskId: string;
 	timeoutMs?: number;
 	env?: NodeJS.ProcessEnv;
@@ -68,6 +73,8 @@ export async function primeSandboxToolchain(
 	let report: SandboxToolchainSetupReport;
 	try {
 		const rootFileNames = await input.manager.listSandboxRootFileNames(input.taskId);
+		// P1.NPMSEED: copy the workspace's warm npm cache seed into this placement BEFORE its first install.
+		await seedSandboxPackageCache({ manager: input.manager, taskId: input.taskId, env, recordObservation: record });
 		report = await runSandboxToolchainSetup({
 			rootFileNames,
 			timeoutMs,
@@ -98,6 +105,15 @@ export async function primeSandboxToolchain(
 	}
 	if (report.status === "not_applicable") {
 		return report;
+	}
+	if (report.status === "ready") {
+		// P1.NPMSEED: the tarballs this install fetched become the seed for every later placement.
+		await harvestSandboxPackageCache({
+			manager: input.manager,
+			taskId: input.taskId,
+			env,
+			recordObservation: record,
+		});
 	}
 	const failedStep = report.steps.find((step) => step.command === report.failedCommand);
 	const outputTail = failedStep?.output.slice(-OUTPUT_TAIL_CHARS) ?? null;

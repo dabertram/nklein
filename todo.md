@@ -2037,14 +2037,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   while `main...result` was clean. SHIPPED (dbff5273b): `refreshTaskResultOntoBase` replays the first-parent patch
   onto the base head via `applyTaskPatchToResultBranch` (evidence pin moved, reused acceptance evidence dropped;
   a non-applying patch is a conflict left to the merge machinery); `NKLEIN_RESULT_BASE_REFRESH=0` disables.
-- [ ] **P1.NPMSEED — warm npm-cache seed per workspace so sandbox installs are offline-fast.**
+- [x] **P1.NPMSEED — warm npm-cache seed per workspace so sandbox installs are offline-fast.**
   2026-09-07: four `npm ci` failures in one afternoon (S94/S95 prime, s63 gate, S72 acceptance) over the hotspot
-  uplink; `fetch-retries` is 0 by design, the transient signatures miss timeouts, every placement re-downloads into
-  its own cache, and the 400-char prime tail shows npm's EventEmitter warning instead of the error. Mechanism: a
-  content-addressed `_cacache` seed under `/workspaces/.nklein-cache/.seed/npm` merged from every successful prime
-  and hard-linked into each new placement's cache before `npm ci --prefer-offline`; npm verifies integrity on read,
-  so a poisoned entry cannot cross tasks. Also: surface the `npm error` lines in the prime observation. Unblocks a
-  truthful in-sandbox acceptance for the Dschinn replay set (below).
+  uplink; `fetch-retries` is 0 by design, the transient signatures miss timeouts, every placement re-downloaded into
+  its own empty cache. SHIPPED (`src/nklein-agent/nklein-sandbox-package-cache-seed.ts`): a root-owned,
+  world-readable seed under `/workspaces/.nklein-cache/.seed/npm` is COPIED into every fresh placement before its
+  first install (worker prime + acceptance placement) and grown from every successful install through a two-step
+  harvest (task user exposes its cache — cap-dropped root cannot read a 700 dir — then root merges content blobs +
+  TARBALL-keyed index entries only, no-clobber, 512 MB cap). Packuments never cross the task boundary, so a poisoned
+  tarball is rejected by the lockfile's / live packument's integrity. `NKLEIN_SANDBOX_NPM_CACHE_SEED_IMPORT=<host
+  _cacache>` imports a trusted seed at container boot (`docker cp`), and the simulated-flow harness passes
+  `NKLEIN_SIMFLOW_NPM_SEED` through — its offline sandboxes can then run the real `vitest` acceptance. Observation
+  category `sandbox_npm_cache_seed`; `NKLEIN_SANDBOX_NPM_CACHE_SEED=0` disables. Still open from #52: surface the
+  `npm error` lines in the prime observation.
 - [ ] **P1.REVIEWNUDGE — a reviewer cut at the verdict reserve spawns a fresh session per nudge; admission waiting eats its deadline.**
   2026-09-07 S72: three `startTaskSession …::review` within 50 ms after the reserve cut (each nudge restarted the
   stopped session from scratch), and under one-endpoint contention the reviewer's deadline was consumed by

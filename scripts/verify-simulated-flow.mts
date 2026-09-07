@@ -607,6 +607,12 @@ async function main(): Promise<void> {
 		// Every simulator runtime owns a unique sandbox namespace and skips startup mutation entirely. This keeps a
 		// hermetic replay from reaping a live benchmark runtime's Docker containers on the shared host daemon.
 		NKLEIN_SANDBOX_NAMESPACE: sandboxNamespace,
+		// P1.NPMSEED: NKLEIN_SIMFLOW_NPM_SEED names a trusted host `_cacache` dir (e.g. `npm ci --cache <dir>` run on the
+		// host for the replayed project); the runtime imports it into the offline sandboxes' seed at container boot so
+		// `npm ci --prefer-offline` succeeds without egress and the acceptance gate judges the real suite.
+		...(process.env.NKLEIN_SIMFLOW_NPM_SEED?.trim()
+			? { NKLEIN_SANDBOX_NPM_CACHE_SEED_IMPORT: process.env.NKLEIN_SIMFLOW_NPM_SEED.trim() }
+			: {}),
 		...(CRASH_PHASE ? {} : { NKLEIN_SANDBOX_SKIP_STARTUP_REAP: "1" }),
 		...(CRASH_PHASE
 			? {

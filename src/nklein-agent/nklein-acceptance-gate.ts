@@ -9,6 +9,7 @@ import { deriveRepoVerifyCommands } from "../core/repo-verify-commands";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
 import type { NKleinPauseController } from "./nklein-pause-controller";
+import { harvestSandboxPackageCache, seedSandboxPackageCache } from "./nklein-sandbox-package-cache-seed";
 import { runSandboxToolchainSetup } from "./nklein-sandbox-toolchain-setup";
 
 const execFileAsync = promisify(execFile);
@@ -511,6 +512,12 @@ export async function runNKleinAcceptanceGateInSandbox(
 		) {
 			const setupStartedAt = Date.now();
 			const rootFileNames = (await options.sandboxManager.listSandboxRootFileNames?.(sandboxTaskId)) ?? [];
+			// P1.NPMSEED: the acceptance placement starts from the workspace's warm npm cache seed, not an empty cache.
+			await seedSandboxPackageCache({
+				manager: options.sandboxManager,
+				taskId: sandboxTaskId,
+				...(options.recordObservation ? { recordObservation: options.recordObservation } : {}),
+			});
 			const setup = await runSandboxToolchainSetup({
 				rootFileNames,
 				timeoutMs: options.timeoutMs ?? DEFAULT_ACCEPTANCE_TIMEOUT_MS,
@@ -518,6 +525,13 @@ export async function runNKleinAcceptanceGateInSandbox(
 				assumeOffline:
 					sandboxOfflineVerdictAt !== null && Date.now() - sandboxOfflineVerdictAt < OFFLINE_VERDICT_TTL_MS,
 			});
+			if (setup.status === "ready") {
+				await harvestSandboxPackageCache({
+					manager: options.sandboxManager,
+					taskId: sandboxTaskId,
+					...(options.recordObservation ? { recordObservation: options.recordObservation } : {}),
+				});
+			}
 			if (setup.status === "skipped_offline") {
 				sandboxOfflineVerdictAt = Date.now();
 			}

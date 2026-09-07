@@ -239,7 +239,7 @@
 											"status": "done"
 										},
 										{
-											"text": "Write package.json, src/index.ts, test/smoke.test.ts, tsconfig.json, vitest.config.ts",
+											"text": "Write package.json, src/index.ts, test/smoke.test.ts, tsconfig.json, vitest.config.ts, package-lock.json",
 											"status": "in_progress"
 										},
 										{
@@ -382,7 +382,7 @@
 				{
 					"behavior": {
 						"kind": "text",
-						"content": "S01 delivered: package.json (vitest run as `npm test`, tsc --noEmit as typecheck, zod + typescript + vitest pinned), tsconfig.json (strict ES2022/NodeNext), vitest.config.ts, src/index.ts barrel and test/smoke.test.ts. Green."
+						"content": "S01 delivered: package.json (vitest run as `npm test`, tsc --noEmit as typecheck, zod + typescript + vitest pinned), tsconfig.json (strict ES2022/NodeNext), vitest.config.ts, src/index.ts barrel and test/smoke.test.ts. Green. package-lock.json pins the dependency set for `npm ci`."
 					}
 				}
 			],

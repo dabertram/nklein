@@ -208,6 +208,11 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		gate: "nklein-agent-sandbox.ts (P0.LOCKFILECAPTURE — keeps install-generated lockfile churn in the patch)",
 	},
 	{
+		flag: "NKLEIN_SANDBOX_NPM_CACHE_SEED",
+		mode: "enforcing",
+		gate: "nklein-sandbox-package-cache-seed.ts (P1.NPMSEED — warm per-workspace npm cache seeded into every placement)",
+	},
+	{
 		flag: "NKLEIN_RESULT_BASE_REFRESH",
 		mode: "enforcing",
 		gate: "runtime-server.ts (P1.STALEBASE — a result captured on an older base head is re-captured onto the current one before review)",
@@ -384,6 +389,11 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 		flag: "NKLEIN_LAZY_BASELINE_PROBE",
 		kind: "permanent",
 		reason: "default ON; `=0` is the opt-out — the lane already samples the base tree on a red acceptance",
+	},
+	{
+		flag: "NKLEIN_SANDBOX_NPM_CACHE_SEED",
+		kind: "permanent",
+		reason: "default ON; `=0` is the opt-out — the lane already seeds and harvests the npm cache",
 	},
 	{
 		flag: "NKLEIN_RESULT_BASE_REFRESH",

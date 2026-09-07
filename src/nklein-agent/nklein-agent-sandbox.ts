@@ -1,5 +1,6 @@
 import { type ChildProcess, execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -93,6 +94,16 @@ import {
 import { normalizeTaskIdForSandboxPath, stripRedundantSandboxWorkdirPrefix } from "./nklein-agent-sandbox-task-path";
 import { formatSandboxToolFailure, parseToolRunnerResult } from "./nklein-agent-sandbox-tool-result";
 import type { NKleinPauseController } from "./nklein-pause-controller";
+import {
+	buildExposeTaskCacheScript,
+	buildFinalizeImportedSeedScript,
+	buildHarvestIntoSeedScript,
+	buildSeedIntoTaskCacheScript,
+	classifySeedScriptResult,
+	NPM_CACHE_SEED_IMPORTED_MARKER,
+	type PackageCacheSeedOutcome,
+	SANDBOX_NPM_CACHE_SEED_IMPORT_ENV,
+} from "./nklein-sandbox-package-cache-seed";
 
 // Re-export the Docker construction surface (consts, run-option types, arg/name/uid builders) now in
 // nklein-agent-sandbox-docker so existing importers of this module (runtime-config, server, task-session-service)
@@ -274,6 +285,9 @@ function taskHomePath(placement: Pick<TaskPlacement, "taskId" | "uid">): string 
  * workdir), and a re-placement of the same task id reuses its content-addressed cache. Removed with the workdir.
  */
 export const AGENT_SANDBOX_CACHE_ROOT = `${AGENT_SANDBOX_WORKSPACES_DIR}/.nklein-cache`;
+
+/** P1.NPMSEED: the workspace-wide, root-owned, world-readable npm cache seed (see nklein-sandbox-package-cache-seed.ts). */
+export const AGENT_SANDBOX_NPM_CACHE_SEED_DIR = `${AGENT_SANDBOX_CACHE_ROOT}/.seed/npm`;
 
 function taskCachePath(placement: Pick<TaskPlacement, "taskId" | "uid">): string {
 	return `${AGENT_SANDBOX_CACHE_ROOT}/${placement.uid}-${normalizeTaskIdForSandboxPath(placement.taskId)}`;
@@ -782,6 +796,16 @@ export class AgentSandboxManager {
 					]),
 					"create sandbox cache root",
 				);
+				// P1.NPMSEED: the seed dir is root-owned and world-READABLE (tasks copy from it, only root writes it).
+				assertSandboxExecOk(
+					await this.execAsRoot(placement, [
+						"sh",
+						"-c",
+						`mkdir -p ${AGENT_SANDBOX_NPM_CACHE_SEED_DIR} && chmod 755 ${AGENT_SANDBOX_NPM_CACHE_SEED_DIR}`,
+					]),
+					"create sandbox npm cache seed dir",
+				);
+				await this.importNpmCacheSeedOnce(placement);
 				// Clear any STALE workspace left at this path before cloning. The sandbox workspaces dir is a host-level
 				// shared volume keyed by taskId, so a prior run that didn't dispose cleanly (an interrupted/aborted session,
 				// or a reused taskId across processes) leaves a non-empty `/workspaces/<taskId>` — and `git clone` then fails
@@ -868,6 +892,91 @@ export class AgentSandboxManager {
 	): Promise<AgentSandboxExecResult> {
 		const placement = this.requirePlacement(taskId);
 		return await this.execAsTaskUser(placement, [...argv], options);
+	}
+
+	/** P1.NPMSEED: copy the workspace's npm cache seed into the task's own cache (task user; never throws). */
+	async seedTaskPackageCache(taskId: string): Promise<PackageCacheSeedOutcome> {
+		const placement = this.requirePlacement(taskId);
+		const result = await this.execAsTaskUser(
+			placement,
+			["sh", "-c", buildSeedIntoTaskCacheScript(this.packageCacheSeedPaths(placement))],
+			{ timeoutMs: 120_000 },
+		);
+		return classifySeedScriptResult("seed", result);
+	}
+
+	/**
+	 * P1.NPMSEED: merge the tarballs a successful install fetched into the seed. Two steps because in-container root is
+	 * cap-dropped (no CAP_DAC_OVERRIDE) and cannot read the task's `700` cache: the task user exposes its cache
+	 * (public npm artifacts), then root merges with the tarball-only filter into the root-owned seed.
+	 */
+	async harvestTaskPackageCache(taskId: string): Promise<PackageCacheSeedOutcome> {
+		const placement = this.requirePlacement(taskId);
+		const paths = this.packageCacheSeedPaths(placement);
+		const exposed = await this.execAsTaskUser(placement, ["sh", "-c", buildExposeTaskCacheScript(paths)], {
+			timeoutMs: 120_000,
+		});
+		const exposure = classifySeedScriptResult("harvest", exposed);
+		if (exposure.status !== "harvested") {
+			return exposure;
+		}
+		const merged = await this.execAsRoot(placement, ["sh", "-c", buildHarvestIntoSeedScript(paths)], {
+			timeoutMs: 300_000,
+		});
+		return classifySeedScriptResult("harvest", merged);
+	}
+
+	private packageCacheSeedPaths(placement: TaskPlacement) {
+		const taskCacheDir = taskCachePath(placement);
+		return { seedDir: AGENT_SANDBOX_NPM_CACHE_SEED_DIR, taskCacheDir, taskNpmCacheDir: `${taskCacheDir}/npm` };
+	}
+
+	private readonly npmCacheSeedImportedContainers = new Set<string>();
+
+	/**
+	 * P1.NPMSEED: import a TRUSTED host `_cacache` directory (`NKLEIN_SANDBOX_NPM_CACHE_SEED_IMPORT`) into the seed once
+	 * per container — the offline simulated-flow harness needs it because its sandboxes have no egress at all.
+	 * Best-effort: a failed import only costs the warm start.
+	 */
+	private async importNpmCacheSeedOnce(placement: TaskPlacement): Promise<void> {
+		const hostDir = process.env[SANDBOX_NPM_CACHE_SEED_IMPORT_ENV]?.trim();
+		const containerName = createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace);
+		if (!hostDir || this.npmCacheSeedImportedContainers.has(containerName) || !existsSync(hostDir)) {
+			return;
+		}
+		this.npmCacheSeedImportedContainers.add(containerName);
+		const marker = `${AGENT_SANDBOX_NPM_CACHE_SEED_DIR}/${NPM_CACHE_SEED_IMPORTED_MARKER}`;
+		const present = await this.execAsRoot(placement, ["sh", "-c", `[ -e ${marker} ]`]);
+		if (present.exitCode === 0) {
+			return;
+		}
+		const copied = await this.runDocker(
+			["cp", `${hostDir}/.`, `${containerName}:${AGENT_SANDBOX_NPM_CACHE_SEED_DIR}`],
+			{
+				timeoutMs: 600_000,
+			},
+		);
+		const finalized =
+			copied.exitCode === 0
+				? await this.execAsRoot(
+						placement,
+						["sh", "-c", buildFinalizeImportedSeedScript({ seedDir: AGENT_SANDBOX_NPM_CACHE_SEED_DIR })],
+						{ timeoutMs: 300_000 },
+					)
+				: copied;
+		const outcome = classifySeedScriptResult("import", finalized);
+		recordSelfObservation({
+			signal: "custom",
+			severity: outcome.status === "error" ? "warning" : "info",
+			message: `Sandbox npm cache seed import from ${hostDir}: ${outcome.status} (${outcome.detail}).`,
+			taskId: placement.taskId,
+			metadata: {
+				category: "sandbox_npm_cache_seed",
+				phase: "import",
+				status: outcome.status,
+				detail: outcome.detail,
+			},
+		});
 	}
 
 	/**

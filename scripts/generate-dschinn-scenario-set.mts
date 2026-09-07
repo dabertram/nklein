@@ -153,6 +153,17 @@ async function main(): Promise<void> {
 		const raw = await readFile(path, "utf8");
 		sources[`deliveries/${posix.basename(path)}`] = `${card.id} sha256:${sha256(raw)}`;
 		const delivery = JSON.parse(raw) as Delivery;
+		if (card.id === "s01") {
+			// The scaffold carries the lockfile the drive's first `npm install` generated (captured with S03): with it
+			// every later placement runs `npm ci` against pinned integrity — the shape P1.NPMSEED's offline seed needs.
+			const lockfile = (JSON.parse(await readFile(join(DRAIN, "deliveries", "S03.json"), "utf8")) as Delivery).files.find(
+				(file) => file.path === "package-lock.json",
+			);
+			if (lockfile && !delivery.files.some((file) => file.path === lockfile.path)) {
+				delivery.files.push(lockfile);
+				delivery.final = `${delivery.final} package-lock.json pins the dependency set for \`npm ci\`.`;
+			}
+		}
 		if (!delivery.files?.length || !delivery.final || !delivery.review?.summary) {
 			throw new Error(`delivery for ${card.id} is incomplete`);
 		}
