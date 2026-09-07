@@ -529,6 +529,59 @@ describe("nklein acceptance gate", () => {
 		}
 	});
 
+	it("journal #52: the environment-setup observation carries the install's `npm error` lines, not only a 500-char slice", async () => {
+		const npmFailure = [
+			"npm warn tar TAR_ENTRY_ERROR ENOSPC: no space left on device, write",
+			"npm error code ENOSPC",
+			"npm error syscall write",
+			"npm error errno -28",
+			"npm error nospc ENOSPC: no space left on device, write",
+			"npm error nospc There appears to be insufficient space on your system to finish.",
+			"npm error nospc Clear up some disk space and try again.",
+			"npm error A complete log of this run can be found in: /home/task/.npm/_logs/2026-09-06T21_11_45_002Z-debug-0.log",
+			"(node:29) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 abort listeners added to [AbortSignal]. MaxListeners is 10. Use events.setMaxListeners() to increase limit",
+			"(Use `node --trace-warnings ...` to show where the warning was created)",
+		].join("\n");
+		const exec = vi.fn(async (_taskId: string, argv: readonly string[]) =>
+			argv.at(-1) === "npm ci"
+				? { exitCode: 1, stdout: "", stderr: npmFailure }
+				: { exitCode: 0, stdout: "ok", stderr: "" },
+		);
+		const recordObservation = vi.fn();
+		const sandboxManager = {
+			assertAvailable: vi.fn(async () => {}),
+			prepareWorkspace: vi.fn(async () => ({ workdir: "/sandbox/toolchain-enospc", uid: 70_001 })),
+			listSandboxRootFileNames: vi.fn(async () => ["package.json", "package-lock.json"]),
+			exec,
+			disposeWorkspace: vi.fn(async () => {}),
+		} as unknown as AgentSandboxManager;
+
+		const result = await runNKleinAcceptanceGateInSandbox({
+			taskId: "toolchain-enospc",
+			projectRepoPath: "/repo",
+			taskPrompt: "Acceptance check: npm test",
+			sandboxManager,
+			recordObservation,
+		});
+
+		expect(result).toMatchObject({ passed: false, failureCategory: "acceptance_setup_error" });
+		const setupObservation = recordObservation.mock.calls
+			.map(([observation]) => observation as { metadata?: Record<string, unknown> })
+			.find((observation) => observation.metadata?.category === "sandbox_environment_setup");
+		expect(setupObservation?.metadata).toMatchObject({
+			status: "failed",
+			failedCommand: "npm ci",
+			errorLines: [
+				"npm error code ENOSPC",
+				"npm error syscall write",
+				"npm error errno -28",
+				"npm error nospc ENOSPC: no space left on device, write",
+				"npm error nospc There appears to be insufficient space on your system to finish.",
+				"npm error nospc Clear up some disk space and try again.",
+			],
+		});
+	});
+
 	it("F12.84b fails closed on dependency setup instead of running misleading tests", async () => {
 		process.env.NKLEIN_REPO_VERIFY = "0";
 		try {

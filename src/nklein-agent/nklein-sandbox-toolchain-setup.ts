@@ -140,6 +140,57 @@ export function isDiskFullInstallFailure(output: string): boolean {
 	return DISK_FULL_INSTALL_SIGNATURES.some((signature) => output.includes(signature));
 }
 
+/**
+ * P1.NPMSEED leftover (journal #52): the prime and acceptance observations carried a 400/500-char slice of the
+ * install output, and npm's tail is its EventEmitter warning ("MaxListenersExceededWarning … Use
+ * events.setMaxListeners()") plus the "A complete log of this run can be found in" pointer — the `npm error code
+ * EAI_AGAIN` / `E502` / `ENOSPC` line that names the failure sat above the cut. This picks the lines that carry a
+ * verdict across package managers and compilers (npm ≥10 `npm error …`, npm ≤9 `npm ERR! …`, tsc `error TS…`,
+ * cargo/pip/yarn `error…`, thrown `Error:`), drops npm's log pointer, bare prefixes and stack frames, redacts URL
+ * credentials, and dedupes + caps the result so an observation stays small. Pure: no I/O, no classification.
+ */
+export const INSTALL_ERROR_LINES_MAX = 12;
+export const INSTALL_ERROR_CHARS_MAX = 1_200;
+const INSTALL_ERROR_LINE_MAX_CHARS = 300;
+/** ESC `[` … letter (tsc `--pretty` colours); built from the code point so no control byte sits in the source. */
+const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;]*[A-Za-z]`, "g");
+/** `://user:secret@proxy` → `://***@proxy` (the same redaction the acceptance gate applies to its output slice). */
+const URL_CREDENTIAL_PATTERN = /:\/\/[^/@\s]+@/g;
+const INSTALL_ERROR_LINE_PATTERNS: readonly RegExp[] = [
+	// npm ≥10 `npm error code E502`; npm ≤9 `npm ERR! code ENOTFOUND`. One space then a word: bare `npm error`
+	// separators and indented `npm error     at …` stack frames stay out.
+	/^npm (?:error|ERR!) \S/,
+	// tsc diagnostics: `src/x.ts(3,21): error TS2307: Cannot find module 'zod'`.
+	/\berror TS\d+:/,
+	// cargo `error[E0433]: …`, pip `ERROR: …`, yarn `error An unexpected error occurred: …`, generic `error: …`.
+	/^(?:error|ERROR)(?:\[[A-Za-z0-9_]+\])?(?::|\s\S)/,
+	// thrown errors: `Error: Cannot find module …`, `TypeError: …`, `FetchError: …`.
+	/\b(?:[A-Z][A-Za-z]*)?Error:/,
+];
+/** Matches a pattern above but carries no verdict (the debug log is inside a disposed sandbox anyway). */
+const INSTALL_ERROR_NOISE_PATTERNS: readonly RegExp[] = [
+	/^npm (?:error|ERR!) A complete log of this run can be found in/,
+];
+
+export function extractInstallErrorLines(output: string): string[] {
+	const lines: string[] = [];
+	const seen = new Set<string>();
+	let chars = 0;
+	for (const raw of output.replace(ANSI_ESCAPE_PATTERN, "").split(/\r\n|\r|\n/)) {
+		const line = raw.trim().replace(URL_CREDENTIAL_PATTERN, "://***@");
+		if (!INSTALL_ERROR_LINE_PATTERNS.some((pattern) => pattern.test(line))) continue;
+		if (INSTALL_ERROR_NOISE_PATTERNS.some((pattern) => pattern.test(line))) continue;
+		const bounded =
+			line.length > INSTALL_ERROR_LINE_MAX_CHARS ? `${line.slice(0, INSTALL_ERROR_LINE_MAX_CHARS - 1)}…` : line;
+		if (seen.has(bounded)) continue;
+		if (lines.length >= INSTALL_ERROR_LINES_MAX || chars + bounded.length > INSTALL_ERROR_CHARS_MAX) break;
+		seen.add(bounded);
+		lines.push(bounded);
+		chars += bounded.length;
+	}
+	return lines;
+}
+
 export async function runSandboxToolchainSetup(
 	options: RunSandboxToolchainSetupOptions,
 ): Promise<SandboxToolchainSetupReport> {

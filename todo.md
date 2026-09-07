@@ -2048,8 +2048,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   tarball is rejected by the lockfile's / live packument's integrity. `NKLEIN_SANDBOX_NPM_CACHE_SEED_IMPORT=<host
   _cacache>` imports a trusted seed at container boot (`docker cp`), and the simulated-flow harness passes
   `NKLEIN_SIMFLOW_NPM_SEED` through — its offline sandboxes can then run the real `vitest` acceptance. Observation
-  category `sandbox_npm_cache_seed`; `NKLEIN_SANDBOX_NPM_CACHE_SEED=0` disables. Still open from #52: surface the
-  `npm error` lines in the prime observation.
+  category `sandbox_npm_cache_seed`; `NKLEIN_SANDBOX_NPM_CACHE_SEED=0` disables. The #52 leftover shipped as well:
+  `extractInstallErrorLines` (nklein-sandbox-toolchain-setup.ts) puts the `npm error` / `npm ERR!` / `error TS` /
+  `Error:` lines (deduped, ≤12 lines / 1200 chars, URL credentials redacted) into both the prime and the
+  `sandbox_environment_setup` observations as `errorLines` — the 400/500-char slice alone ended in npm's EventEmitter
+  warning, not the verdict.
 - [x] **P1.REVIEWNUDGE — a reviewer cut at the verdict reserve spawned a fresh session per nudge; admission waiting ate its deadline.**
   2026-09-07 S72: the bounded start turn's timer ran while the start was still QUEUED behind another session on the
   shared endpoint; the reserve cut fired before the first token, stopped nothing, and each nudge restarted a fresh

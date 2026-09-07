@@ -10,7 +10,7 @@ import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 import { harvestSandboxPackageCache, seedSandboxPackageCache } from "./nklein-sandbox-package-cache-seed";
-import { runSandboxToolchainSetup } from "./nklein-sandbox-toolchain-setup";
+import { extractInstallErrorLines, runSandboxToolchainSetup } from "./nklein-sandbox-toolchain-setup";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_ACCEPTANCE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -541,6 +541,13 @@ export async function runNKleinAcceptanceGateInSandbox(
 			if (setup.status === "skipped_offline") {
 				sandboxOfflineVerdictAt = Date.now();
 			}
+			// Journal #52: a 500-char slice of the install output can miss the verdict line entirely (npm ends with its
+			// EventEmitter warning + log pointer); the `npm error` / `error TS` / `Error:` lines ride along explicitly —
+			// for the offline verdict too, whose EAI_AGAIN line is exactly what the operator wants to see.
+			const setupErrorLines =
+				setup.status === "failed" || setup.status === "skipped_offline"
+					? extractInstallErrorLines(setup.steps.at(-1)?.output ?? "")
+					: [];
 			if (setup.status !== "not_applicable") {
 				(options.recordObservation ?? recordSelfObservation)({
 					signal: setup.status === "failed" ? "verification_failed" : "custom",
@@ -565,6 +572,7 @@ export async function runNKleinAcceptanceGateInSandbox(
 										.trim()
 										.slice(0, 500)
 								: null,
+						...(setupErrorLines.length > 0 ? { errorLines: setupErrorLines } : {}),
 					},
 					createdAt: Date.now(),
 				});

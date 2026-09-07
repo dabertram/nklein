@@ -21,6 +21,7 @@ import {
 	seedSandboxPackageCache,
 } from "./nklein-sandbox-package-cache-seed";
 import {
+	extractInstallErrorLines,
 	isDiskFullInstallFailure,
 	isOfflineInstallFailure,
 	runSandboxToolchainSetup,
@@ -117,6 +118,9 @@ export async function primeSandboxToolchain(
 	}
 	const failedStep = report.steps.find((step) => step.command === report.failedCommand);
 	const outputTail = failedStep?.output.slice(-OUTPUT_TAIL_CHARS) ?? null;
+	// Journal #52: the tail alone ended in npm's EventEmitter warning while the `npm error code …` verdict sat above
+	// the cut — the lines that name the failure ride along explicitly (deduped, capped), for the offline verdict too.
+	const errorLines = failedStep ? extractInstallErrorLines(failedStep.output) : [];
 	record({
 		signal: report.status === "failed" ? "verification_failed" : "custom",
 		severity: report.status === "failed" ? "warning" : "info",
@@ -132,6 +136,7 @@ export async function primeSandboxToolchain(
 			toolchains: report.plan.toolchains,
 			failedCommand: report.failedCommand,
 			...(outputTail ? { outputTail } : {}),
+			...(errorLines.length > 0 ? { errorLines } : {}),
 		},
 	});
 	return report;

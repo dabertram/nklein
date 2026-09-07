@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+	extractInstallErrorLines,
+	INSTALL_ERROR_CHARS_MAX,
+	INSTALL_ERROR_LINES_MAX,
 	isDiskFullInstallFailure,
 	isOfflineInstallFailure,
 	runSandboxToolchainSetup,
@@ -198,5 +201,169 @@ describe("transient install failures (2026-09-07: E502 from the egress proxy und
 		});
 		expect(installs).toBe(1);
 		expect(report.status).toBe("skipped_offline");
+	});
+});
+
+describe("extractInstallErrorLines (journal #52: the observation tail ended in npm's EventEmitter warning)", () => {
+	const EVENT_EMITTER_NOISE = [
+		"(node:29) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 abort listeners added to [AbortSignal]. MaxListeners is 10. Use events.setMaxListeners() to increase limit",
+		"(Use `node --trace-warnings ...` to show where the warning was created)",
+	];
+
+	it("surfaces the npm ≥10 EAI_AGAIN verdict and drops the log pointer + the warning the tail used to end in", () => {
+		const output = [
+			"npm error code EAI_AGAIN",
+			"npm error syscall getaddrinfo",
+			"npm error errno EAI_AGAIN",
+			"npm error request to https://registry.npmjs.org/vitest/-/vitest-3.2.4.tgz failed, reason: getaddrinfo EAI_AGAIN registry.npmjs.org",
+			"npm error A complete log of this run can be found in: /home/task/.npm/_logs/2026-09-07T13_02_11_484Z-debug-0.log",
+			...EVENT_EMITTER_NOISE,
+		].join("\n");
+		// The 400-char tail the prime observation recorded: it ends in the warning, and the code sits above the cut.
+		expect(output.slice(-400).endsWith("warning was created)")).toBe(true);
+		expect(extractInstallErrorLines(output)).toEqual([
+			"npm error code EAI_AGAIN",
+			"npm error syscall getaddrinfo",
+			"npm error errno EAI_AGAIN",
+			"npm error request to https://registry.npmjs.org/vitest/-/vitest-3.2.4.tgz failed, reason: getaddrinfo EAI_AGAIN registry.npmjs.org",
+		]);
+	});
+
+	it("E502 from the registry/proxy (deduped) and the npm ≤9 `npm ERR!` dialect (bare prefixes + indented paths out)", () => {
+		expect(
+			extractInstallErrorLines(
+				[
+					"npm error code E502",
+					"npm error 502 Bad Gateway - GET https://registry.npmjs.org/zod/-/zod-3.25.76.tgz",
+					"npm error 502 Bad Gateway - GET https://registry.npmjs.org/zod/-/zod-3.25.76.tgz",
+					"npm error A complete log of this run can be found in: /home/task/.npm/_logs/2026-09-07T14_40_02_913Z-debug-0.log",
+				].join("\n"),
+			),
+		).toEqual([
+			"npm error code E502",
+			"npm error 502 Bad Gateway - GET https://registry.npmjs.org/zod/-/zod-3.25.76.tgz",
+		]);
+		expect(
+			extractInstallErrorLines(
+				[
+					"npm ERR! code ENOTFOUND",
+					"npm ERR! syscall getaddrinfo",
+					"npm ERR! errno ENOTFOUND",
+					"npm ERR! network request to https://registry.npmjs.org/typescript failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org",
+					"npm ERR! network This is a problem related to network connectivity.",
+					"npm ERR! network In most cases you are behind a proxy or have bad network settings.",
+					"npm ERR!",
+					"npm ERR! A complete log of this run can be found in:",
+					"npm ERR!     /root/.npm/_logs/2026-09-07T14_40_02_913Z-debug-0.log",
+				].join("\n"),
+			),
+		).toEqual([
+			"npm ERR! code ENOTFOUND",
+			"npm ERR! syscall getaddrinfo",
+			"npm ERR! errno ENOTFOUND",
+			"npm ERR! network request to https://registry.npmjs.org/typescript failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org",
+			"npm ERR! network This is a problem related to network connectivity.",
+			"npm ERR! network In most cases you are behind a proxy or have bad network settings.",
+		]);
+	});
+
+	it("ENOSPC (2026-09-06 tmpfs): every nospc line, none of the tar warnings", () => {
+		const output = [
+			"npm warn tar TAR_ENTRY_ERROR ENOSPC: no space left on device, write",
+			"npm warn tar TAR_ENTRY_ERROR ENOSPC: no space left on device, write",
+			"npm error code ENOSPC",
+			"npm error syscall write",
+			"npm error errno -28",
+			"npm error nospc ENOSPC: no space left on device, write",
+			"npm error nospc There appears to be insufficient space on your system to finish.",
+			"npm error nospc Clear up some disk space and try again.",
+			"npm error A complete log of this run can be found in: /home/task/.npm/_logs/2026-09-06T21_11_45_002Z-debug-0.log",
+		].join("\n");
+		expect(extractInstallErrorLines(output)).toEqual([
+			"npm error code ENOSPC",
+			"npm error syscall write",
+			"npm error errno -28",
+			"npm error nospc ENOSPC: no space left on device, write",
+			"npm error nospc There appears to be insufficient space on your system to finish.",
+			"npm error nospc Clear up some disk space and try again.",
+		]);
+	});
+
+	it("tsc diagnostics (ANSI-coloured too), thrown Error: lines and other package managers — never frames or progress", () => {
+		expect(
+			extractInstallErrorLines(
+				[
+					"> dschinn@0.1.0 typecheck",
+					"> tsc --noEmit",
+					"",
+					"src/spine/s54-router.ts(3,21): error TS2307: Cannot find module 'zod' or its corresponding type declarations.",
+					"\u001b[96msrc/spine/s54-router.ts\u001b[0m:\u001b[93m9\u001b[0m:\u001b[93m7\u001b[0m - \u001b[91merror\u001b[0m\u001b[90m TS2322: \u001b[0mType 'string' is not assignable to type 'number'.",
+					"src/spine/s54-router.ts(3,21): error TS2307: Cannot find module 'zod' or its corresponding type declarations.",
+				].join("\n"),
+			),
+		).toEqual([
+			"src/spine/s54-router.ts(3,21): error TS2307: Cannot find module 'zod' or its corresponding type declarations.",
+			"src/spine/s54-router.ts:9:7 - error TS2322: Type 'string' is not assignable to type 'number'.",
+		]);
+		expect(
+			extractInstallErrorLines(
+				[
+					"node:internal/modules/cjs/loader:1228",
+					"  throw err;",
+					"  ^",
+					"",
+					"Error: Cannot find module '/work/node_modules/vitest/vitest.mjs'",
+					"    at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)",
+					"    at Module._load (node:internal/modules/cjs/loader:1051:27)",
+					"{",
+					"  code: 'MODULE_NOT_FOUND',",
+					"  requireStack: []",
+					"}",
+					"TypeError: fetch failed",
+				].join("\n"),
+			),
+		).toEqual(["Error: Cannot find module '/work/node_modules/vitest/vitest.mjs'", "TypeError: fetch failed"]);
+		expect(
+			extractInstallErrorLines(
+				[
+					'error An unexpected error occurred: "https://registry.yarnpkg.com/zod/-/zod-3.25.76.tgz: getaddrinfo EAI_AGAIN registry.yarnpkg.com".',
+					'info If you think this is a bug, please open a bug report with the information provided in "/work/yarn-error.log".',
+					"error[E0433]: failed to resolve: use of undeclared crate or module `serde`",
+					"ERROR: Could not find a version that satisfies the requirement zod (from versions: none)",
+					"errors found: 3",
+					"Updating crates.io index",
+				].join("\n"),
+			),
+		).toEqual([
+			'error An unexpected error occurred: "https://registry.yarnpkg.com/zod/-/zod-3.25.76.tgz: getaddrinfo EAI_AGAIN registry.yarnpkg.com".',
+			"error[E0433]: failed to resolve: use of undeclared crate or module `serde`",
+			"ERROR: Could not find a version that satisfies the requirement zod (from versions: none)",
+		]);
+	});
+
+	it(`caps at ${INSTALL_ERROR_LINES_MAX} lines / ${INSTALL_ERROR_CHARS_MAX} chars, bounds a runaway line, redacts URL credentials`, () => {
+		const many = Array.from({ length: 40 }, (_, index) => `npm error line ${index}`).join("\n");
+		expect(extractInstallErrorLines(many)).toHaveLength(INSTALL_ERROR_LINES_MAX);
+		const wide = Array.from({ length: 6 }, (_, index) => `npm error ${String(index).repeat(240)}`).join("\n");
+		const bounded = extractInstallErrorLines(wide);
+		expect(bounded).toHaveLength(4);
+		expect(bounded.join("").length).toBeLessThanOrEqual(INSTALL_ERROR_CHARS_MAX);
+		const runaway = extractInstallErrorLines(`npm error ${"x".repeat(1_000)}`);
+		expect(runaway).toHaveLength(1);
+		expect(runaway[0]?.length).toBe(300);
+		expect(runaway[0]?.endsWith("…")).toBe(true);
+		expect(
+			extractInstallErrorLines(
+				"npm error 403 Forbidden - GET http://sandbox:s3cret@egress-proxy:3128/registry.npmjs.org/zod",
+			),
+		).toEqual(["npm error 403 Forbidden - GET http://***@egress-proxy:3128/registry.npmjs.org/zod"]);
+	});
+
+	it("returns nothing for a clean install or a docker-exec timeout message (the observation then omits errorLines)", () => {
+		expect(
+			extractInstallErrorLines("added 48 packages, and audited 49 packages in 3s\n\nfound 0 vulnerabilities"),
+		).toEqual([]);
+		expect(extractInstallErrorLines("Command timed out after 240000ms")).toEqual([]);
+		expect(extractInstallErrorLines("")).toEqual([]);
 	});
 });

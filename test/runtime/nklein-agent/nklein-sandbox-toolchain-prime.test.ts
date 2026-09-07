@@ -84,4 +84,36 @@ describe("primeSandboxToolchain (worker sandbox dependency install before the fi
 		expect(String(observation?.message)).toContain("failed before the first model turn");
 		expect(report ? describePrimeFailure(report) : "").toMatch(/priming budget|failed/u);
 	});
+
+	it("journal #52: a failed install's observation carries the `npm error` lines, not only a tail ending in the EventEmitter warning", async () => {
+		const npmFailure = [
+			"npm error code EUSAGE",
+			"npm error",
+			"npm error `npm ci` can only install packages when your package.json and package-lock.json or npm-shrinkwrap.json are in sync. Please update your lock file with `npm install` before continuing.",
+			"npm error",
+			"npm error Missing: zod@3.25.76 from lock file",
+			"npm error",
+			"npm error A complete log of this run can be found in: /home/task/.npm/_logs/2026-09-07T15_20_31_118Z-debug-0.log",
+			"(node:29) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 abort listeners added to [AbortSignal]. MaxListeners is 10. Use events.setMaxListeners() to increase limit",
+			"(Use `node --trace-warnings ...` to show where the warning was created)",
+		].join("\n");
+		const { manager } = fakeManager(["package.json", "package-lock.json"], async (argv) =>
+			argv.at(-1) === "npm ci"
+				? { exitCode: 1, stdout: "", stderr: npmFailure }
+				: { exitCode: 0, stdout: "/usr/bin/npm", stderr: "" },
+		);
+		const record = vi.fn();
+		const report = await primeSandboxToolchain({ manager, taskId: "t5", recordObservation: record, env: {} });
+		expect(report?.status).toBe("failed");
+		const observation = record.mock.calls
+			.map(([call]) => call as { metadata?: { category?: string; outputTail?: string; errorLines?: string[] } })
+			.find((call) => call.metadata?.category === "sandbox_toolchain_prime");
+		// The 400-char tail still ends in the warning — exactly the line the operator did NOT need to read.
+		expect(observation?.metadata?.outputTail?.endsWith("warning was created)")).toBe(true);
+		expect(observation?.metadata?.errorLines).toEqual([
+			"npm error code EUSAGE",
+			"npm error `npm ci` can only install packages when your package.json and package-lock.json or npm-shrinkwrap.json are in sync. Please update your lock file with `npm install` before continuing.",
+			"npm error Missing: zod@3.25.76 from lock file",
+		]);
+	});
 });
