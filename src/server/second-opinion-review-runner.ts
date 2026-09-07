@@ -81,6 +81,9 @@ const escalatedWorkerKey = (workspacePath: string, taskId: string): string => `$
 const pendingRedriveObservations = new Map<string, PendingRedriveObservation>();
 /** Consecutive pinned-reviewer-unavailable rounds per task (degrade-to-auto after the first). */
 const pinnedReviewerUnavailableStreakByTaskId = new Map<string, number>();
+// P0.PARKEDLOOP: one hold observation per (workspace, task, work fingerprint) — a held card is re-probed by every
+// summary edge / sweep that reaches the runner, and a row per probe would be the noise the hold removes.
+const parkedUnchangedHoldNotifiedKeys = new Set<string>();
 
 function shouldQuiescePrimaryWorkerBeforeReview(summary: ReturnType<NKleinTaskSessionService["getSummary"]>): boolean {
 	if (summary?.state !== "running") {
@@ -597,6 +600,43 @@ export async function runSecondOpinionReviewForTask(
 				})
 				.catch(() => null)
 		: null;
+	// P0.PARKEDLOOP (v31 2026-09-07): a card the loop PARKED waits for a human or for new worker output. Re-admitting
+	// the unchanged artifact re-ran acceptance reuse, the test-driven gate and the identical-loop park 2,465 times in
+	// one night (s09a1) — each re-park cancelling turns, re-probing escalation workers and re-writing the board. The
+	// PERSISTED park + the reviewed work fingerprint decide here, so a runtime restart (which loses the finalizer's
+	// in-process hold) cannot resume the churn. An un-park (status leaves `parked`) or new work (the fingerprint
+	// moves) re-admits the card; a null fingerprint (diff probe error) never holds.
+	const parkedRecord = card.review?.status === "parked" ? (card.review.history.at(-1) ?? null) : null;
+	if (parkedRecord && evidenceFingerprint !== null && parkedRecord.workFingerprint === evidenceFingerprint) {
+		const parkedReason = card.review?.parkedReason ?? null;
+		const parkedRound = card.review?.round ?? parkedRecord.round;
+		const holdKey = `${input.workspacePath}\0${input.taskId}\0${evidenceFingerprint}`;
+		if (!parkedUnchangedHoldNotifiedKeys.has(holdKey)) {
+			parkedUnchangedHoldNotifiedKeys.add(holdKey);
+			stampPhase(`review-resolution held (parked on unchanged work since round ${parkedRound})`);
+			input.warn?.(
+				`Review of ${input.taskId} stays parked after round ${parkedRound} (${parkedReason ?? "parked"}): the work is unchanged, so it is not re-reviewed. Un-park it or re-drive the worker to re-admit it.`,
+			);
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Review of ${input.taskId} held: parked on unchanged work since round ${parkedRound}.`,
+					taskId: input.taskId,
+					workspacePath: input.workspacePath,
+					metadata: { category: "review_parked_hold", round: parkedRound, workFingerprint: evidenceFingerprint },
+				});
+			} catch {
+				// Telemetry must never break the hold.
+			}
+		}
+		return {
+			type: "parked",
+			round: parkedRound,
+			reason: parkedReason ?? "Review parked on unchanged work.",
+			held: true,
+		};
+	}
 	// Re-drive window guard (bed pair-3b, 2026-08-18): while a spent rung's re-drive is still executing,
 	// absorb the pre-re-drive worker's byte-identical re-claim instead of admitting a review round — the field
 	// run burned the stall PARK (+ re-decompose spawn) 3 minutes before the escalated worker's real artifact

@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
 	type AutoReviewCardRecord,
 	buildManualReviewHoldObservation,
+	buildReviewParkedHoldObservation,
 	decideAutoReviewCardAction,
 	isAutoReviewCommitCard,
 	selectHeadlessAutoReviewReconcileCandidates,
+	shouldHoldParkedFinalize,
 } from "../../../src/server/auto-review-card-decision";
 
 const record = (columnId: string, card: AutoReviewCardRecord["card"]): AutoReviewCardRecord => ({ columnId, card });
@@ -110,5 +112,48 @@ describe("buildManualReviewHoldObservation (N20)", () => {
 		expect(observation.message).toMatch(/MANUAL operator verdict/u);
 		expect(observation.message).toMatch(/headless run this card will wait forever/u);
 		expect(observation.severity).toBe("info");
+	});
+});
+
+describe("shouldHoldParkedFinalize (P0.PARKEDLOOP)", () => {
+	// s09a1 (v31, 2026-09-07): 2,465 identical review rounds on a parked card whose worker never produced a new turn.
+	it("holds a parked card whose worker turn generation has not moved since the park", () => {
+		expect(
+			shouldHoldParkedFinalize({ reviewStatus: "parked", parkedTurnGeneration: 4, currentTurnGeneration: 4 }),
+		).toBe(true);
+		expect(
+			shouldHoldParkedFinalize({ reviewStatus: "parked", parkedTurnGeneration: null, currentTurnGeneration: null }),
+		).toBe(true);
+	});
+
+	it("re-admits the card on an un-park, on a new worker turn, and on the first finalize after a restart", () => {
+		expect(
+			shouldHoldParkedFinalize({ reviewStatus: "in_review", parkedTurnGeneration: 4, currentTurnGeneration: 4 }),
+		).toBe(false);
+		expect(
+			shouldHoldParkedFinalize({ reviewStatus: "parked", parkedTurnGeneration: 4, currentTurnGeneration: 5 }),
+		).toBe(false);
+		expect(
+			shouldHoldParkedFinalize({
+				reviewStatus: "parked",
+				parkedTurnGeneration: undefined,
+				currentTurnGeneration: 4,
+			}),
+		).toBe(false);
+		expect(shouldHoldParkedFinalize({ reviewStatus: null, parkedTurnGeneration: 4, currentTurnGeneration: 4 })).toBe(
+			false,
+		);
+	});
+
+	it("names the round, the park reason and the two ways out in the hold observation", () => {
+		const observation = buildReviewParkedHoldObservation("card-3", { round: 6, parkedReason: "Review is looping." });
+		expect(observation.metadata).toEqual({
+			category: "review_parked_hold",
+			round: 6,
+			parkedReason: "Review is looping.",
+		});
+		expect(observation.message).toMatch(/round 6/u);
+		expect(observation.message).toMatch(/unparkReview/u);
+		expect(observation.message).toMatch(/re-drive the worker/u);
 	});
 });

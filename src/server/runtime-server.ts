@@ -292,9 +292,11 @@ import {
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import {
 	buildManualReviewHoldObservation,
+	buildReviewParkedHoldObservation,
 	decideAutoReviewCardAction,
 	isAutoReviewCommitCard,
 	selectHeadlessAutoReviewReconcileCandidates,
+	shouldHoldParkedFinalize,
 } from "./auto-review-card-decision";
 import { type BackgroundEvalRailWiring, wireBackgroundEvalRail } from "./background-eval-rail-wiring";
 import { type BoardLivenessWatchdogHandle, startBoardLivenessWatchdog } from "./board-liveness-watchdog";
@@ -661,6 +663,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// N20: review-lane cards holding for a MANUAL verdict get ONE visible observation each (not one per finalize
 	// attempt — rescues re-call the finalizer periodically, and a repeating "still waiting" row is noise).
 	const manualReviewHoldNotifiedKeys = new Set<string>();
+	// P0.PARKEDLOOP (v31 2026-09-07): the worker turn generation at which the finalizer last PARKED a card. While
+	// the card stays parked and that generation has not moved, every further finalize request (re-emitted
+	// awaiting_review summaries, rescues, sweeps) is a hold — one card re-ran the identical review 2,465 times in a
+	// night before this. Keyed workspace:task; cleared by any non-park outcome.
+	const parkedFinalizeTurnGenerationByKey = new Map<string, number | null>();
+	const parkedFinalizeHoldNotifiedKeys = new Set<string>();
 	// Campaign forensics 2026-07-24: consecutive auto-start failures per card; at the threshold the card is
 	// paused-with-reason instead of retried forever (see the failure branch in the auto-start drain).
 	const autoStartFailureGuard = createAutoStartFailureGuard();
@@ -2378,6 +2386,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				await (async () => {
 					let shouldAutoComplete = false;
 					let heldForManualReview = false;
+					// A holder, not a bare `let`: TS narrows a closure-assigned local back to `null` at the read below.
+					const reviewOnEntry: { value: { status: string; round: number; parkedReason: string | null } | null } = {
+						value: null,
+					};
 					await retryWorkspaceStateLock(() =>
 						mutateWorkspaceState(scope.workspacePath, (latestState) => {
 							const record = latestState.board.columns
@@ -2385,6 +2397,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								.find((candidate) => candidate.card.id === taskId);
 							const action = decideAutoReviewCardAction(record);
 							shouldAutoComplete = action.shouldAutoComplete;
+							reviewOnEntry.value = record?.card.review
+								? {
+										status: record.card.review.status,
+										round: record.card.review.round,
+										parkedReason: record.card.review.parkedReason ?? null,
+									}
+								: null;
 							// N20: a review-lane card that opted OUT of auto-review is about to be skipped —
 							// correctly (manual review belongs to an operator), but the skip below was a bare
 							// `return` and a headless run dead-stopped with ZERO log lines. Capture the state
@@ -2412,6 +2431,27 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								...buildManualReviewHoldObservation(taskId),
 								workspacePath: scope.workspacePath,
 							});
+						}
+						return;
+					}
+					// P0.PARKEDLOOP: a parked card whose worker produced no new turn since the park is a HOLD, not a
+					// re-review — before any git probe, board write or sandbox call below.
+					const reviewAtEntry = reviewOnEntry.value;
+					if (
+						shouldHoldParkedFinalize({
+							reviewStatus: reviewAtEntry?.status ?? null,
+							parkedTurnGeneration: parkedFinalizeTurnGenerationByKey.get(inFlightKey),
+							currentTurnGeneration: service.getTaskTurnGeneration?.(taskId) ?? null,
+						})
+					) {
+						if (!parkedFinalizeHoldNotifiedKeys.has(inFlightKey)) {
+							parkedFinalizeHoldNotifiedKeys.add(inFlightKey);
+							const hold = buildReviewParkedHoldObservation(taskId, {
+								round: reviewAtEntry?.round ?? 0,
+								parkedReason: reviewAtEntry?.parkedReason ?? null,
+							});
+							deps.warn(hold.message);
+							recordSelfObservation({ ...hold, workspacePath: scope.workspacePath });
 						}
 						return;
 					}
@@ -2545,6 +2585,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					});
 					const reviewReason = "reason" in reviewOutcome ? ` (${reviewOutcome.reason})` : "";
 					deps.warn(`Second-opinion review outcome for ${taskId}: ${reviewOutcome.type}${reviewReason}`);
+					// P0.PARKEDLOOP bookkeeping: remember the generation a park happened at; any other outcome
+					// re-arms the hold observation for a future park.
+					if (reviewOutcome.type === "parked") {
+						parkedFinalizeTurnGenerationByKey.set(inFlightKey, admittedWorkerTurnGeneration);
+					} else {
+						parkedFinalizeTurnGenerationByKey.delete(inFlightKey);
+						parkedFinalizeHoldNotifiedKeys.delete(inFlightKey);
+					}
 					// Audit 2026-08-12 (attention-park note, wired 2026-08-14): a SKIPPED resolution with no further
 					// machine step used to leave the session pinned at awaiting_review — which reads as LIVE to every
 					// sweep (hasLiveTaskSession), so the card could never be redriven; one silent reviewer absorbed a
@@ -2563,7 +2611,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					// N3 family 4: a PARK hands the card to the operator — settle its durable job (failed/parked
 					// vocabulary) so the lease releases instead of sitting orphaned (the park quiesces the session
 					// to idle, which the summary reaction maps to `none`; without this the lease outlived teardown).
-					if (reviewOutcome.type === "parked") {
+					if (reviewOutcome.type === "parked" && !reviewOutcome.held) {
 						void durableRunWiring?.observeParked(
 							scope.workspaceId,
 							taskId,

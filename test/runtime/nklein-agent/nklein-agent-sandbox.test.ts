@@ -37,6 +37,8 @@ interface ExecFileStubOptions {
 	psOutput?: string;
 	volumeLsOutput?: string;
 	execStdout?: string;
+	/** Per-command stdout for docker exec payloads (wins over `execStdout` when it returns a string). */
+	execStdoutByCommand?: (command: readonly string[]) => string | undefined;
 	failExecCommand?: readonly string[];
 	transientExecCommand?: readonly string[];
 	/**
@@ -137,7 +139,7 @@ function createExecFileStub(options?: ExecFileStubOptions): {
 				done(Object.assign(new Error("exec failed"), { code: 1, stdout: "", stderr: "sandbox failure" }));
 				return {} as ReturnType<typeof execFile>;
 			}
-			stdout = options?.execStdout ?? "";
+			stdout = options?.execStdoutByCommand?.(command) ?? options?.execStdout ?? "";
 		}
 		done(null, { stdout, stderr: "" });
 		return {} as ReturnType<typeof execFile>;
@@ -1918,5 +1920,71 @@ describe("P1.ACCEPT-ORPHAN: a caller deadline is enforced inside the container",
 		]);
 		expect(withContainerDeadline(["true"], 1)).toEqual(["timeout", "-k", "5", "1", "true"]);
 		expect(withContainerDeadline(["true"], 1_500)).toEqual(["timeout", "-k", "5", "2", "true"]);
+	});
+});
+
+describe("captureWorkspacePatch — generated lockfile churn (P0.LOCKFILECAPTURE)", () => {
+	const nameStatusListing = (listing: string) => (command: readonly string[]) =>
+		command[0] === "git" && command.includes("--name-status") ? listing : undefined;
+
+	it("drops a lockfile an install generated on a repo whose base has none, before the diff is taken", async () => {
+		const patch = "diff --git a/src/a.ts b/src/a.ts\n";
+		const { execFile: execFileStub, calls } = createExecFileStub({
+			execStdout: patch,
+			execStdoutByCommand: nameStatusListing("A\0package-lock.json\0M\0src/a.ts\0"),
+		});
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		await expect(manager.captureWorkspacePatch("task-1", { baseRef: "main" })).resolves.toBe(patch);
+		const commands = calls.map(dockerExecCommand).map((command) => command.join(" "));
+		expect(commands).toContain("git diff --staged --name-status -z main --");
+		const dropIndex = commands.indexOf("git rm -q --cached -- package-lock.json");
+		const diffIndex = commands.indexOf("git diff --staged --binary main --");
+		expect(dropIndex).toBeGreaterThan(-1);
+		expect(diffIndex).toBeGreaterThan(dropIndex);
+	});
+
+	it("keeps the lockfile when its manifest changed in the same patch, and restores a modified one otherwise", async () => {
+		const kept = createExecFileStub({
+			execStdout: "diff --git a/package.json b/package.json\n",
+			execStdoutByCommand: nameStatusListing("M\0package-lock.json\0M\0package.json\0"),
+		});
+		const keptManager = new AgentSandboxManager({ image: "test-image", execFile: kept.execFile });
+		await keptManager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		await keptManager.captureWorkspacePatch("task-1", { baseRef: "main" });
+		expect(kept.calls.map(dockerExecCommand).some((command) => command.includes("package-lock.json"))).toBe(false);
+
+		const churn = createExecFileStub({
+			execStdout: "",
+			execStdoutByCommand: nameStatusListing("M\0Cargo.lock\0M\0src/lib.rs\0"),
+		});
+		const churnManager = new AgentSandboxManager({ image: "test-image", execFile: churn.execFile });
+		await churnManager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		await churnManager.captureWorkspacePatch("task-2");
+		expect(churn.calls.map(dockerExecCommand)).toContainEqual(["git", "checkout", "-q", "HEAD", "--", "Cargo.lock"]);
+	});
+
+	it("keeps the churn when NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES=1", async () => {
+		const previous = process.env.NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES;
+		process.env.NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES = "1";
+		try {
+			const { execFile: execFileStub, calls } = createExecFileStub({
+				execStdout: "",
+				execStdoutByCommand: nameStatusListing("A\0package-lock.json\0"),
+			});
+			const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+			await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+			await manager.captureWorkspacePatch("task-1", { baseRef: "main" });
+			const commands = calls.map(dockerExecCommand).map((command) => command.join(" "));
+			expect(commands.some((command) => command.includes("--name-status"))).toBe(false);
+			expect(commands.some((command) => command.startsWith("git rm"))).toBe(false);
+		} finally {
+			if (previous === undefined) {
+				delete process.env.NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES;
+			} else {
+				process.env.NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES = previous;
+			}
+		}
 	});
 });

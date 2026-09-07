@@ -59,7 +59,11 @@ export type NKleinSecondOpinionReviewOutcome =
 	| { type: "bounced"; round: number }
 	/** W4.2: the stuck card was re-driven on a stronger/different-lineage worker (one escalation per card). */
 	| { type: "escalated"; round: number }
-	| { type: "parked"; round: number; reason: string };
+	/**
+	 * `held`: P0.PARKEDLOOP — the card was ALREADY parked on this exact work; nothing ran and nothing changed
+	 * (no park side effects — the caller must not settle the durable job or re-sweep again).
+	 */
+	| { type: "parked"; round: number; reason: string; held?: boolean };
 
 export interface RunNKleinSecondOpinionReviewInput {
 	taskId: string;

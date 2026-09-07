@@ -19,6 +19,12 @@ import type {
 	PendingEgressConfirm,
 } from "../core/egress-confirm-queue";
 import { isTruthyEnv } from "../core/env-flag";
+import {
+	buildGeneratedLockfileRestoreCommand,
+	CAPTURE_KEEP_GENERATED_LOCKFILES_ENV,
+	parseGitNameStatusZ,
+	selectGeneratedLockfilesToDrop,
+} from "../core/generated-lockfile-capture";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { normalizePositiveInteger } from "../core/normalize-number";
 import { isProcessAlive } from "../core/process-identity";
@@ -1059,8 +1065,11 @@ export class AgentSandboxManager {
 					assertSandboxExecOk(staged, "stage sandbox workspace changes");
 				}
 			}
+			const baseRef = options.baseRef?.trim() || null;
+			// P0.LOCKFILECAPTURE: generated lockfile churn (an install rewrote or created a lockfile while the
+			// manifest stayed untouched) is tooling output, not authorship — drop it before the diff is taken.
+			await this.dropGeneratedLockfileChurn(placement, taskId, baseRef);
 			const diffArgs = ["git", "diff", "--staged", "--binary"];
-			const baseRef = options.baseRef?.trim();
 			if (baseRef) {
 				diffArgs.push(baseRef, "--");
 			}
@@ -1070,6 +1079,64 @@ export class AgentSandboxManager {
 			assertSandboxExecOk(diff, "capture sandbox workspace patch");
 			return diff.stdout;
 		});
+	}
+
+	/**
+	 * P0.LOCKFILECAPTURE (v31 2026-09-07): three result branches carried nothing but a 1,530-line `package-lock.json`
+	 * that `npm install` generated on a repo whose main has none — reviewed as "the work" for 2,466 rounds, a merge
+	 * conflict between any two of them, and a test-driven-gate bounce on a change no model authored. After staging,
+	 * every staged lockfile whose owning manifest (same directory or any directory below it) is NOT in the same
+	 * change set is restored to the base (or unstaged when the base never had it). Best-effort: a listing or
+	 * restore failure leaves the churn in the patch and says so; `NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES=1` keeps
+	 * it on purpose. Returns the dropped paths.
+	 */
+	private async dropGeneratedLockfileChurn(
+		placement: TaskPlacement,
+		taskId: string,
+		baseRef: string | null,
+	): Promise<string[]> {
+		if (isTruthyEnv(process.env[CAPTURE_KEEP_GENERATED_LOCKFILES_ENV])) {
+			return [];
+		}
+		const listed = await this.execAsTaskUser(
+			placement,
+			["git", "diff", "--staged", "--name-status", "-z", ...(baseRef ? [baseRef, "--"] : [])],
+			{ timeoutMs: PATCH_CAPTURE_EXEC_TIMEOUT_MS },
+		);
+		if (listed.exitCode !== 0) {
+			this.warn?.(
+				`Could not list the staged changes of ${taskId} (exit ${listed.exitCode ?? "null"}); generated lockfile churn stays in the patch.`,
+			);
+			return [];
+		}
+		const drops = selectGeneratedLockfilesToDrop(parseGitNameStatusZ(listed.stdout));
+		const dropped: string[] = [];
+		for (const drop of drops) {
+			const restored = await this.execAsTaskUser(placement, buildGeneratedLockfileRestoreCommand(drop, baseRef), {
+				timeoutMs: PATCH_CAPTURE_EXEC_TIMEOUT_MS,
+			});
+			if (restored.exitCode === 0) {
+				dropped.push(drop.path);
+			} else {
+				this.warn?.(
+					`Could not drop the generated lockfile change ${drop.path} from ${taskId}'s patch (exit ${restored.exitCode ?? "null"}): ${(restored.stderr ?? "").trim().slice(0, 200)}`,
+				);
+			}
+		}
+		if (dropped.length > 0) {
+			try {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Patch capture for ${taskId} dropped ${dropped.length} generated lockfile change(s) whose manifest is unchanged: ${dropped.join(", ")}.`,
+					taskId,
+					metadata: { category: "capture_dropped_generated_lockfile", paths: dropped },
+				});
+			} catch {
+				// Telemetry must never alter the capture.
+			}
+		}
+		return dropped;
 	}
 
 	async disposeWorkspace(taskId: string): Promise<void> {

@@ -1184,6 +1184,10 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"merge_resolution_loaded_fallback",
 	"loaded_host_allowlist_excluded",
 	"sandbox_toolchain_prime",
+	// P0.LOCKFILECAPTURE (2026-09-07): install-generated lockfile churn dropped from a captured patch.
+	"capture_dropped_generated_lockfile",
+	// P0.PARKEDLOOP (2026-09-07): a parked review held instead of re-reviewed on unchanged work.
+	"review_parked_hold",
 	"merge_resolution_no_model",
 	// Stale-input guard (2026-09-02): late nudges/steers must not resurrect a decompose-completed source card.
 	"input_after_decomposition_dropped",

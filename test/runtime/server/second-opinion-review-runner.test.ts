@@ -303,6 +303,61 @@ describe("runSecondOpinionReviewForTask", () => {
 			markSandboxRecaptureExpected: deps.markSandboxRecaptureExpected,
 		}) as unknown as never;
 
+	it("P0.PARKEDLOOP: a card parked on this exact work is held — no acceptance run, no reviewer session, no park side effects", async () => {
+		const diff = "diff --git a/login.ts b/login.ts\n+code";
+		const parkedReview: RuntimeCardReview = {
+			status: "parked",
+			round: 6,
+			history: [
+				{
+					round: 6,
+					verdict: "request_changes",
+					feedbackFingerprint: "fb",
+					workFingerprint: fingerprintReviewArtifact(diff),
+					summary: "Test-driven delivery gate",
+					feedback: "touched no test file",
+				},
+			],
+			lastVerdict: "request_changes",
+			lastSummary: "Test-driven delivery gate",
+			lastFeedback: "touched no test file",
+			lastInsight: null,
+			signOff: null,
+			parkedReason: "Review is looping: the same change request on unchanged work. Parking for a human.",
+			updatedAt: 5,
+		};
+		const deps = makeDeps({ diff, review: parkedReview });
+		const verifyTaskAcceptanceInSandbox = vi.fn(async () => null);
+		const svc = { ...(service(deps) as object), verifyTaskAcceptanceInSandbox } as unknown as never;
+		const outcome = await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: svc,
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+		});
+		expect(outcome).toEqual({ type: "parked", round: 6, reason: parkedReview.parkedReason, held: true });
+		expect(verifyTaskAcceptanceInSandbox).not.toHaveBeenCalled();
+		expect(deps.runSecondOpinionReviewSession).not.toHaveBeenCalled();
+		expect(deps.cancelTaskTurn).not.toHaveBeenCalled();
+		expect(deps.sendTaskSessionInput).not.toHaveBeenCalled();
+		// New work (a different fingerprint) re-admits the parked card into a real round.
+		const fresh = makeDeps({ diff: `${diff}\n+more`, review: parkedReview });
+		const freshOutcome = await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: service(fresh),
+			loadRuntimeConfig: fresh.loadRuntimeConfig,
+			loadWorkspaceState: fresh.loadWorkspaceState,
+			mutateWorkspaceState: fresh.mutateWorkspaceState,
+			getTaskResultBranchDiff: fresh.getTaskResultBranchDiff,
+		});
+		expect(freshOutcome.type).not.toBe("parked");
+		expect(fresh.runSecondOpinionReviewSession).toHaveBeenCalled();
+	});
+
 	it("skips and never starts a session when review is disabled", async () => {
 		const deps = makeDeps({ enabled: false });
 		const outcome = await runSecondOpinionReviewForTask({

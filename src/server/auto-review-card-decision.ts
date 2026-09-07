@@ -104,3 +104,49 @@ export function buildManualReviewHoldObservation(taskId: string): {
 		metadata: { category: "manual_review_hold" },
 	};
 }
+
+export interface ParkedFinalizeHoldInput {
+	/** The card's persisted review status at finalizer entry (`parked` is the only status that can hold). */
+	reviewStatus: string | null | undefined;
+	/** Worker turn generation recorded when the finalizer last parked this card; `undefined` = no in-process park. */
+	parkedTurnGeneration: number | null | undefined;
+	/** The worker's current turn generation. */
+	currentTurnGeneration: number | null;
+}
+
+/**
+ * P0.PARKEDLOOP (v31 2026-09-07): a card the review loop PARKED waits for a human or for new worker output. The
+ * finalizer used to re-review it on every re-emitted `awaiting_review` summary — 2,465 identical rounds on one card
+ * in one night, each re-park cancelling turns, re-probing escalation workers and re-writing the board. Hold when the
+ * card is still parked AND the worker has produced no new turn since the park. An un-park (the status leaves
+ * `parked`) or a new turn (the generation moves) re-admits the card; a restart forgets the generation, so the first
+ * finalize after it runs once (the runner's persisted work-fingerprint hold makes that one cheap).
+ */
+export function shouldHoldParkedFinalize(input: ParkedFinalizeHoldInput): boolean {
+	if (input.reviewStatus !== "parked" || input.parkedTurnGeneration === undefined) {
+		return false;
+	}
+	return input.parkedTurnGeneration === input.currentTurnGeneration;
+}
+
+/** The single observation a held parked card records (the caller dedups per card until the park resolves). */
+export function buildReviewParkedHoldObservation(
+	taskId: string,
+	detail: { round: number; parkedReason: string | null },
+): {
+	signal: "custom";
+	severity: "info";
+	message: string;
+	taskId: string;
+	metadata: { category: "review_parked_hold"; round: number; parkedReason: string | null };
+} {
+	return {
+		signal: "custom",
+		severity: "info",
+		message:
+			`Review of ${taskId} stays parked after round ${detail.round} (${detail.parkedReason ?? "parked"}): ` +
+			"the work is unchanged, so it is not re-reviewed. Un-park it (runtime.unparkReview) or re-drive the worker to re-admit it.",
+		taskId,
+		metadata: { category: "review_parked_hold", round: detail.round, parkedReason: detail.parkedReason },
+	};
+}
