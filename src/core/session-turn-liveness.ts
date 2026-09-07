@@ -108,3 +108,27 @@ function normalizeBound(wedgeAfterMs: number | undefined): number {
 	}
 	return wedgeAfterMs;
 }
+
+/**
+ * P0.BUSYWEDGE (v31 2026-09-07): the watchdog interrupted a worker whose model was BUSY processing that very
+ * prompt — legion5pro takes 15+ minutes to prefill a 40k-token worker prompt, so every long turn on the single-slot
+ * host was killed at the wedge bound, re-driven, and killed again. A busy model is slow, not dead: wait while
+ * `lms ps` reports it processing/generating, up to a hard cap of {@link BUSY_WEDGE_HARD_CAP_MULTIPLIER} × the wedge
+ * bound (a genuinely hung stream still ends). Not-busy keeps the historical interrupt.
+ */
+export const BUSY_WEDGE_HARD_CAP_MULTIPLIER = 3;
+
+export type ZeroTokenWedgeAction = "interrupt" | "wait_busy";
+
+export function decideZeroTokenWedgeAction(input: {
+	ageMs: number;
+	wedgeAfterMs: number;
+	modelBusy: boolean;
+}): ZeroTokenWedgeAction {
+	if (!input.modelBusy) {
+		return "interrupt";
+	}
+	const bound =
+		Number.isFinite(input.wedgeAfterMs) && input.wedgeAfterMs > 0 ? input.wedgeAfterMs : DEFAULT_ZERO_TOKEN_WEDGE_MS;
+	return input.ageMs < bound * BUSY_WEDGE_HARD_CAP_MULTIPLIER ? "wait_busy" : "interrupt";
+}

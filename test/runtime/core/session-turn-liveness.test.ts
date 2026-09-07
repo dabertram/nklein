@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ZERO_TOKEN_WEDGE_MS, listZeroTokenWedgedSessions } from "../../../src/core/session-turn-liveness";
+import {
+	BUSY_WEDGE_HARD_CAP_MULTIPLIER,
+	DEFAULT_ZERO_TOKEN_WEDGE_MS,
+	decideZeroTokenWedgeAction,
+	listZeroTokenWedgedSessions,
+} from "../../../src/core/session-turn-liveness";
 import type { RuntimeTaskSessionSummary } from "../../../src/core/task-session-api-contract";
 
 const NOW = 1_783_900_000_000;
@@ -109,5 +114,31 @@ describe("listZeroTokenWedgedSessions", () => {
 		// biome-ignore lint/suspicious/noExplicitAny: deliberately malformed
 		expect(listZeroTokenWedgedSessions(null as any, NOW)).toEqual([]);
 		expect(listZeroTokenWedgedSessions([summary()], Number.NaN)).toEqual([]);
+	});
+});
+
+describe("decideZeroTokenWedgeAction (P0.BUSYWEDGE)", () => {
+	const wedgeAfterMs = 15 * 60_000;
+
+	it("waits while the model is busy processing the prompt, up to the hard cap", () => {
+		expect(decideZeroTokenWedgeAction({ ageMs: 16 * 60_000, wedgeAfterMs, modelBusy: true })).toBe("wait_busy");
+		expect(
+			decideZeroTokenWedgeAction({
+				ageMs: wedgeAfterMs * BUSY_WEDGE_HARD_CAP_MULTIPLIER - 1,
+				wedgeAfterMs,
+				modelBusy: true,
+			}),
+		).toBe("wait_busy");
+		expect(
+			decideZeroTokenWedgeAction({
+				ageMs: wedgeAfterMs * BUSY_WEDGE_HARD_CAP_MULTIPLIER,
+				wedgeAfterMs,
+				modelBusy: true,
+			}),
+		).toBe("interrupt");
+	});
+
+	it("interrupts a token-less session whose model is idle (the historical behaviour)", () => {
+		expect(decideZeroTokenWedgeAction({ ageMs: 16 * 60_000, wedgeAfterMs, modelBusy: false })).toBe("interrupt");
 	});
 });

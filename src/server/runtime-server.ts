@@ -142,7 +142,12 @@ import {
 	isBusySessionState,
 	isTerminalFailureSessionState,
 } from "../core/session-state-predicates";
-import { DEFAULT_ZERO_TOKEN_WEDGE_MS, listZeroTokenWedgedSessions } from "../core/session-turn-liveness";
+import {
+	BUSY_WEDGE_HARD_CAP_MULTIPLIER,
+	DEFAULT_ZERO_TOKEN_WEDGE_MS,
+	decideZeroTokenWedgeAction,
+	listZeroTokenWedgedSessions,
+} from "../core/session-turn-liveness";
 import { assessShortcutBehaviors } from "../core/shortcut-behavior-monitor";
 import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-target";
 import { decideSpeculativeMirror } from "../core/speculative-mirror";
@@ -767,6 +772,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// LOG is debounced to once per DISTINCT startable/deferred set, so a persistent capacity-wait says its piece
 	// once and a genuinely NEW stall still surfaces immediately.
 	const boardLivenessSelfHealSignatureByWorkspaceId = new Map<string, string>();
+	// P0.BUSYWEDGE: one "waiting on a busy model" line per (workspace, task, session start), not one per tick.
+	const busyWedgeNotifiedKeys = new Set<string>();
 	// §5.AW opportunistic best-of-N (user decision 2026-07-02): the per-workspace mirror tick + its budgets.
 	// The tick mirrors the hardest RUNNING card onto a lineage-diverse idle model as a `::spec` session; the
 	// A/B arbitration at the review seam picks the winner. Real work always outranks speculation (queued or
@@ -4707,16 +4714,6 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						for (const wedge of listZeroTokenWedgedSessions(trackedService.listSummaries(), Date.now(), {
 							wedgeAfterMs: ZERO_TOKEN_WEDGE_MS,
 						})) {
-							deps.warn(
-								`Board-liveness watchdog: interrupting zero-token wedged session ${wedge.taskId} — ${wedge.reason}.`,
-							);
-							recordSelfObservation({
-								signal: "custom",
-								severity: "warning",
-								message: `Board-liveness watchdog fired: zero-token wedged session interrupted (${wedge.taskId}, ${Math.round(wedge.ageMs / 60_000)} min token-less).`,
-								workspacePath: scope.workspacePath,
-								metadata: { category: "board_liveness_watchdog", zeroTokenWedgedTaskId: wedge.taskId },
-							});
 							// P0.POOLLOSS classifier (live 2026-09-04: m4mini's model vanished mid-drain and the
 							// gateway QUEUES requests for absent models instead of erroring — the wedge interrupt's
 							// frozen-config restart then re-entered the same black hole every ~15 min for 3 hours).
@@ -4735,6 +4732,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const wedgedModelId = wedgedSummary?.modelId?.trim();
 							const wedgedEndpoint = wedgedSummary?.endpoint?.trim();
 							let deadReason: "absent_from_listing" | "listed_but_dead" | null = null;
+							// P0.BUSYWEDGE: a model that `lms ps` reports processing/generating is slow, not dead.
+							let modelBusy = false;
 							if (wedgedModelId && wedgedEndpoint) {
 								const endpointRoot = wedgedEndpoint.replace(/\/+$/u, "").replace(/\/v1$/u, "");
 								let listedState: "absent" | "present" | "unknown" = "unknown";
@@ -4773,9 +4772,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										)
 										.catch(() => [] as LmsPsModel[]);
 									if (busyInstances.length > 0) {
-										deps.warn(
-											`Zero-token wedge on ${wedge.taskId}: ${wedgedModelId} is BUSY (${busyInstances.map((model) => model.status).join("/")}) per lms ps — slow, not dead; no pool-loss mark.`,
-										);
+										modelBusy = true;
 										listedState = "unknown";
 									}
 								}
@@ -4800,6 +4797,44 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									}
 								}
 							}
+							// P0.BUSYWEDGE (v31 2026-09-07): legion5pro needs 15+ minutes to prefill a 40k-token worker
+							// prompt; the old flow interrupted every such turn at the wedge bound, re-drove it, and killed
+							// it again. While the model is busy the session waits (hard-capped); the interrupt stays for
+							// an idle or vanished model.
+							const wedgeAction = decideZeroTokenWedgeAction({
+								ageMs: wedge.ageMs,
+								wedgeAfterMs: ZERO_TOKEN_WEDGE_MS,
+								modelBusy,
+							});
+							const busyKey = `${scope.workspaceId}:${wedge.taskId}:${wedgedSummary?.startedAt ?? 0}`;
+							if (wedgeAction === "wait_busy") {
+								if (!busyWedgeNotifiedKeys.has(busyKey)) {
+									busyWedgeNotifiedKeys.add(busyKey);
+									deps.warn(
+										`Zero-token wedge on ${wedge.taskId}: ${wedgedModelId} is BUSY per lms ps — slow, not dead; waiting instead of interrupting (hard cap ${Math.round((ZERO_TOKEN_WEDGE_MS * BUSY_WEDGE_HARD_CAP_MULTIPLIER) / 60_000)} min).`,
+									);
+									recordSelfObservation({
+										signal: "custom",
+										severity: "info",
+										message: `Zero-token wedge on ${wedge.taskId} waited: ${wedgedModelId} is busy processing (${Math.round(wedge.ageMs / 60_000)} min token-less so far).`,
+										taskId: wedge.taskId,
+										workspacePath: scope.workspacePath,
+										metadata: { category: "zero_token_wedge_busy_wait", modelId: wedgedModelId ?? null },
+									});
+								}
+								continue;
+							}
+							busyWedgeNotifiedKeys.delete(busyKey);
+							deps.warn(
+								`Board-liveness watchdog: interrupting zero-token wedged session ${wedge.taskId} — ${wedge.reason}.`,
+							);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Board-liveness watchdog fired: zero-token wedged session interrupted (${wedge.taskId}, ${Math.round(wedge.ageMs / 60_000)} min token-less).`,
+								workspacePath: scope.workspacePath,
+								metadata: { category: "board_liveness_watchdog", zeroTokenWedgedTaskId: wedge.taskId },
+							});
 							await trackedService.stopTaskSession(wedge.taskId).catch(() => null);
 							if (!deadReason || !wedgedModelId) {
 								continue;

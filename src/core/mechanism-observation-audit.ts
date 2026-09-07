@@ -1194,6 +1194,8 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"baseline_probe_lazy",
 	// P0.TRASHSTOP (2026-09-07): the watchdog stopped a live session whose card sits only in trash.
 	"trashed_card_session_stopped",
+	// P0.BUSYWEDGE (2026-09-07): a token-less session was left running because its model is busy per lms ps.
+	"zero_token_wedge_busy_wait",
 	"merge_resolution_no_model",
 	// Stale-input guard (2026-09-02): late nudges/steers must not resurrect a decompose-completed source card.
 	"input_after_decomposition_dropped",
