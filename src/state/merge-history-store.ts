@@ -78,6 +78,47 @@ export function buildMergeHistoryRecord(input: {
 	};
 }
 
+/**
+ * Project a DELIVERY-GATE failure (the fresh acceptance or the repo's own verify check failed on the merged tree,
+ * so no merge was attempted) into the same history. HITL 2026-09-07 (s63/s77): an approved card whose gate failed
+ * was re-driven once and then held in Review with NO merge-history record — and the watchdog's approved-but-unmerged
+ * redelivery only considers cards whose newest record failed, so the hold was permanent even after the base moved
+ * (their missing dependency merged minutes later). A failed-gate record makes the existing gap/cap/liveness
+ * redelivery rules re-gate the card on the CURRENT base without an operator.
+ */
+export function buildDeliveryGateFailureRecord(input: {
+	workspacePath: string | null;
+	taskId: string;
+	reason: string;
+	recordedAt?: number;
+}): MergeHistoryRecord {
+	return {
+		schemaVersion: 1,
+		recordedAt: input.recordedAt ?? Date.now(),
+		workspacePath: input.workspacePath,
+		taskId: input.taskId,
+		ok: false,
+		mergedTaskIds: [],
+		skippedTaskIds: [],
+		conflictedPaths: [],
+		reason: input.reason.trim() || "delivery gate failed on the merged tree",
+	};
+}
+
+export async function recordDeliveryGateFailure(
+	input: { workspacePath: string | null; taskId: string; reason: string; recordedAt?: number },
+	options?: { rootDir?: string },
+): Promise<void> {
+	const record = buildDeliveryGateFailureRecord(input);
+	const logPath = resolveLogPath(record.workspacePath, options?.rootDir);
+	try {
+		await mkdir(resolveRootDir(options?.rootDir), { recursive: true });
+		await appendFile(logPath, `${JSON.stringify(record)}\n`, "utf8");
+	} catch {
+		// Best-effort durability only; a history write must never break the delivery flow.
+	}
+}
+
 export async function recordMergeHistory(
 	input: { workspacePath: string | null; taskId: string; result: TaskWorktreeAutoMergeResult; recordedAt?: number },
 	options?: { rootDir?: string },

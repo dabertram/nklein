@@ -2,7 +2,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildMergeHistoryRecord, readMergeHistory, recordMergeHistory } from "../../../src/state/merge-history-store";
+import { selectApprovedUnmergedRedelivery } from "../../../src/server/merge-redelivery-decision";
+import {
+	buildDeliveryGateFailureRecord,
+	buildMergeHistoryRecord,
+	readMergeHistory,
+	recordDeliveryGateFailure,
+	recordMergeHistory,
+} from "../../../src/state/merge-history-store";
 import type { TaskWorktreeAutoMergeResult } from "../../../src/workspace/task-worktree-auto-merge";
 
 function okResult(): TaskWorktreeAutoMergeResult {
@@ -71,5 +78,52 @@ describe("merge-history-store", () => {
 		const other = await readMergeHistory({ workspacePath: "/other", rootDir });
 		expect(other).toHaveLength(1);
 		expect(await readMergeHistory({ workspacePath: "/missing", rootDir })).toEqual([]);
+	});
+
+	it("records a delivery-gate failure as a failed delivery attempt that the watchdog redelivery picks up (HITL 2026-09-07 s63/s77)", async () => {
+		expect(
+			buildDeliveryGateFailureRecord({
+				workspacePath: "/repo",
+				taskId: "s77",
+				reason: "  delivery gate: npm run typecheck failed (exit 2)  ",
+				recordedAt: 7,
+			}),
+		).toEqual({
+			schemaVersion: 1,
+			recordedAt: 7,
+			workspacePath: "/repo",
+			taskId: "s77",
+			ok: false,
+			mergedTaskIds: [],
+			skippedTaskIds: [],
+			conflictedPaths: [],
+			reason: "delivery gate: npm run typecheck failed (exit 2)",
+		});
+		expect(buildDeliveryGateFailureRecord({ workspacePath: null, taskId: "x", reason: " " }).reason).toBe(
+			"delivery gate failed on the merged tree",
+		);
+		const now = 20 * 60_000;
+		await recordDeliveryGateFailure(
+			{
+				workspacePath: "/repo",
+				taskId: "s77",
+				reason: "delivery gate: typecheck failed",
+				recordedAt: now - 11 * 60_000,
+			},
+			{ rootDir },
+		);
+		const history = await readMergeHistory({ workspacePath: "/repo", rootDir });
+		expect(history).toHaveLength(1);
+		// Before this record an approved-but-held card was invisible to the redelivery ("never attempted"): now it
+		// qualifies after the gap, so the gate re-runs on the current base without an operator.
+		expect(
+			selectApprovedUnmergedRedelivery({
+				reviewCards: [{ id: "s77", review: { status: "approved", round: 1 } } as never],
+				history,
+				activeTaskIds: new Set(),
+				handledThisTick: new Set(),
+				now,
+			}),
+		).toMatchObject({ taskId: "s77", reason: "delivery gate: typecheck failed" });
 	});
 });

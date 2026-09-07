@@ -243,7 +243,7 @@ import {
 } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote } from "../state/card-mailbox-store";
 import { claimDurableSchedulerLedger } from "../state/durable-scheduler-claim";
-import { readMergeHistory, recordMergeHistory } from "../state/merge-history-store";
+import { readMergeHistory, recordDeliveryGateFailure, recordMergeHistory } from "../state/merge-history-store";
 import { appendModelEvalRuns, readAllModelEvalRuns } from "../state/model-eval-run-store";
 import { appendRailRunHistory, readRailRunHistory } from "../state/rail-run-history-store";
 import {
@@ -3571,6 +3571,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								deps.warn(
 									`Approved-but-acceptance-failed card ${taskId}: re-driving the worker once with the failing acceptance output.`,
 								);
+								// HITL 2026-09-07 (s63/s77): a failed delivery gate is a failed DELIVERY ATTEMPT — record it so the
+								// watchdog's approved-but-unmerged redelivery (gap + daily cap + liveness) re-gates the card later
+								// instead of leaving a permanent hold nobody re-runs.
+								await recordDeliveryGateFailure({
+									workspacePath: scope.workspacePath,
+									taskId,
+									reason: `delivery gate: ${acceptance.command ?? "acceptance"} failed (exit ${acceptance.exitCode ?? "?"})${acceptance.failureHint ? ` — ${acceptance.failureHint}` : ""}`,
+								}).catch(() => undefined);
 								// F1.27b (leaf 5): the fresh acceptance FAILED — kernel routes back to implementing.
 								dispatchWorkflowCommands(scope.workspacePath, scope.workspaceId, taskId, [
 									{ kind: "acceptance_failed" },
@@ -3600,6 +3608,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							deps.warn(
 								`Delivery held for ${taskId} (delivery tier → ${deliveryDecision.action}): ${deliveryDecision.reason} Left in Review.`,
 							);
+							if (evidence.reviewApproved && !evidence.testsPassed) {
+								// Same record as the re-drive branch: an approved card held on a red gate is re-gated by the
+								// watchdog redelivery after the gap (the base may have moved, or the sandbox install flaked).
+								await recordDeliveryGateFailure({
+									workspacePath: scope.workspacePath,
+									taskId,
+									reason: `delivery gate: ${acceptance?.command ?? "acceptance"} failed (exit ${acceptance?.exitCode ?? "?"})${acceptance?.failureHint ? ` — ${acceptance.failureHint}` : ""}; held in Review`,
+								}).catch(() => undefined);
+							}
 							// #33 (run34 live, v2 after run35): a HELD card must not keep owning a concurrency slot —
 							// an abandoned reviewer (no-verdict hold) on a 1-wide rail starved every deferred card
 							// forever. v1 used cancelTaskTurn, which no-ops unless the session is RUNNING — but a
