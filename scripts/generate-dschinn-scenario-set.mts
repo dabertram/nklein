@@ -44,6 +44,8 @@ const SEED_NEEDLE = "a governed, deterministic control plane for an autonomous s
 /** Install-generated churn the early hand-driven captures carried (P0.LOCKFILECAPTURE drops it from captures today). */
 const GENERATED_LOCKFILES = new Set(["package-lock.json"]);
 const FLAKY_CARD_COUNT = 10;
+/** The board renders long titles as an 80-char prefix + "…" (S40/S85), so the review needle keys on a shorter prefix. */
+const REVIEW_TITLE_NEEDLE_CHARS = 60;
 const PROVENANCE = "HITL drive 2026-09-06/07 (Claude as the model; generate-dschinn-scenario-set.mts)";
 
 interface AddTaskArgs {
@@ -203,16 +205,24 @@ async function main(): Promise<void> {
 	// Review needles are `the card "<title>` (no closing quote: titles may contain quotes) — so no title may be a
 	// prefix of another, or one review track would answer two cards.
 	for (const card of finalCards) {
-		const clash = finalCards.find((other) => other.id !== card.id && other.title.startsWith(card.title));
+		const prefix = card.title.slice(0, REVIEW_TITLE_NEEDLE_CHARS);
+		const clash = finalCards.find((other) => other.id !== card.id && other.title.startsWith(prefix));
 		if (clash) throw new Error(`title "${card.title}" is a prefix of "${clash.title}"`);
 	}
 	for (const card of finalCards) if (card.prompt.includes(SEED_NEEDLE)) throw new Error(`seed needle leaks into ${card.id}`);
 
 	// 5. Tracks.
+	// ONE tool call per turn: the first harness run (2026-09-07) proved that only the FIRST call of a simulated
+	// multi-call turn is executed (53 add_task calls in one turn → one update_focus_chain; the plan then failed the
+	// coverage gate with a single card). The HITL model server returned OpenAI tool_calls arrays and the runtime ran
+	// them all; the simulator transport does not — so every batch becomes a ladder of single-call turns.
+	const toolCall = (call: { name: string; arguments: Record<string, unknown> }, content?: string): ScenarioTurn => ({
+		behavior: { kind: "tool_calls", calls: [call], ...(content ? { content } : {}) },
+	});
 	const toolCalls = (
 		calls: Array<{ name: string; arguments: Record<string, unknown> }>,
 		content?: string,
-	): ScenarioTurn => ({ behavior: { kind: "tool_calls", calls, ...(content ? { content } : {}) } });
+	): ScenarioTurn[] => calls.map((call, position) => toolCall(call, position === 0 ? content : undefined));
 	const addTaskCalls = (slice: AddTaskArgs[]) =>
 		slice.map((card) => ({
 			name: "add_task",
@@ -225,7 +235,7 @@ async function main(): Promise<void> {
 		requestClass: "any",
 		userMessageIncludes: SEED_NEEDLE,
 		turns: [
-			toolCalls(
+			...toolCalls(
 				[
 					{
 						name: "update_focus_chain",
@@ -243,11 +253,11 @@ async function main(): Promise<void> {
 				],
 				`Adding the ${slice1.length} spine cards (S01–S51 + the charter) exactly as specification.md §2 prescribes, dependency-ordered.`,
 			),
-			toolCalls(
+			...toolCalls(
 				addTaskCalls(slice2),
 				`Slice 2 per specification.md §M: adding the ${slice2.length} cards S52–S96 (seams first, then one capability family per layer), each depending on the spine modules it imports.`,
 			),
-			toolCalls([{ name: "decompose_project", arguments: {} }], "Submitting the accumulated graph."),
+			toolCall({ name: "decompose_project", arguments: {} }, "Submitting the accumulated graph."),
 		],
 		repeatLastTurn: true,
 		provenance: `${PROVENANCE}: answers 17/19/20/21 (spine) + 343/345 (slice 2), folded into one plan`,
@@ -260,7 +270,7 @@ async function main(): Promise<void> {
 			requestClass: "worker",
 			userMessageIncludes: needles.get(card.id) as string,
 			turns: [
-				toolCalls(
+				...toolCalls(
 					[
 						{
 							name: "update_focus_chain",
@@ -283,7 +293,7 @@ async function main(): Promise<void> {
 					],
 					`Refinement: scaffold present. Delivering ${card.title} within scope, test-first, then running the acceptance check.`,
 				),
-				toolCalls(
+				...toolCalls(
 					[
 						{
 							name: "run_commands",
@@ -316,14 +326,12 @@ async function main(): Promise<void> {
 		return {
 			id: `perfect-review-${card.id}`,
 			requestClass: "review",
-			userMessageIncludes: `the card "${card.title}`,
+			userMessageIncludes: `the card "${card.title.slice(0, REVIEW_TITLE_NEEDLE_CHARS)}`,
 			turns: [
-				toolCalls([
-					{
+				toolCall({
 						name: "submit_review",
 						arguments: { verdict: "approve", summary: review.summary, ...(review.insight ? { insight: review.insight } : {}) },
-					},
-				]),
+				}),
 				{ behavior: { kind: "text", content: "Review submitted." } },
 			],
 			cycleTurns: true,
@@ -375,8 +383,8 @@ async function main(): Promise<void> {
 	const flakyDecompose: ScenarioTrack = {
 		...decompose,
 		turns: [
-			toolCalls(prefixCalls, `Adding the first ${prefix.length} spine cards (flaky replay prefix).`),
-			toolCalls([{ name: "decompose_project", arguments: {} }], "Submitting the accumulated graph."),
+			...toolCalls(prefixCalls, `Adding the first ${prefix.length} spine cards (flaky replay prefix).`),
+			toolCall({ name: "decompose_project", arguments: {} }, "Submitting the accumulated graph."),
 		],
 		provenance: `${PROVENANCE}: the first ${prefix.length} spine cards of the perfect plan`,
 	};
@@ -437,7 +445,8 @@ worker track and one review track per card, a chat track and an any-class fallba
 ${fixtureCount} compiled fixtures).
 
 - **perfect-run.json** — the replay. Worker needle: \`Implement spine card <title>\` (the charter: its opening line);
-  review needle: \`the card "<title>"\`; decompose: class \`any\` keyed on the seed-only phrase.
+  review needle: \`the card "<first 60 title chars>\` (the board truncates long titles); decompose: class \`any\` keyed on
+  the seed-only phrase. Every turn carries ONE tool call (the simulator transport executes only the first call of a turn).
 - **flaky-run.json** — the first ${FLAKY_CARD_COUNT} spine cards with the five failure-catalog modes (429, empty completion,
   reasoning-only, SSE stall, truncated tool JSON) injected before the first worker turn, then the same recovery ladder.
 - **sources.json** — provenance: which drain answer/delivery each track came from (sha256-prefixed).

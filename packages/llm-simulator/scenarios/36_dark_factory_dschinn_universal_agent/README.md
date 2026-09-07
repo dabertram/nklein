@@ -5,10 +5,11 @@ model request through the HITL model server; the auto-driver delivered pre-verif
 Dschinn progress through the real runtime: one decompose (97 cards: spine S01–S51 + the charter,
 slice 2 S52–S96; 185 dependency edges of which 574 are import-derived cross-slice edges), one
 worker track and one review track per card, a chat track and an any-class fallback (197 tracks,
-490 compiled fixtures).
+1071 compiled fixtures).
 
 - **perfect-run.json** — the replay. Worker needle: `Implement spine card <title>` (the charter: its opening line);
-  review needle: `the card "<title>"`; decompose: class `any` keyed on the seed-only phrase.
+  review needle: `the card "<first 60 title chars>` (the board truncates long titles); decompose: class `any` keyed on
+  the seed-only phrase. Every turn carries ONE tool call (the simulator transport executes only the first call of a turn).
 - **flaky-run.json** — the first 10 spine cards with the five failure-catalog modes (429, empty completion,
   reasoning-only, SSE stall, truncated tool JSON) injected before the first worker turn, then the same recovery ladder.
 - **sources.json** — provenance: which drain answer/delivery each track came from (sha256-prefixed).
