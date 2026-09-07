@@ -1,6 +1,7 @@
 import type { RuntimeTaskImage, RuntimeTaskSessionMode, RuntimeTaskSessionSummary } from "../core/api-contract";
 import { isEnabledByDefaultEnv } from "../core/env-flag";
 import { classifyFailureSignature } from "../core/failure-signature";
+import { stableFitnessModelKey } from "../core/fitness-routing-evidence";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { decideModelCapabilityFailover, decideModelFailover } from "../core/model-failover-policy";
 import { decideNextRetryStrategy } from "../core/retry-policy";
@@ -26,6 +27,12 @@ function findDecompositionExhaustionSignal(summary: RuntimeTaskSessionSummary): 
  * Service touchpoints — the same re-drive seam the adaptive-budget controller uses (`sendTaskSessionInput` with
  * launch-config overrides), so a failover lands as a normal re-driven turn on the substituted model.
  */
+/** A failover candidate: the stable key (fitness/bookkeeping) plus the runtime id to DISPATCH on. */
+export interface ModelFailoverCandidate {
+	readonly modelKey: string;
+	readonly modelId: string;
+}
+
 export interface ModelFailoverControllerDeps {
 	resendTaskInput(
 		taskId: string,
@@ -45,7 +52,11 @@ export interface ModelFailoverControllerDeps {
 
 export interface ModelFailoverController {
 	/** Stash the router's ranked candidate model keys for a task at START (fitness-blended order, best first). */
-	setCandidates(taskId: string, rankedModelKeys: readonly string[]): void;
+	/**
+	 * Stash the router's ranked candidates (best first). A pair carries the RUNTIME model id the gateway accepts
+	 * alongside the stable key used for bookkeeping; a bare string is treated as both (legacy callers/tests).
+	 */
+	setCandidates(taskId: string, rankedCandidates: readonly (string | ModelFailoverCandidate)[]): void;
 	/** F3.2 failover leg: on an error-terminal summary, re-drive the card on the next untried candidate. */
 	maybeModelFailover(taskId: string, summary: RuntimeTaskSessionSummary): void;
 	/** Drop per-task state (session forget/cleanup). */
@@ -64,16 +75,30 @@ export interface ModelFailoverController {
  */
 export function createModelFailoverController(deps: ModelFailoverControllerDeps): ModelFailoverController {
 	const candidatesByTaskId = new Map<string, readonly string[]>();
+	const runtimeIdByStableKeyByTaskId = new Map<string, ReadonlyMap<string, string>>();
 	const triedModelKeysByTaskId = new Map<string, string[]>();
 	/** One failover decision per (task, terminal transition) — the caller's dedupe already gates per state. */
 	const inFlightTaskIds = new Set<string>();
 
-	function setCandidates(taskId: string, rankedModelKeys: readonly string[]): void {
-		candidatesByTaskId.set(taskId, [...rankedModelKeys]);
+	function setCandidates(taskId: string, rankedCandidates: readonly (string | ModelFailoverCandidate)[]): void {
+		candidatesByTaskId.set(
+			taskId,
+			rankedCandidates.map((candidate) => (typeof candidate === "string" ? candidate : candidate.modelKey)),
+		);
+		// 2026-09-07 (v31): the stable key `dirk-qwen3.8-27b@q6_k` was dispatched as the model id → LM Studio 400
+		// "Invalid model identifier … JIT loading is disabled" on every failover hop. Keep the runtime id per key.
+		const runtimeIds = new Map<string, string>();
+		for (const candidate of rankedCandidates) {
+			if (typeof candidate !== "string") {
+				runtimeIds.set(stableFitnessModelKey(candidate.modelKey), candidate.modelId);
+			}
+		}
+		runtimeIdByStableKeyByTaskId.set(taskId, runtimeIds);
 	}
 
 	function forgetTask(taskId: string): void {
 		candidatesByTaskId.delete(taskId);
+		runtimeIdByStableKeyByTaskId.delete(taskId);
 		triedModelKeysByTaskId.delete(taskId);
 		inFlightTaskIds.delete(taskId);
 	}
@@ -156,7 +181,7 @@ export function createModelFailoverController(deps: ModelFailoverControllerDeps)
 						: `The previous attempt ended with a model-side error (${(summary.warningMessage ?? "unknown error").slice(0, 160)}). You are a fresh attempt on a different model — continue the task and complete it.`,
 					"act",
 					undefined,
-					{ providerId, modelId: nextModelKey },
+					{ providerId, modelId: runtimeIdByStableKeyByTaskId.get(taskId)?.get(nextModelKey) ?? nextModelKey },
 					{ freshModelCarry: true },
 				);
 			} catch {

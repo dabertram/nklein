@@ -341,3 +341,30 @@ went start→review in under 5 minutes. The hand-written part is the code itself
     exists on this card". The worker had to invent a guard test and the operator had to append `Acceptance check:
     npm test` to the card by hand. Verdict: harness gap: cards the runtime creates itself must inherit the plan's
     default acceptance command and testability, exactly like decomposition children do.
+
+35. **Model failover dispatches the STABLE fitness key as the model id.** v31: "model-side error on
+    dirk-qwen3.8-27b — failing over to dirk-qwen3.8-27b", then eight requests sent as `dirk-qwen3.8-27b@q6_k`
+    (the registry key) → LM Studio 400 "Invalid model identifier … JIT loading is disabled". `selectNextUntriedModel`
+    maps the candidate through `stableFitnessModelKey` and the controller passes that key as the launch
+    `modelId`. Verdict: harness bug — the decision must carry the candidate's runtime id for dispatch and the
+    stable key only for bookkeeping.
+
+36. **Runtime-created cards carry `baseRef: "HEAD"` and then cannot be merged.** The custodian follow-up card's
+    approved delivery was blocked with "Base workspace must be checked out on "HEAD" before merging" — the check
+    compares the current branch NAME with the literal `HEAD`. SHIPPED: `HEAD` is accepted as "whatever is checked
+    out" at both the staging and the merge check.
+
+37. **Runtime restarts leave orphaned model requests in the relay, and they starve the fleet.** The rig's tee-proxy
+    (rig-level, not product) kept seven upstream requests alive after several factory restarts — each thread blocked
+    in `resp.read()` until LM Studio finished a generation nobody would read — so both remote hosts' single slots
+    served ghosts while live reviews queued behind them ("Model request … opening" and nothing else for 10 min).
+    Fixed in the relay (a client-EOF watchdog aborts upstream within 2 s). The product-side lesson: the runtime's
+    own stop/abort must reach the model gateway on restart (AbortSignal → upstream close), and any relay must
+    propagate client disconnects.
+
+38. **Operator lane moves leave durable jobs the controller will not dispatch.** After S03 was delivered by hand,
+    its dependents S05/S15/S22 sat `ready` while the watchdog logged "3 candidate(s) … not revivable by the
+    controller (job not failed, or attempt budget exhausted) — the controller's own discovery must dispatch them,
+    or they park for the operator". The explicit start API works but demands `prompt` and `baseRef` the card
+    already carries. Verdict: harness gap — a `ready` card with a live dependency graph must always be dispatchable
+    (re-absorb the job), and `startTaskSession` should default prompt/baseRef from the card.

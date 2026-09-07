@@ -161,7 +161,7 @@ import {
 	createTaskEntryFromPersistedSession,
 	type NKleinMessageRepository,
 } from "./nklein-message-repository";
-import { createModelFailoverController } from "./nklein-model-failover-controller";
+import { createModelFailoverController, type ModelFailoverCandidate } from "./nklein-model-failover-controller";
 import { buildNKleinModelRegistryKey, buildSharedLocalEndpointId } from "./nklein-model-registry";
 import { createModelResidencyWatcher } from "./nklein-model-residency-watcher";
 import { createParkController } from "./nklein-park-controller";
@@ -520,8 +520,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	});
 
 	/** Stash the router's ranked candidate model keys for a task (fitness-blended order) for F3.2 failover. */
-	setTaskFailoverCandidates(taskId: string, rankedModelKeys: readonly string[]): void {
-		this.modelFailoverController.setCandidates(taskId, rankedModelKeys);
+	setTaskFailoverCandidates(taskId: string, rankedCandidates: readonly (string | ModelFailoverCandidate)[]): void {
+		this.modelFailoverController.setCandidates(taskId, rankedCandidates);
 	}
 	/** §5.U: the context-overflow recovery pair (reactive retry-after + proactive compact-before). Session-lifecycle
 	 * accessors are supplied lazily so field-init order is irrelevant. */

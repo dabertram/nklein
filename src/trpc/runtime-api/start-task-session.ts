@@ -1585,7 +1585,7 @@ async function handleStartTaskSessionInner(
 		// re-drive this card on the next untried candidate instead of parking (see modelFailoverController).
 		nkleinTaskSessionService.setTaskFailoverCandidates(
 			body.taskId,
-			allCandidatesByScore.map((candidate) => candidate.modelKey),
+			allCandidatesByScore.map((candidate) => ({ modelKey: candidate.modelKey, modelId: candidate.modelId })),
 		);
 		// F3.7b: consult the learned ModelBehaviorProfile at attempt start — the SKIP half (proven failures
 		// excluded, router-side fail-open); preference-by-learned-success already rides the blended capability

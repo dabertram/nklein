@@ -30,6 +30,7 @@ import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-t
 import type { NKleinTaskLaunchConfigOverrides } from "./nklein-launch-config";
 import type { NKleinMergeResolutionSessionOutcome } from "./nklein-merge-resolution-runner";
 import type { NKleinMessageRepository } from "./nklein-message-repository";
+import type { ModelFailoverCandidate } from "./nklein-model-failover-controller";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 import type { NKleinPlanCritiqueResult } from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
@@ -173,7 +174,7 @@ export interface NKleinTaskSessionService {
 	) => Promise<{ rewound: boolean; boundaryIndex: number | null; refusalKind: string | null }>;
 	onSummary(listener: (summary: RuntimeTaskSessionSummary) => void): () => void;
 	/** F3.2 failover leg: stash the router's ranked candidate model keys (fitness-blended, best first) for a task. */
-	setTaskFailoverCandidates(taskId: string, rankedModelKeys: readonly string[]): void;
+	setTaskFailoverCandidates(taskId: string, rankedCandidates: readonly (string | ModelFailoverCandidate)[]): void;
 	onMessage(listener: (taskId: string, message: NKleinTaskMessage) => void): () => void;
 	onTeamProgress(listener: (taskId: string, event: RuntimeNKleinTeamProgressEvent) => void): () => void;
 	startTaskSession(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary>;

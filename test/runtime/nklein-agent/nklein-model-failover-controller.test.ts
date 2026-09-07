@@ -145,3 +145,19 @@ describe("createModelFailoverController", () => {
 		expect(resend).not.toHaveBeenCalled();
 	});
 });
+
+describe("failover dispatches the RUNTIME model id, not the stable key (v31 2026-09-07)", () => {
+	it("re-drives on the candidate's runtime id when candidates carry {modelKey, modelId} pairs", async () => {
+		const resend = vi.fn().mockResolvedValue(undefined);
+		const controller = createModelFailoverController({ resendTaskInput: resend });
+		controller.setCandidates("t1", [
+			{ modelKey: "lmstudio:dirk-qwen3.8-27b@iq4_xs:http://localhost:8081/v1", modelId: "dirk-qwen3.8-27b@iq4_xs" },
+			{ modelKey: "lmstudio:dirk-qwen3.8-27b@q6_k:http://localhost:8081/v1", modelId: "dirk-qwen3.8-27b" },
+		]);
+		controller.maybeModelFailover("t1", errorSummary({ modelId: "dirk-qwen3.8-27b@iq4_xs" }));
+		await flush();
+		expect(resend).toHaveBeenCalledTimes(1);
+		// The gateway knows `dirk-qwen3.8-27b`; the stable key `dirk-qwen3.8-27b@q6_k` is a 400 there.
+		expect(resend.mock.calls[0]?.[4]).toMatchObject({ modelId: "dirk-qwen3.8-27b" });
+	});
+});

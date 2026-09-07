@@ -352,7 +352,9 @@ export async function stageTaskResultUncommitted(input: {
 		}
 		const branch = await runGit(input.repoPath, ["branch", "--show-current"]);
 		const currentBranch = branch.ok ? branch.stdout.trim() : null;
-		if (currentBranch !== expectedBaseRef) {
+		// A card whose base is literally "HEAD" (runtime-created cards such as the custodian follow-up) means
+		// "whatever the base workspace has checked out" — by definition satisfied (dschinn drive 2026-09-07).
+		if (expectedBaseRef !== "HEAD" && currentBranch !== expectedBaseRef) {
 			return {
 				ok: false,
 				conflict: false,
@@ -515,7 +517,8 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 			return { ok: false, steps, mergedTaskIds, skippedTaskIds, blocked };
 		}
 		const branch = await runGit(input.repoPath, ["branch", "--show-current"]);
-		if (!branch.ok || branch.stdout.trim() !== task.baseRef) {
+		// "HEAD" as a base means the currently checked-out branch — see stageTaskResult above.
+		if (!branch.ok || (task.baseRef !== "HEAD" && branch.stdout.trim() !== task.baseRef)) {
 			const blocked: TaskWorktreeAutoMergeBlocked = {
 				type: "blocked",
 				taskId: task.id,
