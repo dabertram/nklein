@@ -546,6 +546,11 @@ slice 2 — 45 cards I planned as the architect — was driven with pre-verified
     is single-call-per-turn, so the path was never exercised. Open **P2.SIMMULTICALL** (repro: any track turn with
     two `calls`; compare the persisted `[tool_call …]` markers). The replay set uses the planner's batch form
     instead (`add_task({ tasks: [...] })`, one call per slice) so the transcript stays small.
+    **Resolved (P2.SIMMULTICALL, 2026-09-07):** verdict = harness bug, but NOT in the transport — the simulator,
+    `@ai-sdk/openai-compatible` and the gateway all carried the batch. The swarm's skill-profile direct path
+    (`completeWithTools`, forced) forwarded only `toolCalls[0]`; every simulated planner takes it (the prompt
+    keyword-activates `web_retrieval` → `structuredOutput`), while this drive ran with `NKLEIN_SKILL_API_DIRECT=off`
+    and so stayed on the SDK-native wire. Fixed to forward every call; layered regression test added.
 
 58. **A planning session that overflows its context restarts with a brief that quotes card prompts — and worker
     needles leak.** With one add_task per turn the seed transcript passed the simulated model's 65k window after

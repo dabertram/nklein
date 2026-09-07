@@ -87,11 +87,17 @@ npx tsc --noEmit` (97 test files / 222 tests, tsc clean). Backlog: P1.SIMFLOWDSC
     Otherwise every TypeScript card compiles to the same predicate and the first captured worker shadows the rest.
     Retry sessions with an identical compiled key are also indistinguishable on the wire: keep every raw fixture, but
     select one deterministic most-complete transcript for executable replay and disclose the others in the manifest.
-11. **A simulated turn executes only its FIRST tool call** (2026-09-07, Dschinn replay; open P2.SIMMULTICALL): aimock
-    streams `delta.tool_calls[{index}]` per call, yet the runtime persisted and ran ONE call of a 53-call planning
-    turn — the same batch the HITL model server returned as a non-streaming `tool_calls` array and the runtime ran in
-    full. Every checked-in set is single-call-per-turn until it lands; where the protocol offers a batch form, use it
-    — the planner's `add_task({ tasks: [...] })`, one call per slice — instead of one call per card.
+11. **A multi-call turn (`calls: [a, b, c]`) is served in full by the transport — and the runtime executes it in
+    full since P2.SIMMULTICALL (2026-09-07).** aimock streams one `delta.tool_calls[{index}]` ladder per call and
+    answers a `stream:false` request with the whole `tool_calls` array; `@ai-sdk/openai-compatible`, the AI SDK and
+    the vendored gateway carry every call. The 53-call planning turn that reached the runtime as ONE persisted call
+    was cut in `skill-api-profile-agent-model.ts`: the swarm's direct forced-tool path (`completeWithTools`,
+    `tool_choice:"required"`) forwarded only `toolCalls[0]`. It is the path every simulated planner takes — the
+    project-36 prompt keyword-activates `web_retrieval` (`structuredOutput: true`) for every role and every `sim/*`
+    id resolves to `native_tool_call` — while the HITL rig runs with `NKLEIN_SKILL_API_DIRECT=off` and never saw it.
+    Encoded in `test/runtime/llm-simulator/simulator-multi-tool-call-turn.test.ts` (wire, gateway, and direct path
+    against one two-call track). Batch tools (`add_task({ tasks })`) remain preferable for transcript size, not
+    for correctness.
 12. **A planning session that overflows its simulated window restarts with a brief that quotes card prompts, so
     worker needles leak** (journal #58): the restart brief's "Recent transcript previews" carried `Implement spine
     card S63 — …` verbatim, the S63 worker track (class-scoped needle) out-ranked the any-class decompose track, and

@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **A model that batches several tool calls in one turn now gets all of them executed.** When a skill profile
+  routed a turn through the direct forced-tool path, only the first call of the batch was run and persisted — a
+  planner that laid out a whole spine in one turn (one focus-chain update plus fifty-two cards) saw exactly one
+  land. Every call the model returns is now forwarded; the simulator, the AI SDK parser, and the gateway had been
+  carrying the full batch all along.
+
 - **!Klein now watches the model frontier — and measures itself against it.** A radar in the bottom-right corner
   researches the latest local models and agentic techniques with your own most capable resident model (search runs
   through the sandboxed local backend, only when you have enabled retrieval), then reflects the findings against

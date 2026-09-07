@@ -93,16 +93,29 @@ function containsImage(messages: readonly AgentMessage[]): boolean {
 	return messages.some((message) => message.content.some((part: AgentMessagePart) => part.type === "image"));
 }
 
-function toolEvents(call: { id: string; name: string; arguments: unknown }): AgentModelEvent[] {
-	return [
-		{
+/**
+ * One `tool-call-delta` per returned call, then the terminal `finish`. EVERY call the direct completion returned is
+ * emitted (P2.SIMMULTICALL, 2026-09-07): this path used to forward only `toolCalls[0]`, so a planner that batched
+ * 53 calls in one native `tool_calls` turn (update_focus_chain + 52 add_task) had exactly one executed and persisted —
+ * the simulator transport, the AI SDK parser, and the gateway all carried the full batch; the loss was here. The
+ * HITL rig never saw it because it runs with NKLEIN_SKILL_API_DIRECT=off (SDK-native wire). Ids are made distinct
+ * defensively: the SDK runtime assembles calls BY id, so two calls sharing one id would still collapse to one.
+ */
+function toolEvents(calls: readonly { id: string; name: string; arguments: unknown }[]): AgentModelEvent[] {
+	const seenIds = new Set<string>();
+	const events: AgentModelEvent[] = calls.map((call, index) => {
+		let toolCallId = call.id;
+		if (!toolCallId || seenIds.has(toolCallId)) toolCallId = `${call.id || "call"}_${index}`;
+		seenIds.add(toolCallId);
+		return {
 			type: "tool-call-delta",
-			toolCallId: call.id,
+			toolCallId,
 			toolName: call.name,
 			inputText: JSON.stringify(call.arguments),
-		},
-		{ type: "finish", reason: "tool-calls" },
-	];
+		};
+	});
+	events.push({ type: "finish", reason: "tool-calls" });
+	return events;
 }
 
 /**
@@ -170,19 +183,18 @@ export function createSkillApiProfileAgentModel(
 								tools,
 								{ toolChoice: "required" },
 							);
-							const call = completion.toolCalls[0];
-							if (call) {
+							if (completion.toolCalls.length > 0) {
 								// §12 nightly regression (2026-07-28): this path used to emit ONLY the tool call —
 								// `completion.content` (the model explaining itself alongside the call, exactly how real
 								// models re-raise a contested question mid-work) was silently dropped, so the transcript,
 								// the UI, and the turn-loop guard never saw it. Emit it as the turn's text first; the tool
-								// call keeps the turn's terminal shape. (toolCalls[1..] stay unexecuted by design — the
-								// forced path serves exactly one next step.)
+								// calls keep the turn's terminal shape. ALL returned calls are forwarded (P2.SIMMULTICALL):
+								// the native `tool_calls` channel carries a whole batch, and `completeWithTools` already
+								// dropped anything off-menu — what is left is the model's chosen action set.
 								if (completion.content.trim().length > 0) {
 									yield { type: "text-delta", text: completion.content };
 								}
-								for (const event of toolEvents({ id: call.id, name: call.name, arguments: call.arguments }))
-									yield event;
+								for (const event of toolEvents(completion.toolCalls)) yield event;
 								return;
 							}
 						} else if (resolved.structuredOutputStrategy === "json_schema_grammar") {
@@ -200,13 +212,17 @@ export function createSkillApiProfileAgentModel(
 								format: { jsonSchema: schema },
 								signal: profiled.signal,
 							});
+							// The constrained json_schema shape expresses exactly ONE call by construction (a single object),
+							// so this rung is single-call by design — unlike the native channel above.
 							const call = parseConstrainedToolCall(completion.content, tools);
 							if (call) {
-								for (const event of toolEvents({
-									id: `skill-profile-${Date.now().toString(36)}`,
-									name: call.name,
-									arguments: call.arguments,
-								}))
+								for (const event of toolEvents([
+									{
+										id: `skill-profile-${Date.now().toString(36)}`,
+										name: call.name,
+										arguments: call.arguments,
+									},
+								]))
 									yield event;
 								return;
 							}

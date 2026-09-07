@@ -164,4 +164,75 @@ describe("createSkillApiProfileAgentModel (F4.15)", () => {
 		expect(baseCalls).toHaveLength(1);
 		expect(events.some((event) => event.type === "text-delta")).toBe(true);
 	});
+
+	it("forwards EVERY tool call of a native forced turn, not just the first (P2.SIMMULTICALL)", async () => {
+		// 2026-09-07: a planner batching 53 calls in one native tool_calls turn (update_focus_chain + 52 add_task)
+		// had exactly one executed and persisted — this path emitted only `toolCalls[0]`. The transport was innocent.
+		const direct: SkillApiProfileDirectClient = {
+			completeWithTools: async () => ({
+				content: "Planning the spine.",
+				toolCalls: [
+					{ id: "call_focus", name: "update_focus_chain", arguments: { items: ["S01"] } },
+					{ id: "call_a", name: "add_task", arguments: { id: "S01", title: "Repo skeleton" } },
+					{ id: "call_b", name: "add_task", arguments: { id: "S02", title: "Virtual clock" } },
+				],
+				finishReason: "tool_calls",
+				raw: {},
+			}),
+			complete: async () => ({ content: "" }),
+		};
+		const baseCalls: AgentModelRequest[] = [];
+		const model = createSkillApiProfileAgentModel(capturingBase(baseCalls), {
+			modelId: "sim/architect-r1",
+			profile: { structuredOutput: true },
+			directClient: direct,
+		});
+		const events = await collect(model, request());
+		expect(baseCalls).toEqual([]);
+		expect(events.map((event) => event.type)).toEqual([
+			"text-delta",
+			"tool-call-delta",
+			"tool-call-delta",
+			"tool-call-delta",
+			"finish",
+		]);
+		const calls = events.flatMap((event) =>
+			event.type === "tool-call-delta"
+				? [{ id: event.toolCallId, name: event.toolName, input: event.inputText }]
+				: [],
+		);
+		expect(calls).toEqual([
+			{ id: "call_focus", name: "update_focus_chain", input: '{"items":["S01"]}' },
+			{ id: "call_a", name: "add_task", input: '{"id":"S01","title":"Repo skeleton"}' },
+			{ id: "call_b", name: "add_task", input: '{"id":"S02","title":"Virtual clock"}' },
+		]);
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "tool-calls" });
+	});
+
+	it("keeps colliding or empty direct-client ids distinct so the SDK runtime cannot merge two calls into one", async () => {
+		const direct: SkillApiProfileDirectClient = {
+			completeWithTools: async () => ({
+				content: "",
+				toolCalls: [
+					{ id: "dup", name: "add_task", arguments: { id: "S01" } },
+					{ id: "dup", name: "add_task", arguments: { id: "S02" } },
+					{ id: "", name: "add_task", arguments: { id: "S03" } },
+				],
+				finishReason: "tool_calls",
+				raw: {},
+			}),
+			complete: async () => ({ content: "" }),
+		};
+		const model = createSkillApiProfileAgentModel(capturingBase([]), {
+			modelId: "sim/architect-r1",
+			profile: { structuredOutput: true },
+			directClient: direct,
+		});
+		const events = await collect(model, request());
+		const ids = events.flatMap((event) => (event.type === "tool-call-delta" ? [event.toolCallId] : []));
+		expect(ids).toHaveLength(3);
+		expect(new Set(ids).size).toBe(3);
+		expect(ids[0]).toBe("dup");
+		for (const id of ids) expect(id).toBeTruthy();
+	});
 });
