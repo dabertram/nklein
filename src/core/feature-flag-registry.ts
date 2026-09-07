@@ -191,6 +191,22 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 	{ flag: "NKLEIN_UNIFIED_MEMORY", mode: "enforcing", gate: "runtime-api.ts (adds a memory note builder)" },
 	{ flag: "NKLEIN_VERIFICATION_FIRST", mode: "enforcing", gate: "second-opinion-review-runner.ts (gate)" },
 	{ flag: "NKLEIN_VISUAL_GATE", mode: "enforcing", gate: "second-opinion-review-runner.ts (gate)" },
+	// 2026-09-07 v31 stall mechanisms (all default ON; `=0` disables):
+	{
+		flag: "NKLEIN_SANDBOX_LEAK_GATE",
+		mode: "enforcing",
+		gate: "second-opinion-review-runner.ts (P0.SANDBOXLEAK gate)",
+	},
+	{
+		flag: "NKLEIN_LAZY_BASELINE_PROBE",
+		mode: "enforcing",
+		gate: "second-opinion-review-runner.ts (P0.LAZYBASELINE base-tree sample feeds the pre-existing waiver)",
+	},
+	{
+		flag: "NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES",
+		mode: "enforcing",
+		gate: "nklein-agent-sandbox.ts (P0.LOCKFILECAPTURE — keeps install-generated lockfile churn in the patch)",
+	},
 	{ flag: "NKLEIN_FOCUS_CHAIN_NUDGE", mode: "enforcing", gate: "chat-agent-turn.ts (injects a nudge)" },
 	{
 		flag: "NKLEIN_FLEET_AWARE_DECOMPOSE",
@@ -352,6 +368,24 @@ export interface FlagsOnLaneExclusion {
  * apparent rule.
  */
 export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
+	// 2026-09-07 v31 stall mechanisms: default ON via isEnabledByDefaultEnv — `=0` is the opt-OUT, so the lane
+	// already runs with every one of them enabled; there is nothing to switch on.
+	{
+		flag: "NKLEIN_SANDBOX_LEAK_GATE",
+		kind: "permanent",
+		reason: "default ON; `=0` is the opt-out — the lane already runs the sandbox-leak gate",
+	},
+	{
+		flag: "NKLEIN_LAZY_BASELINE_PROBE",
+		kind: "permanent",
+		reason: "default ON; `=0` is the opt-out — the lane already samples the base tree on a red acceptance",
+	},
+	{
+		flag: "NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES",
+		kind: "permanent",
+		reason:
+			"an opt-OUT of P0.LOCKFILECAPTURE (keeps install churn in patches); enabling it would disable the mechanism under test",
+	},
 	{
 		flag: "NKLEIN_ALLOW_UNSUITABLE_MODEL",
 		kind: "permanent",

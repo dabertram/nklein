@@ -1190,6 +1190,10 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"review_parked_hold",
 	// P0.SANDBOXLEAK (2026-09-07): deterministic pre-review bounce of deliveries coupled to the sandbox image.
 	"sandbox_leak_gate",
+	// P0.LAZYBASELINE (2026-09-07): base-tree acceptance sampled on demand when a red acceptance has no baseline.
+	"baseline_probe_lazy",
+	// P0.TRASHSTOP (2026-09-07): the watchdog stopped a live session whose card sits only in trash.
+	"trashed_card_session_stopped",
 	"merge_resolution_no_model",
 	// Stale-input guard (2026-09-02): late nudges/steers must not resurrect a decompose-completed source card.
 	"input_after_decomposition_dropped",

@@ -21,7 +21,6 @@ import type {
 import { isTruthyEnv } from "../core/env-flag";
 import {
 	buildGeneratedLockfileRestoreCommand,
-	CAPTURE_KEEP_GENERATED_LOCKFILES_ENV,
 	parseGitNameStatusZ,
 	selectGeneratedLockfilesToDrop,
 } from "../core/generated-lockfile-capture";
@@ -1095,7 +1094,7 @@ export class AgentSandboxManager {
 		taskId: string,
 		baseRef: string | null,
 	): Promise<string[]> {
-		if (isTruthyEnv(process.env[CAPTURE_KEEP_GENERATED_LOCKFILES_ENV])) {
+		if (isTruthyEnv(process.env.NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES)) {
 			return [];
 		}
 		const listed = await this.execAsTaskUser(

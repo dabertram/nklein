@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { RuntimeBoardData, RuntimeCardReview } from "../../../src/core/api-contract";
 import { fingerprintReviewArtifact, type ReviewSubmissionInput } from "../../../src/core/review-orchestration";
 import { forgetAcceptanceEvidence } from "../../../src/nklein-agent/nklein-acceptance-evidence-registry";
+import { forgetBaselineProbe } from "../../../src/nklein-agent/nklein-baseline-probe-registry";
 import {
 	applyCardReviewToBoard,
 	buildReviewBoardContext,
@@ -861,7 +862,8 @@ describe("runSecondOpinionReviewForTask", () => {
 		// Live-found (rig 2026-07-18): verdict-less retries re-ran the FULL sandbox acceptance on byte-identical
 		// work every cycle. Same diff => the second cycle reuses the stored run; a changed diff re-verifies.
 		forgetAcceptanceEvidence("task-1");
-		const verify = vi.fn(async () => ({
+		forgetBaselineProbe("task-1");
+		const verify = vi.fn(async (_args: { useBaseTree?: boolean }) => ({
 			present: true,
 			command: "npm test",
 			passed: false,
@@ -871,6 +873,10 @@ describe("runSecondOpinionReviewForTask", () => {
 			failureCategory: null,
 			failureHint: null,
 		}));
+		// P0.LAZYBASELINE: a red acceptance with no baseline on record samples the BASE tree once (useBaseTree);
+		// the delivered-tree runs are what the reuse guard counts.
+		const deliveredRuns = () => verify.mock.calls.filter(([args]) => !args?.useBaseTree).length;
+		const baselineRuns = () => verify.mock.calls.filter(([args]) => args?.useBaseTree === true).length;
 		const bounce = { verdict: "request_changes" as const, summary: "Almost", feedback: "Add a guard", insight: null };
 		const runOnce = async (deps: ReturnType<typeof makeDeps>) =>
 			runSecondOpinionReviewForTask({
@@ -895,17 +901,20 @@ describe("runSecondOpinionReviewForTask", () => {
 
 		const first = await runOnce(makeDeps({ submission: bounce }));
 		expect(first).toEqual({ type: "bounced", round: 1 });
-		expect(verify).toHaveBeenCalledTimes(1);
+		expect(deliveredRuns()).toBe(1);
+		expect(baselineRuns()).toBe(1);
 
-		// Cycle 2, identical diff: evidence reused, no sandbox re-run.
+		// Cycle 2, identical diff: evidence reused, no sandbox re-run (and the baseline is already on record).
 		const second = await runOnce(makeDeps({ submission: bounce }));
 		expect(second).toEqual({ type: "bounced", round: 1 });
-		expect(verify).toHaveBeenCalledTimes(1);
+		expect(deliveredRuns()).toBe(1);
+		expect(baselineRuns()).toBe(1);
 
 		// Cycle 3, the worker actually changed the tree: acceptance re-verifies.
 		const third = await runOnce(makeDeps({ submission: bounce, diff: "diff --git a/login.ts b/login.ts\n+fixed" }));
 		expect(third).toEqual({ type: "bounced", round: 1 });
-		expect(verify).toHaveBeenCalledTimes(2);
+		expect(deliveredRuns()).toBe(2);
+		expect(baselineRuns()).toBe(1);
 		forgetAcceptanceEvidence("task-1");
 	});
 

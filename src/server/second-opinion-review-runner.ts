@@ -32,7 +32,7 @@ import {
 	summarizeReviewAttemptEvidence,
 } from "../core/review-redecompose";
 import { decideRedriveWindow, type PendingRedriveObservation } from "../core/review-redrive-window";
-import { decideSandboxLeak, SANDBOX_LEAK_GATE_ENV } from "../core/sandbox-leak-gate";
+import { decideSandboxLeak } from "../core/sandbox-leak-gate";
 import { isActiveWorkSessionState } from "../core/session-state-predicates";
 import { resolveSwarmRoleModel } from "../core/swarm-role-selection";
 import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
@@ -48,7 +48,7 @@ import {
 	storeAcceptanceEvidence,
 } from "../nklein-agent/nklein-acceptance-evidence-registry";
 import { extractAcceptanceFailureConstraint } from "../nklein-agent/nklein-acceptance-repair";
-import { getBaselineProbe } from "../nklein-agent/nklein-baseline-probe-registry";
+import { getBaselineProbe, recordBaselineProbe } from "../nklein-agent/nklein-baseline-probe-registry";
 import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { type PanelJudge, runNEyesReviewPanel, runReviewPanel } from "../nklein-agent/nklein-review-panel-runner";
 import { buildReviewerCandidates, resolveWorkerRealId } from "../nklein-agent/nklein-reviewer-candidate-selection";
@@ -725,6 +725,54 @@ export async function runSecondOpinionReviewForTask(
 		storeAcceptanceEvidence(input.taskId, evidenceFingerprint, acceptance);
 	}
 	stampPhase(reusedAcceptance ? "acceptance-verify reused (work unchanged)" : "acceptance-verify done");
+	// P0.LAZYBASELINE (v31 2026-09-07): the was-it-already-broken waiver needs a BASE-tree sample, but the
+	// per-start probe is opt-in (NKLEIN_BASELINE_PROBE — a full sandbox run per start) and its registry is
+	// in-memory, so after a restart every red acceptance on an inherited-red base read as the worker's fault:
+	// fallback bounces, "made no changes" parks. Sample the base tree exactly when it is needed — a red
+	// acceptance with no baseline on record — and share the verdict with the delivery-stage waiver via the
+	// same registry. NKLEIN_LAZY_BASELINE_PROBE=0 disables.
+	if (
+		acceptance?.present === true &&
+		acceptance.passed === false &&
+		getBaselineProbe(input.taskId) === null &&
+		config.secondOpinionReviewEnabled &&
+		isEnabledByDefaultEnv(process.env.NKLEIN_LAZY_BASELINE_PROBE) &&
+		input.service.verifyTaskAcceptanceInSandbox
+	) {
+		stampPhase("baseline-probe start (acceptance red, no baseline on record)");
+		const baseline = await input.service
+			.verifyTaskAcceptanceInSandbox({
+				taskId: input.taskId,
+				projectRepoPath: input.workspacePath,
+				baseRef: card.baseRef,
+				taskPrompt: card.prompt,
+				useBaseTree: true,
+			})
+			.catch(() => null);
+		if (baseline) {
+			recordBaselineProbe(input.taskId, { present: baseline.present, passed: baseline.passed });
+		}
+		const baselineVerdict = baseline
+			? baseline.passed === false
+				? "red"
+				: baseline.passed === true
+					? "green"
+					: "unknown"
+			: "unavailable";
+		stampPhase(`baseline-probe done (base tree ${baselineVerdict})`);
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: baselineVerdict === "red" ? "warning" : "info",
+				message: `Lazy baseline probe for ${input.taskId}: the base tree is ${baselineVerdict} on the card's acceptance command${baselineVerdict === "red" ? " — the red acceptance is inherited, not the worker's" : ""}.`,
+				taskId: input.taskId,
+				workspacePath: input.workspacePath,
+				metadata: { category: "baseline_probe_lazy", baseline: baselineVerdict },
+			});
+		} catch {
+			// Telemetry must never break the review.
+		}
+	}
 	// F12.29: a FRESH acceptance verdict is execution-level skill evidence — record validated/refuted for every
 	// procedure surfaced into this task's session (fire-and-forget; the recorder is best-effort by contract).
 	if (!reusedAcceptance && acceptance && typeof acceptance.passed === "boolean") {
@@ -979,7 +1027,7 @@ export async function runSecondOpinionReviewForTask(
 	if (
 		preReviewVerdict === null &&
 		config.secondOpinionReviewEnabled &&
-		isEnabledByDefaultEnv(process.env[SANDBOX_LEAK_GATE_ENV]) &&
+		isEnabledByDefaultEnv(process.env.NKLEIN_SANDBOX_LEAK_GATE) &&
 		evidenceDiff.text
 	) {
 		const leak = decideSandboxLeak(evidenceDiff.text);
