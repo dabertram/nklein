@@ -4,6 +4,7 @@ import { fetchLoadedModelDescriptors, type LoadedModelDescriptor } from "../core
 import { lookupModelCapability } from "../core/model-capability-catalog";
 import { NKLEIN_MIN_CONTEXT_WINDOW_TOKENS } from "./nklein-context-window-policy";
 import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
+import { excludeDisallowedHostDescriptors } from "./nklein-loaded-host-filter";
 
 const BYTES_PER_GIB = 1024 ** 3;
 /** FastContext's useful explorer tier is around 4B; sub-~2 GiB residents are not trusted with a multi-tool search chain. */
@@ -105,7 +106,10 @@ export async function resolveExplorerLaunchConfig(
 	if (!baseUrl || !workerLaunch.modelId) {
 		return workerLaunch;
 	}
-	const descriptors = await fetchLoadedModelDescriptors(baseUrl, fetchImpl).catch(() => []);
+	const descriptors = await excludeDisallowedHostDescriptors(
+		await fetchLoadedModelDescriptors(baseUrl, fetchImpl).catch(() => []),
+		{ purpose: "explorer model selection" },
+	);
 	const pick = selectSmallerExplorerModel(descriptors, workerLaunch.modelId);
 	if (!pick) {
 		return workerLaunch;

@@ -78,6 +78,7 @@ import {
 	releaseNKleinLargeFileWorkflow,
 } from "./nklein-large-file-workflow";
 import { hashWorkspacePathForLedger } from "./nklein-ledger-attempt";
+import { excludeDisallowedHostDescriptors } from "./nklein-loaded-host-filter";
 import { LocalLlmClient } from "./nklein-local-llm-client";
 import { CLOUD_ENABLED } from "./nklein-local-only-policy";
 import {
@@ -306,8 +307,11 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		}
 		const askerCapability = deriveCapabilityPrior(askerModelId);
 		const gatherLoadedCandidates = async () => {
-			const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(
-				() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+			const descriptors = await excludeDisallowedHostDescriptors(
+				await fetchLoadedModelDescriptors(baseUrl).catch(
+					() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+				),
+				{ purpose: "sibling consult", taskId: request.taskId },
 			);
 			const siblingBusy = this.listActiveSiblingModelIds(request.taskId);
 			return descriptors

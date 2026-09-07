@@ -8,8 +8,10 @@ import type { AgentSandboxManager } from "./nklein-agent-sandbox";
 import { createAgentSandboxToolExecutors } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
 import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
+import { isModelIdOnAllowedHost } from "./nklein-loaded-host-filter";
 import { buildMergeResolutionSeedPrompt, type NKleinMergeResolutionResult } from "./nklein-merge-resolution-tool";
 import type { NKleinPauseController } from "./nklein-pause-controller";
+import { excludeUnroutableDescriptors } from "./nklein-reviewer-model-selection";
 import type {
 	RuntimeTaskSessionStartResult,
 	StartRuntimeTaskSessionFromLaunchConfigInput,
@@ -177,11 +179,17 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 				process.env.NKLEIN_MERGE_FALLBACK_MODEL === undefined
 					? "qwen3.8-flash-next"
 					: process.env.NKLEIN_MERGE_FALLBACK_MODEL.trim();
-			const loaded = await fetchLoadedModelDescriptors(resolveDefaultLocalModelBaseUrl()).catch(
-				() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+			const loaded = await excludeUnroutableDescriptors(
+				await fetchLoadedModelDescriptors(resolveDefaultLocalModelBaseUrl()).catch(
+					() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+				),
+				{ taskId: `${input.taskId}::merge`, purpose: "merge-resolution fallback" },
 			);
 			const fallback = pickReviewFallbackDescriptor(loaded);
-			if (preferredMergeModel) {
+			// The preferred merge model (env, or the hard-coded default) is honoured only on an allowlisted host — the
+			// default names a specific model that may sit on a host the operator has idled for !Klein (2026-09-07).
+			const preferredAllowed = !!preferredMergeModel && (await isModelIdOnAllowedHost(preferredMergeModel));
+			if (preferredMergeModel && preferredAllowed) {
 				providerId = providerId || "lmstudio";
 				modelId = preferredMergeModel;
 			} else if (fallback) {

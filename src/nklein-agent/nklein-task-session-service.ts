@@ -149,6 +149,7 @@ import {
 } from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
 import { forgetLiveTaskUsage, getLiveTaskUsage, sumLiveUsageTokens } from "./nklein-live-usage-registry";
+import { excludeDisallowedHostDescriptors } from "./nklein-loaded-host-filter";
 import { LocalLlmClient } from "./nklein-local-llm-client";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
 import {
@@ -2379,7 +2380,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					timeoutMs: request.requestTimeoutMs,
 					contextWindow: requestContextWindow ?? 0,
 				},
-				loaded: await fetchLoadedModelDescriptors(deliberationBaseUrl).catch(() => []),
+				loaded: await excludeDisallowedHostDescriptors(
+					await fetchLoadedModelDescriptors(deliberationBaseUrl).catch(() => []),
+					{ purpose: "spec deliberation", taskId: request.taskId },
+				),
 				runTurn: async ({ model, stance, prompt }) =>
 					await this.withModelTurnAdmission(
 						{

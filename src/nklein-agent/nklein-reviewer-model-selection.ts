@@ -6,12 +6,14 @@ import {
 } from "../core/fleet-identifier-collision";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached, type LmsPsModel } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { filterByLoadedHostAllowlist, getLoadedHostAllowlist } from "../core/loaded-host-allowlist";
 import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { applyDiversityPreference } from "../core/model-diversity";
 import { resolveLineage } from "../core/model-lineage";
 import { isModelMarkedDead } from "../core/model-liveness-ledger";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
+import { buildLmStudioMachineByModelId } from "./nklein-lmstudio-host-map";
 import { buildReviewerCandidates, resolveWorkerRealId } from "./nklein-reviewer-candidate-selection";
 import { now } from "./nklein-session-state";
 
@@ -48,7 +50,10 @@ export async function excludeUnroutableDescriptors<T extends { runtimeId: string
 			)
 		).filter((id): id is string => id !== null),
 	);
-	const excluded: { id: string; reason: "liveness_ledger_dead" | "fleet_identifier_collision" }[] = [];
+	const excluded: {
+		id: string;
+		reason: "liveness_ledger_dead" | "fleet_identifier_collision" | "host_not_allowlisted";
+	}[] = [];
 	const routable = descriptors.filter((descriptor) => {
 		if (isModelMarkedDead(descriptor.runtimeId) || isModelMarkedDead(descriptor.modelKey)) {
 			excluded.push({ id: descriptor.runtimeId, reason: "liveness_ledger_dead" });
@@ -60,27 +65,43 @@ export async function excludeUnroutableDescriptors<T extends { runtimeId: string
 		}
 		return true;
 	});
+	// David 2026-09-07 ("leave m5max idle for nklein"): the loaded-host allowlist (`workerUseAllLoadedHosts`) governs
+	// EVERY auto/fallback selection, not only the worker auto-pool. A model on a host outside it is unroutable for
+	// auto selection; an unmapped model counts as `local` (fail-closed). Explicit pins never pass through here.
+	const hostFiltered = filterByLoadedHostAllowlist(routable, {
+		allowlist: getLoadedHostAllowlist(),
+		machineIdByModelId: buildLmStudioMachineByModelId(fleet),
+		idsOf: (descriptor) => [descriptor.runtimeId, descriptor.modelKey],
+	});
+	for (const entry of hostFiltered.excluded) {
+		excluded.push({ id: entry.id, reason: "host_not_allowlisted" });
+	}
 	if (excluded.length > 0) {
+		const onlyHostExclusions = excluded.every((entry) => entry.reason === "host_not_allowlisted");
 		recordSelfObservation({
 			signal: "custom",
-			severity: "warning",
+			severity: onlyHostExclusions ? "info" : "warning",
 			message: `${context.purpose} selection for ${context.taskId} excluded ${excluded.length} unroutable model(s): ${excluded
 				.map((entry) =>
 					entry.reason === "fleet_identifier_collision"
 						? describeIdentifierCollision(entry.id, fleet)
-						: `${entry.id} (held dead by the liveness ledger)`,
+						: entry.reason === "host_not_allowlisted"
+							? `${entry.id} (host outside the loaded-host allowlist)`
+							: `${entry.id} (held dead by the liveness ledger)`,
 				)
 				.join("; ")}.`,
 			taskId: context.taskId,
 			metadata: {
 				category: excluded.some((entry) => entry.reason === "fleet_identifier_collision")
 					? "fleet_identifier_collision"
-					: "model_pool_loss",
+					: onlyHostExclusions
+						? "loaded_host_allowlist_excluded"
+						: "model_pool_loss",
 				excluded,
 			},
 		});
 	}
-	return routable;
+	return hostFiltered.kept;
 }
 
 function describeDiversePickPurpose(sessionKind: PromptSessionKind): {

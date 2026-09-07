@@ -7,6 +7,7 @@ import { normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type { RuntimeAgentId } from "../core/api-contract";
 import { normalizeRuntimeMemoryFreshnessAudit, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import { normalizeConcurrencyOverride } from "../core/concurrency-config";
+import { setLoadedHostAllowlist } from "../core/loaded-host-allowlist";
 import { normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import { normalizeSandboxMcpServerOverrides, resolveSandboxMcpControls } from "../core/sandbox-mcp-controls";
 import { resolveEffectiveTestDrivenMode, TEST_DRIVEN_MODE_DEFAULT } from "../core/test-driven-delivery";
@@ -206,9 +207,9 @@ function toRuntimeConfigState({
 		testDrivenModeEnabled: globalConfig?.testDrivenModeEnabled ?? TEST_DRIVEN_MODE_DEFAULT,
 		// F2.34: worker auto-pool ("use all available per host") — plain global fields, project override later.
 		workerUseAllLoadedModels: globalConfig?.workerUseAllLoadedModels === true,
-		workerUseAllLoadedHosts: Array.isArray(globalConfig?.workerUseAllLoadedHosts)
-			? globalConfig.workerUseAllLoadedHosts.filter((host): host is string => typeof host === "string")
-			: [],
+		// Published to the process-level loaded-host allowlist too (David 2026-09-07 "m5max idle for nklein"): every
+		// auto/fallback chooser honours it, not only the worker auto-pool — see src/core/loaded-host-allowlist.ts.
+		workerUseAllLoadedHosts: setLoadedHostAllowlist(globalConfig?.workerUseAllLoadedHosts),
 		testDrivenModeOverride: normalizeTestDrivenModeOverride(projectConfig?.testDrivenModeOverride),
 		effectiveTestDrivenMode: resolveEffectiveTestDrivenMode(
 			globalConfig?.testDrivenModeEnabled,

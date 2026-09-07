@@ -1,6 +1,7 @@
 import type { RuntimeConfigState } from "../../config/runtime-config";
 import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import { loadOptInLlmfitCapabilityPriorResolver } from "../nklein-llmfit-routing-prior";
+import { excludeDisallowedHostDescriptors } from "../nklein-loaded-host-filter";
 import { buildLoadedModelRoutingCandidates } from "../nklein-loaded-model-candidates";
 import { resolveLoadedModelProfile } from "../nklein-loaded-model-profile";
 import { getDefaultNKleinModelRegistry } from "../nklein-model-registry";
@@ -48,7 +49,10 @@ export async function buildDecompositionRoutingCandidates(
 			// Read the RICH `/api/v1/models` descriptors so each loaded model's REAL key (not the per-machine alias) drives
 			// the catalog/affinity lookups, and the authoritative `type` drives the embedding filter. The candidate identity
 			// stays the runtime alias (what's actually invoked). A profile is resolved once per loaded model up front.
-			const descriptors = await fetchLoadedModelDescriptors(launchConfig.baseUrl);
+			const descriptors = await excludeDisallowedHostDescriptors(
+				await fetchLoadedModelDescriptors(launchConfig.baseUrl),
+				{ purpose: "decomposition routing candidates" },
+			);
 			// §5.AB llmfit prior (opt-in via NKLEIN_LLMFIT_PRIOR): use llmfit's measured fit score as the cold-start prior
 			// AHEAD of the §5.AL catalog. Runs `uvx llmfit recommend` ONCE (cached) - OUTBOUND (HF DB) => egress-gated, OFF by
 			// default so the runtime path stays local. Falls back to the catalog for any model llmfit doesn't score.
