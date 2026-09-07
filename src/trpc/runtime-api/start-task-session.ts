@@ -1069,8 +1069,17 @@ async function handleStartTaskSessionInner(
 		const hostFilteredGuardCandidates =
 			loadedHostAllowlist.size === 0
 				? { kept: allGuardCandidatesUnfiltered, excluded: [] as { id: string; machineId: string }[] }
-				: (() => {
-						const machineIdByAlias = buildLmStudioMachineByModelId(lmsPsModelsForResidency);
+				: await (async () => {
+						// The residency listing is EMPTY whenever the card's endpoint is not the local daemon itself
+						// (v31 2026-09-07: every card goes through the tee proxy on :8081, so `lmsPsModelsForResidency`
+						// was [] and the fail-closed map excluded m4mini's worker as "local" on EVERY start, pushing all
+						// work onto legion's single slot). The allowlist is about physical hosts and `lms ps` is the only
+						// source of host ids, so read it here regardless of which endpoint the card talks to.
+						const hostMapModels =
+							lmsPsModelsForResidency.length > 0
+								? lmsPsModelsForResidency
+								: await fetchLmsPsModelsCached(createDefaultLmsRunner()).catch(() => []);
+						const machineIdByAlias = buildLmStudioMachineByModelId(hostMapModels);
 						const discovered = allGuardCandidatesUnfiltered.filter((candidate) => candidate.role === null);
 						const filtered = filterByLoadedHostAllowlist(discovered, {
 							allowlist: loadedHostAllowlist,

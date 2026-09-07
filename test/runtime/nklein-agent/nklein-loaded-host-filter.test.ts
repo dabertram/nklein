@@ -66,3 +66,31 @@ describe("excludeDisallowedHostDescriptors", () => {
 		expect(await excludeDisallowedHostDescriptors(loaded, { purpose: "test" }, [])).toEqual([]);
 	});
 });
+
+describe("loadFleet resilience (empty cached snapshot)", () => {
+	afterEach(() => {
+		resetLoadedHostAllowlistForTests();
+		vi.doUnmock("../../../src/core/lms-ps-json");
+		vi.resetModules();
+	});
+
+	it("retries `lms ps` uncached when the cached snapshot is empty, so an allowed host is not excluded as local", async () => {
+		vi.doMock("../../../src/core/lms-ps-json", async () => {
+			const actual = await vi.importActual<typeof import("../../../src/core/lms-ps-json")>(
+				"../../../src/core/lms-ps-json",
+			);
+			return {
+				...actual,
+				fetchLmsPsModelsCached: vi.fn(async () => []),
+				fetchLmsPsModels: vi.fn(async () => fleet),
+			};
+		});
+		vi.resetModules();
+		const allowlist = await import("../../../src/core/loaded-host-allowlist");
+		allowlist.setLoadedHostAllowlist([LEGION, M4MINI]);
+		const filter = await import("../../../src/nklein-agent/nklein-loaded-host-filter");
+		const kept = await filter.excludeDisallowedHostDescriptors(loaded, { purpose: "test" });
+		expect(kept.map((d) => d.runtimeId)).toEqual(["dirk-qwen3.8-27b", "dirk-qwen3.8-27b@m4mini"]);
+		allowlist.resetLoadedHostAllowlistForTests();
+	});
+});

@@ -5,7 +5,7 @@
  * through a side door. Explicit pins do not pass through here.
  */
 
-import { createDefaultLmsRunner, fetchLmsPsModelsCached, type LmsPsModel } from "../core/lms-ps-json";
+import { createDefaultLmsRunner, fetchLmsPsModels, fetchLmsPsModelsCached, type LmsPsModel } from "../core/lms-ps-json";
 import {
 	filterByLoadedHostAllowlist,
 	getLoadedHostAllowlist,
@@ -20,7 +20,14 @@ async function loadFleet(fleetOverride?: readonly LmsPsModel[]): Promise<readonl
 	if (fleetOverride) {
 		return fleetOverride;
 	}
-	return await fetchLmsPsModelsCached(createDefaultLmsRunner(LMS_PS_TIMEOUT_MS)).catch(() => [] as LmsPsModel[]);
+	const runner = createDefaultLmsRunner(LMS_PS_TIMEOUT_MS);
+	const cached = await fetchLmsPsModelsCached(runner).catch(() => [] as LmsPsModel[]);
+	if (cached.length > 0) {
+		return cached;
+	}
+	// An EMPTY snapshot is "no information" (a failed `lms ps` right after boot poisons the 30 s cache): the
+	// fail-closed map would then exclude every allowed host too. One uncached retry before deciding.
+	return await fetchLmsPsModels(runner).catch(() => [] as LmsPsModel[]);
 }
 
 /**
