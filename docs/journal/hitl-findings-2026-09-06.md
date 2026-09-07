@@ -307,3 +307,30 @@ The spine is sound; the harness around a weak model is where the time goes.
     that will collide at delivery. Verdict: harness bug: captures should exclude generated lockfiles outside the
     write scope; with P0.WORKERPRIME (`npm ci` when a lockfile exists) workers no longer need to install at all,
     which removes the churn at the source.
+
+31. **Dependency edges do not follow interface imports.** S13's verbatim interface takes S03's `Prng`, but the card's
+    `dependsOn` lists only S07, so S13 started while S03 was still in review and its sandbox had no
+    `src/kernel/prng.ts`; a literal implementation fails typecheck on the import. The worker had to type the id
+    source structurally to deliver. Verdict: decomposition gap — the sizing/coverage gates check keywords and
+    file counts but never that a card's declared interface types resolve to files owned by its dependencies; a
+    cheap check ("every `import` in the interface block names a file some dependsOn card owns") would catch this.
+
+**Throughput note (02:40):** with P0.WORKERPRIME live and the auto-driver handling the mechanical turns, a card
+now costs 3 model turns (deliver → predict → final) plus one reviewer turn; S02 re-delivery, S08 and S13 each
+went start→review in under 5 minutes. The hand-written part is the code itself.
+
+32. **The main-branch custodian is a third side door to an idled host — and it runs outside the drain's model
+    provider.** At 02:40 the HITL drain ran a three-request `main-branch-custodian::review` session that never
+    reached the drive's model server: `NKLEIN_MAIN_CUSTODIAN=1` + the custodian's hard-coded preferred model
+    (`qwen3.8-flash-next`) resolved through LM Studio directly (the runtime probes `localhost:1234` for loaded
+    models), so m5max served a review nobody had routed there. Its finding was good (S01's `@/*` tsconfig alias
+    resolves nowhere at runtime), but the routing is the bug: a drain whose roles are all on one provider must not
+    silently borrow another provider's model for an auxiliary session. Fixed for this rig by the allowlist +
+    `NKLEIN_CUSTODIAN_MODEL=""`; the product fix is for `resolveCustodianModel` to derive its default from the
+    configured reviewer role instead of a model name.
+
+33. **Transient `E502 Bad Gateway` from the egress proxy fails acceptance outright.** S03 and S13 acceptance runs
+    died in `npm ci` on a single 502 for one tarball while four sandboxes installed concurrently; the fail-fast
+    install env has zero retries. SHIPPED (P0.INSTALLRETRY): one retry after 2 s for E502/E503/E504/ECONNRESET
+    class failures; offline signatures still fail fast. The proxy-side cause (why a CONNECT tunnel 502s under
+    ~4 parallel installs) is still open.
