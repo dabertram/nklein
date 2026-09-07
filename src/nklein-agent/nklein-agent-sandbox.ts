@@ -153,6 +153,20 @@ export function resolveSandboxExecTimeoutMs(tool: string): number {
 }
 /** A QUEUED slot acquisition waiting past this (via the injected `warn`) is logged as a possible capacity stall. */
 const SLOT_QUEUE_SLOW_WAIT_LOG_MS = 30_000;
+/**
+ * P1.CAPTURERACE: how long {@link AgentSandboxManager.disposeWorkspace} waits for a placement's OWED work — execs
+ * still in flight, captures declared owed — before it disposes anyway.
+ *
+ * BOUNDED, NEVER FOREVER, AND TOTAL. A disposal that blocks indefinitely on an obligation nobody will ever settle
+ * leaks a pool slot, and a leaked slot freezes the whole run (the run19 lesson recorded on `disposeWorkspaceUnlocked`:
+ * *"a leftover workdir is recoverable, a leaked slot freezes the whole run"*). So the wait expires, the disposal
+ * proceeds, and exactly one observation names what it interrupted. Set `NKLEIN_SANDBOX_DISPOSE_LEASE_WAIT_MS=1` to
+ * effectively disable the wait (0 is not a positive integer and falls back to the default).
+ */
+const DISPOSE_LEASE_DRAIN_TIMEOUT_MS = normalizePositiveInteger(
+	Number.parseInt(process.env.NKLEIN_SANDBOX_DISPOSE_LEASE_WAIT_MS ?? "", 10),
+	30_000,
+);
 const DOCKER_UNAVAILABLE_MARKERS = [
 	"cannot connect to the docker daemon",
 	"is the docker daemon running",
@@ -174,6 +188,15 @@ export interface AgentSandboxExecResult {
 	exitCode: number | null;
 	stdout: string;
 	stderr: string;
+	/**
+	 * P1.CAPTURERACE: the exec's PLACEMENT was disposed (or re-placed) while the command was still in flight, so its
+	 * failure says nothing about the command. Docker reports this as `OCI runtime exec failed: … chdir to cwd
+	 * ("/workspaces/<task>") … no such file or directory` — indistinguishable, to every caller, from a real setup
+	 * failure, which is how a racing npm-cache seed was filed as `sandbox_npm_cache_seed error`. A skipped result
+	 * carries `exitCode: null` so it still fails closed everywhere; this flag lets a caller SAY it was interrupted
+	 * rather than blame the command.
+	 */
+	skipped?: boolean;
 }
 
 export interface AgentSandboxAvailabilityStatus {
@@ -216,6 +239,12 @@ export interface AgentSandboxManagerOptions {
 	execFile?: typeof execFile;
 	setTimeout?: typeof setTimeout;
 	clearTimeout?: typeof clearTimeout;
+	/**
+	 * P1.CAPTURERACE: how long a disposal waits for the placement's owed work before proceeding anyway. Defaults to
+	 * {@link DISPOSE_LEASE_DRAIN_TIMEOUT_MS} (env-overridable). Injected so the TOTALITY of the timeout path — the
+	 * half that must still dispose — is testable without a 30-second test.
+	 */
+	disposeLeaseWaitMs?: number;
 	/** F2.5b deterministic seams; production uses the authenticated loopback client and 256-bit random tokens. */
 	issueEgressTaskIdentity?: typeof issueEgressTaskIdentity;
 	revokeEgressTaskIdentity?: typeof revokeEgressTaskIdentity;
@@ -271,6 +300,54 @@ interface TaskPlacement {
 	projectRepoPath: string;
 	/** F2.5b credential registered inside the proxy and injected only into this task's docker exec environment. */
 	egressIdentityToken: string | null;
+	/**
+	 * P1.CAPTURERACE: a monotonic id for THIS placement of the task. `/workspaces/<taskId>` is deterministic, so a
+	 * disposed-and-restored task reuses the same path, uid and (often) container — the taskId alone cannot tell an
+	 * exec whether the workspace it started against is still the one it is writing to. An exec captures the
+	 * generation at entry; if the current placement's generation differs (or none exists) when the exec returns, the
+	 * command was interrupted, not failed.
+	 */
+	generation: number;
+}
+
+/**
+ * P1.CAPTURERACE: the work a placement still OWES, which a disposal must not rip out from under.
+ *
+ * Two kinds, because the live failures were two:
+ *  - `execs` — commands ALREADY RUNNING against `/workspaces/<task>`. The npm-cache seed exec died with
+ *    `OCI runtime exec failed: … chdir to cwd … no such file or directory` because `seedTaskPackageCache` never
+ *    entered the workspace lifecycle lock at all: it took a placement and ran, and a concurrent disposal deleted
+ *    the workdir and released the slot underneath it (which also hands the container to the next queued task).
+ *  - `capturesOwed` — a capture that has been DECLARED but has not started yet. The lifecycle lock is mutual
+ *    exclusion by ARRIVAL ORDER only; a disposal that arrives first wins it legitimately, and the capture behind it
+ *    then finds no placement (`workspace_disposed_before_capture`). Ordering, not concurrency, was the defect.
+ *
+ * Keyed by reason so the obligation is IDEMPOTENT (a bounce may mark the same recapture twice) and so the
+ * timed-out-disposal observation can name what it interrupted rather than print a count.
+ */
+interface PlacementLease {
+	execs: number;
+	capturesOwed: Set<string>;
+	waiters: (() => void)[];
+}
+
+/**
+ * P1.CAPTURERACE obligation reasons, owned by the manager because the manager owns the placement. Named rather
+ * than counted so the timed-out-disposal observation can say WHICH obligation it broke.
+ *
+ * `SANDBOX_CAPTURE_OWED_FINALIZE` is the review finalizer's capture transaction, declared beside `markFinalizing`
+ * and settled when the transaction ends. `SANDBOX_CAPTURE_OWED_RECAPTURE` mirrors N7d's bounce marker: round 1's
+ * result branch is not the end of the obligation, because round 2's capture is still coming.
+ */
+export const SANDBOX_CAPTURE_OWED_FINALIZE = "review_finalize";
+export const SANDBOX_CAPTURE_OWED_RECAPTURE = "recapture_expected";
+
+/** What a bounded {@link AgentSandboxManager.disposeWorkspace} drain wait observed. */
+interface PlacementLeaseDrain {
+	waitedMs: number;
+	timedOut: boolean;
+	execs: number;
+	capturesOwed: readonly string[];
 }
 
 function taskHomePath(placement: Pick<TaskPlacement, "taskId" | "uid">): string {
@@ -437,6 +514,12 @@ export class AgentSandboxManager {
 	private readonly basicMemoryPlanByKey = new Map<string, BasicMemoryScopingPlan>();
 	private readonly queue: QueueEntry[] = [];
 	private readonly workspaceLifecycleTails = new Map<string, Promise<void>>();
+	// P1.CAPTURERACE: per-task in-flight work + owed captures (see PlacementLease). Entries are created on demand
+	// and pruned the moment a placement owes nothing, so an idle pool holds none.
+	private readonly placementLeases = new Map<string, PlacementLease>();
+	/** Monotonic source for {@link TaskPlacement.generation} — never reset, so a generation is never reused. */
+	private placementGeneration = 0;
+	private readonly disposeLeaseWaitMs: number;
 	private readonly slotAcquisitionGates = new Set<Promise<void>>();
 	private stopping = false;
 	// Spike guard (2026-07-04): the ONE shared container hosts every agent, and each `docker exec` tool command
@@ -473,6 +556,7 @@ export class AgentSandboxManager {
 		this.issueEgressTaskIdentityImpl = options.issueEgressTaskIdentity ?? issueEgressTaskIdentity;
 		this.revokeEgressTaskIdentityImpl = options.revokeEgressTaskIdentity ?? revokeEgressTaskIdentity;
 		this.generateEgressIdentityToken = options.generateEgressIdentityToken ?? (() => randomBytes(32).toString("hex"));
+		this.disposeLeaseWaitMs = normalizePositiveInteger(options.disposeLeaseWaitMs, DISPOSE_LEASE_DRAIN_TIMEOUT_MS);
 		this.staticWritableMounts = [...(options.writableMounts ?? [])];
 		this.warn = options.warn;
 	}
@@ -902,7 +986,7 @@ export class AgentSandboxManager {
 			["sh", "-c", buildSeedIntoTaskCacheScript(this.packageCacheSeedPaths(placement))],
 			{ timeoutMs: 120_000 },
 		);
-		return classifySeedScriptResult("seed", result);
+		return skippedSeedOutcome("seed", result) ?? classifySeedScriptResult("seed", result);
 	}
 
 	/**
@@ -916,14 +1000,14 @@ export class AgentSandboxManager {
 		const exposed = await this.execAsTaskUser(placement, ["sh", "-c", buildExposeTaskCacheScript(paths)], {
 			timeoutMs: 120_000,
 		});
-		const exposure = classifySeedScriptResult("harvest", exposed);
+		const exposure = skippedSeedOutcome("harvest", exposed) ?? classifySeedScriptResult("harvest", exposed);
 		if (exposure.status !== "harvested") {
 			return exposure;
 		}
 		const merged = await this.execAsRoot(placement, ["sh", "-c", buildHarvestIntoSeedScript(paths)], {
 			timeoutMs: 300_000,
 		});
-		return classifySeedScriptResult("harvest", merged);
+		return skippedSeedOutcome("harvest", merged) ?? classifySeedScriptResult("harvest", merged);
 	}
 
 	private packageCacheSeedPaths(placement: TaskPlacement) {
@@ -964,7 +1048,7 @@ export class AgentSandboxManager {
 						{ timeoutMs: 300_000 },
 					)
 				: copied;
-		const outcome = classifySeedScriptResult("import", finalized);
+		const outcome = skippedSeedOutcome("import", finalized) ?? classifySeedScriptResult("import", finalized);
 		recordSelfObservation({
 			signal: "custom",
 			severity: outcome.status === "error" ? "warning" : "info",
@@ -1068,6 +1152,14 @@ export class AgentSandboxManager {
 				...(viaStdin ? { stdin: serializedInput } : {}),
 			},
 		);
+		// P1.CAPTURERACE: a tool whose workspace was disposed mid-exec did not fail — it was interrupted. Say so with
+		// the typed unavailable error every caller already handles, and DO NOT run the syntax-guard observer over a
+		// docker `chdir to cwd` message (it would file the interruption as an edit-quality signal).
+		if (result.skipped) {
+			throw new AgentSandboxUnavailableError(
+				`The sandbox workspace for task ${taskId} was disposed while its ${tool} tool call was running; the call was interrupted, not failed.`,
+			);
+		}
 		if (result.exitCode !== 0) {
 			this.observeSyntaxGuardRejection(taskId, tool, joinDockerOutput(result));
 			throw new AgentSandboxExecutionError(formatSandboxToolFailure(tool, joinDockerOutput(result)), result);
@@ -1247,9 +1339,30 @@ export class AgentSandboxManager {
 		return dropped;
 	}
 
-	async disposeWorkspace(taskId: string): Promise<void> {
+	async disposeWorkspace(
+		taskId: string,
+		options: {
+			/**
+			 * P1.CAPTURERACE: the caller has ALREADY PROVED the workdir is gone (see {@link isWorkspacePrepared}), so
+			 * it is reclaiming a stale placement rather than taking a live workspace away. No owed capture can be
+			 * served by waiting for a workspace that no longer exists, and waiting would only stall the re-drive and
+			 * manufacture a false "interrupted" observation. In-flight execs are still waited for — the slot release
+			 * underneath one is the other half of this bug.
+			 */
+			workspaceAlreadyGone?: boolean;
+		} = {},
+	): Promise<void> {
 		if (this.stopping) {
 			return;
+		}
+		// P1.CAPTURERACE: never dispose a placement that still owes work. The wait happens BEFORE the lifecycle lock
+		// is taken (a capture needs that same lock), is bounded, and is total — a drain that times out disposes
+		// anyway and says what it interrupted. See DISPOSE_LEASE_DRAIN_TIMEOUT_MS and PlacementLease.
+		const drain = await this.drainPlacementLease(taskId, {
+			ignoreOwedCaptures: options.workspaceAlreadyGone === true,
+		});
+		if (drain.timedOut) {
+			this.observeInterruptedDisposal(taskId, drain);
 		}
 		await this.withWorkspaceLifecycle(taskId, async () => {
 			await this.disposeWorkspaceUnlocked(taskId);
@@ -1285,6 +1398,9 @@ export class AgentSandboxManager {
 			await this.teardownEgressProxyIfEnsured();
 			this.containers.clear();
 			this.placements.clear();
+			// P1.CAPTURERACE: the tails above already waited for every in-flight lifecycle op, and the placements are
+			// gone — any surviving obligation protects nothing and must not outlive the pool.
+			this.placementLeases.clear();
 		} finally {
 			this.stopping = false;
 		}
@@ -1363,6 +1479,7 @@ export class AgentSandboxManager {
 			container.idleTimer = null;
 		}
 		const projectKey = createAgentSandboxProjectKey(projectRepoPath);
+		this.placementGeneration += 1;
 		const placement: TaskPlacement = {
 			taskId,
 			slot: container.slot,
@@ -1371,6 +1488,7 @@ export class AgentSandboxManager {
 			projectKey,
 			projectRepoPath,
 			egressIdentityToken: null,
+			generation: this.placementGeneration,
 		};
 		container.occupancy.add(taskId);
 		this.placements.set(taskId, placement);
@@ -1903,6 +2021,203 @@ export class AgentSandboxManager {
 		}
 	}
 
+	/** The task's lease record, created on demand. */
+	private leaseFor(taskId: string): PlacementLease {
+		const existing = this.placementLeases.get(taskId);
+		if (existing) {
+			return existing;
+		}
+		const lease: PlacementLease = { execs: 0, capturesOwed: new Set<string>(), waiters: [] };
+		this.placementLeases.set(taskId, lease);
+		return lease;
+	}
+
+	/**
+	 * Prune the record once the placement owes nothing, and wake every drain waiter on ANY change.
+	 *
+	 * Waking on any change rather than only on full idleness is deliberate: a drain that ignores owed captures
+	 * (the reclaim-a-stale-placement case) needs to proceed the moment the EXECS finish, and a waiter that only
+	 * fires at total idleness would leave it parked to the deadline behind an obligation it is not waiting for.
+	 * The drain re-evaluates its own condition on every wake, so an early wake costs one loop iteration.
+	 */
+	private settleLease(taskId: string, lease: PlacementLease): void {
+		if (lease.execs === 0 && lease.capturesOwed.size === 0 && this.placementLeases.get(taskId) === lease) {
+			this.placementLeases.delete(taskId);
+		}
+		for (const waiter of lease.waiters.splice(0, lease.waiters.length)) {
+			waiter();
+		}
+	}
+
+	/** Whether `placement` is STILL the manager's placement for its task (see {@link TaskPlacement.generation}). */
+	private isPlacementCurrent(placement: TaskPlacement): boolean {
+		return this.placements.get(placement.taskId)?.generation === placement.generation;
+	}
+
+	/**
+	 * P1.CAPTURERACE: hold an exec lease on `placement` for the length of one docker exec, and re-classify a failure
+	 * that a disposal caused.
+	 *
+	 * This is the chokepoint every task exec already funnels through ({@link execAsTaskUser}, {@link execAsRoot},
+	 * {@link execAsUid} all call it), which is deliberate: instrumenting the individual callers is exactly how
+	 * `seedTaskPackageCache` and `runTool` ended up outside the workspace lifecycle lock in the first place. A rail
+	 * that can be bypassed by adding a caller is not a rail.
+	 *
+	 * A SUCCESSFUL exec is returned untouched even if the placement went away meanwhile — the command did run and its
+	 * output is real. Only a failure is re-read: if this placement is no longer current, the workspace was pulled out
+	 * from under the command, so report `skipped` instead of blaming it.
+	 */
+	private async withPlacementExecLease(
+		placement: TaskPlacement,
+		run: () => Promise<AgentSandboxExecResult>,
+	): Promise<AgentSandboxExecResult> {
+		const lease = this.leaseFor(placement.taskId);
+		lease.execs += 1;
+		try {
+			const result = await this.withExecSlot(run);
+			if (result.exitCode === 0 || this.isPlacementCurrent(placement)) {
+				return result;
+			}
+			return { ...result, exitCode: null, skipped: true };
+		} finally {
+			lease.execs -= 1;
+			this.settleLease(placement.taskId, lease);
+		}
+	}
+
+	/**
+	 * P1.CAPTURERACE: wait (bounded) until the task's placement owes nothing — no exec in flight, no declared
+	 * capture outstanding.
+	 *
+	 * Returns IMMEDIATELY when there is no placement: an obligation with nothing to protect must never make a
+	 * disposal pay the timeout, and a stale marker left by a forgotten task would otherwise slow every later
+	 * disposal of that id to the wall.
+	 *
+	 * Called OUTSIDE the workspace lifecycle lock, and that ordering is load-bearing: a capture acquires the same
+	 * lock, so waiting for it while holding the lock would deadlock the very work the wait exists to protect.
+	 */
+	private async drainPlacementLease(
+		taskId: string,
+		options: { ignoreOwedCaptures?: boolean } = {},
+	): Promise<PlacementLeaseDrain> {
+		const startedAt = Date.now();
+		const deadline = startedAt + this.disposeLeaseWaitMs;
+		// RE-CHECK IN A LOOP, not once. A single wait closes the window it was waiting on and then hands control
+		// back — during which the placement can take a FRESH exec (a tool call, an acceptance step), and the
+		// disposal would delete the workdir under that one instead. Re-reading until the placement is genuinely
+		// idle (or the shared deadline expires) is what makes this a rail rather than a one-shot pause.
+		for (;;) {
+			const lease = this.placementLeases.get(taskId);
+			const owed = options.ignoreOwedCaptures ? 0 : (lease?.capturesOwed.size ?? 0);
+			if (!lease || !this.placements.has(taskId) || (lease.execs === 0 && owed === 0)) {
+				return { waitedMs: Date.now() - startedAt, timedOut: false, execs: 0, capturesOwed: [] };
+			}
+			const remainingMs = deadline - Date.now();
+			const timedOut = remainingMs <= 0 ? true : (await this.awaitLeaseSettled(lease, remainingMs)) === "timeout";
+			if (timedOut) {
+				return {
+					waitedMs: Date.now() - startedAt,
+					timedOut: true,
+					execs: lease.execs,
+					capturesOwed: options.ignoreOwedCaptures ? [] : [...lease.capturesOwed],
+				};
+			}
+		}
+	}
+
+	/** One bounded wait for `lease` to reach zero. Always removes its waiter and clears its timer. */
+	private async awaitLeaseSettled(lease: PlacementLease, timeoutMs: number): Promise<"drained" | "timeout"> {
+		let onDrained!: () => void;
+		const drained = new Promise<"drained">((resolve) => {
+			onDrained = () => resolve("drained");
+		});
+		lease.waiters.push(onDrained);
+		let timer: ReturnType<typeof setTimeout> | null = null;
+		const expired = new Promise<"timeout">((resolve) => {
+			timer = this.setTimeoutImpl(() => resolve("timeout"), timeoutMs);
+		});
+		try {
+			return await Promise.race([drained, expired]);
+		} finally {
+			if (timer) {
+				this.clearTimeoutImpl(timer);
+			}
+			const waiterIndex = lease.waiters.indexOf(onDrained);
+			if (waiterIndex >= 0) {
+				lease.waiters.splice(waiterIndex, 1);
+			}
+		}
+	}
+
+	/**
+	 * P1.CAPTURERACE: declare that a capture is OWED on this task's placement, so no disposal path can take the
+	 * workspace before it is taken.
+	 *
+	 * The obligation lives HERE, on the manager that owns the placement, rather than in a caller's state store. The
+	 * pre-existing "do not dispose before capture" rule was expressed in exactly ONE caller
+	 * (`stopTaskSession`'s `finalizerOwnsSandboxTeardown`), and every other disposal path — the restart-failure
+	 * release, the abort path, the post-decomposition completion, the redrive restore's own pre-dispose — went
+	 * straight to `disposeWorkspace` knowing nothing about it. That is how a redecompose card's owed capture met a
+	 * disposal one second ahead of it and ended a whole harness run as `failed`.
+	 *
+	 * Idempotent per `reason`, and a no-op when there is no placement to protect. Every mark must be paired with a
+	 * {@link releaseOwedCapture} — an unpaired one only costs the bounded drain wait, never a permanent hold.
+	 */
+	markCaptureOwed(taskId: string, reason: string): void {
+		if (!this.placements.has(taskId)) {
+			return;
+		}
+		this.leaseFor(taskId).capturesOwed.add(reason);
+	}
+
+	/** Settle one obligation declared by {@link markCaptureOwed}. Unknown reasons are ignored. */
+	releaseOwedCapture(taskId: string, reason: string): void {
+		const lease = this.placementLeases.get(taskId);
+		if (!lease?.capturesOwed.delete(reason)) {
+			return;
+		}
+		this.settleLease(taskId, lease);
+	}
+
+	/**
+	 * Drop EVERY obligation for a task — the terminal seam (a card being forgotten). Without it a marker could
+	 * outlive its task and tax the next disposal of the same id for the full drain window.
+	 */
+	releaseAllOwedCaptures(taskId: string): void {
+		const lease = this.placementLeases.get(taskId);
+		if (!lease || lease.capturesOwed.size === 0) {
+			return;
+		}
+		lease.capturesOwed.clear();
+		this.settleLease(taskId, lease);
+	}
+
+	/** The single observation a timed-out disposal owes: WHAT it interrupted, not merely that it waited. */
+	private observeInterruptedDisposal(taskId: string, drain: PlacementLeaseDrain): void {
+		const interrupted = [
+			drain.execs > 0 ? `${drain.execs} sandbox exec(s) still in flight` : null,
+			drain.capturesOwed.length > 0 ? `owed capture(s): ${drain.capturesOwed.join(", ")}` : null,
+		].filter((part): part is string => part !== null);
+		try {
+			recordSelfObservation({
+				signal: "runtime_error",
+				severity: "warning",
+				message: `Sandbox workspace disposal for ${taskId} waited ${drain.waitedMs}ms and proceeded anyway, interrupting ${
+					interrupted.join(" and ") || "work that did not settle"
+				}. Their results are lost; a leaked pool slot would be worse.`,
+				taskId,
+				metadata: {
+					category: "sandbox_dispose_interrupted_lease",
+					waitedMs: drain.waitedMs,
+					execsInFlight: drain.execs,
+					capturesOwed: drain.capturesOwed,
+				},
+			});
+		} catch {
+			// Telemetry must never alter the disposal — the whole point of this path is that it is TOTAL.
+		}
+	}
+
 	private async withWorkspaceLifecycle<T>(taskId: string, run: () => Promise<T>): Promise<T> {
 		// Review bounces can schedule a same-task redrive while finalization is still disposing the old workspace.
 		// Serialize the destructive prepare/dispose pair so neither removes `/workspaces/<task>` under the other's cwd.
@@ -2005,7 +2320,7 @@ export class AgentSandboxManager {
 	): Promise<AgentSandboxExecResult> {
 		const taskHome = taskHomePath(placement);
 		const taskCache = taskCachePath(placement);
-		return await this.withExecSlot(() =>
+		return await this.withPlacementExecLease(placement, () =>
 			this.runDocker(
 				[
 					"exec",
@@ -2055,7 +2370,7 @@ export class AgentSandboxManager {
 		argv: string[],
 		options?: { timeoutMs?: number },
 	): Promise<AgentSandboxExecResult> {
-		return await this.withExecSlot(() =>
+		return await this.withPlacementExecLease(placement, () =>
 			this.runDocker(
 				[
 					"exec",
@@ -2077,7 +2392,7 @@ export class AgentSandboxManager {
 		argv: string[],
 		options?: { timeoutMs?: number },
 	): Promise<AgentSandboxExecResult> {
-		return await this.withExecSlot(() =>
+		return await this.withPlacementExecLease(placement, () =>
 			this.runDocker(
 				[
 					"exec",
@@ -2232,9 +2547,32 @@ function toSandboxUnavailableError(error: unknown, image: string): AgentSandboxU
 	return new AgentSandboxUnavailableError(message, { cause: error });
 }
 
+/**
+ * P1.CAPTURERACE: the package-cache phases report an interrupted exec as `skipped`, not `error`.
+ *
+ * Live 2026-09-07: the npm-cache seed raced a disposal and its `OCI runtime exec failed: … chdir to cwd
+ * ("/workspaces/<task>") … no such file or directory` was filed as `sandbox_npm_cache_seed error seed …` — a
+ * warm-start optimisation blamed for a lifecycle bug. `skipped` is the honest classification and already exists on
+ * {@link PackageCacheSeedOutcome}; the cost of a skip is only a cold cache. Returns null when nothing was skipped.
+ */
+function skippedSeedOutcome(
+	phase: "seed" | "harvest" | "import",
+	result: AgentSandboxExecResult,
+): PackageCacheSeedOutcome | null {
+	return result.skipped ? { status: "skipped", detail: `skipped: workspace disposed during ${phase}` } : null;
+}
+
 function assertSandboxExecOk(result: AgentSandboxExecResult, operation: string): void {
 	if (result.exitCode === 0) {
 		return;
+	}
+	// P1.CAPTURERACE: still fail closed (an interrupted setup step is NOT a completed one), but name the disposal
+	// rather than the command — a prepare that lost its workspace mid-clone otherwise reads as a broken git clone.
+	if (result.skipped) {
+		throw new AgentSandboxExecutionError(
+			`Could not ${operation}: the sandbox workspace was disposed while the command was in flight.`,
+			result,
+		);
 	}
 	const output = joinDockerOutput(result);
 	throw new AgentSandboxExecutionError(`Could not ${operation}.${output ? `\n${output}` : ""}`, result);

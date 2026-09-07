@@ -1163,6 +1163,18 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		// produces that traffic (the flags_on lane merely opens the quiet listener route).
 		expectation: "exceptional",
 	},
+	{
+		category: "sandbox_dispose_interrupted_lease",
+		item: "P1.CAPTURERACE",
+		observes:
+			"a sandbox disposal that waited out its bounded drain and tore down a placement anyway, naming what it interrupted (execs still in flight, captures still owed) — the rail's BREACH record, not its operation",
+		enabledBy: null,
+		// `exceptional` and, unusually, silence here is the GOAL: the mechanism's normal outcome is that the
+		// disposal waits a few ms and the owed work settles first, which records nothing. A firing means the
+		// bound was reached and real work was destroyed — the one case that must never be silent.
+		expectation: "exceptional",
+		addedOn: Date.UTC(2026, 8, 7),
+	},
 ];
 
 /**

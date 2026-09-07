@@ -7,7 +7,11 @@ import { recordTaskRunSummary } from "../state/task-run-summary-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { isTaskPatchCaptureError, type TaskPatchCaptureError } from "../workspace/task-patch-capture-diagnostics";
 import { applyTaskPatchToResultBranch, resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
-import type { AgentSandboxManager } from "./nklein-agent-sandbox";
+import {
+	type AgentSandboxManager,
+	SANDBOX_CAPTURE_OWED_FINALIZE,
+	SANDBOX_CAPTURE_OWED_RECAPTURE,
+} from "./nklein-agent-sandbox";
 import {
 	createMessage,
 	type NKleinTaskMessage,
@@ -180,11 +184,18 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 			return;
 		}
 		deps.getSandboxState().markFinalizing(taskId);
+		// P1.CAPTURERACE: declare the obligation on the MANAGER too, synchronously, before the fire-and-forget
+		// finalization below yields. `markFinalizing` is read by exactly one disposal path (`stopTaskSession`);
+		// every other one — the restart-failure release, abort, post-decomposition completion, the redrive
+		// restore's own pre-dispose — goes straight to `disposeWorkspace` and cannot see it. The manager owns the
+		// placement, so the obligation belongs there, where no caller can bypass it.
+		manager.markCaptureOwed(taskId, SANDBOX_CAPTURE_OWED_FINALIZE);
 		// N7d: the marker is a one-capture obligation, not a permanent "never dispose" bit. Consume it when the
 		// owed capture transaction STARTS. `isFinalizing` now owns teardown safety until the transaction settles.
 		// Clearing later would race a fast reviewer that already marked the NEXT bounce while post-capture cleanup
 		// was still finishing, erasing round N+1's obligation.
 		deps.getSandboxState().clearRecaptureExpected(taskId);
+		manager.releaseOwedCapture(taskId, SANDBOX_CAPTURE_OWED_RECAPTURE);
 		const finalization = (async () => {
 			let artifactSettled = false;
 			try {
@@ -397,6 +408,10 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 				);
 			} finally {
 				deps.getSandboxState().unmarkFinalizing(taskId);
+				// P1.CAPTURERACE: the owed capture is settled the moment this transaction ends, whichever way it
+				// went. Paired with the mark above so the obligation is scoped to the transaction and can never pin
+				// a workspace; an unpaired mark would still only cost the manager's bounded drain wait.
+				manager.releaseOwedCapture(taskId, SANDBOX_CAPTURE_OWED_FINALIZE);
 			}
 		})();
 		inFlightFinalizations.add(finalization);

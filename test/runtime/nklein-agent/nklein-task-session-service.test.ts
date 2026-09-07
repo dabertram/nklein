@@ -495,6 +495,11 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 		getSandboxExecTarget: () => null,
 		// §5.AF: the skill-fragment path queries the pool memory limit for the MCP memory-fit gate — return the default.
 		getContainerMemoryLimitMb: () => 4096,
+		// P1.CAPTURERACE: the capture-obligation seam. The production calls are deliberately UNCONDITIONAL so a
+		// partial manager fails loudly instead of silently losing the protection; the fake implements it.
+		markCaptureOwed: vi.fn(),
+		releaseOwedCapture: vi.fn(),
+		releaseAllOwedCaptures: vi.fn(),
 	} as unknown as AgentSandboxManager;
 	return {
 		manager,
@@ -1691,7 +1696,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			reason: "completed",
 		});
 		await waitForSettled(() => {
-			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-stale-redrive");
+			expect(sandboxManager.disposeWorkspaceMock.mock.calls.some(([id]) => id === "task-stale-redrive")).toBe(true);
 		});
 
 		sandboxManager.disposeWorkspaceMock.mockClear();
@@ -1701,7 +1706,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		await service.sendTaskSessionInput("task-stale-redrive", "Address the review feedback");
 
 		await waitForSettled(() => {
-			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-stale-redrive");
+			expect(sandboxManager.disposeWorkspaceMock.mock.calls.some(([id]) => id === "task-stale-redrive")).toBe(true);
 			expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith({
 				taskId: "task-stale-redrive",
 				projectRepoPath: "/tmp/project",
@@ -2072,7 +2077,9 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			reason: "completed",
 		});
 		await waitForSettled(() => {
-			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-stale-restore-fail");
+			expect(sandboxManager.disposeWorkspaceMock.mock.calls.some(([id]) => id === "task-stale-restore-fail")).toBe(
+				true,
+			);
 		});
 
 		sandboxManager.disposeWorkspaceMock.mockClear();
@@ -2093,7 +2100,9 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				}),
 			);
 		});
-		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-stale-restore-fail");
+		expect(sandboxManager.disposeWorkspaceMock.mock.calls.some(([id]) => id === "task-stale-restore-fail")).toBe(
+			true,
+		);
 		expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith({
 			taskId: "task-stale-restore-fail",
 			projectRepoPath: "/tmp/project",

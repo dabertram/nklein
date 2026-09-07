@@ -27,10 +27,23 @@ function sandboxState(over: Record<string, unknown> = {}) {
 	};
 }
 
+/**
+ * A partial AgentSandboxManager stub carrying the P1.CAPTURERACE obligation seam every finalization now marks and
+ * settles. It is on the BASE stub rather than each caller's: the finalizer declares the obligation before it can
+ * know anything about the task, so a manager without it is not a manager this code can run against.
+ */
+function sandboxManager(over: Record<string, unknown> = {}) {
+	return {
+		markCaptureOwed: vi.fn(),
+		releaseOwedCapture: vi.fn(),
+		...over,
+	} as never;
+}
+
 function deps(over: Partial<SandboxReviewFinalizerDeps> = {}, ss = sandboxState()): SandboxReviewFinalizerDeps {
 	return {
 		getSandboxState: () => ss as never,
-		getAgentSandboxManager: () => ({}) as never,
+		getAgentSandboxManager: () => sandboxManager(),
 		getTaskEntry: vi.fn(() => entry()),
 		emitSummary: vi.fn(),
 		emitMessage: vi.fn(),
@@ -94,7 +107,10 @@ describe("finalizeSandboxReview early-return guards (§5.U extraction)", () => {
 		const ss = sandboxState();
 		createSandboxReviewFinalizer(
 			deps(
-				{ getAgentSandboxManager: () => ({ captureWorkspacePatch: vi.fn(() => new Promise(() => {})) }) as never },
+				{
+					getAgentSandboxManager: () =>
+						sandboxManager({ captureWorkspacePatch: vi.fn(() => new Promise(() => {})) }),
+				},
 				ss,
 			),
 		).finalizeSandboxReview("t1");
@@ -125,13 +141,13 @@ describe("finalizeSandboxReview early-return guards (§5.U extraction)", () => {
 			deps(
 				{
 					getAgentSandboxManager: () =>
-						({
+						sandboxManager({
 							captureWorkspacePatch: vi.fn(async () => {
 								throw new Error("Agent sandbox is stopping; no workspace patch can be captured.");
 							}),
 							disposeWorkspace,
 							hasWorkspace: () => false,
-						}) as never,
+						}),
 					emitSummary,
 				},
 				ss,
@@ -146,6 +162,46 @@ describe("finalizeSandboxReview early-return guards (§5.U extraction)", () => {
 		expect(emitSummary).not.toHaveBeenCalled();
 	});
 
+	it("declares the owed capture on the MANAGER synchronously, and settles it when the transaction ends (P1.CAPTURERACE)", async () => {
+		// The store's `markFinalizing` is read by ONE disposal path; every other one goes straight to
+		// `disposeWorkspace`. The obligation therefore has to reach the manager BEFORE this function yields —
+		// a mark that lands after the first await is a mark a racing disposal never sees.
+		const markCaptureOwed = vi.fn();
+		const releaseOwedCapture = vi.fn();
+		const ss = sandboxState();
+		let resolveCapture!: (patch: string) => void;
+		createSandboxReviewFinalizer(
+			deps(
+				{
+					getAgentSandboxManager: () =>
+						sandboxManager({
+							markCaptureOwed,
+							releaseOwedCapture,
+							captureWorkspacePatch: vi.fn(
+								() =>
+									new Promise<string>((resolve) => {
+										resolveCapture = resolve;
+									}),
+							),
+							disposeWorkspace: vi.fn(async () => {}),
+							hasWorkspace: () => true,
+						}),
+				},
+				ss,
+			),
+		).finalizeSandboxReview("t1");
+
+		expect(markCaptureOwed).toHaveBeenCalledWith("t1", "review_finalize");
+		// The bounce obligation from the PREVIOUS round is consumed at the same point its store marker is.
+		expect(releaseOwedCapture).toHaveBeenCalledWith("t1", "recapture_expected");
+		expect(releaseOwedCapture).not.toHaveBeenCalledWith("t1", "review_finalize");
+
+		resolveCapture("");
+		await vi.waitFor(() => {
+			expect(releaseOwedCapture).toHaveBeenCalledWith("t1", "review_finalize");
+		});
+	});
+
 	it("releases task-scoped sandbox MCP resources before disposing a parked workspace", async () => {
 		const captureWorkspacePatch = vi.fn(async () => "");
 		const disposeWorkspace = vi.fn(async () => {});
@@ -153,11 +209,11 @@ describe("finalizeSandboxReview early-return guards (§5.U extraction)", () => {
 		createSandboxReviewFinalizer(
 			deps({
 				getAgentSandboxManager: () =>
-					({
+					sandboxManager({
 						captureWorkspacePatch,
 						disposeWorkspace,
 						hasWorkspace: () => true,
-					}) as never,
+					}),
 				releaseSandboxMcpResources,
 			}),
 		).finalizeSandboxReview("t1");

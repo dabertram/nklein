@@ -120,6 +120,7 @@ import {
 	type AgentSandboxShellTarget,
 	createAgentSandboxToolExecutors,
 	resolveNKleinAgentPerceivedCwd,
+	SANDBOX_CAPTURE_OWED_RECAPTURE,
 } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
 import { forgetBaselineProbe } from "./nklein-baseline-probe-registry";
@@ -3255,12 +3256,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// sandbox finalizer capable of consuming the obligation.
 		if (this.sandboxState.hasSandbox(taskId)) {
 			this.sandboxState.markRecaptureExpected(taskId, reason);
+			// P1.CAPTURERACE: mirror the obligation onto the manager. The store's marker is consulted by
+			// `stopTaskSession` alone; the manager's is consulted by EVERY disposal path, which is the difference
+			// between a guard and a rail.
+			this.agentSandboxManager?.markCaptureOwed(taskId, SANDBOX_CAPTURE_OWED_RECAPTURE);
 		}
 	}
 
 	/** Clear the recapture marker once the owed capture has settled. */
 	clearSandboxRecaptureExpected(taskId: string): void {
 		this.sandboxState.clearRecaptureExpected(taskId);
+		this.agentSandboxManager?.releaseOwedCapture(taskId, SANDBOX_CAPTURE_OWED_RECAPTURE);
 	}
 
 	async abortTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null> {
@@ -3407,7 +3413,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			}
 			await this.sessionRuntime.releaseTaskMcpTools(taskId).catch(() => undefined);
 			if (hasPlacement) {
-				await manager.disposeWorkspace(taskId).catch(() => null);
+				// P1.CAPTURERACE: `isWorkspacePrepared` just proved the Docker cwd is GONE, so this reclaims a stale
+				// placement rather than taking a live workspace away. An owed recapture cannot be served by a
+				// workspace that no longer exists, so do not stall the re-drive waiting for one (in-flight execs are
+				// still awaited); the fresh prepare below is what the owed capture will actually run against.
+				await manager.disposeWorkspace(taskId, { workspaceAlreadyGone: true }).catch(() => null);
 			}
 			const resultCommit = await resolveTaskResultBranchCommit({ repoPath, taskId }).catch(() => null);
 			await manager.prepareWorkspace({
@@ -4637,6 +4647,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private forgetSandboxTask(taskId: string): void {
 		this.sandboxState.deleteSandbox(taskId);
 		this.sandboxState.unmarkFinalizing(taskId);
+		// P1.CAPTURERACE: the store's markers are cleared here so they cannot outlive the task; the manager-side
+		// obligations are the same kind of state and must be dropped at the same seam.
+		this.agentSandboxManager?.releaseAllOwedCaptures(taskId);
 		this.focusChainStore.delete(taskId);
 	}
 

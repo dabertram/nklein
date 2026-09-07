@@ -2095,6 +2095,38 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   (`chat-local-llm-adapter.ts` `proactive.toolCalls[0]`, untouched — its force-advance steer offers one tool by
   design), and whether a keyword-activated `structuredOutput` should route PLANNER turns off the SDK-native wire at
   all (the direct path also flattens history into `[tool_call id=…]` pseudo-text, the 2026-08-30 hazard).
+- [x] **P1.CAPTURERACE — a sandbox workspace was disposed while a capture or an exec still needed it.**
+  Live 2026-09-07 (simulated-flow replay, a redecompose card): `sandbox_workspace_disposed` 16:31:29 →
+  `agent_sandbox_result_patch … workspace_disposed_before_capture` 16:31:30 → `turn_end_recovery_decision
+  state=failed reason=hook hook=sandbox_patch_capture_failed recovery=none`; one card ended the whole harness run
+  as `failed`. Same class, earlier run: `sandbox_npm_cache_seed error seed … OCI runtime exec failed: … chdir to
+  cwd ("/workspaces/<task>") … no such file or directory` then `sandbox_toolchain_prime failed … No Docker sandbox
+  workspace is prepared for task <task>`. ROOT CAUSE — two holes under one lock. `withWorkspaceLifecycle`
+  serializes `prepareWorkspace`/`captureWorkspacePatch`/`disposeWorkspace` by ARRIVAL ORDER ONLY, with no notion of
+  an owed capture, so a disposal that arrives first wins it legitimately and the capture behind it finds no
+  placement; and the "don't dispose before capture" rule lived in exactly ONE caller
+  (`stopTaskSession`'s `finalizerOwnsSandboxTeardown`, over the caller-side `TaskSandboxStateStore`), which the
+  restart-failure release, `abortTaskSession`, `completeTaskSessionAfterDecomposition`, `clearTaskSessions` and the
+  redrive restore's own pre-dispose all bypass. Separately `exec`/`runTool`/`seedTaskPackageCache`/
+  `harvestTaskPackageCache`/`listSandboxRootFileNames` never enter the lock at all — they take a placement and run,
+  so a concurrent disposal deletes `/workspaces/<task>` under a live `docker exec` and `releaseSlot` hands the
+  container to the next queued task while it is still running. SHIPPED: a per-placement LEASE inside
+  `AgentSandboxManager` — an exec refcount taken at the one chokepoint every task exec already funnels through
+  (`withPlacementExecLease`, wrapping `withExecSlot` for `execAsTaskUser`/`execAsRoot`/`execAsUid`) plus named,
+  idempotent capture obligations (`markCaptureOwed`/`releaseOwedCapture`/`releaseAllOwedCaptures`,
+  `SANDBOX_CAPTURE_OWED_FINALIZE` marked synchronously beside `markFinalizing`, `SANDBOX_CAPTURE_OWED_RECAPTURE`
+  mirroring the N7d bounce marker). `disposeWorkspace` drains the lease BEFORE taking the lifecycle lock (taking it
+  first would deadlock the capture it is waiting for), re-checking in a loop so a fresh exec in the gap is waited
+  for too. BOUNDED AND TOTAL: `NKLEIN_SANDBOX_DISPOSE_LEASE_WAIT_MS` (default 30s, `=1` disables) caps the wait and
+  a timeout disposes ANYWAY with exactly one `sandbox_dispose_interrupted_lease` observation naming what it broke —
+  a leaked slot freezes the whole run, a lost command result does not. `TaskPlacement.generation` lets an exec
+  whose placement went away mid-flight return `skipped` instead of an error: the cache seed reports `skipped`, a
+  tool call raises the typed `AgentSandboxUnavailableError` (and skips the syntax-guard observer),
+  `assertSandboxExecOk` names the disposal. One opt-out, `disposeWorkspace(id, { workspaceAlreadyGone: true })`, for
+  the redrive restore alone — it has just PROVED the cwd is gone, so no owed capture can be served by waiting (it
+  still waits for in-flight execs). Tests: `nklein-agent-sandbox-dispose-lease.test.ts` (11, five of which fail
+  without the mechanism, including the live `chdir to cwd` shape) + the finalizer's obligation pairing.
+
 - [x] **P1.SIMFLOWDSCHINN — the Dschinn HITL replay set drains through the harness. PROVEN 2026-09-07 17:10.**
   `scripts/generate-dschinn-scenario-set.mts` → `packages/llm-simulator/scenarios/36_dark_factory_dschinn_universal_agent/`
   (97 cards: spine S01–S51 + charter + slice 2 S52–S96; 197 tracks; `sources.json` names the drain answer/delivery
