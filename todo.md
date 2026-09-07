@@ -1989,6 +1989,39 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   4-minute budget, `npm ci` when a lockfile exists) right after `prepareWorkspace` for non-plan-mode starts;
   default-on (`NKLEIN_WORKER_TOOLCHAIN_PRIME=0` disables), failure non-fatal + one observation. Validated live: S04
   primed in 76 s, first `npm test` green with zero install turns.
+- [x] **P0.PARKEDLOOP — a parked review was re-run on every re-emitted `awaiting_review` summary.**
+  v31 2026-09-07: s09a1 was parked ("identical loop") and re-admitted 2,465 times overnight — each cycle cancelled
+  turns, probed escalation workers and re-wrote a 2.6 MB board. SHIPPED (f390b42cb): the runner holds a card whose
+  persisted review is `parked` on the same work fingerprint (durable across restarts); the finalizer holds while the
+  worker turn generation has not moved since the park (`shouldHoldParkedFinalize`); un-park or a new turn re-admits.
+  Also P1.REVIEWHISTORYCAP (da1d5584a): history capped to first 5 + last 55 records at persist; the round counter is
+  the persisted `round`, never the history length.
+- [x] **P0.LOCKFILECAPTURE — install-generated lockfile churn was captured as the delivery.**
+  Three v31 result branches were a 1,530-line `package-lock.json` and nothing else (main has none); the test-driven
+  gate bounced it and any two such branches conflict on merge. SHIPPED (f390b42cb): after staging,
+  `captureWorkspacePatch` restores/unstages every lockfile whose owning manifest (same directory or below, so
+  workspaces keep their root lockfile) is untouched in the same change set; `NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES=1`
+  keeps it. Pure core: `src/core/generated-lockfile-capture.ts`.
+- [x] **P0.SANDBOXLEAK — a delivery that couples the repository to the sandbox image passed review.**
+  v31 s03-prng-tree (registry-less sandbox): `vitest_node_modules` → `/opt/nklein/node_modules` symlink, a
+  `_run_test.js` runner, package scripts bound to it and to `/usr/local/bin/tsc`, an npm error log — approved, then
+  exit 127 on every host without the symlink. SHIPPED (da1d5584a): `decideSandboxLeak(diff)` bounces symlinks into
+  the image, sandbox-internal paths, committed install logs and manifest scripts bound to absolute binaries on the
+  preReviewVerdict seam with a brief naming every leak (`NKLEIN_SANDBOX_LEAK_GATE=0` disables).
+- [x] **P0.LAZYBASELINE — inherited red acceptance was blamed on the worker after every restart.**
+  The pre-existing waiver needs a base-tree sample; the per-start probe is opt-in and in-memory, so on a red main
+  every card bounced then parked ("worker made no changes", 6–22 rounds). SHIPPED (bibo-series commit "lazy
+  baseline probe"): a red acceptance with no baseline on record samples the base tree once in the review runner and
+  shares the verdict with the delivery-stage waiver (`NKLEIN_LAZY_BASELINE_PROBE=0` disables).
+- [x] **P0.HOSTMAPPROXY — the loaded-host allowlist excluded the allowed host behind the tee proxy.**
+  The start path's residency listing is empty unless the card's endpoint IS the local daemon; every v31 card uses
+  :8081, so the fail-closed map excluded m4mini's worker as "local" on every start and all work serialized on
+  legion. SHIPPED: the allowlist map reads `lms ps` regardless of endpoint; an empty cached snapshot is retried
+  uncached once.
+- [x] **P0.TRASHSTOP — a trashed card's live session held a single-slot host.**
+  A redecompose card trashed via a state save kept its architect session on legion; s14 and the custodian waited on
+  each other for an hour and explicit starts were refused. SHIPPED: the board-liveness watchdog stops any active
+  session whose card sits only in trash (`trashed_card_session_stopped`).
 - [x] **P0.EMPTYFINALREDRIVE — a delivered, green worker turn that ended in prose was re-driven as `no_tool_call`.**
   `planSwarmPromptVariation` anchored on the first tool NAME in the card text ("prefer the edit_file tool …") and
   re-drove a complete delivery indefinitely (dschinn S01, hand-driven 2026-09-07). SHIPPED: if any assistant turn in

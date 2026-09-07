@@ -402,3 +402,66 @@ test-driven gate). Everything else was delivered by the runtime itself.
 
 **Throughput:** 54 cards in about 4.5 hours wall-clock including every harness investigation and fix; the last
 20 cards took under 70 minutes.
+
+## v31 factory follow-up (2026-09-07, 09:50–10:40): why the real-model factory stalled overnight
+
+The hand-drive finished at 04:20; the v31 factory (legion5pro Q6 + m4mini Q2_K_XL, m5max idle for nklein) ran the
+same dschinn plan with real local models and stalled by morning: 8 cards in Review, 86 in Planning, one card
+re-reviewed 2,466 times. Every cause below is now a mechanism in the product (commits f390b42cb, da1d5584a,
+ff5e2ec-series on `feat/nklein-upcoming`); the operator steps taken to unwedge the board are listed at the end.
+
+41. **A parked review was re-run on every re-emitted summary.** s09a1 was parked ("identical loop") and then
+    re-admitted 2,465 times: each `awaiting_review` summary (and the finalizer's own queued rerun) re-ran acceptance
+    reuse, the test-driven gate and the park — cancelling turns, probing escalation workers and re-writing a 2.6 MB
+    board every ~4 s all night. Shipped **P0.PARKEDLOOP**: the runner holds a card whose persisted review is parked
+    on the same work fingerprint (durable across restarts), and the finalizer holds while the worker turn generation
+    has not moved since the park; an un-park or a new turn re-admits it. History is capped at persist
+    (P1.REVIEWHISTORYCAP); the round counter no longer derives from the history length.
+
+42. **`npm install` output was reviewed as the delivery.** Three result branches (s05a, s09a, s09a1) contained only a
+    1,530-line `package-lock.json` generated on a repo whose main has none — the test-driven gate bounced it, merges
+    of any two conflicted on it. Shipped **P0.LOCKFILECAPTURE**: `captureWorkspacePatch` restores (or unstages, when
+    the base never had it) every staged lockfile whose owning manifest — same directory or any directory below it
+    — is untouched in the same change set; `NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES=1` keeps the churn.
+
+43. **A weak reviewer approved the sandbox leaking into the repository.** While the sandbox had no registry access
+    (the egress 403 of 2026-09-06), s03-prng-tree "fixed" the tests with a `vitest_node_modules` symlink into
+    `/opt/nklein`, a `_run_test.js` runner, package scripts bound to that symlink and to `/usr/local/bin/tsc`, an
+    npm error log and a `/repos/<hash>` repository url — approved, merged, and inherited by every later card: the
+    plan integration gate exited 127 off the sandbox and main's typecheck went red. Shipped **P0.SANDBOXLEAK**: a
+    deterministic pre-review gate bounces symlinks into the image, sandbox-internal paths, committed install logs
+    and manifest scripts bound to absolute binaries, with a brief naming every leak. The polluted main was repaired
+    by hand (operator commit a1d2763 in the drain repo: scripts back to `vitest run`/`tsc --noEmit`, junk files
+    removed, a lockfile committed, two type errors and a wrong property-test floor fixed, an empty test file and a
+    debug copy of a test deleted) — host-verified green, then s13's real work merged on top (81 tests).
+
+44. **Inherited red acceptance was blamed on the worker after every restart.** The pre-existing waiver needs a
+    base-tree sample, but the baseline probe was opt-in per start and in-memory, so on a red main every card got
+    "fix the acceptance failure" bounces and then "worker made no changes" parks (s13, s05, s44a: 6–22 rounds).
+    Shipped **P0.LAZYBASELINE**: a red acceptance with no baseline on record samples the base tree once, in the
+    review runner, and shares the verdict with the delivery-stage waiver.
+
+45. **The loaded-host allowlist excluded the allowed host when the card talks through a proxy.** Every v31 card uses
+    the tee proxy on :8081; the start path's residency listing (`lms ps` applies only when the endpoint IS the local
+    daemon) was therefore empty, and the fail-closed host map excluded m4mini's worker as "local" on every start —
+    all work funnelled onto legion's single slot while m4mini idled. Fixed: the allowlist map reads `lms ps`
+    regardless of the card's endpoint, and an empty cached snapshot is retried uncached once.
+
+46. **A trashed card's session held the only slot on a host.** Moving a redecompose card to trash through a
+    whole-state save left its architect session running on legion; s14 and the custodian then waited on each other
+    for an hour and every explicit start was refused ("another !Klein task on this host must finish first").
+    Shipped **P0.TRASHSTOP**: the board-liveness watchdog stops any active session whose card sits only in trash.
+
+47. **Operator recipe for a wedged real-model board** (what the mechanisms above did not yet cover): explicit
+    starts of operator-moved cards must pass `queueOnEndpointBusy: true` or they are refused outright on a busy
+    host; operator lane moves make durable jobs "not revivable" (#38) and a restart re-parks `ready` cards into
+    Planning (#27) — so move the card, restart, and let the controller lease it, or start it explicitly with the
+    queue flag. The reviewer's "no verdict in 3 sessions" parks all trace back to LM-Link flaps ("Invalid model
+    identifier dirk-qwen3.8-27b" while legion5pro was off the link); the pool-loss classifier and the
+    model-unavailable recovery already own that failure.
+
+**Board after the repair (10:40):** s13 completed by the runtime's crash-recovery path the moment its merged commit
+was found on main; s09a (an obsolete "make npm work offline" workaround card and its three children) trashed and
+completed as void so s09b/s09c flow; redecompose-s03-prng-tree completed (its plan gate failure was the toolchain
+leak); s05a and s44a re-driven from the repaired main; s15/s22/s44b/s05 left in Review for the lazy-baseline-aware
+review. Both remote hosts are processing; flash-next stays idle.
