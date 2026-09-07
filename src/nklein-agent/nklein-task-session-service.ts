@@ -3926,6 +3926,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return cloneSummary(entry.summary);
 	}
 
+	/** P0.DSTALL: a tool call is in flight for the task (the tool timeout's own bracket) — see the interface note. */
+	isToolActive(taskId: string): boolean {
+		return this.activeToolTaskIds.has(taskId);
+	}
+
 	getSummary(taskId: string): RuntimeTaskSessionSummary | null {
 		return this.messageRepository.getSummary(taskId);
 	}

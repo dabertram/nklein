@@ -258,6 +258,17 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	{
+		// ── P0.DSTALL close-out: the watchdog's post-first-token liveness sweep (2026-09-07) ──
+		category: "silent_running_session_interrupted",
+		item: "P0.DSTALL",
+		observes:
+			"the board-liveness watchdog interrupted a working-lane card whose summary read `running` while no model turn was open — no heartbeat/hook/output/token for the trouble threshold and the model idle per lms ps — so the terminal machinery (one fresh restart, then the operator) owns a card no other rung could see",
+		enabledBy: null,
+		// `exceptional`: a healthy drain never produces a sessionless `running` label; every firing is a zombie caught.
+		expectation: "exceptional",
+		addedOn: Date.UTC(2026, 8, 7),
+	},
+	{
 		// ── P0.DSTALL layer 2: loud zombie attempt-row writer (2026-08-22) ──
 		category: "zombie_terminal_attempt",
 		item: "P0.DSTALL",

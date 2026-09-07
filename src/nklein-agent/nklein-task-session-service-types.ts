@@ -172,6 +172,13 @@ export interface NKleinTaskSessionService {
 		taskId: string,
 		prompt: string,
 	) => Promise<{ rewound: boolean; boundaryIndex: number | null; refusalKind: string | null }>;
+	/**
+	 * P0.DSTALL (2026-09-07): whether a tool call is executing for this task right now — the service's own
+	 * `tool_call` → `tool_result` bracket, the fact its tool timeout is keyed on. The board-liveness watchdog's
+	 * silent-running sweep exempts such sessions: a long sandbox command legitimately emits no session event for
+	 * its whole duration, and the tool timeout owns it. Optional so existing fakes stay valid (absent ⇒ no exemption).
+	 */
+	isToolActive?: (taskId: string) => boolean;
 	onSummary(listener: (summary: RuntimeTaskSessionSummary) => void): () => void;
 	/** F3.2 failover leg: stash the router's ranked candidate model keys (fitness-blended, best first) for a task. */
 	setTaskFailoverCandidates(taskId: string, rankedCandidates: readonly (string | ModelFailoverCandidate)[]): void;

@@ -149,6 +149,7 @@ import {
 	listZeroTokenWedgedSessions,
 } from "../core/session-turn-liveness";
 import { assessShortcutBehaviors } from "../core/shortcut-behavior-monitor";
+import { DEFAULT_SILENT_RUNNING_RECONCILE_MS, listSilentRunningSessions } from "../core/silent-running-sessions";
 import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-target";
 import { decideSpeculativeMirror } from "../core/speculative-mirror";
 import { reconcileOrphanedInProgressCards } from "../core/startup-orphan-reconcile";
@@ -773,6 +774,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// accidentally kill legitimate low-power prefills or overlap watchdog rescue work.
 	const BOARD_LIVENESS_TICK_MS = readTestTimingOverride("NKLEIN_TEST_BOARD_LIVENESS_TICK_MS", 30_000);
 	const ZERO_TOKEN_WEDGE_MS = readTestTimingOverride("NKLEIN_TEST_ZERO_TOKEN_WEDGE_MS", DEFAULT_ZERO_TOKEN_WEDGE_MS);
+	// P0.DSTALL: the post-first-token silent-running bound (default = the trouble monitor's 20-minute silent threshold).
+	const SILENT_RUNNING_RECONCILE_MS = readTestTimingOverride(
+		"NKLEIN_TEST_SILENT_RUNNING_RECONCILE_MS",
+		DEFAULT_SILENT_RUNNING_RECONCILE_MS,
+	);
 	// Snapshot loading is read-only and should take milliseconds. Ten seconds leaves ample room for a busy/low-power
 	// host while bounding a poisoned index/gate/filesystem path well before the following 30-second tick.
 	const BOARD_LIVENESS_SNAPSHOT_TIMEOUT_MS = 10_000;
@@ -791,6 +797,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const boardLivenessSelfHealSignatureByWorkspaceId = new Map<string, string>();
 	// P0.BUSYWEDGE: one "waiting on a busy model" line per (workspace, task, session start), not one per tick.
 	const busyWedgeNotifiedKeys = new Set<string>();
+	// P0.DSTALL: one "waiting on a busy model" line per (workspace, task, session start) for the silent-running sweep,
+	// plus per-card interrupt strikes so the observation names a repeat offender.
+	const silentRunningBusyNotifiedKeys = new Set<string>();
+	const silentRunningInterruptCountByTaskKey = new Map<string, number>();
 	// §5.AW opportunistic best-of-N (user decision 2026-07-02): the per-workspace mirror tick + its budgets.
 	// The tick mirrors the hardest RUNNING card onto a lineage-diverse idle model as a `::spec` session; the
 	// A/B arbitration at the review seam picks the winner. Real work always outranks speculation (queued or
@@ -874,6 +884,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const MODEL_TURN_ADMISSION_POLL_MS = 3_000;
 	const MODEL_TURN_ADMISSION_WARN_MS = 30_000;
 	const MODEL_TURN_LMS_PS_TIMEOUT_MS = 15_000;
+	// P0.BUSYWEDGE (v31 2026-09-07): a model that `lms ps` reports processing/generating is slow, not dead. Shared by
+	// the zero-token wedge sweep and the silent-running sweep so "busy" has one definition. Unreachable lms ⇒ not busy.
+	const isModelBusyPerLmsPs = async (modelId: string): Promise<boolean> =>
+		fetchLmsPsModelsCached(createDefaultLmsRunner(MODEL_TURN_LMS_PS_TIMEOUT_MS))
+			.then((models) =>
+				models.some(
+					(model) => model.identifier === modelId && /processing|generating/iu.test(String(model.status ?? "")),
+				),
+			)
+			.catch(() => false);
 	const activeModelTurnsByWorkspaceId = new Map<string, NKleinEndpointSessionSnapshot[]>();
 	const modelTurnAdmissionTailByWorkspaceId = new Map<string, Promise<void>>();
 	const modelTurnAdmissionGateByWorkspaceId = new Map<string, NKleinModelTurnAdmissionGate>();
@@ -4909,18 +4929,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									// was marked listed_but_dead three times to the strike cap). When lms ps shows any
 									// instance of this identifier PROCESSING/GENERATING, the endpoint is provably alive
 									// and merely slow: leave the wedge to the legacy stop, mark nothing.
-									const busyInstances = await fetchLmsPsModelsCached(
-										createDefaultLmsRunner(MODEL_TURN_LMS_PS_TIMEOUT_MS),
-									)
-										.then((models) =>
-											models.filter(
-												(model) =>
-													model.identifier === wedgedModelId &&
-													/processing|generating/iu.test(String(model.status ?? "")),
-											),
-										)
-										.catch(() => [] as LmsPsModel[]);
-									if (busyInstances.length > 0) {
+									if (await isModelBusyPerLmsPs(wedgedModelId)) {
 										modelBusy = true;
 										listedState = "unknown";
 									}
@@ -5089,6 +5098,74 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							// while the redrive was still resolving.
 							await autoStartTaskIds(scope, [wedge.taskId], { bypassDurableGuard: true });
 							handledThisTick.add(wedge.taskId);
+						}
+						// P0.DSTALL close-out (2026-09-07) — the POST-first-token liveness sweep. The wedge above owns the
+						// pre-first-token window and leaves token history "to the heartbeat machinery" — but that machinery
+						// (stream/tool/conversation timeouts, the dead-stream probe) is turn-scoped and cleared at turn end,
+						// the trouble monitor's `silent` verdict below is record-only, and the marooned reconcile trusts the
+						// `running` label AND never looks at Planning, where a plan-mode card parks. Run-3 2026-08-20: the
+						// architect's turn ended, a stray tool event put the label back to `running`, and the card sat
+						// sessionless for 20+ minutes until the rig killed it. A working-lane card whose `running` summary
+						// has shown no liveness evidence for the trouble threshold is interrupted — a BUSY model per lms ps
+						// waits instead (hard-capped, P0.BUSYWEDGE), a tool in flight is the tool timeout's — and the
+						// interrupted summary drives the normal terminal machinery (one fresh restart, then the operator).
+						// ONE observation per reconciliation; the strike count names a repeat offender.
+						const silentSummaries = trackedService.listSummaries();
+						const toolActiveTaskIds = new Set(
+							silentSummaries
+								.filter((summary) => trackedService.isToolActive?.(summary.taskId) === true)
+								.map((summary) => summary.taskId),
+						);
+						for (const silent of listSilentRunningSessions(board, silentSummaries, Date.now(), {
+							silentAfterMs: SILENT_RUNNING_RECONCILE_MS,
+							toolActiveTaskIds,
+						})) {
+							if (handledThisTick.has(silent.taskId)) {
+								continue;
+							}
+							const silentSummary = trackedService.getSummary(silent.taskId);
+							const silentModelId = silentSummary?.modelId?.trim() || null;
+							const silentAction = decideZeroTokenWedgeAction({
+								ageMs: silent.silentMs,
+								wedgeAfterMs: SILENT_RUNNING_RECONCILE_MS,
+								modelBusy: silentModelId ? await isModelBusyPerLmsPs(silentModelId) : false,
+							});
+							const silentBusyKey = `${scope.workspaceId}:${silent.taskId}:${silentSummary?.startedAt ?? 0}`;
+							if (silentAction === "wait_busy") {
+								if (!silentRunningBusyNotifiedKeys.has(silentBusyKey)) {
+									silentRunningBusyNotifiedKeys.add(silentBusyKey);
+									deps.warn(
+										`Silent "running" ${silent.columnId} card ${silent.taskId}: ${silentModelId} is BUSY per lms ps — slow, not dead; waiting instead of interrupting (hard cap ${Math.round((SILENT_RUNNING_RECONCILE_MS * BUSY_WEDGE_HARD_CAP_MULTIPLIER) / 60_000)} min).`,
+									);
+								}
+								continue;
+							}
+							silentRunningBusyNotifiedKeys.delete(silentBusyKey);
+							const silentStrikeKey = `${scope.workspaceId}:${silent.taskId}`;
+							const silentStrike = (silentRunningInterruptCountByTaskKey.get(silentStrikeKey) ?? 0) + 1;
+							silentRunningInterruptCountByTaskKey.set(silentStrikeKey, silentStrike);
+							deps.warn(
+								`Board-liveness watchdog: interrupting silent "running" ${silent.columnId} card ${silent.taskId} (strike ${silentStrike}) — ${silent.reason}.`,
+							);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Board-liveness watchdog reconciled a silent "running" ${silent.columnId} card: ${silent.taskId} interrupted after ${Math.round(silent.silentMs / 60_000)} min without liveness evidence (strike ${silentStrike}) — the terminal machinery owns it now.`,
+								taskId: silent.taskId,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "silent_running_session_interrupted",
+									columnId: silent.columnId,
+									silentMs: silent.silentMs,
+									ageMs: silent.ageMs,
+									strike: silentStrike,
+									modelId: silentModelId,
+									heartbeatStatus: silentSummary?.heartbeatStatus ?? null,
+									lastActivity: silentSummary?.latestHookActivity?.hookEventName ?? null,
+								},
+							});
+							await trackedService.stopTaskSession(silent.taskId).catch(() => null);
+							handledThisTick.add(silent.taskId);
 						}
 						// F2.35 main-branch custodian (David 2026-09-04: "some role should keep reviewing main/merged
 						// work"): fire-and-forget sweep — reviews the integration branch's new merge range on a strong
