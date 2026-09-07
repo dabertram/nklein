@@ -1192,6 +1192,8 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"sandbox_leak_gate",
 	// P0.LAZYBASELINE (2026-09-07): base-tree acceptance sampled on demand when a red acceptance has no baseline.
 	"baseline_probe_lazy",
+	// P1.STALEBASE (2026-09-07): a result captured on an older base head was re-captured onto the current one (or could not be).
+	"result_base_refresh",
 	// P0.TRASHSTOP (2026-09-07): the watchdog stopped a live session whose card sits only in trash.
 	"trashed_card_session_stopped",
 	// P0.BUSYWEDGE (2026-09-07): a token-less session was left running because its model is busy per lms ps.

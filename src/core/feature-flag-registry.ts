@@ -207,6 +207,11 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		mode: "enforcing",
 		gate: "nklein-agent-sandbox.ts (P0.LOCKFILECAPTURE — keeps install-generated lockfile churn in the patch)",
 	},
+	{
+		flag: "NKLEIN_RESULT_BASE_REFRESH",
+		mode: "enforcing",
+		gate: "runtime-server.ts (P1.STALEBASE — a result captured on an older base head is re-captured onto the current one before review)",
+	},
 	{ flag: "NKLEIN_FOCUS_CHAIN_NUDGE", mode: "enforcing", gate: "chat-agent-turn.ts (injects a nudge)" },
 	{
 		flag: "NKLEIN_FLEET_AWARE_DECOMPOSE",
@@ -379,6 +384,11 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 		flag: "NKLEIN_LAZY_BASELINE_PROBE",
 		kind: "permanent",
 		reason: "default ON; `=0` is the opt-out — the lane already samples the base tree on a red acceptance",
+	},
+	{
+		flag: "NKLEIN_RESULT_BASE_REFRESH",
+		kind: "permanent",
+		reason: "default ON; `=0` is the opt-out — the lane already refreshes stale results onto the current base",
 	},
 	{
 		flag: "NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES",

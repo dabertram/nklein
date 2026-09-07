@@ -249,6 +249,90 @@ async function preserveFailedTaskPatch(taskId: string, patch: string): Promise<s
 	}
 }
 
+export type TaskResultRefreshOutcome =
+	| { status: "current"; commit: string }
+	| { status: "refreshed"; previousCommit: string; commit: string; baseCommit: string }
+	| { status: "empty"; commit: string }
+	| { status: "conflict"; commit: string; message: string }
+	| { status: "error"; commit: string; message: string };
+
+/**
+ * P1.STALEBASE (HITL slice-2 drive 2026-09-07, s63/s77): re-capture a task result whose commit sits on an OLDER base
+ * head onto the CURRENT base head. Every gate downstream judges the result commit's own tree and its first-parent
+ * diff: the delivery gate runs acceptance + the repo verify check on that tree, and the work-package boundary check
+ * diffs `commit^..commit`. A card that started before an (undeclared) dependency merged therefore fails the gate
+ * forever — its tree lacks a module main has had for an hour — while `main...result` is perfectly clean. Replaying
+ * the result's first-parent patch onto the base head keeps both invariants (single parent = base head; first-parent
+ * diff = the card's own change) and lets the gate see what will actually land. A patch that no longer applies is a
+ * `conflict`: the branch is left untouched for the merge machinery, which owns conflict resolution.
+ */
+export async function refreshTaskResultOntoBase(input: {
+	repoPath: string;
+	taskId: string;
+	baseRef: string;
+	resultCommit: string;
+	runGit?: RunGit;
+}): Promise<TaskResultRefreshOutcome> {
+	const runGit = input.runGit ?? defaultRunGit;
+	const fail = (message: string): TaskResultRefreshOutcome => ({
+		status: "error",
+		commit: input.resultCommit,
+		message,
+	});
+	const base = await runGit(input.repoPath, ["rev-parse", "--verify", `${input.baseRef}^{commit}`]);
+	if (!base.ok || !base.stdout.trim()) {
+		return fail(base.error ?? `Could not resolve base ref "${input.baseRef}".`);
+	}
+	const baseCommit = base.stdout.trim();
+	const parent = await runGit(input.repoPath, ["rev-parse", "--verify", `${input.resultCommit}^1`]);
+	if (!parent.ok || !parent.stdout.trim()) {
+		return fail(parent.error ?? `Result commit ${input.resultCommit.slice(0, 12)} has no parent to diff against.`);
+	}
+	const parentCommit = parent.stdout.trim();
+	if (parentCommit === baseCommit) {
+		return { status: "current", commit: input.resultCommit };
+	}
+	// A parent that is not behind the base head was captured on another line entirely (or the base was rewound):
+	// not a stale capture — leave it alone.
+	const behind = await runGit(input.repoPath, ["merge-base", "--is-ancestor", parentCommit, baseCommit]);
+	if (!behind.ok) {
+		return { status: "current", commit: input.resultCommit };
+	}
+	// Byte-faithful: the patch's trailing blank context line must survive (see applyTaskPatchToResultBranch).
+	const patch = await runGit(
+		input.repoPath,
+		["diff", "--binary", "--no-color", "--no-ext-diff", parentCommit, input.resultCommit],
+		{ trimStdout: false },
+	);
+	if (!patch.ok) {
+		return fail(patch.error ?? "Could not read the result commit's patch.");
+	}
+	if (!patch.stdout.trim()) {
+		return { status: "empty", commit: input.resultCommit };
+	}
+	const subject = await runGit(input.repoPath, ["log", "-1", "--format=%s", input.resultCommit]);
+	const message = `${subject.ok && subject.stdout.trim() ? subject.stdout.trim() : `Apply !Klein task result for ${input.taskId}`} (re-captured on base ${baseCommit.slice(0, 12)})`;
+	try {
+		const branch = await applyTaskPatchToResultBranch({
+			repoPath: input.repoPath,
+			taskId: input.taskId,
+			baseRef: baseCommit,
+			patch: patch.stdout,
+			message,
+			runGit,
+		});
+		if (!branch) {
+			return { status: "empty", commit: input.resultCommit };
+		}
+		return { status: "refreshed", previousCommit: input.resultCommit, commit: branch.headCommit, baseCommit };
+	} catch (error) {
+		const detail = error instanceof Error ? error.message : String(error);
+		return error instanceof TaskPatchCaptureError
+			? { status: "conflict", commit: input.resultCommit, message: detail }
+			: fail(detail);
+	}
+}
+
 export async function applyTaskPatchToResultBranch(
 	input: ApplyTaskPatchToResultBranchInput,
 ): Promise<TaskResultBranch | null> {

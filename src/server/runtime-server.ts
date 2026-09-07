@@ -188,6 +188,7 @@ import {
 	snapshotFleetRoutingCandidates,
 } from "../nklein-agent/decomposition/fleet-change-reshard";
 import { evalDifficultyToFitnessTier, type ModelEvalChatChoice, runModelEval } from "../nklein-agent/model-eval-runner";
+import { forgetAcceptanceEvidence } from "../nklein-agent/nklein-acceptance-evidence-registry";
 import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
 import { configureNKleinAiSdkWarnings } from "../nklein-agent/nklein-ai-sdk-warnings";
 import { contextFloorRemedyHint, isContextWindowPolicyMessage } from "../nklein-agent/nklein-context-window-policy";
@@ -285,6 +286,7 @@ import {
 	deleteTaskResultBranch,
 	getTaskResultBranchDiff,
 	pinTaskResultEvidenceCommit,
+	refreshTaskResultOntoBase,
 	resolveTaskResultBranchCommit,
 } from "../workspace/task-result-branches";
 import { mergeTaskWorktreesInDependencyOrder, stageTaskResultUncommitted } from "../workspace/task-worktree-auto-merge";
@@ -2542,13 +2544,71 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						);
 						return;
 					}
-					const admittedPrimaryCommit =
+					let admittedPrimaryCommit =
 						gatedDelivery.result.status === "result_branch" ? gatedDelivery.result.resultCommit : null;
 					// Completed-without-merge investigation (2026-08-18): the admitted artifact status decides whether the
 					// merge block runs at all, and its absence from the log made the field failure unattributable.
 					deps.warn(
 						`Delivery admission for ${taskId}: sandbox result ${gatedDelivery.result.status}${admittedPrimaryCommit ? ` (commit ${admittedPrimaryCommit.slice(0, 12)})` : ""}.`,
 					);
+					// P1.STALEBASE (HITL slice-2 drive 2026-09-07, s63/s77): every gate below judges the result commit's OWN
+					// tree (acceptance + repo verify) and its first-parent diff (boundary check). A result captured before an
+					// undeclared dependency merged fails that gate forever — its tree lacks a module main has had for an
+					// hour — although `main...result` is clean. Re-capture the first-parent patch onto the current base head
+					// BEFORE the review so the gate sees what will actually land; a patch that no longer applies is left to
+					// the merge machinery. NKLEIN_RESULT_BASE_REFRESH=0 disables.
+					if (admittedPrimaryCommit && isEnabledByDefaultEnv(process.env.NKLEIN_RESULT_BASE_REFRESH)) {
+						const refreshCard = reviewState.board.columns
+							.flatMap((column) => column.cards)
+							.find((card) => card.id === taskId);
+						const refresh = await refreshTaskResultOntoBase({
+							repoPath: scope.workspacePath,
+							taskId,
+							baseRef: refreshCard?.baseRef?.trim() || "HEAD",
+							resultCommit: admittedPrimaryCommit,
+						}).catch(
+							(error): Awaited<ReturnType<typeof refreshTaskResultOntoBase>> => ({
+								status: "error",
+								commit: admittedPrimaryCommit ?? "",
+								message: error instanceof Error ? error.message : String(error),
+							}),
+						);
+						if (refresh.status === "refreshed") {
+							// The reused acceptance verdict belonged to the stale tree; the evidence pin must name the commit
+							// that will be reviewed and merged.
+							forgetAcceptanceEvidence(taskId);
+							await pinTaskResultEvidenceCommit({
+								repoPath: scope.workspacePath,
+								taskId,
+								resultCommit: refresh.commit,
+							}).catch(() => null);
+							admittedPrimaryCommit = refresh.commit;
+							deps.warn(
+								`Stale result for ${taskId} re-captured onto the current base ${refresh.baseCommit.slice(0, 12)}: ${refresh.previousCommit.slice(0, 12)} → ${refresh.commit.slice(0, 12)} (the capture predated newer base commits).`,
+							);
+						} else if (refresh.status === "conflict" || refresh.status === "error") {
+							deps.warn(
+								`Stale result for ${taskId} could not be re-captured onto the current base (${refresh.status}): ${refresh.message}. Reviewing the captured commit as-is.`,
+							);
+						}
+						if (refresh.status !== "current") {
+							recordSelfObservation({
+								signal: "custom",
+								severity: refresh.status === "refreshed" || refresh.status === "empty" ? "info" : "warning",
+								message: `Result base refresh for ${taskId}: ${refresh.status}.`,
+								taskId,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "result_base_refresh",
+									status: refresh.status,
+									commit: refresh.commit,
+									...(refresh.status === "refreshed"
+										? { previousCommit: refresh.previousCommit, baseCommit: refresh.baseCommit }
+										: {}),
+								},
+							});
+						}
+					}
 					const admittedSpeculativeCommit = admittedPrimaryCommit
 						? await resolveTaskResultBranchCommit({
 								repoPath: scope.workspacePath,
