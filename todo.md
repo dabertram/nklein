@@ -1970,6 +1970,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### Phase 0 — stop-the-line correctness and liveness
 
+- [x] **P0.HOSTIDLE — an operator-idled LM Studio host kept receiving work through every auto/fallback chooser.**
+  David 2026-09-07 "leave m5max idle for nklein, keep flash-next loaded": re-pointing all roles was not enough —
+  `reviewer=qwen3.8-flash-next (loaded_fallback)`, `Worker auto-pool absorbed … flash-next`, and the merge/custodian
+  defaults are hard-coded to flash-next. SHIPPED: `src/core/loaded-host-allowlist.ts` (process registry published by
+  the config resolver from `workerUseAllLoadedHosts`) + `nklein-loaded-host-filter.ts`; honoured by
+  `excludeUnroutableDescriptors` (reviewer/custodian), merge fallback, explorer, sibling consult, spec deliberation,
+  decomposition routing. Unmapped ⇒ `local` (fail-closed). GOTCHA: allowlist values are lms `deviceIdentifier`
+  hashes, not the DEVICE names `lms ps` prints; `perHost` cap `0` means UNCAPPED (normalizeCap), not blocked.
+- [x] **P0.EMPTYFINALREDRIVE — a delivered, green worker turn that ended in prose was re-driven as `no_tool_call`.**
+  `planSwarmPromptVariation` anchored on the first tool NAME in the card text ("prefer the edit_file tool …") and
+  re-drove a complete delivery indefinitely (dschinn S01, hand-driven 2026-09-07). SHIPPED: if any assistant turn in
+  the session made a file-mutating tool call, a following prose turn is a completion, not a stall (no redrive).
+- [x] **P0.ACCEPTCMD — the acceptance gate executed the inlined spec's PROSE acceptance line as the shell command.**
+  `^Acceptance (check|command): …$` first-match captured specification.md's `npm test — **BUT SEE …**` →
+  `/bin/sh: Syntax error: Unterminated quoted string`, exit 2, on EVERY dschinn card (v31 and the hand-drive).
+  SHIPPED: `sanitizeAcceptanceCommand` (src/core/acceptance-command.ts) trims the prose tail at all three
+  extractors, keeping `--`, `|`, `&&`. Confirmed live: cards pass `npm test` acceptance for the first time.
+
 - [x] **P0.EGRESSCLAIM — every acceptance/review sandbox ran offline: the egress proxy rejected percent-encoded placement ids.**
   ROOT CAUSE 2026-09-06: placement ids carry `::` (`<task>::acceptance-2`, `::review`); the runtime percent-encodes them
   into the proxy URL (`http://<id>:<token>@proxy:3129`), npm forwards the userinfo still encoded in `Proxy-Authorization`,
