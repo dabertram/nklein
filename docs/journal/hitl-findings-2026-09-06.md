@@ -259,3 +259,37 @@ The spine is sound; the harness around a weak model is where the time goes.
     **Recommended next (not shipped): the write-scope model (#16).** The decomposer should seed a card's `writeScope`
     from every file its recipe names (not a hard 3-file cap), or the write scope should not be capped below the
     card's stated files. Until then, scaffolding-style cards that legitimately touch 4–5 files cannot complete.
+
+## Addenda (drive continued 2026-09-07, part 3 — S02 onward)
+
+26. **The 30 s `run_commands` cap makes a cold `npm install` impossible in the worker sandbox, and a killed install
+    poisons the next one.** S02's `npm install` (five dev deps, warm registry via the egress proxy) was killed at the
+    30 s cap twice; a detached `nohup npm install &` then finished, but `vitest` died with `Bus error` — the killed
+    install had left a truncated native binary (esbuild) that npm's reconcile treated as present. Recovery needs
+    `rm -rf node_modules && npm install` detached. Verdict: harness gap on two counts: (a) the toolchain setup that
+    the ACCEPTANCE sandbox already runs (full install, 5-minute budget) should also prime the WORKER sandbox, so the
+    model never spends turns installing; (b) a command killed by the cap mid-install should be reported as such
+    ("dependency install interrupted — node_modules may be corrupt") rather than as a generic timeout. Both are
+    invisible to a local model, which will loop on "vitest: not found" / "Bus error".
+    Addendum (S04): the "detached install" workaround does NOT hold either — a `nohup npm install &` is killed
+    when the command's process group ends, and `/tmp` is a CONTAINER-WIDE tmpfs, so `/tmp/npm-install.log` from the
+    previous task made the new task read a stale "added 48 packages" line. Root cause of the cold installs: the
+    package caches are PER-TASK (my own P0.SANDBOXDISK moved them to `/workspaces/.nklein-cache/<uid>-<task>`), so
+    every card's first `npm install` re-downloads everything through the egress proxy and overruns the 30 s cap.
+    The clean fix is the acceptance gate's own `runSandboxToolchainSetup` (full install, 5-minute budget) run at
+    WORKER placement too, so the tree the model sees is already installed.
+    SHIPPED (P0.WORKERPRIME): `primeSandboxToolchain` runs the acceptance gate's own toolchain plan (full install,
+    4-minute budget) right after the worker sandbox is prepared, so the tree the model sees is already installed.
+
+27. **A runtime restart drops queued dependents back to `planning` without re-queuing them.** After S01 completed,
+    the start queue held S02/S03/S04; the drain restart (needed to recover its Docker network, itself destroyed by
+    the OTHER drain's restart script) re-parked the two not-yet-started cards into `planning` and the queue kept
+    one line. Nothing restarted them until the operator moved them to `ready` by hand. Verdict: harness bug: the
+    durable start queue must survive a restart (re-enqueue every `ready`/queued card on boot), the same way the
+    "Durable resume … reopened N failed jobs" path already re-opens failed ones.
+
+28. **Session concurrency 1 per endpoint serialises the reviewer behind the worker.** With one endpoint slot, S02's
+    review session spun in "Model-turn admission evaluating" every 3 s for the whole time S04's worker ran on the
+    same endpoint, and nothing said why. Verdict: prompt/telemetry gap — an admission wait should log ONE line
+    naming the blocker ("waiting for endpoint slot held by <task>") and the reviewer should be schedulable ahead of
+    a fresh worker start (a review closes a card; a worker opens one).
