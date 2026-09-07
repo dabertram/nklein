@@ -14,280 +14,194 @@
 							{
 								"name": "add_task",
 								"arguments": {
-									"id": "s01",
-									"title": "S01 — Repo + tooling skeleton",
-									"prompt": "Implement spine card S01 — Repo + tooling skeleton of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: none. files: package.json, tsconfig.json, vitest.config.ts, src/index.ts, test/smoke.test.ts.\ninterface: none (scaffolding). `package.json` scripts: `{ \"test\": \"vitest run\", \"typecheck\": \"tsc --noEmit\" }`; deps `zod`, `vitest`, `typescript`, `@types/node`.\nhow to implement: 1) create `package.json` with the scripts + deps above; 2) `tsconfig.json` with `\"strict\": true`, `\"module\": \"ESNext\"`, `\"moduleResolution\": \"Bundler\"`, `\"types\": [\"node\"]`; 3) `vitest.config.ts` exporting `defineConfig({ test: { include: [\"test/**/*.test.ts\"] } })`; 4) `src/index.ts` `export const DSCHINN_VERSION = \"0.0.1\";`; 5) `test/smoke.test.ts` imports it and asserts the string.\nacceptance: `test/smoke.test.ts` → `expect(DSCHINN_VERSION).toBe(\"0.0.1\")`; `npm test` green; `npm run typecheck` clean. invariant: none (enables all).\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.",
-									"dependsOn": [],
-									"complexity": 20,
-									"suggestedRole": "worker",
-									"filesLikelyTouched": [
-										"package.json",
-										"test/smoke.test.ts",
-										"src/index.ts"
-									],
-									"acceptanceCommand": "npm test",
-									"testFirst": true,
-									"testability": "testable",
-									"acceptanceTestPrompt": "test/smoke.test.ts imports DSCHINN_VERSION from src/index.ts and asserts it equals \"0.0.1\"; npm test green; npm run typecheck clean."
+									"tasks": [
+										{
+											"id": "s01",
+											"title": "S01 — Repo + tooling skeleton",
+											"prompt": "Implement spine card S01 — Repo + tooling skeleton of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: none. files: package.json, tsconfig.json, vitest.config.ts, src/index.ts, test/smoke.test.ts.\ninterface: none (scaffolding). `package.json` scripts: `{ \"test\": \"vitest run\", \"typecheck\": \"tsc --noEmit\" }`; deps `zod`, `vitest`, `typescript`, `@types/node`.\nhow to implement: 1) create `package.json` with the scripts + deps above; 2) `tsconfig.json` with `\"strict\": true`, `\"module\": \"ESNext\"`, `\"moduleResolution\": \"Bundler\"`, `\"types\": [\"node\"]`; 3) `vitest.config.ts` exporting `defineConfig({ test: { include: [\"test/**/*.test.ts\"] } })`; 4) `src/index.ts` `export const DSCHINN_VERSION = \"0.0.1\";`; 5) `test/smoke.test.ts` imports it and asserts the string.\nacceptance: `test/smoke.test.ts` → `expect(DSCHINN_VERSION).toBe(\"0.0.1\")`; `npm test` green; `npm run typecheck` clean. invariant: none (enables all).\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.",
+											"dependsOn": [],
+											"complexity": 20,
+											"suggestedRole": "worker",
+											"filesLikelyTouched": [
+												"package.json",
+												"test/smoke.test.ts",
+												"src/index.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": true,
+											"testability": "testable",
+											"acceptanceTestPrompt": "test/smoke.test.ts imports DSCHINN_VERSION from src/index.ts and asserts it equals \"0.0.1\"; npm test green; npm run typecheck clean."
+										},
+										{
+											"id": "s02",
+											"title": "S02 — Virtual clock + the \"no wall-clock\" guard",
+											"prompt": "Implement spine card S02 — Virtual clock + the \"no wall-clock\" guard of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S01`. files: src/kernel/clock.ts, test/kernel/clock.test.ts, test/kernel/no-wallclock.test.ts.\ninterface:\n```ts\nexport interface Clock { now(): number } // logical ms since epoch 0\nexport function makeManualClock(startMs = 0): Clock & { advance(ms: number): void; set(ms: number): void }\n```\nhow to implement: 1) `makeManualClock` holds a mutable `t = startMs`; `now()` returns `t`; `advance(ms)` does `t += ms` (throw if `ms < 0`); `set(ms)` sets `t`. 2) Add `test/kernel/no-wallclock.test.ts` that reads every file under `src/**` (via `node:fs`) and asserts none contains `Date.now(`, `setTimeout(`, `setInterval(`, `performance.now(`, or `new Date()` — **allow** an explicit allowlist file `src/kernel/system-clock.ts` (created later for production only).\nhow to implement (guard): use `fs.readdirSync` recursive + `readFileSync`; skip the allowlisted file by exact path.\nacceptance: `clock.test.ts` asserts `advance(5)` moves `now()` from 0→5 and `advance(-1)` throws; `no-wallclock.test.ts` asserts the forbidden-token set has **zero** matches across `src/**`. invariant: **Determinism (E11.7 / V1).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Determinism (E11.7 / V1)..",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 35,
+											"suggestedRole": "worker",
+											"filesLikelyTouched": [
+												"src/kernel/clock.ts",
+												"test/kernel/clock.test.ts",
+												"test/kernel/no-wallclock.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": true,
+											"testability": "testable",
+											"acceptanceTestPrompt": "`clock.test.ts` asserts `advance(5)` moves `now()` from 0→5 and `advance(-1)` throws; `no-wallclock.test.ts` asserts the forbidden-token set has **zero** matches across `src/**`. invariant: **Determinism (E11.7 / V1).**"
+										},
+										{
+											"id": "s03",
+											"title": "S03 — Seeded PRNG tree",
+											"prompt": "Implement spine card S03 — Seeded PRNG tree of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S01`. files: src/kernel/prng.ts, test/kernel/prng.test.ts.\ninterface:\n```ts\nexport interface Prng { nextU32(): number; nextFloat(): number; fork(label: string): Prng; nextId(prefix: string): string }\nexport function makePrngTree(seed: number): Prng\n```\nhow to implement: 1) implement a small pure PRNG (e.g. **mulberry32**): state = `seed >>> 0`; `nextU32` advances state with the fixed mulberry32 arithmetic and returns a uint32; `nextFloat = nextU32() / 2**32`. 2) `fork(label)` returns a child seeded by hashing `(parentSeed, label)` (use a tiny string hash, e.g. FNV-1a over the label mixed with parent state) so sibling forks are independent + reproducible. 3) `nextId(prefix)` returns `` `${prefix}-${nextU32().toString(36)}` ``. **No `Math.random` anywhere.**\nacceptance: `prng.test.ts` asserts: two `makePrngTree(42)` produce identical first 5 `nextU32()` sequences; `fork(\"a\")` and `fork(\"b\")` diverge; `fork(\"a\")` twice from the same parent state matches. invariant: **Determinism (E11.7).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Determinism (E11.7)..",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 35,
+											"suggestedRole": "worker",
+											"filesLikelyTouched": [
+												"src/kernel/prng.ts",
+												"test/kernel/prng.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": true,
+											"testability": "testable",
+											"acceptanceTestPrompt": "`prng.test.ts` asserts: two `makePrngTree(42)` produce identical first 5 `nextU32()` sequences; `fork(\"a\")` and `fork(\"b\")` diverge; `fork(\"a\")` twice from the same parent state matches. invariant: **Determinism (E11.7).**"
+										},
+										{
+											"id": "s04",
+											"title": "S04 — DomainEvent base + zod registry",
+											"prompt": "Implement spine card S04 — DomainEvent base + zod registry of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S01`. files: src/kernel/events.ts, test/kernel/events.test.ts.\ninterface:\n```ts\nexport interface BaseEvent { id: string; seq: number; at: number; type: string }\nexport const baseEventSchema: z.ZodType<BaseEvent>\n// A discriminated union grows as cards add event types; start with a registry:\nexport type DomainEvent = BaseEvent & { [k: string]: unknown }\nexport function defineEvent<TType extends string, TPayload extends z.ZodRawShape>(type: TType, payload: TPayload): z.ZodObject<...>\n```\nhow to implement: 1) `baseEventSchema` = zod object `{ id: string, seq: number(int, ≥0), at: number(int), type: string }`. 2) `defineEvent(type, payloadShape)` returns `baseEventSchema.extend({ type: z.literal(type), ...payloadShape })`. 3) export a `Map<string, ZodSchema>` registry that `defineEvent` populates so the log writer can validate by `type`.\nacceptance: `events.test.ts` defines `defineEvent(\"Test\", { x: z.number() })`, parses a valid event, and asserts a missing-`seq` event **throws** on parse. invariant: **Audit totality groundwork (E11.2).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Audit totality groundwork (E11.2)..",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 35,
+											"suggestedRole": "worker",
+											"filesLikelyTouched": [
+												"src/kernel/events.ts",
+												"test/kernel/events.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": true,
+											"testability": "testable",
+											"acceptanceTestPrompt": "`events.test.ts` defines `defineEvent(\"Test\", { x: z.number() })`, parses a valid event, and asserts a missing-`seq` event **throws** on parse. invariant: **Audit totality groundwork (E11.2).**"
+										},
+										{
+											"id": "s05",
+											"title": "S05 — Append-only event log + fold",
+											"prompt": "Implement spine card S05 — Append-only event log + fold of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S03`, `S04`. files: src/kernel/event-log.ts, test/kernel/event-log.test.ts.\ninterface:\n```ts\nexport interface EventLog { append(e: Omit<DomainEvent,\"id\"|\"seq\">): DomainEvent; all(): readonly DomainEvent[] }\nexport function makeEventLog(prng: Prng): EventLog\nexport function fold<S>(log: EventLog, init: S, reducer: (s: S, e: DomainEvent) => S): S\n```\nhow to implement: 1) `makeEventLog` keeps a private `DomainEvent[]`; `append` stamps `seq = arr.length`, `id = prng.nextId(\"ev\")`, validates against the registry schema for `e.type` (throw if unknown type), pushes a **frozen copy**, returns it. 2) `all()` returns a readonly view. 3) `fold` left-reduces `all()`. **Never mutate or delete an existing event** (append-only). 4) freeze each event with `Object.freeze`.\nacceptance: `event-log.test.ts`: appending 3 events yields `seq` 0,1,2; `all()` is frozen (mutating throws in strict mode); `fold` summing an `x` payload equals the manual sum; appending an unregistered `type` throws. invariant: **Truth-is-the-log (E1) + append-only audit (E11.2).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Truth-is-the-log (E1) + append-only audit (E11.2)..",
+											"dependsOn": [
+												"s03",
+												"s04"
+											],
+											"complexity": 45,
+											"suggestedRole": "worker",
+											"filesLikelyTouched": [
+												"src/kernel/event-log.ts",
+												"test/kernel/event-log.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": true,
+											"testability": "testable",
+											"acceptanceTestPrompt": "`event-log.test.ts`: appending 3 events yields `seq` 0,1,2; `all()` is frozen (mutating throws in strict mode); `fold` summing an `x` payload equals the manual sum; appending an unregistered `type` throws. invariant: **Truth-is-the-log (E1) + append-only audit (E11.2).**"
+										},
+										{
+											"id": "s06",
+											"title": "S06 — Snapshot / restore",
+											"prompt": "Implement spine card S06 — Snapshot / restore of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S05`. files: src/kernel/snapshot.ts, test/kernel/snapshot.test.ts.\ninterface: `export function snapshot(log: EventLog): string` (JSON of all events) · `export function restore(json: string, prng: Prng): EventLog` (rebuilds a log whose `all()` equals the snapshot).\nhow to implement: 1) `snapshot` = `JSON.stringify(log.all())`. 2) `restore` parses, **re-validates every event** against the registry, and constructs a log preloaded with them (add an internal `loadAll` to the log factory). 3) round-trip must be exact.\nacceptance: `snapshot.test.ts`: `restore(snapshot(log)).all()` deep-equals `log.all()`; a tampered snapshot (bad `type`) throws on restore. invariant: **Crash recovery / determinism (E1, E11.7).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Crash recovery / determinism (E1, E11.7)..",
+											"dependsOn": [
+												"s05"
+											],
+											"complexity": 35,
+											"suggestedRole": "worker",
+											"filesLikelyTouched": [
+												"src/kernel/snapshot.ts",
+												"test/kernel/snapshot.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": true,
+											"testability": "testable",
+											"acceptanceTestPrompt": "`snapshot.test.ts`: `restore(snapshot(log)).all()` deep-equals `log.all()`; a tampered snapshot (bad `type`) throws on restore. invariant: **Crash recovery / determinism (E1, E11.7).**"
+										},
+										{
+											"id": "s07",
+											"title": "S07 — Trust labels + ordering",
+											"prompt": "Implement spine card S07 — Trust labels + ordering of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S01`. files: src/trust/trust.ts, test/trust/trust.test.ts.\ninterface:\n```ts\nexport const TRUST_ORDER = [\"adversarial-quarantined\",\"web-scraped-untrusted\",\"model-generated\",\"community-claim\",\"benchmarked\",\"first-party-verified\",\"owner-stated\"] as const\nexport type Trust = typeof TRUST_ORDER[number]\nexport function trustRank(t: Trust): number\nexport function meetsMin(value: Trust, required: Trust): boolean // value rank >= required rank\nexport function weakest(a: Trust, b: Trust): Trust // for taint propagation\n```\nhow to implement: 1) `trustRank` = index in `TRUST_ORDER`. 2) `meetsMin(v,r)` = `trustRank(v) >= trustRank(r)`. 3) `weakest(a,b)` = the lower-rank label.\nacceptance: `trust.test.ts`: `meetsMin(\"owner-stated\",\"first-party-verified\") === true`; `meetsMin(\"web-scraped-untrusted\",\"first-party-verified\") === false`; `weakest(\"benchmarked\",\"model-generated\") === \"model-generated\"`. invariant: **Authority typed by trust (E2 / E11.3).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Authority typed by trust (E2 / E11.3)..",
+											"dependsOn": [
+												"s01"
+											],
+											"complexity": 25,
+											"suggestedRole": "worker",
+											"filesLikelyTouched": [
+												"src/trust/trust.ts",
+												"test/trust/trust.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": true,
+											"testability": "testable",
+											"acceptanceTestPrompt": "`trust.test.ts`: `meetsMin(\"owner-stated\",\"first-party-verified\") === true`; `meetsMin(\"web-scraped-untrusted\",\"first-party-verified\") === false`; `weakest(\"benchmarked\",\"model-generated\") === \"model-generated\"`. invariant: **Authority typed by trust (E2 / E11.3).**"
+										},
+										{
+											"id": "s08",
+											"title": "S08 — Tainted value wrapper + monotone propagation",
+											"prompt": "Implement spine card S08 — Tainted value wrapper + monotone propagation of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S07`. files: src/trust/tainted.ts, test/trust/tainted.test.ts.\ninterface:\n```ts\nexport interface Tainted<T> { value: T; trust: Trust; provenance: string }\nexport function taint<T>(value: T, trust: Trust, provenance: string): Tainted<T>\nexport function mapTainted<A,B>(t: Tainted<A>, f: (a: A) => B): Tainted<B>           // keeps trust (monotone)\nexport function combineTainted<A,B,C>(a: Tainted<A>, b: Tainted<B>, f:(a:A,b:B)=>C): Tainted<C> // trust = weakest(a,b)\nexport function verify<T>(t: Tainted<T>, to: Trust, auditSink: (e: VerificationEvent)=>void): Tainted<T> // ONLY way to raise trust\n```\nhow to implement: 1) `mapTainted` returns same `trust`/`provenance`, transformed value. 2) `combineTainted` sets `trust = weakest(a.trust,b.trust)`. 3) `verify` is the **only** function allowed to *increase* trust: it requires `to` rank ≥ current, emits a `VerificationEvent` to the sink, and returns the re-labeled value; **lowering or raising without `verify` is impossible by construction** (no other API mutates `trust`).\nacceptance: `tainted.test.ts`: `mapTainted` preserves trust; `combineTainted(owner, webScraped)` → `web-scraped-untrusted`; `verify` emits exactly one event and raises trust; a **property test** (fuzz 1000 random transform chains) asserts output trust is **never higher** than the weakest input unless a `verify` event was emitted. invariant: **Taint monotonicity (E2 / E11.5).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Taint monotonicity (E2 / E11.5)..",
+											"dependsOn": [
+												"s07"
+											],
+											"complexity": 50,
+											"suggestedRole": "worker",
+											"filesLikelyTouched": [
+												"src/trust/tainted.ts",
+												"test/trust/tainted.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": true,
+											"testability": "testable",
+											"acceptanceTestPrompt": "`tainted.test.ts`: `mapTainted` preserves trust; `combineTainted(owner, webScraped)` → `web-scraped-untrusted`; `verify` emits exactly one event and raises trust; a **property test** (fuzz 1000 random transform chains) asserts output trust is **never higher** than the weakest input unless a `verify` event was emitted. invariant: **Taint monotonicity (E2 / E11.5).**"
+										},
+										{
+											"id": "s09",
+											"title": "S09 — Capability token kernel",
+											"prompt": "Implement spine card S09 — Capability token kernel of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S07`. files: src/auth/capability.ts, test/auth/capability.test.ts.\ninterface:\n```ts\nexport interface Capability { id: string; scope: string; cap: number; minorUnits?: number; expiresAt: number; parentId: string | null; revoked: boolean }\nexport function mintRoot(grant: Omit<Capability,\"id\"|\"parentId\"|\"revoked\">, prng: Prng): Capability // owner/constitution only\nexport function attenuate(parent: Capability, child: Partial<Pick<Capability,\"scope\"|\"cap\"|\"minorUnits\"|\"expiresAt\">>, prng: Prng): Capability // child ≤ parent, always\nexport function isValid(c: Capability, now: number): boolean\nexport function revoke(c: Capability): Capability\n```\nhow to implement: 1) `mintRoot` sets `parentId=null`, `id=prng.nextId(\"cap\")`. 2) `attenuate` **clamps** every field to be no stronger than the parent: `cap = min(parent.cap, child.cap ?? parent.cap)`, `expiresAt = min(...)`, scope must be a sub-scope (string prefix match) — **throw** if a requested child field would exceed the parent. 3) `isValid` = `!revoked && now < expiresAt`. 4) `revoke` returns a copy with `revoked=true`.\nacceptance: `capability.test.ts`: attenuating to a smaller cap works; requesting a **larger** cap throws; an expired token `isValid(now>exp)===false`; **property test** (fuzz attenuation chains) asserts no descendant is ever stronger than any ancestor on any field. invariant: **Capability soundness + attenuation monotonicity (V5 / V8.8–V8.9).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Capability soundness + attenuation monotonicity (V5 / V8.8–V8.9)..",
+											"dependsOn": [
+												"s07"
+											],
+											"complexity": 50,
+											"suggestedRole": "worker",
+											"filesLikelyTouched": [
+												"src/auth/capability.ts",
+												"test/auth/capability.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": true,
+											"testability": "testable",
+											"acceptanceTestPrompt": "`capability.test.ts`: attenuating to a smaller cap works; requesting a **larger** cap throws; an expired token `isValid(now>exp)===false`; **property test** (fuzz attenuation chains) asserts no descendant is ever stronger than any ancestor on any field. invariant: **Capability soundness + attenuation monotonicity (V5 / V8.8–V8.9).**"
+										},
+										{
+											"id": "s10",
+											"title": "S10 — Audit event schema + emitter",
+											"prompt": "Implement spine card S10 — Audit event schema + emitter of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S05`, `S07`. files: src/audit/audit.ts, test/audit/audit.test.ts.\ninterface:\n```ts\nexport const auditEventSchema = defineEvent(\"AuditEvent\", {\n  actor: z.string(), brainVersion: z.string(), modelVersion: z.string(), toolVersion: z.string(),\n  inputsHash: z.string(), outputSummary: z.string(), approvalSource: z.enum([\"policy\",\"owner\",\"none\"]),\n  financialImpactMinor: z.number().int(), rollbackRef: z.string().nullable(), sideEffectId: z.string()\n})\nexport function emitAudit(log: EventLog, a: AuditFields): DomainEvent\nexport function sha256Hex(input: string): string\n```\nhow to implement: 1) `sha256Hex` wraps `node:crypto`. 2) `emitAudit` validates with the schema and appends. 3) `inputsHash` is computed by callers via `sha256Hex(JSON.stringify(input))` (stable key order — sort keys; see §C3).\nacceptance: `audit.test.ts`: emitting a valid audit appends one event; missing `sideEffectId` throws; `sha256Hex(\"a\")` is stable/known. invariant: **Audit totality (E11.2).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Audit totality (E11.2)..",
+											"dependsOn": [
+												"s05",
+												"s07"
+											],
+											"complexity": 35,
+											"suggestedRole": "worker",
+											"filesLikelyTouched": [
+												"src/audit/audit.ts",
+												"test/audit/audit.test.ts"
+											],
+											"acceptanceCommand": "npm test",
+											"testFirst": true,
+											"testability": "testable",
+											"acceptanceTestPrompt": "`audit.test.ts`: emitting a valid audit appends one event; missing `sideEffectId` throws; `sha256Hex(\"a\")` is stable/known. invariant: **Audit totality (E11.2).**"
+										}
+									]
 								}
 							}
 						],
 						"content": "Adding the first 10 spine cards (flaky replay prefix)."
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "add_task",
-								"arguments": {
-									"id": "s02",
-									"title": "S02 — Virtual clock + the \"no wall-clock\" guard",
-									"prompt": "Implement spine card S02 — Virtual clock + the \"no wall-clock\" guard of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S01`. files: src/kernel/clock.ts, test/kernel/clock.test.ts, test/kernel/no-wallclock.test.ts.\ninterface:\n```ts\nexport interface Clock { now(): number } // logical ms since epoch 0\nexport function makeManualClock(startMs = 0): Clock & { advance(ms: number): void; set(ms: number): void }\n```\nhow to implement: 1) `makeManualClock` holds a mutable `t = startMs`; `now()` returns `t`; `advance(ms)` does `t += ms` (throw if `ms < 0`); `set(ms)` sets `t`. 2) Add `test/kernel/no-wallclock.test.ts` that reads every file under `src/**` (via `node:fs`) and asserts none contains `Date.now(`, `setTimeout(`, `setInterval(`, `performance.now(`, or `new Date()` — **allow** an explicit allowlist file `src/kernel/system-clock.ts` (created later for production only).\nhow to implement (guard): use `fs.readdirSync` recursive + `readFileSync`; skip the allowlisted file by exact path.\nacceptance: `clock.test.ts` asserts `advance(5)` moves `now()` from 0→5 and `advance(-1)` throws; `no-wallclock.test.ts` asserts the forbidden-token set has **zero** matches across `src/**`. invariant: **Determinism (E11.7 / V1).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Determinism (E11.7 / V1)..",
-									"dependsOn": [
-										"s01"
-									],
-									"complexity": 35,
-									"suggestedRole": "worker",
-									"filesLikelyTouched": [
-										"src/kernel/clock.ts",
-										"test/kernel/clock.test.ts",
-										"test/kernel/no-wallclock.test.ts"
-									],
-									"acceptanceCommand": "npm test",
-									"testFirst": true,
-									"testability": "testable",
-									"acceptanceTestPrompt": "`clock.test.ts` asserts `advance(5)` moves `now()` from 0→5 and `advance(-1)` throws; `no-wallclock.test.ts` asserts the forbidden-token set has **zero** matches across `src/**`. invariant: **Determinism (E11.7 / V1).**"
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "add_task",
-								"arguments": {
-									"id": "s03",
-									"title": "S03 — Seeded PRNG tree",
-									"prompt": "Implement spine card S03 — Seeded PRNG tree of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S01`. files: src/kernel/prng.ts, test/kernel/prng.test.ts.\ninterface:\n```ts\nexport interface Prng { nextU32(): number; nextFloat(): number; fork(label: string): Prng; nextId(prefix: string): string }\nexport function makePrngTree(seed: number): Prng\n```\nhow to implement: 1) implement a small pure PRNG (e.g. **mulberry32**): state = `seed >>> 0`; `nextU32` advances state with the fixed mulberry32 arithmetic and returns a uint32; `nextFloat = nextU32() / 2**32`. 2) `fork(label)` returns a child seeded by hashing `(parentSeed, label)` (use a tiny string hash, e.g. FNV-1a over the label mixed with parent state) so sibling forks are independent + reproducible. 3) `nextId(prefix)` returns `` `${prefix}-${nextU32().toString(36)}` ``. **No `Math.random` anywhere.**\nacceptance: `prng.test.ts` asserts: two `makePrngTree(42)` produce identical first 5 `nextU32()` sequences; `fork(\"a\")` and `fork(\"b\")` diverge; `fork(\"a\")` twice from the same parent state matches. invariant: **Determinism (E11.7).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Determinism (E11.7)..",
-									"dependsOn": [
-										"s01"
-									],
-									"complexity": 35,
-									"suggestedRole": "worker",
-									"filesLikelyTouched": [
-										"src/kernel/prng.ts",
-										"test/kernel/prng.test.ts"
-									],
-									"acceptanceCommand": "npm test",
-									"testFirst": true,
-									"testability": "testable",
-									"acceptanceTestPrompt": "`prng.test.ts` asserts: two `makePrngTree(42)` produce identical first 5 `nextU32()` sequences; `fork(\"a\")` and `fork(\"b\")` diverge; `fork(\"a\")` twice from the same parent state matches. invariant: **Determinism (E11.7).**"
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "add_task",
-								"arguments": {
-									"id": "s04",
-									"title": "S04 — DomainEvent base + zod registry",
-									"prompt": "Implement spine card S04 — DomainEvent base + zod registry of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S01`. files: src/kernel/events.ts, test/kernel/events.test.ts.\ninterface:\n```ts\nexport interface BaseEvent { id: string; seq: number; at: number; type: string }\nexport const baseEventSchema: z.ZodType<BaseEvent>\n// A discriminated union grows as cards add event types; start with a registry:\nexport type DomainEvent = BaseEvent & { [k: string]: unknown }\nexport function defineEvent<TType extends string, TPayload extends z.ZodRawShape>(type: TType, payload: TPayload): z.ZodObject<...>\n```\nhow to implement: 1) `baseEventSchema` = zod object `{ id: string, seq: number(int, ≥0), at: number(int), type: string }`. 2) `defineEvent(type, payloadShape)` returns `baseEventSchema.extend({ type: z.literal(type), ...payloadShape })`. 3) export a `Map<string, ZodSchema>` registry that `defineEvent` populates so the log writer can validate by `type`.\nacceptance: `events.test.ts` defines `defineEvent(\"Test\", { x: z.number() })`, parses a valid event, and asserts a missing-`seq` event **throws** on parse. invariant: **Audit totality groundwork (E11.2).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Audit totality groundwork (E11.2)..",
-									"dependsOn": [
-										"s01"
-									],
-									"complexity": 35,
-									"suggestedRole": "worker",
-									"filesLikelyTouched": [
-										"src/kernel/events.ts",
-										"test/kernel/events.test.ts"
-									],
-									"acceptanceCommand": "npm test",
-									"testFirst": true,
-									"testability": "testable",
-									"acceptanceTestPrompt": "`events.test.ts` defines `defineEvent(\"Test\", { x: z.number() })`, parses a valid event, and asserts a missing-`seq` event **throws** on parse. invariant: **Audit totality groundwork (E11.2).**"
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "add_task",
-								"arguments": {
-									"id": "s05",
-									"title": "S05 — Append-only event log + fold",
-									"prompt": "Implement spine card S05 — Append-only event log + fold of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S03`, `S04`. files: src/kernel/event-log.ts, test/kernel/event-log.test.ts.\ninterface:\n```ts\nexport interface EventLog { append(e: Omit<DomainEvent,\"id\"|\"seq\">): DomainEvent; all(): readonly DomainEvent[] }\nexport function makeEventLog(prng: Prng): EventLog\nexport function fold<S>(log: EventLog, init: S, reducer: (s: S, e: DomainEvent) => S): S\n```\nhow to implement: 1) `makeEventLog` keeps a private `DomainEvent[]`; `append` stamps `seq = arr.length`, `id = prng.nextId(\"ev\")`, validates against the registry schema for `e.type` (throw if unknown type), pushes a **frozen copy**, returns it. 2) `all()` returns a readonly view. 3) `fold` left-reduces `all()`. **Never mutate or delete an existing event** (append-only). 4) freeze each event with `Object.freeze`.\nacceptance: `event-log.test.ts`: appending 3 events yields `seq` 0,1,2; `all()` is frozen (mutating throws in strict mode); `fold` summing an `x` payload equals the manual sum; appending an unregistered `type` throws. invariant: **Truth-is-the-log (E1) + append-only audit (E11.2).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Truth-is-the-log (E1) + append-only audit (E11.2)..",
-									"dependsOn": [
-										"s03",
-										"s04"
-									],
-									"complexity": 45,
-									"suggestedRole": "worker",
-									"filesLikelyTouched": [
-										"src/kernel/event-log.ts",
-										"test/kernel/event-log.test.ts"
-									],
-									"acceptanceCommand": "npm test",
-									"testFirst": true,
-									"testability": "testable",
-									"acceptanceTestPrompt": "`event-log.test.ts`: appending 3 events yields `seq` 0,1,2; `all()` is frozen (mutating throws in strict mode); `fold` summing an `x` payload equals the manual sum; appending an unregistered `type` throws. invariant: **Truth-is-the-log (E1) + append-only audit (E11.2).**"
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "add_task",
-								"arguments": {
-									"id": "s06",
-									"title": "S06 — Snapshot / restore",
-									"prompt": "Implement spine card S06 — Snapshot / restore of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S05`. files: src/kernel/snapshot.ts, test/kernel/snapshot.test.ts.\ninterface: `export function snapshot(log: EventLog): string` (JSON of all events) · `export function restore(json: string, prng: Prng): EventLog` (rebuilds a log whose `all()` equals the snapshot).\nhow to implement: 1) `snapshot` = `JSON.stringify(log.all())`. 2) `restore` parses, **re-validates every event** against the registry, and constructs a log preloaded with them (add an internal `loadAll` to the log factory). 3) round-trip must be exact.\nacceptance: `snapshot.test.ts`: `restore(snapshot(log)).all()` deep-equals `log.all()`; a tampered snapshot (bad `type`) throws on restore. invariant: **Crash recovery / determinism (E1, E11.7).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Crash recovery / determinism (E1, E11.7)..",
-									"dependsOn": [
-										"s05"
-									],
-									"complexity": 35,
-									"suggestedRole": "worker",
-									"filesLikelyTouched": [
-										"src/kernel/snapshot.ts",
-										"test/kernel/snapshot.test.ts"
-									],
-									"acceptanceCommand": "npm test",
-									"testFirst": true,
-									"testability": "testable",
-									"acceptanceTestPrompt": "`snapshot.test.ts`: `restore(snapshot(log)).all()` deep-equals `log.all()`; a tampered snapshot (bad `type`) throws on restore. invariant: **Crash recovery / determinism (E1, E11.7).**"
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "add_task",
-								"arguments": {
-									"id": "s07",
-									"title": "S07 — Trust labels + ordering",
-									"prompt": "Implement spine card S07 — Trust labels + ordering of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S01`. files: src/trust/trust.ts, test/trust/trust.test.ts.\ninterface:\n```ts\nexport const TRUST_ORDER = [\"adversarial-quarantined\",\"web-scraped-untrusted\",\"model-generated\",\"community-claim\",\"benchmarked\",\"first-party-verified\",\"owner-stated\"] as const\nexport type Trust = typeof TRUST_ORDER[number]\nexport function trustRank(t: Trust): number\nexport function meetsMin(value: Trust, required: Trust): boolean // value rank >= required rank\nexport function weakest(a: Trust, b: Trust): Trust // for taint propagation\n```\nhow to implement: 1) `trustRank` = index in `TRUST_ORDER`. 2) `meetsMin(v,r)` = `trustRank(v) >= trustRank(r)`. 3) `weakest(a,b)` = the lower-rank label.\nacceptance: `trust.test.ts`: `meetsMin(\"owner-stated\",\"first-party-verified\") === true`; `meetsMin(\"web-scraped-untrusted\",\"first-party-verified\") === false`; `weakest(\"benchmarked\",\"model-generated\") === \"model-generated\"`. invariant: **Authority typed by trust (E2 / E11.3).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Authority typed by trust (E2 / E11.3)..",
-									"dependsOn": [
-										"s01"
-									],
-									"complexity": 25,
-									"suggestedRole": "worker",
-									"filesLikelyTouched": [
-										"src/trust/trust.ts",
-										"test/trust/trust.test.ts"
-									],
-									"acceptanceCommand": "npm test",
-									"testFirst": true,
-									"testability": "testable",
-									"acceptanceTestPrompt": "`trust.test.ts`: `meetsMin(\"owner-stated\",\"first-party-verified\") === true`; `meetsMin(\"web-scraped-untrusted\",\"first-party-verified\") === false`; `weakest(\"benchmarked\",\"model-generated\") === \"model-generated\"`. invariant: **Authority typed by trust (E2 / E11.3).**"
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "add_task",
-								"arguments": {
-									"id": "s08",
-									"title": "S08 — Tainted value wrapper + monotone propagation",
-									"prompt": "Implement spine card S08 — Tainted value wrapper + monotone propagation of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S07`. files: src/trust/tainted.ts, test/trust/tainted.test.ts.\ninterface:\n```ts\nexport interface Tainted<T> { value: T; trust: Trust; provenance: string }\nexport function taint<T>(value: T, trust: Trust, provenance: string): Tainted<T>\nexport function mapTainted<A,B>(t: Tainted<A>, f: (a: A) => B): Tainted<B>           // keeps trust (monotone)\nexport function combineTainted<A,B,C>(a: Tainted<A>, b: Tainted<B>, f:(a:A,b:B)=>C): Tainted<C> // trust = weakest(a,b)\nexport function verify<T>(t: Tainted<T>, to: Trust, auditSink: (e: VerificationEvent)=>void): Tainted<T> // ONLY way to raise trust\n```\nhow to implement: 1) `mapTainted` returns same `trust`/`provenance`, transformed value. 2) `combineTainted` sets `trust = weakest(a.trust,b.trust)`. 3) `verify` is the **only** function allowed to *increase* trust: it requires `to` rank ≥ current, emits a `VerificationEvent` to the sink, and returns the re-labeled value; **lowering or raising without `verify` is impossible by construction** (no other API mutates `trust`).\nacceptance: `tainted.test.ts`: `mapTainted` preserves trust; `combineTainted(owner, webScraped)` → `web-scraped-untrusted`; `verify` emits exactly one event and raises trust; a **property test** (fuzz 1000 random transform chains) asserts output trust is **never higher** than the weakest input unless a `verify` event was emitted. invariant: **Taint monotonicity (E2 / E11.5).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Taint monotonicity (E2 / E11.5)..",
-									"dependsOn": [
-										"s07"
-									],
-									"complexity": 50,
-									"suggestedRole": "worker",
-									"filesLikelyTouched": [
-										"src/trust/tainted.ts",
-										"test/trust/tainted.test.ts"
-									],
-									"acceptanceCommand": "npm test",
-									"testFirst": true,
-									"testability": "testable",
-									"acceptanceTestPrompt": "`tainted.test.ts`: `mapTainted` preserves trust; `combineTainted(owner, webScraped)` → `web-scraped-untrusted`; `verify` emits exactly one event and raises trust; a **property test** (fuzz 1000 random transform chains) asserts output trust is **never higher** than the weakest input unless a `verify` event was emitted. invariant: **Taint monotonicity (E2 / E11.5).**"
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "add_task",
-								"arguments": {
-									"id": "s09",
-									"title": "S09 — Capability token kernel",
-									"prompt": "Implement spine card S09 — Capability token kernel of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S07`. files: src/auth/capability.ts, test/auth/capability.test.ts.\ninterface:\n```ts\nexport interface Capability { id: string; scope: string; cap: number; minorUnits?: number; expiresAt: number; parentId: string | null; revoked: boolean }\nexport function mintRoot(grant: Omit<Capability,\"id\"|\"parentId\"|\"revoked\">, prng: Prng): Capability // owner/constitution only\nexport function attenuate(parent: Capability, child: Partial<Pick<Capability,\"scope\"|\"cap\"|\"minorUnits\"|\"expiresAt\">>, prng: Prng): Capability // child ≤ parent, always\nexport function isValid(c: Capability, now: number): boolean\nexport function revoke(c: Capability): Capability\n```\nhow to implement: 1) `mintRoot` sets `parentId=null`, `id=prng.nextId(\"cap\")`. 2) `attenuate` **clamps** every field to be no stronger than the parent: `cap = min(parent.cap, child.cap ?? parent.cap)`, `expiresAt = min(...)`, scope must be a sub-scope (string prefix match) — **throw** if a requested child field would exceed the parent. 3) `isValid` = `!revoked && now < expiresAt`. 4) `revoke` returns a copy with `revoked=true`.\nacceptance: `capability.test.ts`: attenuating to a smaller cap works; requesting a **larger** cap throws; an expired token `isValid(now>exp)===false`; **property test** (fuzz attenuation chains) asserts no descendant is ever stronger than any ancestor on any field. invariant: **Capability soundness + attenuation monotonicity (V5 / V8.8–V8.9).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Capability soundness + attenuation monotonicity (V5 / V8.8–V8.9)..",
-									"dependsOn": [
-										"s07"
-									],
-									"complexity": 50,
-									"suggestedRole": "worker",
-									"filesLikelyTouched": [
-										"src/auth/capability.ts",
-										"test/auth/capability.test.ts"
-									],
-									"acceptanceCommand": "npm test",
-									"testFirst": true,
-									"testability": "testable",
-									"acceptanceTestPrompt": "`capability.test.ts`: attenuating to a smaller cap works; requesting a **larger** cap throws; an expired token `isValid(now>exp)===false`; **property test** (fuzz attenuation chains) asserts no descendant is ever stronger than any ancestor on any field. invariant: **Capability soundness + attenuation monotonicity (V5 / V8.8–V8.9).**"
-								}
-							}
-						]
-					}
-				},
-				{
-					"behavior": {
-						"kind": "tool_calls",
-						"calls": [
-							{
-								"name": "add_task",
-								"arguments": {
-									"id": "s10",
-									"title": "S10 — Audit event schema + emitter",
-									"prompt": "Implement spine card S10 — Audit event schema + emitter of specification.md (§2 first vertical slice). This card's spec block, verbatim:\n\ndependsOn: `S05`, `S07`. files: src/audit/audit.ts, test/audit/audit.test.ts.\ninterface:\n```ts\nexport const auditEventSchema = defineEvent(\"AuditEvent\", {\n  actor: z.string(), brainVersion: z.string(), modelVersion: z.string(), toolVersion: z.string(),\n  inputsHash: z.string(), outputSummary: z.string(), approvalSource: z.enum([\"policy\",\"owner\",\"none\"]),\n  financialImpactMinor: z.number().int(), rollbackRef: z.string().nullable(), sideEffectId: z.string()\n})\nexport function emitAudit(log: EventLog, a: AuditFields): DomainEvent\nexport function sha256Hex(input: string): string\n```\nhow to implement: 1) `sha256Hex` wraps `node:crypto`. 2) `emitAudit` validates with the schema and appends. 3) `inputsHash` is computed by callers via `sha256Hex(JSON.stringify(input))` (stable key order — sort keys; see §C3).\nacceptance: `audit.test.ts`: emitting a valid audit appends one event; missing `sideEffectId` throws; `sha256Hex(\"a\")` is stable/known. invariant: **Audit totality (E11.2).**\n\nWorkspace rules (from specification.md §1/§C): TypeScript strict, ES modules, Node ≥ 20, Vitest (`npm test` runs `vitest run`), zod at every boundary; tests live under `test/` mirroring `src/`; folder layout per §C1. Determinism: never call Date.now/new Date()/setTimeout/setInterval/performance.now/Math.random/crypto.randomUUID in src/** (only src/kernel/system-clock.ts may read the wall clock); ids come from the injected Prng; money is integer minor units (cents); state is a pure fold over the event log; no network and no live model in tests. Touch only the files listed for this card (spine cards are frozen contracts once done). Definition of done (§C6): the interface exists exactly as written, the numbered recipe is implemented, the named test file exists and passes, `npm run typecheck` is clean, `npm test` is green.\n\nInvariant this card builds toward: Audit totality (E11.2)..",
-									"dependsOn": [
-										"s05",
-										"s07"
-									],
-									"complexity": 35,
-									"suggestedRole": "worker",
-									"filesLikelyTouched": [
-										"src/audit/audit.ts",
-										"test/audit/audit.test.ts"
-									],
-									"acceptanceCommand": "npm test",
-									"testFirst": true,
-									"testability": "testable",
-									"acceptanceTestPrompt": "`audit.test.ts`: emitting a valid audit appends one event; missing `sideEffectId` throws; `sha256Hex(\"a\")` is stable/known. invariant: **Audit totality (E11.2).**"
-								}
-							}
-						]
 					}
 				},
 				{

@@ -223,11 +223,17 @@ async function main(): Promise<void> {
 		calls: Array<{ name: string; arguments: Record<string, unknown> }>,
 		content?: string,
 	): ScenarioTurn[] => calls.map((call, position) => toolCall(call, position === 0 ? content : undefined));
-	const addTaskCalls = (slice: AddTaskArgs[]) =>
-		slice.map((card) => ({
+	// The planner's BATCH form — `add_task({ tasks: [...] })` (incremental-dag-tools.ts accepts an array of task
+	// objects) — keeps each slice to ONE single-call turn: the second harness run showed one add_task per turn
+	// overflowing the simulated 65k window after ~65 cards, and the restart brief then leaked card needles.
+	const addTaskCalls = (slice: AddTaskArgs[]) => [
+		{
 			name: "add_task",
-			arguments: { ...card, dependsOn: [...(edges.get(card.id) ?? [])].sort() } as Record<string, unknown>,
-		}));
+			arguments: {
+				tasks: slice.map((card) => ({ ...card, dependsOn: [...(edges.get(card.id) ?? [])].sort() })),
+			} as Record<string, unknown>,
+		},
+	];
 	const slice1 = finalCards.filter((card) => !/^s(5[2-9]|[6-9]\d)$/.test(card.id));
 	const slice2 = finalCards.filter((card) => /^s(5[2-9]|[6-9]\d)$/.test(card.id));
 	const decompose: ScenarioTrack = {
@@ -373,13 +379,17 @@ async function main(): Promise<void> {
 	// unchanged recovery ladder. Mirrors generate-scenario-sets.mts so the replay exercises the same transport paths.
 	const prefix = finalCards.slice(0, FLAKY_CARD_COUNT);
 	const prefixIds = new Set(prefix.map((card) => card.id));
-	const prefixCalls = prefix.map((card) => ({
-		name: "add_task",
-		arguments: {
-			...card,
-			dependsOn: [...(edges.get(card.id) ?? [])].filter((dep) => prefixIds.has(dep)).sort(),
-		} as Record<string, unknown>,
-	}));
+	const prefixCalls = [
+		{
+			name: "add_task",
+			arguments: {
+				tasks: prefix.map((card) => ({
+					...card,
+					dependsOn: [...(edges.get(card.id) ?? [])].filter((dep) => prefixIds.has(dep)).sort(),
+				})),
+			} as Record<string, unknown>,
+		},
+	];
 	const flakyDecompose: ScenarioTrack = {
 		...decompose,
 		turns: [
@@ -446,7 +456,8 @@ ${fixtureCount} compiled fixtures).
 
 - **perfect-run.json** — the replay. Worker needle: \`Implement spine card <title>\` (the charter: its opening line);
   review needle: \`the card "<first 60 title chars>\` (the board truncates long titles); decompose: class \`any\` keyed on
-  the seed-only phrase. Every turn carries ONE tool call (the simulator transport executes only the first call of a turn).
+  the seed-only phrase. Every turn carries ONE tool call (the simulator transport executes only the first call of a turn — P2.SIMMULTICALL);
+  the plan rides the planner's batch form \`add_task({ tasks })\`, one call per slice, so the planning transcript stays small.
 - **flaky-run.json** — the first ${FLAKY_CARD_COUNT} spine cards with the five failure-catalog modes (429, empty completion,
   reasoning-only, SSE stall, truncated tool JSON) injected before the first worker turn, then the same recovery ladder.
 - **sources.json** — provenance: which drain answer/delivery each track came from (sha256-prefixed).

@@ -66,7 +66,13 @@ describe("checked-in scenario sets", () => {
 												(task.prompt ?? "").toLowerCase(),
 											)
 										: call.name === "add_task"
-											? [String((call.arguments as { prompt?: string }).prompt ?? "").toLowerCase()]
+											? [
+													String((call.arguments as { prompt?: string }).prompt ?? "").toLowerCase(),
+													// The planner's batch form: add_task({ tasks: [...] }).
+													...((call.arguments as { tasks?: Array<{ prompt?: string }> }).tasks ?? []).map((task) =>
+														(task.prompt ?? "").toLowerCase(),
+													),
+												]
 											: [],
 								)
 							: [],
