@@ -2405,7 +2405,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   for the same task JOINS it; a prepare starting after the previous settled still re-clones, so the fresh-clone
   callers are unchanged. Verified against the unfixed code — two concurrent prepares cloned twice before, once
   after)*; (19)
-  blockedKind auto-clear failures warn-only; (20) bounced-stranded redrive has no strike cap; (21) residency
+  blockedKind auto-clear failures warn-only *(SHIPPED 2026-09-08: recorded as
+  `blocked_kind_auto_clear_failed` — that pass is the ONLY machine release for a blocked card, so its failure is
+  precisely what must reach the operator)*; (20) bounced-stranded redrive has no strike cap; (21) residency
   guard reads a 30s cache that returns last-good on probe failure, never ledger-checked. **P2:** (22) DAG
   zoom/pan (fixed 2026-09-04); (23) DAG node tooltips/aria/search; (24) board-card has no memoization (80+
   cards re-render every tick); (25) no unit tests for the single-flight guard, worker auto-pool widening, wedge
