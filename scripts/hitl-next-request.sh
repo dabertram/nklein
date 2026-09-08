@@ -22,6 +22,7 @@
 # Usage:  scripts/hitl-next-request.sh <mark> [maxWaitSeconds] [--claim <responderId>]
 #   <mark>  answer only ids strictly greater than this (scopes a capture to one project)
 #   --claim take exclusive ownership of the returned id (safe to run several responders)
+# Env:    HITL_STALE_MINUTES (default 30) — ignore unanswered requests older than this; their sessions are gone.
 # Prints:  the lowest unanswered request id > mark, or "NONE" if none appeared before the deadline.
 # Exit:    0 when an id is printed, 3 on timeout (so `||` can distinguish "idle" from "error").
 set -u
@@ -29,6 +30,7 @@ QUEUE="${HITL_QUEUE:-$HOME/.nklein/factory-drains/hitl-drain/queue}"
 MARK="${1:-0}"
 MAX_WAIT="${2:-540}"   # default under the 600s tool cap so the call returns rather than being killed
 POLL="${HITL_POLL_SECONDS:-5}"
+STALE_MINUTES="${HITL_STALE_MINUTES:-30}"   # a request older than this with no answer is a corpse, not work
 CLAIM_AS=""
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -68,6 +70,10 @@ while :; do
 			case "$id" in (*[!0-9]*) continue;; esac
 			[ "$id" -gt "$MARK" ] || continue
 			[ -f "$QUEUE/answers/$id.json" ] && continue
+			# A request whose session died is never coming back, and the model server will never read an answer to
+			# it. Offering one to a responder wastes a whole turn on a conversation nobody is listening to, and
+			# across a batch of projects those corpses accumulate faster than they are answered.
+			[ -n "$(find "$path" -mmin +"$STALE_MINUTES" 2>/dev/null)" ] && continue
 			if [ -n "$CLAIM_AS" ] && [ -d "$CLAIMS/$id" ] && [ -z "$(find "$CLAIMS/$id" -maxdepth 0 -mmin +60 2>/dev/null)" ]; then
 				continue   # another responder owns this turn
 			fi
