@@ -91,7 +91,8 @@ function markReplayVerified(projectId: string): void {
 
 interface ProjectResult {
 	projectId: string;
-	status: "skipped" | "recorded" | "failed";
+	/** `retrying` is deliberately NOT a failure: the rig never drove the project, so nothing was measured. */
+	status: "skipped" | "recorded" | "failed" | "retrying";
 	detail: string;
 	at: string;
 }
@@ -166,7 +167,21 @@ if (busy.length > 0 && !process.argv.includes("--force")) {
 
 console.log(`recording ${projects.length} project(s), state in ${statePath}`);
 
-for (const projectId of projects) {
+/**
+ * A project the rig never actually drove is NOT a result. Live 2026-09-08: project 39 was filed as `failed` with
+ * "captured 0 request/answer pair(s)" while six of its cards sat untouched in Planning — the rail had exited on
+ * the seed card alone and the drive never happened. Recording that as a failure would put a project in the "the
+ * model did badly" column that no model was ever asked about, and would quietly cost one of the forty.
+ *
+ * So a no-traffic drive is retried ONCE, at the end of the run (by then whatever was occupying the single serial
+ * endpoint has finished — the usual cause). A second empty drive is a real failure and is reported as one.
+ */
+const NO_TRAFFIC = /captured 0 request\/answer pair/u;
+const retriedProjectIds = new Set<string>();
+const queue = [...projects];
+
+for (let index = 0; index < queue.length; index += 1) {
+	const projectId = queue[index] as string;
 	if (isVerifiedRecording(projectId)) {
 		note({ projectId, status: "skipped", detail: "already recorded and replayed", at: new Date().toISOString() });
 		continue;
@@ -202,6 +217,17 @@ for (const projectId of projects) {
 	// 3. Reshape the queue slice into a scenario set.
 	const recorded = await run("npx", ["tsx", "scripts/hitl-record-project.mts", "record", projectId]);
 	if (recorded.code !== 0) {
+		if (NO_TRAFFIC.test(recorded.tail) && !retriedProjectIds.has(projectId)) {
+			retriedProjectIds.add(projectId);
+			queue.push(projectId);
+			note({
+				projectId,
+				status: "retrying",
+				detail: "the drive produced NO model traffic — the rig never drove it, so this is not a result. Re-queued once for the end of the run.",
+				at: new Date().toISOString(),
+			});
+			continue;
+		}
 		note({ projectId, status: "failed", detail: `record failed: ${recorded.tail}`, at: new Date().toISOString() });
 		continue;
 	}
@@ -226,9 +252,18 @@ for (const projectId of projects) {
 }
 
 saveState();
-const recordedCount = results.filter((result) => result.status === "recorded").length;
-const failed = results.filter((result) => result.status === "failed");
-console.log(`\ndone: ${recordedCount} recorded, ${failed.length} failed, ${results.length - recordedCount - failed.length} skipped`);
+// A project's LAST note is its outcome — an earlier `retrying` is superseded by whatever the retry produced.
+const outcomeByProjectId = new Map(results.map((result) => [result.projectId, result]));
+const outcomes = [...outcomeByProjectId.values()];
+const recordedCount = outcomes.filter((result) => result.status === "recorded").length;
+const failed = outcomes.filter((result) => result.status === "failed");
+const retried = [...new Set(results.filter((result) => result.status === "retrying").map((r) => r.projectId))];
+console.log(
+	`\ndone: ${recordedCount} recorded, ${failed.length} failed, ${outcomes.length - recordedCount - failed.length} skipped`,
+);
 if (failed.length > 0) {
 	console.log(`failed: ${failed.map((result) => result.projectId).join(", ")}`);
+}
+if (retried.length > 0) {
+	console.log(`re-driven after producing no model traffic: ${retried.join(", ")}`);
 }

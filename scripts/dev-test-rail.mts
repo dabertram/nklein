@@ -44,6 +44,16 @@ const ENDPOINT_BASE_URL =
  */
 const BUILTIN_PRESETS = ["mid_task", "complex_dag", "audio_vst", "daw_foundation"] as const;
 const TERMINAL_STATES = new Set(["awaiting_review", "completed", "failed"]);
+/**
+ * Lanes a card can still be WORKING in. A project is done when every card has left all of them.
+ *
+ * Live 2026-09-08: the rail declared a project finished the moment its SEED card went terminal — and for a
+ * decompose project the seed finishing means "the plan exists", not "the work is done". Project 39 was recorded as
+ * a failure with SIX cards sitting untouched in Planning: the rail exited, the batch driver moved on and seeded
+ * project 40, and 39's cards were left competing for a strictly-serial endpoint they had already lost. The seed
+ * state was a plausible signal standing in for the fact that mattered.
+ */
+const WORKING_LANES = new Set(["backlog", "planning", "ready", "in_progress", "review"]);
 const NARRATION_MARKERS = /<\|?\s*(?:tool_call|function_call|python_tag)\s*\|?>|\[TOOL_CALLS\]|<function\s*=|\[TOOL_REQUEST\]/i;
 
 function arg(name: string, fallback: string): string {
@@ -79,6 +89,8 @@ interface Lane {
 	sessionStates: Map<string, string>;
 	terminalState: string | null;
 	cardCount: number;
+	/** Cards still in a working lane — the project is not done while this is above zero. */
+	workingCardCount: number;
 	frames: number;
 }
 
@@ -242,6 +254,7 @@ async function main(): Promise<void> {
 				sessionStates: new Map(),
 				terminalState: null,
 				cardCount: 0,
+				workingCardCount: 0,
 				frames: 0,
 			};
 			lane.socket.addEventListener("message", (event) => {
@@ -293,11 +306,20 @@ async function main(): Promise<void> {
 			let allTerminal = true;
 			const rows: string[] = [];
 			for (const lane of lanes) {
+				// The board arrives as COLUMNS, not a flat card list. The old `board.cards` read was always
+				// undefined, so `cardCount` silently stayed 0 for every run — and the evidence report's
+				// `decomposed: … || lane.cardCount > 1` fallback could therefore never fire.
 				const state = (await lane.ws.workspace.getState.query().catch(() => null)) as {
-					board?: { cards?: unknown[] };
+					board?: { columns?: { id?: string; cards?: unknown[] }[] };
 					sessions?: Record<string, { state?: string }>;
 				} | null;
-				lane.cardCount = state?.board?.cards?.length ?? lane.cardCount;
+				const columns = state?.board?.columns;
+				if (columns) {
+					lane.cardCount = columns.reduce((total, column) => total + (column.cards?.length ?? 0), 0);
+					lane.workingCardCount = columns
+						.filter((column) => WORKING_LANES.has(column.id ?? ""))
+						.reduce((total, column) => total + (column.cards?.length ?? 0), 0);
+				}
 				for (const [taskId, session] of Object.entries(state?.sessions ?? {})) {
 					if (session.state) lane.sessionStates.set(taskId, session.state);
 				}
@@ -307,9 +329,12 @@ async function main(): Promise<void> {
 				const reviewing = [...lane.sessionStates.values()].filter((s) => s === "awaiting_review").length;
 				const lastTool = [...lane.messages].reverse().find((message) => message.toolName)?.toolName ?? "—";
 				const seedDone = seed && TERMINAL_STATES.has(seed);
-				if (!seedDone) allTerminal = false;
+				// Done means the WHOLE board settled: the seed reached a terminal state AND no card is left in a
+				// working lane. A decompose seed finishing only means the cards exist.
+				if (!seedDone || lane.workingCardCount > 0) allTerminal = false;
 				rows.push(
 					`  ${lane.label.padEnd(14)} cards=${String(lane.cardCount).padStart(2)} ` +
+						`working=${String(lane.workingCardCount).padStart(2)} ` +
 						`seed=${(seed ?? "starting").padEnd(14)} running=${running} review=${reviewing} ` +
 						`msgs=${String(lane.messages.length).padStart(4)} last_tool=${lastTool}`,
 				);
@@ -318,7 +343,7 @@ async function main(): Promise<void> {
 			for (const row of rows) log(row);
 			log();
 			if (allTerminal) {
-				log("All seed cards reached a terminal state.\n");
+				log("Every project's board settled: seed terminal and no card left in a working lane.\n");
 				break;
 			}
 			// Nothing about the drive changed this tick — not a card, not a session state, not a message. Repeated
