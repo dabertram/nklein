@@ -391,10 +391,19 @@ interface AgentSandboxAcquireSlotInput {
 
 export class AgentSandboxUnavailableError extends Error {
 	readonly code = "AGENT_SANDBOX_UNAVAILABLE";
+	/**
+	 * True when the task ONCE held a placement that has since been disposed, as opposed to never having been
+	 * placed at all. A never-placed task may simply be queued behind the pool and can succeed on the next call; a
+	 * disposed one is finished with its sandbox forever. Callers need the difference to know whether to retry or
+	 * to stop the session — see `src/core/sandbox-disposed-session.ts` for the thirty wasted requests that
+	 * motivated distinguishing them.
+	 */
+	readonly disposed: boolean;
 
-	constructor(message: string, options?: { cause?: unknown }) {
+	constructor(message: string, options?: { cause?: unknown; disposed?: boolean }) {
 		super(message, options);
 		this.name = "AgentSandboxUnavailableError";
+		this.disposed = options?.disposed ?? false;
 	}
 }
 
@@ -504,6 +513,11 @@ export class AgentSandboxManager {
 	private readonly staticWritableMounts: readonly AgentSandboxWritableMount[];
 	private readonly containers = new Map<number, ContainerState>();
 	private readonly placements = new Map<string, TaskPlacement>();
+	/**
+	 * Every task that has EVER held a placement in this process. Deliberately never pruned: it is the only way to
+	 * tell a disposed workspace from one that was never acquired, and it holds nothing but task ids.
+	 */
+	private readonly everPlacedTaskIds = new Set<string>();
 	private readonly projectMountsByKey = new Map<string, AgentSandboxProjectMount>();
 	// §5.AR basic-memory (OFF by default; the `basicMemoryEnabled` runtime setting OR NKLEIN_BASIC_MEMORY enables —
 	// §5.BB): per-project scoping plan keyed by projectKey. When enabled, each registered project gets a per-project
@@ -1528,6 +1542,7 @@ export class AgentSandboxManager {
 		};
 		container.occupancy.add(taskId);
 		this.placements.set(taskId, placement);
+		this.everPlacedTaskIds.add(taskId);
 		try {
 			await this.ensureContainerStarted(container);
 			if (container.egressProxyIp) {
@@ -2520,9 +2535,16 @@ export class AgentSandboxManager {
 	private requirePlacement(taskId: string): TaskPlacement {
 		const placement = this.placements.get(taskId);
 		if (!placement) {
-			throw new AgentSandboxUnavailableError(`No Docker sandbox workspace is prepared for task ${taskId}.`);
+			throw new AgentSandboxUnavailableError(`No Docker sandbox workspace is prepared for task ${taskId}.`, {
+				disposed: this.everPlacedTaskIds.has(taskId),
+			});
 		}
 		return placement;
+	}
+
+	/** Whether this task ever held a sandbox placement in this process (so its absence means DISPOSED, not early). */
+	wasEverPlaced(taskId: string): boolean {
+		return this.everPlacedTaskIds.has(taskId);
 	}
 
 	private async runDocker(
