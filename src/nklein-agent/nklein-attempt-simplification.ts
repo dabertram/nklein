@@ -9,6 +9,19 @@
  * Pure + generic (any `{ name }`-shaped tool) so the chat loop and the swarm session runtime share one seam, and so it
  * is trivially testable. The anchor is the instruction text: at higher levels keep only the tools the task actually
  * references by name (in mention order), so a weak model sees just what it needs.
+ *
+ * ── The anchor reads the TASK, never !Klein's own scaffolding ──
+ * Live 2026-09-08, HITL rig, card a00 of `42_analysis_unchecked_error_audit`: a card with nothing left to do
+ * oscillated for 16 turns and never finished. Every turn the model ended cleanly with no tool call — the correct
+ * move for a card that is already satisfied — and every turn this ladder fired, narrowed to exactly one tool, and
+ * forced another read. The anchor was `read_files`, and it was "mentioned" only because !Klein's OWN injected focus
+ * brief contains the line `read_files coverage ledger:`. Nothing in the task ever asked for a file.
+ *
+ * That makes the old note below ("a slightly-too-eager anchor just offers a relevant tool, which is harmless")
+ * false in the case that matters: a tool set narrowed to a pure READER cannot advance or end a card, so an eager
+ * anchor is not a wasted call, it is a livelock. The haystack is therefore stripped of !Klein-authored blocks
+ * first. When the task itself names no tool there is simply no anchor, the set is left intact, and a clean stop is
+ * allowed to be a clean stop.
  */
 
 export interface NamedTool {
@@ -40,7 +53,7 @@ export function selectToolsForAttempt<T extends NamedTool>(
 	if (level <= 0 || tools.length <= 1) {
 		return { tools: [...tools], reduced: false, matchedNames: [] };
 	}
-	const haystack = instruction.toLowerCase();
+	const haystack = stripNKleinScaffolding(instruction).toLowerCase();
 	const mentioned = tools
 		.map((tool) => ({ tool, at: toolReferencePosition(tool.name, haystack) }))
 		.filter((entry) => entry.at >= 0)
@@ -58,11 +71,48 @@ export function selectToolsForAttempt<T extends NamedTool>(
 }
 
 /**
+ * !Klein injects blocks of its own prose into the last user message — the context focus brief (which names
+ * `read_files` in its coverage ledger), the repo map, the focus chain, the stitching-areas note, and the retry
+ * ladder's "already attempted" list (which quotes the tool the model failed to call). None of that is the task
+ * asking for a tool, and treating it as such is how a finished card gets forced to read files forever.
+ *
+ * A block opens on one of these lines and ends at its `[/!Klein …]` closer when it has one (the focus brief does),
+ * otherwise at the first blank line — which is how the unclosed blocks are actually delimited on the wire.
+ */
+const NKLEIN_SCAFFOLDING_OPENERS: readonly RegExp[] = [
+	/^\[!Klein\b/u,
+	/^\[\/!Klein\b/u,
+	/^Already attempted this task\b/u,
+];
+
+export function stripNKleinScaffolding(instruction: string): string {
+	const lines = instruction.split(/\r?\n/u);
+	const kept: string[] = [];
+	let inBlock = false;
+	for (const line of lines) {
+		const trimmed = line.trim();
+		if (!inBlock && NKLEIN_SCAFFOLDING_OPENERS.some((opener) => opener.test(trimmed))) {
+			// A closer on its own is the tail of a block we already dropped; skip the line and carry on.
+			inBlock = !/^\[\/!Klein\b/u.test(trimmed);
+			continue;
+		}
+		if (inBlock) {
+			if (/^\[\/!Klein\b/u.test(trimmed) || trimmed.length === 0) {
+				inBlock = false;
+			}
+			continue;
+		}
+		kept.push(line);
+	}
+	return kept.join("\n");
+}
+
+/**
  * Earliest position at which an instruction references a tool, or -1. Robust to natural language: matches the exact
  * `snake_case` name, the spaced form (`create_card` → "create card"), and the distinctive last word (`card`,
  * `command`, `file`, `board`, `chain`) so "make a card" anchors `create_card`. The last word must be ≥4 chars to
- * avoid ambiguous short matches (e.g. `dir`); substring matching is intentional (a slightly-too-eager anchor just
- * offers a relevant tool, which is harmless).
+ * avoid ambiguous short matches (e.g. `dir`); substring matching is intentional. It is eager on purpose, which is
+ * safe ONLY because the haystack no longer contains !Klein's own prose — see the module note.
  */
 function toolReferencePosition(toolName: string, haystack: string): number {
 	const name = toolName.toLowerCase();
