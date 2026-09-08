@@ -28,7 +28,15 @@ const TRPC_URL = `${URL_BASE}/api/trpc`;
 /** Model endpoint to pin (§5.AI optional: point at a dedicated-LLM machine via `--endpoint` or NKLEIN_MODEL_ENDPOINT). */
 const ENDPOINT_BASE_URL =
 	arg("endpoint", "") || process.env.NKLEIN_MODEL_ENDPOINT?.trim() || "http://127.0.0.1:1234/v1";
-/** The built-in presets `createDevTestProject` accepts (proven to run; registry ids also work via --projects). */
+/**
+ * The built-in presets `createDevTestProject` accepts as `preset`.
+ *
+ * Anything else in `--projects` is a REGISTRY id (a folder under dev-test-projects/) and must be sent as
+ * `registryId` instead — the request schema has both fields and validates `preset` against this closed list. The
+ * rail sent every selector as `preset`, so `--projects 42_analysis_unchecked_error_audit` failed schema validation
+ * with "Invalid option: expected one of mid_task|…" and the rail exited "No dev-test projects could be created".
+ * That made the rail unable to drive the 30 non-build registry projects it exists to evaluate (live 2026-09-08).
+ */
 const BUILTIN_PRESETS = ["mid_task", "complex_dag", "audio_vst", "daw_foundation"] as const;
 const TERMINAL_STATES = new Set(["awaiting_review", "completed", "failed"]);
 const NARRATION_MARKERS = /<\|?\s*(?:tool_call|function_call|python_tag)\s*\|?>|\[TOOL_CALLS\]|<function\s*=|\[TOOL_REQUEST\]/i;
@@ -199,7 +207,10 @@ async function main(): Promise<void> {
 	try {
 		// ── Create + subscribe + start each project. ──
 		for (const preset of presets) {
-			const created = await base.projects.createDevTestProject.mutate({ preset }).catch((error) => ({ ok: false, error: String(error) }) as const);
+			const isBuiltinPreset = (BUILTIN_PRESETS as readonly string[]).includes(preset);
+			const created = await base.projects.createDevTestProject
+				.mutate(isBuiltinPreset ? { preset } : { registryId: preset })
+				.catch((error) => ({ ok: false, error: String(error) }) as const);
 			if (!("ok" in created) || !created.ok || !("project" in created) || !created.project || !created.task) {
 				log(`✗ ${preset}: createDevTestProject failed (${(created as { error?: string }).error ?? "unknown"}) — skipping`);
 				continue;
