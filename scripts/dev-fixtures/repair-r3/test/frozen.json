@@ -1,0 +1,15 @@
+{
+	"schemaVersion": 1,
+	"frozen": {
+		"scenarios/pipeline.scenarios.mjs": "cf099f48fd0538bf262969223c54d3127992ebce543a74a7182228f3696847c3",
+		"scenarios/support/turn-io.mjs": "a7b376494670773718c9b4db38a4a2d3f0a56cb0c14667e88d34f3018ef483ef",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"test/repair.test.js": "52ffc088b90edc20996d6cb6859ba166765c5277905ebd80d8e2ceccd5f0325d"
+	},
+	"src": {
+		"src/io.mjs": "61683eff4eaeb9d399f95e55c1c9d7ef470db63899c58c6746ce2044d8d7b9ab",
+		"src/metrics.mjs": "31bfcce9cab314dc9774651e71cd4a61efe2581a895e457468ddc69c4d582db8",
+		"src/pipeline.mjs": "4dfb9c890ff8a6cb4445dff179757ff49df8bfe051de1fa4ab153952d024a01b",
+		"src/sink.mjs": "1d6165f6cadfc02d01e35a7e0d8ff51f3dfb6f0fd97c7b5b9e94e688b7224e18"
+	}
+}

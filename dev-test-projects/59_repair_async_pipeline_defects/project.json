@@ -1,5 +1,5 @@
 {
-	"id": "33_repair_async_pipeline_defects",
+	"id": "59_repair_async_pipeline_defects",
 	"title": "Repair: A Race, a Floating Promise and a Swallowed Error in an Async Pipeline",
 	"acceptanceCommand": "npm test",
 	"agentId": "nklein",
