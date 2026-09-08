@@ -2380,8 +2380,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     P0.ANCHORLOOP (a satisfied card with no way to say so), and the fix there changed the ladder's anchor, not the
     close path. Reproduce with a card whose acceptance is green at start.
   - **(b) A worker's test-verified changes silently failed to land** on a `git apply` patch-capture failure that
-    surfaced only inside a "reasoning" field, invisible to the reviewer. If true this is a fail-OPEN on the
-    delivery path and outranks everything else here.
+    surfaced only inside a "reasoning" field, invisible to the reviewer. **CHECKED 2026-09-08 AND DOES NOT HOLD as
+    stated.** Both capture outcomes are instrumented: an `apply` failure throws a typed `TaskPatchCaptureError`,
+    preserves the failing patch to disk, records a `runtime_error`/`error` observation naming the failing file and
+    hunk, and fails the session (`nklein-sandbox-review-finalizer.ts` ~347). An EMPTY capture records
+    `recordPatchCaptureStatus(taskId, "empty")` and a `sandbox_patch_empty` activity, then goes through the W4.2a
+    redrive-then-hold. Neither is silent.
+    The one REAL nugget left: the empty-capture activity reads "Sandbox finished with no file changes", which
+    describes an agent that did nothing — not an agent whose writes did not survive capture. Those are different
+    situations with the same message, and the sandbox knows which it was (the session's tool calls). Worth
+    distinguishing IF it can be reproduced; do not build it on this report alone.
   - **(c) "Write-scope enforcement flags a path that was ever touched in the card's commit history, even after a
     clean deletion; needs a manual squash."** **CHECKED AND DOES NOT HOLD for the delivery gate**: the result
     branch is built by `commit-tree <tree> -p <baseCommit>` (`task-result-branches.ts`), a SINGLE commit whose
