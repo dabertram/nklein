@@ -2692,6 +2692,26 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   isolated sandbox instead of failing offline on every acceptance and plan gate. Remaining human-only parks
   should now be genuine judgment calls; anything else is a bug to file here.
 
+- [ ] **P1.SETTLEDNUDGE — a SETTLED session keeps being re-prompted, and a clean stop is scored as a failure.**
+  *(Opened 2026-09-09 from a responder shift; one hypothesis already refuted, see below.)* Card
+  `main-branch-custodian::review` was approved and acknowledged (`ok:true` + "Stop now; do not make further tool
+  calls"), and **9 of that shift's 25 requests — 36% — were that same settled review re-sent as nudges**, with
+  full conversation memory including its own acknowledgment. The responder declined twice; the harness scored each
+  clean stop as a failed `no_tool_call` attempt and told it to "try something different". Following that trail hit
+  `No Docker sandbox workspace is prepared for task main-branch-custodian::review` — the session's sandbox had
+  been torn down while the outer harness kept issuing turns against it.
+  **This waste is not cosmetic:** the same shift left projects 41 and 42 unanswered long enough to trip the rail's
+  15-minute stall watchdog. A third of the model seat spent on a finished card stalled two whole projects.
+  **REFUTED HYPOTHESIS (do not re-run it):** the empty-final redrive (`NKLEIN_EMPTY_FINAL_REDRIVE_LIMIT=8`, a
+  tempting match for the count of 9). The runtime log has **zero** `empty_final_redriven` observations for the
+  whole drive, so that rung never fired.
+  **Where to look next:** `main-branch-custodian::review` is deliberately EXEMPT from the terminal-lane sweeper
+  (`trashed-card-sessions.ts` — its parent names no board card), so nothing stops it on lane grounds; and the
+  second-opinion nudge loop is gated on `verdict === null`, which should not hold after a captured verdict. So the
+  re-prompt is coming from a third place. Start by finding who calls `sendTaskSessionInput` for a `::review` task
+  whose verdict was already recorded.
+  Composes with P0.RETIRELOOP: the answer is probably that a session which has met its protocol objective should
+  be RETIRED (`src/core/session-retirement.ts` already has the ledger and the revive-on-start rule).
 - [ ] **P1.REVIEWBUDGET — derive the reviewer's time budget from observed turn latency instead of a constant.**
   *(Opened 2026-09-09 from a confirmed rig failure; the stop-gap knob shipped as `1f3183c7c`.)* The budget is a
   flat `DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS = 10 min` with a separately-configurable verdict RESERVE carved
