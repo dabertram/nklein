@@ -1,0 +1,33 @@
+{
+	"schemaVersion": 1,
+	"goals": [
+		{
+			"id": "G1",
+			"title": "no module is longer than 40 meaningful lines",
+			"metric": "max_module_lines",
+			"params": { "limit": 40 },
+			"why": "reporting.mjs parses, validates, aggregates, formats and exports. Five reasons to change one file, and no way to reuse any of them."
+		},
+		{
+			"id": "G2",
+			"title": "no function is longer than 20 meaningful lines",
+			"metric": "max_function_lines",
+			"params": { "limit": 20 },
+			"why": "buildReport is a pipeline written as one body, so no stage can be tested, replaced or reasoned about on its own."
+		},
+		{
+			"id": "G3",
+			"title": "no function has more than 5 branch points",
+			"metric": "max_branches_per_function",
+			"params": { "limit": 5 },
+			"why": "Every rejection rule is another branch in the same loop, and the loop also does the accepting."
+		},
+		{
+			"id": "G4",
+			"title": "no logic is duplicated across modules",
+			"metric": "no_duplicate_block",
+			"params": { "windowLines": 5 },
+			"why": "Money formatting exists in reporting.mjs and receipts.mjs. Money that formats two ways is a bug waiting for a rounding change."
+		}
+	]
+}

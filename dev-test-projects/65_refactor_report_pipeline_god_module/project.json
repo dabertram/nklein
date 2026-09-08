@@ -1,0 +1,16 @@
+{
+	"id": "65_refactor_report_pipeline_god_module",
+	"title": "Refactor: Split the Expense-Report God Module Into a Pipeline",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "refactor-f4",
+	"tier": "4/5 refactor",
+	"tags": [
+		"god module",
+		"pipeline extraction",
+		"duplication",
+		"branch complexity",
+		"exact formatting"
+	]
+}

@@ -1,0 +1,10 @@
+Break the expense reporting in src/ into stages that can be read and tested on their own, without changing a
+single character of its output.
+
+One function splits lines, applies five rejection rules, groups by category, computes averages, pads a table and
+totals it. The money formatter is copied verbatim into the receipts module, so any rounding change makes the two
+disagree.
+
+Read specification.md for the goals and the rules. Be careful with the output: column widths, padding, rejection
+wording and the ORDER rejections are reported in are all observable, and all of them are pinned by frozen
+scenarios.
