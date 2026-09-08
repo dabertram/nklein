@@ -2123,11 +2123,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     through the rig, records the queue slice as an aimock scenario set, and REPLAYS it before calling it done.
     A set counts as done only when `sources.json` says `replayVerified: true` — the skip rule used to test the
     directory's existence, which would have shipped recordings nobody had ever played back.
-    **1 of 40 recorded and replayed:** `37_tests_pricing_rules_suite`, 63 tracks from 63 request/answer pairs of a
-    live Sonnet drive, replaying with zero LLM compute. Two drives have also finished and been verified against
-    their fixtures (42 analysis 5/5 defects; 37 test-authoring 4/4 mutants killed by the agent's own suite).
-    The replay needs an ISOLATED HOME (`HOME=$(mktemp -d /tmp/nklein-simflow-XXXX)`) — the harness refuses the
-    operator's.
+    **2 of 40 recorded and replayed:** `37_tests_pricing_rules_suite` (63 tracks) and
+    `38_tests_duration_schedule_suite`, both from live Sonnet drives, replaying with zero LLM compute. Two drives
+    have also been verified against their fixtures (42 analysis 5/5 defects; 37 test-authoring 4/4 mutants killed
+    by the agent's own suite). The replay needs an ISOLATED HOME (`HOME=$(mktemp -d /tmp/nklein-simflow-XXXX)`) —
+    the harness refuses the operator's.
+    **▶ 2026-09-08: projects 39/40/41 were lost to P0.SEEDSIGNAL and re-driven.** The rail called a project
+    finished when its SEED card went terminal, so each one exited ~15 minutes into a 90-minute window with six to
+    eight cards untouched in Planning, and the driver filed "captured 0 request/answer pair(s)" as a project
+    failure. Three separate silent defects in one read (see `4881f9fd6`): the seed-only settle rule, a
+    `board.cards` read that never existed so `cardCount` was 0 on every run ever, and a no-traffic drive being
+    counted as a result. **38's recording is from a drive that had 2 cards still outstanding** when the rail
+    exited — it replays, so it stands, but it is a system test of a project that had not finished; re-drive it
+    once the batch is through if a fuller trace is wanted.
+    Throughput note: the Sonnet responder answers ~0.7 requests/min doing real work, so a ~60-request project is
+    ~90 minutes — the per-project `--max-wait-ms` default is sized for exactly that and should not be cut.
   A fixture is NOT done until four states are pasted (untouched green / wrong entry fails naming it / correct
   partial green / `complete:true` with something missing fails naming it) AND it has been solved once, because a
   fixture nobody has solved may not be solvable. **Seven real fixture defects were caught only by solving**, and
