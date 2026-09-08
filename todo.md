@@ -2355,6 +2355,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   REMAINING: the proactive fleet sweep + board banner + crash signature line (loss should surface without
   waiting for a victim session to wedge).
 
+- [x] **P1.WEBTESTGATE — the entire web-ui suite ran on nobody's machine.** *(2026-09-08: `web:typecheck` was in
+  the pre-commit gate and `web:test` was not, so 1236 tests were ungated. THREE had been red since the behaviour
+  they assert was deliberately changed — a Graph zoom level added as a sibling view, and the F2.32 onboarding nag
+  removed — and nothing said so in either direction: the tests did not stop the changes, and the changes did not
+  update the tests.)* **SHIPPED (5b63a0338 + 7d146abf9):** all three rewritten to assert the intended behaviour
+  (the zoom test now checks BOTH the detail ladder and the full bar, so they cannot drift apart again), and
+  `web:test` added to the gate — 8.4s against a gate that already spends far longer on the backend. A suite
+  nothing runs is not a suite.
+
 - [ ] **P1.RESPONDERLEADS — three leads from the 2026-09-08 batch responder, NOT yet reproduced.**
   A model in the rig's seat reported these after a 10-hour drive. They are LEADS, not findings: one of the four it
   reported was checked against the code and did not hold, so none of the rest should be actioned before it is
@@ -2410,7 +2419,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   precisely what must reach the operator)*; (20) bounced-stranded redrive has no strike cap; (21) residency
   guard reads a 30s cache that returns last-good on probe failure, never ledger-checked. **P2:** (22) DAG
   zoom/pan (fixed 2026-09-04); (23) DAG node tooltips/aria/search; (24) board-card has no memoization (80+
-  cards re-render every tick); (25) no unit tests for the single-flight guard, worker auto-pool widening, wedge
+  cards re-render every tick) *(SHIPPED 2026-09-08, 2a577bb83: `memo` + an extracted props interface; the column
+  already passes callbacks by reference and derives per-card values as primitives, so a shallow compare is the
+  right test rather than a hopeful one. Two tests, the first checked against the unmemoized component)*; (25) no unit tests for the single-flight guard, worker auto-pool widening, wedge
   classifier probe *(the wedge classifier SHIPPED 2026-09-08: `src/core/wedge-model-classifier.ts`, pure
   predicate + injected probe, 7 tests, and the unreachable-⇒-not-busy fail direction documented as deliberate.
   Worker auto-pool widening still untested)*.
