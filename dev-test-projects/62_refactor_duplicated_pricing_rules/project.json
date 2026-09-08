@@ -1,0 +1,16 @@
+{
+	"id": "62_refactor_duplicated_pricing_rules",
+	"title": "Refactor: De-duplicate Order Pricing Without Changing Behaviour",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "refactor-f1",
+	"tier": "1/5 refactor",
+	"tags": [
+		"duplication",
+		"extract module",
+		"behaviour preservation",
+		"function length",
+		"money handling"
+	]
+}

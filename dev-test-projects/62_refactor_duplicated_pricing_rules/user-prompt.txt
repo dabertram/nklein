@@ -1,0 +1,9 @@
+Clean up the pricing code in src/ without changing what it does.
+
+The discount ladder exists twice, in two modules that have already drifted apart once, and the pricing entry point
+has grown into one long function that does five unrelated jobs. I want the logic stated once and the entry point
+readable — and I want to be able to prove nothing about the output changed.
+
+Read specification.md for the goals that count, the deliverable, and the rules. The one worth repeating here: the
+scenario suite is frozen evidence. If a scenario is inconvenient, that is the refactor telling you something, not
+a file to edit.

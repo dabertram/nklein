@@ -1,0 +1,19 @@
+{
+	"schemaVersion": 1,
+	"goals": [
+		{
+			"id": "G1",
+			"title": "no logic is duplicated across modules",
+			"metric": "no_duplicate_block",
+			"params": { "windowLines": 6 },
+			"why": "The discount ladder exists twice. The two copies have already drifted once; the next edit to one of them is a bug in the other."
+		},
+		{
+			"id": "G2",
+			"title": "no function is longer than 30 meaningful lines",
+			"metric": "max_function_lines",
+			"params": { "limit": 30 },
+			"why": "A single function that validates, sums, discounts, taxes and ships cannot be read or changed one concern at a time."
+		}
+	]
+}
