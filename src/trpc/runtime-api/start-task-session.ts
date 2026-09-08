@@ -77,6 +77,7 @@ import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { resolveSwarmRoleModel } from "../../core/swarm-role-selection";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
 import { resolveTaskTitle } from "../../core/task-title";
+import { selectAutoPoolCandidates, widenWorkerPoolWithAutoPool } from "../../core/worker-auto-pool";
 import { buildLedgerExemplarMessages } from "../../nklein-agent/ledger-exemplar-messages";
 import { findLocalRuntimeCapability } from "../../nklein-agent/local-runtime-capability-registry";
 import { recordBaselineProbe } from "../../nklein-agent/nklein-baseline-probe-registry";
@@ -1191,35 +1192,29 @@ async function handleStartTaskSessionInner(
 		const machineIdByRuntimeModelId = new Map(
 			lmsPsModelsForResidency.map((model) => [model.identifier, model.machineId]),
 		);
-		const autoPoolCandidates = workerAutoPoolEnabled
-			? allGuardCandidates.filter(
-					(candidate) =>
-						candidate.role === null &&
-						(autoPoolHostAllowlist.size === 0 ||
-							autoPoolHostAllowlist.has(machineIdByRuntimeModelId.get(candidate.entry.modelId) ?? "local")),
-				)
-			: [];
-		const workerPoolWithAuto = (() => {
-			if (autoPoolCandidates.length === 0) {
-				return cardRoleGuardCandidates;
-			}
-			const seen = new Set(cardRoleGuardCandidates.map((candidate) => candidate.entry.key));
-			const absorbed = autoPoolCandidates.filter((candidate) => !seen.has(candidate.entry.key));
-			if (absorbed.length > 0) {
-				// F2.34 mechanism evidence: the auto pool actually WIDENED a configured worker pool.
-				recordSelfObservation({
-					signal: "custom",
-					severity: "info",
-					message: `Worker auto-pool absorbed ${absorbed.length} loaded model(s) for ${body.taskId}: ${absorbed.map((candidate) => candidate.entry.modelId).join(", ")}.`,
-					taskId: body.taskId,
-					metadata: {
-						category: "worker_auto_pool_absorb",
-						absorbedModelIds: absorbed.map((candidate) => candidate.entry.modelId),
-					},
-				});
-			}
-			return [...cardRoleGuardCandidates, ...absorbed];
-		})();
+		// P0.AUDIT0904 leg 25: both decisions — which loaded models are eligible, and how they join the configured
+		// pool — live in `src/core/worker-auto-pool.ts`, where they can be exercised without a fleet.
+		const autoPoolCandidates = selectAutoPoolCandidates(allGuardCandidates, {
+			enabled: workerAutoPoolEnabled,
+			hostAllowlist: autoPoolHostAllowlist,
+			machineIdByModelId: machineIdByRuntimeModelId,
+		});
+		const widenedWorkerPool = widenWorkerPoolWithAutoPool(cardRoleGuardCandidates, autoPoolCandidates);
+		if (widenedWorkerPool.absorbed.length > 0) {
+			// F2.34 mechanism evidence: the auto pool actually WIDENED a configured worker pool. `absorbed` is only
+			// what was ADDED, so this record cannot fire on a start that changed nothing.
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Worker auto-pool absorbed ${widenedWorkerPool.absorbed.length} loaded model(s) for ${body.taskId}: ${widenedWorkerPool.absorbed.map((candidate) => candidate.entry.modelId).join(", ")}.`,
+				taskId: body.taskId,
+				metadata: {
+					category: "worker_auto_pool_absorb",
+					absorbedModelIds: widenedWorkerPool.absorbed.map((candidate) => candidate.entry.modelId),
+				},
+			});
+		}
+		const workerPoolWithAuto = widenedWorkerPool.pool;
 		const roleScopedSelectionCandidates =
 			!taskModelPin && !cardRolePin && cardRoleHasConfiguredModel && cardRoleGuardCandidates.length > 0
 				? workerPoolWithAuto
