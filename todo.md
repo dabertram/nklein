@@ -2371,14 +2371,28 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `web:test` added to the gate — 8.4s against a gate that already spends far longer on the backend. A suite
   nothing runs is not a suite.
 
-- [ ] **P1.RESPONDERLEADS — three leads from the 2026-09-08 batch responder, NOT yet reproduced.**
+- [x] **P1.RESPONDERLEADS — three leads from the 2026-09-08 batch responder. ALL THREE RESOLVED 2026-09-08:**
+  (a) reproduced and fixed, (b) and (c) checked against the code and disconfirmed. The scoreboard is the point:
+  one lead in three survived contact with the source, which is exactly why a model report is a lead and not a finding.
   A model in the rig's seat reported these after a 10-hour drive. They are LEADS, not findings: one of the four it
   reported was checked against the code and did not hold, so none of the rest should be actioned before it is
   reproduced.
   - **(a) A no-op worker card looped ~10 close-retry rounds** before self-resolving — the stuck-detector kept
-    demanding `begin_implementation` after it had already succeeded. Plausible: this is the same family as
-    P0.ANCHORLOOP (a satisfied card with no way to say so), and the fix there changed the ladder's anchor, not the
-    close path. Reproduce with a card whose acceptance is green at start.
+    demanding an action after it had already succeeded. **REPRODUCED AND CLOSED 2026-09-08 (`7e7011fc2`).** Not
+    one defect but two, and the report's own guess ("same family as P0.ANCHORLOOP") was only half of it:
+      1. **The evidence gate named nothing.** `buildAcceptanceCompletionGate` is satisfied ONLY by a `run_command`
+         step that ran the card's `Acceptance check:` command to a zero exit in THIS turn. Its nudge said "you have
+         NOT yet completed all the required steps" and named no step. A card already green at start has nothing to
+         implement, so it stopped cleanly, was told it was not done, and stopped cleanly again — with no way to
+         learn what would count. `acceptanceEvidenceNudge` now names the command and says a claim is not evidence.
+      2. **The narrowing ladder had removed the exit.** The same turn was narrowed to `read_files` alone while the
+         gate demanded proof that `npm test` had run. Unsatisfiable by construction — no model effort and no
+         re-prompt can recover a turn whose only tool cannot produce its own exit condition. `selectToolsForAttempt`
+         now takes `alwaysKeep` and the adapter passes the command tool whenever an acceptance line is present.
+    Evidence: drain queue requests 624/628/630/632/634/636 each offered exactly ONE tool (`read_files`) and each
+    carried `Acceptance check: npm test`. Sixteen turns. **Neither fix waives the evidence** — an already-satisfied
+    card now spends one more turn and leaves with its acceptance PROVEN, which is strictly better than the waiver
+    the "let a clean stop be a clean stop" reading would have produced.
   - **(b) A worker's test-verified changes silently failed to land** on a `git apply` patch-capture failure that
     surfaced only inside a "reasoning" field, invisible to the reviewer. **CHECKED 2026-09-08 AND DOES NOT HOLD as
     stated.** Both capture outcomes are instrumented: an `apply` failure throws a typed `TaskPatchCaptureError`,
