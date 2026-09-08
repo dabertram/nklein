@@ -1,0 +1,16 @@
+{
+	"id": "74_performance_batch_the_n_plus_one",
+	"title": "Performance: Batch the N+1 Fetches and Stop Asking Twice",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "performance-x3",
+	"tier": "3/5 performance",
+	"tags": [
+		"n+1 queries",
+		"batching",
+		"deduplication",
+		"two-hop enrichment",
+		"counted round trips"
+	]
+}

@@ -1,0 +1,8 @@
+The enrichment in src/ fetches from the store once per order. Fix that without changing a single output.
+
+There are 150 orders over about 40 customers, so the same records come back again and again, and the two-hop
+report does it twice per order. The store accepts batches of up to 25 ids and simply omits ids it does not have.
+
+Read specification.md for the budgets. Two things are counted separately and they are different mistakes: how many
+round trips you make, and how many ids you ask for more than once. Fetching everything in one enormous call is not
+the answer either — the store refuses a batch over 25.

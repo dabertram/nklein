@@ -1,0 +1,26 @@
+{
+	"schemaVersion": 1,
+	"budgets": [
+		{
+			"id": "B1",
+			"workload": "W1",
+			"title": "naming 150 orders takes a couple of batches, not 150 round trips",
+			"limits": { "maxCalls": 2, "noDuplicateIds": true },
+			"why": "One fetch per order is the N+1 problem: the same forty customers are fetched over and over. Collect the distinct ids first, fetch them in batches of at most 25, then answer from what came back."
+		},
+		{
+			"id": "B2",
+			"workload": "W2",
+			"title": "a missing customer costs nothing extra",
+			"limits": { "maxCalls": 2, "noDuplicateIds": true },
+			"why": "An id that does not exist simply comes back absent. It must not turn into a retry, a second lookup, or a fetch of everything."
+		},
+		{
+			"id": "B3",
+			"workload": "W3",
+			"title": "two hops are two rounds of batches, not two fetches per order",
+			"limits": { "maxCalls": 4, "noDuplicateIds": true },
+			"why": "The second hop cannot start until the first has answered, so it is a second ROUND — not a reason to fetch per order. Batch the customers, learn their regions, then batch the regions."
+		}
+	]
+}
