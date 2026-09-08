@@ -1235,6 +1235,8 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"sandbox_npm_cache_seed",
 	// P0.AUDIT0904 leg 11 (2026-09-08): an operator re-admitted a model the liveness ledger had marked dead.
 	"model_dead_mark_cleared",
+	// Inherited debt (2026-09-08): a waived pre-existing breakage was opened, re-encountered or closed.
+	"inherited_debt",
 	// P0.REVIEWNOVERDICT (2026-09-07): a cut auxiliary session was resumed from its persisted transcript so the
 	// verdict nudge reaches the reviewer's own exploration instead of restarting a fresh agent on the seed prompt.
 	"aux_session_transcript_resume",

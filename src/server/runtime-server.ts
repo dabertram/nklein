@@ -78,6 +78,7 @@ import { EVAL_PROMPT_CORPUS } from "../core/eval-prompt-corpus";
 import { resolveExercisingTests } from "../core/exercising-tests";
 import { seedFocusChainFromPlanTask } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { inheritedDebtSignature, shouldRecordInheritedDebt } from "../core/inherited-debt";
 import { loadLlmfitCatalogSupplement } from "../core/llmfit-catalog-supplement";
 import { defaultLlmfitCatalogCachePath } from "../core/llmfit-catalog-update";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached, type LmsPsModel } from "../core/lms-ps-json";
@@ -245,6 +246,7 @@ import {
 } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote } from "../state/card-mailbox-store";
 import { claimDurableSchedulerLedger } from "../state/durable-scheduler-claim";
+import { closeInheritedDebt, recordInheritedDebtSighting } from "../state/inherited-debt-store";
 import { readMergeHistory, recordDeliveryGateFailure, recordMergeHistory } from "../state/merge-history-store";
 import { appendModelEvalRuns, readAllModelEvalRuns } from "../state/model-eval-run-store";
 import { appendRailRunHistory, readRailRunHistory } from "../state/rail-run-history-store";
@@ -2938,6 +2940,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					// Hoisted so the delivery gate below can derive a MEASURED command-level regression delta from the
 					// same base-tree sample (null = never sampled ⇒ the delta honestly stays unknown).
 					let acceptanceBaseline: Awaited<ReturnType<typeof service.verifyTaskAcceptanceInSandbox>> | null = null;
+					// The waiver rewrites `acceptance.passed` to true. Remember that it did, so inherited debt is never
+					// closed by the waiver's own synthetic pass — only by the command actually going green.
+					let acceptanceWaivedAsPreexisting = false;
 					if (deliveryCard && acceptancePresentAndFailed(acceptance)) {
 						const baseline = await (async () => {
 							try {
@@ -2976,9 +2981,54 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									baselineOutputHead: (baseline.output ?? "").slice(0, 600),
 								},
 							});
+							// The waiver settles BLAME, not the defect. Record the breakage as inherited debt so it is owned,
+							// visible and fed to the architect as required work — otherwise every later card re-waives it
+							// and the project decays while every gate reports green (David 2026-09-08).
+							if (
+								shouldRecordInheritedDebt({
+									waived: true,
+									carryPreExistingBreakageRequested: isTruthyEnv(
+										process.env.NKLEIN_CARRY_PREEXISTING_BREAKAGE,
+									),
+								})
+							) {
+								const command = acceptance.command ?? "";
+								const baselineOutput = baseline.output ?? "";
+								const debt = await recordInheritedDebtSighting({
+									workspacePath: scope.workspacePath,
+									command,
+									taskId,
+									signature: inheritedDebtSignature(command, baselineOutput),
+									baselineOutput,
+									baselineExitCode: baseline.exitCode ?? null,
+								});
+								if (debt.record) {
+									deps.warn(
+										debt.opened
+											? `Inherited debt OPENED for ${scope.workspacePath}: "${command}" fails at base — it is now planned work, not an accepted failure.`
+											: `Inherited debt re-encountered by ${taskId}: "${command}" has now been inherited by ${debt.record.encounters} card(s).`,
+									);
+									recordSelfObservation({
+										signal: "custom",
+										severity: debt.opened ? "warning" : "info",
+										message: `Inherited debt ${debt.opened ? "opened" : "re-encountered"}: "${command}" fails on the base tree (${debt.record.encounters} card(s) affected).`,
+										taskId,
+										workspacePath: scope.workspacePath,
+										metadata: {
+											category: "inherited_debt",
+											event: debt.opened ? "opened" : "encountered",
+											signature: debt.record.signature,
+											command,
+											encounters: debt.record.encounters,
+											baselineExit: String(baseline.exitCode ?? ""),
+										},
+									});
+								}
+							}
 							deps.warn(
-								`Acceptance for ${taskId} fails on the base tree too — waived (pre-existing breakage); review verdict gates delivery.`,
+								`Acceptance for ${taskId} fails on the base tree too — waived for BLAME (pre-existing breakage) and recorded as inherited debt; review verdict gates delivery.`,
 							);
+							acceptanceWaivedAsPreexisting = true;
 							acceptance = { ...acceptance, passed: true };
 						}
 					}
@@ -3873,6 +3923,34 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									"unknown task result merge failure";
 								deps.warn(`Could not auto-merge task result ${taskId} for ${scope.workspacePath}: ${reason}`);
 								return;
+							}
+							// A command that genuinely passed on a tree that is now the base RETIRES the debt it owed —
+							// the one piece of evidence that the pre-existing breakage is actually gone. A waived pass is
+							// not that evidence, which is why the flag exists.
+							if (!acceptanceWaivedAsPreexisting && acceptance?.present === true && acceptance.passed === true) {
+								const closed = await closeInheritedDebt({
+									workspacePath: scope.workspacePath,
+									command: acceptance.command ?? "",
+								});
+								for (const debt of closed) {
+									deps.warn(
+										`Inherited debt CLOSED by ${taskId}: "${debt.command}" now passes at base after ${debt.encounters} card(s) inherited it.`,
+									);
+									recordSelfObservation({
+										signal: "custom",
+										severity: "info",
+										message: `Inherited debt closed: "${debt.command}" passes on the base tree again.`,
+										taskId,
+										workspacePath: scope.workspacePath,
+										metadata: {
+											category: "inherited_debt",
+											event: "closed",
+											signature: debt.signature,
+											command: debt.command,
+											encounters: debt.encounters,
+										},
+									});
+								}
 							}
 							if (isCrashRecoveryMatrixPhaseEnabled("delivery")) {
 								await reachCrashRecoveryMatrixBarrier("delivery", {

@@ -29,6 +29,12 @@ the BASE tree when acceptance fails (`P0.LAZYBASELINE`) and waives failures it f
 card is then delivered on the reviewer's verdict alone. A project that starts red therefore grades nothing: every
 card is waived, and a worker that fixes nothing still merges.
 
+> **Since 2026-09-08 the waiver also records INHERITED DEBT** (`src/core/inherited-debt.ts`): the breakage is owned,
+> counted, fed to the architect as required work, and closed only when the command genuinely goes green. That fixes
+> the *product* behaviour — nklein no longer carries pre-existing shortcomings silently. It does not change this
+> rule for FIXTURES: a graded fixture still starts green, because grading needs the acceptance signal to mean "this
+> agent's work is correct" rather than "this workspace owes debt". Keep the two apart.
+
 So every project starts green, and the agent's own declarations drive what gets enforced:
 
 - The empty deliverable is valid ⇒ `npm test` passes on the untouched fixture.

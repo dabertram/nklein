@@ -208,6 +208,11 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		gate: "nklein-agent-sandbox.ts (P0.LOCKFILECAPTURE — keeps install-generated lockfile churn in the patch)",
 	},
 	{
+		flag: "NKLEIN_CARRY_PREEXISTING_BREAKAGE",
+		mode: "enforcing",
+		gate: "runtime-server.ts (inherited debt — set only to deliberately CARRY a pre-existing breakage instead of planning its repair)",
+	},
+	{
 		flag: "NKLEIN_SANDBOX_NPM_CACHE_SEED",
 		mode: "enforcing",
 		gate: "nklein-sandbox-package-cache-seed.ts (P1.NPMSEED — warm per-workspace npm cache seeded into every placement)",
@@ -403,6 +408,12 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 		flag: "NKLEIN_LAZY_BASELINE_PROBE",
 		kind: "permanent",
 		reason: "default ON; `=0` is the opt-out — the lane already samples the base tree on a red acceptance",
+	},
+	{
+		flag: "NKLEIN_CARRY_PREEXISTING_BREAKAGE",
+		kind: "permanent",
+		reason:
+			"an explicit OPT-OUT of taking pre-existing breakage into the plan; enabling it in the lane would restore the silent-decay behaviour the mechanism exists to remove",
 	},
 	{
 		flag: "NKLEIN_SANDBOX_NPM_CACHE_SEED",
