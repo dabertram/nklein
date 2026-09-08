@@ -1329,6 +1329,10 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	// F4.8b's rule (record the DECISION, not only the action) applied to the widened rung.
 	"review_redecompose_rung",
 	"sandbox_workspace_disposed",
+	// P0.AUDIT0904 leg 17 (2026-09-08): the removal FAILED and the workdir is leaked on the volume. Operational
+	// rather than a mechanism gate: it is the only signal a leak leaves, because every caller of disposeWorkspace
+	// swallows the throw on purpose (a failed disposal must not break the path that triggered it).
+	"sandbox_workspace_removal_failed",
 	// N23 (2026-08-03): the two zero-trace forever-waits a swept card can enter, made visible. Diagnostics
 	// on the sweep path — not flag-gated mechanisms, and a healthy board emits neither.
 	"sweep_skip_active_session",

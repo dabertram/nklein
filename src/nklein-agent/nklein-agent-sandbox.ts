@@ -2336,13 +2336,37 @@ export class AgentSandboxManager {
 		// acquisition queued indefinitely, silently: callers .catch(() => null)). The slot release must be
 		// unconditional: a leftover workdir is recoverable, a leaked slot freezes the whole run.
 		try {
-			const removal = await this.execAsTaskUser(
-				placement,
-				["rm", "-rf", placement.workdir, taskHomePath(placement), taskCachePath(placement)],
-				{
-					workdir: AGENT_SANDBOX_WORKSPACES_DIR,
-				},
-			);
+			// P0.AUDIT0904 leg 17: remove AS ROOT. `prepareWorkspace` already learned this — a tree can hold
+			// foreign-uid files (a prior placement's uid, or root-written build artifacts such as a root `npm i`'s
+			// node_modules) and the task-user `rm` then dies with "Operation not permitted". Prepare was fixed on
+			// 2026-09-03 and dispose was not, so the same tree that prepare could clear, dispose could not: the
+			// workdir leaked on the volume, and the throw below is swallowed by callers that `.catch(() => null)`,
+			// so it leaked SILENTLY. Deleting a directory this manager owns is janitorial lifecycle work, not an
+			// escalation of the task's own privileges.
+			const removal = await this.execAsRoot(placement, [
+				"rm",
+				"-rf",
+				placement.workdir,
+				taskHomePath(placement),
+				taskCachePath(placement),
+			]);
+			if (removal.exitCode !== 0) {
+				// Record it HERE rather than relying on the throw: every caller of disposeWorkspace swallows errors
+				// (a failed disposal must never break the path that triggered it), so a thrown-and-caught failure is
+				// indistinguishable from a clean disposal, and the leak is invisible until the volume fills.
+				recordSelfObservation({
+					signal: "custom",
+					severity: "warning",
+					message: `Sandbox workspace removal FAILED for ${taskId}; ${placement.workdir} is leaked on the volume.`,
+					taskId,
+					metadata: {
+						category: "sandbox_workspace_removal_failed",
+						workdir: placement.workdir,
+						exitCode: removal.exitCode,
+						stderr: (removal.stderr ?? "").slice(0, 400),
+					},
+				});
+			}
 			assertSandboxExecOk(removal, "remove sandbox task workspace");
 		} finally {
 			await this.releaseSlot(taskId);
