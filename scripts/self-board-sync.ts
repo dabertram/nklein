@@ -15,6 +15,8 @@
  * which then stages `.nklein/nklein/workspace/board-crdt.json` — the committed, portable board (specsheet §14.2).
  * Titles are never truncated (David 2026-09-05).
  */
+import type { RuntimeTaskTestability } from "../src/core/board-api-contract";
+import { deriveTodoCardTestability } from "../src/core/todo-card-testability";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -156,7 +158,15 @@ function findCard(board: RuntimeBoardData, id: string): { card: RuntimeBoardCard
 
 function upsertCard(
 	board: RuntimeBoardData,
-	input: { id: string; title: string; prompt: string; columnId: "planning" | "completed"; baseRef: string },
+	input: {
+		id: string;
+		title: string;
+		prompt: string;
+		columnId: "planning" | "completed";
+		baseRef: string;
+		testability?: RuntimeTaskTestability;
+		reason?: string;
+	},
 	now: number,
 ): RuntimeBoardData {
 	const existing = findCard(board, input.id);
@@ -174,6 +184,8 @@ function upsertCard(
 				agentId: "nklein",
 				baseRef: input.baseRef,
 				trustedOrigin: "plan",
+				...(input.testability ? { testability: input.testability } : {}),
+				...(input.reason ? { testabilityReason: input.reason } : {}),
 			} as never,
 			() => input.id,
 			now,
@@ -184,11 +196,32 @@ function upsertCard(
 		...board,
 		columns: board.columns.map((column) => ({
 			...column,
-			cards: column.cards.map((card) =>
-				card.id === input.id && (card.title !== input.title || card.prompt !== input.prompt)
-					? { ...card, title: input.title, prompt: input.prompt, updatedAt: now }
-					: card,
-			),
+			cards: column.cards.map((card) => {
+				if (card.id !== input.id) {
+					return card;
+				}
+				// Testability is re-derived on every sync, not only at creation: an entry that gains or loses its
+				// `*(not testable: …)*` declaration must move the card with it. A sizing that only applies to cards
+				// created after the feature landed would leave the whole existing backlog permanently unsized.
+				const nextTestability = input.testability ?? "testable";
+				const nextReason = input.reason ?? "";
+				const unchanged =
+					card.title === input.title &&
+					card.prompt === input.prompt &&
+					(card.testability ?? "testable") === nextTestability &&
+					(card.testabilityReason ?? "") === nextReason;
+				if (unchanged) {
+					return card;
+				}
+				return {
+					...card,
+					title: input.title,
+					prompt: input.prompt,
+					testability: nextTestability,
+					testabilityReason: nextReason,
+					updatedAt: now,
+				};
+			}),
 		})),
 	};
 	if (existing.columnId !== input.columnId && input.columnId === "completed") {
@@ -252,7 +285,14 @@ async function main(): Promise<void> {
 				refs.length > 0
 					? `${item.prompt}\n\nCommits (newest first):\n${refs.slice(0, 12).map((commit) => `- ${commit.sha} ${commit.subject}`).join("\n")}`
 					: item.prompt;
-			board = upsertCard(board, { id: item.id, title: item.title, prompt, columnId: "planning", baseRef }, now);
+			// F2.36 (c): size the card from its own todo text, so !Klein does not put a decision note or an
+			// operator-blocked entry through the test-driven gate. Default is testable; an exemption is earned.
+			const testability = deriveTodoCardTestability(`${item.title}\n${item.prompt}`);
+			board = upsertCard(
+				board,
+				{ id: item.id, title: item.title, prompt, columnId: "planning", baseRef, ...testability },
+				now,
+			);
 			if (spineHead) {
 				board = ensureDependency(board, item.id, spineHead, now);
 			}
