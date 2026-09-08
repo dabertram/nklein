@@ -1,0 +1,10 @@
+{
+	"frozen": {
+		"input/README.md": "b7cd96a8743cd360dc6452da0d994d335ba65a9b2e41f6d83cd8c9e2f25b0c58",
+		"input/carriers.csv": "547c48fb610c5b13fd89574a2a46ffec98f2c8e00a91d9245ab3bf1f063806d2",
+		"input/shipments.csv": "ee9e2d65d2fd0a25986f879b030225b5d57a301bcb52c5ada9d7d0c27c05a769",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"test/data-quality.test.js": "c887db2e6a7e16635b56b142067a3c35e6a6aae1e964ab701d3521fc714f0666",
+		"test/frozen.test.js": "052008a2a4910d323a488853a895de902d7407589b7872d7bed45247aa6f2dd3"
+	}
+}

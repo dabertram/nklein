@@ -42,6 +42,15 @@ because an unrecognised rule name fails the check.
 | `wrong_type` | `delivered_at` | the cell is non-empty and is not a full ISO-8601 UTC instant of the form `YYYY-MM-DDTHH:MM:SSZ`. An empty cell is legitimate — that shipment has not been delivered. |
 | `referential_break` | `carrier_id` | its `carrier_id` is not one of the ids defined in `input/carriers.csv`. |
 
+## What is frozen
+
+`input/`, everything under `test/`, and `scripts/run-tests.mjs` are **evidence, not workspace**. `npm test`
+recomputes their content digests on every run and fails if any of them moved.
+
+This matters more here than it looks. The verifier DERIVES its truth from the evidence on every run, so deleting a
+problem from the input would shrink the truth set and let a short answer pass as complete. Editing the verifier
+would do the same in one line. Neither is a shortcut; both simply fail.
+
 ## How your work is checked
 
 `npm test` runs a verifier that re-reads both CSVs and recomputes each rule's offending-row set on every run. It

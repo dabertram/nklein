@@ -43,6 +43,15 @@ it, because an unrecognised finding fails the check.
 - **`unimported_module`** — a file that no module in the package imports. The entry module is imported by the host
   application rather than by the package, so it never counts.
 
+## What is frozen
+
+`input/`, everything under `test/`, and `scripts/run-tests.mjs` are **evidence, not workspace**. `npm test`
+recomputes their content digests on every run and fails if any of them moved.
+
+This matters more here than it looks. The verifier DERIVES its truth from the evidence on every run, so deleting a
+problem from the input would shrink the truth set and let a short answer pass as complete. Editing the verifier
+would do the same in one line. Neither is a shortcut; both simply fail.
+
 ## How your work is checked
 
 `npm test` runs a verifier that rebuilds the import graph from `input/` on every run and enumerates the cycles,

@@ -38,6 +38,15 @@ it, because an unrecognised finding fails the check.
 - **`float_money`** — a value held in integer minor units is pushed through floating-point arithmetic, so money
   gains a fractional part that cannot be represented exactly.
 
+## What is frozen
+
+`input/`, everything under `test/`, and `scripts/run-tests.mjs` are **evidence, not workspace**. `npm test`
+recomputes their content digests on every run and fails if any of them moved.
+
+This matters more here than it looks. The verifier DERIVES its truth from the evidence on every run, so deleting a
+problem from the input would shrink the truth set and let a short answer pass as complete. Editing the verifier
+would do the same in one line. Neither is a shortcut; both simply fail.
+
 ## How your work is checked
 
 `npm test` runs a verifier that derives the defect set from the evidence on every run. It is a checker, not an

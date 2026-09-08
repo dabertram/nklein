@@ -1,0 +1,13 @@
+{
+	"frozen": {
+		"input/README.md": "090ba305c5a5b995b164d52ada6af788fb3ebe78146372a17bd23040dbde3b17",
+		"input/admin-routes.mjs": "3f97fdc1a3cc8e418d5c0f5b530590c16ec3898d2df57994773d3e9ed9ab1381",
+		"input/routes.mjs": "a4a67a9700547732d67f25d39e1959659fc1ad2f4c6e91f7f79af0fe961ffa59",
+		"input/search-api.mjs": "609cc831d56df93d0c1af2412f77f8a6f68bb3f34d9037a38578ac9128bee600",
+		"input/session-store.mjs": "68f418412e4f9c58e135ffaffde0c42bfdce9a39f0a9fd541a0537ce7162cbb4",
+		"input/webhook.mjs": "9f91ec9d518585009a9bbba986918cbfe8dfff7a4f75dfb1014ee1e5fbcda591",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"test/frozen.test.js": "052008a2a4910d323a488853a895de902d7407589b7872d7bed45247aa6f2dd3",
+		"test/security.test.js": "47594facf526bec1b43f340db0c5168f829b3d7fc4860b5ed5aee78bcf523033"
+	}
+}

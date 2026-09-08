@@ -55,12 +55,23 @@ an agent that finds it gets failed for being right. That is a bug in the fixture
 So: the brief names the exact classes, categories or scenario ids that count, and the input contains no genuine
 instance outside them. The reference fixture had one such case seeded and it was removed for this reason.
 
-## 5. Anti-tamper where the grader ships with the task
+## 5. Anti-tamper in EVERY family, not only where the grader ships tests
 
-When the fixture ships the tests that grade the work (repair, refactor, test-authoring), the agent can pass by
-weakening them. The verifier must therefore assert the graded artifacts are unmodified — compare a content digest
-computed at run time against one recorded in the fixture, and fail loudly when it moves. State this in the brief:
-the frozen files are evidence, not workspace.
+The first cut of this rule said anti-tamper was needed "where the fixture ships the tests that grade the work
+(repair, refactor, test-authoring)". That was wrong, and the gap was live in ten fixtures until 2026-09-08.
+
+**Every** fixture ships its verifier, so weakening the verifier is always a one-line pass. And any family whose
+verifier DERIVES its truth from shipped evidence — analysis and specification, by rule 2 — has a second, quieter
+hole: deleting a problem from the evidence shrinks the truth set, so a short answer passes as complete. Proven on
+`analysis-a1`: changing `parseInt(raw)` to `parseInt(raw, 10)` in the input made the unguarded verifier pass 3/3
+with that defect no longer required.
+
+So: `input/` (or whatever holds the evidence), everything under `test/`, and `scripts/run-tests.mjs` have their
+content digests recorded in `test/frozen.json` and recomputed on every run. The guard lives in its own
+`test/frozen.test.js` and is inside its own frozen set, so editing the guard changes the guard's digest.
+
+State it in the brief, and say *why* — an agent who understands that the evidence is the thing being reasoned
+about will not want to edit it anyway.
 
 ## 6. Offline and dependency-free
 

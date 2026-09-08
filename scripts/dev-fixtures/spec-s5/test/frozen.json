@@ -1,0 +1,10 @@
+{
+	"frozen": {
+		"input/README.md": "40428be7ef8f1c8f2931b435e37f2d628cafcae2da33febe26c9ffd857319501",
+		"input/change-request.md": "d5f268c7cec8380f2e7a99a9be8a3c2e1517eacd9a68b6b2650adb58e410e92f",
+		"input/spec-v1.md": "98733f18bc1773064fa7bba266426f042af015070feb0d2389d6f90d77428341",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"test/frozen.test.js": "052008a2a4910d323a488853a895de902d7407589b7872d7bed45247aa6f2dd3",
+		"test/impact.test.js": "2ae70080736520512c541a4cca1efff59262012c7de051ed86d2500b474395b1"
+	}
+}

@@ -69,6 +69,15 @@ Start from the class, then apply **at most one** modifier — the first that mat
 
 The ladder is `low` → `medium` → `high` → `critical`, and raising past `critical` stays at `critical`.
 
+## What is frozen
+
+`input/`, everything under `test/`, and `scripts/run-tests.mjs` are **evidence, not workspace**. `npm test`
+recomputes their content digests on every run and fails if any of them moved.
+
+This matters more here than it looks. The verifier DERIVES its truth from the evidence on every run, so deleting a
+problem from the input would shrink the truth set and let a short answer pass as complete. Editing the verifier
+would do the same in one line. Neither is a shortcut; both simply fail.
+
 ## How your work is checked
 
 `npm test` runs a verifier that re-derives the defects *and their severities* from the evidence on every run. It

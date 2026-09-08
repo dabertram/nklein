@@ -53,6 +53,15 @@ requirement is never breaking.
 The verifier applies exactly this rule to the classification it derives, so a `breaking` flag that reflects how
 disruptive the work *feels* rather than what the rule says will fail.
 
+## What is frozen
+
+`input/`, everything under `test/`, and `scripts/run-tests.mjs` are **evidence, not workspace**. `npm test`
+recomputes their content digests on every run and fails if any of them moved.
+
+This matters more here than it looks. The verifier DERIVES its truth from the evidence on every run, so deleting a
+problem from the input would shrink the truth set and let a short answer pass as complete. Editing the verifier
+would do the same in one line. Neither is a shortcut; both simply fail.
+
 ## How your work is checked
 
 `npm test` runs a verifier that re-reads both documents on every run: it derives the v1 requirement set and their

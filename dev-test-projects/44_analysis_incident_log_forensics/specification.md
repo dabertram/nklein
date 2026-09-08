@@ -58,6 +58,15 @@ decided by the configuration `key` that trigger lowered, by the first rule that 
 The verifier applies this same table to the trigger it derives, so a category that does not follow it fails even
 when the narrative around it is persuasive.
 
+## What is frozen
+
+`input/`, everything under `test/`, and `scripts/run-tests.mjs` are **evidence, not workspace**. `npm test`
+recomputes their content digests on every run and fails if any of them moved.
+
+This matters more here than it looks. The verifier DERIVES its truth from the evidence on every run, so deleting a
+problem from the input would shrink the truth set and let a short answer pass as complete. Editing the verifier
+would do the same in one line. Neither is a shortcut; both simply fail.
+
 ## How your work is checked
 
 `npm test` runs a verifier that re-derives the chain from the log on every run. It is a checker, not an answer

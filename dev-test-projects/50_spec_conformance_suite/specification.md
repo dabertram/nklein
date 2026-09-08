@@ -36,6 +36,15 @@ conformance suite, and the check rejects it.
 
 Set `"complete": true` only when the specification states every rule and the suite discriminates.
 
+## What is frozen
+
+`input/`, everything under `test/`, and `scripts/run-tests.mjs` are **evidence, not workspace**. `npm test`
+recomputes their content digests on every run and fails if any of them moved.
+
+This matters more here than it looks. The verifier DERIVES its truth from the evidence on every run, so deleting a
+problem from the input would shrink the truth set and let a short answer pass as complete. Editing the verifier
+would do the same in one line. Neither is a shortcut; both simply fail.
+
 ## How your work is checked
 
 `npm test` derives the rule ids from the brief, loads both candidates and your suite, and runs your suite against

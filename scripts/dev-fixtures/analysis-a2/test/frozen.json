@@ -1,0 +1,16 @@
+{
+	"frozen": {
+		"input/README.md": "428405ce22fa50bbadff1f8c5a418a5c48995ad524d4eb1f9f8e30c4ab28b24b",
+		"input/audit.mjs": "1a2f004408b22a3e301ebce7b53fe612b16aaaf08d05cd733a352c388af17767",
+		"input/handlers.mjs": "199a8b80010b6dfafc8263768940aacd19c3c1e5dba4d8236df7ff44b93f2e3f",
+		"input/index.mjs": "183a157a21c9ed44223de98945555dcf948f8888d360e3c97b39d2b6e2bb5d2b",
+		"input/legacy-cache.mjs": "653623205e1dc00e1ea17510222c0979cb14edc123fca88c280d2d3173790409",
+		"input/logger.mjs": "b823214f0f6038028fb0d484167858330b2e1d0f68c9ed19192aad0eed1fb6eb",
+		"input/router.mjs": "bc62c80408ff794b3e53b8ee0bebadb867ad6cb7c5c1ab092c9e6ed46eb773c4",
+		"input/session.mjs": "1dfa97ecff28c8782a73d8643733fde47544e4b9be5066eebe0661c9c8fd77ec",
+		"input/store.mjs": "380c435b294d647e45c177e98beebfef51e5b8a170dfb34b68640b2f3fdff009",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"test/frozen.test.js": "052008a2a4910d323a488853a895de902d7407589b7872d7bed45247aa6f2dd3",
+		"test/structure.test.js": "539e4ba9fd280fc899d4d5521ca34b2e8af457676c5dbe32e4751bb1a7b25736"
+	}
+}
