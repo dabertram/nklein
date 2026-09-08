@@ -2418,7 +2418,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `blocked_kind_auto_clear_failed` — that pass is the ONLY machine release for a blocked card, so its failure is
   precisely what must reach the operator)*; (20) bounced-stranded redrive has no strike cap; (21) residency
   guard reads a 30s cache that returns last-good on probe failure, never ledger-checked. **P2:** (22) DAG
-  zoom/pan (fixed 2026-09-04); (23) DAG node tooltips/aria/search; (24) board-card has no memoization (80+
+  zoom/pan (fixed 2026-09-04); (23) DAG node tooltips/aria/search *(tooltips + aria SHIPPED 2026-09-08, e182ff242: describeDagNode puts
+  title, live state or lane, and critical-path membership in one sentence, used as BOTH the aria-label and an
+  SVG title element — colour was the sole channel for all of it. SEARCH deliberately not done: it is a UX
+  design question, and inventing an interaction nobody asked for is not closing a finding)*; (24) board-card has no memoization (80+
   cards re-render every tick) *(SHIPPED 2026-09-08, 2a577bb83: `memo` + an extracted props interface; the column
   already passes callbacks by reference and derives per-card values as primitives, so a shallow compare is the
   right test rather than a hopeful one. Two tests, the first checked against the unmemoized component)*; (25) no unit tests for the single-flight guard, worker auto-pool widening, wedge
