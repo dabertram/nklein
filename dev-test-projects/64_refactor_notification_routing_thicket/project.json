@@ -1,0 +1,16 @@
+{
+	"id": "64_refactor_notification_routing_thicket",
+	"title": "Refactor: Replace the Notification-Routing Conditional Thicket",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "refactor-f3",
+	"tier": "3/5 refactor",
+	"tags": [
+		"conditional complexity",
+		"open-closed",
+		"duplication",
+		"precedence rules",
+		"behaviour preservation"
+	]
+}

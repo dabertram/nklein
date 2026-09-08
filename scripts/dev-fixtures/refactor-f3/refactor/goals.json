@@ -1,0 +1,26 @@
+{
+	"schemaVersion": 1,
+	"goals": [
+		{
+			"id": "G1",
+			"title": "no function has more than 6 branch points",
+			"metric": "max_branches_per_function",
+			"params": { "limit": 6 },
+			"why": "One function decides four event kinds against four channels. Every new kind or channel means another branch in the same place, and no branch can be read without the others."
+		},
+		{
+			"id": "G2",
+			"title": "no function is longer than 25 meaningful lines",
+			"metric": "max_function_lines",
+			"params": { "limit": 25 },
+			"why": "The routing decision, the reachability computation and the reason text are one body. None of them can be reused or tested apart."
+		},
+		{
+			"id": "G3",
+			"title": "no logic is duplicated across modules",
+			"metric": "no_duplicate_block",
+			"params": { "windowLines": 5 },
+			"why": "The reachability block exists in notifications.mjs and audit.mjs. The two must agree and nothing makes them."
+		}
+	]
+}

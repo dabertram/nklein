@@ -1,0 +1,9 @@
+Rework the notification routing in src/ so it can be read and extended, without changing a single routing decision.
+
+One function decides four event kinds against four channels, so every new kind or channel means another branch in
+the same body and no branch can be understood without the others. The reachability computation it depends on was
+copied into the audit module, so the two must agree and nothing makes them.
+
+Read specification.md for the goals that count and the rules. The precedence rules are subtle — quiet hours
+suppress some kinds and not others, an unverified phone is not a phone — so lean on the frozen scenarios rather
+than on what the code looks like it does.
