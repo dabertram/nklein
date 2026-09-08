@@ -91,6 +91,24 @@ const pinnedReviewerUnavailableStreakByTaskId = new Map<string, number>();
 // summary edge / sweep that reaches the runner, and a row per probe would be the noise the hold removes.
 const parkedUnchangedHoldNotifiedKeys = new Set<string>();
 
+/**
+ * P0.HEAP: forget the runner's module-level per-task marks for a card that finished. All four sets above grow for
+ * the process lifetime otherwise (only the pending-redrive map ever deleted its own entries).
+ */
+export function forgetSecondOpinionReviewTaskState(workspacePath: string, taskId: string): void {
+	escalatedWorkerTaskIds.delete(escalatedWorkerKey(workspacePath, taskId));
+	pinnedReviewerUnavailableStreakByTaskId.delete(taskId);
+	const holdKeyPrefix = `${workspacePath}\0${taskId}\0`;
+	for (const key of parkedUnchangedHoldNotifiedKeys) {
+		if (key.startsWith(holdKeyPrefix)) {
+			parkedUnchangedHoldNotifiedKeys.delete(key);
+		}
+	}
+	// The re-drive window is keyed by exactly the key computed above, so forgetting it is one delete — the
+	// observation itself carries no task identity to scan for.
+	pendingRedriveObservations.delete(escalatedWorkerKey(workspacePath, taskId));
+}
+
 function shouldQuiescePrimaryWorkerBeforeReview(summary: ReturnType<NKleinTaskSessionService["getSummary"]>): boolean {
 	if (summary?.state !== "running") {
 		return false;

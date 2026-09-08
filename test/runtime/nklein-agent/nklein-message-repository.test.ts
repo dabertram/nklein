@@ -255,3 +255,62 @@ describe("emitSummary write-through (N21)", () => {
 		expect(repository.getSummary("task-elsewhere")).toBeNull();
 	});
 });
+
+describe("InMemoryNKleinMessageRepository — the retention budget (P0.HEAP)", () => {
+	/**
+	 * The repository kept every session's transcript mirror for the life of the process. The server died at its
+	 * heap limit twice — 4 GB on 2026-09-02 and 24.5 GB on 2026-09-07, 9.7 hours in. The persisted SDK session is
+	 * the durable truth; a settled card's in-memory transcript is a cache, and beyond a budget it is dropped.
+	 */
+	// The settled states are `failed`, `interrupted` and `idle`. `awaiting_review` is deliberately NOT settled: a
+	// reviewer still reads that transcript, and the failover path reads a just-failed one to build the carry
+	// prompt — which is also why the budget is enforced on the next session start, not on the settling summary.
+	function settledEntry(taskId: string, updatedAt: number): NKleinTaskSessionEntry {
+		const entry = createEntry(taskId);
+		entry.summary.state = "idle";
+		entry.summary.updatedAt = updatedAt;
+		entry.messages = [{ id: `${taskId}-m1`, role: "assistant", content: "x".repeat(1000), createdAt: updatedAt }];
+		return entry;
+	}
+
+	it("drops the least-recently-updated settled transcripts beyond the budget, keeping the summary", () => {
+		const repository = createInMemoryNKleinMessageRepository({ maxSettledTranscripts: 2 });
+		for (const [index, taskId] of ["oldest", "middle", "newest"].entries()) {
+			repository.setTaskEntry(taskId, settledEntry(taskId, 1_000 + index));
+		}
+		// The budget is enforced on the NEXT set, which is when the map grows. This entry must be genuinely LIVE:
+		// a default entry is `idle`, which is itself a settled state and would push another transcript out.
+		const live = createEntry("live");
+		live.summary.state = "running";
+		repository.setTaskEntry("live", live);
+
+		expect(repository.listMessages("oldest")).toEqual([]);
+		expect(repository.getSummary("oldest")?.state).toBe("idle");
+		expect(repository.listMessages("newest")).toHaveLength(1);
+		expect(repository.listMessages("middle")).toHaveLength(1);
+	});
+
+	it("never drops a transcript that is still live, whatever the budget says", () => {
+		const repository = createInMemoryNKleinMessageRepository({ maxSettledTranscripts: 0 });
+		const running = createEntry("running");
+		running.summary.state = "running";
+		running.messages = [{ id: "running-m1", role: "assistant", content: "live", createdAt: 1 }];
+		repository.setTaskEntry("running", running);
+		repository.setTaskEntry("other", createEntry("other"));
+		expect(repository.listMessages("running")).toHaveLength(1);
+	});
+
+	it("reports what it is holding, so the climb is visible before the fatal line is", () => {
+		const repository = createInMemoryNKleinMessageRepository({ maxSettledTranscripts: 1 });
+		repository.setTaskEntry("a", settledEntry("a", 1));
+		repository.setTaskEntry("b", settledEntry("b", 2));
+		repository.setTaskEntry("c", settledEntry("c", 3));
+		const footprint = repository.getFootprint();
+		expect(footprint.taskEntries).toBe(3);
+		// Budget 1 over three settled entries: two transcripts released, one still held.
+		expect(footprint.releasedTranscripts).toBe(2);
+		expect(footprint.transcriptMessages).toBe(1);
+		expect(footprint.transcriptChars).toBe(1000);
+		expect(footprint.hydratedTranscripts).toBe(0);
+	});
+});

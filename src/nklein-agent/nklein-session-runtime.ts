@@ -1550,6 +1550,20 @@ ${new Error("stack").stack ?? ""}
 		await this.releaseTaskMcpToolBundle(taskId);
 	}
 
+	releaseTaskSessionState(taskId: string): void {
+		this.lastStartRequestByTaskId.delete(taskId);
+		this.swarmBrokerStateByTaskId.delete(taskId);
+		this.turnGenerationByTaskId.delete(taskId);
+		const sessionId = this.sessionIdByTaskId.get(taskId);
+		if (sessionId) {
+			releaseSessionScopedState(sessionId);
+		}
+	}
+
+	getRetainedTaskCount(): number {
+		return this.lastStartRequestByTaskId.size;
+	}
+
 	async dispose(): Promise<void> {
 		const hostPromise = this.sessionHostPromise;
 		this.sessionHostPromise = null;
@@ -1601,6 +1615,11 @@ ${new Error("stack").stack ?? ""}
 		const previousSessionId = this.sessionIdByTaskId.get(taskId);
 		if (previousSessionId) {
 			this.taskIdBySessionId.delete(previousSessionId);
+			if (previousSessionId !== sessionId) {
+				// P0.HEAP: the replaced session id never comes back — its focus / edit-history / progress records and
+				// large-file workflow (which holds every chunk it served) were released only by an explicit clear.
+				releaseSessionScopedState(previousSessionId);
+			}
 		}
 		this.sessionIdByTaskId.set(taskId, sessionId);
 		if (process.env.NKLEIN_STOP_STACKS === "1") {
@@ -1717,6 +1736,12 @@ ${new Error("stack").stack ?? ""}
 			void this.releaseTaskMcpToolBundle(taskId);
 		}
 	}
+}
+
+/** The per-SESSION module registries (context-focus extension state, large-file workflow) a dead session id leaves behind. */
+function releaseSessionScopedState(sessionId: string): void {
+	forgetSessionFocusState(sessionId);
+	releaseNKleinLargeFileWorkflow(sessionId);
 }
 
 export function createInMemoryNKleinSessionRuntime(

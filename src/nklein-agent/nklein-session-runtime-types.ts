@@ -276,6 +276,16 @@ export interface NKleinSessionRuntime {
 	 * closed at that same boundary and recreated on the next sandbox restart.
 	 */
 	releaseTaskMcpTools(taskId: string): Promise<void>;
+	/**
+	 * P0.HEAP: forget the task's retained start request (system prompt, tool policies, approval closures), broker
+	 * state, turn generation and the bound session's focus / large-file workflow records. Memory only — the SDK
+	 * session binding and its persisted record stay, so a session that is still emitting keeps routing its events.
+	 * The task-session service calls it for a card that finished; a later re-drive takes the fresh-start path.
+	 * Optional for test/external implementations.
+	 */
+	releaseTaskSessionState?(taskId: string): void;
+	/** P0.HEAP: how many tasks still hold a retained start request — a retention gauge for the memory observation. */
+	getRetainedTaskCount?(): number;
 	dispose(): Promise<void>;
 }
 

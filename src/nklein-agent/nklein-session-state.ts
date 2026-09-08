@@ -118,6 +118,12 @@ export interface NKleinTaskSessionEntry {
 	activeReasoningMessageId: string | null;
 	toolMessageIdByToolCallId: Map<string, string>;
 	toolInputByToolCallId: Map<string, unknown>;
+	/**
+	 * P0.HEAP: the transcript mirror was dropped from memory (the summary stays) because the session settled and the
+	 * repository's retention budget evicted it. Readers hydrate the persisted SDK session instead of trusting the
+	 * now-empty `messages`.
+	 */
+	transcriptReleased?: boolean;
 }
 
 export interface NKleinTaskMessage {

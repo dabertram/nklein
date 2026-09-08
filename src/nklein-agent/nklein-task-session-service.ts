@@ -4026,6 +4026,68 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		forgetCompactionRequest(taskId);
 	}
 
+	/**
+	 * P0.HEAP: memory-only release of a finished task (see the interface docblock). Everything here is a cache or
+	 * per-run bookkeeping; the persisted SDK session, the ledger and the sandbox state are untouched.
+	 */
+	releaseTaskSessionMemory(taskId: string): boolean {
+		const state = this.messageRepository.getSummary(taskId)?.state;
+		if (state === "running" || state === "queued" || state === "paused") {
+			return false;
+		}
+		if (this.inFlightStartsByTaskId.has(taskId)) {
+			return false;
+		}
+		this.messageRepository.forgetTask(taskId);
+		this.sessionRuntime.releaseTaskSessionState?.(taskId);
+		this.pendingTurnCancelTaskIds.delete(taskId);
+		this.launchConfigByTaskId.delete(taskId);
+		this.communitySkillAdmissionByTaskId.delete(taskId);
+		this.communitySkillSuggestionFragmentByTaskId.delete(taskId);
+		this.surfacedSkillIdsByTaskId.delete(taskId);
+		this.nextAttemptStrategyByTaskId.delete(taskId);
+		this.lastRecordedRunStateByTaskId.delete(taskId);
+		this.explicitDecompositionTaskIds.delete(taskId);
+		this.activeToolTaskIds.delete(taskId);
+		this.decompositionAppliedTaskIds.delete(taskId);
+		this.refinableWorkCardTaskIds.delete(taskId);
+		this.promotedToImplementationTaskIds.delete(taskId);
+		this.decompositionCompletedTaskIds.delete(taskId);
+		debugStreamEventLastAtByTaskId.delete(taskId);
+		this.providerIdStore.forget(taskId);
+		this.contextBudgetController.forget(taskId);
+		this.modelEndpoint.forget(taskId);
+		this.contextBudgetInputs.forget(taskId);
+		this.requestTimer.forget(taskId);
+		this.failureBackoff.forget(taskId);
+		this.autonomyBudgetWatchdog.resetTask(taskId);
+		this.repeatedToolCallGuard.resetTask(taskId);
+		this.turnLoopGuard.resetTask(taskId);
+		this.clearTaskTimeouts(taskId);
+		this.timeoutController.deleteSettings(taskId);
+		forgetPredictedOutput(taskId);
+		forgetLiveTaskUsage(taskId);
+		forgetBaselineProbe(taskId);
+		forgetAcceptanceEvidence(taskId);
+		forgetPropertyCheckEvidence(taskId);
+		forgetCompactionRequest(taskId);
+		this.focusChainStore.delete(taskId);
+		return true;
+	}
+
+	getMemoryFootprint(): Record<string, number> {
+		const repository = this.messageRepository.getFootprint();
+		return {
+			taskEntries: repository.taskEntries,
+			releasedTranscripts: repository.releasedTranscripts,
+			hydratedTranscripts: repository.hydratedTranscripts,
+			transcriptMessages: repository.transcriptMessages,
+			transcriptChars: repository.transcriptChars,
+			launchConfigs: this.launchConfigByTaskId.size,
+			runtimeRetainedTasks: this.sessionRuntime.getRetainedTaskCount?.() ?? 0,
+		};
+	}
+
 	async clearTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null> {
 		const existingEntry = this.messageRepository.getTaskEntry(taskId);
 		this.pendingTurnCancelTaskIds.delete(taskId);

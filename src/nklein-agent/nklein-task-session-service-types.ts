@@ -226,6 +226,17 @@ export interface NKleinTaskSessionService {
 	): Promise<RuntimeTaskSessionSummary | null>;
 	reloadTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	clearTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
+	/**
+	 * P0.HEAP: drop every IN-MEMORY trace of a task whose card finished (completed / trashed / deleted) — the
+	 * transcript mirror, launch request, per-session focus records, per-task bookkeeping. Nothing on disk is touched
+	 * (unlike `clearTaskSession`, which deletes the persisted SDK sessions too); a later re-drive rebuilds from the
+	 * persisted session exactly as it does after a process restart. A live session (running / queued / paused) is
+	 * refused — the board-liveness watchdog stops it first and releases it on a later tick. Optional for
+	 * test/external implementations.
+	 */
+	releaseTaskSessionMemory?(taskId: string): boolean;
+	/** P0.HEAP: in-process retention gauges (entries, transcript chars, launch configs, …) for the memory observation. */
+	getMemoryFootprint?(): Record<string, number>;
 	rebindPersistedTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	getSummary(taskId: string): RuntimeTaskSessionSummary | null;
 	/**
