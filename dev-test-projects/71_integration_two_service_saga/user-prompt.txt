@@ -1,0 +1,10 @@
+Write the order coordinator in src/adapter.mjs.
+
+Placing an order touches two services that share no transaction: money is held on the ledger, goods are booked on
+fulfilment, and only then is the money captured. When the middle step fails, the hold has to be released — and
+when the last step's outcome is unknown, it must NOT be released, because a timeout is not a "no" and refunding
+money the ledger has already captured is worse than the original failure.
+
+Read specification.md for the contract. Every case checks what both services were left holding, not just what
+placeOrder returned: a coordinator that returns the right error and leaves a dangling hold has failed at the one
+thing it exists to do.

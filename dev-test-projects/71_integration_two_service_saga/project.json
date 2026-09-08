@@ -1,0 +1,16 @@
+{
+	"id": "71_integration_two_service_saga",
+	"title": "Integration: A Two-Service Order Saga with Compensation",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "integration-i5",
+	"tier": "5/5 integration",
+	"tags": [
+		"saga",
+		"compensating transaction",
+		"idempotency",
+		"partial failure",
+		"final-state assertions"
+	]
+}

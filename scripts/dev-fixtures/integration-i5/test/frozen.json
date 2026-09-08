@@ -1,0 +1,9 @@
+{
+	"frozen": {
+		"conformance/cases.mjs": "9f63e1df37bdb6fd12186c48d67885cc41a4291078bd0f4cf2693258a5b745a2",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"service/fulfilment-service.mjs": "f4df8fb36d8b20cc135e4574f810e79211f099c7e68d0dcaedc8ad2e0a4b2be4",
+		"service/ledger-service.mjs": "c71addebbde25da6e3efbfd1df9ce6cf351360a34b102f56aab42407c4ee2d0a",
+		"test/integration.test.js": "0b9ec2ce8e4ecf097050acb62e282fe06103530bab26658ddf6a84c744ae0d0a"
+	}
+}
