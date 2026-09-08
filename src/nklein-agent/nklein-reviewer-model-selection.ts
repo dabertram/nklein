@@ -55,7 +55,12 @@ export async function excludeUnroutableDescriptors<T extends { runtimeId: string
 		reason: "liveness_ledger_dead" | "fleet_identifier_collision" | "host_not_allowlisted";
 	}[] = [];
 	const routable = descriptors.filter((descriptor) => {
-		if (isModelMarkedDead(descriptor.runtimeId) || isModelMarkedDead(descriptor.modelKey)) {
+		// Endpoint-scoped (P0.AUDIT0904 leg 8): these descriptors come from `probeBaseUrl`, so ask about THAT host —
+		// the same model id proven dead behind another endpoint must not exclude this one's live copy.
+		if (
+			isModelMarkedDead(descriptor.runtimeId, { endpoint: probeBaseUrl }) ||
+			isModelMarkedDead(descriptor.modelKey, { endpoint: probeBaseUrl })
+		) {
 			excluded.push({ id: descriptor.runtimeId, reason: "liveness_ledger_dead" });
 			return false;
 		}

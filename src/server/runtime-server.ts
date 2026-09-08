@@ -5256,7 +5256,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							// marks the model, and the next redrive (and every other card's routing) picks it again.
 							// The park itself is the endpoint's own verdict: record it in the liveness ledger so routing
 							// excludes the id until this leg PROVES it serves again.
-							if (!isModelMarkedDead(modelId)) {
+							// Endpoint-scoped (P0.AUDIT0904 leg 8): "already marked" must mean marked FOR THIS ENDPOINT, or a
+							// model proven dead behind one relay would suppress the mark for a different host's copy.
+							if (!isModelMarkedDead(modelId, { endpoint })) {
 								markModelDead({ modelId, endpoint, reason: "absent_from_listing" });
 								recordSelfObservation({
 									signal: "custom",
