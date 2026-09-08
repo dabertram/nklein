@@ -250,6 +250,7 @@ import { closeInheritedDebt, recordInheritedDebtSighting } from "../state/inheri
 import { readMergeHistory, recordDeliveryGateFailure, recordMergeHistory } from "../state/merge-history-store";
 import { appendModelEvalRuns, readAllModelEvalRuns } from "../state/model-eval-run-store";
 import { appendRailRunHistory, readRailRunHistory } from "../state/rail-run-history-store";
+import { createRecoveryBudgetBooks } from "../state/recovery-budget-store";
 import {
 	defaultRuntimeIdModelKeyMapPath,
 	initSharedRuntimeIdModelKeyMap,
@@ -719,10 +720,23 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// bounce round is still persisting, so round 2's review never ran (and a later stray trigger raced the
 	// bounce persist into "not_reviewable"). Requests that arrive mid-finalization are remembered and re-run.
 	const autoReviewFinalizationRerunRequestedKeys = new Set<string>();
+	/**
+	 * P0.AUDIT0904 leg 12: the recovery budgets below are DURABLE and success-cleared.
+	 *
+	 * They used to be plain `Map`s, which meant "bounded to N attempts" was really "bounded to N per restart" —
+	 * the bound that exists to stop a loop was reset by every restart, and long factory runs restart. They were
+	 * also never cleared, so a card that spent two of three attempts and then went green carried those two
+	 * forever, and a later unrelated problem got one attempt instead of three for reasons nobody could see.
+	 *
+	 * `books.map(name)` is a `Map`-shaped view over a hydrated, write-through ledger, so the reads below stay
+	 * synchronous and identical; `books.releaseForTask` runs when a card genuinely delivers.
+	 */
+	const recoveryBudgets = createRecoveryBudgetBooks();
+	void recoveryBudgets.hydrate();
 	// W4.2a (run12 live finding): ONE automatic re-drive of an empty-patch worker before the fail-closed hold —
 	// an unattended swarm otherwise stalls on a card the worker simply failed to do (the hold is correct; the
 	// missing piece was recovery). Keyed workspace:task; bounded to a single attempt, then the operator owns it.
-	const emptyPatchRedriveAttemptsByTaskKey = new Map<string, number>();
+	const emptyPatchRedriveAttemptsByTaskKey = recoveryBudgets.map("empty_patch_redrive");
 	// #28 (run30, user-observed frozen fleet): an APPROVED-but-acceptance-failed hold had NO re-drive rung —
 	// bounces fire only on request_changes and the empty-patch re-drive only on empty patches, so the card sat
 	// held in Review forever with the whole fleet idle. ONE re-drive carries the failing acceptance output back
@@ -731,17 +745,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const mergeRedeliveryAttemptAtByTaskId = new Map<string, number>();
 	/** P0.RECONCILE-SKIP watchdog twin: cap-held approved cards already announced (workspace:task → attempts in window). */
 	const approvedUnmergedCapHoldNotifiedByTaskKey = new Map<string, number>();
-	const acceptanceFailureRedriveAttemptsByTaskKey = new Map<string, number>();
+	const acceptanceFailureRedriveAttemptsByTaskKey = recoveryBudgets.map("acceptance_failure_redrive");
 	// F1.9b: a result whose ACTUAL changed files violate the card's work-package bounds gets ONE re-drive naming
 	// the violating paths (mirrors the #28 rung), then holds in Review for the operator.
-	const boundaryViolationRedriveAttemptsByTaskKey = new Map<string, number>();
+	const boundaryViolationRedriveAttemptsByTaskKey = recoveryBudgets.map("boundary_violation_redrive");
 	// F1.10: per-workspace "already notified" map for the running-task trouble read (taskId → episode kind), so a
 	// troubled card is steered ONCE per episode kind instead of every watchdog tick; cleared when the trouble clears.
 	const troubleNotifiedKindByWorkspaceId = new Map<string, Map<string, string>>();
 	// Model-unavailable self-recovery books (probe cooldown + bounded per-card recoveries).
 	const modelUnavailableProbeAtByTaskKey = new Map<string, number>();
-	const modelUnavailableRecoveryCountByTaskKey = new Map<string, number>();
-	const zeroTokenWedgeVanishCountByTaskKey = new Map<string, number>();
+	const modelUnavailableRecoveryCountByTaskKey = recoveryBudgets.map("model_unavailable_recovery");
+	const zeroTokenWedgeVanishCountByTaskKey = recoveryBudgets.map("zero_token_wedge_vanish");
 	/** F12.110c: require two identical non-empty loaded-fleet observations before any board mutation. */
 	const fleetReshardObservationByWorkspaceId = new Map<string, { fingerprint: string; count: number }>();
 	// Record-only PRM dedup: workspaceId → (taskId → last-recorded peak "pattern:level"), so a persistent trajectory
@@ -802,7 +816,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// P0.DSTALL: one "waiting on a busy model" line per (workspace, task, session start) for the silent-running sweep,
 	// plus per-card interrupt strikes so the observation names a repeat offender.
 	const silentRunningBusyNotifiedKeys = new Set<string>();
-	const silentRunningInterruptCountByTaskKey = new Map<string, number>();
+	const silentRunningInterruptCountByTaskKey = recoveryBudgets.map("silent_running_interrupt");
 	// §5.AW opportunistic best-of-N (user decision 2026-07-02): the per-workspace mirror tick + its budgets.
 	// The tick mirrors the hardest RUNNING card onto a lineage-diverse idle model as a `::spec` session; the
 	// A/B arbitration at the review seam picks the winner. Real work always outranks speculation (queued or
@@ -866,7 +880,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const idleReviewDispatchedByWorkspaceId = new Map<string, Set<string>>();
 	const bouncedRedriveDispatchedByWorkspaceId = new Map<string, Set<string>>();
 	/** Bounced-stranded redrives per card (audit 2026-09-04 #20): capped so a deterministically dying worker parks. */
-	const bouncedRedriveAttemptsByTaskKey = new Map<string, number>();
+	const bouncedRedriveAttemptsByTaskKey = recoveryBudgets.map("bounced_redrive");
 	/** The last start refusal per bounced card, quoted in the strike-cap park reason (live 2026-09-06). */
 	const bouncedRedriveLastRefusalByTaskKey = new Map<string, string>();
 	/** F4.32 content-version refs already completed/in flight for this process; persisted hashes survive restarts. */
@@ -3961,6 +3975,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							// A command that genuinely passed on a tree that is now the base RETIRES the debt it owed —
 							// the one piece of evidence that the pre-existing breakage is actually gone. A waived pass is
 							// not that evidence, which is why the flag exists.
+							// A card that genuinely delivered has ended its failure streak, so it stops spending every
+							// recovery budget it had open. A budget bounds CONSECUTIVE failures; without this it
+							// silently becomes a lifetime quota and the next unrelated problem gets fewer attempts.
+							const releasedBudgets = recoveryBudgets.releaseForTask(`${scope.workspaceId}:${taskId}`);
+							if (releasedBudgets.length > 0) {
+								deps.warn(
+									`Recovery budgets released for ${taskId} after a successful delivery: ${releasedBudgets.join(", ")}.`,
+								);
+							}
 							if (!acceptanceWaivedAsPreexisting && acceptance?.present === true && acceptance.passed === true) {
 								const closed = await closeInheritedDebt({
 									workspacePath: scope.workspacePath,
