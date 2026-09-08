@@ -197,7 +197,7 @@ export function selectStrictlyStrongerCandidates(
 		verdict: judgeStrictlyStronger(candidate, { ...baseline, capability: baselineCapability }),
 	}));
 	const qualified = ranked.filter(
-		(candidate, index) =>
+		(_candidate, index) =>
 			verdicts[index]?.verdict === "stronger_capability" || verdicts[index]?.verdict === "stronger_serving",
 	);
 	return {

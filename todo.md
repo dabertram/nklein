@@ -2315,7 +2315,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   **Lesson for §4A:** an overloaded sync/async return is a trap for `.catch()` chaining, and a broad
   `catch { /* not runnable */ }` around it converts a programming error into a plausible-looking empty result — the
   green-signal-substitution rule applied to control flow.
-- [ ] **P0.REVRANK — Reviewer/escalation candidate ranking is CAPABILITY-BLIND (class fit only) — a 9B
+- [x] **P0.REVRANK — Reviewer/escalation candidate ranking is CAPABILITY-BLIND (class fit only) — a 9B
   "escalates" a 27B's stuck review.** *(Live 2026-09-03 ~23:50: s44's stuck review loop "Escalated … to
   ornith-local-9b" — the 9B whose 3× no-verdict sessions CAUSED the loop; `buildReviewerCandidates` ranks by
   catalog reviewer-class fit with no capability signal, and the escalation path reuses it via
@@ -2325,6 +2325,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   re-pointed to the legion 27B (q6) — verdicts emit again; ornith's no-verdict ceiling stops taxing every
   review 3 sessions.
 
+  **SHIPPED 2026-09-08 (29f365ebc):** `src/core/reviewer-capability-ranking.ts` — class fit GATES, capability
+  RANKS on the worker router's 0–100 scale, missing evidence is NEVER a score (an uncatalogued+unobserved model
+  ranks after every measured candidate), and an ESCALATION must be PROVEN strictly stronger (higher capability,
+  or equal capability with strictly better serving) — an unknown baseline or candidate refuses with a reason.
+  Recovered from an idle worktree whose snapshot had captured src/ but not its tests; 12 contract tests added.
+  Two siblings fell out: the flag-coverage ratchet was blind to INJECTED-env reads (`input.env ?? process.env`)
+  and, once widened, immediately surfaced an undeclared flag (`NKLEIN_LLMFIT_PRIOR`, now declared + excluded
+  from the hermetic nightly lane).
 - [~] **P0.POOLLOSS — A crashed pool model disappears silently; the operator learns by asking.** *(Live
   2026-09-03: dirk@iq4_xs crashed at 03:41 — one 500 then 400s — and the unpinned worker pool routed around it
   for 17h with no observation, no board banner; David noticed the idle m4 himself. The fleet-change resharder
