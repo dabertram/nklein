@@ -12,6 +12,10 @@ describe("isContextOverflowError", () => {
 			"too many tokens in the request",
 			"requested input length 9000 exceeds the maximum input length",
 			"input token count exceeds the maximum 128000 tokens allowed",
+			// P0.CTX500: LM Studio's llama.cpp engine wordings (live 2026-09-03 / 2026-09-05; server-context.cpp).
+			"Engine protocol predict stream returned an error: {code:500, message:'Context size has been exceeded'}",
+			"Context size has been exceeded.",
+			"tokens to keep from the initial prompt is greater than the context length",
 		];
 		for (const message of overflowMessages) {
 			expect(isContextOverflowError(new Error(message))).toBe(true);

@@ -18,6 +18,13 @@ import { stableFitnessModelKey } from "./fitness-routing-evidence";
 /** Error classes that implicate the model/engine pairing — the ONLY classes worth failing over. */
 const MODEL_SIDE_ERROR_PATTERNS: readonly RegExp[] = [
 	/engine protocol .*returned 5\d\d/i,
+	// LM Studio's STREAMING engine wrapper carries the status INSIDE a body rather than after "returned" — live
+	// P0.CTX500 2026-09-03: "Engine protocol predict stream returned an error: {code:500, message:'Context size has
+	// been exceeded'}" matched neither `returned 5\d\d` pattern, so the terminal leg refused it as "not model-side"
+	// and the card parked. Deliberately code-AGNOSTIC (like the `jinja` rung, which is a 4xx): an engine-protocol
+	// stream error is the engine refusing this model×request pairing, which is exactly the failover class. Anchored
+	// on "engine protocol" so it stays a wire-shape match, not a free-floating "any body mentioning code: 5xx".
+	/engine protocol .*returned an error/i,
 	/model has crashed/i,
 	/jinja/i, // template rejection — model-family-specific wire incompatibility
 	/raise_exception/i,

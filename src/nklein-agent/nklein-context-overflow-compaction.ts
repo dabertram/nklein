@@ -1,3 +1,4 @@
+import { isContextOverflowMessage } from "../core/context-overflow-signature";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import {
 	compactKanbanMessagesForContextTarget,
@@ -6,37 +7,6 @@ import {
 import { pruneSupersededToolResults } from "./nklein-transcript-distractor-wire";
 import type { NKleinSdkPersistedMessage } from "./sdk-runtime-boundary";
 
-/**
- * Temporary !Klein-side fallback for context overflow recovery.
- * TODO: remove this once SDK-side pluggable compaction policies are available and wired through !Klein.
- */
-const CONTEXT_OVERFLOW_ERROR_PATTERNS = [
-	/prompt is too long/i,
-	/prompt is too long.*tokens?\s*>\s*\d+\s*maximum/i,
-	/maximum prompt length/i,
-	/input is too long/i,
-	/context length exceeded/i,
-	/context length.*exceeds/i,
-	/maximum context length/i,
-	/\bcontext\s*(?:length|window)\b/i,
-	/\bcontext\s*(?:length|window)\b.*exceed/i,
-	/\bmaximum\s*context\b/i,
-	/context window.*(exceed|limit|too)/i,
-	/(exceed|exceeds|exceeded).*context window/i,
-	/input exceeds.*context window/i,
-	/too many tokens/i,
-	/\btoo\s*many\s*tokens?\b/i,
-	/\b(?:input\s*)?tokens?\s*exceed/i,
-	/maximum tokens.*exceeds.*model limit/i,
-	/input length and max_tokens exceed context limit/i,
-	/total number of tokens.*exceeds.*limit/i,
-	/requested.*tokens.*exceeds.*limit/i,
-	/requested input length.*exceeds.*maximum input length/i,
-	/input token count exceeds.*maximum.*tokens? allowed/i,
-	/reduce.*length.*messages.*completion/i,
-	/tokens?\s*>\s*[\d,]+\s*(maximum|limit)/i,
-	/input tokens?.*(exceed|exceeds).*(limit|maximum|context)/i,
-];
 const CONTEXT_COMPACTION_PREVIEW_CHARS = 300;
 const CONTEXT_OVERFLOW_RECOVERY_TARGET_TOKENS = 60_000;
 /**
@@ -51,11 +21,25 @@ const CONTEXT_OVERFLOW_RECOVERY_TARGET_TOKENS = 60_000;
  */
 const MEANINGFUL_PRUNE_TOKEN_RATIO = 0.1;
 
+/**
+ * Temporary !Klein-side fallback for context overflow recovery (the SDK has no pluggable compaction policy yet).
+ * The wording table is the SHARED `context-overflow-signature` core — P0.CTX500 (2026-09-03) was a private copy here
+ * missing the engine's own "Context size has been exceeded" while two other seams kept two more private copies.
+ */
 export function isContextOverflowError(error: unknown): boolean {
 	if (!(error instanceof Error)) {
 		return false;
 	}
-	return CONTEXT_OVERFLOW_ERROR_PATTERNS.some((pattern) => pattern.test(error.message));
+	return isContextOverflowMessage(error.message);
+}
+
+export interface CompactPersistedMessagesOptions {
+	/**
+	 * A DRY RUN answers "would compaction make progress?" without recording the prune observation — the terminal
+	 * context-overflow controller asks before committing to a re-drive, and the real compaction that follows records
+	 * exactly once (a double-counted `transcript_distractor_prune` would distort the mechanism audit's evidence).
+	 */
+	readonly dryRun?: boolean;
 }
 
 function readMessagePreview(message: NKleinSdkPersistedMessage): string {
@@ -127,6 +111,7 @@ function prependCompactionNotice(
 
 export function compactPersistedMessagesForContextOverflow(
 	messages: NKleinSdkPersistedMessage[],
+	options?: CompactPersistedMessagesOptions,
 ): NKleinSdkPersistedMessage[] | null {
 	if (messages.length < 2) {
 		return null;
@@ -147,7 +132,7 @@ export function compactPersistedMessagesForContextOverflow(
 		pruned !== null &&
 		totalTokensBeforePrune > 0 &&
 		pruned.tokensFreed / totalTokensBeforePrune >= MEANINGFUL_PRUNE_TOKEN_RATIO;
-	if (pruned) {
+	if (pruned && !options?.dryRun) {
 		recordSelfObservation({
 			signal: "custom",
 			severity: "info",

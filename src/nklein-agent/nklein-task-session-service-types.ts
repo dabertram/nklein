@@ -213,7 +213,16 @@ export interface NKleinTaskSessionService {
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
 		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides,
-		options?: { delivery?: "queue" | "steer"; freshModelCarry?: boolean },
+		options?: {
+			delivery?: "queue" | "steer";
+			freshModelCarry?: boolean;
+			/**
+			 * P0.CTX500: this input re-drives a card whose turn ended on the named context-overflow error. The send
+			 * path runs the reactive compaction (stop → compact history → restart on the same model) instead of an
+			 * ordinary dispatch, under the usual model-turn admission.
+			 */
+			contextOverflowRecovery?: { errorMessage: string };
+		},
 	): Promise<RuntimeTaskSessionSummary | null>;
 	reloadTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	clearTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;

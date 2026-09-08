@@ -1164,6 +1164,20 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 	},
 	{
+		// P0.CTX500 2026-09-07: registered WITH its wire. The overflow controller's dispatch-time half still emits
+		// no category of its own (see `transcript_distractor_prune` above); this is the TERMINAL half, which did
+		// not exist before — a mid-turn engine "Context size has been exceeded" 500 reached the terminal seam and
+		// parked because the only rung there (model failover) refused the wording as "not model-side".
+		category: "context_overflow_redrive",
+		item: "P0.CTX500",
+		observes:
+			"the terminal-seam decision after a context-overflow error: a same-model compaction re-drive (rung 1), or deferral to the model-failover leg when the history cannot shrink or the consecutive re-drive budget is spent (rung 2); a failed re-drive is recorded, never hidden",
+		enabledBy: "NKLEIN_CONTEXT_OVERFLOW_REDRIVE",
+		// `exceptional`: fires only when a turn actually overflows the model's window — a healthy run is silent.
+		expectation: "exceptional",
+		addedOn: Date.UTC(2026, 8, 7),
+	},
+	{
 		category: "sandbox_dispose_interrupted_lease",
 		item: "P1.CAPTURERACE",
 		observes:

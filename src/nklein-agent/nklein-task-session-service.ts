@@ -127,7 +127,12 @@ import { AuxiliarySessionTranscriptUnavailableError, countAssistantTurns } from 
 import { forgetBaselineProbe } from "./nklein-baseline-probe-registry";
 import { createContextBudgetController } from "./nklein-context-budget-controller";
 import { buildContextBudgetBreakdown, estimateKanbanToolSchemaTokens } from "./nklein-context-budget-tokens";
+import { compactPersistedMessagesForContextOverflow } from "./nklein-context-overflow-compaction";
 import { createContextOverflowController } from "./nklein-context-overflow-controller";
+import {
+	buildContextOverflowRedrivePrompt,
+	createContextOverflowTerminalController,
+} from "./nklein-context-overflow-terminal-controller";
 import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-tool";
 import { applyNKleinSessionEvent } from "./nklein-event-adapter";
 import { resolveExplorerLaunchConfig } from "./nklein-explorer-model-selection";
@@ -535,6 +540,32 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	setTaskFailoverCandidates(taskId: string, rankedCandidates: readonly (string | ModelFailoverCandidate)[]): void {
 		this.modelFailoverController.setCandidates(taskId, rankedCandidates);
 	}
+	/**
+	 * P0.CTX500: the terminal context-overflow ladder, AHEAD of the failover leg — a mid-turn "Context size has been
+	 * exceeded" engine 500 never rejects the send, so the error terminal is its only seam. Compacts + re-drives on the
+	 * same model first (through the normal input seam, so admission and result handling ride along), defers to model
+	 * failover when the history cannot shrink or the consecutive re-drive budget is spent. Kill-switch
+	 * NKLEIN_CONTEXT_OVERFLOW_REDRIVE=off.
+	 */
+	private readonly contextOverflowTerminalController = createContextOverflowTerminalController({
+		canCompactHistory: async (taskId) => {
+			const snapshot = await this.sessionRuntime.readPersistedTaskSession(taskId).catch(() => null);
+			return compactPersistedMessagesForContextOverflow(snapshot?.messages ?? [], { dryRun: true }) !== null;
+		},
+		redriveAfterOverflow: (taskId, errorMessage) =>
+			this.sendTaskSessionInput(
+				taskId,
+				buildContextOverflowRedrivePrompt(errorMessage),
+				undefined,
+				undefined,
+				undefined,
+				{
+					contextOverflowRecovery: { errorMessage },
+				},
+			),
+		failOverToNextModel: (taskId, summary) => this.modelFailoverController.maybeModelFailover(taskId, summary),
+		noteStrategyApplied: (taskId, strategy) => this.noteNextAttemptStrategy(taskId, strategy),
+	});
 	/** §5.U: the context-overflow recovery pair (reactive retry-after + proactive compact-before). Session-lifecycle
 	 * accessors are supplied lazily so field-init order is irrelevant. */
 	private readonly contextOverflowController = createContextOverflowController({
@@ -3569,7 +3600,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
 		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides,
-		options?: { delivery?: "queue" | "steer"; freshModelCarry?: boolean },
+		options?: {
+			delivery?: "queue" | "steer";
+			freshModelCarry?: boolean;
+			contextOverflowRecovery?: { errorMessage: string };
+		},
 	): Promise<RuntimeTaskSessionSummary | null> {
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
@@ -3735,6 +3770,26 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 									}),
 								}),
 							);
+							if (options?.contextOverflowRecovery && !queueDelivery) {
+								// P0.CTX500: the turn ended on a context-overflow error terminal. Run the REACTIVE
+								// compaction here — inside admission, with the ordinary result handling — instead of
+								// dispatching into the same over-full session. A null (nothing left to compact) is a
+								// hard stop: the terminal controller pre-checked compactability, so this is a race with
+								// a concurrent history rewrite; surface it rather than re-send the oversized prompt.
+								const recovered = await this.contextOverflowController.recoverAfterOverflow({
+									taskId,
+									prompt: resolvedPrompt,
+									mode: effectiveMode,
+									images,
+									error: new Error(options.contextOverflowRecovery.errorMessage),
+								});
+								if (recovered) {
+									return recovered;
+								}
+								throw new Error(
+									`Context-overflow re-drive for ${taskId} found no compactable history; the card stays parked for model failover or review.`,
+								);
+							}
 							if (!queueDelivery && !options?.freshModelCarry) {
 								// F12.6 consult (record-only first): the agent's own request_compaction fire is consumed at
 								// this turn boundary and logged beside whether the budget compaction then actually ran —
@@ -3944,6 +3999,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pauseController.setCardPaused(taskId, false);
 		this.clearTaskTimeouts(taskId);
 		this.decompositionStallNudger.resetTask(taskId);
+		this.contextOverflowTerminalController.forgetTask(taskId);
 		this.explicitDecompositionTaskIds.delete(taskId);
 		this.timeoutController.deleteSettings(taskId);
 		// Review-found: a stale round-N prediction/compaction request surviving into round N+1 pollutes the very
@@ -3968,6 +4024,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.communitySkillSuggestionFragmentByTaskId.delete(taskId);
 		this.requestTimer.forget(taskId);
 		this.failureBackoff.forget(taskId);
+		this.contextOverflowTerminalController.forgetTask(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
 		this.turnLoopGuard.resetTask(taskId);
@@ -4531,10 +4588,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.lastRecordedRunStateByTaskId.set(taskId, state);
 		// W1.1b: flag-gated adaptive budget retry on the stall signature (see adaptiveBudgetController).
 		this.adaptiveBudgetController.maybeAdaptiveBudgetRetry(taskId, summary);
-		// F3.2 failover leg (default-on, NKLEIN_MODEL_FAILOVER=off to disable): a MODEL-side terminal error re-drives
-		// the card on the next untried ranked candidate instead of parking (live-found twice — m4mini crash 2026-07-11,
-		// ministral engine-500 2026-07-17). The controller's pure policy refuses task/sandbox/user errors and caps hops.
-		this.modelFailoverController.maybeModelFailover(taskId, summary);
+		// P0.CTX500 (default-on, NKLEIN_CONTEXT_OVERFLOW_REDRIVE=off to disable): a context-overflow error terminal is
+		// claimed by the compaction ladder FIRST — same-model compact-and-re-drive, then (when the history cannot
+		// shrink or the consecutive budget is spent) the controller itself hands the summary to the failover leg
+		// below. Live 2026-09-03: the engine's "Context size has been exceeded" 500 went straight to a park.
+		if (!this.contextOverflowTerminalController.maybeRecoverTerminalOverflow(taskId, summary)) {
+			// F3.2 failover leg (default-on, NKLEIN_MODEL_FAILOVER=off to disable): a MODEL-side terminal error re-drives
+			// the card on the next untried ranked candidate instead of parking (live-found twice — m4mini crash
+			// 2026-07-11, ministral engine-500 2026-07-17). The controller's pure policy refuses task/sandbox/user
+			// errors and caps hops.
+			this.modelFailoverController.maybeModelFailover(taskId, summary);
+		}
 		// W0.2 (run16: t4 died `interrupted` MID-WRITE and its partial work was lost): a dying terminal still
 		// salvages its sandbox work. error→awaiting_review already captures via the finalize hook (run10 proved
 		// it live); interrupted/failed did NOT — no capture, and the sandbox leaked until pool exhaustion.

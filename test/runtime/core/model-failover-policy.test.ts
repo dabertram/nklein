@@ -19,6 +19,18 @@ describe("isModelSideError", () => {
 		).toBe(true);
 	});
 
+	it("classifies LM Studio's STREAMING engine-error wrapper as model-side (P0.CTX500: `returned 5xx` never matched it)", () => {
+		// Live 2026-09-03: this exact text was refused as "not model-side" — the status sits inside the body.
+		expect(
+			isModelSideError(
+				"Engine protocol predict stream returned an error: {code:500, message:'Context size has been exceeded'}",
+			),
+		).toBe(true);
+		expect(isModelSideError('Engine protocol predict stream returned an error: {"code":503,"message":"busy"}')).toBe(
+			true,
+		);
+	});
+
 	it("classifies !Klein's curated mid-run model-loss wrap as model-side (live-found: the raw patterns missed it)", () => {
 		expect(
 			isModelSideError(

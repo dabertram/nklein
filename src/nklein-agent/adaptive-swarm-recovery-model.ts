@@ -115,7 +115,10 @@ function strategiesForSignature(
 	const thinking = supportsThinkingControl(options.modelId) ? "thinking_disable" : null;
 	switch (signature) {
 		case "context_overflow":
-			return uniqueStrategies(["context_shrink", ...external]);
+			// The alternate endpoint re-sends the SAME transcript on a text wire — it cannot make an over-window
+			// prompt fit, and one such turn taught a live architect the "[tool_call …]" pseudo-syntax (2026-08-30).
+			// Shrink first; only a different model (cross-model carry) is a further remedy.
+			return uniqueStrategies(["context_shrink", options.crossModel ? "cross_model_carry" : null]);
 		case "token_budget":
 			return uniqueStrategies(["raise_token_budget", thinking, "context_shrink", ...external]);
 		case "stream_timeout":

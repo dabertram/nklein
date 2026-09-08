@@ -44,6 +44,12 @@ describe("classifyFailureSignature — context overflow (shrink the window, not 
 		"contextLengthReached",
 		"The prompt is too long for the context",
 		"Please reduce the length of the messages",
+		// P0.CTX500 (live 2026-09-03): the llama.cpp engine wording LM Studio forwards inside its 500 wrapper. The old
+		// private needle list keyed on "context length/window" and classified this as `unknown_error`, so the ladder
+		// spent a blind same-size retry instead of `context_shrink`.
+		"Engine protocol predict stream returned an error: {code:500, message:'Context size has been exceeded'}",
+		"request (66000 tokens) exceeds the available context size (65536 tokens), try increasing it",
+		"input (70000 tokens) is larger than the max context size (65536 tokens). skipping",
 	])("routes %j to context_overflow / aborted / remediable", (message) => {
 		const verdict = classifyFailureSignature(message);
 		expect(verdict.signature).toBe("context_overflow");

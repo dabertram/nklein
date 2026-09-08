@@ -217,6 +217,27 @@ describe("createAdaptiveSwarmRecoveryModel", () => {
 		expect(JSON.stringify(compacted?.[2]?.content[0]).length).toBeLessThan(huge.length);
 	});
 
+	it("routes the LM Studio engine-500 overflow to context_shrink, never to the alternate endpoint (P0.CTX500)", async () => {
+		// Live 2026-09-03: this wording classified as `unknown_error` → a blind same-size retry. The alternate text
+		// wire re-sends the same transcript, so it cannot fix an overflow either; only shrink is a remedy here.
+		const overflow = new Error(
+			"Engine protocol predict stream returned an error: {code:500, message:'Context size has been exceeded'}",
+		);
+		const base = scriptedBase([overflow, overflow]);
+		const alternate = scriptedBase([called]);
+		const attempts: string[] = [];
+		const model = createAdaptiveSwarmRecoveryModel(base.model, {
+			modelId: "google/gemma-4-31b-qat",
+			alternateEndpointModel: alternate.model,
+			onAttempt: (attempt) => attempts.push(`${attempt.strategy ?? "baseline"}:${attempt.outcome}`),
+		});
+
+		await expect(collect(model, request())).rejects.toBe(overflow);
+		expect(attempts).toEqual(["baseline:aborted", "context_shrink:aborted"]);
+		expect(base.requests).toHaveLength(2);
+		expect(alternate.requests).toHaveLength(0);
+	});
+
 	it("never retries a caller-owned abort", async () => {
 		const controller = new AbortController();
 		controller.abort("stop");

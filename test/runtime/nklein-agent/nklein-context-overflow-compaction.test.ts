@@ -9,6 +9,19 @@ function message(role: "user" | "assistant", content: string): NKleinSdkPersiste
 }
 
 describe("compactPersistedMessagesForContextOverflow", () => {
+	it("a dry run answers the same compactability question as the real call (P0.CTX500 terminal pre-check)", () => {
+		const transcript = [
+			message("user", "first ask"),
+			message("assistant", "reply one"),
+			message("user", "second ask"),
+			message("assistant", "reply two"),
+		];
+		expect(compactPersistedMessagesForContextOverflow(transcript, { dryRun: true })).toEqual(
+			compactPersistedMessagesForContextOverflow(transcript),
+		);
+		expect(compactPersistedMessagesForContextOverflow([message("user", "only")], { dryRun: true })).toBeNull();
+	});
+
 	it("returns null when there are fewer than 2 messages", () => {
 		expect(compactPersistedMessagesForContextOverflow([])).toBeNull();
 		expect(compactPersistedMessagesForContextOverflow([message("user", "hello")])).toBeNull();

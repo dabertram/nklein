@@ -24,6 +24,7 @@
  * mis-reads an unknown error as success). Composes with the existing `ModelOutcomeKind` by import only (no edits).
  */
 
+import { isContextOverflowMessage } from "./context-overflow-signature";
 import type { ModelOutcomeKind } from "./model-behavior-profile";
 
 /**
@@ -153,18 +154,10 @@ const SIGNATURE_RULES: readonly SignatureRule[] = [
 		remediable: true,
 		reason:
 			"The prompt exceeded the model's context window — compact/shrink the context (raising max_tokens won't help).",
-		matches: has(
-			"context length",
-			"context window",
-			"contextlengthreached",
-			"context overflow",
-			"maximum context",
-			"exceeds the context",
-			"prompt is too long",
-			"too many tokens",
-			"input is too long",
-			"reduce the length of the messages",
-		),
+		// The SHARED wording table (`context-overflow-signature`): P0.CTX500 (2026-09-03) was a private needle list
+		// here that lacked the engine's own "Context size has been exceeded", so the in-turn ladder classified the
+		// overflow as `unknown_error` and spent a blind same-size retry instead of `context_shrink`.
+		matches: (text) => isContextOverflowMessage(text),
 	},
 	{
 		signature: "token_budget",

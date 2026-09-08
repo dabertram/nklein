@@ -302,6 +302,13 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 	// ── DEFAULT-ON kill switches read via isEnabledByDefaultEnv — N11 lane (c) turns these OFF ──
 	{ flag: "NKLEIN_DURABLE_SCHEDULER", mode: "enforcing", defaultOn: true, gate: "runtime-server.ts" },
 	{ flag: "NKLEIN_MODEL_FAILOVER", mode: "enforcing", defaultOn: true, gate: "nklein-task-session-service.ts" },
+	{
+		flag: "NKLEIN_CONTEXT_OVERFLOW_REDRIVE",
+		mode: "enforcing",
+		defaultOn: true,
+		gate: "nklein-context-overflow-terminal-controller.ts (maybeRecoverTerminalOverflow: isEnabledByDefaultEnv)",
+		note: "P0.CTX500 2026-09-07: the terminal context-overflow ladder ahead of model failover (same-model compaction re-drive, then failover, then park). Off restores the pre-fix terminal handling: an overflow error terminal goes straight to the failover leg's model-side check.",
+	},
 	{ flag: "NKLEIN_REPO_VERIFY", mode: "enforcing", defaultOn: true, gate: "acceptance/verify path" },
 	{ flag: "NKLEIN_STABLE_ROUTING_KEY", mode: "enforcing", defaultOn: true, gate: "nklein-task-session-service.ts" },
 	{ flag: "NKLEIN_ARCHITECT_PROMPT_DIET", mode: "enforcing", defaultOn: true, gate: "prompt builders" },

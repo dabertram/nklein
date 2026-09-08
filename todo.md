@@ -2477,6 +2477,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   primary start held in the gate with a 400ms budget, wait tick at 300ms → still running at 600ms, fires 400ms
   after the tick (fails without the fix with "awaiting_review" at 600ms).
 
+- [x] **P0.CTX500 — An engine "Context size has been exceeded" 500 parks the card instead of triggering a
 - [x] **P0.LEDGERENDPOINT — the liveness ledger is keyed by (model, ENDPOINT), not by model id alone (P0.AUDIT0904 leg 8).**
   The dead mark always CARRIED its `endpoint` but the ledger keyed its maps by `modelId`, so proving a model dead
   behind one relay excluded the same id everywhere — and the fleet deliberately serves one model from several
@@ -2499,15 +2500,6 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `runtime.unparkReview` operator handle. The clear COUNTS what it actually removed rather than reporting success
   blindly, and records `model_dead_mark_cleared` (registered) so an operator re-admission is auditable. Tests cover
   the list shape, per-endpoint vs all-endpoint clears, the zero-cleared case and the blank-id rejection.
-- [ ] **P0.CTX500 — An engine "Context size has been exceeded" 500 parks the card instead of triggering a
-  context-shrink retry.** *(Live 2026-09-03 ~05:00, v31 factory: ornith-local-9b (65k window) as WORKER on
-  s42-invariant-battery — "Engine protocol predict stream returned an error: {code:500, message:'Context size
-  has been exceeded'}" → straight to attention-park; a fresh session fit fine.)* The adaptive recovery ladder
-  should map this wire shape to a compaction/context-shrink rung (and/or a smaller-context-fits-elsewhere
-  failover) before any park — the error is precisely self-describing. Also: the context-focus budget should
-  have kept the request under the model's effective window in the first place — check whether ornith's
-  in-session budget used the right ctx (65536) or a stale/larger one.
-
 - [ ] **P0.HEAP — The server's JS heap grows unbounded across a long factory run and dies at node's default 4GB
   limit.** *(Live 2026-09-02 v31: 6h in, minutes after an 88-card flood with 3 workers running, `FATAL ERROR:
   Reached heap limit` — the fatal allocation was an fs.readFile promise resolving a huge UTF-8 string; stack in

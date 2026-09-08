@@ -5843,6 +5843,78 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		).toBe(false);
 	});
 
+	it("re-drives a mid-turn context-overflow error terminal with compacted history on the SAME model, ahead of any failover hop (P0.CTX500)", async () => {
+		const { service, runtime } = createTrackedService();
+		// A ranked failover candidate exists — a wrong rung order would spend it (fresh carry on gemma) instead of
+		// compacting on the worker that was chosen for this card.
+		service.setTaskFailoverCandidates("task-1", ["ornith-local-9b", "gemma"]);
+		runtime.readPersistedTaskSessionMock.mockResolvedValue({
+			record: {
+				sessionId: "task-1-persisted",
+				source: "core" as NKleinPersistedTaskSessionSnapshot["record"]["source"],
+				status: "completed",
+				startedAt: "2026-09-03T05:00:00.000Z",
+				updatedAt: "2026-09-03T05:05:00.000Z",
+				interactive: true,
+				provider: "lmstudio",
+				model: "ornith-local-9b",
+				cwd: "/tmp/worktree",
+				workspaceRoot: "/tmp/workspace-root",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				isSubagent: false,
+				metadata: {
+					kanban: {
+						launchConfig: {
+							providerId: "lmstudio",
+							modelId: "ornith-local-9b",
+							baseUrl: "http://127.0.0.1:1234/v1",
+							contextWindow: 65_536,
+							maxAgentWritableFileLines: 900,
+							apiTimeoutMs: 3_600_000,
+							turnTimeoutMs: null,
+						},
+					},
+				},
+			},
+			messages: [
+				{ role: "user", content: `Implement the invariant battery ${"a".repeat(40_000)}` },
+				{ role: "assistant", content: `First response ${"b".repeat(40_000)}` },
+				{ role: "user", content: `Second request ${"c".repeat(40_000)}` },
+				{ role: "assistant", content: `Second response ${"d".repeat(40_000)}` },
+			],
+		});
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Implement the invariant battery",
+			providerId: "lmstudio",
+			modelId: "ornith-local-9b",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+
+		// The vendored AgentRuntime catches the model-stream error and ends the run `failed` — the send RESOLVES, so
+		// this terminal summary is the only place the overflow is visible (live 2026-09-03, s42-invariant-battery).
+		runtime.emitAgentEvent(sessionId, {
+			type: "run-failed",
+			error: new Error(
+				"Engine protocol predict stream returned an error: {code:500, message:'Context size has been exceeded'}",
+			),
+		});
+
+		await waitForSettled(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2));
+		const restart = runtime.startTaskSessionMock.mock.calls[1]?.[0];
+		expect(restart?.modelId).toBe("ornith-local-9b");
+		expect(restart?.prompt).toContain("overflowed the model's context window");
+		expect(restart?.prompt).toContain("Context size has been exceeded");
+		expect(restart?.initialMessages?.length ?? 0).toBeGreaterThan(0);
+		expect(restart?.initialMessages?.length ?? 0).toBeLessThan(4);
+		expect(runtime.stopTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(service.getSummary("task-1")).toMatchObject({ state: "running", modelId: "ornith-local-9b" });
+	});
+
 	it("blocks persisted cloud launch metadata on the overflow restart path", async () => {
 		const { service, runtime } = createTrackedService();
 		runtime.readPersistedTaskSessionMock.mockResolvedValue({
