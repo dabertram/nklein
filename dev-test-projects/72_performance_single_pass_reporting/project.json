@@ -1,0 +1,16 @@
+{
+	"id": "72_performance_single_pass_reporting",
+	"title": "Performance: Make the Reports Cost One Pass Over the Data",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "performance-x1",
+	"tier": "1/5 performance",
+	"tags": [
+		"algorithmic cost",
+		"counted operations",
+		"single pass",
+		"indexing",
+		"behaviour preservation"
+	]
+}

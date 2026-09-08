@@ -1,0 +1,26 @@
+{
+	"schemaVersion": 1,
+	"budgets": [
+		{
+			"id": "B1",
+			"workload": "W1",
+			"title": "totalling every team costs one pass over the rows",
+			"maxReads": 60,
+			"why": "The current code finds the teams with one pass and then re-scans the whole dataset once per team, so five teams cost six passes. The totals can all be accumulated while reading each row once."
+		},
+		{
+			"id": "B2",
+			"workload": "W2",
+			"title": "resolving 40 ids costs one pass over the rows",
+			"maxReads": 60,
+			"why": "The current code scans from the start for every id, so cost grows with lookups times rows. One pass can build what every lookup then needs."
+		},
+		{
+			"id": "B3",
+			"workload": "W3",
+			"title": "a missing id costs no more than a present one",
+			"maxReads": 60,
+			"why": "A miss currently scans the entire dataset before giving up, so the worst input is the one where nothing is found. Absence should be as cheap to establish as presence."
+		}
+	]
+}

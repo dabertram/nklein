@@ -1,0 +1,8 @@
+Make the reporting in src/ stop re-reading the data, without changing a single answer it gives.
+
+The dataset can only be reached through an instrumented accessor, and every read is counted. That is how this is
+graded: a budget is a number of reads, not a stopwatch, so the result is the same on a busy laptop as on an idle
+one and "it felt faster" is not an argument.
+
+Read specification.md for the budgets and the rules. The behaviour checks run on every invocation regardless of
+what your manifest claims, so a cheaper wrong answer fails immediately — which is the point.
