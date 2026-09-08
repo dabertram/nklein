@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	DEFAULT_MERGE_ABANDONED_AFTER_MS,
 	decideAbandonedMergeRecovery,
 	type InFlightMergeMark,
 	isUnmergedStatusLine,
@@ -11,9 +12,12 @@ const MARK: InFlightMergeMark = {
 	startedAt: 1_788_884_669_000,
 };
 
+/** Long enough that the merge counts as abandoned; the age rule has its own test below. */
+const LATER = MARK.startedAt + DEFAULT_MERGE_ABANDONED_AFTER_MS + 60_000;
+
 describe("abandoned merge recovery", () => {
 	it("aborts only a merge !Klein can PROVE it started", () => {
-		const decision = decideAbandonedMergeRecovery({ mergeHead: MARK.mergeHead, mark: MARK });
+		const decision = decideAbandonedMergeRecovery({ mergeHead: MARK.mergeHead, mark: MARK, now: LATER });
 		expect(decision.action).toBe("abort");
 		expect(decision.reason).toContain("mutation-duration-schedule-kill-m1");
 		expect(decision.reason).toContain("1f88f4e1a9bd");
@@ -21,7 +25,7 @@ describe("abandoned merge recovery", () => {
 
 	it("never touches a merge someone else started", () => {
 		// The operator's own `git merge` in the base workspace: in progress, but unmarked.
-		const unmarked = decideAbandonedMergeRecovery({ mergeHead: MARK.mergeHead, mark: null });
+		const unmarked = decideAbandonedMergeRecovery({ mergeHead: MARK.mergeHead, mark: null, now: LATER });
 		expect(unmarked.action).toBe("leave");
 		expect(unmarked.reason).toContain("never abort someone else's merge");
 
@@ -29,15 +33,47 @@ describe("abandoned merge recovery", () => {
 		const stale = decideAbandonedMergeRecovery({
 			mergeHead: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			mark: MARK,
+			now: LATER,
 		});
 		expect(stale.action).toBe("leave");
 		expect(stale.reason).toContain("a different merge");
 	});
 
 	it("leaves an ordinary dirty tree alone — dirt without a merge is someone's work in progress", () => {
-		const decision = decideAbandonedMergeRecovery({ mergeHead: null, mark: MARK });
+		const decision = decideAbandonedMergeRecovery({ mergeHead: null, mark: MARK, now: LATER });
 		expect(decision.action).toBe("leave");
 		expect(decision.reason).toContain("not abandoned merge debris");
+	});
+
+	it("leaves OUR OWN merge alone while the resolution agent could still be working in it", () => {
+		// A conflicted merge is held open for the merge-resolution agent (30-minute deadline). Ownership alone would
+		// abort the agent's workspace out from under it and call that a recovery — "ours" and "abandoned" differ.
+		const midWindow = decideAbandonedMergeRecovery({
+			mergeHead: MARK.mergeHead,
+			mark: MARK,
+			now: MARK.startedAt + 20 * 60_000,
+		});
+		expect(midWindow.action).toBe("leave");
+		expect(midWindow.reason).toContain("still be being worked on");
+
+		// One second past the window it is abandoned, and the reason says how long it sat.
+		const past = decideAbandonedMergeRecovery({
+			mergeHead: MARK.mergeHead,
+			mark: MARK,
+			now: MARK.startedAt + DEFAULT_MERGE_ABANDONED_AFTER_MS + 1_000,
+		});
+		expect(past.action).toBe("abort");
+		expect(past.reason).toContain("nothing tending it");
+
+		// The window is caller-configurable, so a deployment with a different resolution deadline can say so.
+		expect(
+			decideAbandonedMergeRecovery({
+				mergeHead: MARK.mergeHead,
+				mark: MARK,
+				now: MARK.startedAt + 6 * 60_000,
+				abandonedAfterMs: 5 * 60_000,
+			}).action,
+		).toBe("abort");
 	});
 
 	it("recognises every porcelain unmerged code, and nothing else", () => {

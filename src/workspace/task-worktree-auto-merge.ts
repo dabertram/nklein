@@ -151,7 +151,11 @@ async function recoverAbandonedMerge(
 	if (!mergeHead) {
 		return null;
 	}
-	const decision = decideAbandonedMergeRecovery({ mergeHead, mark: await readInFlightMergeMark(repoPath) });
+	const decision = decideAbandonedMergeRecovery({
+		mergeHead,
+		mark: await readInFlightMergeMark(repoPath),
+		now: Date.now(),
+	});
 	if (decision.action === "leave") {
 		return { aborted: false, note: decision.reason };
 	}

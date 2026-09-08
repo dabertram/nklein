@@ -93,7 +93,9 @@ describe("an interrupted delivery merge does not wedge the base workspace foreve
 		mkdirSync(join(repo, ".nklein", "nklein"), { recursive: true });
 		writeFileSync(
 			join(repo, ".nklein", "nklein", "merge-in-flight.json"),
-			JSON.stringify({ mergeHead: resultB, taskId: "kill-m2", startedAt: Date.now() }),
+			// Dated well past the resolution window: a merge younger than that is deliberately left alone, because
+			// the resolution agent may still be working in it (see abandoned-merge-recovery.ts).
+			JSON.stringify({ mergeHead: resultB, taskId: "kill-m2", startedAt: Date.now() - 60 * 60 * 1000 }),
 			"utf8",
 		);
 
