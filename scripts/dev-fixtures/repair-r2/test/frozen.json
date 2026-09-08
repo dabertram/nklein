@@ -1,0 +1,14 @@
+{
+	"schemaVersion": 1,
+	"frozen": {
+		"scenarios/inventory.scenarios.mjs": "d43494eaed010a2580155b573311e33a298502295eeb47d17875ca8dc6d1dd3d",
+		"scenarios/support/warehouse.mjs": "a6a5b00dea7d20777e074d9460f448fedd040842bf3644c74f5e0e330b640591",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"test/repair.test.js": "52ffc088b90edc20996d6cb6859ba166765c5277905ebd80d8e2ceccd5f0325d"
+	},
+	"src": {
+		"src/allocator.mjs": "105ffedf085fe1b70807077fa740fc061aae3afb695a6efb0f4a9b5d8f90536d",
+		"src/reservations.mjs": "49872a075e2613b837791229888b083399adf9b8b119ddd0e8f9e420560928a9",
+		"src/stock-ledger.mjs": "ec7cb8dc83978c10ee2d05f4c38c2514a5f0bb610ca32a0257f29aeab5204b1c"
+	}
+}
