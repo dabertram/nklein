@@ -1,0 +1,16 @@
+{
+	"id": "69_integration_session_cache_idempotency",
+	"title": "Integration: Token Refresh, Conditional Reads and Idempotent Writes",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "integration-i3",
+	"tier": "3/5 integration",
+	"tags": [
+		"token refresh",
+		"etag caching",
+		"idempotency keys",
+		"call-log assertions",
+		"injected clock"
+	]
+}

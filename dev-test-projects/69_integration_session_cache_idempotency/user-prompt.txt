@@ -1,0 +1,11 @@
+Write the inventory client in src/adapter.mjs.
+
+The service needs a bearer token that expires, it answers a repeated read with 304 when you send back the etag it
+gave you, and it requires an idempotency key on writes. So the client has to hold a session, keep a small cache,
+and mint keys carefully.
+
+Read specification.md for the contract. Most of what is graded here is what you SEND, not what you return: the
+conformance suite reads the service's call log. A retry that mints a fresh idempotency key looks fine from the
+outside and quietly creates duplicates, and that case exists precisely to catch it.
+
+Time is injected. Use the now() and sleep() you are given; a real timer cannot move this service's clock.
