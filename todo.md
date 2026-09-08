@@ -2000,6 +2000,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### Phase 0 — stop-the-line correctness and liveness
 
+- [x] **P0.SANDBOXGHOST — a session whose sandbox workspace was disposed kept failing every tool call, forever.**
+  *(Live 2026-09-08, `ad1078ec3`.)* Reported by the agent in the rig's model seat, then confirmed by counting the
+  string across the stored queue: **30 requests** of one drive carried `No Docker sandbox workspace is prepared
+  for task <id>`, concentrated on the decompose cards of projects 39 and 40 — the two that produced no usable
+  recording. `AgentSandboxUnavailableError` was caught NOWHERE outside the sandbox module, so it reached the model
+  as an ordinary tool error; the model reasonably tried a different tool, that failed the same way, and every
+  attempt spent a real request on a strictly-serial endpoint. The rule turns on DISPOSED vs NEVER-PLACED — a task
+  with no placement may just be queued behind the pool, a disposed one is finished with its sandbox forever — and
+  still tolerates ONE failure, because a dispose can race a call already in flight. The second cannot be that race.
+  **Responder-lead scoreboard, 2026-09-08: five reported, three confirmed.** The two that did not survive:
+  the write-scope history claim and the silent patch-capture claim (both P1.RESPONDERLEADS). A third, "the rubric
+  re-demands a tool already called earlier in the session", was checked this evening against queue request 977 and
+  **does not hold**: `read_files` does appear in the last user message, but at line 11 of a
+  `[!Klein context focus brief]` block that closes at line 17 with no blank line between — exactly the region
+  `stripNKleinScaffolding` removes before anchoring. The regenerated-branch pattern the responder noticed was real;
+  its cause was P0.SANDBOXGHOST, not the rubric.
 - [x] **P0.RETIRELOOP — a stopped session for a terminal-lane card was restarted by compaction, forever.** *(Live
   2026-09-08 project 38, `7cb465ba9`.)* Card `mutation-duration-schedule-kill-m3` reached `completed` with a model
   turn still queued behind the shared endpoint. The turn came up → `compactBeforeOverflow` → `restartTaskSession`;
