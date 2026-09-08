@@ -3,7 +3,13 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { classifyDagEdge, dagEdgeStyle } from "@/components/board-dag-edge-style";
-import { buildDagGraph, DAG_LAYOUT, type DagFlowDirection, type DagNode } from "@/components/board-dag-model";
+import {
+	buildDagGraph,
+	DAG_LAYOUT,
+	type DagFlowDirection,
+	type DagNode,
+	describeDagNode,
+} from "@/components/board-dag-model";
 import { computeDagSchedule, formatDurationShort, formatEtaClock } from "@/components/board-dag-schedule";
 import { cn } from "@/components/ui/cn";
 import type { BoardColumn as BoardColumnModel, BoardDependency } from "@/types";
@@ -468,7 +474,9 @@ export function BoardDagView({
 									<g
 										key={node.id}
 										data-testid={`dag-node-${node.id}`}
-										aria-label={node.title}
+										aria-label={describeDagNode(node, {
+											onCriticalPath: dagSchedule.criticalNodeIds.has(node.id),
+										})}
 										role="button"
 										tabIndex={0}
 										className="cursor-pointer"
@@ -479,6 +487,10 @@ export function BoardDagView({
 											}
 										}}
 									>
+										{/* The same sentence as the aria-label: hovering a node must not require decoding the colour key. */}
+										<title>
+											{describeDagNode(node, { onCriticalPath: dagSchedule.criticalNodeIds.has(node.id) })}
+										</title>
 										<rect
 											x={position.x}
 											y={position.y}

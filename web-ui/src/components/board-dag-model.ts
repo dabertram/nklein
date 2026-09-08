@@ -16,6 +16,29 @@ export interface DagNode {
 	failed: boolean;
 }
 
+/**
+ * What a node MEANS, in one line: its title, the lane it sits in, whether it is running or failed, and whether it
+ * is on the critical path.
+ *
+ * P0.AUDIT0904 leg 23. The node's `aria-label` was the bare title, and colour carried everything else — so a
+ * screen-reader user was told "Add the ledger schema" and nothing about whether it had failed, and a sighted user
+ * had to learn a five-colour key to read the same. Colour is a fine ACCELERATOR and a poor sole channel.
+ */
+export function describeDagNode(node: DagNode, options: { onCriticalPath: boolean }): string {
+	const state = node.failed ? "failed" : node.running ? "running" : LANE_LABEL[node.columnId];
+	return `${node.title} — ${state}${options.onCriticalPath ? ", on the critical path" : ""}`;
+}
+
+const LANE_LABEL: Record<BoardColumnId, string> = {
+	backlog: "in backlog",
+	planning: "in planning",
+	ready: "ready",
+	in_progress: "in progress",
+	review: "in review",
+	completed: "completed",
+	trash: "in trash",
+};
+
 export interface DagGraph {
 	nodes: DagNode[];
 	edges: BoardDependency[];

@@ -1,9 +1,11 @@
 import type { RuntimeTaskSessionSummary } from "@runtime-contract";
 import { describe, expect, it } from "vitest";
+import type { DagNode } from "@/components/board-dag-model";
 import {
 	buildDagGraph,
 	computeDepths,
 	dagNodeHeight,
+	describeDagNode,
 	findCycleEdgeIds,
 	wrapDagTitle,
 } from "@/components/board-dag-model";
@@ -295,5 +297,51 @@ describe("wrapped titles + per-node heights (David 2026-09-05: no truncation in 
 		const tall = graph.positions.get("tall");
 		const next = graph.positions.get("next");
 		expect((next?.y ?? 0) - (tall?.y ?? 0)).toBe(tallHeight + 18);
+	});
+});
+
+describe("describeDagNode (P0.AUDIT0904 leg 23)", () => {
+	/**
+	 * The node's aria-label was the bare title, and colour carried everything else: a screen-reader user heard
+	 * "Add the ledger schema" and nothing about whether it had failed, while a sighted user had to learn a
+	 * five-colour key to read the same fact. Colour is a fine accelerator and a poor sole channel.
+	 */
+	const node = (over: Partial<DagNode> = {}): DagNode => ({
+		id: "t1",
+		title: "Add the ledger schema",
+		columnId: "planning",
+		running: false,
+		failed: false,
+		...over,
+	});
+
+	it("names the lane a resting card sits in", () => {
+		expect(describeDagNode(node({ columnId: "review" }), { onCriticalPath: false })).toBe(
+			"Add the ledger schema — in review",
+		);
+		expect(describeDagNode(node({ columnId: "completed" }), { onCriticalPath: false })).toBe(
+			"Add the ledger schema — completed",
+		);
+	});
+
+	it("prefers the live state over the lane, and failure over running", () => {
+		expect(describeDagNode(node({ running: true }), { onCriticalPath: false })).toContain("running");
+		// A failed card can still be sitting in a working lane; "failed" is the fact that matters.
+		expect(describeDagNode(node({ running: true, failed: true }), { onCriticalPath: false })).toContain("failed");
+	});
+
+	it("says when a node is on the critical path — the thing gold was carrying alone", () => {
+		expect(describeDagNode(node(), { onCriticalPath: true })).toBe(
+			"Add the ledger schema — in planning, on the critical path",
+		);
+		expect(describeDagNode(node(), { onCriticalPath: false })).not.toContain("critical");
+	});
+
+	it("covers every lane, so a new column cannot render as undefined", () => {
+		const lanes = ["backlog", "planning", "ready", "in_progress", "review", "completed", "trash"] as const;
+		for (const columnId of lanes) {
+			const described = describeDagNode(node({ columnId }), { onCriticalPath: false });
+			expect(described, columnId).not.toContain("undefined");
+		}
 	});
 });
