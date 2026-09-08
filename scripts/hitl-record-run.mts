@@ -209,6 +209,24 @@ for (let index = 0; index < queue.length; index += 1) {
 		],
 		{ NKLEIN_VERIFY_BASE_URL: base },
 	);
+	// Exit 3 is the rail's STALLED signal: the drive stopped moving because the model seat went quiet, so whatever
+	// traffic it managed is a stub, not a result. Recording it produces a scenario set that replays one card and
+	// fails — which is how projects 39 and 40 were each burned twice on 2026-09-08 before this existed.
+	if (drained.code === 3) {
+		if (!retriedProjectIds.has(projectId)) {
+			retriedProjectIds.add(projectId);
+			queue.push(projectId);
+			note({
+				projectId,
+				status: "retrying",
+				detail: "the drive STALLED — the model seat stopped answering, so nothing was measured. Re-queued once for the end of the run.",
+				at: new Date().toISOString(),
+			});
+			continue;
+		}
+		note({ projectId, status: "failed", detail: `stalled twice: ${drained.tail}`, at: new Date().toISOString() });
+		continue;
+	}
 	if (drained.code !== 0) {
 		note({ projectId, status: "failed", detail: `rail exited ${drained.code}: ${drained.tail}`, at: new Date().toISOString() });
 		continue;

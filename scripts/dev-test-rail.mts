@@ -166,6 +166,9 @@ function selectPresets(): Preset[] {
 	return BUILTIN_PRESETS.slice(0, count) as unknown as Preset[];
 }
 
+/** Set when the watch loop ends on the stall watchdog rather than on a settled board — see the exit code below. */
+let stalled = false;
+
 async function main(): Promise<void> {
 	const model = arg("model", "qwen/qwen3-8b-m5max");
 	const presets = selectPresets();
@@ -356,6 +359,7 @@ async function main(): Promise<void> {
 			stallState = progress.state;
 			if (progress.stalled) {
 				stalledFor = progress.silentMs;
+				stalled = true;
 				log(
 					`⚠️  STALLED: no card, session-state or message change for ${(progress.silentMs / 60000).toFixed(1)} min ` +
 						`(--stall-ms ${stallMs}). The model endpoint is not answering — stopping instead of waiting out the deadline.\n`,
@@ -414,7 +418,11 @@ async function main(): Promise<void> {
 		await cleanup();
 		log("done.");
 	}
-	process.exit(0);
+	// Exit 3 = STALLED, and it is deliberately not 0. A stalled drive produced whatever traffic it managed before
+	// the model seat went quiet, and a caller that reads exit 0 will happily record that stub as if it were a
+	// drive — which is exactly what happened to projects 39 and 40 on 2026-09-08, twice each. "Not judged" needs
+	// its own signal; 0 means the board settled and 2 stays a real error.
+	process.exit(stalled ? 3 : 0);
 }
 
 main().catch((error) => {
