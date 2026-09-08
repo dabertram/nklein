@@ -2553,8 +2553,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   and stages the CRDT, so every commit carries the plan's state; `.gitignore` tracks exactly that one file under
   `.nklein/`. The June default-fixture cards (habit-insights) were moved to trash. REMAINING for the soft switch:
   (a) a `done.md` section per real milestone instead of the 15 coarse ones (the 126-item "Phase 0" package is
-  one card); (b) dependencies BETWEEN open items (today all hang off the spine head); (c) card `difficulty` /
-  `testability` from the todo text so !Klein can size them; (d) a "work this card with !Klein" affordance that
+  one card); (b) dependencies BETWEEN open items (today all hang off the spine head); (c) card `testability` from the todo text so !Klein can size them
+  *(SHIPPED 2026-09-08, b5e9b4581: an entry declares it — `*(not testable: <reason>)*` — and the sync takes it
+  at its word, re-derived on EVERY sync so existing cards are sized too, and carried into the committed CRDT.
+  Default stays testable: a wrong exemption silently skips the gate that proves the work, a wrong `testable`
+  costs one conversation. NOTE: card `difficulty` is NOT part of this — no such field exists on the board
+  contract; numeric difficulty is F3.41's job)*; (d) a "work this card with !Klein" affordance that
   turns a todo card into a real worker run on this repo (dev-only, confirmation-gated — the existing
   self-improvement project flow).
 
