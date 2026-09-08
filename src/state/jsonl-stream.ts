@@ -20,7 +20,8 @@ import { createInterface } from "node:readline";
  *
  * Missing or unreadable files visit nothing — the previous readers' `.catch(() => "")` contract.
  */
-export type JsonlLineVisitor = (line: string) => boolean | undefined | void;
+/** Return `false` to stop the read. Anything else — including nothing — continues. */
+export type JsonlLineVisitor = (line: string) => unknown;
 
 const DEFAULT_BLOCK_BYTES = 256 * 1024;
 const NEWLINE_BYTE = 0x0a;
