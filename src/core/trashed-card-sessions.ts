@@ -6,6 +6,14 @@
  * A card in a terminal lane has nothing left to deliver, so its live session is pure occupancy. This pure selector
  * names the active sessions whose card sits ONLY in a terminal lane (a lane-shadow copy in a live lane keeps the
  * session), for the board-liveness watchdog to stop.
+ *
+ * 2026-09-08: the first cut skipped EVERY `::` session id as "derived, names no board card", and that blanket skip
+ * was itself an occupancy leak. Trashing nine `clinical-*` cards left their `<card>::review` sessions running; they
+ * queued on the rig's single shared endpoint and blocked every later task for hours ("Another !Klein task is already
+ * running on shared endpoint ..."), with no card anywhere on the board to explain it. A derived session IS board-
+ * owned when the segment before `::` names a card, so it follows its parent card into the trash. Only a derived id
+ * whose parent names NO card (`main-branch-custodian::review`) is genuinely board-less and is left alone — and note
+ * the absent-card rule below must NOT apply to those, or the custodian's own review would be stopped on sight.
  */
 
 export interface TerminalLaneSessionBoard {
@@ -19,9 +27,10 @@ export interface TerminalLaneSession {
 
 const TERMINAL_LANES: ReadonlySet<string> = new Set(["trash", "completed"]);
 
-/** Derived session ids (`<card>::review`, `<card>::spec`, `main-branch-custodian::review`) name no board card. */
-function isDerivedSessionId(taskId: string): boolean {
-	return taskId.includes("::");
+/** `<card>::review` / `<card>::spec` belong to the card named before `::`; a bare id is its own card. */
+function parentCardIdOf(taskId: string): { cardId: string; derived: boolean } {
+	const separator = taskId.indexOf("::");
+	return separator < 0 ? { cardId: taskId, derived: false } : { cardId: taskId.slice(0, separator), derived: true };
 }
 
 export function selectTrashedCardSessions(
@@ -42,13 +51,16 @@ export function selectTrashedCardSessions(
 	const stops: TerminalLaneSession[] = [];
 	const seen = new Set<string>();
 	for (const taskId of activeSessionTaskIds) {
-		if (seen.has(taskId) || live.has(taskId) || isDerivedSessionId(taskId)) {
+		const { cardId, derived } = parentCardIdOf(taskId);
+		if (seen.has(taskId) || live.has(cardId)) {
 			continue;
 		}
-		const columnId = terminalLaneByTaskId.get(taskId);
+		const columnId = terminalLaneByTaskId.get(cardId);
 		// A card deleted from the board outright (HITL 2026-09-07: a purged redecompose clone whose session the
 		// context-overflow controller kept restarting on every nudge) is the same occupancy with no lane at all.
-		const terminalColumn = columnId ?? (board.columns.length > 0 ? "absent" : undefined);
+		// A DERIVED session is exempt from that rule: `main-branch-custodian::review` legitimately names no card,
+		// so an absent parent means "not board-owned", not "orphaned".
+		const terminalColumn = columnId ?? (!derived && board.columns.length > 0 ? "absent" : undefined);
 		if (terminalColumn === undefined) {
 			continue;
 		}

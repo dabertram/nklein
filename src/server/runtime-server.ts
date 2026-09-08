@@ -176,7 +176,7 @@ import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { planTerminalRedriveEscalation } from "../core/terminal-redrive-escalation";
 import { isTestFilePath } from "../core/test-misinterpretation-detector";
 import { DELIVERY_ACTION_MANIFEST } from "../core/tool-capability-manifest";
-import { selectTrashedCardSessions } from "../core/trashed-card-sessions";
+import { selectTrashedCardSessions, type TerminalLaneSessionBoard } from "../core/trashed-card-sessions";
 import { parseAddedLinesFromUnifiedDiff } from "../core/unified-diff-added-lines";
 import { combineVerifierVerdicts } from "../core/verifier-ensemble";
 import { findWorkPackageBoundaryViolations } from "../core/work-package-card-shape";
@@ -1332,6 +1332,40 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 		deps.warn(
 			`Model-turn admission purged ${ghosts.length} reservation(s) held by dead session ${taskId} (terminal summary); waiting tasks can now admit.`,
+		);
+		const nextTurns = activeTurns.filter((turn) => !ghosts.includes(turn));
+		if (nextTurns.length > 0) {
+			activeModelTurnsByWorkspaceId.set(workspaceId, nextTurns);
+		} else {
+			activeModelTurnsByWorkspaceId.delete(workspaceId);
+		}
+	};
+	// Live 2026-09-08 (HITL rig): nine `clinical-*` cards were trashed through a whole-state save, but the endpoint
+	// stayed occupied for hours — "Another !Klein task is already running on shared endpoint ...". The purge above
+	// fires only on a TERMINAL SUMMARY, and these reservations were held by `<card>::review` aux turns whose parent
+	// card had no live session left to go terminal, so nothing ever fired. A reservation owned by a card that sits
+	// in trash/completed is the same ghost by the same argument: the card has nothing left to deliver. Sweep them on
+	// the board-liveness tick, using the SAME rule the session stopper uses so the two can never disagree.
+	const purgeModelTurnReservationsForTerminalLaneCards = (
+		workspaceId: string,
+		board: TerminalLaneSessionBoard,
+	): void => {
+		const activeTurns = activeModelTurnsByWorkspaceId.get(workspaceId) ?? [];
+		if (activeTurns.length === 0) {
+			return;
+		}
+		const doomed = new Set(
+			selectTrashedCardSessions(
+				board,
+				activeTurns.map((turn) => turn.taskId),
+			).map((terminal) => terminal.taskId),
+		);
+		const ghosts = activeTurns.filter((turn) => doomed.has(turn.taskId));
+		if (ghosts.length === 0) {
+			return;
+		}
+		deps.warn(
+			`Model-turn admission purged ${ghosts.length} reservation(s) held by terminal-lane card(s) ${[...new Set(ghosts.map((turn) => turn.taskId))].join(", ")}; waiting tasks can now admit.`,
 		);
 		const nextTurns = activeTurns.filter((turn) => !ghosts.includes(turn));
 		if (nextTurns.length > 0) {
@@ -4733,6 +4767,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							await trackedService.stopTaskSession(terminal.taskId).catch(() => null);
 							activeSessionTaskIds.delete(terminal.taskId);
 						}
+						// A trashed card can hold an endpoint with NO tracked session at all (its `::review` aux turn
+						// outlives it), so the stop loop above is not sufficient on its own.
+						purgeModelTurnReservationsForTerminalLaneCards(scope.workspaceId, board);
 						// Secondary reviewers run outside the task-session service, so their card is absent from
 						// `activeSessionTaskIds`. Correlate the finalizer's own in-flight set as well; otherwise a
 						// watchdog tick can launch a duplicate reviewer while the first one is still awaiting its
