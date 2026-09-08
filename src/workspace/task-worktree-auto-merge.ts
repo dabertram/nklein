@@ -1,5 +1,6 @@
-import { lstat, writeFile } from "node:fs/promises";
-import { resolve, sep } from "node:path";
+import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname, join, resolve, sep } from "node:path";
+import { decideAbandonedMergeRecovery, type InFlightMergeMark } from "../core/abandoned-merge-recovery";
 import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeBoardData } from "../core/api-contract";
 import { isTaskResultBranchRef } from "../core/task-result-branch-naming";
 import type { WorkPackage } from "../core/work-package-dispatch";
@@ -100,6 +101,69 @@ const defaultInspectResolvedFilePath = async (absolutePath: string): Promise<Tas
 async function isMergeInProgress(runGit: RunGit, repoPath: string): Promise<boolean> {
 	const mergeHead = await runGit(repoPath, ["rev-parse", "-q", "--verify", "MERGE_HEAD"]);
 	return mergeHead.ok;
+}
+
+/**
+ * The in-flight merge mark lives under `.nklein/nklein/` — the state dir the clean-base check already EXCLUDES.
+ * A mark written anywhere else would itself be an untracked file that blocks every delivery, which is precisely
+ * the mistake `main-branch-custodian.ts` records from 2026-09-05.
+ */
+function inFlightMergeMarkPath(repoPath: string): string {
+	return join(repoPath, ".nklein", "nklein", "merge-in-flight.json");
+}
+
+async function writeInFlightMergeMark(repoPath: string, mark: InFlightMergeMark): Promise<void> {
+	const path = inFlightMergeMarkPath(repoPath);
+	await mkdir(dirname(path), { recursive: true }).catch(() => undefined);
+	await writeFile(path, `${JSON.stringify(mark, null, "\t")}\n`, "utf8").catch(() => undefined);
+}
+
+async function clearInFlightMergeMark(repoPath: string): Promise<void> {
+	await rm(inFlightMergeMarkPath(repoPath), { force: true }).catch(() => undefined);
+}
+
+async function readInFlightMergeMark(repoPath: string): Promise<InFlightMergeMark | null> {
+	try {
+		const raw = JSON.parse(await readFile(inFlightMergeMarkPath(repoPath), "utf8")) as Partial<InFlightMergeMark>;
+		return typeof raw.mergeHead === "string" && raw.mergeHead.length > 0 && typeof raw.taskId === "string"
+			? { mergeHead: raw.mergeHead, taskId: raw.taskId, startedAt: Number(raw.startedAt) || 0 }
+			: null;
+	} catch {
+		return null;
+	}
+}
+
+async function readMergeHead(runGit: RunGit, repoPath: string): Promise<string | null> {
+	const mergeHead = await runGit(repoPath, ["rev-parse", "-q", "--verify", "MERGE_HEAD"]);
+	return mergeHead.ok ? mergeHead.stdout.trim() || null : null;
+}
+
+/**
+ * Clear the debris of a delivery merge that was INTERRUPTED before its own fail-safe abort could run — the state
+ * that otherwise blocks every later delivery forever (see `src/core/abandoned-merge-recovery.ts`). Returns a note
+ * for the blocked reason when it did something or deliberately refused to; null when there was nothing to decide.
+ */
+async function recoverAbandonedMerge(
+	runGit: RunGit,
+	repoPath: string,
+): Promise<{ aborted: boolean; note: string } | null> {
+	const mergeHead = await readMergeHead(runGit, repoPath);
+	if (!mergeHead) {
+		return null;
+	}
+	const decision = decideAbandonedMergeRecovery({ mergeHead, mark: await readInFlightMergeMark(repoPath) });
+	if (decision.action === "leave") {
+		return { aborted: false, note: decision.reason };
+	}
+	const abort = await runGit(repoPath, ["merge", "--abort"]);
+	if (!abort.ok) {
+		return {
+			aborted: false,
+			note: `${decision.reason}; but \`git merge --abort\` FAILED: ${abort.stderr || abort.error || "unknown error"}`,
+		};
+	}
+	await clearInFlightMergeMark(repoPath);
+	return { aborted: true, note: decision.reason };
 }
 
 /**
@@ -441,13 +505,27 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 	const steps: TaskWorktreeAutoMergeStep[] = [];
 	const mergedTaskIds: string[] = [];
 	const skippedTaskIds: string[] = [];
-	const status = await runGit(input.repoPath, ["status", "--porcelain", "--", ".", ":(exclude).nklein/nklein"]);
+	let status = await runGit(input.repoPath, ["status", "--porcelain", "--", ".", ":(exclude).nklein/nklein"]);
+	// A dirty base is usually someone's work — but it is ALSO what an interrupted delivery merge leaves behind, and
+	// that debris blocks every future delivery with no way out (live 2026-09-08: one merge interrupted mid-conflict
+	// wedged project 38 permanently while the board carried on delivering). Recover only a merge we can PROVE we
+	// started, then re-read the status; anything else is left exactly as it was.
+	let recoveryNote = "";
+	if (status.ok && status.stdout.trim()) {
+		const recovery = await recoverAbandonedMerge(runGit, input.repoPath);
+		if (recovery) {
+			recoveryNote = ` (${recovery.note})`;
+			if (recovery.aborted) {
+				status = await runGit(input.repoPath, ["status", "--porcelain", "--", ".", ":(exclude).nklein/nklein"]);
+			}
+		}
+	}
 	if (!status.ok || status.stdout.trim()) {
 		const blocked: TaskWorktreeAutoMergeBlocked = {
 			type: "blocked",
 			taskId: null,
 			reason: status.ok
-				? "Base workspace has uncommitted changes; merge task results from a clean base."
+				? `Base workspace has uncommitted changes; merge task results from a clean base.${recoveryNote}`
 				: (status.error ?? "Could not read base workspace status."),
 		};
 		return { ok: false, steps: [blocked], mergedTaskIds, skippedTaskIds, blocked };
@@ -563,6 +641,13 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 			continue;
 		}
 
+		// Claim the merge BEFORE running it: if this process dies between here and the fail-safe abort below, the
+		// mark is what proves the leftover MERGE_HEAD is ours to clear on the next delivery.
+		await writeInFlightMergeMark(input.repoPath, {
+			mergeHead: headCommit,
+			taskId: task.id,
+			startedAt: Date.now(),
+		});
 		const merge = await runGit(input.repoPath, ["merge", "--no-ff", "--no-edit", headCommit]);
 		if (!merge.ok) {
 			const conflicted = await runGit(input.repoPath, ["diff", "--name-only", "--diff-filter=U", "-z"], {
@@ -584,6 +669,7 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 					inspectResolvedFilePath: input.inspectResolvedFilePath ?? defaultInspectResolvedFilePath,
 				});
 				if (applied) {
+					await clearInFlightMergeMark(input.repoPath);
 					const merged: TaskWorktreeAutoMergeSuccess = {
 						type: "merged",
 						taskId: task.id,
@@ -612,6 +698,7 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 						`the base workspace may need manual cleanup. git status --porcelain (head):\n${statusHead || "(empty)"}`;
 				}
 			}
+			await clearInFlightMergeMark(input.repoPath);
 			const conflict: TaskWorktreeAutoMergeConflict = {
 				type: "conflict",
 				taskId: task.id,
@@ -624,6 +711,7 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 			firstConflict ??= conflict;
 			continue;
 		}
+		await clearInFlightMergeMark(input.repoPath);
 		const merged: TaskWorktreeAutoMergeSuccess = {
 			type: "merged",
 			taskId: task.id,
