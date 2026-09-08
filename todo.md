@@ -2737,6 +2737,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   **Cost measured:** one responder shift spent 8 of 25 requests (32%) on this single task across three sibling
   branches. P0.SANDBOXGHOST's never-placed bound (`2b49651d8`) now stops the session so the waste is bounded, but
   that treats the symptom.
+  **▶ A SECOND SHAPE, not covered by this item (2026-09-09):** `dev-40-…-decompose`'s sandbox WORKED — a real
+  spec+source read succeeded — and then died mid-session and never came back. That is not a wedged start; it is a
+  workspace lost under a live session. Both shapes now end in a paused card (`7fb21c04a`) instead of an endless
+  stop/auto-start loop, but the causes are different and only the wedged-start one has evidence here.
   **Where to look:** the most likely hang is a queued `acquireSlot` that never resolves (leaked pool slot ⇒ pool at
   capacity ⇒ the waiter's promise is never handed a placement); `nklein-agent-sandbox.ts` already logs a slow
   queued acquisition, so start there with the slow-acquisition line and the pool occupancy at that moment.
