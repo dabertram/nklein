@@ -1,0 +1,9 @@
+Audit the evidence in input/ and tell me exactly what is wrong with it.
+
+This is an analysis job, not a build job: I do not want the module fixed, refactored, or rewritten. I want a
+defensible list of the defects it contains, each one located precisely and explained well enough that a reviewer
+can confirm it without re-reading the whole file.
+
+Read specification.md for the defect classes that count, the deliverable's shape, and the rules I will hold you to.
+The one rule worth repeating here: a wrong finding is worse than a missing one, and the acceptance check enforces
+that on every run.
