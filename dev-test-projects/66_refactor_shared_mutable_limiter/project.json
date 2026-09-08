@@ -1,0 +1,16 @@
+{
+	"id": "66_refactor_shared_mutable_limiter",
+	"title": "Refactor: Give the Rate Limiter Its Own State and Break the Audit Cycle",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "refactor-f5",
+	"tier": "5/5 refactor",
+	"tags": [
+		"shared mutable state",
+		"import cycle",
+		"testability",
+		"instance extraction",
+		"behaviour preservation"
+	]
+}

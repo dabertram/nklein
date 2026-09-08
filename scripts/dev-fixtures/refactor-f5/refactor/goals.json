@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"goals": [
+		{
+			"id": "G1",
+			"title": "no module-level mutable state",
+			"metric": "no_module_level_mutable_state",
+			"why": "The counters, the settings and the clock are module singletons. Two limiters cannot coexist, a test cannot isolate itself, and every caller shares one hidden object."
+		},
+		{
+			"id": "G2",
+			"title": "no import cycle under src/",
+			"metric": "no_import_cycle",
+			"why": "The limiter records denials through the audit log, and the audit log reads the limiter's configuration back. Neither module can be loaded or understood alone."
+		},
+		{
+			"id": "G3",
+			"title": "no function is longer than 15 meaningful lines",
+			"metric": "max_function_lines",
+			"params": { "limit": 15 },
+			"why": "`allow` validates, rolls the window, decides, records and reports in one body."
+		},
+		{
+			"id": "G4",
+			"title": "no function has more than 4 branch points",
+			"metric": "max_branches_per_function",
+			"params": { "limit": 4 },
+			"why": "The window roll and the limit decision are interleaved, so neither can be changed without re-reading the other."
+		}
+	]
+}

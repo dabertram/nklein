@@ -1,0 +1,9 @@
+Give the rate limiter in src/ its own state, and keep every existing caller working.
+
+Its counters, settings and clock are module-level bindings, so two limiters cannot exist at once and no test can
+isolate itself. The limiter also records denials through the audit log while the audit log reads the limiter's
+configuration back, so neither module can be loaded alone.
+
+Read specification.md for the goals and the rules. Note the constraint that makes this interesting: the
+module-level convenience functions must keep working exactly as they do now. Removing shared state while keeping
+the shared entry points is the exercise.
