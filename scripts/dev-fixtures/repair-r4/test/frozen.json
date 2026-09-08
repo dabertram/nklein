@@ -1,0 +1,14 @@
+{
+	"schemaVersion": 1,
+	"frozen": {
+		"scenarios/boundaries.scenarios.mjs": "bec3c88f4dc55b98aac2a2fea6355dcff2b547a013fa78e2b2a5c827f4121e22",
+		"scenarios/support/boundaries.mjs": "f5f804cce65d2ee1d036149f2596c3cb28bb11fbbd6775f89f9b7fbc523bb47a",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"test/repair.test.js": "52ffc088b90edc20996d6cb6859ba166765c5277905ebd80d8e2ceccd5f0325d"
+	},
+	"src": {
+		"src/calendar.mjs": "7c79a4b44fd685fe930c34563688e980ffc2b98c6b4bb938580e2b9f0d36d700",
+		"src/label.mjs": "360537d9f747e4a9e2d20f4db93219700ea4f0fe59a861b51434ed767f0bf820",
+		"src/money.mjs": "a841b3638c2c82731d1601f293f1791e86b46c553f801b84fd0568986a60b2c3"
+	}
+}

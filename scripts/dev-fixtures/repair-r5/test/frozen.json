@@ -1,0 +1,14 @@
+{
+	"schemaVersion": 1,
+	"frozen": {
+		"scenarios/regressions.scenarios.mjs": "787147bcc3e93bd1004a84d0e12ddf8e9c474689f134a9c9ac2a3de9937b3754",
+		"scenarios/support/rows.mjs": "2211ec79d536ee1c1d2c80e0456e871765b16d61da6d336551f76b1bdac0c22d",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"test/repair.test.js": "8004e8bff9f627600e6747042b50ff9b9eb8a190ba356f83899cfa83982d854a"
+	},
+	"src": {
+		"src/exporter.mjs": "ac36941ea3ff03163194945c35ae5d6de6dfe029b1d98971e12183c6eaf72351",
+		"src/options.mjs": "9500fe4c9000367fa340c7bc2add1c984f55871c15803f5f858da4c7738dc517",
+		"src/report.mjs": "aca2a7a99f24ee4fce701b91026e9d11fdefd700ea04e09af80ad91f74a47901"
+	}
+}

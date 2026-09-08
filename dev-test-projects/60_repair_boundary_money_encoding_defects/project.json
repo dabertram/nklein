@@ -1,5 +1,5 @@
 {
-	"id": "34_repair_boundary_money_encoding_defects",
+	"id": "60_repair_boundary_money_encoding_defects",
 	"title": "Repair: Boundary Defects in Money Splitting, UTF-8 Labels and Local Days",
 	"acceptanceCommand": "npm test",
 	"agentId": "nklein",

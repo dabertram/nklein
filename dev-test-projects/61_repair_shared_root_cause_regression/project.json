@@ -1,5 +1,5 @@
 {
-	"id": "35_repair_shared_root_cause_regression",
+	"id": "61_repair_shared_root_cause_regression",
 	"title": "Repair: Two Regressions with One Shared Root Cause",
 	"acceptanceCommand": "npm test",
 	"agentId": "nklein",
