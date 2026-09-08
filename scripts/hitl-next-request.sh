@@ -25,6 +25,13 @@
 # makes that structural instead of conventional: `mkdir` is atomic, so exactly one caller wins each id, and a
 # loser silently moves on to the next unclaimed request rather than duplicating work.
 #
+# The wait DEFAULT is 240s, not the tool cap. Live 2026-09-08: a responder was killed mid-drive by the agent
+# harness's stream watchdog — "no progress for 600s" — while sitting in a healthy 540s blocking wait. The binding
+# limit is not the tool timeout, it is how long the agent may go without PRODUCING anything, and a blocking call
+# produces nothing until it returns. So the wait must end well inside that window and be re-entered: four minutes
+# keeps the turn visibly alive, and re-entering costs one cheap tool call. The rig sat idle behind a dead responder
+# for ten minutes before anyone noticed, which is the failure this default exists to prevent.
+#
 # Usage:  scripts/hitl-next-request.sh <mark> [maxWaitSeconds] [--claim <responderId>]
 #   <mark>      answer only ids strictly greater than this (scopes a capture to one project)
 #   --claim ID  claim under this responder name (default: `responder-<pid>`; claiming is ON)
@@ -35,7 +42,7 @@
 set -u
 QUEUE="${HITL_QUEUE:-$HOME/.nklein/factory-drains/hitl-drain/queue}"
 MARK="${1:-0}"
-MAX_WAIT="${2:-540}"   # default under the 600s tool cap so the call returns rather than being killed
+MAX_WAIT="${2:-240}"   # well inside the agent harness's 600s no-progress watchdog (see header)
 POLL="${HITL_POLL_SECONDS:-5}"
 STALE_MINUTES="${HITL_STALE_MINUTES:-30}"   # a request older than this with no answer is a corpse, not work
 CLAIM_AS="responder-$$"

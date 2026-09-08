@@ -90,10 +90,27 @@ export interface ChatAgentLoopDeps {
 	 * (the first no-tool-call turn is the final answer), so existing callers are unchanged.
 	 */
 	assessCompletion?: (steps: readonly ChatAgentStep[]) => boolean;
+	/**
+	 * OPTIONAL companion to {@link assessCompletion}: say WHAT evidence is still missing, so the nudge can name it.
+	 *
+	 * Live 2026-09-08 (P1.RESPONDERLEADS lead (a)): the gate demanded a specific fact and the nudge described none, so
+	 * a card that was already green at start burned every iteration being told "you are not done" without ever being
+	 * told what would count. Returning `null` (or omitting this dep) falls back to the generic nudge.
+	 */
+	describeMissingEvidence?: (steps: readonly ChatAgentStep[]) => string | null;
 }
 
 const INCOMPLETE_NUDGE =
 	"You have NOT yet completed all the required steps for this task. Do not stop or summarize — continue by calling the necessary tool(s) to finish the remaining work now.";
+
+/** The evidence-naming nudge when the caller can describe what is missing, else the generic one. */
+function incompleteNudgeFor(
+	describe: ((steps: readonly ChatAgentStep[]) => string | null) | undefined,
+	steps: readonly ChatAgentStep[],
+): string {
+	const described = describe?.(steps)?.trim();
+	return described && described.length > 0 ? described : INCOMPLETE_NUDGE;
+}
 
 export interface ChatAgentLoopResult {
 	finalText: string;
@@ -194,7 +211,7 @@ export async function runChatAgentLoop(
 			// maxIterations). Skipped on the final iteration (no turn left to use the nudge). Absent assessor ⇒ unchanged.
 			if (canStillMakeProgress(iteration)) {
 				messages = deps.appendToolExchange(messages, response, [
-					{ callId: `incomplete-${iteration}`, content: INCOMPLETE_NUDGE },
+					{ callId: `incomplete-${iteration}`, content: incompleteNudgeFor(deps.describeMissingEvidence, steps) },
 				]);
 				continue;
 			}
@@ -248,7 +265,10 @@ export async function runChatAgentLoop(
 				if (forcedNew === 0) {
 					// The force couldn't produce a new call either — fall back to the §5.AA nudge and keep going.
 					messages = deps.appendToolExchange(messages, { text: "", toolCalls: [] }, [
-						{ callId: `incomplete-${iteration}`, content: INCOMPLETE_NUDGE },
+						{
+							callId: `incomplete-${iteration}`,
+							content: incompleteNudgeFor(deps.describeMissingEvidence, steps),
+						},
 					]);
 				}
 				continue;

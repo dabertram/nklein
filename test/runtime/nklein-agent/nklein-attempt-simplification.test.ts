@@ -112,3 +112,40 @@ describe("the anchor reads the task, not !Klein's own scaffolding", () => {
 		expect(stripNKleinScaffolding("Read the spec, then run_commands.")).toBe("Read the spec, then run_commands.");
 	});
 });
+
+/**
+ * P1.RESPONDERLEADS lead (a), the structural half: card a00 (2026-09-08) was narrowed to `read_files` alone while
+ * its completion gate required that `npm test` had actually RUN. No amount of model effort can end a turn whose
+ * only offered tool cannot produce the required evidence, so the card spun to the iteration cap. Narrowing the ask
+ * is fine; narrowing away the exit is not.
+ */
+describe("selectToolsForAttempt — alwaysKeep", () => {
+	const TOOLS = [{ name: "read_files" }, { name: "run_command" }, { name: "edit_file" }];
+
+	it("keeps the gate's tool even when the anchor caps the set at one", () => {
+		const anchored = selectToolsForAttempt(TOOLS, "read_files the spec first", 2);
+		expect(anchored.tools.map((tool) => tool.name)).toEqual(["read_files"]);
+
+		const rescued = selectToolsForAttempt(TOOLS, "read_files the spec first", 2, { alwaysKeep: ["run_command"] });
+		expect(rescued.tools.map((tool) => tool.name)).toEqual(["read_files", "run_command"]);
+		// Still a narrowing (edit_file is gone), so the ladder keeps its cheaper-ask property.
+		expect(rescued.reduced).toBe(true);
+		// The anchor report is unchanged: `run_command` was rescued, not matched.
+		expect(rescued.matchedNames).toEqual(["read_files"]);
+	});
+
+	it("does not duplicate a kept tool the anchor already selected", () => {
+		const selection = selectToolsForAttempt(TOOLS, "run_command the acceptance check", 2, {
+			alwaysKeep: ["run_command"],
+		});
+		expect(selection.tools.map((tool) => tool.name)).toEqual(["run_command"]);
+	});
+
+	it("ignores a kept name that was never offered, and changes nothing without the option", () => {
+		const selection = selectToolsForAttempt(TOOLS, "read_files the spec", 2, { alwaysKeep: ["submit_review"] });
+		expect(selection.tools.map((tool) => tool.name)).toEqual(["read_files"]);
+		expect(selectToolsForAttempt(TOOLS, "read_files the spec", 2).tools.map((tool) => tool.name)).toEqual([
+			"read_files",
+		]);
+	});
+});

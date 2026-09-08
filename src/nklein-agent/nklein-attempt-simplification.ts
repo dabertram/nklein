@@ -44,11 +44,19 @@ export interface ToolSelectionResult<T extends NamedTool> {
  *   the instruction names none of them, the set is left intact — there is nothing to anchor a safe reduction on, and
  *   other ladder rungs (prompt simplification, endpoint iteration, constrained decoding) handle that case.
  * - `level >= 2`: cap to the single first-referenced tool — the most aggressive narrowing before dropping tools entirely.
+ *
+ * `options.alwaysKeep` names tools that survive EVERY narrowing. Live 2026-09-08 (P1.RESPONDERLEADS lead (a)): the
+ * ladder narrowed card a00 to `read_files` alone while its completion gate demanded that `npm test` had been RUN.
+ * A turn offered only a reader cannot produce the evidence its own gate requires, so the card could not finish at
+ * any level of model effort — it was unsatisfiable by construction, and it spun until the cap. Narrowing the ask is
+ * a good idea; narrowing away the exit is not, and no amount of re-prompting can recover from it. So the caller
+ * names the tool the gate needs and this keeps it, at the cost of one extra tool in the offered set.
  */
 export function selectToolsForAttempt<T extends NamedTool>(
 	tools: readonly T[],
 	instruction: string,
 	level: number,
+	options: { readonly alwaysKeep?: readonly string[] } = {},
 ): ToolSelectionResult<T> {
 	if (level <= 0 || tools.length <= 1) {
 		return { tools: [...tools], reduced: false, matchedNames: [] };
@@ -63,9 +71,14 @@ export function selectToolsForAttempt<T extends NamedTool>(
 	}
 	const cap = level >= 2 ? 1 : mentioned.length;
 	const selected = mentioned.slice(0, cap).map((entry) => entry.tool);
+	// Whatever the anchor decides, a tool the TURN CANNOT END WITHOUT stays on the table. See `alwaysKeep` below.
+	const keep = new Set(options.alwaysKeep ?? []);
+	const selectedNames = new Set(selected.map((tool) => tool.name));
+	const rescued = tools.filter((tool) => keep.has(tool.name) && !selectedNames.has(tool.name));
+	const finalTools = [...selected, ...rescued];
 	return {
-		tools: selected,
-		reduced: selected.length < tools.length,
+		tools: finalTools,
+		reduced: finalTools.length < tools.length,
 		matchedNames: selected.map((tool) => tool.name),
 	};
 }

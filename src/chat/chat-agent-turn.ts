@@ -8,7 +8,12 @@ import { detectRunawayGeneration, type RunawayVerdict } from "../core/runaway-ge
 import { selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { stripNarratedToolCallMarkup } from "../nklein-agent/nklein-narrated-tool-call";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
-import { buildAcceptanceCompletionGate, extractAcceptanceCommand } from "./chat-acceptance-completion";
+import {
+	acceptanceEvidenceNudge,
+	buildAcceptanceCompletionGate,
+	extractAcceptanceCommand,
+	requiredToolsEvidenceNudge,
+} from "./chat-acceptance-completion";
 import {
 	type ChatAgentModelResponse,
 	type ChatAgentStep,
@@ -281,6 +286,21 @@ export async function runChatAgentTurn(
 		completionGates.length > 0
 			? (steps: readonly ChatAgentStep[]): boolean => completionGates.every((gate) => gate(steps))
 			: undefined;
+	// P1.RESPONDERLEADS lead (a): a gate that demands specific evidence must SAY which evidence, or a card that is
+	// already satisfied spends every iteration being told it is not done with no way to find out what would count.
+	// The tools gate is reported first because calling an un-called tool is the cheaper of the two asks.
+	const describeMissingEvidence = assessCompletion
+		? (steps: readonly ChatAgentStep[]): string | null => {
+				if (namedToolsGate && !namedToolsGate(steps)) {
+					const used = new Set(steps.map((step) => step.toolCall.name));
+					return requiredToolsEvidenceNudge(requiredTools.filter((tool) => !used.has(tool)));
+				}
+				if (acceptanceCommand && acceptanceGate && !acceptanceGate(steps)) {
+					return acceptanceEvidenceNudge(acceptanceCommand);
+				}
+				return null;
+			}
+		: undefined;
 	// W3.1: persist the user message BEFORE the loop (not paired with the assistant at the end) so per-tool
 	// transcript rows appended DURING the loop (the service's executeTool wrapper) land between user and reply —
 	// the order the transcript reader renders. The turn context was composed above, so this append never feeds
@@ -310,6 +330,7 @@ export async function runChatAgentTurn(
 			executeTool: deps.executeTool,
 			appendToolExchange: deps.appendToolExchange,
 			...(assessCompletion ? { assessCompletion } : {}),
+			...(describeMissingEvidence ? { describeMissingEvidence } : {}),
 		},
 	);
 	// §5.O: weak models sometimes narrate a tool call as text in their final answer instead of confirming what they

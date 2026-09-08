@@ -17,6 +17,11 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
+import {
+	EMPTY_DRIVE_STALL_STATE,
+	fingerprintDriveLanes,
+	observeDriveProgress,
+} from "../src/core/drive-stall-watchdog.js";
 import type { RailEvidenceReport, RailLaneEvidence } from "../src/core/rail-evidence.js";
 import { resolveRailEvidenceDir } from "../src/state/rail-evidence-store.js";
 import { BACKGROUND_EVAL_RUNTIME_SWARM_GUARDRAILS } from "../src/core/runtime-config-api-contract";
@@ -154,6 +159,10 @@ async function main(): Promise<void> {
 	const presets = selectPresets();
 	const maxWaitMs = Number.parseInt(arg("max-wait-ms", "900000"), 10); // generous default: 15 min (small models are slow)
 	const concurrency = Math.max(presets.length, Number.parseInt(arg("concurrency", String(presets.length)), 10));
+	// Bound the SILENCE inside the deadline, not just the deadline. Live 2026-09-08: the agent in the rig's model
+	// seat was killed by its own harness and the drive sat in a 90-minute window with nothing to show for it. 15 min
+	// of no observable movement is far longer than any single card turn and far shorter than the window. `0` disables.
+	const stallMs = Number.parseInt(arg("stall-ms", "900000"), 10);
 
 	const base = createTRPCProxyClient<RuntimeAppRouter>({ links: [httpBatchLink({ url: TRPC_URL })] });
 
@@ -277,6 +286,8 @@ async function main(): Promise<void> {
 		// ── Live watch loop: render every project's task flow until all terminal or deadline. ──
 		log(`\nWatching ${lanes.length} projects (deadline ${(maxWaitMs / 60000).toFixed(0)} min)…\n`);
 		const deadline = Date.now() + maxWaitMs;
+		let stallState = { ...EMPTY_DRIVE_STALL_STATE, unchangedSince: Date.now() };
+		let stalledFor: number | null = null;
 		while (Date.now() < deadline) {
 			await new Promise((resolve) => setTimeout(resolve, 7000));
 			let allTerminal = true;
@@ -310,6 +321,22 @@ async function main(): Promise<void> {
 				log("All seed cards reached a terminal state.\n");
 				break;
 			}
+			// Nothing about the drive changed this tick — not a card, not a session state, not a message. Repeated
+			// past `stallMs` that is a dead model seat, and waiting out the rest of the deadline only delays the news.
+			const progress = observeDriveProgress(
+				stallState,
+				{ at: Date.now(), fingerprint: fingerprintDriveLanes(lanes) },
+				stallMs,
+			);
+			stallState = progress.state;
+			if (progress.stalled) {
+				stalledFor = progress.silentMs;
+				log(
+					`⚠️  STALLED: no card, session-state or message change for ${(progress.silentMs / 60000).toFixed(1)} min ` +
+						`(--stall-ms ${stallMs}). The model endpoint is not answering — stopping instead of waiting out the deadline.\n`,
+				);
+				break;
+			}
 		}
 
 		// ── Evidence report (success AND failure) — the harvest that feeds todo.md. Built ONCE as structured data,
@@ -326,6 +353,7 @@ async function main(): Promise<void> {
 			at: new Date().toISOString(),
 			model,
 			maxWaitMs,
+			...(stalledFor === null ? {} : { stalledForMs: stalledFor }),
 			concurrency,
 			projectCount: laneEvidence.length,
 			delivered: laneEvidence.filter((evidence) => evidence.verdict === "delivered").length,
@@ -343,6 +371,9 @@ async function main(): Promise<void> {
 		}
 		log("");
 		log(`SUMMARY: ${report.delivered}/${report.projectCount} delivered to review · ${report.anomalyProjects} project(s) with narration anomalies · model ${model}`);
+		if (stalledFor !== null) {
+			log(`STALLED: the drive showed no movement for ${(stalledFor / 60000).toFixed(1)} min — treat these lanes as UNJUDGED, not as failures of the model's work.`);
+		}
 		try {
 			const evidenceDir = resolveRailEvidenceDir();
 			mkdirSync(evidenceDir, { recursive: true });

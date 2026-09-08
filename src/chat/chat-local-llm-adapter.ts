@@ -35,6 +35,7 @@ import {
 import { detectResponseLoop } from "../nklein-agent/nklein-response-loop-detection";
 import { appendTruncationObservations } from "../state/truncation-observation-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { extractAcceptanceCommand } from "./chat-acceptance-completion";
 import type { ChatAgentModelResponse, ChatToolResult } from "./chat-agent-loop";
 import type { ChatMessage } from "./chat-transcript-store";
 import type { ChatPromptMessage } from "./chat-turn-context";
@@ -603,6 +604,11 @@ export function createChatAgentModel(
 		// selected skill. The compact difficulty prior is turn-local, so a long/hard follow-up can raise an otherwise
 		// unopinionated profile without freezing the decision at session creation.
 		const instruction = lastUserText(messages);
+		// A card carrying `Acceptance check: <command>` cannot END without running that command, so the narrowing
+		// ladder must never take the command tool away (P1.RESPONDERLEADS lead (a) — see `alwaysKeep`). Empty for an
+		// ordinary chat turn, which has no gate and therefore no tool it is forbidden to drop.
+		const gateRequiredTools = extractAcceptanceCommand(instruction) ? ["run_command"] : [];
+		const narrowingOptions = { alwaysKeep: gateRequiredTools };
 		const hasProfile = Boolean(options.apiProfile && Object.keys(options.apiProfile).length > 0);
 		const hardSignal = /architect|refactor|migrat|concurren|deadlock|security|performance|decompos/iu.test(
 			instruction,
@@ -700,7 +706,7 @@ export function createChatAgentModel(
 		}
 		let response = await client.completeWithTools({ messages: wire, sampling }, offered);
 		const used = new Set(usedToolNames ?? []);
-		const initialAnchor = selectToolsForAttempt(offered, instruction, 1);
+		const initialAnchor = selectToolsForAttempt(offered, instruction, 1, narrowingOptions);
 		const initialAnchoredRemaining = initialAnchor.tools.filter((tool) => !used.has(tool.name));
 		const initialOfferedRemaining = offered.filter((tool) => !used.has(tool.name));
 		const initialHasFreshCall = response.toolCalls.some((call) => !used.has(call.name));
@@ -725,7 +731,7 @@ export function createChatAgentModel(
 			allowTools &&
 			response.toolCalls.length === 0 &&
 			offered.length > 1 &&
-			selectToolsForAttempt(offered, instruction, 1).reduced
+			selectToolsForAttempt(offered, instruction, 1, narrowingOptions).reduced
 		) {
 			availableStrategies.push("reduced_tool_set");
 		}
@@ -824,7 +830,7 @@ export function createChatAgentModel(
 		if (offered.length > 1 && response.toolCalls.length === 0 && retryCursor.claim("reduced_tool_set")) {
 			let previousNames: string | null = null;
 			for (let level = 1; level <= MAX_ATTEMPT_SIMPLIFICATION_LEVEL; level += 1) {
-				const selection = selectToolsForAttempt(offered, instruction, level);
+				const selection = selectToolsForAttempt(offered, instruction, level, narrowingOptions);
 				if (!selection.reduced) {
 					break;
 				}

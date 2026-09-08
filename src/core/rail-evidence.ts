@@ -27,6 +27,12 @@ export interface RailEvidenceReport {
 	at: string;
 	model: string;
 	maxWaitMs: number;
+	/**
+	 * Set when the watch loop ended because NOTHING moved for `--stall-ms`, carrying how long the silence had run.
+	 * Distinguishes "the model seat died" from "the deadline expired while work was in flight" — the same shape of
+	 * report otherwise, and the difference decides whether a re-run is worth anything (live 2026-09-08).
+	 */
+	stalledForMs?: number;
 	concurrency: number;
 	projectCount: number;
 	delivered: number;
