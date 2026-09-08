@@ -2138,6 +2138,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     once the batch is through if a fuller trace is wanted.
     Throughput note: the Sonnet responder answers ~0.7 requests/min doing real work, so a ~60-request project is
     ~90 minutes — the per-project `--max-wait-ms` default is sized for exactly that and should not be cut.
+    **▶ The rig's real bottleneck is the RESPONDER, and it dies.** Twice on 2026-09-08 the agent in the model seat
+    was killed by its own harness ("no progress for 600s") — not stuck in the blocking wait, but carrying 1273
+    transcript rows: every request holds a full system prompt and up to 33 tool schemas, so a responder that
+    answers a hundred of them is carrying the whole drive until generation stalls. The shift is now BOUNDED to
+    ~25 requests with a clean hand-off (`docs/dev/hitl-responder-brief.md`), a dead responder's claim expires in
+    20 minutes instead of 60 (`5bc550fa9`), and a drive that stalls exits 3 and is re-queued rather than recorded
+    as a stub (`df0e69061`). Each hand-off needs a fresh responder spawned — that is the standing cost of the rig.
   A fixture is NOT done until four states are pasted (untouched green / wrong entry fails naming it / correct
   partial green / `complete:true` with something missing fails naming it) AND it has been solved once, because a
   fixture nobody has solved may not be solvable. **Seven real fixture defects were caught only by solving**, and
