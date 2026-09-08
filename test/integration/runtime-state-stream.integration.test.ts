@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { realpath } from "node:fs/promises";
@@ -27,6 +27,7 @@ import type {
 	RuntimeWorktreeEnsureResponse,
 } from "../../src/core/api-contract";
 import { createGitTestEnv } from "../utilities/git-env";
+import { commitAllInTestRepository, initTestRepository, runTestGit } from "../utilities/git-repo";
 import { createTempDir } from "../utilities/temp-dir";
 
 const requireFromHere = createRequire(import.meta.url);
@@ -129,35 +130,6 @@ async function getAvailablePort(): Promise<number> {
 		throw new Error("Could not allocate a test port.");
 	}
 	return port;
-}
-
-function initGitRepository(path: string): void {
-	const init = spawnSync("git", ["init"], {
-		cwd: path,
-		stdio: "ignore",
-		env: createGitTestEnv(),
-	});
-	if (init.status !== 0) {
-		throw new Error(`Failed to initialize git repository at ${path}`);
-	}
-}
-
-function runGit(cwd: string, args: string[]): string {
-	const result = spawnSync("git", args, {
-		cwd,
-		encoding: "utf8",
-		env: createGitTestEnv(),
-	});
-	if (result.status !== 0) {
-		throw new Error(result.stderr || result.stdout || `git ${args.join(" ")} failed`);
-	}
-	return result.stdout.trim();
-}
-
-function commitAll(cwd: string, message: string): string {
-	runGit(cwd, ["add", "."]);
-	runGit(cwd, ["commit", "-qm", message]);
-	return runGit(cwd, ["rev-parse", "HEAD"]);
 }
 
 function resolveShutdownIpcHookPath(): string {
@@ -550,8 +522,8 @@ describe.sequential("runtime state stream integration", () => {
 		mkdirSync(projectAPath, { recursive: true });
 		mkdirSync(projectBPath, { recursive: true });
 		mkdirSync(nonGitPath, { recursive: true });
-		initGitRepository(projectAPath);
-		initGitRepository(projectBPath);
+		initTestRepository(projectAPath);
+		initTestRepository(projectBPath);
 
 		const firstPort = await getAvailablePort();
 		const firstServer = await startKanbanServer({
@@ -631,7 +603,7 @@ describe.sequential("runtime state stream integration", () => {
 		const nonGitPath = join(tempRoot, "non-git-project");
 		mkdirSync(projectAPath, { recursive: true });
 		mkdirSync(nonGitPath, { recursive: true });
-		initGitRepository(projectAPath);
+		initTestRepository(projectAPath);
 
 		const port = await getAvailablePort();
 		const server = await startKanbanServer({
@@ -698,8 +670,8 @@ describe.sequential("runtime state stream integration", () => {
 		const projectBPath = join(tempRoot, "project-b");
 		mkdirSync(projectAPath, { recursive: true });
 		mkdirSync(projectBPath, { recursive: true });
-		initGitRepository(projectAPath);
-		initGitRepository(projectBPath);
+		initTestRepository(projectAPath);
+		initTestRepository(projectBPath);
 
 		const port = await getAvailablePort();
 		const server = await startKanbanServer({
@@ -816,7 +788,7 @@ describe.sequential("runtime state stream integration", () => {
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-hook-stream-");
 
 		mkdirSync(projectPath, { recursive: true });
-		initGitRepository(projectPath);
+		initTestRepository(projectPath);
 
 		const port = await getAvailablePort();
 		const server = await startKanbanServer({
@@ -897,11 +869,11 @@ describe.sequential("runtime state stream integration", () => {
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-metadata-stream-");
 
 		mkdirSync(projectPath, { recursive: true });
-		initGitRepository(projectPath);
-		runGit(projectPath, ["config", "user.name", "Test User"]);
-		runGit(projectPath, ["config", "user.email", "test@example.com"]);
+		initTestRepository(projectPath);
+		runTestGit(projectPath, ["config", "user.name", "Test User"]);
+		runTestGit(projectPath, ["config", "user.email", "test@example.com"]);
 		writeFileSync(join(projectPath, "README.md"), "seed\n", "utf8");
-		commitAll(projectPath, "seed project");
+		commitAllInTestRepository(projectPath, "seed project");
 
 		const port = await getAvailablePort();
 		const server = await startKanbanServer({
@@ -927,7 +899,7 @@ describe.sequential("runtime state stream integration", () => {
 
 			const taskId = "metadata-stream-task";
 			const trashTaskId = "metadata-trash-task";
-			const baseRef = runGit(projectPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
+			const baseRef = runTestGit(projectPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
 			const board = createReviewBoard(taskId, "Metadata stream task", trashTaskId);
 			const reviewColumn = board.columns.find((column) => column.id === "review");
 			const trashColumn = board.columns.find((column) => column.id === "trash");
@@ -1021,12 +993,12 @@ describe.sequential("runtime state stream integration", () => {
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-preserve-worktree-");
 
 		mkdirSync(projectPath, { recursive: true });
-		initGitRepository(projectPath);
-		runGit(projectPath, ["config", "user.name", "Test User"]);
-		runGit(projectPath, ["config", "user.email", "test@example.com"]);
+		initTestRepository(projectPath);
+		runTestGit(projectPath, ["config", "user.name", "Test User"]);
+		runTestGit(projectPath, ["config", "user.email", "test@example.com"]);
 		writeFileSync(join(projectPath, "initial.txt"), "one\n", "utf8");
-		const firstBaseCommit = commitAll(projectPath, "initial commit");
-		const baseRef = runGit(projectPath, ["symbolic-ref", "--short", "HEAD"]);
+		const firstBaseCommit = commitAllInTestRepository(projectPath, "initial commit");
+		const baseRef = runTestGit(projectPath, ["symbolic-ref", "--short", "HEAD"]);
 
 		const port = await getAvailablePort();
 		const server = await startKanbanServer({
@@ -1087,13 +1059,13 @@ describe.sequential("runtime state stream integration", () => {
 			}
 			expect(firstEnsure.payload.baseCommit).toBe(firstBaseCommit);
 
-			runGit(firstEnsure.payload.path, ["config", "user.name", "Task User"]);
-			runGit(firstEnsure.payload.path, ["config", "user.email", "task@example.com"]);
+			runTestGit(firstEnsure.payload.path, ["config", "user.name", "Task User"]);
+			runTestGit(firstEnsure.payload.path, ["config", "user.email", "task@example.com"]);
 			writeFileSync(join(firstEnsure.payload.path, "task-local.txt"), "task commit\n", "utf8");
-			const taskWorktreeCommit = commitAll(firstEnsure.payload.path, "task-local commit");
+			const taskWorktreeCommit = commitAllInTestRepository(firstEnsure.payload.path, "task-local commit");
 
 			writeFileSync(join(projectPath, "advance-base.txt"), "two\n", "utf8");
-			const advancedBaseCommit = commitAll(projectPath, "advance base");
+			const advancedBaseCommit = commitAllInTestRepository(projectPath, "advance base");
 			expect(advancedBaseCommit).not.toBe(firstBaseCommit);
 
 			const secondEnsure = await requestJson<RuntimeWorktreeEnsureResponse>({
@@ -1138,7 +1110,7 @@ describe.sequential("runtime state stream integration", () => {
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-stale-exit-review-");
 
 		mkdirSync(projectPath, { recursive: true });
-		initGitRepository(projectPath);
+		initTestRepository(projectPath);
 
 		const taskId = "stale-exit-review-task";
 		const taskTitle = "Stale Exit Review Task";
@@ -1257,7 +1229,7 @@ describe.sequential("runtime state stream integration", () => {
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-skip-cleanup-flag-");
 
 		mkdirSync(projectPath, { recursive: true });
-		initGitRepository(projectPath);
+		initTestRepository(projectPath);
 
 		const taskId = "skip-cleanup-flag-review-task";
 		const taskTitle = "Keep review task when cleanup flag is enabled";
@@ -1382,8 +1354,8 @@ describe.sequential("runtime state stream integration", () => {
 		const projectBPath = join(tempRoot, "project-b");
 		mkdirSync(projectAPath, { recursive: true });
 		mkdirSync(projectBPath, { recursive: true });
-		initGitRepository(projectAPath);
-		initGitRepository(projectBPath);
+		initTestRepository(projectAPath);
+		initTestRepository(projectBPath);
 
 		const port = await getAvailablePort();
 		const server = await startKanbanServer({

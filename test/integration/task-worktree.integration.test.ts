@@ -1,11 +1,10 @@
-import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { deleteTaskWorktree, ensureTaskWorktreeIfDoesntExist } from "../../src/workspace/task-worktree";
-import { createGitTestEnv } from "../utilities/git-env";
+import { runTestGit } from "../utilities/git-repo";
 import { createTempDir } from "../utilities/temp-dir";
 
 function expectMirroredPathBehavior(path: string): void {
@@ -18,22 +17,6 @@ function expectMirroredPathBehavior(path: string): void {
 	}
 	expect(exists).toBe(true);
 	expect(lstatSync(path).isSymbolicLink()).toBe(true);
-}
-
-function runGit(cwd: string, args: string[]): string {
-	const result = spawnSync("git", args, {
-		cwd,
-		encoding: "utf8",
-		env: createGitTestEnv(),
-	});
-	if (result.status !== 0) {
-		throw new Error(
-			[`git ${args.join(" ")} failed in ${cwd}`, result.stdout.trim(), result.stderr.trim()]
-				.filter((part) => part.length > 0)
-				.join("\n"),
-		);
-	}
-	return result.stdout.trim();
 }
 
 async function withTemporaryHome<T>(run: () => Promise<T>): Promise<T> {
@@ -67,11 +50,11 @@ describe.sequential("task-worktree integration", () => {
 				const repoPath = join(sandboxRoot, "repo");
 				mkdirSync(repoPath, { recursive: true });
 
-				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
-				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
+				runTestGit(repoPath, ["init"]);
+				runTestGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runTestGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
-				const currentBranch = runGit(repoPath, ["symbolic-ref", "--short", "HEAD"]);
+				const currentBranch = runTestGit(repoPath, ["symbolic-ref", "--short", "HEAD"]);
 				const ensured = await ensureTaskWorktreeIfDoesntExist({
 					cwd: repoPath,
 					taskId: "task-no-initial-commit",
@@ -94,9 +77,9 @@ describe.sequential("task-worktree integration", () => {
 				const repoPath = join(sandboxRoot, "repo");
 				mkdirSync(repoPath, { recursive: true });
 
-				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
-				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
+				runTestGit(repoPath, ["init"]);
+				runTestGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runTestGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
 				mkdirSync(join(repoPath, ".husky", "_"), { recursive: true });
@@ -104,10 +87,10 @@ describe.sequential("task-worktree integration", () => {
 				writeFileSync(join(repoPath, ".husky", "_", ".gitignore"), "*\n", "utf8");
 				writeFileSync(join(repoPath, ".husky", "_", "pre-commit"), "#!/bin/sh\nexit 0\n", "utf8");
 
-				runGit(repoPath, ["add", "README.md", ".husky/pre-commit"]);
-				runGit(repoPath, ["commit", "-m", "init"]);
+				runTestGit(repoPath, ["add", "README.md", ".husky/pre-commit"]);
+				runTestGit(repoPath, ["commit", "-m", "init"]);
 
-				const ignoredPaths = runGit(repoPath, [
+				const ignoredPaths = runTestGit(repoPath, [
 					"ls-files",
 					"--others",
 					"--ignored",
@@ -128,9 +111,9 @@ describe.sequential("task-worktree integration", () => {
 
 				const huskyIgnoredPath = join(ensured.path, ".husky", "_");
 				expectMirroredPathBehavior(huskyIgnoredPath);
-				expect(runGit(ensured.path, ["status", "--porcelain", "--", ".husky/_"])).toBe("");
+				expect(runTestGit(ensured.path, ["status", "--porcelain", "--", ".husky/_"])).toBe("");
 				if (existsSync(huskyIgnoredPath)) {
-					expect(runGit(ensured.path, ["check-ignore", "-v", ".husky/_"])).toContain("info/exclude");
+					expect(runTestGit(ensured.path, ["check-ignore", "-v", ".husky/_"])).toContain("info/exclude");
 				}
 
 				const ensuredAgain = await ensureTaskWorktreeIfDoesntExist({
@@ -139,7 +122,7 @@ describe.sequential("task-worktree integration", () => {
 					baseRef: "HEAD",
 				});
 				expect(ensuredAgain.ok).toBe(true);
-				expect(runGit(ensured.path, ["status", "--porcelain", "--", ".husky/_"])).toBe("");
+				expect(runTestGit(ensured.path, ["status", "--porcelain", "--", ".husky/_"])).toBe("");
 				expectMirroredPathBehavior(huskyIgnoredPath);
 			} finally {
 				cleanup();
@@ -154,9 +137,9 @@ describe.sequential("task-worktree integration", () => {
 				const repoPath = join(sandboxRoot, "repo");
 				mkdirSync(repoPath, { recursive: true });
 
-				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
-				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
+				runTestGit(repoPath, ["init"]);
+				runTestGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runTestGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
 				writeFileSync(join(repoPath, ".gitignore"), "/.next/\n/node_modules/\n", "utf8");
@@ -165,8 +148,8 @@ describe.sequential("task-worktree integration", () => {
 				writeFileSync(join(repoPath, ".next", "BUILD_ID"), "build\n", "utf8");
 				writeFileSync(join(repoPath, "node_modules", "package.json"), '{\n  "name": "fixture"\n}\n', "utf8");
 
-				runGit(repoPath, ["add", "README.md", ".gitignore"]);
-				runGit(repoPath, ["commit", "-m", "init"]);
+				runTestGit(repoPath, ["add", "README.md", ".gitignore"]);
+				runTestGit(repoPath, ["commit", "-m", "init"]);
 
 				const ensured = await ensureTaskWorktreeIfDoesntExist({
 					cwd: repoPath,
@@ -182,13 +165,13 @@ describe.sequential("task-worktree integration", () => {
 				const nodeModulesPath = join(ensured.path, "node_modules");
 				expectMirroredPathBehavior(nextPath);
 				expectMirroredPathBehavior(nodeModulesPath);
-				expect(runGit(ensured.path, ["status", "--porcelain", "--", ".next"])).toBe("");
-				expect(runGit(ensured.path, ["status", "--porcelain", "--", "node_modules"])).toBe("");
+				expect(runTestGit(ensured.path, ["status", "--porcelain", "--", ".next"])).toBe("");
+				expect(runTestGit(ensured.path, ["status", "--porcelain", "--", "node_modules"])).toBe("");
 				if (existsSync(nextPath)) {
-					expect(runGit(ensured.path, ["check-ignore", "-v", ".next"])).toContain("info/exclude");
+					expect(runTestGit(ensured.path, ["check-ignore", "-v", ".next"])).toContain("info/exclude");
 				}
 				if (existsSync(nodeModulesPath)) {
-					expect(runGit(ensured.path, ["check-ignore", "-v", "node_modules"])).toContain("info/exclude");
+					expect(runTestGit(ensured.path, ["check-ignore", "-v", "node_modules"])).toContain("info/exclude");
 				}
 			} finally {
 				cleanup();
@@ -203,9 +186,9 @@ describe.sequential("task-worktree integration", () => {
 				const repoPath = join(sandboxRoot, "repo");
 				mkdirSync(repoPath, { recursive: true });
 
-				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
-				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
+				runTestGit(repoPath, ["init"]);
+				runTestGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runTestGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
 				writeFileSync(
@@ -219,8 +202,8 @@ describe.sequential("task-worktree integration", () => {
 				writeFileSync(join(repoPath, ".next", "BUILD_ID"), "build\n", "utf8");
 				writeFileSync(join(repoPath, "node_modules", "package.json"), '{\n  "name": "fixture"\n}\n', "utf8");
 
-				runGit(repoPath, ["add", "README.md", "package.json", ".gitignore"]);
-				runGit(repoPath, ["commit", "-m", "init"]);
+				runTestGit(repoPath, ["add", "README.md", "package.json", ".gitignore"]);
+				runTestGit(repoPath, ["commit", "-m", "init"]);
 
 				const ensured = await ensureTaskWorktreeIfDoesntExist({
 					cwd: repoPath,
@@ -236,8 +219,8 @@ describe.sequential("task-worktree integration", () => {
 				const nodeModulesPath = join(ensured.path, "node_modules");
 				expectMirroredPathBehavior(nextPath);
 				expect(existsSync(nodeModulesPath)).toBe(false);
-				expect(runGit(ensured.path, ["status", "--porcelain", "--", ".next"])).toBe("");
-				expect(runGit(ensured.path, ["status", "--porcelain", "--", "node_modules"])).toBe("");
+				expect(runTestGit(ensured.path, ["status", "--porcelain", "--", ".next"])).toBe("");
+				expect(runTestGit(ensured.path, ["status", "--porcelain", "--", "node_modules"])).toBe("");
 			} finally {
 				cleanup();
 			}
@@ -252,9 +235,9 @@ describe.sequential("task-worktree integration", () => {
 				const appPath = join(repoPath, "apps", "web");
 				mkdirSync(appPath, { recursive: true });
 
-				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
-				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
+				runTestGit(repoPath, ["init"]);
+				runTestGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runTestGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
 				writeFileSync(join(repoPath, "package.json"), '{\n  "private": true\n}\n', "utf8");
@@ -269,8 +252,8 @@ describe.sequential("task-worktree integration", () => {
 				writeFileSync(join(repoPath, "node_modules", "package.json"), '{\n  "name": "root-fixture"\n}\n', "utf8");
 				writeFileSync(join(appPath, "node_modules", "package.json"), '{\n  "name": "app-fixture"\n}\n', "utf8");
 
-				runGit(repoPath, ["add", "README.md", "package.json", "apps/web/package.json", ".gitignore"]);
-				runGit(repoPath, ["commit", "-m", "init"]);
+				runTestGit(repoPath, ["add", "README.md", "package.json", "apps/web/package.json", ".gitignore"]);
+				runTestGit(repoPath, ["commit", "-m", "init"]);
 
 				const ensured = await ensureTaskWorktreeIfDoesntExist({
 					cwd: repoPath,
@@ -286,10 +269,10 @@ describe.sequential("task-worktree integration", () => {
 				const appNodeModulesPath = join(ensured.path, "apps", "web", "node_modules");
 				expectMirroredPathBehavior(rootNodeModulesPath);
 				expect(existsSync(appNodeModulesPath)).toBe(false);
-				expect(runGit(ensured.path, ["status", "--porcelain", "--", "node_modules"])).toBe("");
-				expect(runGit(ensured.path, ["status", "--porcelain", "--", "apps/web/node_modules"])).toBe("");
+				expect(runTestGit(ensured.path, ["status", "--porcelain", "--", "node_modules"])).toBe("");
+				expect(runTestGit(ensured.path, ["status", "--porcelain", "--", "apps/web/node_modules"])).toBe("");
 				if (existsSync(rootNodeModulesPath)) {
-					expect(runGit(ensured.path, ["check-ignore", "-v", "node_modules"])).toContain("info/exclude");
+					expect(runTestGit(ensured.path, ["check-ignore", "-v", "node_modules"])).toContain("info/exclude");
 				}
 			} finally {
 				cleanup();
@@ -304,14 +287,14 @@ describe.sequential("task-worktree integration", () => {
 				const repoPath = join(sandboxRoot, "repo");
 				mkdirSync(repoPath, { recursive: true });
 
-				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
-				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
+				runTestGit(repoPath, ["init"]);
+				runTestGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runTestGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
 				writeFileSync(join(repoPath, "tracked.txt"), "base\n", "utf8");
-				runGit(repoPath, ["add", "README.md", "tracked.txt"]);
-				runGit(repoPath, ["commit", "-m", "init"]);
+				runTestGit(repoPath, ["add", "README.md", "tracked.txt"]);
+				runTestGit(repoPath, ["commit", "-m", "init"]);
 
 				const taskId = `task-restore-${Date.now()}`;
 				const ensured = await ensureTaskWorktreeIfDoesntExist({
@@ -324,7 +307,7 @@ describe.sequential("task-worktree integration", () => {
 					throw new Error("Task worktree was not created");
 				}
 
-				const createdCommit = runGit(ensured.path, ["rev-parse", "HEAD"]);
+				const createdCommit = runTestGit(ensured.path, ["rev-parse", "HEAD"]);
 				writeFileSync(join(ensured.path, "tracked.txt"), "base\nlocal change\n", "utf8");
 				writeFileSync(join(ensured.path, "notes.txt"), "untracked\n", "utf8");
 
@@ -347,9 +330,9 @@ describe.sequential("task-worktree integration", () => {
 				expect(readFileSync(patchPath, "utf8")).toContain("notes.txt");
 
 				writeFileSync(join(repoPath, "README.md"), "hello again\n", "utf8");
-				runGit(repoPath, ["add", "README.md"]);
-				runGit(repoPath, ["commit", "-m", "advance"]);
-				const advancedCommit = runGit(repoPath, ["rev-parse", "HEAD"]);
+				runTestGit(repoPath, ["add", "README.md"]);
+				runTestGit(repoPath, ["commit", "-m", "advance"]);
+				const advancedCommit = runTestGit(repoPath, ["rev-parse", "HEAD"]);
 				expect(advancedCommit).not.toBe(createdCommit);
 
 				const restored = await ensureTaskWorktreeIfDoesntExist({
@@ -363,7 +346,7 @@ describe.sequential("task-worktree integration", () => {
 				}
 
 				expect(restored.baseCommit).toBe(createdCommit);
-				expect(runGit(restored.path, ["rev-parse", "HEAD"])).toBe(createdCommit);
+				expect(runTestGit(restored.path, ["rev-parse", "HEAD"])).toBe(createdCommit);
 				expect(readFileSync(join(restored.path, "tracked.txt"), "utf8")).toBe("base\nlocal change\n");
 				expect(readFileSync(join(restored.path, "notes.txt"), "utf8")).toBe("untracked\n");
 				expect(existsSync(patchPath)).toBe(false);
@@ -380,13 +363,13 @@ describe.sequential("task-worktree integration", () => {
 				const repoPath = join(sandboxRoot, "repo");
 				mkdirSync(repoPath, { recursive: true });
 
-				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
-				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
+				runTestGit(repoPath, ["init"]);
+				runTestGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runTestGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
-				runGit(repoPath, ["add", "README.md"]);
-				runGit(repoPath, ["commit", "-m", "init"]);
+				runTestGit(repoPath, ["add", "README.md"]);
+				runTestGit(repoPath, ["commit", "-m", "init"]);
 
 				const taskId = `task-invalid-patch-${Date.now()}`;
 				const ensured = await ensureTaskWorktreeIfDoesntExist({
@@ -399,7 +382,7 @@ describe.sequential("task-worktree integration", () => {
 					throw new Error("Task worktree was not created");
 				}
 
-				const createdCommit = runGit(ensured.path, ["rev-parse", "HEAD"]);
+				const createdCommit = runTestGit(ensured.path, ["rev-parse", "HEAD"]);
 				const deleted = await deleteTaskWorktree({
 					repoPath,
 					taskId,
@@ -437,7 +420,7 @@ describe.sequential("task-worktree integration", () => {
 				}
 
 				expect(restored.warning).toContain("Saved task changes could not be reapplied automatically.");
-				expect(runGit(restored.path, ["rev-parse", "HEAD"])).toBe(createdCommit);
+				expect(runTestGit(restored.path, ["rev-parse", "HEAD"])).toBe(createdCommit);
 			} finally {
 				cleanup();
 			}

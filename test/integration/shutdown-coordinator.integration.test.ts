@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -8,7 +7,7 @@ import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../src/core
 import { shutdownRuntimeServer } from "../../src/server/shutdown-coordinator";
 import { loadWorkspaceState, saveWorkspaceState } from "../../src/state/workspace-state";
 import type { TerminalSessionManager } from "../../src/terminal/session-manager";
-import { createGitTestEnv } from "../utilities/git-env";
+import { initTestRepository } from "../utilities/git-repo";
 import { createTempDir } from "../utilities/temp-dir";
 
 async function withTemporaryHome<T>(run: () => Promise<T>): Promise<T> {
@@ -31,17 +30,6 @@ async function withTemporaryHome<T>(run: () => Promise<T>): Promise<T> {
 			process.env.USERPROFILE = previousUserProfile;
 		}
 		cleanup();
-	}
-}
-
-function initGitRepository(path: string): void {
-	const init = spawnSync("git", ["init"], {
-		cwd: path,
-		stdio: "ignore",
-		env: createGitTestEnv(),
-	});
-	if (init.status !== 0) {
-		throw new Error(`Failed to initialize git repository at ${path}`);
 	}
 }
 
@@ -103,8 +91,8 @@ describe.sequential("shutdown coordinator integration", () => {
 				const indexedProjectPath = join(sandboxRoot, "indexed-project");
 				mkdirSync(managedProjectPath, { recursive: true });
 				mkdirSync(indexedProjectPath, { recursive: true });
-				initGitRepository(managedProjectPath);
-				initGitRepository(indexedProjectPath);
+				initTestRepository(managedProjectPath);
+				initTestRepository(indexedProjectPath);
 
 				const managedInitial = await loadWorkspaceState(managedProjectPath);
 				await saveWorkspaceState(managedProjectPath, {

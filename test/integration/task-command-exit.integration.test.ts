@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { createGitTestEnv } from "../utilities/git-env";
+import { commitAllInTestRepository, initTestRepository } from "../utilities/git-repo";
 import { createTempDir } from "../utilities/temp-dir";
 
 const requireFromHere = createRequire(import.meta.url);
@@ -18,43 +19,6 @@ function resolveShutdownIpcHookPath(): string {
 
 function resolveTsxLoaderImportSpecifier(): string {
 	return pathToFileURL(requireFromHere.resolve("tsx")).href;
-}
-
-function initGitRepository(path: string): void {
-	const init = spawnSync("git", ["init"], {
-		cwd: path,
-		stdio: "ignore",
-		env: createGitTestEnv(),
-	});
-	if (init.status !== 0) {
-		throw new Error(`Failed to initialize git repository at ${path}`);
-	}
-	const checkout = spawnSync("git", ["checkout", "-B", "main"], {
-		cwd: path,
-		stdio: "ignore",
-		env: createGitTestEnv(),
-	});
-	if (checkout.status !== 0) {
-		throw new Error(`Failed to create main branch at ${path}`);
-	}
-}
-
-function runGit(cwd: string, args: string[]): string {
-	const result = spawnSync("git", args, {
-		cwd,
-		encoding: "utf8",
-		env: createGitTestEnv(),
-	});
-	if (result.status !== 0) {
-		throw new Error(result.stderr || result.stdout || `git ${args.join(" ")} failed`);
-	}
-	return result.stdout.trim();
-}
-
-function commitAll(cwd: string, message: string): string {
-	runGit(cwd, ["add", "."]);
-	runGit(cwd, ["commit", "-qm", message]);
-	return runGit(cwd, ["rev-parse", "HEAD"]);
 }
 
 async function getAvailablePort(): Promise<number> {
@@ -253,9 +217,9 @@ describe("source task commands", () => {
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-task-exit-");
 
 		try {
-			initGitRepository(projectPath);
+			initTestRepository(projectPath);
 			writeFileSync(join(projectPath, "README.md"), "# Task Exit Test\n", "utf8");
-			commitAll(projectPath, "init");
+			commitAllInTestRepository(projectPath, "init");
 
 			const port = String(await getAvailablePort());
 			const env = createGitTestEnv({
@@ -339,9 +303,9 @@ describe("source task commands", () => {
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-root-launch-open-");
 
 		try {
-			initGitRepository(projectPath);
+			initTestRepository(projectPath);
 			writeFileSync(join(projectPath, "README.md"), "# Root Launch Browser Open Test\n", "utf8");
-			commitAll(projectPath, "init");
+			commitAllInTestRepository(projectPath, "init");
 
 			const port = String(await getAvailablePort());
 			const browserStubBinDir = join(homeDir, "browser-bin");
@@ -409,9 +373,9 @@ describe("source task commands", () => {
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-task-done-delete-");
 
 		try {
-			initGitRepository(projectPath);
+			initTestRepository(projectPath);
 			writeFileSync(join(projectPath, "README.md"), "# Task Done Delete Test\n", "utf8");
-			commitAll(projectPath, "init");
+			commitAllInTestRepository(projectPath, "init");
 
 			const port = String(await getAvailablePort());
 			const env = createGitTestEnv({
@@ -563,9 +527,9 @@ describe("source task commands", () => {
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-task-cline-reasoning-");
 
 		try {
-			initGitRepository(projectPath);
+			initTestRepository(projectPath);
 			writeFileSync(join(projectPath, "README.md"), "# Task Cline Reasoning Test\n", "utf8");
-			commitAll(projectPath, "init");
+			commitAllInTestRepository(projectPath, "init");
 
 			const port = String(await getAvailablePort());
 			const env = createGitTestEnv({
