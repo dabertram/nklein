@@ -1,0 +1,9 @@
+The reporting in src/ keeps asking its dependencies for answers it already has. Fix that without changing a single
+output.
+
+A currency rate is looked up once per item instead of once per currency. An item's score is recomputed on both
+sides of every comparison inside a hand-rolled selection sort, so the cost grows with the square of the group.
+
+Read specification.md for the budgets. Cost here is a CALL COUNT on instrumented dependencies, not a stopwatch —
+neither probe is actually slow, and that is the point: the defect is redundant work, and redundant work is
+countable.

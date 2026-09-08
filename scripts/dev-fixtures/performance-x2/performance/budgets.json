@@ -1,0 +1,26 @@
+{
+	"schemaVersion": 1,
+	"budgets": [
+		{
+			"id": "B1",
+			"workload": "W1",
+			"title": "one rate lookup per currency, not per item",
+			"limits": { "rateFor": 4 },
+			"why": "There are four currencies and two hundred items. The rate for EUR does not change between one item and the next, so asking for it two hundred times is asking a question already answered."
+		},
+		{
+			"id": "B2",
+			"workload": "W2",
+			"title": "one score per item, not one per comparison",
+			"limits": { "scoreOf": 200 },
+			"why": "The ranking recomputes both keys on every comparison of a hand-rolled selection sort, so cost grows with the square of the group. Score each item once and sort by what you computed."
+		},
+		{
+			"id": "B3",
+			"workload": "W3",
+			"title": "the group report pays for each fact once",
+			"limits": { "rateFor": 4, "scoreOf": 200 },
+			"why": "Both wastes at once: a rate lookup per item, and a score recomputed on each side of every comparison. Neither input changes while the report is being built."
+		}
+	]
+}

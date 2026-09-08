@@ -1,0 +1,16 @@
+{
+	"id": "73_performance_memoise_repeated_lookups",
+	"title": "Performance: Stop Recomputing What the Code Already Knows",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "performance-x2",
+	"tier": "2/5 performance",
+	"tags": [
+		"memoisation",
+		"loop-invariant hoisting",
+		"counted dependencies",
+		"comparator cost",
+		"behaviour preservation"
+	]
+}
