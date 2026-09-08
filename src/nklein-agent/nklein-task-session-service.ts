@@ -269,8 +269,30 @@ export { buildKanbanContextPressurePolicy, buildKanbanContextSafetyBudgets } fro
 export type { NKleinTaskMessage } from "./nklein-session-state";
 export { computeRepeatedToolCallCandidate, formatRepeatedToolCallParkMessage } from "./repeated-tool-call-guard";
 
-/** Overall time budget for a second-opinion reviewer session (first turn + any nudges) before it is abandoned (todo §5.K). */
-const DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS = 10 * 60 * 1000;
+/**
+ * Overall time budget for a second-opinion reviewer session (first turn + any nudges) before it is abandoned
+ * (todo §5.K). Env-overridable, because the default is only right for a fast model seat.
+ *
+ * ── WHY THE OVERRIDE EXISTS ──
+ * The verdict RESERVE was already overridable (`NKLEIN_REVIEW_VERDICT_RESERVE_MS`) and the drain sets it to 6
+ * minutes; against this 10-minute default that leaves FOUR minutes of exploration. A reviewer needs to read the
+ * source, run the acceptance command, and then call `submit_review` — three or four model turns. On a rig whose
+ * model seat answers at roughly 1.5 minutes a turn that does not fit, and the runtime log recorded the
+ * consequence 38 times: "exploration turn cut at the verdict reserve", each one producing a nudge or a fresh
+ * review session with no memory of the verification already done. A responder shift spent 4 of its 25 requests
+ * re-approving the same two cards, and 18 stalled-review rescues fired.
+ *
+ * Raising the reserve alone cannot fix it — the reserve is carved OUT of this budget, so a bigger reserve leaves
+ * even less room to explore. The budget itself has to grow with the seat's latency.
+ *
+ * The principled version is to DERIVE this from observed turn latency rather than configure it; that is tracked
+ * as P1.REVIEWBUDGET. This knob is what makes the rig usable meanwhile, and it fails safe: a non-positive or
+ * unparseable value keeps the 10-minute default.
+ */
+const DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS =
+	Number(process.env.NKLEIN_REVIEW_TIMEOUT_MS ?? "") > 0
+		? Number(process.env.NKLEIN_REVIEW_TIMEOUT_MS)
+		: 10 * 60 * 1000;
 /** §5.AW: a speculative mirror is a full worker attempt — give it a worker-scale bound (arbitration usually cancels it sooner). */
 /**
  * Opt-in stream-event tracing (`NKLEIN_DEBUG_STREAM_EVENTS=1`). Prints every SDK event reaching the service with a
