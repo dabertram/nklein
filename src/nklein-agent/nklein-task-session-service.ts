@@ -85,7 +85,6 @@ import {
 } from "../core/model-behavior-profile";
 import { assessPredictedExecution } from "../core/predicted-execution-check";
 import type { PromptFragment } from "../core/prompt-fragment-assembly";
-import { classifySandboxFailure } from "../core/sandbox-disposed-session";
 import type { SandboxMcpServerControls } from "../core/sandbox-mcp-controls";
 import {
 	EMPTY_SESSION_RETIREMENT_LEDGER,
@@ -580,8 +579,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	});
 	/** §5.U: the context-overflow recovery pair (reactive retry-after + proactive compact-before). Session-lifecycle
 	 * accessors are supplied lazily so field-init order is irrelevant. */
-	/** Consecutive "no sandbox workspace" tool failures per task, reset by any other tool result. */
-	private readonly sandboxAbsenceFailuresByTaskId = new Map<string, number>();
 	/** Sessions stopped for a reason that must survive the stop; nothing may restart them. See `session-retirement.ts`. */
 	private sessionRetirementLedger: SessionRetirementLedger = EMPTY_SESSION_RETIREMENT_LEDGER;
 	private readonly contextOverflowController = createContextOverflowController({
@@ -859,6 +856,20 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		});
 		this.messageRepository = createMessageRepository();
 		this.agentSandboxManager = options.agentSandboxManager ?? null;
+		// A session whose sandbox workspace was disposed cannot do any more work; the manager counts the consecutive
+		// refusals (it is the only place that sees them for certain) and this stops the session when they prove it.
+		// Optional-called: the test doubles for the manager implement only what their case needs, and construction
+		// must not depend on a hook that is pure runtime behaviour.
+		this.agentSandboxManager?.onSessionUnusable?.((taskId, reason) => {
+			this.recordObservationWithModel({
+				signal: "custom",
+				severity: "warning",
+				taskId,
+				message: `Stopping ${taskId}: ${reason}`,
+				metadata: { category: "sandbox_disposed_session_stopped" },
+			});
+			void this.stopTaskSession(taskId).catch(() => null);
+		});
 		this.pauseController = options.pauseController ?? new NKleinPauseController();
 		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
 		this.agentLedgerRoot = options.diagnosticStoreRoot
@@ -5139,37 +5150,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.timeoutController.scheduleToolTimeout(taskId);
 		} else if (entry.summary.state === "running" && hookEventName === "tool_result") {
 			const resultToolName = entry.summary.latestHookActivity?.toolName ?? null;
-			// A task whose sandbox workspace was DISPOSED can never succeed at another tool call, and nothing used
-			// to notice: `AgentSandboxUnavailableError` reaches the model as an ordinary tool error, the model
-			// reasonably tries a different tool, and each attempt spends a real request on a strictly-serial
-			// endpoint. Live 2026-09-08: thirty requests of one drive were this, on the decompose cards of the two
-			// projects that produced no usable recording. See `src/core/sandbox-disposed-session.ts`.
-			const sandboxAbsent = (entry.summary.latestHookActivity?.activityText ?? "").includes(
-				"No Docker sandbox workspace is prepared",
-			);
-			if (!sandboxAbsent) {
-				this.sandboxAbsenceFailuresByTaskId.delete(taskId);
-			} else {
-				const consecutiveFailures = (this.sandboxAbsenceFailuresByTaskId.get(taskId) ?? 0) + 1;
-				this.sandboxAbsenceFailuresByTaskId.set(taskId, consecutiveFailures);
-				const decision = classifySandboxFailure({
-					everPlaced: this.agentSandboxManager?.wasEverPlaced(taskId) ?? false,
-					consecutiveFailures,
-				});
-				if (decision.action === "stop_session") {
-					this.sandboxAbsenceFailuresByTaskId.delete(taskId);
-					this.recordObservationWithModel({
-						signal: "custom",
-						severity: "warning",
-						taskId,
-						workspacePath: entry.summary.workspacePath ?? null,
-						message: `Stopping ${taskId}: ${decision.reason}`,
-						metadata: { category: "sandbox_disposed_session_stopped", consecutiveFailures },
-					});
-					void this.stopTaskSession(taskId).catch(() => null);
-					return;
-				}
-			}
 			if (isDecompositionProgressTool(resultToolName)) {
 				this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 			}

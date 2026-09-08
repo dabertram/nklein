@@ -28,6 +28,7 @@ import {
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { normalizePositiveInteger } from "../core/normalize-number";
 import { isProcessAlive } from "../core/process-identity";
+import { classifySandboxFailure } from "../core/sandbox-disposed-session";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import {
 	planSandboxOrphanReaping,
@@ -518,6 +519,10 @@ export class AgentSandboxManager {
 	 * tell a disposed workspace from one that was never acquired, and it holds nothing but task ids.
 	 */
 	private readonly everPlacedTaskIds = new Set<string>();
+	/** Consecutive disposed-workspace refusals per task, reset the moment the task holds a placement again. */
+	private readonly sandboxAbsenceFailuresByTaskId = new Map<string, number>();
+	/** Notified when a task's session provably cannot do any more work. Set by the session service. */
+	private onSessionUnusableHandler: ((taskId: string, reason: string) => void) | null = null;
 	private readonly projectMountsByKey = new Map<string, AgentSandboxProjectMount>();
 	// §5.AR basic-memory (OFF by default; the `basicMemoryEnabled` runtime setting OR NKLEIN_BASIC_MEMORY enables —
 	// §5.BB): per-project scoping plan keyed by projectKey. When enabled, each registered project gets a per-project
@@ -1543,6 +1548,8 @@ export class AgentSandboxManager {
 		container.occupancy.add(taskId);
 		this.placements.set(taskId, placement);
 		this.everPlacedTaskIds.add(taskId);
+		// A live placement means the session is workable again: the streak is about CONSECUTIVE refusals.
+		this.sandboxAbsenceFailuresByTaskId.delete(taskId);
 		try {
 			await this.ensureContainerStarted(container);
 			if (container.egressProxyIp) {
@@ -2535,11 +2542,34 @@ export class AgentSandboxManager {
 	private requirePlacement(taskId: string): TaskPlacement {
 		const placement = this.placements.get(taskId);
 		if (!placement) {
+			// Counted HERE, at the only point that knows for certain. The first cut of this guard watched the
+			// session's `latestHookActivity.activityText` for the error string and fired ZERO times across a shift
+			// in which one task refused five times in a row — the error reaches the model through the tool result,
+			// not through that field. Detecting a failure anywhere other than where it is raised is a guess.
+			const disposed = this.everPlacedTaskIds.has(taskId);
+			if (disposed) {
+				const consecutiveFailures = (this.sandboxAbsenceFailuresByTaskId.get(taskId) ?? 0) + 1;
+				this.sandboxAbsenceFailuresByTaskId.set(taskId, consecutiveFailures);
+				const decision = classifySandboxFailure({ everPlaced: true, consecutiveFailures });
+				if (decision.action === "stop_session") {
+					this.sandboxAbsenceFailuresByTaskId.delete(taskId);
+					this.onSessionUnusableHandler?.(taskId, decision.reason);
+				}
+			}
 			throw new AgentSandboxUnavailableError(`No Docker sandbox workspace is prepared for task ${taskId}.`, {
-				disposed: this.everPlacedTaskIds.has(taskId),
+				disposed,
 			});
 		}
 		return placement;
+	}
+
+	/**
+	 * Register the callback invoked when a task has failed enough consecutive tool calls against a DISPOSED
+	 * workspace that its session provably cannot do any more work. The session service stops the session; without
+	 * a handler the manager only records the count, so a manager used outside the runtime is unaffected.
+	 */
+	onSessionUnusable(handler: (taskId: string, reason: string) => void): void {
+		this.onSessionUnusableHandler = handler;
 	}
 
 	/** Whether this task ever held a sandbox placement in this process (so its absence means DISPOSED, not early). */
