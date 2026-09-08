@@ -16,7 +16,7 @@ import {
 	RotateCcw,
 } from "lucide-react";
 import type { KeyboardEvent, MouseEvent } from "react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
 	formatNKleinReasoningEffortLabel,
@@ -535,40 +535,12 @@ function getCardSessionActivity(
 	return null;
 }
 
-export function BoardCard({
-	card,
-	index,
-	columnId,
-	sessionSummary,
-	selected = false,
-	onClick,
-	onStart,
-	onPauseTask,
-	onResumeTask,
-	onReplayTask,
-	onDecompose,
-	onSaveTitle,
-	onCommit,
-	onOpenPr,
-	onCopyEvidence,
-	onCancelAutomaticAction,
-	isCommitLoading = false,
-	isOpenPrLoading = false,
-	isCopyEvidenceLoading = false,
-	isReplayLoading = false,
-	replayCardsEnabled = false,
-	onDependencyPointerDown,
-	onDependencyPointerEnter,
-	isDependencySource = false,
-	isDependencyTarget = false,
-	isDependencyLinking = false,
-	onManageDependencies,
-	defaultAgentId = null,
-	pendingMailboxCount = 0,
-	restarting = false,
-	reasoningSnippet = null,
-	blockedOnDependency = false,
-}: {
+/**
+ * P0.AUDIT0904 leg 24: extracted from the inline object type so the component can be memoized.
+ * Every prop is either a primitive, a stable callback the column passes by reference, or a per-card object the
+ * board state reuses — which is what makes a shallow comparison meaningful here.
+ */
+interface BoardCardProps {
 	card: BoardCardModel;
 	index: number;
 	columnId: BoardColumnId;
@@ -610,7 +582,42 @@ export function BoardCard({
 	onManageDependencies?: (taskId: string) => void;
 	/** The workspace's selected agent — the agent chip only shows when the card DIFFERS from it. */
 	defaultAgentId?: string | null;
-}): React.ReactElement {
+}
+
+function BoardCardComponent({
+	card,
+	index,
+	columnId,
+	sessionSummary,
+	selected = false,
+	onClick,
+	onStart,
+	onPauseTask,
+	onResumeTask,
+	onReplayTask,
+	onDecompose,
+	onSaveTitle,
+	onCommit,
+	onOpenPr,
+	onCopyEvidence,
+	onCancelAutomaticAction,
+	isCommitLoading = false,
+	isOpenPrLoading = false,
+	isCopyEvidenceLoading = false,
+	isReplayLoading = false,
+	replayCardsEnabled = false,
+	onDependencyPointerDown,
+	onDependencyPointerEnter,
+	isDependencySource = false,
+	isDependencyTarget = false,
+	isDependencyLinking = false,
+	onManageDependencies,
+	defaultAgentId = null,
+	pendingMailboxCount = 0,
+	restarting = false,
+	reasoningSnippet = null,
+	blockedOnDependency = false,
+}: BoardCardProps): React.ReactElement {
 	const [isHovered, setIsHovered] = useState(false);
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [draftTitle, setDraftTitle] = useState(card.title);
@@ -1553,3 +1560,11 @@ export function BoardCard({
 		</Draggable>
 	);
 }
+
+/**
+ * P0.AUDIT0904 leg 24: a board with 80+ cards re-rendered EVERY card on every runtime tick, because the column
+ * re-renders whenever any session summary changes and nothing stopped the cascade. The column already passes its
+ * callbacks by reference and derives each per-card value as a primitive, so a shallow comparison is exactly the
+ * right test: a card whose own props did not change does not re-render.
+ */
+export const BoardCard = memo(BoardCardComponent);

@@ -1455,3 +1455,91 @@ describe("BoardCard", () => {
 		expect(container.querySelector("[data-verification]")).toBeNull();
 	});
 });
+
+describe("BoardCard memoization (P0.AUDIT0904 leg 24)", () => {
+	let container: HTMLDivElement;
+	let root: Root;
+
+	beforeEach(() => {
+		(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+		container = document.createElement("div");
+		document.body.appendChild(container);
+		root = createRoot(container);
+	});
+
+	afterEach(() => {
+		act(() => {
+			root.unmount();
+		});
+		container.remove();
+	});
+
+	/**
+	 * A board with 80+ cards re-rendered EVERY card on every runtime tick: the column re-renders whenever any
+	 * session summary changes, and nothing stopped the cascade at a card whose own props were identical.
+	 *
+	 * Counting renders directly is awkward, so the card object counts its own reads: rendering reads `title`, so a
+	 * skipped render reads it zero more times. Same object identity, same primitives — exactly the case the column
+	 * produces for the 79 cards that did not change.
+	 */
+	it("does not re-render when the parent re-renders with identical props", () => {
+		let titleReads = 0;
+		const card = {
+			...createCard(),
+			get title() {
+				titleReads += 1;
+				return "Review API changes";
+			},
+		};
+
+		function Parent({ tick }: { tick: number }): ReactNode {
+			return (
+				<TooltipProvider>
+					<div data-tick={tick}>
+						<BoardCard card={card} index={0} columnId="review" />
+					</div>
+				</TooltipProvider>
+			);
+		}
+
+		act(() => {
+			root.render(<Parent tick={1} />);
+		});
+		const afterFirst = titleReads;
+		expect(afterFirst).toBeGreaterThan(0);
+
+		act(() => {
+			root.render(<Parent tick={2} />);
+		});
+		expect(titleReads, "an unchanged card must not re-render when its column does").toBe(afterFirst);
+	});
+
+	it("DOES re-render when its own props change", () => {
+		let titleReads = 0;
+		const card = {
+			...createCard(),
+			get title() {
+				titleReads += 1;
+				return "Review API changes";
+			},
+		};
+
+		function Parent({ restarting }: { restarting: boolean }): ReactNode {
+			return (
+				<TooltipProvider>
+					<BoardCard card={card} index={0} columnId="review" restarting={restarting} />
+				</TooltipProvider>
+			);
+		}
+
+		act(() => {
+			root.render(<Parent restarting={false} />);
+		});
+		const afterFirst = titleReads;
+
+		act(() => {
+			root.render(<Parent restarting={true} />);
+		});
+		expect(titleReads, "a card whose own props changed must re-render").toBeGreaterThan(afterFirst);
+	});
+});
