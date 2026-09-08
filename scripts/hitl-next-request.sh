@@ -67,6 +67,18 @@ claim_id() {
 	return 1
 }
 
+# A claim guards a request that is being ANSWERED. Once the answer exists the claim has done its job, and a
+# directory that only ever grows is the shape of a problem that shows up months later on someone else's watch
+# (the 2026-09-06 temp-folder sweep started the same way). Prune on entry: cheap, and it needs no cooperation from
+# a responder that has already moved on.
+if [ -d "$CLAIMS" ]; then
+	for claim in "$CLAIMS"/*; do
+		[ -d "$claim" ] || continue
+		claimed_id="${claim##*/}"
+		[ -f "$QUEUE/answers/$claimed_id.json" ] && rm -rf "$claim"
+	done
+fi
+
 deadline=$(( $(date +%s) + MAX_WAIT ))
 while :; do
 	next=""
