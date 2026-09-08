@@ -2398,7 +2398,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   Recording the disconfirmed one alongside the others on purpose: a report from a model is a lead, and the cheapest
   moment to notice that is before building on it.
 
-- [ ] **P0.AUDIT0904 — Holistic audit findings (David 2026-09-04: "check everything, from every lowlevel to
+- [x] **P0.AUDIT0904 — Holistic audit findings (David 2026-09-04: "check everything, from every lowlevel to
   UI/UX .. klein actually approaching 'it works as it seems'").** Read-only Explore pass over the recovery
   legs, routing, sandbox lifecycle, session restarts, web-ui, observability and test coverage — 25 findings,
   full text in the session scratchpad `holistic-audit-2026-09-04.md` (persisted here in compressed form).
@@ -2461,6 +2461,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `qwen3.8-flash-next (auto_diverse)`, verdicts landed. LESSON: every model-choosing path (worker start,
   reviewer, escalation, plan critic, custodian, merge agent) needs the SAME routability filter — audit #14
   (custodian) is the last unfiltered chooser.
+  **CLOSED 2026-09-08.** All 25 legs are shipped. The last five landed today: 12 (durable, success-cleared
+  recovery budgets), 17 (dispose removes as root and REPORTS a leaked workdir — every caller swallows the
+  throw by design, so the throw told nobody anything), 18 (concurrent same-task prepares share one
+  preparation; serialized was not deduplicated, and the second one's rm -rf took out a live workspace),
+  19 (a failing blockedKind auto-clear is observable — it is the ONLY machine release for a blocked card),
+  23 tooltips/aria, 24 (board-card memo) and 25 (wedge classifier + auto-pool extracted to tested cores).
+  The one thing deliberately NOT built is leg 23's DAG node SEARCH — see the follow-up below.
 - [x] **P1.STRANDEDAPPROVALS — approved cards sat in Review for hours: three no-ops and one blocked behind a
   sibling's conflict.** *(Live 2026-09-05 v31, found while chasing why `mergeTaskWorktrees` merged nothing.)*
   Three defects, all SHIPPED 2026-09-05: (1) the delivery-merge loop RETURNED on the first conflict, so every
@@ -2549,6 +2556,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   so "the reviewer could not judge this artifact" is finally distinguishable from "the reviewer never got a turn
   inside its budget" — only the first is a statement about the work. NOT changed, deliberately: the streak still
   parks at 3 (a streak that skips sessions is an unbounded loop) and `parkKind` stays `no_verdict`.
+
+- [ ] **F2.31b — DAG node SEARCH (the one survivor of P0.AUDIT0904 leg 23).** Tooltips and aria shipped
+  2026-09-08 (`describeDagNode` — title, live state or lane, critical-path membership, used as both the
+  aria-label and an SVG title). Search is a UX design question rather than a mechanical gap: what it matches
+  (title only, or prompt and id too), what it does to non-matches (dim, hide, or scroll-to), and whether it
+  shares the board filter. Worth asking David before building an interaction nobody requested.
 
 - [ ] **F2.36 — !Klein's OWN project board (David 2026-09-05: "create a project for nklein itself … make the
   dag reflect everything that was already done in reasonable work packages which are set to finished … part of
