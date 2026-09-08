@@ -11,15 +11,51 @@
 # holds the turn open by construction, so the loop cannot be forgotten. This is the same shape as `hitl-wait.sh`
 # (which waits on the factory) pointed the other way: it waits on the QUEUE, for the model.
 #
-# Usage:  scripts/hitl-next-request.sh <mark> [maxWaitSeconds]
+# A second responder is worse than none. The queue is strictly serial — one request in flight — so a second
+# answerer adds no throughput, only races: two responders can pick up the same id, and whichever answer lands
+# second is discarded work, while a RECORDING of the drive (scripts/hitl-record-project.mts) becomes incoherent
+# because the run it replays was produced by two different minds taking alternate turns. Live 2026-09-08: a second
+# responder spent a full turn analysing request 613 before noticing the first had already answered it. Claiming
+# makes that structural instead of conventional: `mkdir` is atomic, so exactly one caller wins each id, and a
+# loser silently moves on to the next unclaimed request rather than duplicating work.
+#
+# Usage:  scripts/hitl-next-request.sh <mark> [maxWaitSeconds] [--claim <responderId>]
 #   <mark>  answer only ids strictly greater than this (scopes a capture to one project)
+#   --claim take exclusive ownership of the returned id (safe to run several responders)
 # Prints:  the lowest unanswered request id > mark, or "NONE" if none appeared before the deadline.
-# Exit:    0 when an id is printed, 3 on timeout (so `|| ` can distinguish "idle" from "error").
+# Exit:    0 when an id is printed, 3 on timeout (so `||` can distinguish "idle" from "error").
 set -u
 QUEUE="${HITL_QUEUE:-$HOME/.nklein/factory-drains/hitl-drain/queue}"
 MARK="${1:-0}"
 MAX_WAIT="${2:-540}"   # default under the 600s tool cap so the call returns rather than being killed
 POLL="${HITL_POLL_SECONDS:-5}"
+CLAIM_AS=""
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--claim) CLAIM_AS="${2:-responder}"; shift 2;;
+		*) shift;;
+	esac
+done
+CLAIMS="$QUEUE/claims"
+
+# A claim is STALE once the request it guards has an answer, or once nothing has touched it for an hour (a
+# responder that died mid-turn must not wedge the seat forever, which is the failure the claim is meant to prevent).
+claim_id() {
+	local id="$1"
+	[ -z "$CLAIM_AS" ] && return 0
+	mkdir -p "$CLAIMS" 2>/dev/null
+	if mkdir "$CLAIMS/$id" 2>/dev/null; then
+		printf '%s\n' "$CLAIM_AS" > "$CLAIMS/$id/owner"
+		return 0
+	fi
+	# Already claimed. Reclaim only a demonstrably abandoned one.
+	if [ -n "$(find "$CLAIMS/$id" -maxdepth 0 -mmin +60 2>/dev/null)" ]; then
+		printf '%s\n' "$CLAIM_AS" > "$CLAIMS/$id/owner"
+		touch "$CLAIMS/$id"
+		return 0
+	fi
+	return 1
+}
 
 deadline=$(( $(date +%s) + MAX_WAIT ))
 while :; do
@@ -32,10 +68,13 @@ while :; do
 			case "$id" in (*[!0-9]*) continue;; esac
 			[ "$id" -gt "$MARK" ] || continue
 			[ -f "$QUEUE/answers/$id.json" ] && continue
+			if [ -n "$CLAIM_AS" ] && [ -d "$CLAIMS/$id" ] && [ -z "$(find "$CLAIMS/$id" -maxdepth 0 -mmin +60 2>/dev/null)" ]; then
+				continue   # another responder owns this turn
+			fi
 			if [ -z "$next" ] || [ "$id" -lt "$next" ]; then next="$id"; fi
 		done
 	done
-	if [ -n "$next" ]; then echo "$next"; exit 0; fi
+	if [ -n "$next" ] && claim_id "$next"; then echo "$next"; exit 0; fi
 	[ "$(date +%s)" -ge "$deadline" ] && { echo "NONE"; exit 3; }
 	sleep "$POLL"
 done
