@@ -1,0 +1,8 @@
+{
+	"frozen": {
+		"conformance/cases.mjs": "6497811a43e4b4cbdb1f239ae50a8ed323d0b9989b2c48bf85aca42bf6a3ac0c",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"service/orders-service.mjs": "2d13dfcb9fb943bb9ec35db92463a031af101a2312a31e79345111429c39177f",
+		"test/integration.test.js": "ea330a27df84ca17f7d7137a7c33c63f4b9dfaf193707c4c51f56a970b793893"
+	}
+}

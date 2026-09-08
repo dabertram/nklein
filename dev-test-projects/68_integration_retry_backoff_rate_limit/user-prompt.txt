@@ -1,0 +1,9 @@
+Write the orders client in src/adapter.mjs. The service it talks to is flaky and rate limited, and the client has
+to cope without giving up too early, retrying what it must not, or waiting longer than it was told to.
+
+Time is injected: you wait by calling the `sleep(ms)` you are given, never a real timer. Nothing else moves the
+service's clock, so a real timer will hang the waiting cases rather than pass them slowly.
+
+Read specification.md for the retry policy, the error classification and the rules. The conformance suite checks
+the exact waits and the exact number of calls, so "retry a few times with some backoff" will not pass — the
+schedule is part of the contract.

@@ -1,0 +1,16 @@
+{
+	"id": "68_integration_retry_backoff_rate_limit",
+	"title": "Integration: Retry, Backoff and Rate-Limit Handling for a Flaky Orders Service",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "integration-i2",
+	"tier": "2/5 integration",
+	"tags": [
+		"retry policy",
+		"exponential backoff",
+		"rate limiting",
+		"injected clock",
+		"error classification"
+	]
+}
