@@ -3730,11 +3730,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								await service
 									.sendTaskSessionInput(
 										taskId,
+										// "Leave those files exactly as they were" only covers a MODIFIED file. Live 2026-09-08: a
+										// worker created `test/agent/_write_probe.tmp` to check whether it could write there,
+										// left it behind, was re-driven with this brief, and left it again — because for a
+										// file it CREATED, "as it was" is "absent", and the brief never said delete. A stray
+										// scratch file is the commonest boundary violation a worker produces, so the brief
+										// names both remedies.
 										`Your result changed files OUTSIDE this card's declared bounds and cannot merge: ${boundaryViolations
 											.map((violation) => violation.message)
 											.join(
 												"; ",
-											)}. Revert the out-of-bounds changes (leave those files exactly as they were) and finish the task strictly within the card's write scope.`,
+											)}. Undo every one of them: DELETE any file you created outside the scope (a scratch or probe file you no longer need counts), and restore any file you modified to exactly its previous contents. Then finish the task strictly within the card's write scope.`,
 										"act",
 									)
 									.catch((error) => {
