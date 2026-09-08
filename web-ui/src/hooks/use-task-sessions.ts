@@ -43,7 +43,9 @@ interface StartTaskSessionResult {
 		| "agent_sandbox_unavailable"
 		| "model_not_loaded"
 		| "pinned_model_unavailable"
-		| "start_in_flight";
+		| "start_in_flight"
+		// A trashed card is abandoned; only an explicit resumeFromTrash starts one (2026-09-08).
+		| "task_trashed";
 	modelNotLoaded?: {
 		requestedModelId: string;
 		loadedModelIds: string[];

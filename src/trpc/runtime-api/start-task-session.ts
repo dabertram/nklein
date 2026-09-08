@@ -360,6 +360,33 @@ async function handleStartTaskSessionInner(
 				};
 			}
 		}
+		// TRASH IS TERMINAL (live 2026-09-08). Abandoning the stalled `42_analysis_unchecked_error_audit` run moved
+		// all seven cards to trash — and the runtime started two of them again within a minute, on brand-new
+		// sessions, which then queued on the rig's single shared endpoint. The board said "abandoned" while the
+		// endpoint said "busy", which is the same confusing shape as P0.TRASHREVIEW seen from the other side.
+		//
+		// Individual sweeps already skip trash (`task-board-ready-sweep`, `portable-continuation-selector`), but a
+		// start can be entered from many places — a redrive, the durable controller, a watchdog, a chat send — and
+		// one path missing the check is enough. So the invariant belongs at the chokepoint every start funnels
+		// through, stated once: a trashed card is abandoned and is not started. `resumeFromTrash` is the explicit
+		// operator escape and is honoured, so restoring a card by hand still works exactly as before.
+		if (!isHomeAgentSessionId(body.taskId) && !body.resumeFromTrash) {
+			const trashed = await loadWorkspaceState(workspaceScope.workspacePath)
+				.then((state) =>
+					(state?.board?.columns ?? []).some(
+						(column) => column.id === "trash" && column.cards.some((card) => card.id === body.taskId),
+					),
+				)
+				.catch(() => false);
+			if (trashed) {
+				return {
+					ok: false,
+					summary: null,
+					error: `Task ${body.taskId} is in the trash — a trashed card is abandoned and is not started. Restore it on the board (or start it with resumeFromTrash) to work on it again.`,
+					errorCode: "task_trashed" as const,
+				};
+			}
+		}
 		const requestedNKleinTaskMode = body.mode ?? "act";
 		const scopedRuntimeConfig = await deps.loadScopedRuntimeConfig(workspaceScope);
 		const effectiveTimeouts = resolveEffectiveTaskTimeoutSettings({

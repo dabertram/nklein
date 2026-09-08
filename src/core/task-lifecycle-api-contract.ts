@@ -210,6 +210,8 @@ export const runtimeTaskSessionStartResponseSchema = z.object({
 			"model_not_loaded",
 			"pinned_model_unavailable",
 			"start_in_flight",
+			// A trashed card is abandoned; only an explicit `resumeFromTrash` starts one (2026-09-08).
+			"task_trashed",
 		])
 		.optional(),
 	modelNotLoaded: z
