@@ -2692,6 +2692,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   isolated sandbox instead of failing offline on every acceptance and plan gate. Remaining human-only parks
   should now be genuine judgment calls; anything else is a bug to file here.
 
+- [ ] **P1.STARTHANG — a task start that never settles wedges its card permanently, and only a log line notices.**
+  *(Live 2026-09-08, evidence complete, cause NOT yet found.)* `dev-39-tests-interval-boundary-suite-decompose`
+  had a session taking model turns while its sandbox workspace was never prepared. Every auto-start retry was
+  refused:
+  `Could not auto-start linked task … (start_in_flight): A start for … is already in flight — refusing the duplicate`.
+  `inFlightStartsByTaskId` is cleared in a `finally`, so the entry can only persist if `startTaskSessionInner`
+  never settles. That is exactly the condition `runtime-server.ts` already has a diagnostic for — "startTaskSession
+  has neither returned nor thrown. The card will look frozen; the hang inside the start path is the thing to
+  investigate" — and the diagnostic reports while nothing recovers.
+  **Cost measured:** one responder shift spent 8 of 25 requests (32%) on this single task across three sibling
+  branches. P0.SANDBOXGHOST's never-placed bound (`2b49651d8`) now stops the session so the waste is bounded, but
+  that treats the symptom.
+  **Where to look:** the most likely hang is a queued `acquireSlot` that never resolves (leaked pool slot ⇒ pool at
+  capacity ⇒ the waiter's promise is never handed a placement); `nklein-agent-sandbox.ts` already logs a slow
+  queued acquisition, so start there with the slow-acquisition line and the pool occupancy at that moment.
+  **Do NOT "fix" it by clearing the single-flight entry on a deadline** without understanding the hang — the inner
+  promise is still live, so that trades a wedged card for a double start.
 - [ ] **P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).** *(not testable: an operational image rebuild on a real connection — consent-gated multi-GB pulls, nothing here to assert)*
   The fix ships INSIDE the sandbox image (`docker/agent-sandbox/Dockerfile` copies the esbuild bundle) and the
   running container's rootfs is read-only (strict isolation — `docker cp` is refused), so it is live only after
