@@ -2411,7 +2411,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   guard reads a 30s cache that returns last-good on probe failure, never ledger-checked. **P2:** (22) DAG
   zoom/pan (fixed 2026-09-04); (23) DAG node tooltips/aria/search; (24) board-card has no memoization (80+
   cards re-render every tick); (25) no unit tests for the single-flight guard, worker auto-pool widening, wedge
-  classifier probe (extract to `src/core/wedge-model-classifier.ts` with injected fetch).
+  classifier probe *(the wedge classifier SHIPPED 2026-09-08: `src/core/wedge-model-classifier.ts`, pure
+  predicate + injected probe, 7 tests, and the unreachable-⇒-not-busy fail direction documented as deliberate.
+  Worker auto-pool widening still untested)*.
   **▶ 2026-09-05 SHIPPED (`f6aee1c1e` + same-day predecessors):** (3) watchdog overlap guard; (4) awaited redrive
   + per-tick `handledThisTick` consulted by the marooned reconcile and the bounced leg; (5) restart configs
   return null for ledger-dead models; (6) terminal fallback refuses dead/colliding primaries; (7) loaded
