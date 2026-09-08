@@ -2052,6 +2052,40 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   A redecompose card trashed via a state save kept its architect session on legion; s14 and the custodian waited on
   each other for an hour and explicit starts were refused. SHIPPED: the board-liveness watchdog stops any active
   session whose card sits only in trash (`trashed_card_session_stopped`).
+- [x] **P0.TRASHREVIEW — a trashed card's `::review` turn kept the shared endpoint, with nothing on the board.**
+  2026-09-08: nine trashed `clinical-*` cards left every later task queued behind "Another !Klein task is already
+  running on shared endpoint …" for hours. TWO holes: `selectTrashedCardSessions` skipped every `::` id as
+  "derived, names no board card" (but `<card>::review` IS board-owned), and the watchdog only stops TRACKED
+  sessions while `purgeModelTurnReservationsForDeadTask` only fires on a terminal SUMMARY — these reservations were
+  held by aux turns whose parent card had no live session left to go terminal, so neither path could ever fire.
+  SHIPPED (bd070eba5): a derived session follows its parent into a terminal lane (only a parent-less derived id
+  such as `main-branch-custodian::review` stays exempt, and the absent-card rule is withheld from those), and the
+  board-liveness tick sweeps model-turn RESERVATIONS owned by terminal-lane cards using the same selector.
+- [x] **P0.TRASHSTART — the runtime restarted two cards a minute after they were abandoned (the mirror of the above).**
+  2026-09-08: abandoning a stalled run moved all seven cards to trash; two were started again on brand-new sessions
+  which then queued on the shared endpoint. Every individual sweep DOES skip trash (`task-board-ready-sweep`,
+  `portable-continuation-selector`, `task-chat-send`, the promotion tool) — which is exactly why it was invisible:
+  every path anyone thought about is correct, and one unthought path is enough. SHIPPED (551c65f6d): the invariant
+  moved to the chokepoint every start funnels through (`handleStartTaskSession`) and is stated once — a trashed
+  card is abandoned and is not started, refused as `task_trashed` BEFORE any config load or session, with
+  `resumeFromTrash` unchanged as the operator's explicit escape. `scripts/hitl-abandon-run.mts` makes abandoning a
+  run one command instead of the hand-written pipeline that met both bugs.
+- [x] **P0.ANCHORLOOP — a finished card was forced to read files for 16 turns because the retry ladder anchored on !Klein's own prose.**
+  Found by the Sonnet rig drive of `42_analysis_unchecked_error_audit`. Card a00 was already green; the model ended
+  each turn cleanly with no tool call (correct for a satisfied card) and the §5.AA task-complexity ladder read that
+  as tool-set overload, narrowed to ONE tool and forced another read — requests 624–639, no progress, and cards
+  a02–a05 never started. The anchor was `read_files`, "mentioned" only by the injected context focus brief's
+  `read_files coverage ledger:` line; the ladder's own "already attempted" note then re-anchors on the tool its
+  previous rung failed with. So the module's assumption "a slightly-too-eager anchor just offers a relevant tool,
+  which is harmless" is false where it matters: a set narrowed to a pure READER cannot advance or end a card.
+  SHIPPED (fb6d93be0): `selectToolsForAttempt` strips !Klein-authored blocks before matching — `[!Klein …]` to its
+  `[/!Klein …]` closer or to the next blank line, plus the "Already attempted this task" note. No anchor ⇒ set left
+  intact ⇒ a clean stop is allowed to be a clean stop.
+- [x] **P0.RAILREGISTRY — the dev-test rail could not start any of the 30 non-build registry projects.**
+  `createDevTestProject` takes `preset` (8 built-ins) OR `registryId` (any dev-test-projects/ folder); the rail sent
+  every `--projects` selector as `preset`, so a registry id failed schema validation and the run ended "No dev-test
+  projects could be created". The doc comment claimed registry ids worked, which is why it went unnoticed — the
+  rail predates the whole analysis/spec/planning/repair/tests/refactor set. SHIPPED (b3d5e1c1d).
 - [x] **P0.BUSYWEDGE — the zero-token watchdog interrupted a worker whose model was busy prefilling its prompt.**
   v31 2026-09-07: legion5pro takes 15+ min to prefill a 40k-token worker prompt; the 15-min wedge bound killed the
   turn although the classifier had already read the model as BUSY per `lms ps` (that verdict only withheld the
