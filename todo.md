@@ -2000,6 +2000,26 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### Phase 0 — stop-the-line correctness and liveness
 
+- [x] **P0.RETIRELOOP — a stopped session for a terminal-lane card was restarted by compaction, forever.** *(Live
+  2026-09-08 project 38, `7cb465ba9`.)* Card `mutation-duration-schedule-kill-m3` reached `completed` with a model
+  turn still queued behind the shared endpoint. The turn came up → `compactBeforeOverflow` → `restartTaskSession`;
+  the board-liveness watchdog saw a live session on a completed card and stopped it; the abort retried the
+  delivery; repeat **every 30 seconds**, one endpoint request per round — 35 junk requests in fifteen minutes while
+  two sibling `::review` cards queued behind them and the project made zero progress. Two correct mechanisms
+  fighting. `trashed-card-sessions.ts` already records an earlier round of the SAME loop, where the fix taught the
+  stopper about lanes and not the starter — which is why it came back on a different card. Now the fact lives on
+  the session (`src/core/session-retirement.ts`): an ordinary stop does not retire (pause/restart/fork all stop
+  first), only an explicit retire does, and only a deliberate start revives.
+- [x] **P0.MERGEWEDGE — one interrupted merge blocked every later delivery, permanently.** *(Live 2026-09-08
+  project 38, `57168aeb8`.)* A delivery merge conflicted in the same minute the responder died and the runtime was
+  thrashing P0.RETIRELOOP; its fail-safe `git merge --abort` never ran. The base workspace sat mid-merge with
+  `UU tests/manifest.json`, and every subsequent delivery refused with "Base workspace has uncommitted changes" —
+  a message naming the symptom, with no cleanup anywhere and the board still delivering into a merge that could
+  never happen. The merger now writes `.nklein/nklein/merge-in-flight.json` before merging (inside the state dir
+  the clean-base check excludes — a mark one level up IS itself a blocker, per the 2026-09-05 custodian mistake),
+  and clears debris ONLY when a merge is in progress and the mark names that same MERGE_HEAD. An operator's own
+  conflicted merge is left strictly alone and says so. Proved against a real repo, because the defect is entirely
+  real index state and a conflicted index also refuses `git checkout`.
 - [x] **P0.HOSTIDLE — an operator-idled LM Studio host kept receiving work through every auto/fallback chooser.**
   David 2026-09-07 "leave m5max idle for nklein, keep flash-next loaded": re-pointing all roles was not enough —
   `reviewer=qwen3.8-flash-next (loaded_fallback)`, `Worker auto-pool absorbed … flash-next`, and the merge/custodian
