@@ -1,0 +1,10 @@
+{
+	"mutants/m1/pricing.mjs": "39a5681e06b0176f5ec050e35298e7bf031797d337f72c9b9d911810d5facc20",
+	"mutants/m2/pricing.mjs": "5dd8dda68a9268bbe8a2d6d2e91e7868f06f05e24cd40dd2d7de775ec75a22dd",
+	"mutants/m3/pricing.mjs": "c742f9de3c13c5471a210ef07e17dfd88f306f79fa1fda6c0a398592fc321b67",
+	"mutants/m4/pricing.mjs": "23502b976a4a411380aaa6a79f7250ab0e9c62b5b5839c12b5d441043e858216",
+	"package.json": "d1854eadc3262a1d690eff17a3b1f4a31b498471b3cc35672bf66adb34ae39c7",
+	"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+	"src/pricing.mjs": "3252e630d6a5c3d4c50131770fb90cc6d60c44545ec3de7d756686a6627fdfcc",
+	"test/mutation.test.js": "83bf41d5a086723f53136ebff86231bfa46ffdfe4d45abb804bf7e96cee689c3"
+}

@@ -1,0 +1,12 @@
+`src/task-runner.mjs` works and has no tests. Write the suite.
+
+This is a test-authoring job, not a build job: do not change the module, do not "improve" it, do not go looking for
+bugs in it. I want tests, and I want tests that would actually fail if the code were wrong.
+
+Two things make this the hard one. The defects are in retry counts, backoff delays, cancellation timing, result
+ordering and how many workers overlap — none of which a single assertion on a return value can see. And the suite
+must be DETERMINISTIC: the module never reads a clock or creates a timer, every source of timing is handed in by
+the caller, and a test that sleeps or races is not allowed to exist here. Drive time and ordering through the
+seams the module already gives you.
+
+Read specification.md for the nine broken copies your suite has to fail against.

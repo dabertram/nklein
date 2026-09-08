@@ -1,0 +1,16 @@
+{
+	"id": "43_analysis_module_graph_audit",
+	"title": "Analysis: Module-Graph Audit of an Internal ESM Package",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "analysis-a2",
+	"tier": "2/5 analysis",
+	"tags": [
+		"static analysis",
+		"module graph",
+		"import cycles",
+		"dead code",
+		"evidence citation"
+	]
+}

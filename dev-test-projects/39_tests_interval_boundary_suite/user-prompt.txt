@@ -1,0 +1,11 @@
+`src/interval.mjs` works and has no tests. Write the suite.
+
+This is a test-authoring job, not a build job: do not change the module, do not "improve" it, do not go looking for
+bugs in it. I want tests, and I want tests that would actually fail if the code were wrong.
+
+Be warned about this one specifically: a comfortable suite will not do. Every way this module can break is at an
+edge — the empty collection, the single element, the endpoint itself, two ranges that touch without overlapping,
+the top of the range. A suite of sensible mid-range examples passes happily and catches none of it, and the
+acceptance check will tell you so, mutant by mutant.
+
+Read specification.md for the seven broken copies your suite has to fail against.

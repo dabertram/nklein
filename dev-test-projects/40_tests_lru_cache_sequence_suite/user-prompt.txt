@@ -1,0 +1,11 @@
+`src/lru-cache.mjs` works and has no tests. Write the suite.
+
+This is a test-authoring job, not a build job: do not change the module, do not "improve" it, do not go looking for
+bugs in it. I want tests, and I want tests that would actually fail if the code were wrong.
+
+The thing to understand before you start: every rule this cache enforces is about history. Which key was touched,
+in what order, and how long ago. Examine any single call and it looks correct even when it is not — `get` returns
+the right value whether or not it refreshes recency, `has` answers correctly whether or not it has a side effect.
+Only a sequence of operations, checked afterwards, can tell.
+
+Read specification.md for the eight broken copies your suite has to fail against.

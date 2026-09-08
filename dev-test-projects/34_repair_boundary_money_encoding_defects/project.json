@@ -1,0 +1,17 @@
+{
+	"id": "34_repair_boundary_money_encoding_defects",
+	"title": "Repair: Boundary Defects in Money Splitting, UTF-8 Labels and Local Days",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "repair-r4",
+	"tier": "4/5 repair",
+	"tags": [
+		"defect repair",
+		"money rounding",
+		"utf-8 encoding",
+		"timezone boundaries",
+		"shallow-patch detection",
+		"frozen behaviour suite"
+	]
+}

@@ -1,0 +1,10 @@
+The job pipeline in src/ has three seeded async defects: a promise nobody waits for, a shared tally that loses
+concurrent increments, and a catch-all that reports a thrown job as a success. Fix the code.
+
+This is a repair job, not a build job: no rewrites, no new modules, no renamed exports. Record the scenario ids you
+have actually fixed in repair/manifest.json as you go.
+
+Read specification.md for the rules. Three worth repeating: scenarios/ and test/ are frozen evidence and the
+acceptance check digests them on every run; every id you list is re-run on every check, so claiming one you have not
+fixed takes the build red; and all timing here is injected through the io seam — a fix that reaches for a real
+timer or a sleep is wrong even if the suite goes green.

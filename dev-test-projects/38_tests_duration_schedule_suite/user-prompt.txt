@@ -1,0 +1,12 @@
+`src/parse-duration.mjs` and `src/schedule.mjs` work and have no tests. Write the suite.
+
+This is a test-authoring job, not a build job: do not change either module, do not "improve" them, do not go
+looking for bugs in them. I want tests, and I want tests that would actually fail if the code were wrong.
+
+Pay attention to what happens when the input is bad. These modules promise a specific error, carrying a specific
+value, for input they refuse — and a test that only asserts "something was thrown" cannot tell that promise from a
+TypeError raised by accident three lines deeper.
+
+Read specification.md: the fixture ships six broken copies of these modules, and your suite has to pass against the
+correct ones and fail against each broken one. A suite that is happy either way is worth nothing, and the
+acceptance check says so by name.

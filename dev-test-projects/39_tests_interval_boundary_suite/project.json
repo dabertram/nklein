@@ -1,0 +1,16 @@
+{
+	"id": "39_tests_interval_boundary_suite",
+	"title": "Test Authoring: A Suite That Lives at the Boundaries",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "tests-t3",
+	"tier": "3/5 test-authoring",
+	"tags": [
+		"test authoring",
+		"mutation testing",
+		"boundary analysis",
+		"off-by-one defects",
+		"empty and singleton inputs"
+	]
+}

@@ -1,0 +1,10 @@
+Read the specification in input/ and give me the card plan for it.
+
+This is a planning job, not a build job: I do not want the service written, scaffolded or stubbed. I want the
+dependency-linked set of cards an implementation team would pick up, each one sized to a handful of files, each one
+naming the obligations it discharges.
+
+Read specification.md for the deliverable's shape and the rules I will hold you to. The one that will catch you out
+if you skim: the specification never says one obligation depends on another. It says which module each obligation
+lives in and which modules that implementation imports. Derive the ordering from that. A card that gets picked up
+before the module it imports exists is the failure I am trying to stop.

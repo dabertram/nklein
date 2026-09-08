@@ -1,0 +1,14 @@
+{
+	"mutants/m1/lru-cache.mjs": "dfc3ed4d9ad88c821027b0237b7c06c4ab49ff7a672833563b7b1e0e360f63c3",
+	"mutants/m2/lru-cache.mjs": "296ea236d5c5ae88d4576e0a3dcb8b4c321ac6830b2ae2e96ef35251e34d1d70",
+	"mutants/m3/lru-cache.mjs": "5037ac87cb97a9813c65643afc8c2e6744b346f17892c33df29b8191052b6c64",
+	"mutants/m4/lru-cache.mjs": "1b6d18822fa74d0783b3047570cf1dec7a49f26da91511a965877147f2e9ec6d",
+	"mutants/m5/lru-cache.mjs": "06a3eac6da5d5d32130dbad7de1edfd469ff90801007290b865b5a37bc747f27",
+	"mutants/m6/lru-cache.mjs": "0a076bff82716cb29e41866909dc8e6c1b93f108a5c1b5b80589bba6f195d6fa",
+	"mutants/m7/lru-cache.mjs": "21f1c9b644330174822f03a81ae7edf5dba1bab7cef7d0cd62236359c00fa931",
+	"mutants/m8/lru-cache.mjs": "466721b6e5ae55f076ec1b728130a4e17fddf07e597002804b7daeab6126396d",
+	"package.json": "c4c322f9f6d93015ec94f1dcce2a04f5eca886f541efceb3f988adcbc26b3a96",
+	"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+	"src/lru-cache.mjs": "e215ce624e01be93560c1252da33464cd362f7c58a766a5d9fcad6220196f7d7",
+	"test/mutation.test.js": "83bf41d5a086723f53136ebff86231bfa46ffdfe4d45abb804bf7e96cee689c3"
+}

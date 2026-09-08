@@ -1,0 +1,16 @@
+{
+	"id": "38_tests_duration_schedule_suite",
+	"title": "Test Authoring: A Suite That Covers the Error Paths Too",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "tests-t2",
+	"tier": "2/5 test-authoring",
+	"tags": [
+		"test authoring",
+		"mutation testing",
+		"error paths",
+		"error types",
+		"input validation"
+	]
+}

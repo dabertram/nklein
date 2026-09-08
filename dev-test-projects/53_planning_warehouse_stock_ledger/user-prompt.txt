@@ -1,0 +1,9 @@
+Read the specification in input/ and give me the card plan for it.
+
+This is a planning job, not a build job: I do not want the service written, scaffolded or stubbed. I want the
+dependency-linked set of cards an implementation team would pick up, each one sized to a handful of files, each one
+naming the obligations it discharges.
+
+Read specification.md for the deliverable's shape and the rules I will hold you to. The one that will catch you out
+if you skim: every obligation names the module it belongs in, several obligations name the SAME module, and no two
+cards may claim the same file. Plan the modules, not the bullet list.

@@ -1,0 +1,16 @@
+{
+	"id": "46_analysis_security_severity_audit",
+	"title": "Analysis: Security Audit with a Severity Rubric",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "analysis-a5",
+	"tier": "5/5 analysis",
+	"tags": [
+		"security review",
+		"threat classification",
+		"severity rubric",
+		"reachability",
+		"evidence citation"
+	]
+}

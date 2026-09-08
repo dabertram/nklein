@@ -1,0 +1,8 @@
+`src/pricing.mjs` works and has no tests. Write the suite that would catch it if it stopped working.
+
+This is a test-authoring job, not a build job: do not change the module, do not "improve" it, do not go looking for
+bugs in it. I want tests, and I want tests that would actually fail if the code were wrong.
+
+That last part is measured, not taken on trust. Read specification.md: the fixture ships four broken copies of the
+module, and your suite has to pass against the correct one and fail against each broken one. A suite that is happy
+either way is worth nothing, and the acceptance check says so by name.

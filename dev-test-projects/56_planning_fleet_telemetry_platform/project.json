@@ -1,0 +1,17 @@
+{
+	"id": "56_planning_fleet_telemetry_platform",
+	"title": "Planning: Card Plan for a Fleet Telemetry Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "planning-p5",
+	"tier": "5/5 planning",
+	"tags": [
+		"decomposition",
+		"card planning",
+		"card ceiling",
+		"obligation grouping",
+		"dependency ordering",
+		"testability honesty"
+	]
+}

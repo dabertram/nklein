@@ -1,0 +1,16 @@
+{
+	"id": "37_tests_pricing_rules_suite",
+	"title": "Test Authoring: A Suite That Pins Down Order Pricing",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "tests-t1",
+	"tier": "1/5 test-authoring",
+	"tags": [
+		"test authoring",
+		"mutation testing",
+		"pure functions",
+		"money handling",
+		"integer rounding"
+	]
+}

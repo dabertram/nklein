@@ -1,0 +1,16 @@
+{
+	"id": "55_planning_payments_reconciliation",
+	"title": "Planning: Card Plan for a Payments Reconciliation Service",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "planning-p4",
+	"tier": "4/5 planning",
+	"tags": [
+		"decomposition",
+		"card planning",
+		"dependency ordering",
+		"implicit dependencies",
+		"import graph"
+	]
+}

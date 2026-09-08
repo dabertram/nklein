@@ -1,0 +1,16 @@
+{
+	"id": "49_spec_contradiction_hunt",
+	"title": "Specification: Contradiction Hunt in a Merged Policy Brief",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "spec-s3",
+	"tier": "3/5 specification",
+	"tags": [
+		"requirements analysis",
+		"contradiction detection",
+		"ambiguity",
+		"recorded assumptions",
+		"specification"
+	]
+}

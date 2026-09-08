@@ -1,0 +1,10 @@
+The triage module in src/ has three seeded defects. Find them and fix the code.
+
+This is a repair job, not a build job: I do not want a rewrite, a new module, or new exports. I want the shipped
+behaviour suite in scenarios/ to pass against repaired code, and I want you to record which scenarios you have
+actually fixed in repair/manifest.json as you go.
+
+Read specification.md for the defect classes, the manifest's shape and the rules I will hold you to. Two worth
+repeating here: scenarios/ and test/ are frozen evidence — the acceptance check digests them on every run and fails
+loudly if they move — and claiming a scenario you have not fixed is worse than leaving it out, because the check
+runs every id you list.

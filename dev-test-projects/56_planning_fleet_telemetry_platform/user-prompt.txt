@@ -1,0 +1,9 @@
+Read the specification in input/ and give me the card plan for it.
+
+This is a planning job, not a build job: I do not want the platform written, scaffolded or stubbed. I want the
+dependency-linked set of cards an implementation team would pick up, each one sized to a handful of files, each one
+naming the obligations it discharges.
+
+Read specification.md for the deliverable's shape and the rules I will hold you to. The one that will catch you out
+if you skim: the specification states a card ceiling, and it has more obligations than that ceiling allows cards. A
+card per obligation cannot be made to fit. Work out what belongs together before you start writing cards.

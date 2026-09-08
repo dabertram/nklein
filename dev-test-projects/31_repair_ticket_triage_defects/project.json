@@ -1,0 +1,16 @@
+{
+	"id": "31_repair_ticket_triage_defects",
+	"title": "Repair: Three Seeded Defects in a Ticket Triage Module",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "repair-r1",
+	"tier": "1/5 repair",
+	"tags": [
+		"defect repair",
+		"off-by-one",
+		"boundary comparison",
+		"default arguments",
+		"frozen behaviour suite"
+	]
+}

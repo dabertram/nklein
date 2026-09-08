@@ -1,0 +1,16 @@
+{
+	"id": "52_planning_receipt_ingest_cli",
+	"title": "Planning: Card Plan for a Receipt Ingest CLI",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "planning-p1",
+	"tier": "1/5 planning",
+	"tags": [
+		"decomposition",
+		"card planning",
+		"obligation coverage",
+		"dependency graph",
+		"testability honesty"
+	]
+}

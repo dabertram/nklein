@@ -1,0 +1,11 @@
+Two regressions are open against src/: a report with custom options poisons the next report and grows a duplicated
+column, and a custom report changes what a later export returns. They are one defect wearing two hats. Find the one
+place they meet and fix it there.
+
+This is a repair job, not a build job: no rewrites, no new modules, no renamed exports. Record the scenario ids you
+have fixed in repair/manifest.json as you go, and when you are done write the shared cause into the manifest's
+rootCause field.
+
+Read specification.md for the rules, especially what rootCause has to contain — it must cite a file you actually
+changed, name the thing in it that was wrong, and explain the consequence, and the acceptance check enforces all
+three. scenarios/ and test/ are frozen evidence: the check digests them on every run.

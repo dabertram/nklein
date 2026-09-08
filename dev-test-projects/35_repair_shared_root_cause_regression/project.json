@@ -1,0 +1,16 @@
+{
+	"id": "35_repair_shared_root_cause_regression",
+	"title": "Repair: Two Regressions with One Shared Root Cause",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "repair-r5",
+	"tier": "5/5 repair",
+	"tags": [
+		"defect repair",
+		"root cause analysis",
+		"shared mutable defaults",
+		"cross-feature regression",
+		"frozen behaviour suite"
+	]
+}

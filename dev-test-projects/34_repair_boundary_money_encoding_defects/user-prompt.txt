@@ -1,0 +1,10 @@
+Three modules in src/ are correct in the middle of their range and wrong at the edges: an even money split that
+loses units, a label truncation that confuses string units with UTF-8 bytes, and a calendar-day key that ignores the
+site's UTC offset. Fix the code.
+
+This is a repair job, not a build job: no rewrites, no new modules, no renamed exports. Record the scenario ids you
+have confirmed in repair/manifest.json as you go.
+
+Read specification.md for the rules. The one worth repeating: some frozen scenarios are already green, and they are
+green for the wrong reason — the obvious partial fix will take them red. When that happens the patch is wrong, not
+the scenario. And scenarios/ and test/ are frozen evidence: the acceptance check digests them on every run.

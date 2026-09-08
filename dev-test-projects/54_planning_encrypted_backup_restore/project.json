@@ -1,0 +1,16 @@
+{
+	"id": "54_planning_encrypted_backup_restore",
+	"title": "Planning: Card Plan for an Encrypted Backup and Restore Tool",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "planning-p3",
+	"tier": "3/5 planning",
+	"tags": [
+		"decomposition",
+		"card planning",
+		"testability honesty",
+		"documentation work",
+		"module ownership"
+	]
+}

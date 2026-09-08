@@ -1,0 +1,13 @@
+{
+	"mutants/m1/interval.mjs": "757bc96ef33557edfe24f643676f2a62ff084b749291dc59a72fe34e827f9915",
+	"mutants/m2/interval.mjs": "9bf62816a22b5c536e1cceec4631ad5157a8f68535a0bd552446422dc0dcbda5",
+	"mutants/m3/interval.mjs": "de758d00f375459105c23d01179eeb9e70469d42c78fa04c71f6a537770cdf05",
+	"mutants/m4/interval.mjs": "534fccd3d068f0b0888824a1dc5679607956b44df4f14bcdb5a3cb289567b992",
+	"mutants/m5/interval.mjs": "c7a426a63a3a2c390284b499cdd8a0cb7153e2d798be59a0e93eedac03647d5d",
+	"mutants/m6/interval.mjs": "8968151582b40e75f4dc7cc06cf4384a35cb5e4fd62a104d8042b4e5e55c9069",
+	"mutants/m7/interval.mjs": "ae7c106280bb0c76447280d7fd6aaa218ee8379a1bb314b3fa86eaebb25e8091",
+	"package.json": "517db8415f8d1f776591732edb31f5a6023de494f78550d3c424b9dca7e3c6a3",
+	"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+	"src/interval.mjs": "d4cf7f60cf12b8d2a86efb5455c5e6cc0784dac5d3c156818786c52b69d2a630",
+	"test/mutation.test.js": "83bf41d5a086723f53136ebff86231bfa46ffdfe4d45abb804bf7e96cee689c3"
+}

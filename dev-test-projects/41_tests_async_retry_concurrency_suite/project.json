@@ -1,0 +1,16 @@
+{
+	"id": "41_tests_async_retry_concurrency_suite",
+	"title": "Test Authoring: A Deterministic Suite for Retry, Cancellation and Concurrency",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "tests-t5",
+	"tier": "5/5 test-authoring",
+	"tags": [
+		"test authoring",
+		"mutation testing",
+		"async ordering",
+		"deterministic tests",
+		"retry and cancellation"
+	]
+}

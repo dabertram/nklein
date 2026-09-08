@@ -1,0 +1,9 @@
+Read the specification in input/ and give me the card plan for it.
+
+This is a planning job, not a build job: I do not want the CLI written, scaffolded or stubbed. I want the
+dependency-linked set of cards an implementation team would pick up, each one sized to a handful of files, each one
+naming the obligations it discharges.
+
+Read specification.md for the deliverable's shape and the rules I will hold you to. Two of them are worth repeating
+here: no two cards may claim the same file, and a card that touches no test file must say so — marking a card
+`testable` when there is nothing in it to test is how cards get parked.

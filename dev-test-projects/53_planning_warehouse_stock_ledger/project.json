@@ -1,0 +1,16 @@
+{
+	"id": "53_planning_warehouse_stock_ledger",
+	"title": "Planning: Card Plan for a Warehouse Stock Ledger",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "planning-p2",
+	"tier": "2/5 planning",
+	"tags": [
+		"decomposition",
+		"card planning",
+		"module ownership",
+		"card sizing",
+		"merge-conflict avoidance"
+	]
+}

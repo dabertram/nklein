@@ -1,0 +1,16 @@
+{
+	"id": "32_repair_inventory_allocation_defects",
+	"title": "Repair: Interacting Defects Across an Inventory Allocator",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "repair-r2",
+	"tier": "2/5 repair",
+	"tags": [
+		"defect repair",
+		"state mutation",
+		"interacting defects",
+		"value semantics",
+		"frozen behaviour suite"
+	]
+}

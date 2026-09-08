@@ -1,0 +1,15 @@
+{
+	"mutants/m1/task-runner.mjs": "f89b15511f96d0d7fbbdea445419fc419809339a11d7e94c83cbce183e026413",
+	"mutants/m2/task-runner.mjs": "588775ae8a3b81977de4766f7b7ac4d0ef89c4beca3a1199040a9b542180a4f6",
+	"mutants/m3/task-runner.mjs": "cc7c0580713f37e1816f700188b8bc5e3b25eb4c28941952c2bf4830f8c1924e",
+	"mutants/m4/task-runner.mjs": "ccfde19cae5b0df361d5d9ffa991f897be5c41a765f487ebd5120d8caf9c8882",
+	"mutants/m5/task-runner.mjs": "96657c3f098b104ee600534e75166169cb51288adcd5fbd2d2a9ad7bc15f32e1",
+	"mutants/m6/task-runner.mjs": "3322303190e2eb2b16c5cd47876514a8256f9542cbbd4e01703415daaab86237",
+	"mutants/m7/task-runner.mjs": "9305b41213c384ded5973031af87c25c1afea12270557a91dcc69603fe7b403c",
+	"mutants/m8/task-runner.mjs": "999e2a8b2339583b51b1ce8aba290cc8fb46580beb3d406ac15e102da7bd00a6",
+	"mutants/m9/task-runner.mjs": "ceb7acb10112c70b20dfc92a568b42a0f9ca08ea8db37a1762d9690880d1b7ea",
+	"package.json": "66b65df9e0df48f86da7629060ecc4e9782a0ce7cccbe4c96ecc98b3c200d5c3",
+	"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+	"src/task-runner.mjs": "182284f8bda184d8cc01eb5089f979b02200c78e05545681b1f9915704559192",
+	"test/mutation.test.js": "83bf41d5a086723f53136ebff86231bfa46ffdfe4d45abb804bf7e96cee689c3"
+}

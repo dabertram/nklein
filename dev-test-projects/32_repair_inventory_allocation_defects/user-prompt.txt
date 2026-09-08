@@ -1,0 +1,10 @@
+The warehouse allocator in src/ has three seeded defects, one per module, and they interact — fix the obvious one
+first and a scenario that was passing will start failing. That is the second defect surfacing, not the suite being
+flaky. Keep going until every frozen scenario passes.
+
+This is a repair job, not a build job: no rewrites, no new modules, no renamed exports. Record the scenario ids you
+have actually fixed in repair/manifest.json as you go.
+
+Read specification.md for the defect classes, the manifest's shape and the rules. Two worth repeating: scenarios/
+and test/ are frozen evidence — the acceptance check digests them on every run and fails loudly if they move — and
+every id you list is re-run on every check, so a scenario you unmask into failure will take the build red with it.
