@@ -1,0 +1,201 @@
+/**
+ * Drive a LIST of dev-test projects through the rig and record each one as a committed scenario set.
+ *
+ * ── WHY ──
+ * Recording one project is four steps (mark, seed, drain, record) and they must happen in that order, with the
+ * mark taken BEFORE the seed or the capture silently swallows the previous project's traffic. Doing that forty
+ * times by hand is forty chances to get the order wrong, and the failure is invisible: a scenario set that replays
+ * the wrong run under the right name is green and lying.
+ *
+ * So the sequence is the script. It is also RESUMABLE — a project whose scenario set already exists is skipped —
+ * which matters because a run of forty projects takes many hours and will be interrupted.
+ *
+ * It does NOT answer the model queue. Something else has to be sitting in the model seat (see
+ * `scripts/hitl-next-request.sh`); this only sets projects up, waits for them to drain, and records what happened.
+ *
+ * Usage:
+ *   npx tsx scripts/hitl-record-run.mts <projectId...> [--max-wait-ms N] [--state <file>] [--base <url>]
+ *   npx tsx scripts/hitl-record-run.mts --all-new           # every project from 37 onward, in order
+ *   npx tsx scripts/hitl-record-run.mts --all-new --dry-run # print the plan and change nothing
+ *
+ * `--dry-run` exists because I ran this to check which projects it would pick and it seeded one instead, which
+ * then competed for the rig's single endpoint with the drive already in flight. A script whose first action is
+ * expensive and irreversible needs a way to be asked what it would do.
+ */
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+
+const REPO = resolve(new URL("..", import.meta.url).pathname);
+const SCENARIOS = join(REPO, "packages/llm-simulator/scenarios");
+
+function argOf(flag: string): string | undefined {
+	const index = process.argv.indexOf(flag);
+	return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+const maxWaitMs = Number(argOf("--max-wait-ms") ?? 5_400_000);
+const base = argOf("--base") ?? "http://127.0.0.1:3503";
+const statePath = resolve(argOf("--state") ?? join(REPO, ".nklein-record-run.json"));
+
+function selectProjects(): string[] {
+	if (process.argv.includes("--all-new")) {
+		return readdirSync(join(REPO, "dev-test-projects"))
+			.filter((name) => /^(3[7-9]|[4-7]\d)_/u.test(name))
+			.sort();
+	}
+	return process.argv.slice(2).filter((value) => !value.startsWith("--") && !/^\d+$/u.test(value) && !value.startsWith("http"));
+}
+
+/** Run a command to completion, streaming nothing; returns its exit code and tail of output. */
+function run(command: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<{ code: number; tail: string }> {
+	return new Promise((resolveRun) => {
+		const child = spawn(command, args, { cwd: REPO, env: { ...process.env, ...env } });
+		let output = "";
+		const collect = (chunk: Buffer) => {
+			output += chunk.toString();
+			if (output.length > 20000) output = output.slice(-20000);
+		};
+		child.stdout.on("data", collect);
+		child.stderr.on("data", collect);
+		child.on("close", (code) => resolveRun({ code: code ?? 1, tail: output.split("\n").slice(-25).join("\n") }));
+	});
+}
+
+interface ProjectResult {
+	projectId: string;
+	status: "skipped" | "recorded" | "failed";
+	detail: string;
+	at: string;
+}
+
+const results: ProjectResult[] = existsSync(statePath)
+	? (JSON.parse(readFileSync(statePath, "utf8")).results ?? [])
+	: [];
+
+function saveState(current?: string): void {
+	mkdirSync(dirname(statePath), { recursive: true });
+	writeFileSync(statePath, `${JSON.stringify({ updatedAt: new Date().toISOString(), current, results }, null, "\t")}\n`);
+}
+
+function note(result: ProjectResult): void {
+	results.push(result);
+	saveState();
+	console.log(`[${result.status}] ${result.projectId}: ${result.detail}`);
+}
+
+const projects = selectProjects();
+if (projects.length === 0) {
+	console.error("Usage: npx tsx scripts/hitl-record-run.mts <projectId...> | --all-new [--dry-run]");
+	process.exit(1);
+}
+
+if (process.argv.includes("--dry-run")) {
+	console.log(`would record ${projects.length} project(s), state in ${statePath}:`);
+	for (const projectId of projects) {
+		const done = existsSync(join(SCENARIOS, projectId, "perfect-run.json"));
+		console.log(`  ${done ? "skip" : "run "} ${projectId}`);
+	}
+	process.exit(0);
+}
+
+/**
+ * Refuse to seed onto a busy rig.
+ *
+ * The endpoint serves one task at a time, so seeding a second project does not add throughput — it interleaves two
+ * drives on one queue and makes BOTH recordings incoherent, since a capture is a slice of that queue by request id.
+ * Live 2026-09-08: exactly this happened and had to be unwound by hand.
+ */
+async function liveCardsElsewhere(): Promise<string[]> {
+	try {
+		const listed = await fetch(`${base}/api/trpc/projects.list?batch=1`).then((response) => response.json());
+		const workspaces = listed[0]?.result?.data?.projects ?? [];
+		const busy: string[] = [];
+		for (const workspace of workspaces) {
+			const state = await fetch(
+				`${base}/api/trpc/workspace.getState?workspaceId=${encodeURIComponent(workspace.id)}`,
+				{ headers: { "x-nklein-workspace-id": workspace.id } },
+			).then((response) => response.json());
+			const columns = state?.result?.data?.board?.columns ?? [];
+			const live = columns
+				.filter((column: { id: string }) => !["completed", "trash", "backlog"].includes(column.id))
+				.flatMap((column: { cards: unknown[] }) => column.cards);
+			if (live.length > 0) {
+				busy.push(`${workspace.id} (${live.length} live card(s))`);
+			}
+		}
+		return busy;
+	} catch {
+		return [];
+	}
+}
+
+const busy = await liveCardsElsewhere();
+if (busy.length > 0 && !process.argv.includes("--force")) {
+	console.error(
+		`refusing to start: the rig already has live cards, and its endpoint serves one task at a time, so a second drive would interleave with the first and make BOTH recordings incoherent:\n  ${busy.join("\n  ")}\n\nWait for them, abandon them (scripts/hitl-abandon-run.mts), or pass --force.`,
+	);
+	process.exit(1);
+}
+
+console.log(`recording ${projects.length} project(s), state in ${statePath}`);
+
+for (const projectId of projects) {
+	if (existsSync(join(SCENARIOS, projectId, "perfect-run.json"))) {
+		note({ projectId, status: "skipped", detail: "already recorded", at: new Date().toISOString() });
+		continue;
+	}
+	saveState(projectId);
+	console.log(`\n=== ${projectId} ===`);
+
+	// 1. The mark MUST be taken before the seed. `record` refuses without it rather than guessing.
+	const marked = await run("npx", ["tsx", "scripts/hitl-record-project.mts", "mark", projectId]);
+	if (marked.code !== 0) {
+		note({ projectId, status: "failed", detail: `mark failed: ${marked.tail}`, at: new Date().toISOString() });
+		continue;
+	}
+
+	// 2. Seed and drain. The rail owns the deadline and the settle rules; it exits when the board stops moving.
+	const drained = await run(
+		"npx",
+		[
+			"tsx", "scripts/dev-test-rail.mts",
+			"--projects", projectId,
+			"--model", "claude-hitl",
+			"--endpoint", "http://127.0.0.1:8095/v1",
+			"--concurrency", "1",
+			"--max-wait-ms", String(maxWaitMs),
+		],
+		{ NKLEIN_VERIFY_BASE_URL: base },
+	);
+	if (drained.code !== 0) {
+		note({ projectId, status: "failed", detail: `rail exited ${drained.code}: ${drained.tail}`, at: new Date().toISOString() });
+		continue;
+	}
+
+	// 3. Reshape the queue slice into a scenario set.
+	const recorded = await run("npx", ["tsx", "scripts/hitl-record-project.mts", "record", projectId]);
+	if (recorded.code !== 0) {
+		note({ projectId, status: "failed", detail: `record failed: ${recorded.tail}`, at: new Date().toISOString() });
+		continue;
+	}
+
+	// 4. A recording that has never been replayed is not a test. Prove it replays before calling it done.
+	const replayed = await run("npx", ["tsx", "scripts/verify-simulated-flow.mts"], {
+		NKLEIN_SIMFLOW_SCENARIO: projectId,
+	});
+	note({
+		projectId,
+		status: replayed.code === 0 ? "recorded" : "failed",
+		detail: replayed.code === 0 ? "recorded and replayed" : `replay failed: ${replayed.tail}`,
+		at: new Date().toISOString(),
+	});
+}
+
+saveState();
+const recordedCount = results.filter((result) => result.status === "recorded").length;
+const failed = results.filter((result) => result.status === "failed");
+console.log(`\ndone: ${recordedCount} recorded, ${failed.length} failed, ${results.length - recordedCount - failed.length} skipped`);
+if (failed.length > 0) {
+	console.log(`failed: ${failed.map((result) => result.projectId).join(", ")}`);
+}

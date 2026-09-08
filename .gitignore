@@ -65,3 +65,4 @@ screenlog.*
 flashget-download.log
 .dsh-audit/
 .dsh-sweep.sh
+.nklein-record-run.json
