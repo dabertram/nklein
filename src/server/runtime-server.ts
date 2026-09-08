@@ -4796,6 +4796,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							deps.warn(
 								`Board-liveness watchdog: stopping the live session of ${terminal.columnId} card ${terminal.taskId} — it holds a model slot with nothing to deliver.`,
 							);
+							// RETIRE before stopping. Live 2026-09-08: stopping alone is not enough — a model turn still
+							// queued behind the shared endpoint came up after the stop, the context-overflow controller
+							// compacted (which RESTARTS the session), the watchdog stopped it again, and the pair looped
+							// every 30 seconds, putting sixteen junk requests on the endpoint in seven minutes while the
+							// drive made no progress. Retirement is what makes the stop stick.
+							trackedService.retireTaskSession?.({
+								taskId: terminal.taskId,
+								reason: terminal.columnId === "absent" ? "card_absent_from_board" : "terminal_lane_card",
+								detail: `card sits in ${terminal.columnId}`,
+								at: Date.now(),
+							});
 							recordSelfObservation({
 								signal: "custom",
 								severity: "warning",

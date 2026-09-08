@@ -21,6 +21,7 @@ import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level
 import type { PromptFragment } from "../core/prompt-fragment-assembly";
 import type { SandboxMcpServerControls } from "../core/sandbox-mcp-controls";
 import type { SessionForkBoundary, SessionForkRefusal } from "../core/session-fork";
+import type { RetiredSession } from "../core/session-retirement";
 import type { SkillDynamicsLevel } from "../core/skill-resolver";
 import type { CommunitySkillSessionAdmission } from "../server/community-skill-execution-service";
 import type { TaskRunTimeoutSource } from "../state/task-run-summary-store";
@@ -190,6 +191,11 @@ export interface NKleinTaskSessionService {
 	 * post-delivery cleanup stop, so a racing late finalize is benign supersede noise instead of a capture error.
 	 */
 	markTaskDeliverySettled?: (taskId: string) => void;
+	/**
+	 * Retire a session so no recovery path may restart it (its card reached a terminal lane, or left the board).
+	 * Optional so alternative service implementations need not carry it; see `src/core/session-retirement.ts`.
+	 */
+	retireTaskSession?: (entry: RetiredSession) => void;
 	/** §dsh#32: fork the source session's context at a safe step boundary into a NEW task session. */
 	forkTaskSessionAtBoundary(input: {
 		sourceTaskId: string;

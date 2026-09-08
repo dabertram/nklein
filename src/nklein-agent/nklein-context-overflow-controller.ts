@@ -20,6 +20,7 @@ import type { NKleinSdkPersistedMessage } from "./sdk-runtime-boundary.js";
 
 /** Above this projected-usage ratio the send warns the operator; above the compact ratio it proactively compacts. */
 const CONTEXT_BUDGET_WARNING_RATIO = 0.8;
+
 /**
  * Proactive-compaction threshold. Env-tunable (`NKLEIN_CONTEXT_COMPACT_RATIO`, clamped 0.05–0.99) because the
  * RATIO is policy while the stop→compact→restart MECHANISM is the invariant: the N10 crash matrix exercises
@@ -27,6 +28,8 @@ const CONTEXT_BUDGET_WARNING_RATIO = 0.8;
  * with fixture ballast just trips a legitimate admission guard (start-fit, difficulty, E2BIG, repetition) that
  * exists to prevent exactly such oversized cards. Operators can also lower it on memory-tight fleets.
  */
+import { describeRefusedRevival, type RetiredSession } from "../core/session-retirement";
+
 const CONTEXT_BUDGET_COMPACT_RATIO = (() => {
 	const raw = Number.parseFloat(process.env.NKLEIN_CONTEXT_COMPACT_RATIO ?? "");
 	return Number.isFinite(raw) ? Math.min(0.99, Math.max(0.05, raw)) : 0.92;
@@ -43,6 +46,12 @@ export interface ContextOverflowControllerDeps {
 		persistedSnapshot?: NKleinPersistedTaskSessionSnapshot | null;
 	}): NKleinTaskRestartLaunchConfig | null;
 	stopTaskSession(taskId: string): Promise<unknown>;
+	/**
+	 * OPTIONAL: the task's retirement record, if the runtime has retired this session. A retired session must not be
+	 * restarted — compaction restarting one is exactly how the 2026-09-08 stop/restart loop ran (see
+	 * `src/core/session-retirement.ts`). Absent dep ⇒ nothing is ever retired ⇒ unchanged behaviour.
+	 */
+	findRetiredSession?(taskId: string): RetiredSession | null;
 	canRestartTaskSession(taskId: string): boolean;
 	waitUntilTaskResumed(taskId: string): Promise<void>;
 	markStarted(taskId: string): void;
@@ -110,6 +119,21 @@ export function createContextOverflowController(deps: ContextOverflowControllerD
 		restartLaunchConfig: NKleinTaskRestartLaunchConfig | null;
 		cwd: string | null | undefined;
 	}): Promise<RestartOutcome> {
+		// A retired session is one the runtime stopped for a reason that outlives the stop (its card reached a
+		// terminal lane, or left the board). Compaction must not undo that: restarting here is what turned a
+		// completed card into a 30-second stop/restart loop against the shared endpoint.
+		const retired = deps.findRetiredSession?.(input.taskId) ?? null;
+		if (retired) {
+			const message = describeRefusedRevival(retired);
+			deps.recordObservationWithModel({
+				signal: "custom",
+				severity: "warning",
+				message,
+				taskId: input.taskId,
+				metadata: { category: "retired_session_revival_refused", reason: retired.reason },
+			});
+			throw new Error(message);
+		}
 		if (deps.canRestartTaskSession(input.taskId)) {
 			await deps.waitUntilTaskResumed(input.taskId);
 			deps.markStarted(input.taskId);

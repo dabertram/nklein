@@ -87,6 +87,14 @@ import { assessPredictedExecution } from "../core/predicted-execution-check";
 import type { PromptFragment } from "../core/prompt-fragment-assembly";
 import type { SandboxMcpServerControls } from "../core/sandbox-mcp-controls";
 import {
+	EMPTY_SESSION_RETIREMENT_LEDGER,
+	findRetiredSession,
+	type RetiredSession,
+	retireSession,
+	reviveSession,
+	type SessionRetirementLedger,
+} from "../core/session-retirement";
+import {
 	emptyStrategyEffectivenessLedger,
 	type StrategyAttemptObservation,
 	type StrategyEffectivenessLedger,
@@ -571,11 +579,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	});
 	/** §5.U: the context-overflow recovery pair (reactive retry-after + proactive compact-before). Session-lifecycle
 	 * accessors are supplied lazily so field-init order is irrelevant. */
+	/** Sessions stopped for a reason that must survive the stop; nothing may restart them. See `session-retirement.ts`. */
+	private sessionRetirementLedger: SessionRetirementLedger = EMPTY_SESSION_RETIREMENT_LEDGER;
 	private readonly contextOverflowController = createContextOverflowController({
 		recordObservationWithModel: (event) => this.recordObservationWithModel(event),
 		readPersistedTaskSession: (taskId) => this.sessionRuntime.readPersistedTaskSession(taskId),
 		resolvePersistedLaunchConfig: (input) => this.resolvePersistedLaunchConfig(input),
 		stopTaskSession: (taskId) => this.sessionRuntime.stopTaskSession(taskId, { suppressTaskEvents: true }),
+		findRetiredSession: (taskId) => findRetiredSession(this.sessionRetirementLedger, taskId),
 		canRestartTaskSession: (taskId) => this.sessionRuntime.canRestartTaskSession(taskId),
 		waitUntilTaskResumed: (taskId) => this.waitUntilTaskResumed(taskId),
 		markStarted: (taskId) => this.requestTimer.markStarted(taskId),
@@ -2336,6 +2347,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	async startTaskSession(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary> {
+		// A deliberate start is the one gesture that says the retirement reason is gone (an operator re-opening a
+		// completed card, a redecompose reusing the id). Nothing else revives a retired session.
+		this.sessionRetirementLedger = reviveSession(this.sessionRetirementLedger, request.taskId);
 		// Single-flight per task id: if a start for this card is already in flight, return its promise rather than
 		// running a second concurrent start that would pass the (not-yet-committed) double-start guard and spawn a
 		// duplicate sandbox run. The committed-entry guard inside still handles an ALREADY-STARTED card.
@@ -3223,6 +3237,20 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 */
 	markTaskDeliverySettled(taskId: string): void {
 		this.sandboxState.markDeliverySettled(taskId);
+	}
+
+	/**
+	 * Retire a session: it was stopped for a reason that outlives the stop (its card is in a terminal lane, or gone
+	 * from the board), so no recovery path may restart it. The asymmetry is deliberate — an ordinary stop does NOT
+	 * retire, and only a deliberate start revives. See `src/core/session-retirement.ts` for the loop this ends.
+	 */
+	retireTaskSession(entry: RetiredSession): void {
+		this.sessionRetirementLedger = retireSession(this.sessionRetirementLedger, entry);
+	}
+
+	/** The retirement record for a task, or null. */
+	findRetiredTaskSession(taskId: string): RetiredSession | null {
+		return findRetiredSession(this.sessionRetirementLedger, taskId);
 	}
 
 	async stopTaskSession(

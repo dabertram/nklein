@@ -116,3 +116,51 @@ describe("compactBeforeOverflow", () => {
 		expect(out).toEqual({ result: "restarted", warnings: ["w"] });
 	});
 });
+
+/**
+ * Live 2026-09-08, project 38: card `mutation-duration-schedule-kill-m3` reached `completed` with a model turn
+ * still queued behind the shared endpoint. The turn came up, this controller compacted (which RESTARTS the
+ * session), the board-liveness watchdog stopped the session of a completed card, the abort retried the delivery,
+ * and the pair looped every 30 seconds — sixteen junk requests on the endpoint in seven minutes, zero progress.
+ * Retirement is what makes the watchdog's stop stick, and this is the half that reads it.
+ */
+describe("retired sessions are never revived by compaction", () => {
+	const retired = {
+		taskId: "t1",
+		reason: "terminal_lane_card" as const,
+		detail: "card sits in completed",
+		at: 1,
+	};
+
+	it("refuses the reactive overflow restart and says why", async () => {
+		isContextOverflowError.mockReturnValue(true);
+		const d = deps({ findRetiredSession: vi.fn(() => retired) });
+		await expect(createContextOverflowController(d).recoverAfterOverflow(overflow)).rejects.toThrow(
+			/Refusing to restart the session for t1/u,
+		);
+		expect(d.restartTaskSession).not.toHaveBeenCalled();
+		expect(d.startRuntimeSession).not.toHaveBeenCalled();
+		expect(d.recordObservationWithModel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: expect.objectContaining({ category: "retired_session_revival_refused" }),
+			}),
+		);
+	});
+
+	it("restarts as before when the task is NOT retired", async () => {
+		isContextOverflowError.mockReturnValue(true);
+		const d = deps({ findRetiredSession: vi.fn(() => null) });
+		const out = await createContextOverflowController(d).recoverAfterOverflow(overflow);
+		expect(out).toEqual({ result: "restarted", warnings: ["w"] });
+		expect(d.restartTaskSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("is inert when the dep is absent — an implementation with no ledger behaves exactly as before", async () => {
+		isContextOverflowError.mockReturnValue(true);
+		const d = deps();
+		expect(await createContextOverflowController(d).recoverAfterOverflow(overflow)).toEqual({
+			result: "restarted",
+			warnings: ["w"],
+		});
+	});
+});
