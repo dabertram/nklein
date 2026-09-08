@@ -37,6 +37,8 @@ import type {
 	RuntimeCardTimelineResponse,
 	RuntimeChatHostActionAuditRequest,
 	RuntimeChatHostActionAuditResponse,
+	RuntimeClearModelDeadMarkRequest,
+	RuntimeClearModelDeadMarkResponse,
 	RuntimeCommandRunResponse,
 	RuntimeCommunitySkillDiscoveryRequest,
 	RuntimeCommunitySkillDiscoveryResponse,
@@ -90,6 +92,7 @@ import type {
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeLedgerAnalyticsResponse,
+	RuntimeListModelDeadMarksResponse,
 	RuntimeListPlanQuestionsRequest,
 	RuntimeListPlanQuestionsResponse,
 	RuntimeLlmfitCatalogUpdateCheckResponse,
@@ -584,6 +587,13 @@ export interface RuntimeTrpcContext {
 		) => Promise<RuntimeRedecomposeResponse>;
 		/** Per-task observed attempt time + estimated difficulty for the DAG's durations/ETA/critical path. */
 		getBoardSchedule: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeBoardScheduleResponse>;
+		/** Every live model-liveness dead mark (P0.AUDIT0904 leg 11) — what routing is currently excluding, and why. */
+		listModelDeadMarks: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeListModelDeadMarksResponse>;
+		/** Re-admit a model the ledger marked dead — one endpoint, or every endpoint when none is given. */
+		clearModelDeadMark: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeClearModelDeadMarkRequest,
+		) => Promise<RuntimeClearModelDeadMarkResponse>;
 		/** Un-park a review-lane card (2026-09-05): clear the park and re-dispatch the review. */
 		unparkReview: (
 			scope: RuntimeTrpcWorkspaceScope | null,

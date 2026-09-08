@@ -96,6 +96,36 @@ export const runtimeUnparkReviewResponseSchema = z.object({
 });
 export type RuntimeUnparkReviewResponse = z.infer<typeof runtimeUnparkReviewResponseSchema>;
 
+// Model-liveness dead marks (P0.AUDIT0904 leg 11, 2026-09-08): a marked model is excluded from routing for up to
+// four hours, and until now nothing exposed that fact or let an operator undo it — a model that recovered early sat
+// out its whole TTL invisibly. These read and clear the process-wide ledger (`src/core/model-liveness-ledger.ts`).
+export const runtimeModelDeadMarkSchema = z.object({
+	modelId: z.string(),
+	/** The endpoint the model was proven dead ON — marks are keyed by (model, endpoint). */
+	endpoint: z.string(),
+	reason: z.enum(["absent_from_listing", "listed_but_dead"]),
+	markedAtMs: z.number(),
+	expiresAtMs: z.number(),
+});
+export type RuntimeModelDeadMark = z.infer<typeof runtimeModelDeadMarkSchema>;
+export const runtimeListModelDeadMarksResponseSchema = z.object({
+	marks: z.array(runtimeModelDeadMarkSchema),
+});
+export type RuntimeListModelDeadMarksResponse = z.infer<typeof runtimeListModelDeadMarksResponseSchema>;
+export const runtimeClearModelDeadMarkRequestSchema = z.object({
+	modelId: z.string().min(1),
+	/** Omitted ⇒ re-admit the model on EVERY endpoint; given ⇒ only that host. */
+	endpoint: z.string().min(1).nullable().optional(),
+});
+export type RuntimeClearModelDeadMarkRequest = z.infer<typeof runtimeClearModelDeadMarkRequestSchema>;
+export const runtimeClearModelDeadMarkResponseSchema = z.object({
+	ok: z.boolean(),
+	/** How many marks the clear removed (0 ⇒ nothing was marked). */
+	cleared: z.number(),
+	error: z.string().nullable(),
+});
+export type RuntimeClearModelDeadMarkResponse = z.infer<typeof runtimeClearModelDeadMarkResponseSchema>;
+
 export const runtimeNKleinAdvisorKindSchema = z.enum([
 	"model_freshness",
 	"mcp_discovery",

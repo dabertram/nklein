@@ -95,9 +95,13 @@ import {
 	preferredPromptVariantFamily,
 	preferredToolCallFormat,
 } from "../core/model-behavior-profile";
+import { clearModelDeadMark, listModelDeadMarks } from "../core/model-liveness-ledger";
 import { buildModelTuningRecommendations } from "../core/model-tuning-recommendations";
 import type {
 	RuntimeBoardScheduleResponse,
+	RuntimeClearModelDeadMarkRequest,
+	RuntimeClearModelDeadMarkResponse,
+	RuntimeListModelDeadMarksResponse,
 	RuntimeModelEvalSummary,
 	RuntimeRedecomposeRequest,
 	RuntimeRedecomposeResponse,
@@ -1989,6 +1993,38 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		// Un-park a review (2026-09-05): parked cards ("for a human decision") had no operator handle except a
 		// worker stop→start that RE-DOES the work. This clears the park (history kept — the loop detector still
 		// sees prior rounds) and re-dispatches the judgment through the runtime server's review path.
+		listModelDeadMarks: async (_workspaceScope): Promise<RuntimeListModelDeadMarksResponse> => {
+			// The ledger is process-wide by design (one runtime process owns routing), so it is not workspace-scoped.
+			return { marks: listModelDeadMarks().map((mark) => ({ ...mark })) };
+		},
+		clearModelDeadMark: async (
+			_workspaceScope,
+			input: RuntimeClearModelDeadMarkRequest,
+		): Promise<RuntimeClearModelDeadMarkResponse> => {
+			const modelId = input.modelId.trim();
+			if (!modelId) {
+				return { ok: false, cleared: 0, error: "modelId is required" };
+			}
+			const endpoint = input.endpoint?.trim() || undefined;
+			// Count what the clear actually REMOVES, so the operator is told a fact rather than an assumption.
+			const removed = listModelDeadMarks().filter(
+				(mark) => mark.modelId === modelId && (endpoint === undefined || mark.endpoint === endpoint),
+			);
+			clearModelDeadMark(modelId, endpoint);
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Model dead mark cleared by operator: ${modelId}${endpoint ? ` at ${endpoint}` : " (every endpoint)"} — ${removed.length} mark(s) removed.`,
+				metadata: {
+					category: "model_dead_mark_cleared",
+					modelId,
+					endpoint: endpoint ?? null,
+					cleared: removed.length,
+					reasons: removed.map((mark) => mark.reason),
+				},
+			});
+			return { ok: true, cleared: removed.length, error: null };
+		},
 		unparkReview: async (workspaceScope, input: RuntimeUnparkReviewRequest): Promise<RuntimeUnparkReviewResponse> => {
 			if (!workspaceScope) {
 				return { ok: false, previousParkedReason: null, dispatched: false, error: "no active workspace" };

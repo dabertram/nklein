@@ -36,6 +36,8 @@ import {
 	runtimeCardTimelineResponseSchema,
 	runtimeChatHostActionAuditRequestSchema,
 	runtimeChatHostActionAuditResponseSchema,
+	runtimeClearModelDeadMarkRequestSchema,
+	runtimeClearModelDeadMarkResponseSchema,
 	runtimeCommandRunResponseSchema,
 	runtimeCommunitySkillDiscoveryRequestSchema,
 	runtimeCommunitySkillDiscoveryResponseSchema,
@@ -72,6 +74,7 @@ import {
 	runtimeKleinCorePyHealthResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
 	runtimeLedgerAnalyticsResponseSchema,
+	runtimeListModelDeadMarksResponseSchema,
 	runtimeListPlanQuestionsRequestSchema,
 	runtimeListPlanQuestionsResponseSchema,
 	runtimeLlmfitCatalogUpdateCheckResponseSchema,
@@ -719,6 +722,15 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		getBoardSchedule: t.procedure.output(runtimeBoardScheduleResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getBoardSchedule(ctx.workspaceScope);
 		}),
+		listModelDeadMarks: t.procedure.output(runtimeListModelDeadMarksResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.listModelDeadMarks(ctx.workspaceScope);
+		}),
+		clearModelDeadMark: t.procedure
+			.input(runtimeClearModelDeadMarkRequestSchema)
+			.output(runtimeClearModelDeadMarkResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.clearModelDeadMark(ctx.workspaceScope, input);
+			}),
 		unparkReview: t.procedure
 			.input(runtimeUnparkReviewRequestSchema)
 			.output(runtimeUnparkReviewResponseSchema)

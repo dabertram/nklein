@@ -2293,7 +2293,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   listing id, no ledger; (8) ledger keyed by modelId only, endpoint stored but never read (one dead host
   globally excludes a model resident elsewhere) *(SHIPPED 2026-09-08 as P0.LEDGERENDPOINT)*. **P1:** (9) P0.QWAIT is one line — `scheduleConversationTimeout`
   fires BEFORE the admission wait; (10) pool-loss 3-strike park is warn-only (no blockedKind/observation →
-  invisible to the needs-you inbox); (11) dead marks have no tRPC exposure / clear; (12) all recovery budgets
+  invisible to the needs-you inbox); (11) dead marks have no tRPC exposure / clear *(SHIPPED 2026-09-08 as P0.DEADMARKUI)*; (12) all recovery budgets
   (six strike/dedup maps) are process-local, never cleared on success, never persisted — "bounded to 3" is per
   restart; (13) bounced redrive ignores `start_in_flight` yet records a 15-min dedup; (14) custodian
   hard-codes its model, no residency/ledger check, swallows failures; (15) custodian finding cards stamped
@@ -2490,6 +2490,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   endpoint or the mark is suppressed for another host's copy) and the reviewer descriptor filter
   (`nklein-reviewer-model-selection.ts`, whose descriptors come from `probeBaseUrl`). Tests: a model dead on one host
   stays usable on the other, the endpoint-less query stays conservative, per-endpoint clear, per-endpoint escalation.
+- [x] **P0.DEADMARKUI — dead marks are visible and clearable by an operator (P0.AUDIT0904 leg 11).**
+  A ledger mark excludes a model from routing for up to FOUR hours (escalating TTL) and nothing exposed that fact
+  or undid it: a model that recovered in five minutes still sat out its whole term, invisibly, and the only lever
+  was a runtime restart. SHIPPED 2026-09-08: `runtime.listModelDeadMarks` (what routing is excluding, with the
+  endpoint and reason on each mark) and `runtime.clearModelDeadMark` (`{ modelId, endpoint? }` — one host, or every
+  endpoint when omitted), wired contract → app-router → runtime-router → runtime-api, mirroring the
+  `runtime.unparkReview` operator handle. The clear COUNTS what it actually removed rather than reporting success
+  blindly, and records `model_dead_mark_cleared` (registered) so an operator re-admission is auditable. Tests cover
+  the list shape, per-endpoint vs all-endpoint clears, the zero-cleared case and the blank-id rejection.
 - [ ] **P0.CTX500 — An engine "Context size has been exceeded" 500 parks the card instead of triggering a
   context-shrink retry.** *(Live 2026-09-03 ~05:00, v31 factory: ornith-local-9b (65k window) as WORKER on
   s42-invariant-battery — "Engine protocol predict stream returned an error: {code:500, message:'Context size
