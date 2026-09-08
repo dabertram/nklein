@@ -180,6 +180,7 @@ import { DELIVERY_ACTION_MANIFEST } from "../core/tool-capability-manifest";
 import { selectTrashedCardSessions, type TerminalLaneSessionBoard } from "../core/trashed-card-sessions";
 import { parseAddedLinesFromUnifiedDiff } from "../core/unified-diff-added-lines";
 import { combineVerifierVerdicts } from "../core/verifier-ensemble";
+import { classifyModelBusy } from "../core/wedge-model-classifier";
 import { findWorkPackageBoundaryViolations } from "../core/work-package-card-shape";
 import { laneMoveForAppliedTransition } from "../core/workflow-board-bridge";
 import { buildDecompositionRoutingCandidates } from "../nklein-agent/decomposition/build-decomposition-routing-candidates";
@@ -913,15 +914,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const MODEL_TURN_ADMISSION_WARN_MS = 30_000;
 	const MODEL_TURN_LMS_PS_TIMEOUT_MS = 15_000;
 	// P0.BUSYWEDGE (v31 2026-09-07): a model that `lms ps` reports processing/generating is slow, not dead. Shared by
-	// the zero-token wedge sweep and the silent-running sweep so "busy" has one definition. Unreachable lms ⇒ not busy.
+	// the zero-token wedge sweep and the silent-running sweep so "busy" has one definition — which is why the
+	// definition, including the unreachable-⇒-not-busy fail direction, lives in `src/core/wedge-model-classifier.ts`
+	// with the probe injected (P0.AUDIT0904 leg 25: it had no test while embedded here).
 	const isModelBusyPerLmsPs = async (modelId: string): Promise<boolean> =>
-		fetchLmsPsModelsCached(createDefaultLmsRunner(MODEL_TURN_LMS_PS_TIMEOUT_MS))
-			.then((models) =>
-				models.some(
-					(model) => model.identifier === modelId && /processing|generating/iu.test(String(model.status ?? "")),
-				),
-			)
-			.catch(() => false);
+		await classifyModelBusy(modelId, () =>
+			fetchLmsPsModelsCached(createDefaultLmsRunner(MODEL_TURN_LMS_PS_TIMEOUT_MS)),
+		);
 	const activeModelTurnsByWorkspaceId = new Map<string, NKleinEndpointSessionSnapshot[]>();
 	const modelTurnAdmissionTailByWorkspaceId = new Map<string, Promise<void>>();
 	const modelTurnAdmissionGateByWorkspaceId = new Map<string, NKleinModelTurnAdmissionGate>();
