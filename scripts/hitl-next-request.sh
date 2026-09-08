@@ -37,6 +37,7 @@
 #   --claim ID  claim under this responder name (default: `responder-<pid>`; claiming is ON)
 #   --no-claim  opt OUT of claiming — only for a deliberately single-responder debugging session
 # Env:    HITL_STALE_MINUTES (default 30) — ignore unanswered requests older than this; their sessions are gone.
+#         HITL_CLAIM_ABANDONED_MINUTES (default 20) — reclaim a claim untouched for this long; its responder died.
 # Prints:  the lowest unanswered request id > mark, or "NONE" if none appeared before the deadline.
 # Exit:    0 when an id is printed, 3 on timeout (so `||` can distinguish "idle" from "error").
 set -u
@@ -45,6 +46,12 @@ MARK="${1:-0}"
 MAX_WAIT="${2:-240}"   # well inside the agent harness's 600s no-progress watchdog (see header)
 POLL="${HITL_POLL_SECONDS:-5}"
 STALE_MINUTES="${HITL_STALE_MINUTES:-30}"   # a request older than this with no answer is a corpse, not work
+# How long a claim may sit untouched before another responder may take it. This was 60 minutes, and 60 minutes is
+# not a safety margin, it is the outage: when a responder died mid-turn (twice on 2026-09-08, killed by the agent
+# harness's own 600s no-progress watchdog) its claim wedged the model seat for an HOUR, and the claim had to be
+# removed by hand before a replacement could work. A live responder cannot be silent longer than that watchdog
+# allows, and a real turn is minutes, so 20 is generous for the living and quick for the dead.
+CLAIM_ABANDONED_MINUTES="${HITL_CLAIM_ABANDONED_MINUTES:-20}"
 CLAIM_AS="responder-$$"
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -55,8 +62,9 @@ while [ $# -gt 0 ]; do
 done
 CLAIMS="$QUEUE/claims"
 
-# A claim is STALE once the request it guards has an answer, or once nothing has touched it for an hour (a
-# responder that died mid-turn must not wedge the seat forever, which is the failure the claim is meant to prevent).
+# A claim is STALE once the request it guards has an answer, or once nothing has touched it for
+# CLAIM_ABANDONED_MINUTES (a responder that died mid-turn must not wedge the seat, which is the very failure the
+# claim exists to prevent — see the constant above for why the old hour was self-defeating).
 claim_id() {
 	local id="$1"
 	[ -z "$CLAIM_AS" ] && return 0
@@ -66,7 +74,7 @@ claim_id() {
 		return 0
 	fi
 	# Already claimed. Reclaim only a demonstrably abandoned one.
-	if [ -n "$(find "$CLAIMS/$id" -maxdepth 0 -mmin +60 2>/dev/null)" ]; then
+	if [ -n "$(find "$CLAIMS/$id" -maxdepth 0 -mmin +"$CLAIM_ABANDONED_MINUTES" 2>/dev/null)" ]; then
 		printf '%s\n' "$CLAIM_AS" > "$CLAIMS/$id/owner"
 		touch "$CLAIMS/$id"
 		return 0
@@ -101,7 +109,7 @@ while :; do
 			# it. Offering one to a responder wastes a whole turn on a conversation nobody is listening to, and
 			# across a batch of projects those corpses accumulate faster than they are answered.
 			[ -n "$(find "$path" -mmin +"$STALE_MINUTES" 2>/dev/null)" ] && continue
-			if [ -n "$CLAIM_AS" ] && [ -d "$CLAIMS/$id" ] && [ -z "$(find "$CLAIMS/$id" -maxdepth 0 -mmin +60 2>/dev/null)" ]; then
+			if [ -n "$CLAIM_AS" ] && [ -d "$CLAIMS/$id" ] && [ -z "$(find "$CLAIMS/$id" -maxdepth 0 -mmin +"$CLAIM_ABANDONED_MINUTES" 2>/dev/null)" ]; then
 				continue   # another responder owns this turn
 			fi
 			if [ -z "$next" ] || [ "$id" -lt "$next" ]; then next="$id"; fi
