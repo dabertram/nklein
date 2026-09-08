@@ -962,6 +962,23 @@ gap remains.
 > retention contract. Record provider prompt tokens, finish reason, reasoning, latency, and failures separately.
 
 
+> **A `node --test` GRANDCHILD INHERITS `NODE_TEST_CONTEXT` AND SILENTLY RUNS NOTHING (2026-09-08, dev-test
+> test-authoring family).** Node marks each test-file process with `NODE_TEST_CONTEXT`/`NODE_TEST_WORKER_ID`. A
+> `spawnSync(node, ["--test", …])` from inside a test that inherits `process.env` prints `run() is being called
+> recursively within a test file. skipping running files.` to stderr, executes **nothing**, and exits **0**. For the
+> mutation verifier in `scripts/dev-fixtures/tests-t*/test/mutation.test.js` that read as a passing baseline AND
+> every mutant surviving — a fully green-looking harness measuring nothing. Strip every `NODE_TEST*` key from the
+> child env, and never treat an exit code alone as a result: parse `--test-reporter=tap`'s `# pass`/`# fail` and
+> refuse to interpret a run where `pass + fail === 0`.
+
+> **`a[expr] = await f()` EVALUATES `expr` BEFORE THE AWAIT (2026-09-08, same family).** The assignment target's
+> reference is resolved first, so mutating `results[index] = await worker(…)` into `results[next - 1] = await
+> worker(…)` produces an EQUIVALENT program: `next - 1` is read while it still equals `index`. Any test asserting
+> completion-vs-input ordering therefore cannot kill it. To make the index observe post-await state, bind first
+> (`const value = await worker(…); results[index] = value;`). General rule for mutation fixtures: a mutant is not
+> a mutant until a reference suite has actually killed it — assert that, do not assume it.
+
+
 > Integrated from the former `AGENTS.md` (2026-06-28, user). `todo.md` is the **single file** an agent is pointed at —
 > `AGENTS.md`/`CLAUDE.md` are now thin pointers here. **When to add tribal knowledge to this section:** the user had to
 > intervene/correct/hand-hold · multiple back-and-forths to get something working · something required reading many files

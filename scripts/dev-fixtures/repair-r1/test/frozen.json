@@ -1,0 +1,12 @@
+{
+	"schemaVersion": 1,
+	"frozen": {
+		"scenarios/support/tickets.mjs": "eaff79d077593d91e46d0235660bda0b3619d218a7e5cf239bd3f07554de116d",
+		"scenarios/triage.scenarios.mjs": "c5c97e527ce56ff0f8e8fda27150d30ecbd1d09dbebdc92edc58832e39296d6f",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"test/repair.test.js": "52ffc088b90edc20996d6cb6859ba166765c5277905ebd80d8e2ceccd5f0325d"
+	},
+	"src": {
+		"src/triage.mjs": "33adae962d4017c1c86edd9cae700c93fe4db5875602a195a4e7537112446115"
+	}
+}
