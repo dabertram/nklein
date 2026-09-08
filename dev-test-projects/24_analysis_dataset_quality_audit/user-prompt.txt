@@ -1,0 +1,9 @@
+Audit the shipment export in input/ and tell me how dirty it is, with numbers.
+
+This is an analysis job, not a build job: do not clean the data, write a loader, or repair a single row. I want a
+quality report — for each rule the export breaks, exactly how many rows break it and a couple of rows I can open
+to see it for myself.
+
+Read specification.md for the four rules that count, the deliverable's shape, and the rules I will hold you to.
+Two worth repeating here: the counts must be exact, because the acceptance check recomputes every one of them
+from the data on every run; and a row cited as an example that turns out to be clean fails the build.

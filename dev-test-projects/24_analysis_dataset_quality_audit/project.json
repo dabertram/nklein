@@ -1,0 +1,16 @@
+{
+	"id": "24_analysis_dataset_quality_audit",
+	"title": "Analysis: Data-Quality Audit of a Freight Shipment Export",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "analysis-a4",
+	"tier": "4/5 analysis",
+	"tags": [
+		"data quality",
+		"referential integrity",
+		"dataset profiling",
+		"exact counts",
+		"evidence citation"
+	]
+}

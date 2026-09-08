@@ -1,0 +1,9 @@
+Audit the handlers in input/ before the pen test does, and rate what you find.
+
+This is an analysis job, not a build job: nothing gets patched, parameterised or rotated. I want the findings —
+each one located, classified, and carrying a severity I can defend to the auditors. The severity is not a feeling;
+specification.md states the rubric, and the route table in input/routes.mjs is what makes it decidable.
+
+Read specification.md for the four classes that count, the rubric, the deliverable's shape, and the rules I will
+hold you to. The one worth repeating here: the acceptance check re-derives both the findings and their severities
+from the evidence on every run, so a real finding with the wrong rating fails exactly like a fabricated one.

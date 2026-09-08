@@ -1,0 +1,9 @@
+Audit the package in input/ and tell me how its module graph is actually wired.
+
+This is an analysis job, not a build job: I do not want the cycles broken, the dead exports deleted, or anything
+refactored. I want a defensible map of the structural problems — every import cycle with its full membership,
+every export nobody consumes, and every module nothing pulls in.
+
+Read specification.md for the three classes that count, the deliverable's shape, and the rules I will hold you to.
+The one rule worth repeating here: a wrong finding is worse than a missing one, and the acceptance check rebuilds
+the import graph from the evidence on every run, so a plausible-sounding claim it cannot support fails the build.

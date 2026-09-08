@@ -1,0 +1,9 @@
+Reconstruct incident INC-4471 from the log in input/ and tell me what actually happened.
+
+This is an analysis job, not a build job: nothing needs fixing, patching or re-running. I want the causal chain —
+what set the outage off, what made it worse, and where it finally broke — with every step cited by its line number
+so a reviewer can check it without re-reading 182 lines. Then name the root cause.
+
+Read specification.md for the three roles that count, the root-cause rubric, the deliverable's shape, and the
+rules I will hold you to. The one rule worth repeating here: a wrong event is worse than a missing one, and the
+acceptance check re-derives the chain from the log on every run.

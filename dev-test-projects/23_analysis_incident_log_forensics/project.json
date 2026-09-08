@@ -1,0 +1,16 @@
+{
+	"id": "23_analysis_incident_log_forensics",
+	"title": "Analysis: Incident Log Forensics and Root-Cause Classification",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "analysis-a3",
+	"tier": "3/5 analysis",
+	"tags": [
+		"log forensics",
+		"causal chain",
+		"root cause analysis",
+		"incident review",
+		"evidence citation"
+	]
+}

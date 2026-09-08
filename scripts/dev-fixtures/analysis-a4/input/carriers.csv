@@ -1,0 +1,9 @@
+carrier_id,carrier_name,mode
+CR-01,Northline Freight,sea
+CR-02,Atlas Air Cargo,air
+CR-03,Meridian Shipping,sea
+CR-04,Kestrel Road Haulage,road
+CR-05,Baltic Container Line,sea
+CR-06,Pinewood Rail Freight,rail
+CR-07,Solstice Express,air
+CR-08,Harbourgate Logistics,sea
