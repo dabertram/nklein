@@ -2089,16 +2089,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [ ] **DEVTEST30 — the six-family dev-test expansion David approved: 30 projects, 5 per family, increasing difficulty.**
   The grading contract every non-build family follows is `docs/dev/dev-test-projects/grading-contract.md` (8 rules;
   read it before authoring one). Status:
-  - **built + four-state proven:** test-authoring 37–41, analysis 42–46, specification 47–51, planning 52–56,
-    repair 57–61, refactor 62–66, integration 67–71. Seven families, 35 projects.
-  - **still to build:** performance 72–76 — instrumented operation/allocation COUNTS against a budget, never wall
-    time. Free prefixes: 72–89.
+  - **ALL BUILT + four-state proven, 40 projects, 8 families:** test-authoring 37–41, analysis 42–46,
+    specification 47–51, planning 52–56, repair 57–61, refactor 62–66, integration 67–71, performance 72–76.
+    86 dev-test projects load, none broken, prefixes unique. Free prefixes from 77.
   - **still to drive:** all of them through the rig, each recorded as an aimock scenario set with
     `scripts/hitl-record-project.mts mark|record`. Project 42 is the first, in flight.
   A fixture is NOT done until four states are pasted (untouched green / wrong entry fails naming it / correct
   partial green / `complete:true` with something missing fails naming it) AND it has been solved once, because a
-  fixture nobody has solved may not be solvable. Two real defects were caught only by that last step: a duplication
-  metric that failed a correct dedupe, and two goals already met at base that would have graded nothing.
+  fixture nobody has solved may not be solvable. **Seven real fixture defects were caught only by solving**, and
+  every one of them would have shipped silently: a duplication metric that failed an agent who HAD deduplicated;
+  goals already met at base that grade nothing (twice); expected strings written by hand that disagreed with the
+  documented rule (twice); a rate limiter that intercepted scripted failures; a queued response taken by the token
+  request instead of the write it meant to fail; a call-log assertion using `indexOf` over copies, which can never
+  match; and an LCG read from its low bits, whose short period collapsed 150 orders onto six customers. The rule
+  that catches all of them: **build the correct solution and watch the fixture accept it, and build a plausible
+  WRONG one and watch the fixture reject it.**
 - [x] **P0.BUSYWEDGE — the zero-token watchdog interrupted a worker whose model was busy prefilling its prompt.**
   v31 2026-09-07: legion5pro takes 15+ min to prefill a 40k-token worker prompt; the 15-min wedge bound killed the
   turn although the classifier had already read the model as BUSY per `lms ps` (that verdict only withheld the
