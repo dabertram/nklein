@@ -2,6 +2,7 @@ import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { buildEditorPrompt } from "../core/architect-editor-split";
 import { foldCapturedWorkProbe } from "../core/captured-work-basis";
+import { setCardPaused } from "../core/card-pause";
 import { restrictToolPoliciesForPlanning } from "../core/decompose-tool-policy";
 import { restrictToolPoliciesForVerdictSession, VERDICT_ONLY_SESSION_KINDS } from "../core/judge-tool-policy";
 import { isModelMarkedDead } from "../core/model-liveness-ledger";
@@ -891,6 +892,19 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				metadata: { category: "sandbox_disposed_session_stopped" },
 			});
 			void this.stopTaskSession(taskId).catch(() => null);
+			// STOPPING IS NOT ENOUGH. Live 2026-09-09: this guard fired nine times and changed nothing, because the
+			// card went straight back through auto-start — which acquires a fresh placement, RESETS the streak, and
+			// hands the model a session whose workspace dies again. A responder shift then spent 62% of its budget
+			// on two such cards, and the projects behind them stalled. The same shape as P0.RETIRELOOP: a stop that
+			// does not stick is a loop with extra steps.
+			//
+			// So the card is paused through the SAME persisted set the auto-start failure guard uses, which auto-start
+			// consults before every start. It is loud in the UI, an operator can resume it, and the once-per-boot hold
+			// release retries it after the environment is fixed — a boot is when a broken sandbox pool gets repaired.
+			const workspacePath = this.messageRepository.getTaskEntry(taskId)?.summary.workspacePath ?? null;
+			if (workspacePath) {
+				void setCardPaused({ workspacePath, taskId, paused: true }).catch(() => null);
+			}
 		});
 		this.pauseController = options.pauseController ?? new NKleinPauseController();
 		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
