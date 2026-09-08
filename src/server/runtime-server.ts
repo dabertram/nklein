@@ -4931,9 +4931,20 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									retryWaitingCardsAfterTerminal(scope, trackedService, undefined, { timerFired: true });
 								}
 							} catch (error) {
-								deps.warn(
-									`blockedKind auto-clear pass failed for ${scope.workspaceId}: ${error instanceof Error ? error.message : String(error)}`,
-								);
+								const reason = error instanceof Error ? error.message : String(error);
+								deps.warn(`blockedKind auto-clear pass failed for ${scope.workspaceId}: ${reason}`);
+								// P0.AUDIT0904 leg 19: warn-only was not enough. This pass is the ONLY machine release
+								// for a blocked card — the sweep refuses them — so if it keeps failing, every blocked
+								// card on the board stays blocked and the sole trace is a line in a log nobody reads
+								// during an unattended run. Record it so the board's needs-you surface can see a
+								// release path that has stopped working.
+								recordSelfObservation({
+									signal: "custom",
+									severity: "warning",
+									message: `blockedKind auto-clear pass FAILED for ${scope.workspaceId} — blocked cards have no other machine release. ${reason}`,
+									workspacePath: scope.workspacePath,
+									metadata: { category: "blocked_kind_auto_clear_failed", reason },
+								});
 							}
 						}
 						// F12.110c fleet-change checkpoint. Probe only when a WAITING card carries a fleet-sizing receipt;

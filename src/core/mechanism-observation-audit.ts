@@ -1333,6 +1333,10 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	// rather than a mechanism gate: it is the only signal a leak leaves, because every caller of disposeWorkspace
 	// swallows the throw on purpose (a failed disposal must not break the path that triggered it).
 	"sandbox_workspace_removal_failed",
+	// P0.AUDIT0904 leg 19 (2026-09-08): the blockedKind auto-clear pass threw. That pass is the ONLY machine
+	// release for a blocked card (the sweep refuses them), so a repeated failure silently freezes every blocked
+	// card on the board.
+	"blocked_kind_auto_clear_failed",
 	// N23 (2026-08-03): the two zero-trace forever-waits a swept card can enter, made visible. Diagnostics
 	// on the sweep path — not flag-gated mechanisms, and a healthy board emits neither.
 	"sweep_skip_active_session",
