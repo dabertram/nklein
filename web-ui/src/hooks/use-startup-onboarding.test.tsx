@@ -261,7 +261,11 @@ describe("useStartupOnboarding", () => {
 		expect(snapshot.isStartupOnboardingDialogOpen).toBe(false);
 	});
 
-	it("reopens once onboarding has already been shown when NKlein has no local model configured", async () => {
+	// F2.32 (David 2026-09-02, "not annoying"): incomplete provider setup used to FORCE this dialog back on every
+	// page load even after an explicit dismissal — the definition of a nag. A dismissal is durable now, and users
+	// with unfinished setup are guided contextually instead (settings, and the task-start flow refuses with setup
+	// guidance). These two tests asserted the removed behaviour and had been failing ever since.
+	it("stays closed once shown, even when NKlein has no local model configured — a dismissal is durable", async () => {
 		window.localStorage.setItem(LocalStorageKey.OnboardingDialogShown, "true");
 		let latestSnapshot: HookSnapshot | null = null;
 
@@ -285,7 +289,7 @@ describe("useStartupOnboarding", () => {
 		}
 
 		const snapshot = latestSnapshot as HookSnapshot;
-		expect(snapshot.isStartupOnboardingDialogOpen).toBe(true);
+		expect(snapshot.isStartupOnboardingDialogOpen).toBe(false);
 	});
 
 	it("stays closed once onboarding has already been shown and NKlein has a local model configured", async () => {
@@ -327,7 +331,7 @@ describe("useStartupOnboarding", () => {
 		expect(snapshot.isStartupOnboardingDialogOpen).toBe(false);
 	});
 
-	it("reopens after closing when a project still needs local NKlein setup", async () => {
+	it("stays closed after an explicit close, even while the project still needs local NKlein setup", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 
 		await act(async () => {
@@ -384,7 +388,7 @@ describe("useStartupOnboarding", () => {
 		}
 
 		snapshot = latestSnapshot as HookSnapshot;
-		expect(snapshot.isStartupOnboardingDialogOpen).toBe(true);
+		expect(snapshot.isStartupOnboardingDialogOpen).toBe(false);
 	});
 
 	it("can be manually opened from debug tools even when normal criteria would keep it closed", async () => {

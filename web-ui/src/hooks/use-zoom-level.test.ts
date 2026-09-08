@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_ZOOM_LEVEL, readStoredZoom, ZOOM_LEVELS } from "./use-zoom-level";
+import { DEFAULT_ZOOM_LEVEL, DETAIL_ZOOM_LEVELS, readStoredZoom, ZOOM_LEVELS } from "./use-zoom-level";
 
 const V1 = "nklein.ui-zoom-level";
 const V2 = "nklein.ui-zoom-level.v2";
@@ -57,13 +57,24 @@ describe("readStoredZoom (v3 ladder — Minimalistic/Clean/Advanced/Professional
 		expect(readStoredZoom()).toBe(DEFAULT_ZOOM_LEVEL);
 	});
 
-	it("the ladder reads Minimalistic → Clean → Advanced → Professional → Full", () => {
-		expect(ZOOM_LEVELS.map((entry) => entry.label)).toEqual([
+	it("the DETAIL ladder reads Minimalistic → Clean → Advanced → Professional → Full", () => {
+		// Graph (level 5) joined the same bar on 2026-09-04 as a sibling VIEW, not a sixth detail level — which is
+		// why `DETAIL_ZOOM_LEVELS` exists. This assertion used to read the whole bar and broke when Graph landed;
+		// checking both lists is what the intent was all along, and it keeps the two from drifting apart again.
+		expect(DETAIL_ZOOM_LEVELS.map((entry) => entry.label)).toEqual([
 			"Minimalistic",
 			"Clean",
 			"Advanced",
 			"Professional",
 			"Full",
 		]);
+	});
+
+	it("the full bar is the detail ladder plus the Graph view, in that order", () => {
+		expect(ZOOM_LEVELS.map((entry) => entry.label)).toEqual([
+			...DETAIL_ZOOM_LEVELS.map((entry) => entry.label),
+			"Graph",
+		]);
+		expect(ZOOM_LEVELS.every((entry, index) => entry.level === index)).toBe(true);
 	});
 });
