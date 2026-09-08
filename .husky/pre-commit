@@ -74,7 +74,12 @@ CHECK_LOG="${TMPDIR:-/tmp}/nklein-precommit-$(date +%Y%m%d-%H%M%S).log"
 # David 2026-08-12: the gate also runs web-ui tsc + the src co-located suites — a web-ui type error slipped
 # through once (§10c#11) and the src-only efficiency-prompt budget guard drifted 2 weeks unseen; both are now
 # caught at commit time (~+15s).
-if npm run typecheck > "$CHECK_LOG" 2>&1 && npm run web:typecheck >> "$CHECK_LOG" 2>&1 && npm run test:precommit >> "$CHECK_LOG" 2>&1; then
+#
+# 2026-09-08: and the web-ui TESTS. `web:typecheck` was gated and `web:test` was not, so the entire 1236-test
+# web-ui suite was ungated — three of its tests had been red since the behaviour they assert was deliberately
+# changed (a zoom level added, an onboarding nag removed), and nothing said so. A suite nothing runs is not a
+# suite. It costs ~7s, against a gate that already spends far longer on the backend.
+if npm run typecheck > "$CHECK_LOG" 2>&1 && npm run web:typecheck >> "$CHECK_LOG" 2>&1 && npm run test:precommit >> "$CHECK_LOG" 2>&1 && npm run web:test >> "$CHECK_LOG" 2>&1; then
 	rm -f "$CHECK_LOG"
 else
 	tail -40 "$CHECK_LOG"
