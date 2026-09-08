@@ -514,6 +514,20 @@ export class AgentSandboxManager {
 	private readonly basicMemoryPlanByKey = new Map<string, BasicMemoryScopingPlan>();
 	private readonly queue: QueueEntry[] = [];
 	private readonly workspaceLifecycleTails = new Map<string, Promise<void>>();
+	/**
+	 * P0.AUDIT0904 leg 18: concurrent `prepareWorkspace` calls for the SAME task share one preparation.
+	 *
+	 * The lifecycle lock below serializes prepare and dispose so neither deletes `/workspaces/<task>` under the
+	 * other's cwd. Serialized is not the same as deduplicated: two callers that both want the workspace ready
+	 * (a start racing a redrive, a re-check racing a bounce) each ran a full destructive prepare, and the second
+	 * one's `rm -rf` took out the tree the first had already handed to a live session. Ordering made that orderly,
+	 * not safe.
+	 *
+	 * Joining the in-flight preparation is the fix, and it is only the CONCURRENT case: a prepare that starts
+	 * after the previous one settled still re-clones, so the fresh-clone semantics every caller relies on
+	 * (start / review-at-result / acceptance-at-result) are unchanged.
+	 */
+	private readonly inFlightWorkspacePreparations = new Map<string, Promise<{ workdir: string; uid: number }>>();
 	// P1.CAPTURERACE: per-task in-flight work + owed captures (see PlacementLease). Entries are created on demand
 	// and pruned the moment a placement owes nothing, so an idle pool holds none.
 	private readonly placementLeases = new Map<string, PlacementLease>();
@@ -853,6 +867,28 @@ export class AgentSandboxManager {
 		if (this.stopping) {
 			throw new AgentSandboxUnavailableError("Agent sandbox is stopping; no workspace can be prepared.");
 		}
+		const alreadyPreparing = this.inFlightWorkspacePreparations.get(input.taskId);
+		if (alreadyPreparing) {
+			return await alreadyPreparing;
+		}
+		const preparation = this.prepareWorkspaceInner(input);
+		this.inFlightWorkspacePreparations.set(input.taskId, preparation);
+		try {
+			return await preparation;
+		} finally {
+			if (this.inFlightWorkspacePreparations.get(input.taskId) === preparation) {
+				this.inFlightWorkspacePreparations.delete(input.taskId);
+			}
+		}
+	}
+
+	private async prepareWorkspaceInner(input: {
+		taskId: string;
+		projectRepoPath: string;
+		baseRef?: string | null;
+		onQueued?: () => void;
+		maxQueueWaitMs?: number;
+	}): Promise<{ workdir: string; uid: number }> {
 		return await this.withWorkspaceLifecycle(input.taskId, async () => {
 			const placement = await this.acquireSlot({
 				taskId: input.taskId,
