@@ -2000,6 +2000,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### Phase 0 — stop-the-line correctness and liveness
 
+- [x] **P0.NOEXIT — a narrowed turn was left with no tool that could END it.** *(Live 2026-09-08, `f913dee0d`.)*
+  A responder shift counted NINETEEN of twenty-five requests as regenerations of five stuck branches. One shows
+  the mechanism: the request offered a single tool, and the model's attempt to record why it was declining came
+  back as `Model tried to call unavailable tool 'update_focus_chain'. Available tools: list_files.` The turn could
+  not do the work AND could not say so, so the only move was another no-tool-call reply, which re-armed the ladder.
+  Narrowing exists to reduce the complexity of the WORK (phi-4: clean call with 1 tool, fails with 6); that says
+  nothing about the control plane, so `TURN_EXIT_TOOL_NAMES` survive every narrowing. The rescue applies only to
+  the set SENT — the adapter's own tests caught the first cut making the forcing rung believe it had an un-called
+  named tool to steer to, resurrecting the fabricated-call bug removed in July.
+  **The next shift reported zero hard tool rejections**, and project 40 became the first project since 37/38 to
+  fill a moving board (`planning 3 / ready 4 / review 1 / completed 1`).
 - [x] **P0.SANDBOXGHOST — a session whose sandbox workspace was disposed kept failing every tool call, forever.**
   *(Live 2026-09-08, `ad1078ec3`.)* Reported by the agent in the rig's model seat, then confirmed by counting the
   string across the stored queue: **30 requests** of one drive carried `No Docker sandbox workspace is prepared
@@ -2009,6 +2020,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   attempt spent a real request on a strictly-serial endpoint. The rule turns on DISPOSED vs NEVER-PLACED — a task
   with no placement may just be queued behind the pool, a disposed one is finished with its sandbox forever — and
   still tolerates ONE failure, because a dispose can race a call already in flight. The second cannot be that race.
+  **▶ THE FIRST CUT NEVER FIRED ONCE (`7105cd6d4`).** It watched the session summary's
+  `latestHookActivity.activityText` for the error string; across a full 25-request shift it fired zero times while
+  that shift counted FIVE consecutive refusals for one task id. The error reaches the model through the tool
+  RESULT and never passes through that field. **Detecting a failure anywhere other than where it is RAISED is a
+  guess** — the count now lives in `AgentSandboxManager.requirePlacement`, which also answers the shift's other
+  observation (the ladder can retry a different branch against the same dead sandbox: the streak is keyed by task
+  id in the process that owns the placements, so the branch does not matter).
   **Responder-lead scoreboard, 2026-09-08: five reported, three confirmed.** The two that did not survive:
   the write-scope history claim and the silent patch-capture claim (both P1.RESPONDERLEADS). A third, "the rubric
   re-demands a tool already called earlier in the session", was checked this evening against queue request 977 and
