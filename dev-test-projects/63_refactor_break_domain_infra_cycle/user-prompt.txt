@@ -1,0 +1,8 @@
+Untangle src/ without changing what it does.
+
+Orders import shipments and shipments import orders straight back, so neither can be read or tested on its own.
+The same order module reaches directly into the database module, which means the payment rule cannot be exercised
+without a store. And it holds four unrelated jobs in one file.
+
+Read specification.md for the goals that count, the deliverable, and the rules. The scenario suite is frozen
+evidence: if a scenario is inconvenient, that is the tangle talking, not a file to edit.

@@ -1,0 +1,16 @@
+{
+	"id": "63_refactor_break_domain_infra_cycle",
+	"title": "Refactor: Break the Order/Shipment Cycle and the Domain's Reach into Infrastructure",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "refactor-f2",
+	"tier": "2/5 refactor",
+	"tags": [
+		"import cycle",
+		"layering",
+		"separation of concerns",
+		"module size",
+		"behaviour preservation"
+	]
+}

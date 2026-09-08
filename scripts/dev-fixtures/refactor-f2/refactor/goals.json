@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"goals": [
+		{
+			"id": "G1",
+			"title": "no import cycle under src/",
+			"metric": "no_import_cycle",
+			"why": "orders import shipments and shipments import orders. The pair can only be understood, tested or loaded together, and neither can be moved without the other."
+		},
+		{
+			"id": "G2",
+			"title": "the domain does not import infrastructure",
+			"metric": "forbidden_import",
+			"params": { "from": "^src/domain/", "to": "^src/infra/" },
+			"why": "Domain rules that reach for the store cannot be exercised without one, and the store cannot be replaced without editing the rules."
+		},
+		{
+			"id": "G3",
+			"title": "no module is longer than 45 meaningful lines",
+			"metric": "max_module_lines",
+			"params": { "limit": 45 },
+			"why": "order.mjs holds the payment rule, the totals, persistence and presentation. Four reasons to change one file."
+		}
+	]
+}
