@@ -1,0 +1,16 @@
+{
+	"id": "76_performance_incremental_aggregate",
+	"title": "Performance: Maintain the Report Instead of Rebuilding It",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "performance-x5",
+	"tier": "5/5 performance",
+	"tags": [
+		"incremental aggregation",
+		"materialised view",
+		"counted folds",
+		"empty-group semantics",
+		"behaviour preservation"
+	]
+}

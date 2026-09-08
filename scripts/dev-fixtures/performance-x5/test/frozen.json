@@ -1,0 +1,8 @@
+{
+	"frozen": {
+		"conformance/workloads.mjs": "db342f32f2e1e4318e0abccfc991dacffef3d834950e835588c6c3c83ac3053e",
+		"harness/probes.mjs": "1fd61fcc421cac0351a808b04ff5ee56f6d15380b9bbd89436ebc2072e0644b4",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"test/performance.test.js": "082624b6d010a5d09480c64dbfb5bdf6acb4673fcc24043e6ab482a900a67537"
+	}
+}

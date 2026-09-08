@@ -1,0 +1,9 @@
+The report view in src/ rebuilds its whole answer every time it is asked a question. Make it maintain the answer
+instead, without changing a single result.
+
+Updates arrive between queries, so the totals move. Rebuilding is the easy way to stay correct and it costs a full
+pass per query; maintaining costs a couple of operations per update and nothing per query.
+
+Read specification.md for the budgets and the exact behaviour. One detail decides whether a maintained view is
+correct or subtly wrong: a team whose last row moves elsewhere must DISAPPEAR from the report, not stay behind with
+a total of zero. Sums alone cannot tell you that.

@@ -1,0 +1,26 @@
+{
+	"schemaVersion": 1,
+	"budgets": [
+		{
+			"id": "B1",
+			"workload": "W1",
+			"title": "one pass to build, then a constant cost per update",
+			"limits": { "maxReads": 60, "maxAdds": 100 },
+			"why": "Ten totals queries currently mean ten full rebuilds. Read the rows once, keep the running totals, and each update costs at most two folds: take the old amount out of its team, put the new one in."
+		},
+		{
+			"id": "B2",
+			"workload": "W2",
+			"title": "asking a different question does not cost a rebuild",
+			"limits": { "maxReads": 60, "maxAdds": 100 },
+			"why": "The top team is a fact about totals you already maintain. Rebuilding the totals to rank them is recomputing the answer you were holding."
+		},
+		{
+			"id": "B3",
+			"workload": "W3",
+			"title": "forty updates and twenty queries still cost one pass",
+			"limits": { "maxReads": 60, "maxAdds": 140 },
+			"why": "Interleaving the two query kinds changes nothing: the view is maintained by the updates, and a query reads what is already there."
+		}
+	]
+}
