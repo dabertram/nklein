@@ -75,6 +75,7 @@ import {
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { currentFocusChainStep, type FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { describeInheritedDebtForPlanning } from "../core/inherited-debt";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import {
@@ -96,6 +97,7 @@ import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-pro
 import type { CommunitySkillSessionAdmission } from "../server/community-skill-execution-service";
 import { appendAgentLedgerEvent, readAgentLedger, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { loadDecomposeConstruction } from "../state/decompose-construction-store";
+import { readOpenInheritedDebt } from "../state/inherited-debt-store";
 import { resolveStableRoutingModelId } from "../state/runtime-id-model-key-map-store";
 import { recordTaskRunSummary, type TaskRunTerminalState } from "../state/task-run-summary-store";
 import { loadWorkspaceState } from "../state/workspace-state";
@@ -2604,6 +2606,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					).map((node) => node.id),
 				)
 			: null;
+		// David 2026-09-08: a waiver settles BLAME, not the DEFECT. Every acceptance run waived as pre-existing wrote
+		// a debt record keyed on this exact workspace path (`workspaceRoot` IS the runtime scope's workspacePath —
+		// see start-task-session.ts), and the architect must plan to FIX what is still open. Reading it here closes
+		// the loop: the recorder alone would only ever accumulate a ledger nobody acts on. A read failure yields ""
+		// ⇒ byte-identical prompt, because debt bookkeeping must never block a task start.
+		const inheritedDebtBrief = request.startInPlanMode
+			? describeInheritedDebtForPlanning(
+					await readOpenInheritedDebt(request.workspaceRoot?.trim() || request.cwd).catch(() => []),
+				)
+			: null;
 		const startPromptParts = buildNKleinStartPromptParts(
 			taskPrompt,
 			request.startInPlanMode,
@@ -2613,6 +2625,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			request.fleetDecompositionGuidance ?? null, // F12.110 — advisory fleet sharding (null ⇒ byte-identical)
 			specDeliberationGuidance,
 			resumedDecompositionGuidance, // P0.DSTALL — resumed decompose held-node brief (null ⇒ byte-identical)
+			inheritedDebtBrief, // David 2026-09-08 — plan to FIX pre-existing breakage ("" ⇒ byte-identical)
 		);
 		const normalizedPrompt = startPromptParts.userPrompt.trim();
 		const hasRequestImages = Boolean(request.images && request.images.length > 0);

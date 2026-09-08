@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { describeInheritedDebtForPlanning } from "../core/inherited-debt";
 import { buildNKleinStartPromptParts, formatResumedDecompositionGuidance } from "./nklein-task-prompt-builders";
 
 // P0.DSTALL: a plan-mode session that RESTARTED resumes its durable decompose construction. The start prompt now
@@ -55,5 +56,80 @@ describe("buildNKleinStartPromptParts — resumed decomposition guidance", () =>
 		const withoutArg = buildNKleinStartPromptParts(DECOMPOSE_PROMPT, true, false, null, undefined, null, null);
 		expect(withNull.systemPrompt).toBe(withoutArg.systemPrompt);
 		expect(withNull.systemPrompt).not.toContain("already declared");
+	});
+});
+
+describe("buildNKleinStartPromptParts — inherited debt reaches the architect", () => {
+	// David 2026-09-08: "in standard case, pre-existing issues shall be taken up and improved/resolved as part of
+	// the plan". Recording the debt is only half of that; this is the half that turns it back into cards. Without
+	// this line in the START prompt the ledger accumulates forever and nothing ever plans a repair — and a steer
+	// cannot enter an open plan turn, so it has to be baked into the start.
+	const BRIEF = describeInheritedDebtForPlanning([
+		{
+			schemaVersion: 1,
+			signature: "sig",
+			workspacePath: "/repo",
+			command: "npm test",
+			firstSeenTaskId: "s07",
+			firstSeenAt: 1,
+			lastSeenAt: 2,
+			encounters: 3,
+			baselineOutputHead: "AssertionError: conservation violated: debits 1200 credits 1150",
+			baselineExitCode: 1,
+			status: "open",
+			closedAt: null,
+		},
+	]);
+
+	it("puts the open debt into a plan-mode decomposition prompt as work to FIX", () => {
+		const parts = buildNKleinStartPromptParts(
+			DECOMPOSE_PROMPT,
+			true, // startInPlanMode
+			false, // isRefinableWorkCard
+			null, // autoDepth
+			undefined, // frameworkPreamble
+			null, // fleetGuidance
+			null, // specDeliberationGuidance
+			null, // resumedDecompositionGuidance
+			BRIEF,
+		);
+		expect(parts.systemPrompt).toContain("must plan to FIX");
+		expect(parts.systemPrompt).toContain("npm test");
+		expect(parts.systemPrompt).toContain("conservation violated");
+		expect(parts.systemPrompt).toContain("Do not plan around it");
+	});
+
+	it("owes nothing ⇒ byte-identical prompt, whether passed empty, null, or not at all", () => {
+		const base = buildNKleinStartPromptParts(DECOMPOSE_PROMPT, true, false, null, undefined, null, null, null);
+		for (const brief of ["", "   ", null, undefined]) {
+			const parts = buildNKleinStartPromptParts(
+				DECOMPOSE_PROMPT,
+				true,
+				false,
+				null,
+				undefined,
+				null,
+				null,
+				null,
+				brief,
+			);
+			expect(parts.systemPrompt).toBe(base.systemPrompt);
+		}
+		expect(base.systemPrompt).not.toContain("must plan to FIX");
+	});
+
+	it("never reaches a non-planning card: a worker must not be told to plan repairs it cannot schedule", () => {
+		const worker = buildNKleinStartPromptParts(
+			"Implement the ledger",
+			false, // startInPlanMode
+			true, // isRefinableWorkCard
+			null,
+			undefined,
+			null,
+			null,
+			null,
+			BRIEF,
+		);
+		expect(worker.systemPrompt).not.toContain("must plan to FIX");
 	});
 });

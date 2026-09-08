@@ -97,6 +97,7 @@ function buildNKleinPlanningSystemPrompt(
 	autoDepth?: AutoDecompositionDepthDecision | null,
 	fleetGuidance?: readonly string[] | null,
 	resumedDecompositionGuidance?: readonly string[] | null,
+	inheritedDebtBrief?: string | null,
 ): string | null {
 	if (!startInPlanMode) {
 		return null;
@@ -128,6 +129,11 @@ function buildNKleinPlanningSystemPrompt(
 			// P0.DSTALL — on a RESTART, name the tasks the durable construction already holds so the model does not
 			// waste slow-model turns re-declaring them (omitted/[] on a fresh start ⇒ byte-identical).
 			...(resumedDecompositionGuidance ?? []),
+			// David 2026-09-08: "pre-existing issues shall be taken up and improved/resolved as part of the plan".
+			// A waiver settles BLAME for a breakage the card did not cause; it does not settle the DEFECT. This is
+			// the half that turns the recorded debt back into cards — without it the ledger only ever accumulates.
+			// Empty when nothing is owed ⇒ byte-identical prompt.
+			inheritedDebtBrief?.trim() ? inheritedDebtBrief.trim() : null,
 			acceptanceCommand
 				? `Use \`defaultAcceptanceCommand: "${acceptanceCommand}"\` unless a generated leaf needs a narrower objective check.`
 				: null,
@@ -188,9 +194,19 @@ export function buildNKleinStartPromptParts(
 	// P0.DSTALL: held-node guidance when a plan-mode session RESUMES a durable decompose construction on restart
 	// (from `formatResumedDecompositionGuidance`; omitted/[] on a fresh start ⇒ byte-identical).
 	resumedDecompositionGuidance?: readonly string[] | null,
+	// David 2026-09-08: open inherited debt for this workspace, as `describeInheritedDebtForPlanning` renders it.
+	// Empty/omitted ⇒ byte-identical (the overwhelmingly common case: a workspace that is green at base owes nothing).
+	inheritedDebtBrief?: string | null,
 ): NKleinStartPromptParts {
 	const baseSystemPrompt = startInPlanMode
-		? buildNKleinPlanningSystemPrompt(prompt, startInPlanMode, autoDepth, fleetGuidance, resumedDecompositionGuidance)
+		? buildNKleinPlanningSystemPrompt(
+				prompt,
+				startInPlanMode,
+				autoDepth,
+				fleetGuidance,
+				resumedDecompositionGuidance,
+				inheritedDebtBrief,
+			)
 		: isRefinableWorkCard
 			? buildNKleinRefinementSystemPrompt()
 			: null;
