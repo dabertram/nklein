@@ -2364,7 +2364,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   fires BEFORE the admission wait; (10) pool-loss 3-strike park is warn-only (no blockedKind/observation →
   invisible to the needs-you inbox); (11) dead marks have no tRPC exposure / clear *(SHIPPED 2026-09-08 as P0.DEADMARKUI)*; (12) all recovery budgets
   (six strike/dedup maps) are process-local, never cleared on success, never persisted — "bounded to 3" is per
-  restart; (13) bounced redrive ignores `start_in_flight` yet records a 15-min dedup; (14) custodian
+  restart *(SHIPPED 2026-09-08: `src/core/recovery-budgets.ts` + `src/state/recovery-budget-store.ts`; all SEVEN
+  counters read/write a hydrated write-through ledger, and a genuine delivery releases every budget the card had
+  open — a bound on consecutive failures, not a lifetime quota)*; (13) bounced redrive ignores `start_in_flight` yet records a 15-min dedup; (14) custodian
   hard-codes its model, no residency/ledger check, swallows failures; (15) custodian finding cards stamped
   `trustedOrigin: "operator"` though machine-authored; (16) custodian commit mark process-local → re-reviews
   after restart; (17) sandbox dispose lacks the root/owner-uid clear (workdir leaks, throw eaten); (18)
