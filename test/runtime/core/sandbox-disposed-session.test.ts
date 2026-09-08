@@ -1,13 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { classifySandboxFailure, DEFAULT_SANDBOX_FAILURE_LIMIT } from "../../../src/core/sandbox-disposed-session";
+import {
+	classifySandboxFailure,
+	DEFAULT_SANDBOX_FAILURE_LIMIT,
+	DEFAULT_SANDBOX_NEVER_PLACED_LIMIT,
+} from "../../../src/core/sandbox-disposed-session";
 
 describe("a session whose sandbox is gone", () => {
 	it("keeps retrying while the task has never held a placement — the acquisition may still be queued", () => {
-		for (const consecutiveFailures of [1, 2, 9]) {
+		for (const consecutiveFailures of [1, 2, 5]) {
 			const decision = classifySandboxFailure({ everPlaced: false, consecutiveFailures });
 			expect(decision.absence).toBe("never_placed");
 			expect(decision.action).toBe("retry");
 		}
+	});
+
+	it("but 'early' is not forever: a never-placed task with a WEDGED start is stopped too", () => {
+		// Live: one such task took 8 of a 25-request shift across three sibling branches, five distinct read
+		// attempts covering every path category, an identical refusal every time, because its start was wedged
+		// ("A start for ... is already in flight — refusing the duplicate"). It was never going to be placed.
+		const decision = classifySandboxFailure({
+			everPlaced: false,
+			consecutiveFailures: DEFAULT_SANDBOX_NEVER_PLACED_LIMIT,
+		});
+		expect(decision.absence).toBe("never_placed");
+		expect(decision.action).toBe("stop_session");
+		expect(decision.reason).toContain("wedged, not queued");
+		// The never-placed bound is deliberately far more generous than the disposed one.
+		expect(DEFAULT_SANDBOX_NEVER_PLACED_LIMIT).toBeGreaterThan(DEFAULT_SANDBOX_FAILURE_LIMIT);
 	});
 
 	it("tolerates ONE failure after a dispose, because a dispose can race a call already in flight", () => {

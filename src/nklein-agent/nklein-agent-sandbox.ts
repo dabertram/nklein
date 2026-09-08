@@ -2547,14 +2547,12 @@ export class AgentSandboxManager {
 			// in which one task refused five times in a row — the error reaches the model through the tool result,
 			// not through that field. Detecting a failure anywhere other than where it is raised is a guess.
 			const disposed = this.everPlacedTaskIds.has(taskId);
-			if (disposed) {
-				const consecutiveFailures = (this.sandboxAbsenceFailuresByTaskId.get(taskId) ?? 0) + 1;
-				this.sandboxAbsenceFailuresByTaskId.set(taskId, consecutiveFailures);
-				const decision = classifySandboxFailure({ everPlaced: true, consecutiveFailures });
-				if (decision.action === "stop_session") {
-					this.sandboxAbsenceFailuresByTaskId.delete(taskId);
-					this.onSessionUnusableHandler?.(taskId, decision.reason);
-				}
+			const consecutiveFailures = (this.sandboxAbsenceFailuresByTaskId.get(taskId) ?? 0) + 1;
+			this.sandboxAbsenceFailuresByTaskId.set(taskId, consecutiveFailures);
+			const decision = classifySandboxFailure({ everPlaced: disposed, consecutiveFailures });
+			if (decision.action === "stop_session") {
+				this.sandboxAbsenceFailuresByTaskId.delete(taskId);
+				this.onSessionUnusableHandler?.(taskId, decision.reason);
 			}
 			throw new AgentSandboxUnavailableError(`No Docker sandbox workspace is prepared for task ${taskId}.`, {
 				disposed,

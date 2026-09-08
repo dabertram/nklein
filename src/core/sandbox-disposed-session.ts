@@ -15,6 +15,16 @@
  * finished with its sandbox forever: the workdir was removed and the slot handed to someone else. The first is
  * worth retrying, the second is worth stopping, and telling them apart is the whole job of this core.
  *
+ * ── BUT "EARLY" IS NOT FOREVER ──
+ * The first cut let a never-placed task retry without any bound, on the reasoning that its acquisition might still
+ * be queued. A later shift spent EIGHT of its twenty-five requests — 32% — on one such task
+ * (`dev-39-tests-interval-boundary-suite-decompose`), across at least three sibling branches, with five distinct
+ * read attempts covering every path category and an identical refusal each time. Its start was wedged
+ * (`A start for … is already in flight — refusing the duplicate`), so the workspace was never going to appear.
+ * A task that has been refused this many times running is not early; the queue is not moving for it. So
+ * never-placed is bounded too, just far more generously — the cost of being wrong is a stopped session that a
+ * sweep restarts, and the cost of not bounding it is a third of a shift.
+ *
  * Pure so the rule is testable without a Docker pool.
  */
 
@@ -25,8 +35,10 @@ export interface SandboxFailureInputs {
 	readonly everPlaced: boolean;
 	/** Consecutive sandbox-unavailable tool failures for this task since its last success. */
 	readonly consecutiveFailures: number;
-	/** How many consecutive failures are tolerated before the session is stopped. */
+	/** How many consecutive failures are tolerated before a DISPOSED task's session is stopped. */
 	readonly limit?: number;
+	/** How many are tolerated for a task that has never been placed (higher — it might genuinely be queued). */
+	readonly neverPlacedLimit?: number;
 }
 
 export interface SandboxFailureDecision {
@@ -42,16 +54,30 @@ export interface SandboxFailureDecision {
  */
 export const DEFAULT_SANDBOX_FAILURE_LIMIT = 2;
 
+/**
+ * The never-placed bound. Deliberately far higher than the disposed one: a genuinely queued acquisition should
+ * clear long before this, so reaching it means the start is wedged rather than waiting.
+ */
+export const DEFAULT_SANDBOX_NEVER_PLACED_LIMIT = 6;
+
 export function classifySandboxFailure(input: SandboxFailureInputs): SandboxFailureDecision {
 	const limit = input.limit ?? DEFAULT_SANDBOX_FAILURE_LIMIT;
 	const absence: SandboxAbsence = input.everPlaced ? "disposed" : "never_placed";
 	if (absence === "never_placed") {
-		// The acquisition may still be queued behind the pool; the next call can legitimately succeed.
+		const neverPlacedLimit = input.neverPlacedLimit ?? DEFAULT_SANDBOX_NEVER_PLACED_LIMIT;
+		if (input.consecutiveFailures < neverPlacedLimit) {
+			// The acquisition may still be queued behind the pool; the next call can legitimately succeed.
+			return {
+				absence,
+				action: "retry",
+				reason:
+					"the task has never held a sandbox placement — the acquisition may still be queued, so this is not proof the session is dead",
+			};
+		}
 		return {
 			absence,
-			action: "retry",
-			reason:
-				"the task has never held a sandbox placement — the acquisition may still be queued, so this is not proof the session is dead",
+			action: "stop_session",
+			reason: `the task has never held a sandbox placement and ${input.consecutiveFailures} consecutive tool calls have been refused — the acquisition is wedged, not queued, and every further turn spends a real model request discovering that again`,
 		};
 	}
 	if (input.consecutiveFailures < limit) {
