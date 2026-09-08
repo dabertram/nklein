@@ -2020,6 +2020,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   and clears debris ONLY when a merge is in progress and the mark names that same MERGE_HEAD. An operator's own
   conflicted merge is left strictly alone and says so. Proved against a real repo, because the defect is entirely
   real index state and a conflicted index also refuses `git checkout`.
+  **▶ FOLLOW-UP the same hour (`da98c1142`), and it would have been worse than the bug:** ownership alone is not
+  a licence to abort. A conflicted merge is deliberately HELD OPEN while the merge-resolution agent works in it
+  (30-minute deadline) — during that window the mark names the live MERGE_HEAD and the base is legitimately
+  unclean, so the first cut would have destroyed the resolution agent's own workspace and logged it as a recovery.
+  "Ours" and "abandoned" are different claims: who started it vs whether anyone is still working on it, and only
+  both together license destroying state. The rule now also requires age (45 min, past the resolution deadline).
+  Caught by the drive monitor firing on the live `kill-m2::merge` session, before the code had run once in anger.
 - [x] **P0.HOSTIDLE — an operator-idled LM Studio host kept receiving work through every auto/fallback chooser.**
   David 2026-09-07 "leave m5max idle for nklein, keep flash-next loaded": re-pointing all roles was not enough —
   `reviewer=qwen3.8-flash-next (loaded_fallback)`, `Worker auto-pool absorbed … flash-next`, and the merge/custodian
