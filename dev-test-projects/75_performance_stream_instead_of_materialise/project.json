@@ -1,0 +1,16 @@
+{
+	"id": "75_performance_stream_instead_of_materialise",
+	"title": "Performance: Read Only as Far as the Answer Requires",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "performance-x4",
+	"tier": "4/5 performance",
+	"tags": [
+		"lazy evaluation",
+		"early termination",
+		"generators",
+		"pipeline fusion",
+		"counted reads"
+	]
+}

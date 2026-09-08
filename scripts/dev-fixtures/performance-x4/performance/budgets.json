@@ -1,0 +1,26 @@
+{
+	"schemaVersion": 1,
+	"budgets": [
+		{
+			"id": "B1",
+			"workload": "W1",
+			"title": "stop at the first match",
+			"limits": { "maxPulled": 22 },
+			"why": "The record that decides the answer is the 22nd. Everything after it is read for nothing. Materialising the source with a spread reads all 500 before the filter has even run."
+		},
+		{
+			"id": "B2",
+			"workload": "W2",
+			"title": "stop once ten matches are in hand",
+			"limits": { "maxPulled": 18 },
+			"why": "The tenth match is the 18th record. A pipeline that filters the whole source, maps the whole result and then takes ten does three full passes to answer a question about the first eighteen."
+		},
+		{
+			"id": "B3",
+			"workload": "W3",
+			"title": "an existence question stops at the first witness",
+			"limits": { "maxPulled": 173 },
+			"why": "The first record over the threshold is the 173rd. Counting the matches to see whether the count is above zero reads every record to learn something the first match already settled."
+		}
+	]
+}

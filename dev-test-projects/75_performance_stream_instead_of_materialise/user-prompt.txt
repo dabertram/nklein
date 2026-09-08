@@ -1,0 +1,9 @@
+The query pipeline in src/ reads the whole source before it answers anything. Make it stop when it has the answer,
+without changing a single result.
+
+The source is a pull-based iterable that counts what it hands out, and the current code's first move is to spread
+it into an array — so a question settled by the 22nd record costs all 500.
+
+Read specification.md for the budgets. Be careful in both directions: one workload has no match at all and must
+read everything, and it is there to catch a pipeline that got fast by giving up early. Its answer is checked on
+every run whatever your manifest says.
