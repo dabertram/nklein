@@ -2692,6 +2692,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   isolated sandbox instead of failing offline on every acceptance and plan gate. Remaining human-only parks
   should now be genuine judgment calls; anything else is a bug to file here.
 
+- [ ] **P1.REVIEWBUDGET — derive the reviewer's time budget from observed turn latency instead of a constant.**
+  *(Opened 2026-09-09 from a confirmed rig failure; the stop-gap knob shipped as `1f3183c7c`.)* The budget is a
+  flat `DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS = 10 min` with a separately-configurable verdict RESERVE carved
+  out of it. The drain sets the reserve to 6 minutes, leaving FOUR minutes of exploration — and a reviewer needs
+  to read the source, run the acceptance command and then call `submit_review`, three or four model turns. On a
+  seat answering at ~1.5 min/turn that cannot fit, and the log said so 38 times ("exploration turn cut at the
+  verdict reserve"), producing nudges and fresh review sessions that had forgotten the verification already done;
+  18 stalled-review rescues fired and one responder shift spent 4 of 25 requests re-approving two cards. **The
+  verdicts were not being dropped — they were never being reached.**
+  Note the trap: raising the RESERVE makes it worse, because the reserve is carved out of the budget.
+  The fleet already records per-model turn timings, which is exactly the evidence this should read: budget =
+  (expected turns × observed p90 turn latency for this reviewer model) + reserve, with a floor and a ceiling.
+  Composes with P21.6b, which derives a review SIZE ceiling from the same fitness evidence.
 - [ ] **P1.STARTHANG — a task start that never settles wedges its card permanently, and only a log line notices.**
   *(Live 2026-09-08, evidence complete, cause NOT yet found.)* `dev-39-tests-interval-boundary-suite-decompose`
   had a session taking model turns while its sandbox workspace was never prepared. Every auto-start retry was
