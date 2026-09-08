@@ -598,8 +598,10 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		const result = await model([{ role: "user", content: 'Use create_card to make a card titled "X".' }], true);
 		expect(result.toolCalls).toEqual([{ id: "c1", name: "create_card", arguments: { title: "X" } }]);
 		expect(result.promptStrategy).toBe("reduced_tool_set");
-		// First attempt offered all 6; the retry offered just the 1 referenced tool (grounded: phi works with 1).
-		expect(offeredCounts).toEqual([6, 1]);
+		// First attempt offered all 6; the retry offered the 1 referenced tool PLUS the turn's exits, which survive
+		// every narrowing (2026-09-08 — a turn narrowed to a tool that cannot end it is a livelock, not a reduced
+		// ask). SIX_TOOLS contains exactly one such control-plane tool, `update_focus_chain`, hence 2.
+		expect(offeredCounts).toEqual([6, 2]);
 	});
 
 	it("bug-hunt #8 (2026-07-05): skips a reduced-tool-set level identical to the one just tried", async () => {
@@ -622,8 +624,13 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		};
 		const model = createChatAgentModel(client, SIX_TOOLS);
 		await model([{ role: "user", content: instruction }], true);
-		const unmodifiedSingleToolCalls = requests.filter((r) => r.toolsLength === 1 && r.lastContent === instruction);
-		expect(unmodifiedSingleToolCalls).toHaveLength(1); // level 1 only — level 2 (identical) is skipped, not resent
+		// Count NARROWED offers that still carry the original instruction text. The exact size is not the point and
+		// is no longer 1 (the turn's exit tools ride along with the anchor); the point is that the identical level
+		// is sent ONCE.
+		const unmodifiedNarrowedCalls = requests.filter(
+			(r) => r.toolsLength < SIX_TOOLS.length && r.lastContent === instruction,
+		);
+		expect(unmodifiedNarrowedCalls).toHaveLength(1); // level 1 only — level 2 (identical) is skipped, not resent
 	});
 
 	it("§5.AA: does NOT retry when the no-call reply references no tool by name (legit direct answer)", async () => {

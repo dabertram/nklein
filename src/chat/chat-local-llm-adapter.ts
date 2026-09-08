@@ -17,7 +17,11 @@ import { createRetryStrategyCursor, type RetryStrategy, raisedTokenBudget } from
 import { resolveApiProfileRequest } from "../core/skill-api-profile-request";
 import { modulateApiProfileForDifficulty, type SkillApiProfile } from "../core/skill-registry";
 import { buildTruncationObservation } from "../core/truncation-diagnostics-summary";
-import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
+import {
+	MAX_ATTEMPT_SIMPLIFICATION_LEVEL,
+	selectToolsForAttempt,
+	TURN_EXIT_TOOL_NAMES,
+} from "../nklein-agent/nklein-attempt-simplification";
 import { buildConstrainedToolCallSchema, parseConstrainedToolCall } from "../nklein-agent/nklein-constrained-tool-call";
 import type {
 	LocalLlmChatMessage,
@@ -607,8 +611,14 @@ export function createChatAgentModel(
 		// A card carrying `Acceptance check: <command>` cannot END without running that command, so the narrowing
 		// ladder must never take the command tool away (P1.RESPONDERLEADS lead (a) — see `alwaysKeep`). Empty for an
 		// ordinary chat turn, which has no gate and therefore no tool it is forbidden to drop.
+		// A card carrying `Acceptance check: <command>` cannot END without running that command, and NO card can end
+		// without the control-plane tools that declare its state. Both survive narrowing (P1.RESPONDERLEADS lead (a)
+		// and the 2026-09-08 shift report — see `TURN_EXIT_TOOL_NAMES`).
 		const gateRequiredTools = extractAcceptanceCommand(instruction) ? ["run_command"] : [];
-		const narrowingOptions = { alwaysKeep: gateRequiredTools };
+		// Applied ONLY to the set actually sent to the model. The pure anchor still decides which rungs are
+		// eligible: rescuing an exit tool must not make the forcing rung think there is an un-called named tool to
+		// steer to, which would resurrect the fabricated-call behaviour bug-hunt #1 removed.
+		const narrowingOptions = { alwaysKeep: [...gateRequiredTools, ...TURN_EXIT_TOOL_NAMES] };
 		const hasProfile = Boolean(options.apiProfile && Object.keys(options.apiProfile).length > 0);
 		const hardSignal = /architect|refactor|migrat|concurren|deadlock|security|performance|decompos/iu.test(
 			instruction,
@@ -706,7 +716,7 @@ export function createChatAgentModel(
 		}
 		let response = await client.completeWithTools({ messages: wire, sampling }, offered);
 		const used = new Set(usedToolNames ?? []);
-		const initialAnchor = selectToolsForAttempt(offered, instruction, 1, narrowingOptions);
+		const initialAnchor = selectToolsForAttempt(offered, instruction, 1);
 		const initialAnchoredRemaining = initialAnchor.tools.filter((tool) => !used.has(tool.name));
 		const initialOfferedRemaining = offered.filter((tool) => !used.has(tool.name));
 		const initialHasFreshCall = response.toolCalls.some((call) => !used.has(call.name));
@@ -731,7 +741,7 @@ export function createChatAgentModel(
 			allowTools &&
 			response.toolCalls.length === 0 &&
 			offered.length > 1 &&
-			selectToolsForAttempt(offered, instruction, 1, narrowingOptions).reduced
+			selectToolsForAttempt(offered, instruction, 1).reduced
 		) {
 			availableStrategies.push("reduced_tool_set");
 		}

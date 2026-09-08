@@ -24,6 +24,27 @@
  * allowed to be a clean stop.
  */
 
+/**
+ * Tools by which a turn ENDS or ADVANCES the card's state, as opposed to doing its work.
+ *
+ * Live 2026-09-08: the ladder narrowed worker turns to a single tool and the responder's shift report counted
+ * NINETEEN of twenty-five requests as regenerations of five stuck branches. One request offered only `list_files`,
+ * so the model's attempt to record why it was declining came back as
+ * "Model tried to call unavailable tool 'update_focus_chain'. Available tools: list_files." The turn could not do
+ * the work AND could not say so — the only remaining move was another no-tool-call reply, which re-armed the same
+ * ladder.
+ *
+ * Narrowing exists to reduce the complexity of the WORK (phi-4 emits a clean call with 1 tool and fails with 6).
+ * That argument says nothing about the control plane, and these are small-schema tools a weak model is not
+ * drowning in. So they survive every narrowing: a reduced ask is fine, a turn with no exit is a livelock.
+ */
+export const TURN_EXIT_TOOL_NAMES: readonly string[] = [
+	"decompose_project",
+	"begin_implementation",
+	"submit_review",
+	"update_focus_chain",
+];
+
 export interface NamedTool {
 	name: string;
 }

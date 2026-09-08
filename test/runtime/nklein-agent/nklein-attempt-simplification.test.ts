@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { selectToolsForAttempt, stripNKleinScaffolding } from "../../../src/nklein-agent/nklein-attempt-simplification";
+import {
+	selectToolsForAttempt,
+	stripNKleinScaffolding,
+	TURN_EXIT_TOOL_NAMES,
+} from "../../../src/nklein-agent/nklein-attempt-simplification";
 
 const TOOLS = [
 	{ name: "read_file" },
@@ -147,5 +151,46 @@ describe("selectToolsForAttempt — alwaysKeep", () => {
 		expect(selectToolsForAttempt(TOOLS, "read_files the spec", 2).tools.map((tool) => tool.name)).toEqual([
 			"read_files",
 		]);
+	});
+});
+
+/**
+ * The narrowed turn must still be able to END. Live 2026-09-08: a request offered only `list_files`, so the
+ * model's attempt to record why it was declining came back as "Model tried to call unavailable tool
+ * 'update_focus_chain'. Available tools: list_files." Nineteen of that shift's twenty-five requests were
+ * regenerations of branches stuck exactly this way.
+ */
+describe("selectToolsForAttempt — the turn's exits survive narrowing", () => {
+	const FULL = [
+		{ name: "read_files" },
+		{ name: "list_files" },
+		{ name: "write_file" },
+		{ name: "run_command" },
+		{ name: "decompose_project" },
+		{ name: "begin_implementation" },
+		{ name: "submit_review" },
+		{ name: "update_focus_chain" },
+	];
+
+	it("keeps every control-plane tool even at the most aggressive level", () => {
+		const selection = selectToolsForAttempt(FULL, "list_files in the workspace first", 2, {
+			alwaysKeep: TURN_EXIT_TOOL_NAMES,
+		});
+		const names = selection.tools.map((tool) => tool.name);
+		expect(names[0]).toBe("list_files");
+		for (const exit of TURN_EXIT_TOOL_NAMES) {
+			expect(names).toContain(exit);
+		}
+		// Still a narrowing: the work tools the instruction did not name are gone.
+		expect(names).not.toContain("write_file");
+		expect(names).not.toContain("read_files");
+		expect(selection.reduced).toBe(true);
+	});
+
+	it("names only the anchored tool as matched — the exits are rescued, not chosen", () => {
+		const selection = selectToolsForAttempt(FULL, "list_files in the workspace first", 2, {
+			alwaysKeep: TURN_EXIT_TOOL_NAMES,
+		});
+		expect(selection.matchedNames).toEqual(["list_files"]);
 	});
 });
