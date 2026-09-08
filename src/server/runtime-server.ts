@@ -149,6 +149,7 @@ import {
 	decideZeroTokenWedgeAction,
 	listZeroTokenWedgedSessions,
 } from "../core/session-turn-liveness";
+import { selectReleasableTaskSessions } from "../core/settled-task-session-release";
 import { assessShortcutBehaviors } from "../core/shortcut-behavior-monitor";
 import { DEFAULT_SILENT_RUNNING_RECONCILE_MS, listSilentRunningSessions } from "../core/silent-running-sessions";
 import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-target";
@@ -4804,6 +4805,32 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// A trashed card can hold an endpoint with NO tracked session at all (its `::review` aux turn
 						// outlives it), so the stop loop above is not sufficient on its own.
 						purgeModelTurnReservationsForTerminalLaneCards(scope.workspaceId, board);
+						// P0.HEAP: release the in-memory state of sessions whose card has settled. Everything released
+						// is a cache or per-run bookkeeping — the persisted SDK session, the ledger and the sandbox
+						// state are untouched, and a reader that needs the transcript hydrates it back on demand.
+						// The service refuses a live or in-flight task itself, so this is safe even if the board
+						// snapshot is a tick stale.
+						// Only TRASH and ABSENT cards get the full release. A COMPLETED card keeps its summary, because
+						// `workspace.loadState` builds the UI's `sessions` map from the live summaries — forgetting one
+						// would strip a finished card's model, duration and state from the board, a visible regression
+						// for a memory win already mostly taken: the retention budget drops the TRANSCRIPT (the bulk)
+						// and keeps the summary (a few hundred bytes).
+						const releasable = selectReleasableTaskSessions(
+							board,
+							trackedService
+								.listSummaries()
+								.map((summary) => ({ taskId: summary.taskId, state: summary.state })),
+						).filter((candidate) => candidate.reason !== "completed");
+						const released = releasable.filter(
+							(candidate) => trackedService.releaseTaskSessionMemory?.(candidate.taskId) === true,
+						);
+						if (released.length > 0) {
+							deps.warn(
+								`Released the in-memory state of ${released.length} settled session(s): ${released
+									.map((candidate) => `${candidate.taskId} (${candidate.reason})`)
+									.join(", ")}.`,
+							);
+						}
 						// P0.HEAP: one heap sample per tick. The observer decides whether it is worth a telemetry row.
 						processMemoryObserver.observe({ workspacePath: scope.workspacePath });
 						// Secondary reviewers run outside the task-session service, so their card is absent from
