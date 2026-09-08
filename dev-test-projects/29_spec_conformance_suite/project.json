@@ -1,0 +1,16 @@
+{
+	"id": "29_spec_conformance_suite",
+	"title": "Specification: Quoting-Engine Spec and its Conformance Suite",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "spec-s4",
+	"tier": "4/5 specification",
+	"tags": [
+		"specification",
+		"conformance testing",
+		"executable spec",
+		"boundary analysis",
+		"oracle-driven"
+	]
+}

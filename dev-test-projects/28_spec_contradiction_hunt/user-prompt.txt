@@ -1,0 +1,10 @@
+The brief in input/ was merged from four documents that have never been reconciled. Find where it fights itself.
+
+This is a specification job, not a build job: nothing gets implemented and nothing gets rewritten. I want the list
+of places two clauses cannot both hold, each citing both clause ids, plus the assumption you would proceed on for
+every one of them — because I would rather have a written assumption than a silent decision made in code.
+
+Read specification.md for what counts as a clash, the deliverable's shape, and the rules I will hold you to. The
+one worth repeating here: two clauses saying the same thing about the same setting is not a conflict, and flagging
+it as one fails the build. A false conflict is worse than a missed one — it sends people into a room to reconcile
+something that already agrees.

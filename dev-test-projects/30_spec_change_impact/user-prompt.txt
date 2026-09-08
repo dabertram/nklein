@@ -1,0 +1,10 @@
+Work out what CR-2026-Q2 actually does to the specification in input/, requirement by requirement.
+
+This is a specification job, not a build job: nothing gets implemented and the v1 spec does not get rewritten. I
+want the delta — for every requirement, what the change request does to it, and whether that is a breaking change
+for the three broker integrations written against us.
+
+Read specification.md for the deliverable's shape, the breaking-change rule, and the rules I will hold you to. The
+one worth repeating here: the `Affects:` lines are authoritative. The change request's prose mentions requirements
+it does not touch — deliberately, because that is exactly how a real one reads — and classifying one of those as
+changed fails the build.

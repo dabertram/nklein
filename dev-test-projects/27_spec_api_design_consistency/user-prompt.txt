@@ -1,0 +1,10 @@
+Design the API for the domain described in input/, and write the specification down.
+
+This is a specification job, not a build job: no server, no handlers, no schema migrations. I want the entities,
+the operations over them, and the ways each operation can fail — the document three teams will argue about before
+anyone writes code.
+
+Read specification.md for the deliverable's shape and the rules I will hold you to. The one worth repeating here:
+the check is about the specification's consistency with itself. Every type you mention has to be one you defined,
+every entity has to be addressable, and every operation has to admit at least one way of going wrong — and that
+must hold at every save, not only at the end.

@@ -1,0 +1,12 @@
+Pin down the quoting engine's rules, then write the suite that would have caught the other team.
+
+This is a specification job with teeth. Two candidate implementations sit in candidates/. One of them is the
+oracle — the behaviour everyone agrees is correct. The other looks right, was written by people who read the same
+six sentences, and breaks exactly one rule. Nobody wrote down which, because nobody wrote the rules down precisely
+enough to tell.
+
+So: write the spec (the rules, with their thresholds, rounding and order of operations settled), and write a
+conformance suite that accepts the oracle and rejects the other one. Read specification.md for both deliverables'
+shapes and the rules I will hold you to. The one worth repeating here: a check the oracle cannot pass is wrong by
+definition and fails the build immediately — before you have found anything, your suite must first be right about
+what is already right.

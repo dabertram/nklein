@@ -1,0 +1,9 @@
+Turn the brief in input/ into requirements I can hand to a team.
+
+This is a specification job, not a build job: nothing gets implemented. I want every obligation the business signed
+off on expressed as a structured requirement — who it is about, what sets it off, what must then be true, and how
+we would know it holds. That last part is the one people skip, and it is the one I care about.
+
+Read specification.md for the deliverable's shape and the rules I will hold you to. Two worth repeating here: the
+brief's actor glossary is closed, so a requirement about anyone else is wrong; and an acceptance criterion that is
+just the obligation's own sentence copied across fails the check, because it tests nothing.

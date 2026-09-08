@@ -1,0 +1,16 @@
+{
+	"id": "30_spec_change_impact",
+	"title": "Specification: Change-Impact Delta for a Claims Intake Service",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "spec-s5",
+	"tier": "5/5 specification",
+	"tags": [
+		"change impact analysis",
+		"specification delta",
+		"breaking changes",
+		"contract boundaries",
+		"traceability"
+	]
+}
