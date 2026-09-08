@@ -2090,10 +2090,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   The grading contract every non-build family follows is `docs/dev/dev-test-projects/grading-contract.md` (8 rules;
   read it before authoring one). Status:
   - **built + four-state proven:** test-authoring 37–41, analysis 42–46, specification 47–51, planning 52–56,
-    repair 57–61, refactor 62–66. That is 30 of 30 for those six families.
-  - **still to build:** integration (an adapter against a shipped fake service + conformance suite, error paths
-    included) and performance (instrumented operation/allocation COUNTS against a budget, never wall time) —
-    5 each. Free prefixes: 67–89.
+    repair 57–61, refactor 62–66, integration 67–71. Seven families, 35 projects.
+  - **still to build:** performance 72–76 — instrumented operation/allocation COUNTS against a budget, never wall
+    time. Free prefixes: 72–89.
   - **still to drive:** all of them through the rig, each recorded as an aimock scenario set with
     `scripts/hitl-record-project.mts mark|record`. Project 42 is the first, in flight.
   A fixture is NOT done until four states are pasted (untouched green / wrong entry fails naming it / correct
