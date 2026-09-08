@@ -2397,7 +2397,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   hard-codes its model, no residency/ledger check, swallows failures *(SHIPPED 2026-09-05)*; (15) custodian
   finding cards stamped `trustedOrigin: "operator"` though machine-authored *(SHIPPED 2026-09-05)*; (16) custodian
   commit mark process-local → re-reviews after restart *(SHIPPED 2026-09-05)*; (17) sandbox dispose lacks the
-  root/owner-uid clear (workdir leaks, throw eaten); (18) `prepareWorkspace` serializes but doesn't dedup — second
+  root/owner-uid clear (workdir leaks, throw eaten) *(SHIPPED 2026-09-08, 90911a2a9: dispose removes AS ROOT like
+  prepare already did since 2026-09-03, and a failed removal is RECORDED as `sandbox_workspace_removal_failed`
+  naming the leaked workdir — the throw alone told nobody anything, since every caller swallows it on purpose. The
+  slot release stays unconditional)*; (18) `prepareWorkspace` serializes but doesn't dedup — second
   caller rm -rf's the first's live workspace *(SHIPPED 2026-09-08, 955863903: a prepare that finds one in flight
   for the same task JOINS it; a prepare starting after the previous settled still re-clones, so the fresh-clone
   callers are unchanged. Verified against the unfixed code — two concurrent prepares cloned twice before, once
