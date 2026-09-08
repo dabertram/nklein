@@ -2424,7 +2424,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   right test rather than a hopeful one. Two tests, the first checked against the unmemoized component)*; (25) no unit tests for the single-flight guard, worker auto-pool widening, wedge
   classifier probe *(the wedge classifier SHIPPED 2026-09-08: `src/core/wedge-model-classifier.ts`, pure
   predicate + injected probe, 7 tests, and the unreachable-⇒-not-busy fail direction documented as deliberate.
-  Worker auto-pool widening still untested)*.
+  Worker auto-pool widening ALSO shipped 2026-09-08:
+  `src/core/worker-auto-pool.ts`, 9 tests covering the two edges that invert easily — an EMPTY host allowlist means
+  every machine, and `absorbed` is only what was ADDED so the evidence record cannot fire on a no-op start. Leg 25
+  is complete)*.
   **▶ 2026-09-05 SHIPPED (`f6aee1c1e` + same-day predecessors):** (3) watchdog overlap guard; (4) awaited redrive
   + per-tick `handledThisTick` consulted by the marooned reconcile and the bounced leg; (5) restart configs
   return null for ledger-dead models; (6) terminal fallback refuses dead/colliding primaries; (7) loaded
