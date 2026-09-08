@@ -2596,7 +2596,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   or export `NKLEIN_AGENT_SANDBOX_{RUST,GO,GRADLE,MAVEN}_IMAGE` to locally-present images for a hotspot build.
   Until then models keep working around the dead `pwd && ls` shape (they fall back to argv form on the next turn).
 
-- [ ] **P1.ACCEPT-ORPHAN — an acceptance-verify timeout leaves the command running inside the sandbox.**
+- [x] **P1.ACCEPT-ORPHAN — an acceptance-verify timeout leaves the command running inside the sandbox.**
   *(Live 2026-09-05: two `npm install` processes from 22:34 were still alive in the review sandbox 50+ min
   later; the strict-isolation sandbox has no route to the npm registry so the install never returns, the
   5-min gate timeout fired on !Klein's side, but `docker exec` does not kill the child — every subsequent
@@ -2618,6 +2618,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   (17-18) sandbox dispose clear + prepare ownership; (19) blockedKind auto-clear
   observation; (23) DAG node search; (24) board-card memoization; (25) unit tests for the auto-pool redrive
   and an extracted wedge classifier *(the single-flight start guard test shipped 2026-09-05, `99ca6e3b9`)*.
+  **CLOSED 2026-09-08.** This item's OWN two fixes shipped 2026-09-05 (the in-container `timeout -k` and the
+  fail-fast install env). The "REMAINING" list above was never this item's work — it is a copy of P0.AUDIT0904's
+  leg numbering that ended up here, and every one of those legs has since shipped: 8 and 11 as P0.LEDGERENDPOINT
+  and P0.DEADMARKUI, 12 as the durable recovery budgets, 17 and 18 as the root-owned dispose and the single-flight
+  prepare, 19 as the auto-clear observation, 24 as the board-card memo, 25 as the wedge classifier and auto-pool
+  cores. The only survivor is leg 23's DAG node SEARCH, which lives with the audit entry and is a UX design
+  question, not a defect.
 
 - [x] **P0.QWAIT — Queue-wait burns the conversation-timeout budget.** *(Live 2026-09-03 ~08:00, v31:
   s44 parked "conversation timeout after 28800 seconds" — the session spent most of those 8h WAITING for
