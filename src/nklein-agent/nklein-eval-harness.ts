@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
+import { createGitProcessEnv } from "../core/git-process-env";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
 import type { SelfObservationEventRecord, SelfObservationSignal } from "../telemetry/self-observation-sink";
 import { isSelfObservationSeverity } from "../telemetry/self-observation-sink";
@@ -89,6 +90,7 @@ export async function runAcceptanceCommand(
 async function readGitDiff(workspacePath: string): Promise<string | null> {
 	try {
 		const result = await execFileAsync("git", ["diff", "--binary"], {
+			env: createGitProcessEnv(),
 			cwd: workspacePath,
 			timeout: 30_000,
 			maxBuffer: 1024 * 1024,

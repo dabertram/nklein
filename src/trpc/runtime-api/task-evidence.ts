@@ -9,6 +9,7 @@ import type {
 } from "../../core/api-contract";
 import { parseTaskEvidenceRequest } from "../../core/api-validation";
 import { toErrorMessage } from "../../core/error-message";
+import { createGitProcessEnv } from "../../core/git-process-env";
 import { resolveSpeculativeDeliveryTarget } from "../../core/speculative-delivery-target";
 import { resolveTaskEvidenceCapture, shouldUsePersistedTaskResultArtifact } from "../../core/task-evidence-capture";
 import type { NKleinTaskSessionService } from "../../nklein-agent/nklein-task-session-service";
@@ -47,6 +48,7 @@ function findTaskCard(board: RuntimeWorkspaceStateResponse["board"], taskId: str
 async function resolveGitCommit(cwd: string, ref: string): Promise<string | null> {
 	try {
 		const { stdout } = await execFileAsync("git", ["rev-parse", ref], {
+			env: createGitProcessEnv(),
 			cwd,
 			timeout: 5_000,
 			maxBuffer: 128 * 1024,

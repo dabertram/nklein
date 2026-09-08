@@ -20,6 +20,7 @@ import {
 } from "../core/aider-polyglot-grade-plan";
 import type { RuntimeTaskTestEvidencePolicy } from "../core/api-contract";
 import { buildFreshBenchmarkTrack, type FreshBenchmarkLeakageHit } from "../core/fresh-benchmark-track";
+import { createGitProcessEnv } from "../core/git-process-env";
 import {
 	buildLiveCodeBenchControlReport,
 	PINNED_LIVECODEBENCH_COMMIT,
@@ -271,12 +272,15 @@ async function readOptionalFile(path: string): Promise<string> {
 
 async function verifyAiderPolyglotCorpus(path: string): Promise<void> {
 	const [commit, origin, status] = await Promise.all([
-		execFile("git", ["-C", path, "rev-parse", "HEAD"], { timeout: 10_000 }).then((result) => result.stdout.trim()),
-		execFile("git", ["-C", path, "remote", "get-url", "origin"], { timeout: 10_000 }).then((result) =>
-			result.stdout.trim(),
+		execFile("git", ["-C", path, "rev-parse", "HEAD"], { timeout: 10_000, env: createGitProcessEnv() }).then(
+			(result) => result.stdout.trim(),
 		),
-		execFile("git", ["-C", path, "status", "--porcelain"], { timeout: 10_000 }).then((result) =>
-			result.stdout.trim(),
+		execFile("git", ["-C", path, "remote", "get-url", "origin"], {
+			timeout: 10_000,
+			env: createGitProcessEnv(),
+		}).then((result) => result.stdout.trim()),
+		execFile("git", ["-C", path, "status", "--porcelain"], { timeout: 10_000, env: createGitProcessEnv() }).then(
+			(result) => result.stdout.trim(),
 		),
 	]);
 	if (commit !== PINNED_AIDER_POLYGLOT_COMMIT) {
@@ -1273,9 +1277,11 @@ async function terminalPreflight(options: DevBenchmarkOptions, deps: DevBenchmar
 
 async function verifyPinnedLiveCodeBenchCheckout(path: string): Promise<void> {
 	const [head, status] = await Promise.all([
-		execFile("git", ["-C", path, "rev-parse", "HEAD"], { timeout: 10_000 }).then((result) => result.stdout.trim()),
-		execFile("git", ["-C", path, "status", "--porcelain"], { timeout: 10_000 }).then((result) =>
-			result.stdout.trim(),
+		execFile("git", ["-C", path, "rev-parse", "HEAD"], { timeout: 10_000, env: createGitProcessEnv() }).then(
+			(result) => result.stdout.trim(),
+		),
+		execFile("git", ["-C", path, "status", "--porcelain"], { timeout: 10_000, env: createGitProcessEnv() }).then(
+			(result) => result.stdout.trim(),
 		),
 	]);
 	if (head !== PINNED_LIVECODEBENCH_COMMIT) {

@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import type { Command } from "commander";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config.js";
 import type { RuntimeSetupPlanResponse } from "../core/config-api-contract.js";
+import { createGitProcessEnv } from "../core/git-process-env";
 import { fetchLoadedModelIdsStrict } from "../core/lmstudio-loaded-models.js";
 import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint.js";
 import { isKanbanRemoteHost } from "../core/runtime-endpoint.js";
@@ -67,7 +68,7 @@ async function detectBaseBranch(projectPath: string): Promise<string | null> {
 		const { stdout } = await execFileAsync(
 			"git",
 			["-C", projectPath, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
-			{ timeout: 4_000 },
+			{ timeout: 4_000, env: createGitProcessEnv() },
 		);
 		const ref = stdout.trim();
 		return ref.includes("/") ? (ref.split("/").pop() ?? null) : ref || null;

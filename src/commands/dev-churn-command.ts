@@ -14,6 +14,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { buildBlameArgs, type ChurnGitPort, collectChurnForCard, countAttributedLines } from "../core/churn-collector";
 import { type ChurnWindowGitPort, collectWindowedChurn } from "../core/churn-window-collector";
+import { createGitProcessEnv } from "../core/git-process-env";
 import { assessChurn } from "../core/post-acceptance-churn";
 
 const execFileAsync = promisify(execFile);
@@ -21,6 +22,7 @@ const execFileAsync = promisify(execFile);
 /** Files a commit touched, with the lines it added — the denominator churn is measured against. */
 async function readAuthoredFiles(commit: string): Promise<{ path: string; authoredLines: number }[]> {
 	const { stdout } = await execFileAsync("git", ["show", "--numstat", "--format=", commit], {
+		env: createGitProcessEnv(),
 		maxBuffer: 32 * 1024 * 1024,
 	});
 	return stdout
@@ -36,6 +38,7 @@ function createGitPort(): ChurnGitPort {
 		countSurvivingLines: async ({ path, commit, ref }) => {
 			try {
 				const { stdout } = await execFileAsync("git", [...buildBlameArgs({ path, ref })], {
+					env: createGitProcessEnv(),
 					maxBuffer: 64 * 1024 * 1024,
 				});
 				return countAttributedLines(stdout, commit);
@@ -60,7 +63,9 @@ async function resolveContainingRefAtOrBefore(input: {
 		{ maxBuffer: 32 * 1024 * 1024 },
 	).catch(() => ({ stdout: "" }));
 	for (const candidate of stdout.split("\n").filter(Boolean)) {
-		const ancestor = await execFileAsync("git", ["merge-base", "--is-ancestor", input.commit, candidate])
+		const ancestor = await execFileAsync("git", ["merge-base", "--is-ancestor", input.commit, candidate], {
+			env: createGitProcessEnv(),
+		})
 			.then(() => true)
 			.catch(() => false);
 		if (ancestor) return candidate;
@@ -73,7 +78,9 @@ function createWindowGitPort(): ChurnWindowGitPort {
 }
 
 async function readCommitTimestamp(commit: string): Promise<number | null> {
-	const { stdout } = await execFileAsync("git", ["show", "-s", "--format=%ct", commit]).catch(() => ({ stdout: "" }));
+	const { stdout } = await execFileAsync("git", ["show", "-s", "--format=%ct", commit], {
+		env: createGitProcessEnv(),
+	}).catch(() => ({ stdout: "" }));
 	const seconds = Number(stdout.trim());
 	return Number.isFinite(seconds) && seconds > 0 ? seconds * 1_000 : null;
 }

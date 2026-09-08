@@ -19,6 +19,7 @@ import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { createGitProcessEnv } from "./git-process-env";
 import type { SwebenchInstanceMetadata } from "./swebench-instance";
 import { buildSwebenchGradePlan, parseSwebenchGradeOutput, type SwebenchGradeVerdict } from "./swebench-instance";
 import type { SwebenchTrancheEntry } from "./swebench-tranche";
@@ -270,7 +271,9 @@ export async function applyTestPatchToCopy(workspaceCopyDir: string, testPatch: 
 	const patchPath = join(workspaceCopyDir, ".swebench-test.patch");
 	await writeFile(patchPath, testPatch.endsWith("\n") ? testPatch : `${testPatch}\n`);
 	try {
-		await execFileAsync("git", ["-C", workspaceCopyDir, "apply", ".swebench-test.patch"]);
+		await execFileAsync("git", ["-C", workspaceCopyDir, "apply", ".swebench-test.patch"], {
+			env: createGitProcessEnv(),
+		});
 		return { applied: true };
 	} catch (error) {
 		const detail = error instanceof Error ? error.message : String(error);

@@ -18,6 +18,7 @@ import {
 } from "../core/context-size-advisor";
 import { formatDeliveryQualityGateAuditReport, runDeliveryQualityGateAudit } from "../core/delivery-quality-gate-audit";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
+import { createGitProcessEnv } from "../core/git-process-env";
 import { createDefaultLmsRunner, fetchLmsPsModels } from "../core/lms-ps-json";
 import { buildLmStudioCapacityReport, formatLmStudioCapacityReport } from "../core/lmstudio-capacity-report";
 import { parseLmStudioRequestStats, renderLmStudioRequestStats } from "../core/lmstudio-request-stats";
@@ -467,7 +468,9 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 		});
 		projectPath = scaffold.workspacePath;
 		// Use the scaffold's actual default branch as the seed baseRef (its `git init` does not force `main`).
-		scaffoldedBaseRef = await execFileAsync("git", ["-C", projectPath, "rev-parse", "--abbrev-ref", "HEAD"])
+		scaffoldedBaseRef = await execFileAsync("git", ["-C", projectPath, "rev-parse", "--abbrev-ref", "HEAD"], {
+			env: createGitProcessEnv(),
+		})
 			.then(({ stdout }) => stdout.trim() || null)
 			.catch(() => null);
 		// `--json` is an automation contract: stdout must be one parseable JSON document. The controller already

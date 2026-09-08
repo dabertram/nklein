@@ -14,6 +14,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { createGitProcessEnv } from "./git-process-env";
 import { type SwebenchInstanceMetadata, type SwebenchPin, verifySwebenchPin } from "./swebench-instance";
 
 const execFileAsync = promisify(execFile);
@@ -93,7 +94,11 @@ export async function materializeSwebenchInstance(input: {
 	} finally {
 		await rm(stagingDir, { recursive: true, force: true });
 	}
-	const git = (...args: string[]) => execFileAsync("git", ["-C", input.targetDir, ...args]);
+	const git = (...args: string[]) =>
+		// The parent process may be a git HOOK: an inherited GIT_INDEX_FILE/GIT_DIR would make this temp repo's
+		// `git add` write into the OUTER commit's index, whose blobs live elsewhere ("error: invalid object …
+		// Error building trees"). Sanitise every git call (live 2026-09-08, misdiagnosed as flaky all day).
+		execFileAsync("git", ["-C", input.targetDir, ...args], { env: createGitProcessEnv() });
 	await git("init", "--quiet", "--initial-branch=main");
 	await git("add", "-A");
 	await git(

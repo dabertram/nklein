@@ -64,6 +64,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { assembleFieldReportCandidates } from "../core/field-report-assembly";
 import { buildFieldReport, renderReviewPayload } from "../core/field-report-content";
 import { buildFitnessTableView } from "../core/fitness-table-view";
+import { createGitProcessEnv } from "../core/git-process-env";
 import {
 	buildHostOpenCommand,
 	hostOpenPlatformFromProcess,
@@ -1473,7 +1474,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						const { stdout } = await execFileAsync(
 							"git",
 							["-C", workspaceScope.workspacePath, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
-							{ timeout: 4000 },
+							{ timeout: 4000, env: createGitProcessEnv() },
 						);
 						const ref = stdout.trim();
 						return ref.includes("/") ? (ref.split("/").pop() ?? null) : ref || null;
