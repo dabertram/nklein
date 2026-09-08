@@ -2291,7 +2291,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   dead model, THE 3h-loop root; (6) start path: `preferredCandidate = classSelected ?? selectedCandidate` — the
   unfiltered primary bypasses the ledger filter; (7) `resolveLoadedFallbackLaunchConfig` picks the first cached
   listing id, no ledger; (8) ledger keyed by modelId only, endpoint stored but never read (one dead host
-  globally excludes a model resident elsewhere). **P1:** (9) P0.QWAIT is one line — `scheduleConversationTimeout`
+  globally excludes a model resident elsewhere) *(SHIPPED 2026-09-08 as P0.LEDGERENDPOINT)*. **P1:** (9) P0.QWAIT is one line — `scheduleConversationTimeout`
   fires BEFORE the admission wait; (10) pool-loss 3-strike park is warn-only (no blockedKind/observation →
   invisible to the needs-you inbox); (11) dead marks have no tRPC exposure / clear; (12) all recovery budgets
   (six strike/dedup maps) are process-local, never cleared on success, never persisted — "bounded to 3" is per
