@@ -15,6 +15,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildCardTrail, type CardTrail, type TrailEvent, type TrailSourceStatus } from "../core/card-lifecycle-trail";
+import { forEachJsonlLine } from "./jsonl-stream";
 
 async function readObservations(home: string, cardId: string): Promise<[TrailEvent[], TrailSourceStatus]> {
 	const dir = join(home, ".nklein", "nklein", "telemetry");
@@ -24,10 +25,12 @@ async function readObservations(home: string, cardId: string): Promise<[TrailEve
 	}
 	const events: TrailEvent[] = [];
 	for (const file of files.filter((name) => name.endsWith(".jsonl"))) {
-		const text = await readFile(join(dir, file), "utf8").catch(() => "");
-		for (const line of text.split("\n")) {
+		// P0.HEAP: telemetry day files grow for the whole factory run (92 MB on the 2026-09-07 crash's drain) and
+		// this is read on every card-trail request. Stream a line at a time instead of decoding the file into one
+		// string plus one string per line — that decode WAS the fatal allocation.
+		await forEachJsonlLine(join(dir, file), (line) => {
 			if (!line.includes(cardId)) {
-				continue;
+				return;
 			}
 			try {
 				const record = JSON.parse(line) as {
@@ -48,7 +51,7 @@ async function readObservations(home: string, cardId: string): Promise<[TrailEve
 			} catch {
 				// A malformed record is skipped, never fatal — one bad line must not erase the rest of the trail.
 			}
-		}
+		});
 	}
 	return [events, { source: "observation", available: true, eventCount: events.length, note: "" }];
 }
@@ -61,10 +64,10 @@ async function readLedger(home: string, cardId: string): Promise<[TrailEvent[], 
 	}
 	const events: TrailEvent[] = [];
 	for (const file of files.filter((name) => name.endsWith(".jsonl"))) {
-		const text = await readFile(join(dir, file), "utf8").catch(() => "");
-		for (const line of text.split("\n")) {
+		// P0.HEAP: same as the telemetry reader above — a ledger day file is unbounded, so stream it.
+		await forEachJsonlLine(join(dir, file), (line) => {
 			if (!line.includes(cardId)) {
-				continue;
+				return;
 			}
 			try {
 				const record = JSON.parse(line) as Record<string, unknown>;
@@ -105,7 +108,7 @@ async function readLedger(home: string, cardId: string): Promise<[TrailEvent[], 
 			} catch {
 				// skip
 			}
-		}
+		});
 	}
 	return [events, { source: "ledger", available: true, eventCount: events.length, note: "" }];
 }

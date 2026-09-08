@@ -341,6 +341,7 @@ import {
 	createSessionTransitionRecorder,
 } from "./nklein-runtime-terminal-telemetry";
 import { persistCardVerification } from "./persist-card-verification";
+import { createProcessMemoryObserver } from "./process-memory-observer";
 import { isReviewDeliverySuperseded } from "./review-delivery-supersession";
 import {
 	buildReviewReconcileHoldObservation,
@@ -733,6 +734,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	 */
 	const recoveryBudgets = createRecoveryBudgetBooks();
 	void recoveryBudgets.hydrate();
+	/**
+	 * P0.HEAP: sample the process heap on the board-liveness tick.
+	 *
+	 * The server died at its heap limit twice and telemetry showed nothing — the only memory reading in the
+	 * codebase ran on demand while an operator had the fleet rail open, which is exactly when nobody is looking
+	 * during a 9-hour unattended run. The observer decides which samples are worth a row (a fixed cadence, sooner
+	 * on a whole growth step, a warning on crossing the pressure fraction), so sampling every tick costs nothing
+	 * in telemetry volume and the climb is visible long before the FATAL line.
+	 */
+	const processMemoryObserver = createProcessMemoryObserver();
 	// W4.2a (run12 live finding): ONE automatic re-drive of an empty-patch worker before the fail-closed hold —
 	// an unattended swarm otherwise stalls on a card the worker simply failed to do (the hold is correct; the
 	// missing piece was recovery). Keyed workspace:task; bounded to a single attempt, then the operator owns it.
@@ -4793,6 +4804,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// A trashed card can hold an endpoint with NO tracked session at all (its `::review` aux turn
 						// outlives it), so the stop loop above is not sufficient on its own.
 						purgeModelTurnReservationsForTerminalLaneCards(scope.workspaceId, board);
+						// P0.HEAP: one heap sample per tick. The observer decides whether it is worth a telemetry row.
+						processMemoryObserver.observe({ workspacePath: scope.workspacePath });
 						// Secondary reviewers run outside the task-session service, so their card is absent from
 						// `activeSessionTaskIds`. Correlate the finalizer's own in-flight set as well; otherwise a
 						// watchdog tick can launch a duplicate reviewer while the first one is still awaiting its
