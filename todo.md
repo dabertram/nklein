@@ -2375,10 +2375,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   restart *(SHIPPED 2026-09-08: `src/core/recovery-budgets.ts` + `src/state/recovery-budget-store.ts`; all SEVEN
   counters read/write a hydrated write-through ledger, and a genuine delivery releases every budget the card had
   open — a bound on consecutive failures, not a lifetime quota)*; (13) bounced redrive ignores `start_in_flight` yet records a 15-min dedup; (14) custodian
-  hard-codes its model, no residency/ledger check, swallows failures; (15) custodian finding cards stamped
-  `trustedOrigin: "operator"` though machine-authored; (16) custodian commit mark process-local → re-reviews
-  after restart; (17) sandbox dispose lacks the root/owner-uid clear (workdir leaks, throw eaten); (18)
-  `prepareWorkspace` serializes but doesn't dedup — second caller rm -rf's the first's live workspace; (19)
+  hard-codes its model, no residency/ledger check, swallows failures *(SHIPPED 2026-09-05)*; (15) custodian
+  finding cards stamped `trustedOrigin: "operator"` though machine-authored *(SHIPPED 2026-09-05)*; (16) custodian
+  commit mark process-local → re-reviews after restart *(SHIPPED 2026-09-05)*; (17) sandbox dispose lacks the
+  root/owner-uid clear (workdir leaks, throw eaten); (18) `prepareWorkspace` serializes but doesn't dedup — second
+  caller rm -rf's the first's live workspace *(SHIPPED 2026-09-08, 955863903: a prepare that finds one in flight
+  for the same task JOINS it; a prepare starting after the previous settled still re-clones, so the fresh-clone
+  callers are unchanged. Verified against the unfixed code — two concurrent prepares cloned twice before, once
+  after)*; (19)
   blockedKind auto-clear failures warn-only; (20) bounced-stranded redrive has no strike cap; (21) residency
   guard reads a 30s cache that returns last-good on probe failure, never ledger-checked. **P2:** (22) DAG
   zoom/pan (fixed 2026-09-04); (23) DAG node tooltips/aria/search; (24) board-card has no memoization (80+
