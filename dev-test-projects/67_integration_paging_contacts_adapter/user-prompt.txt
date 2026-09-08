@@ -1,0 +1,9 @@
+Write the client adapter in src/adapter.mjs for the contacts service shipped in service/.
+
+The service is deterministic and in-process, and it never throws: every call comes back as a status and a body,
+including the failures. Turning those into outcomes an application can use — a list that pages, a missing record
+that is an answer rather than an error, a validation failure that names its fields — is the whole job.
+
+Read specification.md for the contract and the rules. One thing worth repeating: the service records every call
+you make, and some conformance cases check HOW you talked to it, not just what you returned. Fetching everything
+and filtering locally will not pass.

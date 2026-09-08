@@ -1,0 +1,16 @@
+{
+	"id": "67_integration_paging_contacts_adapter",
+	"title": "Integration: An Adapter Over a Paging Contacts Service",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "integration-i1",
+	"tier": "1/5 integration",
+	"tags": [
+		"adapter",
+		"pagination",
+		"error mapping",
+		"conformance suite",
+		"call-log assertions"
+	]
+}
