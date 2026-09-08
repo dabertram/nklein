@@ -25,8 +25,11 @@ export function selectReviewerPanel(input: {
 	if (size === 0 || input.candidates.length === 0) {
 		return [];
 	}
-	// Depth-first ordering (highest reviewer-fit first; stable by modelKey) — both passes consume this order.
-	const ranked = [...input.candidates].sort((a, b) => b.score - a.score || a.modelKey.localeCompare(b.modelKey));
+	// Best-first ordering — both passes consume the RANKED input order. P0.REVRANK: the ranking core owns that order
+	// (evidence-ranked before unrankable, capability, class fit, serving tie-breaks); re-sorting by `score` alone here
+	// would compare a class-fit score against a capability score and drop the tie-breaks. Callers pass the output of
+	// `buildReviewerCandidates`, which is already ranked.
+	const ranked = [...input.candidates];
 	const chosen: ReviewerCandidate[] = [];
 	const usedLineages = new Set<ModelLineage>();
 

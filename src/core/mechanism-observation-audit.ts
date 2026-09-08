@@ -487,6 +487,26 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 	},
 	{
+		// ── P0.REVRANK (2026-09-07): the reviewer/critic/escalation ranking is capability-ranked, not class-fit-only ──
+		category: "reviewer_capability_ranking",
+		item: "P0.REVRANK",
+		observes:
+			"every AUTO reviewer / plan-critic / escalation-worker pick: the ranked candidates with each one's capability score AND its basis (observed evidence vs catalog prior vs none), the class-gate exclusions, and — for escalations — the strictly-stronger-than-worker verdicts. Fires only on the auto path: a PINNED reviewer role never ranks, so silence under a pin is not a defect",
+		enabledBy: null,
+		covers: ["NKLEIN_REVIEWER_CAPABILITY_RANKING"],
+		addedOn: Date.UTC(2026, 8, 7),
+		expectation: "exceptional",
+	},
+	{
+		category: "escalation_not_stronger_refused",
+		item: "P0.REVRANK",
+		observes:
+			"a stuck-review / empty-patch escalation REFUSED because no loaded model could be proven strictly stronger than the worker it would replace (unknown baseline, unknown candidates, or only equal/weaker ones) — the case that used to 'escalate' a 27B's review to the 9B that caused the loop",
+		enabledBy: null,
+		addedOn: Date.UTC(2026, 8, 7),
+		expectation: "exceptional",
+	},
+	{
 		category: "turn_loop_escalate_model",
 		item: "P15.1e",
 		observes:

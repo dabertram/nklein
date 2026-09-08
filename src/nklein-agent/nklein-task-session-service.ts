@@ -466,6 +466,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		getAgentSandboxManager: () => this.agentSandboxManager,
 		getLaunchConfig: (taskId) => this.launchConfigByTaskId.get(taskId) ?? null,
 		getShellKeyByModelId: () => this.promptWarmthLedger.shellKeyByModelId,
+		getLedgerRootDir: () => this.agentLedgerRoot,
 		getPauseController: () => this.pauseController,
 		getHarness: () => this.secondarySessionHarness,
 		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
@@ -4337,8 +4338,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return null;
 		}
 		// The escalated session is the card's WORKER session on a stronger model — batch toward worker shells.
+		// P0.REVRANK: "stronger" is a proven fact, not a label — the pick must be STRICTLY stronger than the worker it
+		// replaces (capability evidence, then serving), else the escalation is refused (null ⇒ the caller parks as
+		// before) instead of handing a 27B's stuck review to a 9B.
 		return await pickDiverseReviewerModel(launch, taskId, "worker", {
 			lastShellKeyByModel: this.promptWarmthLedger.shellKeyByModelId,
+			...(this.agentLedgerRoot !== undefined ? { ledgerRootDir: this.agentLedgerRoot } : {}),
+			requireStrictlyStrongerThanWorker: true,
 		}).catch(() => null);
 	}
 

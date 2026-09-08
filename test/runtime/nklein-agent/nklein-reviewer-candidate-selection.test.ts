@@ -37,9 +37,29 @@ describe("buildReviewerCandidates (§5.U extraction)", () => {
 		];
 		const candidates = buildReviewerCandidates(descriptors, "worker-alias", "publisher/worker");
 		// Uncatalogued ids resolve to the neutral unknown/UNKNOWN reviewer-fit (42); equal scores keep stable modelKey order.
+		// P0.REVRANK: with no capability resolver supplied, every candidate is UNRANKABLE — `capability` is null, never a
+		// default number, and `scoreBasis` says the order came from class fit alone.
 		expect(candidates).toEqual([
-			{ modelKey: "rev-a", modelId: "publisher/a", score: 42 },
-			{ modelKey: "rev-b", modelId: "publisher/b", score: 42 },
+			{
+				modelKey: "rev-a",
+				modelId: "publisher/a",
+				score: 42,
+				scoreBasis: "class_fit",
+				classFit: 42,
+				capability: null,
+				contextLength: 0,
+				quantPenalty: 0,
+			},
+			{
+				modelKey: "rev-b",
+				modelId: "publisher/b",
+				score: 42,
+				scoreBasis: "class_fit",
+				classFit: 42,
+				capability: null,
+				contextLength: 0,
+				quantPenalty: 0,
+			},
 		]);
 	});
 
@@ -95,7 +115,8 @@ describe("P0.REVRANK lite (live 2026-09-05): fit ties prefer the larger context 
 			"dirk-qwen3.8-27b",
 			"dirk-qwen3.8-27b@m4mini",
 		]);
-		expect(candidates[0]).not.toHaveProperty("contextLength");
+		// The serving facts stay ON the candidate (P0.REVRANK tie-breaks on them and the observation reports them).
+		expect(candidates[0]).toMatchObject({ contextLength: 60160, quantPenalty: 0, capability: null });
 	});
 
 	it("reads the quantization from served ids and real keys", () => {

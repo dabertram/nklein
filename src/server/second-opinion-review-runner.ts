@@ -53,6 +53,10 @@ import { getBaselineProbe, recordBaselineProbe } from "../nklein-agent/nklein-ba
 import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { type PanelJudge, runNEyesReviewPanel, runReviewPanel } from "../nklein-agent/nklein-review-panel-runner";
 import { buildReviewerCandidates, resolveWorkerRealId } from "../nklein-agent/nklein-reviewer-candidate-selection";
+import {
+	DISABLED_REVIEWER_CAPABILITY_EVIDENCE,
+	loadReviewerCapabilityEvidence,
+} from "../nklein-agent/nklein-reviewer-capability-evidence";
 import { selectReviewerPanel } from "../nklein-agent/nklein-reviewer-panel-selection";
 import {
 	type NKleinSecondOpinionReviewOutcome,
@@ -178,6 +182,8 @@ export interface RunSecondOpinionReviewForTaskInput {
 	 * injected or a live endpoint is present).
 	 */
 	fetchLoadedModelDescriptors?: (baseUrl: string) => Promise<readonly LoadedModelDescriptor[]>;
+	/** P0.REVRANK: the panel's capability-evidence loader (injectable for tests; default: the live stores). */
+	loadReviewerCapabilityEvidence?: typeof loadReviewerCapabilityEvidence;
 }
 
 const REVIEW_PLAN_OBJECTIVE_BUDGET = 2_000;
@@ -457,6 +463,11 @@ export async function runSecondOpinionReviewForTask(
 			const baseUrl = workerSummary?.endpoint?.trim() || resolveDefaultLocalModelBaseUrl();
 			const descriptors = await fetchDescriptors(baseUrl).catch(() => []);
 			const workerRealId = resolveWorkerRealId(descriptors, workerModelId);
+			// P0.REVRANK: judges are capability-ranked (registry × ledger/fitness × verdict), not class-fit-ranked.
+			const capabilityEvidence = await (input.loadReviewerCapabilityEvidence ?? loadReviewerCapabilityEvidence)({
+				providerId: reviewerProviderId,
+				endpoint: baseUrl,
+			}).catch(() => DISABLED_REVIEWER_CAPABILITY_EVIDENCE);
 			// Panel size: David's default is 3 (decision #2); tunable via NKLEIN_REVIEW_PANEL_SIZE, clamped to [2, 5] (a panel
 			// needs ≥2 to have a second opinion; capped so a large loaded fleet can't spawn an endpoint-overloading panel).
 			const panelSize = Math.min(
@@ -464,7 +475,10 @@ export async function runSecondOpinionReviewForTask(
 				Math.max(2, Number.parseInt(process.env.NKLEIN_REVIEW_PANEL_SIZE ?? "3", 10) || 3),
 			);
 			panelJudges = selectReviewerPanel({
-				candidates: buildReviewerCandidates(descriptors, workerModelId, workerRealId),
+				candidates: buildReviewerCandidates(descriptors, workerModelId, workerRealId, {
+					role: "reviewer",
+					capabilityEvidence: capabilityEvidence.resolve,
+				}),
 				workerLineage: resolveLineage(workerRealId),
 				size: panelSize,
 			}).map((candidate) => ({

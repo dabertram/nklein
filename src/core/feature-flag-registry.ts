@@ -72,6 +72,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 	{ flag: "NKLEIN_DEBUG_STREAM_EVENTS", mode: "observe_only", gate: "nklein-task-session-service.ts (debug log)" },
 	{ flag: "NKLEIN_TRUNCATION_DIAGNOSTICS", mode: "observe_only", gate: "chat-local-llm-adapter.ts (early return)" },
 	{ flag: "NKLEIN_TOOL_GATE_OBSERVE", mode: "observe_only", gate: "nklein-context-focus-extension.ts" },
+	{
+		flag: "NKLEIN_LLMFIT_PRIOR",
+		mode: "enforcing",
+		gate: "nklein-llmfit-routing-prior.ts (isTruthyEnv)",
+		note: "§5.AB opt-in: runs and caches `llmfit recommend` for score/tok-s routing priors, which CHANGE which model a card is routed to. Undeclared until 2026-09-08 — the coverage ratchet could not see the read because it goes through an INJECTED env rather than the literal `process.env`, so nothing could say whether turning it on was safe.",
+	},
 	{ flag: "NKLEIN_TOOL_GATE_ENFORCE", mode: "enforcing", gate: "nklein-context-focus-extension.ts" },
 	{
 		flag: "NKLEIN_BOUNCE_FORK_RETRY",
@@ -326,6 +332,13 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		gate: "runtime-server.ts (P0.RECONCILE-SKIP boot reconcile — decideReviewReconcileCandidate honourRedeliveryRules)",
 		note: "kill switch — off restores the pre-fix boot: an approved card whose last delivery failed is re-finalized at once, the watchdog's 10-min gap and 24/day cap ignored (the re-delivery is still recorded)",
 	},
+	{
+		flag: "NKLEIN_REVIEWER_CAPABILITY_RANKING",
+		mode: "enforcing",
+		defaultOn: true,
+		gate: "nklein-reviewer-capability-evidence.ts (isEnabledByDefaultEnv)",
+		note: "P0.REVRANK kill switch — disabling it ranks reviewer/critic/escalation candidates by catalog class fit alone again (no registry/ledger/fitness/verdict evidence, no strictly-stronger escalation gate), the capability-blind order that escalated a stuck review to a 9B",
+	},
 ];
 
 /** N11 lane (c) turns these OFF. Exposed alongside the safe set so a flag cannot fall between the two lanes. */
@@ -397,6 +410,12 @@ export interface FlagsOnLaneExclusion {
  * apparent rule.
  */
 export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
+	{
+		flag: "NKLEIN_LLMFIT_PRIOR",
+		kind: "permanent",
+		reason:
+			"shells out to the external `llmfit` binary for routing priors — the nightly lane is hermetic and offline, so enabling it would either fail or measure whether that binary happens to be installed",
+	},
 	// 2026-09-07 v31 stall mechanisms: default ON via isEnabledByDefaultEnv — `=0` is the opt-OUT, so the lane
 	// already runs with every one of them enabled; there is nothing to switch on.
 	{

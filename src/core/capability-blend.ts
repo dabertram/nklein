@@ -5,10 +5,21 @@ import { assessRuntimeModelVerdict } from "./runtime-model-verdict";
 
 type VerdictInput = Parameters<typeof assessRuntimeModelVerdict>[0];
 
-/** Min per-(model, role) samples before role evidence outranks the global rollup (thin role evidence is noisier). */
-const MIN_ROLE_EVIDENCE_SAMPLES = 3;
+/**
+ * Min per-(model, role) samples before role evidence outranks the global rollup (thin role evidence is noisier). It is
+ * also `blendCapabilityWithLedgerEvidence`'s own `minSamples` floor, so a row under it moves NO score: exported so a
+ * caller that must tell an observation from a prior (P0.REVRANK) reads the same floor instead of re-guessing it.
+ */
+export const MIN_ROLE_EVIDENCE_SAMPLES = 3;
 
 type SuccessRow = { successRate: number; samples: number };
+
+/** Which evidence tier the blend consumed for a model — the provenance a caller needs to label a blended number. */
+export type ObservedEvidenceSource = "role_ledger" | "fitness_sweep" | "global_ledger";
+
+export interface ObservedEvidence extends SuccessRow {
+	source: ObservedEvidenceSource;
+}
 
 export interface CapabilityBlender {
 	/** The runtime-verdict penalty for a model (TOOL_UNSUITABLE x0.1, TOOL_WEAK x0.5, else x1); memoized per model. */
@@ -24,6 +35,15 @@ export interface CapabilityBlender {
 		role?: string | null,
 		modelId?: string,
 	) => number;
+	/**
+	 * The observed evidence `blendedCapabilityForKey` would consume for this key/role — the SAME tier selection (role
+	 * ledger ≥ min samples, else fitness sweep ≥ min samples, else the global rollup), or null when no row exists at
+	 * all. P0.REVRANK: a caller that must not mistake a prior for a measurement asks this first; exposing the selection
+	 * rather than re-deriving it keeps "did evidence apply" and "what evidence applied" one fact. The global rollup is
+	 * reported whenever a row exists — the blend itself still ignores rows under its own `minSamples` (3), so read
+	 * `samples` before trusting the number as observed.
+	 */
+	observedEvidenceForKey: (modelKey: string, role?: string | null) => ObservedEvidence | null;
 }
 
 /**
@@ -62,25 +82,30 @@ export function createCapabilityBlender(input: {
 		verdictMemo.set(modelId, multiplier);
 		return multiplier;
 	};
-	const blendedCapabilityForKey = (
-		modelKey: string,
-		baseCapability: number,
-		role?: string | null,
-		modelId?: string,
-	): number => {
+	const observedEvidenceForKey = (modelKey: string, role?: string | null): ObservedEvidence | null => {
 		const roleObserved = role ? input.roleSuccessByKey.get(roleEvidenceKey(modelKey, role)) : undefined;
+		if (roleObserved && roleObserved.samples >= MIN_ROLE_EVIDENCE_SAMPLES) {
+			return { ...roleObserved, source: "role_ledger" };
+		}
 		// Fitness (sweep) role evidence is keyed by the NORMALIZED model id so the eval harness's bare keys and the
 		// runtime's canonical keys resolve to the same row regardless of which shape the router passes.
 		const fitnessObserved =
 			role && input.fitnessRoleSuccessByKey
 				? input.fitnessRoleSuccessByKey.get(roleEvidenceKey(stableFitnessModelKey(modelKey), role))
 				: undefined;
-		const observed =
-			roleObserved && roleObserved.samples >= MIN_ROLE_EVIDENCE_SAMPLES
-				? roleObserved
-				: fitnessObserved && fitnessObserved.samples >= MIN_ROLE_EVIDENCE_SAMPLES
-					? fitnessObserved
-					: input.successByKey.get(modelKey);
+		if (fitnessObserved && fitnessObserved.samples >= MIN_ROLE_EVIDENCE_SAMPLES) {
+			return { ...fitnessObserved, source: "fitness_sweep" };
+		}
+		const global = input.successByKey.get(modelKey);
+		return global ? { ...global, source: "global_ledger" } : null;
+	};
+	const blendedCapabilityForKey = (
+		modelKey: string,
+		baseCapability: number,
+		role?: string | null,
+		modelId?: string,
+	): number => {
+		const observed = observedEvidenceForKey(modelKey, role);
 		const blended = blendCapabilityWithLedgerEvidence(
 			baseCapability,
 			observed?.successRate ?? null,
@@ -88,5 +113,5 @@ export function createCapabilityBlender(input: {
 		);
 		return modelId ? blended * verdictMultiplier(modelId) : blended;
 	};
-	return { verdictMultiplier, blendedCapabilityForKey };
+	return { verdictMultiplier, blendedCapabilityForKey, observedEvidenceForKey };
 }

@@ -10,6 +10,10 @@ import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 import type { NKleinReviewResult } from "./nklein-review-tool";
 import { buildReviewerCandidates, resolveWorkerRealId } from "./nklein-reviewer-candidate-selection";
+import {
+	DISABLED_REVIEWER_CAPABILITY_EVIDENCE,
+	loadReviewerCapabilityEvidence,
+} from "./nklein-reviewer-capability-evidence";
 import { excludeUnroutableDescriptors, pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
 import type {
 	RuntimeTaskSessionStartResult,
@@ -96,6 +100,10 @@ export interface SecondOpinionReviewRunnerDeps {
 	getLaunchConfig(taskId: string): NKleinTaskRestartLaunchConfig | null;
 	/** The §5.AQ warmth ledger (read by the diverse-reviewer auto-pick). */
 	getShellKeyByModelId(): Map<string, PromptWarmthLedgerEntry>;
+	/** The service's isolated ledger root (F1.26b), when any — the P0.REVRANK capability-evidence read honors it. */
+	getLedgerRootDir?(): string | undefined;
+	/** Test seam for the P0.REVRANK capability-evidence loader (default: the live stores). */
+	loadCapabilityEvidence?: typeof loadReviewerCapabilityEvidence;
 	getPauseController(): NKleinPauseController;
 	/** The shared secondary-session harness (bounded sandbox session + always-teardown). */
 	getHarness(): SecondarySessionHarness;
@@ -234,26 +242,33 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		// fallback stands, so behavior only ever improves).
 		// LAST-RETRY ESCALATION (David 2026-09-06 "why need me"): the third no-verdict session used to be a
 		// byte-identical replay on the same reviewer and then a park for a human. On the last retry pick the
-		// STRONGEST routable non-worker model (catalog fit, then context, then quantization — lineage diversity
-		// waived) so the park is only ever reached after the best available judge had its turn.
+		// STRONGEST routable non-worker model (P0.REVRANK: capability evidence ranks — registry × ledger/fitness ×
+		// verdict — class fit gates, then context/quantization tie-break; lineage diversity waived) so the park is
+		// only ever reached after the best available judge had its turn.
 		const escalateToStrongest =
 			!input.reviewer &&
 			(input.budgetAttempt ?? 0) >= REVIEW_ESCALATE_TO_STRONGEST_ON_ATTEMPT &&
 			!!workerLaunch?.modelId;
 		const strongestReviewer = escalateToStrongest
 			? await (async () => {
+					const escalationBaseUrl = workerLaunch?.baseUrl?.trim() || resolveDefaultLocalModelBaseUrl();
 					const loaded = await excludeUnroutableDescriptors(
-						await fetchLoadedModelDescriptors(
-							workerLaunch?.baseUrl?.trim() || resolveDefaultLocalModelBaseUrl(),
-						).catch(() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>),
+						await fetchLoadedModelDescriptors(escalationBaseUrl).catch(
+							() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+						),
 						{ taskId: input.taskId, purpose: "no-verdict escalation reviewer" },
 					);
 					const workerModelId = workerLaunch?.modelId ?? "";
-					const best = buildReviewerCandidates(
-						loaded,
-						workerModelId,
-						resolveWorkerRealId(loaded, workerModelId),
-					)[0];
+					const ledgerRootDir = deps.getLedgerRootDir?.();
+					const evidence = await (deps.loadCapabilityEvidence ?? loadReviewerCapabilityEvidence)({
+						providerId: workerLaunch?.providerId ?? "lmstudio",
+						endpoint: escalationBaseUrl,
+						...(ledgerRootDir !== undefined ? { ledgerRootDir } : {}),
+					}).catch(() => DISABLED_REVIEWER_CAPABILITY_EVIDENCE);
+					const best = buildReviewerCandidates(loaded, workerModelId, resolveWorkerRealId(loaded, workerModelId), {
+						role: "reviewer",
+						capabilityEvidence: evidence.resolve,
+					})[0];
 					return best ? { providerId: workerLaunch?.providerId ?? "lmstudio", modelId: best.modelKey } : null;
 				})().catch(() => null)
 			: null;

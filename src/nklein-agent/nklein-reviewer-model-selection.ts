@@ -11,15 +11,44 @@ import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { applyDiversityPreference } from "../core/model-diversity";
 import { resolveLineage } from "../core/model-lineage";
 import { isModelMarkedDead } from "../core/model-liveness-ledger";
+import {
+	describeRankedCandidate,
+	type RankedReviewerCandidate,
+	type ReviewerRanking,
+	type StrictlyStrongerBaseline,
+	type StrictlyStrongerSelection,
+	selectStrictlyStrongerCandidates,
+} from "../core/reviewer-capability-ranking";
+import type { SwarmRole } from "../core/role-model-class";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
 import { buildLmStudioMachineByModelId } from "./nklein-lmstudio-host-map";
-import { buildReviewerCandidates, resolveWorkerRealId } from "./nklein-reviewer-candidate-selection";
+import {
+	describeServing,
+	quantizationPenalty,
+	rankReviewerCandidateDescriptors,
+	resolveWorkerRealId,
+} from "./nklein-reviewer-candidate-selection";
+import {
+	DISABLED_REVIEWER_CAPABILITY_EVIDENCE,
+	loadReviewerCapabilityEvidence,
+	type ReviewerCapabilityEvidenceSource,
+} from "./nklein-reviewer-capability-evidence";
 import { now } from "./nklein-session-state";
 
 /** The cache-warmth ledger (kind→shell per model), read to batch back-to-back same-kind turns onto a warm shell. */
 export interface ReviewerModelSelectionDeps {
 	lastShellKeyByModel: Map<string, PromptWarmthLedgerEntry>;
+	/** Isolated ledger root (the session service's F1.26b root) for the capability-evidence read; undefined ⇒ default. */
+	ledgerRootDir?: string;
+	/** Test seam: the evidence loader (default: the live registry / ledger / fitness / observation read). */
+	loadCapabilityEvidence?: typeof loadReviewerCapabilityEvidence;
+	/**
+	 * P0.REVRANK escalation contract: the pick REPLACES the worker in `workerLaunch`, so it must be proven STRICTLY
+	 * stronger than that worker (`selectStrictlyStrongerCandidates`); when nothing qualifies the pick is refused (null)
+	 * with an `escalation_not_stronger_refused` observation — never a lateral or downward "escalation".
+	 */
+	requireStrictlyStrongerThanWorker?: boolean;
 }
 
 /**
@@ -142,14 +171,93 @@ function describeDiversePickPurpose(sessionKind: PromptSessionKind): {
 	}
 }
 
+/** Compact per-candidate metadata for the ranking observation (bounded to the head of the list). */
+function summarizeRanked(candidates: readonly RankedReviewerCandidate[], limit = 8) {
+	return candidates.slice(0, limit).map((candidate) => ({
+		modelKey: candidate.modelKey,
+		score: candidate.score,
+		scoreBasis: candidate.scoreBasis,
+		capability: candidate.capability?.score ?? null,
+		capabilityBasis: candidate.capability?.basis ?? null,
+		samples: candidate.capability?.samples ?? 0,
+		classFit: candidate.classFit,
+		quantPenalty: candidate.quantPenalty,
+		contextLength: candidate.contextLength,
+	}));
+}
+
+/** The pick's capability facts, stamped on the existing pick observations so a basis is never mistaken for a fact. */
+function pickCapabilityMetadata(pick: RankedReviewerCandidate) {
+	return {
+		reviewerCapability: pick.capability?.score ?? null,
+		reviewerCapabilityBasis: pick.capability?.basis ?? null,
+		reviewerCapabilitySamples: pick.capability?.samples ?? 0,
+		reviewerClassFit: pick.classFit,
+	};
+}
+
+/**
+ * P0.REVRANK: record what the ranking saw and decided — the pick + its basis — so a capability-blind choice can never
+ * again hide behind a "lineage-diverse" line. One record per auto pick (reviewer, critic, escalation worker).
+ */
+function recordRankingObservation(input: {
+	taskId: string;
+	purpose: ReturnType<typeof describeDiversePickPurpose>;
+	role: SwarmRole;
+	evidence: ReviewerCapabilityEvidenceSource;
+	workerRealId: string;
+	ranking: ReviewerRanking;
+	strictlyStronger: { baseline: StrictlyStrongerBaseline; selection: StrictlyStrongerSelection } | null;
+}): void {
+	const head = input.ranking.ranked.slice(0, 3).map(describeRankedCandidate).join(" · ");
+	recordSelfObservation({
+		signal: "custom",
+		severity: "info",
+		message: `${input.purpose.label} ranking for ${input.taskId} (${input.evidence.enabled ? "capability evidence" : "class fit only — capability evidence disabled"}, ${input.ranking.rankable.length} evidence-ranked / ${input.ranking.unrankable.length} unrankable / ${input.ranking.excluded.length} class-excluded): ${head || "no candidate"}${
+			input.strictlyStronger
+				? ` — strictly-stronger-than-worker gate: ${input.strictlyStronger.selection.qualified.length} qualified`
+				: ""
+		}.`,
+		taskId: input.taskId,
+		metadata: {
+			category: "reviewer_capability_ranking",
+			purpose: input.purpose.category,
+			role: input.role,
+			evidenceEnabled: input.evidence.enabled,
+			worker: input.workerRealId,
+			ranked: summarizeRanked(input.ranking.ranked),
+			rankable: input.ranking.rankable.length,
+			unrankable: input.ranking.unrankable.length,
+			excluded: input.ranking.excluded,
+			strictlyStronger: input.strictlyStronger
+				? {
+						baseline: {
+							modelKey: input.strictlyStronger.baseline.modelKey,
+							capability: input.strictlyStronger.baseline.capability?.score ?? null,
+							basis: input.strictlyStronger.baseline.capability?.basis ?? null,
+							samples: input.strictlyStronger.baseline.capability?.samples ?? 0,
+						},
+						qualified: input.strictlyStronger.selection.qualified.map((candidate) => candidate.modelKey),
+						verdicts: input.strictlyStronger.selection.verdicts,
+					}
+				: null,
+		},
+	});
+}
+
 /**
  * W2.5a: pick a lineage-diverse LOADED model as the reviewer/escalation model. The worker's REAL model key
  * (descriptor.modelKey, not the per-machine alias) resolves its lineage; candidates are the other loaded
  * non-embedding models, preferred diverse-first via applyDiversityPreference, then §5.AQ(d) warmth-batched by
  * session kind within the diverse set. When the fit-margin policy waives diversity, the best ranked non-worker
- * candidate still wins; null is reserved for a failed/empty model probe or no other candidate. Extracted verbatim
- * from InMemoryNKleinTaskSessionService.pickDiverseReviewerModel (shared by the second-opinion review runner and the
- * escalation-model picker).
+ * candidate still wins; null is reserved for a failed/empty model probe, no other candidate, or a refused
+ * escalation. Extracted verbatim from InMemoryNKleinTaskSessionService.pickDiverseReviewerModel (shared by the
+ * second-opinion review runner and the escalation-model picker).
+ *
+ * P0.REVRANK: the candidate ORDER is capability evidence (registry × ledger/fitness × verdict — the worker router's
+ * own signal), gated by the class of the role the pick fills; class fit alone ranked a catalogued 9B over an
+ * uncatalogued 27B and "escalated" a stuck review to the 9B that caused it. Margin math (diversity, warmth) runs on
+ * the evidence-ranked set only — a model with no evidence is never promoted over one with evidence.
  */
 export async function pickDiverseReviewerModel(
 	workerLaunch: NKleinTaskRestartLaunchConfig,
@@ -171,12 +279,67 @@ export async function pickDiverseReviewerModel(
 	}
 	// The worker's launch modelId is usually the SERVED alias — resolve its REAL key for lineage when loaded.
 	const workerRealId = resolveWorkerRealId(descriptors, workerLaunch.modelId);
-	const candidates = buildReviewerCandidates(descriptors, workerLaunch.modelId, workerRealId);
+	// The role the pick FILLS gates the class: an escalation replaces the card's WORKER (tool use required), every
+	// other kind judges (reviewer class).
+	const role: SwarmRole = sessionKind === "worker" ? "worker" : "reviewer";
+	const evidence = await (deps.loadCapabilityEvidence ?? loadReviewerCapabilityEvidence)({
+		providerId: workerLaunch.providerId,
+		endpoint: baseUrl,
+		...(deps.ledgerRootDir !== undefined ? { ledgerRootDir: deps.ledgerRootDir } : {}),
+	}).catch(() => DISABLED_REVIEWER_CAPABILITY_EVIDENCE);
+	const ranking = rankReviewerCandidateDescriptors(descriptors, workerLaunch.modelId, workerRealId, {
+		role,
+		capabilityEvidence: evidence.resolve,
+	});
+	let candidates = ranking.ranked;
+	let strictlyStronger: { baseline: StrictlyStrongerBaseline; selection: StrictlyStrongerSelection } | null = null;
+	if (deps.requireStrictlyStrongerThanWorker) {
+		const workerDescriptor =
+			descriptors.find(
+				(descriptor) =>
+					descriptor.runtimeId === workerLaunch.modelId || descriptor.modelKey === workerLaunch.modelId,
+			) ?? null;
+		const baseline: StrictlyStrongerBaseline = {
+			modelKey: workerLaunch.modelId,
+			capability: evidence.resolve({ runtimeId: workerLaunch.modelId, modelKey: workerRealId }, role),
+			...(workerDescriptor
+				? describeServing(workerDescriptor)
+				: {
+						contextLength: workerLaunch.contextWindow ?? 0,
+						quantPenalty: quantizationPenalty(`${workerLaunch.modelId} ${workerRealId}`),
+					}),
+		};
+		const selection = selectStrictlyStrongerCandidates(ranking.ranked, baseline);
+		strictlyStronger = { baseline, selection };
+		candidates = selection.qualified;
+	}
+	if (ranking.ranked.length > 0 || ranking.excluded.length > 0) {
+		recordRankingObservation({ taskId, purpose, role, evidence, workerRealId, ranking, strictlyStronger });
+	}
 	if (candidates.length === 0) {
+		if (strictlyStronger?.selection.refusedReason) {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "warning",
+				message: `${purpose.label} escalation refused for ${taskId}: ${strictlyStronger.selection.refusedReason}.`,
+				taskId,
+				metadata: {
+					category: "escalation_not_stronger_refused",
+					worker: workerRealId,
+					baselineCapability: strictlyStronger.baseline.capability?.score ?? null,
+					baselineBasis: strictlyStronger.baseline.capability?.basis ?? null,
+					verdicts: strictlyStronger.selection.verdicts,
+				},
+			});
+		}
 		return null;
 	}
+	// Margin math stays on ONE scale: the evidence-ranked candidates, unless nothing is rankable (then class fit, the
+	// pre-evidence order). A candidate with no capability claim is never promoted over one with evidence.
+	const rankable = candidates.filter((candidate) => candidate.capability !== null);
+	const pool = rankable.length > 0 ? rankable : candidates;
 	const preferred = applyDiversityPreference({
-		ranked: candidates,
+		ranked: pool,
 		avoidLineages: [resolveLineage(workerRealId)],
 	});
 	const preferredPick = preferred.ranked[0];
@@ -190,11 +353,14 @@ export async function pickDiverseReviewerModel(
 		});
 		return null;
 	}
+	const pickByKey = (modelKey: string): RankedReviewerCandidate =>
+		pool.find((candidate) => candidate.modelKey === modelKey) ?? (preferredPick as RankedReviewerCandidate);
 	if (!preferred.diversityAchieved) {
 		// A diversity waiver means the strongest *other* loaded model is same-lineage or the diverse alternative is
 		// outside the capability margin. Returning null here used to make the caller fall all the way back to the
 		// original worker, silently turning review into self-review even though a stronger independent session was
 		// available. Preserve the capability decision and use the ranked non-worker candidate.
+		const pick = pickByKey(preferredPick.modelKey);
 		recordSelfObservation({
 			signal: "custom",
 			severity: "info",
@@ -207,6 +373,7 @@ export async function pickDiverseReviewerModel(
 				reason: preferred.diversityWaivedReason ?? null,
 				reviewer: preferredPick.modelKey,
 				worker: workerRealId,
+				...pickCapabilityMetadata(pick),
 			},
 		});
 		return { providerId: workerLaunch.providerId, modelId: preferredPick.modelKey };
@@ -243,13 +410,18 @@ export async function pickDiverseReviewerModel(
 			metadata: { category: "reviewer_warmth_batched", reason: warmth.warmthReason },
 		});
 	}
-	const pick = warmthPick ?? preferredPick;
+	const pick = pickByKey((warmthPick ?? preferredPick).modelKey);
 	recordSelfObservation({
 		signal: "custom",
 		severity: "info",
 		message: `Auto-picked lineage-diverse ${purpose.label} ${pick.modelKey} (${resolveLineage(pick.modelId)}) for ${taskId} — worker is ${workerRealId} (${resolveLineage(workerRealId)}).`,
 		taskId,
-		metadata: { category: purpose.category, reviewer: pick.modelKey, worker: workerRealId },
+		metadata: {
+			category: purpose.category,
+			reviewer: pick.modelKey,
+			worker: workerRealId,
+			...pickCapabilityMetadata(pick),
+		},
 	});
 	return { providerId: workerLaunch.providerId, modelId: pick.modelKey };
 }

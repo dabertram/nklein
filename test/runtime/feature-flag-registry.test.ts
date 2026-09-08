@@ -43,6 +43,11 @@ function flagsInSource(): string[] {
 		/(?:isTruthyEnv|isEnabledByDefaultEnv)\(\s*process\.env\.(NKLEIN_[A-Z0-9_]*)/gu,
 		/process\.env\.(NKLEIN_[A-Z0-9_]*)\s*(?:===|!==)\s*"(?:1|0|true|false|on|off|smallest)"/gu,
 		/\/\^?\([^)]*(?:0|false|off|1|true|on)[^)]*\)[^/]*\/i?\u002etest\(\s*process\.env\.(NKLEIN_[A-Z0-9_]*)/gu,
+		// An INJECTED environment (`const env = input.env ?? process.env`) is the right shape for a testable flag
+		// read, and the patterns above cannot see it — they all anchor on the literal `process.env`. That blind spot
+		// made a live, working kill switch look like a flag that no longer exists in the source (P0.REVRANK,
+		// 2026-09-08), and it would hide every future injectable read the same way.
+		/(?:isTruthyEnv|isEnabledByDefaultEnv)\(\s*[A-Za-z_$][\w$]*\.(NKLEIN_[A-Z0-9_]*)/gu,
 	];
 	for (const file of globSync("src/**/*.{ts,tsx}")) {
 		const text = readFileSync(file, "utf8");

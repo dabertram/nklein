@@ -2,8 +2,19 @@ import { describe, expect, it } from "vitest";
 import type { ReviewerCandidate } from "../../../src/nklein-agent/nklein-reviewer-candidate-selection";
 import { panelLineageBreadth, selectReviewerPanel } from "../../../src/nklein-agent/nklein-reviewer-panel-selection";
 
-// modelId drives lineage; score drives depth ordering.
-const cand = (modelKey: string, modelId: string, score: number): ReviewerCandidate => ({ modelKey, modelId, score });
+// modelId drives lineage; score drives depth ordering. P0.REVRANK: the panel consumes an ALREADY-ranked list, so the
+// helper hands each candidate the class-fit shape `buildReviewerCandidates` produces for an unrankable (no-evidence)
+// model — the ordering under test is the input order, not a re-sort.
+const cand = (modelKey: string, modelId: string, score: number): ReviewerCandidate => ({
+	modelKey,
+	modelId,
+	score,
+	scoreBasis: "class_fit",
+	classFit: score,
+	capability: null,
+	contextLength: 0,
+	quantPenalty: 0,
+});
 
 describe("selectReviewerPanel", () => {
 	it("picks the deepest judge from each DISTINCT non-worker family (max diversity)", () => {
