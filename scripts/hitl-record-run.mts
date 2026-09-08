@@ -23,7 +23,8 @@
  * expensive and irreversible needs a way to be asked what it would do.
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 const REPO = resolve(new URL("..", import.meta.url).pathname);
@@ -62,6 +63,32 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv = {}): Prom
 	});
 }
 
+/**
+ * A recording counts as done only when it has REPLAYED.
+ *
+ * Live 2026-09-08: the first project recorded cleanly and its replay failed on an environment check. The scenario
+ * directory existed, so a resumed run would have skipped it as finished and the batch would have quietly shipped a
+ * set nobody had ever replayed. Existence of a file is not evidence that it works.
+ */
+function isVerifiedRecording(projectId: string): boolean {
+	try {
+		const sources = JSON.parse(readFileSync(join(SCENARIOS, projectId, "sources.json"), "utf8"));
+		return existsSync(join(SCENARIOS, projectId, "perfect-run.json")) && sources.replayVerified === true;
+	} catch {
+		return false;
+	}
+}
+
+function markReplayVerified(projectId: string): void {
+	try {
+		const path = join(SCENARIOS, projectId, "sources.json");
+		const sources = JSON.parse(readFileSync(path, "utf8"));
+		writeFileSync(path, `${JSON.stringify({ ...sources, replayVerified: true }, null, "\t")}\n`);
+	} catch {
+		// The recording still stands; it simply will not be skipped next time, which is the safe direction.
+	}
+}
+
 interface ProjectResult {
 	projectId: string;
 	status: "skipped" | "recorded" | "failed";
@@ -93,8 +120,7 @@ if (projects.length === 0) {
 if (process.argv.includes("--dry-run")) {
 	console.log(`would record ${projects.length} project(s), state in ${statePath}:`);
 	for (const projectId of projects) {
-		const done = existsSync(join(SCENARIOS, projectId, "perfect-run.json"));
-		console.log(`  ${done ? "skip" : "run "} ${projectId}`);
+		console.log(`  ${isVerifiedRecording(projectId) ? "skip" : "run "} ${projectId}`);
 	}
 	process.exit(0);
 }
@@ -141,8 +167,8 @@ if (busy.length > 0 && !process.argv.includes("--force")) {
 console.log(`recording ${projects.length} project(s), state in ${statePath}`);
 
 for (const projectId of projects) {
-	if (existsSync(join(SCENARIOS, projectId, "perfect-run.json"))) {
-		note({ projectId, status: "skipped", detail: "already recorded", at: new Date().toISOString() });
+	if (isVerifiedRecording(projectId)) {
+		note({ projectId, status: "skipped", detail: "already recorded and replayed", at: new Date().toISOString() });
 		continue;
 	}
 	saveState(projectId);
@@ -181,9 +207,16 @@ for (const projectId of projects) {
 	}
 
 	// 4. A recording that has never been replayed is not a test. Prove it replays before calling it done.
+	// The harness REFUSES to run against the real HOME — it writes runtime state, and a dev-test replay must not
+	// touch the operator's. Give it a throwaway one; forgetting this failed the first recording of the batch.
+	const replayHome = mkdtempSync(join(tmpdir(), `nklein-simflow-${projectId}-`));
 	const replayed = await run("npx", ["tsx", "scripts/verify-simulated-flow.mts"], {
 		NKLEIN_SIMFLOW_SCENARIO: projectId,
+		HOME: replayHome,
 	});
+	if (replayed.code === 0) {
+		markReplayVerified(projectId);
+	}
 	note({
 		projectId,
 		status: replayed.code === 0 ? "recorded" : "failed",

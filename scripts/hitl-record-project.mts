@@ -104,7 +104,23 @@ for (const name of captured.sort()) {
 }
 writeFileSync(
 	join(scenarioDir, "sources.json"),
-	`${JSON.stringify({ drain: DRAIN, generatedAt: new Date().toISOString(), fromRequestId: mark + 1, pairs: captured.length, tracks: script.tracks.length, sources }, null, "\t")}\n`,
+	`${JSON.stringify(
+		{
+			drain: DRAIN,
+			generatedAt: new Date().toISOString(),
+			fromRequestId: mark + 1,
+			pairs: captured.length,
+			tracks: script.tracks.length,
+			// A recording that has never been replayed is not a test. This starts FALSE and is flipped only by a
+			// passing replay, so the existence of a scenario directory can never be mistaken for a working one —
+			// live 2026-09-08: the first recorded project's replay failed on an environment check, the directory was
+			// written anyway, and a resumable re-run would have skipped it as already done.
+			replayVerified: false,
+			sources,
+		},
+		null,
+		"\t",
+	)}\n`,
 );
 
 const verifyCommand = `NKLEIN_SIMFLOW_SCENARIO=${projectId} npx tsx scripts/verify-simulated-flow.mts`;
