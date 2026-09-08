@@ -2477,6 +2477,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   primary start held in the gate with a 400ms budget, wait tick at 300ms → still running at 600ms, fires 400ms
   after the tick (fails without the fix with "awaiting_review" at 600ms).
 
+- [x] **P0.LEDGERENDPOINT — the liveness ledger is keyed by (model, ENDPOINT), not by model id alone (P0.AUDIT0904 leg 8).**
+  The dead mark always CARRIED its `endpoint` but the ledger keyed its maps by `modelId`, so proving a model dead
+  behind one relay excluded the same id everywhere — and the fleet deliberately serves one model from several
+  endpoints (direct and via the tee proxy, or two machines). TTL escalation had the same flaw: a host dead all day
+  doubled the re-admission delay for a healthy host's copy. SHIPPED 2026-09-08 (`6f561217e`): marks and escalation
+  counts key on (model, endpoint); `isModelMarkedDead` / `getModelDeadMark` take `{ endpoint, nowMs }` while the
+  legacy positional `nowMs` still works, and a query WITHOUT an endpoint stays conservative ("dead on ANY endpoint")
+  so callers that cannot name theirs keep the old fail-closed behaviour — no fail-open anywhere.
+  `clearModelDeadMark(id, endpoint?)` re-admits one host or all. The two readers that DO know their endpoint now pass
+  it: the pool-loss `parked_unavailable` leg (`runtime-server.ts`, where "already marked" must mean marked for THIS
+  endpoint or the mark is suppressed for another host's copy) and the reviewer descriptor filter
+  (`nklein-reviewer-model-selection.ts`, whose descriptors come from `probeBaseUrl`). Tests: a model dead on one host
+  stays usable on the other, the endpoint-less query stays conservative, per-endpoint clear, per-endpoint escalation.
 - [ ] **P0.CTX500 — An engine "Context size has been exceeded" 500 parks the card instead of triggering a
   context-shrink retry.** *(Live 2026-09-03 ~05:00, v31 factory: ornith-local-9b (65k window) as WORKER on
   s42-invariant-battery — "Engine protocol predict stream returned an error: {code:500, message:'Context size
