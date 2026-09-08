@@ -11,6 +11,12 @@
 # holds the turn open by construction, so the loop cannot be forgotten. This is the same shape as `hitl-wait.sh`
 # (which waits on the factory) pointed the other way: it waits on the QUEUE, for the model.
 #
+# Claiming is ON BY DEFAULT (2026-09-08). It was opt-in, and opt-in safety is not safety: two responders raced this
+# queue for an hour because the documented invocation did not pass `--claim`. One of them had been left running from
+# an earlier project while a batch responder was started for a new one, and their overlapping id ranges produced
+# orphaned answers and a card that took five review rounds because each responder kept undoing the other's fix for
+# the same feedback. The mechanism existed and was not used, which is the same as not having it.
+#
 # A second responder is worse than none. The queue is strictly serial — one request in flight — so a second
 # answerer adds no throughput, only races: two responders can pick up the same id, and whichever answer lands
 # second is discarded work, while a RECORDING of the drive (scripts/hitl-record-project.mts) becomes incoherent
@@ -20,8 +26,9 @@
 # loser silently moves on to the next unclaimed request rather than duplicating work.
 #
 # Usage:  scripts/hitl-next-request.sh <mark> [maxWaitSeconds] [--claim <responderId>]
-#   <mark>  answer only ids strictly greater than this (scopes a capture to one project)
-#   --claim take exclusive ownership of the returned id (safe to run several responders)
+#   <mark>      answer only ids strictly greater than this (scopes a capture to one project)
+#   --claim ID  claim under this responder name (default: `responder-<pid>`; claiming is ON)
+#   --no-claim  opt OUT of claiming — only for a deliberately single-responder debugging session
 # Env:    HITL_STALE_MINUTES (default 30) — ignore unanswered requests older than this; their sessions are gone.
 # Prints:  the lowest unanswered request id > mark, or "NONE" if none appeared before the deadline.
 # Exit:    0 when an id is printed, 3 on timeout (so `||` can distinguish "idle" from "error").
@@ -31,10 +38,11 @@ MARK="${1:-0}"
 MAX_WAIT="${2:-540}"   # default under the 600s tool cap so the call returns rather than being killed
 POLL="${HITL_POLL_SECONDS:-5}"
 STALE_MINUTES="${HITL_STALE_MINUTES:-30}"   # a request older than this with no answer is a corpse, not work
-CLAIM_AS=""
+CLAIM_AS="responder-$$"
 while [ $# -gt 0 ]; do
 	case "$1" in
-		--claim) CLAIM_AS="${2:-responder}"; shift 2;;
+		--claim) CLAIM_AS="${2:-responder-$$}"; shift 2;;
+		--no-claim) CLAIM_AS=""; shift;;
 		*) shift;;
 	esac
 done
