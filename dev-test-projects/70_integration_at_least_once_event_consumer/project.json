@@ -1,0 +1,16 @@
+{
+	"id": "70_integration_at_least_once_event_consumer",
+	"title": "Integration: An At-Least-Once Event Consumer with Checkpoints",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "integration-i4",
+	"tier": "4/5 integration",
+	"tags": [
+		"at-least-once delivery",
+		"deduplication",
+		"checkpointing",
+		"crash recovery",
+		"call-log assertions"
+	]
+}

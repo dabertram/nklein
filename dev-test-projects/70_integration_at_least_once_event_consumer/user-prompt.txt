@@ -1,0 +1,9 @@
+Write the event consumer in src/adapter.mjs.
+
+The stream is at-least-once: every batch after the first repeats the last event of the batch before it. That is
+the stream working correctly, not a fault, so the consumer has to recognise a repeat rather than process it twice.
+Progress is stored on the server, so a consumer that dies mid-stream must pick up where the last one stopped.
+
+Read specification.md for the contract. The subtle part is ordering: checkpointing a batch before you process it
+passes every "did it handle all the events" check and still loses events when a run dies. The suite reads the call
+log and will catch it.
