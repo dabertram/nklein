@@ -2092,8 +2092,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - **ALL BUILT + four-state proven, 40 projects, 8 families:** test-authoring 37–41, analysis 42–46,
     specification 47–51, planning 52–56, repair 57–61, refactor 62–66, integration 67–71, performance 72–76.
     86 dev-test projects load, none broken, prefixes unique. Free prefixes from 77.
-  - **still to drive:** all of them through the rig, each recorded as an aimock scenario set with
-    `scripts/hitl-record-project.mts mark|record`. Project 42 is the first, in flight.
+  - **driving + recording (the remaining half):** `scripts/hitl-record-run.mts --all-new` drives each project
+    through the rig, records the queue slice as an aimock scenario set, and REPLAYS it before calling it done.
+    A set counts as done only when `sources.json` says `replayVerified: true` — the skip rule used to test the
+    directory's existence, which would have shipped recordings nobody had ever played back.
+    **1 of 40 recorded and replayed:** `37_tests_pricing_rules_suite`, 63 tracks from 63 request/answer pairs of a
+    live Sonnet drive, replaying with zero LLM compute. Two drives have also finished and been verified against
+    their fixtures (42 analysis 5/5 defects; 37 test-authoring 4/4 mutants killed by the agent's own suite).
+    The replay needs an ISOLATED HOME (`HOME=$(mktemp -d /tmp/nklein-simflow-XXXX)`) — the harness refuses the
+    operator's.
   A fixture is NOT done until four states are pasted (untouched green / wrong entry fails naming it / correct
   partial green / `complete:true` with something missing fails naming it) AND it has been solved once, because a
   fixture nobody has solved may not be solvable. **Seven real fixture defects were caught only by solving**, and
