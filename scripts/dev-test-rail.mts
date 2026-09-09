@@ -370,13 +370,24 @@ async function main(): Promise<void> {
 				const reviewing = [...lane.sessionStates.values()].filter((s) => s === "awaiting_review").length;
 				const lastTool = [...lane.messages].reverse().find((message) => message.toolName)?.toolName ?? "—";
 				const seedDone = seed && TERMINAL_STATES.has(seed);
-				// Done means the WHOLE board settled: the seed reached a terminal state AND no card is left in a
-				// working lane. A decompose seed finishing only means the cards exist.
-				if (!seedDone || lane.workingCardCount > 0) allTerminal = false;
+				// DONE = the board has cards and none of them is in a working lane. That is the whole condition.
+				//
+				// It used to ALSO require the seed session to reach a terminal state, and that cost project 39 a
+				// fully-shipped drive on 2026-09-09: all 7 cards completed, `tests/manifest.json` with every mutant
+				// killed and `complete:true`, `npm test` 20/20 green — board `{completed: 7}`, nothing open — and the
+				// rail kept waiting because the decompose card's session never reported a terminal state after it
+				// finished. Forty-five minutes later the stall watchdog fired and the project was recorded as
+				// "the model seat stopped answering". A settled board is the fact; the seed's session state is a
+				// proxy for it that can be missing, and a proxy that can veto the fact is worse than no proxy.
+				//
+				// `cardCount > 0` keeps the early moments honest: before the seed has produced anything there are no
+				// cards, and zero working cards must not read as "done".
+				const boardSettled = lane.cardCount > 0 && lane.workingCardCount === 0;
+				if (!boardSettled) allTerminal = false;
 				rows.push(
 					`  ${lane.label.padEnd(14)} cards=${String(lane.cardCount).padStart(2)} ` +
 						`working=${String(lane.workingCardCount).padStart(2)} ` +
-						`seed=${(seed ?? "starting").padEnd(14)} running=${running} review=${reviewing} ` +
+						`seed=${(seed ?? "starting").padEnd(14)}${seedDone ? "" : "*"} running=${running} review=${reviewing} ` +
 						`msgs=${String(lane.messages.length).padStart(4)} last_tool=${lastTool}`,
 				);
 			}
