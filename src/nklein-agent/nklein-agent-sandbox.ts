@@ -527,6 +527,8 @@ export class AgentSandboxManager {
 	 * separates the two failure shapes seen on 2026-09-09 and the one no log currently carries.
 	 */
 	private readonly lastPlacementReleaseByTaskId = new Map<string, { at: number; via: string }>();
+	/** The call path that most recently disposed each task's workspace — see `disposeWorkspace`. */
+	private readonly lastDisposeCallerByTaskId = new Map<string, string>();
 	/** Notified on every refusal with the facts a diagnosis needs. Set by the session service. */
 	private onPlacementRefusedHandler:
 		| ((event: {
@@ -1425,6 +1427,26 @@ export class AgentSandboxManager {
 			workspaceAlreadyGone?: boolean;
 		} = {},
 	): Promise<void> {
+		// Name the DISPOSER. A live session losing its workspace mid-turn is the open sandbox defect (see
+		// `onPlacementRefused`), and the one fact still missing is which code path took it away: the telemetry can
+		// already say a placement was released `via releaseSlot` N seconds before the refusal, but every stop, abort
+		// and cleanup path funnels through the same release. The stop-stack instrumentation covers stops and does
+		// not cover this. Captured here — three frames, no symbolication cost worth worrying about at disposal
+		// frequency — and carried into the refusal record so the next occurrence names its own cause.
+		this.lastDisposeCallerByTaskId.set(
+			taskId,
+			(new Error().stack ?? "")
+				.split("\n")
+				.slice(2, 5)
+				.map((frame) =>
+					frame
+						.trim()
+						.replace(/^at\s+/u, "")
+						.replace(/\s*\(.*$/u, ""),
+				)
+				.filter((frame) => frame.length > 0)
+				.join(" < ") || "unknown",
+		);
 		if (this.stopping) {
 			return;
 		}
@@ -1950,7 +1972,10 @@ export class AgentSandboxManager {
 			placement.egressIdentityToken = null;
 		}
 		this.placements.delete(taskId);
-		this.lastPlacementReleaseByTaskId.set(taskId, { at: Date.now(), via: "releaseSlot" });
+		this.lastPlacementReleaseByTaskId.set(taskId, {
+			at: Date.now(),
+			via: this.lastDisposeCallerByTaskId.get(taskId) ?? "releaseSlot (no dispose recorded)",
+		});
 		const container = this.containers.get(placement.slot);
 		if (!container) {
 			return;
