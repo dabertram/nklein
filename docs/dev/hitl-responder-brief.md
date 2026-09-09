@@ -69,9 +69,19 @@ single most common way a drive is lost, so something must notice, and the obviou
 (retries, sibling cards), so the youngest is always young. A monitor built that way stayed silent through a full
 hour of a dead responder — the exact failure it existed to catch.
 
-**Alarm on time since the last ANSWER was written, while fresh requests are waiting.** That is what a dead seat
-actually looks like: requests keep arriving and nothing is ever answered. Fifteen minutes is a comfortable
-threshold at the observed throughput below.
+**Alarm when the last ANSWER is older than 15 minutes AND a request arrived after it.** That is what a dead seat
+actually is: work came in and nobody answered it. Fifteen minutes is comfortable at the observed throughput below.
+
+The GATE is the part that keeps being got wrong, so the failed versions are worth recording:
+
+| Gate | Why it failed |
+| --- | --- |
+| youngest pending request is old | the runtime emits requests continuously, so the youngest is always young — this slept through a full hour of an empty seat |
+| a request newer than 30 min exists | an arbitrary window that goes blind exactly when the queue is briefly quiet — took 37 minutes to fire once, and went silent right after a restart |
+| a request arrived after the last answer | no window, and it states the condition directly |
+
+Also: do not put a changing number (a minute count) in whatever string the monitor dedups on, or the same alarm
+re-fires on every tick. Dedup on a state flag; print the number.
 
 ## Observed throughput
 
