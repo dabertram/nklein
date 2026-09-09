@@ -2727,9 +2727,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   Composes with P21.6b, which derives a review SIZE ceiling from the same fitness evidence.
 - [ ] **P1.STARTHANG — a task start that never settles wedges its card permanently, and only a log line notices.**
   *(Live 2026-09-08, evidence complete, cause NOT yet found.)* `dev-39-tests-interval-boundary-suite-decompose`
-  had a session taking model turns while its sandbox workspace was never prepared. Every auto-start retry was
-  refused:
-  `Could not auto-start linked task … (start_in_flight): A start for … is already in flight — refusing the duplicate`.
+  had a session taking model turns while its sandbox workspace was never prepared.
+  **▶ PREMISE CORRECTED 2026-09-09: the `start_in_flight` refusals this item was opened on are BENIGN.** They are
+  ordinary single-flight collisions during a legitimate start. The runtime already reports a genuinely hung start
+  ("startTaskSession has neither returned nor thrown") and the log has **zero** of those, as it has zero of the
+  slot-queue stall warnings ("has been QUEUED 30s+"). Three hypotheses refuted; the refusal itself was never
+  instrumented, so `sandbox_placement_refused` observations now carry never-created vs created-and-released, the
+  age and path of the release, and the pool's placement/container counts. Re-open the diagnosis on that evidence.
   `inFlightStartsByTaskId` is cleared in a `finally`, so the entry can only persist if `startTaskSessionInner`
   never settles. That is exactly the condition `runtime-server.ts` already has a diagnostic for — "startTaskSession
   has neither returned nor thrown. The card will look frozen; the hang inside the start path is the thing to
