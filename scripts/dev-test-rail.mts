@@ -223,6 +223,37 @@ async function main(): Promise<void> {
 		if (useGenerousGuardrails) {
 			await base.runtime.saveConfig.mutate({ swarmGuardrails: originalGuardrails }).catch(() => undefined);
 		}
+		// TRASH EVERY CARD FIRST. `projects.remove` takes the project out of the index; it does not stop the
+		// SESSIONS driving its cards. Live 2026-09-09: project 41 was still working — 2 completed, 6 in review —
+		// for twenty minutes after the rail exited and the batch driver had already filed it as failed and moved
+		// on. Those turns compete with the next project for a strictly-serial endpoint, and worse, the driver
+		// captures the queue slice ABOVE ITS MARK, so an abandoned project's traffic lands inside the next
+		// project's recording. Trashing is the sanctioned stop: the board-liveness watchdog sweeps a trashed
+		// card's session and its `::review` reservation on the next tick (P0.TRASHSTOP / P0.TRASHREVIEW).
+		for (const lane of lanes) {
+			try {
+				const state = (await lane.ws.workspace.getState.query()) as {
+					board?: { columns?: { id?: string; cards?: unknown[] }[] };
+				};
+				const columns = state.board?.columns ?? [];
+				const trash = columns.find((column) => column.id === "trash");
+				let moved = 0;
+				if (trash) {
+					for (const column of columns) {
+						if (column.id === "trash" || !column.cards?.length) continue;
+						moved += column.cards.length;
+						trash.cards = [...(trash.cards ?? []), ...column.cards];
+						column.cards = [];
+					}
+					if (moved > 0) {
+						await lane.ws.workspace.saveState.mutate(state as never);
+						log(`  ${lane.label}: trashed ${moved} card(s) so their sessions stop.`);
+					}
+				}
+			} catch (error) {
+				log(`  ${lane.label}: could not trash cards before removal (${error instanceof Error ? error.message : String(error)})`);
+			}
+		}
 		for (const lane of lanes) {
 			for (let attempt = 0; attempt < 4; attempt += 1) {
 				await base.projects.remove.mutate({ projectId: lane.workspaceId }).catch(() => undefined);
