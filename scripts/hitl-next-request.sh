@@ -47,7 +47,8 @@
 #   --claim ID  claim under this responder name (default: `responder-<pid>`; claiming is ON)
 #   --no-claim  opt OUT of claiming — only for a deliberately single-responder debugging session
 # Env:    HITL_STALE_MINUTES (default 30) — ignore unanswered requests older than this; their sessions are gone.
-#         HITL_CLAIM_ABANDONED_MINUTES (default 20) — reclaim a claim untouched for this long; its responder died.
+#         HITL_CLAIM_ABANDONED_MINUTES (default 20) — reclaim a claim untouched for this long. Only a fallback:
+#         a claim whose `responder-<pid>` owner is not a live process is reclaimed IMMEDIATELY.
 # Prints:  the lowest unanswered request id > mark, or "NONE" if none appeared before the deadline.
 # Exit:    0 when an id is printed, 3 on timeout (so `||` can distinguish "idle" from "error").
 set -u
@@ -75,6 +76,23 @@ CLAIMS="$QUEUE/claims"
 # A claim is STALE once the request it guards has an answer, or once nothing has touched it for
 # CLAIM_ABANDONED_MINUTES (a responder that died mid-turn must not wedge the seat, which is the very failure the
 # claim exists to prevent — see the constant above for why the old hour was self-defeating).
+# A claim's owner is `responder-<pid>` on THIS machine, so its liveness is a fact, not a guess: `kill -0` answers
+# in microseconds. A claim whose owner process is gone is abandoned NOW — waiting out the age window would be
+# choosing to ignore what we can already see. Live 2026-09-09: a responder was stopped mid-request and its claim
+# blocked every other responder for the full twenty minutes, idling the factory while two live responders looped
+# on NONE. Returns 0 when the owner is definitely gone.
+claim_owner_is_dead() {
+	local id="$1"
+	local owner pid
+	owner="$(cat "$CLAIMS/$id/owner" 2>/dev/null)" || return 1
+	case "$owner" in
+		responder-[0-9]*) pid="${owner##*-}";;
+		*) return 1;;   # a non-pid owner name tells us nothing; fall back to the age window
+	esac
+	kill -0 "$pid" 2>/dev/null && return 1
+	return 0
+}
+
 claim_id() {
 	local id="$1"
 	[ -z "$CLAIM_AS" ] && return 0
@@ -83,8 +101,9 @@ claim_id() {
 		printf '%s\n' "$CLAIM_AS" > "$CLAIMS/$id/owner"
 		return 0
 	fi
-	# Already claimed. Reclaim only a demonstrably abandoned one.
-	if [ -n "$(find "$CLAIMS/$id" -maxdepth 0 -mmin +"$CLAIM_ABANDONED_MINUTES" 2>/dev/null)" ]; then
+	# Already claimed. Reclaim a demonstrably abandoned one: the owner process is gone, or the claim has sat
+	# untouched past the age window (which covers an owner on another machine, or a name we cannot parse).
+	if claim_owner_is_dead "$id" || [ -n "$(find "$CLAIMS/$id" -maxdepth 0 -mmin +"$CLAIM_ABANDONED_MINUTES" 2>/dev/null)" ]; then
 		printf '%s\n' "$CLAIM_AS" > "$CLAIMS/$id/owner"
 		touch "$CLAIMS/$id"
 		return 0
@@ -119,8 +138,10 @@ while :; do
 			# it. Offering one to a responder wastes a whole turn on a conversation nobody is listening to, and
 			# across a batch of projects those corpses accumulate faster than they are answered.
 			[ -n "$(find "$path" -mmin +"$STALE_MINUTES" 2>/dev/null)" ] && continue
-			if [ -n "$CLAIM_AS" ] && [ -d "$CLAIMS/$id" ] && [ -z "$(find "$CLAIMS/$id" -maxdepth 0 -mmin +"$CLAIM_ABANDONED_MINUTES" 2>/dev/null)" ]; then
-				continue   # another responder owns this turn
+			if [ -n "$CLAIM_AS" ] && [ -d "$CLAIMS/$id" ] &&
+				! claim_owner_is_dead "$id" &&
+				[ -z "$(find "$CLAIMS/$id" -maxdepth 0 -mmin +"$CLAIM_ABANDONED_MINUTES" 2>/dev/null)" ]; then
+				continue   # another LIVE responder owns this turn
 			fi
 			if [ -z "$next" ] || [ "$id" -lt "$next" ]; then next="$id"; fi
 		done
