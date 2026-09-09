@@ -883,6 +883,36 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// refusals (it is the only place that sees them for certain) and this stops the session when they prove it.
 		// Optional-called: the test doubles for the manager implement only what their case needs, and construction
 		// must not depend on a hook that is pure runtime behaviour.
+		// Diagnostic sink for EVERY placement refusal (not just the ones that trip the guard). Dedup'd to the first
+		// three per task so a wedged card cannot flood the telemetry it is meant to explain.
+		const refusalsRecordedByTaskId = new Map<string, number>();
+		this.agentSandboxManager?.onPlacementRefused?.((event) => {
+			const recorded = refusalsRecordedByTaskId.get(event.taskId) ?? 0;
+			if (recorded >= 3) {
+				return;
+			}
+			refusalsRecordedByTaskId.set(event.taskId, recorded + 1);
+			this.recordObservationWithModel({
+				signal: "custom",
+				severity: "warning",
+				taskId: event.taskId,
+				message:
+					`Sandbox placement refused for ${event.taskId}: ` +
+					(event.everPlaced
+						? `it HELD a placement, released ${event.releasedAgoMs === null ? "at an unknown time" : `${Math.round(event.releasedAgoMs / 1000)}s ago`} via ${event.releasedVia ?? "an unrecorded path"}`
+						: "it has NEVER held a placement in this process") +
+					`; pool now holds ${event.placementsHeld} placement(s) across ${event.containers} container(s).`,
+				metadata: {
+					category: "sandbox_placement_refused",
+					everPlaced: event.everPlaced,
+					consecutiveFailures: event.consecutiveFailures,
+					releasedAgoMs: event.releasedAgoMs,
+					releasedVia: event.releasedVia,
+					placementsHeld: event.placementsHeld,
+					containers: event.containers,
+				},
+			});
+		});
 		this.agentSandboxManager?.onSessionUnusable?.((taskId, reason, absence) => {
 			this.recordObservationWithModel({
 				signal: "custom",

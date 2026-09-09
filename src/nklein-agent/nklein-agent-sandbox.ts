@@ -521,6 +521,24 @@ export class AgentSandboxManager {
 	private readonly everPlacedTaskIds = new Set<string>();
 	/** Consecutive disposed-workspace refusals per task, reset the moment the task holds a placement again. */
 	private readonly sandboxAbsenceFailuresByTaskId = new Map<string, number>();
+	/**
+	 * When each task's placement was last RELEASED, and by which code path. Kept solely so a later refusal can say
+	 * whether the workspace was never created or created-and-taken-away, and how long ago — the one fact that
+	 * separates the two failure shapes seen on 2026-09-09 and the one no log currently carries.
+	 */
+	private readonly lastPlacementReleaseByTaskId = new Map<string, { at: number; via: string }>();
+	/** Notified on every refusal with the facts a diagnosis needs. Set by the session service. */
+	private onPlacementRefusedHandler:
+		| ((event: {
+				taskId: string;
+				everPlaced: boolean;
+				consecutiveFailures: number;
+				releasedAgoMs: number | null;
+				releasedVia: string | null;
+				placementsHeld: number;
+				containers: number;
+		  }) => void)
+		| null = null;
 	/** Notified when a task's session provably cannot do any more work. Set by the session service. */
 	private onSessionUnusableHandler: ((taskId: string, reason: string, absence: SandboxAbsence) => void) | null = null;
 	private readonly projectMountsByKey = new Map<string, AgentSandboxProjectMount>();
@@ -1566,6 +1584,7 @@ export class AgentSandboxManager {
 			}
 		} catch (error) {
 			this.placements.delete(taskId);
+			this.lastPlacementReleaseByTaskId.set(taskId, { at: Date.now(), via: "acquire_failed" });
 			container.occupancy.delete(taskId);
 			if (!container.containerId) {
 				this.containers.delete(container.slot);
@@ -1931,6 +1950,7 @@ export class AgentSandboxManager {
 			placement.egressIdentityToken = null;
 		}
 		this.placements.delete(taskId);
+		this.lastPlacementReleaseByTaskId.set(taskId, { at: Date.now(), via: "releaseSlot" });
 		const container = this.containers.get(placement.slot);
 		if (!container) {
 			return;
@@ -2549,6 +2569,16 @@ export class AgentSandboxManager {
 			const disposed = this.everPlacedTaskIds.has(taskId);
 			const consecutiveFailures = (this.sandboxAbsenceFailuresByTaskId.get(taskId) ?? 0) + 1;
 			this.sandboxAbsenceFailuresByTaskId.set(taskId, consecutiveFailures);
+			const release = this.lastPlacementReleaseByTaskId.get(taskId) ?? null;
+			this.onPlacementRefusedHandler?.({
+				taskId,
+				everPlaced: disposed,
+				consecutiveFailures,
+				releasedAgoMs: release ? Date.now() - release.at : null,
+				releasedVia: release?.via ?? null,
+				placementsHeld: this.placements.size,
+				containers: this.containers.size,
+			});
 			const decision = classifySandboxFailure({ everPlaced: disposed, consecutiveFailures });
 			if (decision.action === "stop_session") {
 				this.sandboxAbsenceFailuresByTaskId.delete(taskId);
@@ -2568,6 +2598,16 @@ export class AgentSandboxManager {
 	 */
 	onSessionUnusable(handler: (taskId: string, reason: string, absence: SandboxAbsence) => void): void {
 		this.onSessionUnusableHandler = handler;
+	}
+
+	/**
+	 * Register a per-refusal diagnostic sink. Three hypotheses for the 2026-09-09 sandbox failures were refuted in
+	 * turn — a stalled slot queue (zero "has been QUEUED" warnings), a wedged start (zero "still UNRESOLVED"
+	 * reports), and a caller-supplied-tools path that skips preparation — each because the evidence to tell them
+	 * apart was never recorded. This records it at the point of refusal instead of guessing a fourth time.
+	 */
+	onPlacementRefused(handler: NonNullable<typeof this.onPlacementRefusedHandler>): void {
+		this.onPlacementRefusedHandler = handler;
 	}
 
 	/** Whether this task ever held a sandbox placement in this process (so its absence means DISPOSED, not early). */
