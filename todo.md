@@ -2717,7 +2717,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   it is a missing CONTAINER — the pool tore down a container other tasks still referenced. Distinct from both the
   finalizer disposer (fixed) and the null-release shape above, and it points at the pool's container lifecycle
   (`releaseSlot` removes a container once `occupancy.size === 0`) rather than at per-task placement.
-  **CANDIDATE MECHANISM, read from the source and NOT yet confirmed (2026-09-09).** `releaseSlot` does:
+  **▶ THE NEVER-PLACED SHAPE IS ROOT-CAUSED (2026-09-09 evening): the pool holds ONE container.**
+  `DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS = 1`, and the drain never overrode it. A container's mounts are baked per
+  project repo, so when project B needs a sandbox while project A's container is still occupied, `tryAcquireSlot`
+  finds it not reusable (cannot reach B's repo), not stale-empty (A still has a live task), then hits
+  `containers.size >= maxContainers` and returns null — B queues indefinitely, and the PRIMARY start path passes
+  no `maxQueueWaitMs`, so that queue has no deadline.
+  A responder confirmed it from outside: `docker ps` showed exactly one sandbox container, belonging to an
+  unrelated workspace, while its own workspace's container "was simply never provisioned" — the same failure
+  across 4 tools and 2 sessions over 30+ minutes, and a FRESH workspace later worked normally (by then the other
+  project had finished). It clusters on `*-decompose` cards because the first card of a new project is exactly
+  when a NEW container is needed.
+  **Mitigated for the rig:** `sandboxMaxContainers: 3` in the drain config (backup at `config.json.bak-before-pool-raise`).
+  **Still to fix in the product:** the primary acquisition queue has no deadline, so pool exhaustion presents as a
+  card that hangs forever rather than one that fails with "pool at capacity". The auxiliary callers already pass
+  `maxQueueWaitMs` for exactly this reason (`run19`: "AUXILIARY acquisitions must never queue FOREVER behind a
+  held slot"); the primary path deserves the same, and the "pool at capacity" diagnostic already exists to say so.
+  **CANDIDATE MECHANISM for the OTHER shape (`No such container`), read from the source and NOT yet confirmed
+  (2026-09-09).** `releaseSlot` does:
   `container.occupancy.delete(taskId)` → `this.drainQueue()` → `if (container.occupancy.size === 0) retire`.
   `drainQueue` is fire-and-forget (`void (async () => …)`) and hands the freed slot to a queued waiter, whose
   `assignContainer` may not have re-populated `occupancy` by the time the emptiness check runs — so the container
