@@ -2709,6 +2709,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   correct — the card is not done. Responders were told to treat repeated re-prompts as waste and stop truthfully,
   and that is what strands the card. Whatever fix lands must distinguish "re-prompting a card that still has work"
   from "re-prompting a card that is finished" (the latter is P1.SETTLEDNUDGE).
+  **▶ SHARPENED 2026-09-09, and it is NOT (only) about giving up.** With the bare-stop guidance corrected, project
+  39 was driven to a genuine finish in ONE card: the model verified all 7 mutant diffs, wrote
+  `test/agent/interval.test.js` and a complete `tests/manifest.json`, and ran the REAL `npm test` green — then
+  stopped, which for a met objective is the correct answer. Request 1329 had called `begin_implementation`.
+  **The card then sat in `planning` for 47 minutes** until the rail gave up and its cleanup trashed it. So a card
+  can do its whole job, end its session, and never settle — the board never changes, the drive is scored a stall,
+  and a fully successful piece of work is thrown away. That is a worse failure than the abandonment case, and the
+  same missing mechanism: nothing reconciles a card whose session has ended.
+  **Next step is observation, not theory:** watch a drive live (`workspace.getState` every couple of minutes)
+  across the moment the model stops, and record what the card's lane and the session's state actually do. Four
+  hypotheses on the sibling sandbox defect were refuted by exactly this kind of after-the-fact reconstruction.
 - [ ] **P1.SETTLEDNUDGE — a SETTLED session keeps being re-prompted, and a clean stop is scored as a failure.**
   *(Opened 2026-09-09 from a responder shift; one hypothesis already refuted, see below.)* Card
   `main-branch-custodian::review` was approved and acknowledged (`ok:true` + "Stop now; do not make further tool
