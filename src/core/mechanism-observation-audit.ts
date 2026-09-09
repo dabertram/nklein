@@ -1246,6 +1246,10 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	// worker's next tool call fail with "No Docker sandbox workspace is prepared", and a skip that fires silently
 	// is indistinguishable from the race never happening.
 	"sandbox_dispose_skipped_session_relive",
+	// 2026-09-09: a pool container was retired. Recorded to test whether a retirement with a queued waiter explains
+	// the "No such container" refusals (P1.REVIEWSANDBOX) — the occupancy and queue depth at retire time are the
+	// discriminating fields.
+	"sandbox_container_retired",
 	// P0.LOCKFILECAPTURE (2026-09-07): install-generated lockfile churn dropped from a captured patch.
 	"capture_dropped_generated_lockfile",
 	// P0.PARKEDLOOP (2026-09-07): a parked review held instead of re-reviewed on unchanged work.

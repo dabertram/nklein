@@ -913,6 +913,23 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				},
 			});
 		});
+		// Container retirements, so a later "No such container" refusal can be matched against the retirement that
+		// caused it (P1.REVIEWSANDBOX). Occupancy at retire time is the discriminating field: a retirement with a
+		// queued waiter is the candidate race; one with an empty queue is ordinary pool shrinkage.
+		this.agentSandboxManager?.onContainerRetired?.((event) => {
+			this.recordObservationWithModel({
+				signal: "custom",
+				severity: "info",
+				taskId: "agent-sandbox-pool",
+				message: `Retired sandbox container ${event.container} (occupancy ${event.occupancy}, ${event.queued} waiter(s) queued).`,
+				metadata: {
+					category: "sandbox_container_retired",
+					container: event.container,
+					occupancy: event.occupancy,
+					queued: event.queued,
+				},
+			});
+		});
 		this.agentSandboxManager?.onSessionUnusable?.((taskId, reason, absence) => {
 			this.recordObservationWithModel({
 				signal: "custom",

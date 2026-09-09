@@ -529,6 +529,10 @@ export class AgentSandboxManager {
 	private readonly lastPlacementReleaseByTaskId = new Map<string, { at: number; via: string }>();
 	/** The call path that most recently disposed each task's workspace — see `disposeWorkspace`. */
 	private readonly lastDisposeCallerByTaskId = new Map<string, string>();
+	/** Notified whenever a pool container is retired — see `retireContainer`. */
+	private onContainerRetiredHandler:
+		| ((event: { container: string; occupancy: number; queued: number }) => void)
+		| null = null;
 	/** Notified on every refusal with the facts a diagnosis needs. Set by the session service. */
 	private onPlacementRefusedHandler:
 		| ((event: {
@@ -2080,7 +2084,18 @@ export class AgentSandboxManager {
 		return container.slot > this.poolConfig.maxContainers;
 	}
 
+	/**
+	 * Instrumented deliberately: a container retired while a queued waiter is mid-assignment would explain the
+	 * `Error response from daemon: No such container: nklein-agent-sandbox-ws-…` shape seen on 2026-09-09
+	 * (P1.REVIEWSANDBOX). Recording the name and the occupancy AT RETIRE TIME makes that checkable — a later
+	 * refusal naming a container that appears here is the confirmation, and its absence is the refutation.
+	 */
 	private async retireContainer(container: ContainerState): Promise<void> {
+		this.onContainerRetiredHandler?.({
+			container: createAgentSandboxContainerName(container.slot, this.poolConfig.namespace),
+			occupancy: container.occupancy.size,
+			queued: this.queue.length,
+		});
 		if (container.retiring) {
 			await container.retiring;
 			return;
@@ -2636,6 +2651,11 @@ export class AgentSandboxManager {
 	 */
 	onPlacementRefused(handler: NonNullable<typeof this.onPlacementRefusedHandler>): void {
 		this.onPlacementRefusedHandler = handler;
+	}
+
+	/** Register a sink for container retirements — the other half of the `No such container` diagnosis. */
+	onContainerRetired(handler: NonNullable<typeof this.onContainerRetiredHandler>): void {
+		this.onContainerRetiredHandler = handler;
 	}
 
 	/** Whether this task ever held a sandbox placement in this process (so its absence means DISPOSED, not early). */
