@@ -179,6 +179,21 @@ if (busy.length > 0 && !process.argv.includes("--force")) {
 	process.exit(1);
 }
 
+// Preflight. Cheaper than discovering it project by project, and the failure mode it prevents is the whole list
+// being marked failed by an unreachable socket (see the rail-exit guard below).
+try {
+	const health = await fetch(`${base}/api/trpc/runtime.getConfig?input=${encodeURIComponent("{}")}`);
+	if (!health.ok && health.status >= 500) {
+		throw new Error(`runtime responded ${health.status}`);
+	}
+} catch (error) {
+	console.error(
+		`the runtime at ${base} is not reachable (${error instanceof Error ? error.message : String(error)}).\n` +
+			"Start it before recording — otherwise every project is marked failed by a socket error that says nothing about it.",
+	);
+	process.exit(1);
+}
+
 console.log(`recording ${projects.length} project(s), state in ${statePath}`);
 
 /**
@@ -223,6 +238,26 @@ for (let index = 0; index < queue.length; index += 1) {
 		],
 		{ NKLEIN_VERIFY_BASE_URL: base },
 	);
+	// A rail that could not REACH the runtime says nothing about the project. Live 2026-09-09: the driver was
+	// restarted a few seconds before the runtime finished booting, and it marched through all 38 remaining
+	// projects in seconds, marking every one `failed` with `TRPCClientError: fetch failed`. Thirty-eight
+	// projects burned by one unreachable socket — and `failed` is terminal here, so a later run would skip
+	// none of them but the record would be a lie about every one.
+	//
+	// An unreachable rig is fatal to the RUN, not to the project: stop immediately, say so, and leave the
+	// remaining projects untouched so the next run picks them up cleanly.
+	if (/fetch failed|ECONNREFUSED|TRPCClientError/u.test(drained.tail)) {
+		note({
+			projectId,
+			status: "retrying",
+			detail: "the rig was unreachable (fetch failed) — this says nothing about the project. Aborting the run; nothing else was attempted.",
+			at: new Date().toISOString(),
+		});
+		console.error(
+			`\nABORTING: the runtime at ${base} is not reachable. Start it, then re-run — no further projects were attempted.`,
+		);
+		break;
+	}
 	// Exit 3 is the rail's STALLED signal: the drive stopped moving because the model seat went quiet, so whatever
 	// traffic it managed is a stub, not a result. Recording it produces a scenario set that replays one card and
 	// fails — which is how projects 39 and 40 were each burned twice on 2026-09-08 before this existed.
