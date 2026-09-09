@@ -76,6 +76,19 @@ This also reframes the re-prompting that earlier shifts reported as harassment: 
 objective, re-prompting is the system correctly trying to recover. Repeated re-prompts of a card that IS finished
 are a separate, real defect (P1.SETTLEDNUDGE).
 
+## Tool-schema traps that have each cost a turn
+
+- **`decompose_project` clarifying questions use HYPHENATED enum values.** `questions[].status` takes
+  `"assumed-default"`, not `"assumed_default"`; a snake_case value is rejected outright. Separately, a question
+  marked answered needs an actual `answer` field — an `assumption` alone is not accepted.
+- **The offered tool set varies between turns of the SAME card**, and its size tells you nothing about the card's
+  type: one task id was seen with both a 28-tool and a 33-tool grant in the same lineage. Read each request's own
+  `tools` array every turn; never infer from a sibling.
+- **Control-plane tools can work while file tools are failing.** During a sandbox outage on one card,
+  `read_files` / `list_files` / `get_file_size` all failed while `decompose_project` succeeded — the control plane
+  does not touch the workspace. If the card's remaining work is a control-plane operation, a dead sandbox does not
+  necessarily block it.
+
 ## Ground rules
 
 - One request at a time, in order; never answer an id you did not just claim.
