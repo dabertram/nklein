@@ -2704,9 +2704,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 - [ ] **P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record.** *(Live 2026-09-09,
   characterised by two responder shifts and the placement instrumentation.)* One shift hit
-  `No Docker sandbox workspace is prepared for task <X>::review` **four times, and never once on an implementation
-  card** — backoff-schedule, cancellation-timing and late-subscriber review cards, with one session failing both
-  `run_commands` AND `read_files` identically (so it is provisioning, not a tool).
+  `No Docker sandbox workspace is prepared for task <X>::review` four times — backoff-schedule, cancellation-timing
+  and late-subscriber review cards, with one session failing both `run_commands` AND `read_files` identically (so
+  it is provisioning, not a tool).
+  **▶ "NEVER ON IMPLEMENTATION CARDS" IS WRONG — disproved by the next shift.** Two plain implementation cards
+  (`order-service-audit-missing-radix-findings`, `order-service-audit-float-money-findings`) hit the identical
+  message. One shift's sample is not a population; the `::review` concentration was real in that shift and did not
+  generalise.
+  **▶ A SECOND, DIFFERENT ERROR SHAPE (same shift):**
+  `Error response from daemon: No such container: nklein-agent-sandbox-ws-6674381ac246-1` on
+  `…-cancellation-timing-tests::review` and `…-backoff-schedule-tests::review`. That is not a missing PLACEMENT,
+  it is a missing CONTAINER — the pool tore down a container other tasks still referenced. Distinct from both the
+  finalizer disposer (fixed) and the null-release shape above, and it points at the pool's container lifecycle
+  (`releaseSlot` removes a container once `occupancy.size === 0`) rather than at per-task placement.
   **This is NOT the disposer fixed in `d4858efc5`.** That one shows up in the telemetry as
   `via: <anonymous> (nklein-sandbox-review-finalizer.ts:280:20)` on decompose cards. The `::review` records read
   `everPlaced=true` with **`releasedAgoMs: null` and `releasedVia: null`** — the task HELD a placement and it
