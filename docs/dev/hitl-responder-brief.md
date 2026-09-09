@@ -32,6 +32,31 @@ line per request.
    `{"content": "...", "tool_calls": [{"name": "...", "arguments": {...}}], "finish_reason": "tool_calls"|"stop"}`.
 4. Back to 1.
 
+## A bare stop ENDS the session — never use it on a card that still has work
+
+The system prompt says it outright: *"Response without tool calls will be considered as completed with final
+answer."* So an answer with `finish_reason: "stop"` and no `tool_calls` does not mean "I have nothing useful to
+add this turn". It means **the card is done**. The session ends, the card stays in whatever lane it was in, and
+nothing re-drives it.
+
+Measured 2026-09-09: of the eight long silences in a recording batch, **seven followed a bare stop** (the eighth
+followed a legitimate `submit_review`). Each one stranded its card in Planning while the rail waited out a
+45-minute deadline against a session that had already ended, and every one of those projects was then re-queued
+as "stalled". This was the single largest cause of lost drives — and it came from a well-meant instruction in an
+earlier brief telling responders to "stop truthfully rather than re-probe".
+
+The rule:
+
+- **Card's objective met** (decomposition applied, acceptance green, verdict submitted) → a bare stop is correct.
+- **Card still has work** and you cannot do it → do NOT bare-stop. Make a real, truthful tool call that records
+  the situation (`update_focus_chain` naming the blocker is the usual one), or use whatever tool the card's
+  protocol provides for declaring failure. A card that cannot proceed should be visibly blocked, not silently
+  abandoned.
+
+This also reframes the re-prompting that earlier shifts reported as harassment: for a card that has NOT met its
+objective, re-prompting is the system correctly trying to recover. Repeated re-prompts of a card that IS finished
+are a separate, real defect (P1.SETTLEDNUDGE).
+
 ## Ground rules
 
 - One request at a time, in order; never answer an id you did not just claim.
