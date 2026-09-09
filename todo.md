@@ -2702,6 +2702,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   isolated sandbox instead of failing offline on every acceptance and plan gate. Remaining human-only parks
   should now be genuine judgment calls; anything else is a bug to file here.
 
+- [ ] **P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record.** *(Live 2026-09-09,
+  characterised by two responder shifts and the placement instrumentation.)* One shift hit
+  `No Docker sandbox workspace is prepared for task <X>::review` **four times, and never once on an implementation
+  card** — backoff-schedule, cancellation-timing and late-subscriber review cards, with one session failing both
+  `run_commands` AND `read_files` identically (so it is provisioning, not a tool).
+  **This is NOT the disposer fixed in `d4858efc5`.** That one shows up in the telemetry as
+  `via: <anonymous> (nklein-sandbox-review-finalizer.ts:280:20)` on decompose cards. The `::review` records read
+  `everPlaced=true` with **`releasedAgoMs: null` and `releasedVia: null`** — the task HELD a placement and it
+  disappeared through neither of the two paths that delete one (`releaseSlot`, which records, and the
+  acquire-failure catch, which records `acquire_failed`). So either a third path removes it, or the review
+  workspace is torn down by the secondary-session harness in a way the manager never sees.
+  **Where to start:** `nklein-secondary-session-harness.ts` "ALWAYS tear the synthetic session + workspace +
+  per-task state down" — check whether that teardown reaches `AgentSandboxManager.disposeWorkspace` at all, or
+  removes the workspace underneath it. Add the release recording to whatever it does before theorising further:
+  four hypotheses on the sibling defect were refuted, and the one that held was named by instrumentation, not by
+  reasoning.
+  **Operational note meanwhile:** responders are told to render the verdict on evidence they actually witnessed
+  and to state in the review that the fresh sandbox check could not run — never to fabricate a run.
 - [ ] **P1.PHANTOMRUNNING — a session can sit in `running` for HOURS having ended its turn, and no watchdog
   notices.** *(Live 2026-09-09, measured.)* Project 41's decompose session request log reads:
   `06:44:48 request → 06:45:18 response`, then **nothing until 10:25:07** — a 3h40m gap in which
