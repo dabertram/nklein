@@ -78,8 +78,10 @@ are a separate, real defect (P1.SETTLEDNUDGE).
 
 ## The custodian re-drive loop, and the one move that breaks it
 
-`main-branch-custodian::review` re-opens after its verdict is accepted. Four shifts have hit it; the last two lost
-**45% and 40% of their turns** to it. The cycle, now precisely characterised:
+`main-branch-custodian::review` re-opens after its verdict is accepted. FIVE shifts have hit it; three of them
+lost **45%, 40% and 40%** of their turns to it. Request ids are a GLOBAL counter shared across every card the
+factory is driving, so the same stuck thread reappears under unrelated-looking ids — do not read a new id as a
+new problem. The cycle, now precisely characterised:
 
 1. `submit_review(approve)` succeeds, returns `ok:true`, and says *"Stop now; do not make further tool calls."*
 2. The bare stop that honours that is scored by the outer ladder as
@@ -89,11 +91,16 @@ are a separate, real defect (P1.SETTLEDNUDGE).
    is refused as a duplicate read.
 4. Repeat.
 
-**The move that reliably breaks it: re-submit the identical verdict instead of bare-stopping.** It is not elegant
-— it is a duplicate `submit_review` — but it is truthful (the verdict is unchanged and was independently reached)
-and it is the only thing four shifts found that ends the cycle. Use it when you see this exact shape, and cap it:
-two or three attempts, then say plainly in an `update_focus_chain` that the card is already approved and the loop
-is re-driving it.
+**Nothing a responder can do ends it.** An earlier version of this section claimed re-submitting the identical
+verdict breaks the cycle; that was written from ONE shift and the next shift disproved it — it tried
+`submit_review(approve)` (20+ times, every one `ok:true`), `read_files`, `run_commands`, a harness-forced
+single-tool retry, and legitimate bare stops, and the card kept reopening under fresh ids regardless of the
+action.
+
+So the guidance is damage control, not a cure: **make each hit maximally terse.** One line, no re-derivation, no
+re-reading files you have already read. Do not spend a verification pass on a card whose verdict is already
+recorded — protect the budget for real work. If you want one line in the record, an `update_focus_chain` saying
+the card is already approved and the loop is re-driving it is enough.
 
 This is a harness defect (tracked as P1.SETTLEDNUDGE), not an unresolved review. Do not go looking for something
 wrong with the diff.
@@ -104,6 +111,10 @@ wrong with the diff.
 a sandbox failure. It reads like one and has been mistaken for one. Treat it as "you already have this — use it".
 
 ## Tool-schema traps that have each cost a turn
+
+- **Re-read before anchoring an `edit_file`.** Two workers guessed a prior entry's exact `"why"` wording in
+  `tests/manifest.json` instead of re-reading it, and the edit failed with "63% similar" both times. Re-reading
+  fixed it both times. Anchors must come from the file as it is now, not from what a sibling branch wrote.
 
 - **`decompose_project` clarifying questions use HYPHENATED enum values.** `questions[].status` takes
   `"assumed-default"`, not `"assumed_default"`; a snake_case value is rejected outright. Separately, a question
