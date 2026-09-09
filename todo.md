@@ -2162,6 +2162,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     have also been verified against their fixtures (42 analysis 5/5 defects; 37 test-authoring 4/4 mutants killed
     by the agent's own suite). The replay needs an ISOLATED HOME (`HOME=$(mktemp -d /tmp/nklein-simflow-XXXX)`) —
     the harness refuses the operator's.
+    **▶ A THIRD REPLAY-FAILURE CAUSE, understood 2026-09-09: a project driven across TWO workspaces records both.**
+    Project 40 settled with 9 cards complete and still replayed to `left cards undrained ("planning": 1)`. Its
+    FIRST workspace never got a sandbox container (the one-container pool, now raised), and a later FRESH workspace
+    did the work. The capture is `--from <mark>` to now, so it holds the dead attempt's traffic AND the good one;
+    the replay starts on the dead attempt, its decompose never applies, and the board never drains. So the three
+    known causes of a `left cards undrained` replay are now: (1) the drive was cut off mid-flight by a deadline
+    shorter than the work (fixed), (2) another project's traffic interleaved into the capture (fixed by the rail
+    trashing its cards on exit), and (3) THIS one — the same project re-driven in a second workspace after the
+    first was starved. The pool raise should prevent (3) at source; if it recurs, the mark must be re-taken when
+    the rail creates a replacement workspace.
     **▶ 2026-09-09 evening — the DRIVE side now works; the REPLAY is the open half.** After two brief corrections
     (a decompose card must emit a task graph, not do the project's work; a bare stop ends the session and must not
     be used on an unfinished card) project 41 drove properly for the first time: decompose emitted 8 child cards,
