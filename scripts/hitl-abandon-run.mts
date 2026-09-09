@@ -7,6 +7,18 @@
  * hours (fixed separately in P0.TRASHREVIEW — the watchdog now sweeps those). The operation itself is one command
  * and belongs in the product, not in a shell history.
  *
+ * ── LIMITATION, live 2026-09-09: TRASHING IS NOT ALWAYS ENOUGH ──
+ * A card whose session is still mid-turn can come back. Project 41 was abandoned with all 8 cards trashed and two
+ * minutes later the board read `{in_progress: 1, trash: 8}` — `task-runner-mutation-suite-result-ordering-tests`
+ * had been restored out of trash by its own live session (the start path takes `resumeFromTrash: true`, which
+ * exists for the bounce/re-drive case and does not distinguish an operator abandonment from one). The project kept
+ * consuming the shared endpoint and its traffic kept landing in the NEXT project's recording.
+ *
+ * When you need a run to STAY dead — abandoning a drive whose recording must not be polluted — follow this with
+ * `projects.remove` for the workspace, which takes it out of the runtime entirely:
+ *   curl -s -X POST "$BASE/api/trpc/projects.remove" -H 'content-type: application/json' \
+ *     -d '{"projectId":"<workspaceId>"}'
+ *
  * Usage:  npx tsx scripts/hitl-abandon-run.mts <workspaceId> [--base http://127.0.0.1:3503]
  */
 const workspaceId = process.argv[2];
