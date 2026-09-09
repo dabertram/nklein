@@ -28,7 +28,7 @@ import {
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { normalizePositiveInteger } from "../core/normalize-number";
 import { isProcessAlive } from "../core/process-identity";
-import { classifySandboxFailure } from "../core/sandbox-disposed-session";
+import { classifySandboxFailure, type SandboxAbsence } from "../core/sandbox-disposed-session";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import {
 	planSandboxOrphanReaping,
@@ -522,7 +522,7 @@ export class AgentSandboxManager {
 	/** Consecutive disposed-workspace refusals per task, reset the moment the task holds a placement again. */
 	private readonly sandboxAbsenceFailuresByTaskId = new Map<string, number>();
 	/** Notified when a task's session provably cannot do any more work. Set by the session service. */
-	private onSessionUnusableHandler: ((taskId: string, reason: string) => void) | null = null;
+	private onSessionUnusableHandler: ((taskId: string, reason: string, absence: SandboxAbsence) => void) | null = null;
 	private readonly projectMountsByKey = new Map<string, AgentSandboxProjectMount>();
 	// §5.AR basic-memory (OFF by default; the `basicMemoryEnabled` runtime setting OR NKLEIN_BASIC_MEMORY enables —
 	// §5.BB): per-project scoping plan keyed by projectKey. When enabled, each registered project gets a per-project
@@ -2552,7 +2552,7 @@ export class AgentSandboxManager {
 			const decision = classifySandboxFailure({ everPlaced: disposed, consecutiveFailures });
 			if (decision.action === "stop_session") {
 				this.sandboxAbsenceFailuresByTaskId.delete(taskId);
-				this.onSessionUnusableHandler?.(taskId, decision.reason);
+				this.onSessionUnusableHandler?.(taskId, decision.reason, decision.absence);
 			}
 			throw new AgentSandboxUnavailableError(`No Docker sandbox workspace is prepared for task ${taskId}.`, {
 				disposed,
@@ -2566,7 +2566,7 @@ export class AgentSandboxManager {
 	 * workspace that its session provably cannot do any more work. The session service stops the session; without
 	 * a handler the manager only records the count, so a manager used outside the runtime is unaffected.
 	 */
-	onSessionUnusable(handler: (taskId: string, reason: string) => void): void {
+	onSessionUnusable(handler: (taskId: string, reason: string, absence: SandboxAbsence) => void): void {
 		this.onSessionUnusableHandler = handler;
 	}
 

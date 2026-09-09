@@ -883,7 +883,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// refusals (it is the only place that sees them for certain) and this stops the session when they prove it.
 		// Optional-called: the test doubles for the manager implement only what their case needs, and construction
 		// must not depend on a hook that is pure runtime behaviour.
-		this.agentSandboxManager?.onSessionUnusable?.((taskId, reason) => {
+		this.agentSandboxManager?.onSessionUnusable?.((taskId, reason, absence) => {
 			this.recordObservationWithModel({
 				signal: "custom",
 				severity: "warning",
@@ -892,16 +892,25 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				metadata: { category: "sandbox_disposed_session_stopped" },
 			});
 			void this.stopTaskSession(taskId).catch(() => null);
-			// STOPPING IS NOT ENOUGH. Live 2026-09-09: this guard fired nine times and changed nothing, because the
-			// card went straight back through auto-start — which acquires a fresh placement, RESETS the streak, and
-			// hands the model a session whose workspace dies again. A responder shift then spent 62% of its budget
-			// on two such cards, and the projects behind them stalled. The same shape as P0.RETIRELOOP: a stop that
-			// does not stick is a loop with extra steps.
+			// STOPPING IS NOT ENOUGH for a card that cannot start at all: it goes straight back through auto-start,
+			// acquires a fresh placement, RESETS the streak, and dies again a few calls later. So such a card is also
+			// paused, through the SAME persisted set the auto-start failure guard uses and auto-start already
+			// consults — loud in the UI, resumable by an operator, and retried by the once-per-boot hold release,
+			// a boot being exactly when a broken sandbox pool gets repaired.
 			//
-			// So the card is paused through the SAME persisted set the auto-start failure guard uses, which auto-start
-			// consults before every start. It is loud in the UI, an operator can resume it, and the once-per-boot hold
-			// release retries it after the environment is fixed — a boot is when a broken sandbox pool gets repaired.
-			const workspacePath = this.messageRepository.getTaskEntry(taskId)?.summary.workspacePath ?? null;
+			// ONLY for the never-placed (wedged-start) shape. A DISPOSED workspace is the ordinary end-of-session
+			// state, so pausing on it punishes cards that finished: the first cut did exactly that to
+			// `lru-cache-sequence-suite-kill-m4` — a card that had just delivered 11/11 green — while leaving the two
+			// genuinely wedged decompose cards unpaused, because their summaries carry no workspacePath. Both halves
+			// of that are fixed here: the shape is checked, and the path is resolved the way the rest of the service
+			// resolves it.
+			if (absence !== "never_placed") {
+				return;
+			}
+			const workspacePath =
+				this.sessionRuntime.getTaskHostWorkspaceRoot?.(taskId) ??
+				this.messageRepository.getTaskEntry(taskId)?.summary.workspacePath ??
+				null;
 			if (workspacePath) {
 				void setCardPaused({ workspacePath, taskId, paused: true }).catch(() => null);
 			}
