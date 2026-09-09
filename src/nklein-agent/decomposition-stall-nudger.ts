@@ -567,6 +567,24 @@ export class DecompositionStallNudger {
 		return true;
 	}
 
+	/**
+	 * Clear ONLY the decomposition-recovery budget — the nudge counts and any pending chat nudge.
+	 *
+	 * The model-failover leg used to call {@link resetTask} for this, and `resetTask` clears every budget this
+	 * nudger owns. Live 2026-09-08, card `mutation-duration-schedule-kill-m3`: the seat returned empty replies,
+	 * each empty terminal summary triggered a failover, each failover reset the EMPTY-FINAL budget along with the
+	 * decomposition one, and a single 37-message session accumulated **36 identical empty-final nudges** against a
+	 * documented limit of 8 (`NKLEIN_EMPTY_FINAL_REDRIVE_LIMIT`). A budget reset by a condition that co-occurs with
+	 * the failure it bounds is not a budget.
+	 *
+	 * Failover changes the MODEL, so re-arming the decomposition-recovery ladder for the new model is right. It
+	 * says nothing about whether this task has already burned its empty-final or refinement allowance.
+	 */
+	resetDecompositionRecoveryBudget(taskId: string): void {
+		this.clearDecompositionChatNudge(taskId);
+		this.nudgeCountsByTaskId.delete(taskId);
+	}
+
 	resetTask(taskId: string): void {
 		this.clearDecompositionChatNudge(taskId);
 		this.nudgeCountsByTaskId.delete(taskId);

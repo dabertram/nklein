@@ -564,7 +564,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.sendTaskSessionInput(taskId, text, mode, images, launchConfigOverrides, options),
 		noteStrategyApplied: (taskId, strategy) => this.noteNextAttemptStrategy(taskId, strategy),
 		resetDecompositionRecoveryBudget: (taskId) => {
-			this.decompositionStallNudger.resetTask(taskId);
+			// Narrowed 2026-09-09: this used to call `resetTask`, which clears EVERY budget the nudger owns —
+			// empty-final, refinement, narrated-tool-call, exploration-drift — so a task whose model kept failing
+			// over got its empty-final allowance refunded on every cycle. See `resetDecompositionRecoveryBudget`.
+			this.decompositionStallNudger.resetDecompositionRecoveryBudget(taskId);
 			this.repeatedToolCallGuard.resetDecompositionFailures(taskId);
 		},
 		resetPlanCritiqueBudget: (taskId) => this.planCritiqueRunner.resetTask(taskId),

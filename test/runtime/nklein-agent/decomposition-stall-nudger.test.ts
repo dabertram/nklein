@@ -368,3 +368,60 @@ describe("exploration-drift nudge (v21 architect, 2026-09-01)", () => {
 		}
 	});
 });
+
+/**
+ * A budget reset by a condition that CO-OCCURS with the failure it bounds is not a budget.
+ *
+ * Live 2026-09-08, card `mutation-duration-schedule-kill-m3`: the model seat returned empty replies, every empty
+ * terminal summary triggered a model failover, and the failover leg called `resetTask` — which clears every budget
+ * this nudger owns, not just the decomposition-recovery one it was asking for. One 37-message session accumulated
+ * THIRTY-SIX identical empty-final nudges against a documented limit of 8.
+ */
+describe("failover re-arms the decomposition ladder WITHOUT refunding other budgets", () => {
+	function nudger(): DecompositionStallNudger {
+		return new DecompositionStallNudger({
+			isExplicitDecompositionTask: () => true,
+			getTaskSummary: () => null,
+			resolveProviderId: () => "lmstudio",
+			resolveModelId: () => "m",
+			resolveWorkspacePath: () => null,
+			recordObservation: () => {},
+			cancelTaskTurn: async () => null,
+			sendTaskSessionInput: async () => null,
+		});
+	}
+
+	it("clears the decomposition nudge count but leaves the empty-final count alone", () => {
+		const n = nudger();
+		// Spend both budgets.
+		(n as unknown as { nudgeCountsByTaskId: Map<string, number> }).nudgeCountsByTaskId.set("t1", 3);
+		(n as unknown as { emptyFinalNudgeCountsByTaskId: Map<string, number> }).emptyFinalNudgeCountsByTaskId.set(
+			"t1",
+			8,
+		);
+
+		n.resetDecompositionRecoveryBudget("t1");
+
+		const decomposition = (n as unknown as { nudgeCountsByTaskId: Map<string, number> }).nudgeCountsByTaskId;
+		const emptyFinal = (n as unknown as { emptyFinalNudgeCountsByTaskId: Map<string, number> })
+			.emptyFinalNudgeCountsByTaskId;
+		// Failover changes the MODEL, so the decomposition ladder is re-armed for the new one...
+		expect(decomposition.has("t1")).toBe(false);
+		// ...but it says nothing about whether this task already burned its empty-final allowance.
+		expect(emptyFinal.get("t1")).toBe(8);
+	});
+
+	it("resetTask still clears everything — it is the session-start reset, not the failover one", () => {
+		const n = nudger();
+		(n as unknown as { emptyFinalNudgeCountsByTaskId: Map<string, number> }).emptyFinalNudgeCountsByTaskId.set(
+			"t1",
+			8,
+		);
+		n.resetTask("t1");
+		expect(
+			(n as unknown as { emptyFinalNudgeCountsByTaskId: Map<string, number> }).emptyFinalNudgeCountsByTaskId.has(
+				"t1",
+			),
+		).toBe(false);
+	});
+});
