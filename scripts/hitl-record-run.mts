@@ -35,7 +35,21 @@ function argOf(flag: string): string | undefined {
 	return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-const maxWaitMs = Number(argOf("--max-wait-ms") ?? 5_400_000);
+/**
+ * Per-project deadline. 90 minutes was sized for a fast endpoint and is far too short for this rig.
+ *
+ * Live 2026-09-09: project 41 decomposed into 8 cards and was driving them properly — 2 completed, 6 in review —
+ * when the rail hit exactly this deadline at 90 minutes and exited. The driver then captured the queue slice and
+ * the replay failed `left cards undrained`, because the recording had been taken MID-FLIGHT. The runtime carried
+ * on working the abandoned project afterwards, competing with the next one for the same serial endpoint.
+ *
+ * The arithmetic: the model seat answers at roughly 3 minutes a turn, and a card needs implementation turns plus
+ * a review round, so an 8-card project is several hours. A deadline shorter than the work does not bound a
+ * failure, it manufactures one — and it manufactures the WORST kind, a partial recording that looks like a real
+ * one. The stall watchdog (45 min of no movement) is what actually catches a dead drive; this only needs to be
+ * generous enough not to cut a live one short.
+ */
+const maxWaitMs = Number(argOf("--max-wait-ms") ?? 14_400_000);
 const base = argOf("--base") ?? "http://127.0.0.1:3503";
 const statePath = resolve(argOf("--state") ?? join(REPO, ".nklein-record-run.json"));
 
