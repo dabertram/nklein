@@ -2808,6 +2808,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   **REFUTED HYPOTHESIS (do not re-run it):** the empty-final redrive (`NKLEIN_EMPTY_FINAL_REDRIVE_LIMIT=8`, a
   tempting match for the count of 9). The runtime log has **zero** `empty_final_redriven` observations for the
   whole drive, so that rung never fired.
+  **▶ INDEPENDENT CORROBORATION + A MECHANISM (2026-09-09).** A later shift hit the same loop on the same card and
+  described the cycle precisely: `submit_review(approve)` succeeds and returns *"Stop now; do not make further
+  tool calls"*; the bare stop honouring that is scored a `no_tool_call` failure; the task reopens under a
+  `reduced_tool_set` prompt forcing `read_files`, which either hits a sandbox error or is rejected as a duplicate
+  of an already-approved call; and it loops. **9-10 turns across both responders (ids ~1563-1584)**, with two
+  responders independently converging on the same reading and neither able to break it.
+  Its hypothesis, unverified and worth testing first: **every custodian sweep shares the literal task id
+  `main-branch-custodian::review`** — it is not scoped per project or per commit — so back-to-back sweeps race the
+  same session and the same sandbox container lifecycle. That would also explain why this card, uniquely, keeps
+  producing both this loop and the review-sandbox failures.
   **Where to look next:** `main-branch-custodian::review` is deliberately EXEMPT from the terminal-lane sweeper
   (`trashed-card-sessions.ts` — its parent names no board card), so nothing stops it on lane grounds; and the
   second-opinion nudge loop is gated on `verdict === null`, which should not hold after a captured verdict. So the
