@@ -1442,7 +1442,10 @@ export class AgentSandboxManager {
 					frame
 						.trim()
 						.replace(/^at\s+/u, "")
-						.replace(/\s*\(.*$/u, ""),
+						// Keep the file:line. An arrow function's frame name is "<anonymous>", so the location is the
+						// ONLY identifying part — the first cut stripped the parenthesised half and duly reported six
+						// useless `<anonymous>` frames on the very records it was added to explain.
+						.replace(/\/[^\s()]*\/(?=[\w.-]+\.[cm]?[jt]s)/gu, ""),
 				)
 				.filter((frame) => frame.length > 0)
 				.join(" < ") || "unknown",

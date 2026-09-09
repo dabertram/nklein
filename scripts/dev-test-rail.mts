@@ -175,9 +175,16 @@ async function main(): Promise<void> {
 	const maxWaitMs = Number.parseInt(arg("max-wait-ms", "900000"), 10); // generous default: 15 min (small models are slow)
 	const concurrency = Math.max(presets.length, Number.parseInt(arg("concurrency", String(presets.length)), 10));
 	// Bound the SILENCE inside the deadline, not just the deadline. Live 2026-09-08: the agent in the rig's model
-	// seat was killed by its own harness and the drive sat in a 90-minute window with nothing to show for it. 15 min
-	// of no observable movement is far longer than any single card turn and far shorter than the window. `0` disables.
-	const stallMs = Number.parseInt(arg("stall-ms", "900000"), 10);
+	// seat was killed by its own harness and the drive sat in a 90-minute window with nothing to show for it.
+	//
+	// The first cut used 15 minutes on the reasoning that it is "far longer than any single card turn". That was
+	// measured against a fast endpoint and is wrong for a human-speed model seat: 2026-09-09 the seat averaged
+	// ~3.2 minutes PER TURN on a strictly-serial endpoint, so a card waiting behind two others is legitimately
+	// silent for longer than 15 minutes — and SIX consecutive projects were re-queued as "stalled" while the seat
+	// was in fact answering steadily and five of their suites reached a verified green. A false stall costs a whole
+	// project; a slow true stall costs the difference between 15 and 45 minutes, once, and the responder is
+	// replaced promptly on its own notification. 45 wins on both counts. `0` disables.
+	const stallMs = Number.parseInt(arg("stall-ms", "2700000"), 10);
 
 	const base = createTRPCProxyClient<RuntimeAppRouter>({ links: [httpBatchLink({ url: TRPC_URL })] });
 
