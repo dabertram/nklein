@@ -54,7 +54,14 @@
 set -u
 QUEUE="${HITL_QUEUE:-$HOME/.nklein/factory-drains/hitl-drain/queue}"
 MARK="${1:-0}"
-MAX_WAIT="${2:-240}"   # well inside the agent harness's 600s no-progress watchdog (see header)
+# Positional-2 is OPTIONAL, so it must be accepted only when it actually looks like a wait. Live 2026-09-09: a
+# responder invoked `<mark> --claim <name>` — exactly the form the usage line above permits — and MAX_WAIT became
+# the literal string "--claim", which produced a bash arithmetic error on every call and silently corrupted the
+# NONE-after-240s deadline. An optional positional followed by flags has to be validated, not assumed.
+case "${2:-}" in
+	''|*[!0-9]*) MAX_WAIT=240;;
+	*) MAX_WAIT="$2";;
+esac
 POLL="${HITL_POLL_SECONDS:-5}"
 STALE_MINUTES="${HITL_STALE_MINUTES:-30}"   # a request older than this with no answer is a corpse, not work
 # How long a claim may sit untouched before another responder may take it. This was 60 minutes, and 60 minutes is
