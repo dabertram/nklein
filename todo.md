@@ -2717,6 +2717,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   it is a missing CONTAINER — the pool tore down a container other tasks still referenced. Distinct from both the
   finalizer disposer (fixed) and the null-release shape above, and it points at the pool's container lifecycle
   (`releaseSlot` removes a container once `occupancy.size === 0`) rather than at per-task placement.
+  **CANDIDATE MECHANISM, read from the source and NOT yet confirmed (2026-09-09).** `releaseSlot` does:
+  `container.occupancy.delete(taskId)` → `this.drainQueue()` → `if (container.occupancy.size === 0) retire`.
+  `drainQueue` is fire-and-forget (`void (async () => …)`) and hands the freed slot to a queued waiter, whose
+  `assignContainer` may not have re-populated `occupancy` by the time the emptiness check runs — so the container
+  is retired out from under a placement that has just been handed to a waiter, and that waiter's next exec reports
+  `No such container`. That is the SAME check-then-act-across-an-await shape as the finalizer disposer confirmed
+  today, which is exactly why it is suspicious and exactly why it is written down instead of fixed: four
+  hypotheses on the sibling defect were refuted by reasoning, and the one that held was named by instrumentation.
+  **Confirm it the same way:** record the container name and its occupancy at retire time, then look for a
+  retirement whose name matches a later `No such container`. Do not ship on the resemblance.
   **This is NOT the disposer fixed in `d4858efc5`.** That one shows up in the telemetry as
   `via: <anonymous> (nklein-sandbox-review-finalizer.ts:280:20)` on decompose cards. The `::review` records read
   `everPlaced=true` with **`releasedAgoMs: null` and `releasedVia: null`** — the task HELD a placement and it
