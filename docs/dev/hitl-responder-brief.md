@@ -81,16 +81,20 @@ single most common way a drive is lost, so something must notice, and the obviou
 (retries, sibling cards), so the youngest is always young. A monitor built that way stayed silent through a full
 hour of a dead responder — the exact failure it existed to catch.
 
-**Alarm when the last ANSWER is older than 15 minutes AND a request arrived after it.** That is what a dead seat
-actually is: work came in and nobody answered it. Fifteen minutes is comfortable at the observed throughput below.
+**Alarm when the OLDEST request that arrived after the last answer has itself been waiting more than 15 minutes.**
+That is the fact — a request nobody picked up — and it does not care how busy or quiet the factory is.
 
-The GATE is the part that keeps being got wrong, so the failed versions are worth recording:
+It took four tries to state that, and the failures are more instructive than the answer. Every one of them
+measured something that merely CORRELATES with a dead seat:
 
 | Gate | Why it failed |
 | --- | --- |
-| youngest pending request is old | the runtime emits requests continuously, so the youngest is always young — this slept through a full hour of an empty seat |
-| a request newer than 30 min exists | an arbitrary window that goes blind exactly when the queue is briefly quiet — took 37 minutes to fire once, and went silent right after a restart |
-| a request arrived after the last answer | no window, and it states the condition directly |
+| the youngest pending request is old | the runtime emits requests continuously, so the youngest is always young — slept through a full hour of an empty seat |
+| the last answer is old, and some request is newer than 30 min | an arbitrary window that goes blind exactly when the queue is briefly quiet — took 37 minutes to fire once, silent again right after a restart |
+| the last answer is old, and a request arrived after it | fires when the FACTORY is quiet: the last answer ages harmlessly while there is nothing to answer. One 46-minute false alarm with a responder demonstrably working |
+| **the oldest request waiting since the last answer is itself old** | measures the request's wait, not the answer's age — the thing that actually matters |
+
+The lesson generalises past this monitor: *the age of the last success is not the age of the current failure.*
 
 Also: do not put a changing number (a minute count) in whatever string the monitor dedups on, or the same alarm
 re-fires on every tick. Dedup on a state flag; print the number.
