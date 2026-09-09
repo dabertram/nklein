@@ -2739,6 +2739,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   project had finished). It clusters on `*-decompose` cards because the first card of a new project is exactly
   when a NEW container is needed.
   **Mitigated for the rig:** `sandboxMaxContainers: 3` in the drain config (backup at `config.json.bak-before-pool-raise`).
+  **▶ VERIFIED by the next shift:** across the whole `async-retry-concurrency-suite` drive — mutants m4 through
+  m9, roughly 24 real tool calls including many `write_file`/`edit_file`/`npm test` — **not one sandbox failure**.
+  The only two that shift saw were on the custodian thread (P1.SETTLEDNUDGE), and a file that had returned
+  "sandbox down" earlier later returned the duplicate-read guard instead, i.e. that branch had acquired a working
+  container. One container was the cause; three is enough for the rig.
   **Still to fix in the product:** the primary acquisition queue has no deadline, so pool exhaustion presents as a
   card that hangs forever rather than one that fails with "pool at capacity". The auxiliary callers already pass
   `maxQueueWaitMs` for exactly this reason (`run19`: "AUXILIARY acquisitions must never queue FOREVER behind a
