@@ -45,6 +45,18 @@ line per request.
   the queue's answers directory.
 - Never enter credentials, tokens, or passwords anywhere.
 
+## Two responders, deliberately
+
+Two claiming responders are run at once — **for redundancy, not throughput**. The endpoint is serial, so a second
+answerer adds no capacity; what it adds is survival. The agent in the seat has died five times (harness
+no-progress watchdog ×2, an API connection error, a silent stop after two requests, one unexplained), each death
+idling the whole factory until someone noticed, once for 46 minutes.
+
+This deliberately softens the older "a second responder is worse than none" rule, which was written after two
+responders raced an UNCLAIMED queue. Claiming removes that race structurally. What remains is that a card's
+consecutive turns can land on different responders — so **never rely on your own memory of a card's state**;
+re-read the files and re-run the tests before asserting anything about it.
+
 ## Why claiming is on by default
 
 The queue is strictly serial — one request in flight — so a second responder adds no throughput, only races.

@@ -17,13 +17,23 @@
 # orphaned answers and a card that took five review rounds because each responder kept undoing the other's fix for
 # the same feedback. The mechanism existed and was not used, which is the same as not having it.
 #
-# A second responder is worse than none. The queue is strictly serial — one request in flight — so a second
-# answerer adds no throughput, only races: two responders can pick up the same id, and whichever answer lands
-# second is discarded work, while a RECORDING of the drive (scripts/hitl-record-project.mts) becomes incoherent
-# because the run it replays was produced by two different minds taking alternate turns. Live 2026-09-08: a second
-# responder spent a full turn analysing request 613 before noticing the first had already answered it. Claiming
-# makes that structural instead of conventional: `mkdir` is atomic, so exactly one caller wins each id, and a
-# loser silently moves on to the next unclaimed request rather than duplicating work.
+# A second UNCLAIMED responder is worse than none. The queue is strictly serial — one request in flight — so a
+# second answerer adds no throughput, only races: two responders can pick up the same id, and whichever answer
+# lands second is discarded work, while a RECORDING of the drive (scripts/hitl-record-project.mts) becomes
+# incoherent because the run it replays was produced by two different minds taking alternate turns. Live
+# 2026-09-08: a second responder spent a full turn analysing request 613 before noticing the first had already
+# answered it. Claiming makes that structural instead of conventional: `mkdir` is atomic, so exactly one caller
+# wins each id, and a loser silently moves on to the next unclaimed request rather than duplicating work.
+#
+# ── TWO CLAIMING RESPONDERS ARE NOW RUN DELIBERATELY (2026-09-09) ──
+# Not for throughput — the endpoint really is serial — but for REDUNDANCY. The agent in the model seat has died
+# five times: twice to its own harness's no-progress watchdog, once to an API connection error, once silently
+# after two requests, once unexplained. Each death idles the whole factory until someone notices, and one such gap
+# ran 46 minutes. Two responders mean a death costs a handover, not an outage.
+#
+# What made the 2026-09-08 incident harmful was the RACE, and claiming removes it structurally. What remains is
+# that a card's consecutive turns can land on different responders, so a responder must not rely on its own memory
+# of a card — re-read the files and re-run the tests. That instruction is in the brief.
 #
 # The wait DEFAULT is 240s, not the tool cap. Live 2026-09-08: a responder was killed mid-drive by the agent
 # harness's stream watchdog — "no progress for 600s" — while sitting in a healthy 540s blocking wait. The binding
