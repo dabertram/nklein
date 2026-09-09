@@ -60,6 +60,19 @@ the other's fix. `mkdir` is atomic, so exactly one caller wins each id. Opt-in s
 | `HITL_STALE_MINUTES` | 30 | A request older than this has no session listening for its answer. Answering one wastes a whole turn on a conversation nobody is in. |
 | `HITL_CLAIM_ABANDONED_MINUTES` | 20 | Long enough for any real turn, short enough that a dead responder's claim does not wedge the seat. It was 60, and 60 minutes is not a margin, it is the outage. |
 
+## Watching for a dead seat
+
+The responder dies — twice to its own harness's no-progress watchdog, once to an API connection error. It is the
+single most common way a drive is lost, so something must notice, and the obvious signal is the wrong one.
+
+**Do not alarm on the age of the youngest unanswered request.** The runtime emits fresh requests continuously
+(retries, sibling cards), so the youngest is always young. A monitor built that way stayed silent through a full
+hour of a dead responder — the exact failure it existed to catch.
+
+**Alarm on time since the last ANSWER was written, while fresh requests are waiting.** That is what a dead seat
+actually looks like: requests keep arriving and nothing is ever answered. Fifteen minutes is a comfortable
+threshold at the observed throughput below.
+
 ## Observed throughput
 
 **~0.7 requests/min** with Sonnet doing real work (reading files, running tests). A ~60-request project is
