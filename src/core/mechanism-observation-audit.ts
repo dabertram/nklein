@@ -1241,6 +1241,11 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"merge_resolution_loaded_fallback",
 	"loaded_host_allowlist_excluded",
 	"sandbox_toolchain_prime",
+	// 2026-09-09: the post-capture cleanup declined to dispose because the session came back in flight during its
+	// own pre-dispose await. Recorded because the alternative — disposing anyway — was the defect that made a live
+	// worker's next tool call fail with "No Docker sandbox workspace is prepared", and a skip that fires silently
+	// is indistinguishable from the race never happening.
+	"sandbox_dispose_skipped_session_relive",
 	// P0.LOCKFILECAPTURE (2026-09-07): install-generated lockfile churn dropped from a captured patch.
 	"capture_dropped_generated_lockfile",
 	// P0.PARKEDLOOP (2026-09-07): a parked review held instead of re-reviewed on unchanged work.

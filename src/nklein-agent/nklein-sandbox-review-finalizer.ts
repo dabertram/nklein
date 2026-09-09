@@ -277,7 +277,32 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 				const stateAfterCapture = deps.getTaskEntry(taskId)?.summary.state;
 				if (!isBusySessionState(stateAfterCapture)) {
 					await deps.releaseSandboxMcpResources(taskId).catch(() => undefined);
-					await manager.disposeWorkspace(taskId);
+					// RE-CHECK, because the guard above is a check-then-act across an await.
+					//
+					// Live 2026-09-09, and this is the disposer the sandbox instrumentation finally named: a session
+					// that had run `begin_implementation`, `read_files`, `write_file` and `edit_file` successfully then
+					// had `npm test` refused with "No Docker sandbox workspace is prepared". Every refusal record said
+					// the same thing — the placement was HELD and then released, tens to hundreds of seconds earlier —
+					// and the release path pointed here.
+					//
+					// The comment above already names the hazard exactly ("a session back in flight owns its
+					// workspace"); what it does not survive is the `await` between the state read and the dispose.
+					// `releaseSandboxMcpResources` can take a while, and on a slow seat a bounce re-drives the worker
+					// inside that window, so the guard passes and the dispose still rips the workspace out from under a
+					// live turn. Re-reading with no await between the check and the call is as atomic as this gets.
+					const stateBeforeDispose = deps.getTaskEntry(taskId)?.summary.state;
+					if (isBusySessionState(stateBeforeDispose)) {
+						recordSelfObservation({
+							signal: "custom",
+							severity: "warning",
+							message: `Skipped disposing ${taskId}'s sandbox workspace: the session went back in flight (${stateBeforeDispose}) while post-capture cleanup was awaiting. It owns its workspace now; the next handoff disposes.`,
+							taskId,
+							workspacePath: repoPath,
+							metadata: { category: "sandbox_dispose_skipped_session_relive", state: stateBeforeDispose },
+						});
+					} else {
+						await manager.disposeWorkspace(taskId);
+					}
 				}
 				// Keep the sandbox STATE (repoPath/baseRef): the card is only AWAITING REVIEW — a bounce or
 				// escalation re-drive needs it to RESTORE the disposed workspace (run20 #17 / harness v3: with the
