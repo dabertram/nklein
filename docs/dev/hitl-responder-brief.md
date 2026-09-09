@@ -32,6 +32,25 @@ line per request.
    `{"content": "...", "tool_calls": [{"name": "...", "arguments": {...}}], "finish_reason": "tool_calls"|"stop"}`.
 4. Back to 1.
 
+## A `*-decompose` card's deliverable is a TASK GRAPH, not the project's work
+
+A card whose id looks like `dev-NN-<project>-decompose` is the project's PLANNING card. Its job is to call
+`decompose_project` with a task graph. It is not the place to write the tests, edit the manifest, or run
+`npm test` — even when the project is small enough that doing so is obviously easier.
+
+Measured 2026-09-09: on two consecutive drives the model did the entire project inside the decompose card —
+project 39's answer reads *"the freshly written test/agent/interval.test.js (7 targeted boundary assertions) plus
+tests/manifest.json (complete:true, all 7 killed with reasons) passed the REAL npm test"* — and then stopped.
+Correct work, wasted: the card never produced a graph, no child cards existed, nothing settled, and the drive was
+scored a stall after 47 minutes. The recording that came out of it replays as a single card and fails
+verification with `left cards undrained`.
+
+So on a decompose card: read the spec and the sources, understand the work well enough to split it, and emit
+`decompose_project`. Do the implementation on the child cards it creates, when they reach you.
+
+(The "do real work, verify by execution" rule below still holds — it is about not fabricating evidence, not about
+doing every card's work in the first card that offers you a shell.)
+
 ## A bare stop ENDS the session — never use it on a card that still has work
 
 The system prompt says it outright: *"Response without tool calls will be considered as completed with final
