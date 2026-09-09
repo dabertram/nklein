@@ -2692,6 +2692,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   isolated sandbox instead of failing offline on every acceptance and plan gate. Remaining human-only parks
   should now be genuine judgment calls; anything else is a bug to file here.
 
+- [ ] **P1.PHANTOMRUNNING — a session can sit in `running` for HOURS having ended its turn, and no watchdog
+  notices.** *(Live 2026-09-09, measured.)* Project 41's decompose session request log reads:
+  `06:44:48 request → 06:45:18 response`, then **nothing until 10:25:07** — a 3h40m gap in which
+  `workspace.getState` still reported the session as `running` and the card sat in `planning`. Every "stall" in
+  the recording batch was this: the rail waiting out its deadline against a session that had already stopped.
+  The board-liveness watchdog has legs for terminal-lane cards, verdict-less reviews and bounced workers, but a
+  card in `planning` whose session is phantom-`running` matches none of them. `nklein-task-session-service.ts`
+  already names the phenomenon in a different context ("its hooks flipped the summary back to `running` for 18+
+  minutes, holding the endpoint slot AND defeating the dead-stall detector — a phantom-alive session").
+  **The likely upstream cause for these particular cards is the sandbox disposal (fixed `d4858efc5`): the
+  decompose could not read its spec, so it had nothing to decompose and stopped.** But the phantom-`running`
+  state is a defect in its own right — a session that has ended should not be indistinguishable from one that is
+  working, least of all to the watchdog whose whole job is telling them apart.
+  **Tension to resolve with it:** the runtime re-prompts a decompose card that ends without decomposing, which is
+  correct — the card is not done. Responders were told to treat repeated re-prompts as waste and stop truthfully,
+  and that is what strands the card. Whatever fix lands must distinguish "re-prompting a card that still has work"
+  from "re-prompting a card that is finished" (the latter is P1.SETTLEDNUDGE).
 - [ ] **P1.SETTLEDNUDGE — a SETTLED session keeps being re-prompted, and a clean stop is scored as a failure.**
   *(Opened 2026-09-09 from a responder shift; one hypothesis already refuted, see below.)* Card
   `main-branch-custodian::review` was approved and acknowledged (`ok:true` + "Stop now; do not make further tool
