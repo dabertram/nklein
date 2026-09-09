@@ -2162,6 +2162,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     have also been verified against their fixtures (42 analysis 5/5 defects; 37 test-authoring 4/4 mutants killed
     by the agent's own suite). The replay needs an ISOLATED HOME (`HOME=$(mktemp -d /tmp/nklein-simflow-XXXX)`) —
     the harness refuses the operator's.
+    **▶ 2026-09-09 evening — the DRIVE side now works; the REPLAY is the open half.** After two brief corrections
+    (a decompose card must emit a task graph, not do the project's work; a bare stop ends the session and must not
+    be used on an unfinished card) project 41 drove properly for the first time: decompose emitted 8 child cards,
+    cards moved through implementation and review, and the capture holds **40 tracks** — against 4 and 2 for the
+    earlier stubs. Its replay still fails `left cards undrained ("planning": 1)`, i.e. the recording does not carry
+    enough of the flow to drive the board on its own. Next question, and it needs evidence rather than a guess:
+    did the drive end with cards still open (so the recording is genuinely partial), or does the replay fail to
+    match requests it should (a distiller/matching gap)? Compare 41's track set against 37's 63 and 38's 59, which
+    DO replay, rather than reasoning about the schema — two inspections of that schema were wrong today because
+    the tool calls are not where they appear to be.
     **▶ 2026-09-08: projects 39/40/41 were lost to P0.SEEDSIGNAL and re-driven.** The rail called a project
     finished when its SEED card went terminal, so each one exited ~15 minutes into a 90-minute window with six to
     eight cards untouched in Planning, and the driver filed "captured 0 request/answer pair(s)" as a project
