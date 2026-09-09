@@ -2814,6 +2814,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `reduced_tool_set` prompt forcing `read_files`, which either hits a sandbox error or is rejected as a duplicate
   of an already-approved call; and it loops. **9-10 turns across both responders (ids ~1563-1584)**, with two
   responders independently converging on the same reading and neither able to break it.
+  **▶ COST MEASURED, and it is now the single largest waste in the rig (2026-09-09/10).** A third shift spent
+  **18 of its 40 turns — 45%** on this one card: `main-branch-custodian::review` for project 40, whose `approve`
+  had been submitted and confirmed `ok:true` BEFORE that shift began, and which was resubmitted and reconfirmed
+  **13+ times across responders** during it. Every cycle: verdict accepted, "Stop now; do not make further tool
+  calls", another dispatch. Nothing a responder can do in-turn ends it. Two of that shift's sandbox failures were
+  on this same card, one freshly triggered by its own `run_commands`.
   Its hypothesis, unverified and worth testing first: **every custodian sweep shares the literal task id
   `main-branch-custodian::review`** — it is not scoped per project or per commit — so back-to-back sweeps race the
   same session and the same sandbox container lifecycle. That would also explain why this card, uniquely, keeps
