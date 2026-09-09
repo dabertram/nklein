@@ -76,6 +76,33 @@ mkdirSync(outDir, { recursive: true });
 let captured = 0;
 let unanswered = 0;
 
+/**
+ * Requests that belong to NO single project, and therefore poison any project's recording.
+ *
+ * Live 2026-09-10: project 41's capture held 89 tracks of which only 50 were its own — 27 came from project 40,
+ * still being driven, and 7 from `main-branch-custodian::review`. Its replay duly started on another project's
+ * traffic and never drove 41's board, failing `left cards undrained`. Project 40 failed the same way an hour
+ * earlier.
+ *
+ * The custodian sweep reviews the MAIN BRANCH across projects; it is not part of any project's flow, it re-drives
+ * itself continuously (P1.SETTLEDNUDGE — five shifts, up to 45% of a shift's turns), and every request it makes
+ * inside a capture window lands in whatever project happens to be recording. Excluding it is not a heuristic: a
+ * cross-project card has no place in a single project's scenario set, whatever else is wrong with it.
+ */
+const CROSS_PROJECT_TASK_MARKERS = ["main-branch-custodian"];
+
+/** The sandbox workdir a request names (`/workspaces/<taskId>`) — the only per-request task marker on the wire. */
+function workspaceMarkersOf(request: unknown): string[] {
+	return [
+		...new Set(
+			[...JSON.stringify(request).matchAll(/\/workspaces\/([a-zA-Z0-9._-]+)/gu)].map((match) => match[1] ?? ""),
+		),
+	];
+}
+
+const skippedCrossProject: number[] = [];
+const workspaceFamilies = new Map<string, number>();
+
 for (const id of ids) {
 	const answerPath = join(queueDir, "answers", `${id}.json`);
 	if (!existsSync(answerPath)) {
@@ -92,6 +119,14 @@ for (const id of ids) {
 	} catch (error) {
 		console.warn(`skipping ${id}: ${error instanceof Error ? error.message : String(error)}`);
 		continue;
+	}
+	const markers = workspaceMarkersOf(request);
+	if (markers.some((marker) => CROSS_PROJECT_TASK_MARKERS.some((cross) => marker.includes(cross)))) {
+		skippedCrossProject.push(id);
+		continue;
+	}
+	for (const marker of markers) {
+		workspaceFamilies.set(marker, (workspaceFamilies.get(marker) ?? 0) + 1);
 	}
 	const messages = request.messages ?? [];
 	// Wire truth 5: the per-session turn index IS the assistant-message count of the request.
@@ -126,3 +161,22 @@ console.log(
 	`captured ${captured} request/answer pair(s) from ${queueDir} into ${outDir}` +
 		(unanswered > 0 ? ` — ${unanswered} request(s) were never answered and are NOT in the recording` : ""),
 );
+if (skippedCrossProject.length > 0) {
+	console.log(
+		`excluded ${skippedCrossProject.length} cross-project request(s) (${CROSS_PROJECT_TASK_MARKERS.join(", ")}): ` +
+			`${skippedCrossProject.slice(0, 8).join(", ")}${skippedCrossProject.length > 8 ? ", …" : ""}`,
+	);
+}
+// A capture spanning many unrelated task families is the shape that replays as "left cards undrained": the replay
+// starts on another project's traffic. Say so loudly rather than letting it surface as a mystery later.
+const families = [...workspaceFamilies.entries()].sort((left, right) => right[1] - left[1]);
+if (families.length > 1) {
+	console.log(
+		`NOTE: this capture spans ${families.length} distinct task workspaces — if its replay leaves cards undrained, ` +
+			`foreign traffic is the first thing to check:\n  ` +
+			families
+				.slice(0, 6)
+				.map(([name, count]) => `${count}x ${name}`)
+				.join("\n  "),
+	);
+}
