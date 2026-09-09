@@ -2712,6 +2712,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   isolated sandbox instead of failing offline on every acceptance and plan gate. Remaining human-only parks
   should now be genuine judgment calls; anything else is a bug to file here.
 
+- [ ] **P1.PASSEDBUTUNLANDED — a card can carry a green `Acceptance check: PASSED` line while its work never
+  reached the trunk.** *(Live 2026-09-10, responder-reported with the failing card named.)* On project 42's
+  `unchecked-find-audit`, the worker edited `analysis/findings.json` and ran `npm test` GREEN inside its own
+  sandbox; the take-away patch then failed at the git layer — `git apply: patch does not apply` — almost certainly
+  because a sibling card had already landed on the trunk first. The card reached review with its acceptance line
+  reading PASSED and nothing of its work on the branch. The responder correctly reviewed it `request_changes`
+  rather than approving a no-op, but a reviewer trusting the acceptance line would have approved an empty card.
+  **This is the §4A green-signal-substitution pattern one layer further out than usual:** the acceptance is a true
+  statement about the SANDBOX and a false one about the DELIVERY, and the two are reported as one fact. Note the
+  patch-capture instrumentation is not the gap — an apply failure is typed, preserves the patch, and records a
+  `runtime_error` (checked 2026-09-08 under P1.RESPONDERLEADS lead (b)). The gap is that the ACCEPTANCE line
+  presented to the reviewer is not qualified by it.
+  **Contributing condition, self-diagnosed by the decompose:** `analysis/findings.json` is a HOT FILE written by
+  all five sibling cards with no dependency order among the first four, and `decompose_project` flagged exactly
+  that up front (`classification: red`). The same hot file produced a second incident the same shift (a stale
+  snapshot anchor, correctly blocked by `edit_file` with "the edit would break analysis/findings.json — JSON no
+  longer parses"). Two of the three landing attempts survived; the merge-resolution card was the safety net for
+  the third, and it worked in one pass.
+  **Redrive needed:** `unchecked-find-audit` on project 42 — its real work never landed.
 - [ ] **P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record.** *(Live 2026-09-09,
   characterised by two responder shifts and the placement instrumentation.)* One shift hit
   `No Docker sandbox workspace is prepared for task <X>::review` four times — backoff-schedule, cancellation-timing
