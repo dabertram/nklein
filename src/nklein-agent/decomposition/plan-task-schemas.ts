@@ -23,7 +23,15 @@ export const decomposeProjectTaskJsonSchema = {
 		},
 		prompt: { type: "string" },
 		dependsOn: { type: "array", items: { type: "string" }, description: DECOMPOSE_DEPENDENCY_GUIDANCE },
-		complexity: { type: "number" },
+		// Typed `number` since it was introduced, and still sent as "medium"/"low" 20+ times in one afternoon
+		// (2026-09-10, projects 50 and 51), each rejection wedging the card until a guard parked it. It is the
+		// only field here carrying no description, so a model reading a bare `number` among richly-described
+		// neighbours guesses a qualitative scale. Say the scale, and say it is optional.
+		complexity: {
+			type: "number",
+			description:
+				"Relative effort, 0-100 (higher is larger). A NUMBER, not a word — omit it to accept the default of 50.",
+		},
 		suggestedRole: { type: ["string", "null"] },
 		filesLikelyTouched: { type: "array", items: { type: "string" } },
 		acceptanceCommand: { type: ["string", "null"] },
