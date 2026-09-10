@@ -2725,11 +2725,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   (`planning: 1, completed: 0`). The needle collision is real but is not the cause.
   **Also refuted:** that a foreign-traffic capture explains it. Both 40 and 41 were rebuilt with bounded windows and
   the custodian excluded — 43 and 48 tracks of nothing but their own cards — and 40 still failed identically.
-  **Next probe when someone picks this up:** why the decompose lands as a CHAT-class track in these three and is
-  absent from the chat tracks of 44/45/46 entirely, given all four fixtures have the same shape (project.json +
-  specification.md + user-prompt.txt) and all were driven seed → decompose → cards. Answer that and the rest
-  probably falls out. Not urgent: `hitl-record-run.mts` now re-drives a replay failure once from a clean board at
-  the end of the run, so the batch recovers these without a human.
+  **▶ ANSWERED AND FIXED (2026-09-10, `4de220acb`).** `classifyRecordedClass` classified a captured entry from
+  `match.userMessage` alone. A decompose card's seed prompt is a planning brief with none of the worker scaffolds
+  (`leaf scope:`, `acceptance check`, `kanban`), so it fell to `chat` — the classifier's FALLBACK — and `toTrack`
+  relaxes only a `decompose` track to `"any"`, the relaxation that lets it answer the live decompose request
+  whatever class that request gets. Confirmed by reclassifying 47's track by hand: the replay turned into a PASS.
+  Fixed by keying on the tool the response CALLED, the rule `transcriptRequestClass` already applied on the other
+  capture path.
+  **STILL OPEN, because the fix did not fully recover the three.** All three now carry the relaxed `any` decompose
+  track and none replays clean. 47 went from never decomposing to driving the entire board and failing at
+  `finalize-completeness` delivery on a red acceptance — a different, much later defect, consistent with its
+  recording spanning the bounced `record-returns-agent-requirements` card AND its retry: replayed by turn index, a
+  no-op edit can be served where the successful retry belongs, leaving a repo state where `npm test` exits 1.
+  So the remaining question is narrower than the original: **can a recording that spans a bounce and a re-drive
+  replay at all, or must a recorded project have been driven cleanly?** 43 suggests it can (it captures a
+  bounce-and-redrive and replays). Not urgent: the run re-drives a replay failure once from a clean board on its
+  own, and the classifier fix protects the ~28 projects still to record.
 
 - [ ] **P1.DECOMPOSEABORTS — decompose cards arrive with many prior "aborted before producing output" attempts.**
   *(Live 2026-09-09/10, three independent sightings.)* Project 41's decompose card carried **6** prior failed
