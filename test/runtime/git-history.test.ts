@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -6,40 +5,16 @@ import { describe, expect, it } from "vitest";
 
 import { getCommitDiff, getGitLog, getGitRefs } from "../../src/workspace/git-history";
 import { discardGitChanges, getGitSyncSummary } from "../../src/workspace/git-sync";
-import { createGitTestEnv } from "../utilities/git-env";
+import { commitAllInTestRepository, initTestRepository, runTestGit } from "../utilities/git-repo";
 import { createTempDir } from "../utilities/temp-dir";
-
-function runGit(cwd: string, args: string[]): string {
-	const result = spawnSync("git", args, {
-		cwd,
-		encoding: "utf8",
-		env: createGitTestEnv(),
-	});
-	if (result.status !== 0) {
-		throw new Error(result.stderr || result.stdout || `git ${args.join(" ")} failed`);
-	}
-	return result.stdout.trim();
-}
-
-function initRepository(path: string): void {
-	runGit(path, ["init", "-q"]);
-	runGit(path, ["config", "user.name", "Test User"]);
-	runGit(path, ["config", "user.email", "test@example.com"]);
-}
-
-function commitAll(cwd: string, message: string): string {
-	runGit(cwd, ["add", "."]);
-	runGit(cwd, ["commit", "-qm", message]);
-	return runGit(cwd, ["rev-parse", "HEAD"]);
-}
 
 describe.sequential("git history runtime", () => {
 	it("returns correct metadata for root commit diffs", async () => {
 		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-root-");
 		try {
-			initRepository(repoPath);
+			initTestRepository(repoPath);
 			writeFileSync(join(repoPath, "first.txt"), "hello\nworld\n", "utf8");
-			const rootCommit = commitAll(repoPath, "first commit");
+			const rootCommit = commitAllInTestRepository(repoPath, "first commit");
 
 			const response = await getCommitDiff({
 				cwd: repoPath,
@@ -63,9 +38,9 @@ describe.sequential("git history runtime", () => {
 	it("returns a real error for an invalid/unknown commit hash (not a misleading empty diff)", async () => {
 		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-badhash-");
 		try {
-			initRepository(repoPath);
+			initTestRepository(repoPath);
 			writeFileSync(join(repoPath, "first.txt"), "hello\n", "utf8");
-			commitAll(repoPath, "first commit");
+			commitAllInTestRepository(repoPath, "first commit");
 
 			const response = await getCommitDiff({
 				cwd: repoPath,
@@ -83,13 +58,13 @@ describe.sequential("git history runtime", () => {
 	it("retains commits with an empty subject in the log (git-view P2)", async () => {
 		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-emptysubj-");
 		try {
-			initRepository(repoPath);
+			initTestRepository(repoPath);
 			writeFileSync(join(repoPath, "first.txt"), "hello\n", "utf8");
-			commitAll(repoPath, "first commit");
+			commitAllInTestRepository(repoPath, "first commit");
 			// A commit with an empty subject line (git allows it via --allow-empty-message).
 			writeFileSync(join(repoPath, "second.txt"), "world\n", "utf8");
-			runGit(repoPath, ["add", "."]);
-			runGit(repoPath, ["commit", "-q", "--allow-empty-message", "-m", ""]);
+			runTestGit(repoPath, ["add", "."]);
+			runTestGit(repoPath, ["commit", "-q", "--allow-empty-message", "-m", ""]);
 
 			const response = await getGitLog({ cwd: repoPath });
 
@@ -106,11 +81,11 @@ describe.sequential("git history runtime", () => {
 	it("skips the total-count recomputation and returns the -1 sentinel when includeTotalCount is false (git-view P3)", async () => {
 		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-skipcount-");
 		try {
-			initRepository(repoPath);
+			initTestRepository(repoPath);
 			writeFileSync(join(repoPath, "first.txt"), "hello\n", "utf8");
-			commitAll(repoPath, "first commit");
+			commitAllInTestRepository(repoPath, "first commit");
 			writeFileSync(join(repoPath, "second.txt"), "world\n", "utf8");
-			commitAll(repoPath, "second commit");
+			commitAllInTestRepository(repoPath, "second commit");
 
 			// A normal request still counts the whole history.
 			const counted = await getGitLog({ cwd: repoPath });
@@ -131,18 +106,18 @@ describe.sequential("git history runtime", () => {
 	it("returns the first-parent diff for a merge commit instead of an empty list (git-view P2)", async () => {
 		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-merge-");
 		try {
-			initRepository(repoPath);
+			initTestRepository(repoPath);
 			writeFileSync(join(repoPath, "base.txt"), "base\n", "utf8");
-			commitAll(repoPath, "base");
-			const mainBranch = runGit(repoPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
+			commitAllInTestRepository(repoPath, "base");
+			const mainBranch = runTestGit(repoPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
 
-			runGit(repoPath, ["checkout", "-q", "-b", "feat"]);
+			runTestGit(repoPath, ["checkout", "-q", "-b", "feat"]);
 			writeFileSync(join(repoPath, "feat.txt"), "feat\n", "utf8");
-			commitAll(repoPath, "feat work");
+			commitAllInTestRepository(repoPath, "feat work");
 
-			runGit(repoPath, ["checkout", "-q", mainBranch]);
-			runGit(repoPath, ["merge", "-q", "--no-ff", "feat", "-m", "merge feat"]);
-			const mergeHash = runGit(repoPath, ["rev-parse", "HEAD"]);
+			runTestGit(repoPath, ["checkout", "-q", mainBranch]);
+			runTestGit(repoPath, ["merge", "-q", "--no-ff", "feat", "-m", "merge feat"]);
+			const mergeHash = runTestGit(repoPath, ["rev-parse", "HEAD"]);
 
 			const response = await getCommitDiff({ cwd: repoPath, commitHash: mergeHash });
 
@@ -158,12 +133,12 @@ describe.sequential("git history runtime", () => {
 	it("returns rename metadata for rename-only commits", async () => {
 		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-rename-");
 		try {
-			initRepository(repoPath);
+			initTestRepository(repoPath);
 			writeFileSync(join(repoPath, "old.txt"), "hello\n", "utf8");
-			commitAll(repoPath, "init");
+			commitAllInTestRepository(repoPath, "init");
 
-			runGit(repoPath, ["mv", "old.txt", "new.txt"]);
-			const renameCommit = commitAll(repoPath, "rename file");
+			runTestGit(repoPath, ["mv", "old.txt", "new.txt"]);
+			const renameCommit = commitAllInTestRepository(repoPath, "rename file");
 
 			const response = await getCommitDiff({
 				cwd: repoPath,
@@ -189,12 +164,12 @@ describe.sequential("git history runtime", () => {
 	it("discards tracked, staged, and untracked working copy changes", async () => {
 		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-discard-");
 		try {
-			initRepository(repoPath);
+			initTestRepository(repoPath);
 			writeFileSync(join(repoPath, "tracked.txt"), "original\n", "utf8");
-			commitAll(repoPath, "init");
+			commitAllInTestRepository(repoPath, "init");
 
 			writeFileSync(join(repoPath, "tracked.txt"), "changed\n", "utf8");
-			runGit(repoPath, ["add", "tracked.txt"]);
+			runTestGit(repoPath, ["add", "tracked.txt"]);
 			mkdirSync(join(repoPath, "scratch"), { recursive: true });
 			writeFileSync(join(repoPath, "scratch", "note.txt"), "temp\n", "utf8");
 
@@ -212,13 +187,13 @@ describe.sequential("git history runtime", () => {
 	it("returns correct UTF-8 paths for non-ASCII filenames", async () => {
 		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-nonascii-");
 		try {
-			initRepository(repoPath);
+			initTestRepository(repoPath);
 			const dirName = "提出書類";
 			const fileName = "設計書.md";
 			const relativePath = `${dirName}/${fileName}`;
 			mkdirSync(join(repoPath, dirName), { recursive: true });
 			writeFileSync(join(repoPath, dirName, fileName), "# 設計書\n", "utf8");
-			const commitHash = commitAll(repoPath, "add non-ASCII path");
+			const commitHash = commitAllInTestRepository(repoPath, "add non-ASCII path");
 
 			const response = await getCommitDiff({
 				cwd: repoPath,
@@ -245,26 +220,26 @@ describe.sequential("git history runtime", () => {
 			const peerPath = join(sandboxRoot, "peer");
 
 			mkdirSync(remotePath, { recursive: true });
-			runGit(remotePath, ["init", "--bare", "-q"]);
+			runTestGit(remotePath, ["init", "--bare", "-q"]);
 
 			mkdirSync(localPath, { recursive: true });
-			initRepository(localPath);
+			initTestRepository(localPath);
 			writeFileSync(join(localPath, "file.txt"), "base\n", "utf8");
-			commitAll(localPath, "init");
-			runGit(localPath, ["remote", "add", "origin", remotePath]);
-			const currentBranch = runGit(localPath, ["symbolic-ref", "--short", "HEAD"]);
-			runGit(localPath, ["push", "-u", "origin", currentBranch]);
+			commitAllInTestRepository(localPath, "init");
+			runTestGit(localPath, ["remote", "add", "origin", remotePath]);
+			const currentBranch = runTestGit(localPath, ["symbolic-ref", "--short", "HEAD"]);
+			runTestGit(localPath, ["push", "-u", "origin", currentBranch]);
 
-			runGit(sandboxRoot, ["clone", "-q", remotePath, peerPath]);
-			runGit(peerPath, ["config", "user.name", "Peer User"]);
-			runGit(peerPath, ["config", "user.email", "peer@example.com"]);
+			runTestGit(sandboxRoot, ["clone", "-q", remotePath, peerPath]);
+			runTestGit(peerPath, ["config", "user.name", "Peer User"]);
+			runTestGit(peerPath, ["config", "user.email", "peer@example.com"]);
 			writeFileSync(join(peerPath, "peer.txt"), "remote\n", "utf8");
-			commitAll(peerPath, "remote commit");
-			runGit(peerPath, ["push", "origin", currentBranch]);
+			commitAllInTestRepository(peerPath, "remote commit");
+			runTestGit(peerPath, ["push", "origin", currentBranch]);
 
 			writeFileSync(join(localPath, "local.txt"), "local\n", "utf8");
-			commitAll(localPath, "local commit");
-			runGit(localPath, ["fetch", "origin"]);
+			commitAllInTestRepository(localPath, "local commit");
+			runTestGit(localPath, ["fetch", "origin"]);
 
 			const refsResponse = await getGitRefs(localPath);
 			expect(refsResponse.ok).toBe(true);

@@ -12,7 +12,10 @@ export default defineConfig({
 		environment: "node",
 		// Isolate every test file's HOME to a throwaway dir (see the setup file) so home-based runtime state + locks never
 		// touch the real `~/.nklein` — which also stops the suite contending with a running dev:full instance's lock.
-		setupFiles: ["./test/vitest-setup-home.ts"],
+		// The git setup file strips inherited repository-scoped git vars (GIT_INDEX_FILE, GIT_DIR, …) from every test
+		// worker, so a test that shells out to git in a temp repo can never write into the index of the commit whose
+		// pre-commit hook is running the suite.
+		setupFiles: ["./test/vitest-setup-home.ts", "./test/vitest-setup-git-env.ts"],
 		// `packages/**` excluded: those workspaces have their own vitest
 		// configs and runtime shapes (e.g. Electron) and are run explicitly.
 		// New workspaces under `packages/` need their own install/test wiring

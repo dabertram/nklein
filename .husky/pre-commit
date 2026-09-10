@@ -34,6 +34,24 @@ if [ "${NKLEIN_SKIP_SELF_BOARD:-0}" != "1" ]; then
 	fi
 fi
 
+# Git hands hooks the commit's own repository context (GIT_INDEX_FILE, and GIT_DIR/GIT_PREFIX).
+# `git commit -- <pathspec>` builds a TEMPORARY index and exports its ABSOLUTE path, so any test below
+# that shells out to git in a temp repo stages its entry into THIS commit's index while the blob stays
+# in the temp repo — the hook passes, then the commit dies with "error: invalid object 100644 <oid>
+# for '<path>' / error: Error building trees" (live 2026-09-08, misdiagnosed as flaky all day).
+# A plain `git commit` exports the RELATIVE `.git/index`, which each `git -C <dir>` re-resolves against
+# its own cwd, which is the only reason this looks intermittent.
+#
+# Guard the CHECK phases only. `biome check --staged`, the self-board `git add`, and the re-staging loop
+# all legitimately need the commit's index, so they stay outside.
+without_git_repo_env() {
+	(
+		unset GIT_INDEX_FILE GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY \
+			GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_CONFIG GIT_CEILING_DIRECTORIES
+		"$@"
+	)
+}
+
 STAGED_FILES=$(git diff --cached --name-only)
 
 # Binary-pollution guard (audit 2026-08-28, A6): literal 0x00 bytes in source make git/grep treat the file as
@@ -79,7 +97,10 @@ CHECK_LOG="${TMPDIR:-/tmp}/nklein-precommit-$(date +%Y%m%d-%H%M%S).log"
 # web-ui suite was ungated — three of its tests had been red since the behaviour they assert was deliberately
 # changed (a zoom level added, an onboarding nag removed), and nothing said so. A suite nothing runs is not a
 # suite. It costs ~7s, against a gate that already spends far longer on the backend.
-if npm run typecheck > "$CHECK_LOG" 2>&1 && npm run web:typecheck >> "$CHECK_LOG" 2>&1 && npm run test:precommit >> "$CHECK_LOG" 2>&1 && npm run web:test >> "$CHECK_LOG" 2>&1; then
+run_checks() {
+	npm run typecheck > "$CHECK_LOG" 2>&1 && npm run web:typecheck >> "$CHECK_LOG" 2>&1 && npm run test:precommit >> "$CHECK_LOG" 2>&1 && npm run web:test >> "$CHECK_LOG" 2>&1
+}
+if without_git_repo_env run_checks; then
 	rm -f "$CHECK_LOG"
 else
 	tail -40 "$CHECK_LOG"
@@ -95,7 +116,7 @@ fi
 VENDOR_STAGED=$(printf '%s\n' "$STAGED_FILES" | grep '^vendor/' || true)
 if [ -n "$VENDOR_STAGED" ]; then
 	echo "Staged vendor/** changes detected — running the vendored SDK suites (test:vendor)..."
-	npm run test:vendor
+	without_git_repo_env npm run test:vendor
 	if [ $? -ne 0 ]; then
 		echo "Vendored SDK tests failed — a fork edit rotted the SDK's own tests. Fix them (or run 'npm run test:vendor')."
 		exit 1
