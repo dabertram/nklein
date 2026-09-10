@@ -2733,7 +2733,32 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   rig produces — which points at the context-length/turn-timeout reading above and away from "model failure",
   and makes the ladder's tool-set narrowing exactly the wrong response. Four projects now: 41, 42, 44, 45.
 - [ ] **P1.PASSEDBUTUNLANDED — a card can carry a green `Acceptance check: PASSED` line while its work never
-  reached the trunk.** *(Live 2026-09-10, responder-reported with the failing card named.)* On project 42's
+  reached the trunk.**
+  **▶ THIS NAME COVERS TWO DIFFERENT DEFECTS. Second one root-caused end to end 2026-09-10 (project 47,
+  `record-returns-agent-requirements`, requests 1842-1846), and it is NOT the git-layer race below.**
+  The chain, every step measured rather than inferred:
+  1. The worker emitted TWO tool calls in one turn: `edit_file` on `spec/requirements.json`, and `run_commands:
+     npm test`.
+  2. The edit was REJECTED: *"Blocked edit_file: edit block 1 did not match spec/requirements.json. Closest match
+     was 40% similar."* — the unanchored-edit trap already in the responder brief. `knowledge-tool-usage` records
+     it as `outcome: failed`, and it is the ONLY failed tool call in 207 that day.
+  3. `npm test` ran in that same turn and passed **4/4 — vacuously**, because the file was untouched and the three
+     entries the PREVIOUS card added are well-formed. The card's acceptance ("npm test passes", plus quality rules
+     on *added* entries) cannot distinguish "did the work correctly" from "did nothing at all".
+  4. The model read a green acceptance and reported completion: *"npm test is 4/4 green post-edit, confirming both
+     new entries are correctly formed."* Neither entry existed.
+  5. `patchCaptureStatus: empty`, `artifacts: null`, no result branch, and `spec/requirements.json` on `main` still
+     holds only OB-01/05/11. The **control** matters: the sibling card that succeeded records
+     `patchCaptureStatus: captured` in the same file, so `empty` is a real distinction and not the default.
+  **The review caught it** — "No file changes" → `request_changes`, blocking. So the fail-safe held; the cost was
+  one wasted round trip. What is missing is that the runtime KNEW the write was blocked and nothing connected that
+  to the completion claim: the reviewer is asked to *infer* from an absent diff what the tool log already states.
+  **Candidate fix, deliberately NOT shipped mid-batch:** when a session ends with an empty capture AND its
+  transcript recorded a blocked/failed write, say so in the review prompt's `## No file changes` branch — evidence,
+  not a gate, in the style of the other review directives. Deferred because that path runs for every card of the
+  remaining thirty-odd recordings and the current behaviour is correct, just slower.
+  **Also worth fixing on the fixture side:** an acceptance check that passes when the card did nothing is not an
+  acceptance check for that card. Several dev-test projects share this shape. *(Live 2026-09-10, responder-reported with the failing card named.)* On project 42's
   `unchecked-find-audit`, the worker edited `analysis/findings.json` and ran `npm test` GREEN inside its own
   sandbox; the take-away patch then failed at the git layer — `git apply: patch does not apply` — almost certainly
   because a sibling card had already landed on the trunk first. The card reached review with its acceptance line
