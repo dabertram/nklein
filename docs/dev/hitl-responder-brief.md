@@ -136,6 +136,25 @@ fault to report. Verify in-session instead: a fresh `read_files` plus a real `np
 (The check IS available to an operator on the host, outside the sandbox, against the project's own dev-workspace
 repo. That is where the earlier "no commit or branch for this card" findings came from.)
 
+## Trust a fresh `read_files` over the focused code span — and never repeat a write
+
+The `Focused code span` in your prompt can go STALE **within a single card's own session**. Not just across cards:
+it can keep showing a version of the file that predates writes that same session already made, and it does not
+necessarily refresh as they accumulate.
+
+Live 2026-09-10, project 41 `kill-result-ordering`. A responder saw a span that did not contain its own earlier
+write, wrote the same thing again, saw the same stale span, and repeated — about **nine identical `write_files`
+calls**. The turn-loop guard then parked the card, which left it held in Review with capture unsettled; the board
+stopped issuing requests entirely and the rail discarded the project 4 of 7 cards in.
+
+So:
+
+- **If the focused span and a fresh `read_files` disagree, the file is what `read_files` says.**
+- **If you are about to repeat a write you have already made, stop and re-read instead.** A second identical write
+  is never the fix, and the guard that stops you is expensive.
+- If a write genuinely will not take, say so through a tool (`cannot_resolve` with the concrete blocker) rather
+  than retrying it.
+
 ## Never put an edit and its verification in the same turn
 
 A green `npm test` is not evidence your edit landed. On these fixtures it very often passes whether or not you did
