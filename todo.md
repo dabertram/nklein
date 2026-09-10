@@ -2712,6 +2712,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   isolated sandbox instead of failing offline on every acceptance and plan gate. Remaining human-only parks
   should now be genuine judgment calls; anything else is a bug to file here.
 
+- [ ] **P1.REPLAYUNDRAINED — three of eleven recorded projects replay to `left cards undrained (planning: 1)`,
+  cause unknown.** *(40, 41, 47 as of 2026-09-10; 37/38/39/42/43/44/45/46 replay clean.)* The board builds one card
+  and it never leaves Planning, with `Unmatched simulator requests observed in runtime logs: 0` — so every request
+  the replay made DID match a track.
+  **The one clean correlation, across all eleven:** every PASSING set has **zero** chat-class tracks that answer
+  with `decompose_project`; all three FAILING sets have one or more (1, 3, 1). Note what it is not — 37 passes with
+  13 chat tracks and 3 prose turns, so neither chat tracks nor no-tool turns are the discriminator.
+  **REFUTED MECHANISM (do not re-run it):** that 40/47's two chat tracks share the generic needle
+  `"Workspace root: ."` — one answering `decompose_project`, one prose — and the matcher serves the prose one in
+  the decompose card's place. Removing the prose track from 47's set and replaying gave a byte-identical failure
+  (`planning: 1, completed: 0`). The needle collision is real but is not the cause.
+  **Also refuted:** that a foreign-traffic capture explains it. Both 40 and 41 were rebuilt with bounded windows and
+  the custodian excluded — 43 and 48 tracks of nothing but their own cards — and 40 still failed identically.
+  **Next probe when someone picks this up:** why the decompose lands as a CHAT-class track in these three and is
+  absent from the chat tracks of 44/45/46 entirely, given all four fixtures have the same shape (project.json +
+  specification.md + user-prompt.txt) and all were driven seed → decompose → cards. Answer that and the rest
+  probably falls out. Not urgent: `hitl-record-run.mts` now re-drives a replay failure once from a clean board at
+  the end of the run, so the batch recovers these without a human.
+
 - [ ] **P1.DECOMPOSEABORTS — decompose cards arrive with many prior "aborted before producing output" attempts.**
   *(Live 2026-09-09/10, three independent sightings.)* Project 41's decompose card carried **6** prior failed
   attempts in its own system prompt (5 `aborted`, 1 `other_failure`); project 42's carried **5**
