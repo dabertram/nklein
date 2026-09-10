@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
+import { classifyRecordedClass,
 	classifyObservedFailure,
 	distillCampaign,
 	distillInteraction,
@@ -167,5 +167,52 @@ describe("reflection distiller (aimock recorded-fixture shape)", () => {
 			}),
 		);
 		expect(tracks[0]?.userMessageIncludes).toBe("Implement the score clamp in src/habit-score.ts.");
+	});
+});
+
+/**
+ * Live 2026-09-10 — the defect that cost three of eleven recorded projects their replay.
+ *
+ * A decompose card's seed prompt is a planning brief: it carries none of the worker scaffolds the text markers
+ * look for, so classification from `match.userMessage` alone fell through to the `chat` FALLBACK. `toTrack` only
+ * relaxes a `decompose` track to `"any"`, so a `chat`-classified decompose track answered nothing, the board never
+ * decomposed, and the replay ended `left cards undrained (planning: 1)`.
+ */
+describe("classifyRecordedClass — what the turn DID beats how its prompt read", () => {
+	const decomposeSeed = {
+		match: { userMessage: "Workspace root: .\nPlan this project into cards." },
+		response: { toolCalls: [{ name: "decompose_project", arguments: {} }] },
+	};
+
+	it("classifies a decompose turn by its tool call, even with no marker in the prompt", () => {
+		// Precisely the failing shape: nothing in the text says worker, review, or decompose.
+		expect(classifyRecordedClass(decomposeSeed)).toBe("decompose");
+	});
+
+	it("classifies a review turn by submit_review the same way", () => {
+		expect(
+			classifyRecordedClass({
+				match: { userMessage: "Workspace root: ." },
+				response: { toolCalls: [{ name: "submit_review", arguments: {} }] },
+			}),
+		).toBe("review");
+	});
+
+	it("still honours an explicitly persisted class over the tool call", () => {
+		expect(
+			classifyRecordedClass({
+				match: { userMessage: "x", context: "persisted-session:s1;class:worker" },
+				response: { toolCalls: [{ name: "decompose_project", arguments: {} }] },
+			}),
+		).toBe("worker");
+	});
+
+	it("falls back to the text markers when no class-exclusive tool was called", () => {
+		expect(
+			classifyRecordedClass({
+				match: { userMessage: "Leaf scope: complete only this card's work." },
+				response: { toolCalls: [{ name: "read_files", arguments: {} }] },
+			}),
+		).toBe("worker");
 	});
 });

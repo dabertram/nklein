@@ -73,7 +73,24 @@ export function classifyObservedFailure(entry: RecordedFixtureEntry): string {
 	return "perfect-observed";
 }
 
-/** Classify the request class from the recorded userMessage text (the only request signal that survives capture). */
+/**
+ * Classify the request class of a captured entry.
+ *
+ * The class is not cosmetic: `toTrack` below relaxes a `decompose` track to `"any"` so it answers the live
+ * decompose request whatever class that request classifies as. Miss the class and the track answers nothing.
+ *
+ * Live 2026-09-10: three of eleven recorded projects (40, 41, 47) replayed to `left cards undrained (planning: 1)`
+ * — the board built one card and never decomposed. Their decompose turns had been classified `chat`, which is the
+ * classifier's FALLBACK, because this function looked only at `match.userMessage` and a decompose card's seed
+ * prompt is a planning brief carrying none of the worker scaffolds (`leaf scope:`, `acceptance check`,
+ * `kanban`). Reclassifying 47's decompose track by hand and replaying turned the failure into a PASS, which is how
+ * the cause was confirmed rather than argued.
+ *
+ * So the old comment here ("the only request signal that survives capture") was wrong in the way that mattered: the
+ * RESPONSE survives capture too, and a turn that calls `decompose_project` is a decompose turn no matter how its
+ * prompt reads. `transcriptRequestClass` has always applied exactly this rule to the other capture path; this is
+ * the same rule, on the path the HITL rig's recordings actually take.
+ */
 export function classifyRecordedClass(
 	entry: RecordedFixtureEntry,
 	markers: RequestClassMarkers = DEFAULT_REQUEST_CLASS_MARKERS,
@@ -83,6 +100,15 @@ export function classifyRecordedClass(
 	)?.[1] as RequestClass | undefined;
 	if (persistedClass) {
 		return persistedClass;
+	}
+	// What the turn DID beats how its prompt read — these two tools are class-exclusive, and the same two are
+	// checked first in `transcriptRequestClass`.
+	const emitted = (entry.response?.toolCalls ?? []).map((call) => call.name);
+	if (emitted.includes("submit_review")) {
+		return "review";
+	}
+	if (emitted.includes("decompose_project")) {
+		return "decompose";
 	}
 	return classifyRequest(
 		{ messages: [{ role: "user", content: entry.match?.userMessage ?? "" }] },
