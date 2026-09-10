@@ -2789,6 +2789,28 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   a completed write did not survive the session reset. Related to [[P1.PASSEDBUTUNLANDED]] but distinct — here the
   write demonstrably happened and was verified before it vanished.
 
+- [ ] **P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and the single-flight guard
+  then refuses every retry for the life of the runtime.** *(Live 2026-09-10, four occurrences across projects 41,
+  50 and 51 — the dominant blocker of the afternoon.)*
+  The chain, each step observed:
+  1. `handleStartTaskSession` (src/trpc/runtime-api/start-task-session.ts:~311) is a correct single-flight guard —
+     workspace-scoped key, cleared in a `finally`. So a start that is "already in flight" for 20+ minutes means the
+     start itself **never resolved**.
+  2. Every subsequent auto-start is refused: `Could not auto-start linked task dev-50-…-decompose (start_in_flight)`.
+  3. The board then issues no request at all, the seat looks idle while it is in fact unfed, and the rail burns its
+     full 45-minute stall deadline before re-queueing.
+  **The physical evidence: an ORPHAN EGRESS PROXY.** `docker ps` showed `nklein-egress-proxy-ws-11536d0b8ab9` up
+  four hours with NO matching `nklein-agent-sandbox-ws-11536d0b8ab9-1`. Provisioning got as far as starting the
+  proxy and then stopped. A healthy workspace always shows the pair; counting `proxies > sandboxes` is a one-line
+  detector for this state.
+  **Not covered by the existing reaper**, which sweeps leftover *sandbox* containers — a proxy whose sandbox never
+  existed is invisible to it, and it survived a manual reap plus a full runtime restart earlier in the day.
+  **Two things to fix:** (a) make workspace provisioning fail rather than hang, so the single-flight promise always
+  settles and the guard cannot latch for the runtime's lifetime; (b) extend the container reaper to orphan egress
+  proxies, keyed on the missing sandbox rather than on age.
+  **Operator workaround meanwhile:** `docker rm -f <orphan proxy>`, then let the rail's stall re-queue the project.
+  Note the guard's in-memory flag does NOT clear on its own — the hung start has to settle or the runtime restart.
+
 - [ ] **P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture unsettled, and the board
   then issues no further requests.** *(Live 2026-09-10, project 41 `kill-result-ordering`, requests 2036-2045.)*
   The runtime log gives the whole chain in order:
