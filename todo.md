@@ -2772,6 +2772,26 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   with a prose track; the capture taken mid-drive (disproved twice by counting the window's own traffic); the
   fallback request class (real but the first fix returned an unreachable class); and decompose-track ordering.
 
+- [ ] **P1.ZOMBIEBOARD — a project the rail gave up on keeps being driven, starving the live drive and polluting
+  its capture.** *(Live 2026-09-10/11, repeatedly.)*
+  `dev-test-rail.mts` cleans up in a `finally`, and that cleanup trashes every card — so the stall/wedge exit does
+  do the right thing. It is not enough. A card whose session is mid-turn comes straight back out of trash (the
+  start path takes `resumeFromTrash: true`), so the board keeps generating requests forever with no rail watching
+  it. `hitl-abandon-run.mts` documents the same limitation for the same reason.
+  **Two costs, and the second is worse.** A shift spent **28 of its 40 requests** on a dead card belonging to
+  project 50 — a project the rail had already re-queued — while project 51 was the live drive. And because these
+  zombies keep issuing requests, their traffic lands inside whatever project IS recording, which is another source
+  of exactly the cross-project pollution the two-sided capture window and the custodian filter were built to stop.
+  **A fast-FAILING card is the worst case**, and this is the sharp observation from the shift that hit it: a card
+  whose tools all fail immediately produces its next request faster than a card doing real work, so it always wins
+  the lowest-pending-id race and monopolises a serial seat. Failure is cheaper than work, so failure wins.
+  **What is actually needed:** stopping a board must RETIRE its sessions, not merely trash its cards — the
+  retirement ledger already exists (`src/core/session-retirement.ts`) and is what makes a stop stick. The
+  board-liveness watchdog retires terminal-lane sessions but only catches them in four live states, which is the
+  same gap recorded under P1.SETTLEDNUDGE. One fix serves both.
+  **Operator workaround meanwhile:** after a re-queue, check for workspaces with live cards that no rail owns and
+  `hitl-abandon-run.mts` them — twice if needed, since the first pass can lose the race with a mid-turn session.
+
 - [ ] **P1.UNSATGATE — the test-driven-delivery gate is UNSATISFIABLE on spec/analysis fixtures, and the card can
   neither pass nor stop.** *(Live 2026-09-10/11, projects 50 and 51, measured on three shifts.)*
   A decompose task that omits `testability` defaults to **testable**. The reviewer then demands a touched test file.
