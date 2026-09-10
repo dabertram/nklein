@@ -2772,6 +2772,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   with a prose track; the capture taken mid-drive (disproved twice by counting the window's own traffic); the
   fallback request class (real but the first fix returned an unreachable class); and decompose-track ordering.
 
+- [ ] **P1.UNSATGATE — the test-driven-delivery gate is UNSATISFIABLE on spec/analysis fixtures, and the card can
+  neither pass nor stop.** *(Live 2026-09-10/11, projects 50 and 51, measured on three shifts.)*
+  A decompose task that omits `testability` defaults to **testable**. The reviewer then demands a touched test file.
+  On these fixtures every card's write scope is the deliverable (`spec/*.json`, `conformance/**`) and `test/` is
+  digest-frozen evidence — so there is no in-scope file to add coverage to, a test written there fails outright, and
+  one written elsewhere is never collected by the runner. The deliverable is correct and green; the gate still
+  refuses; the card cannot legally stop either.
+  **Cost, measured:** 23 of one shift's 40 requests, plus large parts of two others — the same 55-60% magnitude as
+  P1.SETTLEDNUDGE, and for the same structural reason: an auto-review gate with no reachable satisfying action.
+  **The escape is plan-level, and it is proven.** A responder re-expressed the stuck card with `add_task` /
+  `add_dependency` giving every task `testability: "not_testable"` plus a reason, then `decompose_project` with no
+  `tasks`. Project 51's card landed immediately. No worker-turn action ends this — `update_focus_chain` repeats get
+  rejected as no-ops, and there is nothing else in the offered grant that satisfies the gate.
+  **Two fixes worth making:** (a) have `decompose_project` infer `not_testable` (or refuse to default to
+  `testable`) when a task's write scope cannot reach any test path — the runtime already knows both; (b) give the
+  reviewer a rung that accepts "the only test is frozen evidence outside my scope" instead of looping.
+  Briefed to responders meanwhile: declare `testability` up front on spec/analysis graphs, and redecompose rather
+  than cycle if handed a card already stuck.
+
 - [ ] **P1.NOWRITETOOL — a card that must write is offered no write tool for turn after turn, until its retry
   ladder exhausts and the board redecomposes it.** *(Live 2026-09-10, project 51
   `classify-affected-requirements`, requests 2087-2108.)* The card's whole job is to write `spec/impact.json`.
