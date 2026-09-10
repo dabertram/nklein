@@ -373,11 +373,39 @@ for (let index = 0; index < queue.length; index += 1) {
 	});
 	if (replayed.code === 0) {
 		markReplayVerified(projectId);
+		note({ projectId, status: "recorded", detail: "recorded and replayed", at: new Date().toISOString() });
+		continue;
+	}
+
+	/**
+	 * A replay failure earns ONE clean re-drive, queued for the end of the run.
+	 *
+	 * Unlike a stall or an empty drive, this project WAS measured — but what it measured can be the drive's mess
+	 * rather than the project's difficulty. Live 2026-09-10: projects 40 and 41 both failed here, and rebuilding
+	 * their captures from the queue (bounded window, custodian traffic excluded, nothing foreign left) did not
+	 * help. Both had been driven across two days with repeated re-decomposition — 40's decompose session alone
+	 * spans request ids 951 to 1514 — so what could not be replayed was the DRIVE, and the only repair is to drive
+	 * it again from a clean board.
+	 *
+	 * Without this the run ends, says "failed: 40, 41", and waits for a human to start a second pass. It queues at
+	 * the END so it costs the batch nothing until every fresh project has had its turn, and `retriedProjectIds`
+	 * bounds it to one attempt — a project that fails its re-drive is a real failure and is reported as one.
+	 */
+	if (!retriedProjectIds.has(projectId)) {
+		retriedProjectIds.add(projectId);
+		queue.push(projectId);
+		note({
+			projectId,
+			status: "retrying",
+			detail: `replay failed, so the recording is unusable; re-driving once from a clean board at the end of the run: ${replayed.tail}`,
+			at: new Date().toISOString(),
+		});
+		continue;
 	}
 	note({
 		projectId,
-		status: replayed.code === 0 ? "recorded" : "failed",
-		detail: replayed.code === 0 ? "recorded and replayed" : `replay failed: ${replayed.tail}`,
+		status: "failed",
+		detail: `replay failed after a clean re-drive: ${replayed.tail}`,
 		at: new Date().toISOString(),
 	});
 }
