@@ -2723,6 +2723,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   The reduced tool set in the later attempts suggests the retry ladder is engaging, i.e. these are being classified
   as model failures. Worth checking whether they are actually context-length or turn-timeout aborts on the biggest
   prompt the rig produces, which would make the ladder's narrowing exactly the wrong response.
+  **▶ FOURTH SIGHTING, AND A RESPONDER-SIDE WORKAROUND THAT WORKED (2026-09-10, shift U).**
+  `dev-45-analysis-dataset-quality-audit-decompose` carried **5** prior attempts (4 `aborted before producing
+  output`, 1 `other_failure`). The sixth succeeded, and the responder named what it did differently: it read the
+  spec and the frozen verifier test from the sandbox's read-only host-side seed mirror and hand-derived the whole
+  decomposition BEFORE calling `decompose_project`, instead of exploring toward it. Now in the responder brief.
+  This is a workaround, not a fix, but it is diagnostic: if deriving the answer outside the turn succeeds where
+  five in-turn attempts aborted, the aborts are about the SIZE of the exploration inside the biggest prompt the
+  rig produces — which points at the context-length/turn-timeout reading above and away from "model failure",
+  and makes the ladder's tool-set narrowing exactly the wrong response. Four projects now: 41, 42, 44, 45.
 - [ ] **P1.PASSEDBUTUNLANDED — a card can carry a green `Acceptance check: PASSED` line while its work never
   reached the trunk.** *(Live 2026-09-10, responder-reported with the failing card named.)* On project 42's
   `unchecked-find-audit`, the worker edited `analysis/findings.json` and ran `npm test` GREEN inside its own
@@ -2867,6 +2876,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `reduced_tool_set` prompt forcing `read_files`, which either hits a sandbox error or is rejected as a duplicate
   of an already-approved call; and it loops. **9-10 turns across both responders (ids ~1563-1584)**, with two
   responders independently converging on the same reading and neither able to break it.
+  **▶ TWO SHIFTS WITH NO LOOP AT ALL (2026-09-10, shifts T and U).** Shift U hit `main-branch-custodian::review`
+  twice, both triggered by genuine fresh merges, and both closed in a single `submit_review` turn with no reopen —
+  **0 turns lost**. So the loop is not a property of the card that fires every time it is touched; something about
+  the conditions differs, and nobody has isolated it yet. Do NOT read this as fixed: two earlier shifts measured
+  36% and 45% on the same card id, and this session has twice written a confident generalisation from one shift's
+  evidence and had it disproved by the next. Record the counts, keep the item open.
+
   **▶ COST MEASURED, and it is now the single largest waste in the rig (2026-09-09/10).** A third shift spent
   **18 of its 40 turns — 45%** on this one card: `main-branch-custodian::review` for project 40, whose `approve`
   had been submitted and confirmed `ok:true` BEFORE that shift began, and which was resubmitted and reconfirmed
