@@ -184,9 +184,14 @@ describe("classifyRecordedClass — what the turn DID beats how its prompt read"
 		response: { toolCalls: [{ name: "decompose_project", arguments: {} }] },
 	};
 
-	it("classifies a decompose turn by its tool call, even with no marker in the prompt", () => {
-		// Precisely the failing shape: nothing in the text says worker, review, or decompose.
-		expect(classifyRecordedClass(decomposeSeed)).toBe("decompose");
+	it("classifies a decompose turn as worker — the class the LIVE request actually gets", () => {
+		// Precisely the failing shape: nothing in the captured text says worker, review, or decompose.
+		//
+		// `worker` rather than `decompose` because `classifyRequest` checks text markers BEFORE tool markers, and a
+		// live decompose request carries the worker scaffolds (`kanban`, `acceptance check`) in its SYSTEM prompt —
+		// which the capture drops. Returning `decompose` invents a class nothing live matches, and `toTrack` then
+		// relaxes it to `"any"`, which matches EVERY request and gets consumed by whichever arrives first.
+		expect(classifyRecordedClass(decomposeSeed)).toBe("worker");
 	});
 
 	it("classifies a review turn by submit_review the same way", () => {

@@ -101,14 +101,34 @@ export function classifyRecordedClass(
 	if (persistedClass) {
 		return persistedClass;
 	}
-	// What the turn DID beats how its prompt read — these two tools are class-exclusive, and the same two are
-	// checked first in `transcriptRequestClass`.
+	// What the turn DID beats how its prompt read. The class must be one the LIVE classifier can also produce for
+	// the same request, or the track answers nothing.
 	const emitted = (entry.response?.toolCalls ?? []).map((call) => call.name);
 	if (emitted.includes("submit_review")) {
+		// Reachable live: `submit_review` is checked as a class-exclusive tool BEFORE any text marker.
 		return "review";
 	}
 	if (emitted.includes("decompose_project")) {
-		return "decompose";
+		/**
+		 * `worker`, not `decompose`, and the distinction cost five projects to find.
+		 *
+		 * `classifyRequest` checks text markers BEFORE tool markers, deliberately — the full tool registry
+		 * (`decompose_project` included) rides along on worker sessions, so a non-exclusive tool name must not beat
+		 * a worker scaffold. A live decompose request carries those scaffolds (`kanban`, `acceptance check`) in its
+		 * SYSTEM prompt, which the capture drops, so live it classifies `worker` and the `decompose` class is
+		 * effectively unreachable for these sessions.
+		 *
+		 * Returning `decompose` here was therefore inventing a class nothing live would ever match — and worse,
+		 * `toTrack` relaxes a `decompose` track to `"any"`, which matches EVERY request. Paired with these
+		 * captures' needle, which is the `[!Klein repo map]` header beginning `Workspace root: .` and is identical
+		 * in every request of every session, the decompose answer was consumed by whichever request arrived first
+		 * and the real decompose card was left with nothing.
+		 *
+		 * Measured, not reasoned: 44 and 45 replay clean and classify their decompose `worker` naturally; setting
+		 * 47's and 48's decompose tracks to `worker` by hand turned both failures into PASS; leaving them `any`
+		 * failed both.
+		 */
+		return "worker";
 	}
 	return classifyRequest(
 		{ messages: [{ role: "user", content: entry.match?.userMessage ?? "" }] },
