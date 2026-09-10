@@ -8842,6 +8842,17 @@ acceptable (nightly / pre-release cadence); optimize for efficiency, but STRENGT
   the boundary bisection that "failed" to find damage was the step that exposed it. See
   [[green-signal-substitution]] — an analysis tool needs a control just as much as a rig does.
 
+  **Sharpened 2026-09-10 — one known-good input is not enough; use the whole known-good POPULATION.** Projects
+  40 and 41 would not replay. Their track structure showed two plausible causes — a prose turn calling no tool
+  (which replays into an endless "your previous turn ended without calling a tool" nudge), and more than one
+  `decompose_project` under a single needle (the project was decomposed repeatedly across re-drives). Both are
+  real, both are visible, both explain the symptom. Core written, tests green, wired into `record`. Then run
+  against the six sets that DO replay: **it flagged all six**, `no-tool-turn` 6–10 times each and
+  `duplicate-decompose` on 39. Deleted rather than shipped. Two failing examples will always suggest a pattern;
+  only the passing ones can refute it, and a single passing example can miss what a population catches. The
+  cost of the check was one command — cheaper than every consequence of a detector with a 100% false-positive
+  rate on healthy inputs. A proxy that can veto the fact is worse than no proxy.
+
 - [x] **N3 — Per-LLM behavior matrix. CLOSED 2026-08-09 — every clause checked against evidence, not assumed.**
   **① "encode each family's known quirks as fixtures" (four named)** — ✅ all four registered with recordings
   (`ministral-quirk`, `reasoning-only-quirk`, `schema-deadend-quirk`, `silent-reviewer-quirk`), audited

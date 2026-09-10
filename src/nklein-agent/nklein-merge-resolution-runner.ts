@@ -30,6 +30,30 @@ const MAX_MERGE_RESOLUTION_NUDGES = 2;
 const MAX_MERGE_RESOLUTION_FILE_BYTES = 1024 * 1024;
 /** Fraction of the merge budget after which a still-exploring first turn is cancelled and nudged to write. */
 const MERGE_RESOLUTION_HURRY_FRACTION = 0.5;
+
+/**
+ * Which nudge a merge turn gets: the hurry-up that redirects it to WRITING, or the generic "you ended without
+ * submitting".
+ *
+ * `hurryCancelled` is the FACT — the hurry timer fired and cancelled the turn. The elapsed clock is a second,
+ * independent estimate of the same thing, and it exists only for the case where there is no cancel dep at all and
+ * a turn simply ran long. Where the two disagree the fact wins, because they disagree exactly at the boundary:
+ * the timer fires at `max(1s, timeoutMs/2)` and the clock test is `elapsed >= timeoutMs/2`, so from a 2s budget
+ * upward both name the same instant and a timer firing a fraction early (Node permits it) made the clock say
+ * "not yet" about a cancel that had already happened.
+ */
+export function chooseMergeNudgePrompt(input: {
+	hurryCancelled: boolean;
+	elapsedMs: number;
+	timeoutMs: number;
+	alreadyHurried: boolean;
+}): { prompt: string; hurrying: boolean } {
+	const pastHalf = input.hurryCancelled || input.elapsedMs >= input.timeoutMs * MERGE_RESOLUTION_HURRY_FRACTION;
+	return {
+		prompt: pastHalf && !input.alreadyHurried ? MERGE_RESOLUTION_HURRY_PROMPT : MERGE_RESOLUTION_NUDGE_PROMPT,
+		hurrying: pastHalf,
+	};
+}
 const MERGE_RESOLUTION_HURRY_PROMPT =
 	"You have used half of your merge budget without recording a resolution. STOP exploring — the conflict regions were in your first message. For every conflicted file, resolve the marker regions IN PLACE with edit_file (replace each <<<<<<< … >>>>>>> block with the merged lines; do NOT rewrite whole files — a whole-file write_file costs minutes at local decode speed), then call submit_merge_resolution exactly once. If a conflict genuinely cannot be decided, call it with outcome cannot_resolve and the concrete blocker instead of reading more.";
 const MERGE_RESOLUTION_NUDGE_PROMPT =
@@ -445,10 +469,14 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 			// Half-budget hurry-up: a first turn that is still calling tools at 50% of the budget is cancelled
 			// (cancel-then-send) so the nudge loop below can redirect it to WRITING; without a cancel dep this is
 			// a no-op and the deadline alone bounds the turn, as before.
+			// Recorded so the nudge loop can read the fact rather than re-derive it from the clock — see
+			// `chooseMergeNudgePrompt` for why the two disagree exactly at the boundary that matters.
+			let hurryCancelled = false;
 			const hurryTimer = deps.cancelTaskTurn
 				? setTimeout(
 						() => {
 							if (verdict === null) {
+								hurryCancelled = true;
 								void Promise.resolve(deps.cancelTaskTurn?.(mergeTaskId)).catch(() => undefined);
 							}
 						},
@@ -494,11 +522,14 @@ export function createMergeResolutionRunner(deps: MergeResolutionRunnerDeps): Me
 			) {
 				// The first nudge after the half-budget cancel says WHY the turn ended and what to do instead;
 				// later nudges keep today's "you ended without submitting" wording.
-				const pastHalf =
-					Date.now() - (deadlineMs - (input.timeoutMs ?? DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS)) >=
-					(input.timeoutMs ?? DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS) * MERGE_RESOLUTION_HURRY_FRACTION;
-				const prompt = pastHalf && !hurried ? MERGE_RESOLUTION_HURRY_PROMPT : MERGE_RESOLUTION_NUDGE_PROMPT;
-				hurried ||= pastHalf;
+				const timeoutMs = input.timeoutMs ?? DEFAULT_MERGE_RESOLUTION_TIMEOUT_MS;
+				const { prompt, hurrying } = chooseMergeNudgePrompt({
+					hurryCancelled: hurryCancelled as boolean,
+					elapsedMs: Date.now() - (deadlineMs - timeoutMs),
+					timeoutMs,
+					alreadyHurried: hurried,
+				});
+				hurried ||= hurrying;
 				lastTurnSettled = await runBoundedTurn(deps.sendTaskSessionInput(mergeTaskId, prompt));
 			}
 			if (hurryTimer) {

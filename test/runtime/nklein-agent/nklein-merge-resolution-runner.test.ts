@@ -18,6 +18,7 @@ vi.mock("../../../src/nklein-agent/nklein-merge-resolution-tool", () => ({
 }));
 
 import {
+	chooseMergeNudgePrompt,
 	createMergeResolutionRunner,
 	type MergeResolutionRunnerDeps,
 } from "../../../src/nklein-agent/nklein-merge-resolution-runner";
@@ -314,5 +315,49 @@ describe("createMergeResolutionRunner", () => {
 		const mgr = manager(execRouter({ symlink: ok() })); // test -L exit 0 = symlink
 		const d = deps({ getAgentSandboxManager: () => mgr as never });
 		expect(await createMergeResolutionRunner(d).runMergeResolutionSession(input)).toBeNull();
+	});
+});
+
+/**
+ * Live 2026-09-10: the whole-suite run failed here while the same test passed in isolation, twice.
+ *
+ * The nudge loop re-derived "are we past half the budget?" from the clock, while the hurry timer that had just
+ * cancelled the turn already knew the answer. From a 2-second budget upward the two name the same instant — the
+ * timer fires at `max(1s, timeoutMs/2)`, the loop tested `elapsed >= timeoutMs/2` — so a timer firing a fraction
+ * of a millisecond early, which Node permits and a loaded machine encourages, sent the generic "you ended without
+ * submitting" nudge to the one turn that most needed redirecting to writing. The flake was the defect showing
+ * itself, not noise.
+ */
+describe("chooseMergeNudgePrompt", () => {
+	const budget = { timeoutMs: 2_000, alreadyHurried: false };
+
+	it("hurries on the recorded cancel even when the clock has not caught up", () => {
+		const chosen = chooseMergeNudgePrompt({ ...budget, hurryCancelled: true, elapsedMs: 999 });
+		expect(chosen.prompt).toContain("half of your merge budget");
+		expect(chosen.hurrying).toBe(true);
+	});
+
+	it("still hurries on elapsed time alone, for a runner given no cancel dep to fire", () => {
+		expect(chooseMergeNudgePrompt({ ...budget, hurryCancelled: false, elapsedMs: 1_000 }).prompt).toContain(
+			"half of your merge budget",
+		);
+	});
+
+	it("gives the plain nudge early in the budget with nothing cancelled", () => {
+		const chosen = chooseMergeNudgePrompt({ ...budget, hurryCancelled: false, elapsedMs: 999 });
+		expect(chosen.prompt).toContain("You ended your turn without calling");
+		expect(chosen.hurrying).toBe(false);
+	});
+
+	it("says the hurry-up once — a second one wastes a turn repeating what the model already ignored", () => {
+		const chosen = chooseMergeNudgePrompt({
+			...budget,
+			hurryCancelled: true,
+			elapsedMs: 1_500,
+			alreadyHurried: true,
+		});
+		expect(chosen.prompt).toContain("You ended your turn without calling");
+		// Still reports the state truthfully; only the prompt choice changes.
+		expect(chosen.hurrying).toBe(true);
 	});
 });
