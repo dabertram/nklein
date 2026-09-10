@@ -2730,7 +2730,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   snapshot anchor, correctly blocked by `edit_file` with "the edit would break analysis/findings.json — JSON no
   longer parses"). Two of the three landing attempts survived; the merge-resolution card was the safety net for
   the third, and it worked in one pass.
-  **Redrive needed:** `unchecked-find-audit` on project 42 — its real work never landed.
+  **▶ CONFIRMED TWICE AND STRUCTURAL (2026-09-10).** The next shift redrove `unchecked-find-audit` successfully
+  (re-read fresh, re-anchor, rerun, independently re-verified on review) and then hit the IDENTICAL failure
+  spontaneously on project 43's `import-cycle-audit` — a card from a decompose graph that same responder had just
+  authored. Both were caught only because the reviewer read the board context and the raw `git apply` error
+  instead of the acceptance line. Two for two: treat it as a near-certainty whenever `decompose_project` flags a
+  hot file `classification: red`, which it does on its own, up front, correctly.
+  So the shape is: **N sibling cards appending to one JSON array with no ordering between them.** The first to
+  land wins; every other card's patch fails to apply, and each still presents a green acceptance from its own
+  sandbox. The merge-resolution card is the safety net and works — but note it CHAINS: resolving one sibling's
+  conflict immediately created a second conflict for an already-in-flight sibling whose branch predated the
+  first merge. One conflict is not one event.
+  **Two candidate fixes, both cheap:** have the decompose serialise cards that share a red hot file (the
+  dependency edge is exactly what is missing), and/or qualify the acceptance line shown to a reviewer with the
+  patch-capture outcome so a green sandbox cannot read as a green delivery.
 - [ ] **P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record.** *(Live 2026-09-09,
   characterised by two responder shifts and the placement instrumentation.)* One shift hit
   `No Docker sandbox workspace is prepared for task <X>::review` four times — backoff-schedule, cancellation-timing
