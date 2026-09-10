@@ -185,6 +185,8 @@ async function main(): Promise<void> {
 	// project; a slow true stall costs the difference between 15 and 45 minutes, once, and the responder is
 	// replaced promptly on its own notification. 45 wins on both counts. `0` disables.
 	const stallMs = Number.parseInt(arg("stall-ms", "2700000"), 10);
+	// A wedge is unambiguous where a stall is not (see the watchdog below), so it does not need the stall's margin.
+	const wedgeMs = Number.parseInt(arg("wedge-ms", "1200000"), 10);
 
 	const base = createTRPCProxyClient<RuntimeAppRouter>({ links: [httpBatchLink({ url: TRPC_URL })] });
 
@@ -341,6 +343,7 @@ async function main(): Promise<void> {
 		log(`\nWatching ${lanes.length} projects (deadline ${(maxWaitMs / 60000).toFixed(0)} min)…\n`);
 		const deadline = Date.now() + maxWaitMs;
 		let stallState = { ...EMPTY_DRIVE_STALL_STATE, unchangedSince: Date.now() };
+		let wedgeState = { ...EMPTY_DRIVE_STALL_STATE, unchangedSince: Date.now() };
 		let stalledFor: number | null = null;
 		while (Date.now() < deadline) {
 			await new Promise((resolve) => setTimeout(resolve, 7000));
@@ -398,6 +401,44 @@ async function main(): Promise<void> {
 				log("Every project's board settled: seed terminal and no card left in a working lane.\n");
 				break;
 			}
+			/**
+			 * A WEDGED board — cards that should be moving, with nothing driving them.
+			 *
+			 * Distinct from the stall below, and detectable far sooner. The 45-minute stall threshold is high on
+			 * purpose: a 15-minute one once re-queued six projects as "stalled" while the model seat was answering
+			 * steadily. But that false-alarm case always had a LIVE SESSION — a slow seat still shows `running` or
+			 * `awaiting_review`. A wedge shows neither, indefinitely.
+			 *
+			 * Live 2026-09-10, twice in one afternoon. Project 41's `kill-result-ordering` tripped the turn-loop
+			 * guard and was parked, leaving it held in Review with capture unsettled; project 50's decompose card
+			 * was parked by `RepeatedToolCallGuard` after three identical rejected `decompose_project` calls. Both
+			 * boards then had cards sitting in working lanes with no session at all, issued not one further
+			 * request, and burned the full 45 minutes before the stall watchdog would say anything — 41 was
+			 * discarded 4 of 7 cards done.
+			 *
+			 * Same remedy as a stall (exit 3 → the run re-queues the project once), reached sooner and on a fact
+			 * that cannot be confused with slowness.
+			 */
+			const anyLiveSession = lanes.some((lane) =>
+				[...lane.sessionStates.values()].some((state) => state === "running" || state === "awaiting_review"),
+			);
+			const anyCardInWorkingLane = lanes.some((lane) => lane.workingCardCount > 0);
+			wedgeState = observeDriveProgress(
+				anyCardInWorkingLane && !anyLiveSession ? wedgeState : { ...EMPTY_DRIVE_STALL_STATE, unchangedSince: Date.now() },
+				{ at: Date.now(), fingerprint: "wedged" },
+				wedgeMs,
+			).state;
+			if (anyCardInWorkingLane && !anyLiveSession && Date.now() - wedgeState.unchangedSince >= wedgeMs) {
+				stalledFor = Date.now() - wedgeState.unchangedSince;
+				stalled = true;
+				log(
+					`⚠️  WEDGED: card(s) sitting in a working lane with NO live session for ` +
+						`${(stalledFor / 60000).toFixed(1)} min (--wedge-ms ${wedgeMs}). A guard has parked the card and ` +
+						`nothing will restart it — stopping now rather than burning the stall deadline.\n`,
+				);
+				break;
+			}
+
 			// Nothing about the drive changed this tick — not a card, not a session state, not a message. Repeated
 			// past `stallMs` that is a dead model seat, and waiting out the rest of the deadline only delays the news.
 			const progress = observeDriveProgress(
