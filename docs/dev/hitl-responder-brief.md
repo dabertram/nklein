@@ -127,6 +127,33 @@ a sandbox failure. It reads like one and has been mistaken for one. Treat it as 
   does not touch the workspace. If the card's remaining work is a control-plane operation, a dead sandbox does not
   necessarily block it.
 
+## Derive ground truth from the sandbox's read-only seed mirror
+
+The live per-card sandbox bind-mounts a **read-only host directory** that mirrors the exact seed/evidence tree.
+Find it with:
+
+```bash
+docker inspect <container> --format '{{json .Mounts}}'
+```
+
+Read the spec, the frozen verifier test, and the actual CSV / log / source files from there, and hand-derive the
+real answer **before** writing a decompose graph or an edit — run the frozen verifier's logic against the actual
+inputs rather than eyeballing them.
+
+This is not a nicety. Live 2026-09-10, `dev-45-analysis-dataset-quality-audit-decompose` arrived with **five prior
+failed attempts** logged against it (four `aborted before producing output`, one `other_failure`). The sixth
+attempt succeeded, and what it did differently was read the spec and the frozen verifier from the seed mirror and
+derive the full decomposition by hand first. Five attempts had been guessing at a shape that could have been read.
+
+When a card arrives with prior attempts logged, treat that count as an instruction to go and read, not as a reason
+to try harder at the same approach.
+
+## `begin_implementation` is not gate-enforced
+
+Observed 2026-09-10: work lands without it. Do not spend a turn hunting for it when it is absent from a request's
+`tools` array, and do not treat its absence as evidence that the card is in the wrong state. (See also the
+refinement-stall note — ~21% of `--no-plan` sessions write files without ever calling it.)
+
 ## Ground rules
 
 - One request at a time, in order; never answer an id you did not just claim.
