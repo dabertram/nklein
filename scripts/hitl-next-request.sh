@@ -59,7 +59,17 @@
 # Exit:    0 when an id is printed, 3 on timeout (so `||` can distinguish "idle" from "error").
 set -u
 QUEUE="${HITL_QUEUE:-$HOME/.nklein/factory-drains/hitl-drain/queue}"
-MARK="${1:-0}"
+# Positional-1 is OPTIONAL too, and it needs the SAME validation as positional-2 below — this is that bug one
+# argument to the left, and it was live for a day before anyone caught it. `hitl-next-request.sh --claim <name>`
+# is the natural invocation (the mark almost never matters; 0 is right), and it made MARK the literal string
+# "--claim". Every candidate then failed `[ "$id" -gt "--claim" ]` with "integer expression expected", so the
+# script printed NONE forever — **indistinguishable from an idle queue while the queue was full**. One shift
+# answered zero requests and reported the queue dry; the wedge that was diagnosed from it was partly this.
+# A flag in positional-1 is a flag, not a mark.
+case "${1:-}" in
+	''|*[!0-9]*) MARK=0;;
+	*) MARK="$1";;
+esac
 # Positional-2 is OPTIONAL, so it must be accepted only when it actually looks like a wait. Live 2026-09-09: a
 # responder invoked `<mark> --claim <name>` — exactly the form the usage line above permits — and MAX_WAIT became
 # the literal string "--claim", which produced a bash arithmetic error on every call and silently corrupted the
