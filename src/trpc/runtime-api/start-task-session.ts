@@ -309,6 +309,22 @@ export function dispatchWorkflowStartCommands(
  * construction; refuse it fast instead of letting the sandbox race decide.
  */
 const inFlightStartByTaskKey = new Map<string, Promise<RuntimeTaskSessionStartResponse>>();
+const inFlightStartedAtByTaskKey = new Map<string, number>();
+
+/**
+ * How long an in-flight start may be believed before it is treated as hung.
+ *
+ * The race this guard exists for is two redrive legs in ONE tick — milliseconds apart — so nothing about it needs
+ * the claim to survive minutes. But `finally` only runs when the inner start SETTLES, and on 2026-09-10 workspace
+ * provisioning hung four times across projects 41, 50 and 51 (it started the egress proxy and stopped; `docker ps`
+ * showed the proxy with no matching sandbox). The promise never settled, so the key never cleared, and every later
+ * auto-start was refused with `start_in_flight` for the rest of the runtime's life. The board then issued no
+ * request at all — which reads exactly like a dead model seat from the outside, while the seat was idle and
+ * healthy and simply never fed.
+ *
+ * Five minutes is ~750x a normal provision (~400ms) and still bounds the latch to something a drive can survive.
+ */
+const HUNG_START_AFTER_MS = 5 * 60_000;
 
 export async function handleStartTaskSession(
 	workspaceScope: RuntimeTrpcWorkspaceScope,
@@ -321,20 +337,43 @@ export async function handleStartTaskSession(
 			? `${workspaceScope.workspaceId}:${startKeyTaskId}`
 			: null;
 	if (startKey) {
+		const startedAt = inFlightStartedAtByTaskKey.get(startKey);
 		if (inFlightStartByTaskKey.has(startKey)) {
-			return {
-				ok: false,
-				summary: null,
-				error: `A start for ${startKeyTaskId} is already in flight — refusing the duplicate (single-flight per task).`,
-				errorCode: "start_in_flight",
-			};
+			if (startedAt !== undefined && Date.now() - startedAt < HUNG_START_AFTER_MS) {
+				return {
+					ok: false,
+					summary: null,
+					error: `A start for ${startKeyTaskId} is already in flight — refusing the duplicate (single-flight per task).`,
+					errorCode: "start_in_flight",
+				};
+			}
+			// Past the window the previous start is not in flight, it is hung: its promise never settled, so the
+			// `finally` below never ran. Drop the claim and let this start proceed — a wedged board costs the whole
+			// project, while the duplicate-provision race this guards against needs the two starts to be in the
+			// same tick, which nothing minutes apart can be.
+			const hungForMin = Math.round(((Date.now() - (startedAt ?? 0)) / 60_000) * 10) / 10;
+			recordSelfObservation({
+				signal: "custom",
+				severity: "warning",
+				message: `A start for ${startKeyTaskId} has been in flight for ${hungForMin} min and is treated as hung; releasing the single-flight claim so this start can proceed.`,
+				taskId: String(startKeyTaskId),
+				workspacePath: workspaceScope.workspacePath,
+				metadata: { category: "start_in_flight_released_as_hung", hungForMin },
+			});
+			inFlightStartByTaskKey.delete(startKey);
+			inFlightStartedAtByTaskKey.delete(startKey);
 		}
 		const flight = handleStartTaskSessionInner(workspaceScope, input, deps);
 		inFlightStartByTaskKey.set(startKey, flight);
+		inFlightStartedAtByTaskKey.set(startKey, Date.now());
 		try {
 			return await flight;
 		} finally {
-			inFlightStartByTaskKey.delete(startKey);
+			// Only clear if we still own the claim — a later start may have taken it over as hung above.
+			if (inFlightStartByTaskKey.get(startKey) === flight) {
+				inFlightStartByTaskKey.delete(startKey);
+				inFlightStartedAtByTaskKey.delete(startKey);
+			}
 		}
 	}
 	return handleStartTaskSessionInner(workspaceScope, input, deps);

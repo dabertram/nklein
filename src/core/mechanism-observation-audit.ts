@@ -258,6 +258,17 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	{
+		// ── P1.STARTHANG2: release a single-flight start claim whose promise never settled (2026-09-10) ──
+		category: "start_in_flight_released_as_hung",
+		item: "P1.STARTHANG2",
+		observes:
+			"a per-(workspace,task) start claim was held for over five minutes, so the start it guards hung rather than raced — workspace provisioning stopped after bringing up the egress proxy, its promise never settled, and the `finally` that clears the claim never ran; releasing it lets the next start proceed instead of refusing every auto-start with `start_in_flight` for the runtime's lifetime, which reads from outside as a dead model seat while the seat is idle and simply never fed",
+		enabledBy: null,
+		// `exceptional`: a healthy provision settles in ~400ms, so five minutes is never a race — every firing is a hang.
+		expectation: "exceptional",
+		addedOn: Date.UTC(2026, 8, 10),
+	},
+	{
 		// ── P0.DSTALL close-out: the watchdog's post-first-token liveness sweep (2026-09-07) ──
 		category: "silent_running_session_interrupted",
 		item: "P0.DSTALL",
