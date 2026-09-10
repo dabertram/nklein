@@ -3015,6 +3015,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   Generalise the item accordingly: it is a FINISHED-CARD REOPEN loop, and `main-branch-custodian::review` is just
   where it was first seen.
 
+  **▶ THIRD DATA POINT, AND WHERE THE FIX PROBABLY BELONGS (2026-09-10).** A later shift lost **24 of 41 turns
+  (59%)** to the same card — 57%, 59% on two consecutive shifts, so this is now the largest sustained waste in the
+  rig, not an occasional one. The queue confirms it plainly: seven of ten consecutive request ids (2141-2150) were
+  that one finished card.
+  The machinery to end this ALREADY EXISTS and is not firing. `runtime-server.ts:~4795` runs a board-liveness
+  watchdog that RETIRES the session of any card in a terminal lane — and retirement is exactly what makes a stop
+  stick (`restartOrStartWithMessages` refuses to revive a retired session). `TERMINAL_LANES` in
+  `src/core/trashed-card-sessions.ts` already contains `completed`, so the lane is not the gap.
+  The gap is the OTHER half of the selector: `selectTrashedCardSessions` only considers sessions that are currently
+  `running | queued | paused | awaiting_review`. This loop's session is none of those between iterations — it bare
+  stops, is scored a `no_tool_call` failure, and is reopened — so the watchdog keeps missing its window and never
+  retires it. **Next step: make terminal-lane retirement independent of the session's instantaneous state, or run
+  it on the reopen path rather than only on board saves.** Deliberately not attempted mid-batch.
+  **Mitigation in place meanwhile:** responders are told the card id, told the board confirms it finished, and told
+  to answer it with an immediate bare stop and no investigation — turning a multi-minute turn into a few seconds so
+  the loop crowds out less real work.
+
   **▶ TWO SHIFTS WITH NO LOOP AT ALL (2026-09-10, shifts T and U).** Shift U hit `main-branch-custodian::review`
   twice, both triggered by genuine fresh merges, and both closed in a single `submit_review` turn with no reopen —
   **0 turns lost**. So the loop is not a property of the card that fires every time it is touched; something about
