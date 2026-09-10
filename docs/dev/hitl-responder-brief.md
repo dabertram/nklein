@@ -133,6 +133,14 @@ a sandbox failure. It reads like one and has been mistaken for one. Treat it as 
 - **`decompose_project` clarifying questions use HYPHENATED enum values.** `questions[].status` takes
   `"assumed-default"`, not `"assumed_default"`; a snake_case value is rejected outright. Separately, a question
   marked answered needs an actual `answer` field — an `assumption` alone is not accepted.
+- **`decompose_project`'s `complexity` is a NUMBER 0-100 (default 50), not a word.** Sending `"medium"` or `"low"`
+  fails validation for every task at once: `tasks.0.complexity: Invalid input: expected number, received string`.
+- **When `decompose_project` fails validation, DO NOT resend the nested call.** The error says exactly what to do —
+  *"Switch to add_task/add_dependency, then submit decompose_project without tasks"* — and it means it. Live
+  2026-09-10, project 50: a responder sent string complexities, then resent the whole nested call three times
+  running. `RepeatedToolCallGuard` parked the card, the board stopped issuing requests, and the project was lost
+  before a single card was created. Re-sending a call the server has already rejected on shape will never succeed,
+  and the guard that stops you costs the whole project, not just the turn.
 - **The offered tool set varies between turns of the SAME card**, and its size tells you nothing about the card's
   type: one task id was seen with both a 28-tool and a 33-tool grant in the same lineage. Read each request's own
   `tools` array every turn; never infer from a sibling.
