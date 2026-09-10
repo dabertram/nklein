@@ -2712,6 +2712,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   isolated sandbox instead of failing offline on every acceptance and plan gate. Remaining human-only parks
   should now be genuine judgment calls; anything else is a bug to file here.
 
+- [ ] **P1.DECOMPOSEABORTS — decompose cards arrive with many prior "aborted before producing output" attempts.**
+  *(Live 2026-09-09/10, three independent sightings.)* Project 41's decompose card carried **6** prior failed
+  attempts in its own system prompt (5 `aborted`, 1 `other_failure`); project 42's carried **5**
+  (`same_model_retry → aborted`, three on `openai-compatible`, two on `lmstudio`); project 44's carried **7**, with
+  the tool set sometimes reduced to `update_focus_chain,list_files,read_files`. Every one of these was recovered by
+  a later attempt, so the cards succeed — but each abort is a burnt model turn on a strictly-serial endpoint, and
+  the pattern is specific to DECOMPOSE cards, which are the largest-context turn in a project (spec + every source
+  + every mutant).
+  The reduced tool set in the later attempts suggests the retry ladder is engaging, i.e. these are being classified
+  as model failures. Worth checking whether they are actually context-length or turn-timeout aborts on the biggest
+  prompt the rig produces, which would make the ladder's narrowing exactly the wrong response.
 - [ ] **P1.PASSEDBUTUNLANDED — a card can carry a green `Acceptance check: PASSED` line while its work never
   reached the trunk.** *(Live 2026-09-10, responder-reported with the failing card named.)* On project 42's
   `unchecked-find-audit`, the worker edited `analysis/findings.json` and ran `npm test` GREEN inside its own
@@ -2741,9 +2752,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   sandbox. The merge-resolution card is the safety net and works — but note it CHAINS: resolving one sibling's
   conflict immediately created a second conflict for an already-in-flight sibling whose branch predated the
   first merge. One conflict is not one event.
-  **Two candidate fixes, both cheap:** have the decompose serialise cards that share a red hot file (the
-  dependency edge is exactly what is missing), and/or qualify the acceptance line shown to a reviewer with the
-  patch-capture outcome so a green sandbox cannot read as a green delivery.
+  **Two candidate fixes, both cheap — and the first is now DEMONSTRATED, not just proposed (2026-09-10).** A
+  responder that had just diagnosed the race deliberately emitted the NEXT project's graph as five SEQUENTIAL
+  child cards instead of parallel siblings. `decompose_project` then classified the shared file **yellow instead
+  of red**, and four cards completed with no `git apply` race at all. So: have the decompose serialise cards that
+  share a red hot file — the missing dependency edge is exactly the fix, the tool already computes the
+  classification that identifies when it is needed, and a human-equivalent applying it by hand made the problem
+  disappear. Second fix, still proposed: qualify the acceptance line shown to a reviewer with the patch-capture
+  outcome, so a green sandbox cannot read as a green delivery.
 - [ ] **P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record.** *(Live 2026-09-09,
   characterised by two responder shifts and the placement instrumentation.)* One shift hit
   `No Docker sandbox workspace is prepared for task <X>::review` four times — backoff-schedule, cancellation-timing
