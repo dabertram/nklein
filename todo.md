@@ -2772,6 +2772,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   with a prose track; the capture taken mid-drive (disproved twice by counting the window's own traffic); the
   fallback request class (real but the first fix returned an unreachable class); and decompose-track ordering.
 
+- [ ] **P1.NOWRITETOOL — a card that must write is offered no write tool for turn after turn, until its retry
+  ladder exhausts and the board redecomposes it.** *(Live 2026-09-10, project 51
+  `classify-affected-requirements`, requests 2087-2108.)* The card's whole job is to write `spec/impact.json`.
+  From 2087 to 2108 — twenty-two consecutive turns — **every offered tool set lacked any write tool**, and
+  `begin_implementation` was refused with "this is a planning card... split via decompose_project or complete the
+  planning work". So the card could not do its work, could not legally declare it done, and could not split
+  (splitting would have violated its own `Leaf scope` instruction). The responder correctly refused to fabricate a
+  split and recorded the blocker instead; the ladder then exhausted and the board auto-escalated to
+  `redecompose-claims-intake-change-impact-classify-affected-requirements`.
+  **Compounding it, the card's earlier work had already been lost:** the responder wrote the file at 2072 and
+  verified it green at 2074 (4/4, in a later turn, per the rule); after a session reset at 2083 a fresh read showed
+  `spec/impact.json` back at its 60-byte empty stub. `get_file_size` confirmed it stayed 60 bytes for the rest of
+  the shift.
+  Two questions worth separating: why the tool grant omits writes on a card whose contract requires them, and why
+  a completed write did not survive the session reset. Related to [[P1.PASSEDBUTUNLANDED]] but distinct — here the
+  write demonstrably happened and was verified before it vanished.
+
 - [ ] **P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture unsettled, and the board
   then issues no further requests.** *(Live 2026-09-10, project 41 `kill-result-ordering`, requests 2036-2045.)*
   The runtime log gives the whole chain in order:
@@ -2984,6 +3001,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `reduced_tool_set` prompt forcing `read_files`, which either hits a sandbox error or is rejected as a duplicate
   of an already-approved call; and it loops. **9-10 turns across both responders (ids ~1563-1584)**, with two
   responders independently converging on the same reading and neither able to break it.
+  **▶ IT IS NOT CUSTODIAN-SPECIFIC, AND THE BOARD ITSELF DISAGREES WITH THE HARNESS (2026-09-10, decisive).**
+  The same loop ran on a `dev-51-spec-change-impact-decompose` card — a planning card, no custodian involved — and
+  ate **23 of one shift's 40 turns (57%)**, the largest single waste yet measured. The cycle is the one already
+  described: full toolset → bare stop → scored `no_tool_call` → reopened under a `reduced_tool_set` prompt → repeat.
+  What is new is the proof. At request 2107 the responder probed with `begin_implementation` and got back:
+  `{"ok":false,"instruction":"This card is already finished (completed or trashed)... Stop working on it."}`
+  So the BOARD knows the card is finished while the harness keeps reopening it. That rules out "the card really is
+  unfinished" as an explanation and locates the defect squarely in the reopen path, not in board state. Also at
+  2106, `update_focus_chain` was refused as a no-op ("made no change. Do not call it again") — i.e. every tool the
+  reduced set still offered was rejected, so no legal answer existed and the loop could not be escaped from the
+  model side at all.
+  Generalise the item accordingly: it is a FINISHED-CARD REOPEN loop, and `main-branch-custodian::review` is just
+  where it was first seen.
+
   **▶ TWO SHIFTS WITH NO LOOP AT ALL (2026-09-10, shifts T and U).** Shift U hit `main-branch-custodian::review`
   twice, both triggered by genuine fresh merges, and both closed in a single `submit_review` turn with no reopen —
   **0 turns lost**. So the loop is not a property of the card that fires every time it is touched; something about
