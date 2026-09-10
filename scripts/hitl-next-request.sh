@@ -76,10 +76,22 @@ STALE_MINUTES="${HITL_STALE_MINUTES:-30}"   # a request older than this with no 
 # removed by hand before a replacement could work. A live responder cannot be silent longer than that watchdog
 # allows, and a real turn is minutes, so 20 is generous for the living and quick for the dead.
 CLAIM_ABANDONED_MINUTES="${HITL_CLAIM_ABANDONED_MINUTES:-20}"
-CLAIM_AS="responder-$$"
+# DEFAULT OWNER IS DELIBERATELY NOT `responder-<pid>`.
+#
+# `$$` here is THIS SCRIPT's pid, and the script exits the instant it prints an id. So a pid-shaped owner is dead
+# by construction the moment it is written, `claim_owner_is_dead` says so truthfully, and the very next poll from
+# a concurrent responder steals the claim — claiming became a no-op for the exact invocation this brief documents
+# (one Bash call per agent turn). Live 2026-09-10: requests 2086 and 2095 were both stolen mid-investigation from
+# a responder that had legitimately claimed them.
+#
+# The pid path is still right for a LONG-LIVED responder process (bin/hitl-auto.py holds its claim for the whole
+# turn), and it stays available by passing `--claim responder-<pid>` explicitly. But an agent responder has no
+# such process to point at, so its liveness is genuinely unknowable and the age window is the correct mechanism.
+# An `anon` owner selects that path honestly instead of asserting a liveness fact that is always false.
+CLAIM_AS="responder-anon-$$"
 while [ $# -gt 0 ]; do
 	case "$1" in
-		--claim) CLAIM_AS="${2:-responder-$$}"; shift 2;;
+		--claim) CLAIM_AS="${2:-responder-anon-$$}"; shift 2;;
 		--no-claim) CLAIM_AS=""; shift;;
 		*) shift;;
 	esac
