@@ -2737,10 +2737,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `finalize-completeness` delivery on a red acceptance — a different, much later defect, consistent with its
   recording spanning the bounced `record-returns-agent-requirements` card AND its retry: replayed by turn index, a
   no-op edit can be served where the successful retry belongs, leaving a repo state where `npm test` exits 1.
-  So the remaining question is narrower than the original: **can a recording that spans a bounce and a re-drive
-  replay at all, or must a recorded project have been driven cleanly?** 43 suggests it can (it captures a
-  bounce-and-redrive and replays). Not urgent: the run re-drives a replay failure once from a clean board on its
-  own, and the classifier fix protects the ~28 projects still to record.
+  **▶ 48 FAILED THE SAME WAY WITH THE FIX IN PLACE (2026-09-10), so the class was necessary and not sufficient.**
+  48 was recorded after `4de220acb`, carries the relaxed `any` decompose track, and still replayed to
+  `planning: 1` — the board never decomposed. Its capture is provably complete and exactly bounded (requests
+  1927-1933 hold the last review, `finalize-completeness` and its review; 49's decompose starts at 1934, outside).
+  **The one structural difference from 47, and the experiment that killed it as a cause:** 47's decompose track is
+  at index 0 and its replay drove the whole board; 48's sits at index 2 behind two `chat` tracks that answer
+  `read_files` — and all three share the IDENTICAL needle `"Workspace root: ."`. Moving 48's decompose track to the
+  front changed nothing: still `left cards undrained`. So order is not the cause either.
+  **What that leaves, and it is worth writing down plainly:** `userMessageIncludes` is doing NO discriminating work
+  in HITL-rig captures. `hitl-queue-to-capture.mts` takes the first user message as the needle, and in these
+  sessions that is the `[!Klein repo map]` header, which begins `Workspace root: .` in every single request of every
+  session. Track selection therefore rests entirely on requestClass. That is the next thing to attack — give a
+  capture a needle that actually identifies its session — but it is a change to needle generation for every set, so
+  it wants doing deliberately and NOT mid-batch.
+  **FIVE REFUTED HYPOTHESES, do not re-run any of them:** foreign traffic in the capture; a needle collision with a
+  prose track; the capture taken mid-drive (disproved twice, on 47 and 48, by counting the window's own traffic);
+  the fallback request class (real, fixed, insufficient); and decompose-track ordering.
+  Not urgent: the run re-drives a replay failure once from a clean board on its own.
 
 - [ ] **P1.DECOMPOSEABORTS — decompose cards arrive with many prior "aborted before producing output" attempts.**
   *(Live 2026-09-09/10, three independent sightings.)* Project 41's decompose card carried **6** prior failed
