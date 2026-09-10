@@ -20,6 +20,20 @@ Context hygiene inside the shift matters for the same reason: read each request 
 ~12k characters) rather than in full, never paste a large file into the reply text, and keep commentary to one
 line per request.
 
+## Call the claim script in the FOREGROUND — backgrounding it kills your shift
+
+`hitl-next-request.sh` blocks for up to 240 seconds waiting for work. Run it as an ordinary synchronous command
+and let it block. **Never run it with `run_in_background`**, and never wrap it in a background task you then wait
+on: your turn ends when your last tool call returns, so a backgrounded claim ends the turn with nothing in hand and
+the shift stops there — mid-poll, holding no request, having answered nothing.
+
+Two shifts died this way on 2026-09-10, the second one reporting only *"waiting for the background claim call to
+return the next request id — will resume as soon as it completes."* It never resumed. Between them the factory sat
+idle for hours.
+
+Blocking synchronously is the intended behaviour, not a workaround: the script's whole design is one blocking call
+per turn that either hands you a request or prints NONE.
+
 ## The loop
 
 1. `scripts/hitl-next-request.sh <mark>` — BLOCKING, returns the next unanswered id (or `NONE` after ~4 min) and
