@@ -35,12 +35,17 @@
 # that a card's consecutive turns can land on different responders, so a responder must not rely on its own memory
 # of a card — re-read the files and re-run the tests. That instruction is in the brief.
 #
-# The wait DEFAULT is 240s, not the tool cap. Live 2026-09-08: a responder was killed mid-drive by the agent
+# The wait DEFAULT is 120s, not the tool cap. Live 2026-09-08: a responder was killed mid-drive by the agent
 # harness's stream watchdog — "no progress for 600s" — while sitting in a healthy 540s blocking wait. The binding
 # limit is not the tool timeout, it is how long the agent may go without PRODUCING anything, and a blocking call
-# produces nothing until it returns. So the wait must end well inside that window and be re-entered: four minutes
-# keeps the turn visibly alive, and re-entering costs one cheap tool call. The rig sat idle behind a dead responder
-# for ten minutes before anyone noticed, which is the failure this default exists to prevent.
+# produces nothing until it returns. So the wait must end well inside that window and be re-entered; re-entering
+# costs one cheap tool call.
+#
+# 240s was the first answer to that and it was NOT enough. Three more responders died the same death on
+# 2026-09-10 ("no progress for 600s"), because the blind window is never the wait alone: reading the brief, then a
+# 240s NONE, then a think, then another 240s NONE already crowds 600s, and the queue goes quiet exactly when the
+# board is wedged — which is when a live responder matters most. 120s leaves room for two full polls plus thinking
+# inside the window. The cost is one extra stat of a directory.
 #
 # Usage:  scripts/hitl-next-request.sh <mark> [maxWaitSeconds] [--claim <responderId>]
 #   <mark>      answer only ids strictly greater than this (scopes a capture to one project)
@@ -60,7 +65,7 @@ MARK="${1:-0}"
 # the literal string "--claim", which produced a bash arithmetic error on every call and silently corrupted the
 # NONE-after-240s deadline. An optional positional followed by flags has to be validated, not assumed.
 case "${2:-}" in
-	''|*[!0-9]*) MAX_WAIT=240;;
+	''|*[!0-9]*) MAX_WAIT=120;;
 	*) MAX_WAIT="$2";;
 esac
 POLL="${HITL_POLL_SECONDS:-5}"
