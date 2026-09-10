@@ -2712,8 +2712,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   isolated sandbox instead of failing offline on every acceptance and plan gate. Remaining human-only parks
   should now be genuine judgment calls; anything else is a bug to file here.
 
-- [ ] **P1.REPLAYUNDRAINED — three of eleven recorded projects replay to `left cards undrained (planning: 1)`,
-  cause unknown.** *(40, 41, 47 as of 2026-09-10; 37/38/39/42/43/44/45/46 replay clean.)* The board builds one card
+- [x] **P1.REPLAYUNDRAINED — RESOLVED 2026-09-10 (`4090f2282`). Five of thirteen recorded projects replayed to
+  `left cards undrained (planning: 1)`; four recovered from the queue with no re-drive, the fifth needs one.** *(40, 41, 47 as of 2026-09-10; 37/38/39/42/43/44/45/46 replay clean.)* The board builds one card
   and it never leaves Planning, with `Unmatched simulator requests observed in runtime logs: 0` — so every request
   the replay made DID match a track.
   **The one clean correlation, across all eleven:** every PASSING set has **zero** chat-class tracks that answer
@@ -2751,10 +2751,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   session. Track selection therefore rests entirely on requestClass. That is the next thing to attack — give a
   capture a needle that actually identifies its session — but it is a change to needle generation for every set, so
   it wants doing deliberately and NOT mid-batch.
-  **FIVE REFUTED HYPOTHESES, do not re-run any of them:** foreign traffic in the capture; a needle collision with a
-  prose track; the capture taken mid-drive (disproved twice, on 47 and 48, by counting the window's own traffic);
-  the fallback request class (real, fixed, insufficient); and decompose-track ordering.
-  Not urgent: the run re-drives a replay failure once from a clean board on its own.
+  **▶ ROOT CAUSE, and it was my own first fix that hid it (`4090f2282`).** Classifying the captured decompose turn
+  as `decompose` returns a class the LIVE classifier never assigns: `classifyRequest` checks text markers BEFORE
+  tool markers by design (the full registry rides along on worker sessions, so a non-exclusive tool name must not
+  beat a worker scaffold), and a live decompose request carries `kanban`/`acceptance check` in its SYSTEM prompt,
+  which the capture drops. Live it classifies `worker`. Worse, `toTrack` relaxes a `decompose` track to `"any"`,
+  and `"any"` matches EVERY request — so with the non-discriminating needle above, the decompose answer was eaten
+  by whichever request arrived first and the decompose card got nothing.
+  **The general rule this restores: a recorded class must be one the live classifier can also produce.**
+  Measured, not argued: 44/45 classify `worker` naturally and pass; hand-setting 47's and 48's decompose tracks to
+  `worker` turned both failures into PASS while `any` failed both — 4/4 against 0/3.
+  **Outcome: `--repair` recovered 40, 47, 48 and 49 from the request queue with NO project re-driven.** 40 is the
+  one worth remembering — a drive spread over two days, its decompose session spanning ids 951-1514, twice written
+  off here as unreproducible. Repair was only possible because the capture window records both bounds, shipped that
+  morning for an unrelated reason.
+  **Still failing: 41 only.** Its capture genuinely holds three separate `decompose_project` calls from a project
+  decomposed three times across re-drives, so it needs the clean re-drive the run performs on its own.
+  **SIX HYPOTHESES, FIVE REFUTED — do not re-run any of them:** foreign traffic in the capture; a needle collision
+  with a prose track; the capture taken mid-drive (disproved twice by counting the window's own traffic); the
+  fallback request class (real but the first fix returned an unreachable class); and decompose-track ordering.
 
 - [ ] **P1.DECOMPOSEABORTS — decompose cards arrive with many prior "aborted before producing output" attempts.**
   *(Live 2026-09-09/10, three independent sightings.)* Project 41's decompose card carried **6** prior failed
