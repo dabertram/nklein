@@ -235,12 +235,45 @@ async function liveCardsElsewhere(): Promise<string[]> {
 	}
 }
 
-const busy = await liveCardsElsewhere();
-if (busy.length > 0 && !process.argv.includes("--force")) {
-	console.error(
-		`refusing to start: the rig already has live cards, and its endpoint serves one task at a time, so a second drive would interleave with the first and make BOTH recordings incoherent:\n  ${busy.join("\n  ")}\n\nWait for them, abandon them (scripts/hitl-abandon-run.mts), or pass --force.`,
-	);
-	process.exit(1);
+/**
+ * WAIT for an in-flight drive instead of dying on it.
+ *
+ * Refusing to interleave is right — the endpoint serves one task at a time, and a second drive makes BOTH
+ * recordings incoherent. Exiting was not. Live 2026-09-10: the driver was restarted while a drive was still in
+ * flight, printed this refusal, and exited within a second. Nothing noticed for ninety minutes. The board kept
+ * being driven by the runtime the whole time — cards landed, reviews passed, requests flowed — but with no rail
+ * watching, so no mark, no window, and no recording: the entire project's work was unrecordable by the time anyone
+ * looked. A guard whose failure mode is "silently stop recording while the factory keeps working" is worse than
+ * the interleaving it prevents.
+ *
+ * So: poll until the board clears, then carry on. The wait is bounded so a genuinely stuck board still surfaces as
+ * an error rather than a hang, and `--force` still skips the check outright.
+ */
+const busyWaitMs = Number(argOf("--busy-wait-ms") ?? 45 * 60 * 1000);
+if (!process.argv.includes("--force")) {
+	const waitUntil = Date.now() + busyWaitMs;
+	let busy = await liveCardsElsewhere();
+	let announced = false;
+	while (busy.length > 0 && Date.now() < waitUntil) {
+		if (!announced) {
+			console.log(
+				`the rig has live cards, so starting now would interleave two drives on one endpoint and spoil both ` +
+					`recordings. Waiting up to ${Math.round(busyWaitMs / 60000)} min for them to finish:\n  ${busy.join("\n  ")}`,
+			);
+			announced = true;
+		}
+		await new Promise((resolveWait) => setTimeout(resolveWait, 30_000));
+		busy = await liveCardsElsewhere();
+	}
+	if (busy.length > 0) {
+		console.error(
+			`refusing to start: the rig still has live cards after ${Math.round(busyWaitMs / 60000)} min:\n  ${busy.join("\n  ")}\n\nAbandon them (scripts/hitl-abandon-run.mts) or pass --force.`,
+		);
+		process.exit(1);
+	}
+	if (announced) {
+		console.log("the board cleared — starting.");
+	}
 }
 
 // Preflight. Cheaper than discovering it project by project, and the failure mode it prevents is the whole list
