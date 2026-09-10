@@ -177,6 +177,36 @@ So:
 - If a write genuinely will not take, say so through a tool (`cannot_resolve` with the concrete blocker) rather
   than retrying it.
 
+## A card with no `dependsOn` edge gets its OWN workspace — not a shared checkout
+
+This is the fact behind several confusing sightings, and it is worth internalising before you write a graph.
+
+Two cards with no dependency edge between them run in **fully isolated workspaces**. Writing a file on one card's
+branch does not make it visible to the other: a fresh `read_files` from the sibling shows the pristine stub, no
+matter what you just wrote and verified. Only a `dependsOn` edge threads one card's branch onto the next's — that
+was confirmed positively on project 51, where card 2 correctly inherited card 1's output.
+
+Live 2026-09-11: a responder accidentally created a second root card writing the same files as card 1, assumed
+"whichever runs first, the other will see it", and had to write identical content twice. It merged cleanly only
+because the two branches happened to be byte-identical.
+
+Two consequences:
+- **A card's prompt claiming "X already exists" is not evidence.** If a fresh `read_files` shows a stub, the stub is
+  the truth for YOUR branch. Do not conclude that earlier work was lost — it may simply be on a branch you cannot
+  see. (Some earlier "my verified write reverted to an empty stub" reports were probably this.)
+- **Chain anything that shares a file.** This is the mechanical reason the sequential-decompose rule works: the
+  edge is what makes the previous card's output visible at all, quite apart from avoiding `git apply` races.
+
+## `decompose_project` validates coverage against the WHOLE project spec
+
+Even when called from inside one stuck leaf card. A redecompose that submits only the card you are fixing fails
+specification-coverage validation, because the spec's other bullets — belonging to entirely different cards — are
+no longer echoed by any task.
+
+So to redecompose one stuck card: read the existing plan (`.nklein/nklein/plans/<slug>/tasks.json` in the seed
+mirror), re-add **every** card verbatim — same prompts, acceptance checks, non-goals, write scopes, content already
+proven to pass this gate once — and change only what you came to change. Then `decompose_project` with no `tasks`.
+
 ## On a spec/analysis project, declare `testability` at DECOMPOSE time
 
 A task that omits `testability` defaults to **testable**, and the test-driven-delivery reviewer then demands a
