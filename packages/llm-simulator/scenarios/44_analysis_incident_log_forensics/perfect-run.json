@@ -1,0 +1,929 @@
+{
+	"name": "44_analysis_incident_log_forensics perfect run (HITL rig drive, requests 1744-1774)",
+	"seed": 1,
+	"tracks": [
+		{
+			"id": "perfect-observed:worker:0",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "list_files",
+								"arguments": {
+									"path": ".",
+									"recursive": true,
+									"maxDepth": 3
+								}
+							},
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"specification.md",
+										"test/timeline.test.js"
+									]
+								}
+							}
+						],
+						"content": "New analysis card (incident timeline reconstruction). Discovering the workspace layout and reading specification.md + the test file (for the deliverable's real shape) together before touching the log."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=6.3667\ntest/frozen.test.js:23 const root refs=7 rank=2.8020\ntest/timeline.test.js:7 const root refs=3 rank=1.2595\ntest/timeline.test.js:62 const records refs=5 rank=0.1626\ntest/frozen.test.js:25 function walk refs=4 rank=0.1302\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=0.0814\ntest/timeline.test.js:61 const rawLines refs=3 rank=0.0814\ntest/timeline.test.js:9 const ROLES refs=3 rank=0.0814\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0541\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0541\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0541\nscripts/run-tests.mjs:31 const result refs=4 rank=0.0502\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=0.0502\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=0.0467\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=0.0467\ntest/timeline.test.js:67 const logLineCount refs=2 rank=0.0467\ntest/timeline.test.js:8 const LOG refs=2 rank=0.0467\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=0.0358\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=0.0358\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.0219\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.0219\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.0031\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nReconstruct incident INC-4471 from the log in input/ and tell me what actually happened.\n\nThis is an analysis job, not a build job: nothing needs fixing, patching or re-running. I want the causal chain —\nwhat set the outage off, what made it worse, and where it finally broke — with every step cited by its line number\nso a reviewer can check it without re-reading 182 lines. Then name the root cause.\n\nRead specification.md for the three roles that count, the root-cause rubric, the deliverable's shape, and the\nrules I will hold you to. The one rule worth repeating here: a wrong event is worse than a missing one, and the\nacceptance check re-derives the chain from the log on every run.)"
+		},
+		{
+			"id": "perfect-observed:worker:1",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "decompose_project",
+								"arguments": {
+									"slug": "incident-log-forensics",
+									"title": "INC-4471 Incident Log Forensics: Timeline Reconstruction and Root-Cause Classification",
+									"spec": "# Analysis: Incident Log Forensics and Root-Cause Classification (INC-4471)\n\n`input/incident.jsonl` is the merged, READ-ONLY application log for incident INC-4471 (one JSON object per line,\ncollector order). Reconstruct the causal chain and classify the root cause; do not fix, patch, simulate, or edit\nanything under `input/`. Line numbers are 1-based over the file, exactly as an editor shows them.\n\nDeliverable `analysis/timeline.json` (starts `{\"schemaVersion\":1,\"complete\":false,\"events\":[],\"rootCause\":null}`):\n`events` ordered by line number, ascending, each `{line, role, why}` (why >= 12 chars, explains the event, not the\nrole name); `rootCause` is null until named, then `{category, line, why}`. Set `complete` true only when the whole\nchain is recorded and the root cause is named.\n\nThree roles only -- an event matching none of them is out of scope and must not be recorded, because an\nunrecognised event fails the check:\n- `trigger`: a `config_applied` record whose numeric `to` is less than its numeric `from`. A raise is never a trigger.\n- `amplification`: a `retry_scheduled` record whose `backoff_ms` is exactly `0`. Backing off, however slightly, disqualifies it.\n- `failure`: a record at `\"level\":\"fatal\"`. Level `\"error\"` records are the symptom, never the failure, however many there are.\n\nRoot-cause rubric: the root cause is the earliest trigger (lowest line). Its `category` follows the FIRST matching\nrule against the triggering `key`: pool/capacity/concurrency/max -> capacity_misconfiguration; else\nretry/backoff/attempt -> retry_amplification; else credential/token/secret -> credential_expiry; else\nupstream/dependency/endpoint -> dependency_outage; else code_defect. The verifier applies this same table, so a\ncategory that skips it fails even with a persuasive narrative.\n\nFrozen: `input/`, everything under `test/`, and `scripts/run-tests.mjs` are evidence, not workspace -- `npm test`\nrecomputes their content digests every run and fails if any moved. The verifier DERIVES its truth from the evidence\non every run (it holds no line numbers and no root cause), so deleting a problem from the input or editing the\nverifier are not shortcuts; both simply fail.\n\nChecking: every event recorded is checked immediately and strictly (line outside the file, unknown role, duplicate\nline, out-of-order entry, unrecognised-role line, wrong-role line, thin `why`, or a rubric-violating root cause all\nfail the suite). Coverage (every trigger/amplification/failure present, rootCause filled in) is required only once\n`complete` is set true.\n\nAcceptance: `npm test`, offline, with the fixture's own toolchain. Never add a dependency or new test framework.",
+									"plan": "# Plan: five sequential cards, one shared file\n\n`analysis/timeline.json` is a single hot file every card appends to. Module-graph-audit (same rig, same day) proved\nthat SIBLING cards writing one shared JSON file with no ordering between them race: the first to land wins and every\nother card's patch silently fails `git apply` while its own sandbox still shows a green PASSED. To avoid repeating\nthat, every card below is a DIRECT, single-predecessor chain -- never parallel siblings on this file:\n\n1. record-triggers (no deps) -- scan for config_applied limit-lowerings.\n2. record-amplifications (deps: record-triggers) -- scan for zero-backoff retries.\n3. record-failures (deps: record-amplifications) -- scan for fatal records NOT already recorded as trigger/amplification\n   (a fatal-level config_applied/retry_scheduled record is classified by its trigger/amplification role first; this\n   card must not re-add or reclassify a line another card already recorded).\n4. name-root-cause (deps: record-failures) -- pick the earliest recorded trigger, classify its key via the rubric table.\n5. finalize-completeness (deps: name-root-cause) -- verify full coverage for real via npm test, then flip complete.\n\nEach card re-reads analysis/timeline.json FRESH (never anchors on a stale snapshot or a prior attempt's assumed\nstate -- this card had 7 prior aborted attempts before this decomposition) and runs npm test for real before\nfinishing. No card touches input/, test/, or scripts/run-tests.mjs.",
+									"summary": "Five sequential cards read input/incident.jsonl and append one role's events at a time (triggers, then amplifications, then failures) to analysis/timeline.json, avoiding a shared-file race by chaining them instead of running them as siblings; a fourth card names the root cause from the earliest trigger via the key-matching rubric, and a fifth verifies full coverage for real before setting complete:true. No new dependencies; verified entirely by the existing frozen npm test suite.",
+									"defaultAcceptanceCommand": "npm test",
+									"tasks": [
+										{
+											"id": "record-triggers",
+											"title": "Record trigger events (config_applied limit-lowering)",
+											"prompt": "Read analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read specification.md and input/incident.jsonl fresh (READ-ONLY evidence, do not edit anything under input/; line numbers are 1-based over the file, exactly as an editor shows them). A `trigger` is a `config_applied` record whose numeric `to` is less than its numeric `from` -- a limit somebody lowered. A `config_applied` that raises a limit is not a trigger, however suspicious its timing. For every genuine trigger line, append `{line, role:\"trigger\", why}` (why >= 12 chars, explaining what that record did, not a restatement of the role) to the `events` array in analysis/timeline.json, keeping it ordered by line number, ascending, with no duplicate lines. Leave `complete` false and `rootCause` null; touch no other field. Every event you record is checked immediately and strictly: a line outside the file, an unknown role, a duplicate line, an out-of-order entry, a line that plays none of the three roles, a line recorded under the wrong role, or a thin `why` all fail the suite -- a wrong event is worse than a missing one, so leave a borderline record out rather than guess. Run npm test for real afterward and confirm it passes before finishing. input/, test/, and scripts/run-tests.mjs are frozen evidence, not workspace -- npm test recomputes their content digests on every run and fails if any of them moved. The verifier DERIVES its truth from input/incident.jsonl on every run; it contains no line numbers and no root cause, so re-implementing the rules yourself IS the work, not a shortcut past it. Never add a dependency or new test framework -- the sandbox is offline and the declared acceptance command (`npm test`) must pass exactly as-is with the fixture's own toolchain.",
+											"dependsOn": [],
+											"preconditions": [
+												"analysis/timeline.json exists in its declared (possibly-stub) shape"
+											],
+											"inputs": [
+												"input/incident.jsonl",
+												"specification.md"
+											],
+											"expectedOutputs": [
+												"analysis/timeline.json with zero or more role:\"trigger\" events appended, ascending by line"
+											],
+											"writeScope": [
+												"analysis/timeline.json"
+											],
+											"forbiddenPaths": [
+												"input/**",
+												"test/**",
+												"scripts/run-tests.mjs"
+											],
+											"testability": "not_testable",
+											"testabilityReason": "Verification is entirely via the pre-existing frozen suite (test/timeline.test.js, test/frozen.test.js); this card must not add or modify any test file."
+										},
+										{
+											"id": "record-amplifications",
+											"title": "Record amplification events (zero-backoff retries)",
+											"prompt": "Read analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read input/incident.jsonl fresh. An `amplification` is a `retry_scheduled` record whose `backoff_ms` is exactly `0` -- a client retrying with no spacing at all, converting one slow dependency into a load multiplier. A retry that does back off is not an amplification, however high its `attempt` count. For every genuine amplification line, append `{line, role:\"amplification\", why}` (why >= 12 chars) to the existing `events` array, preserving every entry the trigger card already wrote exactly as written and keeping ascending line order. Leave `complete` false and `rootCause` null; touch no other field. Every event you record is checked immediately and strictly: a line outside the file, an unknown role, a duplicate line, an out-of-order entry, a line that plays none of the three roles, a line recorded under the wrong role, or a thin `why` all fail the suite -- a wrong event is worse than a missing one, so leave a borderline record out rather than guess. Run npm test for real afterward and confirm it passes before finishing. input/, test/, and scripts/run-tests.mjs are frozen evidence, not workspace -- npm test recomputes their content digests on every run and fails if any of them moved. The verifier DERIVES its truth from input/incident.jsonl on every run; it contains no line numbers and no root cause, so re-implementing the rules yourself IS the work, not a shortcut past it. Never add a dependency or new test framework -- the sandbox is offline and the declared acceptance command (`npm test`) must pass exactly as-is with the fixture's own toolchain.",
+											"dependsOn": [
+												"record-triggers"
+											],
+											"preconditions": [
+												"record-triggers has appended its trigger events (or found none) and left complete:false"
+											],
+											"inputs": [
+												"input/incident.jsonl",
+												"analysis/timeline.json (as record-triggers left it)"
+											],
+											"expectedOutputs": [
+												"analysis/timeline.json with role:\"amplification\" events additionally appended, ascending by line"
+											],
+											"dependencyOutputsConsumed": [
+												"record-triggers: analysis/timeline.json"
+											],
+											"writeScope": [
+												"analysis/timeline.json"
+											],
+											"forbiddenPaths": [
+												"input/**",
+												"test/**",
+												"scripts/run-tests.mjs"
+											],
+											"testability": "not_testable",
+											"testabilityReason": "Verification is entirely via the pre-existing frozen suite (test/timeline.test.js, test/frozen.test.js); this card must not add or modify any test file."
+										},
+										{
+											"id": "record-failures",
+											"title": "Record failure events (fatal-level records)",
+											"prompt": "Read analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read input/incident.jsonl fresh. A `failure` is a record at `\"level\": \"fatal\"`. Records at `\"level\": \"error\"` are the symptom, not the failure; there are many of them and none of them count. IMPORTANT: a fatal-level record can ALSO already be recorded as a trigger or amplification (e.g. a config_applied or retry_scheduled record can itself carry level:fatal) -- trigger and amplification both take priority over failure, so first check which lines analysis/timeline.json already has recorded and only append fatal lines that are NOT already present under another role; do not duplicate or reclassify an already-recorded line. For every genuine, not-already-recorded fatal line, append `{line, role:\"failure\", why}` (why >= 12 chars, naming the specific fatal failure, not a restatement of \"failure\"), preserving every existing entry exactly and ascending line order. Leave `complete` false and `rootCause` null; touch no other field. Every event you record is checked immediately and strictly: a line outside the file, an unknown role, a duplicate line, an out-of-order entry, a line that plays none of the three roles, a line recorded under the wrong role, or a thin `why` all fail the suite -- a wrong event is worse than a missing one, so leave a borderline record out rather than guess. Run npm test for real afterward and confirm it passes before finishing. input/, test/, and scripts/run-tests.mjs are frozen evidence, not workspace -- npm test recomputes their content digests on every run and fails if any of them moved. The verifier DERIVES its truth from input/incident.jsonl on every run; it contains no line numbers and no root cause, so re-implementing the rules yourself IS the work, not a shortcut past it. Never add a dependency or new test framework -- the sandbox is offline and the declared acceptance command (`npm test`) must pass exactly as-is with the fixture's own toolchain.",
+											"dependsOn": [
+												"record-amplifications"
+											],
+											"preconditions": [
+												"record-amplifications has appended its amplification events (or found none) and left complete:false"
+											],
+											"inputs": [
+												"input/incident.jsonl",
+												"analysis/timeline.json (as record-amplifications left it)"
+											],
+											"expectedOutputs": [
+												"analysis/timeline.json with role:\"failure\" events additionally appended, ascending by line, none duplicating an already-recorded trigger/amplification line"
+											],
+											"dependencyOutputsConsumed": [
+												"record-amplifications: analysis/timeline.json"
+											],
+											"writeScope": [
+												"analysis/timeline.json"
+											],
+											"forbiddenPaths": [
+												"input/**",
+												"test/**",
+												"scripts/run-tests.mjs"
+											],
+											"testability": "not_testable",
+											"testabilityReason": "Verification is entirely via the pre-existing frozen suite (test/timeline.test.js, test/frozen.test.js); this card must not add or modify any test file."
+										},
+										{
+											"id": "name-root-cause",
+											"title": "Name the root cause from the recorded triggers",
+											"prompt": "Read analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. The root cause is the earliest trigger in the log -- the `role:\"trigger\"` event already recorded in analysis/timeline.json with the lowest `line` (do not re-derive triggers from scratch; trust the trigger entries already on record, but re-read input/incident.jsonl at that exact line fresh to read its `key`). If there is no trigger recorded, leave rootCause null -- do not invent one. Otherwise its `category` is decided by the configuration `key` that trigger lowered, by the FIRST rule that matches, in this exact order: key contains `pool`, `capacity`, `concurrency` or `max` -> `capacity_misconfiguration`; else contains `retry`, `backoff` or `attempt` -> `retry_amplification`; else contains `credential`, `token` or `secret` -> `credential_expiry`; else contains `upstream`, `dependency` or `endpoint` -> `dependency_outage`; else -> `code_defect`. The verifier applies this same table to the trigger it derives, so a category that does not follow it fails even when the narrative around it is persuasive. Set `rootCause` to `{category, line, why}` with why >= 12 characters; leave `events` and `complete` completely untouched. Run npm test for real afterward and confirm it passes before finishing. input/, test/, and scripts/run-tests.mjs are frozen evidence, not workspace -- npm test recomputes their content digests on every run and fails if any of them moved. The verifier DERIVES its truth from input/incident.jsonl on every run; it contains no line numbers and no root cause, so re-implementing the rules yourself IS the work, not a shortcut past it. Never add a dependency or new test framework -- the sandbox is offline and the declared acceptance command (`npm test`) must pass exactly as-is with the fixture's own toolchain.",
+											"dependsOn": [
+												"record-failures"
+											],
+											"preconditions": [
+												"record-triggers, record-amplifications and record-failures have all landed their events"
+											],
+											"inputs": [
+												"input/incident.jsonl",
+												"analysis/timeline.json (fully populated events array)"
+											],
+											"expectedOutputs": [
+												"analysis/timeline.json with rootCause set to {category, line, why} (or left null if no trigger exists)"
+											],
+											"dependencyOutputsConsumed": [
+												"record-failures: analysis/timeline.json"
+											],
+											"writeScope": [
+												"analysis/timeline.json"
+											],
+											"forbiddenPaths": [
+												"input/**",
+												"test/**",
+												"scripts/run-tests.mjs"
+											],
+											"testability": "not_testable",
+											"testabilityReason": "Verification is entirely via the pre-existing frozen suite (test/timeline.test.js, test/frozen.test.js); this card must not add or modify any test file."
+										},
+										{
+											"id": "finalize-completeness",
+											"title": "Finalize completeness and set complete to true",
+											"prompt": "Read analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state. Only once you have witnessed, in this turn's own output, that every trigger, amplification and failure the log actually contains is present in `events` and `rootCause` is filled in, set `complete` to `true` -- coverage is required only at that point, and the failure message names any events that are missing if you are wrong. Do not add, remove, or reword any existing event or the existing rootCause; the only field this card changes is `complete`. Rerun npm test once more after the flip to confirm the completeness check passes end-to-end with the flip. input/, test/, and scripts/run-tests.mjs are frozen evidence, not workspace -- npm test recomputes their content digests on every run and fails if any of them moved. The verifier DERIVES its truth from input/incident.jsonl on every run; it contains no line numbers and no root cause, so re-implementing the rules yourself IS the work, not a shortcut past it. Never add a dependency or new test framework -- the sandbox is offline and the declared acceptance command (`npm test`) must pass exactly as-is with the fixture's own toolchain.",
+											"dependsOn": [
+												"name-root-cause"
+											],
+											"preconditions": [
+												"name-root-cause has set rootCause (or established there is none) and every role has been recorded"
+											],
+											"inputs": [
+												"analysis/timeline.json (fully populated)"
+											],
+											"expectedOutputs": [
+												"analysis/timeline.json with complete:true, verified by two real npm test runs"
+											],
+											"dependencyOutputsConsumed": [
+												"name-root-cause: analysis/timeline.json"
+											],
+											"writeScope": [
+												"analysis/timeline.json"
+											],
+											"forbiddenPaths": [
+												"input/**",
+												"test/**",
+												"scripts/run-tests.mjs"
+											],
+											"testability": "not_testable",
+											"testabilityReason": "Verification is entirely via the pre-existing frozen suite (test/timeline.test.js, test/frozen.test.js); this card must not add or modify any test file."
+										}
+									]
+								}
+							}
+						],
+						"content": "This working directory is dev-44-analysis-incident-log-forensics-DECOMPOSE (confirmed 7 prior aborted attempts in the system prompt's already-attempted list) -- this card's deliverable is a task graph, not the reconstruction itself. Emitting decompose_project with 5 sequential cards (never parallel siblings on the shared analysis/timeline.json, per the module-graph-audit hot-file lesson from earlier this shift)."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /README.md\n- /incident.json\n- /frozen.json\nread_files coverage ledger:\n- specification.md, test/timeline.test.js (latest raw result retained for immediate analysis; original 1 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=6.3667\ntest/frozen.test.js:23 const root refs=7 rank=2.8020\ntest/timeline.test.js:7 const root refs=3 rank=1.2595\ntest/timeline.test.js:62 const records refs=5 rank=0.1626\ntest/frozen.test.js:25 function walk refs=4 rank=0.1302\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=0.0814\ntest/timeline.test.js:61 const rawLines refs=3 rank=0.0814\ntest/timeline.test.js:9 const ROLES refs=3 rank=0.0814\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0541\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0541\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0541\nscripts/run-tests.mjs:31 const result refs=4 rank=0.0502\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=0.0502\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=0.0467\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=0.0467\ntest/timeline.test.js:67 const logLineCount refs=2 rank=0.0467\ntest/timeline.test.js:8 const LOG refs=2 rank=0.0467\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=0.0358\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=0.0358\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.0219\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.0219\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.0031\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nReconstruct incident INC-4471 from the log in input/ and tell me what actually happened.\n\nThis is an analysis job, not a build job: nothing needs fixing, patching or re-running. I want the causal chain —\nwhat set the outage off, what made it worse, and where it finally broke — with every step cited by its line number\nso a reviewer can check it without re-reading 182 lines. Then name the root cause.\n\nRead specification.md for the three roles that count, the root-cause rubric, the deliverable's shape, and the\nrules I will hold you to. The one rule worth repeating here: a wrong event is worse than a missing one, and the\nacceptance check re-derives the chain from the log on every run.)"
+		},
+		{
+			"id": "perfect-observed:worker:2",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "decompose_project applied: 5 Planning cards + 4 dependencies created, no graph quality warnings, analysis/timeline.json hot-file classified yellow (ordered chain, not a race) since the cards are sequential rather than parallel siblings. Tool instructed to stop and let the new cards run. Objective met; stopping."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /README.md\n- /incident.json\n- /frozen.json\n- /nklein/plans/incident-log-forensics/spec.md\n- /nklein/plans/incident-log-forensics/plan.md\n- /nklein/plans/incident-log-forensics/questions.md\n- /nklein/plans/incident-log-forensics/decisions.md\n- /nklein/plans/incident-log-forensics/revisions.md\n- /nklein/plans/incident-log-forensics/summary.md\n- /nklein/plans/incident-log-forensics/tasks.json\nread_files coverage ledger:\n- specification.md, test/timeline.test.js (latest raw result retained for immediate analysis; original 1 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=6.3667\ntest/frozen.test.js:23 const root refs=7 rank=2.8020\ntest/timeline.test.js:7 const root refs=3 rank=1.2595\ntest/timeline.test.js:62 const records refs=5 rank=0.1626\ntest/frozen.test.js:25 function walk refs=4 rank=0.1302\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=0.0814\ntest/timeline.test.js:61 const rawLines refs=3 rank=0.0814\ntest/timeline.test.js:9 const ROLES refs=3 rank=0.0814\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0541\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0541\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0541\nscripts/run-tests.mjs:31 const result refs=4 rank=0.0502\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=0.0502\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=0.0467\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=0.0467\ntest/timeline.test.js:67 const logLineCount refs=2 rank=0.0467\ntest/timeline.test.js:8 const LOG refs=2 rank=0.0467\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=0.0358\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=0.0358\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.0219\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.0219\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.0031\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nReconstruct incident INC-4471 from the log in input/ and tell me what actually happened.\n\nThis is an analysis job, not a build job: nothing needs fixing, patching or re-running. I want the causal chain —\nwhat set the outage off, what made it worse, and where it finally broke — with every step cited by its line number\nso a reviewer can check it without re-reading 182 lines. Then name the root cause.\n\nRead specification.md for the three roles that count, the root-cause rubric, the deliverable's shape, and the\nrules I will hold you to. The one rule worth repeating here: a wrong event is worse than a missing one, and the\nacceptance check re-derives the chain from the log on every run.)"
+		},
+		{
+			"id": "perfect-observed:worker:3",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/timeline.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"node -e \"const fs=require('fs');const lines=fs.readFileSync('input/incident.jsonl','utf8').split('\\n');lines.forEach((t,i)=>{if(!t.trim())return;let r;try{r=JSON.parse(t);}catch(e){console.log((i+1)+' PARSE_ERROR');return;}if(r.event==='config_applied'&&typeof r.to==='number'&&typeof r.from==='number'&&r.to<r.from){console.log('TRIGGER '+(i+1)+' '+JSON.stringify(r));}});\""
+									]
+								}
+							}
+						],
+						"content": "First child card (incident-log-forensics-record-triggers). Reading analysis/timeline.json fresh (a prior aborted attempt may have left partial state) and running a real node scan of input/incident.jsonl for config_applied records with numeric to<from, so trigger lines are computed exactly rather than eyeballed across ~182 lines. specification.md's rules are already inlined verbatim as Shared spec, so not re-fetching that file."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /timeline.json\n- /incident.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read specification.md and input/incident.jsonl fresh (READ-ONLY evi)"
+		},
+		{
+			"id": "perfect-observed:worker:4",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "edit_file",
+								"arguments": {
+									"path": "analysis/timeline.json",
+									"edits": [
+										{
+											"search": "\t\"events\": [],",
+											"replace": "\t\"events\": [\n\t\t{\n\t\t\t\"line\": 34,\n\t\t\t\"role\": \"trigger\",\n\t\t\t\"why\": \"lowered the database connection pool max (db.pool.max) from 64 to 8, sharply cutting available capacity\"\n\t\t},\n\t\t{\n\t\t\t\"line\": 85,\n\t\t\t\"role\": \"trigger\",\n\t\t\t\"why\": \"lowered the log retention window (log.retention.days) from 30 to 7, a config decrease that also counts as a trigger\"\n\t\t}\n\t],"
+										}
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Real node scan of input/incident.jsonl found exactly 2 config_applied records with numeric to<from: line 34 (db.pool.max 64->8) and line 85 (log.retention.days 30->7). Both mechanically qualify as triggers regardless of narrative plausibility -- the check is to<from, not 'looks causally important'. timeline.json was still the pristine stub (no leftover state from the 7 prior aborts). Appending both, ascending by line, leaving complete/rootCause untouched, then running npm test for real."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /timeline.json\n- /incident.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left parti)"
+		},
+		{
+			"id": "perfect-observed:worker:5",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Edit applied for real (changed:true) and npm test is 5/5 green, including 'every recorded event is real, located and correctly classified' -- both triggers (line 34, line 85) are genuinely verified correct. complete/rootCause untouched. Objective met; stopping."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /timeline.json\n- /incident.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left parti)"
+		},
+		{
+			"id": "perfect-observed:worker:6",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/timeline.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing record-triggers. Verifying independently in this review's own tree: reading analysis/timeline.json fresh and running npm test for real (not trusting a shown diff or PASSED line)."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /incident.json\n- /analysis/timeline.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=341.7276\ntest/frozen.test.js:23 const root refs=7 rank=118.3619\ntest/timeline.test.js:62 const records refs=5 rank=112.2149\ntest/timeline.test.js:7 const root refs=3 rank=63.1571\ntest/frozen.test.js:25 function walk refs=4 rank=5.4978\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.4333\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.4333\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.4333\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.5289\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.5289\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.5289\ntest/timeline.test.js:8 const LOG refs=2 rank=2.5289\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.2846\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.2846\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.2846\nscripts/run-tests.mjs:31 const result refs=4 rank=2.1202\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.1202\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.9248\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.9248\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record trigger events (config_applied limit-lowering)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read specification.md and input/incident.jsonl fresh (READ-ONLY evidence, do not edit anything under input/; line numbers are 1-based over the file, exactly as an editor shows them). A `trigger` is a `config_applied` record whose numeric `to` is less than its numeric `from` -- a limit somebody lowered. A `config_applied` that raises a limit is not a trigger, however suspicious its timing. For every genuine trigger line, append `{line, role:\"trigger\", why}` (why >= 12 chars, explaining what that record did, not a restatement of the role) to the `events` array in analysis/timeline.json, keeping it ordered by line number, ascending, with no duplicate lin)"
+		},
+		{
+			"id": "perfect-observed:worker:7",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Both config_applied to<from triggers (line 34, line 85) landed correctly, ascending order, npm test 5/5 verified independently. Objective met."
+								}
+							}
+						],
+						"content": "Independently verified in this review's own tree: both triggers (line 34 db.pool.max 64->8, line 85 log.retention.days 30->7) are present, ascending order, why>=12 chars, complete/rootCause untouched. npm test 5/5 real pass including the correctness check. Approving."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /incident.json\n- /analysis/timeline.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=341.7276\ntest/frozen.test.js:23 const root refs=7 rank=118.3619\ntest/timeline.test.js:62 const records refs=5 rank=112.2149\ntest/timeline.test.js:7 const root refs=3 rank=63.1571\ntest/frozen.test.js:25 function walk refs=4 rank=5.4978\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.4333\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.4333\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.4333\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.5289\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.5289\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.5289\ntest/timeline.test.js:8 const LOG refs=2 rank=2.5289\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.2846\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.2846\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.2846\nscripts/run-tests.mjs:31 const result refs=4 rank=2.1202\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.1202\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.9248\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.9248\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record trigger events (config_applied limit-lowering)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read specification.md and input/incident.jsonl fresh (READ-ONLY evidence, do not edit anything under input/; line numbers are 1-based over the file, exactly as an editor shows them). A `trigger` is a `config_applied` record whose numeric `to` is less than its numeric `from` -- a limit somebody lowered. A `config_applied` that raises a limit is not a trigger, however suspicious its timing. For every genuine trigger line, append `{line, role:\"trigger\", why}` (why >= 12 chars, explaining what that record did, not a restatement of the)"
+		},
+		{
+			"id": "perfect-observed:worker:8",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/timeline.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"node -e \"const fs=require('fs');const lines=fs.readFileSync('input/incident.jsonl','utf8').split('\\n');lines.forEach((t,i)=>{if(!t.trim())return;let r;try{r=JSON.parse(t);}catch(e){console.log((i+1)+' PARSE_ERROR');return;}if(r.event==='retry_scheduled'&&r.backoff_ms===0){console.log('AMP '+(i+1)+' '+JSON.stringify(r));}});\""
+									]
+								}
+							}
+						],
+						"content": "Second child card (record-amplifications). Reading analysis/timeline.json fresh (must preserve card 1's triggers) and running a real node scan for retry_scheduled records with backoff_ms===0."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /timeline.json\n- /incident.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read input/incident.jsonl fresh. An `amplification` is a `retry_sch)"
+		},
+		{
+			"id": "perfect-observed:worker:9",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "edit_file",
+								"arguments": {
+									"path": "analysis/timeline.json",
+									"edits": [
+										{
+											"search": "\t\t{\n\t\t\t\"line\": 34,\n\t\t\t\"role\": \"trigger\",\n\t\t\t\"why\": \"lowered the database connection pool max (db.pool.max) from 64 to 8, sharply cutting available capacity\"\n\t\t},\n\t\t{\n\t\t\t\"line\": 85,",
+											"replace": "\t\t{\n\t\t\t\"line\": 34,\n\t\t\t\"role\": \"trigger\",\n\t\t\t\"why\": \"lowered the database connection pool max (db.pool.max) from 64 to 8, sharply cutting available capacity\"\n\t\t},\n\t\t{\n\t\t\t\"line\": 50,\n\t\t\t\"role\": \"amplification\",\n\t\t\t\"why\": \"checkout retried POST /orders (attempt 2) with zero backoff, adding load with no spacing\"\n\t\t},\n\t\t{\n\t\t\t\"line\": 72,\n\t\t\t\"role\": \"amplification\",\n\t\t\t\"why\": \"gateway retried /checkout (attempt 3) with zero backoff, amplifying load further\"\n\t\t},\n\t\t{\n\t\t\t\"line\": 85,"
+										},
+										{
+											"search": "\t\t\t\"why\": \"lowered the log retention window (log.retention.days) from 30 to 7, a config decrease that also counts as a trigger\"\n\t\t}\n\t],",
+											"replace": "\t\t\t\"why\": \"lowered the log retention window (log.retention.days) from 30 to 7, a config decrease that also counts as a trigger\"\n\t\t},\n\t\t{\n\t\t\t\"line\": 101,\n\t\t\t\"role\": \"amplification\",\n\t\t\t\"why\": \"payments retried /payments/authorize (attempt 5) with zero backoff, still no spacing at attempt 5\"\n\t\t}\n\t],"
+										}
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Real scan found 3 amplification candidates (retry_scheduled, backoff_ms=0): lines 50, 72, 101. These must be interleaved with the existing triggers (34, 85) to keep events ascending by line -- 50 and 72 go between 34 and 85, 101 goes after 85. Two non-overlapping edits do that; then running npm test for real."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /timeline.json\n- /incident.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left parti)"
+		},
+		{
+			"id": "perfect-observed:worker:10",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Both edits applied for real (changed:true) and npm test is 5/5 green, confirming the 3 amplifications (lines 50, 72, 101) are correctly interleaved in ascending order with the 2 existing triggers and correctly classified. complete/rootCause untouched. Objective met; stopping."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /timeline.json\n- /incident.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left parti)"
+		},
+		{
+			"id": "perfect-observed:worker:11",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/timeline.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing record-amplifications. Verifying independently in this review's own tree: reading analysis/timeline.json fresh and running npm test for real."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /incident.json\n- /analysis/timeline.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=341.7276\ntest/frozen.test.js:23 const root refs=7 rank=118.3619\ntest/timeline.test.js:62 const records refs=5 rank=112.2149\ntest/timeline.test.js:7 const root refs=3 rank=63.1571\ntest/frozen.test.js:25 function walk refs=4 rank=5.4978\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.4333\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.4333\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.4333\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.5289\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.5289\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.5289\ntest/timeline.test.js:8 const LOG refs=2 rank=2.5289\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.2846\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.2846\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.2846\nscripts/run-tests.mjs:31 const result refs=4 rank=2.1202\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.1202\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.9248\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.9248\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record amplification events (zero-backoff retries)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read input/incident.jsonl fresh. An `amplification` is a `retry_scheduled` record whose `backoff_ms` is exactly `0` -- a client retrying with no spacing at all, converting one slow dependency into a load multiplier. A retry that does back off is not an amplification, however high its `attempt` count. For every genuine amplification line, append `{line, role:\"amplification\", why}` (why >= 12 chars) to the existing `events` array, preserving every entry the trigger card already wrote exactly as written and keeping ascending line order. Leave `complete` false and `rootCause` null; touch no other field. Every event you record is checked immediately and stric)"
+		},
+		{
+			"id": "perfect-observed:worker:12",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "3 zero-backoff retry_scheduled amplifications (lines 50, 72, 101) landed correctly, properly interleaved with the 2 existing triggers to keep events ascending. npm test 5/5 verified independently."
+								}
+							}
+						],
+						"content": "Independently verified: 5 events (2 trigger, 3 amplification) correctly interleaved in ascending line order (34,50,72,85,101), why fields substantive, complete/rootCause untouched. npm test 5/5 real pass. Approving."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /incident.json\n- /analysis/timeline.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=341.7276\ntest/frozen.test.js:23 const root refs=7 rank=118.3619\ntest/timeline.test.js:62 const records refs=5 rank=112.2149\ntest/timeline.test.js:7 const root refs=3 rank=63.1571\ntest/frozen.test.js:25 function walk refs=4 rank=5.4978\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.4333\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.4333\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.4333\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.5289\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.5289\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.5289\ntest/timeline.test.js:8 const LOG refs=2 rank=2.5289\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.2846\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.2846\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.2846\nscripts/run-tests.mjs:31 const result refs=4 rank=2.1202\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.1202\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.9248\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.9248\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record amplification events (zero-backoff retries)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read input/incident.jsonl fresh. An `amplification` is a `retry_scheduled` record whose `backoff_ms` is exactly `0` -- a client retrying with no spacing at all, converting one slow dependency into a load multiplier. A retry that does back off is not an amplification, however high its `attempt` count. For every genuine amplification line, append `{line, role:\"amplification\", why}` (why >= 12 chars) to the existing `events` array, preserving every entry the trigger card already wrote exactly as written and keeping ascending line order.)"
+		},
+		{
+			"id": "perfect-observed:worker:13",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"node -e \"const fs=require('fs');const tl=JSON.parse(fs.readFileSync('analysis/timeline.json','utf8'));const already=new Set((tl.events||[]).map(e=>e.line));console.log('ALREADY '+JSON.stringify([...already]));const lines=fs.readFileSync('input/incident.jsonl','utf8').split('\\n');lines.forEach((t,i)=>{if(!t.trim())return;let r;try{r=JSON.parse(t);}catch(e){console.log((i+1)+' PARSE_ERROR');return;}if(r.level==='fatal'&&!already.has(i+1)){console.log('FAIL '+(i+1)+' '+JSON.stringify(r));}});\""
+									]
+								}
+							}
+						],
+						"content": "Third child card (record-failures). Reading analysis/timeline.json fresh and running a real node scan for level:fatal records, computing the already-recorded line set FROM the file itself (not from memory) so any fatal record that is already a trigger/amplification is correctly excluded rather than duplicated/reclassified."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /timeline.json\n- /incident.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read input/incident.jsonl fresh. A `failure` is a record at `\"level)"
+		},
+		{
+			"id": "perfect-observed:worker:14",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "edit_file",
+								"arguments": {
+									"path": "analysis/timeline.json",
+									"edits": [
+										{
+											"search": "\t\t\t\"why\": \"payments retried /payments/authorize (attempt 5) with zero backoff, still no spacing at attempt 5\"\n\t\t}\n\t],",
+											"replace": "\t\t\t\"why\": \"payments retried /payments/authorize (attempt 5) with zero backoff, still no spacing at attempt 5\"\n\t\t},\n\t\t{\n\t\t\t\"line\": 115,\n\t\t\t\"role\": \"failure\",\n\t\t\t\"why\": \"checkout hit circuit_open: no database connection acquired within 30000ms under exhausted capacity\"\n\t\t},\n\t\t{\n\t\t\t\"line\": 132,\n\t\t\t\"role\": \"failure\",\n\t\t\t\"why\": \"orders reported worker_exhausted: every worker parked waiting on the shrunk connection pool\"\n\t\t},\n\t\t{\n\t\t\t\"line\": 142,\n\t\t\t\"role\": \"failure\",\n\t\t\t\"why\": \"payments missed the authorization window: 3184 authorizations aged past the acquirer deadline\"\n\t\t}\n\t],"
+										}
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Real scan found 3 fatal failures not already recorded: lines 115, 132, 142 -- all after the existing max line (101), so a simple append preserves ascending order. Appending and running npm test for real."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /timeline.json\n- /incident.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read input/incident.jsonl fresh. A `failure` is a record at `\"level)"
+		},
+		{
+			"id": "perfect-observed:worker:15",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Edit applied for real (changed:true) and npm test is 5/5 green, confirming the 3 fatal failures (lines 115, 132, 142) are correctly recorded and none collide with the existing trigger/amplification lines. complete/rootCause untouched. Objective met; stopping."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /timeline.json\n- /incident.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read input/incident.jsonl fresh. A `failure` is a record at `\"level)"
+		},
+		{
+			"id": "perfect-observed:worker:16",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/timeline.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing record-failures. Verifying independently in this review's own tree: reading analysis/timeline.json fresh and running npm test for real."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /incident.json\n- /analysis/timeline.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=341.7276\ntest/frozen.test.js:23 const root refs=7 rank=118.3619\ntest/timeline.test.js:62 const records refs=5 rank=112.2149\ntest/timeline.test.js:7 const root refs=3 rank=63.1571\ntest/frozen.test.js:25 function walk refs=4 rank=5.4978\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.4333\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.4333\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.4333\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.5289\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.5289\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.5289\ntest/timeline.test.js:8 const LOG refs=2 rank=2.5289\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.2846\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.2846\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.2846\nscripts/run-tests.mjs:31 const result refs=4 rank=2.1202\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.1202\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.9248\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.9248\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record failure events (fatal-level records)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read input/incident.jsonl fresh. A `failure` is a record at `\"level\": \"fatal\"`. Records at `\"level\": \"error\"` are the symptom, not the failure; there are many of them and none of them count. IMPORTANT: a fatal-level record can ALSO already be recorded as a trigger or amplification (e.g. a config_applied or retry_scheduled record can itself carry level:fatal) -- trigger and amplification both take priority over failure, so first check which lines analysis/timeline.json already has recorded and only append fatal lines that are NOT already present under another role; do not duplicate or reclassify an already-recorded line. For every genuine, not-already-recorded f)"
+		},
+		{
+			"id": "perfect-observed:worker:17",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "3 fatal-level failures (lines 115, 132, 142) landed correctly, none colliding with the trigger/amplification lines. Full 8-event chain is ascending and well-formed; npm test 5/5 verified independently."
+								}
+							}
+						],
+						"content": "Independently verified: 8 events (2 trigger, 3 amplification, 3 failure), ascending line order, no duplicates or collisions between roles. npm test 5/5 real pass. Approving."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /incident.json\n- /analysis/timeline.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=341.7276\ntest/frozen.test.js:23 const root refs=7 rank=118.3619\ntest/timeline.test.js:62 const records refs=5 rank=112.2149\ntest/timeline.test.js:7 const root refs=3 rank=63.1571\ntest/frozen.test.js:25 function walk refs=4 rank=5.4978\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.4333\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.4333\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.4333\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.5289\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.5289\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.5289\ntest/timeline.test.js:8 const LOG refs=2 rank=2.5289\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.2846\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.2846\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.2846\nscripts/run-tests.mjs:31 const result refs=4 rank=2.1202\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.1202\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.9248\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.9248\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record failure events (fatal-level records)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Read input/incident.jsonl fresh. A `failure` is a record at `\"level\": \"fatal\"`. Records at `\"level\": \"error\"` are the symptom, not the failure; there are many of them and none of them count. IMPORTANT: a fatal-level record can ALSO already be recorded as a trigger or amplification (e.g. a config_applied or retry_scheduled record can itself carry level:fatal) -- trigger and amplification both take priority over failure, so first check which lines analysis/timeline.json already has recorded and only append fatal lines that are NOT already pre)"
+		},
+		{
+			"id": "perfect-observed:worker:18",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/timeline.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"node -e \"const fs=require('fs');const tl=JSON.parse(fs.readFileSync('analysis/timeline.json','utf8'));const triggers=(tl.events||[]).filter(e=>e.role==='trigger').sort((a,b)=>a.line-b.line);const earliest=triggers[0];console.log('EARLIEST '+JSON.stringify(earliest));if(earliest){const lines=fs.readFileSync('input/incident.jsonl','utf8').split('\\n');const rec=JSON.parse(lines[earliest.line-1]);console.log('RECORD '+JSON.stringify(rec));const key=String(rec.key||'');let category;if(/pool|capacity|concurrency|max/.test(key))category='capacity_misconfiguration';else if(/retry|backoff|attempt/.test(key))category='retry_amplification';else if(/credential|token|secret/.test(key))category='credential_expiry';else if(/upstream|dependency|endpoint/.test(key))category='dependency_outage';else category='code_defect';console.log('CATEGORY '+category);}\""
+									]
+								}
+							}
+						],
+						"content": "Fourth child card (name-root-cause). Reading analysis/timeline.json fresh and running a real node computation for the earliest recorded trigger's key and its rubric category (same regex table as the verifier), rather than recalling it from an earlier turn."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /core/agent-write-guard.ts\n- /timeline.json\n- /incident.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches auth, local runtime boundaries, Electron, filesystem writes, agent tools, network access, cookies, tokens, or dependency execution.\n\nChecklist:\n- Start from the trust boundary: browser UI, runtime server, local project files, NKlein SDK host, child processes, and external endpoints.\n- Prefer deny-by-default controls. Any bypass needs a narrow condition, a clear error, and regression coverage.\n- Treat secrets as toxic data: never log them, never persist them in transcripts, and block obvious credential writes before disk.\n- For Electron, keep context isolation, sandboxing, disabled Node integration, blocked popups, same-origin navigation, and CSP-covered fallback pages intact.\n- For local servers, bind to loopback by default; cookies need HttpOnly, SameSite=Strict, Path, Max-Age, and Secure when TLS is active.\n- For agent writes, preserve protected-test, max-file-size, max-line-count, and secret-scan guardrails.\n\nExample:\n```ts\nconst secret = findPotentialSecretInText(input.newText);\nif (secret) return { approved: false, reason: `Blocked write: potential ${secret.label}.` };\n```\n\n!Klein specifics:\n- Runtime security code usually lives in `src/security/`, `src/server/`, `src/core/agent-write-guard.ts`, and `src/nklein-agent/`.\n- Desktop hardening lives under `packages/desktop/src/`.\n- Update or add focused tests in `test/runtime/` and keep `CHANGELOG.md` current.\n\nGuidance topic: security\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. The root caus)"
+		},
+		{
+			"id": "perfect-observed:worker:19",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "edit_file",
+								"arguments": {
+									"path": "analysis/timeline.json",
+									"edits": [
+										{
+											"search": "\t\"rootCause\": null\n}",
+											"replace": "\t\"rootCause\": {\n\t\t\"category\": \"capacity_misconfiguration\",\n\t\t\"line\": 34,\n\t\t\"why\": \"earliest trigger: db.pool.max was slashed from 64 to 8, starving the connection pool that cascaded into the outage\"\n\t}\n}"
+										}
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Computed for real: earliest trigger is line 34 (db.pool.max), key matches the pool/max rule -> capacity_misconfiguration. Setting rootCause accordingly, leaving events untouched, then running npm test for real."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /core/agent-write-guard.ts\n- /timeline.json\n- /incident.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches auth, local runtime boundaries, Electron, filesystem writes, agent tools, network access, cookies, tokens, or dependency execution.\n\nChecklist:\n- Start from the trust boundary: browser UI, runtime server, local project files, NKlein SDK host, child processes, and external endpoints.\n- Prefer deny-by-default controls. Any bypass needs a narrow condition, a clear error, and regression coverage.\n- Treat secrets as toxic data: never log them, never persist them in transcripts, and block obvious credential writes before disk.\n- For Electron, keep context isolation, sandboxing, disabled Node integration, blocked popups, same-origin navigation, and CSP-covered fallback pages intact.\n- For local servers, bind to loopback by default; cookies need HttpOnly, SameSite=Strict, Path, Max-Age, and Secure when TLS is active.\n- For agent writes, preserve protected-test, max-file-size, max-line-count, and secret-scan guardrails.\n\nExample:\n```ts\nconst secret = findPotentialSecretInText(input.newText);\nif (secret) return { approved: false, reason: `Blocked write: potential ${secret.label}.` };\n```\n\n!Klein specifics:\n- Runtime security code usually lives in `src/security/`, `src/server/`, `src/core/agent-write-guard.ts`, and `src/nklein-agent/`.\n- Desktop hardening lives under `packages/desktop/src/`.\n- Update or add focused tests in `test/runtime/` and keep `CHANGELOG.md` current.\n\nGuidance topic: security\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty )"
+		},
+		{
+			"id": "perfect-observed:worker:20",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Edit applied for real (changed:true) and npm test is 5/5 green, including 'a recorded root cause is the one the rubric selects' -- rootCause (capacity_misconfiguration, line 34) is genuinely correct per the real verifier. events untouched, complete still false. Objective met; stopping."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /core/agent-write-guard.ts\n- /timeline.json\n- /incident.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches auth, local runtime boundaries, Electron, filesystem writes, agent tools, network access, cookies, tokens, or dependency execution.\n\nChecklist:\n- Start from the trust boundary: browser UI, runtime server, local project files, NKlein SDK host, child processes, and external endpoints.\n- Prefer deny-by-default controls. Any bypass needs a narrow condition, a clear error, and regression coverage.\n- Treat secrets as toxic data: never log them, never persist them in transcripts, and block obvious credential writes before disk.\n- For Electron, keep context isolation, sandboxing, disabled Node integration, blocked popups, same-origin navigation, and CSP-covered fallback pages intact.\n- For local servers, bind to loopback by default; cookies need HttpOnly, SameSite=Strict, Path, Max-Age, and Secure when TLS is active.\n- For agent writes, preserve protected-test, max-file-size, max-line-count, and secret-scan guardrails.\n\nExample:\n```ts\nconst secret = findPotentialSecretInText(input.newText);\nif (secret) return { approved: false, reason: `Blocked write: potential ${secret.label}.` };\n```\n\n!Klein specifics:\n- Runtime security code usually lives in `src/security/`, `src/server/`, `src/core/agent-write-guard.ts`, and `src/nklein-agent/`.\n- Desktop hardening lives under `packages/desktop/src/`.\n- Update or add focused tests in `test/runtime/` and keep `CHANGELOG.md` current.\n\nGuidance topic: security\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty )"
+		},
+		{
+			"id": "perfect-observed:worker:21",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/timeline.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing name-root-cause. Verifying independently in this review's own tree: reading analysis/timeline.json fresh and running npm test for real."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /incident.json\n- /analysis/timeline.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=341.7276\ntest/frozen.test.js:23 const root refs=7 rank=118.3619\ntest/timeline.test.js:62 const records refs=5 rank=112.2149\ntest/timeline.test.js:7 const root refs=3 rank=63.1571\ntest/frozen.test.js:25 function walk refs=4 rank=5.4978\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.4333\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.4333\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.4333\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.5289\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.5289\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.5289\ntest/timeline.test.js:8 const LOG refs=2 rank=2.5289\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.2846\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.2846\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.2846\nscripts/run-tests.mjs:31 const result refs=4 rank=2.1202\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.1202\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.9248\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.9248\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Name the root cause from the recorded triggers\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-security\n\nGuidance topic: security\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. The root cause is the earliest trigger in the log -- the `role:\"trigger\"` event already recorded in analysis/timeline.json with the lowest `line` (do not re-derive triggers from scratch; trust the trigger entries already on record, but re-read input/incident.jsonl at that exact line fresh to read its `key`). If there is no trigger recorded, leave rootCause null -- do not invent one. Otherwise its `category` is decided by the configuration `key` that trigger lowered, by the FIRST rule that matches, in this exact order: key contains `pool`, `capacity`, `concurrency` or `max` -> `capacity_misconfiguration`; else contains `retry`, `backoff` or `attem)"
+		},
+		{
+			"id": "perfect-observed:worker:22",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "rootCause (capacity_misconfiguration, line 34) correctly names the earliest trigger via the key-matching rubric; events array untouched; npm test 5/5 verified independently."
+								}
+							}
+						],
+						"content": "Independently verified: rootCause is {capacity_misconfiguration, line 34}, matching the earliest trigger's db.pool.max key; all 8 events intact and untouched. npm test 5/5 real pass, including the rubric-selects check. Approving."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /incident.json\n- /analysis/timeline.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=341.7276\ntest/frozen.test.js:23 const root refs=7 rank=118.3619\ntest/timeline.test.js:62 const records refs=5 rank=112.2149\ntest/timeline.test.js:7 const root refs=3 rank=63.1571\ntest/frozen.test.js:25 function walk refs=4 rank=5.4978\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.4333\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.4333\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.4333\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.5289\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.5289\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.5289\ntest/timeline.test.js:8 const LOG refs=2 rank=2.5289\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.2846\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.2846\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.2846\nscripts/run-tests.mjs:31 const result refs=4 rank=2.1202\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.1202\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.9248\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.9248\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Name the root cause from the recorded triggers\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-security\n\nGuidance topic: security\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. The root cause is the earliest trigger in the log -- the `role:\"trigger\"` event already recorded in analysis/timeline.json with the lowest `line` (do not re-derive triggers from scratch; trust the trigger entries already on record, but re-read input/incident.jsonl at that exact line fresh to read its `key`). If there is no trigger recorded, leave rootCause null -- do not invent one. Otherwise its `category` is decided by the configuration `key` that trigger lowered, by the FIRST rule that matches, in this exact order: key con)"
+		},
+		{
+			"id": "perfect-observed:worker:23",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/timeline.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test",
+										"node -e '\nconst fs = require(\"node:fs\");\nconst rawLines = fs.readFileSync(\"input/incident.jsonl\",\"utf8\").split(\"\\n\");\nconst records = [];\nrawLines.forEach((text,index)=>{ if(text.trim().length===0) return; records.push({line:index+1, record: JSON.parse(text)}); });\nfunction categoriseKey(key){\n  if (/pool|capacity|concurrency|max/.test(key)) return \"capacity_misconfiguration\";\n  if (/retry|backoff|attempt/.test(key)) return \"retry_amplification\";\n  if (/credential|token|secret/.test(key)) return \"credential_expiry\";\n  if (/upstream|dependency|endpoint/.test(key)) return \"dependency_outage\";\n  return \"code_defect\";\n}\nconst roleByLine = new Map();\nconst triggers = [];\nfor (const {line, record} of records) {\n  if (record.event === \"config_applied\" && typeof record.from === \"number\" && typeof record.to === \"number\" && record.to < record.from) {\n    roleByLine.set(line, \"trigger\"); triggers.push({line, key: String(record.key ?? \"\")}); continue;\n  }\n  if (record.event === \"retry_scheduled\" && record.backoff_ms === 0) { roleByLine.set(line, \"amplification\"); continue; }\n  if (record.level === \"fatal\") { roleByLine.set(line, \"failure\"); }\n}\ntriggers.sort((a,b)=>a.line-b.line);\nconst earliest = triggers[0];\nconst rootCause = earliest ? {line: earliest.line, category: categoriseKey(earliest.key)} : null;\nconst deliverable = JSON.parse(fs.readFileSync(\"analysis/timeline.json\",\"utf8\"));\nconst found = new Set(deliverable.events.map(e=>e.line));\nconst missing = [...roleByLine.entries()].filter(([l])=>!found.has(l)).map(([l,r])=>`${l}(${r})`);\nconsole.log(\"derived_role_count=\"+roleByLine.size);\nconsole.log(\"missing_from_deliverable=\"+JSON.stringify(missing));\nconsole.log(\"derived_rootCause=\"+JSON.stringify(rootCause));\nconsole.log(\"deliverable_rootCause=\"+JSON.stringify(deliverable.rootCause));\nconsole.log(\"deliverable_complete=\"+deliverable.complete);\n'"
+									]
+								}
+							}
+						],
+						"content": "finalize-completeness, refinement pass. Nothing relevant shifted since planning (preconditions hold: name-root-cause landed). Reading analysis/timeline.json fresh and running npm test for real, plus an independent re-derivation of trigger/amplification/failure lines straight from input/incident.jsonl (not trusting the existing deliverable), before touching the `complete` flag."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /frozen.test.js\n- /timeline.test.js\n- /timeline.json\n- /incident.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/frozen.test.js:23 const root refs=7 rank=140.1019\ntest/timeline.test.js:62 const records refs=5 rank=107.8161\ntest/timeline.test.js:7 const root refs=3 rank=62.5460\ntest/timeline.test.js:69 const deliverable refs=14 rank=28.0260\ntest/frozen.test.js:25 function walk refs=4 rank=6.5075\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.0264\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.0264\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.0264\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.7043\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.7043\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.7043\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.3128\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.3128\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.3128\ntest/timeline.test.js:8 const LOG refs=2 rank=2.3128\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the curren)"
+		},
+		{
+			"id": "perfect-observed:worker:24",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "edit_file",
+								"arguments": {
+									"path": "analysis/timeline.json",
+									"edits": [
+										{
+											"search": "\t\"complete\": false,",
+											"replace": "\t\"complete\": true,"
+										}
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Witnessed this turn: npm test is 5/5 green pre-flip, and an independent re-derivation straight from input/incident.jsonl finds derived_role_count=8 with missing_from_deliverable=[] (empty) and its rootCause matches the deliverable's exactly (line 34, capacity_misconfiguration). Coverage is genuinely complete, so flipping `complete` to true now -- no other field touched -- then rerunning npm test to confirm the completeness check passes end-to-end."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /incident.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=341.7276\ntest/frozen.test.js:23 const root refs=7 rank=118.3619\ntest/timeline.test.js:62 const records refs=5 rank=112.2149\ntest/timeline.test.js:7 const root refs=3 rank=63.1571\ntest/frozen.test.js:25 function walk refs=4 rank=5.4978\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.4333\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.4333\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.4333\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.5289\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.5289\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.5289\ntest/timeline.test.js:8 const LOG refs=2 rank=2.5289\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.2846\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.2846\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.2846\nscripts/run-tests.mjs:31 const result refs=4 rank=2.1202\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.1202\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.9248\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.9248\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left part)"
+		},
+		{
+			"id": "perfect-observed:worker:25",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Done. analysis/timeline.json now has `complete: true` (only that field changed, edit_file confirmed changed:true, whitespace-only diff). Verified by two real npm test runs: 5/5 green before the flip and 5/5 green after, including 'declaring the reconstruction complete requires the whole chain and a root cause' now actually exercising the coverage check (not skipped) and passing. Coverage was independently re-derived from input/incident.jsonl in the prior turn (derived_role_count=8, missing_from_deliverable=[]) before the flip, so this isn't a blind toggle. Card objective met, acceptance green."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /incident.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=341.7276\ntest/frozen.test.js:23 const root refs=7 rank=118.3619\ntest/timeline.test.js:62 const records refs=5 rank=112.2149\ntest/timeline.test.js:7 const root refs=3 rank=63.1571\ntest/frozen.test.js:25 function walk refs=4 rank=5.4978\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.4333\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.4333\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.4333\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.5289\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.5289\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.5289\ntest/timeline.test.js:8 const LOG refs=2 rank=2.5289\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.2846\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.2846\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.2846\nscripts/run-tests.mjs:31 const result refs=4 rank=2.1202\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.1202\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.9248\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.9248\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left part)"
+		},
+		{
+			"id": "perfect-observed:worker:26",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/timeline.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing finalize-completeness. Not trusting the shown PASSED line or the diff snippet alone -- reading analysis/timeline.json fresh in this review's own tree and running npm test for real."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /incident.json\n- /analysis/timeline.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=341.7276\ntest/frozen.test.js:23 const root refs=7 rank=118.3619\ntest/timeline.test.js:62 const records refs=5 rank=112.2149\ntest/timeline.test.js:7 const root refs=3 rank=63.1571\ntest/frozen.test.js:25 function walk refs=4 rank=5.4978\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.4333\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.4333\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.4333\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.5289\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.5289\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.5289\ntest/timeline.test.js:8 const LOG refs=2 rank=2.5289\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.2846\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.2846\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.2846\nscripts/run-tests.mjs:31 const result refs=4 rank=2.1202\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.1202\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.9248\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.9248\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Finalize completeness and set complete to true\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state. Only once you have witnessed, in this turn's own output, that every trigger, amplification and failure the log actually contains is present in `events` and `rootCause` is filled in, set `complete` to `true` -- coverage is required only at that point, and the failure message names any events that are missing if you are wrong. Do not add, remove, or reword any existing event or the existing rootCause; the only field this card changes is `complete`. Rerun npm test once more after the flip to confirm the completeness check passes end-to-end with the flip. input/, test/, and scripts/run-t)"
+		},
+		{
+			"id": "perfect-observed:worker:27",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/timeline.json FRESH before editing -- do not a",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Independently verified in this review's own tree: analysis/timeline.json now has `complete: true`; all 8 events (lines 34/50/72/85/101/115/132/142) and rootCause (line 34, capacity_misconfiguration) are byte-identical to the pre-flip state -- only the one field changed, matching the diff and the card's write scope exactly. Ran `npm test` for real: 5/5 pass, including test 1 (frozen input/test/scripts digests untouched) and test 5 (the completeness/coverage check), which now genuinely exercises and passes rather than being skipped. No scope drift, no duplication of a sibling card's work. This is a one-line JSON fixture edit, not application code, so there's no file-size/monolith or module-split concern here."
+								}
+							}
+						]
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /timeline.test.js\n- /frozen.test.js\n- /timeline.json\n- /incident.json\n- /analysis/timeline.json\nread_files coverage ledger:\n- analysis/timeline.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/timeline.test.js:69 const deliverable refs=14 rank=341.7276\ntest/frozen.test.js:23 const root refs=7 rank=118.3619\ntest/timeline.test.js:62 const records refs=5 rank=112.2149\ntest/timeline.test.js:7 const root refs=3 rank=63.1571\ntest/frozen.test.js:25 function walk refs=4 rank=5.4978\ntest/timeline.test.js:10 const CATEGORIES refs=3 rank=4.4333\ntest/timeline.test.js:61 const rawLines refs=3 rank=4.4333\ntest/timeline.test.js:9 const ROLES refs=3 rank=4.4333\ntest/timeline.test.js:19 function categoriseKey refs=2 rank=2.5289\ntest/timeline.test.js:31 function deriveTruth refs=2 rank=2.5289\ntest/timeline.test.js:67 const logLineCount refs=2 rank=2.5289\ntest/timeline.test.js:8 const LOG refs=2 rank=2.5289\ntest/frozen.test.js:35 const toPosix refs=2 rank=2.2846\ntest/frozen.test.js:36 const digestOf refs=2 rank=2.2846\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=2.2846\nscripts/run-tests.mjs:31 const result refs=4 rank=2.1202\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.1202\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.5107\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.9248\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.9248\ntest/timeline.test.js:68 const { roleByLine, rootCause } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Finalize completeness and set complete to true\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/timeline.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state. Only once you have witnessed, in this turn's own output, that every trigger, amplification and failure the log actually contains is present in `events` and `rootCause` is filled in, set `complete` to `true` -- coverage is required only at that point, and the failure message names any events that are missing if you are wrong. Do not add, remove, or reword any existing event or the existing rootCause; the only field this card changes is `complete`. Rerun npm test o)"
+		}
+	]
+}
