@@ -2772,6 +2772,29 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   with a prose track; the capture taken mid-drive (disproved twice by counting the window's own traffic); the
   fallback request class (real but the first fix returned an unreachable class); and decompose-track ordering.
 
+- [ ] **P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture unsettled, and the board
+  then issues no further requests.** *(Live 2026-09-10, project 41 `kill-result-ordering`, requests 2036-2045.)*
+  The runtime log gives the whole chain in order:
+  `compactBeforeOverflow → restartOrStartWithMessages → startTaskSession` (context overflow restarted the session),
+  then `TurnLoopGuard.resolve → parkTaskForAutonomyBudget → abortTaskSession`, then
+  `Task result capture has not settled for …kill-result-ordering; held in Review before reviewer/delivery.`
+  After that the board sat with 4 completed, 1 in Review and 3 in Planning and issued **nothing** for 27+ minutes —
+  no request reached the queue, so the model seat had nothing to answer and looked idle when it was not.
+  The guard did its job: the responder had emitted ~9 identical `write_files` calls. What is wrong is the state it
+  leaves behind — a parked card in Review with unsettled capture is unreachable by the reviewer AND by delivery, so
+  only the rail's 45-minute stall watchdog ends it, and it ends it by discarding a project that was 4/7 done.
+  **What drove the write loop (responder-reported, worth its own look):** the `Focused code span` went stale WITHIN
+  the card's own session — it never refreshed as that same session's writes accumulated, so each turn saw a file
+  that no longer matched what it had already written. A harness self-correction nudge fired once and did not break
+  it.
+  **A scarier reading was investigated and is probably wrong:** the responder concluded two concurrent sessions were
+  live on one card, because its request 2036 does not appear in the history of 2040 for the same card. But 2040 and
+  2045 are one growing lineage (5 then 10 assistant turns) and 2036 is a 4-message session at turn 1 — and the log
+  shows a compaction RESTART on exactly this card, which replaces the history. `compactBeforeOverflow` does
+  `await deps.stopTaskSession(...)` before restarting, so it is not obviously racy. Recorded as probable, not
+  settled: the one hole is that the stop is `.catch(() => null)`, so a failed stop is swallowed and the restart
+  proceeds regardless.
+
 - [ ] **P1.DECOMPOSEABORTS — decompose cards arrive with many prior "aborted before producing output" attempts.**
   *(Live 2026-09-09/10, three independent sightings.)* Project 41's decompose card carried **6** prior failed
   attempts in its own system prompt (5 `aborted`, 1 `other_failure`); project 42's carried **5**
