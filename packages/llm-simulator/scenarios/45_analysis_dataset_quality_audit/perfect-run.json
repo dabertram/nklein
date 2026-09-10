@@ -1,0 +1,953 @@
+{
+	"name": "45_analysis_dataset_quality_audit perfect run (HITL rig drive, requests 1775-1803)",
+	"seed": 1,
+	"tracks": [
+		{
+			"id": "perfect-observed:worker:0",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "decompose_project",
+								"arguments": {
+									"slug": "dataset-quality-audit",
+									"title": "Freight Export Data-Quality Audit",
+									"spec": "# Freight Export Data-Quality Audit (analysis, not a build job)\n\n`input/shipments.csv` (312 data rows) and `input/carriers.csv` are READ-ONLY evidence. Do not clean, repair, or\nedit anything under `input/`. Both are plain CSV: a header row, then data rows, no quoted fields, no embedded\ncommas. Row numbers are 1-based over the DATA rows (the first row after the header is row 1).\n\nDeliverable `analysis/data-quality.json` (starts `{\"schemaVersion\":1,\"complete\":false,\"violations\":[]}`):\n`violations` holds one entry per rule the dataset actually breaks (not one per offending row), each\n`{rule, column, count, exampleRows, why}`. `count` is the exact offending-row count, recomputed from the data --\nnot an estimate. `exampleRows` cites at least two distinct offending 1-based row numbers. `why` explains what the\nviolation costs a consumer, at least twelve characters. A rule with zero offending rows must NOT get an entry.\n\nFour rules only -- a defect outside them is out of scope and must not be reported, because an unrecognised rule\nname fails the check:\n- `duplicate_primary_key` (column `shipment_id`): its `shipment_id` occurs more than once in the file. every such\n  row counts toward `count` -- an id used three times contributes three rows, not one.\n- `out_of_range` (column `weight_kg`): numeric weight outside `0 < weight_kg <= 30000`. A non-numeric/blank\n  `weight_kg` is not counted under this rule -- there is no separate rule for it.\n- `wrong_type` (column `delivered_at`): the cell is non-empty and is not a full ISO-8601 UTC instant\n  `YYYY-MM-DDTHH:MM:SSZ`. An empty cell is legitimate (not delivered yet) and is never a violation.\n- `referential_break` (column `carrier_id`): its `carrier_id` is not one of the ids in `input/carriers.csv`.\n\nFrozen: `input/`, everything under `test/`, and `scripts/run-tests.mjs` are evidence, not workspace -- `npm test`\nrecomputes their content digests each run and fails if any moved. `test/data-quality.test.js` DERIVES its truth\nfrom both CSVs each run (it stores no counts, no row numbers), so re-deriving the numbers yourself IS the work; a\nnumber you have not actually computed fails the suite immediately.\n\nSet `complete` true only once every rule the dataset actually violates already has a violation entry recorded --\ncoverage is checked only at that point, and the failure message names any rule still missing.\n\nToolchain: the sandbox is OFFLINE. Never add a dependency or test framework; the declared acceptance command\n(`npm test`) must pass exactly as-is with the fixture's own toolchain.",
+									"plan": "Five sequential cards, one shared deliverable file (`analysis/data-quality.json`) -- ordered so each\ncard starts from the previous card's committed result instead of racing it as a parallel sibling:\n\n1. record-duplicate-primary-key -- compute and record the `duplicate_primary_key` violation, if any.\n2. record-out-of-range (after 1) -- compute and record `out_of_range`, if any.\n3. record-wrong-type (after 2) -- compute and record `wrong_type`, if any.\n4. record-referential-break (after 3) -- compute and record `referential_break`, if any.\n5. finalize-completeness (after 4) -- independently re-confirm every violated rule is recorded, then set\n   `complete: true`, verified by two real `npm test` runs (before and after the flip).\n\nEach rule card: read the deliverable fresh, run `npm test` for real to confirm the current green baseline, write a\nthrowaway scratch script (kept out of `input/`) that parses the CSV(s) directly per the rule's exact predicate,\nappend exactly one violation entry if the count is nonzero (or add nothing if it is zero), then rerun `npm test`\nto confirm still green. No card touches another rule's entry or the frozen evidence paths.",
+									"summary": "Splits the freight data-quality audit into one card per rule (duplicate shipment ids, out-of-range weight, malformed delivered_at timestamps, unknown carrier ids) plus a final completeness pass, run in sequence so they safely append to the one shared JSON report instead of racing each other. 5 cards total. Assumption: each rule card computes its own count from the raw CSVs with a scratch script rather than trusting any other card's numbers, per the spec's 'recompute, don't estimate' rule.",
+									"defaultAcceptanceCommand": "npm test",
+									"tasks": [
+										{
+											"id": "record-duplicate-primary-key",
+											"title": "Record duplicate_primary_key violation (if any)",
+											"prompt": "Read analysis/data-quality.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state (from this card or an earlier sibling), so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nWrite a throwaway scratch script (kept out of input/) that parses input/shipments.csv (plain CSV: header row, then data rows, no quoted fields, no embedded commas; row numbers are 1-based over the data rows) and computes exactly which rows satisfy: its `shipment_id` occurs more than once in input/shipments.csv. every such row counts toward `count` -- an id used three times contributes three rows, not just the extras beyond the first.\n\nIf the resulting offending-row count is zero, do NOT add a `duplicate_primary_key` entry -- leave the violations array exactly as this card found it and say so. If the count is nonzero, append exactly one entry to `violations`: `{\"rule\": \"duplicate_primary_key\", \"column\": \"shipment_id\", \"count\": <exact offending-row count>, \"exampleRows\": [<at least two distinct real offending 1-based row numbers>], \"why\": \"<>=12 chars explaining what this costs a consumer of the data>\"}`. Do not add, remove, or reword any entry another card recorded. Never add a dependency or new test framework -- the sandbox is offline and `npm test` must pass exactly as-is with the fixture's own toolchain. Do not touch input/**, test/**, or scripts/run-tests.mjs -- npm test recomputes their content digests each run and fails if any moved. Leaf scope: complete only this card's explicit objective; do not implement another rule or the completeness flip early.",
+											"dependsOn": [],
+											"complexity": 40,
+											"testability": "not_testable",
+											"testabilityReason": "Verification is entirely via the pre-existing frozen suite (test/data-quality.test.js, test/frozen.test.js); this card must not add or modify any test file.",
+											"preconditions": [
+												"analysis/data-quality.json exists in its empty stub form"
+											],
+											"inputs": [
+												"input/shipments.csv"
+											],
+											"expectedOutputs": [
+												"analysis/data-quality.json with a `duplicate_primary_key` violation entry added if and only if the dataset actually breaks that rule"
+											],
+											"acceptanceChecks": [
+												"npm test passes",
+												"if present, the `duplicate_primary_key` entry's `count` equals the true offending-row count recomputed from the CSV, `exampleRows` has >=2 distinct rows that really offend, and `why` is >=12 characters"
+											],
+											"nonGoals": [
+												"cleaning, repairing, or loading the data",
+												"recording any rule other than duplicate_primary_key",
+												"setting `complete` to true"
+											],
+											"dependencyOutputsConsumed": [],
+											"writeScope": [
+												"analysis/data-quality.json"
+											],
+											"forbiddenPaths": [
+												"input/**",
+												"test/**",
+												"scripts/run-tests.mjs"
+											],
+											"acceptanceCommand": "npm test"
+										},
+										{
+											"id": "record-out-of-range",
+											"title": "Record out_of_range violation (if any)",
+											"prompt": "Read analysis/data-quality.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state (from this card or an earlier sibling), so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nWrite a throwaway scratch script (kept out of input/) that parses input/shipments.csv (plain CSV: header row, then data rows, no quoted fields, no embedded commas; row numbers are 1-based over the data rows) and computes exactly which rows satisfy: its numeric `weight_kg` is outside `0 < weight_kg <= 30000`. A non-numeric or blank `weight_kg` is not counted under this rule -- skip it, there is no separate rule for it.\n\nIf the resulting offending-row count is zero, do NOT add a `out_of_range` entry -- leave the violations array exactly as this card found it and say so. If the count is nonzero, append exactly one entry to `violations`: `{\"rule\": \"out_of_range\", \"column\": \"weight_kg\", \"count\": <exact offending-row count>, \"exampleRows\": [<at least two distinct real offending 1-based row numbers>], \"why\": \"<>=12 chars explaining what this costs a consumer of the data>\"}`. Do not add, remove, or reword any entry another card recorded. Never add a dependency or new test framework -- the sandbox is offline and `npm test` must pass exactly as-is with the fixture's own toolchain. Do not touch input/**, test/**, or scripts/run-tests.mjs -- npm test recomputes their content digests each run and fails if any moved. Leaf scope: complete only this card's explicit objective; do not implement another rule or the completeness flip early.",
+											"dependsOn": [
+												"record-duplicate-primary-key"
+											],
+											"complexity": 40,
+											"testability": "not_testable",
+											"testabilityReason": "Verification is entirely via the pre-existing frozen suite (test/data-quality.test.js, test/frozen.test.js); this card must not add or modify any test file.",
+											"preconditions": [
+												"record-duplicate-primary-key has run and analysis/data-quality.json reflects its result"
+											],
+											"inputs": [
+												"input/shipments.csv",
+												"analysis/data-quality.json (as left by the previous card)"
+											],
+											"expectedOutputs": [
+												"analysis/data-quality.json with a `out_of_range` violation entry added if and only if the dataset actually breaks that rule"
+											],
+											"acceptanceChecks": [
+												"npm test passes",
+												"if present, the `out_of_range` entry's `count` equals the true offending-row count recomputed from the CSV, `exampleRows` has >=2 distinct rows that really offend, and `why` is >=12 characters"
+											],
+											"nonGoals": [
+												"cleaning, repairing, or loading the data",
+												"recording any rule other than out_of_range",
+												"setting `complete` to true"
+											],
+											"dependencyOutputsConsumed": [
+												"record-duplicate-primary-key: analysis/data-quality.json"
+											],
+											"writeScope": [
+												"analysis/data-quality.json"
+											],
+											"forbiddenPaths": [
+												"input/**",
+												"test/**",
+												"scripts/run-tests.mjs"
+											],
+											"acceptanceCommand": "npm test"
+										},
+										{
+											"id": "record-wrong-type",
+											"title": "Record wrong_type violation (if any)",
+											"prompt": "Read analysis/data-quality.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state (from this card or an earlier sibling), so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nWrite a throwaway scratch script (kept out of input/) that parses input/shipments.csv (plain CSV: header row, then data rows, no quoted fields, no embedded commas; row numbers are 1-based over the data rows) and computes exactly which rows satisfy: its `delivered_at` cell is non-empty and does not match the full ISO-8601 UTC instant pattern `^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$`. An empty `delivered_at` cell means not yet delivered and is never a violation -- only a non-empty cell that fails the pattern counts.\n\nIf the resulting offending-row count is zero, do NOT add a `wrong_type` entry -- leave the violations array exactly as this card found it and say so. If the count is nonzero, append exactly one entry to `violations`: `{\"rule\": \"wrong_type\", \"column\": \"delivered_at\", \"count\": <exact offending-row count>, \"exampleRows\": [<at least two distinct real offending 1-based row numbers>], \"why\": \"<>=12 chars explaining what this costs a consumer of the data>\"}`. Do not add, remove, or reword any entry another card recorded. Never add a dependency or new test framework -- the sandbox is offline and `npm test` must pass exactly as-is with the fixture's own toolchain. Do not touch input/**, test/**, or scripts/run-tests.mjs -- npm test recomputes their content digests each run and fails if any moved. Leaf scope: complete only this card's explicit objective; do not implement another rule or the completeness flip early.",
+											"dependsOn": [
+												"record-out-of-range"
+											],
+											"complexity": 40,
+											"testability": "not_testable",
+											"testabilityReason": "Verification is entirely via the pre-existing frozen suite (test/data-quality.test.js, test/frozen.test.js); this card must not add or modify any test file.",
+											"preconditions": [
+												"record-out-of-range has run and analysis/data-quality.json reflects its result"
+											],
+											"inputs": [
+												"input/shipments.csv",
+												"analysis/data-quality.json (as left by the previous card)"
+											],
+											"expectedOutputs": [
+												"analysis/data-quality.json with a `wrong_type` violation entry added if and only if the dataset actually breaks that rule"
+											],
+											"acceptanceChecks": [
+												"npm test passes",
+												"if present, the `wrong_type` entry's `count` equals the true offending-row count recomputed from the CSV, `exampleRows` has >=2 distinct rows that really offend, and `why` is >=12 characters"
+											],
+											"nonGoals": [
+												"cleaning, repairing, or loading the data",
+												"recording any rule other than wrong_type",
+												"setting `complete` to true"
+											],
+											"dependencyOutputsConsumed": [
+												"record-out-of-range: analysis/data-quality.json"
+											],
+											"writeScope": [
+												"analysis/data-quality.json"
+											],
+											"forbiddenPaths": [
+												"input/**",
+												"test/**",
+												"scripts/run-tests.mjs"
+											],
+											"acceptanceCommand": "npm test"
+										},
+										{
+											"id": "record-referential-break",
+											"title": "Record referential_break violation (if any)",
+											"prompt": "Read analysis/data-quality.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state (from this card or an earlier sibling), so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nWrite a throwaway scratch script (kept out of input/) that parses input/shipments.csv (plain CSV: header row, then data rows, no quoted fields, no embedded commas; row numbers are 1-based over the data rows) and computes exactly which rows satisfy: its `carrier_id` does not appear among the `carrier_id` values in input/carriers.csv. Build the known-carrier-id set from input/carriers.csv first, then check every shipment row against it.\n\nIf the resulting offending-row count is zero, do NOT add a `referential_break` entry -- leave the violations array exactly as this card found it and say so. If the count is nonzero, append exactly one entry to `violations`: `{\"rule\": \"referential_break\", \"column\": \"carrier_id\", \"count\": <exact offending-row count>, \"exampleRows\": [<at least two distinct real offending 1-based row numbers>], \"why\": \"<>=12 chars explaining what this costs a consumer of the data>\"}`. Do not add, remove, or reword any entry another card recorded. Never add a dependency or new test framework -- the sandbox is offline and `npm test` must pass exactly as-is with the fixture's own toolchain. Do not touch input/**, test/**, or scripts/run-tests.mjs -- npm test recomputes their content digests each run and fails if any moved. Leaf scope: complete only this card's explicit objective; do not implement another rule or the completeness flip early.",
+											"dependsOn": [
+												"record-wrong-type"
+											],
+											"complexity": 40,
+											"testability": "not_testable",
+											"testabilityReason": "Verification is entirely via the pre-existing frozen suite (test/data-quality.test.js, test/frozen.test.js); this card must not add or modify any test file.",
+											"preconditions": [
+												"record-wrong-type has run and analysis/data-quality.json reflects its result"
+											],
+											"inputs": [
+												"input/shipments.csv",
+												"input/carriers.csv",
+												"analysis/data-quality.json (as left by the previous card)"
+											],
+											"expectedOutputs": [
+												"analysis/data-quality.json with a `referential_break` violation entry added if and only if the dataset actually breaks that rule"
+											],
+											"acceptanceChecks": [
+												"npm test passes",
+												"if present, the `referential_break` entry's `count` equals the true offending-row count recomputed from the CSV, `exampleRows` has >=2 distinct rows that really offend, and `why` is >=12 characters"
+											],
+											"nonGoals": [
+												"cleaning, repairing, or loading the data",
+												"recording any rule other than referential_break",
+												"setting `complete` to true"
+											],
+											"dependencyOutputsConsumed": [
+												"record-wrong-type: analysis/data-quality.json"
+											],
+											"writeScope": [
+												"analysis/data-quality.json"
+											],
+											"forbiddenPaths": [
+												"input/**",
+												"test/**",
+												"scripts/run-tests.mjs"
+											],
+											"acceptanceCommand": "npm test"
+										},
+										{
+											"id": "finalize-completeness",
+											"title": "Finalize completeness and set complete to true",
+											"prompt": "Read analysis/data-quality.json FRESH before editing -- do not assume it reflects your memory of the plan; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nIndependently re-derive, from input/shipments.csv and input/carriers.csv directly (a fresh scratch script, not a re-read of the existing violations array), the exact offending-row set for all four rules (duplicate_primary_key, out_of_range, wrong_type, referential_break). Cross-check: every rule with a nonzero offending-row count must already have a matching entry in `violations` (added by the four prior cards); a rule with zero offending rows must NOT have an entry. Only once you have witnessed, in this turn's own output, that every rule the dataset actually violates is already recorded, set `complete` to true -- coverage is required only at that point, and the failure message names any rule still missing if you are wrong. Do not add, remove, or reword any existing violation entry; the only field this card changes is `complete`. Rerun npm test once more after the flip to confirm the completeness check passes end-to-end. Never add a dependency or new test framework -- the sandbox is offline and `npm test` must pass exactly as-is with the fixture's own toolchain. Do not touch input/**, test/**, or scripts/run-tests.mjs -- npm test recomputes their content digests each run and fails if any moved. Leaf scope: complete only this card's explicit objective; do not implement another rule or the completeness flip early.",
+											"dependsOn": [
+												"record-referential-break"
+											],
+											"complexity": 30,
+											"testability": "not_testable",
+											"testabilityReason": "Verification is entirely via the pre-existing frozen suite (test/data-quality.test.js, test/frozen.test.js); this card must not add or modify any test file.",
+											"preconditions": [
+												"record-duplicate-primary-key, record-out-of-range, record-wrong-type and record-referential-break have all run and analysis/data-quality.json holds an entry for every rule the dataset actually violates"
+											],
+											"inputs": [
+												"analysis/data-quality.json (fully populated)"
+											],
+											"expectedOutputs": [
+												"analysis/data-quality.json with complete:true, verified by two real npm test runs"
+											],
+											"acceptanceChecks": [
+												"npm test passes both before and after the flip",
+												"no existing violation entry's fields changed"
+											],
+											"nonGoals": [
+												"adding, removing, or editing any violation entry"
+											],
+											"dependencyOutputsConsumed": [
+												"record-referential-break: analysis/data-quality.json"
+											],
+											"writeScope": [
+												"analysis/data-quality.json"
+											],
+											"forbiddenPaths": [
+												"input/**",
+												"test/**",
+												"scripts/run-tests.mjs"
+											],
+											"acceptanceCommand": "npm test"
+										}
+									]
+								}
+							}
+						],
+						"content": "dev-45-analysis-dataset-quality-audit-decompose: emitting the task graph only (5 sequential cards, one per rule + a finalize pass, chained so they all append safely to the single shared analysis/data-quality.json instead of racing as parallel siblings) -- not doing the audit itself in this card."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=3.3375\ntest/data-quality.test.js:43 const RULES refs=5 rank=0.1567\ntest/frozen.test.js:23 const root refs=7 rank=0.1229\ntest/data-quality.test.js:30 const dataset refs=4 rank=0.1163\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=0.1163\ntest/data-quality.test.js:15 function readCsv refs=3 rank=0.0790\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=0.0790\ntest/data-quality.test.js:7 const root refs=3 rank=0.0790\nscripts/run-tests.mjs:31 const result refs=4 rank=0.0723\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=0.0723\ntest/frozen.test.js:25 function walk refs=4 rank=0.0701\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=0.0515\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=0.0515\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=0.0459\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=0.0459\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=0.0459\ntest/data-quality.test.js:31 const carriers refs=2 rank=0.0459\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=0.0459\ntest/data-quality.test.js:8 const DATASET refs=2 rank=0.0459\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=0.0459\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.0316\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.0316\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0309\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0309\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0309\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nAudit the shipment export in input/ and tell me how dirty it is, with numbers.\n\nThis is an analysis job, not a build job: do not clean the data, write a loader, or repair a single row. I want a\nquality report — for each rule the export breaks, exactly how many rows break it and a couple of rows I can open\nto see it for myself.\n\nRead specification.md for the four rules that count, the deliverable's shape, and the rules I will hold you to.\nTwo worth repeating here: the counts must be exact, because the acceptance check recomputes every one of them\nfrom the data on every run; and a row cited as an example that turns out to be clean fails the build.)"
+		},
+		{
+			"id": "perfect-observed:worker:1",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "decompose_project applied: 5 Planning cards + 4 dependencies created, no graph quality warnings, analysis/data-quality.json hot-file classified yellow (sequential chain, not a race) since the four rule cards and the finalize pass all depend in a straight line. Stopping this planning card per its own instruction; the child cards continue the work."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /nklein/plans/dataset-quality-audit/spec.md\n- /nklein/plans/dataset-quality-audit/plan.md\n- /nklein/plans/dataset-quality-audit/questions.md\n- /nklein/plans/dataset-quality-audit/decisions.md\n- /nklein/plans/dataset-quality-audit/revisions.md\n- /nklein/plans/dataset-quality-audit/summary.md\n- /nklein/plans/dataset-quality-audit/tasks.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=3.3601\ntest/data-quality.test.js:30 const dataset refs=4 rank=1.8307\ntest/data-quality.test.js:43 const RULES refs=5 rank=0.1695\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=0.1253\ntest/frozen.test.js:23 const root refs=7 rank=0.0972\ntest/data-quality.test.js:15 function readCsv refs=3 rank=0.0846\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=0.0846\ntest/data-quality.test.js:7 const root refs=3 rank=0.0846\nscripts/run-tests.mjs:31 const result refs=4 rank=0.0572\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=0.0572\ntest/frozen.test.js:25 function walk refs=4 rank=0.0554\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=0.0486\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=0.0486\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=0.0486\ntest/data-quality.test.js:31 const carriers refs=2 rank=0.0486\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=0.0486\ntest/data-quality.test.js:8 const DATASET refs=2 rank=0.0486\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=0.0486\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=0.0408\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=0.0408\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.0249\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.0249\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0244\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0244\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0244\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nAudit the shipment export in input/ and tell me how dirty it is, with numbers.\n\nThis is an analysis job, not a build job: do not clean the data, write a loader, or repair a single row. I want a\nquality report — for each rule the export breaks, exactly how many rows break it and a couple of rows I can open\nto see it for myself.\n\nRead specification.md for the four rules that count, the deliverable's shape, and the rules I will hold you to.\nTwo worth repeating here: the counts must be exact, because the acceptance check recomputes every one of them\nfrom the data on every run; and a row cited as an example that turns out to be clean fails the build.)"
+		},
+		{
+			"id": "perfect-observed:worker:2",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/data-quality.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test",
+										"node -e '\nconst fs = require(\"node:fs\");\nconst lines = fs.readFileSync(\"input/shipments.csv\",\"utf8\").split(\"\\n\").filter(l=>l.length>0);\nconst header = lines[0].split(\",\");\nconst idIdx = header.indexOf(\"shipment_id\");\nconst counts = new Map();\nconst rows = [];\nlines.slice(1).forEach((line,i)=>{\n  const cells = line.split(\",\");\n  const row = i+1;\n  const id = cells[idIdx];\n  counts.set(id,(counts.get(id)||0)+1);\n  rows.push({row,id});\n});\nconst offending = rows.filter(r=>counts.get(r.id)>1);\nconsole.log(\"total_data_rows=\"+rows.length);\nconsole.log(\"offending_count=\"+offending.length);\nconsole.log(\"offending_rows=\"+JSON.stringify(offending.map(r=>r.row)));\nconsole.log(\"offending_detail=\"+JSON.stringify(offending));\n'"
+									]
+								}
+							}
+						],
+						"content": "record-duplicate-primary-key, refinement pass. Reading analysis/data-quality.json fresh, running npm test for real to confirm the current baseline, and independently scanning input/shipments.csv for shipment_id duplicates with a throwaway scratch script before touching the deliverable."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:30 const dataset refs=4 rank=91.2389\ntest/data-quality.test.js:31 const carriers refs=2 rank=45.5160\ntest/data-quality.test.js:73 const deliverable refs=7 rank=13.1722\ntest/data-quality.test.js:43 const RULES refs=5 rank=8.4342\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=6.2361\ntest/frozen.test.js:23 const root refs=7 rank=4.8594\ntest/data-quality.test.js:15 function readCsv refs=3 rank=4.2107\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=4.2107\ntest/data-quality.test.js:7 const root refs=3 rank=4.2107\nscripts/run-tests.mjs:31 const result refs=4 rank=2.8597\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.8597\ntest/frozen.test.js:25 function walk refs=4 rank=2.7724\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.4200\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.4200\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.4200\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.4200\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.4200\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.4200\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=2.0377\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=2.0377\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.2474\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.2474\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.2214\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.2214\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.2214\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic:)"
+		},
+		{
+			"id": "perfect-observed:worker:3",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "edit_file",
+								"arguments": {
+									"path": "analysis/data-quality.json",
+									"edits": [
+										{
+											"search": "\t\"violations\": []",
+											"replace": "\t\"violations\": [\n\t\t{\n\t\t\t\"rule\": \"duplicate_primary_key\",\n\t\t\t\"column\": \"shipment_id\",\n\t\t\t\"count\": 7,\n\t\t\t\"exampleRows\": [13, 42],\n\t\t\t\"why\": \"shipment_id SH-100084 repeats at rows 13 and 42, so shipment_id cannot be trusted as a unique key downstream\"\n\t\t}\n\t]"
+										}
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Witnessed this turn: npm test is 4/4 green pre-edit, and an independent scratch scan of input/shipments.csv finds offending_count=7 across rows [13,42,74,97,189,205,288] (ids SH-100084 x2, SH-100511 x2, SH-100672 x3 -- every occurrence counted, matching the spec). Appending exactly one duplicate_primary_key entry with two of those rows as examples, then rerunning npm test."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=168.5317\ntest/data-quality.test.js:30 const dataset refs=4 rank=89.3997\ntest/data-quality.test.js:31 const carriers refs=2 rank=42.7876\ntest/data-quality.test.js:43 const RULES refs=5 rank=8.8811\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=6.5520\ntest/data-quality.test.js:15 function readCsv refs=3 rank=4.4081\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=4.4081\ntest/data-quality.test.js:7 const root refs=3 rank=4.4081\ntest/frozen.test.js:23 const root refs=7 rank=4.0183\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.5161\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.5161\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.5161\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.5161\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.5161\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.5161\nscripts/run-tests.mjs:31 const result refs=4 rank=2.3648\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.3648\ntest/frozen.test.js:25 function walk refs=4 rank=2.2926\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.6850\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.6850\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0315\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0315\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.0100\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.0100\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.0100\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban)"
+		},
+		{
+			"id": "perfect-observed:worker:4",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Done. Added one duplicate_primary_key entry (count:7, exampleRows:[13,42], shipment_id as the column) to analysis/data-quality.json -- edit_file confirmed changed:true. npm test is 4/4 green after the edit, including the strict per-violation check (right column, exact recount, real offending example rows). No other rule touched, complete left false for the finalize card. Card objective met, acceptance green."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=168.5317\ntest/data-quality.test.js:30 const dataset refs=4 rank=89.3997\ntest/data-quality.test.js:31 const carriers refs=2 rank=42.7876\ntest/data-quality.test.js:43 const RULES refs=5 rank=8.8811\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=6.5520\ntest/data-quality.test.js:15 function readCsv refs=3 rank=4.4081\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=4.4081\ntest/data-quality.test.js:7 const root refs=3 rank=4.4081\ntest/frozen.test.js:23 const root refs=7 rank=4.0183\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.5161\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.5161\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.5161\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.5161\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.5161\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.5161\nscripts/run-tests.mjs:31 const result refs=4 rank=2.3648\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.3648\ntest/frozen.test.js:25 function walk refs=4 rank=2.2926\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.6850\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.6850\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0315\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0315\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.0100\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.0100\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.0100\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban)"
+		},
+		{
+			"id": "perfect-observed:worker:5",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/data-quality.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing record-duplicate-primary-key. Verifying independently in this review's own tree: reading analysis/data-quality.json fresh and running npm test for real, not trusting the shown PASSED line."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\n- /analysis/data-quality.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=168.5317\ntest/data-quality.test.js:30 const dataset refs=4 rank=89.3997\ntest/data-quality.test.js:31 const carriers refs=2 rank=42.7876\ntest/data-quality.test.js:43 const RULES refs=5 rank=8.8811\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=6.5520\ntest/data-quality.test.js:15 function readCsv refs=3 rank=4.4081\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=4.4081\ntest/data-quality.test.js:7 const root refs=3 rank=4.4081\ntest/frozen.test.js:23 const root refs=7 rank=4.0183\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.5161\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.5161\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.5161\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.5161\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.5161\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.5161\nscripts/run-tests.mjs:31 const result refs=4 rank=2.3648\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.3648\ntest/frozen.test.js:25 function walk refs=4 rank=2.2926\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.6850\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.6850\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0315\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0315\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.0100\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.0100\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.0100\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record duplicate_primary_key violation (if any)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/data-quality.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state (from this card or an earlier sibling), so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nWrite a throwaway scratch script (kept out of input/) that parses input/shipments.csv (plain CSV: header row, then data rows, no quoted fields, no embedded commas; row numbers are 1-based over the data rows) and computes exactly which rows satisfy: its `shipment_id` occu)"
+		},
+		{
+			"id": "perfect-observed:worker:6",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Independently verified in this review's own tree: analysis/data-quality.json has exactly one new entry, duplicate_primary_key/shipment_id, count:7, exampleRows:[13,42] (both real offending rows), why >=12 chars. npm test is 4/4 green for real, including the strict per-violation count/column/example check. Matches the card's write scope, no other rule touched, no scope drift. This is a one-entry JSON fixture edit, not application code, so no file-size/monolith concern."
+								}
+							}
+						]
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\n- /analysis/data-quality.json\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=168.5317\ntest/data-quality.test.js:30 const dataset refs=4 rank=89.3997\ntest/data-quality.test.js:31 const carriers refs=2 rank=42.7876\ntest/data-quality.test.js:43 const RULES refs=5 rank=8.8811\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=6.5520\ntest/data-quality.test.js:15 function readCsv refs=3 rank=4.4081\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=4.4081\ntest/data-quality.test.js:7 const root refs=3 rank=4.4081\ntest/frozen.test.js:23 const root refs=7 rank=4.0183\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.5161\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.5161\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.5161\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.5161\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.5161\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.5161\nscripts/run-tests.mjs:31 const result refs=4 rank=2.3648\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.3648\ntest/frozen.test.js:25 function walk refs=4 rank=2.2926\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.6850\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.6850\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0315\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0315\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.0100\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.0100\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.0100\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record duplicate_primary_key violation (if any)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/data-quality.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state (from this card or an earlier sibling), so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nWrite a throwaway scratch script (kept out of input/) that parses input/shipments.csv (plain CSV: header row, then data rows, no quoted fields, )"
+		},
+		{
+			"id": "perfect-observed:worker:7",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/data-quality.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test",
+										"node -e '\nconst fs = require(\"node:fs\");\nconst lines = fs.readFileSync(\"input/shipments.csv\",\"utf8\").split(\"\\n\").filter(l=>l.length>0);\nconst header = lines[0].split(\",\");\nconst wIdx = header.indexOf(\"weight_kg\");\nconst rows = [];\nlines.slice(1).forEach((line,i)=>{\n  const cells = line.split(\",\");\n  rows.push({row:i+1, raw:cells[wIdx]});\n});\nconst offending = rows.filter(r=>{\n  const v = Number(r.raw);\n  if (!Number.isFinite(v)) return false;\n  return !(v>0 && v<=30000);\n});\nconsole.log(\"total_rows=\"+rows.length);\nconsole.log(\"offending_count=\"+offending.length);\nconsole.log(\"offending_detail=\"+JSON.stringify(offending));\n'"
+									]
+								}
+							}
+						],
+						"content": "record-out-of-range, refinement pass. Reading analysis/data-quality.json fresh, running npm test for real to confirm the current baseline, and independently scanning input/shipments.csv's weight_kg column with a throwaway scratch script before touching the deliverable."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nscripts/run-tests.mjs:31 const result refs=4 rank=76.8010\ntest/data-quality.test.js:30 const dataset refs=4 rank=75.4475\ntest/data-quality.test.js:31 const carriers refs=2 rank=37.6383\ntest/data-quality.test.js:73 const deliverable refs=7 rank=10.8924\ntest/data-quality.test.js:43 const RULES refs=5 rank=6.9744\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=5.5912\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.1568\ntest/frozen.test.js:23 const root refs=7 rank=4.0183\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.9111\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.9111\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.4819\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.4819\ntest/data-quality.test.js:7 const root refs=3 rank=3.4819\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.3131\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.3131\ntest/frozen.test.js:25 function walk refs=4 rank=2.2926\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.0012\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.0012\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.0012\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.0012\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.0012\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.0012\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.0100\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.0100\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.0100\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic)"
+		},
+		{
+			"id": "perfect-observed:worker:8",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "edit_file",
+								"arguments": {
+									"path": "analysis/data-quality.json",
+									"edits": [
+										{
+											"search": "\t\t}\n\t]",
+											"replace": "\t\t},\n\t\t{\n\t\t\t\"rule\": \"out_of_range\",\n\t\t\t\"column\": \"weight_kg\",\n\t\t\t\"count\": 11,\n\t\t\t\"exampleRows\": [8, 34],\n\t\t\t\"why\": \"weight_kg of 0, negative, or above 30000kg breaks capacity planning and freight billing assumptions\"\n\t\t}\n\t]"
+										}
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Witnessed this turn: npm test 4/4 green pre-edit, and an independent scratch scan of input/shipments.csv's weight_kg column finds offending_count=11 across rows [8,34,59,92,118,144,177,220,242,269,302] (zeros, negatives, and values above 30000, non-numeric cells correctly excluded per the rule). Appending exactly one out_of_range entry, then rerunning npm test."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=143.6664\ntest/data-quality.test.js:30 const dataset refs=4 rank=76.2096\nscripts/run-tests.mjs:31 const result refs=4 rank=65.4697\ntest/data-quality.test.js:31 const carriers refs=2 rank=36.4747\ntest/data-quality.test.js:43 const RULES refs=5 rank=7.5707\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.5853\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7663\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.7577\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.7577\ntest/data-quality.test.js:7 const root refs=3 rank=3.7577\ntest/frozen.test.js:23 const root refs=7 rank=3.4255\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3341\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3341\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.1449\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.1449\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.1449\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.1449\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9718\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9718\ntest/frozen.test.js:25 function walk refs=4 rank=1.9543\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.8610\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.8610\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.8610\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanba)"
+		},
+		{
+			"id": "perfect-observed:worker:9",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Done. Added one out_of_range entry (count:11, exampleRows:[8,34], weight_kg as the column) to analysis/data-quality.json -- edit_file confirmed changed:true. npm test is 4/4 green after the edit, including the strict per-violation check. duplicate_primary_key's entry from the prior card is untouched. Card objective met, acceptance green."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=143.6664\ntest/data-quality.test.js:30 const dataset refs=4 rank=76.2096\nscripts/run-tests.mjs:31 const result refs=4 rank=65.4697\ntest/data-quality.test.js:31 const carriers refs=2 rank=36.4747\ntest/data-quality.test.js:43 const RULES refs=5 rank=7.5707\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.5853\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7663\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.7577\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.7577\ntest/data-quality.test.js:7 const root refs=3 rank=3.7577\ntest/frozen.test.js:23 const root refs=7 rank=3.4255\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3341\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3341\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.1449\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.1449\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.1449\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.1449\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9718\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9718\ntest/frozen.test.js:25 function walk refs=4 rank=1.9543\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.8610\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.8610\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.8610\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanba)"
+		},
+		{
+			"id": "perfect-observed:worker:10",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/data-quality.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing record-out-of-range. Verifying independently: reading analysis/data-quality.json fresh and running npm test for real, not trusting the shown PASSED line."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\n- /analysis/data-quality.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=143.6664\ntest/data-quality.test.js:30 const dataset refs=4 rank=76.2096\nscripts/run-tests.mjs:31 const result refs=4 rank=65.4697\ntest/data-quality.test.js:31 const carriers refs=2 rank=36.4747\ntest/data-quality.test.js:43 const RULES refs=5 rank=7.5707\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.5853\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7663\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.7577\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.7577\ntest/data-quality.test.js:7 const root refs=3 rank=3.7577\ntest/frozen.test.js:23 const root refs=7 rank=3.4255\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3341\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3341\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.1449\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.1449\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.1449\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.1449\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9718\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9718\ntest/frozen.test.js:25 function walk refs=4 rank=1.9543\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.8610\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.8610\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.8610\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record out_of_range violation (if any)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/data-quality.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state (from this card or an earlier sibling), so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nWrite a throwaway scratch script (kept out of input/) that parses input/shipments.csv (plain CSV: header row, then data rows, no quoted fields, no embedded commas; row numbers are 1-based over the data rows) and computes exactly which rows satisfy: its numeric `weight_kg` is out)"
+		},
+		{
+			"id": "perfect-observed:worker:11",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Independently verified: analysis/data-quality.json now has out_of_range/weight_kg, count:11, exampleRows:[8,34], appended after duplicate_primary_key's entry which is unchanged. npm test 4/4 green for real. No scope drift, matches write scope. Data-only fixture, no monolith/file-size concern."
+								}
+							}
+						]
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\n- /analysis/data-quality.json\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=143.6664\ntest/data-quality.test.js:30 const dataset refs=4 rank=76.2096\nscripts/run-tests.mjs:31 const result refs=4 rank=65.4697\ntest/data-quality.test.js:31 const carriers refs=2 rank=36.4747\ntest/data-quality.test.js:43 const RULES refs=5 rank=7.5707\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.5853\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7663\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.7577\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.7577\ntest/data-quality.test.js:7 const root refs=3 rank=3.7577\ntest/frozen.test.js:23 const root refs=7 rank=3.4255\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3341\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3341\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.1449\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.1449\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.1449\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.1449\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9718\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9718\ntest/frozen.test.js:25 function walk refs=4 rank=1.9543\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.8610\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.8610\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.8610\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record out_of_range violation (if any)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/data-quality.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state (from this card or an earlier sibling), so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nWrite a throwaway scratch script (kept out of input/) that parses input/shipments.csv (plain CSV: header row, then data rows, no quoted fields, no embed)"
+		},
+		{
+			"id": "perfect-observed:worker:12",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/data-quality.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test",
+										"node -e '\nconst fs = require(\"node:fs\");\nconst lines = fs.readFileSync(\"input/shipments.csv\",\"utf8\").split(\"\\n\").filter(l=>l.length>0);\nconst header = lines[0].split(\",\");\nconst dIdx = header.indexOf(\"delivered_at\");\nconst ISO = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/;\nconst rows = [];\nlines.slice(1).forEach((line,i)=>{\n  const cells = line.split(\",\");\n  rows.push({row:i+1, raw:cells[dIdx]});\n});\nconst offending = rows.filter(r=>r.raw!==\"\" && !ISO.test(r.raw));\nconsole.log(\"total_rows=\"+rows.length);\nconsole.log(\"offending_count=\"+offending.length);\nconsole.log(\"offending_detail=\"+JSON.stringify(offending));\n'"
+									]
+								}
+							}
+						],
+						"content": "record-wrong-type, refinement pass. Reading analysis/data-quality.json fresh, running npm test for real to confirm the current baseline, and independently scanning input/shipments.csv's delivered_at column against the ISO-8601 UTC instant pattern with a throwaway scratch script before touching the deliverable."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nscripts/run-tests.mjs:31 const result refs=4 rank=76.8010\ntest/data-quality.test.js:30 const dataset refs=4 rank=75.4475\ntest/data-quality.test.js:31 const carriers refs=2 rank=37.6383\ntest/data-quality.test.js:73 const deliverable refs=7 rank=10.8924\ntest/data-quality.test.js:43 const RULES refs=5 rank=6.9744\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=5.5912\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.1568\ntest/frozen.test.js:23 const root refs=7 rank=4.0183\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.9111\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.9111\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.4819\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.4819\ntest/data-quality.test.js:7 const root refs=3 rank=3.4819\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.3131\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.3131\ntest/frozen.test.js:25 function walk refs=4 rank=2.2926\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.0012\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.0012\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.0012\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.0012\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.0012\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.0012\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.0100\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.0100\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.0100\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic)"
+		},
+		{
+			"id": "perfect-observed:worker:13",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "edit_file",
+								"arguments": {
+									"path": "analysis/data-quality.json",
+									"edits": [
+										{
+											"search": "\t\t}\n\t]",
+											"replace": "\t\t},\n\t\t{\n\t\t\t\"rule\": \"wrong_type\",\n\t\t\t\"column\": \"delivered_at\",\n\t\t\t\"count\": 8,\n\t\t\t\"exampleRows\": [20, 65],\n\t\t\t\"why\": \"non-ISO-8601 delivered_at values (epoch numbers, space-separated, other formats) break every date parser downstream\"\n\t\t}\n\t]"
+										}
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Witnessed this turn: npm test 4/4 green pre-edit, and an independent scratch scan of input/shipments.csv's delivered_at column against the ISO-8601 UTC instant pattern finds offending_count=8 across rows [20,65,103,138,199,234,276,299] (epoch timestamps, space-separated, date-only, offset-suffixed, and free-text values; empty cells correctly excluded as legitimate). Appending exactly one wrong_type entry, then rerunning npm test."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=143.6664\ntest/data-quality.test.js:30 const dataset refs=4 rank=76.2096\nscripts/run-tests.mjs:31 const result refs=4 rank=65.4697\ntest/data-quality.test.js:31 const carriers refs=2 rank=36.4747\ntest/data-quality.test.js:43 const RULES refs=5 rank=7.5707\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.5853\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7663\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.7577\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.7577\ntest/data-quality.test.js:7 const root refs=3 rank=3.7577\ntest/frozen.test.js:23 const root refs=7 rank=3.4255\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3341\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3341\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.1449\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.1449\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.1449\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.1449\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9718\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9718\ntest/frozen.test.js:25 function walk refs=4 rank=1.9543\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.8610\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.8610\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.8610\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanba)"
+		},
+		{
+			"id": "perfect-observed:worker:14",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Done. Added one wrong_type entry (count:8, exampleRows:[20,65], delivered_at as the column) to analysis/data-quality.json -- edit_file confirmed changed:true. npm test is 4/4 green after the edit. Prior duplicate_primary_key and out_of_range entries untouched. Card objective met, acceptance green."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=143.6664\ntest/data-quality.test.js:30 const dataset refs=4 rank=76.2096\nscripts/run-tests.mjs:31 const result refs=4 rank=65.4697\ntest/data-quality.test.js:31 const carriers refs=2 rank=36.4747\ntest/data-quality.test.js:43 const RULES refs=5 rank=7.5707\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.5853\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7663\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.7577\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.7577\ntest/data-quality.test.js:7 const root refs=3 rank=3.7577\ntest/frozen.test.js:23 const root refs=7 rank=3.4255\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3341\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3341\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.1449\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.1449\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.1449\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.1449\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9718\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9718\ntest/frozen.test.js:25 function walk refs=4 rank=1.9543\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.8610\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.8610\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.8610\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanba)"
+		},
+		{
+			"id": "perfect-observed:worker:15",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/data-quality.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing record-wrong-type. Verifying independently: reading analysis/data-quality.json fresh and running npm test for real, not trusting the shown PASSED line."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\n- /analysis/data-quality.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=143.6664\ntest/data-quality.test.js:30 const dataset refs=4 rank=76.2096\nscripts/run-tests.mjs:31 const result refs=4 rank=65.4697\ntest/data-quality.test.js:31 const carriers refs=2 rank=36.4747\ntest/data-quality.test.js:43 const RULES refs=5 rank=7.5707\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.5853\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7663\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.7577\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.7577\ntest/data-quality.test.js:7 const root refs=3 rank=3.7577\ntest/frozen.test.js:23 const root refs=7 rank=3.4255\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3341\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3341\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.1449\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.1449\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.1449\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.1449\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9718\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9718\ntest/frozen.test.js:25 function walk refs=4 rank=1.9543\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.8610\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.8610\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.8610\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record wrong_type violation (if any)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/data-quality.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state (from this card or an earlier sibling), so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nWrite a throwaway scratch script (kept out of input/) that parses input/shipments.csv (plain CSV: header row, then data rows, no quoted fields, no embedded commas; row numbers are 1-based over the data rows) and computes exactly which rows satisfy: its `delivered_at` cell is non-e)"
+		},
+		{
+			"id": "perfect-observed:worker:16",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Independently verified: analysis/data-quality.json now has wrong_type/delivered_at, count:8, exampleRows:[20,65], appended after the two prior entries which are unchanged. npm test 4/4 green for real. No scope drift, write scope respected."
+								}
+							}
+						]
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\n- /analysis/data-quality.json\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=143.6664\ntest/data-quality.test.js:30 const dataset refs=4 rank=76.2096\nscripts/run-tests.mjs:31 const result refs=4 rank=65.4697\ntest/data-quality.test.js:31 const carriers refs=2 rank=36.4747\ntest/data-quality.test.js:43 const RULES refs=5 rank=7.5707\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.5853\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7663\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.7577\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.7577\ntest/data-quality.test.js:7 const root refs=3 rank=3.7577\ntest/frozen.test.js:23 const root refs=7 rank=3.4255\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3341\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3341\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.1449\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.1449\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.1449\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.1449\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9718\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9718\ntest/frozen.test.js:25 function walk refs=4 rank=1.9543\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.8610\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.8610\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.8610\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record wrong_type violation (if any)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/data-quality.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state (from this card or an earlier sibling), so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nWrite a throwaway scratch script (kept out of input/) that parses input/shipments.csv (plain CSV: header row, then data rows, no quoted fields, no embedde)"
+		},
+		{
+			"id": "perfect-observed:worker:17",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/data-quality.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test",
+										"node -e '\nconst fs = require(\"node:fs\");\nconst readCsv = (p) => {\n  const lines = fs.readFileSync(p,\"utf8\").split(\"\\n\").filter(l=>l.length>0);\n  const header = lines[0].split(\",\");\n  return lines.slice(1).map((line,i)=>{\n    const cells = line.split(\",\");\n    const rec = {row:i+1};\n    header.forEach((c,idx)=>rec[c]=cells[idx]);\n    return rec;\n  });\n};\nconst shipments = readCsv(\"input/shipments.csv\");\nconst carriers = readCsv(\"input/carriers.csv\");\nconst known = new Set(carriers.map(c=>c.carrier_id));\nconst offending = shipments.filter(s=>!known.has(s.carrier_id));\nconsole.log(\"known_carrier_ids=\"+JSON.stringify([...known]));\nconsole.log(\"total_rows=\"+shipments.length);\nconsole.log(\"offending_count=\"+offending.length);\nconsole.log(\"offending_detail=\"+JSON.stringify(offending.map(o=>({row:o.row,carrier_id:o.carrier_id}))));\n'"
+									]
+								}
+							}
+						],
+						"content": "record-referential-break, refinement pass. Reading analysis/data-quality.json fresh, running npm test for real to confirm the current baseline, and independently cross-checking input/shipments.csv's carrier_id column against input/carriers.csv's known ids with a throwaway scratch script before touching the deliverable."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nscripts/run-tests.mjs:31 const result refs=4 rank=76.8010\ntest/data-quality.test.js:30 const dataset refs=4 rank=75.4475\ntest/data-quality.test.js:31 const carriers refs=2 rank=37.6383\ntest/data-quality.test.js:73 const deliverable refs=7 rank=10.8924\ntest/data-quality.test.js:43 const RULES refs=5 rank=6.9744\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=5.5912\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.1568\ntest/frozen.test.js:23 const root refs=7 rank=4.0183\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.9111\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.9111\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.4819\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.4819\ntest/data-quality.test.js:7 const root refs=3 rank=3.4819\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.3131\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.3131\ntest/frozen.test.js:25 function walk refs=4 rank=2.2926\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.0012\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.0012\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.0012\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.0012\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.0012\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.0012\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.0100\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.0100\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.0100\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic)"
+		},
+		{
+			"id": "perfect-observed:worker:18",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "edit_file",
+								"arguments": {
+									"path": "analysis/data-quality.json",
+									"edits": [
+										{
+											"search": "\t\t}\n\t]",
+											"replace": "\t\t},\n\t\t{\n\t\t\t\"rule\": \"referential_break\",\n\t\t\t\"column\": \"carrier_id\",\n\t\t\t\"count\": 6,\n\t\t\t\"exampleRows\": [27, 80],\n\t\t\t\"why\": \"carrier_id values like CR-14 and CR-00 do not exist in carriers.csv, orphaning the shipment from any known carrier\"\n\t\t}\n\t]"
+										}
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Witnessed this turn: npm test 4/4 green pre-edit, and an independent scratch scan cross-checking input/shipments.csv's carrier_id against input/carriers.csv's known ids (CR-01..CR-08) finds offending_count=6 across rows [27,80,129,182,253,310] (ids CR-14, CR-00, CR-09, CR-99, CR-13, CR-11, none of which exist in the reference table). Appending exactly one referential_break entry, then rerunning npm test."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=143.6664\ntest/data-quality.test.js:30 const dataset refs=4 rank=76.2096\nscripts/run-tests.mjs:31 const result refs=4 rank=65.4697\ntest/data-quality.test.js:31 const carriers refs=2 rank=36.4747\ntest/data-quality.test.js:43 const RULES refs=5 rank=7.5707\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.5853\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7663\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.7577\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.7577\ntest/data-quality.test.js:7 const root refs=3 rank=3.7577\ntest/frozen.test.js:23 const root refs=7 rank=3.4255\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3341\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3341\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.1449\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.1449\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.1449\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.1449\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9718\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9718\ntest/frozen.test.js:25 function walk refs=4 rank=1.9543\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.8610\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.8610\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.8610\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanba)"
+		},
+		{
+			"id": "perfect-observed:worker:19",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Done. Added one referential_break entry (count:6, exampleRows:[27,80], carrier_id as the column) to analysis/data-quality.json -- edit_file confirmed changed:true. npm test is 4/4 green after the edit. The three prior entries (duplicate_primary_key, out_of_range, wrong_type) are untouched. All four rules are now recorded; the finalize card can proceed. Card objective met, acceptance green."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=143.6664\ntest/data-quality.test.js:30 const dataset refs=4 rank=76.2096\nscripts/run-tests.mjs:31 const result refs=4 rank=65.4697\ntest/data-quality.test.js:31 const carriers refs=2 rank=36.4747\ntest/data-quality.test.js:43 const RULES refs=5 rank=7.5707\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.5853\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7663\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.7577\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.7577\ntest/data-quality.test.js:7 const root refs=3 rank=3.7577\ntest/frozen.test.js:23 const root refs=7 rank=3.4255\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3341\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3341\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.1449\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.1449\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.1449\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.1449\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9718\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9718\ntest/frozen.test.js:25 function walk refs=4 rank=1.9543\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.8610\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.8610\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.8610\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanba)"
+		},
+		{
+			"id": "perfect-observed:worker:20",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/data-quality.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing record-referential-break. Verifying independently: reading analysis/data-quality.json fresh and running npm test for real, not trusting the shown PASSED line."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\n- /analysis/data-quality.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=143.6664\ntest/data-quality.test.js:30 const dataset refs=4 rank=76.2096\nscripts/run-tests.mjs:31 const result refs=4 rank=65.4697\ntest/data-quality.test.js:31 const carriers refs=2 rank=36.4747\ntest/data-quality.test.js:43 const RULES refs=5 rank=7.5707\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.5853\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7663\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.7577\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.7577\ntest/data-quality.test.js:7 const root refs=3 rank=3.7577\ntest/frozen.test.js:23 const root refs=7 rank=3.4255\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3341\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3341\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.1449\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.1449\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.1449\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.1449\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9718\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9718\ntest/frozen.test.js:25 function walk refs=4 rank=1.9543\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.8610\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.8610\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.8610\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record referential_break violation (if any)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/data-quality.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state (from this card or an earlier sibling), so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nWrite a throwaway scratch script (kept out of input/) that parses input/shipments.csv (plain CSV: header row, then data rows, no quoted fields, no embedded commas; row numbers are 1-based over the data rows) and computes exactly which rows satisfy: its `carrier_id` does not)"
+		},
+		{
+			"id": "perfect-observed:worker:21",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Independently verified: analysis/data-quality.json now has all four rules recorded -- duplicate_primary_key(7), out_of_range(11), wrong_type(8), referential_break(6) -- the new referential_break/carrier_id entry (count:6, exampleRows:[27,80]) appended after the three prior entries, which are unchanged. npm test 4/4 green for real. Write scope respected, no scope drift. This clears the way for the finalize-completeness card."
+								}
+							}
+						]
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\n- /analysis/data-quality.json\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=143.6664\ntest/data-quality.test.js:30 const dataset refs=4 rank=76.2096\nscripts/run-tests.mjs:31 const result refs=4 rank=65.4697\ntest/data-quality.test.js:31 const carriers refs=2 rank=36.4747\ntest/data-quality.test.js:43 const RULES refs=5 rank=7.5707\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=5.5853\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7663\ntest/data-quality.test.js:15 function readCsv refs=3 rank=3.7577\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=3.7577\ntest/data-quality.test.js:7 const root refs=3 rank=3.7577\ntest/frozen.test.js:23 const root refs=7 rank=3.4255\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3341\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3341\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.1449\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.1449\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.1449\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.1449\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.1449\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9718\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9718\ntest/frozen.test.js:25 function walk refs=4 rank=1.9543\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.8610\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.8610\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.8610\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Record referential_break violation (if any)\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/data-quality.json FRESH before editing -- do not assume it is still the empty stub; a prior attempt on this card may have left partial state (from this card or an earlier sibling), so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nWrite a throwaway scratch script (kept out of input/) that parses input/shipments.csv (plain CSV: header row, then data rows, no quoted fields, no )"
+		},
+		{
+			"id": "perfect-observed:worker:22",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/data-quality.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test",
+										"node -e '\nconst fs = require(\"node:fs\");\nconst readCsv = (p) => {\n  const lines = fs.readFileSync(p,\"utf8\").split(\"\\n\").filter(l=>l.length>0);\n  const header = lines[0].split(\",\");\n  return lines.slice(1).map((line,i)=>{\n    const cells = line.split(\",\");\n    const rec = {row:i+1};\n    header.forEach((c,idx)=>rec[c]=cells[idx]);\n    return rec;\n  });\n};\nconst shipments = readCsv(\"input/shipments.csv\");\nconst carriers = readCsv(\"input/carriers.csv\");\nconst known = new Set(carriers.map(c=>c.carrier_id));\nconst ISO = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/;\nconst idCounts = new Map();\nshipments.forEach(s=>idCounts.set(s.shipment_id,(idCounts.get(s.shipment_id)||0)+1));\nconst rules = {\n  duplicate_primary_key: shipments.filter(s=>idCounts.get(s.shipment_id)>1),\n  out_of_range: shipments.filter(s=>{const v=Number(s.weight_kg); if(!Number.isFinite(v)) return false; return !(v>0 && v<=30000);}),\n  wrong_type: shipments.filter(s=>s.delivered_at!==\"\" && !ISO.test(s.delivered_at)),\n  referential_break: shipments.filter(s=>!known.has(s.carrier_id)),\n};\nconst deliverable = JSON.parse(fs.readFileSync(\"analysis/data-quality.json\",\"utf8\"));\nconst recorded = new Map(deliverable.violations.map(v=>[v.rule,v]));\nfor (const [name, rows] of Object.entries(rules)) {\n  const rec = recorded.get(name);\n  console.log(name+\": derived_count=\"+rows.length+\" recorded=\"+(rec?rec.count:\"MISSING\")+\" match=\"+(rec ? rec.count===rows.length : rows.length===0));\n}\nconsole.log(\"deliverable_complete=\"+deliverable.complete);\nconsole.log(\"violations_recorded=\"+deliverable.violations.map(v=>v.rule).join(\",\"));\n'"
+									]
+								}
+							}
+						],
+						"content": "finalize-completeness, refinement pass. Reading analysis/data-quality.json fresh, running npm test for real to confirm the current baseline, and independently re-deriving all four rules directly from input/shipments.csv and input/carriers.csv (not trusting the recorded violations array) before touching `complete`."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:30 const dataset refs=4 rank=91.2389\ntest/data-quality.test.js:31 const carriers refs=2 rank=45.5160\ntest/data-quality.test.js:73 const deliverable refs=7 rank=13.1722\ntest/data-quality.test.js:43 const RULES refs=5 rank=8.4342\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=6.2361\ntest/frozen.test.js:23 const root refs=7 rank=4.8594\ntest/data-quality.test.js:15 function readCsv refs=3 rank=4.2107\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=4.2107\ntest/data-quality.test.js:7 const root refs=3 rank=4.2107\nscripts/run-tests.mjs:31 const result refs=4 rank=2.8597\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.8597\ntest/frozen.test.js:25 function walk refs=4 rank=2.7724\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.4200\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.4200\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.4200\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.4200\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.4200\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.4200\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=2.0377\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=2.0377\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.2474\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.2474\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.2214\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.2214\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.2214\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic:)"
+		},
+		{
+			"id": "perfect-observed:worker:23",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "edit_file",
+								"arguments": {
+									"path": "analysis/data-quality.json",
+									"edits": [
+										{
+											"search": "\t\"complete\": false,",
+											"replace": "\t\"complete\": true,"
+										}
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Witnessed this turn: npm test 4/4 green pre-flip, and an independent re-derivation of all four rules straight from input/shipments.csv and input/carriers.csv matches the recorded entries exactly (duplicate_primary_key 7=7, out_of_range 11=11, wrong_type 8=8, referential_break 6=6, all match=true). Coverage is genuinely complete, so flipping `complete` to true now -- no other field touched -- then rerunning npm test to confirm the completeness check passes end-to-end."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:30 const dataset refs=4 rank=91.2389\ntest/data-quality.test.js:31 const carriers refs=2 rank=45.5160\ntest/data-quality.test.js:73 const deliverable refs=7 rank=13.1722\ntest/data-quality.test.js:43 const RULES refs=5 rank=8.4342\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=6.2361\ntest/frozen.test.js:23 const root refs=7 rank=4.8594\ntest/data-quality.test.js:15 function readCsv refs=3 rank=4.2107\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=4.2107\ntest/data-quality.test.js:7 const root refs=3 rank=4.2107\nscripts/run-tests.mjs:31 const result refs=4 rank=2.8597\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.8597\ntest/frozen.test.js:25 function walk refs=4 rank=2.7724\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.4200\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.4200\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.4200\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.4200\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.4200\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.4200\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=2.0377\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=2.0377\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.2474\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.2474\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.2214\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.2214\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.2214\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/)"
+		},
+		{
+			"id": "perfect-observed:worker:24",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Done. analysis/data-quality.json now has `complete: true` (only that field changed, edit_file confirmed changed:true). Verified by two real npm test runs: 4/4 green before the flip and 4/4 green after, including 'declaring the audit complete requires every violated rule' now actually exercising the coverage check and passing. Coverage was independently re-derived from both CSVs in the prior turn (all four rules matched exactly) before the flip. Card objective met, acceptance green."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:30 const dataset refs=4 rank=91.2389\ntest/data-quality.test.js:31 const carriers refs=2 rank=45.5160\ntest/data-quality.test.js:73 const deliverable refs=7 rank=13.1722\ntest/data-quality.test.js:43 const RULES refs=5 rank=8.4342\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=6.2361\ntest/frozen.test.js:23 const root refs=7 rank=4.8594\ntest/data-quality.test.js:15 function readCsv refs=3 rank=4.2107\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=4.2107\ntest/data-quality.test.js:7 const root refs=3 rank=4.2107\nscripts/run-tests.mjs:31 const result refs=4 rank=2.8597\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.8597\ntest/frozen.test.js:25 function walk refs=4 rank=2.7724\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.4200\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.4200\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.4200\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.4200\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.4200\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.4200\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=2.0377\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=2.0377\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.2474\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.2474\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.2214\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.2214\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.2214\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/)"
+		},
+		{
+			"id": "perfect-observed:worker:25",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"analysis/data-quality.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing finalize-completeness. Verifying independently: reading analysis/data-quality.json fresh and running npm test for real, not trusting the shown PASSED line."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\n- /analysis/data-quality.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=168.5317\ntest/data-quality.test.js:30 const dataset refs=4 rank=89.3997\ntest/data-quality.test.js:31 const carriers refs=2 rank=42.7876\ntest/data-quality.test.js:43 const RULES refs=5 rank=8.8811\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=6.5520\ntest/data-quality.test.js:15 function readCsv refs=3 rank=4.4081\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=4.4081\ntest/data-quality.test.js:7 const root refs=3 rank=4.4081\ntest/frozen.test.js:23 const root refs=7 rank=4.0183\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.5161\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.5161\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.5161\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.5161\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.5161\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.5161\nscripts/run-tests.mjs:31 const result refs=4 rank=2.3648\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.3648\ntest/frozen.test.js:25 function walk refs=4 rank=2.2926\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.6850\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.6850\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0315\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0315\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.0100\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.0100\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.0100\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Finalize completeness and set complete to true\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/data-quality.json FRESH before editing -- do not assume it reflects your memory of the plan; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nIndependently re-derive, from input/shipments.csv and input/carriers.csv directly (a fresh scratch script, not a re-read of the existing violations array), the exact offending-row set for all four rules (duplicate_primary_key, out_of_range, wrong_type, referential_break). Cross-check: every rule with )"
+		},
+		{
+			"id": "perfect-observed:worker:26",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read analysis/data-quality.json FRESH before editing -- do n",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Independently verified in this review's own tree: analysis/data-quality.json has `complete: true`; all four violation entries are byte-identical to the pre-flip state -- only that one field changed. npm test 4/4 green for real, including 'declaring the audit complete requires every violated rule' now genuinely exercising and passing the coverage check. No scope drift. One-line JSON fixture edit, no file-size/monolith concern."
+								}
+							}
+						]
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /data-quality.test.js\n- /frozen.test.js\n- /data-quality.json\n- /shipments.csv\n- /carriers.csv\n- /analysis/data-quality.json\nread_files coverage ledger:\n- analysis/data-quality.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/data-quality.test.js:73 const deliverable refs=7 rank=168.5317\ntest/data-quality.test.js:30 const dataset refs=4 rank=89.3997\ntest/data-quality.test.js:31 const carriers refs=2 rank=42.7876\ntest/data-quality.test.js:43 const RULES refs=5 rank=8.8811\ntest/data-quality.test.js:33 const shipmentIdCounts refs=4 rank=6.5520\ntest/data-quality.test.js:15 function readCsv refs=3 rank=4.4081\ntest/data-quality.test.js:66 const offendingRows refs=3 rank=4.4081\ntest/data-quality.test.js:7 const root refs=3 rank=4.4081\ntest/frozen.test.js:23 const root refs=7 rank=4.0183\ntest/data-quality.test.js:10 const WEIGHT_MIN_EXCLUSIVE refs=2 rank=2.5161\ntest/data-quality.test.js:11 const WEIGHT_MAX_INCLUSIVE refs=2 rank=2.5161\ntest/data-quality.test.js:12 const ISO_INSTANT refs=2 rank=2.5161\ntest/data-quality.test.js:32 const knownCarrierIds refs=2 rank=2.5161\ntest/data-quality.test.js:8 const DATASET refs=2 rank=2.5161\ntest/data-quality.test.js:9 const REFERENCE refs=2 rank=2.5161\nscripts/run-tests.mjs:31 const result refs=4 rank=2.3648\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.3648\ntest/frozen.test.js:25 function walk refs=4 rank=2.2926\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.6850\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.6850\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0315\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0315\ntest/frozen.test.js:35 const toPosix refs=2 rank=1.0100\ntest/frozen.test.js:36 const digestOf refs=2 rank=1.0100\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=1.0100\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Finalize completeness and set complete to true\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead analysis/data-quality.json FRESH before editing -- do not assume it reflects your memory of the plan; a prior attempt on this card may have left partial state, so anchor only on what is actually there now. Run npm test for real first and confirm it is green with the current state.\n\nIndependently re-derive, from input/shipments.csv and input/carriers.csv directly (a fresh scratch script, not a re-read of the existing violations array), the exact offending)"
+		}
+	]
+}
