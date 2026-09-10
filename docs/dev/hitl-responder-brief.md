@@ -127,6 +127,32 @@ a sandbox failure. It reads like one and has been mistaken for one. Treat it as 
   does not touch the workspace. If the card's remaining work is a control-plane operation, a dead sandbox does not
   necessarily block it.
 
+## Never put an edit and its verification in the same turn
+
+A green `npm test` is not evidence your edit landed. On these fixtures it very often passes whether or not you did
+the work, because the frozen verifier checks the *shape* of what is there, and what is there is the previous card's
+correct output.
+
+Live 2026-09-10, project 47's `record-returns-agent-requirements`. The worker emitted `edit_file` and
+`run_commands: npm test` in ONE turn. The edit was rejected — *"edit block 1 did not match spec/requirements.json.
+Closest match was 40% similar"* — and `npm test` then passed 4/4 **vacuously**, because the file was untouched and
+the previous card's three entries were well-formed. The model read the green result and reported *"npm test is 4/4
+green post-edit, confirming both new entries are correctly formed."* Neither entry existed. No result branch, no
+commit, nothing on `main`. The card had to be re-driven a shift later.
+
+So, without exception:
+
+- **Re-read the file immediately before you write an anchor.** Never reconstruct the current text from memory or
+  from what a sibling card wrote.
+- **Make the edit, see its result, THEN verify in a later turn.** Bundling them means you interpret the test before
+  you have read the edit's outcome.
+- **After any edit, re-read the file and confirm your change is actually in it** before declaring anything done.
+- **When reviewing, never approve on a shown acceptance line.** Do your own `read_files` and `npm test` in-session.
+
+Two consecutive shifts followed this and shipped ten cards between them with zero unlanded work, each one confirmed
+host-side with `git log --oneline --all`. It is the cheapest rule in this brief and it closes the most expensive
+failure.
+
 ## Derive ground truth from the sandbox's read-only seed mirror
 
 The live per-card sandbox bind-mounts a **read-only host directory** that mirrors the exact seed/evidence tree.
