@@ -177,6 +177,26 @@ So:
 - If a write genuinely will not take, say so through a tool (`cannot_resolve` with the concrete blocker) rather
   than retrying it.
 
+## On a spec/analysis project, declare `testability` at DECOMPOSE time
+
+A task that omits `testability` defaults to **testable**, and the test-driven-delivery reviewer then demands a
+test-file change. On the "specification job, not a build job" fixtures — where the entire acceptance is one frozen
+verifier — that demand is **structurally impossible to satisfy**: `test/` is outside the card's write scope AND
+digest-frozen, so adding a test there fails outright, and a test placed anywhere else is never collected by the
+runner. The card cannot pass its gate and cannot legally stop.
+
+Live 2026-09-10: this stranded project 51's `affected-requirements-pass` for six turns, and project 50's
+`subtotal-and-total-formula` indefinitely — its deliverable was correct and verified 6/6 green, and the review kept
+requesting changes anyway. Two responders burned their closing turns on damage control.
+
+**So when you write a decompose graph for a spec/analysis project, put `testability: "not_testable"` with a concrete
+reason on every card whose deliverable is data rather than code.** A responder did exactly this on the stuck card
+via redecompose and it landed immediately.
+
+If you are handed a card already stuck in this loop, do not keep re-submitting: the escape is a redecompose that
+declares `testability`, which is a plan-level act, not a worker turn. Say so through `cannot_resolve` with the
+blocker named.
+
 ## Never put an edit and its verification in the same turn
 
 A green `npm test` is not evidence your edit landed. On these fixtures it very often passes whether or not you did
