@@ -17,6 +17,7 @@
  *   npx tsx scripts/hitl-record-run.mts <projectId...> [--max-wait-ms N] [--state <file>] [--base <url>]
  *   npx tsx scripts/hitl-record-run.mts --all-new           # every project from 37 onward, in order
  *   npx tsx scripts/hitl-record-run.mts --all-new --dry-run # print the plan and change nothing
+ *   npx tsx scripts/hitl-record-run.mts --all-new --repair  # rebuild unverified recordings from the queue, no re-drive
  *
  * `--dry-run` exists because I ran this to check which projects it would pick and it seeded one instead, which
  * then competed for the rig's single endpoint with the drive already in flight. A script whose first action is
@@ -137,6 +138,69 @@ if (process.argv.includes("--dry-run")) {
 	for (const projectId of projects) {
 		console.log(`  ${isVerifiedRecording(projectId) ? "skip" : "run "} ${projectId}`);
 	}
+	process.exit(0);
+}
+
+/**
+ * `--repair`: rebuild a recording from the queue WITHOUT re-driving the project.
+ *
+ * A replay failure is not proof that the drive was bad. Live 2026-09-10, projects 40 and 41 were both marked
+ * `failed` at the replay step because their captures were 26% and 46% `main-branch-custodian` traffic — a defect in
+ * the CAPTURE, fixed hours later, by which time both verdicts were terminal and the only route back was a two-to
+ * three-hour re-drive each. The drive's traffic was still sitting in the queue the whole time.
+ *
+ * So: whenever the capture logic changes, every unverified recording can be rebuilt and re-proved for the cost of a
+ * replay. This mode does exactly that and touches neither the rig nor the board, so it is safe to run while a drive
+ * is in flight. It cannot help a project that was never driven — with no traffic there is nothing to rebuild.
+ *
+ * ── WHAT IT DID NOT FIX ──
+ * Tried on 40 and 41 the same day. Both rebuilt cleanly — bounded windows, custodian traffic gone, 43 and 48 tracks
+ * of nothing but their own cards — and 40 still replayed to `left cards undrained (planning: 1)`. So a clean capture
+ * of those two drives is still not a replayable one, and the reason is NOT visible in the track structure: every
+ * signal that looked diagnostic (a prose turn that calls no tool, more than one `decompose_project`) is present in
+ * all six sets that DO replay, 39 included. Both projects were driven across two days with repeated re-decomposition
+ * — 40's decompose session alone spans request ids 951 to 1514 — and the working assumption is that the drive itself,
+ * not its capture, is what cannot be reproduced. They are queued for a clean re-drive.
+ */
+async function repairUnverified(projectIds: readonly string[]): Promise<void> {
+	const repairable = projectIds.filter(
+		(projectId) => !isVerifiedRecording(projectId) && existsSync(join(SCENARIOS, projectId, "perfect-run.json")),
+	);
+	console.log(
+		repairable.length > 0
+			? `repairing ${repairable.length} unverified recording(s) from the queue — no project is re-driven:\n  ${repairable.join("\n  ")}`
+			: "nothing to repair: every recording on disk has already replayed",
+	);
+	for (const projectId of repairable) {
+		console.log(`\n=== ${projectId} (repair) ===`);
+		const recorded = await run("npx", ["tsx", "scripts/hitl-record-project.mts", "record", projectId]);
+		if (recorded.code !== 0) {
+			note({ projectId, status: "failed", detail: `repair record failed: ${recorded.tail}`, at: new Date().toISOString() });
+			continue;
+		}
+		const replayHome = mkdtempSync(join(tmpdir(), `nklein-simflow-${projectId}-`));
+		const replayed = await run("npx", ["tsx", "scripts/verify-simulated-flow.mts"], {
+			NKLEIN_SIMFLOW_SCENARIO: projectId,
+			HOME: replayHome,
+		});
+		if (replayed.code === 0) {
+			markReplayVerified(projectId);
+		}
+		note({
+			projectId,
+			status: replayed.code === 0 ? "recorded" : "failed",
+			detail:
+				replayed.code === 0
+					? "repaired from the queue and replayed — no re-drive"
+					: `repair replay still failed: ${replayed.tail}`,
+			at: new Date().toISOString(),
+		});
+	}
+	saveState();
+}
+
+if (process.argv.includes("--repair")) {
+	await repairUnverified(projects);
 	process.exit(0);
 }
 

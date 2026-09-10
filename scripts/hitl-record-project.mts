@@ -19,6 +19,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { type RecordingMark, resolveCaptureWindow } from "../src/core/hitl-capture-window";
 
 const command = process.argv[2];
 const projectId = process.argv[3];
@@ -65,13 +66,46 @@ if (command !== "record") {
 if (!existsSync(markPath)) {
 	fail(`no mark for ${projectId}. Run \`mark ${projectId}\` BEFORE seeding — without it a capture cannot know where this project's traffic begins, and would silently record the previous run.`);
 }
-const { mark } = JSON.parse(readFileSync(markPath, "utf8")) as { mark: number };
+/**
+ * Both bounds, not just the lower one. `resolveCaptureWindow` explains why an open-ended window is wrong; the
+ * short version is that re-recording a project after later drives would otherwise capture all of them too, so a
+ * bad capture could never be repaired without re-driving for hours.
+ */
+function readMarks(): RecordingMark[] {
+	if (!existsSync(MARKS)) return [];
+	return readdirSync(MARKS)
+		.filter((name) => name.endsWith(".json"))
+		.flatMap((name) => {
+			try {
+				const parsed = JSON.parse(readFileSync(join(MARKS, name), "utf8")) as Partial<RecordingMark>;
+				return typeof parsed.projectId === "string" && typeof parsed.mark === "number"
+					? [{ projectId: parsed.projectId, mark: parsed.mark }]
+					: [];
+			} catch {
+				return []; // An unreadable mark bounds nothing; the project's own mark is checked separately above.
+			}
+		});
+}
+
+const window = resolveCaptureWindow({ marks: readMarks(), projectId, queueHighWaterMark: queueHighWaterMark() });
+const mark = window.from;
+console.log(
+	window.boundedBy.kind === "next-project"
+		? `capturing requests ${window.from + 1}-${window.to} (closed by ${window.boundedBy.projectId}'s mark)`
+		: `capturing requests ${window.from + 1}-${window.to} (the latest drive — bounded by the end of the queue)`,
+);
 
 // 1. Reshape the queue slice into a capture directory.
 const captureDir = mkdtempSync(join(tmpdir(), `hitl-capture-${projectId}-`));
 const captureOut = execFileSync(
 	"npx",
-	["tsx", join(REPO, "scripts/hitl-queue-to-capture.mts"), "--out", captureDir, "--from", String(mark), "--queue", QUEUE],
+	[
+		"tsx", join(REPO, "scripts/hitl-queue-to-capture.mts"),
+		"--out", captureDir,
+		"--from", String(window.from),
+		"--to", String(window.to),
+		"--queue", QUEUE,
+	],
 	{ cwd: REPO, encoding: "utf8" },
 );
 console.log(captureOut.trim());
@@ -91,7 +125,7 @@ console.log(
 	}).trim(),
 );
 const script = JSON.parse(readFileSync(runPath, "utf8")) as { name?: string; tracks: unknown[] };
-script.name = `${projectId} perfect run (HITL rig drive, requests ${mark + 1}-${queueHighWaterMark()})`;
+script.name = `${projectId} perfect run (HITL rig drive, requests ${window.from + 1}-${window.to})`;
 writeFileSync(runPath, `${JSON.stringify(script, null, "\t")}\n`);
 
 // 3. Provenance: which queue files this set was built from, so a later edit is visible as drift.
@@ -108,7 +142,11 @@ writeFileSync(
 		{
 			drain: DRAIN,
 			generatedAt: new Date().toISOString(),
-			fromRequestId: mark + 1,
+			fromRequestId: window.from + 1,
+			// Both bounds are provenance: without the upper one the set cannot be rebuilt from the queue later, since
+			// "everything after the mark" means something different every time the rig answers another request.
+			toRequestId: window.to,
+			boundedBy: window.boundedBy,
 			pairs: captured.length,
 			tracks: script.tracks.length,
 			// A recording that has never been replayed is not a test. This starts FALSE and is flipped only by a
