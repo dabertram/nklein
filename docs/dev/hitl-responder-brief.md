@@ -127,6 +127,15 @@ a sandbox failure. It reads like one and has been mistaken for one. Treat it as 
   does not touch the workspace. If the card's remaining work is a control-plane operation, a dead sandbox does not
   necessarily block it.
 
+## Host-side `git log` verification does not work from inside the sandbox
+
+Do not spend turns on it. Each per-card `/workspaces/<card>` directory is `0700`, owned by a per-task UID, and
+even `docker exec -u 0` cannot read it — that is this repo's strict per-task isolation working as designed, not a
+fault to report. Verify in-session instead: a fresh `read_files` plus a real `npm test`.
+
+(The check IS available to an operator on the host, outside the sandbox, against the project's own dev-workspace
+repo. That is where the earlier "no commit or branch for this card" findings came from.)
+
 ## Never put an edit and its verification in the same turn
 
 A green `npm test` is not evidence your edit landed. On these fixtures it very often passes whether or not you did
