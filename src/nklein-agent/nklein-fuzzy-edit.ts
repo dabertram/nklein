@@ -12,7 +12,8 @@
  *   2. whitespace       — match ignoring uniform indentation, re-indent the replacement to the file
  *   3. leading_blank    — tolerate leading blank lines the model added to the search block
  *   4. dotdotdots       — honor `...` elision markers, applying each non-elided segment in order
- *   5. fuzzy            — closest window by similarity ratio (≥0.8) within ±10% of the search length
+ *   5. substring        — the search block occurs VERBATIM exactly once, but not on line boundaries
+ *   6. fuzzy            — closest window by similarity ratio (≥0.8) within ±10% of the search length
  *
  * This module is the pure, unit-tested algorithm; the `edit_file` tool wires it to file IO and the existing
  * write guards. It is deliberately !Klein-owned (not an SDK patch) so it can be routed to small models.
@@ -23,7 +24,7 @@ export interface SearchReplaceBlock {
 	replace: string;
 }
 
-export type FuzzyEditStrategy = "exact" | "whitespace" | "leading_blank" | "dotdotdots" | "fuzzy";
+export type FuzzyEditStrategy = "exact" | "whitespace" | "leading_blank" | "dotdotdots" | "substring" | "fuzzy";
 
 export interface ApplySearchReplaceResult {
 	ok: boolean;
@@ -283,6 +284,28 @@ export function applySearchReplaceBlock(
 	const dotdotdots = dotdotdotsReplace(content, search, replace);
 	if (dotdotdots !== null) {
 		return { ok: true, content: restoreFinalNewline(dotdotdots), strategy: "dotdotdots" };
+	}
+
+	/**
+	 * The search block IS the file text, verbatim — just not on line boundaries.
+	 *
+	 * Every rung above compares arrays of whole lines, so an anchor that starts or ends mid-line and spans a
+	 * newline cannot match however exact it is. Live 2026-09-10: a responder verified its `search` was an exact,
+	 * unique substring by reading the file with `docker exec` straight into the sandbox, and `edit_file` still
+	 * refused it — twice — at "19% similar". The refusal then tells the model to "re-read the exact current text
+	 * and copy it verbatim", which is precisely what it had done, so it re-reads and retries: the exact
+	 * re-read/retry loop this module exists to prevent, and a probable cause of the blocked edit behind
+	 * P1.PASSEDBUTUNLANDED (rejected at "40% similar", then reported as done).
+	 *
+	 * Placed AFTER the line-based ladder so no currently-succeeding edit changes strategy or result, and BEFORE
+	 * `fuzzy` so a verbatim hit always beats a similarity guess. Exactly one occurrence is required — the same
+	 * standard `dotdotdotsReplace` holds — because two candidate sites make the model's intent genuinely unknown,
+	 * and guessing at that is how an edit lands in the wrong place. The RAW `replace` is spliced, not the
+	 * newline-normalised one: this is a literal substring splice, so the terminator fixup the line path needs
+	 * would insert a newline nobody asked for.
+	 */
+	if (content.split(search).length - 1 === 1) {
+		return { ok: true, content: content.replace(search, () => replace), strategy: "substring" };
 	}
 
 	if (content.length <= MAX_FUZZY_CONTENT_CHARS) {

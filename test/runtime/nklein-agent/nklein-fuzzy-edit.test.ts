@@ -200,3 +200,39 @@ describe("newline preservation — the merged-line artefact (N8.1)", () => {
 		}
 	});
 });
+
+/**
+ * Live 2026-09-10: `edit_file` refused an anchor a responder had verified — by reading the file with `docker exec`
+ * straight into the sandbox — to be an exact, unique substring. Twice, at "19% similar". Every rung of the ladder
+ * compares arrays of whole lines, so an anchor spanning a newline without sitting on line boundaries could not
+ * match however verbatim it was, and the refusal's advice ("copy it verbatim") was what the model had already done.
+ */
+describe("verbatim substring anchors that do not sit on line boundaries", () => {
+	const FILE = ["{", '\t"conflicts": [', '\t\t{ "id": "C-01" }', "\t],", '\t"complete": false', "}", ""].join("\n");
+
+	it("applies an exact anchor that starts mid-line and spans a newline", () => {
+		// Starts inside the object literal, so neither end sits on a line boundary — the shape the ladder missed.
+		const search = '" }\n\t],';
+		expect(FILE.includes(search)).toBe(true); // the premise: it really is there, verbatim
+		const result = applySearchReplaceBlock(FILE, search, '" },\n\t\t{ "id": "C-02" }\n\t],');
+		expect(result.ok).toBe(true);
+		expect(result.strategy).toBe("substring");
+		expect(result.content).toContain('{ "id": "C-02" }');
+		// A literal splice, so nothing around the seam is disturbed.
+		expect(result.content).toContain('\t"complete": false');
+		expect(result.content).toContain('{ "id": "C-01" }');
+	});
+
+	it("refuses an ambiguous anchor rather than guessing which of two sites the model meant", () => {
+		const twice = "x = { a: 1 }\ny = { a: 1 }\n";
+		const search = "= { a: 1 }";
+		expect(twice.split(search).length - 1).toBe(2);
+		expect(applySearchReplaceBlock(twice, search, "= { a: 2 }").ok).toBe(false);
+	});
+
+	it("leaves boundary-aligned edits on the exact rung, so nothing that worked changes strategy", () => {
+		const result = applySearchReplaceBlock(FILE, '\t"complete": false\n', '\t"complete": true\n');
+		expect(result.ok).toBe(true);
+		expect(result.strategy).toBe("exact");
+	});
+});
