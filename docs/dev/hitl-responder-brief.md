@@ -167,7 +167,7 @@ fault to report. Verify in-session instead: a fresh `read_files` plus a real `np
 (The check IS available to an operator on the host, outside the sandbox, against the project's own dev-workspace
 repo. That is where the earlier "no commit or branch for this card" findings came from.)
 
-## The acceptance-runner EACCES loop — and the bare stop that ends it
+## The acceptance-runner loop (EACCES / ENOENT) — and the bare stop that ends it
 
 A third named loop, distinct from the custodian one and from the finished-card reopen. Live 2026-09-11, project 58:
 a card was re-driven with `acceptance check failed... EACCES` against a harness-managed workspace whose path ends
@@ -178,6 +178,11 @@ own workspace tested green three times independently; the diff was never the pro
 It cost 20% of that shift. What it looks like: `update_focus_chain` is accepted over and over with no new
 instruction, which is the custodian loop's shape, and no completion tool is offered (`resolve_result`,
 `predict_output`, `request_compaction`, `begin_implementation` were all checked and absent).
+
+**The OS error varies; the class does not.** A second variant appeared the next shift: `ENOENT`, `scandir
+'.../--acceptance-5/test'` — the harness's acceptance copy missing its `test/` directory outright — on a card that
+had already been approved. Treat any failure whose path contains `--acceptance-` as this loop, whatever errno it
+carries: it is the runner's own workspace, not your diff.
 
 **Unlike the custodian loop, a bare stop DOES end this one.** The next claimed request was a fresh session for the
 next card in the chain, and the project was not lost. So: once you have confirmed the failure is the acceptance
