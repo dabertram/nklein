@@ -196,6 +196,8 @@ export interface NKleinTaskSessionService {
 	 * Optional so alternative service implementations need not carry it; see `src/core/session-retirement.ts`.
 	 */
 	retireTaskSession?: (entry: RetiredSession) => void;
+	/** The retirement record for a task, or null — lets a caller retire ONCE instead of on every sweep. */
+	findRetiredTaskSession?: (taskId: string) => RetiredSession | null;
 	/** §dsh#32: fork the source session's context at a safe step boundary into a NEW task session. */
 	forkTaskSessionAtBoundary(input: {
 		sourceTaskId: string;

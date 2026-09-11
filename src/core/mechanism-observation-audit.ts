@@ -258,6 +258,18 @@ export function auditMechanismObservations(input: MechanismAuditInput): Mechanis
  */
 export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 	{
+		// ── P1.SETTLEDNUDGE: retire a finished card's session even when it is between reopen iterations (2026-09-11) ──
+		category: "settled_card_session_retired",
+		item: "P1.SETTLEDNUDGE",
+		observes:
+			"a card in a terminal lane had a session that was NOT live — bare stopped, scored `no_tool_call`, awaiting its next reopen — and was retired anyway, which is the state the old live-sessions-only sweep could never see; every firing is a reopen loop ended before it could spend another model turn on a card the board already considers finished",
+		enabledBy: null,
+		// `every_run`: every drive settles cards, and a settled card's session is not live — so silence here means
+		// the sweep stopped seeing them again, which is precisely the regression this fix exists to prevent.
+		expectation: "every_run",
+		addedOn: Date.UTC(2026, 8, 11),
+	},
+	{
 		// ── P1.STARTHANG2: release a single-flight start claim whose promise never settled (2026-09-10) ──
 		category: "start_in_flight_released_as_hung",
 		item: "P1.STARTHANG2",

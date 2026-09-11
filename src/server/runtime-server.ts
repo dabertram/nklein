@@ -4789,6 +4789,46 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								)
 								.map((summary) => summary.taskId),
 						);
+						// P1.SETTLEDNUDGE: RETIREMENT must not depend on the session's instantaneous state.
+						//
+						// The stop below rightly targets live sessions — only those hold a model slot. But retirement is
+						// a different job: it records that this card's session may never be revived, and it is what makes
+						// a stop stick. Gating it on `running|queued|paused|awaiting_review` meant the sweep never caught
+						// the one case that matters most: a FINISHED card being reopened in a loop. Between iterations
+						// that session is in none of those states — it bare stops, is scored a `no_tool_call` failure,
+						// and is restarted — so every sweep looked and saw nothing to do.
+						//
+						// The cost was the largest single waste in the rig: 57%, 59% and then 21 turns of one shift on a
+						// single approved-and-accepted card, reproduced on the custodian review, on a decompose card, on
+						// an ordinary leaf card and on a worker role. A responder proved no answer escapes it —
+						// re-submitting the identical verdict behaved exactly like bare stopping.
+						//
+						// Retiring a card in a terminal lane is correct whatever its session is doing, and
+						// `retireSession` already ignores a repeat, so the only thing needed here is to look at ALL
+						// sessions and to act once per card.
+						const allSessionTaskIds = new Set(trackedService.listSummaries().map((summary) => summary.taskId));
+						for (const terminal of selectTrashedCardSessions(board, allSessionTaskIds)) {
+							if (activeSessionTaskIds.has(terminal.taskId)) {
+								continue; // handled by the stop loop below, which retires first
+							}
+							if (trackedService.findRetiredTaskSession?.(terminal.taskId)) {
+								continue; // already retired; do not re-record it every sweep
+							}
+							trackedService.retireTaskSession?.({
+								taskId: terminal.taskId,
+								reason: terminal.columnId === "absent" ? "card_absent_from_board" : "terminal_lane_card",
+								detail: `card sits in ${terminal.columnId} with no live session`,
+								at: Date.now(),
+							});
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Card ${terminal.taskId} sits in ${terminal.columnId} with no live session; retiring it so no recovery path reopens it.`,
+								taskId: terminal.taskId,
+								workspacePath: scope.workspacePath,
+								metadata: { category: "settled_card_session_retired", columnId: terminal.columnId },
+							});
+						}
 						// P0.TRASHSTOP (v31 2026-09-07): a card trashed through a state save kept its architect session
 						// running and held a single-slot host for an hour. A trashed card's session is pure occupancy —
 						// stop it (once per card; the summary leaves the active set after the stop).
