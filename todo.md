@@ -2791,6 +2791,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   same gap recorded under P1.SETTLEDNUDGE. One fix serves both.
   **Operator workaround meanwhile:** after a re-queue, check for workspaces with live cards that no rail owns and
   `hitl-abandon-run.mts` them — twice if needed, since the first pass can lose the race with a mid-turn session.
+  **▶ MEASURED COST: it converts finished work into a full re-drive.** Project 51 had all three of its cards landed
+  and approved — the project was DONE — and was still re-queued as "STALLED". The chain is mechanical: the zombie
+  card starved the seat, so 51's live board stopped moving, so the rail's fingerprint went unchanged for its full
+  45 minutes, so the drive was judged stalled and nothing was recorded. Starvation and a dead seat are
+  indistinguishable to the rail, which is exactly why the zombie has to be stopped at the source rather than waited
+  out.
 
 - [ ] **P1.UNSATGATE — the test-driven-delivery gate is UNSATISFIABLE on spec/analysis fixtures, and the card can
   neither pass nor stop.** *(Live 2026-09-10/11, projects 50 and 51, measured on three shifts.)*
