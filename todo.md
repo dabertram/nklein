@@ -2846,9 +2846,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   subset of its own session's answers.
   **Measured:** hand-promoting those `chat` turns to `worker` inside the same needle group moves 53 from
   `completed: 0` to `completed: 1` — the board DOES decompose. So this half is real and the remedy works.
-  **Problem 2 — the child card then never starts.** After the decompose lands, the child sits in `planning` and
-  `Unmatched simulator requests observed in runtime logs: 0`, i.e. its request is never MADE, so this is not a
-  track-matching gap at all. Its tracks exist in the set (worker class, child-card needle) and go unused.
+  **Problem 2 — the child card never starts, and the replay's OWN RUNTIME LOG says why.** Three stacked blocks,
+  read out of `runtime.log` after two days of theorising about track matching from the outside:
+  1. `Could not auto-start linked task …-plan-write-plan-cards (needs_decomposition): Task start blocked: this
+     card needs decomposition. No connected model satisfies both difficulty 51 and the candidate-specific context
+     fit guard.` The child's `complexity` was 55. Live this never bites — the HITL seat clears any bar — but the
+     replay's simulated model has a lower ceiling. Project 49, which replays clean, used 45/25/25/25/25/20.
+     **Lowering the recorded complexity to 30 removes this block entirely** (zero `Could not auto-start` lines on
+     the next run), so it is real and the brief now says keep it ≤40.
+  2. `Auto-healed unstartable pin on …-plan-write-plan-cards: cleared model override sim/qwen-fast-coder; retrying
+     via Auto on the next sweep.` The card carries a MODEL OVERRIDE captured from the drive that does not exist in
+     the replay's model set. The runtime heals it, but only after the card has already failed to start.
+  3. `Rescue HANDOVER: 1 candidate(s) … not revivable by the controller (job not failed, or attempt budget
+     exhausted).` By the time the pin is healed the attempt budget is gone, so nothing restarts it and the card
+     sits in `planning` for the rest of the run.
+  So complexity is necessary but NOT sufficient: fixing it alone still leaves 53 at `completed: 1, planning: 1`.
+  The next lever is the recorded model override — a replay should not inherit a pin naming a model it does not
+  have, and the heal should restore the attempt budget it consumed.
   **▶ PROBLEM 1 IS REFUTED AS THE CAUSE — check the population before believing a signal.** Project 49 REPLAYS
   CLEAN and has exactly the same splits: `['chat','worker']` on its decompose needle and `['review','worker']` on
   all four of its card groups. Split classes are therefore normal and not what separates passing from failing, and
