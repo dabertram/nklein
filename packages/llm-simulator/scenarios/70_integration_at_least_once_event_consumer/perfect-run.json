@@ -1,0 +1,269 @@
+{
+	"name": "70_integration_at_least_once_event_consumer perfect run (HITL rig drive, requests 2842-2848)",
+	"seed": 1,
+	"tracks": [
+		{
+			"id": "perfect-observed:worker:0",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "decompose_project",
+								"arguments": {
+									"slug": "integration-at-least-once-event-consumer",
+									"title": "Resumable at-least-once event consumer with per-event checkpoints",
+									"summary": "Builds one file, src/adapter.mjs, that turns a raw at-least-once event stream (one that deliberately repeats the boundary event of every batch) into a clean run() the application can call: it resumes from a server-stored checkpoint, skips events it has already handled, and only advances the checkpoint after each event's handler has actually succeeded -- so a crash mid-batch loses nothing and a later run picks up exactly where the failure happened, not from the start of the batch. Records in integration/manifest.json which of the 10 frozen conformance cases it satisfies, several of which check the exact order of calls, not just the final result. One card: the resume, skip and checkpoint-ordering logic all live in one small run() loop over one shared cursor, so splitting it would only fragment one cohesive algorithm.",
+									"spec": "# Event consumer — integration brief (at-least-once stream, server-side checkpoints)\n\n`service/event-stream-service.mjs` is a DETERMINISTIC, in-process event stream with server-side checkpoints. Its\n`request()` ALWAYS returns `{status, body}`, NEVER throws. Write `src/adapter.mjs` so an application can consume\nit EXACTLY once per event, resumably.\n\nRoutes: `GET /events` (query.limit 1..4, optional query.after) -> `200 {events, nextAfter|null}`; `GET\n/checkpoints/:consumer` -> `200 {consumer, after}` or `404 not_found` (no checkpoint stored yet); `PUT\n/checkpoints/:consumer {after}` -> `200` or `422 validation_failed`.\n\nAT-LEAST-ONCE delivery: a read with `after: \"4\"` returns the event whose seq is 4 AND the ones following it -- the\ncursor is INCLUSIVE on purpose (the stream would rather repeat an event than lose it). Recognising the repeat is\nthe consumer's job, not a bug to route around.\n\n`src/adapter.mjs` must export `createEventConsumer(service, options)` -> `{run()}`. `options` carries\n`consumerId`, `handle(event)` (may be async, may throw) and `batchSize` (default 4).\n\nThe behaviour, EXACTLY:\n- Resume: load the stored checkpoint first. A 404 means \"never run\" -- start from the beginning, and do NOT\n  invent a cursor on that first read.\n- Read in batches of batchSize, following nextAfter until it is null, then stop.\n- Handle EVERY event once, in ascending seq order; an event at or below what has already been handled is a\n  re-delivery and must be skipped, not handled again.\n- Checkpoint after the work, NEVER before -- the stored `after` must NEVER name an event that has not been handled\n  successfully. This is the whole difference between at-least-once and at-most-once: checkpointing first loses\n  EVERY event in the window when the process dies mid-batch.\n- A throwing handler stops the run and the error propagates; the checkpoint must not cover the failed event, so a\n  later run reprocesses from it.\n- A non-2xx from the service rejects with an error named ServiceError carrying status and code.\n\nFrozen evidence (do not touch): service/, conformance/, test/integration.test.js, scripts/run-tests.mjs -- digest\nchecked every run. Deliverable: src/adapter.mjs (replacing the throwing stub) plus integration/manifest.json,\nwhose `implemented` lists the conformance case ids (C01-C10) that actually pass; several cases read the call log\n(the cursor on the first read, the batch limit, and the exact position of the first checkpoint write relative to\nthe first handled event).",
+									"plan": "One card. Implement src/adapter.mjs: run() first GETs /checkpoints/:consumerId -- 200 sets\nlastHandledSeq from `after`, 404 leaves it null (never invent a cursor on the cold-start read). Then loop: GET\n/events with {limit: batchSize, after: cursor} (omitting `after` entirely on the very first read when there is no\ncheckpoint), and for each returned event, skip it if its seq is <= lastHandledSeq (a re-delivery), otherwise await\nhandle(event) and IMMEDIATELY PUT the checkpoint with the event's own seq as `after` -- per event, not per batch,\nwhich is what lets a later run resume exactly at a mid-batch failure instead of replaying the whole batch. If\nhandle() throws, let it propagate without writing that event's checkpoint. Stop the loop when nextAfter is null.\nThen set integration/manifest.json implemented:[C01..C10], complete:true, and confirm with the real `npm test`\n(frozen suite, call-log assertions on cursor/limit/checkpoint-ordering) before finishing.",
+									"tasks": [
+										{
+											"id": "implement-adapter",
+											"title": "Implement the resumable at-least-once event consumer and declare conformance",
+											"prompt": "Implement `src/adapter.mjs` per specification.md, exporting `createEventConsumer(service, options)`\nreturning `{run()}`. The service (`service/event-stream-service.mjs`) is a DETERMINISTIC, in-process stream whose\n`request()` ALWAYS returns `{status, body}` and NEVER throws. `options` carries `consumerId`, `handle(event)`\n(may be async, may throw) and `batchSize` (default 4).\n\nResume: `run()` first calls `GET /checkpoints/:consumerId`. A `200` gives the stored `after` -- start there. A\n`404` means \"never run\" -- start from the beginning, and do NOT invent a cursor on that first `GET /events` call\n(no `after` key at all, not even null).\n\nRead in batches of `batchSize`, following `nextAfter` until it is `null`, then stop. The stream is AT-LEAST-ONCE:\na read with `after: \"4\"` returns the event whose seq is 4 AND the ones after it -- the cursor is INCLUSIVE on\npurpose. So: handle EVERY event once, in ascending seq order; an event whose seq is at or below what has already\nbeen handled is a re-delivery and must be SKIPPED, not handled again.\n\nCheckpoint after the work, NEVER before: immediately after `handle(event)` succeeds for ONE event, `PUT\n/checkpoints/:consumerId` with that event's own seq as `after` (per-event, not once per batch -- this is what lets\na later run resume from exactly the failed event rather than replaying the whole batch it was in). If `handle()`\nthrows, let the error propagate out of `run()` without writing a checkpoint for that event; do not swallow it and\ndo not continue to the next event.\n\nA non-2xx from the service (from either the checkpoint calls or the events call) rejects with an `Error` named\n`ServiceError` carrying `status` and the service's `error.code` as `code`.\n\nThen declare which of the 10 frozen conformance cases (`conformance/cases.mjs`: C01..C10) your consumer satisfies\nin `integration/manifest.json`'s `implemented` array, and set `complete: true` only once EVERY case actually\npasses. Several cases read the call log directly: the cursor (or its absence) on the first read, the `limit` sent\non every read, and the exact POSITION of the first checkpoint write relative to the first handled event --\ncheckpointing a whole batch before any of its events are confirmed handled will pass the easy cases and fail the\nresume-after-failure ones, so checkpoint per event, not per batch.\n\n`service/`, `conformance/`, `test/integration.test.js` and `scripts/run-tests.mjs` are FROZEN evidence with digest\nchecks in `test/frozen.json` -- do not touch them. Run the real `npm test` yourself before finishing; a green\nbaseline with an empty manifest proves nothing, so confirm the count you see names your own 10 passing cases.",
+											"complexity": 38,
+											"filesLikelyTouched": [
+												"src/adapter.mjs",
+												"integration/manifest.json"
+											],
+											"writeScope": [
+												"src/adapter.mjs",
+												"integration/manifest.json"
+											],
+											"forbiddenPaths": [
+												"test/**",
+												"service/**",
+												"conformance/**",
+												"scripts/**"
+											],
+											"testability": "not_testable",
+											"testabilityReason": "The only acceptance surface is the existing FROZEN conformance suite (test/integration.test.js + conformance/cases.mjs), digest-checked in test/frozen.json and outside this card's write scope. No new test file can be added: test/** is frozen, and scripts/run-tests.mjs only collects test/**/*.test.js, so a test placed anywhere else is never run. Conformance is proven by declaring case ids in integration/manifest.json and letting the frozen suite run them (which inspects the service's own call log for ordering), not by a test this card writes.",
+											"acceptanceCommand": "npm test",
+											"acceptanceChecks": [
+												"npm test exits 0 against the unmodified frozen suite",
+												"integration/manifest.json has complete:true and implemented lists EVERY case, C01 through C10",
+												"a cold start (404 checkpoint) reads the first batch WITHOUT an after cursor; a resumed consumer starts from the stored checkpoint",
+												"EVERY event is handled exactly once in ascending seq order; the at-least-once repeat at each batch boundary is recognised and skipped, never handled twice",
+												"the checkpoint for an event is written ONLY after that event's own handle() call has succeeded, and NEVER before -- checkpoint per event, not per batch",
+												"a throwing handle() propagates the error and stops the run without checkpointing the failed event, so a later run resumes at exactly that event",
+												"the configured batchSize reaches the service as query.limit on every read",
+												"a non-2xx from the service (checkpoints or events) rejects as a named ServiceError{status, code}",
+												"the frozen files (service/, conformance/, test/integration.test.js, scripts/run-tests.mjs) are byte-for-byte untouched"
+											],
+											"nonGoals": [
+												"do not modify service/, conformance/, test/, or scripts/",
+												"do not add dependencies or a new test framework (sandbox is offline)",
+												"do not checkpoint once per batch -- it must be per event, or a mid-batch failure loses the events before it on resume",
+												"do not swallow a handler's thrown error or continue processing after it"
+											],
+											"expectedOutputs": [
+												"src/adapter.mjs exporting createEventConsumer(service, options) with run()",
+												"integration/manifest.json: {schemaVersion:1, complete:true, implemented:[C01..C10]}"
+											],
+											"inputs": [
+												"specification.md",
+												"service/event-stream-service.mjs",
+												"conformance/cases.mjs",
+												"test/integration.test.js"
+											]
+										}
+									]
+								}
+							}
+						],
+						"content": "Project 70's *-decompose planning card (dev-70-integration-at-least-once-event-consumer-decompose), same integration family. Read specification.md and the frozen service/conformance suite (10 cases; the service deliberately re-delivers the last event of every batch, and progress lives server-side as a checkpoint). Hand-verified a full consumer in a scratch copy against the real unmodified verifier before writing this graph -- 24/24 green on first try. The load-bearing design decision, confirmed by hand-tracing C07/C08 before committing to it: the checkpoint must be written PER EVENT immediately after that event's handler succeeds, not once per batch -- per-batch checkpointing passes the easy cases but fails resume-after-failure (a batch that throws partway through would leave no checkpoint at all, so a second run would replay from the very start instead of from the failed event). One child card again: the resume/skip/checkpoint logic is one small cohesive loop in one file."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nsrc/adapter.mjs:8 function createEventConsumer refs=1 rank=12.2951\ntest/integration.test.js:20 const root refs=12 rank=0.2646\ntest/integration.test.js:60 const manifest refs=10 rank=0.2156\nconformance/cases.mjs:13 function recorder refs=12 rank=0.1831\nconformance/cases.mjs:9 const eventCalls refs=6 rank=0.1076\nservice/event-stream-service.mjs:16 const EVENTS refs=5 rank=0.0922\nscripts/run-tests.mjs:31 const result refs=4 rank=0.0806\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=0.0806\nservice/event-stream-service.mjs:14 const MAX_BATCH refs=4 rank=0.0792\ntest/integration.test.js:22 function walk refs=4 rank=0.0691\ntest/integration.test.js:59 const caseById refs=4 rank=0.0691\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=0.0575\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=0.0575\ntest/integration.test.js:78 function runCase refs=3 rank=0.0479\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.0352\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.0352\nconformance/cases.mjs:10 const checkpointWrites refs=2 rank=0.0297\ntest/integration.test.js:31 const toPosix refs=2 rank=0.0289\ntest/integration.test.js:32 const digestOf refs=2 rank=0.0289\ntest/integration.test.js:34 const frozenPaths refs=2 rank=0.0289\ntest/integration.test.js:42 const recorded refs=2 rank=0.0289\nservice/event-stream-service.mjs:26 function createEventStreamService refs=1 rank=0.0175\nconformance/cases.mjs:26 const cases refs=1 rank=0.0133\ntest/integration.test.js:58 const { cases } refs=0 rank=0.0049\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nWrite the event consumer in src/adapter.mjs.\n\nThe stream is at-least-once: every batch after the first repeats the last event of the batch before it. That is\nthe stream working correctly, not a fault, so the consumer has to recognise a repeat rather than process it twice.\nProgress is stored on the server, so a consumer that dies mid-stream must pick up where the last one stopped.\n\nRead specification.md for the contract. The subtle part is ordering: checkpointing a batch before you process it\npasses every \"did it handle all the events\" check and still loses events when a run dies. The suite reads the call\nlog and will catch it.)"
+		},
+		{
+			"id": "perfect-observed:chat:1",
+			"requestClass": "chat",
+			"userMessageIncludes": "Workspace root: .",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "decompose_project applied cleanly: 1 Planning card created (implement-adapter, complexity 38), 0 dependencies, no graph quality warnings. This planning card's objective is met -- stopping here per the tool's own instruction; implementation happens on the newly created child card."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\n- /nklein/plans/integration-at-least-once-event-consumer/spec.md\n- /nklein/plans/integration-at-least-once-event-consumer/plan.md\n- /nklein/plans/integration-at-least-once-event-consumer/questions.md\n- /nklein/plans/integration-at-least-once-event-consumer/decisions.md\n- /nklein/plans/integration-at-least-once-event-consumer/revisions.md\n- /nklein/plans/integration-at-least-once-event-consumer/summary.md\n- /nklein/plans/integration-at-least-once-event-consumer/tasks.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nsrc/adapter.mjs:8 function createEventConsumer refs=1 rank=9.4937\nconformance/cases.mjs:26 const cases refs=1 rank=0.5759\nconformance/cases.mjs:13 function recorder refs=12 rank=0.4361\nconformance/cases.mjs:9 const eventCalls refs=6 rank=0.2490\ntest/integration.test.js:20 const root refs=12 rank=0.2043\ntest/integration.test.js:60 const manifest refs=10 rank=0.1665\nservice/event-stream-service.mjs:16 const EVENTS refs=5 rank=0.0712\nscripts/run-tests.mjs:31 const result refs=4 rank=0.0623\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=0.0623\nconformance/cases.mjs:10 const checkpointWrites refs=2 rank=0.0622\nservice/event-stream-service.mjs:14 const MAX_BATCH refs=4 rank=0.0611\ntest/integration.test.js:22 function walk refs=4 rank=0.0533\ntest/integration.test.js:59 const caseById refs=4 rank=0.0533\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=0.0444\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=0.0444\ntest/integration.test.js:78 function runCase refs=3 rank=0.0370\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.0272\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.0272\ntest/integration.test.js:31 const toPosix refs=2 rank=0.0223\ntest/integration.test.js:32 const digestOf refs=2 rank=0.0223\ntest/integration.test.js:34 const frozenPaths refs=2 rank=0.0223\ntest/integration.test.js:42 const recorded refs=2 rank=0.0223\nservice/event-stream-service.mjs:26 function createEventStreamService refs=1 rank=0.0135\ntest/integration.test.js:58 const { cases } refs=0 rank=0.0038\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nWrite the event consumer in src/adapter.mjs.\n\nThe stream is at-least-once: every batch after the first repeats the last event of the batch before it. That is\nthe stream working correctly, not a fault, so the consumer has to recognise a repeat rather than process it twice.\nProgress is stored on the server, so a consumer that dies mid-stream must pick up where the last one stopped.\n\nRead specification.md for the contract. The subtle part is ordering: checkpointing a batch before you process it\npasses every \"did it handle all the events\" check and still loses events when a run dies. The suite reads the call\nlog and will catch it.)"
+		},
+		{
+			"id": "perfect-observed:worker:2",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "update_focus_chain",
+								"arguments": {
+									"steps": [
+										{
+											"text": "Refine card against current stub state",
+											"status": "done"
+										},
+										{
+											"text": "begin_implementation",
+											"status": "done"
+										},
+										{
+											"text": "Write src/adapter.mjs (resume/skip/per-event-checkpoint per spec)",
+											"status": "in_progress"
+										},
+										{
+											"text": "Write integration/manifest.json (complete:true, all 10 cases)",
+											"status": "in_progress"
+										},
+										{
+											"text": "Fresh read_files + real npm test in a later turn to confirm",
+											"status": "pending"
+										}
+									]
+								}
+							},
+							{
+								"name": "begin_implementation",
+								"arguments": {
+									"refinementNotes": "Focused span matches the pristine stub; nothing changed since planning. Proceeding with the consumer design verified offline against the frozen conformance suite before this card was created."
+								}
+							},
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/adapter.mjs",
+											"content": "/**\n * Your consumer. This file is yours: replace the stub.\n *\n * `createEventConsumer(service, options)` must return an object with `run()`.\n * See specification.md for the contract, and conformance/cases.mjs for exactly what is checked.\n */\n\nfunction serviceError(status, body) {\n\tconst code = body?.error?.code ?? \"unknown_error\";\n\tconst err = new Error(body?.error?.message ?? `request failed with status ${status}`);\n\terr.name = \"ServiceError\";\n\terr.status = status;\n\terr.code = code;\n\treturn err;\n}\n\nexport function createEventConsumer(service, options) {\n\tconst consumerId = options.consumerId;\n\tconst handle = options.handle;\n\tconst batchSize = options?.batchSize ?? 4;\n\n\tasync function run() {\n\t\tconst cpRes = await service.request(\"GET\", `/checkpoints/${consumerId}`);\n\t\tlet lastHandledSeq = null;\n\t\tif (cpRes.status === 200) {\n\t\t\tlastHandledSeq = Number(cpRes.body.after);\n\t\t} else if (cpRes.status !== 404) {\n\t\t\tthrow serviceError(cpRes.status, cpRes.body);\n\t\t}\n\n\t\tlet cursor = lastHandledSeq === null ? undefined : String(lastHandledSeq);\n\t\tfor (;;) {\n\t\t\tconst query = { limit: batchSize };\n\t\t\tif (cursor !== undefined) query.after = cursor;\n\t\t\tconst res = await service.request(\"GET\", \"/events\", { query });\n\t\t\tif (res.status !== 200) throw serviceError(res.status, res.body);\n\t\t\tconst { events, nextAfter } = res.body;\n\n\t\t\tfor (const event of events) {\n\t\t\t\tif (lastHandledSeq !== null && event.seq <= lastHandledSeq) continue;\n\t\t\t\tawait handle(event);\n\t\t\t\tlastHandledSeq = event.seq;\n\t\t\t\tconst putRes = await service.request(\"PUT\", `/checkpoints/${consumerId}`, {\n\t\t\t\t\tbody: { after: String(lastHandledSeq) },\n\t\t\t\t});\n\t\t\t\tif (putRes.status !== 200) throw serviceError(putRes.status, putRes.body);\n\t\t\t}\n\n\t\t\tif (nextAfter === null || nextAfter === undefined) break;\n\t\t\tcursor = nextAfter;\n\t\t}\n\t}\n\n\treturn { run };\n}\n"
+										},
+										{
+											"path": "integration/manifest.json",
+											"content": "{\n\t\"schemaVersion\": 1,\n\t\"complete\": true,\n\t\"implemented\": [\n\t\t\"C01\",\n\t\t\"C02\",\n\t\t\"C03\",\n\t\t\"C04\",\n\t\t\"C05\",\n\t\t\"C06\",\n\t\t\"C07\",\n\t\t\"C08\",\n\t\t\"C09\",\n\t\t\"C10\"\n\t]\n}\n"
+										}
+									]
+								}
+							}
+						],
+						"content": "Refinement: focused span matches the pristine stub, nothing changed since planning. Calling begin_implementation, then writing the verified consumer (loads the checkpoint first, cold-starts with no cursor on 404, skips any event at or below the last handled seq to tolerate the at-least-once repeat, checkpoints PER EVENT immediately after its handler succeeds -- never per batch, which is what lets a later run resume exactly at a failure -- and propagates a throwing handler's error without checkpointing that event). This design was verified offline in a scratch copy against the real frozen suite (24/24, all 10 cases, including the failure/resume pair C07/C08) before this card existed. Will verify with a fresh read_files + real npm test in a later turn, not this one."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\n- /manifest.json\n- /frozen.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=205.5561\ntest/integration.test.js:42 const recorded refs=2 rank=38.2362\nconformance/cases.mjs:26 const cases refs=1 rank=22.0864\ntest/integration.test.js:20 const root refs=12 rank=21.3659\nconformance/cases.mjs:13 function recorder refs=12 rank=16.7248\nsrc/adapter.mjs:8 function createEventConsumer refs=1 rank=14.5631\nconformance/cases.mjs:9 const eventCalls refs=6 rank=9.5472\ntest/integration.test.js:22 function walk refs=4 rank=5.2682\ntest/integration.test.js:59 const caseById refs=4 rank=5.2682\ntest/integration.test.js:78 function runCase refs=3 rank=3.5604\nservice/event-stream-service.mjs:16 const EVENTS refs=5 rank=2.7306\nscripts/run-tests.mjs:31 const result refs=4 rank=2.3877\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.3877\nconformance/cases.mjs:10 const checkpointWrites refs=2 rank=2.3859\nservice/event-stream-service.mjs:14 const MAX_BATCH refs=4 rank=2.3444\ntest/integration.test.js:31 const toPosix refs=2 rank=2.0475\ntest/integration.test.js:32 const digestOf refs=2 rank=2.0475\ntest/integration.test.js:34 const frozenPaths refs=2 rank=2.0475\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7014\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7014\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0415\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0415\nservice/event-stream-service.mjs:26 function createEventStreamService refs=1 rank=0.5193\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1456\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nImplement `src/adapter.mjs` per specification.md, exporting `createEventConsumer(service, options)`\nreturning `{run()}`. The service (`service/event-stream-service.mjs`) is a DETERMINISTIC, in-process stream whose\n`request()` ALWAYS returns `{status, body}` and NEVER throws. `options` carries `consumerId`, `handle(event)`\n(may be async, may throw) and `batchSize` (default 4).\n\nResume: `run()` first calls `GET /checkpoints/:consumerId`. A `200` gives the stored `after` -- start there. A\n`404` means \"never run\" -- start from the beginning, and do NOT invent a cursor on that first `GET /events` call\n(no `after` key at all, not even null).\n\nRead in batches of `batchSize`, following `nextAfter` until it is `null`, then stop. The stream is AT-LEAST-ONCE:\na read with `after: \"4\"` returns the event whose seq is 4 AND the ones after it -- the cursor is INCLUSIVE on\npurpose. So: handle EVERY event once, in ascending seq order; an event whose seq is at or below what has already\nbeen handled is a re-delivery and must be SKIPPED, not handled again.\n\nCheckpoint after the work, NEVER before: immediately after `handle(event)` succeeds for ONE event, `PUT\n/checkpoints/:consumerId` with that event's own seq as `after` (per-event, not once per batch -- this is what lets\na later run resume from exactly the failed event rather than replaying the whole batch it was in). If `handle()`\nthrows, let the error propagate out of `run()` without writing a checkpoint for that event; do not swallow it a)"
+		},
+		{
+			"id": "perfect-observed:worker:3",
+			"requestClass": "worker",
+			"userMessageIncludes": "[x] Refine card against current stub state",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"src/adapter.mjs",
+										"integration/manifest.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Files written per the tool result (adapter.mjs 56 lines, manifest.json 17 lines). Verifying in this later turn, not the write turn: fresh read_files on both, and the real npm test."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /manifest.json\n- /integration.test.js\n- /frozen.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein focus chain: your own plan for this task — keep working through it, do not restart it]\n[x] Refine card against current stub state\n[x] begin_implementation\n[~] Write src/adapter.mjs (resume/skip/per-event-checkpoint per spec)\n[~] Write integration/manifest.json (complete:true, all 10 cases)\n[ ] Fresh read_files + real npm test in a later turn to confirm\nCurrent step: Write src/adapter.mjs (resume/skip/per-event-checkpoint per spec)\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=205.5561\ntest/integration.test.js:42 const recorded refs=2 rank=38.2362\nconformance/cases.mjs:26 const cases refs=1 rank=22.0864\ntest/integration.test.js:20 const root refs=12 rank=21.3659\nconformance/cases.mjs:13 function recorder refs=12 rank=16.7248\nsrc/adapter.mjs:8 function createEventConsumer refs=1 rank=14.5631\nconformance/cases.mjs:9 const eventCalls refs=6 rank=9.5472\ntest/integration.test.js:22 function walk refs=4 rank=5.2682\ntest/integration.test.js:59 const caseById refs=4 rank=5.2682\ntest/integration.test.js:78 function runCase refs=3 rank=3.5604\nservice/event-stream-service.mjs:16 const EVENTS refs=5 rank=2.7306\nscripts/run-tests.mjs:31 const result refs=4 rank=2.3877\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.3877\nconformance/cases.mjs:10 const checkpointWrites refs=2 rank=2.3859\nservice/event-stream-service.mjs:14 const MAX_BATCH refs=4 rank=2.3444\ntest/integration.test.js:31 const toPosix refs=2 rank=2.0475\ntest/integration.test.js:32 const digestOf refs=2 rank=2.0475\ntest/integration.test.js:34 const frozenPaths refs=2 rank=2.0475\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7014\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7014\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0415\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0415\nservice/event-stream-service.mjs:26 function createEventStreamService refs=1 rank=0.5193\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1456\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nImplement `src/adapter.mjs` per specification.md, exporting `createEventConsumer(service, options)`\nreturning `{run()}`. The service (`service/event-stream-service.mjs`) is a DETERMINISTIC, in-process stream whose\n`request()` ALWAYS returns `{status, body}` and NEVER throws. `options` carries `consumerId`, `handle(event)`\n(may be async, may throw) and `batchSize` (default 4).\n\nResume: `run()` first calls `GET /checkpoints/:consumerId`. A `200` gives the stored `after` -- start there. A\n`404` means \"never run\" -- start from the beginning, and do NOT invent a cursor on that first `GET /events` call\n(no `after` key at all, not even null).\n\nRead in batches of `batchSize`, following `nextAfter` until it is `null`, then stop. The stream is AT-LEAST-ONCE:\na read with `after: \"4\"` returns the event whose seq is 4 AND the ones after it -- the cursor is INCLUSIVE on\npurpose. So: handle EVERY event once, in ascending seq order; an event whose seq is at or below what has already\nbeen handled is a re-delivery and must be SKIPPED, not handled again.\n)"
+		},
+		{
+			"id": "perfect-observed:worker:4",
+			"requestClass": "worker",
+			"userMessageIncludes": "[x] Refine card against current stub state",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Verified in this session, in a later turn than the write: fresh read_files confirms src/adapter.mjs and integration/manifest.json (complete:true, all 10 case ids) contain exactly what was written. Real npm test: 24/24 pass, 0 fail -- frozen-files digest check green, manifest-shape check green, all 10 conformance cases genuinely pass under both the 'listed cases pass' and 'complete adapter' tests, including the failure/resume pair (C07/C08) that only passes with per-event, not per-batch, checkpointing. Card objective met; stopping here."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /manifest.json\n- /integration.test.js\n- /frozen.json\nread_files coverage ledger:\n- src/adapter.mjs, integration/manifest.json (latest raw result retained for immediate analysis; original 1 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein focus chain: your own plan for this task — keep working through it, do not restart it]\n[x] Refine card against current stub state\n[x] begin_implementation\n[~] Write src/adapter.mjs (resume/skip/per-event-checkpoint per spec)\n[~] Write integration/manifest.json (complete:true, all 10 cases)\n[ ] Fresh read_files + real npm test in a later turn to confirm\nCurrent step: Write src/adapter.mjs (resume/skip/per-event-checkpoint per spec)\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=174.9775\nscripts/run-tests.mjs:31 const result refs=4 rank=66.0107\ntest/integration.test.js:42 const recorded refs=2 rank=32.5482\nconformance/cases.mjs:26 const cases refs=1 rank=18.8008\ntest/integration.test.js:20 const root refs=12 rank=18.1875\nconformance/cases.mjs:13 function recorder refs=12 rank=14.2368\nsrc/adapter.mjs:8 function createEventConsumer refs=1 rank=12.3967\nconformance/cases.mjs:9 const eventCalls refs=6 rank=8.1269\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.8057\ntest/integration.test.js:22 function walk refs=4 rank=4.4845\ntest/integration.test.js:59 const caseById refs=4 rank=4.4845\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3616\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3616\ntest/integration.test.js:78 function runCase refs=3 rank=3.0307\nservice/event-stream-service.mjs:16 const EVENTS refs=5 rank=2.3244\nconformance/cases.mjs:10 const checkpointWrites refs=2 rank=2.0310\nservice/event-stream-service.mjs:14 const MAX_BATCH refs=4 rank=1.9956\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.9881\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.9881\ntest/integration.test.js:31 const toPosix refs=2 rank=1.7429\ntest/integration.test.js:32 const digestOf refs=2 rank=1.7429\ntest/integration.test.js:34 const frozenPaths refs=2 rank=1.7429\nservice/event-stream-service.mjs:26 function createEventStreamService refs=1 rank=0.4420\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1240\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nImplement `src/adapter.mjs` per specification.md, exporting `createEventConsumer(service, options)`\nreturning `{run()}`. The service (`service/event-stream-service.mjs`) is a DETERMINISTIC, in-process stream whose\n`request()` ALWAYS returns `{status, body}` and NEVER throws. `options` carries `consumerId`, `handle(event)`\n(may be async, may throw) and `batchSize` (default 4).\n\nResume: `run()` first calls `GET /checkpoints/:consumerId`. A `200` gives the stored `after` -- start there. A\n`404` means \"never run\" -- start from the beginning, and do NOT invent a cursor on that first `GET /events` call\n(no `after` key at all, not even null).\n\nRead in batches of `batchSize`, following `nextAfter` until it is `null`, then stop. The stream is AT-LEAST-ONCE:\na read with `after: \"4\"` returns the event whose seq is 4 AND the ones after it -- the cursor is INCLUSIVE on\npurpose. So: handle EVERY event once, i)"
+		},
+		{
+			"id": "perfect-observed:worker:5",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"src/adapter.mjs",
+										"integration/manifest.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing the at-least-once event consumer card. Gathering my own fresh evidence in this session rather than trusting the shown diff: reading the current files and running the real test suite."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\n- /manifest.json\n- /frozen.json\n- /integration/manifest.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=205.5561\ntest/integration.test.js:42 const recorded refs=2 rank=38.2362\nconformance/cases.mjs:26 const cases refs=1 rank=22.0864\ntest/integration.test.js:20 const root refs=12 rank=21.3659\nconformance/cases.mjs:13 function recorder refs=12 rank=16.7248\nsrc/adapter.mjs:8 function createEventConsumer refs=1 rank=14.5631\nconformance/cases.mjs:9 const eventCalls refs=6 rank=9.5472\ntest/integration.test.js:22 function walk refs=4 rank=5.2682\ntest/integration.test.js:59 const caseById refs=4 rank=5.2682\ntest/integration.test.js:78 function runCase refs=3 rank=3.5604\nservice/event-stream-service.mjs:16 const EVENTS refs=5 rank=2.7306\nscripts/run-tests.mjs:31 const result refs=4 rank=2.3877\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.3877\nconformance/cases.mjs:10 const checkpointWrites refs=2 rank=2.3859\nservice/event-stream-service.mjs:14 const MAX_BATCH refs=4 rank=2.3444\ntest/integration.test.js:31 const toPosix refs=2 rank=2.0475\ntest/integration.test.js:32 const digestOf refs=2 rank=2.0475\ntest/integration.test.js:34 const frozenPaths refs=2 rank=2.0475\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7014\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7014\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0415\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0415\nservice/event-stream-service.mjs:26 function createEventStreamService refs=1 rank=0.5193\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1456\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Implement the resumable at-least-once event consumer and declare conformance\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\nImplement `src/adapter.mjs` per specification.md, exporting `createEventConsumer(service, options)`\nreturning `{run()}`. The service (`service/event-stream-service.mjs`) is a DETERMINISTIC, in-process stream whose\n`request()` ALWAYS returns `{status, body}` and NEVER throws. `options` carries `consumerId`, `handle(event)`\n(may be async, may throw) and `batchSize` (default 4).\n\nResume: `run()` first calls `GET /checkpoints/:consumerId`. A `200` gives the stored `after` -- start there. A\n`404` means \"never run\" -- start from the beginning, and do NOT invent a cursor on that first `GET /events` call\n(no `after` key at all, not even null).\n\nRead in batches of `batchSize)"
+		},
+		{
+			"id": "perfect-observed:review:6",
+			"requestClass": "review",
+			"userMessageIncludes": "Workspace root: .",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Verified independently this session (fresh read_files + real npm test, not the shown diff): 24/24 pass, 0 fail, all 10 conformance cases genuinely exercised. Consumer correctly resumes from a server-stored checkpoint (no invented cursor on cold start), skips the at-least-once boundary repeat, and -- critically -- checkpoints per event rather than per batch, so C07 (failure stops the run without checkpointing the failed event) and C08 (a later run resumes exactly there and finishes) both pass. Manifest declares complete:true with all 10 cases. No frozen paths touched."
+								}
+							}
+						],
+						"content": "My own fresh read_files + npm test this session (not the shown diff): both files read successfully, and the real npm test is 24/24 pass, 0 fail -- frozen-files digest check green, manifest-shape check green, all 10 conformance cases genuinely pass under both the 'listed cases pass' test and the 'complete adapter' test. The diff matches the objective: cold start reads without inventing a cursor, resumes from a stored checkpoint, skips at-or-below-checkpoint events (the at-least-once repeat), checkpoints per event immediately after its handler succeeds (never per batch), and a throwing handler's error propagates without checkpointing that event -- confirmed by C07/C08 both passing, which only happens with per-event checkpointing. No frozen files touched. Approving."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\n- /manifest.json\n- /frozen.json\n- /integration/manifest.json\nread_files coverage ledger:\n- src/adapter.mjs, integration/manifest.json (latest raw result retained for immediate analysis; original 1 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=205.5561\ntest/integration.test.js:42 const recorded refs=2 rank=38.2362\nconformance/cases.mjs:26 const cases refs=1 rank=22.0864\ntest/integration.test.js:20 const root refs=12 rank=21.3659\nconformance/cases.mjs:13 function recorder refs=12 rank=16.7248\nsrc/adapter.mjs:8 function createEventConsumer refs=1 rank=14.5631\nconformance/cases.mjs:9 const eventCalls refs=6 rank=9.5472\ntest/integration.test.js:22 function walk refs=4 rank=5.2682\ntest/integration.test.js:59 const caseById refs=4 rank=5.2682\ntest/integration.test.js:78 function runCase refs=3 rank=3.5604\nservice/event-stream-service.mjs:16 const EVENTS refs=5 rank=2.7306\nscripts/run-tests.mjs:31 const result refs=4 rank=2.3877\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.3877\nconformance/cases.mjs:10 const checkpointWrites refs=2 rank=2.3859\nservice/event-stream-service.mjs:14 const MAX_BATCH refs=4 rank=2.3444\ntest/integration.test.js:31 const toPosix refs=2 rank=2.0475\ntest/integration.test.js:32 const digestOf refs=2 rank=2.0475\ntest/integration.test.js:34 const frozenPaths refs=2 rank=2.0475\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7014\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7014\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0415\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0415\nservice/event-stream-service.mjs:26 function createEventStreamService refs=1 rank=0.5193\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1456\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Implement the resumable at-least-once event consumer and declare conformance\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\nImplement `src/adapter.mjs` per specification.md, exporting `createEventConsumer(service, options)`\nreturning `{run()}`. The service (`service/event-stream-service.mjs`) is a DETERMINISTIC, in-process stream whose\n`request()` ALWAYS returns `{status, body}` and NEVER throws. `options` carries `consumerId`, `handle(event)`\n(may be async, may throw) and `batchSize` (default 4).\n\nResume: `run()` first calls `GET /checkpoints/:consumerId`. A `200` gives the stored `after` -- start there. A\n`404` means \"never run\" -- start from th)"
+		}
+	]
+}
