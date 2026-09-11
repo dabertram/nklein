@@ -189,6 +189,25 @@ next card in the chain, and the project was not lost. So: once you have confirme
 runner's own workspace rather than your diff — your card tests green, the EACCES path is not one you wrote to —
 stop. Do not keep cycling the focus chain.
 
+## On the refactor family, a green `npm test` can mean you have done NOTHING
+
+Projects 62+ deliver `refactor/manifest.json` + `refactor/goals.json` and are graded on two things: BEHAVIOUR
+(always-checked frozen scenarios) and STRUCTURE (named metrics computed live from `src/` — e.g.
+`no_duplicate_block` with `windowLines: 6`, `max_function_lines` with `limit: 30`).
+
+**The baseline tree already passes `npm test` with an empty manifest.** The structural metrics are only evaluated
+for goal ids you actually list in `addressed`, so until you claim a goal nothing reveals the violations that remain.
+An empty manifest is honest, not a pass — and a green run proves only that you have not broken the behaviour you
+were given.
+
+So on these fixtures: read the verifier's metric code, list the goals, and confirm the metrics go green FOR THE
+GOALS YOU CLAIM. A responder verified its candidate refactor against the real unmodified verifier in a scratch copy
+first — extracting shared modules and splitting the oversized function — and only submitted once it saw 13/13 with
+both goals claimed complete.
+
+This is the general trap in its sharpest form: the number you are looking at can be true and still not be about the
+thing you did.
+
 ## A custodian review with NO sandbox — the one loop a bare stop does not end
 
 Distinct from the custodian REOPEN loop. Here `run_commands` fails outright with
