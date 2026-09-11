@@ -2835,6 +2835,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   Several real rig defects were found along the way and are worth keeping — but this one was mine, and it was the
   dominant cause of the 50/52/53 failures.
 
+- [ ] **P1.REPLAYNOCHILD — with drives now healthy, EVERY planning-family recording fails replay the same way, and
+  the cause is two stacked problems.** *(Live 2026-09-11: 52, 53, 54, 55 all `replay failed`, none `stalled`.)*
+  Since the decompose-card guidance was corrected the drives themselves complete cleanly in ~12 minutes each and
+  record. Only the replay fails, so this is now the ONLY thing between the batch and its remaining ~26 recordings.
+  **Problem 1 — a captured session's turns get split across request classes.** In 53, one decompose session of five
+  turns distilled as `chat, chat, chat, worker(decompose_project), chat`: the turn that calls a recognisable tool is
+  classified from what it did, the `read_files` and bare-stop turns around it fall to `chat`, which is the
+  classifier's fallback. Live, that session has ONE class for its whole life, so the replay can only ever match a
+  subset of its own session's answers.
+  **Measured:** hand-promoting those `chat` turns to `worker` inside the same needle group moves 53 from
+  `completed: 0` to `completed: 1` — the board DOES decompose. So this half is real and the remedy works.
+  **Problem 2 — the child card then never starts.** After the decompose lands, the child sits in `planning` and
+  `Unmatched simulator requests observed in runtime logs: 0`, i.e. its request is never MADE, so this is not a
+  track-matching gap at all. Its tracks exist in the set (worker class, child-card needle) and go unused.
+  **DO NOT fix problem 1 by "strongest class wins" across a needle group.** I tried exactly that and it regressed
+  things: a card's WORKER session and its REVIEW session share a needle (the review seed quotes the card prompt), so
+  `review` swallowed six worker tracks in 52. Any fix must promote `chat` only, and never across a review boundary.
+  Reverted before commit; the repair-and-replay check caught it.
+
 - [ ] **P1.UNSATGATE — the test-driven-delivery gate is UNSATISFIABLE on spec/analysis fixtures, and the card can
   neither pass nor stop.** *(Live 2026-09-10/11, projects 50 and 51, measured on three shifts.)*
   A decompose task that omits `testability` defaults to **testable**. The reviewer then demands a touched test file.
