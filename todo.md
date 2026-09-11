@@ -3139,7 +3139,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   well explained by the clean slate as by the fix, and crediting the fix here would be exactly the
   green-signal-substitution this backlog keeps catching.
   **What would settle it:** a shift that sees a non-zero `settled_card_session_retired` count, or one that reaches
-  the reopen condition on a dirty board and does not loop. Until then the item stays open.
+  the reopen condition on a dirty board and does not loop.
+
+  **▶ ANSWERED 2026-09-11, AND THE ANSWER IS NO — THE FIX DOES NOT COVER PLANNING CARDS.** A shift asked to measure
+  this reproduced it cleanly: `dev-52-planning-receipt-ingest-cli-decompose`, finished and verified 10/10 green at
+  request 2472, was reopened **three times** (2473, 2479, 2480-2484). The signature was the custodian one exactly —
+  bare stops scored as aborted attempts, the session reopening under a reduced tool set (`read_files` only).
+  **And it is worse than the custodian case in one specific way: each reopen's fresh read showed `plan/cards.json`
+  reset to the EMPTY STUB.** The workspace state is not preserved across a reopen, so the card is not merely
+  re-asked — its work is discarded. That is very likely the real explanation for the earlier
+  "my verified write reverted to a stub" reports, which were provisionally attributed to branch isolation.
+  It is not universal: projects 50, 51 and the first pass of 53 all closed clean with zero reopens in the same
+  shift. What ended 52's loop was not any responder action but another responder creating a genuine child card via
+  `decompose_project`.
+  So the retirement fix (`b5d6d3bd4`) remains correct for what it covers and is still not the whole story: the
+  reopen path for PLANNING cards reaches them through something the terminal-lane sweep does not see.
 
   **▶ THIRD DATA POINT, AND WHERE THE FIX PROBABLY BELONGS (2026-09-10).** A later shift lost **24 of 41 turns
   (59%)** to the same card — 57%, 59% on two consecutive shifts, so this is now the largest sustained waste in the

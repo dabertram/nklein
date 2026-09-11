@@ -226,6 +226,12 @@ So on any `*-decompose` card: emit the graph. Let the CHILD cards write the deli
 verifier first is still exactly right — it tells you what the child cards must produce — but it is the input to the
 graph, not a substitute for it.
 
+**Both halves of that are true at once, and a responder pushed back on it, so be precise.** These fixtures' own
+`specification.md` really does name the data file as the deliverable — that is not a misreading. What does not
+follow is that the decompose card should write it. The file is the deliverable; the graph is how the card closes.
+Write the file from a CHILD card and you get both. Write it from the decompose card and you get a correct file on a
+board that never settles.
+
 ## On a spec/analysis project, declare `testability` at DECOMPOSE time
 
 A task that omits `testability` defaults to **testable**, and the test-driven-delivery reviewer then demands a
