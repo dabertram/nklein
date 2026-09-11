@@ -2872,6 +2872,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   settles and the guard cannot latch for the runtime's lifetime; (b) extend the container reaper to orphan egress
   proxies, keyed on the missing sandbox rather than on age.
   **Operator workaround meanwhile:** `docker rm -f <orphan proxy>`, then let the rail's stall re-queue the project.
+  **▶ A THIRD SHAPE, 2026-09-11: the sandbox starts fine and then DISAPPEARS.** Project 50's sixth failure was not
+  a hung start at all. The log shows `Docker sandbox nklein-agent-sandbox-ws-d368de3674e9-1 started in 372ms` and
+  the session binding normally; forty minutes later `docker ps` showed **2 proxies and 0 sandboxes**, with no
+  exited container left behind — so it was REMOVED, not crashed. Host resources were not the cause (94% memory
+  free, 67Gi disk, three containers total).
+  That makes three distinct provisioning failures under this item, and they need separating: (i) the start hangs
+  after bringing up the proxy, (ii) a proxy outlives its sandbox as an orphan, (iii) a healthy sandbox is removed
+  out from under a live session. Only (i) is bounded so far, by the single-flight release.
+  **The tell for (iii) is the same one-liner**: `proxies > sandboxes` on `docker ps`. Worth wiring into the rig as
+  a real check rather than something a responder notices by eye — every occurrence so far was reported by a
+  responder, never by the rig itself.
   Note the guard's in-memory flag does NOT clear on its own — the hung start has to settle or the runtime restart.
 
 - [ ] **P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture unsettled, and the board
