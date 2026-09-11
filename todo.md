@@ -2816,6 +2816,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   indistinguishable to the rail, which is exactly why the zombie has to be stopped at the source rather than waited
   out.
 
+- [x] **P1.DECOMPOSEWRITE — RESOLVED 2026-09-11. Projects 50/52/53 were not failing on a rig defect; they were
+  failing on MY guidance.** I had told responders that fixtures graded by a frozen verifier against a data file
+  (`spec/spec.json` + `conformance/suite.mjs`, `plan/cards.json`) want the file written directly from the
+  `*-decompose` card rather than a `decompose_project` call.
+  A `*-decompose` card is a PLANNING card and the only thing that closes it is `decompose_project`. The harness
+  says so when you try otherwise: *"This is a planning card, not a work card... otherwise complete the planning
+  work this card is for."* Writing the file there produces the worst available outcome — deliverable correct and
+  verified green, card never leaves Planning, board never settles, rail stalls the project at 45 minutes and
+  re-queues it. **Project 50 was lost this way six times with its work finished and passing every time.**
+  **The correlation was visible from the second occurrence and I did not check it:** every project that recorded
+  emitted a graph; every project where a responder wrote the file directly, stalled. I spent most of two days
+  attributing those stalls to provisioning, zombies and watchdogs instead.
+  **Confirmed by the first drive after the correction (`6e9734030`):** project 52's decompose card called
+  `decompose_project` (request 2485), the graph applied (2486), its child card `…-plan-write-plan-cards` ran
+  `begin_implementation` → `write_file` → verify → review (2487-2491), and the drive SETTLED and was recorded. Its
+  replay then failed, which is the separate, already-open P1.REPLAYUNDRAINED, and the re-drive is queued.
+  Several real rig defects were found along the way and are worth keeping — but this one was mine, and it was the
+  dominant cause of the 50/52/53 failures.
+
 - [ ] **P1.UNSATGATE — the test-driven-delivery gate is UNSATISFIABLE on spec/analysis fixtures, and the card can
   neither pass nor stop.** *(Live 2026-09-10/11, projects 50 and 51, measured on three shifts.)*
   A decompose task that omits `testability` defaults to **testable**. The reviewer then demands a touched test file.
