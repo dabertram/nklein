@@ -2849,10 +2849,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   **Problem 2 — the child card then never starts.** After the decompose lands, the child sits in `planning` and
   `Unmatched simulator requests observed in runtime logs: 0`, i.e. its request is never MADE, so this is not a
   track-matching gap at all. Its tracks exist in the set (worker class, child-card needle) and go unused.
-  **DO NOT fix problem 1 by "strongest class wins" across a needle group.** I tried exactly that and it regressed
-  things: a card's WORKER session and its REVIEW session share a needle (the review seed quotes the card prompt), so
-  `review` swallowed six worker tracks in 52. Any fix must promote `chat` only, and never across a review boundary.
-  Reverted before commit; the repair-and-replay check caught it.
+  **▶ PROBLEM 1 IS REFUTED AS THE CAUSE — check the population before believing a signal.** Project 49 REPLAYS
+  CLEAN and has exactly the same splits: `['chat','worker']` on its decompose needle and `['review','worker']` on
+  all four of its card groups. Split classes are therefore normal and not what separates passing from failing, and
+  the `completed: 0 → 1` that chat→worker promotion produced on 53 cannot be read as that theory being right.
+  Two classifier theories have now looked correct and been wrong, each caught only by testing first. What actually
+  differs between 49 and 53 is smaller and worth starting from: 49's decompose session is 2 turns (it decomposed
+  almost immediately), while 53's is 5 and includes a `write_file` of the deliverable FROM the decompose card —
+  the anti-pattern — before the `decompose_project` call.
+  **DO NOT fix this by "strongest class wins" across a needle group.** I tried exactly that and it regressed things:
+  a card's WORKER and REVIEW sessions share a needle (the review seed quotes the card prompt), so `review` swallowed
+  six worker tracks in 52. Reverted before commit; the repair-and-replay check caught it.
 
 - [ ] **P1.UNSATGATE — the test-driven-delivery gate is UNSATISFIABLE on spec/analysis fixtures, and the card can
   neither pass nor stop.** *(Live 2026-09-10/11, projects 50 and 51, measured on three shifts.)*
