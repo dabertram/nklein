@@ -1,0 +1,30 @@
+{
+	"drain": "/Users/david/.nklein/factory-drains/hitl-drain",
+	"generatedAt": "2026-09-11T10:29:41.736Z",
+	"fromRequestId": 2756,
+	"toRequestId": 2771,
+	"boundedBy": {
+		"kind": "queue-high-water"
+	},
+	"pairs": 16,
+	"tracks": 16,
+	"replayVerified": true,
+	"sources": {
+		"queue/answers/2756.json": "sha256:bbe81fd6a305ba37",
+		"queue/answers/2757.json": "sha256:d37961492e9d3c85",
+		"queue/answers/2758.json": "sha256:4af5af84083803f1",
+		"queue/answers/2759.json": "sha256:de97b5c118d82a0f",
+		"queue/answers/2760.json": "sha256:09c44239c7d26150",
+		"queue/answers/2761.json": "sha256:d28aaefa6380c5bb",
+		"queue/answers/2762.json": "sha256:2818cea0649bcc62",
+		"queue/answers/2763.json": "sha256:6530ef64508e8bee",
+		"queue/answers/2764.json": "sha256:0c8fda9c2e8cef39",
+		"queue/answers/2765.json": "sha256:40bb6e5296397886",
+		"queue/answers/2766.json": "sha256:f19dad1da43be946",
+		"queue/answers/2767.json": "sha256:d27d45a3ba8a31bd",
+		"queue/answers/2768.json": "sha256:76aae95dd2b594c8",
+		"queue/answers/2769.json": "sha256:2399dd8ee2efac9e",
+		"queue/answers/2770.json": "sha256:033859678ee1fb0f",
+		"queue/answers/2771.json": "sha256:bef0c1cb800c127f"
+	}
+}
