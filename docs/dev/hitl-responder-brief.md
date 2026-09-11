@@ -214,6 +214,17 @@ is therefore not enough — a file nobody imports still counts against you, and 
 be deleted. No delete tool is offered; `run_commands` with `rm -f <path>` is the way, and a reviewer should confirm
 with `list_files` that the file is genuinely gone rather than merely orphaned.
 
+**A class is measured per-method; a closure factory is measured as ONE giant function.** The frozen verifier's
+function-span detector skips past a matched function's entire body when it looks for the next span — so nested
+helpers inside a factory are all swallowed into their enclosing function's line and branch counts, and a
+`max_function_lines` goal is unsatisfiable however tidily you write it. A `class` declaration is invisible to that
+detector, so each method is measured independently.
+
+This decides the SHAPE of the fix, not just its quality: project 66's rate limiter had to be a class rather than
+the closure-based factory that would otherwise be the natural choice, and the responder confirmed it empirically —
+worst method 13 lines of 15, 3 branches of 4, green on the first real run. Check how the detector will see your
+design before you commit to it.
+
 Two smaller notes from the same family, worth knowing before you count anything by hand: 64's `no_duplicate_block`
 uses `windowLines: 5` where 62 used 6, so the thresholds are per-fixture and must be read rather than assumed; and
 its branch-counting regex (`\?[^.]`) also matches `??`, not just ternaries, so a nullish coalesce costs you a
