@@ -3086,6 +3086,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   Generalise the item accordingly: it is a FINISHED-CARD REOPEN loop, and `main-branch-custodian::review` is just
   where it was first seen.
 
+  **▶ FIX SHIPPED 2026-09-11 (`b5d6d3bd4`), AND NOT YET CONFIRMED — do not record it as proven.** The watchdog now
+  retires a terminal-lane card's session whatever its instantaneous state, which closes the gap described above.
+  The first shift after it reported **zero** settled-card reopens across 42 requests, against 57%/59%/21-of-40 on
+  the three before it. That is encouraging and it is NOT evidence: the same restart also gave that shift a
+  completely clean slate — every stale board abandoned and removed, all containers reaped — and the runtime log
+  shows the new `settled_card_session_retired` observation firing **zero** times. So the improvement is at least as
+  well explained by the clean slate as by the fix, and crediting the fix here would be exactly the
+  green-signal-substitution this backlog keeps catching.
+  **What would settle it:** a shift that sees a non-zero `settled_card_session_retired` count, or one that reaches
+  the reopen condition on a dirty board and does not loop. Until then the item stays open.
+
   **▶ THIRD DATA POINT, AND WHERE THE FIX PROBABLY BELONGS (2026-09-10).** A later shift lost **24 of 41 turns
   (59%)** to the same card — 57%, 59% on two consecutive shifts, so this is now the largest sustained waste in the
   rig, not an occasional one. The queue confirms it plainly: seven of ten consecutive request ids (2141-2150) were
