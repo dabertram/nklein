@@ -1,0 +1,430 @@
+{
+	"name": "51_spec_change_impact perfect run (HITL rig drive, requests 2455-2468)",
+	"seed": 1,
+	"tracks": [
+		{
+			"id": "perfect-observed:worker:0",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "decompose_project",
+								"arguments": {
+									"slug": "spec-change-impact",
+									"title": "Claims Intake Change-Impact Delta (CR-2026-Q2)",
+									"spec": "Deliverable: spec/impact.json. For every v1 requirement in input/spec-v1.md (REQ-01..REQ-14) and every requirement CR-2026-Q2 (input/change-request.md) adds, record one impacts[] entry: requirement, classification (added/changed/removed/unaffected), breaking (boolean), why (>=12 chars, required unless unaffected). The requirement set and classification come ONLY from each change-request section's `Affects:` and `Action:` lines -- surrounding prose names other requirements for context without touching them. Breaking is true only when a requirement is removed, or changed while its v1 `Contract` marker is external; an added requirement is never breaking, and an unaffected requirement is never breaking. Set \"complete\": true only when every v1 requirement and every added requirement is classified exactly once. input/, test/, and scripts/run-tests.mjs are frozen evidence -- never edit them, and never add a dependency. Acceptance: npm test, offline, with the fixture's own toolchain.",
+									"plan": "1. impact-classify-affected -- derive the 7 requirements CR-2026-Q2's Affects:/Action: lines actually name (REQ-02 changed [CR-5], REQ-03+REQ-04 changed [CR-1], REQ-08 changed [CR-4], REQ-11 removed [CR-2], REQ-15 added [CR-3], REQ-16 added [CR-6]) and record each with classification, breaking and why.\n2. impact-classify-remainder-and-finalize (depends on 1) -- record every other v1 requirement as unaffected (including the two prose traps, REQ-07 and REQ-09), confirm every requirement is covered exactly once, set complete:true, run npm test.",
+									"summary": "Two cards produce the CR-2026-Q2 change-impact delta in spec/impact.json. Card 1 classifies the 7 requirements the change request's Affects:/Action: lines actually name (5 changed/removed, 2 added) with why + breaking. Card 2 (depends on card 1) marks every remaining v1 requirement unaffected -- including REQ-07 and REQ-09, which change-request prose mentions but does not touch -- confirms full coverage, and sets complete:true. No code is implemented; input/, test/ and the runner stay untouched. Assumption: the Affects:/Action: lines are authoritative over surrounding prose, exactly as specification.md instructs.",
+									"tasks": [
+										{
+											"id": "impact-classify-affected",
+											"title": "Classify the requirements CR-2026-Q2 affects or adds",
+											"prompt": "Read input/spec-v1.md and input/change-request.md in full (frozen evidence -- do not edit either). Tabulate every v1 requirement (REQ-01..REQ-14) against its `Contract: external|internal` marker, and every change-request section (CR-1..CR-6) against its `Affects:` and `Action:` lines ONLY. The surrounding prose names other requirements for context without those Affects: lines including them -- CR-2's prose mentions REQ-09 and says it is untouched; CR-6's prose compares itself to REQ-07 but does not affect it. Mentioning a requirement is not touching it.\n\nIn spec/impact.json, add one impacts[] entry for each of the 7 requirements an Affects: line actually names: REQ-02 (CR-5, change), REQ-03 and REQ-04 (CR-1, change), REQ-08 (CR-4, change), REQ-11 (CR-2, remove), REQ-15 (CR-3, add) and REQ-16 (CR-6, add). Each entry needs requirement, classification matching the Action: (changed/removed/added), breaking, and a why of at least twelve characters naming what the change actually does to it.\n\nDerive breaking mechanically, not by judgement: true only for a removed requirement, or a changed requirement whose v1 Contract marker is external. An added requirement is never breaking -- nobody relies on behaviour that did not exist.\n\nLeave \"complete\": false -- the remaining v1 requirements are classified by the next card. Never add a dependency or new test framework. Run npm test and confirm it is green before finishing.",
+											"dependsOn": [],
+											"complexity": 45,
+											"testability": "not_testable",
+											"testabilityReason": "The deliverable is a JSON analysis artifact (spec/impact.json) graded entirely by the frozen verifier test/impact.test.js. There is no application code here for an additional test file to cover, and test/ is both outside this card's write scope and digest-frozen.",
+											"filesLikelyTouched": [
+												"spec/impact.json"
+											],
+											"writeScope": [
+												"spec/impact.json"
+											],
+											"forbiddenPaths": [
+												"input/**",
+												"test/**",
+												"scripts/run-tests.mjs"
+											],
+											"nonGoals": [
+												"Do not classify requirements no Affects: line names.",
+												"Do not edit input/, test/, or scripts/run-tests.mjs.",
+												"Do not set complete to true yet.",
+												"Never add a dependency or new test framework."
+											],
+											"acceptanceCommand": "npm test",
+											"acceptanceChecks": [
+												"REQ-02, REQ-03, REQ-04, REQ-08, REQ-11, REQ-15 and REQ-16 are each recorded exactly once with a why >= 12 characters",
+												"breaking matches the rule: true only for REQ-11 (removed) and any changed+external requirement; REQ-15 and REQ-16 (added) are breaking:false",
+												"complete is still false",
+												"npm test passes"
+											]
+										},
+										{
+											"id": "impact-classify-remainder-and-finalize",
+											"title": "Classify the unaffected requirements and finalize the delta",
+											"prompt": "Re-read spec/impact.json as card impact-classify-affected left it, plus input/spec-v1.md and input/change-request.md (frozen evidence -- do not edit either). For every v1 requirement NOT already recorded -- including REQ-07 and REQ-09, which change-request prose mentions but whose section's Affects: line does not name -- add an impacts[] entry with classification \"unaffected\" and breaking:false; why may be omitted for these.\n\nConfirm every v1 requirement (REQ-01 through REQ-14) and every added requirement (REQ-15, REQ-16) is now recorded exactly once -- none missing, none duplicated -- then set \"complete\": true. Never add a dependency. Run npm test and confirm it is fully green before finishing.",
+											"dependsOn": [
+												"impact-classify-affected"
+											],
+											"complexity": 30,
+											"testability": "not_testable",
+											"testabilityReason": "Same deliverable as the prior card: a JSON analysis artifact graded by the frozen verifier, not application code.",
+											"filesLikelyTouched": [
+												"spec/impact.json"
+											],
+											"writeScope": [
+												"spec/impact.json"
+											],
+											"forbiddenPaths": [
+												"input/**",
+												"test/**",
+												"scripts/run-tests.mjs"
+											],
+											"nonGoals": [
+												"Do not change any entry impact-classify-affected already recorded.",
+												"Do not edit input/, test/, or scripts/run-tests.mjs.",
+												"Never add a dependency."
+											],
+											"acceptanceCommand": "npm test",
+											"acceptanceChecks": [
+												"every v1 requirement and every added requirement is classified exactly once",
+												"complete is true",
+												"npm test passes"
+											]
+										}
+									],
+									"defaultAcceptanceCommand": "npm test"
+								}
+							}
+						],
+						"content": "dev-51-spec-change-impact-decompose: read input/spec-v1.md (14 requirements, Contract markers) and input/change-request.md (6 CR sections) from the seed mirror and hand-derived the delta against test/impact.test.js's own logic before planning. Affects:/Action: lines name 7 requirements (REQ-02/03/04/08/11 changed or removed, REQ-15/16 added); the rest -- including REQ-07 and REQ-09, which prose mentions but Affects: lines do not -- are unaffected. Emitting a 2-card graph: card 1 classifies the 7 affected/added requirements with why+breaking, card 2 (depends on card 1) classifies the remainder and sets complete:true. Both cards declare testability:not_testable since the deliverable is a data file graded by the frozen verifier."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/impact.test.js:60 const deliverable refs=7 rank=3.3254\ntest/impact.test.js:41 const baseline refs=8 rank=0.2764\ntest/impact.test.js:42 const changes refs=7 rank=0.2329\ntest/impact.test.js:49 const truth refs=6 rank=0.1905\ntest/frozen.test.js:23 const root refs=7 rank=0.1348\ntest/impact.test.js:7 const root refs=4 rank=0.1113\nscripts/run-tests.mjs:31 const result refs=4 rank=0.0793\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=0.0793\ntest/frozen.test.js:25 function walk refs=4 rank=0.0769\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=0.0758\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=0.0565\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=0.0565\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=0.0443\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=0.0443\ntest/impact.test.js:28 function deriveChanges refs=2 rank=0.0443\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=0.0443\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=0.0443\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.0346\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.0346\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0339\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0339\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0339\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nWork out what CR-2026-Q2 actually does to the specification in input/, requirement by requirement.\n\nThis is a specification job, not a build job: nothing gets implemented and the v1 spec does not get rewritten. I\nwant the delta — for every requirement, what the change request does to it, and whether that is a breaking change\nfor the three broker integrations written against us.\n\nRead specification.md for the deliverable's shape, the breaking-change rule, and the rules I will hold you to. The\none worth repeating here: the `Affects:` lines are authoritative. The change request's prose mentions requirements\nit does not touch — deliberately, because that is exactly how a real one reads — and classifying one of those as\nchanged fails the build.)"
+		},
+		{
+			"id": "perfect-observed:chat:1",
+			"requestClass": "chat",
+			"userMessageIncludes": "Workspace root: .",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "decompose_project applied clean: 2 tasks created (impact-classify-affected, impact-classify-remainder-and-finalize), 1 dependency edge, no graph-quality warnings. Planning objective met for dev-51-spec-change-impact-decompose; stopping here so the child cards can run."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /impact.json\n- /nklein/plans/spec-change-impact/spec.md\n- /nklein/plans/spec-change-impact/plan.md\n- /nklein/plans/spec-change-impact/questions.md\n- /nklein/plans/spec-change-impact/decisions.md\n- /nklein/plans/spec-change-impact/revisions.md\n- /nklein/plans/spec-change-impact/summary.md\n- /nklein/plans/spec-change-impact/tasks.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/impact.test.js:60 const deliverable refs=7 rank=254.9117\ntest/impact.test.js:41 const baseline refs=8 rank=21.1863\ntest/impact.test.js:42 const changes refs=7 rank=17.8546\ntest/impact.test.js:49 const truth refs=6 rank=14.6069\ntest/impact.test.js:7 const root refs=4 rank=8.5306\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=5.8082\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=3.3942\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=3.3942\ntest/impact.test.js:28 function deriveChanges refs=2 rank=3.3942\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=3.3942\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=3.3942\ntest/frozen.test.js:23 const root refs=7 rank=0.0041\nscripts/run-tests.mjs:31 const result refs=4 rank=0.0024\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=0.0024\ntest/frozen.test.js:25 function walk refs=4 rank=0.0024\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=0.0017\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=0.0017\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.0011\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.0011\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0010\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0010\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0010\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nWork out what CR-2026-Q2 actually does to the specification in input/, requirement by requirement.\n\nThis is a specification job, not a build job: nothing gets implemented and the v1 spec does not get rewritten. I\nwant the delta — for every requirement, what the change request does to it, and whether that is a breaking change\nfor the three broker integrations written against us.\n\nRead specification.md for the deliverable's shape, the breaking-change rule, and the rules I will hold you to. The\none worth repeating here: the `Affects:` lines are authoritative. The change request's prose mentions requirements\nit does not touch — deliberately, because that is exactly how a real one reads — and classifying one of those as\nchanged fails the build.)"
+		},
+		{
+			"id": "perfect-observed:worker:2",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read input/spec-v1.md and input/change-request.md in full (f",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"input/spec-v1.md",
+										"input/change-request.md",
+										"spec/impact.json"
+									]
+								}
+							}
+						],
+						"content": "Plan: read the two frozen evidence docs plus the current deliverable stub, then classify the 7 requirements CR-2026-Q2's Affects:/Action: lines name (REQ-02/03/04/08/11 changed or removed, REQ-15/16 added) into spec/impact.json with why+breaking, leaving complete:false. Gathering context first."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /spec-v1.md\n- /change-request.md\n- /impact.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/impact.test.js:60 const deliverable refs=7 rank=197.4833\ntest/impact.test.js:41 const baseline refs=8 rank=16.4133\ntest/impact.test.js:42 const changes refs=7 rank=13.8322\ntest/impact.test.js:49 const truth refs=6 rank=11.3162\ntest/impact.test.js:7 const root refs=4 rank=6.6088\nscripts/run-tests.mjs:31 const result refs=4 rank=4.7114\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7114\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=4.4997\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3571\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3571\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=2.6295\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=2.6295\ntest/impact.test.js:28 function deriveChanges refs=2 rank=2.6295\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=2.6295\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=2.6295\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.0551\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.0551\ntest/frozen.test.js:23 const root refs=7 rank=0.0032\ntest/frozen.test.js:25 function walk refs=4 rank=0.0018\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0008\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0008\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0008\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead input/spec-v1.md and input/change-request.md in full (frozen evidence -- do not edit either). Tabulate every v1 requirement (REQ-01..REQ-14) against its `Contract: external|internal` marker, and every change-request section (CR-1..CR-6) against its `Affects)"
+		},
+		{
+			"id": "perfect-observed:worker:3",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read input/spec-v1.md and input/change-request.md in full (f",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_file",
+								"arguments": {
+									"path": "spec/impact.json",
+									"content": "{\n\t\"schemaVersion\": 1,\n\t\"complete\": false,\n\t\"impacts\": [\n\t\t{\n\t\t\t\"requirement\": \"REQ-02\",\n\t\t\t\"classification\": \"changed\",\n\t\t\t\"breaking\": false,\n\t\t\t\"why\": \"CR-5 changes the journal write from a buffered write to an fsync; nothing outside the service can observe the difference except latency.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-03\",\n\t\t\t\"classification\": \"changed\",\n\t\t\t\"breaking\": true,\n\t\t\t\"why\": \"CR-1 extends the claim reference format with a regional prefix, changing its shape for the brokers who parse it.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-04\",\n\t\t\t\"classification\": \"changed\",\n\t\t\t\"breaking\": false,\n\t\t\t\"why\": \"CR-1 shortens the de-duplication window from twenty-four hours to four hours.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-08\",\n\t\t\t\"classification\": \"changed\",\n\t\t\t\"breaking\": true,\n\t\t\t\"why\": \"CR-4 adds two broker-visible statuses, awaiting_documents and withdrawn, to the poll vocabulary every integration switches on.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-11\",\n\t\t\t\"classification\": \"removed\",\n\t\t\t\"breaking\": true,\n\t\t\t\"why\": \"CR-2 retires the fax channel entirely; the two brokers still using it have nothing to fall back to.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-15\",\n\t\t\t\"classification\": \"added\",\n\t\t\t\"breaking\": false,\n\t\t\t\"why\": \"CR-3 adds a carrier capacity ceiling that refuses a submission once its handling queue is over its daily ceiling.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-16\",\n\t\t\t\"classification\": \"added\",\n\t\t\t\"breaking\": false,\n\t\t\t\"why\": \"CR-6 adds a broker-supplied loss adjuster nomination that is carried through to the handler.\"\n\t\t}\n\t]\n}\n"
+								}
+							}
+						],
+						"content": "Confirmed via fresh read_files: input/spec-v1.md's 14 requirements and input/change-request.md's 6 sections match the seed evidence exactly, and spec/impact.json is still the untouched empty stub. Writing the 7 affected/added entries now (REQ-02/03/04/08/11 changed or removed per CR-1/CR-2/CR-4/CR-5, REQ-15/16 added per CR-3/CR-6), each with why + breaking derived from the rule (breaking only for REQ-11's removal and the two external+changed requirements REQ-03/REQ-08; REQ-15/REQ-16 are added so never breaking). Leaving complete:false for the next card. Verification of this write is deferred to a later turn."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /spec-v1.md\n- /change-request.md\n- /impact.json\nread_files coverage ledger:\n- input/spec-v1.md, input/change-request.md, spec/impact.json (latest raw result retained for immediate analysis; original 2 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/impact.test.js:60 const deliverable refs=7 rank=197.4833\ntest/impact.test.js:41 const baseline refs=8 rank=16.4133\ntest/impact.test.js:42 const changes refs=7 rank=13.8322\ntest/impact.test.js:49 const truth refs=6 rank=11.3162\ntest/impact.test.js:7 const root refs=4 rank=6.6088\nscripts/run-tests.mjs:31 const result refs=4 rank=4.7114\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7114\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=4.4997\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3571\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3571\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=2.6295\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=2.6295\ntest/impact.test.js:28 function deriveChanges refs=2 rank=2.6295\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=2.6295\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=2.6295\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.0551\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.0551\ntest/frozen.test.js:23 const root refs=7 rank=0.0032\ntest/frozen.test.js:25 function walk refs=4 rank=0.0018\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0008\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0008\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0008\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead input/spec-v1.md and input/change-request.md in full (frozen evidence -- do not edit either). Tab)"
+		},
+		{
+			"id": "perfect-observed:worker:4",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read input/spec-v1.md and input/change-request.md in full (f",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"spec/impact.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Write reported 49 lines. Re-reading the file fresh and running the real test suite to verify the edit actually landed before touching complete."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /spec-v1.md\n- /change-request.md\n- /impact.json\nread_files coverage ledger:\n- input/spec-v1.md, input/change-request.md, spec/impact.json (latest raw result retained for immediate analysis; original 2 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/impact.test.js:60 const deliverable refs=7 rank=197.4833\ntest/impact.test.js:41 const baseline refs=8 rank=16.4133\ntest/impact.test.js:42 const changes refs=7 rank=13.8322\ntest/impact.test.js:49 const truth refs=6 rank=11.3162\ntest/impact.test.js:7 const root refs=4 rank=6.6088\nscripts/run-tests.mjs:31 const result refs=4 rank=4.7114\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7114\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=4.4997\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3571\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3571\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=2.6295\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=2.6295\ntest/impact.test.js:28 function deriveChanges refs=2 rank=2.6295\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=2.6295\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=2.6295\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.0551\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.0551\ntest/frozen.test.js:23 const root refs=7 rank=0.0032\ntest/frozen.test.js:25 function walk refs=4 rank=0.0018\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0008\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0008\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0008\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead input/spec-v1.md and input/change-request.md in full (frozen evidence -- do not edit either). Tab)"
+		},
+		{
+			"id": "perfect-observed:worker:5",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read input/spec-v1.md and input/change-request.md in full (f",
+			"atAssistantCount": 3,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Verified in-session, not vacuously: fresh read_files shows all 7 entries (REQ-02/03/04/08/11/15/16) actually present in spec/impact.json with the intended classification/breaking/why, and npm test is 4/4 green including \"every recorded impact classifies a real requirement, correctly, and rates it by the rule\" -- the check that would catch a wrong breaking flag or classification. complete intentionally left false for the next card. Card objective met; stopping."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /spec-v1.md\n- /change-request.md\n- /impact.json\nread_files coverage ledger:\n- input/spec-v1.md, input/change-request.md, spec/impact.json (older raw result omitted; original 2 chars)\n- spec/impact.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/impact.test.js:60 const deliverable refs=7 rank=197.4833\ntest/impact.test.js:41 const baseline refs=8 rank=16.4133\ntest/impact.test.js:42 const changes refs=7 rank=13.8322\ntest/impact.test.js:49 const truth refs=6 rank=11.3162\ntest/impact.test.js:7 const root refs=4 rank=6.6088\nscripts/run-tests.mjs:31 const result refs=4 rank=4.7114\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.7114\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=4.4997\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.3571\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.3571\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=2.6295\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=2.6295\ntest/impact.test.js:28 function deriveChanges refs=2 rank=2.6295\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=2.6295\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=2.6295\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.0551\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.0551\ntest/frozen.test.js:23 const root refs=7 rank=0.0032\ntest/frozen.test.js:25 function walk refs=4 rank=0.0018\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0008\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0008\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0008\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches React components, layout, styling, accessibility, task cards, detail panels, settings, model/provider UI, or developer surfaces.\n\nChecklist:\n- Build the actual workflow first; avoid landing-page patterns, ornamental cards, and explanatory feature text inside the app.\n- Keep operational screens quiet, dense, scannable, and predictable. Cards are for repeated items, modals, or framed tools, not page sections.\n- Use existing primitives: `Button`, `Dialog`, `AlertDialog`, `Tooltip`, `Spinner`, `Kbd`, and `cn` from `src/components/ui/`.\n- Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.\n- Preserve the always-dark theme. Use tokens such as `bg-surface-0`, `bg-surface-1`, `bg-surface-2`, `text-text-primary`, `text-text-secondary`, `border-border`, and `text-accent`.\n- Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.\n\nExample:\n```tsx\n<Button variant=\"ghost\" size=\"sm\" icon={<Clipboard size={14} />} aria-label=\"Create evidence\">\n  Create evidence\n</Button>\n```\n\n!Klein specifics:\n- Web UI code lives in `web-ui/src/components/`, `web-ui/src/hooks/`, `web-ui/src/state/`, and `web-ui/src/runtime/`.\n- Prefer `react-use` hooks through `@/kanban/utils/react-use` when they fit.\n- Cover behavior with Vitest/Testing Library tests near the touched component.\n\nGuidance topic: ui\n\nRead input/spec-v1.md and input/change)"
+		},
+		{
+			"id": "perfect-observed:worker:6",
+			"requestClass": "worker",
+			"userMessageIncludes": "Read input/spec-v1.md and input/change-request.md in full (f",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"spec/impact.json",
+										"input/spec-v1.md",
+										"input/change-request.md"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing spec-change-impact-impact-classify-affected. Not approving on the shown diff alone -- reading the current file and the frozen evidence and running the real suite myself first."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /spec-v1.md\n- /change-request.md\n- /impact.json\n- /spec/impact.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/impact.test.js:42 const changes refs=7 rank=191.1699\ntest/impact.test.js:60 const deliverable refs=7 rank=191.1699\ntest/impact.test.js:41 const baseline refs=8 rank=17.4956\ntest/impact.test.js:49 const truth refs=6 rank=12.0122\ntest/impact.test.js:7 const root refs=4 rank=6.9590\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=4.7019\nscripts/run-tests.mjs:31 const result refs=4 rank=3.5034\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=3.5034\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=2.7084\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=2.7084\ntest/impact.test.js:28 function deriveChanges refs=2 rank=2.7084\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=2.7084\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=2.7084\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=2.4963\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=2.4963\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.5282\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.5282\ntest/frozen.test.js:23 const root refs=7 rank=0.0024\ntest/frozen.test.js:25 function walk refs=4 rank=0.0014\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0006\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0006\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0006\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Classify the requirements CR-2026-Q2 affects or adds\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead input/spec-v1.md and input/change-request.md in full (frozen evidence -- do not edit either). Tabulate every v1 requirement (REQ-01..REQ-14) against its `Contract: external|internal` marker, and every change-request section (CR-1..CR-6) against its `Affects:` and `Action:` lines ONLY. The surrounding prose names other requirements for context without those Affects: lines including them -- CR-2's prose mentions REQ-09 and says it is untouched; CR-6's prose compares itself to REQ-07 but does not affect it. Mentioning a requirement is not touching it.\n\nIn spec/impact.json, add one impacts[] entry for each of the 7 requirements an Affects: line actually names: REQ-02 (CR-5, change), REQ-03 and REQ-04 (CR-1, change), REQ-08 (CR-4, change), REQ-11 (CR-2, remove), REQ-15 (CR-3, add) and REQ-16 (CR-6, add). Each entry needs requirement, classification )"
+		},
+		{
+			"id": "perfect-observed:review:7",
+			"requestClass": "review",
+			"userMessageIncludes": "Read input/spec-v1.md and input/change-request.md in full (f",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "All 7 affected/added requirements correctly classified with valid why text and rule-correct breaking flags; verified independently via fresh read_files and a real npm test run (4/4 green). complete appropriately left false for the next card.",
+									"insight": "The two prose traps (CR-2 mentioning REQ-09, CR-6 mentioning REQ-07) were correctly left out of this card's 7 entries, as they should be -- neither is in an Affects: line."
+								}
+							}
+						],
+						"content": "Independent verification (not the shown diff): fresh read_files confirms all 7 entries in spec/impact.json exactly, and npm test is 4/4 green in this session, including the classification/breaking correctness subtest. Cross-checked against input/spec-v1.md and input/change-request.md myself: REQ-02/03/04/08 changed, REQ-11 removed, REQ-15/16 added all match the Affects:/Action: lines; breaking is true only for REQ-03, REQ-08 (changed+external) and REQ-11 (removed), false for the rest -- matches the rule. complete correctly left false. Approving."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /spec-v1.md\n- /change-request.md\n- /impact.json\n- /spec/impact.json\nread_files coverage ledger:\n- spec/impact.json, input/spec-v1.md, input/change-request.md (latest raw result retained for immediate analysis; original 2 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/impact.test.js:42 const changes refs=7 rank=191.1699\ntest/impact.test.js:60 const deliverable refs=7 rank=191.1699\ntest/impact.test.js:41 const baseline refs=8 rank=17.4956\ntest/impact.test.js:49 const truth refs=6 rank=12.0122\ntest/impact.test.js:7 const root refs=4 rank=6.9590\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=4.7019\nscripts/run-tests.mjs:31 const result refs=4 rank=3.5034\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=3.5034\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=2.7084\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=2.7084\ntest/impact.test.js:28 function deriveChanges refs=2 rank=2.7084\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=2.7084\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=2.7084\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=2.4963\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=2.4963\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.5282\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.5282\ntest/frozen.test.js:23 const root refs=7 rank=0.0024\ntest/frozen.test.js:25 function walk refs=4 rank=0.0014\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0006\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0006\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0006\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Classify the requirements CR-2026-Q2 affects or adds\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRead input/spec-v1.md and input/change-request.md in full (frozen evidence -- do not edit either). Tabulate every v1 requirement (REQ-01..REQ-14) against its `Contract: external|internal` marker, and every change-request section (CR-1..CR-6) against its `Affects:` and `Action:` lines ONLY. The surrounding prose names other requirements for context without those Affects: lines including them -- CR-2's prose mentions REQ-09 and says it is untouched; CR-6's prose compares itself to REQ-07 but does not affect it. Mentioning a requirement is not touching it.\n\nIn spec/impact.json, add one impacts[] entry for each of the 7 requirements an Affects: line actually names: REQ-02 (CR-5, change), REQ-03 a)"
+		},
+		{
+			"id": "perfect-observed:worker:8",
+			"requestClass": "worker",
+			"userMessageIncludes": "Re-read spec/impact.json as card impact-classify-affected le",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"spec/impact.json",
+										"input/spec-v1.md",
+										"input/change-request.md"
+									]
+								}
+							}
+						],
+						"content": "Plan: confirm the inherited state of spec/impact.json (should already carry the 7 affected/added entries from the dependency), then add the remaining v1 requirements as unaffected, confirm full coverage, and set complete:true. Reading first."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /impact.json\n- /spec-v1.md\n- /change-request.md\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nscripts/run-tests.mjs:31 const result refs=4 rank=18.9183\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=18.9183\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=13.4800\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=13.4800\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=8.2521\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=8.2521\ntest/impact.test.js:60 const deliverable refs=7 rank=0.3172\ntest/impact.test.js:41 const baseline refs=8 rank=0.0264\ntest/impact.test.js:42 const changes refs=7 rank=0.0222\ntest/impact.test.js:49 const truth refs=6 rank=0.0182\ntest/frozen.test.js:23 const root refs=7 rank=0.0129\ntest/impact.test.js:7 const root refs=4 rank=0.0106\ntest/frozen.test.js:25 function walk refs=4 rank=0.0073\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=0.0072\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=0.0042\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=0.0042\ntest/impact.test.js:28 function deriveChanges refs=2 rank=0.0042\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=0.0042\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=0.0042\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0032\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0032\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0032\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\n[Handoff from the dependency \"Classify the requirements CR-2026-Q2 affects or adds\" (spec-change-impact-impact-classify-affected)]\nFiles it changed (read these before assuming their shape): spec/impact.json\n\n/nklein-ui\n\nGuidance topic: ui\n\nRe-read spec/impact.json as card impact-classify-affected left it, plus input/spec-v1.md and input/change-request.md (frozen evidence -- do not edit either). For every v1 requirement NOT already recorded -- including REQ-07 and REQ-09, which change-request prose mentions but whose section's Affects: line does not name -- add an impacts[] entry with classification \"unaffected\" and breaking:false; why may be omitted for these.\n\nConfirm every v1 requirement (REQ-01 through REQ-14) and every added requirement (REQ-15, REQ-16) is now recorded exactly once -- none missing, none duplicated -- then set \"complete\": true. Never add a dependency. Run npm test and confirm it is fully green before finishing.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\n## Card contract\n\n**Acceptance checks:**\n- every v1 requirement and every added requirement is classified exactly once\n- complete is true\n- npm test passes\n\n**Non-goals:**\n- Do not change any entry impact-classify-affected already rec)"
+		},
+		{
+			"id": "perfect-observed:worker:9",
+			"requestClass": "worker",
+			"userMessageIncludes": "Re-read spec/impact.json as card impact-classify-affected le",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "write_file",
+								"arguments": {
+									"path": "spec/impact.json",
+									"content": "{\n\t\"schemaVersion\": 1,\n\t\"complete\": true,\n\t\"impacts\": [\n\t\t{\n\t\t\t\"requirement\": \"REQ-02\",\n\t\t\t\"classification\": \"changed\",\n\t\t\t\"breaking\": false,\n\t\t\t\"why\": \"CR-5 changes the journal write from a buffered write to an fsync; nothing outside the service can observe the difference except latency.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-03\",\n\t\t\t\"classification\": \"changed\",\n\t\t\t\"breaking\": true,\n\t\t\t\"why\": \"CR-1 extends the claim reference format with a regional prefix, changing its shape for the brokers who parse it.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-04\",\n\t\t\t\"classification\": \"changed\",\n\t\t\t\"breaking\": false,\n\t\t\t\"why\": \"CR-1 shortens the de-duplication window from twenty-four hours to four hours.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-08\",\n\t\t\t\"classification\": \"changed\",\n\t\t\t\"breaking\": true,\n\t\t\t\"why\": \"CR-4 adds two broker-visible statuses, awaiting_documents and withdrawn, to the poll vocabulary every integration switches on.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-11\",\n\t\t\t\"classification\": \"removed\",\n\t\t\t\"breaking\": true,\n\t\t\t\"why\": \"CR-2 retires the fax channel entirely; the two brokers still using it have nothing to fall back to.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-15\",\n\t\t\t\"classification\": \"added\",\n\t\t\t\"breaking\": false,\n\t\t\t\"why\": \"CR-3 adds a carrier capacity ceiling that refuses a submission once its handling queue is over its daily ceiling.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-16\",\n\t\t\t\"classification\": \"added\",\n\t\t\t\"breaking\": false,\n\t\t\t\"why\": \"CR-6 adds a broker-supplied loss adjuster nomination that is carried through to the handler.\"\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-01\",\n\t\t\t\"classification\": \"unaffected\",\n\t\t\t\"breaking\": false\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-05\",\n\t\t\t\"classification\": \"unaffected\",\n\t\t\t\"breaking\": false\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-06\",\n\t\t\t\"classification\": \"unaffected\",\n\t\t\t\"breaking\": false\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-07\",\n\t\t\t\"classification\": \"unaffected\",\n\t\t\t\"breaking\": false\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-09\",\n\t\t\t\"classification\": \"unaffected\",\n\t\t\t\"breaking\": false\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-10\",\n\t\t\t\"classification\": \"unaffected\",\n\t\t\t\"breaking\": false\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-12\",\n\t\t\t\"classification\": \"unaffected\",\n\t\t\t\"breaking\": false\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-13\",\n\t\t\t\"classification\": \"unaffected\",\n\t\t\t\"breaking\": false\n\t\t},\n\t\t{\n\t\t\t\"requirement\": \"REQ-14\",\n\t\t\t\"classification\": \"unaffected\",\n\t\t\t\"breaking\": false\n\t\t}\n\t]\n}\n"
+								}
+							}
+						],
+						"content": "Confirmed via fresh read_files: spec/impact.json correctly inherited the 7 entries from impact-classify-affected (the dependsOn edge worked), and both input docs match the frozen evidence. Adding the remaining 9 v1 requirements (REQ-01, REQ-05, REQ-06, REQ-07, REQ-09, REQ-10, REQ-12, REQ-13, REQ-14) as unaffected/breaking:false -- including REQ-07 and REQ-09, which change-request prose mentions (CR-6 and CR-2 respectively) but whose Affects: lines do not name, so they stay unaffected. That covers every v1 requirement (REQ-01..REQ-14) and every added one (REQ-15, REQ-16) exactly once, so setting complete:true now. Verification deferred to a later turn."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /impact.json\n- /spec-v1.md\n- /change-request.md\nread_files coverage ledger:\n- spec/impact.json, input/spec-v1.md, input/change-request.md (latest raw result retained for immediate analysis; original 2 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nscripts/run-tests.mjs:31 const result refs=4 rank=18.9183\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=18.9183\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=13.4800\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=13.4800\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=8.2521\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=8.2521\ntest/impact.test.js:60 const deliverable refs=7 rank=0.3172\ntest/impact.test.js:41 const baseline refs=8 rank=0.0264\ntest/impact.test.js:42 const changes refs=7 rank=0.0222\ntest/impact.test.js:49 const truth refs=6 rank=0.0182\ntest/frozen.test.js:23 const root refs=7 rank=0.0129\ntest/impact.test.js:7 const root refs=4 rank=0.0106\ntest/frozen.test.js:25 function walk refs=4 rank=0.0073\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=0.0072\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=0.0042\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=0.0042\ntest/impact.test.js:28 function deriveChanges refs=2 rank=0.0042\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=0.0042\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=0.0042\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0032\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0032\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0032\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\n[Handoff from the dependency \"Classify the requirements CR-2026-Q2 affects or adds\" (spec-change-impact-impact-classify-affected)]\nFiles it changed (read these before assuming their shape): spec/impact.json\n\n/nklein-ui\n\nGuidance topic: ui\n\nRe-read spec/impact.json as card impact-classify-affected left it, plus input/spec-v1.md and input/change-request.md (frozen evidence -- do not edit either). For every v1 requirement NOT already recorded -- including REQ-07 and REQ-09, which change-request prose mentions but whose section's Affects: line does not name -- add an impacts[] entry with classification \"unaffected\" and breaking:false; why may be omitted for these.\n\nConfirm every v1 requirement (REQ-01 through REQ-14) and every added requirement (REQ-15, REQ-16) is now recorded exactly once -- none missing, none duplicated -- then set \"complete\": true. Never add a dependency. Run npm test and confirm it is fully green before finishing.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\n## Card contract\n\n**Acceptance checks:**\n- every v1 requirement and every )"
+		},
+		{
+			"id": "perfect-observed:worker:10",
+			"requestClass": "worker",
+			"userMessageIncludes": "Re-read spec/impact.json as card impact-classify-affected le",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"spec/impact.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Write reported 94 lines. Re-reading fresh and running the real suite to confirm the completed deliverable before declaring anything done."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /impact.json\n- /spec-v1.md\n- /change-request.md\nread_files coverage ledger:\n- spec/impact.json, input/spec-v1.md, input/change-request.md (latest raw result retained for immediate analysis; original 2 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nscripts/run-tests.mjs:31 const result refs=4 rank=18.9183\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=18.9183\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=13.4800\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=13.4800\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=8.2521\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=8.2521\ntest/impact.test.js:60 const deliverable refs=7 rank=0.3172\ntest/impact.test.js:41 const baseline refs=8 rank=0.0264\ntest/impact.test.js:42 const changes refs=7 rank=0.0222\ntest/impact.test.js:49 const truth refs=6 rank=0.0182\ntest/frozen.test.js:23 const root refs=7 rank=0.0129\ntest/impact.test.js:7 const root refs=4 rank=0.0106\ntest/frozen.test.js:25 function walk refs=4 rank=0.0073\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=0.0072\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=0.0042\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=0.0042\ntest/impact.test.js:28 function deriveChanges refs=2 rank=0.0042\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=0.0042\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=0.0042\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0032\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0032\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0032\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\n[Handoff from the dependency \"Classify the requirements CR-2026-Q2 affects or adds\" (spec-change-impact-impact-classify-affected)]\nFiles it changed (read these before assuming their shape): spec/impact.json\n\n/nklein-ui\n\nGuidance topic: ui\n\nRe-read spec/impact.json as card impact-classify-affected left it, plus input/spec-v1.md and input/change-request.md (frozen evidence -- do not edit either). For every v1 requirement NOT already recorded -- including REQ-07 and REQ-09, which change-request prose mentions but whose section's Affects: line does not name -- add an impacts[] entry with classification \"unaffected\" and breaking:false; why may be omitted for these.\n\nConfirm every v1 requirement (REQ-01 through REQ-14) and every added requirement (REQ-15, REQ-16) is now recorded exactly once -- none missing, none duplicated -- then set \"complete\": true. Never add a dependency. Run npm test and confirm it is fully green before finishing.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\n## Card contract\n\n**Acceptance checks:**\n- every v1 requirement and every )"
+		},
+		{
+			"id": "perfect-observed:worker:11",
+			"requestClass": "worker",
+			"userMessageIncludes": "Re-read spec/impact.json as card impact-classify-affected le",
+			"atAssistantCount": 3,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Verified in-session: fresh read_files shows all 16 entries present (the 7 inherited plus 9 unaffected, including the REQ-07/REQ-09 prose traps correctly left unaffected), complete:true, and npm test is 4/4 green including \"declaring the delta complete requires every requirement classified\" -- the check that would fail on any missing requirement. Card objective met; stopping."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /impact.json\n- /spec-v1.md\n- /change-request.md\nread_files coverage ledger:\n- spec/impact.json, input/spec-v1.md, input/change-request.md (older raw result omitted; original 2 chars)\n- spec/impact.json (latest raw result retained for immediate analysis; original 0 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nscripts/run-tests.mjs:31 const result refs=4 rank=18.9183\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=18.9183\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=13.4800\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=13.4800\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=8.2521\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=8.2521\ntest/impact.test.js:60 const deliverable refs=7 rank=0.3172\ntest/impact.test.js:41 const baseline refs=8 rank=0.0264\ntest/impact.test.js:42 const changes refs=7 rank=0.0222\ntest/impact.test.js:49 const truth refs=6 rank=0.0182\ntest/frozen.test.js:23 const root refs=7 rank=0.0129\ntest/impact.test.js:7 const root refs=4 rank=0.0106\ntest/frozen.test.js:25 function walk refs=4 rank=0.0073\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=0.0072\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=0.0042\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=0.0042\ntest/impact.test.js:28 function deriveChanges refs=2 rank=0.0042\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=0.0042\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=0.0042\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0032\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0032\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0032\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\n[Handoff from the dependency \"Classify the requirements CR-2026-Q2 affects or adds\" (spec-change-impact-impact-classify-affected)]\nFiles it changed (read these before assuming their shape): spec/impact.json\n\n/nklein-ui\n\nGuidance topic: ui\n\nRe-read spec/impact.json as card impact-classify-affected left it, plus input/spec-v1.md and input/change-request.md (frozen evidence -- do not edit either). For every v1 requirement NOT already recorded -- including REQ-07 and REQ-09, which change-request prose mentions but whose section's Affects: line does not name -- add an impacts[] entry with classification \"unaffected\" and breaking:false; why may be omitted for these.\n\nConfirm every v1 requirement (REQ-01 through REQ-14) and every added requirement (REQ-15, REQ-16) is now recorded exactly once -- none missing, none duplicated -- then set \"complete\": true. Never add a dependency. Run npm test and confirm it is fully green before finishing.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\n## Card co)"
+		},
+		{
+			"id": "perfect-observed:worker:12",
+			"requestClass": "worker",
+			"userMessageIncludes": "Re-read spec/impact.json as card impact-classify-affected le",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"spec/impact.json",
+										"input/spec-v1.md",
+										"input/change-request.md"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing spec-change-impact-impact-classify-remainder-and-finalize. Verifying independently before judging."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /impact.json\n- /spec-v1.md\n- /change-request.md\n- /spec/impact.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nscripts/run-tests.mjs:31 const result refs=4 rank=18.4085\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=18.4085\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=13.1167\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=13.1167\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=8.0297\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=8.0297\ntest/impact.test.js:42 const changes refs=7 rank=0.4018\ntest/impact.test.js:60 const deliverable refs=7 rank=0.4018\ntest/impact.test.js:41 const baseline refs=8 rank=0.0368\ntest/impact.test.js:49 const truth refs=6 rank=0.0252\ntest/impact.test.js:7 const root refs=4 rank=0.0146\ntest/frozen.test.js:23 const root refs=7 rank=0.0125\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=0.0099\ntest/frozen.test.js:25 function walk refs=4 rank=0.0071\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=0.0057\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=0.0057\ntest/impact.test.js:28 function deriveChanges refs=2 rank=0.0057\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=0.0057\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=0.0057\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0031\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0031\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0031\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Classify the unaffected requirements and finalize the delta\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRe-read spec/impact.json as card impact-classify-affected left it, plus input/spec-v1.md and input/change-request.md (frozen evidence -- do not edit either). For every v1 requirement NOT already recorded -- including REQ-07 and REQ-09, which change-request prose mentions but whose section's Affects: line does not name -- add an impacts[] entry with classification \"unaffected\" and breaking:false; why may be omitted for these.\n\nConfirm every v1 requirement (REQ-01 through REQ-14) and every added requirement (REQ-15, REQ-16) is now recorded exactly once -- none missing, none duplicated -- then set \"complete\": true. Never add a dependency. Run npm test and confirm it is fully green before finishing.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstr)"
+		},
+		{
+			"id": "perfect-observed:review:13",
+			"requestClass": "review",
+			"userMessageIncludes": "Re-read spec/impact.json as card impact-classify-affected le",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Delta is complete and correct: all 14 v1 requirements plus the 2 added ones are classified exactly once, complete:true, npm test 4/4 green verified independently in this review session.",
+									"insight": "REQ-07 and REQ-09 -- the two requirements change-request prose mentions without an Affects: line naming them -- are correctly recorded as unaffected rather than folded into the affected set."
+								}
+							}
+						],
+						"content": "Independent verification: fresh read_files shows complete:true and 16 requirement entries (7 affected/added plus 9 unaffected, REQ-01 through REQ-16 with no gaps), and npm test is 4/4 green in this session including the completeness check. Approving."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /impact.test.js\n- /frozen.test.js\n- /impact.json\n- /spec-v1.md\n- /change-request.md\n- /spec/impact.json\nread_files coverage ledger:\n- spec/impact.json, input/spec-v1.md, input/change-request.md (latest raw result retained for immediate analysis; original 2 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nscripts/run-tests.mjs:31 const result refs=4 rank=18.4085\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=18.4085\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=13.1167\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=13.1167\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=8.0297\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=8.0297\ntest/impact.test.js:42 const changes refs=7 rank=0.4018\ntest/impact.test.js:60 const deliverable refs=7 rank=0.4018\ntest/impact.test.js:41 const baseline refs=8 rank=0.0368\ntest/impact.test.js:49 const truth refs=6 rank=0.0252\ntest/impact.test.js:7 const root refs=4 rank=0.0146\ntest/frozen.test.js:23 const root refs=7 rank=0.0125\ntest/impact.test.js:10 const CLASSIFICATIONS refs=3 rank=0.0099\ntest/frozen.test.js:25 function walk refs=4 rank=0.0071\ntest/impact.test.js:11 const ACTION_TO_CLASSIFICATION refs=2 rank=0.0057\ntest/impact.test.js:14 function deriveBaseline refs=2 rank=0.0057\ntest/impact.test.js:28 function deriveChanges refs=2 rank=0.0057\ntest/impact.test.js:8 const SPEC_V1 refs=2 rank=0.0057\ntest/impact.test.js:9 const CHANGE_REQUEST refs=2 rank=0.0057\ntest/frozen.test.js:35 const toPosix refs=2 rank=0.0031\ntest/frozen.test.js:36 const digestOf refs=2 rank=0.0031\ntest/frozen.test.js:38 const frozenPaths refs=2 rank=0.0031\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Classify the unaffected requirements and finalize the delta\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-ui\n\nGuidance topic: ui\n\nRe-read spec/impact.json as card impact-classify-affected left it, plus input/spec-v1.md and input/change-request.md (frozen evidence -- do not edit either). For every v1 requirement NOT already recorded -- including REQ-07 and REQ-09, which change-request prose mentions but whose section's Affects: line does not name -- add an impacts[] entry with classification \"unaffected\" and breaking:false; why may be omitted for these.\n\nConfirm every v1 requirement (REQ-01 through REQ-14) and every added requirement (REQ-15, REQ-16) is now recorded exactly once -- none missing, none duplicated -- then set \"complete\": true. Never add a dependency. Run npm test and confirm it is fully green before fi)"
+		}
+	]
+}
