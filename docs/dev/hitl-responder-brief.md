@@ -194,6 +194,11 @@ Two consequences:
 - **A card's prompt claiming "X already exists" is not evidence.** If a fresh `read_files` shows a stub, the stub is
   the truth for YOUR branch. Do not conclude that earlier work was lost — it may simply be on a branch you cannot
   see. (Some earlier "my verified write reverted to an empty stub" reports were probably this.)
+- **The isolation extends from a decompose card to the child it spawns.** Confirmed live 2026-09-11, twice: a
+  responder wrote the deliverable straight from the decompose card, and the child card's very first turn still
+  showed the pristine original stub. So writing the file from the decompose card is not merely a card that fails to
+  close — the child cannot see the file either, and will write it again from scratch. Two independent reasons to
+  emit the graph and let the child do the writing.
 - **Chain anything that shares a file.** This is the mechanical reason the sequential-decompose rule works: the
   edge is what makes the previous card's output visible at all, quite apart from avoiding `git apply` races.
 
