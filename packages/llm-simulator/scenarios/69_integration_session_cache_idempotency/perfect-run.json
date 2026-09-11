@@ -1,0 +1,268 @@
+{
+	"name": "69_integration_session_cache_idempotency perfect run (HITL rig drive, requests 2835-2841)",
+	"seed": 1,
+	"tracks": [
+		{
+			"id": "perfect-observed:worker:0",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "decompose_project",
+								"arguments": {
+									"slug": "integration-session-cache-idempotency",
+									"title": "Session, conditional-read cache and idempotent-write inventory adapter",
+									"summary": "Builds one file, src/adapter.mjs, that gives an application a plain getItem/createItem API over an inventory service that requires a session token, supports conditional (etag-cached) reads, and requires idempotency keys on writes. The adapter holds the token and refreshes it proactively or after one 401, caches etags to avoid re-fetching unchanged items, and makes sure a retried write reuses its original idempotency key so a flaky retry never creates a duplicate item. Records in integration/manifest.json which of the 10 frozen conformance cases it satisfies -- most of which check the exact headers sent, not just the returned value. One card: the three mechanisms (session, cache, idempotency) share one small file and one helper, so splitting them across cards would only add dependsOn plumbing on the same file for no benefit.",
+									"spec": "# Inventory client — integration brief (session / conditional reads / idempotent writes)\n\n`service/inventory-service.mjs` is a DETERMINISTIC, in-process inventory API with a session, conditional reads and\nIDEMPOTENT writes. `request(method, path, options)` ALWAYS returns `{status, body, ...}`, NEVER throws. `calls()`\nreturns EVERY call with its headers -- most of this contract is about what the adapter SENDS.\n\nContract: `POST /auth/token` -> `200 {token, expiresAtMs}` (tokenTtlMs-lived, each new token invalidates the last);\nany other route without a valid bearer token -> `401 unauthorized`; with an expired one -> `401 token_expired`;\n`GET /items/:id` -> `200 {item, etag}` or, with a matching `if-none-match`, `304 {body:null, etag}`, or `404\nnot_found`; `POST /items` without an `idempotency-key` header -> `400`; with a key seen before -> `200` replaying\nthe FIRST result (nothing new created); with a bad body -> `422 validation_failed {fields}`; otherwise -> `201`.\n\n`src/adapter.mjs` must export `createInventoryClient(service, options)` -> `{getItem(id), createItem(input)}`.\n`options.now()` is the service's clock, `options.sleep(ms)` is how to wait (Date.now()/real timers cannot see or\nmove this service's clock).\n\nThe behaviour, EXACTLY:\n- Hold the session: fetch a token on first need, reuse it -- do not re-authenticate per call.\n- Refresh BEFORE it expires: when now() has reached expiresAtMs, get a new token before sending, not after a\n  rejection.\n- Refresh once on a 401, then retry. If the retry is rejected too, give up with a ServiceError; NEVER loop.\n- Read conditionally: remember the etag per id, send it as if-none-match next time. A 304 carries no body, so\n  return the cached item; when the etag has moved, the service answers 200 and the cache must take the new value.\n- getItem returns the item, or null on not_found.\n- Write idempotently: EVERY write sends an idempotency-key; different writes use different keys, and a retry of\n  the SAME write reuses its key (a fresh key on retry silently creates duplicates).\n- validation_failed rejects as ValidationError{fields}; EVERY other failure rejects as ServiceError{status, code}.\n\nFrozen evidence (do not touch): service/, conformance/, test/integration.test.js, scripts/run-tests.mjs -- digest\nchecked every run. Deliverable: src/adapter.mjs (replacing the throwing stub) plus integration/manifest.json,\nwhose `implemented` lists the conformance case ids (C01-C10) that actually pass; most cases read the SERVICE'S\nCALL LOG (headers included), so returning the right value is not enough -- the contract is about what is sent.",
+									"plan": "One card. Implement src/adapter.mjs around a shared `authorizedRequest(method, path, {headers, body})`\nhelper: fetch/refresh the token proactively when now() >= expiresAtMs or none held yet, attach `Authorization:\nBearer <token>`, and on a 401 response refresh once and retry the SAME request once (throwing ServiceError if\nthat retry also gets 401 -- never looping further); on a 5xx response, also retry once with the identical\nheaders/body (this is what makes a write's retry reuse its idempotency key, per the frozen case that scripts a\n503 on a write). getItem keeps an id->{etag,item} cache, sends if-none-match when cached, returns the cached item\non 304, updates the cache on 200, and returns null on 404. createItem mints a fresh idempotency-key per logical\ncall (a simple counter is enough) and passes it through every attempt of that same call unchanged; validation_failed\nbecomes ValidationError{fields}, everything else unresolved becomes ServiceError{status,code}. Then set\nintegration/manifest.json implemented:[C01..C10], complete:true, and confirm with the real `npm test` (frozen\nsuite, call-log assertions) before finishing.",
+									"tasks": [
+										{
+											"id": "implement-adapter",
+											"title": "Implement the session/cache/idempotency inventory adapter and declare conformance",
+											"prompt": "Implement `src/adapter.mjs` per specification.md, exporting `createInventoryClient(service, options)`.\nThe service (`service/inventory-service.mjs`) is a DETERMINISTIC, in-process API whose `request()` call ALWAYS\nreturns `{status, body, ...}` and NEVER throws. `options.now()` is the service's clock and `options.sleep(ms)` is\nthe only way to wait (Date.now()/real timers cannot see or move this service's clock). Most conformance cases read\nthe service's call log (`calls()`, EVERY call WITH ITS HEADERS) -- returning the right value is not enough when\nthe contract is about what you send.\n\nSession: fetch a token (`POST /auth/token`) on first need and reuse it -- do not re-authenticate per call. Refresh\nBEFORE it expires: when `now() >= expiresAtMs`, get a new token before sending, not after a rejection. On a `401`\nresponse, refresh ONCE and retry the SAME request once; if that retry is ALSO rejected, give up with a\n`ServiceError` -- NEVER loop further.\n\nConditional reads: remember the `etag` returned for each id and send it as `if-none-match` on the next read of\nthat id. A `304` carries no body, so return the cached item as-is; when the item changed, the service answers\n`200` and the cache must take the new value. `getItem(id)` returns the item, or `null` when the service says\n`not_found`.\n\nIdempotent writes: EVERY write (`createItem`) sends an `idempotency-key` header. Different logical writes use\ndifferent keys. If a write's own attempt fails and is retried (e.g. a transient 5xx), the retry must reuse the\nEXACT SAME key as the failed attempt -- minting a fresh key on retry is how duplicates get created, and a frozen\ncase scripts exactly this to catch it. `createItem(input)` returns the created item.\n\nErrors: `validation_failed` (422) rejects with an `Error` named `ValidationError` carrying `fields` from the\nservice's `error.fields`. EVERY other failure (after the one auth-refresh-retry or one 5xx-retry is exhausted)\nrejects with an `Error` named `ServiceError` carrying `status` and the service's `error.code` as `code`.\n\nThen declare which of the 10 frozen conformance cases (`conformance/cases.mjs`: C01..C10) your adapter satisfies\nin `integration/manifest.json`'s `implemented` array, and set `complete: true` only once EVERY case actually\npasses -- the harness RUNS every case you list, immediately.\n\n`service/`, `conformance/`, `test/integration.test.js` and `scripts/run-tests.mjs` are FROZEN evidence with digest\nchecks in `test/frozen.json` -- do not touch them. Run the real `npm test` yourself before finishing; a green\nbaseline with an empty manifest proves nothing, so confirm the count you see names your own 10 passing cases.",
+											"complexity": 38,
+											"filesLikelyTouched": [
+												"src/adapter.mjs",
+												"integration/manifest.json"
+											],
+											"writeScope": [
+												"src/adapter.mjs",
+												"integration/manifest.json"
+											],
+											"forbiddenPaths": [
+												"test/**",
+												"service/**",
+												"conformance/**",
+												"scripts/**"
+											],
+											"testability": "not_testable",
+											"testabilityReason": "The only acceptance surface is the existing FROZEN conformance suite (test/integration.test.js + conformance/cases.mjs), digest-checked in test/frozen.json and outside this card's write scope. No new test file can be added: test/** is frozen, and scripts/run-tests.mjs only collects test/**/*.test.js, so a test placed anywhere else is never run. Conformance is proven by declaring case ids in integration/manifest.json and letting the frozen suite run them (with its deterministic fake clock/sleep and call-log inspection), not by a test this card writes.",
+											"acceptanceCommand": "npm test",
+											"acceptanceChecks": [
+												"npm test exits 0 against the unmodified frozen suite",
+												"integration/manifest.json has complete:true and implemented lists EVERY case, C01 through C10",
+												"a token is fetched once and reused across calls; it is refreshed BEFORE expiry (now() >= expiresAtMs) and, separately, exactly once on a 401 -- a second 401 after refreshing throws ServiceError{status:401} and NEVER loops further",
+												"reads send if-none-match once an etag is known; a 304 returns the cached item (never null), and a changed item (new etag) is refetched rather than served stale",
+												"EVERY write sends an idempotency-key; two different writes use different keys, and a write that internally retries (e.g. after a transient 5xx) reuses the EXACT SAME key on the retry",
+												"getItem returns null (not a throw) for 404 not_found",
+												"validation_failed rejects as ValidationError{fields}; EVERY other unresolved failure rejects as ServiceError{status, code}",
+												"the frozen files (service/, conformance/, test/integration.test.js, scripts/run-tests.mjs) are byte-for-byte untouched"
+											],
+											"nonGoals": [
+												"do not modify service/, conformance/, test/, or scripts/",
+												"do not add dependencies or a new test framework (sandbox is offline)",
+												"do not use Date.now() or a real timer anywhere -- options.now()/options.sleep are the only clock",
+												"do not mint a new idempotency key when internally retrying the same write"
+											],
+											"expectedOutputs": [
+												"src/adapter.mjs exporting createInventoryClient(service, options) with getItem/createItem",
+												"integration/manifest.json: {schemaVersion:1, complete:true, implemented:[C01..C10]}"
+											],
+											"inputs": [
+												"specification.md",
+												"service/inventory-service.mjs",
+												"conformance/cases.mjs",
+												"test/integration.test.js"
+											]
+										}
+									]
+								}
+							}
+						],
+						"content": "Project 69's *-decompose planning card (dev-69-integration-session-cache-idempotency-decompose), same integration family as 67/68 but more intricate: session/token refresh, etag-conditional-read cache, and idempotent-write key reuse, 10 cases (C01-C10). Read specification.md and the frozen service/conformance suite, then hand-verified a full adapter in a scratch copy against the real unmodified verifier before writing this graph -- 24/24 green on first try, including the non-obvious C09 (a write retried after a scripted 503 must reuse its idempotency key, which required a shared 401-and-5xx retry-once helper that always resends the identical headers). One child card again: the three mechanisms share one small file and one retry helper, so splitting would only add same-file dependsOn plumbing for no benefit. testability:not_testable declared up front, same reasoning as 67/68 -- test/ is frozen and digest-checked."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nsrc/adapter.mjs:9 function createInventoryClient refs=1 rank=12.7119\ntest/integration.test.js:20 const root refs=12 rank=0.2736\ntest/integration.test.js:60 const manifest refs=10 rank=0.2229\nconformance/cases.mjs:10 const headerOf refs=9 rank=0.1339\nconformance/cases.mjs:8 const authCalls refs=7 rank=0.1050\nconformance/cases.mjs:9 const itemCalls refs=7 rank=0.1050\nscripts/run-tests.mjs:31 const result refs=4 rank=0.0834\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=0.0834\ntest/integration.test.js:22 function walk refs=4 rank=0.0714\ntest/integration.test.js:59 const caseById refs=4 rank=0.0714\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=0.0594\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=0.0594\nservice/inventory-service.mjs:10 const TOKEN_TTL_MS refs=3 rank=0.0587\ntest/integration.test.js:78 function runCase refs=3 rank=0.0495\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.0364\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.0364\nservice/inventory-service.mjs:12 function createInventoryService refs=1 rank=0.0339\ntest/integration.test.js:31 const toPosix refs=2 rank=0.0299\ntest/integration.test.js:32 const digestOf refs=2 rank=0.0299\ntest/integration.test.js:34 const frozenPaths refs=2 rank=0.0299\ntest/integration.test.js:42 const recorded refs=2 rank=0.0299\nconformance/cases.mjs:13 const cases refs=1 rank=0.0116\ntest/integration.test.js:58 const { cases } refs=0 rank=0.0051\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nWrite the inventory client in src/adapter.mjs.\n\nThe service needs a bearer token that expires, it answers a repeated read with 304 when you send back the etag it\ngave you, and it requires an idempotency key on writes. So the client has to hold a session, keep a small cache,\nand mint keys carefully.\n\nRead specification.md for the contract. Most of what is graded here is what you SEND, not what you return: the\nconformance suite reads the service's call log. A retry that mints a fresh idempotency key looks fine from the\noutside and quietly creates duplicates, and that case exists precisely to catch it.\n\nTime is injected. Use the now() and sleep() you are given; a real timer cannot move this service's clock.)"
+		},
+		{
+			"id": "perfect-observed:chat:1",
+			"requestClass": "chat",
+			"userMessageIncludes": "Workspace root: .",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "decompose_project applied cleanly: 1 Planning card created (implement-adapter, complexity 38), 0 dependencies, no graph quality warnings. This planning card's objective is met -- stopping here per the tool's own instruction; implementation happens on the newly created child card."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\n- /nklein/plans/integration-session-cache-idempotency/spec.md\n- /nklein/plans/integration-session-cache-idempotency/plan.md\n- /nklein/plans/integration-session-cache-idempotency/questions.md\n- /nklein/plans/integration-session-cache-idempotency/decisions.md\n- /nklein/plans/integration-session-cache-idempotency/revisions.md\n- /nklein/plans/integration-session-cache-idempotency/summary.md\n- /nklein/plans/integration-session-cache-idempotency/tasks.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nsrc/adapter.mjs:9 function createInventoryClient refs=1 rank=9.7403\nconformance/cases.mjs:13 const cases refs=1 rank=0.5384\nconformance/cases.mjs:10 const headerOf refs=9 rank=0.3094\nconformance/cases.mjs:8 const authCalls refs=7 rank=0.2390\nconformance/cases.mjs:9 const itemCalls refs=7 rank=0.2390\ntest/integration.test.js:20 const root refs=12 rank=0.2096\ntest/integration.test.js:60 const manifest refs=10 rank=0.1708\nscripts/run-tests.mjs:31 const result refs=4 rank=0.0639\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=0.0639\ntest/integration.test.js:22 function walk refs=4 rank=0.0547\ntest/integration.test.js:59 const caseById refs=4 rank=0.0547\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=0.0455\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=0.0455\nservice/inventory-service.mjs:10 const TOKEN_TTL_MS refs=3 rank=0.0450\ntest/integration.test.js:78 function runCase refs=3 rank=0.0379\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.0279\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.0279\nservice/inventory-service.mjs:12 function createInventoryService refs=1 rank=0.0260\ntest/integration.test.js:31 const toPosix refs=2 rank=0.0229\ntest/integration.test.js:32 const digestOf refs=2 rank=0.0229\ntest/integration.test.js:34 const frozenPaths refs=2 rank=0.0229\ntest/integration.test.js:42 const recorded refs=2 rank=0.0229\ntest/integration.test.js:58 const { cases } refs=0 rank=0.0039\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nWrite the inventory client in src/adapter.mjs.\n\nThe service needs a bearer token that expires, it answers a repeated read with 304 when you send back the etag it\ngave you, and it requires an idempotency key on writes. So the client has to hold a session, keep a small cache,\nand mint keys carefully.\n\nRead specification.md for the contract. Most of what is graded here is what you SEND, not what you return: the\nconformance suite reads the service's call log. A retry that mints a fresh idempotency key looks fine from the\noutside and quietly creates duplicates, and that case exists precisely to catch it.\n\nTime is injected. Use the now() and sleep() you are given; a real timer cannot move this service's clock.)"
+		},
+		{
+			"id": "perfect-observed:worker:2",
+			"requestClass": "worker",
+			"userMessageIncludes": "Implement `src/adapter.mjs` per specification.md, exporting",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "update_focus_chain",
+								"arguments": {
+									"steps": [
+										{
+											"text": "Refine card against current stub state",
+											"status": "done"
+										},
+										{
+											"text": "begin_implementation",
+											"status": "done"
+										},
+										{
+											"text": "Write src/adapter.mjs (session/cache/idempotency per spec)",
+											"status": "in_progress"
+										},
+										{
+											"text": "Write integration/manifest.json (complete:true, all 10 cases)",
+											"status": "in_progress"
+										},
+										{
+											"text": "Fresh read_files + real npm test in a later turn to confirm",
+											"status": "pending"
+										}
+									]
+								}
+							},
+							{
+								"name": "begin_implementation",
+								"arguments": {
+									"refinementNotes": "Focused span matches the pristine stub; nothing changed since planning. Proceeding with the adapter design verified offline against the frozen conformance suite before this card was created."
+								}
+							},
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/adapter.mjs",
+											"content": "/**\n * Your adapter. This file is yours: replace the stub.\n *\n * `createInventoryClient(service, options)` must return `{ getItem(id), createItem(input) }`.\n * `options.now()` is the service's clock and `options.sleep(ms)` is how you wait. See specification.md for the\n * contract, and conformance/cases.mjs for exactly what is checked.\n */\n\nfunction serviceError(status, body) {\n\tconst code = body?.error?.code ?? \"unknown_error\";\n\tconst err = new Error(body?.error?.message ?? `request failed with status ${status}`);\n\terr.name = \"ServiceError\";\n\terr.status = status;\n\terr.code = code;\n\treturn err;\n}\n\nexport function createInventoryClient(service, options) {\n\tconst now = options?.now;\n\tconst cache = new Map();\n\tlet token = null;\n\tlet expiresAtMs = 0;\n\tlet idempotencyCounter = 0;\n\n\tasync function fetchToken() {\n\t\tconst { body } = await service.request(\"POST\", \"/auth/token\");\n\t\ttoken = body.token;\n\t\texpiresAtMs = body.expiresAtMs;\n\t}\n\n\tasync function authorizedRequest(method, path, { headers, body } = {}) {\n\t\tif (token === null || now() >= expiresAtMs) {\n\t\t\tawait fetchToken();\n\t\t}\n\t\tconst attempt = () =>\n\t\t\tservice.request(method, path, { headers: { ...headers, authorization: `Bearer ${token}` }, body });\n\n\t\tlet res = await attempt();\n\t\tif (res.status === 401) {\n\t\t\tawait fetchToken();\n\t\t\tres = await attempt();\n\t\t\tif (res.status === 401) throw serviceError(res.status, res.body);\n\t\t\treturn res;\n\t\t}\n\t\tif (res.status >= 500 && res.status <= 599) {\n\t\t\tres = await attempt();\n\t\t}\n\t\treturn res;\n\t}\n\n\tasync function getItem(id) {\n\t\tconst cached = cache.get(id);\n\t\tconst headers = cached ? { \"if-none-match\": cached.etag } : {};\n\t\tconst res = await authorizedRequest(\"GET\", `/items/${id}`, { headers });\n\t\tif (res.status === 304) return cached.item;\n\t\tif (res.status === 200) {\n\t\t\tcache.set(id, { etag: res.etag, item: res.body });\n\t\t\treturn res.body;\n\t\t}\n\t\tif (res.status === 404) return null;\n\t\tthrow serviceError(res.status, res.body);\n\t}\n\n\tasync function createItem(input) {\n\t\tidempotencyCounter += 1;\n\t\tconst key = `key-${idempotencyCounter}`;\n\t\tconst res = await authorizedRequest(\"POST\", \"/items\", { headers: { \"idempotency-key\": key }, body: input });\n\t\tif (res.status === 201 || res.status === 200) return res.body;\n\t\tif (res.status === 422) {\n\t\t\tconst err = new Error(res.body?.error?.message ?? \"validation failed\");\n\t\t\terr.name = \"ValidationError\";\n\t\t\terr.fields = res.body?.error?.fields ?? [];\n\t\t\tthrow err;\n\t\t}\n\t\tthrow serviceError(res.status, res.body);\n\t}\n\n\treturn { getItem, createItem };\n}\n"
+										},
+										{
+											"path": "integration/manifest.json",
+											"content": "{\n\t\"schemaVersion\": 1,\n\t\"complete\": true,\n\t\"implemented\": [\n\t\t\"C01\",\n\t\t\"C02\",\n\t\t\"C03\",\n\t\t\"C04\",\n\t\t\"C05\",\n\t\t\"C06\",\n\t\t\"C07\",\n\t\t\"C08\",\n\t\t\"C09\",\n\t\t\"C10\"\n\t]\n}\n"
+										}
+									]
+								}
+							}
+						],
+						"content": "Refinement: focused span matches the pristine stub, nothing changed since planning. Calling begin_implementation, then writing the verified adapter (shared authorizedRequest helper: proactive token refresh when now()>=expiresAtMs, refresh-once-then-retry on 401, retry-once-with-identical-headers on 5xx so a retried write reuses its idempotency key; getItem caches etag/item and answers a 304 from cache; createItem mints one key per logical call; validation_failed -> ValidationError{fields}, everything else -> ServiceError{status,code}). This design was verified offline in a scratch copy against the real frozen suite (24/24, all 10 cases) before this card existed. Will verify with a fresh read_files + real npm test in a later turn, not this one."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\n- /core/agent-write-guard.ts\n- /manifest.json\n- /frozen.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=177.9183\nscripts/run-tests.mjs:31 const result refs=4 rank=67.1202\ntest/integration.test.js:42 const recorded refs=2 rank=33.0952\ntest/integration.test.js:20 const root refs=12 rank=18.4931\nconformance/cases.mjs:13 const cases refs=1 rank=17.4187\nsrc/adapter.mjs:9 function createInventoryClient refs=1 rank=12.6050\nconformance/cases.mjs:10 const headerOf refs=9 rank=10.0087\nconformance/cases.mjs:8 const authCalls refs=7 rank=7.7339\nconformance/cases.mjs:9 const itemCalls refs=7 rank=7.7339\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.8865\ntest/integration.test.js:22 function walk refs=4 rank=4.5598\ntest/integration.test.js:59 const caseById refs=4 rank=4.5598\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.4181\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.4181\ntest/integration.test.js:78 function runCase refs=3 rank=3.0817\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.0215\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.0215\ntest/integration.test.js:31 const toPosix refs=2 rank=1.7722\ntest/integration.test.js:32 const digestOf refs=2 rank=1.7722\ntest/integration.test.js:34 const frozenPaths refs=2 rank=1.7722\nservice/inventory-service.mjs:10 const TOKEN_TTL_MS refs=3 rank=1.4555\nservice/inventory-service.mjs:12 function createInventoryService refs=1 rank=0.8403\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1261\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches auth, local runtime boundaries, Electron, filesystem writes, agent tools, network access, cookies, tokens, or dependency execution.\n\nChecklist:\n- Start from the trust boundary: browser UI, runtime server, local project files, NKlein SDK host, child processes, and external endpoints.\n- Prefer deny-by-default controls. Any bypass needs a narrow condition, a clear error, and regression coverage.\n- Treat secrets as toxic data: never log them, never persist them in transcripts, and block obvious credential writes before disk.\n- For Electron, keep context isolation, sandboxing, disabled Node integration, blocked popups, same-origin navigation, and CSP-covered fallback pages intact.\n- For local servers, bind to loopback by default; cookies need HttpOnly, SameSite=Strict, Path, Max-Age, and Secure when TLS is active.\n- For agent writes, preserve protected-test, max-file-size, max-line-count, and secret-scan guardrails.\n\nExample:\n```ts\nconst secret = findPotentialSecretInText(input.newText);\nif (secret) return { approved: false, reason: `Blocked write: potential ${secret.label}.` };\n```\n\n!Klein specifics:\n- Runtime security code usually lives in `src/security/`, `src/server/`, `src/core/agent-write-guard.ts`, and `src/nklein-agent/`.\n- Desktop hardening lives under `packages/desktop/src/`.\n- Update or add focused tests in `test/runtime/` and keep `CHANGELOG.md` current.\n\nGuidance topic: security\n\nImplement `src/adapter.mjs` per specification.md, exporting `createInventoryClient(service, options)`.\nT)"
+		},
+		{
+			"id": "perfect-observed:worker:3",
+			"requestClass": "worker",
+			"userMessageIncludes": "Implement `src/adapter.mjs` per specification.md, exporting",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"src/adapter.mjs",
+										"integration/manifest.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Files written per the tool result (adapter.mjs 80 lines, manifest.json 17 lines). Verifying in this later turn, not the write turn: fresh read_files on both, and the real npm test."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /manifest.json\n- /integration.test.js\n- /core/agent-write-guard.ts\n- /frozen.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein focus chain: your own plan for this task — keep working through it, do not restart it]\n[x] Refine card against current stub state\n[x] begin_implementation\n[~] Write src/adapter.mjs (session/cache/idempotency per spec)\n[~] Write integration/manifest.json (complete:true, all 10 cases)\n[ ] Fresh read_files + real npm test in a later turn to confirm\nCurrent step: Write src/adapter.mjs (session/cache/idempotency per spec)\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=177.9183\nscripts/run-tests.mjs:31 const result refs=4 rank=67.1202\ntest/integration.test.js:42 const recorded refs=2 rank=33.0952\ntest/integration.test.js:20 const root refs=12 rank=18.4931\nconformance/cases.mjs:13 const cases refs=1 rank=17.4187\nsrc/adapter.mjs:9 function createInventoryClient refs=1 rank=12.6050\nconformance/cases.mjs:10 const headerOf refs=9 rank=10.0087\nconformance/cases.mjs:8 const authCalls refs=7 rank=7.7339\nconformance/cases.mjs:9 const itemCalls refs=7 rank=7.7339\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.8865\ntest/integration.test.js:22 function walk refs=4 rank=4.5598\ntest/integration.test.js:59 const caseById refs=4 rank=4.5598\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.4181\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.4181\ntest/integration.test.js:78 function runCase refs=3 rank=3.0817\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.0215\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.0215\ntest/integration.test.js:31 const toPosix refs=2 rank=1.7722\ntest/integration.test.js:32 const digestOf refs=2 rank=1.7722\ntest/integration.test.js:34 const frozenPaths refs=2 rank=1.7722\nservice/inventory-service.mjs:10 const TOKEN_TTL_MS refs=3 rank=1.4555\nservice/inventory-service.mjs:12 function createInventoryService refs=1 rank=0.8403\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1261\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches auth, local runtime boundaries, Electron, filesystem writes, agent tools, network access, cookies, tokens, or dependency execution.\n\nChecklist:\n- Start from the trust boundary: browser UI, runtime server, local project files, NKlein SDK host, child processes, and external endpoints.\n- Prefer deny-by-default controls. Any bypass needs a narrow condition, a clear error, and regression coverage.\n- Treat secrets as toxic data: never log them, never persist them in transcripts, and block obvious credential writes before disk.\n- For Electron, keep context isolation, sandboxing, disabled Node integration, blocked popups, same-origin navigation, and CSP-covered fallback pages intact.\n- For local servers, bind to loopback by default; cookies need HttpOnly, SameSite=Strict, Path, Max-Age, and Secure when TLS is active.\n- For agent writes, preserve protected-test, max-file-size, max-line-count, and secret-scan guardrails.\n\nExample:\n```ts\nconst secret = findPotentialSecretInText(input.newText);\nif (secret) return { approved: false, reason: `Blocked write: potential ${secret.label})"
+		},
+		{
+			"id": "perfect-observed:worker:4",
+			"requestClass": "worker",
+			"userMessageIncludes": "Implement `src/adapter.mjs` per specification.md, exporting",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Verified in this session, in a later turn than the write: fresh read_files confirms src/adapter.mjs and integration/manifest.json (complete:true, all 10 case ids) contain exactly what was written. Real npm test: 24/24 pass, 0 fail -- frozen-files digest check green, manifest-shape check green, all 10 conformance cases genuinely pass under both the 'listed cases pass' and 'complete adapter' tests. Card objective met; stopping here."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /manifest.json\n- /integration.test.js\n- /core/agent-write-guard.ts\n- /frozen.json\nread_files coverage ledger:\n- src/adapter.mjs, integration/manifest.json (latest raw result retained for immediate analysis; original 1 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein focus chain: your own plan for this task — keep working through it, do not restart it]\n[x] Refine card against current stub state\n[x] begin_implementation\n[~] Write src/adapter.mjs (session/cache/idempotency per spec)\n[~] Write integration/manifest.json (complete:true, all 10 cases)\n[ ] Fresh read_files + real npm test in a later turn to confirm\nCurrent step: Write src/adapter.mjs (session/cache/idempotency per spec)\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=177.9183\nscripts/run-tests.mjs:31 const result refs=4 rank=67.1202\ntest/integration.test.js:42 const recorded refs=2 rank=33.0952\ntest/integration.test.js:20 const root refs=12 rank=18.4931\nconformance/cases.mjs:13 const cases refs=1 rank=17.4187\nsrc/adapter.mjs:9 function createInventoryClient refs=1 rank=12.6050\nconformance/cases.mjs:10 const headerOf refs=9 rank=10.0087\nconformance/cases.mjs:8 const authCalls refs=7 rank=7.7339\nconformance/cases.mjs:9 const itemCalls refs=7 rank=7.7339\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.8865\ntest/integration.test.js:22 function walk refs=4 rank=4.5598\ntest/integration.test.js:59 const caseById refs=4 rank=4.5598\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.4181\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.4181\ntest/integration.test.js:78 function runCase refs=3 rank=3.0817\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.0215\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.0215\ntest/integration.test.js:31 const toPosix refs=2 rank=1.7722\ntest/integration.test.js:32 const digestOf refs=2 rank=1.7722\ntest/integration.test.js:34 const frozenPaths refs=2 rank=1.7722\nservice/inventory-service.mjs:10 const TOKEN_TTL_MS refs=3 rank=1.4555\nservice/inventory-service.mjs:12 function createInventoryService refs=1 rank=0.8403\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1261\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nUse this skill when a task touches auth, local runtime boundaries, Electron, filesystem writes, agent tools, network access, cookies, tokens, or dependency execution.\n\nChecklist:\n- Start from the trust boundary: browser UI, runtime server, local project files, NKlein SDK host, child processes, and external endpoints.\n- Prefer deny-by-default controls. Any bypass needs a narrow condition, a clear error, and regression coverage.\n- Treat secrets as toxic data: never log them, never persist them in transcripts, and block obvious credential writes before disk.\n- For Electron, keep context isolation, sandboxing, disabled Node integration, blocked popups, same-origin navigation, and CSP-covered fallback pages intact.\n- For local servers, bind to loopback by default; cookies need HttpOnly, SameSite=Strict, Path, Max-Age, and Secure when TLS is active.\n- For agent writes, preserve protected-test, max-file-size, max-line-count, and secret-scan guardrails.\n\nExample:\n```ts\nc)"
+		},
+		{
+			"id": "perfect-observed:worker:5",
+			"requestClass": "worker",
+			"userMessageIncludes": "Implement `src/adapter.mjs` per specification.md, exporting",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"src/adapter.mjs",
+										"integration/manifest.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing the session/cache/idempotency inventory adapter card. Gathering my own fresh evidence in this session rather than trusting the shown diff: reading the current files and running the real test suite."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\n- /manifest.json\n- /frozen.json\n- /integration/manifest.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=177.9183\nscripts/run-tests.mjs:31 const result refs=4 rank=67.1202\ntest/integration.test.js:42 const recorded refs=2 rank=33.0952\ntest/integration.test.js:20 const root refs=12 rank=18.4931\nconformance/cases.mjs:13 const cases refs=1 rank=17.4187\nsrc/adapter.mjs:9 function createInventoryClient refs=1 rank=12.6050\nconformance/cases.mjs:10 const headerOf refs=9 rank=10.0087\nconformance/cases.mjs:8 const authCalls refs=7 rank=7.7339\nconformance/cases.mjs:9 const itemCalls refs=7 rank=7.7339\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.8865\ntest/integration.test.js:22 function walk refs=4 rank=4.5598\ntest/integration.test.js:59 const caseById refs=4 rank=4.5598\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.4181\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.4181\ntest/integration.test.js:78 function runCase refs=3 rank=3.0817\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.0215\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.0215\ntest/integration.test.js:31 const toPosix refs=2 rank=1.7722\ntest/integration.test.js:32 const digestOf refs=2 rank=1.7722\ntest/integration.test.js:34 const frozenPaths refs=2 rank=1.7722\nservice/inventory-service.mjs:10 const TOKEN_TTL_MS refs=3 rank=1.4555\nservice/inventory-service.mjs:12 function createInventoryService refs=1 rank=0.8403\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1261\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Implement the session/cache/idempotency inventory adapter and declare conformanc…\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-security\n\nGuidance topic: security\n\nImplement `src/adapter.mjs` per specification.md, exporting `createInventoryClient(service, options)`.\nThe service (`service/inventory-service.mjs`) is a DETERMINISTIC, in-process API whose `request()` call ALWAYS\nreturns `{status, body, ...}` and NEVER throws. `options.now()` is the service's clock and `options.sleep(ms)` is\nthe only way to wait (Date.now()/real timers cannot see or move this service's clock). Most conformance cases read\nthe service's call log (`calls()`, EVERY call WITH ITS HEADERS) -- returning the right value is not enough when\nthe contract is about what you send.\n\nSession: fetch a token (`POST /auth/token`) on first need and reuse it -- do not re-authenticate per call. Refresh\n)"
+		},
+		{
+			"id": "perfect-observed:review:6",
+			"requestClass": "review",
+			"userMessageIncludes": "Implement `src/adapter.mjs` per specification.md, exporting",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Verified independently this session (fresh read_files + real npm test, not the shown diff): 24/24 pass, 0 fail, all 10 conformance cases genuinely exercised. Adapter correctly implements token reuse/proactive+reactive refresh (never looping past one retry), etag-conditional read caching, and idempotency-key reuse on internal write retries -- including the subtle C09 case (a write retried after a scripted 503 keeps its original key so exactly one item is created). Manifest declares complete:true with all 10 cases. No frozen paths touched."
+								}
+							}
+						],
+						"content": "My own fresh read_files + npm test this session (not the shown diff): both files read successfully, and the real npm test is 24/24 pass, 0 fail -- frozen-files digest check green, manifest-shape check green, all 10 conformance cases genuinely pass under both the 'listed cases pass' test and the 'complete adapter' test. The diff matches the objective: session token held and reused, refreshed proactively before expiry and once reactively on a 401 (giving up with ServiceError rather than looping), conditional reads cache etag/item and answer 304s from cache while refetching on a changed etag, writes send a fresh idempotency-key per logical call and reuse the SAME key when an internal retry occurs, validation_failed becomes a named ValidationError{fields}, and every other unresolved failure becomes a named ServiceError{status,code}. No frozen files touched. Approving."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\n- /manifest.json\n- /frozen.json\n- /integration/manifest.json\nread_files coverage ledger:\n- src/adapter.mjs, integration/manifest.json (latest raw result retained for immediate analysis; original 1 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=177.9183\nscripts/run-tests.mjs:31 const result refs=4 rank=67.1202\ntest/integration.test.js:42 const recorded refs=2 rank=33.0952\ntest/integration.test.js:20 const root refs=12 rank=18.4931\nconformance/cases.mjs:13 const cases refs=1 rank=17.4187\nsrc/adapter.mjs:9 function createInventoryClient refs=1 rank=12.6050\nconformance/cases.mjs:10 const headerOf refs=9 rank=10.0087\nconformance/cases.mjs:8 const authCalls refs=7 rank=7.7339\nconformance/cases.mjs:9 const itemCalls refs=7 rank=7.7339\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=4.8865\ntest/integration.test.js:22 function walk refs=4 rank=4.5598\ntest/integration.test.js:59 const caseById refs=4 rank=4.5598\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.4181\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.4181\ntest/integration.test.js:78 function runCase refs=3 rank=3.0817\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.0215\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.0215\ntest/integration.test.js:31 const toPosix refs=2 rank=1.7722\ntest/integration.test.js:32 const digestOf refs=2 rank=1.7722\ntest/integration.test.js:34 const frozenPaths refs=2 rank=1.7722\nservice/inventory-service.mjs:10 const TOKEN_TTL_MS refs=3 rank=1.4555\nservice/inventory-service.mjs:12 function createInventoryService refs=1 rank=0.8403\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1261\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Implement the session/cache/idempotency inventory adapter and declare conformanc…\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\n/nklein-security\n\nGuidance topic: security\n\nImplement `src/adapter.mjs` per specification.md, exporting `createInventoryClient(service, options)`.\nThe service (`service/inventory-service.mjs`) is a DETERMINISTIC, in-process API whose `request()` call ALWAYS\nreturns `{status, body, ...}` and NEVER throws. `options.now()` is the service's clock and `options.sleep(ms)` is\nthe only way to wait (Date.now()/real timers cannot see or move this service's clock). Most conformance cases read\nthe service's call log (`calls()`, EVERY call WITH ITS HEADERS) -- returning the right value is not enough when\nthe contra)"
+		}
+	]
+}
