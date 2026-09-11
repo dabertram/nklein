@@ -189,6 +189,21 @@ next card in the chain, and the project was not lost. So: once you have confirme
 runner's own workspace rather than your diff — your card tests green, the EACCES path is not one you wrote to —
 stop. Do not keep cycling the focus chain.
 
+## A custodian review with NO sandbox — the one loop a bare stop does not end
+
+Distinct from the custodian REOPEN loop. Here `run_commands` fails outright with
+`No Docker sandbox workspace is prepared for task main-branch-custodian::review`, and `read_files` is unproductive
+too, so you cannot gather fresh evidence for the merge you are being asked to judge. Bare-stopping does NOT end it —
+the card comes straight back.
+
+**The escape that works:** submit a real `submit_review` verdict grounded in evidence you already hold. The
+custodian is reviewing a merge of cards you almost certainly reviewed yourself earlier in the same shift, with the
+same content; that evidence is still valid and still yours. Say in the verdict what it rests on. Live 2026-09-11 a
+responder cleared two instances this way after ~3 wasted turns on the first.
+
+What you must NOT do is approve on the shown acceptance line alone, or keep retrying dead tools. The rule against
+trusting a shown line is about not inventing evidence — reusing a real test run you performed yourself is not that.
+
 ## Trust a fresh `read_files` over the focused code span — and never repeat a write
 
 The `Focused code span` in your prompt can go STALE **within a single card's own session**. Not just across cards:
