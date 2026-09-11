@@ -167,6 +167,23 @@ fault to report. Verify in-session instead: a fresh `read_files` plus a real `np
 (The check IS available to an operator on the host, outside the sandbox, against the project's own dev-workspace
 repo. That is where the earlier "no commit or branch for this card" findings came from.)
 
+## The acceptance-runner EACCES loop — and the bare stop that ends it
+
+A third named loop, distinct from the custodian one and from the finished-card reopen. Live 2026-09-11, project 58:
+a card was re-driven with `acceptance check failed... EACCES` against a harness-managed workspace whose path ends
+`.../--acceptance-`. That directory is `0700` under a per-task uid and is unreadable by the card, by its reviewer,
+and by `docker exec -u 0` from the host — so there is nothing you can inspect and nothing you can fix. The card's
+own workspace tested green three times independently; the diff was never the problem.
+
+It cost 20% of that shift. What it looks like: `update_focus_chain` is accepted over and over with no new
+instruction, which is the custodian loop's shape, and no completion tool is offered (`resolve_result`,
+`predict_output`, `request_compaction`, `begin_implementation` were all checked and absent).
+
+**Unlike the custodian loop, a bare stop DOES end this one.** The next claimed request was a fresh session for the
+next card in the chain, and the project was not lost. So: once you have confirmed the failure is the acceptance
+runner's own workspace rather than your diff — your card tests green, the EACCES path is not one you wrote to —
+stop. Do not keep cycling the focus chain.
+
 ## Trust a fresh `read_files` over the focused code span — and never repeat a write
 
 The `Focused code span` in your prompt can go STALE **within a single card's own session**. Not just across cards:
