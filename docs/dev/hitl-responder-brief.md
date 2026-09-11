@@ -208,6 +208,17 @@ both goals claimed complete.
 This is the general trap in its sharpest form: the number you are looking at can be true and still not be about the
 thing you did.
 
+**Structural metrics scan the FILES ON DISK, not the import graph.** Project 63's goals include `no_import_cycle`
+and a `forbidden_import` rule, and the verifier walks every `.mjs`/`.js` under `src/`. Un-referencing the old module
+is therefore not enough — a file nobody imports still counts against you, and the goal stays red. It has to actually
+be deleted. No delete tool is offered; `run_commands` with `rm -f <path>` is the way, and a reviewer should confirm
+with `list_files` that the file is genuinely gone rather than merely orphaned.
+
+Two smaller notes from the same family, worth knowing before you count anything by hand: 64's `no_duplicate_block`
+uses `windowLines: 5` where 62 used 6, so the thresholds are per-fixture and must be read rather than assumed; and
+its branch-counting regex (`\?[^.]`) also matches `??`, not just ternaries, so a nullish coalesce costs you a
+branch.
+
 ## A custodian review with NO sandbox — the one loop a bare stop does not end
 
 Distinct from the custodian REOPEN loop. Here `run_commands` fails outright with
