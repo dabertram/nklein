@@ -207,6 +207,25 @@ So to redecompose one stuck card: read the existing plan (`.nklein/nklein/plans/
 mirror), re-add **every** card verbatim — same prompts, acceptance checks, non-goals, write scopes, content already
 proven to pass this gate once — and change only what you came to change. Then `decompose_project` with no `tasks`.
 
+## A `*-decompose` card ALWAYS closes with `decompose_project` — even when the deliverable is a data file
+
+Some fixtures (50 `spec_conformance_suite`, 52 `planning_receipt_ingest_cli`, 53 `warehouse_stock_ledger`) are
+graded by a frozen verifier against a DATA FILE — `spec/spec.json` + `conformance/suite.mjs`, or `plan/cards.json`.
+It is tempting to conclude the file is the whole job and to write it straight from the decompose card. **Do not.**
+The decompose card is a PLANNING card and the only thing that closes it is `decompose_project`. The harness says so
+outright if you try otherwise:
+
+> "This is a planning card, not a work card... otherwise complete the planning work this card is for."
+
+Write the file from the decompose card and you get the worst outcome available: the deliverable is correct and
+verified green, the planning card never leaves Planning, the board never settles, and the rail stalls the project
+out at 45 minutes and re-queues it. **Projects 50, 52 and 53 were each lost this way more than once — 50 six
+times — while their actual work was finished and passing.**
+
+So on any `*-decompose` card: emit the graph. Let the CHILD cards write the deliverable. Understanding the frozen
+verifier first is still exactly right — it tells you what the child cards must produce — but it is the input to the
+graph, not a substitute for it.
+
 ## On a spec/analysis project, declare `testability` at DECOMPOSE time
 
 A task that omits `testability` defaults to **testable**, and the test-driven-delivery reviewer then demands a
