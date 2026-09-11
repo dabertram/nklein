@@ -2789,12 +2789,26 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   retirement ledger already exists (`src/core/session-retirement.ts`) and is what makes a stop stick. The
   board-liveness watchdog retires terminal-lane sessions but only catches them in four live states, which is the
   same gap recorded under P1.SETTLEDNUDGE. One fix serves both.
-  **Operator workaround, corrected 2026-09-11:** abandoning is NOT enough — project 50's card came back out of
-  trash twice, on separate passes, because `resumeFromTrash` lets a mid-turn session restore it. What actually
-  stops a zombie is `hitl-abandon-run.mts` followed by `projects.remove` on the workspace: trashing removes the
-  cards, removing takes the project out of the index so nothing re-seeds them. Safe for a re-queued project, since
-  its next drive creates a fresh workspace anyway. Note the rail's own cleanup already does exactly this pair
-  (`dev-test-rail.mts:261`) — it just loses the race against a session that restores the card first.
+  **▶ DO NOT `projects.remove` A WORKSPACE WITH LIVE SESSIONS. I recorded that as the workaround earlier today and
+  it is WRONG — it is how you create a PERMANENT zombie.**
+  The board-liveness watchdog is per-workspace and timer-driven, and its `loadSnapshot`
+  (`runtime-server.ts:~4761`) begins by finding the workspace in the index:
+  `if (!workspaceEntry) return { status: "scope_mismatch", reason: "workspace <id> is absent from the index" }`.
+  A skipped snapshot means `handleSnapshot` never runs — so the stop loop, the retirement sweep and the
+  reservation purge are ALL blind for that workspace, permanently, while its sessions keep running and keep
+  issuing requests. Removing the project does not stop its sessions; it removes the only thing that could have.
+  **Live proof:** `dev-53-planning-warehouse-stock-ledger-decompose` was left with a `running` session on a board
+  whose workspace I had removed. Its sandbox could never be provisioned (`No Docker sandbox workspace is
+  prepared`), nothing could stop it, and it consumed **26 of the next shift's 42 answers**. Two other removed
+  workspaces still show `running` sessions on boards that are entirely `trash`.
+  **This also explains why the P1.SETTLEDNUDGE retirement fix shows zero firings:** it lives inside
+  `handleSnapshot`, and for exactly the boards that most need it the tick never gets that far.
+  **Correct order, when a board must be stopped:** abandon it (trash the cards) and LEAVE IT IN THE INDEX so its
+  watchdog keeps ticking and can stop + retire the sessions. Only remove the workspace once it shows no live
+  sessions. If sessions are already orphaned behind a removal, a runtime restart is the only reliable clear —
+  in-memory sessions do not survive it.
+  Note the rail's own cleanup does trash-then-remove (`dev-test-rail.mts:261`), which has the same hazard whenever
+  a session restores a card between the two steps.
   **▶ MEASURED COST: it converts finished work into a full re-drive.** Project 51 had all three of its cards landed
   and approved — the project was DONE — and was still re-queued as "STALLED". The chain is mechanical: the zombie
   card starved the seat, so 51's live board stopped moving, so the rail's fingerprint went unchanged for its full
