@@ -2789,8 +2789,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   retirement ledger already exists (`src/core/session-retirement.ts`) and is what makes a stop stick. The
   board-liveness watchdog retires terminal-lane sessions but only catches them in four live states, which is the
   same gap recorded under P1.SETTLEDNUDGE. One fix serves both.
-  **Operator workaround meanwhile:** after a re-queue, check for workspaces with live cards that no rail owns and
-  `hitl-abandon-run.mts` them — twice if needed, since the first pass can lose the race with a mid-turn session.
+  **Operator workaround, corrected 2026-09-11:** abandoning is NOT enough — project 50's card came back out of
+  trash twice, on separate passes, because `resumeFromTrash` lets a mid-turn session restore it. What actually
+  stops a zombie is `hitl-abandon-run.mts` followed by `projects.remove` on the workspace: trashing removes the
+  cards, removing takes the project out of the index so nothing re-seeds them. Safe for a re-queued project, since
+  its next drive creates a fresh workspace anyway. Note the rail's own cleanup already does exactly this pair
+  (`dev-test-rail.mts:261`) — it just loses the race against a session that restores the card first.
   **▶ MEASURED COST: it converts finished work into a full re-drive.** Project 51 had all three of its cards landed
   and approved — the project was DONE — and was still re-queued as "STALLED". The chain is mechanical: the zombie
   card starved the seat, so 51's live board stopped moving, so the rail's fingerprint went unchanged for its full
