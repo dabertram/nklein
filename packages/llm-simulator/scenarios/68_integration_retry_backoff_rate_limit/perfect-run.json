@@ -1,0 +1,253 @@
+{
+	"name": "68_integration_retry_backoff_rate_limit perfect run (HITL rig drive, requests 2829-2834)",
+	"seed": 1,
+	"tracks": [
+		{
+			"id": "perfect-observed:worker:0",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "decompose_project",
+								"arguments": {
+									"slug": "integration-retry-backoff-rate-limit",
+									"title": "Retrying orders adapter over a flaky, rate-limited service",
+									"summary": "Builds one file, src/adapter.mjs, that gives an application a plain getOrder/createOrder API over a flaky, rate-limited orders service -- retrying 429s and 5xx with the exact wait schedule the spec requires, never retrying a 4xx, and turning failures into two named JS error types. Records in integration/manifest.json which of the 9 frozen conformance cases (exact wait times, exact call counts) it satisfies. One card -- same shape as the prior contacts-adapter project, one cohesive deliverable. No open questions; the retry policy is stated exactly and the frozen suite is the only acceptance check.",
+									"spec": "# Orders client — integration brief (retry/backoff/rate-limit)\n\n`service/orders-service.mjs` is a deterministic, in-process orders API that fails on purpose, with a clock that\nmoves only when `advance(ms)` is called. `request(method, path, options)` ALWAYS returns `{status, body}`, NEVER\nthrows, NEVER sleeps.\n\nRoutes: `GET /orders/:id` -> `200 order` or `404 not_found`; `POST /orders {totalMinor}` -> `201 order` or\n`422 validation_failed` with `error.fields`; more than 3 requests in any 1000ms window -> `429 rate_limited` plus\na top-level `retryAfterMs`; the suite also scripts `503`/`500` via `queueResponses` (overrides the rate limit,\nconsumes no slot).\n\n`src/adapter.mjs` must export `createOrdersClient(service, options)` -> `{getOrder(id), createOrder(input)}`.\n`options.sleep(ms)` is the ONLY way to wait (it advances the service's clock; a real timer never recovers).\n`options.maxAttempts` (default 4, total attempts including the first) and `options.baseDelayMs` (default 100).\n\nThe policy, exactly:\n- Retry `429` and any `5xx`. NEVER retry any other non-2xx (a 4xx is an answer, not a transient fault).\n- After a `429`, wait EXACTLY the `retryAfterMs` the service sent -- not the backoff schedule.\n- After a `5xx`, wait `baseDelayMs * 2 ** (attempt - 1)` (100, 200, 400 with the defaults).\n- NEVER exceed `maxAttempts` calls, and NEVER wait after the last one.\n- `getOrder` returns the order, or `null` on `not_found`. `createOrder` returns the created order.\n- `validation_failed` rejects as `ValidationError{fields}`. EVERY other failure rejects as\n  `ServiceError{status, code, attempts}` (attempts = calls actually made).\n\nFrozen evidence (do not touch): service/, conformance/, test/integration.test.js, scripts/run-tests.mjs -- digest\nchecked every run. Deliverable: src/adapter.mjs (replacing the throwing stub) plus integration/manifest.json,\nwhose `implemented` lists the conformance case ids (C01-C09) that actually pass; cases assert the EXACT waits and\nEXACT call counts, so an approximately-right policy fails by design.",
+									"plan": "One card. Implement src/adapter.mjs: a call() helper that loops up to maxAttempts, treats 200-299 as\nsuccess, classifies validation_failed as ValidationError{fields} immediately (never retried), classifies 429 and\n5xx as retryable (waiting retryAfterMs for 429, baseDelayMs*2**(attempt-1) for 5xx, via options.sleep -- never a\nreal timer), classifies everything else (incl. 404) as terminal ServiceError{status,code,attempts}. getOrder wraps\ncall() and converts a ServiceError with code not_found into null; createOrder returns call()'s result directly.\nThen set integration/manifest.json implemented:[C01..C09], complete:true, and confirm with the real `npm test`\n(frozen suite, exact wait/call-count assertions) before finishing.",
+									"tasks": [
+										{
+											"id": "implement-adapter",
+											"title": "Implement the retrying orders adapter and declare conformance in the manifest",
+											"prompt": "Implement `src/adapter.mjs` per specification.md, exporting `createOrdersClient(service, options)`.\nThe service (`service/orders-service.mjs`) is a deterministic, in-process API whose `request()` call ALWAYS\nreturns `{status, body}`, NEVER throws, NEVER sleeps -- time only moves when you call `options.sleep(ms)`, which\nis the ONLY way this adapter may wait (a real timer will never advance the service's clock and the retry will\nhang).\n\nThe policy, exactly:\n- Retry `429` and any `5xx`. NEVER retry any other non-2xx -- a 4xx is an answer about the request, not a\n  transient fault.\n- After a `429`, wait EXACTLY the `retryAfterMs` the service sent in the body -- not your backoff schedule.\n- After a `5xx`, wait `baseDelayMs * 2 ** (attempt - 1)` (attempt is 1-based: 100, 200, 400 with the defaults\n  `baseDelayMs=100`).\n- NEVER exceed `maxAttempts` calls (default 4, total including the first), and NEVER wait after the last one --\n  the attempt that exhausts the budget fails straight to a rejection, no trailing sleep.\n- `getOrder(id)` returns the order on 200, or `null` when the service says `not_found` (a 404 is an answer, not a\n  failure, and is NEVER retried).\n- `createOrder(input)` returns the created order on 201.\n- A `validation_failed` (422) rejects with an `Error` named `ValidationError` carrying `fields` from the service's\n  `error.fields`, and is NEVER retried.\n- EVERY other failure (after retries are exhausted, or immediately for a non-retryable status) rejects with an\n  `Error` named `ServiceError` carrying `status`, the service's `error.code` as `code`, and `attempts` -- the\n  number of calls actually made.\n\nThen declare which of the 9 frozen conformance cases (`conformance/cases.mjs`: C01..C09) your adapter satisfies in\n`integration/manifest.json`'s `implemented` array, and set `complete: true` only once EVERY case actually passes.\nCases assert the EXACT wait values and EXACT call counts (e.g. C06 expects sleeps `[100, 200, 400]` to the\nmillisecond, C02 expects exactly 4 calls and 3 waits) -- an approximately-right policy fails by design, so trace\nthe arithmetic rather than approximating it.\n\n`service/`, `conformance/`, `test/integration.test.js` and `scripts/run-tests.mjs` are FROZEN evidence with digest\nchecks in `test/frozen.json` -- do not touch them. Run the real `npm test` yourself before finishing; a green\nbaseline with an empty manifest proves nothing, so confirm the count you see names your own 9 passing cases.",
+											"complexity": 35,
+											"filesLikelyTouched": [
+												"src/adapter.mjs",
+												"integration/manifest.json"
+											],
+											"writeScope": [
+												"src/adapter.mjs",
+												"integration/manifest.json"
+											],
+											"forbiddenPaths": [
+												"test/**",
+												"service/**",
+												"conformance/**",
+												"scripts/**"
+											],
+											"testability": "not_testable",
+											"testabilityReason": "The only acceptance surface is the existing FROZEN conformance suite (test/integration.test.js + conformance/cases.mjs), digest-checked in test/frozen.json and outside this card's write scope. No new test file can be added: test/** is frozen, and scripts/run-tests.mjs only collects test/**/*.test.js, so a test placed anywhere else is never run. Conformance is proven by declaring case ids in integration/manifest.json and letting the frozen suite run them (with its deterministic fake clock/sleep), not by a test this card writes.",
+											"acceptanceCommand": "npm test",
+											"acceptanceChecks": [
+												"npm test exits 0 against the unmodified frozen suite",
+												"integration/manifest.json has complete:true and implemented lists EVERY case, C01 through C09",
+												"createOrdersClient(service, options) waits ONLY via options.sleep(ms), never a real timer",
+												"429 is retried waiting EXACTLY body.retryAfterMs; 5xx is retried waiting baseDelayMs * 2**(attempt-1) (100,200,400 by default); any other non-2xx (incl. 404) is NEVER retried",
+												"NEVER exceeds maxAttempts calls (default 4) and NEVER waits after the final attempt",
+												"getOrder returns null (not a throw) for 404 not_found; createOrder returns the created order on 201",
+												"validation_failed rejects as ValidationError{fields}; EVERY other exhausted failure rejects as ServiceError{status, code, attempts} where attempts is the real call count",
+												"the frozen files (service/, conformance/, test/integration.test.js, scripts/run-tests.mjs) are byte-for-byte untouched"
+											],
+											"nonGoals": [
+												"do not modify service/, conformance/, test/, or scripts/",
+												"do not add dependencies or a new test framework (sandbox is offline)",
+												"do not use a real timer (setTimeout) anywhere -- options.sleep is the only wait",
+												"do not approximate the backoff/rate-limit schedule -- cases assert exact ms values and exact call counts"
+											],
+											"expectedOutputs": [
+												"src/adapter.mjs exporting createOrdersClient(service, options) with getOrder/createOrder",
+												"integration/manifest.json: {schemaVersion:1, complete:true, implemented:[C01..C09]}"
+											],
+											"inputs": [
+												"specification.md",
+												"service/orders-service.mjs",
+												"conformance/cases.mjs",
+												"test/integration.test.js"
+											]
+										}
+									]
+								}
+							}
+						],
+						"content": "This is project 68's *-decompose planning card (working dir dev-68-integration-retry-backoff-rate-limit-decompose), same integration family as 67. Read specification.md, the frozen service/conformance suite (9 cases, exact-wait/exact-call-count grading) and the stub from this workspace, and hand-verified a full adapter implementation in a scratch copy against the real unmodified verifier before writing this graph -- 22/22 green (retry/backoff/rate-limit policy, ValidationError/ServiceError mapping). Same shape as 67: one small, cohesive deliverable (src/adapter.mjs + integration/manifest.json), so one child card is the right-sized graph. testability:not_testable declared up front for the same reason as 67 -- test/ is frozen and digest-checked, so a testable default would demand an impossible test-file change."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\nsrc/adapter.mjs:9 function createOrdersClient refs=1 rank=13.3934\nconformance/cases.mjs:8 const cases refs=1 rank=0.5357\ntest/integration.test.js:20 const root refs=12 rank=0.2883\ntest/integration.test.js:60 const manifest refs=10 rank=0.2348\nservice/orders-service.mjs:9 const RATE_LIMIT refs=4 rank=0.0931\nscripts/run-tests.mjs:31 const result refs=4 rank=0.0878\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=0.0878\ntest/integration.test.js:22 function walk refs=4 rank=0.0752\ntest/integration.test.js:59 const caseById refs=4 rank=0.0752\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=0.0626\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=0.0626\ntest/integration.test.js:78 function runCase refs=3 rank=0.0522\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=0.0383\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=0.0383\ntest/integration.test.js:31 const toPosix refs=2 rank=0.0315\ntest/integration.test.js:32 const digestOf refs=2 rank=0.0315\ntest/integration.test.js:34 const frozenPaths refs=2 rank=0.0315\ntest/integration.test.js:42 const recorded refs=2 rank=0.0315\nservice/orders-service.mjs:11 function createOrdersService refs=1 rank=0.0303\nservice/orders-service.mjs:89 const transient refs=1 rank=0.0303\ntest/integration.test.js:58 const { cases } refs=0 rank=0.0054\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nWrite the orders client in src/adapter.mjs. The service it talks to is flaky and rate limited, and the client has\nto cope without giving up too early, retrying what it must not, or waiting longer than it was told to.\n\nTime is injected: you wait by calling the `sleep(ms)` you are given, never a real timer. Nothing else moves the\nservice's clock, so a real timer will hang the waiting cases rather than pass them slowly.\n\nRead specification.md for the retry policy, the error classification and the rules. The conformance suite checks\nthe exact waits and the exact number of calls, so \"retry a few times with some backoff\" will not pass — the\nschedule is part of the contract.)"
+		},
+		{
+			"id": "perfect-observed:worker:1",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "update_focus_chain",
+								"arguments": {
+									"steps": [
+										{
+											"text": "Refine card against current stub state",
+											"status": "done"
+										},
+										{
+											"text": "begin_implementation",
+											"status": "done"
+										},
+										{
+											"text": "Write src/adapter.mjs (retry/backoff/rate-limit policy per spec)",
+											"status": "in_progress"
+										},
+										{
+											"text": "Write integration/manifest.json (complete:true, all 9 cases)",
+											"status": "in_progress"
+										},
+										{
+											"text": "Fresh read_files + real npm test in a later turn to confirm",
+											"status": "pending"
+										}
+									]
+								}
+							},
+							{
+								"name": "begin_implementation",
+								"arguments": {
+									"refinementNotes": "Focused span matches the pristine stub; nothing changed since planning. Proceeding with the adapter design verified offline against the frozen conformance suite before this card was created."
+								}
+							},
+							{
+								"name": "write_files",
+								"arguments": {
+									"files": [
+										{
+											"path": "src/adapter.mjs",
+											"content": "/**\n * Your adapter. This file is yours: replace the stub.\n *\n * `createOrdersClient(service, options)` must return an object with `getOrder(id)` and `createOrder(input)`.\n * `options.sleep(ms)` is how you wait — never use timers directly. See specification.md for the contract, and\n * conformance/cases.mjs for exactly what is checked.\n */\n\nfunction isRetryableStatus(status) {\n\treturn status === 429 || (status >= 500 && status <= 599);\n}\n\nexport function createOrdersClient(service, options) {\n\tconst sleep = options?.sleep;\n\tconst maxAttempts = options?.maxAttempts ?? 4;\n\tconst baseDelayMs = options?.baseDelayMs ?? 100;\n\n\tasync function call(method, path, requestOptions) {\n\t\tlet attempt = 0;\n\t\tfor (;;) {\n\t\t\tattempt += 1;\n\t\t\tconst { status, body } = await service.request(method, path, requestOptions);\n\t\t\tif (status >= 200 && status < 300) return body;\n\n\t\t\tconst code = body?.error?.code ?? \"unknown_error\";\n\t\t\tif (code === \"validation_failed\") {\n\t\t\t\tconst err = new Error(body.error.message ?? \"validation failed\");\n\t\t\t\terr.name = \"ValidationError\";\n\t\t\t\terr.fields = body.error.fields ?? [];\n\t\t\t\tthrow err;\n\t\t\t}\n\n\t\t\tconst retryable = isRetryableStatus(status);\n\t\t\tif (!retryable || attempt >= maxAttempts) {\n\t\t\t\tconst err = new Error(body?.error?.message ?? `request failed with status ${status}`);\n\t\t\t\terr.name = \"ServiceError\";\n\t\t\t\terr.status = status;\n\t\t\t\terr.code = code;\n\t\t\t\terr.attempts = attempt;\n\t\t\t\tthrow err;\n\t\t\t}\n\n\t\t\tconst waitMs = status === 429 ? body.retryAfterMs : baseDelayMs * 2 ** (attempt - 1);\n\t\t\tawait sleep(waitMs);\n\t\t}\n\t}\n\n\tasync function getOrder(id) {\n\t\ttry {\n\t\t\treturn await call(\"GET\", `/orders/${id}`);\n\t\t} catch (err) {\n\t\t\tif (err.name === \"ServiceError\" && err.code === \"not_found\") return null;\n\t\t\tthrow err;\n\t\t}\n\t}\n\n\tasync function createOrder(input) {\n\t\treturn call(\"POST\", \"/orders\", { body: input });\n\t}\n\n\treturn { getOrder, createOrder };\n}\n"
+										},
+										{
+											"path": "integration/manifest.json",
+											"content": "{\n\t\"schemaVersion\": 1,\n\t\"complete\": true,\n\t\"implemented\": [\n\t\t\"C01\",\n\t\t\"C02\",\n\t\t\"C03\",\n\t\t\"C04\",\n\t\t\"C05\",\n\t\t\"C06\",\n\t\t\"C07\",\n\t\t\"C08\",\n\t\t\"C09\"\n\t]\n}\n"
+										}
+									]
+								}
+							}
+						],
+						"content": "Refinement: focused span matches the pristine stub, nothing changed since planning. Calling begin_implementation, then writing the verified adapter (retry 429/5xx only, wait exactly retryAfterMs for 429 and baseDelayMs*2**(attempt-1) for 5xx via options.sleep, never exceed maxAttempts, never wait after the last attempt; getOrder maps 404/not_found to null, createOrder returns the created order; validation_failed -> ValidationError{fields}, every other exhausted failure -> ServiceError{status,code,attempts}) plus the manifest declaring all 9 cases complete. This design was verified offline in a scratch copy against the real frozen suite (22/22) before this card existed. Will verify with a fresh read_files + real npm test in a later turn, not this one."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\n- /manifest.json\n- /frozen.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=216.0436\nservice/orders-service.mjs:89 const transient refs=1 rank=41.8756\ntest/integration.test.js:42 const recorded refs=2 rank=40.1871\ntest/integration.test.js:20 const root refs=12 rank=22.4560\nconformance/cases.mjs:8 const cases refs=1 rank=15.3061\nsrc/adapter.mjs:9 function createOrdersClient refs=1 rank=15.3061\nservice/orders-service.mjs:9 const RATE_LIMIT refs=4 rank=10.0943\ntest/integration.test.js:22 function walk refs=4 rank=5.5370\ntest/integration.test.js:59 const caseById refs=4 rank=5.5370\ntest/integration.test.js:78 function runCase refs=3 rank=3.7420\nservice/orders-service.mjs:11 function createOrdersService refs=1 rank=3.0102\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/integration.test.js:31 const toPosix refs=2 rank=2.1519\ntest/integration.test.js:32 const digestOf refs=2 rank=2.1519\ntest/integration.test.js:34 const frozenPaths refs=2 rank=2.1519\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nImplement `src/adapter.mjs` per specification.md, exporting `createOrdersClient(service, options)`.\nThe service (`service/orders-service.mjs`) is a deterministic, in-process API whose `request()` call ALWAYS\nreturns `{status, body}`, NEVER throws, NEVER sleeps -- time only moves when you call `options.sleep(ms)`, which\nis the ONLY way this adapter may wait (a real timer will never advance the service's clock and the retry will\nhang).\n\nThe policy, exactly:\n- Retry `429` and any `5xx`. NEVER retry any other non-2xx -- a 4xx is an answer about the request, not a\n  transient fault.\n- After a `429`, wait EXACTLY the `retryAfterMs` the service sent in the body -- not your backoff schedule.\n- After a `5xx`, wait `baseDelayMs * 2 ** (attempt - 1)` (attempt is 1-based: 100, 200, 400 with the defaults\n  `baseDelayMs=100`).\n- NEVER exceed `maxAttempts` calls (default 4, total including the first), and NEVER wait after the last one --\n  the attempt that exhausts the budget fails straight to a rejection, no trailing sleep.\n- `getOrder(id)` returns the order on 200, or `null` when the service says `not_found` (a 404 is an answer, not a\n  failure, and is NEVER retried).\n- `createOrder(input)` returns the created order on 201.\n- A `validation_failed` (422) rejects with an `Error` named `ValidationError` carrying `fields` from the service's\n  `error.fields`, and is NEVER retried.\n- EVERY other failure (after retries are exhausted, or immediately for a non-retryable status) rejects with an\n  `Error` named `ServiceError` carrying `status`, the service's `error.code` as `code`, and `attempts` -- the\n  number of calls actually made.\n\nThen declare which of the 9 frozen conformance cases (`conformance)"
+		},
+		{
+			"id": "perfect-observed:worker:2",
+			"requestClass": "worker",
+			"userMessageIncludes": "[x] Refine card against current stub state",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"src/adapter.mjs",
+										"integration/manifest.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Files written per the tool result (adapter.mjs 63 lines, manifest.json 16 lines). Verifying in this later turn, not the write turn: fresh read_files on both, and the real npm test."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /manifest.json\n- /integration.test.js\n- /frozen.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein focus chain: your own plan for this task — keep working through it, do not restart it]\n[x] Refine card against current stub state\n[x] begin_implementation\n[~] Write src/adapter.mjs (retry/backoff/rate-limit policy per spec)\n[~] Write integration/manifest.json (complete:true, all 9 cases)\n[ ] Fresh read_files + real npm test in a later turn to confirm\nCurrent step: Write src/adapter.mjs (retry/backoff/rate-limit policy per spec)\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=216.0436\nservice/orders-service.mjs:89 const transient refs=1 rank=41.8756\ntest/integration.test.js:42 const recorded refs=2 rank=40.1871\ntest/integration.test.js:20 const root refs=12 rank=22.4560\nconformance/cases.mjs:8 const cases refs=1 rank=15.3061\nsrc/adapter.mjs:9 function createOrdersClient refs=1 rank=15.3061\nservice/orders-service.mjs:9 const RATE_LIMIT refs=4 rank=10.0943\ntest/integration.test.js:22 function walk refs=4 rank=5.5370\ntest/integration.test.js:59 const caseById refs=4 rank=5.5370\ntest/integration.test.js:78 function runCase refs=3 rank=3.7420\nservice/orders-service.mjs:11 function createOrdersService refs=1 rank=3.0102\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/integration.test.js:31 const toPosix refs=2 rank=2.1519\ntest/integration.test.js:32 const digestOf refs=2 rank=2.1519\ntest/integration.test.js:34 const frozenPaths refs=2 rank=2.1519\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nImplement `src/adapter.mjs` per specification.md, exporting `createOrdersClient(service, options)`.\nThe service (`service/orders-service.mjs`) is a deterministic, in-process API whose `request()` call ALWAYS\nreturns `{status, body}`, NEVER throws, NEVER sleeps -- time only moves when you call `options.sleep(ms)`, which\nis the ONLY way this adapter may wait (a real timer will never advance the service's clock and the retry will\nhang).\n\nThe policy, exactly:\n- Retry `429` and any `5xx`. NEVER retry any other non-2xx -- a 4xx is an answer about the request, not a\n  transient fault.\n- After a `429`, wait EXACTLY the `retryAfterMs` the service sent in the body -- not your backoff schedule.\n- After a `5xx`, wait `baseDelayMs * 2 ** (attempt - 1)` (attempt is 1-based: 100, 200, 400 with the defaults\n  `baseDelayMs=100`).\n- NEVER exceed `maxAttempts` calls (default 4, total including the first), and NEVER wait after the last one --\n  the attempt that exhausts the budget fails straight to a rejection, no trailing sleep.\n- `getOrder(id)` returns the order on 200, or `null` when the service says `not_found` (a 404 is an answer, not a\n  failure, and is NEVER retried).\n- `createOrder(input)` returns the created order on 201.\n- A `validation_failed` (422) rejec)"
+		},
+		{
+			"id": "perfect-observed:worker:3",
+			"requestClass": "worker",
+			"userMessageIncludes": "[x] Refine card against current stub state",
+			"atAssistantCount": 2,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "text",
+						"content": "Verified in this session, in a later turn than the write: fresh read_files confirms src/adapter.mjs and integration/manifest.json (complete:true, all 9 case ids) contain exactly what was written. Real npm test: 22/22 pass, 0 fail -- frozen-files digest check green, manifest-shape check green, all 9 conformance cases genuinely pass under both the 'listed cases pass' and 'complete adapter' tests, with non-vacuous per-case timings (0.08-0.6ms). Card objective met; stopping here."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /manifest.json\n- /integration.test.js\n- /frozen.json\nread_files coverage ledger:\n- src/adapter.mjs, integration/manifest.json (latest raw result retained for immediate analysis; original 1 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein focus chain: your own plan for this task — keep working through it, do not restart it]\n[x] Refine card against current stub state\n[x] begin_implementation\n[~] Write src/adapter.mjs (retry/backoff/rate-limit policy per spec)\n[~] Write integration/manifest.json (complete:true, all 9 cases)\n[ ] Fresh read_files + real npm test in a later turn to confirm\nCurrent step: Write src/adapter.mjs (retry/backoff/rate-limit policy per spec)\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=182.5196\nscripts/run-tests.mjs:31 const result refs=4 rank=68.8560\nservice/orders-service.mjs:89 const transient refs=1 rank=35.3777\ntest/integration.test.js:42 const recorded refs=2 rank=33.9511\ntest/integration.test.js:20 const root refs=12 rank=18.9714\nconformance/cases.mjs:8 const cases refs=1 rank=12.9310\nsrc/adapter.mjs:9 function createOrdersClient refs=1 rank=12.9310\nservice/orders-service.mjs:9 const RATE_LIMIT refs=4 rank=8.5279\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=5.0128\ntest/integration.test.js:22 function walk refs=4 rank=4.6778\ntest/integration.test.js:59 const caseById refs=4 rank=4.6778\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=3.5065\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=3.5065\ntest/integration.test.js:78 function runCase refs=3 rank=3.1614\nservice/orders-service.mjs:11 function createOrdersService refs=1 rank=2.5431\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=2.0738\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=2.0738\ntest/integration.test.js:31 const toPosix refs=2 rank=1.8180\ntest/integration.test.js:32 const digestOf refs=2 rank=1.8180\ntest/integration.test.js:34 const frozenPaths refs=2 rank=1.8180\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1293\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nImplement `src/adapter.mjs` per specification.md, exporting `createOrdersClient(service, options)`.\nThe service (`service/orders-service.mjs`) is a deterministic, in-process API whose `request()` call ALWAYS\nreturns `{status, body}`, NEVER throws, NEVER sleeps -- time only moves when you call `options.sleep(ms)`, which\nis the ONLY way this adapter may wait (a real timer will never advance the service's clock and the retry will\nhang).\n\nThe policy, exactly:\n- Retry `429` and any `5xx`. NEVER retry any other non-2xx -- a 4xx is an answer about the request, not a\n  transient fault.\n- After a `429`, wait EXACTLY the `retryAfterMs` the service sent in the body -- not your backoff schedule.\n- After a `5xx`, wait `baseDelayMs * 2 ** (attempt - 1)` (attempt is 1-based: 100, 200, 400 with the defaults\n  `baseDelayMs=100`).\n- NEVER exceed `maxAttempts` calls (default 4, total including the first), and NEVER wait after the last one --\n  the attempt that exhausts the budget fails straight to a rejection, no trailing sleep.\n- `getOrder(id)` returns the order on 200, or `null` when the service says `not_found` (a 404 is )"
+		},
+		{
+			"id": "perfect-observed:worker:4",
+			"requestClass": "worker",
+			"userMessageIncludes": "Workspace root: .",
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "read_files",
+								"arguments": {
+									"files": [
+										"src/adapter.mjs",
+										"integration/manifest.json"
+									]
+								}
+							},
+							{
+								"name": "run_commands",
+								"arguments": {
+									"commands": [
+										"npm test"
+									]
+								}
+							}
+						],
+						"content": "Reviewing the retry/backoff orders adapter card. Gathering my own fresh evidence in this session rather than trusting the shown diff: reading the current files and running the real test suite."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\n- /manifest.json\n- /frozen.json\n- /integration/manifest.json\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=216.0436\nservice/orders-service.mjs:89 const transient refs=1 rank=41.8756\ntest/integration.test.js:42 const recorded refs=2 rank=40.1871\ntest/integration.test.js:20 const root refs=12 rank=22.4560\nconformance/cases.mjs:8 const cases refs=1 rank=15.3061\nsrc/adapter.mjs:9 function createOrdersClient refs=1 rank=15.3061\nservice/orders-service.mjs:9 const RATE_LIMIT refs=4 rank=10.0943\ntest/integration.test.js:22 function walk refs=4 rank=5.5370\ntest/integration.test.js:59 const caseById refs=4 rank=5.5370\ntest/integration.test.js:78 function runCase refs=3 rank=3.7420\nservice/orders-service.mjs:11 function createOrdersService refs=1 rank=3.0102\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/integration.test.js:31 const toPosix refs=2 rank=2.1519\ntest/integration.test.js:32 const digestOf refs=2 rank=2.1519\ntest/integration.test.js:34 const frozenPaths refs=2 rank=2.1519\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Implement the retrying orders adapter and declare conformance in the manifest\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\nImplement `src/adapter.mjs` per specification.md, exporting `createOrdersClient(service, options)`.\nThe service (`service/orders-service.mjs`) is a deterministic, in-process API whose `request()` call ALWAYS\nreturns `{status, body}`, NEVER throws, NEVER sleeps -- time only moves when you call `options.sleep(ms)`, which\nis the ONLY way this adapter may wait (a real timer will never advance the service's clock and the retry will\nhang).\n\nThe policy, exactly:\n- Retry `429` and any `5xx`. NEVER retry any other non-2xx -- a 4xx is an answer about the request, not a\n  transient fault.\n- After a `429`, wait EXACTLY the `retryAfterMs` the service sent in the body -- not your backoff schedule.\n- After a `5xx`, wait `baseDelayMs * 2 ** (attempt - 1)` (attempt is 1-based: 100, 200, 400 with the defaults\n  `baseDelayMs=100`).\n- NEVER exceed `maxAttempts` calls (default 4, total includ)"
+		},
+		{
+			"id": "perfect-observed:review:5",
+			"requestClass": "review",
+			"userMessageIncludes": "Workspace root: .",
+			"atAssistantCount": 1,
+			"turns": [
+				{
+					"behavior": {
+						"kind": "tool_calls",
+						"calls": [
+							{
+								"name": "submit_review",
+								"arguments": {
+									"verdict": "approve",
+									"summary": "Verified independently this session (fresh read_files + real npm test, not the shown diff): 22/22 pass, 0 fail, all 9 conformance cases genuinely exercised. Adapter correctly implements the exact retry/backoff/rate-limit policy (429 waits exactly retryAfterMs, 5xx waits baseDelayMs*2**(attempt-1), never exceeds maxAttempts, never waits after the last attempt, non-retryable statuses fail immediately), maps 404/not_found to null, and produces named ValidationError/ServiceError with the required fields. Manifest declares complete:true with all 9 cases. No frozen paths touched."
+								}
+							}
+						],
+						"content": "My own fresh read_files + npm test this session (not the shown diff): both files read successfully, and the real npm test is 22/22 pass, 0 fail -- frozen-files digest check green, manifest-shape check green, all 9 conformance cases genuinely pass under both the 'listed cases pass' test and the 'complete adapter' test, non-vacuous timings. The diff matches the objective: retries 429/5xx only, waits exactly retryAfterMs for 429 and baseDelayMs*2**(attempt-1) for 5xx via options.sleep (never a real timer), never exceeds maxAttempts, never waits after the final attempt; getOrder maps 404/not_found to null; validation_failed becomes a named ValidationError{fields}; every other exhausted failure becomes a named ServiceError{status,code,attempts}. No frozen files touched. Approving."
+					}
+				}
+			],
+			"provenance": "distilled from real capture (perfect-observed, claude-hitl, [!Klein context focus brief]\nKnown existing paths observed in this session:\n- /integration.test.js\n- /manifest.json\n- /frozen.json\n- /integration/manifest.json\nread_files coverage ledger:\n- src/adapter.mjs, integration/manifest.json (latest raw result retained for immediate analysis; original 1 chars)\nUse only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.\nOlder file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.\nDo not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.\n[/!Klein context focus brief]\n\n[!Klein repo map: compact codebase orientation]\nWorkspace root: .\nUse workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.\nContext window: 200000 tokens\nRepo map:\ntest/integration.test.js:60 const manifest refs=10 rank=216.0436\nservice/orders-service.mjs:89 const transient refs=1 rank=41.8756\ntest/integration.test.js:42 const recorded refs=2 rank=40.1871\ntest/integration.test.js:20 const root refs=12 rank=22.4560\nconformance/cases.mjs:8 const cases refs=1 rank=15.3061\nsrc/adapter.mjs:9 function createOrdersClient refs=1 rank=15.3061\nservice/orders-service.mjs:9 const RATE_LIMIT refs=4 rank=10.0943\ntest/integration.test.js:22 function walk refs=4 rank=5.5370\ntest/integration.test.js:59 const caseById refs=4 rank=5.5370\ntest/integration.test.js:78 function runCase refs=3 rank=3.7420\nservice/orders-service.mjs:11 function createOrdersService refs=1 rank=3.0102\nscripts/run-tests.mjs:31 const result refs=4 rank=2.5096\nscripts/run-tests.mjs:6 const fixtureRoot refs=4 rank=2.5096\ntest/integration.test.js:31 const toPosix refs=2 rank=2.1519\ntest/integration.test.js:32 const digestOf refs=2 rank=2.1519\ntest/integration.test.js:34 const frozenPaths refs=2 rank=2.1519\nscripts/run-tests.mjs:10 function collectTestFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:25 const testFiles refs=3 rank=1.7882\nscripts/run-tests.mjs:7 const testRoot refs=2 rank=1.0947\nscripts/run-tests.mjs:8 const testFilePattern refs=2 rank=1.0947\ntest/integration.test.js:58 const { cases } refs=0 rank=0.1531\nUse this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.\n\nYou are the second-opinion reviewer for the card \"Implement the retrying orders adapter and declare conformance in the manifest\" (review round 1).\nA different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.\nBe critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.\n\n## Card objective\nImplement `src/adapter.mjs` per specification.md, exporting `createOrdersClient(service, options)`.\nThe service (`service/orders-service.mjs`) is a deterministic, in-process API whose `request()` call ALWAYS\nreturns `{status, body}`, NEVER throws, NEVER sleeps -- time only moves when you call `options.sleep(ms)`, which\nis the ONLY way this adapter may wait (a real timer will never advance the service's clock and the retry will\nhang).\n\nThe policy, exactly:\n- Retry `429` and any `5xx`. NEVER retry any other non-2xx -- a 4xx is an answer about the request, not a\n  transient fault.\n- After a `429`, wait EXACTLY the `retryAfterMs` the service sent in the body -- not your backoff schedule.\n- After a `5xx`, wait `baseDelayMs * 2 ** (attem)"
+		}
+	]
+}
