@@ -133,6 +133,15 @@ a sandbox failure. It reads like one and has been mistaken for one. Treat it as 
 - **`decompose_project` clarifying questions use HYPHENATED enum values.** `questions[].status` takes
   `"assumed-default"`, not `"assumed_default"`; a snake_case value is rejected outright. Separately, a question
   marked answered needs an actual `answer` field — an `assumption` alone is not accepted.
+- **Keep `complexity` at 40 or below on child cards — above ~50 the card cannot run in REPLAY at all.**
+  The number is not decoration. The runtime refuses to start a card whose difficulty no connected model satisfies:
+  `Task start blocked: this card needs decomposition. No connected model satisfies both difficulty 51 and the
+  candidate-specific context fit guard.` Live that is harmless, because the HITL seat clears any bar. But every
+  drive is recorded and must REPLAY against a simulated model with a lower ceiling — and there the card never
+  starts, never issues a request, and the whole project fails as `left cards undrained`.
+  Live 2026-09-11: project 53 gave its child `complexity: 55` and its replay died exactly there; project 49, which
+  replays clean, used 45/25/25/25/25/20. Six projects were lost to this before the log was read.
+  If you do not have a reason for a specific number, omit the field or use 30.
 - **`decompose_project`'s `complexity` is a NUMBER 0-100 (default 50), not a word.** Sending `"medium"` or `"low"`
   fails validation for every task at once: `tasks.0.complexity: Invalid input: expected number, received string`.
 - **When `decompose_project` fails validation, DO NOT resend the nested call.** The error says exactly what to do —
