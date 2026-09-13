@@ -164,6 +164,13 @@ this, where 54 needed a retry. Three decompose graphs, one retry, zero third att
   Live 2026-09-11: project 53 gave its child `complexity: 55` and its replay died exactly there; project 49, which
   replays clean, used 45/25/25/25/25/20. Six projects were lost to this before the log was read.
   If you do not have a reason for a specific number, omit the field or use 30.
+  **Correction, live 2026-09-13/14: "omit the field" does NOT avoid the risk — omitting lands you exactly ON the
+  50 default, the same boundary value the runtime blocks on.** Confirmed four ways in one shift on projects 71-76:
+  three `add_task` calls (71, 72, 73) that genuinely had no `complexity` key at all each produced a child card whose
+  own prompt states `Complexity: 50/100` — the default is 50, and omitting the field does not lower it. A fourth
+  `add_task` (76) that explicitly passed `complexity: 30` produced a child card showing `Complexity: 30/100`,
+  confirming the field does take effect when actually set. So the real rule is: **always pass an explicit low
+  number (30 worked cleanly); never rely on omission**, which silently buys you the risky default instead of safety.
 - **`decompose_project`'s `complexity` is a NUMBER 0-100 (default 50), not a word.** Sending `"medium"` or `"low"`
   fails validation for every task at once: `tasks.0.complexity: Invalid input: expected number, received string`.
 - **When `decompose_project` fails validation, DO NOT resend the nested call.** The error says exactly what to do —
@@ -568,6 +575,35 @@ the other's fix. `mkdir` is atomic, so exactly one caller wins each id. Opt-in s
 | wait per call (`$2`) | 240s | Well inside the agent harness's 600s no-progress watchdog. The binding limit is not the tool timeout — it is how long an agent may go without PRODUCING anything, and a blocking call produces nothing until it returns. |
 | `HITL_STALE_MINUTES` | 30 | A request older than this has no session listening for its answer. Answering one wastes a whole turn on a conversation nobody is in. |
 | `HITL_CLAIM_ABANDONED_MINUTES` | 20 | Long enough for any real turn, short enough that a dead responder's claim does not wedge the seat. It was 60, and 60 minutes is not a margin, it is the outage. |
+
+## A provisioning hang looks like an idle queue, but `docker ps` tells them apart
+
+Live 2026-09-13→14: the queue went completely dry for 25+ minutes in the middle of an otherwise-healthy shift
+(projects 71-76 had been producing requests steadily right up to it) — every `hitl-next-request.sh` call returned
+`NONE`, over and over, with no id ever appearing. That is indistinguishable from ordinary "the factory is thinking"
+idleness FROM THE QUEUE ALONE.
+
+**The tell is `docker ps -a | grep nklein`.** A healthy card's workspace shows a matched pair,
+`nklein-egress-proxy-ws-<id>` and `nklein-agent-sandbox-ws-<id>-1`, both up. The confirmed-live failure signature
+is an orphan: `nklein-egress-proxy-ws-9f2194a2c4bd` alone, up for 55+ minutes, with NO `nklein-agent-sandbox-ws-<id>-1`
+anywhere — not running, not even present as a stopped/exited container in `docker ps -a`. Whatever step provisions
+the matching sandbox never completed, and the board does not issue further requests behind it.
+
+**This is not something a responder can fix.** There is no docker access from the model seat's own tool set, and
+even a responder with shell access should not `docker rm` it blind — reaping it is a host-side operator action, and
+the instructions handing you a shift will usually say so explicitly. What a responder CAN and should do:
+
+1. Confirm the signature with `docker ps -a` before assuming the queue is merely quiet — an idle queue and a dead
+   queue look identical from `hitl-next-request.sh`'s output alone.
+2. Report it with the specific container id and how long it has been orphaned, through whatever escalation channel
+   is available (this shift used the session's background-task flag, which produced an actionable chip for the
+   operator; a shift without that tool should say so plainly in its end-of-shift report instead).
+3. Keep polling — it costs nothing (`NONE` doesn't count against the shift budget) and the fix may land while you
+   wait — but do not spend the rest of the shift silently retrying without ever surfacing the diagnosis. A dead
+   factory and a thinking factory both look like `NONE`; only the report tells the difference to whoever can act on it.
+4. If it is still dead after a fair number of polls (this shift gave it about a dozen, spanning 25+ minutes, after
+   first spotting the orphan), that is a legitimate place to end the shift and report the exact state rather than
+   holding the seat open on a queue that cannot recover without host intervention.
 
 ## Watching for a dead seat
 
