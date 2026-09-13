@@ -2158,11 +2158,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     through the rig, records the queue slice as an aimock scenario set, and REPLAYS it before calling it done.
     A set counts as done only when `sources.json` says `replayVerified: true` — the skip rule used to test the
     directory's existence, which would have shipped recordings nobody had ever played back.
-    **2 of 40 recorded and replayed:** `37_tests_pricing_rules_suite` (63 tracks) and
-    `38_tests_duration_schedule_suite`, both from live Sonnet drives, replaying with zero LLM compute. Two drives
-    have also been verified against their fixtures (42 analysis 5/5 defects; 37 test-authoring 4/4 mutants killed
-    by the agent's own suite). The replay needs an ISOLATED HOME (`HOME=$(mktemp -d /tmp/nklein-simflow-XXXX)`) —
-    the harness refuses the operator's.
+    **DONE 2026-09-13: 40 of 40 recorded and replay-verified** (37-76, every family). Each drive was answered live
+    by Sonnet responders in the model seat, its queue slice distilled into a scenario set, and the set replayed
+    through the real runtime with zero LLM compute before being committed. The replay needs an ISOLATED HOME
+    (`HOME=$(mktemp -d /tmp/nklein-simflow-XXXX)`) — the harness refuses the operator's.
+    **What the batch actually cost, because the number is the useful part:** the first two days produced two
+    recordings and thirteen mechanism fixes; the last two produced thirty-eight. The rig was never the slow part
+    once it stopped getting in its own way. The blockers, in the order they mattered:
+    (1) my own guidance — I told responders to write data-file deliverables from the `*-decompose` card, which
+        leaves the deliverable correct, the planning card open, the board unsettled and the project re-queued.
+        Projects 50/52/53 were each lost several times to it, 50 six times, while their work was finished and
+        passing. The correlation (every project that recorded emitted a graph) was visible from the second failure.
+    (2) the difficulty gate — a child card with `complexity` above ~50 cannot START in replay, so the project fails
+        with `left cards undrained` and zero unmatched requests. Six projects lost. Named in one line of the
+        replay's own runtime log, which I did not read for two days while refuting five theories about track
+        matching from the outside.
+    (3) P1.STARTHANG2, still open — provisioning hangs leaving an orphan proxy, degrading with runtime uptime.
+    (4) the finished-card reopen loop (P1.SETTLEDNUDGE), which ate 55-60% of three shifts before being characterised.
+    Everything learned is in `docs/dev/hitl-responder-brief.md`, which three responder shifts extended themselves.
     **▶ A THIRD REPLAY-FAILURE CAUSE, understood 2026-09-09: a project driven across TWO workspaces records both.**
     Project 40 settled with 9 cards complete and still replayed to `left cards undrained ("planning": 1)`. Its
     FIRST workspace never got a sandbox container (the one-container pool, now raised), and a later FRESH workspace
