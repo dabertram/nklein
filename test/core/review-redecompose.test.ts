@@ -127,6 +127,19 @@ describe("buildRedecomposeCardPrompt", () => {
 		expect(prompt).not.toContain("reviewers rejected");
 		expect(prompt).toContain("NO further split after this one");
 	});
+
+	it("names its own nature up front: a planning card with no write tools, where begin_implementation is refused by design (P1.NOWRITETOOL)", () => {
+		const prompt = buildRedecomposeCardPrompt({
+			taskTitle: "Lone card",
+			taskObjective: "Write spec/impact.json.",
+			generation: 1,
+		});
+		const firstLines = prompt.split("\n").slice(0, 2).join("\n");
+		expect(firstLines).toContain("THIS IS A PLANNING CARD");
+		expect(firstLines).toContain("NO write/edit tools");
+		expect(firstLines).toContain("`begin_implementation` is refused on purpose");
+		expect(firstLines).toContain("add_task / add_dependency, then decompose_project");
+	});
 });
 
 describe("buildIntegrationParentPrompt", () => {

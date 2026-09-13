@@ -167,6 +167,10 @@ export interface RedecomposeCardPromptInput {
 export function buildRedecomposeCardPrompt(input: RedecomposeCardPromptInput): string {
 	const lines: string[] = [
 		`The card "${input.taskTitle}" proved too hard as ONE unit — the review ladder (worker rounds${input.attemptEvidence ? ", " : ""}${input.attemptEvidence ? "see evidence below" : "and any escalation"}) failed to complete it. Split its objective into SMALLER, independently-verifiable cards using the decompose_project tool. Do NOT implement anything yourself.`,
+		// P1.NOWRITETOOL (live 2026-09-10, project 51): a responder spent 22 turns on a re-decompose card trying to
+		// write the parent's deliverable, reading the missing write tools and the refused begin_implementation as a
+		// runtime defect. Both are this card's design; say so in the card's own words so one turn settles it.
+		"THIS IS A PLANNING CARD: your tool set deliberately has NO write/edit tools and `begin_implementation` is refused on purpose. The objective below is quoted so you can split it, not so you can do it. The only way forward is add_task / add_dependency, then decompose_project.",
 		"",
 		"## The objective to split (verbatim — the union of your child cards must cover ALL of it)",
 		clamp(input.taskObjective, REDECOMPOSE_OBJECTIVE_BUDGET),
