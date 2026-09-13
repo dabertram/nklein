@@ -1,6 +1,7 @@
 import { buildKanbanContextSafetyBudgets } from "./nklein-context-budgets";
 import { isLocalProvider } from "./nklein-local-only-policy";
 import type { NKleinModelRegistryEntry } from "./nklein-model-registry";
+import { isSimulatorReplayModelId } from "./nklein-model-tool-routing";
 
 export interface NKleinTaskRoutingCandidate {
 	entry: NKleinModelRegistryEntry;
@@ -101,6 +102,13 @@ function normalizeTokenBudget(value: number): number {
 }
 
 function getCandidateCapability(candidate: NKleinTaskRoutingCandidate): number {
+	// A simulator replay model's capability is its RECORDING: it answers exactly what the recorded session answered,
+	// whatever the card's difficulty says. Scoring it like a live model blocked replays of recorded sets whose child
+	// cards carried the default complexity 50 — the gate returned `decompose` for a recording that had already driven
+	// those very cards to green (P1.REPLAYUNDRAINED, 2026-09-11..13), and the board never drained.
+	if (isSimulatorReplayModelId(candidate.entry.modelId)) {
+		return 100;
+	}
 	if (candidate.observedCapability !== undefined && candidate.observedCapability !== null) {
 		return normalizeScore(candidate.observedCapability);
 	}

@@ -590,3 +590,37 @@ describe("routeNKleinTask", () => {
 		});
 	});
 });
+
+describe("simulator replay models (sim/…) — P1.REPLAYUNDRAINED", () => {
+	it("satisfy any difficulty: a replay's capability is its recording, so recorded complexity never blocks it", () => {
+		const decision = routeNKleinTask({
+			difficulty: 80,
+			fitBudgetTokens: 8_000,
+			candidates: [
+				{
+					entry: createEntry({
+						key: "lmstudio:sim/qwen-fast-coder:default",
+						capability: 10,
+						contextWindow: 65_536,
+					}),
+					role: "worker",
+				},
+			],
+		});
+		expect(decision).toMatchObject({ type: "assign", modelKey: "lmstudio:sim/qwen-fast-coder:default" });
+	});
+
+	it("a live model with the same low score is still gated by the difficulty", () => {
+		const decision = routeNKleinTask({
+			difficulty: 80,
+			fitBudgetTokens: 8_000,
+			candidates: [
+				{
+					entry: createEntry({ key: "lmstudio:qwen-fast-coder:default", capability: 10, contextWindow: 65_536 }),
+					role: "worker",
+				},
+			],
+		});
+		expect(decision.type).not.toBe("assign");
+	});
+});
