@@ -2807,8 +2807,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   **SIX HYPOTHESES, FIVE REFUTED — do not re-run any of them:** foreign traffic in the capture; a needle collision
   with a prose track; the capture taken mid-drive (disproved twice by counting the window's own traffic); the
   fallback request class (real but the first fix returned an unreachable class); and decompose-track ordering.
+  **▶ 2026-09-14 (`1f6a6386d`): the last cause is closed at the router.** A `sim/…` replay model now satisfies
+  any difficulty (`getCandidateCapability` → 100): its capability is its recording. Recorded child cards at the
+  default complexity 50 replay again, and the "pass an explicit low complexity" responder rule is no longer needed
+  for replay's sake.
 
-- [ ] **P1.ZOMBIEBOARD — a project the rail gave up on keeps being driven, starving the live drive and polluting
+- [x] **P1.ZOMBIEBOARD — a project the rail gave up on keeps being driven, starving the live drive and polluting
   its capture.** *(Live 2026-09-10/11, repeatedly.)*
   `dev-test-rail.mts` cleans up in a `finally`, and that cleanup trashes every card — so the stall/wedge exit does
   do the right thing. It is not enough. A card whose session is mid-turn comes straight back out of trash (the
@@ -2851,6 +2855,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   45 minutes, so the drive was judged stalled and nothing was recorded. Starvation and a dead seat are
   indistinguishable to the rail, which is exactly why the zombie has to be stopped at the source rather than waited
   out.
+  **▶ CLOSED 2026-09-14 (`5287b0b9a`).** `runtime.retireTaskSession {taskId, reason, detail?}` records the
+  retirement ledger entry FIRST, then stops the live session mid-turn (`abortActiveTurn`); a service without a
+  ledger is refused rather than degraded to the zombie-making plain stop. `dev-test-rail.mts` retires every trashed
+  card before `projects.remove`; `hitl-abandon-run.mts` retires after the board save and no longer points at
+  `projects.remove` as the escape. Observation `task_session_retired_by_request`. Proof: handler tests
+  (retire-before-stop order, no live session ⇒ `stopped:false`, a failed stop keeps the retirement, blank id
+  refused). The rule stands: abandon = trash + retire, THEN remove the workspace.
 
 - [x] **P1.DECOMPOSEWRITE — RESOLVED 2026-09-11. Projects 50/52/53 were not failing on a rig defect; they were
   failing on MY guidance.** I had told responders that fixtures graded by a frozen verifier against a data file
@@ -2911,7 +2922,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   a card's WORKER and REVIEW sessions share a needle (the review seed quotes the card prompt), so `review` swallowed
   six worker tracks in 52. Reverted before commit; the repair-and-replay check caught it.
 
-- [ ] **P2.FIXTUREINTEGRITY — a dev-test fixture's own "frozen and untouched" test can be satisfied by editing the
+- [x] **P2.FIXTUREINTEGRITY — a dev-test fixture's own "frozen and untouched" test can be satisfied by editing the
   thing that does the checking.** *(Found 2026-09-13 by recon on projects 71-76, both holes proven by exploit in a
   scratch copy, not inferred.)*
   1. `test/frozen.json` holds the EXPECTED digests and is itself never hashed or verified. Delete an assertion from
@@ -2926,8 +2937,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   **Fix:** include `test/frozen.json`'s own digest in the frozen set (anchored outside it), and add
   `performance/budgets.json` to the digested paths. Briefed meanwhile: reviewers diff both against the seed mirror's
   raw bytes rather than trusting the project's own frozen test.
+  **▶ CLOSED 2026-09-14 (`f91c06f6f`).** Hole 2 closed in all 10 fixtures: `performance/budgets.json` /
+  `refactor/goals.json` are in `frozenPaths` and `frozen.json` was regenerated with the tests' own
+  walk/sort/sha256 logic. Proof: 10/10 `npm test` green with unchanged pass counts; raising `B1.maxReads` now fails
+  `changed: performance/budgets.json`; recorded sets 72 and 62 still replay-verify PASS against the patched seeds.
+  Hole 1 (`frozen.json` digesting itself) is circular by nature — the seed-mirror diff stays the external anchor.
 
-- [ ] **P1.UNSATGATE — the test-driven-delivery gate is UNSATISFIABLE on spec/analysis fixtures, and the card can
+- [x] **P1.UNSATGATE — the test-driven-delivery gate is UNSATISFIABLE on spec/analysis fixtures, and the card can
   neither pass nor stop.** *(Live 2026-09-10/11, projects 50 and 51, measured on three shifts.)*
   A decompose task that omits `testability` defaults to **testable**. The reviewer then demands a touched test file.
   On these fixtures every card's write scope is the deliverable (`spec/*.json`, `conformance/**`) and `test/` is
@@ -2945,8 +2961,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   reviewer a rung that accepts "the only test is frozen evidence outside my scope" instead of looping.
   Briefed to responders meanwhile: declare `testability` up front on spec/analysis graphs, and redecompose rather
   than cycle if handed a card already stuck.
+  **▶ CLOSED 2026-09-14 (`373e782a7`) — both fixes shipped, one predicate.** `writeScopeCanReachTestFile`
+  (`src/core/test-driven-delivery.ts`) is false only when EVERY scope entry provably cannot hold a test file (an
+  exact non-test file; a glob without `**`/test segment whose leaf pins a non-code extension, e.g. `spec/*.json`).
+  (a) decompose time stamps an undeclared task with such a scope `not_testable` ("inferred at decompose time …";
+  an explicit declaration wins); (b) the gate takes the card's bounds and steps aside audited
+  (`skippedScopeCannotContainTest` in `test_driven_gate`) for cards created any other way. `isLikelyTestFile` now
+  needs a code extension — `foo.test.json` is data a test reads, not a test. Proof: predicate/gate/board-apply
+  tests; 197 gate/review/runtime-api tests green. Declaring `testability` up front stays good practice but is no
+  longer required to make a spec-only card land.
 
-- [ ] **P1.NOWRITETOOL — a card that must write is offered no write tool for turn after turn, until its retry
+- [x] **P1.NOWRITETOOL — a card that must write is offered no write tool for turn after turn, until its retry
   ladder exhausts and the board redecomposes it.** *(Live 2026-09-10, project 51
   `classify-affected-requirements`, requests 2087-2108.)* The card's whole job is to write `spec/impact.json`.
   From 2087 to 2108 — twenty-two consecutive turns — **every offered tool set lacked any write tool**, and
@@ -2962,6 +2987,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   Two questions worth separating: why the tool grant omits writes on a card whose contract requires them, and why
   a completed write did not survive the session reset. Related to [[P1.PASSEDBUTUNLANDED]] but distinct — here the
   write demonstrably happened and was verified before it vanished.
+  **▶ CLOSED 2026-09-14 — not a runtime defect; the card was misread (`9d88e22d2`).** The queue payloads settle it:
+  requests 2083–2095 belong to `redecompose-claims-intake-change-impact-classify-affected-requirements` — the
+  RE-DECOMPOSE card the ladder spawned (`startInPlanMode: true`, architect role) — not to the work card whose
+  objective it quotes. A plan-mode session carries no write/edit tools by design (`createAgentSandboxExtraTools`,
+  `planMode`) and `promoteCardToImplementation` refuses a `startInPlanMode` card by design; the "vanished" write
+  (2072/2074) lived in the WORK card's own uncommitted workspace and was never visible from the re-decompose card's
+  fresh clone. The board record confirms both flags. Mechanism: the re-decompose brief now states on its second
+  line that it is a planning card with no write tools, that `begin_implementation` is refused on purpose, and that
+  add_task / add_dependency / decompose_project is the only way forward — one turn instead of twenty-two.
 
 - [ ] **P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and the single-flight guard
   then refuses every retry for the life of the runtime.** *(Live 2026-09-10, four occurrences across projects 41,
@@ -3003,6 +3037,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   a real check rather than something a responder notices by eye — every occurrence so far was reported by a
   responder, never by the rig itself.
   Note the guard's in-memory flag does NOT clear on its own — the hung start has to settle or the runtime restart.
+  **▶ TREATED 2026-09-14 — (a) shipped (`754870837`); (ii)/(iii) were NOT defects; (i)'s root cause needs the next
+  occurrence, which now reports itself.** (a) `prepareWorkspace` has a deadline (`NKLEIN_SANDBOX_PROVISION_DEADLINE_MS`,
+  15 min): the caller fails, the in-flight join is dropped so a retry is a fresh attempt, a late completion is
+  disposed unless a retry superseded it, and `sandbox_provisioning_deadline_exceeded` records the pool's state
+  (containers, placements, queue, egress probe) — the evidence every occurrence so far lacked. (ii)/(iii): the ledger
+  shows `sandbox_container_retired … (occupancy 0)` for `ws-d368de3674e9-1` (2026-09-11) AND for
+  `ws-9f2194a2c4bd-1` (22:45:38 and 23:08:26 on 2026-09-13): the pool idle-retires a sandbox whose placement was
+  disposed and keeps the proxy for the next acquire, so `proxies > sandboxes` is ALSO the normal picture of a
+  finished workspace — retired as a signature (two shifts spent ~2 h on it); the brief section is corrected
+  (`0299f9096`). The reaper was deliberately left alone: a live runtime's proxy is its own to tear down, a dead
+  runtime's are reaped by ownership at startup. (i): the failing runtime's log was overwritten by the restart and
+  Docker's events had rotated, so the hung await is unproven — the item stays open for (i) only.
 
 - [ ] **P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture unsettled, and the board
   then issues no further requests.** *(Live 2026-09-10, project 41 `kill-result-ordering`, requests 2036-2045.)*
@@ -3026,6 +3072,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `await deps.stopTaskSession(...)` before restarting, so it is not obviously racy. Recorded as probable, not
   settled: the one hole is that the stop is `.catch(() => null)`, so a failed stop is swallowed and the restart
   proceeds regardless.
+  **▶ TREATED 2026-09-14 — bounded on the rail; the product side is a deliberate human hand-off.** A turn-loop
+  park (`parkTaskForAutonomyBudget`) and the review `status: "parked"` inbox both exist to hand a card to a HUMAN;
+  the runtime issuing nothing afterwards is that design, and the §5.BD rescue deliberately excludes the Review lane
+  (re-rescuing a held card loops hold → stop → rebind → re-review). For the rig, which has no human, the wedge
+  watchdog in `dev-test-rail.mts` (`--wedge-ms`, 20 min: cards in a working lane with NO live session) ends the
+  run in 20 minutes instead of 45 and re-queues the project once — shipped 2026-09-10 in this batch. Not built,
+  on purpose: an automatic resume-with-steer for a budget-parked card — the park fired on ~9 identical writes, and
+  resuming the same context would loop again; the review-redecompose rung is the right escalation and already
+  exists. The stale-focus-span cause of the write loop stays with [[P1.PARKEDINREVIEW]]'s evidence for a fresh
+  occurrence.
 
 - [ ] **P1.DECOMPOSEABORTS — decompose cards arrive with many prior "aborted before producing output" attempts.**
   *(Live 2026-09-09/10, three independent sightings.)* Project 41's decompose card carried **6** prior failed
@@ -3296,6 +3352,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   whose verdict was already recorded.
   Composes with P0.RETIRELOOP: the answer is probably that a session which has met its protocol objective should
   be RETIRED (`src/core/session-retirement.ts` already has the ledger and the revive-on-start rule).
+  **▶ TREATED 2026-09-14 — the fix IS confirmed, and the "planning-card reopens" were not reopens.** (1) The ledger
+  for `dev-52-planning-receipt-ingest-cli-decompose` shows the plan applied at 06:06:48 (planning → completed) and
+  `settled_card_session_retired` firing at 06:07:11 on that completed card — the non-zero firing this item asked
+  for as its settling evidence. (2) The three "reopens" (2473, 2479, 2480–2484) are `attempt_started` +
+  `backlog → planning` at 04:23, 04:49 and 05:53 — fresh attempts on a decompose card whose session ended
+  `awaiting_review` WITHOUT an applied decomposition (`turn_end_recovery_decision … recovery=scheduled`): the
+  responder had done the fixture's work from the decompose card and bare-stopped, so the runtime correctly
+  re-drove the unfinished planning card in a fresh clone (hence the "stub" it saw). That is the -decompose/role
+  trap the brief documents, not a reopen path the sweep misses. Residual, still open: the custodian
+  `main-branch-custodian::review` re-prompt (exempt from the terminal-lane sweeper by design; two later shifts saw
+  0 loops) — start at whoever calls `sendTaskSessionInput` for a `::review` task with a recorded verdict.
 - [ ] **P1.REVIEWBUDGET — derive the reviewer's time budget from observed turn latency instead of a constant.**
   *(Opened 2026-09-09 from a confirmed rig failure; the stop-gap knob shipped as `1f3183c7c`.)* The budget is a
   flat `DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS = 10 min` with a separately-configurable verdict RESERVE carved

@@ -16,11 +16,14 @@ Sonnet in every seat (architect/worker/reviewer via the HITL rig)**, replays run
 | P1.REPLAYUNDRAINED (last cause) — replays blocked at complexity 50 | router scored the sim model like a live one | sim candidates satisfy any difficulty | router tests: sim assigned at 80 with score 10; live model still gated |
 | web-ui flake — `interventionHumanSeconds: 0.1` | exact-0 assertion on wall time | six tests pin `Date.now` (`fb877f3ad`) | file green under load |
 | responder brief drift | "orphan proxy needs host cleanup" | section rewritten with the evidence | — |
+| P1.NOWRITETOOL — 22 write-tool-less turns | requests 2083–2095 were the RE-DECOMPOSE card (`startInPlanMode: true`), misread as the work card; plan mode has no write tools by design | brief states the card's nature on line two (`9d88e22d2`) | queue payloads + board record; no runtime change needed |
+| P1.SETTLEDNUDGE — "planning-card reopens" | fresh attempts on a decompose card that ended `awaiting_review` without applying (responder did the work instead of decomposing); retirement fix confirmed firing on the completed card at 06:07:11 | none needed beyond `b5d6d3bd4`; custodian `::review` residual stays open | ledger timeline for dev-52 |
+| P1.PARKEDINREVIEW — park left the card held in Review | a park is a deliberate human hand-off; the rig has no human | rail wedge watchdog (20 min → re-queue once), shipped 2026-09-10 | design decision recorded; auto-resume deliberately not built |
 
 Still open, evidence-only (not fixable without a fresh occurrence): P1.STARTHANG2 (i)'s actual hung await — the
 failing runtime's log was overwritten by the restart; the deadline observation now captures the pool state when it
-recurs. P1.SETTLEDNUDGE (reopen path for planning cards), P1.PARKEDINREVIEW, P1.NOWRITETOOL remain in todo.md with
-their evidence.
+recurs — and the custodian `main-branch-custodian::review` re-prompt under P1.SETTLEDNUDGE (two later shifts saw 0
+loops; start at whoever calls `sendTaskSessionInput` for a `::review` task with a recorded verdict).
 
 Lessons re-learned today, recorded in §4A / memory: the hook checks the working tree (no src edits while a commit's
 hook runs); zsh reports `tail`'s exit code after a pipe (`${pipestatus[1]}`); `git stash push --staged` + `pop`
