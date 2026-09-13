@@ -1,0 +1,26 @@
+{
+	"drain": "/Users/david/.nklein/factory-drains/hitl-drain",
+	"generatedAt": "2026-09-13T18:04:14.410Z",
+	"fromRequestId": 2884,
+	"toRequestId": 2896,
+	"boundedBy": {
+		"kind": "queue-high-water"
+	},
+	"pairs": 12,
+	"tracks": 12,
+	"replayVerified": true,
+	"sources": {
+		"queue/answers/2885.json": "sha256:b272c4b41c2306d9",
+		"queue/answers/2886.json": "sha256:df3c28d4327f1983",
+		"queue/answers/2887.json": "sha256:edf065352d520fd1",
+		"queue/answers/2888.json": "sha256:a61fddad68c1d895",
+		"queue/answers/2889.json": "sha256:3bd42b7467cadfd1",
+		"queue/answers/2890.json": "sha256:e698036ea487f38d",
+		"queue/answers/2891.json": "sha256:a63bc7a79d42adf2",
+		"queue/answers/2892.json": "sha256:010a7301991d4602",
+		"queue/answers/2893.json": "sha256:ccce784910f9c43a",
+		"queue/answers/2894.json": "sha256:d08d319cb8610918",
+		"queue/answers/2895.json": "sha256:d80630b977005e28",
+		"queue/answers/2896.json": "sha256:4cc0bd06945e2138"
+	}
+}
