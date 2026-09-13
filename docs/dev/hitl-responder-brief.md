@@ -172,6 +172,19 @@ this, where 54 needed a retry. Three decompose graphs, one retry, zero third att
   running. `RepeatedToolCallGuard` parked the card, the board stopped issuing requests, and the project was lost
   before a single card was created. Re-sending a call the server has already rejected on shape will never succeed,
   and the guard that stops you costs the whole project, not just the turn.
+- **A nested `decompose_project(tasks: [...])` call requires `plan`, not just `spec`.** Live 2026-09-13, project 57
+  (`repair-ticket-triage-defects`): a call with `slug`, `title`, `summary`, `spec` (a full restatement of the
+  fixture) and `tasks` was rejected outright — *"decompose_project is missing required fields: plan"* — before any
+  coverage or shape validation of the tasks even ran. Rather than retry the nested call with a `plan` field bolted
+  on (a second guess at what else might be required), the fix was to take the error's own advice and switch to the
+  incremental protocol: `add_task` once per card (every field the nested form would have carried, `dependsOn`
+  dropped from each), then `add_dependency` once per edge once all ids exist, then `decompose_project` with NO
+  arguments — which auto-fills `slug`/`spec`/`plan` from the accumulated graph and applied clean. All 9 incremental
+  calls (4 `add_task` + 5 `add_dependency`) can be sent as one batched turn in dependency order (tasks before the
+  edges that reference them) and each is validated immediately, so a mistake surfaces on the one call it is in
+  rather than after a whole resubmission. Net cost was one retry, not a lost project — but skip the nested form's
+  `plan` guessing game entirely and go straight to incremental if a first nested attempt is rejected for a missing
+  field you did not expect.
 - **The offered tool set varies between turns of the SAME card**, and its size tells you nothing about the card's
   type: one task id was seen with both a 28-tool and a 33-tool grant in the same lineage. Read each request's own
   `tools` array every turn; never infer from a sibling.
