@@ -1157,6 +1157,29 @@ source repo went private — so if it vanishes the buildable source still lives 
 > David's own dogfooding remains the right tool for finding BUGS and judging FEEL; it is structurally unreliable for
 > judging speed, and so is any model's impression of its own effectiveness.
 
+### A benchmark score is meaningless without the models that produced it (non-negotiable, David 2026-09-14)
+> **No score — SWE-bench, Aider, Terminal-Bench, a dev-test replay rate, anything — is ever reported, banked, or
+> compared bare.** Every score is tied to the exact model configuration that produced it: model id, provider,
+> effort/reasoning setting, and WHICH SEAT it filled (architect / worker / reviewer / custodian), because a single
+> pipeline routinely mixes them. A number without that provenance is not a result, it is a rumour: the same
+> pipeline scored 0/96 on Aider with qwen3.8-27b in every seat and 40/40 on the dev-test batch with Sonnet in the
+> model seat, and those two numbers say nothing about each other. Reports, receipts, `sources.json`, campaign
+> baselines and `todo.md` entries all carry the model provenance inline; a comparison across runs is only valid
+> when it is paired on the same provenance or explicitly labelled as a model-vs-model delta.
+
+### A finding is finalized and treated the moment it is found (non-negotiable, David 2026-09-14)
+> **When something is discovered — a defect, a gotcha, an integrity hole, a wrong assumption, a guidance error —
+> it is FIXED and CLOSED right then, autonomously, not written down as an open item and left.** Recording a
+> finding is not treating it. The dev-test batch produced seven backlog items with hard evidence and left every
+> one open while driving continued; two of them (the reopen loop, the zombie board) cost most of a day each
+> BEFORE being opened and kept costing after, and the fixture-integrity hole was proven by exploit and then filed
+> as P2. That is the wrong order. The order is: find it → root-cause it → fix it → prove the fix → THEN record
+> what was learned. The only reason to defer is that fixing now would derail genuinely-relevant in-flight work,
+> and then the finding goes to the very next todos with its evidence and is picked up immediately after the
+> current unit of work — the same discipline as a surfaced test failure, because it is the same thing. Applies to
+> findings from responders, subagents, monitors and recon as much as to one's own: a subagent's report that names
+> a defect is a defect found.
+
 ### When debugging an LLM, READ THE LM STUDIO DEV LOGS FIRST (non-negotiable, user 2026-06-30)
 > **Any time a model behaves unexpectedly — a stall, timeout, slow/empty response, a tool-call that never lands, a
 > mysterious "inactivity" abort — go to the LM Studio dev logs for GROUND TRUTH before theorizing from runtime/harness
