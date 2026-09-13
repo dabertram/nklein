@@ -2,7 +2,8 @@
 	"frozen": {
 		"conformance/workloads.mjs": "ce4ce912ff641ce8669800f36b1bf404988b6778730c1d608b8d4f768761b023",
 		"harness/dataset.mjs": "bdf6cd176e287a6a43445e7b871dafe7a789b86158206cadb2e44fc38df5cc87",
+		"performance/budgets.json": "ccf6f1883f902cb72e11330463b44ba835af879d738090cc8338883ff2ad84f9",
 		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
-		"test/performance.test.js": "ff303056f7f1e128fdfd3816eff35264588e2db06863c1ae62d34bbc813ae2d7"
+		"test/performance.test.js": "80cbbdb232a9261a4254b7b4ddeb95e3ab7eaf47392e8ebdf4ffbcb61aa2fc29"
 	}
 }

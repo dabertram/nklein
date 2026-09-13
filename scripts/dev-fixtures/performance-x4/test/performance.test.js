@@ -16,7 +16,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
  * BEHAVIOUR IS CHECKED ALWAYS, whatever the manifest says. A faster wrong answer is not an optimisation, and this
  * is the only thing standing between "make it cheaper" and "make it return nothing".
  *
- * `harness/`, `conformance/`, this file and `scripts/run-tests.mjs` are FROZEN — evidence, not workspace.
+ * `harness/`, `conformance/`, `performance/budgets.json`, this file and `scripts/run-tests.mjs` are FROZEN — evidence,
+ * not workspace. The budgets are the bar you are measured against; a bar you can move is not a bar.
  */
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -38,6 +39,7 @@ const frozenPaths = [
 	...walk(join(root, "conformance")),
 	join(root, "test", "performance.test.js"),
 	join(root, "scripts", "run-tests.mjs"),
+	join(root, "performance", "budgets.json"),
 ]
 	.map((file) => toPosix(relative(root, file)))
 	.sort();

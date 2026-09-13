@@ -1,7 +1,8 @@
 {
 	"frozen": {
+		"refactor/goals.json": "c6c6dfafb698f36e8c7343d77b825d9cbd2710e50df32668384510120e09f42c",
 		"scenarios/pricing.scenarios.mjs": "f54f77b56bcbb7c591a42e8fae9e0873a88a7d007fb59327e6c08eb74aef8df1",
 		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
-		"test/refactor.test.js": "413615f4b8ccd09f1af4d1e421543e9067ceb4ebebae1ccfefbd9e0aad47928a"
+		"test/refactor.test.js": "c4859908bdaf78eaf7dbe0e82af130e2ee44f2097c4041d4c6ad8237d23507a9"
 	}
 }

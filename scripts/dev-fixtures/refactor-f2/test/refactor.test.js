@@ -18,8 +18,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
  * (which the brief states anyway) and nothing about the answers: which modules violate what, and how to fix them,
  * is the work.
  *
- * `scenarios/`, this file and `scripts/run-tests.mjs` are FROZEN: they are the evidence you are graded on, not
- * workspace. The digest check recomputes them on every run.
+ * `scenarios/`, `refactor/goals.json`, this file and `scripts/run-tests.mjs` are FROZEN: they are the evidence you are
+ * graded on, not workspace. The goals are the bar; a bar you can move is not a bar. The digest check recomputes them
+ * on every run.
  */
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -36,7 +37,12 @@ function walk(dir) {
 const toPosix = (value) => value.split(sep).join("/");
 const digestOf = (file) => createHash("sha256").update(readFileSync(join(root, file))).digest("hex");
 
-const frozenPaths = [...walk(join(root, "scenarios")), join(root, "test", "refactor.test.js"), join(root, "scripts", "run-tests.mjs")]
+const frozenPaths = [
+	...walk(join(root, "scenarios")),
+	join(root, "test", "refactor.test.js"),
+	join(root, "scripts", "run-tests.mjs"),
+	join(root, "refactor", "goals.json"),
+]
 	.map((file) => toPosix(relative(root, file)))
 	.sort();
 const recorded = JSON.parse(readFileSync(join(root, "test/frozen.json"), "utf8"));
