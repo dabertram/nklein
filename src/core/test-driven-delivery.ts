@@ -5,6 +5,14 @@
  * (global + per-project) and the acceptance-seam wiring are separate. Pure + total.
  */
 
+/** Source extensions a test file can carry. Data/markup extensions never make a test, whatever the file is named. */
+const TEST_FILE_CODE_EXTENSION = "(?:[cm]?[jt]sx?|py|go|rs|rb|java|kt|kts|cs|swift|php|scala|exs?|dart|lua|pl|sh)";
+const TEST_FILE_INFIX_PATTERN = new RegExp(`\\.(test|spec)\\.${TEST_FILE_CODE_EXTENSION}$`);
+const TEST_FILE_UNDERSCORE_SUFFIX_PATTERN = new RegExp(`_test\\.${TEST_FILE_CODE_EXTENSION}$`);
+const TEST_FILE_CODE_EXTENSION_PATTERN = new RegExp(`^${TEST_FILE_CODE_EXTENSION}$`);
+const TEST_DIRECTORY_SEGMENT_PATTERN = /(^|\/)(__tests__|tests?)(\/|$)/;
+const GLOB_METACHARACTER_PATTERN = /[*?[\]{}]/;
+
 /**
  * Whether a path looks like a test/spec file across the repo's conventions: a `.test.`/`.spec.` infix (ts/tsx/js/mjs/py),
  * a `__tests__/` or `/tests/`/`/test/` directory segment, or a `_test.`/`.test`-suffixed file. Conservative — matches
@@ -18,14 +26,53 @@ export function isLikelyTestFile(path: string): boolean {
 	if (/(^|\/)(__tests__|tests?)\//.test(normalized)) {
 		return true;
 	}
-	if (/\.(test|spec)\.[a-z]+$/.test(normalized)) {
+	// The infix/suffix rules need a CODE extension: `fixtures/foo.test.json` or `api.spec.yaml` are data a test reads,
+	// not tests — counting them let a `spec/*.json` deliverable satisfy the gate by its file name alone (P1.UNSATGATE).
+	if (TEST_FILE_INFIX_PATTERN.test(normalized)) {
 		return true;
 	}
 	// Go/Python-style `_test.py` / `foo_test.go`.
-	if (/_test\.[a-z]+$/.test(normalized)) {
+	if (TEST_FILE_UNDERSCORE_SUFFIX_PATTERN.test(normalized)) {
 		return true;
 	}
 	return false;
+}
+
+/**
+ * P1.UNSATGATE — can a write scope reach ANY file `isLikelyTestFile` would accept? The test-driven gate demands a
+ * touched test file, and a card whose bounds cannot contain one can neither pass nor legally stop (live 2026-09-10/11,
+ * projects 50/51: every card's scope was the deliverable — `spec/*.json` — while `test/` was digest-frozen evidence;
+ * 23 of one shift's 40 requests went to a card that was correct, green and refused). The decomposer infers
+ * `not_testable` from this, and the gate itself steps aside on it, so the runtime never demands the impossible.
+ *
+ * CONSERVATIVE by construction — false only when EVERY entry provably cannot hold a test file:
+ *   - an exact file path (a leaf with an extension, no glob) that is not itself a test file;
+ *   - a glob without `**`, without a test directory segment, whose leaf pins a NON-code extension
+ *     (`spec/*.json`, `docs/*.md`) — the only names it can match are data files.
+ * Everything uncertain — a directory, `src/**`, `spec/*`, a test directory, an empty scope — reads as reachable, so
+ * the strict `testable` default stands wherever a test COULD be written.
+ */
+export function writeScopeCanReachTestFile(writeScope: readonly string[]): boolean {
+	const entries = writeScope.map((entry) => entry.trim().replace(/\\/g, "/").toLowerCase()).filter(Boolean);
+	if (entries.length === 0) {
+		return true;
+	}
+	return entries.some((entry) => {
+		if (isLikelyTestFile(entry) || TEST_DIRECTORY_SEGMENT_PATTERN.test(entry)) {
+			return true;
+		}
+		const leaf = entry.replace(/\/+$/, "").split("/").at(-1) ?? "";
+		if (GLOB_METACHARACTER_PATTERN.test(entry)) {
+			if (entry.includes("**")) {
+				return true;
+			}
+			// A glob whose leaf pins an extension can only ever match files of that extension.
+			const pinnedExtension = /\.([a-z0-9]+)$/.exec(leaf)?.[1];
+			return !pinnedExtension || TEST_FILE_CODE_EXTENSION_PATTERN.test(pinnedExtension);
+		}
+		// A directory (no extension on the leaf) can hold a co-located test; an exact non-test file cannot.
+		return leaf.length === 0 || !leaf.includes(".");
+	});
 }
 
 /**
@@ -73,6 +120,11 @@ export interface TestDrivenDeliveryInput {
 	changedFilePaths: readonly string[];
 	/** The card's upfront testability declaration; absent ⇒ `testable` (the strict default). */
 	testability?: TaskTestability;
+	/**
+	 * P1.UNSATGATE: the card's write bounds (explicit `writeScope`, else `filesLikelyTouched`). When they provably
+	 * cannot contain a test file, demanding one is demanding the impossible — the gate steps aside, audited.
+	 */
+	writeScope?: readonly string[];
 }
 
 export interface TestDrivenDeliveryDecision {
@@ -82,6 +134,8 @@ export interface TestDrivenDeliveryDecision {
 	changedTests: boolean;
 	/** True ⇒ the gate stepped aside because the card was declared not-testable upfront (audited, never silent). */
 	skippedNonTestable: boolean;
+	/** True ⇒ the gate stepped aside because the card's write scope cannot contain a test file (P1.UNSATGATE, audited). */
+	skippedScopeCannotContainTest: boolean;
 	/** A short, agent-readable reason when review is blocked (empty when allowed). */
 	reason: string;
 }
@@ -111,19 +165,24 @@ export function isVerificationOnlyPrompt(prompt: string | null | undefined): boo
 
 export function decideTestDrivenDelivery(input: TestDrivenDeliveryInput): TestDrivenDeliveryDecision {
 	const changedTests = input.changedFilePaths.some(isLikelyTestFile);
+	const notSkipped = { skippedNonTestable: false, skippedScopeCannotContainTest: false };
 	if (!input.enabled) {
-		return { allowReview: true, changedTests, skippedNonTestable: false, reason: "" };
+		return { allowReview: true, changedTests, ...notSkipped, reason: "" };
 	}
 	if (input.testability === "not_testable") {
-		return { allowReview: true, changedTests, skippedNonTestable: true, reason: "" };
+		return { allowReview: true, changedTests, ...notSkipped, skippedNonTestable: true, reason: "" };
 	}
 	if (changedTests) {
-		return { allowReview: true, changedTests: true, skippedNonTestable: false, reason: "" };
+		return { allowReview: true, changedTests: true, ...notSkipped, reason: "" };
+	}
+	// P1.UNSATGATE: bounds that cannot hold a test file make the demand below unsatisfiable — step aside, audited.
+	if (input.writeScope && input.writeScope.length > 0 && !writeScopeCanReachTestFile(input.writeScope)) {
+		return { allowReview: true, changedTests: false, ...notSkipped, skippedScopeCannotContainTest: true, reason: "" };
 	}
 	return {
 		allowReview: false,
 		changedTests: false,
-		skippedNonTestable: false,
+		...notSkipped,
 		reason:
 			"Test-driven mode is on: this change touched no test file. Add or update a test that covers the change (and keep it green) before delivery. If this card is genuinely not testable, its testability must be declared not_testable on the card (by the plan or the operator), not worked around.",
 	};

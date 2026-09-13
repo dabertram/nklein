@@ -33,7 +33,7 @@ import {
 	resolveTaskModelSettings,
 	selectTaskRoutingCandidate,
 } from "./plan-task-routing";
-import { validateNKleinPlanTaskGraph } from "./plan-task-validation";
+import { validateNKleinPlanTaskGraph, writeScopeCanContainTest } from "./plan-task-validation";
 
 /** §5.AU: the deterministic stream id for a decomposition slug — matches `deriveStreams` (`stream-<slug>`). */
 function decompositionStreamId(planSlug: string): string {
@@ -237,6 +237,12 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 			taskId = `${baseTaskId}-${suffix}`;
 		}
 		usedBoardTaskIds.add(taskId);
+		// P1.UNSATGATE: when the plan declares nothing, the layer that KNOWS the bounds infers — a scope that provably
+		// cannot hold a test file makes the test-driven gate unsatisfiable, so the card is stamped not_testable here
+		// rather than bounced until its ladder exhausts. Uncertain scopes keep the strict default; an explicit
+		// declaration always wins.
+		const inferredNotTestable = !task.testability && !writeScopeCanContainTest(task);
+		const inferredScope = task.writeScope?.length ? task.writeScope : task.filesLikelyTouched;
 		const created = addTaskToColumn(
 			board,
 			"planning",
@@ -258,10 +264,18 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 				...(task.writeScope ? { writeScope: [...task.writeScope] } : {}),
 				...(task.forbiddenPaths ? { forbiddenPaths: [...task.forbiddenPaths] } : {}),
 				// F1.34b-ext: the upfront testability declaration rides the card so the test-driven gate can honor it.
-				...(task.testability ? { testability: task.testability } : {}),
+				...(task.testability
+					? { testability: task.testability }
+					: inferredNotTestable
+						? { testability: "not_testable" as const }
+						: {}),
 				...(task.testability === "not_testable" && task.testabilityReason
 					? { testabilityReason: task.testabilityReason }
-					: {}),
+					: inferredNotTestable
+						? {
+								testabilityReason: `inferred at decompose time: the write scope (${inferredScope.join(", ")}) cannot contain a test file`,
+							}
+						: {}),
 				// Children of a re-decompose carry the redecompose card's generation, so the rung's depth guard
 				// can count how many review-driven splits already sit above any card that later parks itself.
 				...(sourceCard?.decomposeGeneration !== undefined

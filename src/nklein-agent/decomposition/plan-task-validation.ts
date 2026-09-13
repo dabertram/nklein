@@ -1,3 +1,4 @@
+import { writeScopeCanReachTestFile } from "../../core/test-driven-delivery";
 import { assessNKleinPlanTaskGraphQuality } from "../nklein-decomposition-graph-quality";
 import type { ValidateNKleinPlanTaskGraphResult } from "../nklein-decomposition-tool";
 import type { NKleinPlanQuestion, NKleinPlanTask, NKleinPlanTaskGraph } from "../nklein-plan-artifacts";
@@ -74,24 +75,13 @@ function effectiveWriteScope(task: NKleinPlanTask): string[] {
 	return explicit.length > 0 ? explicit : task.filesLikelyTouched.map((path) => path.trim()).filter(Boolean);
 }
 
-/** A test-first contract must leave the worker somewhere it can actually create or update the promised test. */
-function writeScopeCanContainTest(task: NKleinPlanTask): boolean {
-	const scope = effectiveWriteScope(task);
-	if (scope.length === 0) {
-		return true;
-	}
-	return scope.some((rawPath) => {
-		const path = rawPath.replaceAll("\\", "/").toLowerCase();
-		if (/(^|\/)(?:test|tests|__tests__)(?:\/|$)|\.(?:test|spec)\.[^/]+$/u.test(path)) {
-			return true;
-		}
-		// A directory or glob can contain a co-located test even when its name does not include "test".
-		if (/[*?[\]{}]/u.test(path)) {
-			return true;
-		}
-		const leaf = path.replace(/\/+$/u, "").split("/").at(-1) ?? "";
-		return leaf.length > 0 && !leaf.includes(".");
-	});
+/**
+ * A test-first contract must leave the worker somewhere it can actually create or update the promised test. ONE
+ * predicate with the delivery gate and the decompose-time inference (`writeScopeCanReachTestFile`), so "can this
+ * scope hold a test?" has a single answer everywhere (P1.UNSATGATE).
+ */
+export function writeScopeCanContainTest(task: NKleinPlanTask): boolean {
+	return writeScopeCanReachTestFile(effectiveWriteScope(task));
 }
 
 /**

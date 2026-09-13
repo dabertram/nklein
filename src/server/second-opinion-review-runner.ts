@@ -1008,15 +1008,24 @@ export async function runSecondOpinionReviewForTask(
 		// Verification-only cards (David 2026-09-06 "why need me"): the prompt declares evidence, not a diff, as
 		// the deliverable — demanding a test file from it only loops the worker into a park.
 		const isVerificationOnly = !card.testability && isVerificationOnlyPrompt(card.prompt);
+		// P1.UNSATGATE: the card's bounds travel with the gate — bounds that cannot hold a test file make the demand
+		// unsatisfiable (spec-only cards on digest-frozen fixtures, 2026-09-10/11), and the gate steps aside on them.
+		const gateWriteScope = card.writeScope?.length ? card.writeScope : (card.filesLikelyTouched ?? []);
 		const gate = decideTestDrivenDelivery({
 			enabled: true,
 			changedFilePaths,
+			writeScope: gateWriteScope,
 			...(card.testability
 				? { testability: card.testability }
 				: isDecompositionSource || isVerificationOnly
 					? { testability: "not_testable" as const }
 					: {}),
 		});
+		if (gate.skippedScopeCannotContainTest) {
+			input.warn?.(
+				`Test-driven gate: ${input.taskId}'s write scope (${gateWriteScope.join(", ")}) cannot contain a test file — not demanding one.`,
+			);
+		}
 		if (isVerificationOnly) {
 			input.warn?.(
 				`Test-driven gate: ${input.taskId} is a verification-only card by its prompt — not demanding a test file.`,
@@ -1041,9 +1050,11 @@ export async function runSecondOpinionReviewForTask(
 				message: `Test-driven gate for ${input.taskId}: ${
 					gate.skippedNonTestable
 						? "skipped (card declared not_testable upfront)"
-						: gate.allowReview
-							? "allowed"
-							: "BOUNCED"
+						: gate.skippedScopeCannotContainTest
+							? "skipped (write scope cannot contain a test file)"
+							: gate.allowReview
+								? "allowed"
+								: "BOUNCED"
 				} — ${gate.reason}`,
 				taskId: input.taskId,
 				workspacePath: input.workspacePath,
@@ -1051,6 +1062,7 @@ export async function runSecondOpinionReviewForTask(
 					category: "test_driven_gate",
 					allowReview: gate.allowReview,
 					skippedNonTestable: gate.skippedNonTestable,
+					skippedScopeCannotContainTest: gate.skippedScopeCannotContainTest,
 					testability: card.testability ?? "testable",
 					changedFiles: changedFilePaths.length,
 					reason: gate.reason,

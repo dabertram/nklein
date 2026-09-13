@@ -5,6 +5,7 @@ import {
 	isVerificationOnlyPrompt,
 	resolveEffectiveTestDrivenMode,
 	TEST_DRIVEN_MODE_DEFAULT,
+	writeScopeCanReachTestFile,
 } from "../../../src/core/test-driven-delivery";
 
 describe("isLikelyTestFile", () => {
@@ -134,5 +135,53 @@ describe("isVerificationOnlyPrompt (live 2026-09-05: wallclock-allowlist looped 
 		expect(isVerificationOnlyPrompt("Verify that the invariant suite remains green after the merge.")).toBe(true);
 		expect(isVerificationOnlyPrompt("Implement CSV export for the reports page, with tests.")).toBe(false);
 		expect(isVerificationOnlyPrompt(null)).toBe(false);
+	});
+});
+
+describe("P1.UNSATGATE — a scope that cannot hold a test file", () => {
+	it("isLikelyTestFile needs a code extension: data files named like tests are fixtures, not tests", () => {
+		expect(isLikelyTestFile("fixtures/foo.test.json")).toBe(false);
+		expect(isLikelyTestFile("api.spec.yaml")).toBe(false);
+		expect(isLikelyTestFile("spec/impact.json")).toBe(false);
+		expect(isLikelyTestFile("src/foo.test.mjs")).toBe(true);
+		expect(isLikelyTestFile("pkg/foo_test.go")).toBe(true);
+		// A test DIRECTORY still counts whatever the file inside is called.
+		expect(isLikelyTestFile("test/fixtures/data.json")).toBe(true);
+	});
+
+	it("writeScopeCanReachTestFile is false only when every entry provably cannot hold a test", () => {
+		expect(writeScopeCanReachTestFile(["spec/impact.json"])).toBe(false);
+		expect(writeScopeCanReachTestFile(["spec/*.json", "docs/*.md"])).toBe(false);
+		expect(writeScopeCanReachTestFile(["src/foo.ts", "src/bar.ts"])).toBe(false);
+		// Anything a test COULD live under keeps the strict default.
+		expect(writeScopeCanReachTestFile([])).toBe(true);
+		expect(writeScopeCanReachTestFile(["src/"])).toBe(true);
+		expect(writeScopeCanReachTestFile(["conformance/**"])).toBe(true);
+		expect(writeScopeCanReachTestFile(["spec/*"])).toBe(true);
+		expect(writeScopeCanReachTestFile(["tests/*.json"])).toBe(true);
+		expect(writeScopeCanReachTestFile(["src/foo.ts", "test/foo.test.ts"])).toBe(true);
+		expect(writeScopeCanReachTestFile(["src/*.ts"])).toBe(true);
+	});
+
+	it("the enabled gate steps aside, audibly, when the card's scope cannot contain a test file", () => {
+		const d = decideTestDrivenDelivery({
+			enabled: true,
+			changedFilePaths: ["spec/impact.json"],
+			writeScope: ["spec/*.json"],
+		});
+		expect(d.allowReview).toBe(true);
+		expect(d.skippedScopeCannotContainTest).toBe(true);
+		expect(d.skippedNonTestable).toBe(false);
+		expect(d.reason).toBe("");
+	});
+
+	it("a scope that could hold a test keeps the demand", () => {
+		const d = decideTestDrivenDelivery({
+			enabled: true,
+			changedFilePaths: ["src/impact.ts"],
+			writeScope: ["src/**"],
+		});
+		expect(d.allowReview).toBe(false);
+		expect(d.skippedScopeCannotContainTest).toBe(false);
 	});
 });

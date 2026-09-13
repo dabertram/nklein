@@ -293,3 +293,48 @@ describe("bug #5 — the router picks deterministically among equal candidates l
 		expect(c).toBe(a);
 	});
 });
+
+describe("P1.UNSATGATE — decompose-time inference of not_testable from an impossible write scope", () => {
+	const fullBoard = () =>
+		({
+			columns: [
+				{ id: "planning", cards: [{ id: "src-1", title: "Plan it" }] },
+				{ id: "in_progress", cards: [] },
+				{ id: "completed", cards: [] },
+			],
+			dependencies: [],
+		}) as unknown as RuntimeBoardData;
+	const cardsOf = (b: RuntimeBoardData) => b.columns.flatMap((column) => column.cards);
+
+	it("stamps not_testable (+ reason) on an undeclared task whose scope cannot hold a test, leaves the rest alone", () => {
+		const result = applyNKleinPlanTaskGraphToBoard({
+			board: fullBoard(),
+			taskGraph: graph([
+				task({
+					id: "spec",
+					title: "Write the spec",
+					writeScope: ["spec/*.json"],
+					filesLikelyTouched: ["spec/impact.json"],
+				}),
+				task({ id: "impl", title: "Implement", writeScope: ["src/**"], filesLikelyTouched: ["src/x.ts"] }),
+				task({
+					id: "explicit",
+					title: "Explicitly testable",
+					writeScope: ["spec/*.json"],
+					testability: "testable",
+				}),
+			]),
+			baseRef: "main",
+			randomUuid: () => "uuid",
+			sourceTaskId: "src-1",
+			now: 1,
+		});
+		const byPlanTask = (id: string) =>
+			cardsOf(result.board).find((card) => card.generatedFromPlan?.planTaskId === id);
+		expect(byPlanTask("spec")?.testability).toBe("not_testable");
+		expect(byPlanTask("spec")?.testabilityReason).toMatch(/inferred at decompose time.*spec\/\*\.json/);
+		expect(byPlanTask("impl")?.testability).toBeUndefined();
+		// An explicit declaration always wins over the inference.
+		expect(byPlanTask("explicit")?.testability).toBe("testable");
+	});
+});
