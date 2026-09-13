@@ -292,6 +292,17 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		addedOn: Date.UTC(2026, 8, 14),
 	},
 	{
+		// ── P1.ZOMBIEBOARD: abandoning a board RETIRES its sessions instead of merely trashing its cards (2026-09-14) ──
+		category: "task_session_retired_by_request",
+		item: "P1.ZOMBIEBOARD",
+		observes:
+			"a caller abandoning a board (the dev-test rail's cleanup, `hitl-abandon-run`, an operator) retired a card's session through the runtime API: the retirement ledger entry is recorded first so no recovery path restarts it, then the live session (if any) is stopped mid-turn — without this a trashed card whose session was mid-turn restored itself out of trash and kept a serial model seat busy with nothing watching it (28 of one shift's 40 answers, 2026-09-10)",
+		enabledBy: null,
+		// `exceptional`: only an abandonment calls this; a drive that ends normally retires nothing here.
+		expectation: "exceptional",
+		addedOn: Date.UTC(2026, 8, 14),
+	},
+	{
 		// ── P0.DSTALL close-out: the watchdog's post-first-token liveness sweep (2026-09-07) ──
 		category: "silent_running_session_interrupted",
 		item: "P0.DSTALL",

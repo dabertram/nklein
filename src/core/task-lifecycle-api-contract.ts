@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ACCEPTANCE_FAILURE_CATEGORIES } from "./acceptance-failure-taxonomy.js";
 import { runtimeTaskImageSchema } from "./board-api-contract.js";
 import { runtimeAgentIdSchema, runtimeTaskNKleinSettingsSchema } from "./runtime-config-api-contract.js";
+import type { SessionRetirementReason } from "./session-retirement.js";
 import {
 	runtimeModelPerformanceRoleSchema,
 	runtimeTaskSessionModeSchema,
@@ -244,6 +245,35 @@ export const runtimeTaskSessionStopResponseSchema = z.object({
 	error: z.string().optional(),
 });
 export type RuntimeTaskSessionStopResponse = z.infer<typeof runtimeTaskSessionStopResponseSchema>;
+
+/** The retirement reasons the ledger knows (`src/core/session-retirement.ts`); `satisfies` keeps the two in step. */
+const SESSION_RETIREMENT_REASONS = [
+	"terminal_lane_card",
+	"card_absent_from_board",
+] as const satisfies readonly SessionRetirementReason[];
+
+/**
+ * P1.ZOMBIEBOARD (2026-09-14): RETIRE a task's session — stop it AND record in the retirement ledger that no recovery
+ * path may restart it. Trashing a card is not enough: a card whose session is mid-turn is restored out of trash by
+ * its own start path (`resumeFromTrash`), and removing the workspace blinds the watchdog that would have stopped
+ * it — the board then keeps issuing requests forever (28 of one shift's 40 answers went to such a card). Callers
+ * that abandon a board (the dev-test rail, `hitl-abandon-run`) retire every card's session before anything else.
+ */
+export const runtimeTaskSessionRetireRequestSchema = z.object({
+	taskId: z.string(),
+	reason: z.enum(SESSION_RETIREMENT_REASONS).default("terminal_lane_card"),
+	/** Free text for the observation trail (who abandoned the board, and why). */
+	detail: z.string().optional(),
+});
+export type RuntimeTaskSessionRetireRequest = z.infer<typeof runtimeTaskSessionRetireRequestSchema>;
+
+export const runtimeTaskSessionRetireResponseSchema = z.object({
+	ok: z.boolean(),
+	/** True when a live session was actually stopped; the retirement is recorded either way. */
+	stopped: z.boolean(),
+	error: z.string().optional(),
+});
+export type RuntimeTaskSessionRetireResponse = z.infer<typeof runtimeTaskSessionRetireResponseSchema>;
 
 export const runtimeTaskPauseRequestSchema = z.object({
 	taskId: z.string(),

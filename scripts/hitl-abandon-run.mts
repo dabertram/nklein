@@ -14,10 +14,12 @@
  * exists for the bounce/re-drive case and does not distinguish an operator abandonment from one). The project kept
  * consuming the shared endpoint and its traffic kept landing in the NEXT project's recording.
  *
- * When you need a run to STAY dead — abandoning a drive whose recording must not be polluted — follow this with
- * `projects.remove` for the workspace, which takes it out of the runtime entirely:
- *   curl -s -X POST "$BASE/api/trpc/projects.remove" -H 'content-type: application/json' \
- *     -d '{"projectId":"<workspaceId>"}'
+ * ── FIXED 2026-09-14 (P1.ZOMBIEBOARD): this script now RETIRES every abandoned card's session ──
+ * After the board save it calls `runtime.retireTaskSession` for each card: the retirement ledger entry is recorded
+ * first (no recovery path may restart the session), then the live session is stopped mid-turn. Do NOT reach for
+ * `projects.remove` INSTEAD of this — removing a workspace with live sessions blinds the per-workspace watchdog and
+ * creates a PERMANENT zombie (live 2026-09-11: a removed workspace's card consumed 26 of the next shift's 42
+ * answers). Removing the workspace AFTER this script has retired its sessions is safe.
  *
  * Usage:  npx tsx scripts/hitl-abandon-run.mts <workspaceId> [--base http://127.0.0.1:3503]
  */
@@ -44,10 +46,12 @@ if (!trash) {
 	process.exit(1);
 }
 const moved: string[] = [];
+const abandonedTaskIds: string[] = [];
 for (const column of columns) {
 	if (column.id === "trash") continue;
 	for (const card of [...column.cards]) {
 		moved.push(`${column.id}/${card.id}`);
+		abandonedTaskIds.push(card.id);
 		trash.cards.push(card);
 	}
 	column.cards = [];
@@ -66,7 +70,22 @@ if (!saveResponse.ok) {
 	process.exit(1);
 }
 console.log(`abandoned ${moved.length} card(s):\n  ${moved.join("\n  ")}`);
-// The board is only half of it: a trashed card's live session and its `::review` model-turn reservation are stopped
-// by the board-liveness watchdog on its next tick (P0.TRASHREVIEW). Say so, because "the board looks empty but the
-// endpoint is still busy" was the exact confusion this whole area produced.
-console.log("\nThe board-liveness watchdog stops their sessions and frees the endpoint on its next tick.");
+// The board is only half of it (P1.ZOMBIEBOARD): a trashed card whose session is mid-turn restores itself out of
+// trash and keeps issuing requests, and removing the workspace would blind the watchdog that could stop it. RETIRE
+// every session now — ledger entry first, then the stop — so nothing resurrects them.
+let retired = 0;
+for (const taskId of abandonedTaskIds) {
+	const response = await fetch(`${api}/runtime.retireTaskSession?workspaceId=${encodeURIComponent(workspaceId)}`, {
+		method: "POST",
+		headers,
+		body: JSON.stringify({ taskId, reason: "terminal_lane_card", detail: "abandoned via hitl-abandon-run" }),
+	});
+	const result = response.ok
+		? ((await response.json()).result?.data as { ok?: boolean; stopped?: boolean } | undefined)
+		: undefined;
+	if (result?.ok) retired += 1;
+	else console.error(`  retire ${taskId}: ${response.status} ${response.ok ? JSON.stringify(result) : await response.text()}`);
+}
+console.log(
+	`\nretired ${retired}/${abandonedTaskIds.length} session(s) — nothing on this board can restart them; the workspace is now safe to remove.`,
+);

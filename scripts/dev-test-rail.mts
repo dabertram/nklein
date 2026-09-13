@@ -240,17 +240,32 @@ async function main(): Promise<void> {
 				const columns = state.board?.columns ?? [];
 				const trash = columns.find((column) => column.id === "trash");
 				let moved = 0;
+				const abandonedTaskIds: string[] = [];
 				if (trash) {
 					for (const column of columns) {
 						if (column.id === "trash" || !column.cards?.length) continue;
 						moved += column.cards.length;
+						abandonedTaskIds.push(...column.cards.map((card) => card.id));
 						trash.cards = [...(trash.cards ?? []), ...column.cards];
 						column.cards = [];
 					}
 					if (moved > 0) {
 						await lane.ws.workspace.saveState.mutate(state as never);
-						log(`  ${lane.label}: trashed ${moved} card(s) so their sessions stop.`);
+						log(`  ${lane.label}: trashed ${moved} card(s).`);
 					}
+				}
+				// P1.ZOMBIEBOARD: trashing is not stopping. A card whose session is mid-turn restores itself out of trash,
+				// and `projects.remove` below blinds the watchdog that would have stopped it — so RETIRE every session
+				// first (ledger entry + stop); only then is the workspace safe to remove.
+				let retired = 0;
+				for (const taskId of abandonedTaskIds) {
+					const result = await lane.ws.runtime.retireTaskSession
+						.mutate({ taskId, reason: "terminal_lane_card", detail: `dev-test-rail cleanup: ${lane.label} abandoned` })
+						.catch(() => null);
+					if (result?.ok) retired += 1;
+				}
+				if (abandonedTaskIds.length > 0) {
+					log(`  ${lane.label}: retired ${retired}/${abandonedTaskIds.length} session(s) before removing the workspace.`);
 				}
 			} catch (error) {
 				log(`  ${lane.label}: could not trash cards before removal (${error instanceof Error ? error.message : String(error)})`);

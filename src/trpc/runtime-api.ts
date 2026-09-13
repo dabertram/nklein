@@ -248,7 +248,11 @@ import {
 } from "./runtime-api/task-diagnostics.js";
 import { handleCollectTaskEvidence } from "./runtime-api/task-evidence.js";
 import { handlePauseTask, handleResumeTask } from "./runtime-api/task-pause-resume.js";
-import { handleSendTaskSessionInput, handleStopTaskSession } from "./runtime-api/task-session-io.js";
+import {
+	handleRetireTaskSession,
+	handleSendTaskSessionInput,
+	handleStopTaskSession,
+} from "./runtime-api/task-session-io.js";
 import {
 	handleGetKnowledgeToolUsageStats,
 	handleGetModelPerformanceStats,
@@ -1644,6 +1648,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		},
 		stopTaskSession: async (workspaceScope, input) =>
 			handleStopTaskSession(workspaceScope, input, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+			}),
+		retireTaskSession: async (workspaceScope, input) =>
+			handleRetireTaskSession(workspaceScope, input, {
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
 			}),
 		// §dsh#32: fork = pure boundary plan + the service's proven restart path; refusals map to a flat response.

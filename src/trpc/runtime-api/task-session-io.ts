@@ -1,10 +1,16 @@
 import type {
 	RuntimeTaskSessionInputRequest,
 	RuntimeTaskSessionInputResponse,
+	RuntimeTaskSessionRetireRequest,
+	RuntimeTaskSessionRetireResponse,
 	RuntimeTaskSessionStopRequest,
 	RuntimeTaskSessionStopResponse,
 } from "../../core/api-contract";
-import { parseTaskSessionInputRequest, parseTaskSessionStopRequest } from "../../core/api-validation";
+import {
+	parseTaskSessionInputRequest,
+	parseTaskSessionRetireRequest,
+	parseTaskSessionStopRequest,
+} from "../../core/api-validation";
 import { setCardPaused } from "../../core/card-pause";
 import { INTERVENTION_CATEGORY } from "../../core/intervention-observation";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
@@ -144,5 +150,49 @@ export async function handleSendTaskSessionInput(
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		return { ok: false, summary: null, error: message };
+	}
+}
+
+/**
+ * P1.ZOMBIEBOARD: retire a task's session (the runtime-api `retireTaskSession` procedure handler). The retirement is
+ * recorded FIRST — the ledger is what a recovery path consults before restarting, so it must be in place before the
+ * stop below can trigger one — then the live session, if any, is stopped mid-turn. A trashed card whose session is
+ * mid-turn otherwise restores itself out of trash (`resumeFromTrash`) and keeps issuing requests with nothing
+ * watching it; `hitl-abandon-run` and the dev-test rail's cleanup call this for every card they abandon.
+ */
+export async function handleRetireTaskSession(
+	workspaceScope: RuntimeTrpcWorkspaceScope,
+	input: RuntimeTaskSessionRetireRequest,
+	deps: TaskSessionIoDeps,
+): Promise<RuntimeTaskSessionRetireResponse> {
+	try {
+		const body = parseTaskSessionRetireRequest(input);
+		const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+		const detail = body.detail?.trim() || "retired by operator request";
+		// Fail CLOSED without a ledger: a stop that cannot be recorded as a retirement is exactly the zombie-making
+		// stop this handler exists to replace, so it is refused rather than degraded to one.
+		if (!nkleinTaskSessionService.retireTaskSession) {
+			throw new Error("This task session service cannot record retirements; refusing a stop that could not stick.");
+		}
+		nkleinTaskSessionService.retireTaskSession({ taskId: body.taskId, reason: body.reason, detail, at: Date.now() });
+		const summary = await nkleinTaskSessionService
+			.stopTaskSession(body.taskId, { abortActiveTurn: true })
+			.catch(() => null);
+		try {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Retired task session ${body.taskId} (${body.reason}: ${detail}); ${summary ? "a live session was stopped" : "no live session to stop"}.`,
+				taskId: body.taskId,
+				metadata: { category: "task_session_retired_by_request", reason: body.reason, stopped: Boolean(summary) },
+			});
+		} catch {
+			// Telemetry must never undo a retirement that already landed.
+		}
+		await setCardPaused({ workspacePath: workspaceScope.workspacePath, taskId: body.taskId, paused: false });
+		return { ok: true, stopped: Boolean(summary) };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		return { ok: false, stopped: false, error: message };
 	}
 }

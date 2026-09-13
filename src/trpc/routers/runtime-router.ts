@@ -181,6 +181,8 @@ import {
 	runtimeTaskPauseResponseSchema,
 	runtimeTaskSessionInputRequestSchema,
 	runtimeTaskSessionInputResponseSchema,
+	runtimeTaskSessionRetireRequestSchema,
+	runtimeTaskSessionRetireResponseSchema,
 	runtimeTaskSessionStartRequestSchema,
 	runtimeTaskSessionStartResponseSchema,
 	runtimeTaskSessionStopRequestSchema,
@@ -402,6 +404,12 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeTaskSessionStopResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.stopTaskSession(ctx.workspaceScope, input);
+			}),
+		retireTaskSession: workspaceProcedure
+			.input(runtimeTaskSessionRetireRequestSchema)
+			.output(runtimeTaskSessionRetireResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.retireTaskSession(ctx.workspaceScope, input);
 			}),
 		forkTaskSession: workspaceProcedure
 			.input(runtimeTaskSessionForkRequestSchema)
