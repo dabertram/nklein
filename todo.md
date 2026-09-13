@@ -2875,6 +2875,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   a card's WORKER and REVIEW sessions share a needle (the review seed quotes the card prompt), so `review` swallowed
   six worker tracks in 52. Reverted before commit; the repair-and-replay check caught it.
 
+- [ ] **P2.FIXTUREINTEGRITY — a dev-test fixture's own "frozen and untouched" test can be satisfied by editing the
+  thing that does the checking.** *(Found 2026-09-13 by recon on projects 71-76, both holes proven by exploit in a
+  scratch copy, not inferred.)*
+  1. `test/frozen.json` holds the EXPECTED digests and is itself never hashed or verified. Delete an assertion from
+     a conformance case, recompute its sha256, write it into `frozen.json` — and the "the frozen service and
+     conformance suite are untouched" test still passes.
+  2. In the five performance projects, `performance/budgets.json` is not in the digested set at all (only
+     `harness/*`, `conformance/*`, the test file and `scripts/run-tests.mjs` are). With the slow baseline source
+     untouched, raising `B1.maxReads` to 999999 takes the suite to a full green pass.
+  Together these mean a card can satisfy a fixture by editing the scorer rather than doing the work, and every
+  signal the harness reports will agree with it. It has not happened — no drive has done this — but the whole point
+  of these fixtures is to be a trustworthy oracle for an autonomous agent, and right now the oracle grades itself.
+  **Fix:** include `test/frozen.json`'s own digest in the frozen set (anchored outside it), and add
+  `performance/budgets.json` to the digested paths. Briefed meanwhile: reviewers diff both against the seed mirror's
+  raw bytes rather than trusting the project's own frozen test.
+
 - [ ] **P1.UNSATGATE — the test-driven-delivery gate is UNSATISFIABLE on spec/analysis fixtures, and the card can
   neither pass nor stop.** *(Live 2026-09-10/11, projects 50 and 51, measured on three shifts.)*
   A decompose task that omits `testability` defaults to **testable**. The reviewer then demands a touched test file.

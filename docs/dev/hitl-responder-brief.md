@@ -237,6 +237,47 @@ next card in the chain, and the project was not lost. So: once you have confirme
 runner's own workspace rather than your diff — your card tests green, the EACCES path is not one you wrote to —
 stop. Do not keep cycling the focus chain.
 
+## A fixture's own "frozen and untouched" test does NOT prove integrity
+
+Two holes, both confirmed by actually exploiting them in a scratch copy (2026-09-13, projects 71-76):
+
+- **`test/frozen.json` is the trust anchor and is itself unhashed.** The frozen-check test recomputes digests of
+  `service/`|`harness/`, `conformance/`, the test file and `scripts/run-tests.mjs`, and compares them to expected
+  values read from `test/frozen.json` — which nothing verifies. Deleting a real assertion from a conformance case
+  and writing its new sha256 into `frozen.json` leaves the "untouched" test green.
+- **`performance/budgets.json` is not in the frozen set at all** (72-76 digest only `harness/*`, `conformance/*`,
+  the test file and the runner). With the original slow source untouched, raising `B1.maxReads` to 999999 takes the
+  suite to a full green pass.
+
+So a card can "pass" by editing the scorer rather than doing the work, and the fixture will agree with it.
+
+**What this means for you:** never treat a project's own passing frozen/untouched test as evidence. When reviewing,
+diff `test/frozen.json`, `performance/budgets.json` and every frozen path against the SEED MIRROR's raw bytes. And
+never edit any of them yourself — a budget or digest you changed is the one thing that makes a green run worthless.
+
+## The 71-76 families, in brief
+
+**71 (integration, two-service saga)** is graded purely behaviourally — no structural metrics. You write
+`src/adapter.mjs`; eight cases C01-C08 run live against fresh fake services and check final service state, not
+return values. **Its trap:** C05 and C08 monkey-patch `ledger.request` AFTER the coordinator is constructed, so an
+adapter that captures `ledger.request` once at construction calls the original and silently misses the injected
+failure. Dereference `deps.ledger.request(...)` fresh on every call. Note C08's rule in particular — a `504` after a
+server-side success is not a `no`, and must not trigger a release.
+
+**72-76 (performance)** all share a shape: `performance/manifest.json` `{schemaVersion, complete, optimised:[]}`,
+and — unlike 71 — behaviour is checked UNCONDITIONALLY on every run regardless of the manifest. Listing an
+unachieved budget id is strictly worse than listing nothing; it fails by name.
+- **73**: a budget's `limits` is a dict `{probeName: max}`, so one id can bound several probes at once.
+- **74**: `fetchMany` throws `RangeError` above 25 ids — batching is not fetching everything — and duplicate ids are
+  detected across the whole run, not per call.
+- **75**: the source is pull-based, so spread/`Array.from`/array methods silently drain it. A lazy `take` that
+  checks its counter BEFORE pulling reads one record too many and busts the budget. Workload W4 has no budget entry
+  but is still checked for correctness, and its query can never match — it exists to catch an implementation that
+  "got fast by giving up early".
+- **76**: a stateful `runScript` rather than independent calls. Its trap is a correctness one: a team is in the
+  report because it has ROWS, not because it has a total, so maintaining sums alone leaves a stale zero-total entry
+  when a team's last row moves away. Track a per-team row count and drop the team at zero.
+
 ## On the refactor family, a green `npm test` can mean you have done NOTHING
 
 Projects 62+ deliver `refactor/manifest.json` + `refactor/goals.json` and are graded on two things: BEHAVIOUR
