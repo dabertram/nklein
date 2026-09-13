@@ -171,6 +171,9 @@ this, where 54 needed a retry. Three decompose graphs, one retry, zero third att
   `add_task` (76) that explicitly passed `complexity: 30` produced a child card showing `Complexity: 30/100`,
   confirming the field does take effect when actually set. So the real rule is: **always pass an explicit low
   number (30 worked cleanly); never rely on omission**, which silently buys you the risky default instead of safety.
+  (A second shift the same day repeated the omission on projects 74 and 75 before reading this correction — both
+  landed at the default 50 too. `complexity` is not in `add_task`'s documented schema at all, same as `testability`
+  below; passing it anyway as an extra property is confirmed to work, exactly like `testability` is. Always pass it.)
 - **`decompose_project`'s `complexity` is a NUMBER 0-100 (default 50), not a word.** Sending `"medium"` or `"low"`
   fails validation for every task at once: `tasks.0.complexity: Invalid input: expected number, received string`.
 - **When `decompose_project` fails validation, DO NOT resend the nested call.** The error says exactly what to do —
@@ -199,6 +202,13 @@ this, where 54 needed a retry. Three decompose graphs, one retry, zero third att
   `read_files` / `list_files` / `get_file_size` all failed while `decompose_project` succeeded — the control plane
   does not touch the workspace. If the card's remaining work is a control-plane operation, a dead sandbox does not
   necessarily block it.
+- **If you build `queue/answers/<id>.json` with a shell heredoc, an UNQUOTED delimiter (`<< EOF`) runs backtick
+  command substitution on your own prompt text before it ever reaches the file.** A card prompt that echoes a
+  fixture's own markdown (`` `limits` ``, `` `ledger.request` ``) is exactly the content that gets mangled — bash
+  tries to execute the backticked word as a command, fails silently, and splices in nothing. Live 2026-09-13: one
+  such prompt lost the word `limits` this way (harmless here — descriptive text, not something the coverage gate
+  scanned for) but the same mechanism could just as easily eat a word the anchor-echo coverage gate is checking
+  for. Quote the delimiter (`<< 'EOF'`) whenever the payload contains backticks, or escape each one (`` \` ``).
 
 ## Host-side `git log` verification does not work from inside the sandbox
 
@@ -297,6 +307,18 @@ unachieved budget id is strictly worse than listing nothing; it fails by name.
 - **76**: a stateful `runScript` rather than independent calls. Its trap is a correctness one: a team is in the
   report because it has ROWS, not because it has a total, so maintaining sums alone leaves a stale zero-total entry
   when a team's last row moves away. Track a per-team row count and drop the team at zero.
+
+**All six confirmed real, live 2026-09-13/14, on the actual fixtures (not just read):** 71's dereference-fresh and
+C08 504-is-not-a-release-trigger both verified by writing an adapter that gets all 8 cases green only once both are
+respected. 73's dict-shaped `limits` (`{rateFor, scoreOf}` bounded by one `B3` id) confirmed by a budgets.json read.
+74's 25-id `RangeError` and whole-run duplicate check confirmed by a passing chunked+deduped implementation. 75's
+lazy-take trap turned out to be dodged for free by a plain `for...of` + `break` (no generic composable `take`
+helper, no lookahead pull) — worth knowing if you're tempted to build one, since that is specifically where the
+one-too-many pull comes from. 76's per-team row count confirmed both by design and by the other responder's shipped
+`view.mjs`, which deletes the team's map entry at `rowCount === 0` rather than merely zeroing its total. **What the
+recon missed:** nothing about the traps themselves — what it didn't say, because it hadn't been hit yet, is that
+71-76 need the same incremental-decompose treatment as the data-file family despite being CODE fixtures with a
+`worker`-role session; see the dedicated section below this one for what direct implementation costs.
 
 ## On the refactor family, a green `npm test` can mean you have done NOTHING
 
@@ -432,6 +454,55 @@ graph, not a substitute for it.
 follow is that the decompose card should write it. The file is the deliverable; the graph is how the card closes.
 Write the file from a CHILD card and you get both. Write it from the decompose card and you get a correct file on a
 board that never settles.
+
+## The same rule applies to a `*-decompose` card whose `role` reads `"worker"` — and skipping it restarts the WHOLE PROJECT, not just the card
+
+The section above is about the 50/52/53 DATA-FILE family. Live 2026-09-13→14, projects 71 and 72 (single-file CODE
+fixtures — one adapter, one reporting module) showed the identical trap wearing a different, more misleading
+disguise, and cost two whole projects before it was caught.
+
+Both times the first attempt answered the `*-decompose` card directly — `read_files` the spec, `write_files` the
+implementation, `run_commands` a real green `npm test`, then a truthful bare stop on a genuinely correct, verified
+deliverable. Nothing about that turn looked wrong: the session's own `sessions.json` even records `"role": "worker"`
+for the card, and `write_files` never returned the "this is a planning card" pushback the data-file family gets.
+That silence is misleading — **the session's role and the harness's control-plane rule are different things**, and
+apparently the board still enforces the latter regardless of the former.
+
+The consequence is worse than a stuck card. Both times, checking back later found:
+
+- `board.json` (the regenerated one, not the stale CRDT snapshot from container start) showing the card in
+  **`trash`**, not `planning` and not `completed`.
+- The patch genuinely captured as a real commit (`git cat-file -t <sha>` confirms it: `commit`) with the *exact*
+  correct diff — but **dangling, on no reachable branch** (`git branch -a --contains <sha>` returns nothing; `git log
+  --oneline --all` shows only the initial fixture commit).
+- The whole project re-queued from scratch: a brand-new `dev-workspace` directory (fresh suffix), `git log` reset to
+  just `Initial dev test fixture`, the stub back in place, `integration/manifest.json` back to `{"complete": false}`.
+
+So: real, verified, correct work — thrown away, and the project pays for a second full drive. The fix is exactly the
+incremental protocol already documented above, applied even when the project is ONE cohesive task that cannot be
+usefully split (one function, one optimisation — splitting it would just produce a single child identical to what
+direct implementation would have written anyway): `add_task` once (no `dependsOn`), `decompose_project` with no
+arguments, THEN let the child card do the writing. Confirmed clean on projects 71 (restart), 72 (restart), 73, 74, 75
+and 76 (all first attempts, once this was applied from the start) — six for six once the pattern was known.
+
+Three more confirmed details worth carrying forward:
+
+- **`add_task`'s published schema only lists `id`/`title`/`prompt`/`dependsOn`, but it accepts and honours more.**
+  Every one of `testability`, `testabilityReason`, `writeScope`, `forbiddenPaths`, `acceptanceCommand` and
+  `expectedOutputs` was sent as an extra property on `add_task` (the same field names `decompose_project`'s nested
+  `tasks[]` schema documents) and came back verbatim in the child card's own prompt — `additionalProperties: true`
+  is not just schema permissiveness, the values are actually read. This is the only way to declare `testability` at
+  all through the incremental protocol, and it matters here for the same reason the spec/analysis section above
+  gives: `test/**` is frozen and outside the card's write scope, so an undeclared-default `testable` card would hit
+  the same impossible test-driven-delivery demand.
+- **A successful `decompose_project` call's own result names the correct next move.** The JSON response's
+  `instruction` field says outright: *"Stop this planning card now and continue by starting the newly created
+  !Klein cards; do not implement this planning card directly."* When you see that string, a bare stop is not a
+  guess, it is the harness telling you what it wants.
+- **It is not too late to decompose after a turn or two of reading.** Project 75's first turn in a fresh session
+  went straight to `read_files` (no decompose) — the same shape that lost 71 and 72. Nothing had been WRITTEN yet,
+  so switching to `add_task` + `decompose_project` on the very next turn cost nothing and applied clean. The rule to
+  hold onto: decompose before the first WRITE, not necessarily before the first read.
 
 ## On a spec/analysis project, declare `testability` at DECOMPOSE time
 
@@ -576,34 +647,37 @@ the other's fix. `mkdir` is atomic, so exactly one caller wins each id. Opt-in s
 | `HITL_STALE_MINUTES` | 30 | A request older than this has no session listening for its answer. Answering one wastes a whole turn on a conversation nobody is in. |
 | `HITL_CLAIM_ABANDONED_MINUTES` | 20 | Long enough for any real turn, short enough that a dead responder's claim does not wedge the seat. It was 60, and 60 minutes is not a margin, it is the outage. |
 
-## A provisioning hang looks like an idle queue, but `docker ps` tells them apart
+## An idle queue and a dead queue look identical — and `docker ps` does NOT tell them apart
 
-Live 2026-09-13→14: the queue went completely dry for 25+ minutes in the middle of an otherwise-healthy shift
-(projects 71-76 had been producing requests steadily right up to it) — every `hitl-next-request.sh` call returned
-`NONE`, over and over, with no id ever appearing. That is indistinguishable from ordinary "the factory is thinking"
-idleness FROM THE QUEUE ALONE.
+Live 2026-09-13→14: the queue went completely dry for 25+ minutes in the middle of an otherwise-healthy shift —
+every `hitl-next-request.sh` call returned `NONE`. Two shifts read the same `docker ps -a` picture as a provisioning
+hang: `nklein-egress-proxy-ws-9f2194a2c4bd` up alone, with no `nklein-agent-sandbox-ws-9f2194a2c4bd-1` at any
+status. Both reported it as an orphan needing host-side cleanup, and the second polled through 40 more `NONE`s
+(~90 minutes) re-confirming it.
 
-**The tell is `docker ps -a | grep nklein`.** A healthy card's workspace shows a matched pair,
-`nklein-egress-proxy-ws-<id>` and `nklein-agent-sandbox-ws-<id>-1`, both up. The confirmed-live failure signature
-is an orphan: `nklein-egress-proxy-ws-9f2194a2c4bd` alone, up for 55+ minutes, with NO `nklein-agent-sandbox-ws-<id>-1`
-anywhere — not running, not even present as a stopped/exited container in `docker ps -a`. Whatever step provisions
-the matching sandbox never completed, and the board does not issue further requests behind it.
+**That reading was wrong, and the ledger says why (corrected 2026-09-14 with evidence).** The telemetry for that
+workspace shows `sandbox_container_retired … nklein-agent-sandbox-ws-9f2194a2c4bd-1 (occupancy 0)` at 22:45:38 and
+again at 23:08:26: the pool IDLE-RETIRES a sandbox whose last placement was disposed, and keeps the egress proxy up
+on purpose — the next acquire in that workspace reuses it. `proxies > sandboxes` is therefore also the normal
+picture of a workspace whose cards are all done. And the cards WERE all done: 71–76 had every card approved, so the
+queue was dry because the batch was complete, not because anything hung.
 
-**This is not something a responder can fix.** There is no docker access from the model seat's own tool set, and
-even a responder with shell access should not `docker rm` it blind — reaping it is a host-side operator action, and
-the instructions handing you a shift will usually say so explicitly. What a responder CAN and should do:
+**What actually distinguishes a hang from an idle factory:**
 
-1. Confirm the signature with `docker ps -a` before assuming the queue is merely quiet — an idle queue and a dead
-   queue look identical from `hitl-next-request.sh`'s output alone.
-2. Report it with the specific container id and how long it has been orphaned, through whatever escalation channel
-   is available (this shift used the session's background-task flag, which produced an actionable chip for the
-   operator; a shift without that tool should say so plainly in its end-of-shift report instead).
-3. Keep polling — it costs nothing (`NONE` doesn't count against the shift budget) and the fix may land while you
-   wait — but do not spend the rest of the shift silently retrying without ever surfacing the diagnosis. A dead
-   factory and a thinking factory both look like `NONE`; only the report tells the difference to whoever can act on it.
-4. If it is still dead after a fair number of polls (this shift gave it about a dozen, spanning 25+ minutes, after
-   first spotting the orphan), that is a legitimate place to end the shift and report the exact state rather than
-   holding the seat open on a queue that cannot recover without host intervention.
+1. The board: `workspace.getState` with cards still in `planning`/`in_progress`/`review` and no request for 20+
+   minutes is a stall; a board with everything in `completed`/`trash` is finished. Check the board, not Docker.
+2. The runtime's own record. A start that never provisions now FAILS instead of hanging: after the provisioning
+   deadline (`NKLEIN_SANDBOX_PROVISION_DEADLINE_MS`, default 15 min) the ledger carries
+   `sandbox_provisioning_deadline_exceeded` with the pool's state, and the single-flight claim is released
+   (`start_in_flight_released_as_hung`). Those two observations ARE the hang signature; a proxy without a sandbox
+   is not.
+3. Never `docker rm` a proxy on the strength of `docker ps` alone — a live runtime's proxy is torn down by that
+   runtime (`stopNow`), and a dead runtime's proxies are reaped by ownership at the next startup.
+
+**What a responder should still do when the queue goes dry:** confirm the board state, say plainly in the report
+whether the drive is finished or stalled (with the evidence), and end the shift after a fair number of polls rather
+than re-confirming the same picture for another hour. `NONE` costs nothing, but a diagnosis that names the wrong
+mechanism costs the next shift.
 
 ## Watching for a dead seat
 
