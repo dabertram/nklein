@@ -2947,6 +2947,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   settles and the guard cannot latch for the runtime's lifetime; (b) extend the container reaper to orphan egress
   proxies, keyed on the missing sandbox rather than on age.
   **Operator workaround meanwhile:** `docker rm -f <orphan proxy>`, then let the rail's stall re-queue the project.
+  **▶ IT DEGRADES WITH RUNTIME UPTIME, AND A RESTART CLEARS IT (third occurrence, 2026-09-13).** Provisioning began
+  failing on EVERY project — 71 and 72 back to back, each leaving one proxy and zero sandboxes — after the runtime
+  had been up **2 days 18 hours**. Docker was healthy throughout (60Gi free, four containers, no exited sandboxes),
+  so this is runtime-side state accumulating rather than host exhaustion. Restarting the runtime restored it
+  immediately: the next project provisioned a balanced 2 proxies / 2 sandboxes and drove normally.
+  That is now three restarts that have cleared this symptom. Until the leak itself is found, the operational rule
+  is: **if `proxies > sandboxes` twice in a row on consecutive projects, restart the runtime** rather than reaping
+  orphans one at a time — reaping treats the instance, the restart treats the cause.
   **▶ A THIRD SHAPE, 2026-09-11: the sandbox starts fine and then DISAPPEARS.** Project 50's sixth failure was not
   a hung start at all. The log shows `Docker sandbox nklein-agent-sandbox-ws-d368de3674e9-1 started in 372ms` and
   the session binding normally; forty minutes later `docker ps` showed **2 proxies and 0 sandboxes**, with no
