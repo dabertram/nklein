@@ -1,6 +1,6 @@
 import { act, useCallback, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { useNKleinChatPanelController } from "@/hooks/use-nklein-chat-panel-controller";
 import type {
@@ -190,6 +190,10 @@ describe("useNKleinChatPanelController", () => {
 	});
 
 	it("clears the draft and appends the returned chat message after send", async () => {
+		// The intervention clock is wall time from the first keystroke to the send, rounded to tenths; pin it so the
+		// exact-0 assertion below cannot race a loaded test host (the panel test's twin flaked in pre-commit 2026-09-14).
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_726_000_000_000);
+		onTestFinished(() => nowSpy.mockRestore());
 		const onSendMessage = vi.fn(async () => ({
 			ok: true,
 			chatMessage: {

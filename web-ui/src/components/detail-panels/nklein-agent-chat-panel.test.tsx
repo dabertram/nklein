@@ -1353,6 +1353,9 @@ describe("NKleinAgentChatPanel", () => {
 	});
 
 	it("autofocuses the composer, grows it, sends on enter, and cancels on escape", async () => {
+		// The intervention clock is wall time from the first keystroke to the send, rounded to tenths — under a loaded
+		// test host that gap crossed 50ms and the exact-0 assertion below became a race (pre-commit, 2026-09-14). Pin it.
+		vi.spyOn(Date, "now").mockReturnValue(1_726_000_000_000);
 		const onSendMessage = vi.fn(async () => ({
 			ok: true,
 			chatMessage: {
@@ -1440,6 +1443,9 @@ describe("NKleinAgentChatPanel", () => {
 	});
 
 	it("sends the selected NKlein provider and model with each chat message", async () => {
+		// The intervention clock is wall time from the first keystroke to the send, rounded to tenths — under a loaded
+		// test host that gap crossed 50ms and the exact-0 assertion below became a race (pre-commit, 2026-09-14). Pin it.
+		vi.spyOn(Date, "now").mockReturnValue(1_726_000_000_000);
 		const onSendMessage = vi.fn(async () => ({ ok: true }));
 
 		await act(async () => {
@@ -1683,6 +1689,9 @@ describe("NKleinAgentChatPanel", () => {
 	});
 
 	it("defaults the composer mode from the task and sends using the selected mode", async () => {
+		// The intervention clock is wall time from the first keystroke to the send, rounded to tenths — under a loaded
+		// test host that gap crossed 50ms and the exact-0 assertion below became a race (pre-commit, 2026-09-14). Pin it.
+		vi.spyOn(Date, "now").mockReturnValue(1_726_000_000_000);
 		const onSendMessage = vi.fn(async () => ({
 			ok: true,
 			chatMessage: {
@@ -1896,6 +1905,9 @@ describe("NKleinAgentChatPanel", () => {
 	});
 
 	it("toggles the composer mode with command shift a", async () => {
+		// The intervention clock is wall time from the first keystroke to the send, rounded to tenths — under a loaded
+		// test host that gap crossed 50ms and the exact-0 assertion below became a race (pre-commit, 2026-09-14). Pin it.
+		vi.spyOn(Date, "now").mockReturnValue(1_726_000_000_000);
 		const onSendMessage = vi.fn(async () => ({
 			ok: true,
 			chatMessage: {
@@ -1963,6 +1975,9 @@ describe("NKleinAgentChatPanel", () => {
 	});
 
 	it("hides the composer mode toggle when requested", async () => {
+		// The intervention clock is wall time from the first keystroke to the send, rounded to tenths — under a loaded
+		// test host that gap crossed 50ms and the exact-0 assertion below became a race (pre-commit, 2026-09-14). Pin it.
+		vi.spyOn(Date, "now").mockReturnValue(1_726_000_000_000);
 		const onSendMessage = vi.fn(async () => ({
 			ok: true,
 			chatMessage: {
