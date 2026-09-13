@@ -281,6 +281,17 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		addedOn: Date.UTC(2026, 8, 10),
 	},
 	{
+		// ── P1.STARTHANG2 (a): a workspace preparation past its deadline is FAILED, not left hanging (2026-09-14) ──
+		category: "sandbox_provisioning_deadline_exceeded",
+		item: "P1.STARTHANG2",
+		observes:
+			"a sandbox workspace preparation did not settle within the provisioning deadline and was abandoned as hung: the caller is failed so the start path can surface and retry it, the in-flight join is dropped so the retry is a fresh attempt, a late completion is disposed unless a retry superseded it, and the pool's state at that moment (containers, placements, queue, egress-proxy probe state) is recorded — the evidence every previous occurrence lacked, because each was reported by a responder reading `docker ps` by eye and never by the runtime",
+		enabledBy: null,
+		// `exceptional`: a healthy provision settles in well under a minute and the deadline is minutes long, so every firing is a hang.
+		expectation: "exceptional",
+		addedOn: Date.UTC(2026, 8, 14),
+	},
+	{
 		// ── P0.DSTALL close-out: the watchdog's post-first-token liveness sweep (2026-09-07) ──
 		category: "silent_running_session_interrupted",
 		item: "P0.DSTALL",

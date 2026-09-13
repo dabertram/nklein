@@ -168,6 +168,19 @@ const DISPOSE_LEASE_DRAIN_TIMEOUT_MS = normalizePositiveInteger(
 	Number.parseInt(process.env.NKLEIN_SANDBOX_DISPOSE_LEASE_WAIT_MS ?? "", 10),
 	30_000,
 );
+/**
+ * P1.STARTHANG2 (a): a workspace preparation that has not settled in this long is a HANG, never a slow clone. A
+ * healthy provision settles in well under a minute and every step inside it carries its own docker deadline, yet
+ * the preparation as a whole had none — so a start that stopped after bringing up the egress proxy held its
+ * single-flight claim for the runtime's lifetime (four occurrences 2026-09-10; every project after 2d18h uptime
+ * 2026-09-13), the board issued nothing, the seat looked idle, and only a runtime restart cleared it. Failing the
+ * caller here turns the hang into an error the start path already surfaces and retries, and records the pool's
+ * state at the moment it gave up — the evidence every occurrence so far has lacked.
+ */
+const WORKSPACE_PROVISIONING_DEADLINE_MS = normalizePositiveInteger(
+	Number.parseInt(process.env.NKLEIN_SANDBOX_PROVISION_DEADLINE_MS ?? "", 10),
+	15 * 60_000,
+);
 const DOCKER_UNAVAILABLE_MARKERS = [
 	"cannot connect to the docker daemon",
 	"is the docker daemon running",
@@ -246,6 +259,12 @@ export interface AgentSandboxManagerOptions {
 	 * half that must still dispose — is testable without a 30-second test.
 	 */
 	disposeLeaseWaitMs?: number;
+	/**
+	 * P1.STARTHANG2 (a): how long a `prepareWorkspace` may take before it is abandoned as hung. Defaults to
+	 * {@link WORKSPACE_PROVISIONING_DEADLINE_MS} (env-overridable). Injected so the hang path is testable in
+	 * milliseconds.
+	 */
+	provisioningDeadlineMs?: number;
 	/** F2.5b deterministic seams; production uses the authenticated loopback client and 256-bit random tokens. */
 	issueEgressTaskIdentity?: typeof issueEgressTaskIdentity;
 	revokeEgressTaskIdentity?: typeof revokeEgressTaskIdentity;
@@ -571,6 +590,9 @@ export class AgentSandboxManager {
 	 * (start / review-at-result / acceptance-at-result) are unchanged.
 	 */
 	private readonly inFlightWorkspacePreparations = new Map<string, Promise<{ workdir: string; uid: number }>>();
+	/** Bumped per `prepareWorkspace` call, so an abandoned preparation that settles late can tell whether a retry superseded it. */
+	private readonly preparationEpochByTaskId = new Map<string, number>();
+	private readonly provisioningDeadlineMs: number;
 	// P1.CAPTURERACE: per-task in-flight work + owed captures (see PlacementLease). Entries are created on demand
 	// and pruned the moment a placement owes nothing, so an idle pool holds none.
 	private readonly placementLeases = new Map<string, PlacementLease>();
@@ -610,6 +632,10 @@ export class AgentSandboxManager {
 		this.execFileImpl = options.execFile ?? execFile;
 		this.setTimeoutImpl = options.setTimeout ?? setTimeout;
 		this.clearTimeoutImpl = options.clearTimeout ?? clearTimeout;
+		this.provisioningDeadlineMs = normalizePositiveInteger(
+			options.provisioningDeadlineMs,
+			WORKSPACE_PROVISIONING_DEADLINE_MS,
+		);
 		this.issueEgressTaskIdentityImpl = options.issueEgressTaskIdentity ?? issueEgressTaskIdentity;
 		this.revokeEgressTaskIdentityImpl = options.revokeEgressTaskIdentity ?? revokeEgressTaskIdentity;
 		this.generateEgressIdentityToken = options.generateEgressIdentityToken ?? (() => randomBytes(32).toString("hex"));
@@ -914,15 +940,86 @@ export class AgentSandboxManager {
 		if (alreadyPreparing) {
 			return await alreadyPreparing;
 		}
+		const epoch = (this.preparationEpochByTaskId.get(input.taskId) ?? 0) + 1;
+		this.preparationEpochByTaskId.set(input.taskId, epoch);
 		const preparation = this.prepareWorkspaceInner(input);
 		this.inFlightWorkspacePreparations.set(input.taskId, preparation);
+		// P1.STARTHANG2 (a): the preparation as a whole gets a deadline. Its steps are each docker-bounded, but a
+		// start that never settled held its single-flight claim for the life of the runtime — see the constant.
+		let deadlineTimer: ReturnType<typeof setTimeout> | null = null;
+		const deadline = new Promise<never>((_resolve, reject) => {
+			deadlineTimer = this.setTimeoutImpl(() => {
+				reject(this.abandonHungPreparation(input.taskId, preparation, epoch));
+			}, this.provisioningDeadlineMs);
+			deadlineTimer.unref?.();
+		});
 		try {
-			return await preparation;
+			return await Promise.race([preparation, deadline]);
 		} finally {
+			if (deadlineTimer) {
+				this.clearTimeoutImpl(deadlineTimer);
+			}
 			if (this.inFlightWorkspacePreparations.get(input.taskId) === preparation) {
 				this.inFlightWorkspacePreparations.delete(input.taskId);
 			}
 		}
+	}
+
+	/**
+	 * P1.STARTHANG2 (a): the preparation is past its deadline. Settle the CALLER (the start path can fail, surface
+	 * and retry), drop the in-flight join so a retry is a fresh attempt rather than a second wait on the hung one,
+	 * and make sure a preparation that completes late cannot leak its slot: unless a retry has superseded it (same
+	 * task, later epoch — that retry reuses the placement), whatever it eventually produced is disposed.
+	 *
+	 * The pool's state is recorded because it is the evidence the next occurrence needs — every hang so far was
+	 * reported by a responder reading `docker ps` by eye, never by the runtime itself.
+	 */
+	private abandonHungPreparation(
+		taskId: string,
+		preparation: Promise<{ workdir: string; uid: number }>,
+		epoch: number,
+	): AgentSandboxUnavailableError {
+		if (this.inFlightWorkspacePreparations.get(taskId) === preparation) {
+			this.inFlightWorkspacePreparations.delete(taskId);
+		}
+		void preparation.then(
+			() =>
+				this.preparationEpochByTaskId.get(taskId) === epoch
+					? this.disposeWorkspace(taskId).catch(() => undefined)
+					: undefined,
+			() => undefined,
+		);
+		const state = {
+			containers: this.containers.size,
+			maxContainers: this.poolConfig.maxContainers,
+			placements: this.placements.size,
+			queued: this.queue.length,
+			inFlightPreparations: this.inFlightWorkspacePreparations.size,
+			egressProxyEnsured: this.egressProxyEnsured,
+			egressAvailabilitySettled: Boolean(this.lastEgressAvailability),
+		};
+		const egressState = state.egressProxyEnsured
+			? state.egressAvailabilitySettled
+				? "probed"
+				: "probe pending"
+			: "not ensured";
+		const message =
+			`Sandbox provisioning for ${taskId} did not settle within ${Math.round(this.provisioningDeadlineMs / 1000)}s — ` +
+			`abandoned as hung (containers ${state.containers}/${state.maxContainers}, placements ${state.placements}, ` +
+			`queued ${state.queued}, egress proxy ${egressState}).`;
+		this.warn?.(message);
+		recordSelfObservation({
+			signal: "custom",
+			severity: "error",
+			message,
+			taskId,
+			metadata: {
+				category: "sandbox_provisioning_deadline_exceeded",
+				deadlineMs: this.provisioningDeadlineMs,
+				...state,
+			},
+		});
+		return new AgentSandboxUnavailableError(message);
 	}
 
 	private async prepareWorkspaceInner(input: {
