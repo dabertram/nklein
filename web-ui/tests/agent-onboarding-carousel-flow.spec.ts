@@ -29,7 +29,10 @@ const STUBS = {
 			],
 		},
 		"runtime.getNKleinProviderModels": {
-			models: [{ id: "test-model", name: "Test Model", contextWindow: 40_000 }],
+			models: [
+				{ id: "test-model", name: "Test Model", contextWindow: 40_000 },
+				{ id: "alt-model", name: "Alt Model", contextWindow: 100_000 },
+			],
 		},
 		// The wizards must stay quiet behind the tour.
 		"runtime.getGlobalSetupPlan": { kind: "global", steps: [], completedAt: 1 },
@@ -38,6 +41,19 @@ const STUBS = {
 	mutations: {
 		"runtime.saveNKleinModelContextWindowOverride": () => trpcOk({ ok: true }),
 		"runtime.saveConfig": () => trpcOk(buildMockRuntimeConfig()),
+		"runtime.saveNKleinProviderSettings": (body: unknown) =>
+			trpcOk({
+				providerId: "lm-studio",
+				modelId: JSON.stringify(body).includes("alt-model") ? "alt-model" : "test-model",
+				baseUrl: "http://localhost:1234",
+				reasoningEffort: null,
+				apiKeyConfigured: false,
+				oauthProvider: null,
+				oauthAccessTokenConfigured: false,
+				oauthRefreshTokenConfigured: false,
+				oauthAccountId: null,
+				oauthExpiresAt: null,
+			}),
 	},
 } as const;
 
@@ -88,5 +104,19 @@ test.describe("agent onboarding carousel (F2.32)", () => {
 		await expect(tour).not.toBeVisible();
 		const marker = await page.evaluate(() => window.localStorage.getItem("nklein.onboarding.dialog.shown"));
 		expect(marker).toBe("true");
+	});
+
+	test("picking another model in the setup block saves the provider settings on Done", async ({ page }) => {
+		const mock = await installRuntimeMock(page, { ...STUBS });
+		const tour = await goToAgentSlide(page);
+		// The searchable model picker: trigger shows the current model, the list filters as you type.
+		await tour.getByRole("button").filter({ hasText: "Test Model" }).first().click();
+		await page.getByPlaceholder("Search models...").fill("Alt");
+		await page.getByRole("button").filter({ hasText: "Alt Model" }).first().click();
+		await expect(tour.getByText("100,000 tokens reported")).toBeVisible();
+		await tour.getByRole("button", { name: "Done", exact: true }).click();
+		await expect.poll(() => mock.calls["runtime.saveNKleinProviderSettings"]?.length ?? 0).toBe(1);
+		expect(JSON.stringify(mock.calls["runtime.saveNKleinProviderSettings"]?.[0])).toContain('"modelId":"alt-model"');
+		await expect(tour).not.toBeVisible();
 	});
 });

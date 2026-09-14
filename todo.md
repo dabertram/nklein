@@ -4535,7 +4535,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   swap orphaned the pool id twice in one day). Pins/task models still narrow. Follow-ups: project-level override,
   settings UI toggle, reviewer/architect variants.
 
-- [ ] **F2.32 — Welcome/setup dialog UI tests + UX pass (David directive 2026-09-02, verbatim: "also add ui
+- [x] **F2.32 — Welcome/setup dialog UI tests + UX pass (David directive 2026-09-02, verbatim: "also add ui
   tests for the welcome and setup dialogues etc .. make sure everything is smooth, covered, makes sense, is user
   friendly, not annoying, intuitive ..").** Surfaces: startup-onboarding-dialog, setup-wizard-dialog,
   task-start-agent-onboarding-carousel, project-initializer-form (+ nklein-setup-section, runtime-settings first-run
@@ -4543,6 +4543,22 @@ These are known defects or incomplete migrations. Clear them before widening cap
   have no page-level specs. Deliver: Playwright specs on the page-level runtime mock for step flow, skip/dismiss
   persistence (a dismissed dialog must NOT re-annoy on reload), Escape/keyboard behavior, validation errors, and
   safe cancel; plus a UX judgment pass — fix clear annoyances found while testing, file the rest here.
+  **▶ CLOSED 2026-09-14.** Welcome tour: `655e7431b` (5 flow specs + 2 fixes: keyboard-undismissable dialog,
+  forced re-open after an explicit dismissal). Wizard / carousel / initializer: `d0d3863bb` (+ the model-picker
+  save path in the next commit) — 16 flow specs on the page-level runtime mock, all green: the wizard's full walk
+  incl. the §5.BB zoom chooser, Finish persisting the stamp through `runtime.saveConfig`, Skip AND Escape
+  surviving a reload, Settings → "Run setup wizard" re-run; the initializer's honest readiness (Create off until
+  every beginner topic is answered, Preview says so in words), stepper bounds + answer retention, the real
+  `projects.add` request with the brief as typed, safe exits; the carousel's agent slide, a sub-floor context
+  window refused in words, a typed override saved on Done, another model picked and saved. **The UX pass found
+  three more annoyances, all fixed in the same commit:** (1) the GLOBAL wizard's skip was scoped per workspace —
+  it fires before the workspace snapshot, so a skip landed under `global.global` and the reload (id now known)
+  re-fired the wizard the user had just dismissed → global config, global dismissal; (2) Escape inside one of the
+  brief's TEXTAREAS closed "Add project" and discarded the whole brief while a one-word `<input>` was protected →
+  same blur-first guard; (3) a typed context-window override was silently dropped on Done whenever the provider
+  fields were untouched (the early return ran before validation) → a typed window counts as a change: validated,
+  saved, or refused in words. The settings first-run paths stay covered by `settings.spec.ts`; the setup section's
+  pickers are driven through the carousel spec. The specs run under `npm run e2e` (default Playwright config).
 
 - [x] **F2.33 — Active cards float to the top of their lanes (David directive 2026-09-02, verbatim: "show
   active cards to tp of their lanes..").** SHIPPED same night: BoardColumn partitions cards with a live
