@@ -47,7 +47,9 @@ vi.mock("../../../src/nklein-agent/nklein-managed-provider-credentials", () => (
 	resolveManagedProviderLaunchApiKey: deps.resolveManagedProviderLaunchApiKey,
 }));
 
-const { resolveNKleinLaunchConfig } = await import("../../../src/nklein-agent/nklein-provider-launch-config");
+const { resolveNKleinConfiguredModelEndpoint, resolveNKleinLaunchConfig } = await import(
+	"../../../src/nklein-agent/nklein-provider-launch-config"
+);
 
 const LOCAL = "lmstudio";
 const loaded = (id: string, contextWindow = 131_072) => ({ id, contextWindow });
@@ -253,5 +255,41 @@ describe("the rest of the resolved config", () => {
 		deps.getSelectedProviderSettings.mockReturnValue({ provider: "   ", model: "m" });
 
 		await expect(resolveNKleinLaunchConfig()).rejects.toThrow(/Open Settings, choose a provider/);
+	});
+});
+
+describe("resolveNKleinConfiguredModelEndpoint (P0.POOLLOSS)", () => {
+	it("answers 'what is configured' for a model that is NOT loaded — where the launch resolver refuses", async () => {
+		boundary.getSdkProviderSettings.mockReturnValue({
+			provider: LOCAL,
+			model: "dirk-qwen3.8-27b",
+			baseUrl: "http://192.168.68.101:1234/v1/",
+		});
+		deps.loadProviderModelsWithMeasuredWindows.mockResolvedValue([]); // vanished from the loaded set
+		await expect(resolveNKleinLaunchConfig({ providerIdOverride: LOCAL })).rejects.toThrow(/not currently loaded/);
+		expect(resolveNKleinConfiguredModelEndpoint({ providerIdOverride: LOCAL })).toEqual({
+			providerId: LOCAL,
+			modelId: "dirk-qwen3.8-27b",
+			baseUrl: "http://192.168.68.101:1234/v1/",
+		});
+		// A pool entry's own model id wins over the provider's selected model.
+		expect(
+			resolveNKleinConfiguredModelEndpoint({ providerIdOverride: LOCAL, modelIdOverride: "q2-small" })?.modelId,
+		).toBe("q2-small");
+	});
+
+	it("touches nothing a launch needs — no discovery, no OAuth refresh, no window policy", () => {
+		boundary.getSdkProviderSettings.mockReturnValue({ provider: LOCAL, model: "x", baseUrl: "http://h:1234/v1" });
+		resolveNKleinConfiguredModelEndpoint({ providerIdOverride: LOCAL });
+		expect(deps.loadProviderModelsWithMeasuredWindows).not.toHaveBeenCalled();
+		expect(deps.refreshManagedOauthSettings).not.toHaveBeenCalled();
+		expect(deps.assertNKleinContextWindowPolicy).not.toHaveBeenCalled();
+	});
+
+	it("is null when no provider or no model is configured — a pool entry that names nothing is not a member", () => {
+		deps.getSelectedProviderSettings.mockReturnValue(null);
+		expect(resolveNKleinConfiguredModelEndpoint()).toBeNull();
+		boundary.getSdkProviderSettings.mockReturnValue({ provider: LOCAL });
+		expect(resolveNKleinConfiguredModelEndpoint({ providerIdOverride: LOCAL })).toBeNull();
 	});
 });

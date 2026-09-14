@@ -111,3 +111,38 @@ export async function resolveNKleinLaunchConfig(overrides?: {
 				: (toRuntimeReasoningEffort(resolvedSettings.reasoning?.effort) ?? undefined),
 	};
 }
+
+/** What a role's pool entry points at, as CONFIGURED — no residency gate, no window policy, no credentials. */
+export interface ConfiguredNKleinModelEndpoint {
+	providerId: string;
+	modelId: string;
+	baseUrl: string | null;
+}
+
+/**
+ * P0.POOLLOSS: the first half of {@link resolveNKleinLaunchConfig} — provider settings lookup, normalized
+ * provider id, the model id from the override or the settings, the base url — and NOTHING that a launch needs
+ * but a monitor must not apply. `resolveNKleinLaunchConfig` refuses a live-only model that is not currently
+ * loaded (the residency gate; !Klein never loads models itself) and asserts the context-window policy; a fleet
+ * sweep asking "what is configured?" is defeated by exactly that gate, because the members it exists to find
+ * are the ones that would fail it (live 2026-09-14: every role read "unresolvable" and the sweep saw no pool).
+ * Returns null when no provider or no model id is configured — a pool entry that names nothing is not a member.
+ */
+export function resolveNKleinConfiguredModelEndpoint(overrides?: {
+	providerIdOverride?: string;
+	modelIdOverride?: string;
+}): ConfiguredNKleinModelEndpoint | null {
+	const providerIdOverride = overrides?.providerIdOverride?.trim().toLowerCase() ?? "";
+	const selectedSettings = providerIdOverride
+		? (getSdkProviderSettings(providerIdOverride) ?? { provider: providerIdOverride })
+		: getSelectedProviderSettings();
+	const providerId = selectedSettings?.provider.trim().toLowerCase() ?? "";
+	if (!providerId) {
+		return null;
+	}
+	const modelId = overrides?.modelIdOverride?.trim() || selectedSettings?.model?.trim() || "";
+	if (!modelId) {
+		return null;
+	}
+	return { providerId, modelId, baseUrl: selectedSettings?.baseUrl?.trim() || null };
+}

@@ -223,7 +223,7 @@ import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../n
 import { runNKleinMutationAdequacy } from "../nklein-agent/nklein-mutation-adequacy-runner";
 import { readNKleinPlanArtifacts } from "../nklein-agent/nklein-plan-artifacts";
 import { getPropertyCheckEvidence } from "../nklein-agent/nklein-property-evidence-registry";
-import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
+import { resolveNKleinConfiguredModelEndpoint } from "../nklein-agent/nklein-provider-launch-config";
 import { excludeUnroutableDescriptors } from "../nklein-agent/nklein-reviewer-model-selection";
 import { isLocalModelUnavailableWarning } from "../nklein-agent/nklein-session-state";
 import { SpeculativeAttemptRegistry } from "../nklein-agent/nklein-speculative-attempt-registry";
@@ -2383,7 +2383,6 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		fleetPoolSweepInFlight = true;
 		try {
 			const globalConfig = await loadGlobalRuntimeConfig();
-			const providerService = createNKleinProviderService();
 			const members: FleetPoolMember[] = [];
 			for (const [role, settings] of Object.entries(globalConfig.effectiveModelRoles)) {
 				const roleModels = [
@@ -2394,17 +2393,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					if (!model.providerId && !model.modelId) {
 						continue;
 					}
-					try {
-						const launch = await providerService.resolveLaunchConfig({
-							providerIdOverride: model.providerId ?? undefined,
-							modelIdOverride: model.modelId ?? undefined,
-							reasoningEffortOverride: model.reasoningEffort ?? null,
-						});
-						if (launch.baseUrl && launch.modelId && isLocalProvider(launch.providerId, launch.baseUrl)) {
-							members.push({ role, primary, modelId: launch.modelId, endpoint: launch.baseUrl });
-						}
-					} catch {
-						// A role configured but not resolvable is not a pool member to watch.
+					// The CONFIGURED endpoint, deliberately not `resolveLaunchConfig`: the launch resolver refuses a
+					// live-only model that is not currently loaded — the residency gate — which is precisely the
+					// member this sweep exists to find (live 2026-09-14: every role read "unresolvable", no pool).
+					const configured = resolveNKleinConfiguredModelEndpoint({
+						providerIdOverride: model.providerId ?? undefined,
+						modelIdOverride: model.modelId ?? undefined,
+					});
+					if (configured?.baseUrl && isLocalProvider(configured.providerId, configured.baseUrl)) {
+						members.push({ role, primary, modelId: configured.modelId, endpoint: configured.baseUrl });
 					}
 				}
 			}
