@@ -328,7 +328,7 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 		let refs: [string, string][] = [];
 		for (let poll = 0; poll < 12 && refs.length === 0; poll += 1) {
 			if (poll > 0) await new Promise((resolveDelay) => setTimeout(resolveDelay, 5_000));
-			refs = (await git(workspacePath, ["for-each-ref", "--format=%(refname) %(objectname)", `refs/heads/nklein/tasks/${runId}-`]))
+			refs = (await git(workspacePath, ["for-each-ref", "--format=%(refname) %(objectname)", `refs/heads/nklein/tasks/${runId}-*`]))
 				.split("\n")
 				.map((line) => line.trim())
 				.filter(Boolean)
