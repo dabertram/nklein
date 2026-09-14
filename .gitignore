@@ -66,3 +66,9 @@ flashget-download.log
 .dsh-audit/
 .dsh-sweep.sh
 .nklein-record-run.json
+
+# Generated sandbox-image bundles: `scripts/build-agent-sandbox.mjs` esbuilds these into the Docker build context
+# from src/nklein-agent/agent-sandbox/*.ts and the Dockerfile COPYs them in. Build output, not source — and their
+# staleness relative to the running image is P1.IMGREBUILD, not a checked-in file.
+docker/agent-sandbox/tool-runner.cjs
+docker/agent-sandbox/lsp-symbol-mcp-server.cjs
