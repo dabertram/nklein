@@ -42,6 +42,15 @@ export interface SelectRoleModelInput {
 	difficulty: number;
 	/** Context tokens the task needs the model to hold (carries the ≥32k floor enforced upstream). */
 	requiredContextTokens: number;
+	/**
+	 * The requirement evaluated against EACH candidate's own window. Live 2026-09-14: the single number above was
+	 * derived from the fleet's LARGEST loaded window (a 262k model on the same endpoint made a 79-token prompt
+	 * "require" 44,079 tokens), so every ≤44k model — the operator's pinned 32k alias included — was infeasible for
+	 * every card and the pin silently fell through to the big model. Reserves scale with the window they are
+	 * carved from; a candidate is feasible when ITS window holds the requirement computed for ITS window.
+	 * When absent, the flat `requiredContextTokens` applies (byte-identical to before).
+	 */
+	requiredContextTokensFor?: (contextWindow: number) => number;
 	/** User override: force this model whenever it is feasible. */
 	pinnedModelKey?: string | null;
 	/** User override: how to order feasible candidates. Defaults to {@link DEFAULT_MODEL_SELECTION_WEIGHTING}. */
@@ -69,8 +78,16 @@ export type RoleModelSelection =
 			reason: string;
 	  };
 
-function isFeasible(candidate: RoleModelCandidate, difficulty: number, requiredContextTokens: number): boolean {
-	return candidate.capability >= difficulty && candidate.contextWindow >= requiredContextTokens;
+function isFeasible(
+	candidate: RoleModelCandidate,
+	difficulty: number,
+	requiredContextTokens: number,
+	requiredContextTokensFor?: (contextWindow: number) => number,
+): boolean {
+	const required = requiredContextTokensFor
+		? requiredContextTokensFor(candidate.contextWindow)
+		: requiredContextTokens;
+	return candidate.capability >= difficulty && candidate.contextWindow >= required;
 }
 
 function wallTimeRank(value: number | null): number {
@@ -110,12 +127,14 @@ function makeComparator(weighting: ModelSelectionWeighting): (a: RoleModelCandid
 export function selectRoleModel(input: SelectRoleModelInput): RoleModelSelection {
 	const weighting = input.weighting ?? DEFAULT_MODEL_SELECTION_WEIGHTING;
 	const feasible = input.candidates.filter((candidate) =>
-		isFeasible(candidate, input.difficulty, input.requiredContextTokens),
+		isFeasible(candidate, input.difficulty, input.requiredContextTokens, input.requiredContextTokensFor),
 	);
 	if (feasible.length === 0) {
 		return {
 			type: "no_fit",
-			reason: `No assigned model clears difficulty ${input.difficulty} and ${input.requiredContextTokens} context tokens.`,
+			reason: input.requiredContextTokensFor
+				? `No assigned model clears difficulty ${input.difficulty} and the context requirement for its own window (${input.requiredContextTokens} tokens at the largest window).`
+				: `No assigned model clears difficulty ${input.difficulty} and ${input.requiredContextTokens} context tokens.`,
 		};
 	}
 

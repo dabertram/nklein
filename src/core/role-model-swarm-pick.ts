@@ -39,6 +39,8 @@ export interface SelectSwarmRoleModelInput {
 	candidates: readonly SwarmRoleModelCandidate[];
 	difficulty: number;
 	requiredContextTokens: number;
+	/** Per-window requirement (see `SelectRoleModelInput.requiredContextTokensFor`); forwarded unchanged. */
+	requiredContextTokensFor?: (contextWindow: number) => number;
 	pinnedModelKey?: string | null;
 	weighting?: ModelSelectionWeighting;
 }
@@ -95,6 +97,7 @@ export function selectSwarmRoleModel(input: SelectSwarmRoleModelInput): SwarmRol
 		}),
 		difficulty: input.difficulty,
 		requiredContextTokens: input.requiredContextTokens,
+		...(input.requiredContextTokensFor ? { requiredContextTokensFor: input.requiredContextTokensFor } : {}),
 		// Honor a pin only when it is itself class-eligible for the role (never pin a wrong-class model).
 		pinnedModelKey: input.pinnedModelKey && eligibleKeySet.has(input.pinnedModelKey) ? input.pinnedModelKey : null,
 		preferenceOrder: eligibleKeys,

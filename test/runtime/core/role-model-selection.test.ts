@@ -195,3 +195,38 @@ describe("selectRoleModel", () => {
 		});
 	});
 });
+
+describe("per-window context requirement (live 2026-09-14)", () => {
+	it("judges each candidate against the requirement for ITS OWN window — a 262k sibling must not inflate a 32k model's bar", () => {
+		const candidates = [
+			{ modelKey: "pinned-32k", capability: 35, contextWindow: 32_768, predictedWallTimeMs: null, isFree: true },
+			{ modelKey: "big-262k", capability: 80, contextWindow: 262_144, predictedWallTimeMs: null, isFree: true },
+		];
+		// The flat number (derived from the largest window) excludes the 32k model outright…
+		expect(
+			selectRoleModel({ candidates, difficulty: 35, requiredContextTokens: 44_079, pinnedModelKey: "pinned-32k" }),
+		).toMatchObject({ type: "assign", modelKey: "big-262k" });
+		// …while the per-window requirement (reserves scale with the window they are carved from) keeps the pin.
+		const requiredContextTokensFor = (contextWindow: number) => 79 + Math.round(contextWindow * 0.25) + 4_000;
+		expect(
+			selectRoleModel({
+				candidates,
+				difficulty: 35,
+				requiredContextTokens: 44_079,
+				requiredContextTokensFor,
+				pinnedModelKey: "pinned-32k",
+			}),
+		).toMatchObject({ type: "assign", modelKey: "pinned-32k" });
+		// A window that cannot hold even its own requirement stays infeasible.
+		expect(
+			selectRoleModel({
+				candidates: [
+					{ modelKey: "tiny-4k", capability: 90, contextWindow: 4_000, predictedWallTimeMs: null, isFree: true },
+				],
+				difficulty: 35,
+				requiredContextTokens: 44_079,
+				requiredContextTokensFor,
+			}).type,
+		).toBe("no_fit");
+	});
+});

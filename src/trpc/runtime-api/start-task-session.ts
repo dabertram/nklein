@@ -1081,6 +1081,12 @@ async function handleStartTaskSessionInner(
 			// Telemetry must never block a start.
 		}
 		const requiredContextTokens = estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow);
+		// Live 2026-09-14: the number above scales its reserves with the LARGEST loaded window — one 262k model on
+		// the endpoint made a 79-token decompose prompt "require" 44,079 tokens, so the operator's pinned 32k alias
+		// was infeasible for every card, the pin auto-healed to Auto, and the work landed on the very model the
+		// operator had idled. Each candidate is judged against the requirement for ITS OWN window.
+		const requiredContextTokensFor = (contextWindow: number): number =>
+			estimateNKleinStartFitBudgetTokens(promptTokens, contextWindow);
 		// §5.AB queue-aware free-first (opt-in via NKLEIN_QUEUE_AWARE_FREE_FIRST): a model the LM Studio SERVER is BUSY on
 		// isn't truly "free" for fan-out even if !Klein isn't running it — busy = a non-empty `queued` (another client /
 		// backlog) OR a non-idle `status` (an in-flight prefill/generation). OFF by default ⇒ no `lms ps` subprocess,
@@ -1352,6 +1358,7 @@ async function handleStartTaskSessionInner(
 			})),
 			difficulty: taskDifficulty,
 			requiredContextTokens,
+			requiredContextTokensFor,
 			pinnedModelKey:
 				taskPinnedModelKey ?? (roleAssignment.source === "pinned" ? (roleAssignment.pick?.modelKey ?? null) : null),
 			weighting: "efficient",
@@ -1390,7 +1397,7 @@ async function handleStartTaskSessionInner(
 			if (
 				pinnedCandidate &&
 				pinnedCapability !== null &&
-				pinnedContext >= requiredContextTokens &&
+				pinnedContext >= requiredContextTokensFor(pinnedContext) &&
 				taskDifficulty - pinnedCapability <= CAPABILITY_BEST_EFFORT_MARGIN
 			) {
 				freeFirstSelection = {
@@ -1431,7 +1438,7 @@ async function handleStartTaskSessionInner(
 			return {
 				ok: false,
 				summary: null,
-				error: createPinnedModelUnavailableStartError(cardRole, cardRolePin),
+				error: `${createPinnedModelUnavailableStartError(cardRole, cardRolePin)} Selection said: ${selectionReason}`,
 				errorCode: "pinned_model_unavailable",
 				selectionReason,
 			};
