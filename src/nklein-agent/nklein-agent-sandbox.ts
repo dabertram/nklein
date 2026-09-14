@@ -548,9 +548,23 @@ export class AgentSandboxManager {
 	private readonly lastPlacementReleaseByTaskId = new Map<string, { at: number; via: string }>();
 	/** The call path that most recently disposed each task's workspace — see `disposeWorkspace`. */
 	private readonly lastDisposeCallerByTaskId = new Map<string, string>();
-	/** Notified whenever a pool container is retired — see `retireContainer`. */
+	/**
+	 * Notified whenever a pool container is REMOVED, by whichever path removed it.
+	 *
+	 * `via` exists because the first cut recorded only `retireContainer`, and the 2026-09-14 correlation then came
+	 * back 0 of 19: not one `No such container` refusal named a container this manager had recorded retiring (and
+	 * all 16 retirements were at occupancy 0 with an empty queue, refuting the drain-queue race outright). Three
+	 * other paths delete containers and none of them said so — the startup orphan reap, `stopNow`, and
+	 * `startContainer`'s own pre-emptive `rm -f`. A removal nobody records is exactly how the shape stayed
+	 * unattributable for five days, so every path now names itself (P1.REVIEWSANDBOX).
+	 */
 	private onContainerRetiredHandler:
-		| ((event: { container: string; occupancy: number; queued: number }) => void)
+		| ((event: {
+				container: string;
+				occupancy: number;
+				queued: number;
+				via: "retire" | "stop_now" | "start_preempt" | "orphan_reap";
+		  }) => void)
 		| null = null;
 	/** Notified on every refusal with the facts a diagnosis needs. Set by the session service. */
 	private onPlacementRefusedHandler:
@@ -808,6 +822,14 @@ export class AgentSandboxManager {
 
 		for (const containerName of plan.reapNames) {
 			await this.runDocker(["rm", "-f", containerName], { timeoutMs: 30_000 }).catch(() => null);
+			// Occupancy is 0 by construction here: a reaped container belongs to a runtime that is gone, so this
+			// manager holds no placement on it. Recorded anyway — see the handler's note on unattributable removals.
+			this.onContainerRetiredHandler?.({
+				container: containerName,
+				occupancy: 0,
+				queued: this.queue.length,
+				via: "orphan_reap",
+			});
 			// The workspace volume is created implicitly by `docker run -v`, so it carries no labels of its own and
 			// cannot be judged directly. Riding on the container's ownership verdict avoids inventing a second
 			// liveness heuristic (a dangling-volume scan races a concurrent pool boot — the 2026-07-23 shape).
@@ -1589,6 +1611,12 @@ export class AgentSandboxManager {
 					container.idleTimer = null;
 				}
 				await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(() => null);
+				this.onContainerRetiredHandler?.({
+					container: container.containerName,
+					occupancy: container.occupancy.size,
+					queued: this.queue.length,
+					via: "stop_now",
+				});
 				await this.runDocker(["volume", "rm", container.volumeName], { timeoutMs: 30_000 }).catch(() => null);
 			}
 			// §5.L: reap the pool's shared egress proxy + its `--internal` network, but ONLY if we ever ensured it (a
@@ -1911,7 +1939,20 @@ export class AgentSandboxManager {
 
 	private async startContainer(container: ContainerState): Promise<void> {
 		const startupStartedAt = Date.now();
-		await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(() => null);
+		// The idempotent-restart clear. It is silent when there is nothing to remove — but when it DOES remove a
+		// container, it removed one this manager did not retire, which is the single most likely source of a later
+		// "No such container" for a placement that still referenced it. Say so (exit 0 ⇒ something was removed).
+		const preemptiveClear = await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(
+			() => null,
+		);
+		if (preemptiveClear?.exitCode === 0) {
+			this.onContainerRetiredHandler?.({
+				container: container.containerName,
+				occupancy: container.occupancy.size,
+				queued: this.queue.length,
+				via: "start_preempt",
+			});
+		}
 		const mounts = [...this.projectMountsByKey.values()];
 		// §5.AR basic-memory (flag-gated): the per-project writable stores for the projects this container serves. Empty
 		// unless basic-memory is enabled (the runtime setting or NKLEIN_BASIC_MEMORY, §5.BB) ⇒ no writable mounts ⇒ the
@@ -2192,6 +2233,7 @@ export class AgentSandboxManager {
 			container: createAgentSandboxContainerName(container.slot, this.poolConfig.namespace),
 			occupancy: container.occupancy.size,
 			queued: this.queue.length,
+			via: "retire",
 		});
 		if (container.retiring) {
 			await container.retiring;

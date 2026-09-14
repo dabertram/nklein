@@ -920,16 +920,23 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// caused it (P1.REVIEWSANDBOX). Occupancy at retire time is the discriminating field: a retirement with a
 		// queued waiter is the candidate race; one with an empty queue is ordinary pool shrinkage.
 		this.agentSandboxManager?.onContainerRetired?.((event) => {
+			// 2026-09-14: the retire-only record answered its question (0 of 19 refusals matched a retirement, all 16
+			// retirements at occupancy 0 with an empty queue ⇒ the drain-queue race is refuted) and exposed the next
+			// one: three other paths remove containers. `via` names the remover so the next refusal is attributable.
+			const retired = event.via === "retire";
 			this.recordObservationWithModel({
 				signal: "custom",
 				severity: "info",
 				taskId: "agent-sandbox-pool",
-				message: `Retired sandbox container ${event.container} (occupancy ${event.occupancy}, ${event.queued} waiter(s) queued).`,
+				message: retired
+					? `Retired sandbox container ${event.container} (occupancy ${event.occupancy}, ${event.queued} waiter(s) queued).`
+					: `Removed sandbox container ${event.container} via ${event.via} (occupancy ${event.occupancy}, ${event.queued} waiter(s) queued).`,
 				metadata: {
-					category: "sandbox_container_retired",
+					category: retired ? "sandbox_container_retired" : "sandbox_container_removed",
 					container: event.container,
 					occupancy: event.occupancy,
 					queued: event.queued,
+					via: event.via,
 				},
 			});
 		});
