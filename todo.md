@@ -4482,7 +4482,7 @@ These are known defects or incomplete migrations. Clear them before widening cap
   board-chat-feedback-wiring); absent dep ⇒ pre-F2.13 behavior byte-identical (tested both ways).
 #### 2B. Board↔chat, streams, and operator surfaces *(legacy §5.AG, §5.AH, §5.AT, §5.AU, §5.BB)*
 
-- [ ] **F2.30 — CHAT-AS-FULL-CONTROL-PLANE (David directive 2026-09-02, verbatim: "add ui ux tests that use the
+- [x] **F2.30 — CHAT-AS-FULL-CONTROL-PLANE (David directive 2026-09-02, verbatim: "add ui ux tests that use the
   chat .. use ai mock for this .. make sure the user can control everything of nklein directly from chat .. maybe
   sth like an nklein mcp might be interesting? .. nklein could forward chat messages asking to do sth .. to a
   prompt that knows a full interface").** Design: a typed CONTROL-ACTION REGISTRY (one place: name, description,
@@ -4503,6 +4503,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (system prompt, full context, tool schemas, raw response incl. reasoning), collapsible/hideable per entry,
   per-card and per-chat; capture layer = a bounded model-traffic store written at the request seam (the
   scratchpad tee proxy proved the value; productize it — local-only, size-capped, off-switch).
+  **▶ 2026-09-14 CLOSED — every increment shipped:** (a) registry + `nklein_control` tool `6efdceb93`; (b) the
+  aimock chat-control e2e `2257cf453` (a plain chat message really drives the board through the mock model —
+  this entry had not been updated when it landed); (c) `nklein-mcp` `f2b634a7a`; (d) nightly registration
+  `30a3e4d25` — the suite is a scripted mock-LLM vitest e2e, not a recorded aimock drain, so it cannot be a
+  project×model cell; the nightly gained a standing lane shaped like N14: `NightlyManifest.e2eSuites: [{id,
+  file}]`, run after the cells, skipped under project/model filters, each suite NAMED in the summary, a failure
+  fails the run (`isNightlyOverallOk.e2eSuitesOk`); `chat-control-plane` registered; `--dry-run` lists the lane
+  and an e2e-only manifest run printed `E2E suites (F2.30 d): PASSED — chat-control-plane: pass` while the run
+  itself FAILED on zero cells (an empty nightly is not green — the two verdicts compose as designed); (e) model
+  I/O transparency `5d6578f13`.
+
 
 - [x] **F2.35 — Main-branch CUSTODIAN (David directive 2026-09-04, verbatim: "architect should always keep
   reviewing main branch etc etc and merged work etc etc .. maybe not exactly architect .. but some role should
@@ -4538,12 +4549,19 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (running/queued) session to the top, stable within groups, display-only (DnD still persists explicit board
   order). Live-verified on the 84-card planning lane.
 
-- [ ] **F2.31 — DAG overview: layered tree layout with temporal flow, EARLY→RIGHT (David directive 2026-09-02,
+- [x] **F2.31 — DAG overview: layered tree layout with temporal flow, EARLY→RIGHT (David directive 2026-09-02,
   verbatim: "the dag graph overview .. should try to visualize tree structure as good as possible .. and flow ..
   like early to the right .. late on left side").** The board-dag-view should lay cards out by dependency depth
   (layered/topological): roots (no prerequisites, run first) in the RIGHTMOST column, each dependency layer one
   column further LEFT, so work flows right→left and the tree structure is visible (children grouped under
   parents, crossing-minimized within layers). Keep node interactivity (click/keyboard) from F2.16 intact.
+  **▶ SHIPPED `1774e3ddd` (2026-09-04; entry closed 2026-09-14 — it had not been updated when it landed):**
+  depth-0 roots in the RIGHTMOST column by default, dependents flow leftward (the 2026-07-10 board-aligned
+  direction stays one click away behind a header toggle — the two directives conflict); barycenter layer
+  ordering (forward + backward sweep) groups children under their parents and cuts crossings; tests pin the
+  early-right default, the early-left toggle and a disjoint-band sibling grouping; node interactivity kept.
+  DAG node SEARCH lives on as F2.31b.
+
 
 - [x] **F2.16 (narrowed by audit 2026-07-13) — stream drill-down: verify focus/back only.** The drill is
   substantially built (W3.4 flagship UI): stream-overview → `onSelectStream`, `board-dag-view` → `onSelectCard`,
