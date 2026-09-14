@@ -2171,7 +2171,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   every `--projects` selector as `preset`, so a registry id failed schema validation and the run ended "No dev-test
   projects could be created". The doc comment claimed registry ids worked, which is why it went unnoticed — the
   rail predates the whole analysis/spec/planning/repair/tests/refactor set. SHIPPED (b3d5e1c1d).
-- [ ] **DEVTEST30 — the six-family dev-test expansion David approved: 30 projects, 5 per family, increasing difficulty.**
+- [x] **DEVTEST30 — the six-family dev-test expansion David approved: 30 projects, 5 per family, increasing difficulty.**
   The grading contract every non-build family follows is `docs/dev/dev-test-projects/grading-contract.md` (8 rules;
   read it before authoring one). Status:
   - **ALL BUILT + four-state proven, 40 projects, 8 families:** test-authoring 37–41, analysis 42–46,

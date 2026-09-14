@@ -44,6 +44,28 @@ reinterpreting the proxy. Three removal paths that deleted containers silently n
 caller that JOINS an in-flight preparation now gets the provisioning deadline it was missing — a hole in this
 morning's own fix, found by re-reading P1.STARTHANG's warning.
 
+## Third pass — what the reviewer is told
+
+Same family as the liveness pass, one layer out: the runtime knew a fact and did not pass it on.
+
+- **P1.PASSEDBUTUNLANDED, closed (both halves).** The blocked write is now evidence — the `## No file changes`
+  branch names which write tool was rejected, on which path, with the recorded reason, and warns that an
+  acceptance check run AFTER a rejected write can pass vacuously (project 47). And the acceptance line is
+  qualified by the delivery: PASSED + `empty_patch` says the check passed inside the worker's SANDBOX while the
+  branch under review holds none of the work (project 42). The item had specified both fixes and deferred them
+  "mid-batch"; the batch is over.
+- **P1.REVIEWBUDGET, shipped.** `expectedTurns × observed turn latency + reserve`, from the registry's wall-time
+  EWMA, with the configured budget as a FLOOR — it can only lengthen. Too much budget costs idle minutes on a
+  stalled review; too little costs the verdict and re-runs everything (38 cut exploration turns). Operator and
+  per-session budgets still win outright.
+- **DEVTEST30 closed.** Both halves were done (40 projects built and four-state proven; 40 of 40 replay-verified);
+  only the header checkbox was outstanding. Re-checked today: every set under `packages/llm-simulator/scenarios`
+  for 37–76 carries `replayVerified: true`.
+
+Open P1s went 11 → 5 across the day. What remains needs something this session cannot manufacture: a fresh live
+occurrence (STARTHANG2 (i)'s hung await, STARTHANG, REVIEWSANDBOX's now-instrumented remover), a design decision
+already taken (PARKEDINREVIEW: a park is a human hand-off), or an operator action (IMGREBUILD's image rebuild).
+
 Still open, evidence-only (not fixable without a fresh occurrence): P1.STARTHANG2 (i)'s actual hung await — the
 failing runtime's log was overwritten by the restart; the deadline observation now captures the pool state when it
 recurs — and the custodian `main-branch-custodian::review` re-prompt under P1.SETTLEDNUDGE (two later shifts saw 0
