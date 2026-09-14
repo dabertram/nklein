@@ -2972,6 +2972,29 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `needs_decomposition`, **zero** `Auto-healed unstartable pin`, **zero** `pinned_model_unavailable` and **zero**
   `auto_start_paused` in their runtime logs. All 40 recorded sets (37–76) carry `replayVerified: true`.
 
+- [x] **P1.SELFGRADED — a dev-test fixture's grader lives in the workspace it grades, so the agent can replace it.**
+  *(Found 2026-09-14 by exploit on every contract fixture, not inferred.)*
+  `npm test` runs INSIDE the agent's workspace against a verifier, a frozen-digest guard and a runner that all live
+  there. Swap each fixture's test files for same-named no-ops and **42 of 42 fixtures run green** — with the evidence
+  doctored underneath (`analysis-a1`'s `parseInt(raw)` quietly given its radix, `spec-s4`'s conformance oracle bent to
+  agree with a wrong check). The in-tree guard catches an agent that edits the evidence and leaves the guard alone;
+  nothing in the tree catches one that rewrites the guard. The only anchor outside the workspace was the responder
+  brief's instruction to diff the frozen paths by hand — a process, not a mechanism, and absent from any autonomous
+  run. Two fixture gaps rode along: `spec-s4` never froze `candidates/`, so the ORACLE every check is measured against
+  was editable, and the five planning fixtures shipped no manifest at all.
+  **▶ CLOSED 2026-09-14 (`a7c5ab224`).** The acceptance verifier reads the frozen manifest on the task's BASE commit —
+  recorded by the runtime before the agent started, content-addressed, so nothing the agent does can move it — and
+  refuses a delivery that changes any path it lists, the manifest itself, `package.json` or `scripts/run-tests.mjs`,
+  as `frozen_evidence_modified`, naming each file. It sits at `acceptanceVerifier.verify`, the one chokepoint every
+  sandbox acceptance run passes through, and runs BEFORE the sandbox; a git read that fails fails OPEN and is
+  recorded (`frozen_evidence_guard`). Proof: all 40 contract fixtures refuse a graders-replaced delivery naming each
+  grader and pass a clean one, against real base commits; real-fixture cases for a1/s4/p1/t1 are in the suite; the 35
+  recorded replay sets were scanned first and none writes a frozen path, so no recorded verdict changes.
+  `test/runtime/dev-fixture-frozen-manifests.test.ts` stops the next fixture landing without a manifest.
+  **Residual, stated rather than papered over:** the families that execute the agent's deliverable inside the grader
+  (repair, refactor, integration, performance, test authoring) cannot stop that code subverting the grader
+  in-process — the same residual `held-out-oracle.ts` names, and no file-level check reaches it.
+
 - [x] **P2.FIXTUREINTEGRITY — a dev-test fixture's own "frozen and untouched" test can be satisfied by editing the
   thing that does the checking.** *(Found 2026-09-13 by recon on projects 71-76, both holes proven by exploit in a
   scratch copy, not inferred.)*
@@ -2992,6 +3015,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   walk/sort/sha256 logic. Proof: 10/10 `npm test` green with unchanged pass counts; raising `B1.maxReads` now fails
   `changed: performance/budgets.json`; recorded sets 72 and 62 still replay-verify PASS against the patched seeds.
   Hole 1 (`frozen.json` digesting itself) is circular by nature — the seed-mirror diff stays the external anchor.
+  **Hole 1 CLOSED 2026-09-14 by P1.SELFGRADED (`a7c5ab224`):** the acceptance verifier reads the manifest from the
+  task's BASE commit, so the workspace's copy is no longer the anchor and a rewritten `frozen.json` is refused
+  before `npm test` runs. The seed-mirror diff is no longer the only thing standing between it and a green run.
 
 - [x] **P1.UNSATGATE — the test-driven-delivery gate is UNSATISFIABLE on spec/analysis fixtures, and the card can
   neither pass nor stop.** *(Live 2026-09-10/11, projects 50 and 51, measured on three shifts.)*
