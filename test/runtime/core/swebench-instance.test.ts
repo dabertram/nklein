@@ -54,6 +54,17 @@ describe("buildSwebenchCard", () => {
 		expect(card.prompt).toContain("Do not modify existing tests");
 		expect(card.prompt).toContain(instance.problemStatement.trim());
 		expect(card.prompt).not.toContain("diff --git"); // the test patch stays grader-side
+		expect(card.prompt).not.toContain("Acceptance command:");
+	});
+
+	it("arm B: the public-acceptance card demands a repro test in a NEW file and declares the graded files' existing tests as acceptance", () => {
+		const card = buildSwebenchCard(instance, { publicAcceptance: true });
+		expect(card.prompt).toContain("write a test that reproduces the issue in a NEW test file");
+		expect(card.prompt).toContain("never edit tests/test_requests.py");
+		expect(card.prompt).toContain("Acceptance command: .nklein-venv/bin/pytest -q tests/test_requests.py");
+		// The hidden fail-to-pass tests are still nowhere in the card.
+		expect(card.prompt).not.toContain("diff --git");
+		expect(card.prompt).not.toContain(instance.failToPass[0] ?? "@@never@@");
 	});
 });
 

@@ -54,8 +54,33 @@ export function verifySwebenchPin(tarball: Uint8Array, pin: SwebenchPin): Sweben
 	return { ok: true, sha256 };
 }
 
+export interface SwebenchCardOptions {
+	/**
+	 * P1.SANDBOXPACKS (g) / arm B: make the VISIBLE evidence a requirement. The hidden fail-to-pass tests stay
+	 * hidden (the SWE-bench protocol), but the card then (1) demands a reproduction test in a NEW file — never in the
+	 * files the instance is graded by, which would make the delivery ungradable — and (2) declares an
+	 * `Acceptance command:` that runs the existing tests of the graded files, so the delivery gate refuses a regression.
+	 * The venv path is the toolchain prime's (`.nklein-venv`, P1.SANDBOXPACKS (c)).
+	 */
+	readonly publicAcceptance?: boolean;
+}
+
+/** The pytest invocation over the existing tests of the files the instance is graded by (the hidden F2P are absent). */
+export function buildSwebenchPublicAcceptanceCommand(instance: SwebenchInstanceMetadata): string | null {
+	const files = listGradedTestFiles(instance.testPatch);
+	if (files.length === 0) return null;
+	return `.nklein-venv/bin/pytest -q ${files.map((file) => shellQuote(file)).join(" ")}`;
+}
+
+function shellQuote(value: string): string {
+	return /^[A-Za-z0-9_./-]+$/u.test(value) ? value : `'${value.replace(/'/gu, "'\\''")}'`;
+}
+
 /** The board card an instance becomes — the issue text IS the prompt (N8), plus the two harness ground rules. */
-export function buildSwebenchCard(instance: SwebenchInstanceMetadata): {
+export function buildSwebenchCard(
+	instance: SwebenchInstanceMetadata,
+	options: SwebenchCardOptions = {},
+): {
 	readonly taskId: string;
 	readonly title: string;
 	readonly prompt: string;
@@ -66,9 +91,19 @@ export function buildSwebenchCard(instance: SwebenchInstanceMetadata): {
 			.find((line) => line.trim() !== "")
 			?.trim() ?? "";
 	const title = `${instance.instanceId}: ${firstLine}`.slice(0, 120);
+	const acceptance = options.publicAcceptance ? buildSwebenchPublicAcceptanceCommand(instance) : null;
+	const graded = options.publicAcceptance ? listGradedTestFiles(instance.testPatch) : [];
 	const prompt = [
 		`Fix the following issue in this repository (${instance.repo} @ ${instance.baseCommit.slice(0, 12)}).`,
 		"Do not modify existing tests; fix the library code so the described behavior is correct.",
+		...(options.publicAcceptance
+			? [
+					`Before changing library code, write a test that reproduces the issue in a NEW test file (for example tests/test_issue_${instance.instanceId.replace(/[^A-Za-z0-9]+/gu, "_")}.py) — never edit ${
+						graded.length > 0 ? graded.join(", ") : "the existing test files"
+					}. Make that test pass with the fix, and keep every existing test passing.`,
+					...(acceptance ? [`Acceptance command: ${acceptance}`] : []),
+				]
+			: []),
 		"",
 		instance.problemStatement.trim(),
 	].join("\n");

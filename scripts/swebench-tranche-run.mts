@@ -5,7 +5,8 @@
  *
  *   tsx scripts/swebench-tranche-run.mts --run-id <id> --model <modelId> --runtime-port 3507 --home <runtimeHome> \
  *       [--runtime-host 127.0.0.1] [--instances all|<id>,<id>] [--no-plan] [--max-wait-ms 2700000] \
- *       [--poll-interval-ms 5000] [--cooldown-ms 0] [--workspace-parent DIR] [--out DIR] [--runtime-launcher FILE]
+ *       [--poll-interval-ms 5000] [--cooldown-ms 0] [--public-acceptance] [--workspace-parent DIR] [--out DIR]
+ *       [--runtime-launcher FILE]
  *
  * Hermetic: instances come from the sha256-pinned cache (`swebench-fetch.mts` is the only egress step; a missing
  * cache refuses and names it); the grade runs `python:3.9-slim` with the network namespace OFF from the prepared
@@ -49,6 +50,8 @@ interface Options {
 	pollIntervalMs: number;
 	/** Pause between instances (ms) — the m5max throttles under sustained load ("never benchmark hot"). */
 	cooldownMs: number;
+	/** Arm B: public acceptance (repro test in a new file + graded files' existing tests), visible test evidence, auto-review ON. */
+	publicAcceptance: boolean;
 	workspaceParent: string;
 	out: string;
 	runtimeLauncher: string | null;
@@ -62,7 +65,7 @@ function parseArgs(argv: readonly string[]): Options {
 		if (!arg.startsWith("--")) throw new Error(`unexpected argument ${arg}`);
 		const key = arg.slice(2);
 		const next = argv[index + 1];
-		if (key === "no-plan") {
+		if (key === "no-plan" || key === "public-acceptance") {
 			flags.add(key);
 		} else if (next !== undefined && !next.startsWith("--")) {
 			values.set(key, next);
@@ -104,6 +107,7 @@ function parseArgs(argv: readonly string[]): Options {
 		maxWaitMs: integer("max-wait-ms", 45 * 60_000),
 		pollIntervalMs: integer("poll-interval-ms", 5_000),
 		cooldownMs: values.has("cooldown-ms") ? integer("cooldown-ms", 0) : 0,
+		publicAcceptance: flags.has("public-acceptance"),
 		workspaceParent: resolve(values.get("workspace-parent") ?? join(process.cwd(), ".real-runs", "swebench-tranche", runId, "workspaces")),
 		out: resolve(values.get("out") ?? join(process.cwd(), ".real-runs", "swebench-tranche", runId)),
 		runtimeLauncher: values.get("runtime-launcher") ? resolve(values.get("runtime-launcher") as string) : null,
@@ -258,7 +262,7 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 	await loadWorkspaceContext(workspacePath, { autoCreateIfMissing: true });
 	const workspaceId = await ensureRuntimeWorkspace(workspacePath);
 	const client = createDevRuntimeClient(workspaceId);
-	const card = buildSwebenchCard(instance);
+	const card = buildSwebenchCard(instance, { publicAcceptance: options.publicAcceptance });
 	const scenario = {
 		id: instanceId,
 		title: card.title,
@@ -287,10 +291,12 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 				baseRef: "main",
 				seedTaskId: runId,
 				startInPlanMode: options.startInPlanMode,
-				autoReviewEnabled: false,
+				// Arm A measures the worker alone (held-out oracle, no review). Arm B turns the VISIBLE evidence into
+				// requirements: the delivery gate runs the card's acceptance command and the same model reviews.
+				autoReviewEnabled: options.publicAcceptance,
 				externallySupervised: true,
 				autoReviewMode: "commit",
-				testEvidencePolicy: "externally_held_out",
+				testEvidencePolicy: options.publicAcceptance ? "agent_visible" : "externally_held_out",
 				nkleinSettings: { providerId: "lmstudio", modelId: options.model },
 				pollIntervalMs: options.pollIntervalMs,
 				maxWaitMs: options.maxWaitMs,
@@ -484,8 +490,9 @@ async function main(): Promise<void> {
 		runtimeOrigin,
 		runtimeHome: options.home,
 		startInPlanMode: options.startInPlanMode,
-		autoReviewEnabled: false,
-		testEvidencePolicy: "externally_held_out",
+		autoReviewEnabled: options.publicAcceptance,
+		testEvidencePolicy: options.publicAcceptance ? "agent_visible" : "externally_held_out",
+		publicAcceptance: options.publicAcceptance,
 		agentSandboxImage: process.env.NKLEIN_AGENT_SANDBOX_IMAGE ?? "nklein/agent-sandbox:0.0.1 (default)",
 		graderImage: SWEBENCH_GRADER_IMAGE,
 		maxWaitMs: options.maxWaitMs,
