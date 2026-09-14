@@ -2724,13 +2724,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   inside its budget" — only the first is a statement about the work. NOT changed, deliberately: the streak still
   parks at 3 (a streak that skips sessions is an unbounded loop) and `parkKind` stays `no_verdict`.
 
-- [ ] **F2.31b — DAG node SEARCH (the one survivor of P0.AUDIT0904 leg 23).** Tooltips and aria shipped
-  2026-09-08 (`describeDagNode` — title, live state or lane, critical-path membership, used as both the
-  aria-label and an SVG title). Search is a UX design question rather than a mechanical gap: what it matches
-  (title only, or prompt and id too), what it does to non-matches (dim, hide, or scroll-to), and whether it
-  shares the board filter. Worth asking David before building an interaction nobody requested.
+- [x] **F2.31b — DAG node SEARCH (the one survivor of P0.AUDIT0904 leg 23). SHIPPED 2026-09-14 (`8d26aad3a`).**
+  Tooltips and aria shipped 2026-09-08 (`describeDagNode` — title, live state or lane, critical-path
+  membership, used as both the aria-label and an SVG title). The three design questions were answered by
+  building the least surprising option of each ("work through everything autonomously"): `searchDagNodes`
+  (pure, tested) matches title, id AND prompt with every term required; non-matches are DIMMED, never hidden
+  (hiding breaks the edges' meaning); the box shows "n of m", Enter/Shift+Enter walk the matches and center
+  the view on each, Escape clears; it does not share the board filter (a search is a viewfinder, a filter is a
+  claim about the board). Playwright spec `web-ui/tests/board-dag-search.spec.ts` on the Graph tab, registered
+  as nightly e2e-suite data.
 
-- [ ] **F2.36 — !Klein's OWN project board (David 2026-09-05: "create a project for nklein itself … make the
+- [x] **F2.36 — !Klein's OWN project board (David 2026-09-05: "create a project for nklein itself … make the
   dag reflect everything that was already done in reasonable work packages which are set to finished … part of
   git .. updated with each git commit … a soft switch").** SHIPPED v1 the same night: `scripts/self-board-sync.ts`
   mirrors done.md sections (COMPLETED work packages chained as the historical spine), todo.md §5 open items
@@ -2770,7 +2774,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   board the sync writes. What the sync now controls is the START SHAPE: `core/self-board-card-defaults` — a
   todo card starts in PLAN mode (a backlog entry is a work package the architect splits into child cards on
   the self board before any worker touches the checkout; the 2,400-char entry never lands on one worker), a
-  done package never starts; re-derived on every sync, so all 19 open cards carry it)*. **REMAINING: (a) only.**
+  done package never starts; re-derived on every sync, so all 19 open cards carry it)*. ~~**REMAINING: (a) only.**~~
+  **(a) SHIPPED 2026-09-14 (`8d26aad3a`):** done.md sections already name their milestones as `### ` sub-headers;
+  `core/done-md-packages.parseDoneMarkdownPackages` (pure, tested) makes each its own package, chained in document
+  order after the section's own items, ids derivable from the headings so existing cards keep their identity —
+  live: 39 packages (25 milestones) instead of 15, spine head unchanged. **F2.36 is complete: (a)–(d) all shipped.**
 
 - [x] **P0.NOHUMAN — parks resolve themselves (David 2026-09-06: "why need me .. just make it brilliant").**
   SHIPPED 2026-09-06: (1) a completed `plan-gate-repair-<slug>` card re-runs the plan integration gate and, on
