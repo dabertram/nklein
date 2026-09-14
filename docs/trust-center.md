@@ -57,7 +57,9 @@ operation, and no telemetry phone-home.
 4. **Optional MCP servers** — user-configured; the curated sandbox set is offline (`--network none`). Third-party
    MCP servers are the user's explicit choice, and their content is tainted like web content.
 5. **Auto-update / package installs** — standard developer-tooling ingress (npm, model hosts) under the user's
-   control; disable via `NKLEIN_NO_AUTO_UPDATE`.
+   control; disable via `NKLEIN_NO_AUTO_UPDATE`. Sandbox package installs at the allowlist tier reach only the hosts
+   in the egress allowlist; `ecosystem:<name>` entries expand to that ecosystem's canonical registries (PyPI, crates.io,
+   the Go proxy, Maven Central, RubyGems, npm) and nothing else.
 
 There is no other egress class. A new one must survive the privacy-invariant test, the local-only assertions, and
 review of this inventory.

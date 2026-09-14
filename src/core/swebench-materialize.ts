@@ -11,7 +11,7 @@
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { createGitProcessEnv } from "./git-process-env";
@@ -69,6 +69,12 @@ export async function materializeSwebenchInstance(input: {
 	cacheRoot: string;
 	instanceId: string;
 	targetDir: string;
+	/**
+	 * P1.SANDBOXPACKS (e): the interpreter era to pin as `.python-version` INSIDE the sealed root commit — the sandbox
+	 * receives the workspace by `git clone`, so an untracked marker would never reach it. `uv venv` honours the file
+	 * and resolves the interpreter from the image's offline store. Omitted ⇒ no marker (grader/control paths).
+	 */
+	pythonVersion?: string;
 }): Promise<MaterializedSwebenchInstance> {
 	if (existsSync(input.targetDir)) {
 		throw new Error(`materialize target ${input.targetDir} already exists — refuse to reuse a stale workspace.`);
@@ -100,6 +106,10 @@ export async function materializeSwebenchInstance(input: {
 		// Error building trees"). Sanitise every git call (live 2026-09-08, misdiagnosed as flaky all day).
 		execFileAsync("git", ["-C", input.targetDir, ...args], { env: createGitProcessEnv() });
 	await git("init", "--quiet", "--initial-branch=main");
+	if (input.pythonVersion) {
+		if (!/^\d+\.\d+$/u.test(input.pythonVersion)) throw new Error(`invalid pythonVersion ${input.pythonVersion}`);
+		await writeFile(join(input.targetDir, ".python-version"), `${input.pythonVersion}\n`);
+	}
 	await git("add", "-A");
 	await git(
 		"-c",

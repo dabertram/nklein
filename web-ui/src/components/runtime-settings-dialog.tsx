@@ -2757,7 +2757,7 @@ export function RuntimeSettingsDialog({
 									id={sandboxEgressAllowlistId}
 									value={sandboxEgressAllowlist}
 									onChange={(event) => setSandboxEgressAllowlist(event.target.value)}
-									placeholder={"api.github.com\nworker:registry.npmjs.org\nreviewer:pypi.org"}
+									placeholder={"ecosystem:npm\necosystem:python\nworker:api.github.com"}
 									disabled={controlsDisabled || !sandboxEgressProxyEnabled}
 									rows={3}
 									className="w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-[12px] text-text-primary disabled:opacity-40"
@@ -2766,7 +2766,9 @@ export function RuntimeSettingsDialog({
 									Hosts allowlist-tier agents may reach — one per line (or comma-separated). A plain entry is
 									global (any role); prefix an entry with <code>role:</code> (e.g.{" "}
 									<code>worker:api.github.com</code>) to grant just that role — a worker can never use a
-									reviewer-scoped host. Blank &rArr; default-deny (no egress). Applies to newly created sandbox
+									reviewer-scoped host. <code>ecosystem:&lt;name&gt;</code> expands to that ecosystem&apos;s
+									registry hosts (npm, python, python-toolchain, rust, go, java, ruby) and can be role-scoped
+									the same way. Blank &rArr; default-deny (no egress). Applies to newly created sandbox
 									containers.
 								</p>
 							</div>

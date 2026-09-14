@@ -287,6 +287,10 @@ agent tool (git/curl/pip/...)                      egress-proxy (role listener :
   keeps env-over-config precedence (real environment wins, default OFF); `setSandboxEgressConfig` live-applies on a
   Settings change and resets the memoized ensure-promise so a tightening never keeps a stale verdict/allowlist.
 - Gate: `settings-config-contract` Suite 17 + runtime-config roundtrip + web-ui settings-draft/save tests.
+- **Ecosystem packs (P1.SANDBOXPACKS, 2026-09-14):** an `ecosystem:<name>` entry (npm, python, python-toolchain, rust,
+  go, java, ruby; role-scoped `worker:ecosystem:python` works too) expands inside `parseEgressAllowlist` to that
+  ecosystem's CANONICAL registry hosts (`core/sandbox-egress-ecosystems`), so the proxy still only ever sees hosts. An
+  unknown pack name stays a plain (unreachable) entry — the same fail-safe-narrow rule as a typo'd role prefix.
 
 **I4 — real bundling step + e2e validation + docs. ✅ SHIPPED.**
 - **Bundling step (the seam that made the proxy shippable, not env-only):** `scripts/build-egress-proxy.mjs`

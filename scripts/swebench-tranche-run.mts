@@ -242,7 +242,12 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 	const cacheRoot = swebenchCacheRoot(process.cwd());
 	const workspacePath = join(options.workspaceParent, runId);
 	log(`${instanceId}: materializing ${entry.repo} into ${workspacePath}`);
-	const materialized = await materializeSwebenchInstance({ cacheRoot, instanceId, targetDir: workspacePath });
+	const materialized = await materializeSwebenchInstance({
+		cacheRoot,
+		instanceId,
+		targetDir: workspacePath,
+		pythonVersion: entry.python,
+	});
 	const { instance } = materialized;
 	// The runtime writes its board/session state INTO the workspace (`.nklein/`); without this exclude the sealed
 	// capture refuses the tree as dirty (pilot 2026-09-14). Same rule the F11.3 seal applies in its docker plan.
