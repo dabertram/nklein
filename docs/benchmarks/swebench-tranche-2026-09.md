@@ -80,6 +80,27 @@ Running tally: **1 / 1 resolved**.
 
 Running tally: **1 / 1 resolved**.
 
+### Opus 5 arm — !Klein `83c39fe71`, `claude-opus-5-hitl` (COMPLETE 2026-09-15 01:41)
+
+Seat: `claude -p --model claude-opus-5` through the HITL model server (Claude Code 2.1.270 (Claude Code), CLI default
+effort, schema answer mode, responder concurrency 1 until 00:25 then 4). Receipts: `swebench-tranche-2026-09/opus5/`.
+
+| instance | resolved | minutes | outcome | note |
+|---|---|---|---|---|
+| pallets__flask-5014 | yes | 7 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 59 pass-to-pass held; `src/flask/blueprints.py` |
+| psf__requests-1921 | yes | 7 | blocked_by_review_cards | resolved: 6/6 fail-to-pass now green, 105 pass-to-pass held; `requests/sessions.py` |
+| psf__requests-2317 | no | 7 | blocked_by_review_cards | unresolved: 1 fail-to-pass still failing; `requests/sessions.py` |
+| psf__requests-5414 | yes | 7 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 124 pass-to-pass held; `requests/models.py` |
+| pytest-dev__pytest-5227 | yes | 16 | blocked_by_review_cards | resolved: 3/3 fail-to-pass now green, 31 pass-to-pass held; `src/_pytest/logging.py` |
+| pytest-dev__pytest-6202 | yes | 13 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 72 pass-to-pass held; `src/_pytest/python.py` |
+| pytest-dev__pytest-7521 | yes | 9 | blocked_by_review_cards | resolved: 2/2 fail-to-pass now green, 122 pass-to-pass held; `src/_pytest/capture.py` |
+| pylint-dev__pylint-4970 | yes | 8 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 17 pass-to-pass held; `pylint/checkers/similar.py` |
+| pylint-dev__pylint-6903 | yes | 6 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 8 pass-to-pass held; `pylint/lint/run.py` |
+| pylint-dev__pylint-7993 | yes | 7 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 10 pass-to-pass held; `pylint/reporters/text.py` |
+
+**Score: 9 / 10 resolved.** Mean 8.6 min per instance. The one failure, requests-2317, is the instance every Claude seat and
+the qwen3.8 arm failed the same way (one fail-to-pass still failing after a `sessions.py` change).
+
 ### Claude arms — !Klein `83c39fe71`, `claude-{sonnet-5,opus-5,fable-5-1,haiku-4-5}-hitl` (started 2026-09-14 22:14)
 
 First launch (22:00) burned one instance per arm with `session did not start … does not report a context window`

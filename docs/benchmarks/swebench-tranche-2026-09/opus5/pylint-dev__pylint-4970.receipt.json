@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-opus5-pylint-dev__pylint-4970",
+  "instanceId": "pylint-dev__pylint-4970",
+  "repo": "pylint-dev/pylint",
+  "baseCommit": "40cc2ffd7887959157aaf469e09585ec2be7f528",
+  "tarballSha256": "1b7f0146e8091589eb51d6e76a17a6d85e736ae70ecd90a483d63f92f4ba640f",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "f74601bc78d49c550f864870126276fb5cd961a2",
+    "runtimeOrigin": "http://127.0.0.1:3516",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-opus5/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"opus5\": !Klein 83c39fe71 driven by claude-opus-5 (HITL seat on :8097) from its own HOME on :3516.\n# Same env as the HITL drain: no local LLM at all — custodian/merge-fallback off; long review walls (the seat answers at\n# agent speed, not endpoint speed); alternate wires off.\nD=\"/Users/david/.nklein/factory-drains/swebench-opus5\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_CUSTODIAN_MODEL=\"\" NKLEIN_MERGE_FALLBACK_MODEL=\"\"\nexport NKLEIN_REVIEW_TIMEOUT_MS=2400000 NKLEIN_REVIEW_VERDICT_RESERVE_MS=360000\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\nexport NKLEIN_ALTERNATE_ENDPOINT=off NKLEIN_SKILL_API_DIRECT=off\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3516 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3516"
+    }
+  },
+  "model": {
+    "kind": "claude-cli",
+    "identifier": "claude-opus-5-hitl",
+    "model": "claude-opus-5",
+    "modelMap": {},
+    "concurrency": 4,
+    "claudeVersion": "2.1.270 (Claude Code)",
+    "startedAt": "2026-09-14T22:25:43.583Z"
+  },
+  "startedAt": "2026-09-14T23:12:27.682Z",
+  "finishedAt": "2026-09-14T23:19:59.914Z",
+  "durationMs": 452232,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "blocked_by_review_cards",
+  "workflowSummary": "Blocked by review cards: 1 card(s) awaiting review, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "claude-opus-5-hitl": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 903,
+    "baseCommit": "ad83f2f8388233cb8f9aa666aaf23e077c546157",
+    "resultCommit": "37bdd55c808a45b4e7a96e547e123756f2ffbbfe",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-opus5-pylint-dev__pylint-4970-3c436c95cd"
+  },
+  "changedFiles": [
+    "pylint/checkers/similar.py"
+  ],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": [
+      "pylint/checkers/similar.py"
+    ]
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": true,
+    "failToPassPassed": [
+      "tests/checkers/unittest_similar.py::test_set_duplicate_lines_to_zero"
+    ],
+    "failToPassFailed": [],
+    "passToPassFailed": [],
+    "reason": "resolved: 1/1 fail-to-pass now green, 17 pass-to-pass held",
+    "graderStdoutTail": "SSED tests/checkers/unittest_similar.py::test_ignore_imports\nPASSED tests/checkers/unittest_similar.py::test_multiline_imports\nPASSED tests/checkers/unittest_similar.py::test_ignore_multiline_imports\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_fail\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_pass\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_class_methods_fail\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_class_methods_pass\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_empty_functions_fail\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_empty_functions_pass\nPASSED tests/checkers/unittest_similar.py::test_no_hide_code_with_imports\nPASSED tests/checkers/unittest_similar.py::test_ignore_nothing\nPASSED tests/checkers/unittest_similar.py::test_lines_without_meaningful_content_do_not_trigger_similarity\nPASSED tests/checkers/unittest_similar.py::test_help\nPASSED tests/checkers/unittest_similar.py::test_no_args\nPASSED tests/checkers/unittest_similar.py::test_get_map_data\n======================== 17 passed, 3 warnings in 0.03s ========================\n===SWEBENCH_END===\n"
+  },
+  "resolved": true,
+  "excludedFromScore": null,
+  "pinnedResult": "37bdd55c808a45b4e7a96e547e123756f2ffbbfe",
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-opus5/workspaces/swebench-opus5-pylint-dev__pylint-4970"
+}
