@@ -18,7 +18,7 @@
  * `$HITL_ROOT/seat.json` for the arm's harness card.
  */
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { appendFileSync, existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -36,6 +36,19 @@ const MODEL_MAP = (() => {
 	}
 })();
 const EFFORT_LEVELS = new Set(["low", "medium", "high", "xhigh", "max"]);
+// The CLI's default effort lets a frontier seat think without limit: on the dsh rig one prose turn spent 58k of its
+// 63k output tokens thinking (15 minutes for a 4 KB file). A request that names no reasoning_effort gets this default.
+const DEFAULT_EFFORT = EFFORT_LEVELS.has(process.env.CLAUDE_DEFAULT_EFFORT ?? "") ? process.env.CLAUDE_DEFAULT_EFFORT : null;
+// ANSWER MODE. "schema" = the CLI's --json-schema (the seat's answer is enforced by a StructuredOutput tool — but the
+// CLI runs TWO passes for it: the model answers in text first, then is told to call the tool and generates the whole
+// answer again; every turn costs and waits double). "text" = one pass: the model writes the JSON object itself and the
+// responder parses it (a reply that is not JSON becomes plain content). The dsh rig runs text mode; the SWE-bench arms
+// keep schema mode for pass-1 comparability.
+const ANSWER_MODE = process.env.CLAUDE_ANSWER_MODE === "text" ? "text" : "schema";
+// STREAMING: with CLAUDE_STREAM=1 the CLI emits partial events; thinking deltas and the `content` string (decoded
+// incrementally out of the JSON the model is typing) are appended to answers/<seq>.stream.jsonl, which the HITL
+// server forwards to the client as SSE deltas while the turn is still running.
+const STREAM = process.env.CLAUDE_STREAM === "1";
 
 /** The CLI seat for a request: its `model` through CLAUDE_MODEL_MAP, else the configured default. */
 function seatFor(request) {
@@ -46,7 +59,7 @@ function seatFor(request) {
 /** The CLI effort for a request: a valid top-level `reasoning_effort`, else none (the CLI default). */
 function effortFor(request) {
 	const effort = typeof request?.reasoning_effort === "string" ? request.reasoning_effort.trim().toLowerCase() : "";
-	return EFFORT_LEVELS.has(effort) ? effort : null;
+	return EFFORT_LEVELS.has(effort) ? effort : DEFAULT_EFFORT;
 }
 
 const ANSWER_SCHEMA = {
@@ -108,7 +121,9 @@ function buildPrompt(request) {
 		"request an autonomous coding agent (nklein) sent you. Produce the assistant's NEXT message, nothing else.",
 		"",
 		"Rules of the wire:",
-		"- Reply ONLY as the JSON object of the required schema: content (your text), tool_calls (zero or more calls to",
+		ANSWER_MODE === "text"
+			? '- Reply ONLY with one JSON object, no code fence, no prose before or after it: {"content": <your text, may be long>, "tool_calls": [{"name": <tool>, "arguments": {…}}…], "finish_reason": "stop"|"tool_calls"}. Put "content" FIRST.'
+			: "- Reply ONLY as the JSON object of the required schema: content (your text), tool_calls (zero or more calls to",
 		"  the tools offered BELOW, with arguments matching each tool's JSON schema exactly), finish_reason",
 		"  ('tool_calls' when tool_calls is non-empty, else 'stop').",
 		"- You have NO tools of your own here. The only way to read, run or write anything is a tool_call the agent will",
@@ -127,7 +142,54 @@ function buildPrompt(request) {
 	].join("\n");
 }
 
-function runClaude(prompt, { model, effort }) {
+/**
+ * Decodes the `content` string value out of the JSON object the model is typing, character by character, so the
+ * text can be forwarded while the rest of the object is still being generated. Waits for the `"content": "` key,
+ * then JSON-unescapes until the closing quote (a trailing incomplete escape is held back until it completes).
+ */
+function createContentStreamer(emit) {
+	const ESCAPES = { n: "\n", t: "\t", r: "\r", '"': '"', "\\": "\\", "/": "/", b: "\b", f: "\f" };
+	let raw = "";
+	let phase = "seek";
+	return (delta) => {
+		if (phase === "done") return;
+		raw += delta;
+		if (phase === "seek") {
+			const match = /"content"\s*:\s*"/u.exec(raw);
+			if (!match) return;
+			phase = "in";
+			raw = raw.slice(match.index + match[0].length);
+		}
+		let out = "";
+		let i = 0;
+		while (i < raw.length) {
+			const ch = raw[i];
+			if (ch === '"') {
+				phase = "done";
+				break;
+			}
+			if (ch === "\\") {
+				if (i + 1 >= raw.length) break;
+				const next = raw[i + 1];
+				if (next === "u") {
+					if (i + 6 > raw.length) break;
+					out += String.fromCharCode(Number.parseInt(raw.slice(i + 2, i + 6), 16));
+					i += 6;
+					continue;
+				}
+				out += ESCAPES[next] ?? next;
+				i += 2;
+				continue;
+			}
+			out += ch;
+			i += 1;
+		}
+		raw = raw.slice(i);
+		if (out) emit(out);
+	};
+}
+
+function runClaude(prompt, { model, effort, onThinking, onText }) {
 	return new Promise((resolve, reject) => {
 		const args = [
 			"-p",
@@ -136,14 +198,14 @@ function runClaude(prompt, { model, effort }) {
 			...(effort ? ["--effort", effort] : []),
 			// NOT --bare: bare mode skips the keychain login and returns an empty answer (exit 1, 0 api ms).
 			"--no-session-persistence",
-			"--output-format",
-			"json",
-			"--json-schema",
-			JSON.stringify(ANSWER_SCHEMA),
+			...(STREAM ? ["--output-format", "stream-json", "--include-partial-messages", "--verbose"] : ["--output-format", "json"]),
+			...(ANSWER_MODE === "schema" ? ["--json-schema", JSON.stringify(ANSWER_SCHEMA)] : []),
 			"--disallowedTools",
 			DISALLOWED_TOOLS,
 			"--append-system-prompt",
-			"You answer as a machine endpoint: output only the structured JSON answer; no prose outside it.",
+			ANSWER_MODE === "text"
+				? "You answer as a machine endpoint: output only the JSON answer object described by the user message; no prose, no code fence outside it."
+				: "You answer as a machine endpoint: output only the structured JSON answer; no prose outside it.",
 		];
 		// cwd = the queue dir: an empty directory, so no project CLAUDE.md/AGENTS.md is loaded into every call.
 		const child = spawn("claude", args, {
@@ -153,12 +215,34 @@ function runClaude(prompt, { model, effort }) {
 		});
 		let stdout = "";
 		let stderr = "";
+		let lineBuffer = "";
+		let resultEnvelope = null;
 		const timer = setTimeout(() => {
 			child.kill("SIGKILL");
 			reject(new Error(`claude -p timed out after ${CALL_TIMEOUT_MS} ms`));
 		}, CALL_TIMEOUT_MS);
+		const onStreamLine = (line) => {
+			let event;
+			try {
+				event = JSON.parse(line);
+			} catch {
+				return;
+			}
+			if (event?.type === "result") resultEnvelope = event;
+			if (event?.type !== "stream_event") return;
+			const delta = event.event?.delta;
+			if (!delta || event.event?.type !== "content_block_delta") return;
+			if (delta.type === "thinking_delta" && typeof delta.thinking === "string") onThinking?.(delta.thinking);
+			else if (delta.type === "text_delta" && typeof delta.text === "string") onText?.(delta.text);
+			else if (delta.type === "input_json_delta" && typeof delta.partial_json === "string") onText?.(delta.partial_json);
+		};
 		child.stdout.on("data", (chunk) => {
 			stdout += chunk;
+			if (!STREAM) return;
+			lineBuffer += chunk;
+			const lines = lineBuffer.split("\n");
+			lineBuffer = lines.pop() ?? "";
+			for (const line of lines) if (line.trim()) onStreamLine(line);
 		});
 		child.stderr.on("data", (chunk) => {
 			stderr += chunk;
@@ -169,17 +253,43 @@ function runClaude(prompt, { model, effort }) {
 		});
 		child.on("close", (code) => {
 			clearTimeout(timer);
+			if (STREAM && lineBuffer.trim()) onStreamLine(lineBuffer);
 			if (code !== 0) reject(new Error(`claude -p exited ${code}: ${stderr.slice(-800)}`));
+			else if (STREAM) resolve(resultEnvelope ?? { result: "" });
 			else resolve(stdout);
 		});
 		child.stdin.end(prompt);
 	});
 }
 
+/** The JSON object in a text answer: fences stripped, the outermost braces taken (prose around them ignored). */
+function parseAnswerObject(text) {
+	const stripped = text.replace(/^```(?:json)?\s*|\s*```$/gu, "").trim();
+	try {
+		return JSON.parse(stripped);
+	} catch {
+		const start = stripped.indexOf("{");
+		const end = stripped.lastIndexOf("}");
+		if (start >= 0 && end > start) return JSON.parse(stripped.slice(start, end + 1));
+		throw new Error("no JSON object in the answer");
+	}
+}
+
 function extractAnswer(raw) {
-	const envelope = JSON.parse(raw);
+	const envelope = typeof raw === "string" ? JSON.parse(raw) : raw;
 	const candidate = envelope.structured_output ?? envelope.result ?? envelope;
-	const parsed = typeof candidate === "string" ? JSON.parse(candidate.replace(/^```(?:json)?\s*|\s*```$/gu, "")) : candidate;
+	let parsed;
+	if (typeof candidate === "string") {
+		try {
+			parsed = parseAnswerObject(candidate);
+		} catch (error) {
+			if (ANSWER_MODE !== "text") throw error;
+			// A text-mode seat that answered in prose instead of the JSON object: the prose IS the content.
+			parsed = { content: candidate, tool_calls: [], finish_reason: "stop" };
+		}
+	} else {
+		parsed = candidate;
+	}
 	if (!parsed || typeof parsed !== "object") throw new Error("no answer object in claude output");
 	const toolCalls = Array.isArray(parsed.tool_calls) ? parsed.tool_calls : [];
 	return {
@@ -204,9 +314,19 @@ async function answerOne(seq) {
 	const effort = effortFor(request);
 	const startedAt = Date.now();
 	log(`request ${seq}: ${request.messages?.length ?? 0} messages, ${request.tools?.length ?? 0} tools, ${prompt.length} chars → ${model}${effort ? ` (effort ${effort})` : ""}`);
+	const streamPath = join(ROOT, "answers", `${seq}.stream.jsonl`);
+	const appendStream = (record) => appendFileSync(streamPath, `${JSON.stringify(record)}\n`);
+	const streamContent = createContentStreamer((text) => appendStream({ content: text }));
 	let answer;
 	try {
-		answer = extractAnswer(await runClaude(prompt, { model, effort }));
+		answer = extractAnswer(
+			await runClaude(prompt, {
+				model,
+				effort,
+				onThinking: STREAM ? (text) => appendStream({ reasoning: text }) : undefined,
+				onText: STREAM ? streamContent : undefined,
+			}),
+		);
 	} catch (error) {
 		log(`request ${seq}: FAILED (${error instanceof Error ? error.message.split("\n")[0] : String(error)}) — answering with an error message so the agent can recover`);
 		answer = { content: `The model seat failed to answer this turn: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`, tool_calls: [], finish_reason: "stop" };
@@ -237,9 +357,13 @@ async function main() {
 	} catch {}
 	await writeFile(
 		join(ROOT, "seat.json"),
-		JSON.stringify({ kind: "claude-cli", model: MODEL, modelMap: MODEL_MAP, concurrency: CONCURRENCY, claudeVersion: version, startedAt: new Date().toISOString() }, null, 2),
+		JSON.stringify(
+			{ kind: "claude-cli", model: MODEL, modelMap: MODEL_MAP, concurrency: CONCURRENCY, answerMode: ANSWER_MODE, stream: STREAM, defaultEffort: DEFAULT_EFFORT, claudeVersion: version, startedAt: new Date().toISOString() },
+			null,
+			2,
+		),
 	);
-	log(`responder up: model ${MODEL}${Object.keys(MODEL_MAP).length > 0 ? ` (+map ${Object.keys(MODEL_MAP).join(",")})` : ""}, concurrency ${CONCURRENCY}, claude ${version}, root ${ROOT}`);
+	log(`responder up: model ${MODEL}${Object.keys(MODEL_MAP).length > 0 ? ` (+map ${Object.keys(MODEL_MAP).join(",")})` : ""}, concurrency ${CONCURRENCY}, default effort ${DEFAULT_EFFORT ?? "cli"}, answer mode ${ANSWER_MODE}${STREAM ? " (streaming)" : ""}, claude ${version}, root ${ROOT}`);
 	// Up to CONCURRENCY requests in flight at once; each is claimed exactly once (the in-flight set), answered, released.
 	const inFlight = new Set();
 	for (;;) {
