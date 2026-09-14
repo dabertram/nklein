@@ -4633,10 +4633,21 @@ These are known defects or incomplete migrations. Clear them before widening cap
   (the measured 35B-A3B vs 27B gap); `requiredCapabilityForCard(complexity, files, label)` +
   `maxComplexityForCapability` inverse + `smallestTierClearing`. Wired: fleet-aware decomposition's unmeasured
   fallback uses the tier prior (was raw billions), and every guidance mode now emits a numeric "Granularity
-  target" line (max child complexity for 1/2 files at the target class). **REMAINING:** (c) calibration loop
-  from the fitness store (per-class pass rate by complexity band → measured floors replacing priors); (d)
-  persist per-card difficulty facts on board cards so the DAG/ETA and the router see the floor; (e) validate
-  live that decompose output shrinks under the granularity line (compare child complexity distributions).
+  target" line (max child complexity for 1/2 files at the target class).
+  **▶ 2026-09-14 (d) SHIPPED, observe-first (`1a78ebb30`):** `runtimeGeneratedFromPlanSchema.difficultyFacts` (complexity,
+  likelyFileCount, requiredCapability, smallestTier — inputs AND the mapping's answer, so (c) can recompute
+  from facts rather than a stale prior's number); `deriveCardDifficultyFacts` (pure core) stamps every generated
+  child in `plan-task-board-apply`; legacy cards still parse; the web-ui provenance normalizer passes the facts
+  through (it rebuilds `generatedFromPlan` field-by-field — an omission there would have stripped the floor on
+  every board write-back; round-trip test). The router SEES the floor: `start-task-session` records
+  `card_difficulty_floor` on EVERY start (persisted floor + tier next to the prompt-token estimate, `floorBinds`,
+  `floorGap`; "no persisted floor" is itself recorded) — registered `every_run`/`attempt_started`. **Nothing
+  routes on the floor yet, deliberately:** the mapping is a researched prior; routing on it before the fitness
+  store has judged it would be a plausible number standing in for a fact never established. The flip is (c)'s
+  outcome, decided from the `floorBinds` stream. **REMAINING:** (c) calibration loop from the fitness store
+  (per-class pass rate by complexity band → measured floors replacing priors; then flip routing onto the
+  persisted floor); (e) validate live that decompose output shrinks under the granularity line (compare child
+  complexity distributions — the persisted facts now make that comparison a board query).
 
 #### 3A. Adaptive recovery controller *(legacy §5.O, §5.AA)*
 
